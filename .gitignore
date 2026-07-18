@@ -166,3 +166,7 @@ fast_gates_fail.json
 
 # Portable end-user packages are reproducible CI artifacts, never source.
 dist/tv-onboarding/
+artifacts/monitoring/opra_live_shadow.json
+artifacts/monitoring/opra_shadow_ledger.jsonl
+artifacts/monitoring/databento_usage.json
+artifacts/monitoring/databento_usage.json.lock

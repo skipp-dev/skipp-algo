@@ -104,10 +104,10 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # downward by +115/+124/+134/+143/+152 — action remains ``"always"``.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
     ("databento_volatility_screener.py", 881, "always"),  # 2026-07-12 (re-export import): +7
-    ("databento_volatility_screener.py", 1980, "always"),
-    ("databento_volatility_screener.py", 2621, "always"),
-    ("databento_volatility_screener.py", 3193, "always"),  # 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 3120->3193
-    ("databento_volatility_screener.py", 3357, "always"),  # 2026-07-13 (collect_benchmark_universe_ohlcv_1m): 3284->3357
+    ("databento_volatility_screener.py", 1997, "always"),  # 2026-07-18 (dataset-role enforcement): 1980->1997
+    ("databento_volatility_screener.py", 2638, "always"),  # 2026-07-18 (dataset-role enforcement): 2621->2638
+    ("databento_volatility_screener.py", 3210, "always"),  # 2026-07-18 (dataset-role enforcement): 3193->3210
+    ("databento_volatility_screener.py", 3374, "always"),  # 2026-07-18 (dataset-role enforcement): 3357->3374
     ("databento_universe.py", 162, "always"),
 }
 

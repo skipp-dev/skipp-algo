@@ -81,7 +81,7 @@
 # _is_urlopen_call to match ast.Name in addition to ast.Attribute.
 # All have timeout=; none were visible to the old Attribute-only detector.
 "databento_universe.py" = [306]
-"databento_volatility_screener.py" = [1437]
+"databento_volatility_screener.py" = [1454] # 2026-07-18 catalog alias added above the frozen HTTP call
 "open_prep/bea.py" = [94]
 # 2026-07-16: measured TradingView dropdown snapshot bridge. HTTPS-only,
 # explicit 10s timeout, optional bearer token, local-file fallback.
@@ -393,6 +393,14 @@ file = "scripts/build_evidence_freshness_snapshot.py"
 attr = "run"
 count = 1
 
+# scripts/build_databento_usage_baseline.py: read-only git inventory helper.
+# The executable is PATH-resolved and argv is a fixed token list; shell mode is
+# never enabled and provider credentials are not involved.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/build_databento_usage_baseline.py"
+attr = "run"
+count = 1
+
 [[subprocess_shell_injection_pin.sites]]
 file = "open_prep/realtime_signals.py"
 attr = "Popen"
@@ -615,7 +623,6 @@ frozen_major = "v7"
 "scripts/databento_production_export.py" = 1
 "scripts/generate_databento_watchlist.py" = 1
 "scripts/generate_smc_micro_base_from_databento.py" = 3
-"scripts/probe_databento_entitlement.py" = 1
 "scripts/probe_newsapi_feed_cursor.py" = 6
 "scripts/probe_providers.py" = 1
 "scripts/refresh_overlay_enrichment.py" = 1
@@ -718,7 +725,6 @@ frozen_major = "v7"
 "scripts/databento_production_export.py" = [["time", "releaseTime"]]
 "scripts/generate_databento_watchlist.py" = [["export_generated_at", "exported_at"]]
 "scripts/generate_smc_micro_base_from_databento.py" = [["delivered_provider", "provider"], ["event_risk", "event_risk_light"], ["session_context_light", "session_context"]]
-"scripts/probe_databento_entitlement.py" = [["schema", "schemas"]]
 "scripts/probe_newsapi_feed_cursor.py" = [["headline", "title"], ["headline", "title"], ["published", "date"], ["published", "date"], ["published", "date"], ["published", "date"]]
 "scripts/probe_providers.py" = [["reddit", "twitter"]]
 "scripts/publish_universe_snapshots.py" = [["GH_PAT", "GITHUB_TOKEN"]]

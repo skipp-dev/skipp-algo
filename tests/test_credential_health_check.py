@@ -612,4 +612,4 @@ def test_databento_delivery_uses_basic_auth_and_dataset() -> None:
     auth = req.headers.get("Authorization") or req.headers.get("authorization")
     assert auth is not None and auth.startswith("Basic ")
     assert "metadata.get_dataset_range" in req.full_url
-    assert "dataset=DBEQ.BASIC" in req.full_url
+    assert "dataset=EQUS.SUMMARY" in req.full_url

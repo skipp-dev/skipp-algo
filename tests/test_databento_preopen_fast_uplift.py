@@ -407,9 +407,10 @@ def test_merge_current_structure_features_returns_copy_when_detail_empty() -> No
 
 def test_build_parser_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABENTO_DATASET", raising=False)
+    monkeypatch.delenv("DATABENTO_EQUITY_INTRADAY_DATASET", raising=False)
     parser = dpf._build_parser()
     args = parser.parse_args([])
-    assert args.dataset == "DBEQ.BASIC"
+    assert args.dataset == "EQUS.MINI"
     assert args.export_dir == str(dpf.DEFAULT_EXPORT_DIR)
     assert args.bundle is None
     assert args.scope_days == 0
@@ -430,10 +431,10 @@ def test_build_parser_overrides() -> None:
 
 
 def test_build_parser_dataset_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DATABENTO_DATASET", "ENV.DATASET")
+    monkeypatch.setenv("DATABENTO_EQUITY_INTRADAY_DATASET", "EQUS.MINI")
     parser = dpf._build_parser()
     args = parser.parse_args([])
-    assert args.dataset == "ENV.DATASET"
+    assert args.dataset == "EQUS.MINI"
 
 
 # ---------------------------------------------------------------------------

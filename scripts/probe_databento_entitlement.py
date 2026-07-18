@@ -1,230 +1,152 @@
-"""Live probe for Databento dataset entitlement (provider audit 2026-05-12).
+"""Read-only Databento catalog, historical-access, and optional live probe.
 
-Provider-utilization audit row "Verify Databento dataset entitlement via
-``client.metadata.list_datasets()``; document tier" — the OPRA UOA migration
-landed on the assumption that ``DATABENTO_API_KEY`` is entitled to
-``OPRA.PILLAR``, but the audit also flagged a broader dormancy delta:
-``mbo`` / ``mbp-1`` / ``mbp-10`` / ``definition`` / ``statistics`` /
-``imbalance`` / ``cmbp-1`` / ``cbbo-1s`` schemas are all currently
-NOT consumed by any cron and could materially improve SMC liquidity
-context, pre-market briefing, and FMP load if wired.
-
-This script enumerates the authoritative entitlement by:
-
-1. Calling ``client.metadata.list_datasets()`` to enumerate ALL datasets
-   the configured API key can access.
-2. For each accessible dataset, calling ``client.metadata.get_dataset_range``
-   and ``client.metadata.list_schemas`` (when available) to print the
-   per-schema coverage window.
-3. Probing the existing project-preferred dataset list
-   (``PREFERRED_DATABENTO_DATASETS``) so the operator can see which item
-   the auto-selector would pick.
-4. Flagging the high-value schemas from the audit (``imbalance``,
-   ``definition``, ``mbo``, ``statistics``, ``cmbp-1``, ``cbbo-1s``,
-   and any ``OPRA.PILLAR`` membership) with ENTITLED / NOT-ENTITLED.
-
-Usage::
-
-    DATABENTO_API_KEY=... python -m scripts.probe_databento_entitlement
-
-The output is intended to be pasted into the audit follow-up doc so the
-tier-upgrade decision (extend to OPRA.PILLAR? add imbalance schema?) has
-ground truth attached.
-
-This is a READ-ONLY probe. It does not write artifacts, send any data,
-or mutate state. No retries. Fail-loud is partial: only a failed/empty
-``list_datasets`` exits non-zero; per-dataset ``get_dataset_range``
-failures are printed as ``_error`` sentinels and the run still exits 0.
+The filename is retained for operator compatibility. The report deliberately
+separates three facts: global catalog membership, historical range access, and
+live access. Catalog membership never proves an account entitlement.
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
-from typing import Any
+from collections.abc import Sequence
 
-# High-value schemas the provider-audit (2026-05-12) called out as
-# dormant-but-strategic. We probe each of these per dataset so the
-# operator can decide whether the current tier already includes them
-# or a tier upgrade is needed.
-_AUDIT_FOCUS_SCHEMAS: tuple[str, ...] = (
-    # SMC microstructure (mbp/mbo)
-    "mbo", "mbp-1", "mbp-10",
-    # Reference / corp actions
-    "definition",
-    # Daily OHLC + bid/ask stats (cheaper than trades re-aggregation)
-    "statistics",
-    # Pre-market signal currently absent
-    "imbalance",
-    # Consolidated NBBO 1s (spread/liquidity granularity)
-    "cmbp-1", "cbbo-1s",
-    # Options flow (drives OPRA UOA migration)
-    "trades",
+from databento_access import (
+    DatasetAccessStatus,
+    inspect_historical_access,
+    list_catalog_datasets_from_client,
+    probe_live_access,
 )
 
-# Datasets we strategically care about per the audit. The probe annotates
-# whether the key is entitled to each.
-_AUDIT_FOCUS_DATASETS: tuple[str, ...] = (
-    "OPRA.PILLAR",        # Options \u2014 retires Unusual Whales
-    "DBEQ.BASIC",         # Default equity feed
-    "XNAS.ITCH",          # NASDAQ depth (mbo / mbp-10)
-    "GLBX.MDP3",          # CME (futures, not currently used)
-    "XNYS.PILLAR",        # NYSE PILLAR (mbp depth)
-    "OPRA.AUCTION",       # Options auction
-    "DBEQ.MAX",           # Premium equity bundle
+_FOCUS_DATASETS: tuple[str, ...] = (
+    "EQUS.MINI",
+    "EQUS.SUMMARY",
+    "XNAS.ITCH",
+    "XNYS.PILLAR",
+    "XASE.PILLAR",
+    "ARCX.PILLAR",
+    "XNAS.BASIC",
+    "DBEQ.BASIC",
+    "OPRA.PILLAR",
+    "GLBX.MDP3",
 )
 
 
 def _get_api_key() -> str:
-    """Return the configured Databento API key, or exit if missing."""
     key = os.environ.get("DATABENTO_API_KEY", "").strip()
     if not key:
-        sys.stderr.write(
-            "ERROR: DATABENTO_API_KEY is not set. Cannot probe entitlement.\n"
-        )
-        sys.exit(2)
+        raise RuntimeError("DATABENTO_API_KEY is not set")
     return key
 
 
-def _try_call(label: str, fn, *args, **kwargs) -> Any:
-    """Call ``fn`` and return its result, or a ``{'error': ...}`` sentinel.
-
-    We never raise out of this helper because the probe is meant to be
-    informational: a 4xx on one schema should not abort the rest of the
-    report.
-    """
-    try:
-        return fn(*args, **kwargs)
-    except Exception as exc:
-        from databento_utils import _redact_sensitive_error_text
-        return {
-            "_error": _redact_sensitive_error_text(
-                f"{label} failed: {type(exc).__name__}: {exc}",
-            ),
-        }
+def _tri(value: bool | None, *, checked: bool = True) -> str:
+    if not checked or value is None:
+        return "UNKNOWN"
+    return "YES" if value else "NO"
 
 
-def _format_section(title: str) -> str:
-    bar = "=" * len(title)
-    return f"\n{title}\n{bar}\n"
-
-
-def main() -> int:
-    api_key = _get_api_key()
-    try:
-        from databento_client import _make_databento_client
-    except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot import databento_client: {exc}\n")  # SECLEAK: ImportError text contains module path only, no key/secret
-        return 2
-    try:
-        client = _make_databento_client(api_key)
-    except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot construct Databento client: {exc}\n")  # SECLEAK: _make_databento_client raises ValueError on missing config; no key/secret in message
-        return 2
-
-    print(_format_section("Databento entitlement probe \u2014 2026-05-12"))
-    print(f"Key fingerprint: ...{api_key[-4:]}  (last 4 chars only)")
-
-    # ------------------------------------------------------------------
-    # 1. Enumerate all accessible datasets
-    # ------------------------------------------------------------------
-    print(_format_section("1. Accessible datasets (client.metadata.list_datasets)"))
-    datasets_raw = _try_call("list_datasets", client.metadata.list_datasets)
-    if isinstance(datasets_raw, dict) and "_error" in datasets_raw:
-        print(f"  ERROR: {datasets_raw['_error']}")
-        return 1
-    if not datasets_raw:
-        print("  (no datasets returned)")
-        return 1
-    datasets = sorted(str(d) for d in datasets_raw)
-    print(f"  Total: {len(datasets)} datasets")
-    for ds in datasets:
-        print(f"    - {ds}")
-
-    accessible = set(datasets)
-
-    # ------------------------------------------------------------------
-    # 2. Audit-focus dataset entitlement table
-    # ------------------------------------------------------------------
-    print(_format_section("2. Audit-focus dataset entitlement"))
-    print("  Dataset                Entitled?")
-    print("  ---------------------- ---------")
-    for ds in _AUDIT_FOCUS_DATASETS:
-        flag = "YES" if ds in accessible else "NO"
-        print(f"  {ds:<22} {flag}")
-
-    opra_entitled = "OPRA.PILLAR" in accessible
-    print()
-    print(
-        f"  OPRA.PILLAR entitled: {opra_entitled}  \u2014 "
-        + (
-            "OK, ENABLE_OPRA_UOA can be flipped to 1."
-            if opra_entitled
-            else "NOT entitled. OPRA UOA migration blocked until tier upgrade."
-        )
+def format_status(status: DatasetAccessStatus) -> str:
+    """Format one status without collapsing unknown into false."""
+    historical = _tri(status.historical_range_available)
+    live = _tri(status.live_entitled, checked=status.live_checked)
+    history_range = ""
+    if status.historical_start or status.historical_end:
+        history_range = f" [{status.historical_start or '?'} -> {status.historical_end or '?'}]"
+    return (
+        f"{status.dataset:<16} catalog={_tri(status.catalog_present):<7} "
+        f"historical={historical:<7}{history_range} "
+        f"live={live:<7} reason={status.reason}"
     )
 
-    # ------------------------------------------------------------------
-    # 3. Per-dataset schema coverage (for the focus datasets only \u2014 we
-    #    don't want a 10x explosion of metadata calls in the report).
-    # ------------------------------------------------------------------
-    print(_format_section("3. Schema coverage (focus datasets)"))
-    for ds in _AUDIT_FOCUS_DATASETS:
-        if ds not in accessible:
-            continue
-        ds_range = _try_call(
-            f"get_dataset_range({ds})",
-            client.metadata.get_dataset_range,
-            dataset=ds,
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dataset", action="append", dest="datasets")
+    parser.add_argument(
+        "--probe-live",
+        action="store_true",
+        help="perform a bounded live subscription probe (off by default)",
+    )
+    parser.add_argument("--live-schema", default="trades")
+    parser.add_argument("--live-symbol", default="AAPL")
+    parser.add_argument("--live-timeout-seconds", type=float, default=5.0)
+    return parser
+
+
+def run_probe(
+    client: object,
+    *,
+    api_key: str,
+    datasets: Sequence[str],
+    probe_live: bool,
+    live_schema: str,
+    live_symbol: str,
+    live_timeout_seconds: float,
+    catalog_datasets: list[str] | None = None,
+) -> list[DatasetAccessStatus]:
+    """Collect independent access facts for each requested dataset."""
+    catalog = (
+        catalog_datasets
+        if catalog_datasets is not None
+        else list_catalog_datasets_from_client(client)
+    )
+    statuses: list[DatasetAccessStatus] = []
+    for dataset in datasets:
+        status = inspect_historical_access(
+            client,
+            dataset,
+            catalog_datasets=catalog,
         )
-        print(f"\n  -- {ds} --")
-        if isinstance(ds_range, dict) and "_error" in ds_range:
-            print(f"    range: {ds_range['_error']}")
-            continue
-        start = ""
-        end = ""
-        schemas: list[str] = []
-        if isinstance(ds_range, dict):
-            start = str(ds_range.get("start", ""))
-            end = str(ds_range.get("end", ""))
-            schema_field = ds_range.get("schema") or ds_range.get("schemas")
-            if isinstance(schema_field, dict):
-                schemas = sorted(schema_field.keys())
-            elif isinstance(schema_field, (list, tuple)):
-                schemas = sorted(str(s) for s in schema_field)
-        print(f"    range:   {start}  ->  {end}")
-        if schemas:
-            print(f"    schemas: {', '.join(schemas)}")
-        else:
-            print("    schemas: (none reported by get_dataset_range)")
+        if probe_live:
+            status = probe_live_access(
+                status,
+                api_key=api_key,
+                schema=live_schema,
+                symbol=live_symbol,
+                timeout_seconds=live_timeout_seconds,
+            )
+        statuses.append(status)
+    return statuses
 
-        # Cross-tab with the audit-focus schema list
-        if schemas:
-            schema_set = set(schemas)
-            for s in _AUDIT_FOCUS_SCHEMAS:
-                flag = "YES" if s in schema_set else "no"
-                print(f"      [{flag}] {s}")
 
-    # ------------------------------------------------------------------
-    # 4. PREFERRED_DATABENTO_DATASETS check
-    # ------------------------------------------------------------------
-    print(_format_section("4. PREFERRED_DATABENTO_DATASETS selection"))
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
     try:
-        from databento_client import PREFERRED_DATABENTO_DATASETS as _PREF
-    except Exception as exc:
-        print(f"  (could not import PREFERRED_DATABENTO_DATASETS: {exc})")  # SECLEAK: ImportError text only
-    else:
-        picked = None
-        for ds in _PREF:
-            if ds in accessible:
-                picked = ds
-                break
-        print(f"  Preferred order: {list(_PREF)}")
-        print(f"  Auto-selector would pick: {picked or '(fallback: DBEQ.BASIC)'}")
+        api_key = _get_api_key()
+        from databento_client import _make_databento_client
 
-    print(_format_section("Done"))
-    return 0 if opra_entitled or accessible else 1
+        client = _make_databento_client(api_key)
+        catalog = list_catalog_datasets_from_client(client)
+    except Exception as exc:
+        from databento_utils import _redact_sensitive_error_text
+
+        message = _redact_sensitive_error_text(f"{type(exc).__name__}: {exc}")
+        print(f"ERROR: {message}", file=sys.stderr)
+        return 2
+
+    datasets = tuple(dict.fromkeys(str(item).strip().upper() for item in (args.datasets or _FOCUS_DATASETS)))
+    if args.probe_live and len(datasets) != 1:
+        print("ERROR: --probe-live requires exactly one --dataset", file=sys.stderr)
+        return 2
+    print("Databento access probe")
+    print(f"catalog_count={len(catalog)} (global catalog; not an entitlement list)")
+    print("live_probe=" + ("ENABLED" if args.probe_live else "NOT_CHECKED"))
+
+    statuses = run_probe(
+        client,
+        api_key=api_key,
+        datasets=datasets,
+        probe_live=args.probe_live,
+        live_schema=args.live_schema,
+        live_symbol=args.live_symbol,
+        live_timeout_seconds=args.live_timeout_seconds,
+        catalog_datasets=catalog,
+    )
+    for status in statuses:
+        print(format_status(status))
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

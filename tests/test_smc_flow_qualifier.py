@@ -131,6 +131,19 @@ class TestStrongBearishFlow:
         assert result["FLOW_LONG_OK"] is False
 
 
+def test_databento_trade_side_contract_reaches_delta_proxy() -> None:
+    """Databento B buys and A sells must preserve their sign downstream."""
+    from scripts.smc_trades_microstructure import aggregate_trades_microstructure
+
+    micro = aggregate_trades_microstructure(
+        pd.DataFrame({"size": [90, 10], "side": ["B", "A"]})
+    )
+    result = build_flow_qualifier(snapshot=_make_snapshot(**micro))
+
+    assert micro["buy_volume_pct"] == 90.0
+    assert result["DELTA_PROXY_PCT"] == 80.0
+
+
 # ═════════════════════════════════════════════════════════════════
 # 4. ATS spike
 # ═════════════════════════════════════════════════════════════════

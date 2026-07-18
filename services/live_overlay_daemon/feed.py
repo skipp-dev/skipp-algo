@@ -30,6 +30,8 @@ from typing import Any
 
 import databento as db
 
+import databento_usage
+
 from . import cache, compute, config, market_hours
 from .observability import metric_counter
 
@@ -260,6 +262,13 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     symbols="ALL_SYMBOLS",
                     stype_in="raw_symbol",
                 )
+                databento_usage.record(
+                    dataset="EQUS.MINI",
+                    schema="ohlcv-1m",
+                    mode="live",
+                    consumer="live-overlay-daemon",
+                    subscriptions=1,
+                )
                 _feed_connected_at = time.monotonic()
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
@@ -273,6 +282,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 _sym_none_count = 0
                 _bar_none_count = 0
                 _bars_pushed_count = 0
+                _usage_records_pending = 0
                 for record in client:
                     if stop.is_set():
                         break
@@ -300,6 +310,16 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
 
                     _ohlcv_count += 1
+                    _usage_records_pending += 1
+                    if _usage_records_pending >= 1000:
+                        databento_usage.record(
+                            dataset="EQUS.MINI",
+                            schema="ohlcv-1m",
+                            mode="live",
+                            consumer="live-overlay-daemon",
+                            records=_usage_records_pending,
+                        )
+                        _usage_records_pending = 0
                     if _ohlcv_count == 1:
                         logger.info("First OHLCV record: type=%s symmap_size=%d", rec_type, len(symmap))
 
@@ -332,14 +352,36 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             _feed_ready.set()
                             logger.info("Feed ready — first bar received for %s", sym)
                     except queue.Full:
+                        databento_usage.record(
+                            dataset="EQUS.MINI",
+                            schema="ohlcv-1m",
+                            mode="live",
+                            consumer="live-overlay-daemon",
+                            dropped_records=1,
+                        )
                         dropped_total = _record_queue_drop()
                         if _should_log_queue_drop_warning(dropped_total):
                             logger.warning(
                                 "Ingest queue full — dropping newest bar (dropped_total=%d)",
                                 int(dropped_total),
                             )
+                if _usage_records_pending:
+                    databento_usage.record(
+                        dataset="EQUS.MINI",
+                        schema="ohlcv-1m",
+                        mode="live",
+                        consumer="live-overlay-daemon",
+                        records=_usage_records_pending,
+                    )
 
             except db.BentoError as exc:
+                databento_usage.record(
+                    dataset="EQUS.MINI",
+                    schema="ohlcv-1m",
+                    mode="live",
+                    consumer="live-overlay-daemon",
+                    errors=1,
+                )
                 consecutive_failures += 1
                 _inc_metric("bento_errors")
                 _feed_ready.clear()
@@ -349,6 +391,13 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     exc_info=True,
                 )
             except Exception as exc:
+                databento_usage.record(
+                    dataset="EQUS.MINI",
+                    schema="ohlcv-1m",
+                    mode="live",
+                    consumer="live-overlay-daemon",
+                    errors=1,
+                )
                 consecutive_failures += 1
                 _inc_metric("unexpected_errors")
                 _feed_ready.clear()
@@ -386,6 +435,13 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 else _RECONNECT_DELAY_SECS
             )
             _inc_metric("reconnect_attempts")
+            databento_usage.record(
+                dataset="EQUS.MINI",
+                schema="ohlcv-1m",
+                mode="live",
+                consumer="live-overlay-daemon",
+                reconnects=1,
+            )
             logger.info("Feed reconnecting in %ds …", delay)
             stop.wait(delay)
 
@@ -446,6 +502,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
         try:
             _poll_vix_from_fmp()  # refresh cache.get_vix() before compute reads it
             n = compute.run_full_compute_cycle()
+            databento_usage.flush()
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:

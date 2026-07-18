@@ -354,9 +354,6 @@ def test_main_invokes_pipeline_with_args(
     monkeypatch.setenv("FMP_API_KEY", "fmp-key")
     monkeypatch.setenv("BENZINGA_API_KEY", "bz-key")
     monkeypatch.setattr(dpe, "load_dotenv", lambda *a, **kw: None)
-    monkeypatch.setattr(dpe, "list_accessible_datasets", lambda *a, **kw: ["XNAS.ITCH"])
-    monkeypatch.setattr(dpe, "choose_default_dataset", lambda available, requested_dataset=None: "XNAS.ITCH")
-
     captured: dict[str, Any] = {}
 
     def fake_pipeline(**kwargs: Any) -> dict[str, Any]:
@@ -371,7 +368,7 @@ def test_main_invokes_pipeline_with_args(
     monkeypatch.setattr(dpe, "run_production_export_pipeline", fake_pipeline)
 
     main([
-        "--dataset", "XNAS.ITCH",
+        "--dataset", "EQUS.MINI",
         "--lookback-days", "5",
         "--top-fraction", "0.10",
         "--bullish-score-profile", "balanced",
@@ -381,7 +378,8 @@ def test_main_invokes_pipeline_with_args(
     assert captured["databento_api_key"] == "db-key"
     assert captured["fmp_api_key"] == "fmp-key"
     assert captured["benzinga_api_key"] == "bz-key"
-    assert captured["dataset"] == "XNAS.ITCH"
+    assert captured["dataset"] == "EQUS.MINI"
+    assert captured["daily_dataset"] == "EQUS.SUMMARY"
     assert captured["lookback_days"] == 5
     assert captured["top_fraction"] == pytest.approx(0.10)
     assert captured["bullish_score_profile"] == "balanced"
@@ -402,9 +400,6 @@ def test_main_estimate_costs_flag_clears_skip(
     monkeypatch.setenv("DATABENTO_API_KEY", "db-key")
     monkeypatch.setenv("FMP_API_KEY", "")  # exercise the FMP-missing INFO branch
     monkeypatch.setattr(dpe, "load_dotenv", lambda *a, **kw: None)
-    monkeypatch.setattr(dpe, "list_accessible_datasets", lambda *a, **kw: ["XNAS.ITCH"])
-    monkeypatch.setattr(dpe, "choose_default_dataset", lambda available, requested_dataset=None: "XNAS.ITCH")
-
     captured: dict[str, Any] = {}
 
     def fake_pipeline(**kwargs: Any) -> dict[str, Any]:
