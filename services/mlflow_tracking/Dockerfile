@@ -10,5 +10,6 @@ COPY services/mlflow_tracking/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY services/mlflow_tracking /app/services/mlflow_tracking
+COPY scripts/mlflow_artifact_backup.py /app/scripts/mlflow_artifact_backup.py
 
 CMD ["python", "-m", "services.mlflow_tracking.server"]

@@ -3851,3 +3851,158 @@ groups:
         observability is blind (distinct from lo-scrape-missing which covers the daemon being down).
       runbook: Check TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL and the bot/live-tv-credential-snapshot branch;
         confirm the daily probe published a report.
+- orgId: 1
+  name: pre-a0-shadow
+  folder: PRE-A0
+  interval: 1m
+  rules:
+  - uid: pre-a0-scrape-missing
+    title: PRE-A0 metrics scrape missing
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(pre_a0_enabled{job="a0_fast"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 3m
+    labels: {severity: critical}
+    annotations:
+      summary: PRE-A0 telemetry is no longer reaching Grafana Cloud.
+      runbook: Check the metrics-collector a0_fast target, A0_FAST_SERVICE_URL, and the a0-fast-shadow /metrics endpoint.
+  - uid: pre-a0-model-unavailable
+    title: PRE-A0 model unavailable while enabled
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: pre_a0_enabled{job="a0_fast"} * (pre_a0_model_ready{job="a0_fast"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: critical}
+    annotations:
+      summary: PRE-A0 is enabled but its local fail-closed model contract is unavailable.
+      runbook: Inspect a0-fast-shadow startup logs and verify the model artifact identity, signature, validity window, and runtime contract.
+  - uid: pre-a0-calibration-invalid
+    title: PRE-A0 calibration invalid
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: pre_a0_enabled{job="a0_fast"} * (pre_a0_calibration_valid{job="a0_fast"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: critical}
+    annotations:
+      summary: PRE-A0 calibration validation is failing.
+      runbook: Keep PRE-A0 in shadow/fail-closed mode and inspect calibration window, thresholds, and artifact review_after.
+  - uid: pre-a0-runtime-errors
+    title: PRE-A0 runtime integrity errors
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(pre_a0_inference_errors_total{job="a0_fast"}[5m])) + sum(increase(pre_a0_duplicate_decision_ids_total{job="a0_fast"}[5m])) + sum(increase(pre_a0_persistence_errors_total{job="a0_fast"}[5m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 0s
+    labels: {severity: critical}
+    annotations:
+      summary: PRE-A0 reported an inference, duplicate-decision, or persistence integrity error.
+      runbook: Inspect a0-fast-shadow logs and snapshots; preserve the confirmed-A0 path and do not promote the model.
+  - uid: pre-a0-input-drift
+    title: PRE-A0 input quality degraded
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(pre_a0_feature_missing_total{job="a0_fast"}[15m])) + sum(increase(pre_a0_feature_out_of_range_total{job="a0_fast"}[15m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [10]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: high}
+    annotations:
+      summary: PRE-A0 feature missingness or range violations exceeded the shadow threshold.
+      runbook: Compare the live feature distribution with the training manifest before retraining or promotion.
+  - uid: pre-a0-shadow-data-missing
+    title: PRE-A0 shadow snapshots missing under live load
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (increase(a0_fast_records_processed_total{job="a0_fast"}[15m]) > bool 100) * (increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m]) == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: high}
+    annotations:
+      summary: A0-Fast is processing records but PRE-A0 shadow snapshots are not being persisted.
+      runbook: Check the PRE-A0 snapshot directory, volume mount, writer errors, and flush configuration.

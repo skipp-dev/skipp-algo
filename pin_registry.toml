@@ -67,6 +67,10 @@
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
 "scripts/check_workflow_freshness.py" = [72]
+# PRE-A0 MLflow health probe: HTTPS origin is validated before both calls;
+# each has a fixed 15s timeout. One call checks the unauthenticated boundary,
+# the other reads authenticated alias/run metadata with monitor-only RBAC.
+"scripts/check_pre_a0_mlflow_health.py" = [48, 55]
 # 2026-07-16: controlled Grafana TradingView-alert E2E. The reusable
 # client talks only to the configured Grafana API, uses an explicit 30s
 # timeout, silences notifications first, and cleans temporary rules in finally.

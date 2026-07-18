@@ -45,6 +45,7 @@ def test_alloy_config_requires_expected_env_vars(alloy_config: str) -> None:
     required = {
         "OVERLAY_SECRET_TOKEN",
         "OVERLAY_SERVICE_URL",
+        "A0_FAST_SERVICE_URL",
         "GRAFANA_CLOUD_PROM_URL",
         "GRAFANA_CLOUD_USER",
         "GRAFANA_CLOUD_API_KEY",
@@ -71,6 +72,15 @@ def test_alloy_remote_write_uses_grafana_cloud_env(alloy_config: str) -> None:
 
 def test_alloy_scrape_forwards_to_remote_write(alloy_config: str) -> None:
     scrape = _block(alloy_config, 'prometheus.scrape "live_overlay"')
+    assert "forward_to = [prometheus.remote_write.grafana_cloud.receiver]" in scrape
+
+
+def test_alloy_scrapes_a0_fast_pre_a0_metrics(alloy_config: str) -> None:
+    scrape = _block(alloy_config, 'prometheus.scrape "a0_fast"')
+    assert '__address__ = sys.env("A0_FAST_SERVICE_URL")' in scrape
+    assert '__metrics_path__ = "/metrics"' in scrape
+    assert 'job_name        = "a0_fast"' in scrape
+    assert 'scrape_interval = "30s"' in scrape
     assert "forward_to = [prometheus.remote_write.grafana_cloud.receiver]" in scrape
 
 

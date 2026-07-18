@@ -14,7 +14,16 @@
     "supported": false
   },
   "shadow": {
+    "max_brier_ratio": 1.0,
+    "max_ece": 0.05,
+    "min_average_precision": 0.8,
+    "min_labeled_rows_per_horizon": 1000,
+    "min_positive_rows_per_horizon": 20,
+    "min_score_coverage": 0.98,
+    "min_sessions": 5,
     "require_candidate": true,
-    "require_shadow_evaluated": true
+    "require_shadow_evaluated": true,
+    "require_single_artifact": true,
+    "require_zero_audit_findings": true
   }
 }

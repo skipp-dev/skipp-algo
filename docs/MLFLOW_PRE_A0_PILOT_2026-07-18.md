@@ -45,6 +45,26 @@ bleibt die Artefaktschicht außerdem unabhängig von einer einzelnen Replik.
 | Policy | `governance/pre_a0_promotion_policy.json` |
 | Server | `services/mlflow_tracking`, Basic Auth, PostgreSQL, proxied S3-Artefakte |
 | Runtime-Isolation | keine Änderung an `services/a0_fast_detector/requirements.txt`, Dockerfile, Variablen oder Startpfad |
+| Shadow-Evidenz | Scored Parquet-Snapshots plus A0-Journal, Hash-/Leakage-Audit und messbare Promotion-Schwellen |
+| Recovery | täglich verifizierender Railway-Cron, isolierter Restore-Drill und PostgreSQL-Rollback-Runbook |
+| Monitoring | Railway `/health`, halbstündlicher Registry-/Expiry-Probe und Grafana-PRE-A0-Regeln |
+
+## Umsetzungsstatus des Acht-Punkte-Plans
+
+| Punkt | Ergebnis | Verbleibende operative Schranke |
+| --- | --- | --- |
+| 1. Migration und Serverhärtung | Tracking- und Authmigration laufen seriell; Host, CORS, S3, Secrets und Workerzahl werden fail-closed geprüft. | Gehärtetes Image nach Merge deployen und Health-Probe wiederholen. |
+| 2. PR-Kette | A0-PR `#3771` und darauf gestapelter MLflow-PR `#3772` existieren; beide waren vor diesem Folge-Diff CI-grün. | Folge-Diff pushen, CI erneut abwarten, erst `#3771`, dann `#3772` mergen. |
+| 3. Backup und Recovery | Hash-geprüftes Backup-/Verify-/kollisionsfreies Restore-Werkzeug sowie RPO/RTO-, Restart- und Rollback-Runbook sind implementiert. | Zweiten privaten Bucket, Zeitpläne und ersten realen Restore-Drill anlegen bzw. ausführen. |
+| 4. Monitoring | Railway-Healthcheck, GitHub-Candidate-/Expiry-Probe, Alloy-Scrape und sechs Grafana-Regeln sind implementiert. | Monitor-RBAC/Secrets setzen, Collector deployen und Regeln veröffentlichen. |
+| 5. Reales Training | Scored Snapshot-Provenienz, kausaler Walk-forward-Builder, Sample-Weights und versiegelter Testpfad sind implementiert. | Erst nach neuen vollständigen Live-Sessions einen echten Run erzeugen; Alt-Snapshots enthalten die nötige Scoreprovenienz nicht. |
+| 6. Shadow-Promotion | Messbare Coverage-, Klassen-, Brier-, AP-, ECE-, Audit- und Artifact-ID-Gates sind implementiert. | `shadow` bleibt korrekt blockiert, bis mindestens fünf neue Sessions alle Schwellen belegen. |
+| 7. Zugriffsschutz | Getrennte Writer-/Monitor-Rollen und ein fail-closed RBAC-Reconciler sind implementiert. | Rollen operativ anwenden; für dauerhafte breitere Internetfreigabe weiterhin Access-Proxy/SSO ergänzen. |
+| 8. Aim/Alternativen | Entscheidung dokumentiert: MLflow bleibt führend, DVC ist die sinnvollste spätere Datensatzergänzung, Aim nur bei messbarem UI-/Skalierungsbedarf. | Keine produktive Aim-Instanz anlegen. |
+
+Damit ist der Codeanteil aller acht Punkte umgesetzt. Externe Rollout- und
+Evidenzschritte werden nicht als bestanden bezeichnet, bevor ihr jeweiliger
+Health-, CI-, Backup- oder Shadow-Nachweis tatsächlich vorliegt.
 
 ## Erster reproduzierbarer Run
 
@@ -159,6 +179,27 @@ python -m scripts.train_pre_a0_model INPUT.json OUTPUT.json \
 Der Trainingsinput selbst wird nicht hochgeladen. MLflow erhält nur SHA-256,
 Zeilenzahlen, Fenster, Parameter, Metriken und das resultierende JSON.
 
+Für neue reale Runs wird der Trainingsinput deterministisch aus den
+hash-geprüften Shadow-Parquets und dem A0-Journal erstellt. Der Builder trennt
+tageweise in Train/Calibration/Test, prüft Episode-Leakage und versiegelt den
+Testsplit:
+
+```bash
+python -m scripts.prepare_pre_a0_training_data \
+  services/a0_fast_detector/bootstrap/pre-a0-model.json \
+  /volume/pre-a0-snapshots \
+  /tmp/pre-a0-training.json \
+  /tmp/pre-a0-test.json \
+  /tmp/pre-a0-provenance.json \
+  /volume/a0-parity/a0_shadow_databento_*.jsonl \
+  --code-revision "$GIT_COMMIT"
+```
+
+Neue Snapshots enthalten deshalb neben den kausalen Merkmalen auch
+Modell-ID, ausgegebene Wahrscheinlichkeit, Scorestatus und Fehlerursache pro
+Horizont. Alt-Snapshots ohne diese Provenienz können das Shadow-Gate nicht
+erfüllen.
+
 Nach der versiegelten Evaluation wird ein mit Testmetriken und Offline-Gate
 angereichertes, weiterhin inhaltsidentisches Runtime-Artefakt erzeugt:
 
@@ -205,7 +246,10 @@ und schreibt den Alias.
   Referenzvariablen an `mlflow-tracking` geben.
 - MLflow proxied sämtliche Uploads und Downloads; Clients erhalten keine
   direkten S3-Zugangsdaten.
-- Für den Pilot eine Service-Replik und zwei Worker-Prozesse verwenden.
+- Für den Pilot eine Service-Replik und zwei Worker-Prozesse verwenden. Der
+  Launcher migriert Tracking- und Auth-Schema seriell, bevor er die Worker
+  startet; dadurch bleibt auch der allererste Start auf einer leeren Datenbank
+  frei von konkurrierenden Auth-Migrationen.
 - Exakten öffentlichen Railway-Host und privaten Service-Host in
   `MLFLOW_SERVER_ALLOWED_HOSTS` eintragen.
 
@@ -231,6 +275,11 @@ Railway-Referenzvariablen für den Artefaktspeicher:
   eigenen nicht-administrativen Import-Benutzer erzeugen und ihm nur die
   erforderlichen Rechte auf das dann vorhandene Experiment `pre-a0` und Modell
   `skipp-pre-a0` geben. Neue Benutzer erhalten ansonsten `NO_PERMISSIONS`.
+- `scripts/configure_pre_a0_mlflow_rbac.py` legt idempotent zwei getrennte
+  Rollen an: Writer mit `EDIT` nur auf Experiment `1` und Modell
+  `skipp-pre-a0`, Monitor mit `READ` auf denselben Ressourcen. Beide erhalten
+  lediglich das technisch erforderliche Workspace-`USE`; unbekannte
+  Zusatzrechte lassen den Lauf fail-closed abbrechen.
 - Der eingebaute Basic-Auth-Login besitzt keine belastbare Brute-Force-
   Drosselung. Vor einer breiteren oder dauerhaften Internetfreigabe deshalb
   einen vorgeschalteten Access-Proxy mit Rate Limit/SSO ergänzen; bis dahin
@@ -248,6 +297,24 @@ Railway-Referenzvariablen für den Artefaktspeicher:
   scoren; Ergebnis muss endlich und zwischen 0 und 1 sein.
 - Anschließend den nicht-administrativen Import-Benutzer berechtigen und den
   Adminzugang nicht mehr für normale Trainings-/Importläufe verwenden.
+
+RBAC wird zuerst nur geplant und anschließend bewusst angewendet:
+
+```bash
+python -m scripts.configure_pre_a0_mlflow_rbac \
+  --tracking-uri "$MLFLOW_TRACKING_URI" \
+  --experiment-id 1
+
+python -m scripts.configure_pre_a0_mlflow_rbac \
+  --tracking-uri "$MLFLOW_TRACKING_URI" \
+  --experiment-id 1 \
+  --apply
+```
+
+Admin-Credentials kommen über `MLFLOW_TRACKING_USERNAME` und
+`MLFLOW_TRACKING_PASSWORD`; Writer-/Monitor-Passwörter ausschließlich über
+`PRE_A0_MLFLOW_WRITER_PASSWORD` beziehungsweise
+`PRE_A0_MLFLOW_MONITOR_PASSWORD`. Kein Secret wird als Argument ausgegeben.
 
 ### 6. Betrieb beobachten
 
@@ -271,6 +338,12 @@ Railway-Referenzvariablen für den Artefaktspeicher:
 
 ## Verifikation und Rollback
 
+Das vollständige Betriebsrunbook inklusive RPO/RTO, Backup, isoliertem
+Restore-Drill und Credential-Incident-Ablauf steht in
+[`MLFLOW_PRE_A0_OPERATIONS_2026-07-18.md`](MLFLOW_PRE_A0_OPERATIONS_2026-07-18.md).
+Die Aim-/Alternativen-Entscheidung steht in
+[`PRE_A0_EXPERIMENT_TRACKING_EVALUATION_2026-07-18.md`](PRE_A0_EXPERIMENT_TRACKING_EVALUATION_2026-07-18.md).
+
 Lokale Implementierungsprüfung:
 
 - Bootstrap-Dry-run: Candidate bestanden, Shadow blockiert.
@@ -288,13 +361,19 @@ Rollback des Piloten ist unabhängig vom A0-Betrieb:
 4. A0-/PRE-A0-Worker nicht neu deployen; dessen lokaler JSON-Vertrag läuft
    unverändert weiter.
 
-## Noch ausstehende externe Schritte
+## Externer Ist-Stand und nächste Rollout-Schritte
 
-Die lokale Implementierung und der isolierte Registry-Test sind abgeschlossen.
-Push, Draft-PR, Railway PostgreSQL/Bucket/Service, öffentliche Domain und der
-dauerhafte Bootstrap-Import sind externe Änderungen. Sie werden erst nach
-einer separaten, unmittelbar vorher gezeigten Vorschau mit Empfänger, Kanal,
-Inhalt und konkreten Railway-Mutationen ausgeführt.
+PostgreSQL, operativer Artefakt-Bucket, MLflow-Service, öffentliche Domain und
+der reproduzierbare Bootstrap-Import existieren bereits. Der importierte
+Candidate ist Run `44dd712b9bd84c35a41e8ab9d1a87cb3`, Modellversion 1 und
+Artifact ID `71831770afe43bdd424aa7ab`; der Railway-Worker verwendet weiterhin
+seinen lokal validierten JSON-Vertrag.
+
+Noch offen sind der Push dieses Folge-Diffs, die geordnete Merge-Kette,
+Deployment der Härtung und Snapshot-Provenienz, Monitor-RBAC samt GitHub-
+Secrets, Alloy-/Grafana-Rollout sowie separater Backup-Bucket und erster
+Restore-Drill. Ein neuer Trainingsrun oder `shadow`-Alias folgt ausdrücklich
+erst nach ausreichender neuer Live-Evidenz.
 
 ## Technische Referenzen
 

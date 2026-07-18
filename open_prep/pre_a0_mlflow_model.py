@@ -6,13 +6,19 @@ import json
 from pathlib import Path
 from typing import Any
 
-import mlflow
 import pandas as pd
+
+try:
+    import mlflow
+except ModuleNotFoundError:  # Optional outside the MLflow model-serving environment.
+    mlflow = None
 
 from open_prep.pre_a0_model import parse_artifact, verify_artifact_id
 
+_PythonModelBase: Any = mlflow.pyfunc.PythonModel if mlflow is not None else object
 
-class PreA0PythonModel(mlflow.pyfunc.PythonModel):
+
+class PreA0PythonModel(_PythonModelBase):
     def load_context(self, context) -> None:
         payload = json.loads(Path(context.artifacts["pre_a0_contract"]).read_text(encoding="utf-8"))
         artifact = parse_artifact(payload)
@@ -34,4 +40,5 @@ class PreA0PythonModel(mlflow.pyfunc.PythonModel):
         return probabilities
 
 
-mlflow.models.set_model(PreA0PythonModel())
+if mlflow is not None:
+    mlflow.models.set_model(PreA0PythonModel())

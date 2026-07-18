@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .a0_stream_state import A0StreamFeatureSnapshot
 from .pre_a0 import PreA0Estimate
+from .pre_a0_model import ShadowScore
 from .pre_a0_schema import PreA0SnapshotRow, write_snapshot_partition
 
 
@@ -20,8 +21,25 @@ def snapshot_row(
     selection_reason: str,
     sample_weight: float,
     episode_id: str | None,
+    scores: Sequence[ShadowScore] = (),
 ) -> PreA0SnapshotRow:
     features = estimate.features
+    scores_by_horizon = {score.horizon_s: score for score in scores}
+    artifact_ids = {score.artifact_id for score in scores if score.artifact_id}
+    model_artifact_id = next(iter(artifact_ids)) if len(artifact_ids) == 1 else None
+
+    def probability(horizon: int) -> float | None:
+        score = scores_by_horizon.get(horizon)
+        return score.probability if score is not None else None
+
+    def status(horizon: int) -> str | None:
+        score = scores_by_horizon.get(horizon)
+        return str(score.status) if score is not None else None
+
+    def reason(horizon: int) -> str | None:
+        score = scores_by_horizon.get(horizon)
+        return score.reason if score is not None else None
+
     return PreA0SnapshotRow.create(
         feature_version=features.feature_version,
         session_date=features.session_date,
@@ -34,6 +52,8 @@ def snapshot_row(
         state=estimate.state.name,
         price_progress=features.price_progress,
         volume_progress=features.volume_progress,
+        price_distance_pct=features.price_distance_pct,
+        volume_distance_pace=features.volume_distance_pace,
         price_slope_15s=features.slope("price", 15),
         volume_slope_15s=features.slope("volume", 15),
         direction_stability=features.direction_stability,
@@ -42,6 +62,16 @@ def snapshot_row(
         selection_reason=selection_reason,
         sample_weight=sample_weight,
         episode_id=episode_id,
+        model_artifact_id=model_artifact_id,
+        probability_30=probability(30),
+        probability_60=probability(60),
+        probability_180=probability(180),
+        score_status_30=status(30),
+        score_status_60=status(60),
+        score_status_180=status(180),
+        score_reason_30=reason(30),
+        score_reason_60=reason(60),
+        score_reason_180=reason(180),
     )
 
 

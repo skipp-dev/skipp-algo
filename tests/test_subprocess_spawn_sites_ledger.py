@@ -30,9 +30,9 @@ locations pinned below. The MLflow pilot contributes two of them:
   for the Grafana API token (``security find-generic-password ...``).
 * ``scripts/publish_signals_snapshot.py:73`` — run explicit git argv
     commands to publish the rolling live-signals snapshot branch.
-* ``services/mlflow_tracking/server.py:84`` — run the MLflow database schema
+* ``services/mlflow_tracking/server.py:153`` — run the MLflow database schema
   migration synchronously with a 120-second timeout.
-* ``services/mlflow_tracking/server.py:108`` — launch the authenticated MLflow
+* ``services/mlflow_tracking/server.py:182`` — launch the authenticated MLflow
   server as the signal-supervised long-lived child process.
 
 Defense-only — no production changes.
@@ -213,7 +213,7 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int, str]] = {
     # MLflow schema migration before the server accepts traffic. Executable is
     # resolved with shutil.which; token-list argv, check=True, timeout=120,
     # shell=False. DATABASE_URL is one opaque argv item, never shell-parsed.
-    ("services/mlflow_tracking/server.py", 84, "? db upgrade ?"),
+    ("services/mlflow_tracking/server.py", 153, "? db upgrade ?"),  # 2026-07-18 strict host/CORS/S3 preflight: 96->153
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
@@ -225,7 +225,7 @@ SUBPROCESS_POPEN_LEDGER: set[tuple[str, int, str]] = {
     # Authenticated MLflow server. `args` is assembled solely from fixed flags
     # and validated environment values; Popen receives the list directly with
     # shell=False. The launcher forwards SIGTERM/SIGINT and waits for the child.
-    ("services/mlflow_tracking/server.py", 108, "<non-list: Name>"),
+    ("services/mlflow_tracking/server.py", 182, "<non-list: Name>"),  # 2026-07-18 strict host/CORS/S3 preflight: 121->182
 }
 
 

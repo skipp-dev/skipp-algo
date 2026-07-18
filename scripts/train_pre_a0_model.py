@@ -35,7 +35,10 @@ def main() -> int:
     train = payload["train"]
     calibration_rows = payload["calibration"]
     model = train_logistic_regression(
-        [row["features"] for row in train], [int(row["label"]) for row in train], feature_names
+        [row["features"] for row in train],
+        [int(row["label"]) for row in train],
+        feature_names,
+        sample_weights=[float(row.get("sample_weight", 1.0)) for row in train],
     )
     raw = [model.raw_score(row["features"]) for row in calibration_rows]
     labels = [int(row["label"]) for row in calibration_rows]

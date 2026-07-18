@@ -22,6 +22,7 @@ of Prometheus target labels, scrape logs, and remote-write metadata.
    # Private networking can use liveoverlaydaemon.railway.internal:<PORT>
    # after the live daemon runtime PORT is verified from inside Railway.
    OVERLAY_SERVICE_URL=liveoverlaydaemon-production.up.railway.app
+   A0_FAST_SERVICE_URL=a0-fast-shadow.railway.internal:9108
    GRAFANA_CLOUD_PROM_URL=https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push
    GRAFANA_CLOUD_USER=<numeric stack ID>
    GRAFANA_CLOUD_API_KEY=<API key with MetricsPublisher role>
@@ -81,6 +82,8 @@ After deploying, verify in Grafana Cloud → Explore:
 live_overlay_smc_live_requests_total
 live_overlay_uptime_seconds
 live_overlay_feed_healthy
+pre_a0_model_ready{job="a0_fast"}
+pre_a0_calibration_valid{job="a0_fast"}
 up{job="live_overlay"}
 increase(prometheus_remote_storage_samples_failed_total{job="alloy"}[10m])
 ```

@@ -107,6 +107,11 @@ def test_observe_runtime_scores_and_persists_without_confirming_a0(tmp_path) -> 
     frame = pd.concat(pd.read_parquet(path) for path in parquet)
     assert set(frame["selection_reason"]) == {"base_5s", "warm_1s"}
     assert frame["episode_id"].notna().any()
+    assert frame["model_artifact_id"].eq(json.loads(model_path.read_text())["artifact_id"]).all()
+    assert frame["probability_30"].between(0, 1).all()
+    assert frame["probability_60"].between(0, 1).all()
+    assert frame["probability_180"].between(0, 1).all()
+    assert frame["score_status_60"].eq("ready").all()
     metrics = telemetry.render_prometheus()
     assert "pre_a0_model_ready 1" in metrics
     assert "pre_a0_snapshots_recorded_total" in metrics
