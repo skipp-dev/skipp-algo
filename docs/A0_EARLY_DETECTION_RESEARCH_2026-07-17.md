@@ -1,8 +1,8 @@
 # A0 früher und schneller erkennen: verifizierte Analyse und Zielbild
 
-Stand: 2026-07-17  
-Status: Entscheidungsgrundlage; noch keine Produktionsfreigabe  
-Verifizierter Code-Stand: `origin/main` bei `244862229`  
+Stand: 2026-07-17
+Status: Entscheidungsgrundlage; noch keine Produktionsfreigabe
+Verifizierter Code-Stand: `origin/main` bei `244862229`
 Umsetzungsplan: [A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md](A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md)
 
 ## 1. Kurzfazit

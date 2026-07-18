@@ -1,7 +1,7 @@
 # A0-Entscheidungs-, Reason- und Zeitvertrag
 
-Stand: 2026-07-17  
-Vertragsversion: 1  
+Stand: 2026-07-17
+Vertragsversion: 1
 Implementierung: `open_prep/a0_contract.py`
 
 ## Zweck

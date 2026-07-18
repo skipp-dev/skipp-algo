@@ -1,8 +1,8 @@
 # A0-Fast und PRE-A0: detaillierter Action Plan
 
-Stand: 2026-07-17  
-Status: in Umsetzung; Produktionsfreigabe offen  
-Verifizierter Ausgangsstand: `origin/main` bei `244862229`  
+Stand: 2026-07-17
+Status: in Umsetzung; Produktionsfreigabe offen
+Verifizierter Ausgangsstand: `origin/main` bei `244862229`
 Fachliche Grundlage: [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md)
 
 ## Umsetzungsstand
