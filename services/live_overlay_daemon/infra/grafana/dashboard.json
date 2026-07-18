@@ -1701,7 +1701,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Whether a verified external client is expected to call /smc_live, and whether requests are arriving during the US regular market session. NO CONSUMER EXPECTED is healthy while the endpoint has no deployed client. This is API traffic, not provider-ingest or future TradingView data-provider delivery.",
+      "description": "Whether a verified external client is expected to call /smc_live, and whether requests are arriving during the US regular market session. NO CONSUMER EXPECTED is healthy while the endpoint has no deployed client. This is API traffic only.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

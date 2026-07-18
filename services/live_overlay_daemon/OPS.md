@@ -542,9 +542,8 @@ and end-to-end requests are verified.
 Pine cannot call `/smc_live` directly. Keep
 `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` and
 `lo-expected-traffic-not-armed` paused (`isPaused: true`). The API's own health,
-latency, error, and auth-denied alerts remain active. ADR-0028 defines the real
-TradingView provider qualification; arm a future watchdog only against the path
-that is actually deployed and verified.
+latency, error, and auth-denied alerts remain active. Arm a future watchdog only
+after a real external API client is deployed and verified.
 
 ### Dashboard masking semantics
 

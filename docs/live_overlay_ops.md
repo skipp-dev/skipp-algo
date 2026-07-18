@@ -17,8 +17,4 @@ Consequently `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` must remain `0`, and its
 "not armed" reminder stays paused, until an actual consumer exists. API health,
 auth-denied traffic, and server errors are still monitored independently.
 
-The approved planning path is
-[ADR-0028](adr/0028-tradingview-data-provider-integration.md): qualify a real
-TradingView-hosted provider integration, prove redistribution rights and
-end-to-end conformance, then consume the onboarded series from Pine through a
-documented TradingView API.
+No TradingView delivery path is planned for this REST bridge.

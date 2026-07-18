@@ -1583,8 +1583,7 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     wanted = (
         "Whether a verified external client is expected to call /smc_live, and whether "
         "requests are arriving during the US regular market session. NO CONSUMER EXPECTED "
-        "is healthy while the endpoint has no deployed client. This is API traffic, not "
-        "provider-ingest or future TradingView data-provider delivery."
+        "is healthy while the endpoint has no deployed client. This is API traffic only."
     )
     if panel.get("description") != wanted:
         panel["description"] = wanted

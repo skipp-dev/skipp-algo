@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skipp-algo.local/spec/smc_live_overlay.schema.json",
   "title": "SMC live-overlay payload (smc-live-overlay/1)",
-  "description": "Flat live-overlay payload served at GET /smc_live for authenticated API clients. Every data field is optional and nullable: an absent or null field means the service has no fresh value for that field. This schema is not a Pine transport; Pine has no arbitrary HTTP client. TradingView delivery is planned separately in ADR-0028.",
+  "description": "Flat live-overlay payload served at GET /smc_live for authenticated API clients. Every data field is optional and nullable: an absent or null field means the service has no fresh value for that field. This schema is not a Pine transport; Pine has no arbitrary HTTP client.",
   "type": "object",
   "required": [
     "schema",

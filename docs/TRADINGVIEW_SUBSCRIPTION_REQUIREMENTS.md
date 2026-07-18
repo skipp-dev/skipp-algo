@@ -2,9 +2,9 @@
 
 > **Status correction (2026-07-16):** The `request.get`/REST bridge described
 > below is not supported by Pine and has been retired. `SMC_Regime_and_News.pine`
-> is a visible compatibility tombstone, not a data consumer. The current plan is
-> ADR-0028's real TradingView data-provider qualification. Subscription tier does
-> not enable arbitrary Pine HTTP.
+> is a visible compatibility tombstone, not a data consumer. No TradingView
+> delivery path is planned for this REST bridge. Subscription tier does not enable
+> arbitrary Pine HTTP.
 
 **Last updated:** 2026-06-16  
 **Scope:** live_overlay_daemon · SMC Pine script suite · smc-library-refresh automation
