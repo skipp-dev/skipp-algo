@@ -3,7 +3,7 @@
 Provides comprehensive Bitcoin market data from multiple sources:
 1. **Real-time price/quote** — FMP cryptocurrency quote
 2. **Historical OHLCV** — FMP + yfinance for candlestick charts
-3. **Technical analysis** — TradingView via tradingview_ta (screener=crypto)
+3. **Technical analysis** — retired TradingView compatibility surface
 4. **News** — FMP articles filtered for Bitcoin (FMP-only; former
    NewsAPI.ai / Finnhub social-sentiment claims removed 2026-07-08 — no such code exists here)
 5. **Market cap / supply** — yfinance BTC-USD info
@@ -15,7 +15,7 @@ Provides comprehensive Bitcoin market data from multiple sources:
 Bitcoin markets are 24/7 — no market-hours restrictions apply.
 
 Primary source: FMP (``FMP_API_KEY``).
-Fallback/supplementary: yfinance, TradingView.
+Fallback/supplementary: yfinance.  TradingView is not queried.
 """
 
 from __future__ import annotations
@@ -537,9 +537,9 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
 
 
 def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
-    """Fetch TradingView technicals for BTCUSDT on Binance.
+    """Retired TradingView technicals compatibility result.
 
-    Bitcoin is 24/7 so this always returns data.
+    The public return type is retained; no upstream request is issued.
     """
     cache_key = f"btc_tech:{interval}"
 
@@ -548,8 +548,8 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     if cached_raw is not None:
         return cached_raw  # type: ignore
 
-    if not _TV:
-        return BTCTechnicals(interval=interval, error="tradingview_ta not installed")
+    if _TV_PROVIDER_RETIRED or not _TV:
+        return BTCTechnicals(interval=interval, error="TradingView provider retired")
 
     # Check 429 cooldown — return stale cache or error without hitting API
     if _tv_is_cooling_down():
@@ -985,3 +985,8 @@ def technicals_signal_icon(signal: str) -> str:
         "SELL": "🔴",
         "STRONG_SELL": "🔴",
     }.get(signal, "⚪")
+
+
+# Deliberate product boundary.  Kept at EOF so legacy security-ledger anchors
+# above remain stable while the old optional adapter stays permanently off.
+_TV_PROVIDER_RETIRED = True

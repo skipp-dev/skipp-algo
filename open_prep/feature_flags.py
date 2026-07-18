@@ -104,22 +104,22 @@ def is_benzinga_rss_enabled() -> bool:
 
 
 def is_tradingview_news_enabled() -> bool:
-    """Return True iff ``ENABLE_TRADINGVIEW_NEWS`` is set to ``"1"`` (default ON).
+    """Return whether the retired TradingView news upstream is enabled.
 
-    TradingView uses an unofficial keyless endpoint — no API credentials
-    required.  Default-ON so the Railway worker gets free symbol-scoped
-    headlines out of the box.  Set to ``"0"`` to disable explicitly.
+    The former unofficial upstream was retired deliberately.  The environment
+    variable remains accepted for deployment compatibility, but it can no
+    longer re-enable network access.
     """
-    return _bool_env("ENABLE_TRADINGVIEW_NEWS", "1")
+    return False
 
 
 def is_open_prep_tradingview_news_enabled() -> bool:
-    """Return True iff ``OPEN_PREP_ENABLE_TRADINGVIEW_NEWS == "1"`` (default ON).
+    """Return whether the retired open-prep TradingView supplement is enabled.
 
-    Legacy ``run_open_prep`` gate for TradingView news supplement.
-    SSOT parser semantics apply: only the literal ``"1"`` enables.
+    The legacy flag is intentionally fail-closed and is retained only so old
+    deployment manifests do not fail parsing.
     """
-    return _bool_env("OPEN_PREP_ENABLE_TRADINGVIEW_NEWS", "1")
+    return False
 
 
 def is_open_prep_benzinga_core_news_enabled() -> bool:

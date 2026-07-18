@@ -259,20 +259,6 @@ def _tv_headline_to_news_item(headline: Any) -> NewsItem:
         },
     )
 
-
-def _fetch_tv_news_items(tickers: list[str], *, max_total: int) -> list[NewsItem]:
-    if not tickers:
-        return []
-    from terminal_tradingview_news import fetch_tv_multi
-
-    headlines = fetch_tv_multi(
-        tickers,
-        max_per_ticker=max(5, min(15, max_total)),
-        max_total=max_total,
-    )
-    return [_tv_headline_to_news_item(item) for item in headlines]
-
-
 # ── Safe env-var parsers ────────────────────────────────────────
 
 def _env_float(key: str, default: float) -> float:
@@ -862,10 +848,10 @@ def poll_and_classify_live_bus(
                 page=0,
                 limit=page_size,
             )] = (_CURSOR_KEY_FMP_PRESS, "FMP-press")
-        tv_symbols = [str(symbol).strip().upper() for symbol in (tv_symbols or []) if str(symbol).strip()]
         if tv_symbols:
-            provider_counts[_CURSOR_KEY_TV] = 0
-            futures[pool.submit(_fetch_tv_news_items, tv_symbols, max_total=page_size)] = (_CURSOR_KEY_TV, "TradingView")
+            logger.warning(
+                "TradingView news symbols were supplied but the upstream is retired; ignoring them"
+            )
 
         completion_order = 0
         for fut in as_completed(futures):
@@ -1714,4 +1700,3 @@ def compute_power_gaps(
     # Sort by absolute gap descending
     results.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
     return results
-

@@ -185,8 +185,6 @@ class Config:
             sources.append("benzinga_ws")
         if self.enable_benzinga_rss:
             sources.append("benzinga_rss")
-        if self.enable_tradingview_news:
-            sources.append("tradingview")
         if self.enable_newsapi_ai and self.newsapi_ai_key:
             sources.append("newsapi_ai")
         if self.enable_uw_news and os.getenv("UNUSUAL_WHALES_API_KEY", "").strip():

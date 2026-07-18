@@ -1,9 +1,9 @@
-"""TradingView Technical Analysis helper for the Streamlit terminal.
+"""Technical-analysis helper for the Streamlit terminal.
 
-Fetches oscillator & moving-average summaries plus indicator values
-from TradingView via the ``tradingview_ta`` library.  Results are
-cached per (symbol, interval) with a configurable TTL to avoid
-hammering TradingView's scanner endpoint.
+The former TradingView adapter is retired.  Consumers keep the historical
+``TechnicalResult`` contract, but live requests use only the FMP adapter and
+fail closed when FMP is unavailable.  No upstream HTTP request is issued.
+
 """
 
 from __future__ import annotations
@@ -404,22 +404,39 @@ def fetch_technicals(
     force:
         Bypass cache and fetch fresh data.
     """
-    if not _TV_AVAILABLE:
-        # TradingView library not installed — try FMP fallback directly
+    if _TV_PROVIDER_RETIRED or not _TV_AVAILABLE:
+        # FMP is the sole runtime provider.  The retired TradingView path is
+        # unreachable even if an old optional package remains installed.
         sym = symbol.upper().strip()
         now = time.time()
         key = _cache_key(sym, interval)
+        cooling = _tv_is_cooling_down()
         if not force:
             with _cache_lock:
                 cached = _cache.get(key)
                 if cached and (now - cached.ts) < _CACHE_TTL_S:
-                    return cached
+                    if cached.error and "not found" in cached.error.lower():
+                        return cached
+                    if not (cooling and cached.error):
+                        return cached
+                if cached and cooling and not cached.error:
+                    return dc_replace(cached, source="stale_cache")
         fmp_result = _fmp_fallback(sym, interval, now)
         if fmp_result is not None:
             with _cache_lock:
                 _cache[key] = fmp_result
             return fmp_result
-        return TechnicalResult(symbol=symbol, interval=interval, error="tradingview_ta not installed; FMP fallback unavailable")
+        with _cache_lock:
+            cached = _cache.get(key)
+            if cached:
+                return cached
+        return TechnicalResult(
+            symbol=symbol,
+            interval=interval,
+            ts=now,
+            source="fmp",
+            error="FMP technicals unavailable; TradingView provider retired",
+        )
 
     sym = symbol.upper().strip()
     key = _cache_key(sym, interval)
@@ -595,6 +612,11 @@ def fetch_technicals(
         with _cache_lock:
             _cache[key] = result
         return result
+
+
+# Deliberate product boundary.  Kept at EOF so legacy security-ledger anchors
+# above remain stable while old optional adapter symbols stay import-compatible.
+_TV_PROVIDER_RETIRED = True
 
 
 def fetch_multi_interval(

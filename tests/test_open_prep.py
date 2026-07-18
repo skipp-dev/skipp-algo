@@ -463,9 +463,7 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(metrics["NVDA"]["mentions_2h"], 1)
         self.assertEqual(metrics["PLTR"]["mentions_24h"], 1)
 
-    def test_fetch_news_context_merges_fmp_and_tradingview_articles(self):
-        from terminal_tradingview_news import TVHeadline
-
+    def test_fetch_news_context_uses_fmp_after_tradingview_retirement(self):
         client = MagicMock()
         client.get_fmp_articles.return_value = [
             {
@@ -476,25 +474,12 @@ class TestOpenPrep(unittest.TestCase):
                 "source": "FMP",
             }
         ]
-        tv_headlines = [
-            TVHeadline(
-                id="tv-1",
-                title="Palantir wins major defense contract",
-                provider="reuters",
-                source="Reuters",
-                published=datetime(2026, 2, 20, 14, 45, tzinfo=UTC).timestamp(),
-                urgency=2,
-                tickers=["PLTR"],
-                story_url="https://www.tradingview.com/news/story-1",
-            )
-        ]
-
         with patch.dict(os.environ, {
             "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "1",
             "OPEN_PREP_TV_NEWS_MAX_SYMBOLS": "2",
             "OPEN_PREP_TV_NEWS_MAX_PER_SYMBOL": "4",
             "OPEN_PREP_TV_NEWS_MAX_TOTAL": "8",
-        }, clear=False), patch("terminal_tradingview_news.fetch_tv_multi", return_value=tv_headlines):
+        }, clear=False):
             scores, metrics, fetch_error = run_open_prep._fetch_news_context(
                 client=client,
                 symbols=["NVDA", "PLTR", "AAPL"],
@@ -504,9 +489,9 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIn("NVDA", scores)
         self.assertIn("PLTR", scores)
         self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
-        self.assertEqual(metrics["PLTR"]["mentions_total"], 1)
+        self.assertEqual(metrics["PLTR"]["mentions_total"], 0)
 
-    def test_fetch_news_context_keeps_fmp_scores_when_tradingview_fails(self):
+    def test_fetch_news_context_has_no_tradingview_failure_surface(self):
         client = MagicMock()
         client.get_fmp_articles.return_value = [
             {
@@ -521,14 +506,13 @@ class TestOpenPrep(unittest.TestCase):
         with patch.dict(os.environ, {
             "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "1",
             "OPEN_PREP_TV_NEWS_MAX_SYMBOLS": "2",
-        }, clear=False), patch("terminal_tradingview_news.fetch_tv_multi", side_effect=RuntimeError("tv timeout")):
+        }, clear=False):
             scores, metrics, fetch_error = run_open_prep._fetch_news_context(
                 client=client,
                 symbols=["NVDA", "PLTR"],
             )
 
-        assert fetch_error is not None
-        self.assertIn("tradingview:tv timeout", fetch_error)
+        assert fetch_error is None
         self.assertIn("NVDA", scores)
         self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
 

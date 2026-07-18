@@ -22,11 +22,9 @@ from newsstack_fmp.shared_fetch import (
     DEFAULT_SHARED_NEWS_CACHE_DIR,
     DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS,
     fetch_cached_batch,
-    tv_headline_to_news_item,
 )
 from scripts.smc_atomic_write import atomic_write_text
 from smc_integration.release_policy import RELEASE_REFERENCE_SYMBOLS
-from terminal_tradingview_news import fetch_tv_multi
 
 logger = logging.getLogger(__name__)
 
@@ -574,29 +572,8 @@ def fetch_live_news_tv(
     max_total: int,
     symbol_limit: int,
 ) -> ProviderPollResult:
-    scoped_symbols = symbols[: max(symbol_limit, 0)] if symbol_limit > 0 else list(symbols)
-    if not scoped_symbols:
-        return _disabled_provider("tv", cursor=cursor, error="no_symbols")
-    universe = set(scoped_symbols)
-    batch = _fetch_cached_live_provider_batch(
-        provider="tradingview",
-        scope={
-            "symbols": scoped_symbols,
-            "max_per_ticker": max_per_ticker,
-            "max_total": max_total,
-        },
-        cursor=cursor,
-        fetcher=lambda: [
-            tv_headline_to_news_item(headline)
-            for headline in fetch_tv_multi(scoped_symbols, max_per_ticker=max_per_ticker, max_total=max_total)
-        ],
-    )
-    candidates = [
-        candidate
-        for item in batch.items
-        if (candidate := _candidate_from_news_item(item, provider_bucket="tv", provider_name=item.provider, universe=universe)) is not None
-    ]
-    return ProviderPollResult(provider="tv", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
+    del symbols, max_per_ticker, max_total, symbol_limit
+    return _disabled_provider("tv", cursor=cursor, error="provider_retired")
 
 
 def _normalize_state(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -797,7 +774,7 @@ def poll_live_news_bus(
     include_benzinga: bool = True,
     include_fmp: bool = True,
     include_newsapi_ai: bool | None = None,
-    include_tradingview: bool = True,
+    include_tradingview: bool = False,
     include_fmp_articles: bool = True,
     page_size: int = 100,
     tv_max_per_ticker: int = 3,
@@ -919,19 +896,7 @@ def poll_live_news_bus(
             )
         )
     if include_tradingview:
-        fetch_specs.append(
-            (
-                "tv",
-                fetch_live_news_tv,
-                {
-                    "symbols": normalized_symbols,
-                    "cursor": provider_cursors["tv"],
-                    "max_per_ticker": tv_max_per_ticker,
-                    "max_total": tv_max_total,
-                    "symbol_limit": tv_symbol_limit,
-                },
-            )
-        )
+        logger.warning("TradingView news provider is retired; ignoring include_tradingview")
 
     provider_results: dict[str, ProviderPollResult] = {}
     with ThreadPoolExecutor(max_workers=max(len(fetch_specs), 1)) as executor:
@@ -1203,7 +1168,7 @@ def export_live_news_snapshot(
     # None -> resolved from the ENABLE_NEWSAPI_AI SSOT flag in
     # poll_live_news_bus (paused by default; see comment there).
     include_newsapi_ai: bool | None = None,
-    include_tradingview: bool = True,
+    include_tradingview: bool = False,
     include_fmp_articles: bool = True,
     page_size: int = 100,
     tv_max_per_ticker: int = 3,
