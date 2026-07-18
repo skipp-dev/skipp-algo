@@ -76,7 +76,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_volatility_screener.py", 611, "mkstemp"),  # 2026-07-12 (re-export import): 604->611
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
-    ("newsstack_fmp/shared_fetch.py", 298, "mkstemp"),
+    ("newsstack_fmp/shared_fetch.py", 297, "mkstemp"),  # 2026-07-19 (provider telemetry helper shift): 298->297
     # 2026-07-01: alerts payload/url hardening inserted helper functions;
     # mkstemp site shifted 68 -> 69.
     # 2026-07-02: SSRF path/query hardening shifted mkstemp 69 -> 70.

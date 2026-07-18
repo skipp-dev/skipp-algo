@@ -23,9 +23,6 @@ DEFAULT_SHARED_NEWS_CACHE_DIR = "artifacts/shared_news_cache"
 DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS = 90.0
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _LOCK_TIMEOUT_SECONDS = 15.0
-_PROVIDER_TTL_ENV_KEYS = {
-    "newsapi_ai": "NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS",
-}
 
 
 @dataclass(frozen=True)
@@ -170,9 +167,11 @@ def fetch_cached_batch(
         if _payload_is_reusable(cached_payload, ttl_seconds=effective_ttl_seconds, min_cursor=min_cursor):
             if cached_payload is None:
                 raise RuntimeError("_payload_is_reusable returned True for None payload")
+            _record_cache_telemetry(provider, hit=True)
             return _filtered_batch(_payload_to_batch(provider, cached_payload, from_cache=True), min_cursor=min_cursor)
 
         raw_items = _coerce_news_items(fetcher())
+        _record_cache_telemetry(provider, hit=False, records=len(raw_items))
         fetched_at = time.time()
         batch = CachedNewsBatch(
             provider=provider,
@@ -334,6 +333,7 @@ def _file_lock(lock_path: Path):
         except FileExistsError:
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for shared news cache lock: {lock_path}") from None
+            # Short bounded poll; monotonic deadline remains authoritative.
             time.sleep(_LOCK_POLL_INTERVAL_SECONDS)
     try:
         yield
@@ -342,3 +342,25 @@ def _file_lock(lock_path: Path):
             os.close(fd)
         with suppress(FileNotFoundError):
             lock_path.unlink()
+
+
+def _record_cache_telemetry(provider: str, *, hit: bool, records: int = 0) -> None:
+    """Record cache state without allowing monitoring to break a fetch."""
+    try:
+        from newsstack_fmp import provider_usage
+
+        provider_usage.record_cache_event(provider, endpoint="shared_cache", consumer="shared_fetch", hit=hit)
+        if not hit:
+            provider_usage.record_records(provider, records, endpoint="response", consumer="shared_fetch")
+    except Exception:
+        logger.debug("shared-cache telemetry skipped", exc_info=True)
+
+
+_PROVIDER_TTL_ENV_KEYS = {
+    "newsapi_ai": "NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS",
+    "fmp_stock_latest": "FMP_STOCK_LATEST_SHARED_CACHE_TTL_SECONDS",
+    "fmp_press_latest": "FMP_PRESS_LATEST_SHARED_CACHE_TTL_SECONDS",
+    "fmp_articles": "FMP_ARTICLES_SHARED_CACHE_TTL_SECONDS",
+    "benzinga_rss": "BENZINGA_RSS_SHARED_CACHE_TTL_SECONDS",
+    "benzinga_quantified": "BENZINGA_QUANTIFIED_SHARED_CACHE_TTL_SECONDS",
+}
