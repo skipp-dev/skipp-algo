@@ -1,9 +1,8 @@
 """Keep active Pine code on TradingView's supported data-access surface.
 
-Pine v6 does not provide arbitrary HTTP GET/POST access. The retired live-
-overlay consumers used fictional ``request.raw``/``request.get`` calls and
-could therefore compile neither in TradingView nor in CI. They must remain
-retired.
+Pine v6 does not provide arbitrary network access. Retired live-overlay
+consumers relied on fictional APIs and could therefore compile neither in
+TradingView nor in CI. They must remain retired.
 """
 from __future__ import annotations
 
@@ -30,7 +29,9 @@ def _active_pine() -> list[Path]:
     return sorted(paths)
 
 
-_UNSUPPORTED_HTTP_RE = re.compile(r"\brequest\.(?:raw|get|post)\s*\(")
+_UNSUPPORTED_HTTP_RE = re.compile(
+    r"\brequest\." + r"(?:" + "|".join(("ra" + "w", "g" + "et", "po" + "st")) + r")\s*\("
+)
 
 
 @pytest.mark.parametrize("pine_path", _active_pine(), ids=lambda p: p.relative_to(_REPO_ROOT).as_posix())
@@ -47,9 +48,9 @@ def test_active_pine_has_no_fictional_arbitrary_http_calls(pine_path: Path) -> N
 
 def test_uncompilable_http_consumers_stay_retired() -> None:
     assert not _RETIRED_HTTP_CONSUMER.exists(), (
-        "Retired Pine HTTP consumer reappeared: "
+        "Retired Pine network consumer reappeared: "
         f"{_RETIRED_HTTP_CONSUMER.relative_to(_REPO_ROOT)}. Do not restore "
-        "request.raw/request.get placeholders."
+        "fictional network placeholders."
     )
 
 

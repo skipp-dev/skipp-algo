@@ -15,7 +15,7 @@ Six independent guards over first-party production Python:
    production code — hides Deprecation/Runtime warnings. Inventory 0,
    pure tripwire.
 
-5. **logging.basicConfig(...)** frozen 7-site ledger — must be confined
+5. **logging.basicConfig(...)** frozen entry-point ledger — must be confined
    to entry-point scripts. Library modules must not configure the root
    logger.
 
@@ -174,7 +174,7 @@ def test_no_warnings_ignore_in_prod() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Layer 5: logging.basicConfig frozen 7-site ledger
+# Layer 5: logging.basicConfig frozen entry-point ledger
 # ---------------------------------------------------------------------------
 
 
@@ -199,7 +199,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 642),  # 2026-07-13 (window guards + directional FI label): 612->642
+    ("open_prep/outcome_backfill.py", 643),  # 2026-07-18 (dataset-role import): 642->643
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
@@ -219,6 +219,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-21 (auth decode hardening): binascii import shifted
     # basicConfig to line 40.
     ("services/live_overlay_daemon/main.py", 40),
+    # 2026-07-18: standalone OPRA shadow-daemon CLI configures logging once at
+    # process startup; the package modules themselves do not touch root logging.
+    ("services/opra_live_daemon/main.py", 70),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })
@@ -274,7 +277,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
     ("open_prep/realtime_signals.py", 1837, "insert"),  # 2026-07-16 postmarket metrics shifted site: 1808->1837
-    ("open_prep/streamlit_monitor.py", 34, "insert"),
+    ("open_prep/streamlit_monitor.py", 35, "insert"),  # 2026-07-18: dataset-usage import shifted +1
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
     ("streamlit_databento_volatility_screener.py", 8, "insert"),

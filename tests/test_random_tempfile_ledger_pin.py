@@ -42,6 +42,7 @@ _DIR_EXCLUDE = frozenset({
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
+    ("services/opra_live_daemon/feed.py", 134),  # reconnect jitter; non-security
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
     ("governance/magnitude_resolution_gate.py", 204),
@@ -92,7 +93,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
     # 2026-07-05 (bug-hunt round 7): import math → 115→116.
-    ("open_prep/outcome_backfill.py", 137, "mkstemp"),  # 2026-07-13 (window-completeness guards): 131->137
+    ("open_prep/outcome_backfill.py", 138, "mkstemp"),  # 2026-07-18 (dataset-role import): 137->138
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
@@ -102,7 +103,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 773, "mkstemp"),  # 2026-07-13 (window guards + directional FI label): 743->773
+    ("open_prep/outcome_backfill.py", 774, "mkstemp"),  # 2026-07-18 (dataset-role import): 773->774
     ("open_prep/outcomes.py", 209, "mkstemp"),  # 2026-07-09 robustness: _null_non_finite_floats helper + sanitize call above
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

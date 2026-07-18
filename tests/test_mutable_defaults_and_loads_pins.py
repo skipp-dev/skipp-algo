@@ -115,8 +115,8 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
         # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.
         # 2026-07-05 (bug-hunt round 7): import math → 83→84, 103→104.
-        ("open_prep/outcome_backfill.py", 105),  # 2026-07-13 (window-completeness guards): 99->105
-        ("open_prep/outcome_backfill.py", 125),  # 2026-07-13 (window-completeness guards): 119->125
+        ("open_prep/outcome_backfill.py", 106),  # 2026-07-18 dataset-role default: 105->106
+        ("open_prep/outcome_backfill.py", 126),  # 2026-07-18 dataset-role default: 125->126
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         # 2026-07-03 (WP-3 sample_dates helper insertion): +1 -> 200.
@@ -202,7 +202,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
         ("open_prep/realtime_signals.py", 3688),  # 2026-07-16 postmarket adapter shifted site: 3605->3688
-        ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
+        ("open_prep/streamlit_monitor.py", 80),  # 2026-07-18 local OPRA snapshot JSON import
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }

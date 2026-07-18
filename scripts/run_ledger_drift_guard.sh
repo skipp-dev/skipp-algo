@@ -71,7 +71,8 @@ if [ -z "$PYBIN_RESOLVED" ]; then
 fi
 
 XDIST_ARGS=""
-if "$PYBIN_RESOLVED" -c "import xdist" 2>/dev/null; then
+if [ "${DATABENTO_LEDGER_GUARD_SERIAL:-0}" != "1" ] \
+  && "$PYBIN_RESOLVED" -c "import xdist" 2>/dev/null; then
   XDIST_ARGS="-n auto --dist=worksteal"
 fi
 

@@ -13,8 +13,7 @@ from typing import Any
 
 import pandas as pd
 
-from databento_provider import list_accessible_datasets
-from databento_utils import PREFERRED_DATABENTO_DATASETS, choose_default_dataset
+from databento_dataset_policy import DatasetMode, DatasetRole, resolve_dataset
 
 # ── UI helpers ──────────────────────────────────────────────────────
 
@@ -22,30 +21,18 @@ from databento_utils import PREFERRED_DATABENTO_DATASETS, choose_default_dataset
 def _resolve_ui_dataset_options(
     databento_api_key: str, requested_dataset: str | None
 ) -> tuple[list[str], str, str | None]:
-    fallback_options = list(
-        dict.fromkeys(
-            [*(str(dataset) for dataset in PREFERRED_DATABENTO_DATASETS), "DBEQ.BASIC"]
-        )
-    )
-    requested = str(requested_dataset or "").strip() or "DBEQ.BASIC"
-    if not databento_api_key:
-        selected = choose_default_dataset(fallback_options, requested_dataset=requested)
-        return fallback_options, selected, None
+    del databento_api_key
+    options = ["EQUS.MINI"]
+    requested = str(requested_dataset or "").strip() or "EQUS.MINI"
     try:
-        available = list_accessible_datasets(databento_api_key)
-    except Exception as exc:
-        selected = choose_default_dataset(fallback_options, requested_dataset=requested)
-        warning = f"Could not load Databento datasets from metadata; using fallback list ({exc})."
-        return fallback_options, selected, warning
-    options = [str(dataset).strip() for dataset in available if str(dataset).strip()]
-    if not options:
-        selected = choose_default_dataset(fallback_options, requested_dataset=requested)
-        return (
-            fallback_options,
-            selected,
-            "Databento metadata returned no datasets; using fallback list.",
+        selected = resolve_dataset(
+            DatasetRole.EQUITY_INTRADAY_PARITY,
+            requested_dataset=requested,
+            schema="ohlcv-1m",
+            mode=DatasetMode.HISTORICAL,
         )
-    selected = choose_default_dataset(options, requested_dataset=requested)
+    except ValueError as exc:
+        return options, options[0], str(exc)
     return options, selected, None
 
 
@@ -259,19 +246,20 @@ def run_streamlit_micro_base_app() -> None:
         dataset_options, dataset_default, dataset_warning = (
             _resolve_ui_dataset_options(
                 databento_api_key,
-                os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"),
+                os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET")
+                or "EQUS.MINI",
             )
         )
         dataset = st.selectbox(
             "Databento dataset",
             options=dataset_options,
             index=dataset_options.index(dataset_default),
-            help="Open-focused scan: keep DBEQ.BASIC for broad coverage, or switch to XNAS.BASIC/XNAS.ITCH when your signal quality depends mainly on Nasdaq open behavior.",
+            help="The broad intraday role is fail-closed to EQUS.MINI; venue data is attached separately.",
         )
         if dataset_warning:
             st.caption(dataset_warning)
         st.caption(
-            "Open/first-hours mode: default to DBEQ.BASIC for broad base generation; use XNAS.BASIC or XNAS.ITCH only when you intentionally bias the base toward Nasdaq open behavior."
+            "Open/first-hours mode uses EQUS.MINI for broad base generation; venue datasets never replace the base."
         )
         lookback_days = st.number_input(
             "Trading days", min_value=5, max_value=90, value=30

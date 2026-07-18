@@ -17,8 +17,8 @@ The live fetch helpers (:func:`fetch_symbol_trades`,
 Databento range-fetch plumbing in :mod:`databento_client`; they are not
 unit-tested (they require entitlements and hit the network).
 
-Side convention (Databento ``TradeMsg.side``): ``"A"`` = aggressive buy
-(lifts the ask), ``"B"`` = aggressive sell (hits the bid), ``"N"`` / anything
+Side convention (Databento ``TradeMsg.side``): ``"B"`` = buy aggressor,
+``"A"`` = sell aggressor, ``"N"`` / anything
 else = no aggressor. Neutral trades are excluded from the buy/sell split but
 still counted in ``total_size`` / ``n_trades`` so ``avg_trade_size`` reflects
 the full tape. When there is no directional volume the buy share defaults to
@@ -36,8 +36,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     import pandas as pd
 
 
-_BUY_SIDE = "A"
-_SELL_SIDE = "B"
+_BUY_SIDE = "B"
+_SELL_SIDE = "A"
 _NEUTRAL_BUY_PCT = 50.0
 
 # Keys returned by :func:`aggregate_trades_microstructure`. Kept explicit so

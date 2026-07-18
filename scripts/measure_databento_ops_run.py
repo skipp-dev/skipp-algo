@@ -35,7 +35,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default="preopen_fast",
         help="full_history runs the historical full-universe export; preopen_fast builds a reduced current premarket refresh from the latest full-history bundle.",
     )
-    parser.add_argument("--dataset", default=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
+    parser.add_argument(
+        "--dataset",
+        default=os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET", "EQUS.MINI"),
+    )
     parser.add_argument("--lookback-days", type=int, default=int(os.getenv("DATABENTO_LOOKBACK_DAYS", "30")))
     parser.add_argument("--top-n", type=int, default=5)
     parser.add_argument("--force-refresh", action="store_true", default=False)

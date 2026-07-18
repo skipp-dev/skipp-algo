@@ -1806,7 +1806,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-scan", action="store_true", help="Run the full Databento production export first, then build the base snapshot from the generated bundle")
     parser.add_argument("--databento-api-key", default=os.getenv("DATABENTO_API_KEY", ""), help="Databento API key for --run-scan")
     parser.add_argument("--fmp-api-key", default=os.getenv("FMP_API_KEY", ""), help="FMP API key for enrichment and --run-scan")
-    parser.add_argument("--dataset", default=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"), help="Databento dataset for --run-scan")
+    parser.add_argument(
+        "--dataset",
+        default=os.getenv("DATABENTO_EQUITY_INTRADAY_DATASET", "EQUS.MINI"),
+        help="Databento broad intraday dataset for --run-scan (EQUS.MINI)",
+    )
     parser.add_argument("--lookback-days", type=int, default=30, help="Trading-day lookback for --run-scan")
     parser.add_argument("--export-dir", type=Path, default=Path("artifacts/smc_microstructure_exports"), help="Output directory for bundle/base artifacts")
     parser.add_argument("--output-root", type=Path, default=Path("."), help="Root directory for canonical generated library artifacts")

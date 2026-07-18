@@ -113,12 +113,12 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # combined — measured 125/711; outcomes.py guard shift → 161.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 125→124.
     # 2026-07-05 (bug-hunt round 7): import math → 124→125.
-    ("open_prep/outcome_backfill.py", 146, "unlink"),  # 2026-07-13 (window-completeness guards): 140->146
+    ("open_prep/outcome_backfill.py", 147, "unlink"),  # 2026-07-18 dataset-role default
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 781, "unlink"),  # 2026-07-13 (window guards + directional FI label): 751->781
+    ("open_prep/outcome_backfill.py", 782, "unlink"),  # 2026-07-18 dataset-role default
     ("open_prep/outcomes.py", 218, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

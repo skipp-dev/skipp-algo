@@ -32,7 +32,7 @@ def test_keys_present_and_typed() -> None:
 
 
 def test_buy_heavy_tape() -> None:
-    result = aggregate_trades_microstructure(_df([(80, "A"), (20, "B")]))
+    result = aggregate_trades_microstructure(_df([(80, "B"), (20, "A")]))
     assert result["buy_volume_pct"] == 80.0
     assert result["buy_size"] == 80
     assert result["sell_size"] == 20
@@ -42,7 +42,7 @@ def test_buy_heavy_tape() -> None:
 
 
 def test_sell_heavy_tape() -> None:
-    result = aggregate_trades_microstructure(_df([(10, "A"), (90, "B")]))
+    result = aggregate_trades_microstructure(_df([(10, "B"), (90, "A")]))
     assert result["buy_volume_pct"] == 10.0
     assert result["buy_size"] == 10
     assert result["sell_size"] == 90
@@ -57,7 +57,7 @@ def test_neutral_side_excluded_from_pct_but_counted_in_size() -> None:
     # A 'N' (no aggressor) trade must not skew the buy/sell split, but its
     # volume still belongs to the tape so avg_trade_size reflects it.
     result = aggregate_trades_microstructure(
-        _df([(40, "A"), (10, "B"), (50, "N")])
+        _df([(40, "B"), (10, "A"), (50, "N")])
     )
     # Directional split: 40 buy / 10 sell -> 80%.
     assert result["buy_volume_pct"] == 80.0
@@ -107,7 +107,7 @@ def test_dataframe_without_side_column() -> None:
 
 
 def test_dataframe_with_nan_sizes() -> None:
-    df = pd.DataFrame({"size": [10, None, 30], "side": ["A", "A", "B"]})
+    df = pd.DataFrame({"size": [10, None, 30], "side": ["B", "B", "A"]})
     result = aggregate_trades_microstructure(df)
     # NaN size coerced to 0; buy = 10 (+0), sell = 30.
     assert result["buy_size"] == 10
@@ -117,7 +117,7 @@ def test_dataframe_with_nan_sizes() -> None:
 
 
 def test_iterable_of_records_path() -> None:
-    records = [_Trade(60, "A"), _Trade(40, "B"), _Trade(100, "N")]
+    records = [_Trade(60, "B"), _Trade(40, "A"), _Trade(100, "N")]
     result = aggregate_trades_microstructure(records)
     assert result["buy_volume_pct"] == 60.0
     assert result["buy_size"] == 60
@@ -134,7 +134,7 @@ def test_iterable_empty() -> None:
 
 def test_iterable_skips_records_without_size() -> None:
     Bad = namedtuple("Bad", ["side"])
-    records = [_Trade(50, "A"), Bad("B")]
+    records = [_Trade(50, "B"), Bad("A")]
     result = aggregate_trades_microstructure(records)
     # The size-less record is skipped entirely.
     assert result["n_trades"] == 1
@@ -143,7 +143,7 @@ def test_iterable_skips_records_without_size() -> None:
 
 
 def test_determinism_repeated_calls() -> None:
-    df = _df([(11, "A"), (7, "B"), (3, "N")])
+    df = _df([(11, "B"), (7, "A"), (3, "N")])
     first = aggregate_trades_microstructure(df)
     second = aggregate_trades_microstructure(df)
     assert first == second
