@@ -15,17 +15,23 @@ logger = logging.getLogger(__name__)
 
 
 def start_live_reader(
-    client: Any,
+    client_or_factory: Any,
     *,
     symbols: list[str],
     buffer: BoundedBarBuffer,
     telemetry: A0FastTelemetry,
 ) -> threading.Thread:
-    """Subscribe and drain the SDK iterator on a dedicated daemon thread."""
+    """Create, subscribe, and drain the SDK client on one daemon thread.
+
+    Databento's live client owns an event loop with thread affinity, so a
+    factory must be constructed inside this reader thread in production.
+    Pre-built iterator fakes remain supported for focused tests.
+    """
 
     def target() -> None:
         reason = "stream_ended"
         try:
+            client = client_or_factory() if callable(client_or_factory) else client_or_factory
             _read(client, symbols=symbols, buffer=buffer, telemetry=telemetry)
         except Exception as exc:
             reason = f"{type(exc).__name__}: {exc}"

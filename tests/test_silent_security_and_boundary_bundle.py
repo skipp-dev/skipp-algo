@@ -224,7 +224,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # entry-point basicConfig from 180 -> 285.
     # 2026-07-18: PRE-A0 shadow wiring shifted the same entry-point site
     # 285 -> 324; root logging remains confined to main().
-    ("services/a0_fast_detector/worker.py", 324),
+    # 2026-07-18: live-client thread-affinity fix removed the outer client
+    # cleanup block, shifting the entry-point site 324 -> 316.
+    ("services/a0_fast_detector/worker.py", 316),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

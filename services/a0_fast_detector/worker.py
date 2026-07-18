@@ -250,12 +250,10 @@ def run() -> None:
         while not backoff_event.is_set():
             buffer = BoundedBarBuffer(capacity)
             telemetry.set_buffer(buffer.snapshot())
-            client = None
             reason = "connection_failed"
             try:
-                client = db.Live(key=api_key)
                 reader = start_live_reader(
-                    client,
+                    lambda: db.Live(key=api_key),
                     symbols=symbols,
                     buffer=buffer,
                     telemetry=telemetry,
@@ -289,12 +287,6 @@ def run() -> None:
             except Exception as exc:
                 reason = f"{type(exc).__name__}: {exc}"
                 logger.warning("A0-Fast connection cycle failed: %s", reason)
-            finally:
-                if client is not None:
-                    try:
-                        client.stop()
-                    except Exception:
-                        logger.debug("A0-Fast client stop failed", exc_info=True)
             telemetry.record_disconnect(reason)
             for symbol in symbols:
                 state.invalidate(symbol)

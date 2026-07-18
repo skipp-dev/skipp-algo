@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 
 from open_prep.a0_stream_buffer import BoundedBarBuffer
@@ -57,3 +58,25 @@ def test_reader_normalizes_into_bounded_buffer_and_exposes_overflow() -> None:
     assert snapshot["queue_dropped"] == 1
     assert snapshot["connected"] is False
     assert buffer.snapshot().close_reason == "stream_ended"
+
+
+def test_reader_constructs_live_client_inside_reader_thread() -> None:
+    created_on: list[int] = []
+    client = _Client([SymbolMappingMsg(), OhlcvMsg(1)])
+
+    def factory() -> _Client:
+        created_on.append(threading.get_ident())
+        return client
+
+    buffer = BoundedBarBuffer(capacity=2)
+    thread = start_live_reader(
+        factory,
+        symbols=["NVDA"],
+        buffer=buffer,
+        telemetry=A0FastTelemetry(),
+    )
+    thread.join(timeout=2)
+
+    assert created_on == [thread.ident]
+    assert created_on[0] != threading.get_ident()
+    assert buffer.take(timeout=0) is not None
