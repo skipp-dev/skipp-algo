@@ -92,6 +92,39 @@ class TestDabentoClientBehavior:
         from databento_client import _is_retryable_databento_get_range_error
         assert not _is_retryable_databento_get_range_error(Exception("Invalid API key"))
 
+    def test_import_preserves_sdk_live_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import asyncio
+        import builtins
+        import types
+
+        import databento_client as client_mod
+
+        live_loop = asyncio.new_event_loop()
+        stray_loop = asyncio.new_event_loop()
+        fake_module = types.SimpleNamespace(
+            Live=types.SimpleNamespace(_loop=live_loop),
+            Historical=object,
+        )
+        original_import = builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
+            if name == "databento":
+                return fake_module
+            return original_import(name, globals, locals, fromlist, level)
+
+        snapshots = [[], [live_loop, stray_loop]]
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        monkeypatch.setattr(
+            client_mod.gc,
+            "get_objects",
+            lambda: snapshots.pop(0) if snapshots else [live_loop, stray_loop],
+        )
+
+        assert client_mod._import_databento() is fake_module
+        assert not live_loop.is_closed()
+        assert stray_loop.is_closed()
+        live_loop.close()
+
     def test_normalize_tls_certificate_env_keeps_invalid_env_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import databento_client as client_mod
 
