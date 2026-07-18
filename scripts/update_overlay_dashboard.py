@@ -2002,8 +2002,8 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
     help_panel = _v1_panel_by_title(data, "How to read & export this section")
     if help_panel is not None:
         content = (
-            "**No rows?** Signal panels contain rows only while active A0, A1, or A2 signals "
-            "exist, usually during US trading hours. Empty means there are currently no live "
+            "**Slack routing:** only direct PRE-A0 and A0 notifications go to the main feed; A1/A2 stay dashboard-only. **No rows?** Signal panels contain rows only while "
+            "active A0, A1, or A2 signals exist, usually during US trading hours. Empty means there are currently no live "
             "signals; it is not an error. Confirm source health with **Active Trading Signals** "
             "(zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n"
             "**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."

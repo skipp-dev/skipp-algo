@@ -507,7 +507,7 @@
       "transparent": true,
       "options": {
         "mode": "markdown",
-        "content": "**Slack routing:** only direct PRE-A0 and A0 notifications go to the main feed; A1/A2 stay dashboard-only. **No rows?** Detail panels contain rows only while active A0, A1, or A2 signals exist, usually during US trading hours. Empty means there are currently no live signals; it is not an error. Confirm source health with **Active Trading Signals** (zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."
+        "content": "**Slack routing:** only direct PRE-A0 and A0 notifications go to the main feed; A1/A2 stay dashboard-only. **No rows?** Signal panels contain rows only while active A0, A1, or A2 signals exist, usually during US trading hours. Empty means there are currently no live signals; it is not an error. Confirm source health with **Active Trading Signals** (zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."
       }
     },
     {
