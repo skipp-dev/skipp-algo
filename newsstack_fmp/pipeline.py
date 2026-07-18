@@ -36,7 +36,7 @@ from .normalize import (
 )
 from .open_prep_export import export_open_prep
 from .scoring import classify_and_score, cluster_hash
-from .shared_fetch import CachedNewsBatch, fetch_cached_batch, tv_headline_to_news_item
+from .shared_fetch import CachedNewsBatch, fetch_cached_batch
 from .store_sqlite import SqliteStore
 
 logger = logging.getLogger(__name__)
@@ -209,26 +209,19 @@ def _fetch_tradingview_provider_items(
     symbols: list[str],
     min_cursor: float,
 ) -> CachedNewsBatch:
-    from terminal_tradingview_news import fetch_tv_multi
-
     limited_symbols = list(symbols[: max(cfg.tv_symbol_limit, 0)]) if cfg.tv_symbol_limit > 0 else list(symbols)
-    return _fetch_cached_provider_items(
-        cfg=cfg,
+    logger.warning("TradingView news provider is retired; returning an empty batch")
+    return CachedNewsBatch(
         provider="tradingview",
-        min_cursor=min_cursor,
         scope={
             "symbols": limited_symbols,
             "max_per_ticker": cfg.tv_max_per_ticker,
             "max_total": cfg.tv_max_total,
         },
-        fetcher=lambda: [
-            tv_headline_to_news_item(headline)
-            for headline in fetch_tv_multi(
-                limited_symbols,
-                max_per_ticker=cfg.tv_max_per_ticker,
-                max_total=cfg.tv_max_total,
-            )
-        ],
+        items=[],
+        raw_count=0,
+        cursor=min_cursor,
+        fetched_at=time.time(),
     )
 
 
@@ -1079,8 +1072,6 @@ def poll_once(
         meta_sources.append("benzinga_rss")
     if cfg.enable_benzinga_ws:
         meta_sources.append("benzinga_ws")
-    if cfg.enable_tradingview_news and universe_symbols:
-        meta_sources.append("tradingview")
     if cfg.enable_newsapi_ai and cfg.newsapi_ai_key and universe_symbols:
         meta_sources.append("newsapi_ai")
     # Audit-fix (2026-05-09): UW news source telemetry.

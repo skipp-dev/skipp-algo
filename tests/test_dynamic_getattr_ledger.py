@@ -196,7 +196,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int, str]] = {
     ("terminal_attention_state.py", 45, "param"),
     ("terminal_catalyst_state.py", 31, "param"),
     ("terminal_live_story_state.py", 41, "param"),  # 2026-07-11 (truth-audit): -1 (removed DEFAULT_LIVE_STORY_COOLDOWN_S)
-    ("terminal_poller.py", 1217, "param"),  # 2026-07-09: 1160->1222; 2026-07-11 truth-audit -5 (removed live_story cooldown config/field/to_dict)
+    ("terminal_poller.py", 1203, "param"),  # 2026-07-18 upstream-retirement cleanup: removed retired TV conversion call path
     ("terminal_posture_state.py", 53, "param"),
     ("terminal_reaction_state.py", 49, "param"),
     ("terminal_resolution_state.py", 43, "param"),
