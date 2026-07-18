@@ -189,7 +189,8 @@ def shadow_decision_from_row(
         raise ValueError("decision_id, symbol and LONG/SHORT direction are required")
     if not source:
         raise ValueError("decision source is required")
-    if expected_source and source != expected_source.strip().lower():
+    expected = expected_source.strip().lower() if expected_source else ""
+    if expected and source != expected and not source.startswith(expected + ":"):
         raise ValueError(f"unexpected decision source: {source}")
     decision_at = _required_float(
         _preferred_field(row, "decision_at", "fired_epoch"), "decision_at"

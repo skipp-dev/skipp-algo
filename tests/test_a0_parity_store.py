@@ -78,6 +78,18 @@ def test_journal_fsyncs_first_episode_and_deduplicates_across_restart(
     assert loaded[0].decision_scope == "core_only"
 
 
+def test_journal_accepts_qualified_databento_source_family(tmp_path: Path) -> None:
+    row = _fast_row()
+    row["source"] = "databento:daily"
+    journal = A0ParityJournal(tmp_path, source="databento")
+    assert journal.record(row) is True
+    loaded = load_shadow_decisions(
+        [tmp_path / f"a0_shadow_databento_{_SESSION}.jsonl"],
+        expected_source="databento",
+    )
+    assert loaded[0].source == "databento:daily"
+
+
 def test_loader_accepts_fmp_signal_event_shape_and_rejects_conflicts(
     tmp_path: Path,
 ) -> None:
