@@ -86,7 +86,7 @@
       "type": "row",
       "title": "Live Trading Signals",
       "collapsed": false,
-      "description": "What the live signal engine sees right now: active signals, breakouts, watched symbols, snapshot freshness, the Pine polling watchdog, and the current signal-score board.",
+      "description": "Actionable direct notifications are PRE-A0 and A0 only. A1/A2 remain visible below as diagnostic engine state but are not sent to Slack.",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -160,9 +160,9 @@
       "id": 2101841898
     },
     {
-      "title": "A0 / A1 Breakouts",
+      "title": "A0 — Slack Action Tier",
       "type": "stat",
-      "description": "Split of active signals by level. A0 = strongest confirmed breakout (3x volume + 1.5% move); A1 = confirmed breakout (1x volume + 0.35%). A2 (early-warning) has its own tile.",
+      "description": "Active confirmed A0 breakouts. A0 is pushed directly by the realtime producer to the Slack main feed; A1 and A2 are deliberately excluded from Slack.",
       "gridPos": {
         "h": 6,
         "w": 6,
@@ -173,18 +173,8 @@
         {
           "expr": "live_overlay_trading_signals_a0{job=~\"$job\"}",
           "instant": true,
-          "legendFormat": "A0 (strong)",
+          "legendFormat": "A0 (Slack)",
           "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          }
-        },
-        {
-          "expr": "live_overlay_trading_signals_a1{job=~\"$job\"}",
-          "instant": true,
-          "legendFormat": "A1 (breakout)",
-          "refId": "B",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -212,32 +202,7 @@
           "unit": "short",
           "noValue": "NO DATA"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "A1 (breakout)"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "gray",
-                      "value": null
-                    },
-                    {
-                      "color": "green",
-                      "value": 1
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "reduceOptions": {
@@ -460,9 +425,9 @@
       }
     },
     {
-      "title": "A2 Early-Warning",
+      "title": "PRE-A0 Alerts — Last Hour",
       "type": "stat",
-      "description": "Active A2 signals — the early-warning tier (building momentum, not yet confirmed). Looser than A1, so treat as watch-not-act. Emitted since 2026-07-08 (live_overlay_trading_signals_a2).",
+      "description": "Direct PRE-A0 Slack dispatches during the last hour. PRE-A0 is unconfirmed and appears only after offline + shadow gates, calibration, explicit deployment approval, deduplication and the hourly budget all pass.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -471,9 +436,9 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_trading_signals_a2{job=~\"$job\"}",
+          "expr": "sum(increase(pre_a0_alerts_total{job=~\"$a0_fast_job\"}[1h]))",
           "instant": true,
-          "legendFormat": "A2 (early)",
+          "legendFormat": "PRE-A0 dispatched",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -494,7 +459,7 @@
                 "value": null
               },
               {
-                "color": "orange",
+                "color": "blue",
                 "value": 1
               }
             ]
@@ -542,7 +507,7 @@
       "transparent": true,
       "options": {
         "mode": "markdown",
-        "content": "**No rows?** Signal panels contain rows only while active A0, A1, or A2 signals exist, usually during US trading hours. Empty means there are currently no live signals; it is not an error. Confirm source health with **Active Trading Signals** (zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."
+        "content": "**Slack routing:** only direct PRE-A0 and A0 notifications go to the main feed; A1/A2 stay dashboard-only. **No rows?** Detail panels contain rows only while active A0, A1, or A2 signals exist, usually during US trading hours. Empty means there are currently no live signals; it is not an error. Confirm source health with **Active Trading Signals** (zero means quiet) and **Signals Snapshot Age** (low means fresh).  \n**Export to Excel:** panel menu → **Inspect → Data → Download CSV**."
       }
     },
     {
@@ -2059,6 +2024,27 @@
         "type": "query",
         "allValue": ".*",
         "description": "Prometheus job label for the live overlay daemon."
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "a0_fast",
+          "value": "a0_fast"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "A0-Fast job",
+        "multi": true,
+        "name": "a0_fast_job",
+        "options": [],
+        "query": "label_values(pre_a0_enabled, job)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query",
+        "allValue": ".*",
+        "description": "Prometheus job label for the Databento A0-Fast / PRE-A0 worker."
       }
     ]
   },
@@ -2082,6 +2068,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 10,
+  "version": 11,
   "weekStart": ""
 }

@@ -11,8 +11,9 @@ when a compatible, unexpired calibration artifact is loaded.
 - `off`: no scoring or display.
 - `shadow`: score and record outcomes without UI or notification.
 - `observe`: operator-only display without notification.
-- `notify`: separate PRE-A0 channel with hard hourly budget; requires all
-  promotion gates plus `RT_PRE_A0_DEPLOYMENT_APPROVED=1`.
+- `notify`: direct PRE-A0 push to the configured Slack `#main` webhook with a
+  hard hourly budget; requires all promotion gates plus
+  `RT_PRE_A0_DEPLOYMENT_APPROVED=1`.
 
 The required controls are `RT_PRE_A0_MODE`, `RT_PRE_A0_MODEL_PATH`,
 `RT_PRE_A0_ALLOWED_HORIZONS` and `RT_PRE_A0_MAX_ALERTS_PER_HOUR`. Missing,

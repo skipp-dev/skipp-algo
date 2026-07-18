@@ -55,8 +55,12 @@ class PreA0Runtime:
         store: PreA0SnapshotBuffer,
         telemetry: PreA0Telemetry,
     ) -> None:
-        if config.pre_a0_mode not in {PreA0Mode.SHADOW, PreA0Mode.OBSERVE}:
-            raise ValueError("runtime supports shadow or observe only")
+        if config.pre_a0_mode not in {
+            PreA0Mode.SHADOW,
+            PreA0Mode.OBSERVE,
+            PreA0Mode.NOTIFY,
+        }:
+            raise ValueError("runtime supports shadow, observe, or notify")
         self.thresholds = thresholds
         self.config = config
         self.scorer = scorer
@@ -118,7 +122,7 @@ class PreA0Runtime:
             flushed = self.store.add(row)
             recorded = self.store.pending_rows > before or flushed is not None
             self.telemetry.record_snapshot(recorded=recorded, flushed=flushed.rows if flushed else 0)
-        payload = self._operator_payload(estimate, scores)
+        payload = self._operator_payload(estimate, scores, episode_id)
         return PreA0RuntimeResult(estimate, scores, payload, recorded)
 
     def flush(self) -> int:
@@ -146,10 +150,15 @@ class PreA0Runtime:
         self,
         estimate: PreA0Estimate,
         scores: tuple[ShadowScore, ...],
+        episode_id: str | None,
     ) -> dict[str, Any] | None:
-        if self.config.pre_a0_mode is not PreA0Mode.OBSERVE or estimate.state is PreA0State.NONE:
+        if (
+            self.config.pre_a0_mode not in {PreA0Mode.OBSERVE, PreA0Mode.NOTIFY}
+            or estimate.state is PreA0State.NONE
+        ):
             return None
         payload = estimate.to_operator_payload()
+        payload["episode_id"] = episode_id
         valid = [
             score
             for score in scores
@@ -177,9 +186,6 @@ def build_pre_a0_runtime(
     if config.pre_a0_mode is PreA0Mode.OFF:
         telemetry.set_disabled(config.issues)
         return None
-    if config.pre_a0_mode is PreA0Mode.NOTIFY:
-        telemetry.set_disabled(("notify_not_supported_by_shadow_worker",))
-        return None
     output_raw = env.get("RT_PRE_A0_SNAPSHOT_DIR", "").strip()
     if not output_raw or config.pre_a0_model_path is None:
         telemetry.set_disabled(("snapshot_or_model_path_missing",))
@@ -199,6 +205,12 @@ def build_pre_a0_runtime(
         "offline_evaluated", False
     ):
         telemetry.set_disabled(("observe_requires_offline_evaluation_gate",))
+        return None
+    if config.pre_a0_mode is PreA0Mode.NOTIFY and not (
+        artifact.gates.get("offline_evaluated", False)
+        and artifact.gates.get("shadow_evaluated", False)
+    ):
+        telemetry.set_disabled(("notify_requires_offline_and_shadow_evaluation_gates",))
         return None
     try:
         max_rows = int(env.get("RT_PRE_A0_SNAPSHOT_FLUSH_ROWS", "500"))

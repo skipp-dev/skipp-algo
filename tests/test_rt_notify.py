@@ -21,9 +21,10 @@ def _sig(symbol: str, level: str, direction: str = "LONG") -> Any:
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
     rt_notify.reset_state()
-    # Clear every RT_SIGNAL_* var so a developer's real .env cannot leak in.
+    rt_notify.reset_pre_a0_state()
+    # Clear notifier vars so a developer's real .env cannot leak in.
     for k in list(__import__("os").environ):
-        if k.startswith("RT_SIGNAL_"):
+        if k.startswith(("RT_SIGNAL_", "RT_PRE_A0_")):
             monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_SYNC", "1")  # POST inline for capture
 
@@ -374,10 +375,10 @@ def test_no_trade_context_no_extra_line(monkeypatch: pytest.MonkeyPatch) -> None
     assert len(calls[0][1]["json"]["text"].splitlines()) == 2  # header + one signal line
 
 
-def test_early_webhook_routes_a2_to_separate_channel(
+def test_non_slack_early_webhook_routes_a2_to_separate_channel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "generic")
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
     monkeypatch.setenv("RT_SIGNAL_EARLY_WEBHOOK_URL", "https://hook.example/early")
     # Main feed muted to A0 — A2 must STILL reach the early channel.
@@ -436,6 +437,116 @@ def test_early_webhook_ignored_for_token_mode(monkeypatch: pytest.MonkeyPatch) -
     notified = rt_notify.notify_fresh_signals([_sig("AAPL", "A0"), _sig("NVDA", "A2")])
     assert notified == ["AAPL LONG A0"]  # A2 not delivered to any early URL
     assert all("hook.example/early" not in url for url, _ in calls)
+
+
+def test_slack_hard_filters_a1_a2_even_when_env_opts_them_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    monkeypatch.setenv("RT_SIGNAL_EARLY_WEBHOOK_URL", "https://hook.example/early")
+    calls = _capture(monkeypatch)
+
+    notified = rt_notify.notify_fresh_signals(
+        [_sig("AAPL", "A0"), _sig("MSFT", "A1"), _sig("NVDA", "A2")]
+    )
+
+    assert notified == ["AAPL LONG A0"]
+    assert len(calls) == 1 and calls[0][0] == "https://hook.example/main"
+    text = calls[0][1]["json"]["text"]
+    assert "AAPL" in text and "MSFT" not in text and "NVDA" not in text
+
+
+def test_generic_mode_still_filters_when_destination_is_a_slack_webhook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "generic")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hooks.slack.com/services/T/B/secret")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    calls = _capture(monkeypatch)
+
+    notified = rt_notify.notify_fresh_signals(
+        [_sig("AAPL", "A0"), _sig("MSFT", "A1"), _sig("NVDA", "A2")]
+    )
+
+    assert notified == ["AAPL LONG A0"]
+    text = calls[0][1]["json"]["text"]
+    assert "AAPL" in text and "MSFT" not in text and "NVDA" not in text
+
+
+def _pre_a0_payload(*, episode: str = "episode-1", state: str = "IMMINENT") -> dict[str, Any]:
+    return {
+        "kind": "PRE_A0",
+        "level": None,
+        "confirmed": False,
+        "is_calibrated": True,
+        "episode_id": episode,
+        "symbol": "NVDA",
+        "direction": "up",
+        "state": state,
+        "horizon_s": 60,
+        "eta_low_s": 28.0,
+        "eta_high_s": 54.0,
+        "calibrated_probability_by_horizon": {"60": 0.72},
+    }
+
+
+def test_pre_a0_notify_is_gated_and_uses_main_slack_webhook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    calls = _capture(monkeypatch)
+    payload = _pre_a0_payload()
+
+    assert rt_notify.notify_pre_a0(payload, now=1000.0) is False
+    monkeypatch.setenv("RT_PRE_A0_MODE", "notify")
+    assert rt_notify.notify_pre_a0(payload, now=1000.0) is False
+    monkeypatch.setenv("RT_PRE_A0_DEPLOYMENT_APPROVED", "1")
+    assert rt_notify.notify_pre_a0(payload, now=1000.0) is True
+
+    assert len(calls) == 1 and calls[0][0] == "https://hook.example/main"
+    text = calls[0][1]["json"]["text"]
+    assert "PRE-A0" in text and "unconfirmed" in text
+    assert "NVDA UP" in text and "72%" in text
+
+
+def test_pre_a0_notify_deduplicates_episode_and_enforces_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_PRE_A0_MODE", "notify")
+    monkeypatch.setenv("RT_PRE_A0_DEPLOYMENT_APPROVED", "1")
+    monkeypatch.setenv("RT_PRE_A0_MAX_ALERTS_PER_HOUR", "1")
+    calls = _capture(monkeypatch)
+    exceeded = {"count": 0}
+
+    assert rt_notify.notify_pre_a0(_pre_a0_payload(), now=1000.0) is True
+    assert rt_notify.notify_pre_a0(_pre_a0_payload(), now=1010.0) is False
+    assert rt_notify.notify_pre_a0(
+        _pre_a0_payload(episode="episode-2"),
+        now=1020.0,
+        on_budget_exceeded=lambda: exceeded.__setitem__("count", exceeded["count"] + 1),
+    ) is False
+    assert len(calls) == 1
+    assert exceeded["count"] == 1
+
+
+def test_pre_a0_failed_delivery_releases_episode_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_MODE", "slack")
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/main")
+    monkeypatch.setenv("RT_PRE_A0_MODE", "notify")
+    monkeypatch.setenv("RT_PRE_A0_DEPLOYMENT_APPROVED", "1")
+    outcomes = iter((False, True))
+    monkeypatch.setattr(rt_notify, "_http_post", lambda *_args, **_kwargs: next(outcomes))
+
+    payload = _pre_a0_payload()
+    assert rt_notify.notify_pre_a0(payload, now=1000.0) is False
+    assert rt_notify.notify_pre_a0(payload, now=1010.0) is True
 
 
 def test_long_cooldown_not_capped_by_ttl_eviction(monkeypatch: pytest.MonkeyPatch) -> None:
