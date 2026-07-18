@@ -23,13 +23,22 @@ def main() -> int:
     parser.add_argument("output", type=Path)
     parser.add_argument("--split-hash", required=True)
     parser.add_argument("--review-after", required=True)
+    parser.add_argument(
+        "--mlflow-tracking-uri",
+        help="optional MLflow server URI; omitted means no tracking side effect",
+    )
+    parser.add_argument("--mlflow-experiment-name", default="pre-a0")
+    parser.add_argument("--mlflow-run-name")
     args = parser.parse_args()
     payload = json.loads(args.input.read_text(encoding="utf-8"))
     feature_names = tuple(payload["feature_names"])
     train = payload["train"]
     calibration_rows = payload["calibration"]
     model = train_logistic_regression(
-        [row["features"] for row in train], [int(row["label"]) for row in train], feature_names
+        [row["features"] for row in train],
+        [int(row["label"]) for row in train],
+        feature_names,
+        sample_weights=[float(row.get("sample_weight", 1.0)) for row in train],
     )
     raw = [model.raw_score(row["features"]) for row in calibration_rows]
     labels = [int(row["label"]) for row in calibration_rows]
@@ -53,7 +62,20 @@ def main() -> int:
         gates={"offline_evaluated": False, "shadow_evaluated": False},
     )
     atomic_write_json(artifact.to_dict(), args.output, sort_keys=True)
-    print(json.dumps({"artifact_id": artifact.artifact_id, "metrics": metrics}, sort_keys=True))
+    result: dict[str, object] = {"artifact_id": artifact.artifact_id, "metrics": metrics}
+    if args.mlflow_tracking_uri:
+        from open_prep.pre_a0_mlflow import log_training_run
+
+        result["mlflow_run_id"] = log_training_run(
+            tracking_uri=args.mlflow_tracking_uri,
+            experiment_name=args.mlflow_experiment_name,
+            run_name=args.mlflow_run_name,
+            artifact_path=args.output,
+            training_input_path=args.input,
+            training_rows=len(train),
+            calibration_rows=len(calibration_rows),
+        )
+    print(json.dumps(result, sort_keys=True))
     return 0
 
 

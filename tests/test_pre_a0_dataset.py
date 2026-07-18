@@ -27,6 +27,8 @@ def _row(day: int, second: int = 0, *, episode: str | None = None) -> PreA0Snaps
         state="WATCH",
         price_progress=0.6,
         volume_progress=0.7,
+        price_distance_pct=0.4,
+        volume_distance_pace=0.3,
         price_slope_15s=0.01,
         volume_slope_15s=0.02,
         direction_stability=1.0,

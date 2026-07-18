@@ -29,6 +29,8 @@ class PreA0SnapshotRow:
     state: str
     price_progress: float
     volume_progress: float
+    price_distance_pct: float | None
+    volume_distance_pace: float | None
     price_slope_15s: float | None
     volume_slope_15s: float | None
     direction_stability: float
@@ -37,6 +39,16 @@ class PreA0SnapshotRow:
     selection_reason: str
     sample_weight: float
     episode_id: str | None = None
+    model_artifact_id: str | None = None
+    probability_30: float | None = None
+    probability_60: float | None = None
+    probability_180: float | None = None
+    score_status_30: str | None = None
+    score_status_60: str | None = None
+    score_status_180: str | None = None
+    score_reason_30: str | None = None
+    score_reason_60: str | None = None
+    score_reason_180: str | None = None
 
     @classmethod
     def create(cls, **values: Any) -> PreA0SnapshotRow:

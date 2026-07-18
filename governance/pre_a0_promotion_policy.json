@@ -1,0 +1,29 @@
+{
+  "candidate": {
+    "max_test_brier_ratio": 1.0,
+    "max_test_ece": 0.05,
+    "min_test_average_precision": 0.8,
+    "min_test_rows": 200,
+    "require_calibration": true,
+    "require_not_expired": true,
+    "require_offline_evaluated": true
+  },
+  "contract_version": "pre-a0-promotion-policy-v1",
+  "production": {
+    "reason": "The Railway worker consumes only a separately reviewed local JSON contract.",
+    "supported": false
+  },
+  "shadow": {
+    "max_brier_ratio": 1.0,
+    "max_ece": 0.05,
+    "min_average_precision": 0.8,
+    "min_labeled_rows_per_horizon": 1000,
+    "min_positive_rows_per_horizon": 20,
+    "min_score_coverage": 0.98,
+    "min_sessions": 5,
+    "require_candidate": true,
+    "require_shadow_evaluated": true,
+    "require_single_artifact": true,
+    "require_zero_audit_findings": true
+  }
+}

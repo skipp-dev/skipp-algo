@@ -324,17 +324,14 @@ def make_artifact(
     metrics: Mapping[str, float],
     gates: Mapping[str, bool],
 ) -> PreA0ModelArtifact:
-    identity = {
-        "contract": PRE_A0_MODEL_CONTRACT_VERSION,
-        "schema": schema_version,
-        "feature": feature_version,
-        "split": split_manifest_sha256,
-        "model": asdict(model),
-        "calibration": asdict(calibration) if calibration else None,
-    }
-    artifact_id = hashlib.sha256(
-        json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()[:24]
+    artifact_id = compute_artifact_id(
+        contract_version=PRE_A0_MODEL_CONTRACT_VERSION,
+        schema_version=schema_version,
+        feature_version=feature_version,
+        split_manifest_sha256=split_manifest_sha256,
+        model=model,
+        calibration=calibration,
+    )
     return PreA0ModelArtifact(
         PRE_A0_MODEL_CONTRACT_VERSION,
         artifact_id,
@@ -353,6 +350,41 @@ def make_artifact(
         calibration,
         dict(metrics),
         dict(gates),
+    )
+
+
+def compute_artifact_id(
+    *,
+    contract_version: str,
+    schema_version: str,
+    feature_version: str,
+    split_manifest_sha256: str,
+    model: LinearModel,
+    calibration: PlattCalibration | None,
+) -> str:
+    """Return the canonical, content-derived identity of a PRE-A0 model."""
+    identity = {
+        "contract": contract_version,
+        "schema": schema_version,
+        "feature": feature_version,
+        "split": split_manifest_sha256,
+        "model": asdict(model),
+        "calibration": asdict(calibration) if calibration else None,
+    }
+    return hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()[:24]
+
+
+def verify_artifact_id(artifact: PreA0ModelArtifact) -> bool:
+    """Verify that the declared artifact ID still matches canonical content."""
+    return artifact.artifact_id == compute_artifact_id(
+        contract_version=artifact.contract_version,
+        schema_version=artifact.schema_version,
+        feature_version=artifact.feature_version,
+        split_manifest_sha256=artifact.split_manifest_sha256,
+        model=artifact.model,
+        calibration=artifact.calibration,
     )
 
 
@@ -382,6 +414,8 @@ def load_artifact(
         artifact = parse_artifact(payload)
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         return ModelStatus.INVALID, None, f"artifact_invalid:{type(exc).__name__}"
+    if not verify_artifact_id(artifact):
+        return ModelStatus.INVALID, None, "artifact_identity_mismatch"
     if (
         artifact.contract_version != PRE_A0_MODEL_CONTRACT_VERSION
         or artifact.schema_version != expected_schema

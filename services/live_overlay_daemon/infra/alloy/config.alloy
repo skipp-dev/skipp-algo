@@ -9,6 +9,8 @@
 //                             networking requires the runtime PORT; do not use a
 //                             bare .railway.internal host.
 //   SIGNALS_SERVICE_URL     — host:port for smc-signals-producer, e.g. smc-signals-producer.railway.internal:PORT
+//   A0_FAST_SERVICE_URL      — host:port for a0-fast-shadow, e.g.
+//                              a0-fast-shadow.railway.internal:9108
 //   GRAFANA_CLOUD_PROM_URL  — Grafana Cloud Prometheus remote-write URL
 //   GRAFANA_CLOUD_USER      — Grafana Cloud stack user (numeric ID)
 //   GRAFANA_CLOUD_API_KEY   — Grafana Cloud API key (with MetricsPublisher role)
@@ -47,6 +49,19 @@ prometheus.scrape "signals_producer" {
     type        = "Bearer"
     credentials = sys.env("SIGNALS_INTERNAL_TOKEN")
   }
+
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// --- Scrape a0-fast-shadow /metrics (A0 + PRE-A0 runtime metrics) ---
+prometheus.scrape "a0_fast" {
+  targets = [{
+    __address__ = sys.env("A0_FAST_SERVICE_URL"),
+    __metrics_path__ = "/metrics",
+  }]
+  scrape_interval = "30s"
+  scrape_timeout  = "10s"
+  job_name        = "a0_fast"
 
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
 }

@@ -1,0 +1,13 @@
+[build]
+dockerfilePath = "services/mlflow_tracking/Dockerfile"
+watchPatterns = [
+  "scripts/mlflow_artifact_backup.py",
+  "services/mlflow_tracking/Dockerfile",
+  "services/mlflow_tracking/requirements.txt",
+  "services/mlflow_tracking/backup.railway.toml",
+]
+
+[deploy]
+startCommand = "python /app/scripts/mlflow_artifact_backup.py backup-verify --apply"
+cronSchedule = "17 3 * * *"
+restartPolicyType = "NEVER"

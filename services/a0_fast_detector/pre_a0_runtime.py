@@ -112,6 +112,7 @@ class PreA0Runtime:
                 selection_reason=reason,
                 sample_weight=weight,
                 episode_id=episode_id,
+                scores=scores,
             )
             before = self.store.pending_rows
             flushed = self.store.add(row)

@@ -145,6 +145,7 @@ ignore = [
 "scripts/smc_micro_publish_guard.py" = ["S603"]
 "scripts/smc_zone_priority_calibration.py" = ["S603"]
 "scripts/start_open_prep_suite.py" = ["S603"]
+"services/mlflow_tracking/server.py" = ["S104", "S603"]
 "open_prep/outcomes.py" = ["E402"]
 "open_prep/realtime_signals.py" = ["E402", "S104", "SIM115"]
 "open_prep/run_open_prep.py" = ["E402"]

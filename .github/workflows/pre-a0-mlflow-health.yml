@@ -1,0 +1,87 @@
+name: pre-a0-mlflow-health
+# live-window: off-hours-only
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  PYTHONUNBUFFERED: "1"
+
+concurrency:
+  group: pre-a0-mlflow-health
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Probe authenticated candidate
+        id: probe
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.PRE_A0_MLFLOW_URL }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.PRE_A0_MLFLOW_MONITOR_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.PRE_A0_MLFLOW_MONITOR_PASSWORD }}
+        run: |
+          mkdir -p artifacts/ci
+          rc=0
+          python scripts/check_pre_a0_mlflow_health.py \
+            --tracking-uri "$MLFLOW_TRACKING_URI" \
+            --username "$MLFLOW_TRACKING_USERNAME" \
+            --password "$MLFLOW_TRACKING_PASSWORD" \
+            --expected-artifact-id 71831770afe43bdd424aa7ab \
+            --warn-before-days 14 \
+            --output artifacts/ci/pre_a0_mlflow_health.json || rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+
+      - name: Publish summary
+        if: always()
+        run: |
+          echo "## PRE-A0 MLflow health" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f artifacts/ci/pre_a0_mlflow_health.json ]; then
+            cat artifacts/ci/pre_a0_mlflow_health.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '{"overall":"probe_failed_without_report"}' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pre-a0-mlflow-health
+          path: artifacts/ci/pre_a0_mlflow_health.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Fail on warning or critical
+        if: always()
+        env:
+          PROBE_RC: ${{ steps.probe.outputs.rc }}
+        run: |
+          if [ -z "$PROBE_RC" ]; then
+            echo "::error title=pre-a0-mlflow::probe produced no exit code"
+            exit 1
+          fi
+          exit "$PROBE_RC"

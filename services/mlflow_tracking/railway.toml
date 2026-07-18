@@ -1,0 +1,16 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/mlflow_tracking/Dockerfile"
+watchPatterns = [
+    "services/mlflow_tracking/**",
+]
+
+[deploy]
+startCommand = "python -m services.mlflow_tracking.server"
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "mlflow-tracking"
