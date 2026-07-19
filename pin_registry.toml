@@ -147,7 +147,6 @@
 # 2026-06-23: shifted 287 -> 296 after annotations-robustness fix.
 "scripts/publish_overlay_dashboard.py" = [303]
 "terminal_finnhub.py" = [245]
-"terminal_tradingview_news.py" = [423]
 # 2026-06-22: Grafana dashboard upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
 "scripts/grafana_dashboard_upsert.py" = [63]
 # 2026-06-22: Grafana alert-rules upsert helper; fixed HTTPS URL, explicit timeout= via Request socket.
