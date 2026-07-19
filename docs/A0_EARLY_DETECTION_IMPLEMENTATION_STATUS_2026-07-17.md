@@ -25,12 +25,12 @@
 
 - `a0-fast-shadow` runs `python -m services.a0_fast_detector.worker` from the
   dedicated Dockerfile; the former accidental root-Streamlit deployment is
-  replaced. The source-linked `main` deployment
+  replaced. The earlier source-linked `main` deployment
   `81fa3f96-75b3-451f-9c95-bb64f4598861` exposed excessive Databento
-  per-symbol INFO logging. The follow-up deployment
-  `2a180549-7aa9-4508-ad60-857c9496200b` verified the bounded logging fix:
-  worker startup, authentication and subscription acknowledgements remain
-  visible without the mapping flood.
+  per-symbol INFO logging. PR #3786 merged the bounded logging fix as
+  `fdd3051aa`; source deployment `e91f8bcc-2495-465d-83f0-f88f91fb9081`
+  now runs that commit. Worker startup, authentication and subscription
+  acknowledgements remain visible without the mapping flood.
 - Grafana reports `up{job="a0_fast"}=1`,
   `a0_fast_stream_connected=1`, `pre_a0_model_ready=1` and
   `pre_a0_calibration_valid=1`. This proves that the private `/metrics`
@@ -47,22 +47,21 @@
 
 The separate `opra-live-shadow` daemon is deployed privately with its own
 `/app/data` volume and the five-parent hotlist `SPY,QQQ,AAPL,NVDA,TSLA`. The
-source-linked `main` deployment `37713734-d43e-4a74-8352-3f941c0e61c7`
+earlier source-linked `main` deployment `37713734-d43e-4a74-8352-3f941c0e61c7`
 authenticated both OPRA subscriptions but exposed a weekend bootstrap defect:
-Saturday was incorrectly selected as the latest complete UTC day. Deployment
-`4dfe969a-f1e9-4ec6-9038-05dbb7386da7` verified the follow-up fix, which walks
-back through complete weekdays and tolerates provider-unavailable days. On
-Sunday it loaded 39.542 Friday definitions without a bootstrap warning and
-acknowledged both `definition` and `tcbbo` live subscriptions. Trade and
-candidate counters correctly remain 0. The service has no public domain, HTTP,
-notification, alert or product-publication path and uses its own 7–10
-complete-session evidence window; that evidence cannot satisfy or bypass any
-A0-Fast or PRE-A0 gate.
+Saturday was incorrectly selected as the latest complete UTC day. PR #3786
+merged the weekday/provider-availability fallback as `fdd3051aa`; source
+deployment `1fb3066c-66d8-4c5e-bc55-f3eec8a9d16e` now runs that commit. On
+Sunday it loaded 39.542 Friday definitions without a bootstrap warning,
+acknowledged both `definition` and `tcbbo` live subscriptions and persisted an
+updated `shadow_only` snapshot under `/app/data`. Trade and candidate counters
+correctly remain 0. The service has no public domain, HTTP, notification, alert
+or product-publication path and uses its own 7–10 complete-session evidence
+window; that evidence cannot satisfy or bypass any A0-Fast or PRE-A0 gate.
 
-Both Railway services are connected to `skipp-dev/skipp-algo:main`. The two
-follow-up deployments above were intentionally built from the locally verified
-weekend fix; permanent source reproducibility requires that small follow-up
-change to pass CI, merge to `main`, and be redeployed from the merged commit.
+Both Railway services are connected to `skipp-dev/skipp-algo:main` and now run
+the merged weekend fix from `fdd3051aa`. PR #3778 remains Draft with Notify
+blocked until at least 20 complete sessions and 200 confirmed A0 episodes exist.
 
 ## Deliberately not claimed
 
