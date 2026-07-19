@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from open_prep.a0_contract import A0ThresholdContext
@@ -64,26 +63,6 @@ class _PreA0:
             raise ValueError("synthetic PRE-A0 failure")
         self.snapshots.append(snapshot)
         return type("Result", (), {"operator_payload": None})()
-
-
-class _PreA0Notify(_PreA0):
-    def __init__(self) -> None:
-        super().__init__()
-        self.config = SimpleNamespace(pre_a0_mode="notify")
-
-    def process(self, snapshot):
-        self.snapshots.append(snapshot)
-        return SimpleNamespace(operator_payload={
-            "kind": "PRE_A0",
-            "level": None,
-            "confirmed": False,
-            "is_calibrated": True,
-            "episode_id": "episode-1",
-            "symbol": "NVDA",
-            "direction": "up",
-            "state": "IMMINENT",
-            "horizon_s": 60,
-        })
 
 
 def test_forced_resync_recovers_before_persisting_shadow_a0() -> None:
@@ -152,45 +131,3 @@ def test_pre_a0_failure_cannot_suppress_confirmed_a0() -> None:
     )
     assert journal.rows[0]["level"] == "A0"
     assert pre_a0.telemetry.snapshot()["inference_errors"] == 1
-
-
-def test_gated_pre_a0_dispatch_records_telemetry_without_publishing_fast_a0(
-    monkeypatch,
-) -> None:
-    from open_prep import rt_notify
-
-    state = A0StreamState()
-    state.set_reference(StreamReference(
-        symbol="NVDA",
-        previous_close=100.0,
-        average_daily_volume=1_000.0,
-        source="databento:daily",
-        as_of_session="2026-07-16",
-        lookback_sessions=20,
-        reference_version="daily-v1",
-        corporate_action_version="corp-v1",
-    ))
-    journal = _Journal()
-    pre_a0 = _PreA0Notify()
-    calls: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        rt_notify,
-        "notify_pre_a0",
-        lambda payload, **_kwargs: (calls.append(payload), True)[1],
-    )
-    processor = _Processor(
-        state=state,
-        thresholds=A0ThresholdContext(3.0, 1.0, 0.6, 2.0, 1.0, 0.5),
-        history=_History(),
-        journal=journal,
-        telemetry=A0FastTelemetry(),
-        pre_a0=pre_a0,
-    )
-
-    processor.process(
-        BufferedBar(_bar(30 * 60, volume=100, sequence=2), resync_required=True)
-    )
-
-    assert calls and calls[0]["kind"] == "PRE_A0"
-    assert pre_a0.telemetry.snapshot()["alerts"] == {(60, "up"): 1}
-    assert journal.rows[0]["mode"] == "shadow"

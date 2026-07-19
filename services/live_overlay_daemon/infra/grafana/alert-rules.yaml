@@ -1502,9 +1502,9 @@ groups:
   # NOTE (operator decision 2026-07-11, reverses 2026-07-08): neither fresh-A1
   # nor fresh-A2 is a Grafana alert anymore. A fresh signal is not an incident,
   # and the old fresh-A1 alert (uid lo-signal-fresh-a1) duplicated the rt_notify
-  # push into Slack, doubling signal noise on the shared alert channel. A1/A2
-  # remain diagnostic dashboard rows only. Direct trader pushes are limited to
-  # PRE-A0 and A0; only real health/SLO conditions page through Grafana.
+  # push into Slack, doubling signal noise on the shared alert channel. Both A1
+  # and A2 stay dashboard signals (the "A2 Early-Warning" tile + the level="A1"/
+  # "A2" table rows) plus the rt_notify push. Only real health/SLO conditions page.
   - uid: lo-experiment-snapshot-stale
     title: Experiment rollup snapshot stale
     condition: C

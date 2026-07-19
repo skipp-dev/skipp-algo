@@ -1,4 +1,4 @@
-# A0-Fast Shadow Worker with gated PRE-A0 notify
+# A0-Fast Shadow Worker
 
 Dieser Worker ist die isolierte Deployment-Grenze für A0-Fast. Er abonniert
 Databento `EQUS.MINI` mit `ohlcv-1s`, führt quellenreines kumuliertes
@@ -8,8 +8,7 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 ## Sicherheitsvertrag
 
 - Start nur mit `A0_FAST_MODE=shadow`.
-- Keine A0-, Pine- oder Signals-Publication-Abhängigkeit; PRE-A0-Notify ist
-  separat fail-closed gegated.
+- Keine Notification-, Slack-, Pine- oder Signals-Publication-Abhängigkeit.
 - Explizites Symbolset; kein implizites `ALL_SYMBOLS`.
 - Referenzdatei muss Previous Close und ADV aus Databento enthalten.
 - Mid-session-Start und erkannte Lücken lösen vor einer Entscheidung eine
@@ -27,10 +26,8 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - PRE-A0 ist optional in denselben vollständigen Snapshotpfad eingebunden. Ein
   PRE-A0-Fehler wird protokolliert, darf aber die A0-Kernentscheidung nicht
   unterdrücken oder verändern.
-- Bestätigte A0-Entscheidungen bleiben reine Shadow-Logs. Ausschließlich ein
-  kalibriertes `IMMINENT`-PRE-A0 darf den direkten Slack-Pfad verwenden — und
-  nur mit bestandenem Offline- und Shadow-Gate, hartem Stundenbudget sowie
-  `RT_PRE_A0_DEPLOYMENT_APPROVED=1`.
+- Dieser Worker besitzt weiterhin keinen Notification-Pfad. `notify` wird auch
+  bei gesetzter Freigabe fail-closed abgelehnt.
 
 ## Pflichtvariablen
 
@@ -52,7 +49,7 @@ bleibt ausschließlich PRE-A0 aus; A0-Fast und FMP-A0 laufen unabhängig weiter.
 
 | Variable | Bedeutung |
 | --- | --- |
-| `RT_PRE_A0_MODE` | `shadow`, `observe` oder nach bestandenen Gates `notify` |
+| `RT_PRE_A0_MODE` | `shadow` oder `observe`; `notify` ist in diesem Worker verboten |
 | `RT_PRE_A0_MODEL_PATH` | lokales, kompatibles und nicht abgelaufenes Modellartefakt |
 | `RT_PRE_A0_SNAPSHOT_DIR` | persistentes Ziel für atomare Parquet-Partitionen und Manifeste |
 | `RT_PRE_A0_ALLOWED_HORIZONS` | Teilmenge von `30,60,180` |
@@ -61,11 +58,8 @@ bleibt ausschließlich PRE-A0 aus; A0-Fast und FMP-A0 laufen unabhängig weiter.
 Sampling: ruhige Grundgesamtheit alle fünf Sekunden mit `sample_weight=5`,
 ab `WATCH` jede Sekunde mit `sample_weight=1`. Recovery, Queue-Lücke und
 Disconnect löschen den rollierenden PRE-A0-Zustand. `observe` schreibt nur ein
-klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog. `notify` versendet nur einmal
-pro PRE-A0-Episode, nur den kalibrierten Zustand `IMMINENT` und niemals eine
-bestätigte A0-Aussage. Für Slack müssen `RT_SIGNAL_WEBHOOK_MODE=slack` und der
-Incoming-Webhook von `#main` als `RT_SIGNAL_WEBHOOK_URL` am Worker konfiguriert
-sein. Der Webhook ist ein Runtime-Secret und gehört nicht ins Repository.
+klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; es existiert weiterhin kein
+Versandpfad.
 
 Optional: `A0_FAST_MAX_GAP_SECONDS`, `A0_FAST_A0_VOLUME`,
 `A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen sowie:

@@ -2,7 +2,8 @@
 
 Stand: 2026-07-19
 Status: technische Shadow-Laufzeit aktiv; Evidenz- und Produktionsfreigabe offen
-Verifizierter Merge- und Laufzeitstand: `origin/main` bei `fdd3051aa`
+Verifizierter Runtime-Basisstand: PR #3786 bei `fdd3051aa`; sicherer
+A0-Rollback `486770bd-98fe-425c-b82d-24e3e9e6a5ae`
 Fachliche Grundlage: [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md)
 
 ## Umsetzungsstand
@@ -24,7 +25,7 @@ Stand 2026-07-19 nach Merge, Restore-Drill und Railway-Rollout:
 | A0-301 Quellenreine Referenz | technisch umgesetzt | `a0_reference.py` baut Previous Close und ADV ausschließlich aus versionierter, Corporate-Action-adjustierter Databento-Tageshistorie und verwirft Mischquellen |
 | A0-302 Bootstrap/Recovery | Recovery-Pfad technisch umgesetzt, Betriebsnachweis offen | Mid-session-Start und erkannte Lücken lösen eine quellenreine Databento-Rekonstruktion von Session-Open bis vor den aktuellen Bar aus; Fetch-, Coverage- und Datenfehler bleiben fail-closed mit Backoff; kontrollierte Live-Reconnects und mehrsitzige Evidenz bleiben offen |
 | A0-303 Paritätsmatcher | technisch umgesetzt, Betriebsnachweis offen | Fast- und FMP-Pfade besitzen getrennte opt-in Journale; der deterministische Tagesreport liefert Matchklassen, Lead, Ursachen und beide Snapshots; echte Mehrsitzungsdaten und Dashboard-Auswertung bleiben offen |
-| A0-304 Last/Resilienz/Kosten | Shadow aktiv, Mehrsitzungsnachweis offen | dedizierter Worker läuft mit 900 Symbolen, verbundenem Databento-Live-Stream, bounded Queue, privatem Metrics-Scrape und persistentem `/app/data`; Open-Burst und vollständige Sessions fehlen noch |
+| A0-304 Last/Resilienz/Kosten | Shadow aktiv, Mehrsitzungsnachweis offen | dedizierter Worker läuft mit 899 aktuell von Databento auflösbaren Symbolen, verbundenem Live-Stream, bounded Queue, privatem Metrics-Scrape und persistentem `/app/data`; Open-Burst und vollständige Sessions fehlen noch |
 | A0-400 bis A0-801 | technisch umgesetzt, Evidenz offen | ETA, Snapshotvertrag, Baseline, kalibriertes Candidate-Artefakt und fail-closed Shadow-Inferenz sind vorhanden; neuer Trainingsrun, Shadow-Promotion und Notify bleiben an echte neue Messfenster gebunden |
 
 Der sonntägliche Restart-Test hat zusätzlich zwei reine Betriebsfehler
@@ -36,6 +37,14 @@ grüner CI als `fdd3051aa` gemergt. Die source-linked Railway-Deployments
 `1fb3066c-66d8-4c5e-bc55-f3eec8a9d16e` (OPRA) sind erfolgreich verifiziert.
 Damit ist vor dem ersten vollständigen Messfenster kein technischer
 Rolloutschritt mehr offen.
+
+PR #3778 wurde anschließend entgegen seinem dokumentierten Evidence-Hold als
+`d38091ba` gemergt. Die Laufzeit blieb wegen Shadow-Modus, fehlender
+Deployment-Freigabe, fehlender Slack-Credentials und nicht erfüllter
+20-Session-/200-Episoden-Gates ohne Wirkung. Der A0-Worker wurde sofort auf den
+verifizierten pre-notify Stand zurückgerollt; diese Änderung entfernt die
+vorzeitig gemergte Notification-Schicht auch wieder aus Git. Ein neuer
+Notification-PR ist erst nach echter Evidenz und erneuter Freigabe zulässig.
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`

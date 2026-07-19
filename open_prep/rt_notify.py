@@ -25,8 +25,8 @@ Config (env):
   RT_SIGNAL_WEBHOOK_MODE     one of the modes above (default: generic)
   RT_SIGNAL_WEBHOOK_URL      destination URL (generic/slack/discord/ntfy)
   RT_SIGNAL_WEBHOOK_TOKEN    optional Bearer token for the generic mode
-  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1" (Slack is hard-limited
-                             to A0; other transports may explicitly include A1/A2)
+  RT_SIGNAL_NOTIFY_LEVELS    comma list, default "A0,A1" (A2 = early-warning,
+                             marked "⚠️early"; add "A2" to include the noisy tier)
   RT_SIGNAL_EARLY_WEBHOOK_URL  optional 2nd webhook (slack/discord/ntfy/generic) —
                              levels in RT_SIGNAL_EARLY_LEVELS route HERE, not the
                              main channel, independent of RT_SIGNAL_NOTIFY_LEVELS
@@ -116,7 +116,7 @@ def _warn_once(key: str, msg: str, *args: Any) -> None:
 
 
 def _levels() -> set[str]:
-    # Default is A0,A1 for non-Slack modes; Slack is narrowed to A0 at dispatch.
+    # Default is A0,A1 — the noisy A2 early-warning tier is opt-in. When enabled
     # A2 is marked "⚠️early" in the message so it reads as unconfirmed, not a
     # confirmed breakout. Set RT_SIGNAL_NOTIFY_LEVELS="A0,A1,A2" to include it.
     raw = _env("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1")
@@ -445,13 +445,8 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     Empty when disabled, nothing is fresh, or delivery failed. Never raises.
     """
     mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic").lower()
-    main_url = _env("RT_SIGNAL_WEBHOOK_URL").lower()
-    slack_main = mode == "slack" or "hooks.slack.com/" in main_url
     early_url = _early_url()
-    # Slack is the actionable #main feed: only confirmed A0 belongs there.
-    # Lower tiers remain available to explicitly configured non-Slack targets.
-    early_is_slack = mode == "slack" or "hooks.slack.com/" in early_url.lower()
-    early_active = bool(early_url) and mode in _EARLY_CAPABLE_MODES and not early_is_slack
+    early_active = bool(early_url) and mode in _EARLY_CAPABLE_MODES
     if early_url and not early_active:
         _warn_once(
             "early_url_inert",
@@ -464,14 +459,6 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
         return []
     ts = time.time() if now is None else now
     levels = _levels()
-    if slack_main:
-        ignored = levels - {"A0"}
-        if ignored:
-            _warn_once(
-                f"slack_levels:{','.join(sorted(ignored))}",
-                "Slack signal routing ignores A1/A2; only A0 is delivered to the main feed",
-            )
-        levels &= {"A0"}
     early_levels = _early_levels() if early_active else frozenset()
     cooldown = _cooldown()
 
@@ -527,126 +514,3 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
                 f"{getattr(s, 'symbol', '?')} {getattr(s, 'direction', '')} "
                 f"{getattr(s, 'level', '')}" for s in bucket)
     return delivered_keys
-
-
-# PRE-A0 is produced by the isolated Databento worker rather than the FMP
-# realtime engine above. Keep its dedup/budget state separate so an unconfirmed
-# episode can never strengthen, replace, or suppress a confirmed A0 signal.
-_PRE_A0_RESERVED: dict[str, float] = {}
-
-
-def reset_pre_a0_state() -> None:
-    """Clear PRE-A0 delivery reservations (tests / manual re-arm)."""
-    with _LOCK:
-        _PRE_A0_RESERVED.clear()
-
-
-def _pre_a0_budget() -> int:
-    raw = _env("RT_PRE_A0_MAX_ALERTS_PER_HOUR", "20")
-    try:
-        value = int(raw)
-    except ValueError:
-        value = 20
-    if value <= 0:
-        _warn_once(
-            f"pre_a0_budget:{raw}",
-            "RT_PRE_A0_MAX_ALERTS_PER_HOUR=%r is invalid; using 20",
-            raw,
-        )
-        return 20
-    return value
-
-
-def _format_pre_a0(payload: dict[str, Any]) -> str:
-    symbol = str(payload.get("symbol") or "?")
-    direction = str(payload.get("direction") or "?").upper()
-    eta_low = _safe_float(payload.get("eta_low_s"), 0.0)
-    eta_high = _safe_float(payload.get("eta_high_s"), 0.0)
-    horizon = int(_safe_float(payload.get("horizon_s"), 0.0))
-    probabilities = payload.get("calibrated_probability_by_horizon")
-    probability = probabilities.get(str(horizon)) if isinstance(probabilities, dict) else None
-    probability_text = ""
-    if probability is not None:
-        probability_text = f" · calibrated P(A0≤{horizon}s) {_safe_float(probability):.0%}"
-    return (
-        "🔵 PRE-A0 — unconfirmed early warning\n"
-        f"{symbol} {direction} · ETA {eta_low:.0f}–{eta_high:.0f}s{probability_text}"
-    )
-
-
-def _deliver_pre_a0(
-    episode_id: str,
-    reserved_at: float,
-    url: str,
-    kwargs: dict[str, Any],
-) -> bool:
-    ok = _http_post(url, **kwargs)
-    if not ok:
-        with _LOCK:
-            if _PRE_A0_RESERVED.get(episode_id) == reserved_at:
-                _PRE_A0_RESERVED.pop(episode_id, None)
-    return ok
-
-
-def notify_pre_a0(
-    payload: dict[str, Any],
-    *,
-    now: float | None = None,
-    on_budget_exceeded: Any = None,
-) -> bool:
-    """Push one calibrated IMMINENT PRE-A0 episode to the Slack main feed.
-
-    This path is fail-closed: notify mode, one-time deployment approval,
-    unconfirmed payload semantics, calibration, an episode id, a valid horizon,
-    and the hourly budget must all be present. One episode is delivered at most
-    once within the bounded state TTL. Async mode returns ``True`` once dispatch
-    is accepted; sync mode returns ``True`` only after confirmed delivery.
-    """
-    if _env("RT_PRE_A0_MODE").lower() != "notify":
-        return False
-    if _env("RT_PRE_A0_DEPLOYMENT_APPROVED") != "1":
-        return False
-    mode = _env("RT_SIGNAL_WEBHOOK_MODE", "generic").lower()
-    if mode != "slack" or not is_enabled():
-        return False
-    if not isinstance(payload, dict):
-        return False
-    if (
-        payload.get("kind") != "PRE_A0"
-        or payload.get("confirmed") is not False
-        or payload.get("level") is not None
-        or payload.get("is_calibrated") is not True
-        or payload.get("state") != "IMMINENT"
-    ):
-        return False
-    episode_id = str(payload.get("episode_id") or "")
-    horizon = int(_safe_float(payload.get("horizon_s"), 0.0))
-    if not episode_id or horizon not in {30, 60, 180}:
-        return False
-
-    ts = time.time() if now is None else now
-    with _LOCK:
-        for key in [key for key, sent_at in _PRE_A0_RESERVED.items() if ts - sent_at > _STATE_TTL_SECS]:
-            _PRE_A0_RESERVED.pop(key, None)
-        if episode_id in _PRE_A0_RESERVED:
-            return False
-        recent = sum(1 for sent_at in _PRE_A0_RESERVED.values() if ts - sent_at < 3600.0)
-        if recent >= _pre_a0_budget():
-            if callable(on_budget_exceeded):
-                on_budget_exceeded()
-            return False
-        _PRE_A0_RESERVED[episode_id] = ts
-
-    url, kwargs = _build_request(mode, _format_pre_a0(payload))
-    if not url:
-        with _LOCK:
-            _PRE_A0_RESERVED.pop(episode_id, None)
-        return False
-    if _env("RT_SIGNAL_WEBHOOK_SYNC") == "1":
-        return _deliver_pre_a0(episode_id, ts, url, kwargs)
-    threading.Thread(
-        target=_deliver_pre_a0,
-        args=(episode_id, ts, url, kwargs),
-        daemon=True,
-    ).start()
-    return True
