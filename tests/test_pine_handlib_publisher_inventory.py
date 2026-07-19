@@ -141,6 +141,23 @@ def test_context_engine_publisher_defaults_are_coherent() -> None:
     )
 
 
+def test_core_types_publisher_defaults_match_current_consumer_pin() -> None:
+    """The scheduled hand-lib publisher must target the checked-in live pin."""
+    text = (REPO_ROOT / "scripts/tv_publish_core_types_library.ts").read_text(
+        encoding="utf-8"
+    )
+    import_match = re.search(
+        r'getFlag\("--import-path",\s*"preuss_steffen/smc_core_types/(\d+)"\)',
+        text,
+    )
+    version_match = re.search(r'getFlag\("--version",\s*"(\d+)"\)', text)
+    assert import_match and version_match
+    assert import_match.group(1) == version_match.group(1) == "5"
+    assert "import preuss_steffen/smc_core_types/5 as ct" in (
+        REPO_ROOT / "SMC_Long_Dip_Suite.pine"
+    ).read_text(encoding="utf-8")
+
+
 def test_context_engine_publisher_checks_pins_across_every_consumer() -> None:
     """The pin check must scan all repo .pine, not just the core.
 

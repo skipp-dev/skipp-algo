@@ -39,6 +39,20 @@ def test_fetch_json_url_returns_decoded_mapping(monkeypatch) -> None:
     assert captured["timeout"] == 7.0
 
 
+def test_open_prep_snapshot_url_defaults_to_rolling_branch(monkeypatch) -> None:
+    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL", raising=False)
+    assert rs._open_prep_snapshot_url() == (
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/open_prep/latest/latest_open_prep_run.json"
+        "?ref=bot/live-open-prep-snapshot"
+    )
+
+
+def test_open_prep_snapshot_url_explicit_empty_disables_remote(monkeypatch) -> None:
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "")
+    assert rs._open_prep_snapshot_url() == ""
+
+
 def test_fetch_json_url_sends_optional_bearer_token(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
@@ -54,6 +68,46 @@ def test_fetch_json_url_sends_optional_bearer_token(monkeypatch) -> None:
 
     assert payload == {"ranked_v2": [{"symbol": "NVDA"}]}
     assert captured == {"authorization": "Bearer repo-read-token", "timeout": 15.0}
+
+
+def test_fetch_json_url_reuses_repo_token_only_for_github_contents(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["accept"] = request.get_header("Accept")
+        return _FakeResponse(json.dumps({"ranked_v2": [{"symbol": "AAPL"}]}).encode())
+
+    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_TOKEN", "repo-monitor-token")
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    payload = rs._fetch_json_url(
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/open_prep/latest/latest_open_prep_run.json"
+        "?ref=bot/live-open-prep-snapshot"
+    )
+
+    assert payload == {"ranked_v2": [{"symbol": "AAPL"}]}
+    assert captured == {
+        "authorization": "Bearer repo-monitor-token",
+        "accept": "application/vnd.github.raw+json",
+    }
+
+
+def test_fetch_json_url_never_forwards_generic_repo_token_to_custom_host(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        return _FakeResponse(json.dumps({"ranked_v2": []}).encode())
+
+    monkeypatch.delenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_TOKEN", "repo-monitor-token")
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    assert rs._fetch_json_url("https://example.test/snapshot.json") == {"ranked_v2": []}
+    assert captured["authorization"] is None
 
 
 def test_fetch_json_url_does_not_send_bearer_token_over_http(monkeypatch) -> None:

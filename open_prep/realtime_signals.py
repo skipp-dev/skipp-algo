@@ -1403,14 +1403,37 @@ def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
     accepted; an optional snapshot token is sent as Bearer only over HTTPS.
     """
     import urllib.error
+    import urllib.parse
     import urllib.request
 
     if not url.lower().startswith(("http://", "https://")):
         logger.warning("OPEN_PREP_SNAPSHOT_URL ignored — unsupported scheme")
         return None
     try:
+        parsed_url = urllib.parse.urlsplit(url)
+        github_contents = (
+            parsed_url.scheme.lower() == "https"
+            and parsed_url.netloc.lower() == "api.github.com"
+            and parsed_url.path.lower().startswith("/repos/")
+            and "/contents/" in parsed_url.path.lower()
+        )
         token = os.getenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", "").strip()
-        headers = {"User-Agent": "smc-signals-producer", **({"Authorization": f"Bearer {token}"} if token and url.lower().startswith("https://") else {})}
+        if not token and github_contents:
+            # Reuse an existing repo-read credential only for GitHub's Contents
+            # API. Never forward these generic credentials to a custom URL.
+            token = next(
+                (
+                    os.getenv(name, "").strip()
+                    for name in ("GITHUB_WORKFLOW_MONITOR_TOKEN", "GH_PAT", "GITHUB_TOKEN")
+                    if os.getenv(name, "").strip()
+                ),
+                "",
+            )
+        headers = {"User-Agent": "smc-signals-producer"}
+        if github_contents:
+            headers["Accept"] = "application/vnd.github.raw+json"
+        if token and parsed_url.scheme.lower() == "https":
+            headers["Authorization"] = f"Bearer {token}"
         request = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -2292,7 +2315,7 @@ class RealtimeEngine:
         If ``self.top_n > 0`` the list is sliced for backward compat;
         the default (0) means *all* symbols are monitored.
         """
-        snapshot_url = os.getenv("OPEN_PREP_SNAPSHOT_URL", "").strip()
+        snapshot_url = _open_prep_snapshot_url()
         data: dict[str, Any] | None = None
         if snapshot_url:
             data = _fetch_json_url(snapshot_url)
@@ -4118,6 +4141,21 @@ def _is_upcoming_a2(
         normalized_volume_pace >= 0.8 * effective_a2_volume_threshold
         and abs_change_pct >= 0.8 * effective_a2_price_threshold
     )
+
+
+def _open_prep_snapshot_url() -> str:
+    """Return the explicit source URL or the canonical rolling snapshot.
+
+    An explicitly present-but-empty variable keeps local/offline operation
+    possible. Hosted producers no longer start with an empty watchlist merely
+    because a redundant URL variable was omitted.
+    """
+    return os.getenv(
+        "OPEN_PREP_SNAPSHOT_URL",
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/open_prep/latest/latest_open_prep_run.json"
+        "?ref=bot/live-open-prep-snapshot",
+    ).strip()
 
 
 if __name__ == "__main__":

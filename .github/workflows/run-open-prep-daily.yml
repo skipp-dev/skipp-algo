@@ -216,6 +216,23 @@ jobs:
           echo "Wrote run payload: $OUT ($(wc -c < "$OUT") bytes)"
           ls -la artifacts/open_prep/outcomes/ || true
 
+      - name: Refresh provider-usage snapshot heartbeat
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" - <<'PY'
+          from datetime import UTC, datetime
+
+          from newsstack_fmp.provider_usage import snapshot_path, touch_snapshot
+
+          now = datetime.now(UTC)
+          if not touch_snapshot(
+              snapshot_path(),
+              month=now.strftime("%Y-%m"),
+              now_iso=now.isoformat(),
+          ):
+              raise SystemExit("provider-usage snapshot heartbeat failed")
+          PY
+
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

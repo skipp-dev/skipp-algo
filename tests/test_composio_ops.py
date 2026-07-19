@@ -80,7 +80,7 @@ def test_success_shapes_request(monkeypatch):
     assert body["arguments"] == {"users": "U1"}
     assert body["user_id"] == "user-uuid"
     assert body["connected_account_id"] == "ca_slack_w"
-    assert body["version"] == "20260702_00"
+    assert body["version"] == "20260717_00"
 
 
 def test_connected_account_from_env(monkeypatch):

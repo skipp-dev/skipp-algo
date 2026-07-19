@@ -2013,7 +2013,7 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[1h]))
+        expr: sum(increase(signals_producer_fmp_endpoint_response_bytes_total{job="signals_producer"}[1h]))
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3101,7 +3101,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: (live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
-          + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
+          + scalar(sum(increase(signals_producer_fmp_endpoint_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
           / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
           > 0.80
         instant: true
@@ -3140,7 +3140,7 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         expr: (live_overlay_provider_usage_bytes{job="live_overlay",provider="fmp"}
-          + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
+          + scalar(sum(increase(signals_producer_fmp_endpoint_response_bytes_total{job="signals_producer"}[30d])) or vector(0)))
           / on(provider) live_overlay_provider_bandwidth_limit_bytes{job="live_overlay",provider="fmp"}
           > 0.95
         instant: true

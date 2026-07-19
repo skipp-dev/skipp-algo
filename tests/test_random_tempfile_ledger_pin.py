@@ -123,8 +123,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3679, "mkstemp"),  # 2026-07-17 A0 latency metrics shifted site: 3667->3679
-    ("open_prep/realtime_signals.py", 3735, "mkstemp"),  # 2026-07-17 A0 latency metrics shifted site: 3723->3735
+    ("open_prep/realtime_signals.py", 3702, "mkstemp"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3679->3702
+    ("open_prep/realtime_signals.py", 3758, "mkstemp"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3735->3758
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)
