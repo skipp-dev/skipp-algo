@@ -1,12 +1,12 @@
 # TradingView upstream retirement
 
 TradingView remains a consumer-facing chart and validation surface, but it is
-not an upstream data provider for the runtime system.
+not a runtime upstream source for the system.
 
 Effective 2026-07-18:
 
 - runtime news ingestion uses FMP and Benzinga only;
-- the newsstack and Open-Prep pollers no longer contain a TradingView provider
+- the newsstack and Open-Prep pollers no longer contain a TradingView upstream
   branch, cursor, merger lane, or headline normalizer;
 - the legacy `ENABLE_TRADINGVIEW_NEWS` and
   `OPEN_PREP_ENABLE_TRADINGVIEW_NEWS` variables are retained for manifest
