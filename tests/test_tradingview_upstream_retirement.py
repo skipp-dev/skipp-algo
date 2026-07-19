@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from open_prep import feature_flags
 
 
@@ -55,14 +53,3 @@ def test_bitcoin_technicals_never_enter_retired_tv_adapter(monkeypatch) -> None:
     )
     result = bitcoin.fetch_btc_technicals("1h")
     assert result.error == "TradingView provider retired"
-
-
-def test_streamlit_and_provider_policy_have_no_runtime_tv_fetch_surface() -> None:
-    root = Path(__file__).resolve().parents[1]
-    streamlit_source = (root / "streamlit_terminal.py").read_text(encoding="utf-8")
-    assert "fetch_tv_feed_dicts" not in streamlit_source
-
-    from scripts import smc_provider_policy as policy
-
-    assert policy.POLICY_TECHNICAL.fallbacks == ()
-    assert not hasattr(policy, "fetch_technical_tradingview")

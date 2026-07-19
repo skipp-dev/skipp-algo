@@ -30,7 +30,6 @@ from .diff import (
 )
 from .feature_flags import (
     is_open_prep_benzinga_core_news_enabled,
-    is_open_prep_tradingview_news_enabled,
 )
 from .log_redaction import apply_global_log_redaction
 from .macro import (
@@ -4136,10 +4135,8 @@ def _fetch_news_context_with_diagnostics(
     news_metrics: dict[str, dict] = {}
     news_fetch_errors: list[str] = []
     fmp_articles: list[dict[str, Any]] = []
-    tradingview_articles: list[dict[str, Any]] = []
     benzinga_articles: list[dict[str, Any]] = []
     fmp_fetch_error: str | None = None
-    tradingview_fetch_error: str | None = None
     benzinga_fetch_error: str | None = None
 
     try:
@@ -4149,12 +4146,6 @@ def _fetch_news_context_with_diagnostics(
         news_fetch_errors.append(f"fmp:{fmp_fetch_error}")
         logger.warning("FMP news fetch failed, continuing with remaining sources: %s", type(exc).__name__, exc_info=True)
 
-    tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(
-        symbols=symbols, priority_symbols=priority_symbols
-    )
-    if tradingview_fetch_error:
-        news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
-
     benzinga_enabled = is_open_prep_benzinga_core_news_enabled() if include_benzinga is None else bool(include_benzinga)
     if benzinga_enabled:
         benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(
@@ -4163,8 +4154,8 @@ def _fetch_news_context_with_diagnostics(
         if benzinga_fetch_error:
             news_fetch_errors.append(f"benzinga:{benzinga_fetch_error}")
 
-    merged_before_dedupe = [*fmp_articles, *tradingview_articles, *benzinga_articles]
-    merged_articles = _dedupe_news_articles([fmp_articles, tradingview_articles, benzinga_articles])
+    merged_before_dedupe = [*fmp_articles, *benzinga_articles]
+    merged_articles = _dedupe_news_articles([fmp_articles, benzinga_articles])
 
     if merged_articles:
         news_scores, news_metrics = build_news_scores(symbols=symbols, articles=merged_articles)
@@ -4173,16 +4164,14 @@ def _fetch_news_context_with_diagnostics(
     diagnostics = {
         "benzinga_enabled": benzinga_enabled,
         "source_articles_fmp_raw": len(fmp_articles),
-        "source_articles_tradingview_raw": len(tradingview_articles),
         "source_articles_benzinga_raw": len(benzinga_articles),
         "merged_articles_before_dedupe": len(merged_before_dedupe),
         "merged_articles_after_dedupe": len(merged_articles),
         "benzinga_unique_articles_after_dedupe_estimate": _estimate_incremental_unique_articles(
-            base_batches=[fmp_articles, tradingview_articles],
+            base_batches=[fmp_articles],
             incremental_batch=benzinga_articles,
         ) if benzinga_enabled else 0,
         "fmp_fetch_error": fmp_fetch_error,
-        "tradingview_fetch_error": tradingview_fetch_error,
         "benzinga_fetch_error": benzinga_fetch_error if benzinga_enabled else None,
     }
     return news_scores, news_metrics, news_fetch_error, diagnostics
@@ -4374,34 +4363,6 @@ def _int_env(name: str, default: int) -> int:
         return default
 
 
-def _normalize_tradingview_article_date(published: Any) -> str:
-    try:
-        published_float = float(published)
-    except (TypeError, ValueError):
-        return ""
-    if published_float <= 0:
-        return ""
-    return datetime.fromtimestamp(published_float, tz=UTC).isoformat()
-
-
-def _tradingview_headline_to_article(headline: Any) -> dict[str, Any] | None:
-    title = str(getattr(headline, "title", "") or "").strip()
-    if not title:
-        return None
-    tickers = _normalize_symbols(list(getattr(headline, "tickers", []) or []))
-    if not tickers:
-        return None
-    return {
-        "tickers": ",".join(tickers),
-        "title": title,
-        "content": "",
-        "date": _normalize_tradingview_article_date(getattr(headline, "published", None)),
-        "source": str(getattr(headline, "source", "") or getattr(headline, "provider", "") or "TradingView").strip(),
-        "url": str(getattr(headline, "story_url", "") or "").strip(),
-        "provider": str(getattr(headline, "provider", "") or "tradingview").strip(),
-    }
-
-
 def _benzinga_news_item_to_article(item: Any) -> dict[str, Any] | None:
     title = str(getattr(item, "headline", "") or "").strip()
     if not title:
@@ -4462,54 +4423,6 @@ def _priority_first_symbols(
         priority_set = set(priority)
         ordered = priority + [s for s in ordered if s not in priority_set]
     return ordered
-
-
-def _fetch_tradingview_news_articles(
-    *,
-    symbols: list[str],
-    priority_symbols: list[str] | None = None,
-) -> tuple[list[dict[str, Any]], str | None]:
-    if not is_open_prep_tradingview_news_enabled():
-        return [], None
-
-    max_symbols = max(_int_env("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", 8), 0)
-    if max_symbols == 0:
-        return [], None
-
-    # Same mega-cap-bias fix as the Benzinga lane — with only 8 slots the
-    # bare slice was even more skewed here.
-    limited_symbols = _priority_first_symbols(symbols, priority_symbols)[:max_symbols]
-    if not limited_symbols:
-        return [], None
-
-    max_per_symbol = max(_int_env("OPEN_PREP_TV_NEWS_MAX_PER_SYMBOL", 6), 1)
-    max_total = max(_int_env("OPEN_PREP_TV_NEWS_MAX_TOTAL", 24), 1)
-
-    try:
-        from terminal_tradingview_news import fetch_tv_multi
-    except Exception as exc:
-        message = _APIKEY_RE.sub(r"\1=***", str(exc))
-        logger.warning("TradingView news import failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
-        return [], message
-
-    try:
-        headlines = fetch_tv_multi(
-            limited_symbols,
-            max_per_ticker=max_per_symbol,
-            max_total=max_total,
-        )
-    except Exception as exc:
-        message = _APIKEY_RE.sub(r"\1=***", str(exc))
-        logger.warning("TradingView news fetch failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
-        return [], message
-
-    articles: list[dict[str, Any]] = []
-    for headline in headlines:
-        article = _tradingview_headline_to_article(headline)
-        if article is not None:
-            articles.append(article)
-
-    return articles, None
 
 
 def _fetch_benzinga_core_news_articles(
