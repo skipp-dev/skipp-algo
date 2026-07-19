@@ -689,6 +689,14 @@ def test_resolve_enrichment_flags_individual_only() -> None:
     assert flags["enrich_zone_priority"] is False
 
 
+def test_resolve_enrichment_flags_static_only_disables_provider_enrichment() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["dummy.xlsx", "--static-only", "--enrich-all"])
+    flags = _resolve_enrichment_flags(args)
+    assert flags
+    assert not any(flags.values())
+
+
 # ---------------------------------------------------------------------------
 # main() — workbook path
 # ---------------------------------------------------------------------------

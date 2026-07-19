@@ -152,20 +152,23 @@ Returns **404** on wrong token (does not leak route existence).
 | `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
 | `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
-| `flow_delta_proxy_pct` | float \| null | | (close−open)/open × 100 |
+| `flow_delta_proxy_pct` | float \| null | deprecated | Compatibility name for `(close−open)/open × 100`; not order-flow delta. |
+| `price_candle_body_return_pct` | float \| null | canonical | `(close−open)/open × 100`; no order-flow claim |
 | `squeeze_on` | int \| null | `0` \| `1` | 1 if Bollinger width < ATR threshold |
-| `ats_state` | str \| null | `"accumulation"` \| `"distribution"` \| `"neutral"` | |
-| `ats_zscore` | float \| null | | Z-score of last-bar volume vs rolling mean |
+| `ats_state` | str \| null | deprecated | Compatibility name for accumulation/distribution, not average trade size |
+| `volume_accumulation_distribution_state` | str \| null | canonical | Price direction × current-bar volume z-score |
+| `ats_zscore` | float \| null | deprecated | Compatibility name for current-bar volume z-score, not average trade size |
+| `volume_current_bar_zscore` | float \| null | canonical | Current-bar volume z-score against the rolling bar window |
 | `vix_level` | float \| null | | Latest VIX level (polled from FMP ^VIX quote) |
 | `tone` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Market-wide, uppercase |
 | `global_heat` | float \| null | [-1.0, 1.0] | Directional news heat (positive = bullish) |
-| `event_window_state` | str \| null | `"pre-event"` \| `"in-event"` \| `"post-event"` \| `"normal"` | |
-| `event_risk_level` | str \| null | `"high"` \| `"medium"` \| `"low"` | |
+| `event_window_state` | str \| null | unknown until calendar wiring | No neutral placeholder is emitted |
+| `event_risk_level` | str \| null | unknown until calendar wiring | No low-risk placeholder is emitted |
 | `next_event_name` | str \| null | | |
 | `next_event_time` | ISO-8601 \| null | | UTC |
-| `market_event_blocked` | bool | | |
-| `symbol_event_blocked` | bool | | |
-| `event_provider_status` | str | `"ok"` \| `"stale"` \| `"unavailable"` | |
+| `market_event_blocked` | bool \| null | unknown until calendar wiring | No block is asserted or lifted without a fresh calendar value. |
+| `symbol_event_blocked` | bool \| null | unknown until calendar wiring | No block is asserted or lifted without a fresh calendar value. |
+| `event_provider_status` | str | `"unknown"` until calendar wiring | `"ok"`/`"stale"` are reserved for a wired producer; the placeholder never emits a neutral state. |
 
 #### Stale response
 

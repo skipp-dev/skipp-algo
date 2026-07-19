@@ -13,20 +13,23 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
   news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL" | null
   flow_rel_vol         — volume(current bar) / mean volume(prior bars in window)
-  flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
+  flow_delta_proxy_pct — legacy compatibility name for candle-body return
+  price_candle_body_return_pct — canonical name for the same candle-body return
   squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
-  ats_state            — "accumulation" | "distribution" | "neutral" | null
-  ats_zscore           — z-score of last-bar volume vs mean of prior bars
+  ats_state            — legacy compatibility name for accumulation/distribution
+  volume_accumulation_distribution_state — canonical state name
+  ats_zscore            — legacy compatibility name for current-bar volume z-score
+  volume_current_bar_zscore — canonical z-score name
   vix_level            — latest VIX level (polled from FMP ^VIX quote)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)
   global_heat          — [-1.0, 1.0] directional news heat (positive = bullish)
-  event_window_state   — RESERVED, always "normal" until the event calendar is wired
-  event_risk_level     — RESERVED, always "low" (enum values below are aspirational)
+  event_window_state   — unknown until the event calendar is wired
+  event_risk_level     — unknown until the event calendar is wired
   next_event_name      — RESERVED, always null   |  enum: str or null
   next_event_time      — RESERVED, always null   |  enum: ISO-8601 str or null
-  market_event_blocked — RESERVED, always False
-  symbol_event_blocked — RESERVED, always False
-  event_provider_status — RESERVED, always "unavailable" (the honest tell; see _event_fields_for)
+  market_event_blocked — unknown until the event calendar is wired
+  symbol_event_blocked — unknown until the event calendar is wired
+  event_provider_status — "unknown" until the event calendar is wired
   signal_level         — "A0" | "A1" | "A2" | null (active realtime signal)
   signal_direction     — e.g. "LONG" | "SHORT" | "B_UP" | "B_DOWN" | null
   trade_entry/stop/target/r — ATR display bracket from the signals producer
@@ -1281,17 +1284,19 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _event_fields_for(_symbol: str) -> dict[str, Any]:
     """
-    Placeholder: returns neutral event state.
-    In Phase 2, connect to earnings calendar API (FMP or similar).
+    Placeholder: returns unknown event state.
+
+    Unknown is deliberate. A neutral/clear event state would be data and could
+    loosen an existing Pine posture even though no calendar producer is wired.
     """
     return {
-        "event_window_state": "normal",
-        "event_risk_level": "low",
+        "event_window_state": None,
+        "event_risk_level": None,
         "next_event_name": None,
         "next_event_time": None,
-        "market_event_blocked": False,
-        "symbol_event_blocked": False,
-        "event_provider_status": "unavailable",
+        "market_event_blocked": None,
+        "symbol_event_blocked": None,
+        "event_provider_status": "unknown",
     }
 
 
@@ -1404,10 +1409,13 @@ def build_payload(
         # Flow
         "flow_rel_vol": flow.get("flow_rel_vol"),
         "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
+        "price_candle_body_return_pct": flow.get("flow_delta_proxy_pct"),
         # Technicals
         "squeeze_on": int(squeeze) if squeeze is not None else None,
         "ats_state": ats.get("ats_state"),
+        "volume_accumulation_distribution_state": ats.get("ats_state"),
         "ats_zscore": ats.get("ats_zscore"),
+        "volume_current_bar_zscore": ats.get("ats_zscore"),
         # Market-wide
         "vix_level": round(vix, 4) if vix is not None else None,
         "tone": global_fields.get("tone"),

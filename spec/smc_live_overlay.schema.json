@@ -94,21 +94,42 @@
       "minimum": 0
     },
     "flow_delta_proxy_pct": {
-      "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Absent or null when no fresh value is available.",
+      "description": "DEPRECATED compatibility field. This is candle-body return (close-open)/open*100, not order-flow delta. New consumers use price_candle_body_return_pct.",
       "type": [
         "number",
         "null"
       ]
     },
     "ats_state": {
-      "description": "B2. Accumulation/distribution regime label from price-delta x volume-zscore: \"accumulation\" | \"distribution\" | \"neutral\". (\"ATS\" here is an accumulation/distribution read, not average-trade-size.) Absent or null when no fresh value is available.",
+      "description": "DEPRECATED compatibility field. Accumulation/distribution state from price direction and volume z-score; it is not average trade size. New consumers use volume_accumulation_distribution_state.",
       "type": [
         "string",
         "null"
       ]
     },
     "ats_zscore": {
-      "description": "B2. Z-score of the last bar's volume vs the rolling intraday bar window (not average-trade-size, not a 20-day baseline). Absent or null when no fresh value is available.",
+      "description": "DEPRECATED compatibility field. Z-score of the current bar's volume vs the rolling bar window; it is not average trade size. New consumers use volume_current_bar_zscore.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "price_candle_body_return_pct": {
+      "description": "Canonical candle-body return in percent: (close-open)/open*100. This is not order-flow delta.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "volume_accumulation_distribution_state": {
+      "description": "Canonical accumulation/distribution state derived from price direction and current-bar volume z-score. It is not average trade size.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "volume_current_bar_zscore": {
+      "description": "Canonical current-bar volume z-score against the rolling bar window. It is not average trade size.",
       "type": [
         "number",
         "null"
@@ -173,7 +194,7 @@
       ]
     },
     "event_provider_status": {
-      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing; until the Phase-2 event wiring lands the producer sends the placeholder 'unavailable' \u2014 see compute._event_fields_for). Absent (or null) when not served fresh.",
+      "description": "Event-risk producer health. The current placeholder producer returns 'unknown'; neutral event states are never emitted without a real calendar source.",
       "type": [
         "string",
         "null"

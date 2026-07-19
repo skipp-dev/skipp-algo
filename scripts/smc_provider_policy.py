@@ -24,7 +24,8 @@ Domain policies
   chain 2026-07-08 — subscription cancelled, key dead; the adapter code
   below remains only until the full retirement cleanup)
 * **calendar** → FMP primary, Benzinga fallback
-* **technical** → FMP primary, TradingView fallback
+* **technical** → FMP primary, no upstream fallback. TradingView is a
+  downstream consumer/publish and validation surface, never a provider.
 
 (base_scan had a declared policy but NO adapter and no resolve_domain
 caller — resolve_domain("base_scan") always ended in no_data. Removed

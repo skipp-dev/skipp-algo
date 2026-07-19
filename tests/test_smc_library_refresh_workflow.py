@@ -56,7 +56,8 @@ def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
     generate_block = _step_block(workflow_text, "Generate SMC library with v5 enrichment")
 
     assert "--bundle artifacts/smc_microstructure_exports" in generate_block
-    assert "--enrich-all" in generate_block
+    assert "--static-only" in generate_block
+    assert "--enrich-all" not in generate_block
     assert "--export-dir artifacts/smc_microstructure_exports" in generate_block
     assert "--run-scan" not in generate_block
     assert "--incremental-base-only" not in generate_block

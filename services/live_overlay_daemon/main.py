@@ -387,7 +387,7 @@ def smc_live(
                     "next_event_time": None,
                     "market_event_blocked": False,
                     "symbol_event_blocked": False,
-                    "event_provider_status": "unavailable",
+                    "event_provider_status": "unknown",
                     "signal_level": None,
                     "signal_direction": None,
                     "trade_entry": None,
