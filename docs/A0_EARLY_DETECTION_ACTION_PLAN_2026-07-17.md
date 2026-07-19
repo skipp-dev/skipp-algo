@@ -2,7 +2,7 @@
 
 Stand: 2026-07-19
 Status: technische Shadow-Laufzeit aktiv; Evidenz- und Produktionsfreigabe offen
-Verifizierter Merge-Stand: `origin/main` bei `6a5726b40`
+Verifizierter Merge- und Laufzeitstand: `origin/main` bei `fdd3051aa`
 Fachliche Grundlage: [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md)
 
 ## Umsetzungsstand
@@ -28,12 +28,14 @@ Stand 2026-07-19 nach Merge, Restore-Drill und Railway-Rollout:
 | A0-400 bis A0-801 | technisch umgesetzt, Evidenz offen | ETA, Snapshotvertrag, Baseline, kalibriertes Candidate-Artefakt und fail-closed Shadow-Inferenz sind vorhanden; neuer Trainingsrun, Shadow-Promotion und Notify bleiben an echte neue Messfenster gebunden |
 
 Der sonntägliche Restart-Test hat zusätzlich zwei reine Betriebsfehler
-aufgedeckt und lokal behoben: ungebremste Databento-Symbolmapping-Logs im
-A0-Worker sowie eine OPRA-Definitionsabfrage für den vorherigen Kalendertag
-statt den letzten verfügbaren vollständigen Handelstag. Beide Korrekturen sind
-mit Railway-Deployments und Regressionstests verifiziert; ihr Merge und der
-anschließende source-linked Redeploy sind der letzte technische Schritt vor
-dem ersten vollständigen Messfenster.
+aufgedeckt: ungebremste Databento-Symbolmapping-Logs im A0-Worker sowie eine
+OPRA-Definitionsabfrage für den vorherigen Kalendertag statt den letzten
+verfügbaren vollständigen Handelstag. PR #3786 hat beide Korrekturen nach
+grüner CI als `fdd3051aa` gemergt. Die source-linked Railway-Deployments
+`e91f8bcc-2495-465d-83f0-f88f91fb9081` (A0) und
+`1fb3066c-66d8-4c5e-bc55-f3eec8a9d16e` (OPRA) sind erfolgreich verifiziert.
+Damit ist vor dem ersten vollständigen Messfenster kein technischer
+Rolloutschritt mehr offen.
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`
