@@ -182,7 +182,7 @@
       "consumer_role": "bridge",
       "validation_target": false,
       "notes": [
-        "Internal bridge helper outside the user-facing Lite/Pro rollout."
+        "Retired, network-inert compatibility notice; no live-overlay data ingress."
       ]
     },
     {

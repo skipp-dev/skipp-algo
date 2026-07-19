@@ -550,6 +550,8 @@ class TestRealtimeFailOpen:
         engine._watchlist = []
         engine._was_outside_market = False
         engine.poll_interval = 45
+        engine.last_poll_attempt_epoch = 0.0
+        engine.last_poll_interval_actual_seconds = 0.0
 
         # Mock _save_signals to avoid file I/O
         engine._save_signals = MagicMock()

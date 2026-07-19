@@ -96,8 +96,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_profile_regime.py", 280),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
-        # PR #2198 main churn added 1 line near top, shifting 430 -> 431.
-        ("scripts/databento_preopen_fast.py", 431),
+        # 2026-07-19: mainline helper growth shifted the closed premarket
+        # snapshot from 431 -> 438; the data semantics are unchanged.
+        ("scripts/databento_preopen_fast.py", 438),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
         # Phase-5.2 Quickfix B (PR #2058): Item 4 (BentoHttpAPI.TIMEOUT module-patch)
@@ -110,9 +111,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # PR #2198 main churn added 1 line near top (-> 2397) and
         # Bridge 1c (PR #2197) inserted DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES
         # + env-resolver block (~61 lines), shifting 2397 -> 2458.
-        # PR #3703 completed the Pine contract migration and shifted this
-        # production-export snapshot by three lines.
-        ("scripts/databento_production_export.py", 2460),
+        # PR #3703 and subsequent mainline helper growth shifted this
+        # production-export snapshot from 2458 -> 2510.
+        ("scripts/databento_production_export.py", 2510),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.

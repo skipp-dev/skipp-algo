@@ -86,6 +86,7 @@ Optional environment:
 - `DATABENTO_BULLISH_SCORE_PROFILE` — selects the bullish-quality-score profile used for symbol-day ranking (default: built-in `DEFAULT_BULLISH_QUALITY_SCORE_PROFILE`). Used by the producer CLI to A/B-test scoring weights without code changes.
 - `DATABENTO_STEP8_SUBSTEP_PARALLELISM` — per-shard substep parallelism for the Step 8 pipeline stage (sharded producer only); default `1`. Raise carefully — each substep holds an open Databento HTTP session.
 - `DATABENTO_CACHE_PROBE_LOG` — optional path to a JSONL output file. When set, every `_read_cached_frame()` lookup is recorded as `{path, hit}` and the file is written at process exit (via `atexit`, so partial runs still produce telemetry). Used to size the post-cutover sharded-file-cache; the production sharded export (`smc-databento-production-export-sharded.yml`) enables this probe only on opt-in `workflow_dispatch` (`enable_cache_probe=true`) — its scheduled Mon–Fri runs skip it (F-V8-perf-3.5, PR #2288).
+- `DATABENTO_USAGE_SNAPSHOT_PATH` — optional path for the atomically written Databento usage snapshot; defaults to `artifacts/monitoring/databento_usage.json`.
 
 ## What The Pipeline Calculates
 

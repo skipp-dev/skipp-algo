@@ -39,6 +39,40 @@ def test_fetch_json_url_returns_decoded_mapping(monkeypatch) -> None:
     assert captured["timeout"] == 7.0
 
 
+def test_fetch_json_url_sends_optional_bearer_token(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return _FakeResponse(json.dumps({"ranked_v2": [{"symbol": "NVDA"}]}).encode())
+
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", "repo-read-token")
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    payload = rs._fetch_json_url("https://example.test/private-snapshot.json")
+
+    assert payload == {"ranked_v2": [{"symbol": "NVDA"}]}
+    assert captured == {"authorization": "Bearer repo-read-token", "timeout": 15.0}
+
+
+def test_fetch_json_url_does_not_send_bearer_token_over_http(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, timeout):
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return _FakeResponse(json.dumps({"ranked_v2": []}).encode())
+
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", "repo-read-token")
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+
+    payload = rs._fetch_json_url("http://example.test/private-snapshot.json")
+
+    assert payload == {"ranked_v2": []}
+    assert captured == {"authorization": None, "timeout": 15.0}
+
+
 def test_fetch_json_url_rejects_non_http_scheme(monkeypatch) -> None:
     def _boom(*_a: object, **_k: object) -> None:  # pragma: no cover - must not run
         raise AssertionError("urlopen should not be called for unsupported scheme")

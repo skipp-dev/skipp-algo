@@ -12,6 +12,8 @@ from statistics import median
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from scripts.smc_atomic_write import atomic_write_text
+
 _US_EASTERN = ZoneInfo("America/New_York")
 
 
@@ -156,7 +158,7 @@ def main() -> int:
     args = parser.parse_args()
     report = evaluate(load_ledger(args.ledger))
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", args.output)
     return 0
 
 

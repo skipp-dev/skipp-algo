@@ -95,6 +95,7 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
 
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
     payload = _load_json('artifacts/tradingview/library_release_manifest.json')
+    product_cut = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')
 
     assert payload['manifestVersion'] == 2
     assert payload['library']['productivityGate']['publishReady'] is True
@@ -102,30 +103,11 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['library']['productivityGate']['fixtureInputDetected'] is False
     assert payload['library']['productivityGate']['defaultEventRiskDetected'] is False
     assert payload['library']['productivityGate']['placeholderSymbols'] == []
-    assert payload['productCut']['mainlineFiles'] == [
-        'SMC_Long_Dip_Suite.pine',
-        'SMC_Long_Dip_Dashboard.pine',
-        'SMC_Long_Dip_Strategy.pine',
-    ]
+    assert payload['productCut']['mainlineFiles'] == product_cut['mainlineSurfaceFiles']
     assert payload['productCut']['manifestVersion'] == 2
-    assert payload['productCut']['litePrimaryFiles'] == ['SMC_Long_Dip_Suite.pine']
-    assert payload['productCut']['proPrimaryFiles'] == ['SMC_Long_Dip_Dashboard.pine', 'SMC_Long_Dip_Strategy.pine']
-    assert payload['productCut']['contracts']['lite'] == [
-        'BUS ZoneActive',
-        'BUS Armed',
-        'BUS Confirmed',
-        'BUS Ready',
-        'BUS EntryBest',
-        'BUS EntryStrict',
-        'BUS Trigger',
-        'BUS Invalidation',
-        'BUS QualityScore',
-        'BUS SourceKind',
-        'BUS StateCode',
-        'BUS TrendPack',
-        'BUS LeanPackA',
-        'BUS LeanPackB',
-    ]
+    assert payload['productCut']['litePrimaryFiles'] == product_cut['litePrimaryFiles']
+    assert payload['productCut']['proPrimaryFiles'] == product_cut['proPrimaryFiles']
+    assert payload['productCut']['contracts']['lite'] == product_cut['contracts']['lite']
     assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
