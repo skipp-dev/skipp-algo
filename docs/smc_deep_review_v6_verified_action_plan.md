@@ -1,5 +1,11 @@
 # SMC Deep Review v6: Kritische Verifikation und Action Plan
 
+> **Historisch / überholt (18.07.2026).** Dieses Review dokumentiert eine
+> frühere TradingView-Technical-Fallback-Implementierung. Der Fallback ist
+> inzwischen vollständig aus der Provider-Policy entfernt; TradingView bleibt
+> ausschließlich Consumer-/Publish-/Validierungsfläche. Aussagen über einen
+> aktiven TradingView-Enrichment-Provider sind daher keine aktuelle Architektur.
+
 Stand: 2026-04-12
 Quelle: `smc_deep_review_v6.md`
 
@@ -25,15 +31,14 @@ aber verbessert:
   Benzinga und NewsAPI.ai bereits an den Generator uebergibt. Fehlende oder
   ungueltige GitHub-Secrets bleiben plausibel, sind lokal aber nicht beweisbar.
 - Die Review-Empfehlung `TRADINGVIEW_TOKEN setzen` ist in der aktuellen Form
-  nicht belegt. Der Repo-Stand nutzt fuer den Technical-Fallback keinen
-  TradingView-Token.
+  nicht belegt. Der historische Technical-Fallback ist inzwischen entfernt.
 - Die Review-Annahme eines separaten NewsAPI-Key-Pfads ist derzeit nicht
   belegt. Sowohl der Live-Refresh als auch der Library-Refresh lesen
   `NEWSAPI_KEY`.
-- Zusaetzlich wurde ein echter Codefehler gefunden: Der angebliche
+- Zusaetzlich wurde ein echter Codefehler gefunden: Der historische
   TradingView-Technical-Fallback in `scripts/smc_provider_policy.py` war nicht
-  unabhaengig, sondern rief intern den FMP-Fallback auf. Dieser Fehler wurde in
-  diesem Change behoben.
+  unabhaengig, sondern rief intern den FMP-Fallback auf. Der gesamte Fallback
+  ist inzwischen aus der aktiven Provider-Policy entfernt.
 - Der Hosted-Refresh ist inzwischen wieder end-to-end gruen, inklusive
   Readonly-Preflight, Publish und automatischem Push auf `main`.
 

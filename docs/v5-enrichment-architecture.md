@@ -624,7 +624,7 @@ Total gates after v5.3: 15 (5 from v5.1 + 6 from v5.2 + 4 from v5.3).
 | regime | FMP | — (defaults on failure) | `regime_provider` |
 | news | FMP | Benzinga, NewsAPI.ai | `news_provider` |
 | calendar | FMP | Benzinga | `calendar_provider` |
-| technical | FMP | TradingView | `technical_provider` |
+| technical | FMP | none | `technical_provider` |
 | event_risk | smc_event_risk_builder (derived) | — | `event_risk_provider` |
 | flow_qualifier | smc_flow_qualifier (derived) | — | snapshot-based |
 | compression_regime | smc_compression_regime (derived) | — | snapshot-based |

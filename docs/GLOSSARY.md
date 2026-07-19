@@ -116,7 +116,7 @@ mirrored between Python and the Pine dashboard (cross-checked by
 | `Finnhub` | Quotes / fundamentals. |
 | `NewsAPI.ai` | News enrichment (active path: `scripts/smc_newsapi_ai.py`). |
 | `Benzinga` | News / calendar fallback. |
-| `TradingView` | Technicals via `tradingview_ta` + Playwright `TV_STORAGE_STATE`. |
+| `TradingView` | Consumer runtime and publish/validation surface; not an upstream enrichment provider. |
 | `IBKR` / `TWS` | **Interactive Brokers** / **Trader Workstation** execution. TWS defaults: `7497` paper, `7496` live. IB Gateway convention: `4002` paper, `4001` live. Paper account numbers are prefixed `DU*`. |
 
 ## Process & audit codes

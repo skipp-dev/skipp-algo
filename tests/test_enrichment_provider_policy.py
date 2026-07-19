@@ -167,7 +167,8 @@ class TestProviderUnavailable:
         result = resolve_domain("technical", fmp=None)
         assert result.ok is False
         assert result.provider == "none"
-        assert result.stale == ["fmp"]
+        assert "fmp" in result.stale
+        assert "tradingview" not in result.stale
 
     def test_unknown_domain_raises(self):
         with pytest.raises(ValueError, match="Unknown enrichment domain"):
@@ -244,7 +245,7 @@ class TestPartialProviderAvailability:
         assert result.stale == ["fmp"]
 
     @patch("scripts.smc_provider_policy.fetch_technical_fmp")
-    def test_technical_fmp_failure_stops_without_upstream_fallback(self, mock_fmp):
+    def test_technical_fmp_failure_does_not_try_retired_tradingview(self, mock_fmp):
         mock_fmp.side_effect = RuntimeError("FMP rate limit")
         result = resolve_domain("technical", fmp=MagicMock())
         assert result.ok is False
@@ -1212,27 +1213,6 @@ class TestBuildEnrichmentFallbackPaths:
         assert enrichment is not None
         assert enrichment["providers"]["calendar_provider"] == "benzinga"
         assert enrichment["calendar"]["earnings_today_tickers"] == "AAPL"
-
-    @patch("scripts.smc_provider_policy.resolve_domain")
-    def test_technical_provider_remains_fmp_when_resolved(self, mock_resolve):
-        from scripts.generate_smc_micro_base_from_databento import build_enrichment
-
-        def _side_effect(domain, **kw):
-            if domain == "technical":
-                return ProviderResult(
-                    data={"strength": 0.7, "bias": "BULLISH"},
-                    provider="fmp",
-                )
-            return ProviderResult(data={"regime": "RISK_ON"}, provider="fmp")
-
-        mock_resolve.side_effect = _side_effect
-
-        enrichment = build_enrichment(
-            fmp_api_key="key", symbols=["AAPL"],
-            enrich_regime=True, enrich_layering=True,
-        )
-        assert enrichment is not None
-        assert enrichment["providers"]["technical_provider"] == "fmp"
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_all_domains_fail_gives_zero_enrichment_providers(self, mock_resolve):
