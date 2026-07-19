@@ -39,11 +39,14 @@ symbology mapping messages are suppressed at INFO because a five-parent
 subscription can otherwise exceed Railway's log-ingestion limit; warnings and
 errors remain visible.
 
-The service bootstraps definitions from the previous complete UTC day and also
-subscribes to definition updates. Trades whose instrument is still unknown are
-held temporarily and counted; they are never guessed. Reconnects use exponential
-backoff with jitter. The local snapshot is written atomically and marked
-`shadow_only: true`.
+The service bootstraps definitions from the most recent available complete UTC
+weekday and also subscribes to definition updates. It searches backwards for
+up to seven days so weekend and provider-unavailable holiday windows do not
+prevent a live restart. Errors other than the provider's explicit
+`data_start_after_available_end` response remain fail-closed. Trades whose
+instrument is still unknown are held temporarily and counted; they are never
+guessed. Reconnects use exponential backoff with jitter. The local snapshot is
+written atomically and marked `shadow_only: true`.
 
 The append-only ledger is local/private operational evidence and is ignored by
 Git. It contains processed candidate metadata only, never credentials or full

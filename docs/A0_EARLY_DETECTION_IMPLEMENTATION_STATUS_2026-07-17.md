@@ -1,4 +1,4 @@
-# A0 early detection implementation status — updated 2026-07-18
+# A0 early detection implementation status — updated 2026-07-19
 
 ## Implemented and merged
 
@@ -23,32 +23,46 @@
 
 ## Operational status on Railway
 
-- `a0-fast-shadow` deployment `0040410c-92b0-4d79-b51a-6de96dece18d`
-  runs `python -m services.a0_fast_detector.worker` from the dedicated
-  Dockerfile; the former accidental root-Streamlit deployment is replaced.
-- `/healthz` passed and Grafana reports
-  `up{job="a0_fast"}=1` for the private `/metrics` endpoint.
+- `a0-fast-shadow` runs `python -m services.a0_fast_detector.worker` from the
+  dedicated Dockerfile; the former accidental root-Streamlit deployment is
+  replaced. The source-linked `main` deployment
+  `81fa3f96-75b3-451f-9c95-bb64f4598861` exposed excessive Databento
+  per-symbol INFO logging. The follow-up deployment
+  `2a180549-7aa9-4508-ad60-857c9496200b` verified the bounded logging fix:
+  worker startup, authentication and subscription acknowledgements remain
+  visible without the mapping flood.
+- Grafana reports `up{job="a0_fast"}=1`,
+  `a0_fast_stream_connected=1`, `pre_a0_model_ready=1` and
+  `pre_a0_calibration_valid=1`. This proves that the private `/metrics`
+  endpoint is being scraped successfully.
 - Databento Live authenticated and resolved the configured 900-symbol
-  universe. Because 18 July 2026 is a Saturday, no market records were
-  manufactured: record, decision and snapshot counters correctly remain 0.
+  universe. Because 19 July 2026 is a Sunday, no market records were
+  manufactured: record, decision, snapshot and flush counters correctly
+  remain 0.
 - PRE-A0 loaded artifact `71831770afe43bdd424aa7ab` with
   `pre_a0_model_ready=1` and `pre_a0_calibration_valid=1`.
 - `/app/data` is a ready 5-GB persistent Railway volume. It is empty apart
   from filesystem metadata until the first real market record is persisted.
 - The collection clock starts with the next complete US regular session.
 
-The separate `opra-live-shadow` daemon is deployed privately as Railway
-deployment `ec65c6ff-1503-444a-b7ef-ce076f23e8f6`, with its own `/app/data`
-volume and the five-parent hotlist
-`SPY,QQQ,AAPL,NVDA,TSLA`. It authenticated both the `definition` and `tcbbo`
-OPRA subscriptions and loaded 39.542 definitions after one correctly retried
-gateway timeout. A live-discovered parent-symbology defect in the historical
-definition bootstrap was corrected and regression-tested before the final
-rollout. Because the rollout happened on Saturday, the trade and candidate
-counters correctly remain 0. The service has no public domain, HTTP,
+The separate `opra-live-shadow` daemon is deployed privately with its own
+`/app/data` volume and the five-parent hotlist `SPY,QQQ,AAPL,NVDA,TSLA`. The
+source-linked `main` deployment `37713734-d43e-4a74-8352-3f941c0e61c7`
+authenticated both OPRA subscriptions but exposed a weekend bootstrap defect:
+Saturday was incorrectly selected as the latest complete UTC day. Deployment
+`4dfe969a-f1e9-4ec6-9038-05dbb7386da7` verified the follow-up fix, which walks
+back through complete weekdays and tolerates provider-unavailable days. On
+Sunday it loaded 39.542 Friday definitions without a bootstrap warning and
+acknowledged both `definition` and `tcbbo` live subscriptions. Trade and
+candidate counters correctly remain 0. The service has no public domain, HTTP,
 notification, alert or product-publication path and uses its own 7–10
 complete-session evidence window; that evidence cannot satisfy or bypass any
 A0-Fast or PRE-A0 gate.
+
+Both Railway services are connected to `skipp-dev/skipp-algo:main`. The two
+follow-up deployments above were intentionally built from the locally verified
+weekend fix; permanent source reproducibility requires that small follow-up
+change to pass CI, merge to `main`, and be redeployed from the merged commit.
 
 ## Deliberately not claimed
 
