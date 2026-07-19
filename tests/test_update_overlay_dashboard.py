@@ -572,37 +572,6 @@ def test_update_script_check_mode_passes_on_current_dashboard() -> None:
     assert "is up to date" in result.stdout
 
 
-def test_update_script_keeps_signals_dashboard_slack_routing_copy_current() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    script = repo_root / "scripts" / "update_overlay_dashboard.py"
-    dashboard = (
-        repo_root
-        / "services"
-        / "live_overlay_daemon"
-        / "infra"
-        / "grafana"
-        / "dashboard-signals-experiments.json"
-    )
-
-    result = subprocess.run(
-        [sys.executable, str(script), "--check", str(dashboard)],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode == 0, result.stderr + result.stdout
-    data = json.loads(dashboard.read_text(encoding="utf-8"))
-    help_panel = next(
-        panel
-        for panel in data["panels"]
-        if panel.get("title") == "How to read & export this section"
-    )
-    content = help_panel["options"]["content"]
-    assert "only direct PRE-A0 and A0 notifications" in content
-    assert "A1/A2 stay dashboard-only" in content
-
-
 def test_update_script_check_mode_fails_on_stale_dashboard(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     script = repo_root / "scripts" / "update_overlay_dashboard.py"

@@ -1,4 +1,4 @@
-"""Databento A0-Fast shadow worker with gated PRE-A0 notification only."""
+"""Databento A0-Fast shadow worker. No notification or publication path."""
 
 from __future__ import annotations
 
@@ -175,19 +175,6 @@ class _Processor:
                         "PRE_A0_OBSERVE %s",
                         json.dumps(pre_result.operator_payload, sort_keys=True),
                     )
-                    if str(self.pre_a0.config.pre_a0_mode) == "notify":
-                        from open_prep import rt_notify
-
-                        if rt_notify.notify_pre_a0(
-                            pre_result.operator_payload,
-                            on_budget_exceeded=(
-                                self.pre_a0.telemetry.record_alert_budget_exceeded
-                            ),
-                        ):
-                            self.pre_a0.telemetry.record_alert(
-                                int(pre_result.operator_payload["horizon_s"]),
-                                str(pre_result.operator_payload["direction"]),
-                            )
             except (OSError, TypeError, ValueError, OverflowError):
                 self.pre_a0.telemetry.record_runtime_error()
                 logger.warning(

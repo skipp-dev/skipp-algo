@@ -595,8 +595,8 @@ def test_alert_rules_include_daemon_restarts_high() -> None:
 def test_no_fresh_signal_alert_rules() -> None:
     """Operator decision 2026-07-11 (reverses 2026-07-08): neither fresh-A1 nor
     fresh-A2 is a Grafana alert. A fresh signal is not an incident, and the old
-    fresh-A1 alert duplicated the old rt_notify push into Slack. Both tiers stay
-    diagnostic dashboard signals only; direct pushes are PRE-A0/A0."""
+    fresh-A1 alert duplicated the rt_notify push into Slack. Both tiers stay
+    dashboard/push signals; only real health/SLO conditions page."""
     groups = mod.load_alert_groups(ALERT_RULES)
     rules = {r["uid"]: r for g in groups for r in g["rules"]}
 

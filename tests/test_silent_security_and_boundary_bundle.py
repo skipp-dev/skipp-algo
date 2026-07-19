@@ -226,7 +226,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 285 -> 324; root logging remains confined to main().
     # 2026-07-18: live-client thread-affinity fix removed the outer client
     # cleanup block, shifting the entry-point site 324 -> 316.
-    ("services/a0_fast_detector/worker.py", 329),  # 2026-07-18 (gated PRE-A0 notify): 316->329
+    ("services/a0_fast_detector/worker.py", 316),
     # 2026-07-18: standalone OPRA shadow-daemon CLI configures logging once at
     # process startup; the package modules themselves do not touch root logging.
     ("services/opra_live_daemon/main.py", 70),

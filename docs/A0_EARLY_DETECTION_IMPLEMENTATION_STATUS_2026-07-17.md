@@ -28,15 +28,18 @@
   replaced. The earlier source-linked `main` deployment
   `81fa3f96-75b3-451f-9c95-bb64f4598861` exposed excessive Databento
   per-symbol INFO logging. PR #3786 merged the bounded logging fix as
-  `fdd3051aa`; source deployment `e91f8bcc-2495-465d-83f0-f88f91fb9081`
-  now runs that commit. Worker startup, authentication and subscription
-  acknowledgements remain visible without the mapping flood.
+  `fdd3051aa`. After PR #3778 was merged before its evidence gate, deployment
+  `486770bd-98fe-425c-b82d-24e3e9e6a5ae` restored the verified pre-notify
+  runtime. Worker startup, authentication and subscription acknowledgements
+  remain visible without the mapping flood.
 - Grafana reports `up{job="a0_fast"}=1`,
   `a0_fast_stream_connected=1`, `pre_a0_model_ready=1` and
   `pre_a0_calibration_valid=1`. This proves that the private `/metrics`
   endpoint is being scraped successfully.
-- Databento Live authenticated and resolved the configured 900-symbol
-  universe. Because 19 July 2026 is a Sunday, no market records were
+- Databento Live authenticated and resolved the configured 899-symbol
+  universe. `SVAC` was removed after Databento explicitly returned
+  `symbol_resolution_failed`; no other symbol was changed. Because 19 July
+  2026 is a Sunday, no market records were
   manufactured: record, decision, snapshot and flush counters correctly
   remain 0.
 - PRE-A0 loaded artifact `71831770afe43bdd424aa7ab` with
@@ -59,9 +62,13 @@ correctly remain 0. The service has no public domain, HTTP, notification, alert
 or product-publication path and uses its own 7–10 complete-session evidence
 window; that evidence cannot satisfy or bypass any A0-Fast or PRE-A0 gate.
 
-Both Railway services are connected to `skipp-dev/skipp-algo:main` and now run
-the merged weekend fix from `fdd3051aa`. PR #3778 remains Draft with Notify
-blocked until at least 20 complete sessions and 200 confirmed A0 episodes exist.
+Both Railway services remain connected to `skipp-dev/skipp-algo:main`. PR #3778
+was merged as `d38091ba` despite its documented evidence hold; this change
+reverts that notification layer. The Railway environment remained fail-closed
+throughout: both modes were `shadow`, deployment approval and Slack credentials
+were absent, and the 20-session/200-episode gate was unmet. No notification was
+sent and the notification implementation requires a fresh review after real
+evidence exists.
 
 ## Deliberately not claimed
 

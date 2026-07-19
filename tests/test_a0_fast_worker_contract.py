@@ -97,7 +97,7 @@ def test_reference_loader_rejects_fmp_source(tmp_path: Path) -> None:
         worker._load_references(path)
 
 
-def test_worker_keeps_a0_shadow_only_and_limits_notify_to_pre_a0() -> None:
+def test_worker_has_no_notification_or_publication_import() -> None:
     path = Path(worker.__file__)
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports = {
@@ -106,11 +106,9 @@ def test_worker_keeps_a0_shadow_only_and_limits_notify_to_pre_a0() -> None:
         if isinstance(node, (ast.Import, ast.ImportFrom))
         for alias in node.names
     }
-    assert not any("slack" in name for name in imports)
+    assert not any("rt_notify" in name or "slack" in name for name in imports)
     source = path.read_text(encoding="utf-8")
     assert "notify_fresh_signals" not in source
-    assert "notify_pre_a0" in source
-    assert 'pre_a0.config.pre_a0_mode) == "notify"' in source
     assert '"mode": "shadow"' in source
 
 
@@ -121,6 +119,5 @@ def test_worker_image_packages_pre_a0_atomic_parquet_runtime() -> None:
     railway = (root / "services/a0_fast_detector/railway.toml").read_text(encoding="utf-8")
     assert "COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py" in dockerfile
     assert "pyarrow==24.0.0" in requirements
-    assert "httpx==0.28.1" in requirements
     assert '"open_prep/pre_a0*.py"' in railway
     assert '"scripts/smc_atomic_write.py"' in railway
