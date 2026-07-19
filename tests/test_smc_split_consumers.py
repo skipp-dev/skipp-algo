@@ -34,7 +34,7 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     assert 'n/a - not on bus' not in source
 
     # Dashboard now imports the library for Market Context row (WP-UP3)
-    assert 'import preuss_steffen/smc_micro_profiles_generated/155 as mp' in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -52,7 +52,7 @@ def test_strategy_is_a_bus_only_consumer() -> None:
     assert 'strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)' in source
 
     # Strategy now imports the library for regime gate (WP-UP1)
-    assert 'import preuss_steffen/smc_micro_profiles_generated/155 as mp' in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
