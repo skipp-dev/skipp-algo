@@ -1400,7 +1400,7 @@ def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
 
     Returns the decoded mapping, or ``None`` on any network/parse error so
     callers can fall back to a local snapshot.  Only ``http(s)`` URLs are
-    accepted; the call always passes an explicit ``timeout``.
+    accepted; an optional snapshot token is sent as Bearer only over HTTPS.
     """
     import urllib.error
     import urllib.request
@@ -1409,9 +1409,9 @@ def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
         logger.warning("OPEN_PREP_SNAPSHOT_URL ignored — unsupported scheme")
         return None
     try:
-        request = urllib.request.Request(
-            url, headers={"User-Agent": "smc-signals-producer"}
-        )
+        token = os.getenv("OPEN_PREP_SNAPSHOT_URL_TOKEN", "").strip()
+        headers = {"User-Agent": "smc-signals-producer", **({"Authorization": f"Bearer {token}"} if token and url.lower().startswith("https://") else {})}
+        request = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, ValueError, OSError) as exc:
