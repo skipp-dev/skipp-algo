@@ -1764,11 +1764,15 @@ def test_dashboard_has_trading_signals_panels() -> None:
     assert active["type"] == "stat"
     assert any(t["expr"].startswith("live_overlay_trading_signals_active{") for t in active["targets"])
 
-    # A2 early-warning tier is first-class on the dashboard (added 2026-07-08):
-    # its own stat tile + a coloured mapping in the detail table's Level column.
-    a2_tile = by_title["A2 Early-Warning"]
-    assert a2_tile["type"] == "stat"
-    assert any(t["expr"].startswith("live_overlay_trading_signals_a2{") for t in a2_tile["targets"])
+    # The action tier mirrors direct Slack routing: PRE-A0 + A0 only. A1/A2
+    # remain visible in the diagnostic detail table but have no action tile.
+    a0_tile = by_title["A0 — Slack Action Tier"]
+    assert a0_tile["type"] == "stat"
+    assert [t["refId"] for t in a0_tile["targets"]] == ["A"]
+    assert a0_tile["targets"][0]["expr"].startswith("live_overlay_trading_signals_a0{")
+    pre_a0_tile = by_title["PRE-A0 Alerts — Last Hour"]
+    assert pre_a0_tile["type"] == "stat"
+    assert any("pre_a0_alerts_total" in t["expr"] for t in pre_a0_tile["targets"])
     level_ov = next(
         ov for ov in by_title["Top Trading Signals — Latest Detail"]["fieldConfig"]["overrides"]
         if ov["matcher"].get("options") == "Level"

@@ -20,7 +20,15 @@ _OPEN = datetime(2026, 7, 20, 9, 30, tzinfo=ZoneInfo("America/New_York"))
 _THRESHOLDS = A0ThresholdContext(3.0, 1.0, 0.6, 2.0, 1.0, 0.5)
 
 
-def _artifact(path, *, horizons=(30, 60, 180), offline_evaluated=True) -> None:
+def _artifact(
+    path,
+    *,
+    horizons=(30, 60, 180),
+    offline_evaluated=True,
+    shadow_evaluated=False,
+    shadow_sessions=20,
+    shadow_episodes=200,
+) -> None:
     rows = [
         {"price_progress": index / 39, "volume_progress": index / 39}
         for index in range(40)
@@ -38,8 +46,15 @@ def _artifact(path, *, horizons=(30, 60, 180), offline_evaluated=True) -> None:
         calibrated_window=("2026-07-01", "2026-07-10"),
         review_after="2099-01-01T00:00:00Z",
         horizons=horizons,
-        metrics={"brier": 0.1},
-        gates={"offline_evaluated": offline_evaluated},
+        metrics={
+            "brier": 0.1,
+            "shadow_sessions": float(shadow_sessions),
+            "shadow_confirmed_a0_episodes": float(shadow_episodes),
+        },
+        gates={
+            "offline_evaluated": offline_evaluated,
+            "shadow_evaluated": shadow_evaluated,
+        },
     )
     path.write_text(json.dumps(artifact.to_dict()), encoding="utf-8")
 
@@ -152,3 +167,48 @@ def test_observe_rejects_unsupported_horizon_and_unreviewed_artifact(tmp_path) -
     only_60 = {**base_env, "RT_PRE_A0_ALLOWED_HORIZONS": "60"}
     assert build_pre_a0_runtime(only_60, thresholds=_THRESHOLDS, telemetry=telemetry) is None
     assert telemetry.snapshot()["disabled_reasons"] == ("observe_requires_offline_evaluation_gate",)
+
+
+def test_notify_requires_shadow_gate_and_emits_episode_identity(tmp_path) -> None:
+    model_path = tmp_path / "model.json"
+    output = tmp_path / "snapshots"
+    base_env = {
+        "RT_A0_FAST_MODE": "shadow",
+        "RT_PRE_A0_MODE": "notify",
+        "RT_PRE_A0_DEPLOYMENT_APPROVED": "1",
+        "RT_PRE_A0_MODEL_PATH": str(model_path),
+        "RT_PRE_A0_SNAPSHOT_DIR": str(output),
+    }
+
+    _artifact(model_path, shadow_evaluated=False)
+    telemetry = PreA0Telemetry()
+    assert build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry) is None
+    assert telemetry.snapshot()["disabled_reasons"] == (
+        "notify_requires_offline_and_shadow_evaluation_gates",
+    )
+
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=19, shadow_episodes=200)
+    telemetry = PreA0Telemetry()
+    assert build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry) is None
+    assert telemetry.snapshot()["disabled_reasons"] == (
+        "notify_requires_20_sessions_and_200_a0_episodes",
+    )
+
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=20, shadow_episodes=199)
+    telemetry = PreA0Telemetry()
+    assert build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry) is None
+    assert telemetry.snapshot()["disabled_reasons"] == (
+        "notify_requires_20_sessions_and_200_a0_episodes",
+    )
+
+    _artifact(model_path, shadow_evaluated=True, shadow_sessions=20, shadow_episodes=200)
+    telemetry = PreA0Telemetry()
+    runtime = build_pre_a0_runtime(base_env, thresholds=_THRESHOLDS, telemetry=telemetry)
+    assert runtime is not None
+    result = None
+    for second in range(21):
+        result = runtime.process(_snapshot(second, 0.45 + second * 0.02))
+    assert result is not None and result.operator_payload is not None
+    assert result.operator_payload["episode_id"]
+    assert result.operator_payload["confirmed"] is False
+    assert result.operator_payload["is_calibrated"] is True

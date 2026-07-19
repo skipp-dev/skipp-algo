@@ -11,8 +11,11 @@ when a compatible, unexpired calibration artifact is loaded.
 - `off`: no scoring or display.
 - `shadow`: score and record outcomes without UI or notification.
 - `observe`: operator-only display without notification.
-- `notify`: separate PRE-A0 channel with hard hourly budget; requires all
-  promotion gates plus `RT_PRE_A0_DEPLOYMENT_APPROVED=1`.
+- `notify`: direct PRE-A0 push to the configured Slack `#main` webhook with a
+  hard hourly budget; requires all promotion gates, at least 20 complete new
+  shadow sessions, at least 200 confirmed A0 episodes in the linked shadow
+  evidence, plus
+  `RT_PRE_A0_DEPLOYMENT_APPROVED=1`.
 
 The required controls are `RT_PRE_A0_MODE`, `RT_PRE_A0_MODEL_PATH`,
 `RT_PRE_A0_ALLOWED_HORIZONS` and `RT_PRE_A0_MAX_ALERTS_PER_HOUR`. Missing,
@@ -23,9 +26,11 @@ corrupt, incompatible or expired model state disables PRE-A0 only.
 1. Dataset audit has zero critical leakage findings and sealed test provenance.
 2. Model beats base rate and deterministic ETA on untouched walk-forward data.
 3. Brier, ECE, reliability and important slices are stable in shadow.
-4. Alert budget, dedup, model expiry, missingness and rollback tests are green.
-5. Operator UX and wording reviewed.
-6. Separate explicit deployment approval obtained immediately before change.
+4. The artifact records at least `shadow_sessions=20` and
+   `shadow_confirmed_a0_episodes=200`; missing counters fail closed.
+5. Alert budget, dedup, model expiry, missingness and rollback tests are green.
+6. Operator UX and wording reviewed.
+7. Separate explicit deployment approval obtained immediately before change.
 
 ## Immediate rollback
 

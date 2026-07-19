@@ -149,6 +149,8 @@ def test_shadow_evaluation_passes_with_scored_multisession_evidence(tmp_path: Pa
     assert report["shadow_evaluation"]["horizons"]["60"]["score_coverage"] == 1.0
     assert validated.artifact_id == artifact.artifact_id
     assert validated.gates["shadow_evaluated"] is True
+    assert validated.metrics["shadow_sessions"] == 5.0
+    assert validated.metrics["shadow_confirmed_a0_episodes"] == 5.0
 
 
 def test_shadow_evaluation_rejects_mixed_artifact_identity(tmp_path: Path) -> None:

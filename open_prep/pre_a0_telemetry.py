@@ -89,6 +89,10 @@ class PreA0Telemetry:
         with self._lock:
             self._alerts[(int(horizon), direction.strip().lower())] += 1
 
+    def record_alert_budget_exceeded(self) -> None:
+        with self._lock:
+            self._alert_budget_exceeded += 1
+
     def record_outcome(self, horizon: int, outcome: str) -> None:
         with self._lock:
             self._outcomes[(int(horizon), outcome.strip().lower())] += 1

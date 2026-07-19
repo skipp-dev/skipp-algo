@@ -209,8 +209,8 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # intentional fail-closed A0-Fast entry-point reads 82/83 -> 196/197.
         # 2026-07-18: PRE-A0 shadow wiring shifted these same required reads
         # 196/197 -> 221/222; missing credential/reference still fail closed.
-        ("services/a0_fast_detector/worker.py", 221),
-        ("services/a0_fast_detector/worker.py", 222),
+        ("services/a0_fast_detector/worker.py", 234),  # 2026-07-18 (gated PRE-A0 notify): 221->234
+        ("services/a0_fast_detector/worker.py", 235),  # 2026-07-18 (gated PRE-A0 notify): 222->235
         ("streamlit_terminal.py", 327),
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }
