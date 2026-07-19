@@ -23,6 +23,22 @@ OPRA_LIVE_SNAPSHOT_PATH=artifacts/monitoring/opra_live_shadow.json
 OPRA_SHADOW_LEDGER_PATH=artifacts/monitoring/opra_shadow_ledger.jsonl
 ```
 
+On Railway the isolated service uses the dedicated Dockerfile and a persistent
+volume at `/app/data`:
+
+```text
+OPRA_LIVE_SNAPSHOT_PATH=/app/data/opra_live_shadow.json
+OPRA_SHADOW_LEDGER_PATH=/app/data/opra_shadow_ledger.jsonl
+DATABENTO_USAGE_SNAPSHOT_PATH=/app/data/databento_usage.json
+```
+
+Do not attach a public domain. The worker has no HTTP, alert, notification, or
+product-publication surface. Operational verification uses Railway deployment
+status, private logs, and the mounted files only. Databento's per-contract
+symbology mapping messages are suppressed at INFO because a five-parent
+subscription can otherwise exceed Railway's log-ingestion limit; warnings and
+errors remain visible.
+
 The service bootstraps definitions from the previous complete UTC day and also
 subscribes to definition updates. Trades whose instrument is still unknown are
 held temporarily and counted; they are never guessed. Reconnects use exponential

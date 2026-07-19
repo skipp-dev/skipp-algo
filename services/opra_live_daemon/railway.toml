@@ -1,0 +1,17 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/opra_live_daemon/Dockerfile"
+watchPatterns = [
+    "databento_*.py",
+    "newsstack_fmp/opra_uoa.py",
+    "scripts/smc_atomic_write.py",
+    "services/opra_live_daemon/**",
+]
+
+[deploy]
+startCommand = "python -m services.opra_live_daemon.main"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "opra-live-shadow"

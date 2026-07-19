@@ -35,6 +35,7 @@ def bootstrap_definitions(
         schema="definition",
         start=start.isoformat(),
         end=end.isoformat(),
+        stype_in="parent",
     )
     frame = store.to_df().reset_index()
     return [OpraDefinitionRecord.from_row(row) for row in frame.to_dict(orient="records")]

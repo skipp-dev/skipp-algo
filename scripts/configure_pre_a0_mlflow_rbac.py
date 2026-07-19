@@ -7,6 +7,7 @@ import argparse
 import importlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -124,9 +125,21 @@ def _ensure_permissions(client: Any, role: Any, spec: RoleSpec) -> list[str]:
     return actions
 
 
+_SYNTHETIC_USER_ROLE = re.compile(r"^__user_[0-9]+__$")
+
+
+def _is_synthetic_user_role(role: Any) -> bool:
+    """Return whether MLflow uses this role for the user's direct grants."""
+    return bool(_SYNTHETIC_USER_ROLE.fullmatch(str(getattr(role, "name", ""))))
+
+
 def _ensure_assignment(client: Any, username: str, role: Any) -> str:
     roles = client.list_user_roles(username)
-    unexpected = sorted(existing.name for existing in roles if existing.id != role.id)
+    unexpected = sorted(
+        existing.name
+        for existing in roles
+        if existing.id != role.id and not _is_synthetic_user_role(existing)
+    )
     if unexpected:
         raise RuntimeError(f"user {username} has unexpected roles: {unexpected}")
     if any(existing.id == role.id for existing in roles):

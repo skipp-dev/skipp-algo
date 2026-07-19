@@ -332,10 +332,10 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
 
 
 def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
-    readme = _read("README.md")
+    documentation_map = _read("docs/smc_documentation_map_2026-04-16.md")
     guide = _read("docs/smc-tradingview-r1-1-migration-and-operator-guide.md")
 
-    assert "docs/smc-tradingview-r1-1-migration-and-operator-guide.md" in readme
+    assert "smc-tradingview-r1-1-migration-and-operator-guide.md" in documentation_map
     assert "compact_mode" in guide
     assert "surface_mode" in guide
     assert "entry_mode" in guide

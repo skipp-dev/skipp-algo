@@ -142,9 +142,33 @@ python -m scripts.check_pre_a0_mlflow_health \
 - `candidate` oder `shadow` in MLflow verändern niemals automatisch den
   Worker-Vertrag.
 
-## Noch auszuführende externe Drill-Aktionen
+## Verifizierter Restore-Drill vom 18. Juli 2026
 
-Die Backup-Zeitpläne, der zweite Bucket, dessen eingeschränkte Credentials und
-der erste Restore-Drill werden nach einer exakten Änderungsvorschau gesetzt.
-Bis der erste Drill bestanden ist, gilt der Recovery-Nachweis als
-**implementiert, aber operativ noch nicht verifiziert**.
+Der Recovery-Nachweis ist operativ verifiziert:
+
+- Vor dem Drill wurde das manuelle PostgreSQL-Backup
+  `7b7ea00b-67c0-4d22-a4b9-a1677fe4de6e`
+  (`pre-full-restore-drill-20260718T210458Z`, 157 MB) erzeugt.
+- Railway stellte es in ein neues Copy-on-write-Volume wieder her. Das
+  PostgreSQL-Restore-Deployment `0f4553cb-c8b6-43be-b255-c9a57d889e1a`
+  wurde gesund.
+- Gegen die wiederhergestellte Datenbank waren Candidate Version 1, Run
+  `44dd712b9bd84c35a41e8ab9d1a87cb3` und Artifact ID
+  `71831770afe43bdd424aa7ab` vollständig abrufbar. Der unauthentifizierte
+  Aliaszugriff lieferte weiterhin 401.
+- `models:/skipp-pre-a0@candidate` lud 73 Modellartefakte und erzeugte für den
+  sieben Spalten umfassenden Eingabevertrag die endliche Wahrscheinlichkeit
+  `0.0375451551075461`.
+- Das Artefaktbackup `20260718T150000Z` wurde zunächst verifiziert und dann in
+  einen temporären privaten Restore-Bucket unter
+  `restore-drills/20260718-full/` kopiert. Der unabhängige Readback bestätigte
+  77 Objekte, 1.626.038 Bytes und sämtliche SHA-256-Werte ohne Fehler.
+- Danach wurde PostgreSQL auf das ursprüngliche Volume zurückgeschaltet. Das
+  abschließende Deployment `760b561d-1d28-483a-abd6-7398dc50a911` und der
+  erneute MLflow-Health-/Alias-Test waren grün.
+- Der temporäre Bucket wurde entfernt. Das ungemountete Restore-Volume ist zur
+  Railway-Löschung vorgemerkt und kann innerhalb der Plattform-Nachfrist noch
+  sichtbar sein.
+
+Der Drill überschrieb weder operative Artefakte noch Shadow-Evidenz. Es wurden
+keine Sessions, Labels oder Promotion-Nachweise simuliert.
