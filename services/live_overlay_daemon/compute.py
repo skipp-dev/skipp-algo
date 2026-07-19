@@ -13,20 +13,23 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
   news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL" | null
   flow_rel_vol         — volume(current bar) / mean volume(prior bars in window)
-  flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
+  flow_delta_proxy_pct — legacy compatibility name for candle-body return
+  price_candle_body_return_pct — canonical name for the same candle-body return
   squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
-  ats_state            — "accumulation" | "distribution" | "neutral" | null
-  ats_zscore           — z-score of last-bar volume vs mean of prior bars
+  ats_state            — legacy compatibility name for accumulation/distribution
+  volume_accumulation_distribution_state — canonical state name
+  ats_zscore            — legacy compatibility name for current-bar volume z-score
+  volume_current_bar_zscore — canonical z-score name
   vix_level            — latest VIX level (polled from FMP ^VIX quote)
   tone                 — "BULLISH" | "BEARISH" | "NEUTRAL" (market-wide)
   global_heat          — [-1.0, 1.0] directional news heat (positive = bullish)
-  event_window_state   — RESERVED, always "normal" until the event calendar is wired
-  event_risk_level     — RESERVED, always "low" (enum values below are aspirational)
+  event_window_state   — unknown until the event calendar is wired
+  event_risk_level     — unknown until the event calendar is wired
   next_event_name      — RESERVED, always null   |  enum: str or null
   next_event_time      — RESERVED, always null   |  enum: ISO-8601 str or null
-  market_event_blocked — RESERVED, always False
-  symbol_event_blocked — RESERVED, always False
-  event_provider_status — RESERVED, always "unavailable" (the honest tell; see _event_fields_for)
+  market_event_blocked — unknown until the event calendar is wired
+  symbol_event_blocked — unknown until the event calendar is wired
+  event_provider_status — "unknown" until the event calendar is wired
   signal_level         — "A0" | "A1" | "A2" | null (active realtime signal)
   signal_direction     — e.g. "LONG" | "SHORT" | "B_UP" | "B_DOWN" | null
   trade_entry/stop/target/r — ATR display bracket from the signals producer
@@ -1138,9 +1141,11 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     last_bar = bars[-1]
     last_vol: float | None = _coerce_volume(last_bar.get("volume"))
     if last_vol is not None:
+        # Pine's Standard contract samples exactly the 19 prior offsets. Do
+        # not let a longer cache silently change the meaning of this field.
         prior_volumes = [
             fv
-            for b in bars[:-1]
+            for b in bars[max(0, len(bars) - 20) : -1]
             if (fv := _coerce_volume(b.get("volume"))) is not None
         ]
         avg_vol: float | None = _safe_mean(prior_volumes) if prior_volumes else None
@@ -1225,8 +1230,8 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
     All fields are anchored to bars[-1] to avoid cross-bar misalignment.
     B19: if bars[-1] has no volume, zscore and state are both None.
-    B20: if bars[-1] has no close or open, state falls back to "neutral"
-         rather than using close/open from a different (prior) bar.
+    B20: if bars[-1] has no close or open, state is unknown rather than
+         claiming neutral or using close/open from a different prior bar.
     """
     if not bars:
         return {"ats_state": None, "ats_zscore": None}
@@ -1239,9 +1244,10 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
         # Cannot compute a z-score for a bar with no volume.
         return {"ats_state": None, "ats_zscore": None}
 
+    # Keep the same fixed 19-prior-bar window as the Pine Standard probe.
     prior_vols = [
         fv
-        for b in bars[:-1]
+        for b in bars[max(0, len(bars) - 20) : -1]
         if (fv := _coerce_volume(b.get("volume"))) is not None
     ]
     if len(prior_vols) < 4:
@@ -1252,22 +1258,27 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     mean_v = sum(prior_vols) / len(prior_vols)
     std_v = _safe_std(prior_vols)
 
-    zscore: float | None = None
+    raw_zscore: float | None = None
     if std_v > 0:
         _z = (last_vol - mean_v) / std_v  # tiny std_v + huge last_vol -> inf; guard like flow_rel_vol
-        zscore = round(_z, 4) if math.isfinite(_z) else None
+        raw_zscore = _z if math.isfinite(_z) else None
+
+    # Round only for transport/display. Classification must use the raw value
+    # so 0.49996 cannot become a false 0.5000 accumulation signal.
+    zscore = round(raw_zscore, 4) if raw_zscore is not None else None
 
     last_open = _coerce_finite_float(last_bar.get("open"))
     last_close = _coerce_finite_float(last_bar.get("close"))
     if last_open is None or last_close is None:
-        # Cannot determine price direction for this bar; avoid cross-bar delta.
-        state = "neutral"
+        # Cannot determine price direction for this bar; unknown is safer than
+        # claiming neutral and accidentally loosening a downstream posture.
+        state = None
     else:
         # Simple heuristic: price trend × volume z-score
         price_delta = last_close - last_open
-        if price_delta > 0 and (zscore or 0) >= 0.5:
+        if price_delta > 0 and raw_zscore is not None and raw_zscore >= 0.5:
             state = "accumulation"
-        elif price_delta < 0 and (zscore or 0) >= 0.5:
+        elif price_delta < 0 and raw_zscore is not None and raw_zscore >= 0.5:
             state = "distribution"
         else:
             state = "neutral"
@@ -1281,17 +1292,19 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _event_fields_for(_symbol: str) -> dict[str, Any]:
     """
-    Placeholder: returns neutral event state.
-    In Phase 2, connect to earnings calendar API (FMP or similar).
+    Placeholder: returns unknown event state.
+
+    Unknown is deliberate. A neutral/clear event state would be data and could
+    loosen an existing Pine posture even though no calendar producer is wired.
     """
     return {
-        "event_window_state": "normal",
-        "event_risk_level": "low",
+        "event_window_state": None,
+        "event_risk_level": None,
         "next_event_name": None,
         "next_event_time": None,
-        "market_event_blocked": False,
-        "symbol_event_blocked": False,
-        "event_provider_status": "unavailable",
+        "market_event_blocked": None,
+        "symbol_event_blocked": None,
+        "event_provider_status": "unknown",
     }
 
 
@@ -1383,8 +1396,9 @@ def build_payload(
 
     news = _get_news_fields(symbol)
     flow = compute_flow_fields(aggregated)
-    squeeze_period = len(aggregated) if 5 <= len(aggregated) < 20 else 20
-    squeeze = compute_squeeze_on(aggregated, period=squeeze_period)
+    # Pine keeps a fixed 20-bar window; short history is unknown rather than a
+    # dynamically shortened volatility contract.
+    squeeze = compute_squeeze_on(aggregated, period=20)
     ats = compute_ats_fields(aggregated)
     vix = cache.get_vix()
     events = _event_fields_for(symbol)
@@ -1404,10 +1418,13 @@ def build_payload(
         # Flow
         "flow_rel_vol": flow.get("flow_rel_vol"),
         "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
+        "price_candle_body_return_pct": flow.get("flow_delta_proxy_pct"),
         # Technicals
         "squeeze_on": int(squeeze) if squeeze is not None else None,
         "ats_state": ats.get("ats_state"),
+        "volume_accumulation_distribution_state": ats.get("ats_state"),
         "ats_zscore": ats.get("ats_zscore"),
+        "volume_current_bar_zscore": ats.get("ats_zscore"),
         # Market-wide
         "vix_level": round(vix, 4) if vix is not None else None,
         "tone": global_fields.get("tone"),

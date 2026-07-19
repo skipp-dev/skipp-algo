@@ -571,7 +571,7 @@ class TestMalformedOhlcValues:
         assert result["flow_delta_proxy_pct"] is None
         assert result["flow_rel_vol"] is None
 
-    def test_compute_ats_fields_non_numeric_last_open_returns_neutral_state(self):
+    def test_compute_ats_fields_non_numeric_last_open_returns_unknown_state(self):
         compute = _compute()
         bars = [
             {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 100},
@@ -582,7 +582,7 @@ class TestMalformedOhlcValues:
         ]
 
         result = compute.compute_ats_fields(bars)
-        assert result["ats_state"] == "neutral"
+        assert result["ats_state"] is None
         assert result["ats_zscore"] is not None
 
     def test_compute_squeeze_on_skips_non_numeric_ohlc(self):
@@ -617,7 +617,7 @@ class TestMalformedOhlcValues:
 
         result = compute.compute_ats_fields(bars)
 
-        assert result["ats_state"] == "neutral"
+        assert result["ats_state"] is None
         assert result["ats_zscore"] is not None
 
 

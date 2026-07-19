@@ -1860,6 +1860,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-analyst", action="store_true", help="Add v6 analyst consensus enrichment (FMP)")
     parser.add_argument("--enrich-insider", action="store_true", help="Add v6 insider transactions enrichment (FMP)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
+    parser.add_argument(
+        "--static-only",
+        action="store_true",
+        help="Generate the Library Control Plane from the Databento/base snapshot only; never fetch or bake live provider values",
+    )
     parser.add_argument("--debug", action="store_true", help="Include diagnostic fields (LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE, etc.)")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
@@ -1987,6 +1992,8 @@ def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
         "enrich_analyst",
         "enrich_insider",
     )
+    if getattr(args, "static_only", False):
+        return {flag_name: False for flag_name in flag_names}
     if args.enrich_all:
         return {flag_name: True for flag_name in flag_names}
     return {flag_name: bool(getattr(args, flag_name)) for flag_name in flag_names}

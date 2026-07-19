@@ -638,7 +638,7 @@ jobs:
             echo "::warning::Provider credential preflight reported warnings (severity=warn) — proceeding with generation."
           fi
 
-      # ── Library generation with enrichment (v5) ─────────────────
+      # ── Static Library Control Plane generation ─────────────────
       - name: Generate SMC library with v5 enrichment
         # Option-D (2026-06-16): 45-min hard limit guards against FMP/Benzinga
         # retry storms that caused 90–155 min hangs (root cause: ~100 per-ticker
@@ -646,16 +646,10 @@ jobs:
         # fails the job, releases the concurrency slot, and lets the next tick
         # pick up the delta. The job-level cap stays at 240 min.
         timeout-minutes: 45
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
-          # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
-          BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
-          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \
             --bundle artifacts/smc_microstructure_exports \
-            --enrich-all \
+            --static-only \
             --export-dir artifacts/smc_microstructure_exports \
             --output-root .
 
