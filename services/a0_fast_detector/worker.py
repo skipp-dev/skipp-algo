@@ -312,11 +312,19 @@ def run() -> None:
             metrics_server.shutdown()
 
 
-def main() -> None:
+def _configure_logging() -> None:
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # A broad live subscription resolves every requested symbol. Databento
+    # emits each mapping at INFO, which can exceed Railway's per-replica log
+    # limit without providing actionable worker evidence.
+    logging.getLogger("databento.live.client").setLevel(logging.WARNING)
+
+
+def main() -> None:
+    _configure_logging()
     run()
 
 

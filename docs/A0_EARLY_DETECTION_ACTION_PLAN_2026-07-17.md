@@ -1,13 +1,13 @@
 # A0-Fast und PRE-A0: detaillierter Action Plan
 
-Stand: 2026-07-18
+Stand: 2026-07-19
 Status: technische Shadow-Laufzeit aktiv; Evidenz- und Produktionsfreigabe offen
-Verifizierter Laufzeitstand: `origin/main` bei `5b0996246`
+Verifizierter Merge-Stand: `origin/main` bei `6a5726b40`
 Fachliche Grundlage: [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md)
 
 ## Umsetzungsstand
 
-Stand 2026-07-18 nach Merge und Railway-Rollout:
+Stand 2026-07-19 nach Merge, Restore-Drill und Railway-Rollout:
 
 | Arbeitspaket | Status | Nachweis |
 | --- | --- | --- |
@@ -26,6 +26,14 @@ Stand 2026-07-18 nach Merge und Railway-Rollout:
 | A0-303 Paritätsmatcher | technisch umgesetzt, Betriebsnachweis offen | Fast- und FMP-Pfade besitzen getrennte opt-in Journale; der deterministische Tagesreport liefert Matchklassen, Lead, Ursachen und beide Snapshots; echte Mehrsitzungsdaten und Dashboard-Auswertung bleiben offen |
 | A0-304 Last/Resilienz/Kosten | Shadow aktiv, Mehrsitzungsnachweis offen | dedizierter Worker läuft mit 900 Symbolen, verbundenem Databento-Live-Stream, bounded Queue, privatem Metrics-Scrape und persistentem `/app/data`; Open-Burst und vollständige Sessions fehlen noch |
 | A0-400 bis A0-801 | technisch umgesetzt, Evidenz offen | ETA, Snapshotvertrag, Baseline, kalibriertes Candidate-Artefakt und fail-closed Shadow-Inferenz sind vorhanden; neuer Trainingsrun, Shadow-Promotion und Notify bleiben an echte neue Messfenster gebunden |
+
+Der sonntägliche Restart-Test hat zusätzlich zwei reine Betriebsfehler
+aufgedeckt und lokal behoben: ungebremste Databento-Symbolmapping-Logs im
+A0-Worker sowie eine OPRA-Definitionsabfrage für den vorherigen Kalendertag
+statt den letzten verfügbaren vollständigen Handelstag. Beide Korrekturen sind
+mit Railway-Deployments und Regressionstests verifiziert; ihr Merge und der
+anschließende source-linked Redeploy sind der letzte technische Schritt vor
+dem ersten vollständigen Messfenster.
 
 Die Umsetzung dieses ersten Meilensteins verändert noch keine produktive
 Benachrichtigungs- oder Promotion-Semantik. Das bestehende Feld `volume_ratio`

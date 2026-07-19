@@ -4,11 +4,21 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 from pathlib import Path
 
 import pytest
 
 from services.a0_fast_detector import worker
+
+
+def test_worker_suppresses_per_symbol_databento_mapping_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping_logger = logging.getLogger("databento.live.client")
+    monkeypatch.setattr(mapping_logger, "level", logging.NOTSET)
+    worker._configure_logging()
+    assert mapping_logger.level == logging.WARNING
 
 
 def test_worker_refuses_every_mode_except_shadow(monkeypatch: pytest.MonkeyPatch) -> None:
