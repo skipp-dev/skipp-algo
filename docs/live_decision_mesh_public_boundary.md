@@ -11,9 +11,8 @@ credentials, or user-specific browser state.
 
 - TradingView is not a Skipp data provider and no provider/datafeed integration
   is planned.
-- Pine scripts do not use arbitrary HTTP (`request.get`, `request.post`, or
-  undocumented raw HTTP). The retired consumer and its roadmap are not a
-  supported delivery path.
+- Pine scripts do not use arbitrary HTTP or undocumented network calls. The
+  retired consumer and its roadmap are not a supported delivery path.
 - Library refresh/publish remains a code, schema, and static-reference control
   plane. It is not a low-latency event transport and users must update the
   script/library version to receive a refresh.
