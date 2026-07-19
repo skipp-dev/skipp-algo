@@ -198,31 +198,34 @@ failure fails CI instead of silently leaving the old container running.
 | `OVERLAY_SIGNALS_CACHE_TTL_SECS` | no | — | Signals snapshot cache TTL |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | no | — | Signals staleness threshold |
 | `EXPERIMENT_SNAPSHOT_PATH` | no | `artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot path |
-| `EXPERIMENT_SNAPSHOT_URL` | no | — | Optional HTTPS URL for experiment rollup snapshot |
-| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EXPERIMENT_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for experiment rollup snapshot; explicit empty disables remote loading |
+| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_SNAPSHOT_URL` |
 | `EVIDENCE_FRESHNESS_SNAPSHOT_PATH` | no | `artifacts/monitoring/evidence_freshness.json` | Local evidence-freshness snapshot path (ADR-0023 chain freshness gauges) |
-| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the evidence-freshness snapshot; set to the raw `bot/live-evidence-freshness` `artifacts/monitoring/latest/evidence_freshness.json` so the off-host daemon serves fresh ledger/audit/fills gauges |
-| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-evidence-freshness` snapshot; explicit empty disables remote loading |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
 | `SWEEP_TRAP_SHADOW_SNAPSHOT_PATH` | no | `artifacts/monitoring/sweep_trap_shadow.json` | Local WS4a sweep-trap shadow snapshot path (Brier-delta + verdict gauges) |
-| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the sweep-trap shadow snapshot; set to the raw `bot/live-sweep-trap-shadow` `artifacts/monitoring/latest/sweep_trap_shadow.json` so the off-host daemon serves fresh Brier-delta/lift/sample/verdict gauges |
-| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-sweep-trap-shadow` snapshot; explicit empty disables remote loading |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` |
+| `PROVIDER_USAGE_SNAPSHOT_PATH` | no | `artifacts/monitoring/provider_usage.json` | Local provider-usage snapshot path |
+| `PROVIDER_USAGE_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-open-prep-snapshot` provider snapshot; explicit empty disables remote loading |
+| `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
 | `OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS` | no | — | Sweep-trap shadow snapshot cache TTL (default 900) |
 | `OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS` | no | — | Sweep-trap shadow snapshot staleness threshold (default 96h; powers `lo-sweep-trap-shadow-stale`) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot path (per-consumer import-pin drift gauges) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the Pine-library version snapshot; set to the raw `bot/live-pine-library-versions` `artifacts/monitoring/latest/pine_library_versions.json` so the off-host daemon serves fresh version/pin/drift gauges (`lo-pine-consumer-version-drift`, `lo-pine-library-snapshot-stale`) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-pine-library-versions` snapshot; explicit empty disables remote loading |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of measured TradingView dropdown assignments |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | — | Raw/API URL to `bot/live-tradingview-bindings` `artifacts/monitoring/latest/tradingview_consumer_bindings.json`; drives `lo-tv-binding-drift` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for the binding snapshot URL |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-tradingview-bindings` snapshot; explicit empty disables remote loading |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
-| `EXPERIMENT_HISTORY_URL` | no | — | Optional HTTPS URL for experiment history JSONL |
-| `EXPERIMENT_HISTORY_URL_TOKEN` | no | — | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
+| `EXPERIMENT_HISTORY_URL` | no | canonical bot-branch URL | HTTPS URL for experiment history JSONL; explicit empty disables remote loading |
+| `EXPERIMENT_HISTORY_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
 | `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | no | — | Experiment snapshot staleness threshold |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | no | — | Max history days exposed as metrics |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | no | `artifacts/live_overlay/credential_health.json` | Local daily credential-health report (TradingView storage-state age) |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | no | — | Optional HTTPS URL for the credential-health report |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | no | — | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the credential-health report; explicit empty disables remote loading |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | no | — | Credential-health report cache TTL (default 3600) |
 | `OVERLAY_REFRESH_SECS` | no | — | Full compute refresh interval |
 | `OVERLAY_ROLLING_BARS` | no | — | Rolling bar window |
@@ -236,7 +239,7 @@ failure fails CI instead of silently leaving the old container running.
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch (validated; invalid value falls back to `skippALGO/skipp-algo`) |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | GitHub | `owner/repo` to watch (validated; invalid value falls back to `skipp-dev/skipp-algo`) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | GitHub | Workflow IDs or names to monitor |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
@@ -277,18 +280,18 @@ If the deployment is local, dev, or warm-standby, leave the value at `0`.
 
 ### Snapshot delivery & volume persistence
 
-The daemon serves four producer-side snapshots (news, realtime signals, daily
-experiment rollup/history, and the TradingView credential-age report). Each
-loader is **URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches
-the freshest payload over HTTPS (GitHub Contents API raw, fine-grained PAT),
-otherwise it falls back to the local `*_SNAPSHOT_PATH`. Default `*_SNAPSHOT_PATH` values for the three CI-produced snapshots (news,
+The daemon's snapshot loaders are **URL-first**: the canonical CI-produced
+GitHub Contents URL is used by default and the local `*_SNAPSHOT_PATH` is the
+fetch-failure fallback. An explicitly present-but-empty URL disables that
+remote source for local/offline operation. Default `*_SNAPSHOT_PATH` values for the CI-produced snapshots (news,
 experiment rollup/history, TradingView credential report) point at tracked seed
 files under `artifacts/live_overlay/` so the daemon renders data out of the
 box. Realtime signals remain host-only and still default to
 `artifacts/open_prep/latest/latest_realtime_signals.json`. CI producers push
 fresher snapshots to dedicated `bot/*` cache branches (exempt from the
-`main-governance` ruleset, see ADR-0024); off-host daemons should set the
-matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
+`main-governance` ruleset, see ADR-0024). Canonical URLs reuse
+`GITHUB_WORKFLOW_MONITOR_TOKEN` when no source-specific token is configured;
+custom URLs never receive that generic token.
 
 | Snapshot | Producer workflow | Bot branch | Bot-branch stable path | Default seed path |
 |----------|-------------------|------------|------------------------|-------------------|
@@ -303,7 +306,7 @@ matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume those instead.
 `structure_export_*.json` files only for inline notices and deletes them in the
 same step so they do not leak into later jobs/artifacts.
 
-The `*_URL` form is `https://api.github.com/repos/skippALGO/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN`.
+The `*_URL` form is `https://api.github.com/repos/skipp-dev/skipp-algo/contents/<stable-path>?ref=<bot-branch>` with a fine-grained PAT (`Contents: Read`, repo `skipp-algo` only) in the matching `*_URL_TOKEN` when the workflow-monitor token is not used.
 
 **Realtime signals on Railway are fetched live from `smc-signals-producer`.**
 Production uses lean mode:

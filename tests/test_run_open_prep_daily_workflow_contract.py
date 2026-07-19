@@ -186,6 +186,25 @@ def test_restores_provider_usage_snapshot_before_scoring() -> None:
     )
 
 
+def test_refreshes_provider_usage_heartbeat_before_snapshot_publish() -> None:
+    """A successful zero-call run is still a fresh producer heartbeat."""
+    steps = _load()["jobs"]["run"]["steps"]
+    heartbeat_idx = next(
+        i
+        for i, step in enumerate(steps)
+        if step.get("name") == "Refresh provider-usage snapshot heartbeat"
+    )
+    publish_idx = next(
+        i
+        for i, step in enumerate(steps)
+        if step.get("name") == "Publish open-prep snapshot to rolling bot branch"
+    )
+    heartbeat_run = str(steps[heartbeat_idx].get("run", ""))
+    assert "touch_snapshot" in heartbeat_run
+    assert "provider-usage snapshot heartbeat failed" in heartbeat_run
+    assert heartbeat_idx < publish_idx
+
+
 def test_publishes_open_prep_snapshot_to_bot_branch() -> None:
     """The realtime-signals producer consumes latest_open_prep_run.json from a
     stable git path; this step keeps bot/live-open-prep-snapshot fresh."""

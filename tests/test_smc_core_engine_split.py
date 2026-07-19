@@ -79,7 +79,7 @@ def test_core_engine_breadth_gate_uses_optional_text_input_and_guarded_request()
 
 def test_core_engine_uses_effective_microstructure_aliases_for_generated_library_handoff() -> None:
     source = _read_core_source()
-    assert 'import preuss_steffen/smc_micro_profiles_generated/155 as mp' in source
+    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
     assert 'input.string(\'\', \'Clean reclaim tickers\'' not in source
     assert 'string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS' in source
     assert 'string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS' in source

@@ -36,13 +36,13 @@
     {
       "title": "Daemon Runbook",
       "type": "link",
-      "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
+      "url": "https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
       "targetBlank": true
     },
     {
       "title": "Grafana Alert Rules",
       "type": "link",
-      "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
+      "url": "https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/infra/grafana/alert-rules.yaml",
       "targetBlank": true
     },
     {
@@ -210,7 +210,7 @@
         {
           "title": "Open runbook",
           "type": "link",
-          "url": "https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
+          "url": "https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md",
           "targetBlank": true
         }
       ]
@@ -250,7 +250,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If internal API traffic is missing while **Market Status** is open: check authorized server-side consumers, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If internal API traffic is missing while **Market Status** is open: check authorized server-side consumers, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skipp-dev/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -2161,7 +2161,7 @@
       },
       "targets": [
         {
-          "expr": "rate(signals_producer_fmp_response_bytes_total{job=~\"signals_producer\"}[5m]) or on() vector(0)",
+          "expr": "sum(rate(signals_producer_fmp_endpoint_response_bytes_total{job=~\"signals_producer\"}[5m])) or on() vector(0)",
           "legendFormat": "bytes/s",
           "instant": true,
           "datasource": {
@@ -5615,7 +5615,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))) / on(provider) live_overlay_provider_bandwidth_limit_bytes{job=~\"$job\",provider=\"fmp\"} * 100",
+          "expr": "(live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_endpoint_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))) / on(provider) live_overlay_provider_bandwidth_limit_bytes{job=~\"$job\",provider=\"fmp\"} * 100",
           "legendFormat": "fmp",
           "instant": true,
           "datasource": {
@@ -5679,7 +5679,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))",
+          "expr": "live_overlay_provider_usage_bytes{job=~\"$job\",provider=\"fmp\"} + scalar(sum(increase(signals_producer_fmp_endpoint_response_bytes_total{job=~\"signals_producer\"}[30d])) or vector(0))",
           "legendFormat": "fmp",
           "instant": true,
           "datasource": {

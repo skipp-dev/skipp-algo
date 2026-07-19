@@ -1243,14 +1243,14 @@ def _fix_triage_guide_railway_links(data: dict[str, Any]) -> bool:
             options["content"] = new_content
             changed = True
 
-        runbook_line = "Runbook: [README](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
+        runbook_line = "Runbook: [README](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md)"
         quick_links_header = "\n\n---\n**Quick links** "
         quick_links_line = (
             quick_links_header
             + f"\u00b7 [Railway logs]({RAILWAY_LINKS['live_overlay_logs']}) "
             + f"\u00b7 [Railway deployments]({RAILWAY_LINKS['live_overlay_deployments']}) "
-            + "\u00b7 [GitHub Actions](https://github.com/skippALGO/skipp-algo/actions) "
-            + "\u00b7 [Runbook: live-overlay on-call](https://github.com/skippALGO/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+            + "\u00b7 [GitHub Actions](https://github.com/skipp-dev/skipp-algo/actions) "
+            + "\u00b7 [Runbook: live-overlay on-call](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
         )
         if quick_links_header not in new_content and runbook_line in new_content:
             options["content"] = new_content.replace(runbook_line, runbook_line + quick_links_line)

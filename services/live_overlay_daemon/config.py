@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import urllib.parse
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ _VALID_UVICORN_LOG_LEVELS: frozenset[str] = frozenset(
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
+
+_DEFAULT_GITHUB_OWNER = "skipp-dev"
+_DEFAULT_GITHUB_REPO = "skipp-algo"
 
 
 def _load_env() -> None:
@@ -90,6 +94,50 @@ def _optional_int(key: str, default: int) -> int:
             key, raw, default,
         )
         return default
+
+
+def _snapshot_url(key: str, *, path: str, ref: str) -> str:
+    """Return an explicit snapshot URL or the monitored repo's rolling file.
+
+    An explicitly present-but-empty environment variable disables the remote
+    source (useful for local/offline operation).  When the variable is absent,
+    hosted deployments consume the canonical ``bot/live-*`` branch instead of
+    silently serving the stale seed baked into the container image.
+    """
+    configured = os.getenv(key)
+    if configured is not None:
+        return configured.strip()
+    owner, repo = github_workflow_repo()
+    encoded_ref = urllib.parse.quote(ref, safe="/")
+    return (
+        f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+        f"?ref={encoded_ref}"
+    )
+
+
+def _snapshot_url_token(key: str, url: str) -> str:
+    """Return a source-specific token, or reuse the repo monitor token safely.
+
+    The generic workflow-monitor token is attached only to the configured
+    repository's GitHub Contents API.  It is never forwarded to an arbitrary
+    custom URL.
+    """
+    explicit = _optional_str(key, "")
+    if explicit:
+        return explicit
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:
+        return ""
+    owner, repo = github_workflow_repo()
+    expected_prefix = f"/repos/{owner}/{repo}/contents/"
+    if (
+        parsed.scheme.lower() == "https"
+        and parsed.netloc.lower() == "api.github.com"
+        and parsed.path.startswith(expected_prefix)
+    ):
+        return github_workflow_token()
+    return ""
 
 
 def _clamped_int(key: str, default: int, lo: int, hi: int) -> int:
@@ -267,12 +315,16 @@ def experiment_snapshot_url() -> str:
     When set it takes precedence over :func:`experiment_snapshot_path`; on any
     fetch failure the daemon falls back to the local path.
     """
-    return _optional_str("EXPERIMENT_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "EXPERIMENT_SNAPSHOT_URL",
+        path="artifacts/experiment/latest/plan_2_8_tf_family_rollup.json",
+        ref="bot/live-experiment-snapshot",
+    )
 
 
 def experiment_snapshot_url_token() -> str:
     """Optional bearer token sent when fetching :func:`experiment_snapshot_url`."""
-    return _optional_str("EXPERIMENT_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token("EXPERIMENT_SNAPSHOT_URL_TOKEN", experiment_snapshot_url())
 
 
 def evidence_freshness_snapshot_path() -> Path:
@@ -297,12 +349,19 @@ def evidence_freshness_snapshot_url() -> str:
     When set it takes precedence over :func:`evidence_freshness_snapshot_path`;
     on any fetch failure the daemon falls back to the local path.
     """
-    return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL",
+        path="artifacts/monitoring/latest/evidence_freshness.json",
+        ref="bot/live-evidence-freshness",
+    )
 
 
 def evidence_freshness_snapshot_url_token() -> str:
     """Optional bearer token for :func:`evidence_freshness_snapshot_url`."""
-    return _optional_str("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN",
+        evidence_freshness_snapshot_url(),
+    )
 
 
 def sweep_trap_shadow_snapshot_path() -> Path:
@@ -326,12 +385,19 @@ def sweep_trap_shadow_snapshot_url() -> str:
     When set it takes precedence over :func:`sweep_trap_shadow_snapshot_path`;
     on any fetch failure the daemon falls back to the local path.
     """
-    return _optional_str("SWEEP_TRAP_SHADOW_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "SWEEP_TRAP_SHADOW_SNAPSHOT_URL",
+        path="artifacts/monitoring/latest/sweep_trap_shadow.json",
+        ref="bot/live-sweep-trap-shadow",
+    )
 
 
 def sweep_trap_shadow_snapshot_url_token() -> str:
     """Optional bearer token for :func:`sweep_trap_shadow_snapshot_url`."""
-    return _optional_str("SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token(
+        "SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN",
+        sweep_trap_shadow_snapshot_url(),
+    )
 
 
 def sweep_trap_shadow_cache_ttl_secs() -> int:
@@ -370,12 +436,16 @@ def provider_usage_snapshot_url() -> str:
     Takes precedence over :func:`provider_usage_snapshot_path`; on any fetch
     failure the daemon falls back to the local path.
     """
-    return _optional_str("PROVIDER_USAGE_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "PROVIDER_USAGE_SNAPSHOT_URL",
+        path="artifacts/monitoring/provider_usage.json",
+        ref="bot/live-open-prep-snapshot",
+    )
 
 
 def provider_usage_snapshot_url_token() -> str:
     """Optional bearer token for :func:`provider_usage_snapshot_url`."""
-    return _optional_str("PROVIDER_USAGE_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token("PROVIDER_USAGE_SNAPSHOT_URL_TOKEN", provider_usage_snapshot_url())
 
 
 def pine_library_versions_snapshot_path() -> Path:
@@ -400,12 +470,19 @@ def pine_library_versions_snapshot_url() -> str:
     When set it takes precedence over :func:`pine_library_versions_snapshot_path`;
     on any fetch failure the daemon falls back to the local path.
     """
-    return _optional_str("PINE_LIBRARY_VERSIONS_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "PINE_LIBRARY_VERSIONS_SNAPSHOT_URL",
+        path="artifacts/monitoring/latest/pine_library_versions.json",
+        ref="bot/live-pine-library-versions",
+    )
 
 
 def pine_library_versions_snapshot_url_token() -> str:
     """Optional bearer token for :func:`pine_library_versions_snapshot_url`."""
-    return _optional_str("PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token(
+        "PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN",
+        pine_library_versions_snapshot_url(),
+    )
 
 
 def tradingview_bindings_snapshot_path() -> Path:
@@ -420,12 +497,19 @@ def tradingview_bindings_snapshot_path() -> Path:
 
 def tradingview_bindings_snapshot_url() -> str:
     """Optional HTTPS URL for the actual TradingView dropdown snapshot."""
-    return _optional_str("TRADINGVIEW_BINDINGS_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "TRADINGVIEW_BINDINGS_SNAPSHOT_URL",
+        path="artifacts/monitoring/latest/tradingview_consumer_bindings.json",
+        ref="bot/live-tradingview-bindings",
+    )
 
 
 def tradingview_bindings_snapshot_url_token() -> str:
     """Optional bearer token for :func:`tradingview_bindings_snapshot_url`."""
-    return _optional_str("TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token(
+        "TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN",
+        tradingview_bindings_snapshot_url(),
+    )
 
 
 def fmp_monthly_bandwidth_limit_bytes() -> int:
@@ -461,12 +545,16 @@ def experiment_history_path() -> Path:
 
 def experiment_history_url() -> str:
     """Optional https URL the daemon fetches the per-day history JSONL from."""
-    return _optional_str("EXPERIMENT_HISTORY_URL", "")
+    return _snapshot_url(
+        "EXPERIMENT_HISTORY_URL",
+        path="artifacts/experiment/latest/plan_2_8_history.jsonl",
+        ref="bot/live-experiment-snapshot",
+    )
 
 
 def experiment_history_url_token() -> str:
     """Optional bearer token sent when fetching :func:`experiment_history_url`."""
-    return _optional_str("EXPERIMENT_HISTORY_URL_TOKEN", "")
+    return _snapshot_url_token("EXPERIMENT_HISTORY_URL_TOKEN", experiment_history_url())
 
 
 def experiment_cache_ttl_secs() -> int:
@@ -523,12 +611,19 @@ def tradingview_credential_snapshot_url() -> str:
     :func:`tradingview_credential_snapshot_path`; on any fetch failure the
     daemon falls back to the local path.
     """
-    return _optional_str("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL", "")
+    return _snapshot_url(
+        "TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL",
+        path="artifacts/credential_health/latest/credential_health.json",
+        ref="bot/live-tv-credential-snapshot",
+    )
 
 
 def tradingview_credential_snapshot_url_token() -> str:
     """Optional bearer token sent when fetching the credential snapshot URL."""
-    return _optional_str("TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN", "")
+    return _snapshot_url_token(
+        "TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN",
+        tradingview_credential_snapshot_url(),
+    )
 
 
 def tradingview_credential_cache_ttl_secs() -> int:
@@ -614,7 +709,8 @@ _GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 
 def github_workflow_repo() -> tuple[str, str]:
     """Repo target for GitHub workflow polling in owner/repo format."""
-    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_REPO", "skippALGO/skipp-algo")
+    default = f"{_DEFAULT_GITHUB_OWNER}/{_DEFAULT_GITHUB_REPO}"
+    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_REPO", default)
     owner, sep, repo = raw.partition("/")
     owner = owner.strip()
     repo = repo.strip()
@@ -624,10 +720,10 @@ def github_workflow_repo() -> tuple[str, str]:
         or not _GITHUB_REPO_RE.match(repo)
     ):
         logger.warning(
-            "GITHUB_WORKFLOW_MONITOR_REPO=%r invalid, falling back to skippALGO/skipp-algo",
-            raw,
+            "GITHUB_WORKFLOW_MONITOR_REPO=%r invalid, falling back to %s",
+            raw, default,
         )
-        return ("skippALGO", "skipp-algo")
+        return (_DEFAULT_GITHUB_OWNER, _DEFAULT_GITHUB_REPO)
     return (owner, repo)
 
 

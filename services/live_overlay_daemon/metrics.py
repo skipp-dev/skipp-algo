@@ -576,10 +576,17 @@ def _experiment_verdict_labels(hypothesis: str, status: str) -> str:
 
 
 def _experiment_date_from_root(scoring_root: object) -> str:
-    """Extract a ``YYYY-MM-DD`` run date from a rollup ``scoring_root`` path."""
+    """Extract a ``YYYY-MM-DD`` run date from a rollup ``scoring_root`` path.
+
+    Producers use both ``.../YYYY-MM-DD`` and ``.../results_YYYY-MM-DD``.  The
+    latter is the current Plan 2.8 format and must not turn a fresh, loaded
+    rollup into ``age_known=0``.
+    """
     if not isinstance(scoring_root, str) or not scoring_root:
         return ""
     tail = scoring_root.rstrip("/").rsplit("/", 1)[-1]
+    if tail.startswith("results_"):
+        tail = tail.removeprefix("results_")
     if len(tail) == 10 and tail[4] == "-" and tail[7] == "-":
         try:
             datetime.datetime.strptime(tail, "%Y-%m-%d")

@@ -2025,6 +2025,17 @@ def test_render_metrics_includes_daily_experiment_snapshot(
     assert 'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7' in body
 
 
+def test_experiment_date_accepts_current_results_prefixed_scoring_root() -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    assert metrics_mod._experiment_date_from_root(
+        "/workspace/evaluation/plan_2_8/results_2026-07-19"
+    ) == "2026-07-19"
+    assert metrics_mod._experiment_date_from_root(
+        "/workspace/evaluation/plan_2_8/results_not-a-date"
+    ) == ""
+
+
 def test_render_metrics_handles_daily_experiment_snapshot_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

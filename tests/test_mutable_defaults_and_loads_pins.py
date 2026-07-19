@@ -125,8 +125,8 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8 below the market-hours gate.
-        ("open_prep/realtime_signals.py", 2311),  # 2026-07-17 A0 latency state shifted site: 2308->2311
-        ("open_prep/realtime_signals.py", 3772),  # 2026-07-17 A0 latency metrics shifted site: 3760->3772
+        ("open_prep/realtime_signals.py", 2334),  # 2026-07-19 authenticated snapshot fallback shifted site: 2311->2334
+        ("open_prep/realtime_signals.py", 3795),  # 2026-07-19 authenticated snapshot fallback shifted site: 3772->3795
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
@@ -201,7 +201,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-25: shifted 2892 -> 2973 by AsyncNewsstackPoller telemetry additions.
         # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
-        ("open_prep/realtime_signals.py", 3812),  # 2026-07-17 A0 latency metrics shifted site: 3800->3812
+        ("open_prep/realtime_signals.py", 3835),  # 2026-07-19 authenticated snapshot fallback shifted site: 3812->3835
         ("open_prep/streamlit_monitor.py", 80),  # 2026-07-18 local OPRA snapshot JSON import
         # 2026-07-17: the isolated A0-Fast entry point must fail closed when
         # either its Databento credential or versioned reference file is absent.

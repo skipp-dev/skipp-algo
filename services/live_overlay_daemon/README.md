@@ -199,29 +199,35 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `SIGNALS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `SIGNALS_SNAPSHOT_URL` (disabled in production lean mode) |
 | `SIGNALS_SERVICE_URL` | ❌ | *(unset)* | Internal Railway hostname/URL of `smc-signals-producer`; takes precedence over all other signal sources. Production: `${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080` |
 | `SIGNALS_INTERNAL_TOKEN` | ❌ | *(unset)* | Bearer token used when calling `SIGNALS_SERVICE_URL` |
-| `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `120` | Signals snapshot cache TTL in seconds (range 30–1800) |
+| `OVERLAY_SIGNALS_CACHE_TTL_SECS` | ❌ | `30` | Signals snapshot cache TTL in seconds (range 30–1800) |
 | `OVERLAY_SIGNALS_MAX_AGE_SECS` | ❌ | `480` | Age threshold after which signals snapshot is stale (range 60–7200) |
 | `EXPERIMENT_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_tf_family_rollup.json` | Local daily experiment rollup snapshot |
-| `EXPERIMENT_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for daily experiment rollup snapshot |
-| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_SNAPSHOT_URL` |
+| `EXPERIMENT_SNAPSHOT_URL` | ❌ | canonical `bot/live-experiment-snapshot` URL | HTTPS URL for daily experiment rollup snapshot; set explicitly empty to disable remote loading |
+| `EXPERIMENT_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_SNAPSHOT_URL` |
 | `EVIDENCE_FRESHNESS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/evidence_freshness.json` | Local evidence-freshness snapshot (ADR-0023 chain freshness gauges) |
-| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the evidence-freshness snapshot (raw `bot/live-evidence-freshness` file) |
-| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL` | ❌ | canonical `bot/live-evidence-freshness` URL | HTTPS URL for the evidence-freshness snapshot; set explicitly empty to disable remote loading |
+| `EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `EVIDENCE_FRESHNESS_SNAPSHOT_URL` |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/sweep_trap_shadow.json` | Local sweep-trap shadow snapshot |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` | ❌ | canonical `bot/live-sweep-trap-shadow` URL | HTTPS URL for the sweep-trap shadow snapshot; set explicitly empty to disable remote loading |
+| `SWEEP_TRAP_SHADOW_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `SWEEP_TRAP_SHADOW_SNAPSHOT_URL` |
+| `PROVIDER_USAGE_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/provider_usage.json` | Local provider-usage snapshot |
+| `PROVIDER_USAGE_SNAPSHOT_URL` | ❌ | canonical `bot/live-open-prep-snapshot` URL | HTTPS URL for the provider-usage snapshot; set explicitly empty to disable remote loading |
+| `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot (per-consumer import-pin drift gauges) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the Pine-library version snapshot (raw `bot/live-pine-library-versions` file) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | ❌ | canonical `bot/live-pine-library-versions` URL | HTTPS URL for the Pine-library version snapshot; set explicitly empty to disable remote loading |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured `input.source` dropdown assignments |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL to `artifacts/monitoring/latest/tradingview_consumer_bindings.json` on `bot/live-tradingview-bindings` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for the binding snapshot URL |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | canonical `bot/live-tradingview-bindings` URL | HTTPS URL for the binding snapshot; set explicitly empty to disable remote loading |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
-| `EXPERIMENT_HISTORY_URL` | ❌ | *(unset)* | Optional HTTPS URL for per-day experiment history JSONL |
-| `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `EXPERIMENT_HISTORY_URL` |
+| `EXPERIMENT_HISTORY_URL` | ❌ | canonical `bot/live-experiment-snapshot` URL | HTTPS URL for per-day experiment history JSONL; set explicitly empty to disable remote loading |
+| `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
-| `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | ❌ | `129600` | Age threshold after which experiment snapshot is stale (range 3600–1209600) |
+| `OVERLAY_EXPERIMENT_MAX_AGE_SECS` | ❌ | `345600` | Age threshold after which experiment snapshot is stale (range 3600–1209600) |
 | `OVERLAY_EXPERIMENT_HISTORY_MAX_DAYS` | ❌ | `30` | Max number of history days surfaced as metrics (range 1–366) |
 | `TRADINGVIEW_CREDENTIAL_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/credential_health.json` | Local daily credential-health report (TradingView storage-state age probe) |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | ❌ | *(unset)* | Optional HTTPS URL for the credential-health report; takes precedence over local path |
-| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | *(unset)* | Optional bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` | ❌ | canonical `bot/live-tv-credential-snapshot` URL | HTTPS URL for the credential-health report; set explicitly empty to disable remote loading |
+| `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL` |
 | `OVERLAY_TRADINGVIEW_CREDENTIAL_CACHE_TTL_SECS` | ❌ | `3600` | Credential-health report cache TTL in seconds (range 60–86400) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only when a real external `/smc_live` consumer is deployed and expected during US market-open windows; arms the first-zero traffic alert |
@@ -230,7 +236,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skipp-dev/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
@@ -261,18 +267,18 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 
 ### Snapshot delivery & persistence
 
-Each snapshot loader (news, signals, experiment rollup/history, TradingView
-credential report) is
-**URL-first**: when the matching `*_SNAPSHOT_URL` is set it fetches the freshest
-payload over HTTPS and falls back to the local `*_SNAPSHOT_PATH` otherwise.
+Each snapshot loader is **URL-first**: its canonical CI-produced snapshot URL
+is used by default, and it falls back to the local `*_SNAPSHOT_PATH` on fetch
+failure. An explicitly present-but-empty URL variable disables that remote
+source for local/offline operation.
 The default `*_SNAPSHOT_PATH` values for the CI-produced snapshots (news,
 experiment rollup/history, and TradingView credential report) point at tracked
 seed files under `artifacts/live_overlay/` so the daemon (and local dashboard)
 renders data out of the box. Realtime signals are the exception: they have no
 CI producer and still default to `artifacts/open_prep/latest/latest_realtime_signals.json`.
-CI producers push fresher snapshots to rolling `bot/*` branches; off-host
-daemons should set the matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` to consume
-those instead.
+CI producers push fresher snapshots to rolling `bot/*` branches. Canonical
+GitHub Contents URLs reuse `GITHUB_WORKFLOW_MONITOR_TOKEN` when a source-specific
+token is absent; custom URLs never receive that generic token.
 
 - **HTTPS-only URL guard is centralized:** all runtime snapshot URL fetchers
   share one validation path and reject non-HTTPS URLs with a consistent warning
@@ -284,7 +290,7 @@ those instead.
   `smc-measurement-benchmark-rolling.yml` → `bot/live-experiment-snapshot`;
   `credential-health-check.yml` → `bot/live-tv-credential-snapshot`). Point the
   matching `*_SNAPSHOT_URL` / `*_HISTORY_URL` at
-  `https://api.github.com/repos/skippALGO/skipp-algo/contents/<path>?ref=<bot-branch>`
+  `https://api.github.com/repos/skipp-dev/skipp-algo/contents/<path>?ref=<bot-branch>`
   with a fine-grained PAT (`Contents: Read`) in the `*_URL_TOKEN`.
 - **Realtime signals on Railway** are fetched live from the internal
   `smc-signals-producer` service. Production uses lean mode:
@@ -304,7 +310,7 @@ those instead.
   git flag) and a race-safe first-publish lease
   (`refs/heads/<branch>:0000000000000000000000000000000000000000`)
   so concurrent branch creation cannot be clobbered silently. Then set
-  `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skippALGO/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
+  `SIGNALS_SNAPSHOT_URL=https://api.github.com/repos/skipp-dev/skipp-algo/contents/artifacts/open_prep/latest/latest_realtime_signals.json?ref=bot/live-signals-snapshot`
   and `SIGNALS_SNAPSHOT_URL_TOKEN` to a `Contents: Read` PAT, exactly like the
   news snapshot.
   On first publish, an absent remote branch is treated as expected; unexpected

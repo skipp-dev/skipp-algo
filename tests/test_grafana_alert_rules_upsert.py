@@ -715,7 +715,8 @@ def test_fmp_bandwidth_alerts_include_producer_consumption() -> None:
     for uid in ("lo-fmp-bandwidth-approaching", "lo-fmp-bandwidth-critical"):
         assert uid in rules, f"missing FMP quota alert: {uid}"
         expr = _rule_expr(rules[uid])
-        assert "signals_producer_fmp_response_bytes_total" in expr, uid
+        assert "signals_producer_fmp_endpoint_response_bytes_total" in expr, uid
+        assert "signals_producer_fmp_response_bytes_total" not in expr, uid
         # The producer term must degrade to 0 when absent (never null the base).
         assert "or vector(0)" in expr, uid
 
@@ -730,7 +731,7 @@ def test_signals_producer_fmp_hotpath_alerts_present() -> None:
 
     burn_rule = rules["sp-fmp-byte-burn-high"]
     burn_expr = _rule_expr(burn_rule)
-    assert "signals_producer_fmp_response_bytes_total" in burn_expr
+    assert "signals_producer_fmp_endpoint_response_bytes_total" in burn_expr
     assert "[1h]" in burn_expr
 
     shadow_stale = _rule_expr(rules["sp-fmp-extended-shadow-stale"])

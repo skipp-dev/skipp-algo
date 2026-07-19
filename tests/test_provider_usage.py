@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from newsstack_fmp.provider_usage import ProviderUsage
+from newsstack_fmp.provider_usage import ProviderUsage, touch_snapshot
 
 
 def test_record_accumulates_bytes_records_calls() -> None:
@@ -81,6 +81,53 @@ def test_flush_noop_when_nothing_recorded(tmp_path: Path) -> None:
     path = tmp_path / "provider_usage.json"
     assert u.flush(path, month="2026-07", now_iso="2026-07-07T10:00:00Z") is False
     assert not path.exists()
+
+
+def test_touch_snapshot_refreshes_age_without_inventing_usage(tmp_path: Path) -> None:
+    path = tmp_path / "provider_usage.json"
+    path.write_text(
+        json.dumps(
+            {
+                "updated_at": "2026-07-14T10:00:00Z",
+                "current_month": "2026-07",
+                "months": {
+                    "2026-07": {
+                        "fmp": {"calls": 3, "bytes": 42, "records": 1, "rate_limit_hits": 0}
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert touch_snapshot(
+        path,
+        month="2026-07",
+        now_iso="2026-07-19T12:00:00Z",
+    ) is True
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["updated_at"] == "2026-07-19T12:00:00Z"
+    assert data["months"]["2026-07"]["fmp"] == {
+        "calls": 3,
+        "bytes": 42,
+        "records": 1,
+        "rate_limit_hits": 0,
+    }
+
+
+def test_touch_snapshot_creates_empty_current_month(tmp_path: Path) -> None:
+    path = tmp_path / "provider_usage.json"
+    assert touch_snapshot(
+        path,
+        month="2026-08",
+        now_iso="2026-08-01T00:00:00Z",
+    ) is True
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data == {
+        "current_month": "2026-08",
+        "months": {"2026-08": {}},
+        "updated_at": "2026-08-01T00:00:00Z",
+    }
 
 
 def test_flush_fail_soft_on_unwritable_path(tmp_path: Path) -> None:

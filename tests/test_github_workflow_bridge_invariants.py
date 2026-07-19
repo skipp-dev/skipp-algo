@@ -127,12 +127,50 @@ def test_duration_seconds_clamps_reversed_interval_to_zero():
 def test_github_workflow_repo_malformed_falls_back(monkeypatch, raw: str) -> None:
     monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_REPO", raw)
     owner, repo = config.github_workflow_repo()
-    assert (owner, repo) == ("skippALGO", "skipp-algo")
+    assert (owner, repo) == ("skipp-dev", "skipp-algo")
 
 
 def test_github_workflow_repo_valid_is_parsed_and_trimmed(monkeypatch) -> None:
     monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_REPO", "  skipp-dev / skipp-algo ")
     assert config.github_workflow_repo() == ("skipp-dev", "skipp-algo")
+
+
+def test_snapshot_urls_default_to_monitored_repo_rolling_branches(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_REPO", "skipp-dev/skipp-algo")
+    monkeypatch.delenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL", raising=False)
+    monkeypatch.delenv("TRADINGVIEW_BINDINGS_SNAPSHOT_URL", raising=False)
+
+    assert config.evidence_freshness_snapshot_url() == (
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/monitoring/latest/evidence_freshness.json"
+        "?ref=bot/live-evidence-freshness"
+    )
+    assert config.tradingview_bindings_snapshot_url().endswith(
+        "artifacts/monitoring/latest/tradingview_consumer_bindings.json"
+        "?ref=bot/live-tradingview-bindings"
+    )
+
+
+def test_snapshot_token_reuses_monitor_token_only_for_own_contents_api(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_REPO", "skipp-dev/skipp-algo")
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_TOKEN", "monitor-token")
+    monkeypatch.delenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", raising=False)
+
+    monkeypatch.setenv(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL",
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/x.json?ref=bot/live-x",
+    )
+    assert config.evidence_freshness_snapshot_url_token() == "monitor-token"
+
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "https://example.test/x.json")
+    assert config.evidence_freshness_snapshot_url_token() == ""
+
+
+def test_snapshot_specific_token_wins_for_custom_url(monkeypatch) -> None:
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "https://example.test/x.json")
+    monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "source-token")
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_TOKEN", "monitor-token")
+    assert config.evidence_freshness_snapshot_url_token() == "source-token"
 
 
 @pytest.mark.parametrize(

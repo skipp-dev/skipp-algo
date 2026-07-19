@@ -286,6 +286,44 @@ def _load(path: Path) -> dict[str, Any]:
         return {}
 
 
+def touch_snapshot(path: str | Path, *, month: str, now_iso: str) -> bool:
+    """Refresh snapshot liveness without inventing provider consumption.
+
+    A successful producer run may legitimately make zero instrumented provider
+    calls.  In that case :meth:`ProviderUsage.flush` is a no-op, which used to
+    leave ``updated_at`` frozen and fire the stale-snapshot alert even though
+    the workflow ran and published successfully.  This heartbeat preserves all
+    counters, ensures the current month exists, and advances only metadata.
+    """
+    try:
+        from scripts.smc_atomic_write import atomic_write_json
+
+        target = Path(path)
+        existing = _load(target)
+        months: dict[str, Any] = dict(existing.get("months") or {})
+        months.setdefault(month, {})
+        for stale in sorted(months)[:-_MAX_MONTHS]:
+            months.pop(stale, None)
+
+        payload: dict[str, Any] = {
+            "updated_at": now_iso,
+            "current_month": month,
+            "months": months,
+        }
+        dimensions = dict(existing.get("dimensions") or {})
+        for stale in sorted(dimensions)[:-_MAX_MONTHS]:
+            dimensions.pop(stale, None)
+        if dimensions:
+            payload["dimensions"] = dimensions
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(payload, target, sort_keys=True)
+        return True
+    except Exception as exc:  # fail-soft: monitoring must never break ingest
+        logger.warning("provider-usage heartbeat failed for %s: %s", path, exc)
+        return False
+
+
 # Process-wide singleton so ingest HTTP layers can record without threading a
 # recorder through every call site.
 _RECORDER = ProviderUsage()

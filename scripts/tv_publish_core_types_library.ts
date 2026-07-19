@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_core_types.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_core_types"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_core_types/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_core_types/5"),
     alias: getFlag("--alias", "ct"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "5")),
     description: getFlag(
       "--description",
       "Private core types, enums, and UDT definitions consumed by SMC Core.",

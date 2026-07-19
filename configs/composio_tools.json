@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "tools": {
-    "SLACK_TEST_AUTH": {"toolkit": "slack", "version": "20260702_00", "access": "read", "required": []},
-    "SLACK_FETCH_CONVERSATION_HISTORY": {"toolkit": "slack", "version": "20260702_00", "access": "read", "required": ["channel"]},
-    "SLACK_OPEN_DM": {"toolkit": "slack", "version": "20260702_00", "access": "write", "required": []},
-    "SLACK_SEND_MESSAGE": {"toolkit": "slack", "version": "20260702_00", "access": "write", "required": ["channel"]},
+    "SLACK_TEST_AUTH": {"toolkit": "slack", "version": "20260717_00", "access": "read", "required": []},
+    "SLACK_FETCH_CONVERSATION_HISTORY": {"toolkit": "slack", "version": "20260717_00", "access": "read", "required": ["channel"]},
+    "SLACK_OPEN_DM": {"toolkit": "slack", "version": "20260717_00", "access": "write", "required": []},
+    "SLACK_SEND_MESSAGE": {"toolkit": "slack", "version": "20260717_00", "access": "write", "required": ["channel"]},
     "GITHUB_GET_THE_AUTHENTICATED_USER": {"toolkit": "github", "version": "20260713_00", "access": "read", "required": []},
     "GITHUB_LIST_REPOSITORY_ISSUES": {"toolkit": "github", "version": "20260713_00", "access": "read", "required": ["owner", "repo"]},
     "GITHUB_CREATE_AN_ISSUE": {"toolkit": "github", "version": "20260713_00", "access": "write", "required": ["owner", "repo", "title"]},
