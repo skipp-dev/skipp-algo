@@ -51,6 +51,12 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
             self._async_newsstack = None
             self._near_a0_repoller = None
 
+        def start_async_newsstack(self, *, poll_interval: int) -> None:
+            pass
+
+        def start_near_a0_repoller(self, poll_interval: float) -> None:
+            pass
+
         def poll_once(self) -> None:
             raise KeyboardInterrupt
 

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.smc_atomic_write import atomic_write_text
+
 KEYS = ("symbol", "trade_date")
 VALUES = ("open", "high", "low", "close", "volume")
 
@@ -76,7 +78,7 @@ def main() -> int:
     args = parser.parse_args()
     report = compare(pd.read_csv(args.reference), pd.read_csv(args.candidate))
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", args.output)
     return 0
 
 

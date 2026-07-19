@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import resource
 import time
 import tracemalloc
 from dataclasses import asdict, dataclass
@@ -242,6 +241,10 @@ def _run_scenario(
 
 
 def _peak_rss_mb() -> float:
+    try:
+        import resource
+    except ImportError:
+        return 0.0
     rss = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     rss_bytes = rss * 1024.0 if rss < 10_000_000 else rss
     return rss_bytes / 1_000_000.0

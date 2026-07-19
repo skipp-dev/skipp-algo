@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import resource
 import threading
 import time
 from collections import Counter
@@ -220,6 +219,10 @@ def _metric_reason(value: str) -> str:
 
 
 def _peak_rss_bytes() -> int:
+    try:
+        import resource
+    except ImportError:
+        return 0
     rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     # Linux reports KiB; macOS reports bytes.
     return rss * 1024 if rss < 10_000_000 else rss

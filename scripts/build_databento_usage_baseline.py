@@ -9,6 +9,8 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
+
 DATASETS = (
     "DBEQ.BASIC",
     "EQUS.MINI",
@@ -163,8 +165,8 @@ def main() -> int:
     payload = build_inventory(args.revision)
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.markdown_output.parent.mkdir(parents=True, exist_ok=True)
-    args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    args.markdown_output.write_text(_markdown(payload), encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", args.json_output)
+    atomic_write_text(_markdown(payload), args.markdown_output)
     return 0
 
 

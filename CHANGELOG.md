@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-07-18) — Removed an invalid Pine delivery assumption
+
+- Removed stale operational guidance that treated Pine as a network client of
+  the live-overlay service. Pine has no supported consumer for that endpoint.
+- Traffic dashboards and alerts now describe authorized internal consumers
+  only. The service remains available for server-side processing and operations.
+
 ### Fixed (2026-07-02) — Score component 40 % cap no longer geometrically crushes concentrated setups
 
 - `open_prep/scorer.py` `score_candidate()`: the component cap previously
@@ -27,13 +34,6 @@ All notable changes to this project are documented in this file.
   PUMP-artige statt LEAD-artige Kandidaten. Der Shipped-Default
   (`HIGH_CONVICTION`, `open_prep/alerts.py`) ist **nicht** betroffen; ein
   Config-/Env-Sweep fand keinen `STANDARD`-Consumer im Repo.
-
-### Fixed (2026-07-18) — Removed an invalid Pine delivery assumption
-
-- Removed stale operational guidance that treated Pine as a network client of
-  the live-overlay service. Pine has no supported consumer for that endpoint.
-- Traffic dashboards and alerts now describe authorized internal consumers
-  only. The service remains available for server-side processing and operations.
 
 ### Added (2026-07-01) — PromQL gating anti-pattern guard
 
