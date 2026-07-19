@@ -27,7 +27,6 @@ from open_prep.feature_flags import (
     is_fmp_senate_trades_enabled,
     is_newsapi_ai_enabled,
     is_opra_uoa_enabled,
-    is_tradingview_news_enabled,
     is_uw_news_enabled,
 )
 
@@ -79,7 +78,6 @@ class Config:
     enable_benzinga_rest: bool = field(default_factory=is_benzinga_rest_enabled)
     enable_benzinga_ws: bool = field(default_factory=is_benzinga_ws_enabled)
     enable_benzinga_rss: bool = field(default_factory=is_benzinga_rss_enabled)
-    enable_tradingview_news: bool = field(default_factory=is_tradingview_news_enabled)
     enable_newsapi_ai: bool = field(default_factory=is_newsapi_ai_enabled)
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
     # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
@@ -136,9 +134,6 @@ class Config:
     # ── Universe (optional) ─────────────────────────────────────
     universe_path: str = field(default_factory=lambda: os.getenv("UNIVERSE_PATH", "universe.txt"))
     filter_to_universe: bool = field(default_factory=lambda: os.getenv("FILTER_TO_UNIVERSE", "0") == "1")
-    tv_symbol_limit: int = field(default_factory=lambda: _env_int("TV_SYMBOL_LIMIT", 20))
-    tv_max_per_ticker: int = field(default_factory=lambda: _env_int("TV_MAX_PER_TICKER", 3))
-    tv_max_total: int = field(default_factory=lambda: _env_int("TV_MAX_TOTAL", 25))
     newsapi_ai_lookback_days: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_LOOKBACK_DAYS", 2))
     newsapi_ai_articles_per_request: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_ARTICLES_PER_REQUEST", 100))
     uw_news_limit: int = field(default_factory=lambda: _env_int("UW_NEWS_LIMIT", 100))

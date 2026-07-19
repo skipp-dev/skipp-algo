@@ -230,10 +230,10 @@ codes = ["S603"]
 # 2026-07-11: shifted 1233 -> 1239 by meta-sources de-nest (+6).
 # 2026-07-11: shifted 1239 -> 1243 by bz-direct key-select + display_output (+4).
 # 2026-07-11: shifted 1243 -> 1248 by bz-direct centralization + WS key-select (+5).
-# 2026-07-18: shifted 1248 -> 1239 by TradingView upstream retirement cleanup (-9).
+# 2026-07-19: shifted 1248 -> 1194 by removal of retired TradingView pipeline lane (-54).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
-line = 1239
+line = 1194
 codes = ["E402"]
 
 # ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions

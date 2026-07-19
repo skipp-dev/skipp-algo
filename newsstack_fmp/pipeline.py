@@ -203,28 +203,6 @@ def _fetch_cached_provider_items(
     )
 
 
-def _fetch_tradingview_provider_items(
-    *,
-    cfg: Config,
-    symbols: list[str],
-    min_cursor: float,
-) -> CachedNewsBatch:
-    limited_symbols = list(symbols[: max(cfg.tv_symbol_limit, 0)]) if cfg.tv_symbol_limit > 0 else list(symbols)
-    logger.warning("TradingView news provider is retired; returning an empty batch")
-    return CachedNewsBatch(
-        provider="tradingview",
-        scope={
-            "symbols": limited_symbols,
-            "max_per_ticker": cfg.tv_max_per_ticker,
-            "max_total": cfg.tv_max_total,
-        },
-        items=[],
-        raw_count=0,
-        cursor=min_cursor,
-        fetched_at=time.time(),
-    )
-
-
 def _fetch_newsapi_provider_items(
     *,
     cfg: Config,
@@ -542,7 +520,7 @@ def poll_once(
     so cursors / dedup / novelty survive across refreshes.
 
     Polls all enabled lanes (FMP news + senate/house/8K/13F, Benzinga
-    REST/RSS/WS, UW, TradingView, NewsAPI.ai), feeding ``process_news_items()``.
+    REST/RSS/WS, UW, NewsAPI.ai), feeding ``process_news_items()``.
 
     Parameters
     ----------
@@ -573,7 +551,6 @@ def poll_once(
     fmp_articles_last = float(store.get_kv("fmp.articles.last_seen_epoch") or 0.0)
     bz_rest_cursor = float(store.get_kv("benzinga.updatedSince") or "0")
     bz_rss_last_seen = float(store.get_kv("benzinga_rss.last_seen_epoch") or "0")
-    tv_last_seen = float(store.get_kv("tradingview.last_seen_epoch") or "0")
     newsapi_last_seen = float(store.get_kv("newsapi_ai.last_seen_epoch") or "0")
     newsapi_last_seen_uri = str(store.get_kv("newsapi_ai.last_seen_news_uri") or "").strip()
     uw_news_last_seen = float(store.get_kv("uw_news.last_seen_epoch") or "0")
@@ -593,7 +570,6 @@ def poll_once(
     new_fmp_articles_max = fmp_articles_last
     new_bz_rest_max = bz_rest_cursor
     new_bz_rss_max = bz_rss_last_seen
-    new_tv_max = tv_last_seen
     new_newsapi_max = newsapi_last_seen
     new_newsapi_uri = newsapi_last_seen_uri
     new_uw_news_max = uw_news_last_seen
@@ -870,57 +846,41 @@ def poll_once(
             logger.warning("FMP 13F-HR-latest fetch failed: %s", _msg)
             cycle_warnings.append(f"fmp_13f_latest: {_msg}")
 
-    # ── 3) Symbol-scoped providers (TradingView + NewsAPI.ai) ──
-    if universe_symbols:
-        if cfg.enable_tradingview_news:
-            try:
-                tv_batch = _fetch_tradingview_provider_items(
-                    cfg=cfg,
-                    symbols=universe_symbols,
-                    min_cursor=tv_last_seen,
-                )
-                other_items.extend(tv_batch.items)
-                new_tv_max = tv_batch.cursor
-                ingest_counts_by_source["tradingview"] = tv_batch.raw_count
-            except Exception as exc:
-                _msg = _sanitize_exc(exc)
-                logger.warning("TradingView news fetch failed: %s", _msg)
-                cycle_warnings.append(f"tradingview: {_msg}")
-
-        if cfg.enable_newsapi_ai and cfg.newsapi_ai_key:
-            try:
-                newsapi_batch = _fetch_newsapi_provider_items(
-                    cfg=cfg,
-                    symbols=universe_symbols,
-                    min_cursor=newsapi_last_seen,
-                    article_feed_after_uri=newsapi_last_seen_uri,
-                )
-                other_items.extend(newsapi_batch.items)
-                new_newsapi_max = newsapi_batch.cursor
-                new_newsapi_uri = _next_newsapi_feed_uri(
-                    newsapi_last_seen_uri,
-                    newsapi_batch.items,
-                    cursor_advanced=newsapi_batch.cursor > newsapi_last_seen,
-                )
-                newsapi_provider_status, newsapi_status_detail = _newsapi_operator_status(
-                    cursor=newsapi_batch.cursor,
-                    raw_items=newsapi_batch.raw_items,
-                    filtered_items=newsapi_batch.items,
-                    universe=set(universe_symbols),
-                )
-                newsapi_provider_meta = {
-                    "provider_status": newsapi_provider_status,
-                    "status_detail": newsapi_status_detail,
-                }
-                ingest_counts_by_source["newsapi_ai"] = newsapi_batch.raw_count
-            except Exception as exc:
-                _msg = _sanitize_exc(exc)
-                logger.warning("NewsAPI.ai fetch failed: %s", _msg)
-                newsapi_provider_meta = {
-                    "provider_status": str(getattr(exc, "provider_status", "http_error") or "http_error"),
-                    "status_detail": str(getattr(exc, "detail", "") or _msg),
-                }
-                cycle_warnings.append(f"newsapi_ai: {_msg}")
+    # ── 3) Symbol-scoped providers (NewsAPI.ai) ──
+    if universe_symbols and cfg.enable_newsapi_ai and cfg.newsapi_ai_key:
+        try:
+            newsapi_batch = _fetch_newsapi_provider_items(
+                cfg=cfg,
+                symbols=universe_symbols,
+                min_cursor=newsapi_last_seen,
+                article_feed_after_uri=newsapi_last_seen_uri,
+            )
+            other_items.extend(newsapi_batch.items)
+            new_newsapi_max = newsapi_batch.cursor
+            new_newsapi_uri = _next_newsapi_feed_uri(
+                newsapi_last_seen_uri,
+                newsapi_batch.items,
+                cursor_advanced=newsapi_batch.cursor > newsapi_last_seen,
+            )
+            newsapi_provider_status, newsapi_status_detail = _newsapi_operator_status(
+                cursor=newsapi_batch.cursor,
+                raw_items=newsapi_batch.raw_items,
+                filtered_items=newsapi_batch.items,
+                universe=set(universe_symbols),
+            )
+            newsapi_provider_meta = {
+                "provider_status": newsapi_provider_status,
+                "status_detail": newsapi_status_detail,
+            }
+            ingest_counts_by_source["newsapi_ai"] = newsapi_batch.raw_count
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("NewsAPI.ai fetch failed: %s", _msg)
+            newsapi_provider_meta = {
+                "provider_status": str(getattr(exc, "provider_status", "http_error") or "http_error"),
+                "status_detail": str(getattr(exc, "detail", "") or _msg),
+            }
+            cycle_warnings.append(f"newsapi_ai: {_msg}")
 
     # ── 4) Benzinga WS drain ────────────────────────────────────
     if cfg.enable_benzinga_ws and (cfg.benzinga_api_key or cfg.benzinga_direct_api_key):
@@ -1000,8 +960,6 @@ def poll_once(
             )
     if other_processing_ok and new_bz_rss_max > bz_rss_last_seen:
         store.set_kv("benzinga_rss.last_seen_epoch", str(new_bz_rss_max))
-    if other_processing_ok and new_tv_max > tv_last_seen:
-        store.set_kv("tradingview.last_seen_epoch", str(new_tv_max))
     if other_processing_ok and new_newsapi_max > newsapi_last_seen:
         store.set_kv("newsapi_ai.last_seen_epoch", str(new_newsapi_max))
     if other_processing_ok and new_newsapi_uri != newsapi_last_seen_uri:
@@ -1040,7 +998,6 @@ def poll_once(
     bz_count = sum(1 for it in other_items if it.provider.startswith("benzinga") and it.is_valid)
     bz_rest_count = sum(1 for it in other_items if it.provider == "benzinga_rest" and it.is_valid)
     bz_rss_count = sum(1 for it in other_items if it.provider == "benzinga_rss" and it.is_valid)
-    tv_count = sum(1 for it in other_items if (it.provider in ("tradingview", "tv_news") or it.provider.startswith("tv_")) and it.is_valid)
     newsapi_count = sum(1 for it in other_items if it.provider == "newsapi_ai" and it.is_valid)
     meta_sources: list[str] = []
     if cfg.enable_fmp:
@@ -1086,7 +1043,6 @@ def poll_once(
             "fmp_articles_last_seen_epoch": new_fmp_articles_max,
             "benzinga_updatedSince": store.get_kv("benzinga.updatedSince"),
             "benzinga_rss_last_seen_epoch": store.get_kv("benzinga_rss.last_seen_epoch"),
-            "tradingview_last_seen_epoch": store.get_kv("tradingview.last_seen_epoch"),
             "newsapi_ai_last_seen_epoch": store.get_kv("newsapi_ai.last_seen_epoch"),
             "newsapi_ai_last_seen_news_uri": store.get_kv("newsapi_ai.last_seen_news_uri"),
         },
@@ -1098,7 +1054,6 @@ def poll_once(
             "benzinga": bz_count,
             "benzinga_rest": bz_rest_count,
             "benzinga_rss": bz_rss_count,
-            "tradingview": tv_count,
             "newsapi_ai": newsapi_count,
         },
         "ingest_counts_by_source": ingest_counts_by_source,  # RAW fetch counts BEFORE cursor/validity filtering — different semantics than ingest_counts, do not compare 1:1

@@ -633,7 +633,6 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
         self.assertFalse(diagnostics["benzinga_enabled"])
         self.assertEqual(diagnostics["source_articles_fmp_raw"], 1)
-        self.assertEqual(diagnostics["source_articles_tradingview_raw"], 0)
         self.assertEqual(diagnostics["source_articles_benzinga_raw"], 0)
         self.assertEqual(diagnostics["merged_articles_before_dedupe"], 1)
         self.assertEqual(diagnostics["merged_articles_after_dedupe"], 1)

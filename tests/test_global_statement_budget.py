@@ -86,17 +86,17 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 113, ("_bz_ws_adapter", "_bz_ws_adapter_key")),  # 2026-07-11 bz-direct key-select (+3: 108->111)
         ("newsstack_fmp/pipeline.py", 142, ("_bz_rss_adapter",)),  # 2026-07-11 bz-direct key-select (+3: 134->137)
         ("newsstack_fmp/pipeline.py", 151, ("_enricher",)),  # 2026-07-11 bz-direct key-select (+3: 143->146)
-        ("newsstack_fmp/pipeline.py", 1124, ("_last_meta",)),  # 2026-07-18 TradingView upstream retirement (-9)
+        ("newsstack_fmp/pipeline.py", 1079, ("_last_meta",)),  # 2026-07-19 remove retired TradingView pipeline lane (-45)
         (
-            # 2026-07-11 meta-sources de-nest shifted (+6: 1207->1213)
+            # 2026-07-19 remove retired TradingView pipeline lane (-44)
             "newsstack_fmp/pipeline.py",
-            1213,  # 2026-07-18 TradingView upstream retirement (-9)
+            1168,
             ("_bz_rest_adapter", "_bz_rss_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
-            # 2026-07-11 meta-sources de-nest shifted (+6: 1208->1214)
+            # 2026-07-19 remove retired TradingView pipeline lane (-44)
             "newsstack_fmp/pipeline.py",
-            1214,  # 2026-07-18 TradingView upstream retirement (-9)
+            1169,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
