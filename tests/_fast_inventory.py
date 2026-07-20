@@ -194,6 +194,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_streamlit_terminal_alerts.py",
     "test_terminal_notifications.py",
     "test_terminal_export_dispatch.py",
+    "test_terminal_candidate_mirror.py",
     "test_streamlit_terminal_feed_state.py",
     "test_streamlit_terminal_pure_functions.py",
     # Discipline test itself — kept in the FAST inventory so the

@@ -4,12 +4,18 @@ on:
   pull_request:
     paths:
       - "services/terminal_access_proxy/**"
+      - "scripts/run_terminal_candidate_mirror.py"
+      - "scripts/start_terminal_service.sh"
+      - "tests/test_terminal_candidate_mirror.py"
       - "Dockerfile"
       - ".github/workflows/terminal-access-proxy.yml"
   push:
     branches: [main]
     paths:
       - "services/terminal_access_proxy/**"
+      - "scripts/run_terminal_candidate_mirror.py"
+      - "scripts/start_terminal_service.sh"
+      - "tests/test_terminal_candidate_mirror.py"
       - "Dockerfile"
       - ".github/workflows/terminal-access-proxy.yml"
 
