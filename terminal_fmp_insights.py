@@ -21,7 +21,7 @@ from typing import Any, cast
 
 import httpx
 
-from cisco_ai_defense import append_assistant_message, inspect_messages
+from cisco_ai_defense import AIDefenseBlockedError, append_assistant_message, inspect_messages
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from smc_core.resilient import resilient
 
@@ -483,6 +483,7 @@ def query_fmp_llm(
     model: str = _DEFAULT_MODEL,
     max_tokens: int = 2500,
     temperature: float = 0.3,
+    blocked_answer: str = "",
 ) -> FMPLLMResponse:
     """Send a question + FMP-enriched context to the OpenAI chat-completions API.
 
@@ -577,6 +578,17 @@ def query_fmp_llm(
             context_articles=n_articles, context_tickers=n_tickers,
             fmp_tickers=n_fmp,
             error="OpenAI returned empty choices",
+        )
+    except AIDefenseBlockedError:
+        _set_cached_miss(ck)
+        return FMPLLMResponse(
+            answer=blocked_answer,
+            model=model,
+            cached=False,
+            context_articles=n_articles,
+            context_tickers=n_tickers,
+            fmp_tickers=n_fmp,
+            error="" if blocked_answer else "Query blocked by AI security policy.",
         )
     except Exception as exc:
         _safe = _APIKEY_RE.sub(r"\1=***", str(exc))

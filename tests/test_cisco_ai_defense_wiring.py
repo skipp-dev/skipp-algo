@@ -109,6 +109,34 @@ def test_terminal_fmp_never_calls_provider_when_request_is_blocked(monkeypatch):
     assert provider_called is False
 
 
+def test_terminal_fmp_validation_returns_safe_answer_when_runtime_blocks(monkeypatch):
+    provider_called = False
+
+    def _blocked(*_args, **_kwargs):
+        raise AIDefenseBlockedError("blocked test decision")
+
+    def _client(*_args, **_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        return _Client()
+
+    monkeypatch.setattr(fmp, "inspect_messages", _blocked)
+    monkeypatch.setattr(fmp.httpx, "Client", _client)
+    fmp._cache.clear()
+
+    result = fmp.query_fmp_llm(
+        "blocked",
+        "{}",
+        "openai-test-key",
+        model="gpt-test",
+        blocked_answer="Blocked by application policy.",
+    )
+
+    assert provider_called is False
+    assert result.answer == "Blocked by application policy."
+    assert result.error == ""
+
+
 @pytest.mark.parametrize(
     ("module", "query"),
     [
