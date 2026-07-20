@@ -2,8 +2,7 @@
 
 Targets pure helpers and externally-mockable fetchers:
 
-  * `_int_env`, `_normalize_tradingview_article_date`,
-    `_tradingview_headline_to_article`, `_benzinga_news_item_to_article`
+  * `_int_env`, `_benzinga_news_item_to_article`
   * `_calculate_atr14_from_eod`, `_load_atr_cache`, `_save_atr_cache`,
     `_evict_stale_cache_files`, `_incremental_atr_from_eod_bulk`,
     `_atr14_by_symbol`
@@ -47,53 +46,17 @@ def test_int_env_returns_value_when_valid(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 # ---------------------------------------------------------------------------
-# _normalize_tradingview_article_date
+# retired TradingView upstream helpers
 # ---------------------------------------------------------------------------
 
 
-def test_normalize_tradingview_article_date_invalid_input() -> None:
-    assert rop._normalize_tradingview_article_date(None) == ""
-    assert rop._normalize_tradingview_article_date("not-a-number") == ""
-    assert rop._normalize_tradingview_article_date(0) == ""
-    assert rop._normalize_tradingview_article_date(-100) == ""
-
-
-def test_normalize_tradingview_article_date_valid_epoch() -> None:
-    out = rop._normalize_tradingview_article_date(1_700_000_000)
-    assert out.startswith("2023-")
-    assert out.endswith("+00:00")
-
-
-# ---------------------------------------------------------------------------
-# _tradingview_headline_to_article
-# ---------------------------------------------------------------------------
-
-
-def test_tradingview_headline_to_article_missing_title_returns_none() -> None:
-    headline = SimpleNamespace(title="", tickers=["AAPL"], published=1_700_000_000)
-    assert rop._tradingview_headline_to_article(headline) is None
-
-
-def test_tradingview_headline_to_article_no_tickers_returns_none() -> None:
-    headline = SimpleNamespace(title="Big move", tickers=[], published=1_700_000_000)
-    assert rop._tradingview_headline_to_article(headline) is None
-
-
-def test_tradingview_headline_to_article_full_payload() -> None:
-    headline = SimpleNamespace(
-        title="Apple beats earnings",
-        tickers=["aapl", "msft"],
-        published=1_700_000_000,
-        source="TradingView",
-        story_url="https://tv/x",
-        provider="custom_provider",
-    )
-    out = rop._tradingview_headline_to_article(headline)
-    assert out is not None
-    assert out["tickers"] == "AAPL,MSFT"
-    assert out["title"] == "Apple beats earnings"
-    assert out["url"] == "https://tv/x"
-    assert out["provider"] == "custom_provider"
+def test_retired_tradingview_news_helpers_are_absent() -> None:
+    for name in (
+        "_normalize_tradingview_article_date",
+        "_tradingview_headline_to_article",
+        "_fetch_tradingview_news_articles",
+    ):
+        assert not hasattr(rop, name)
 
 
 # ---------------------------------------------------------------------------
@@ -715,48 +678,6 @@ def test_benzinga_core_news_without_priority_keeps_old_order(
     )
     assert err is None
     assert captured[:2] == ["AAPL", "MSFT"], captured
-
-
-def test_retired_tradingview_news_does_not_query_priority_symbols(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The retired upstream stays fail-closed even with a legacy budget."""
-    captured: list[list[str]] = []
-
-    def _fake_fetch_tv_multi(symbols: list[str], **_kw: Any) -> list[Any]:
-        captured.append(list(symbols))
-        return []
-
-    import terminal_tradingview_news as tvn
-
-    monkeypatch.setattr(tvn, "fetch_tv_multi", _fake_fetch_tv_multi)
-    monkeypatch.setenv("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", "3")
-
-    universe = ["AAPL", "MSFT", "NVDA", "GOOG", "AMZN", "AMPG", "AKAN"]
-    _arts, err = rop._fetch_tradingview_news_articles(
-        symbols=universe, priority_symbols=["AMPG", "AKAN"]
-    )
-    assert err is None
-    assert captured == [], captured
-
-
-def test_retired_tradingview_news_does_not_query_without_priority(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: list[list[str]] = []
-
-    def _fake_fetch_tv_multi(symbols: list[str], **_kw: Any) -> list[Any]:
-        captured.append(list(symbols))
-        return []
-
-    import terminal_tradingview_news as tvn
-
-    monkeypatch.setattr(tvn, "fetch_tv_multi", _fake_fetch_tv_multi)
-    monkeypatch.setenv("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", "2")
-
-    _arts, err = rop._fetch_tradingview_news_articles(symbols=["AAPL", "MSFT", "NVDA"])
-    assert err is None
-    assert captured == [], captured
 
 
 def test_priority_first_symbols_promotes_only_universe_members() -> None:
