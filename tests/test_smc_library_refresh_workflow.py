@@ -37,7 +37,7 @@ def test_refresh_workflow_restores_databento_bundle_before_generation() -> None:
         "Reject stale Databento fallback on automated refresh",
         "Flatten downloaded Databento export bundle",
         "Verify Databento production export bundle is present",
-        "Generate SMC library with v5 enrichment",
+        "Generate static SMC library control plane",
     ]
     positions = [workflow_text.index(f"      - name: {step}") for step in ordered_steps]
     assert positions == sorted(positions)
@@ -53,7 +53,7 @@ def test_refresh_workflow_restores_databento_bundle_before_generation() -> None:
 
 def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
     workflow_text = _read(WORKFLOW_PATH)
-    generate_block = _step_block(workflow_text, "Generate SMC library with v5 enrichment")
+    generate_block = _step_block(workflow_text, "Generate static SMC library control plane")
 
     assert "--bundle artifacts/smc_microstructure_exports" in generate_block
     assert "--static-only" in generate_block
@@ -533,9 +533,9 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert '"$severity" = "error"' in workflow_text
     # Preflight must gate the generation step, not trail it. Anchor on the
     # step `- name:` markers (the comment header also mentions the phrase).
-    assert '- name: Generate SMC library with v5 enrichment' in workflow_text
+    assert '- name: Generate static SMC library control plane' in workflow_text
     assert workflow_text.index('- name: Provider credential preflight') < workflow_text.index(
-        '- name: Generate SMC library with v5 enrichment'
+        '- name: Generate static SMC library control plane'
     )
 
 

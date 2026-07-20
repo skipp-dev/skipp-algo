@@ -12,14 +12,15 @@
 # restructure. Within the handoff window the consumer expects a
 # freshly-completed producer artifact (see
 # test_workflow_databento_handoff_timeouts for the pin enforcing this).
-# Each run: generate → event-risk → gate → detect changes → diff report →
+# Each run: generate static control plane → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
 # v5 stages:
 #   1. Restore Databento base-data bundle (produced by
 #      smc-databento-production-export-sharded.yml and consumed here via
 #      --bundle; this workflow runs no Databento scan of its own)
-#   2. Enrichment (regime, news, calendar, layering, event-risk)
+#   2. Static Library Control Plane generation; provider-backed enrichment
+#      remains runtime-sidecar data
 #   3. Evidence gates (integration / structure / core tests)
 #   4. Change detection (diff against previous library)
 #   5. Version governance (breaking-change detection)
@@ -54,8 +55,8 @@
 #
 # Secret compatibility note (v4 → v5):
 #   Secret names are unchanged from v4 — no reconfiguration needed.
-#   The v5 architecture adds the event-risk enrichment stage which
-#   derives from existing calendar + news data; no new secrets required.
+#   Provider-backed event risk is delivered by runtime sidecars rather than
+#   embedded in the published static library; no new secrets are required.
 
 name: smc-library-refresh
 
@@ -639,7 +640,7 @@ jobs:
           fi
 
       # ── Static Library Control Plane generation ─────────────────
-      - name: Generate SMC library with v5 enrichment
+      - name: Generate static SMC library control plane
         # Option-D (2026-06-16): 45-min hard limit guards against FMP/Benzinga
         # retry storms that caused 90–155 min hangs (root cause: ~100 per-ticker
         # API calls × 84s worst-case retry budget = ~8400s). A timed-out run
@@ -1582,7 +1583,7 @@ jobs:
             echo "| Runner resolution | ${{ needs.select-runner.outputs.resolution_reason }} |"
             echo "| Runner name | ${{ needs.select-runner.outputs.matched_runner_name || runner.name }} |"
             echo "| Ref | ${REF_NAME} |"
-            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            echo "| Static Library Control Plane generation | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             if [ "${{ steps.gates.outcome }}" = "failure" ] && [ -n "$FIRST_FAILED_GATE_TEST" ]; then
               echo "| First failing gate test | $FIRST_FAILED_GATE_TEST |"

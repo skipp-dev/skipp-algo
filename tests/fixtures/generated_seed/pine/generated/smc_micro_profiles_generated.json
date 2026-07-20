@@ -52,6 +52,7 @@
     "structure_state_light",
     "signal_quality"
   ],
+  "generation_mode": "provider_enriched",
   "event_risk_source": "defaults",
   "productivity_gate": {
     "publish_ready": false,
