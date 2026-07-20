@@ -78,6 +78,11 @@ fail-closed Zustand über den Mid-session-Bootstrap.
 
 ## Metrics und Alerts
 
+- Grafana: [PRE-A0 Shadow Operations](https://bronzeporridge977.grafana.net/d/pre-a0-shadow-v1/pre-a0-shadow-operations)
+  bündelt Shadow-Readiness, Modellidentität, Live-Datenpfad, Inferenzqualität,
+  Persistenz, Runtime-Resilienz und Promotion-Guardrails. Die versionierte Quelle
+  ist `services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json`; sie wird
+  bei Änderungen auf `main` automatisch in den Grafana-Ordner `PRE-A0` publiziert.
 - `/metrics`: Prometheus-Textformat für Verbindung, Datenalter, Queue-Tiefe und
   -Kapazität, Drops, Resync-Pflicht, Disconnects, Recoveries, Live-/Historical-
   Nutzung, Entscheidungen, CPU und Peak-RSS.

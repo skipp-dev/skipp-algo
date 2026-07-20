@@ -35,6 +35,8 @@ def test_trigger_contract_pinned(workflow_doc: dict) -> None:
     assert push.get("paths") == [
         "services/live_overlay_daemon/infra/grafana/dashboard.json",
         "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json",
+        "services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json",
+        "scripts/build_pre_a0_dashboard.py",
     ], "push path filter drifted for dashboard publish workflow"
 
     dispatch = on_block.get("workflow_dispatch")
@@ -103,7 +105,8 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
     assert "python scripts/update_overlay_dashboard.py" in verify_run
     assert "services/live_overlay_daemon/infra/grafana/dashboard.json" in verify_run
     assert "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json" in verify_run
-    assert verify_run.count("--check") == 2
+    assert "python scripts/build_pre_a0_dashboard.py --check" in verify_run
+    assert verify_run.count("--check") == 3
     assert "env" not in verify_step, "dashboard drift check must not require publish secrets"
 
     publish_index = next(
@@ -122,5 +125,8 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
     run = publish_step.get("run") or ""
     assert "python scripts/publish_overlay_dashboard.py" in run
     assert "dashboard-signals-experiments.json" in run
+    assert "dashboard-pre-a0.json|bfshrlee72tc0d" in run
+    assert 'IFS="|" read -r DASHBOARD_PATH FOLDER_UID' in run
+    assert '--folder "${FOLDER_UID}"' in run
     assert "GRAFANA_API_TOKEN" in run
     assert "--dry-run" in run

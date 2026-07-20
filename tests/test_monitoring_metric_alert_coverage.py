@@ -26,9 +26,13 @@ _METRICS_PY = _REPO_ROOT / "services" / "live_overlay_daemon" / "metrics.py"
 _GRAFANA = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana"
 _ALERT_RULES = _GRAFANA / "alert-rules.yaml"
 _DASHBOARD = _GRAFANA / "dashboard.json"
-# Both dashboards are consumers: a metric charted only on the experiments board
-# still counts as watched, so scan both (the guard previously missed it).
-_DASHBOARDS = (_DASHBOARD, _GRAFANA / "dashboard-signals-experiments.json")
+# All dashboards are consumers: a metric charted only on a companion board
+# still counts as watched, so scan every committed operations dashboard.
+_DASHBOARDS = (
+    _DASHBOARD,
+    _GRAFANA / "dashboard-signals-experiments.json",
+    _GRAFANA / "dashboard-pre-a0.json",
+)
 
 # Per-workflow status signals that had zero alert coverage (the exact gap).
 _WORKFLOW_SIGNAL_METRICS = (
