@@ -121,6 +121,7 @@ jobs:
     outputs:
       matrix: ${{ steps.compute.outputs.matrix }}
       shard_count: ${{ steps.compute.outputs.shard_count }}
+      artifact_scope: ${{ steps.compute.outputs.artifact_scope }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -227,6 +228,7 @@ jobs:
           # forward.
           if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then
             echo "::notice::incremental_from_manifest ON — narrowing production matrix to the tail since ${ASOF}."
+            ARTIFACT_SCOPE="delta"
             python scripts/databento_plan_shards.py \
               --lookback-days "${LOOKBACK}" \
               --num-shards "${NUM}" \
@@ -235,6 +237,7 @@ jobs:
               --defer-current-day-until-intraday-window \
               > shards.json
           else
+            ARTIFACT_SCOPE="full_window"
             if [ -n "${INCREMENTAL}" ]; then
               echo "::warning::incremental_from_manifest ON but no manifest asof_date found; falling back to full lookback."
             fi
@@ -258,6 +261,7 @@ jobs:
           MATRIX=$(jq -c '{include: .}' shards.json)
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
+          echo "artifact_scope=${ARTIFACT_SCOPE}" >> "$GITHUB_OUTPUT"
 
       - name: Upload shard plan
         if: always()
@@ -761,6 +765,26 @@ jobs:
           # heartbeat (WF-026); they belong with `a9b-2b-merged-manifest`,
           # not in the legacy compat bundle consumers glob on.
           rm -f "${COMPAT_DIR}/_merge.log" "${COMPAT_DIR}/_heartbeat.log"
+
+          # Explicit producer/consumer contract: the legacy artifact prefix is
+          # shared by full-window seeds and intraday deltas. Persist scope and
+          # observed coverage in the manifest so future consumers never have
+          # to infer "full" from an artifact name or timestamp.
+          ARTIFACT_SCOPE="${{ needs.plan.outputs.artifact_scope }}" \
+          python - "${COMPAT_DIR}/databento_volatility_production_merged_manifest.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          dates = payload.get("trade_dates_covered") or []
+          payload["artifact_contract_version"] = 1
+          payload["artifact_scope"] = os.environ["ARTIFACT_SCOPE"]
+          payload["coverage_trade_days"] = len({str(value) for value in dates if str(value).strip()})
+          path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
 
           # Hard-fail when no parquet payload made it into the compat dir.
           # The reducer's payload concat is best-effort per-frame and could

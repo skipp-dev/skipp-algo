@@ -246,20 +246,15 @@ def test_consumer_restores_artifacts_from_sharded_workflow() -> None:
     restore_steps = [
         step
         for step in _flatten_steps(wf)
-        if step.get("name") in {
-            "Restore Databento production export bundle (today)",
-            "Restore Databento production export bundle (latest fallback)",
-        }
+        if step.get("name") == "Restore sufficiently deep Databento production export bundle"
     ]
-    assert len(restore_steps) == 2, (
-        "Expected both Databento export restore steps in the consumer workflow."
+    assert len(restore_steps) == 1
+    run = str(restore_steps[0].get("run") or "")
+    assert "scripts/restore_databento_export_bundle.py" in run
+    helper = (REPO_ROOT / "scripts" / "restore_databento_export_bundle.py").read_text(
+        encoding="utf-8"
     )
-    for step in restore_steps:
-        workflow_name = str((step.get("with") or {}).get("workflow") or "")
-        assert workflow_name == SHARDED_PRODUCER_WF.name, (
-            f"{step.get('name')} must resolve artifacts from "
-            f"{SHARDED_PRODUCER_WF.name!r}; got {workflow_name!r}"
-        )
+    assert f'_CANONICAL_WORKFLOW_FILE = "{SHARDED_PRODUCER_WF.name}"' in helper
 
 
 def test_export_dir_is_gitignored():

@@ -1,4 +1,4 @@
-"""Restore a sufficiently deep Databento production export for the rolling benchmark.
+"""Restore a sufficiently deep Databento production export for deep-history consumers.
 
 Pulls one of today's ``smc-databento-production-export-<RUN_DATE>-*`` GitHub Actions
 artifact from the ``main`` branch (or a recent same-prefix fallback), verifies
@@ -7,8 +7,8 @@ families, and extracts it into ``artifacts/smc_microstructure_exports/``. Surviv
 transient zip corruption by retrying each candidate up to 3 times before
 falling back to the next eligible artifact. Only artifacts produced by the
 canonical sharded producer workflow are eligible; emergency/manual artifacts
-from the deprecated monolith use the same legacy prefix but must not feed the
-rolling benchmark.
+from the deprecated monolith use the same legacy prefix but must not feed
+deep-history consumers such as the rolling benchmark or library refresh.
 
 Replaces the inline heredoc previously embedded in
 ``.github/workflows/smc-measurement-benchmark-rolling.yml`` (F-V8-D4,
@@ -228,7 +228,13 @@ def _trade_days_covered(target_dir: Path) -> int:
     values = payload.get("trade_dates_covered")
     if not isinstance(values, list):
         return 0
-    return len({value for value in values if isinstance(value, str) and value.strip()})
+    trade_days = len({value for value in values if isinstance(value, str) and value.strip()})
+    declared_coverage = payload.get("coverage_trade_days")
+    if declared_coverage is not None and declared_coverage != trade_days:
+        return 0
+    if payload.get("artifact_scope") == "delta":
+        return 0
+    return trade_days
 
 
 def main() -> int:
@@ -236,9 +242,14 @@ def main() -> int:
     token = os.environ["GH_TOKEN"]
     run_date = os.environ["RUN_DATE"]
     output_path = Path(os.environ["GITHUB_OUTPUT"])
-    min_trade_days = int(os.environ.get("DATABENTO_BENCHMARK_MIN_TRADE_DAYS", _MIN_TRADE_DAYS))
+    min_trade_days = int(
+        os.environ.get(
+            "DATABENTO_MIN_TRADE_DAYS",
+            os.environ.get("DATABENTO_BENCHMARK_MIN_TRADE_DAYS", _MIN_TRADE_DAYS),
+        )
+    )
     if min_trade_days < 1:
-        raise ValueError("DATABENTO_BENCHMARK_MIN_TRADE_DAYS must be positive")
+        raise ValueError("DATABENTO_MIN_TRADE_DAYS must be positive")
 
     today_prefix = f"{_PREFIX}{run_date}-"
     _ROOT.mkdir(parents=True, exist_ok=True)

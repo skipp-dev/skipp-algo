@@ -32,8 +32,7 @@ def test_refresh_workflow_restores_databento_bundle_before_generation() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
     ordered_steps = [
-        "Restore Databento production export bundle (today)",
-        "Restore Databento production export bundle (latest fallback)",
+        "Restore sufficiently deep Databento production export bundle",
         "Reject stale Databento fallback on automated refresh",
         "Flatten downloaded Databento export bundle",
         "Verify Databento production export bundle is present",

@@ -171,49 +171,19 @@ jobs:
             cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Preserve the rolling benchmark producer's sibling stable path on
+          # this shared branch. The helper fails closed on fetch/push errors.
+          python scripts/publish_bot_snapshot.py \
+            --branch bot/live-experiment-snapshot \
+            --copy "${stable_dir}/plan_2_8_tf_family_rollup.json=${stable_dir}/plan_2_8_tf_family_rollup.json" \
+            --copy-if-present "${stable_dir}/plan_2_8_history.jsonl=${stable_dir}/plan_2_8_history.jsonl"
 
-          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          _remote_ref="refs/heads/bot/live-experiment-snapshot"
-          _tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
-
-          git add -f "${stable_dir}"
-
-          if git diff --cached --quiet; then
-            echo "No experiment snapshot changes to commit."
-            exit 0
-          fi
-
-          git commit -m "[skip ci] chore: refresh Plan 2.8 evaluation snapshot"
-
-          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
-          _zero_sha="0000000000000000000000000000000000000000"
-          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
-            _lease_expected="${_expected_sha}"
-          else
-            _lease_expected="${_zero_sha}"
-          fi
-
-          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
-            echo "✅ Pushed experiment snapshots to bot/live-experiment-snapshot"
-            {
-              echo "### ✅ Experiment snapshot published"
-              echo ""
-              echo "Branch: \`bot/live-experiment-snapshot\`"
-              echo "Path: \`artifacts/experiment/latest/\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::warning::Experiment snapshot push failed; evaluation artifacts were uploaded but the rolling bot snapshot was not refreshed"
-            {
-              echo "### ⚠️ Experiment snapshot publish failed (best-effort)"
-              echo ""
-              echo "The evaluation completed and artifacts were uploaded, but the optional"
-              echo "\`bot/live-experiment-snapshot\` publish failed. Rotate or verify"
-              echo "\`GH_PAT\` before relying on the live overlay snapshot cache."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
+          {
+            echo "### ✅ Experiment snapshot published"
+            echo ""
+            echo "Branch: \`bot/live-experiment-snapshot\`"
+            echo "Path: \`artifacts/experiment/latest/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open issue on evaluation failure
         if: always() && (steps.evaluate.outcome == 'failure' || steps.evaluate.outputs.status == 'failed')

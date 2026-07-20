@@ -25,8 +25,8 @@ def test_library_refresh_rejects_stale_fallback_on_automated_runs() -> None:
     body = _read_workflow("smc-library-refresh.yml")
     assert "Reject stale Databento fallback on automated refresh" in body
     assert "github.event_name != 'workflow_dispatch'" in body
-    assert "steps.restore_export_bundle_today.outputs.found_artifact != 'true'" in body
-    assert "steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'" in body
+    assert "steps.restore_export_bundle.outputs.artifact_mode == 'fallback'" in body
+    assert "scripts/restore_databento_export_bundle.py" in body
     assert (
         "Refusing to publish against a stale producer bundle" in body
         or "Refusing to generate from a stale producer bundle" in body
@@ -62,7 +62,8 @@ def test_live_news_secret_is_in_step_env_not_inline_shell() -> None:
     assert "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}" in body
     assert "FMP_API_KEY='${{ secrets.FMP_API_KEY }}'" not in body
     assert "NEWSAPI_KEY" not in body, "NEWSAPI_KEY must not be re-added (NewsAPI.ai retired)"
-    assert "live-news state persistence warning" in body
+    assert "scripts/publish_bot_snapshot.py" in body
+    assert "refusing a cold start that could replace rolling dedup state" in body
 
 
 def test_restore_bundle_filters_deprecated_monolith_artifacts(monkeypatch) -> None:

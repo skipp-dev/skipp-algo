@@ -150,20 +150,33 @@ jobs:
         # and the force-pushed snapshot only ever carried ONE run's deltas.
         # The monthly FMP bandwidth-quota check therefore compared a single
         # day's usage against the 150 GB monthly cap and was effectively
-        # inert. Restore the rolling snapshot before the run (soft-fail,
-        # mirrors the live-news state restore in smc-live-news-refresh.yml).
+        # inert. Restore the rolling snapshot before the run. A confirmed
+        # missing branch is the only cold-start path; transient fetch errors
+        # fail closed so cumulative usage cannot reset silently.
         run: |
-          set +e
+          set -euo pipefail
           mkdir -p artifacts/monitoring
-          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>/dev/null
+          fetch_error="$(mktemp)"
+          if git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>"${fetch_error}"; then
+            :
+          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
+            echo "::notice::no prior bot/live-open-prep-snapshot branch — starting a fresh accumulation"
+            rm -f "${fetch_error}"
+            exit 0
+          else
+            echo "::error::failed to restore bot/live-open-prep-snapshot; refusing to reset cumulative provider usage"
+            rm -f "${fetch_error}"
+            exit 1
+          fi
+          rm -f "${fetch_error}"
           if git cat-file -e "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" 2>/dev/null; then
             git show "origin/bot/live-open-prep-snapshot:artifacts/monitoring/provider_usage.json" \
               > artifacts/monitoring/provider_usage.json
             echo "Restored provider-usage snapshot from bot/live-open-prep-snapshot."
           else
-            echo "::notice::no prior provider-usage snapshot — starting a fresh accumulation"
+            echo "::error::bot/live-open-prep-snapshot exists but carries no provider-usage snapshot; refusing an implicit counter reset"
+            exit 1
           fi
-          exit 0
 
       - name: Run open-prep scoring
         env:
@@ -289,58 +302,14 @@ jobs:
               sys.exit(1)
           print(f"snapshot content OK: ranked_v2={ranked}, enriched_quotes={quotes}")
           PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          # Isolate the snapshot commit on a detached HEAD so the workflow's
-          # checkout is left untouched: the later "Commit fresh outcomes" step
-          # branches from the original SHA and its PR diff must NOT carry this
-          # gitignored snapshot file.
-          START_SHA="$(git rev-parse HEAD)"
-          # actions/checkout is shallow, so the remote-tracking ref does not
-          # exist locally and --force-with-lease would degrade to an empty
-          # lease (unconditional force). Fetch the tip first for a real base.
-          git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" \
-            || echo "::warning::fetch of bot/live-open-prep-snapshot failed; proceeding without base (branch may not exist yet)"
-          git checkout --detach --quiet "$START_SHA"
-          # `-f` overrides .gitignore so the runtime snapshot can be staged.
-          # `--sparse` was previously paired here but is meaningless against
-          # actions/checkout's full (non-sparse) tree and confused readers
-          # (audit PR #2913 F4); removed without behavior change.
-          git add -f "$SNAPSHOT"
-          # Ride the same bot branch with the provider API-usage snapshot
-          # (bytes/calls per provider this month) so the daemon can surface FMP
-          # bandwidth consumption. Best-effort: absent on the first run before
-          # any ingest recorded, and never blocks the open-prep publish.
+          # Ride the same bot branch with the provider API-usage snapshot.
+          # The shared publisher isolates git state in a temporary tree and
+          # preserves every remote file not explicitly replaced here.
           USAGE_SNAPSHOT="artifacts/monitoring/provider_usage.json"
-          if [ -f "$USAGE_SNAPSHOT" ]; then
-            git add -f "$USAGE_SNAPSHOT"
-          fi
-          if git diff --cached --quiet; then
-            echo "No open-prep snapshot changes to publish."
-            git checkout --quiet "$START_SHA"
-            rm -f "$SNAPSHOT"
-            exit 0
-          fi
-          git commit -m "[skip ci] chore: refresh open-prep snapshot"
-          # `if git push` positive form is what tests/test_workflow_auth_pattern.py
-          # requires (it disallows the `if !` negation). Surface real push
-          # failures as a red job, not a swallowed warning.
-          if git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot origin "HEAD:refs/heads/bot/live-open-prep-snapshot"; then
-            echo "Pushed open-prep snapshot to bot/live-open-prep-snapshot."
-            git checkout --quiet "$START_SHA"
-            rm -f "$SNAPSHOT"
-          else
-            echo "::warning::open-prep snapshot push failed; the per-run artifact remains available, but bot/live-open-prep-snapshot may be stale."
-            {
-              echo "### ⚠ open-prep snapshot persistence warning"
-              echo ""
-              echo "The per-run artifact uploaded, but the rolling bot/live-open-prep-snapshot branch push failed. Consumers reading the stable snapshot path may see stale data until the next daily run."
-            } >> "$GITHUB_STEP_SUMMARY"
-            git checkout --quiet "$START_SHA" || true
-            rm -f "$SNAPSHOT"
-            exit 1
-          fi
+          "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
+            --branch bot/live-open-prep-snapshot \
+            --copy "${SNAPSHOT}=${SNAPSHOT}" \
+            --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}"
 
       - name: Commit fresh outcomes via auto-merge PR
         # The repo's `main-governance` ruleset targets only ~DEFAULT_BRANCH,
