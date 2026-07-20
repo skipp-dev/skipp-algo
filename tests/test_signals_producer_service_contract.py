@@ -234,3 +234,12 @@ def test_signals_producer_ai_defense_pin_matches_root_requirements() -> None:
 
     assert root_pin is not None
     assert service_pin == root_pin
+
+
+def test_signal_engine_suppresses_http_client_request_urls() -> None:
+    source = (_REPO_ROOT / "open_prep" / "realtime_signals.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'logging.getLogger("httpx").setLevel(logging.WARNING)' in source
+    assert 'logging.getLogger("httpcore").setLevel(logging.WARNING)' in source
