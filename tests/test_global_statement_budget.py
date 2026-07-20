@@ -145,8 +145,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 234, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            593,  # 2026-07-18: removed retired TradingView supplement imports
-            ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
+            587,  # 2026-07-20: remove retired TradingView UI availability shim
+            ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
         # producer. The singleton stays disabled (`None`) until the workflow

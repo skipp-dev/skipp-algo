@@ -428,9 +428,6 @@ if not _SMC_TERMINAL_TEST_MODE:
     apply_global_log_redaction()
 from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
 from streamlit_terminal_config import (
-    collect_tv_news_symbols as _collect_tv_news_symbols,
-)
-from streamlit_terminal_config import (
     has_live_news_provider as _has_live_news_provider,
 )
 from streamlit_terminal_pure import (
@@ -500,9 +497,6 @@ from terminal_technicals import (
     fetch_technicals,
     signal_icon,
     signal_label,
-)
-from terminal_tradingview_news import (
-    health_status as tv_health_status,
 )
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
@@ -590,14 +584,11 @@ def _build_test_terminal_config() -> TerminalConfig:
 
 
 def _initialize_test_mode_runtime() -> None:
-    global tv_available, databento_available, btc_available, newsapi_available, ensure_rt_engine_running
+    global databento_available, btc_available, newsapi_available, ensure_rt_engine_running
 
     for key, value in build_test_mode_state_defaults(time.time()).items():
         st.session_state.setdefault(key, value)
     st.session_state.setdefault("cfg", _build_test_terminal_config())
-
-    def tv_available() -> bool:
-        return False
 
     def databento_available() -> bool:
         return False
@@ -716,10 +707,10 @@ def _bz_tier_warning(label: str, fallback: str) -> None:
 
 
 def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech") -> None:
-    """Render a TradingView Technical Analysis expander for a list of symbols.
+    """Render the provider-neutral Technical Analysis expander.
 
     Shows interval selector, summary gauges, oscillator + MA detail tables.
-    Only renders if the ``tradingview_ta`` library is available and at least
+    Only renders if the configured technical adapter exposes data and at least
     one symbol is provided.
     """
     if not INTERVAL_MAP or not symbols:
@@ -1600,8 +1591,6 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "notify_log": [],
     "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "1") != "0",
     "rt_engine_last_check_ts": 0.0,
-    "tv_health_prev_status": "healthy",
-    "tv_health_log": [],
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -1838,66 +1827,7 @@ with st.sidebar:
         sources.append("FMP")
     if databento_available():
         sources.append("Databento")
-    if _collect_tv_news_symbols(cfg, st.session_state.feed):
-        sources.append("TV")
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
-
-    # TradingView health alert (with state-transition detection)
-    _tv_hs = tv_health_status()
-    _tv_prev = st.session_state.get("tv_health_prev_status", "healthy")
-    _tv_cur = _tv_hs["status"]
-
-    # Detect transitions and fire proactive alerts
-    if _tv_cur != _tv_prev:
-        _tv_log_entry = {
-            "ts": time.time(),
-            "prev": _tv_prev,
-            "status": _tv_cur,
-            "failures": _tv_hs["consecutive_failures"],
-            "error": _tv_hs.get("last_error", ""),
-            "uptime_pct": _tv_hs.get("uptime_pct", 0),
-        }
-        st.session_state.tv_health_log.insert(0, _tv_log_entry)
-        if len(st.session_state.tv_health_log) > 50:
-            st.session_state.tv_health_log = st.session_state.tv_health_log[:50]
-
-        if _tv_cur == "down":
-            st.toast(
-                f"TradingView API DOWN — {_tv_hs['consecutive_failures']} consecutive failures. "
-                f"Headlines will be unavailable until recovery.",
-                icon="🚨",
-            )
-            # Also log to the main alert_log so it appears in the Alerts tab
-            st.session_state.alert_log.insert(0, {
-                "ts": time.time(),
-                "ticker": "SYSTEM",
-                "headline": f"TradingView API DOWN ({_tv_hs['consecutive_failures']} failures): {_tv_hs.get('last_error', 'unknown')}",
-                "rule": "tv_health",
-                "score": 0.0,
-                "item_id": f"tv_down_{int(time.time())}",
-            })
-        elif _tv_cur == "degraded" and _tv_prev == "healthy":
-            st.toast(
-                f"TradingView API degraded — {_tv_hs['consecutive_failures']} failure(s)",
-                icon="⚡",
-            )
-        elif _tv_cur == "healthy" and _tv_prev in ("down", "degraded"):
-            st.toast("TradingView API recovered — headlines flowing again", icon="✅")
-            st.session_state.alert_log.insert(0, {
-                "ts": time.time(),
-                "ticker": "SYSTEM",
-                "headline": f"TradingView API RECOVERED (uptime {_tv_hs.get('uptime_pct', 0):.0f}%)",
-                "rule": "tv_health",
-                "score": 0.0,
-                "item_id": f"tv_up_{int(time.time())}",
-            })
-        st.session_state.tv_health_prev_status = _tv_cur
-
-    # Static sidebar indicator (always visible)
-    if _tv_cur == "down":
-        st.warning(f"⚠️ TradingView headlines unavailable ({_tv_hs['consecutive_failures']} failures). Last error: {_tv_hs['last_error']}")
-    elif _tv_cur == "degraded":
-        st.caption(f"⚡ TV degraded ({_tv_hs['consecutive_failures']} failures)")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", width='stretch'):
@@ -2464,8 +2394,7 @@ def _do_poll() -> None:
     cfg: TerminalConfig = st.session_state.cfg
     adapter = _get_adapter()
     fmp_adapter = _get_fmp_adapter()
-    tv_symbols = _collect_tv_news_symbols(cfg, st.session_state.feed)
-    if adapter is None and fmp_adapter is None and not tv_symbols:
+    if adapter is None and fmp_adapter is None:
         return
 
     store = _get_store()
@@ -2481,7 +2410,6 @@ def _do_poll() -> None:
             page_size=cfg.page_size,
             channels=cfg.channels or None,
             topics=cfg.topics or None,
-            tv_symbols=tv_symbols,
         )
     except Exception as exc:
         _safe_msg = re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
@@ -2658,7 +2586,6 @@ _feed_empty_needs_poll = (
 
 # ── Background poller mode ──────────────────────────────────────
 if st.session_state.use_bg_poller:
-    _live_tv_symbols = _collect_tv_news_symbols(st.session_state.cfg, st.session_state.feed)
     _has_live_provider = _has_live_news_provider(st.session_state.cfg, st.session_state.feed)
     # Foreground initial poll BEFORE creating the bg poller so both
     # don't race on the same SQLite store with cursor=None.
@@ -2683,7 +2610,6 @@ if st.session_state.use_bg_poller:
             fmp_adapter=_get_fmp_adapter(),
             store=_get_store(),
         )
-        _bp.update_live_news_symbols(_live_tv_symbols)
         _bp.start(cursor=st.session_state.provider_cursors or st.session_state.cursor)
         st.session_state.bg_poller = _bp
         logger.info("Background poller initialized")
@@ -2695,7 +2621,6 @@ if st.session_state.use_bg_poller:
             benzinga_adapter=_get_adapter(),
             fmp_adapter=_get_fmp_adapter(),
         )
-        st.session_state.bg_poller.update_live_news_symbols(_live_tv_symbols)
         # Update interval (may have changed via slider or off-hours adjustment)
         st.session_state.bg_poller.update_interval(_effective_interval)
 
@@ -2770,7 +2695,7 @@ st.markdown(
 
 if not _has_live_news_provider(st.session_state.cfg, st.session_state.feed):
     _stop_bg_poller_if_running(reason="missing_live_news_provider")
-    st.warning("No live news provider is configured. Enable Benzinga, FMP, or TradingView symbols to resume polling.")
+    st.warning("No live news provider is configured. Enable Benzinga or FMP to resume polling.")
 
 feed = st.session_state.feed
 
@@ -3767,7 +3692,7 @@ else:
             # NLP sentiment removed (NewsAPI.ai no longer available)
             _act_nlp: dict[str, Any] = {}
 
-            # Tech enrichment — rely on RT engine / TradingView only
+            # Tech enrichment — use the configured technical adapter only
             _ACT_TECH_KEY = "_cached_fmp_technicals"
             if _ACT_TECH_KEY not in st.session_state:
                 st.session_state[_ACT_TECH_KEY] = {}
@@ -3779,7 +3704,6 @@ else:
                 if t not in _act_tech_cache
                 or (_act_tech_now - _act_tech_cache[t].get("_ts", 0)) > _act_tech_ttl
             ]
-            # (FMP RSI enrichment removed — RT engine / TradingView is sole source)
 
             _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_tech_cache] if x)
             st.caption(
@@ -3917,7 +3841,7 @@ else:
                     "- **Posture** — Final terminal posture derived above resolution\n"
                     "- **Resolution** — Outcome-state overlay after the initial reaction window\n"
                     "- **Reaction** — Reaction confirmation state from live quote context\n"
-                    "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
+                    "- **Tech** — technical signal (BUY/SELL/NEUTRAL)\n"
                     "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
                     "- **P/E** — Price-to-Earnings ratio\n"
@@ -4385,7 +4309,7 @@ else:
         st.caption("🟢 Market: 24/7 — always open")
 
         if not btc_available():
-            st.warning("No data sources available. Install yfinance / tradingview_ta.")
+            st.warning("No Bitcoin data source is available. Configure FMP or the local market-data adapter.")
         else:
             # ── Tomorrow Outlook (on top as requested) ──────
             with st.container():
@@ -4752,34 +4676,6 @@ else:
                 )
         else:
             st.caption("No alerts fired yet.")
-
-        # ── TradingView Health Log ───────────────────────
-        st.divider()
-        st.subheader("📺 TradingView Health")
-        _tv_h = tv_health_status()
-        _tv_status_icon = {"healthy": "🟢", "degraded": "⚡", "down": "🔴"}.get(_tv_h["status"], "⚪")
-        _tv_uptime = _tv_h.get("uptime_pct", 0)
-        st.markdown(
-            f"{_tv_status_icon} **Status: {_tv_h['status'].upper()}** "
-            f"· Uptime: {_tv_uptime:.0f}% "
-            f"· Requests: {_tv_h.get('total_requests', 0)} "
-            f"· Failures: {_tv_h.get('consecutive_failures', 0)} consecutive"
-        )
-        if _tv_h.get("last_error"):
-            st.caption(f"Last error: {_tv_h['last_error']}")
-
-        _tv_hlog = st.session_state.tv_health_log
-        if _tv_hlog:
-            st.caption(f"{len(_tv_hlog)} state transition(s)")
-            for _tl in _tv_hlog[:10]:
-                _tl_ts = datetime.fromtimestamp(_tl["ts"], tz=UTC).strftime("%H:%M:%S")
-                _tl_icon = {"healthy": "🟢", "degraded": "⚡", "down": "🔴"}.get(_tl["status"], "⚪")
-                _tl_err = f" — {_tl['error']}" if _tl.get("error") else ""
-                st.markdown(
-                    f"{_tl_icon} `{_tl_ts}` {_tl['prev']} → **{_tl['status']}**{_tl_err}"
-                )
-        else:
-            st.caption("No TV health transitions recorded.")
 
         # ── Push Notification Log ───────────────────────────
         st.divider()

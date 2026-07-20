@@ -11,7 +11,6 @@ from streamlit_terminal_pure import (
 
 def test_test_mode_config_overrides_matches_expected_defaults() -> None:
     assert build_test_mode_config_overrides() == {
-        "tv_news_enabled": False,
         "fmp_enabled": False,
         "poll_interval_s": 60.0,
     }

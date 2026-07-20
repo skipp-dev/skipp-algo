@@ -30,7 +30,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     st.caption("Real-time BTC price, dominance, fear/greed index, technicals.")
 
     if not is_available():
-        st.info("Set `FMP_API_KEY` in `.env` or install `yfinance` / `tradingview_ta` for Bitcoin data.")
+        st.info("Set `FMP_API_KEY` in `.env` or configure the local market-data adapter for Bitcoin data.")
         return
 
     # ── Price metrics ────────────────────────────────────────────

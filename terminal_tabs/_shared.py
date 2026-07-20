@@ -417,7 +417,7 @@ def build_bz_mover_rows(
 def render_technicals_expander(
     symbols: list[str], *, key_prefix: str = "tech"
 ) -> None:
-    """Render a TradingView Technical Analysis expander for symbols."""
+    """Render the provider-neutral Technical Analysis expander for symbols."""
     if not INTERVAL_MAP or not symbols:
         return
 

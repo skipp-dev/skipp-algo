@@ -64,7 +64,6 @@ class BackgroundPoller:
 
         self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=500)
         self._provider_cursors: dict[str, str] = {}
-        self._tv_symbols: list[str] = []
         self._lock = threading.Lock()
         self._stats_lock = threading.Lock()  # protects observable counters
         self._stop_event = threading.Event()
@@ -124,7 +123,7 @@ class BackgroundPoller:
             seeded = str(cursor or "").strip()
             self._provider_cursors = {
                 key: seeded
-                for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
+                for key in ("benzinga", "fmp_stock", "fmp_press")
                 if seeded
             }
         self._stop_event.clear()
@@ -172,11 +171,6 @@ class BackgroundPoller:
             if fmp_adapter is not _UNSET:
                 self._fmp = fmp_adapter
 
-    def update_live_news_symbols(self, tv_symbols: list[str]) -> None:
-        """Update the tracked TradingView headline symbols at runtime."""
-        with self._lock:
-            self._tv_symbols = [str(symbol).strip().upper() for symbol in tv_symbols if str(symbol).strip()]
-
     # ── Drain results (called from Streamlit main thread) ───
 
     def drain(self) -> list[Any]:
@@ -212,7 +206,7 @@ class BackgroundPoller:
                 return
             self._provider_cursors = {
                 key: seeded
-                for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
+                for key in ("benzinga", "fmp_stock", "fmp_press")
             }
 
     @staticmethod
@@ -394,9 +388,8 @@ class BackgroundPoller:
             with self._lock:
                 bz = self._benzinga
                 fmp = self._fmp
-                tv_symbols = list(self._tv_symbols)
 
-            if bz is None and fmp is None and not tv_symbols:
+            if bz is None and fmp is None:
                 continue
 
             with self._stats_lock:
@@ -415,7 +408,6 @@ class BackgroundPoller:
                     page_size=self._cfg.page_size,
                     channels=getattr(self._cfg, "channels", None) or None,
                     topics=getattr(self._cfg, "topics", None) or None,
-                    tv_symbols=tv_symbols,
                 )
             except Exception as exc:
                 _safe = _re.sub(
