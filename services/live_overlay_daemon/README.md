@@ -138,7 +138,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `1m`, `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. The `1m` view uses native Databento minute bars. Returns 400 for unknown values. |
 
 #### Response fields
 
