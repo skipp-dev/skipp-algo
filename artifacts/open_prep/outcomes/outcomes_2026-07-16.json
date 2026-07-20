@@ -391,12 +391,12 @@
     "direction": "short",
     "atr_pct": 15.1114,
     "playbook_name": "GAP_FADE",
-    "profitable_30m": null,
-    "pnl_30m_pct": null,
-    "pnl_30m_pct_signed": null,
-    "profitable_30m_directional": null,
-    "label_tb": null,
-    "profitable_tb": null,
+    "profitable_30m": false,
+    "pnl_30m_pct": -3.9726,
+    "pnl_30m_pct_signed": 3.9726,
+    "profitable_30m_directional": true,
+    "label_tb": "timeout_win",
+    "profitable_tb": true,
     "gap_component": 3.0779,
     "gap_sector_rel_component": 4.2724,
     "rvol_component": 0.1198,
@@ -411,7 +411,8 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "universe_source": "FMP_US_MID_LARGE"
+    "universe_source": "FMP_US_MID_LARGE",
+    "tb_barrier_source": "atr"
   },
   {
     "date": "2026-07-16",
