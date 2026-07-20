@@ -44,38 +44,15 @@ def test_checkout_does_not_persist_github_token_credentials() -> None:
 
 def test_experiment_snapshot_publish_uses_explicit_force_with_lease_sha() -> None:
     run = _step("Publish snapshots to rolling bot branch")["run"]
-    assert '_remote_ref="refs/heads/bot/live-experiment-snapshot"' in run
-    assert (
-        '_tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"'
-        in run
-    )
-    assert 'git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}"' in run
-    assert (
-        '_expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"'
-        in run
-    )
-    assert '_zero_sha="0000000000000000000000000000000000000000"' in run
-    assert '_lease_expected="${_expected_sha}"' in run
-    assert '_lease_expected="${_zero_sha}"' in run
-    assert (
-        'git push "--force-with-lease=${_remote_ref}:${_lease_expected}" '
-        '"${_remote_url}" "HEAD:${_remote_ref}"'
-        in run
-    )
-    assert (
-        "git push --force-with-lease=refs/heads/bot/live-experiment-snapshot"
-        not in run
-    )
+    assert "scripts/publish_bot_snapshot.py" in run
+    assert "--branch bot/live-experiment-snapshot" in run
+    assert "--copy-if-present" in run
 
 
-def test_experiment_snapshot_publish_failure_is_best_effort() -> None:
+def test_experiment_snapshot_publish_failure_is_fail_closed() -> None:
     run = _step("Publish snapshots to rolling bot branch")["run"]
-    assert "::warning::Experiment snapshot push failed" in run
-    assert "Experiment snapshot publish failed (best-effort)" in run
-    assert "optional" in run
-    assert "GH_PAT" in run
-    assert "exit 1" not in run
-    assert "::error::Experiment snapshot push failed" not in run
+    assert "scripts/publish_bot_snapshot.py" in run
+    assert "|| true" not in run
 
 
 def test_evaluation_failure_issue_opens_for_failed_status_or_step_crash() -> None:

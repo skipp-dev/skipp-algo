@@ -439,43 +439,22 @@ jobs:
           fi
 
       # ── Restore canonical Databento production export bundle ────
-      # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
-      # dawidd6/action-download-artifact. The canonical sharded producer
-      # workflow (smc-databento-production-export-sharded.yml) publishes
-      # its compat-layer bundle under the legacy workflow-artifact name
-      # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
-      # search the producer workflow's recent runs for the newest
-      # successful artifact whose name matches today's date; if none is
-      # available we fall back to the most recent same-prefix artifact.
-      # `if_no_artifact_found: warn` keeps the existing soft-fail
-      # contract — verify_export_bundle below decides whether to block.
-      #
-      # F-V8-C4.2 (2026-06-14): restore/verify happens BEFORE library
-      # generation. The refresh consumer must build from the producer
-      # bundle via `--bundle`, not rerun the producer's full Databento
-      # scan via `--run-scan` on a cold hosted fallback runner.
-      - name: Restore Databento production export bundle (today)
-        id: restore_export_bundle_today
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
-        with:
-          workflow: smc-databento-production-export-sharded.yml
-          name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
-
-      - name: Restore Databento production export bundle (latest fallback)
-        id: restore_export_bundle_fallback
-        if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
-        with:
-          workflow: smc-databento-production-export-sharded.yml
-          name: ^smc-databento-production-export-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
+      # The artifact name is shared by full-window and incremental producer
+      # runs, so "latest" is not a sufficient contract. Use the semantic
+      # restore helper shared with the rolling benchmark: it verifies the
+      # canonical producer, selects the largest candidate per UTC date, and
+      # rejects manifests with fewer than 15 covered trading days. This keeps
+      # a later two-day delta from replacing the full seed used for 20-day
+      # library features.
+      - name: Restore sufficiently deep Databento production export bundle
+        id: restore_export_bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_DATE: ${{ env.REFRESH_DATE }}
+          DATABENTO_MIN_TRADE_DAYS: "15"
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" scripts/restore_databento_export_bundle.py
 
       - name: Reject stale Databento fallback on automated refresh
         id: reject_stale_export_fallback
@@ -487,8 +466,7 @@ jobs:
         # date" step comment for the full rationale.
         if: |
           github.event_name != 'workflow_dispatch'
-          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+          && steps.restore_export_bundle.outputs.artifact_mode == 'fallback'
           && steps.set_refresh_date.outputs.stale_guard_active == 'true'
         run: |
           set -euo pipefail
@@ -503,15 +481,13 @@ jobs:
         # the tolerated path is auditable rather than silent.
         if: |
           github.event_name != 'workflow_dispatch'
-          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+          && steps.restore_export_bundle.outputs.artifact_mode == 'fallback'
           && steps.set_refresh_date.outputs.stale_guard_active != 'true'
         run: |
           echo "::notice::No same-date producer bundle for REFRESH_DATE=${REFRESH_DATE} yet (overnight tick before the producer's first daily 08:00 UTC run). Proceeding from the most recent producer bundle instead of hard-failing; a genuine daytime staleness (>=08:00 UTC) is still rejected. Root cause: a late nightly consumer tick crossed midnight UTC under GitHub scheduler lag."
 
-      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21 with
-      # name_is_regexp: true unconditionally nests each downloaded artifact
-      # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
+      # The restore helper extracts beneath `<path>/<artifact-name>/...`.
+      # Consumer
       # scripts (smc_integration.{structure_batch,measurement_evidence,
       # service}, scripts/run_smc_pre_release_artifact_refresh.py and
       # scripts/load_databento_export_bundle.py:_manifest_candidates)
@@ -531,8 +507,7 @@ jobs:
       - name: Flatten downloaded Databento export bundle
         id: flatten_export_bundle
         if: |
-          steps.restore_export_bundle_today.outputs.found_artifact == 'true'
-          || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+          steps.restore_export_bundle.outputs.found_artifact == 'true'
         run: |
           set -euo pipefail
           ROOT=artifacts/smc_microstructure_exports
@@ -1806,7 +1781,7 @@ jobs:
 
       - name: Best-effort failure summary
         id: best_effort_summary
-        if: always()
+        if: always() && steps.dl_best_effort_history.outcome == 'success'
         # CONTINUE-ON-ERROR-INTENTIONAL: an observability-only summary must
         # never flip the conclusion of an otherwise-green best-effort pipeline.
         continue-on-error: true
@@ -1844,7 +1819,7 @@ jobs:
 
       - name: Upload best-effort failure history
         id: ul_best_effort_history
-        if: always()
+        if: always() && steps.dl_best_effort_history.outcome == 'success'
         # CONTINUE-ON-ERROR-INTENTIONAL: persisting the trend artifact is
         # observability-only; a transient upload failure must not fail the job.
         continue-on-error: true

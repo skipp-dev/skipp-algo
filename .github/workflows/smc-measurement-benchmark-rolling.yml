@@ -453,13 +453,45 @@ jobs:
           fi
           true
 
+      - name: Restore Plan 2.8 rolling history
+        id: restore_history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          out_history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
+          remote_ref="refs/heads/bot/live-experiment-snapshot"
+          tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
+          remote_path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fetch_error="$(mktemp)"
+          if git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>"${fetch_error}"; then
+            :
+          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
+            echo "::notice::no prior experiment snapshot branch — bootstrapping rolling history"
+            rm -f "${fetch_error}"
+            exit 0
+          else
+            echo "::error::failed to restore Plan 2.8 history; refusing to replace rolling history with one run"
+            rm -f "${fetch_error}"
+            exit 1
+          fi
+          rm -f "${fetch_error}"
+          if git cat-file -e "${tracking_ref}:${remote_path}" 2>/dev/null; then
+            mkdir -p "$(dirname "${out_history}")"
+            git show "${tracking_ref}:${remote_path}" > "${out_history}"
+            echo "Restored $(wc -l < "${out_history}") Plan 2.8 history rows."
+          else
+            echo "::notice::experiment snapshot branch has no rolling history yet — bootstrapping"
+          fi
+
       - name: Plan 2.8 history archive (snapshot append)
         # Folds today's rollup into docs/plan_2_8_history.jsonl so the
         # weekly trend digest has a stable, idempotent source of truth.
         # Fail-soft: a missing rollup or a write hiccup must not affect
         # the benchmark run outcome. The snapshot is uploaded as part
         # of the standard rolling-bench artifact bundle.
-        if: always()
+        if: always() && steps.restore_history.outcome == 'success'
         run: |
           set +e
           rollup="${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json"
@@ -477,7 +509,7 @@ jobs:
         # policy: keep at most 366 snapshots (~1y of daily runs) and drop
         # anything older than 400 days. Fail-soft: rotation errors must
         # never affect the benchmark run outcome.
-        if: always()
+        if: always() && steps.restore_history.outcome == 'success'
         run: |
           set +e
           history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
@@ -494,7 +526,7 @@ jobs:
         # Non-destructive shape + uniqueness check on the rotated
         # history. Fail-soft: a validation hit only surfaces in the
         # step summary; it must not affect the bench run outcome.
-        if: always()
+        if: always() && steps.restore_history.outcome == 'success'
         run: |
           set +e
           history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
@@ -525,7 +557,7 @@ jobs:
         # artifact bundle above remains the authoritative archive. The two
         # files are copied to a STABLE `latest/` path so the daemon URL never
         # has to track the dated run directory.
-        if: always()
+        if: always() && steps.restore_history.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -545,45 +577,13 @@ jobs:
           mkdir -p "${stable_dir}"
           [ -s "${rollup}" ]  && cp "${rollup}"  "${stable_dir}/plan_2_8_tf_family_rollup.json"
           [ -s "${history}" ] && cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Pass the authenticated URL directly to each git command instead of
-          # persisting it via `git remote set-url`, which would leave the token
-          # readable in .git/config for the rest of the job (audit F3).
-          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          _remote_ref="refs/heads/bot/live-experiment-snapshot"
-          _tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
-          # `latest/` lives under the gitignored artifacts/ tree, so `-f` is
-          # required to stage it. Adding the directory tolerates either file
-          # being absent on a partial run.
-          git add -f "${stable_dir}"
-          if git diff --cached --quiet; then
-            echo "No experiment snapshot changes to commit."
-            exit 0
-          fi
-          git commit -m "[skip ci] chore: refresh experiment snapshot"
-          # Fetch the remote tip first so --force-with-lease has a real base
-          # to compare against; tolerate the branch not yet existing.
-          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
-          _zero_sha="0000000000000000000000000000000000000000"
-          if _expected_sha="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null)"; then
-            _lease_expected="${_expected_sha}"
-          else
-            _lease_expected="${_zero_sha}"
-          fi
-          # `if git push` form (fail-loud) is what tests/test_workflow_auth_pattern.py
-          # expects; a real push failure surfaces red instead of a swallowed warning.
-          if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
-            echo "Pushed experiment snapshot to bot/live-experiment-snapshot."
-          else
-            echo "::warning::experiment snapshot push failed; the benchmark artifact bundle remains available, but bot/live-experiment-snapshot may be stale and the Grafana experiment panels can lag until the next daily run."
-            {
-              echo "### ⚠ experiment snapshot persistence warning"
-              echo ""
-              echo "The benchmark artifact uploaded, but the rolling bot/live-experiment-snapshot branch push failed. The Grafana experiment panels may show a stale rollup until the next daily run."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          # This branch has a second producer (plan-2-8-evaluation). Publish
+          # from the real remote tip so the two workflows preserve each
+          # other's stable paths instead of force-replacing the whole branch.
+          "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
+            --branch bot/live-experiment-snapshot \
+            --copy-if-present "${stable_dir}/plan_2_8_tf_family_rollup.json=${stable_dir}/plan_2_8_tf_family_rollup.json" \
+            --copy-if-present "${stable_dir}/plan_2_8_history.jsonl=${stable_dir}/plan_2_8_history.jsonl"
 
       - name: Stage databento export manifest into the bundle dir
         # The manifest (carrying universe_survivorship_bias_risk) is restored to
@@ -667,7 +667,7 @@ jobs:
           RESEED: ${{ inputs.reseed_accumulated }}
           RESEED_SEED_FILE: artifacts/ci/scored_family_events_accumulated_reseed.json
         run: |
-          set +e
+          set -euo pipefail
           CURRENT="${OUT_DIR}/scored_family_events.json"
           PREV_DIR="artifacts/ci/scored_family_events_accumulated_prev"
           PREV=""
@@ -681,20 +681,28 @@ jobs:
             PREV="$(find "${PREV_DIR}" -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
           fi
           ACCUMULATED="${OUT_DIR}/accumulated_family_events.json"
-          ARGS=("--current" "${CURRENT}" "--output" "${ACCUMULATED}" "--max-age-days" "30")
-          if [ -n "${PREV}" ] && [ -s "${PREV}" ]; then
-            ARGS+=("--previous" "${PREV}")
+          if [ -z "${PREV}" ] || [ ! -s "${PREV}" ]; then
+            echo "::warning::previous accumulated pool was not restored; preserving the last-good canonical artifact and leaving today's daily artifact as fallback"
+            echo "publishable=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          ARGS=("--current" "${CURRENT}" "--output" "${ACCUMULATED}" "--max-age-days" "30")
+          ARGS+=("--previous" "${PREV}")
+          set +e
           "$SMC_PYTHON_BIN" scripts/accumulate_family_events.py "${ARGS[@]}"
-          if [ $? -ne 0 ] || [ ! -s "${ACCUMULATED}" ]; then
-            echo "::warning ::accumulate_family_events failed or produced empty output; falling back to daily events only"
-            cp "${CURRENT}" "${ACCUMULATED}" 2>/dev/null || true
+          rc=$?
+          set -e
+          if [ "${rc}" -ne 0 ] || [ ! -s "${ACCUMULATED}" ]; then
+            echo "::warning::accumulate_family_events failed or produced empty output; preserving the last-good canonical artifact"
+            rm -f "${ACCUMULATED}"
+            echo "publishable=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "accumulated_path=${ACCUMULATED}" >> "$GITHUB_OUTPUT"
-          true
+          echo "publishable=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload accumulated family events (ADR-0023 Option B)
-        if: always()
+        if: always() && steps.accumulate_events.outputs.publishable == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: scored-family-events-accumulated

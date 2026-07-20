@@ -135,14 +135,13 @@ def test_run_step_uploads_outcomes_artifact_always() -> None:
 
 
 def _snapshot_publish_step() -> dict:
-    # Match on the push command, not merely the branch name: the
+    # Match on the shared publisher, not merely the branch name: the
     # provider-usage RESTORE step (2026-07-08) also references
     # bot/live-open-prep-snapshot, and a first-match on the branch name
     # would silently retarget every publish assertion at the wrong step.
     for step in _load()["jobs"]["run"]["steps"]:
-        if "git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot" in str(
-            step.get("run", "")
-        ):
+        run = str(step.get("run", ""))
+        if "scripts/publish_bot_snapshot.py" in run and "bot/live-open-prep-snapshot" in run:
             return step
     raise AssertionError(
         "missing the open-prep snapshot publish step (bot/live-open-prep-snapshot)"
@@ -181,9 +180,8 @@ def test_restores_provider_usage_snapshot_before_scoring() -> None:
     assert "git cat-file -e" in restore_run, (
         "restore must tolerate the branch/file not existing yet (first run)"
     )
-    assert restore_run.rstrip().endswith("exit 0"), (
-        "restore must be soft-fail: a missing snapshot must never block the daily run"
-    )
+    assert "no prior bot/live-open-prep-snapshot branch" in restore_run
+    assert "refusing to reset cumulative provider usage" in restore_run
 
 
 def test_refreshes_provider_usage_heartbeat_before_snapshot_publish() -> None:
@@ -214,20 +212,9 @@ def test_publishes_open_prep_snapshot_to_bot_branch() -> None:
     assert "artifacts/open_prep/latest/latest_open_prep_run.json" in run, (
         "snapshot publish must push the stable latest_open_prep_run.json path"
     )
-    assert (
-        "git push --force-with-lease=refs/heads/bot/live-open-prep-snapshot "
-        "origin \"HEAD:refs/heads/bot/live-open-prep-snapshot\"" in run
-    ), "snapshot publish must force-with-lease the dedicated bot snapshot branch"
-    assert "if git push --force-with-lease" in run, (
-        "must use the positive `if git push` form (see test_workflow_auth_pattern)"
-    )
-    assert "git fetch origin \"+refs/heads/bot/live-open-prep-snapshot" in run, (
-        "must fetch the snapshot tip first so --force-with-lease has a real lease"
-    )
-    assert "git checkout --detach" in run, (
-        "snapshot commit must be isolated on a detached HEAD so the outcomes "
-        "auto-merge PR diff stays free of the gitignored snapshot file"
-    )
+    assert "scripts/publish_bot_snapshot.py" in run
+    assert "--branch bot/live-open-prep-snapshot" in run
+    assert "--copy-if-present" in run
 
 
 def test_snapshot_publish_keeps_snapshot_until_after_git_add() -> None:
@@ -240,10 +227,10 @@ def test_snapshot_publish_keeps_snapshot_until_after_git_add() -> None:
     """
     step = _snapshot_publish_step()
     run = str(step["run"])
-    git_add = 'git add -f "$SNAPSHOT"'
-    assert git_add in run
-    pre_add = run.split(git_add, 1)[0]
-    assert 'rm -f "$SNAPSHOT"' not in pre_add
+    publish = 'scripts/publish_bot_snapshot.py'
+    assert publish in run
+    pre_publish = run.split(publish, 1)[0]
+    assert 'rm -f "$SNAPSHOT"' not in pre_publish
 
 
 def test_snapshot_publish_refuses_degraded_empty_snapshot() -> None:
@@ -262,8 +249,8 @@ def test_snapshot_publish_refuses_degraded_empty_snapshot() -> None:
         "publish step must check ranked_v2/enriched_quotes emptiness"
     )
     guard_pos = run.index("quote_fetch_all_failed")
-    push_pos = run.index("git push --force-with-lease")
-    assert guard_pos < push_pos, (
+    publish_pos = run.index("scripts/publish_bot_snapshot.py")
+    assert guard_pos < publish_pos, (
         "the degraded-empty content guard must run BEFORE the branch push"
     )
 

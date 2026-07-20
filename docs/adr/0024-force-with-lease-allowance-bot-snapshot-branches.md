@@ -4,7 +4,7 @@
 |---------|-------|
 | Status  | Accepted |
 | Date    | 2026-06-10 |
-| Refs    | Audit-R3 (Principal Review 2026-06-10); `.github/workflows/smc-live-news-refresh.yml:252`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `.github/workflows/tv-save-consumer-source.yml` (bot/live-tradingview-bindings, added 2026-07-16); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
+| Refs    | Audit-R3 (Principal Review 2026-06-10); `scripts/publish_bot_snapshot.py`; `.github/workflows/smc-measurement-benchmark-rolling.yml` (bot/live-experiment-snapshot, added 2026-06-23); `.github/workflows/credential-health-check.yml` (bot/live-tv-credential-snapshot, added 2026-06-23); `.github/workflows/tv-save-consumer-source.yml` (bot/live-tradingview-bindings, added 2026-07-16); `scripts/publish_signals_snapshot.py` (bot/live-signals-snapshot host helper, added 2026-06-23); `tests/test_workflow_auth_pattern.py`; ADR-0010 (cron-workflow invariants) |
 
 ---
 
@@ -72,27 +72,42 @@ Constraints that must hold for the allowance to remain valid:
    block appears in a explicit `_FORCE_LEASE_ALLOWLIST`.  Any new force-push
    must update the allowlist, which makes it discoverable at PR review time.
 
+5. **Stateful and shared branches preserve the remote tree** — publishers
+   that carry cumulative state or have more than one producer must seed from
+   the fetched remote tip and replace only their owned paths. A fetch failure
+   other than a confirmed missing branch is fatal. The shared
+   `scripts/publish_bot_snapshot.py` helper enforces this contract and uses an
+   explicit tip SHA (or zero SHA on first publish) in the lease. It retains the
+   fetched snapshot tree in the index but re-parents each replacement commit to
+   current `main`, keeping the cache branch to one snapshot commit beyond the
+   base instead of accumulating a chain of historical snapshots.
+
 ---
 
 ## Consequences
 
+* `smc-live-news-refresh.yml`, `run-open-prep-daily.yml`,
+  `smc-measurement-benchmark-rolling.yml`, and `plan-2-8-evaluation.yml` use
+  `scripts/publish_bot_snapshot.py`. The force-with-lease operation therefore
+  lives in one tested helper rather than four workflow shell blocks. The helper
+  seeds from the real branch tip, so a transient restore failure cannot replace
+  cumulative state and the two experiment producers cannot delete each
+  other's stable paths.
 * The `smc-live-news-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
 * `run-open-prep-daily.yml` reuses the same carve-out to publish
   `latest_open_prep_run.json` to `bot/live-open-prep-snapshot` (2026-06-23,
   Task F-V8) so the realtime-signals producer can consume a stable,
-  git-tracked snapshot path. The snapshot commit is built on a detached HEAD
-  so the workflow's outcomes auto-merge PR diff stays free of the gitignored
-  snapshot file; the lease is populated by a prior fetch and the push uses
-  the `if git push ... ; then ... else ... fi` form. It is the second entry
-  in `_FORCE_LEASE_ALLOWLIST`.
+  git-tracked snapshot path. The shared publisher builds the snapshot commit
+  in an isolated temporary repository, so the workflow's later outcomes PR
+  remains free of gitignored snapshot files.
 * The same carve-out is reused by `smc-measurement-benchmark-rolling.yml`
   (added 2026-06-23), which publishes the daily experiment rollup +
   `plan_2_8_history.jsonl` to `bot/live-experiment-snapshot` so the
   live-overlay daemon (Grafana experiment panels) reads the freshest CI run
   via the GitHub Contents API instead of the stale Docker-baked seed. Both
   branches are pure cache cursors in the `bot/*` namespace and satisfy the
-  four constraints above.
+  constraints above.
 * The carve-out is likewise reused by `credential-health-check.yml`
   (added 2026-06-23), which publishes the daily credential-health report
   (TradingView storage-state age probe) to `bot/live-tv-credential-snapshot`

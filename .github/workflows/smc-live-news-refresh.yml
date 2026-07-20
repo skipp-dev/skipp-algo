@@ -129,20 +129,33 @@ jobs:
         # does not carry smc_live_news_state.json. Without restoring the
         # state from the rolling bot branch (where the previous tick
         # force-pushed it), every hourly run starts cold and the dedup /
-        # story-window state is effectively empty. Soft-fail: missing branch
-        # or missing file is tolerated (first ever run, or branch reset).
+        # story-window state is effectively empty. A confirmed missing branch
+        # is tolerated for the first run; fetch errors or a missing state file
+        # on an existing branch fail closed to prevent an implicit reset.
         run: |
-          set +e
+          set -euo pipefail
           mkdir -p artifacts/smc_microstructure_exports
-          git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null
+          fetch_error="$(mktemp)"
+          if git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>"${fetch_error}"; then
+            :
+          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
+            echo "::notice::no prior bot/live-news-snapshot branch — starting cold"
+            rm -f "${fetch_error}"
+            exit 0
+          else
+            echo "::error::failed to restore bot/live-news-snapshot; refusing a cold start that could replace rolling dedup state"
+            rm -f "${fetch_error}"
+            exit 1
+          fi
+          rm -f "${fetch_error}"
           if git cat-file -e "origin/bot/live-news-snapshot:artifacts/smc_microstructure_exports/smc_live_news_state.json" 2>/dev/null; then
             git show "origin/bot/live-news-snapshot:artifacts/smc_microstructure_exports/smc_live_news_state.json" \
               > artifacts/smc_microstructure_exports/smc_live_news_state.json
             echo "Restored live-news state from bot/live-news-snapshot."
           else
-            echo "::notice::no prior state on bot/live-news-snapshot — starting cold (first run or branch reset)"
+            echo "::error::bot/live-news-snapshot exists but carries no live-news state; refusing an implicit cold reset"
+            exit 1
           fi
-          exit 0
 
       - name: Refresh live news snapshot (Benzinga + FMP + TradingView)
         env:
@@ -208,9 +221,8 @@ jobs:
       # warning — every step honestly reports its own outcome.
       - name: Publish snapshot to rolling bot branch
         # Workflow-Audit MITTEL-11 (2026-06): `continue-on-error: true`
-        # removed. The step body below is already deliberately fail-loud
-        # (F-V5-F1: explicit `if git push … else … exit 1`), but the
-        # step-level continue-on-error neutralised exactly that — a
+        # removed. The shared publisher is deliberately fail-loud, but the
+        # former step-level continue-on-error neutralised exactly that — a
         # permanently failing push (expired PAT, ruleset change) stayed
         # green forever and the bot/live-news-snapshot staleness floor
         # silently rotted. Transient failures self-heal on the next
@@ -219,44 +231,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           # F-V3 (audit 2026-05-02): strict mode so unexpected git failures
-          # don't silently slip past and mis-report `outcome=pushed`. The
-          # explicit `if/exit 0` paths below already match expected rcs.
+          # do not silently slip past and mis-report `outcome=pushed`.
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add --sparse -f artifacts/smc_microstructure_exports/smc_live_news_snapshot.json artifacts/smc_microstructure_exports/smc_live_news_state.json
-          if git diff --cached --quiet; then
-            echo "No live snapshot changes to commit."
-            exit 0
-          fi
-          git commit -m "[skip ci] chore: refresh live news snapshot"
-          # Force-update the dedicated snapshot branch (allowed by ruleset
-          # since `bot/*` is excluded). --force-with-lease guards against
-          # accidental overwrite of someone else's manual fix-up commit.
-          # actions/checkout fetches a shallow ref by default, so the
-          # remote-tracking branch for `bot/live-news-snapshot` does not
-          # exist locally and `--force-with-lease` would fall back to its
-          # "empty lease" semantics (i.e. unconditionally force-push).
-          # Fetch the remote tip first so the lease has a real base to
-          # compare against; tolerate the branch not yet existing.
-          git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null || true
-          # F-V5-F1 (2026-05-03): replaced fake-success push pattern (`git`
-          # push followed by `|| echo` warning swallow) with an explicit
-          # `if git push; then ... else ... fi` block that surfaces real
-          # push failures as job failures instead of silently downgrading
-          # them to warnings. The cron tick still auto-recovers, but each
-          # failed run now shows up red so operators get visibility. The
-          # `if git push` form is what tests/test_workflow_auth_pattern.py
-          # expects (it explicitly disallows the `if !` negation).
-          if git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"; then
-            echo "Pushed live-news snapshot to bot/live-news-snapshot."
-          else
-            echo "::warning::live-news snapshot push failed; artifact upload remains available, but bot/live-news-snapshot state may be stale and the next tick can replay stories."
-            {
-              echo "### ⚠ live-news state persistence warning"
-              echo ""
-              echo "The snapshot artifact uploaded, but the rolling bot/live-news-snapshot branch push failed. The next cron tick may restore stale story-window state and replay already-seen stories."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
+            --branch bot/live-news-snapshot \
+            --copy "artifacts/smc_microstructure_exports/smc_live_news_snapshot.json=artifacts/smc_microstructure_exports/smc_live_news_snapshot.json" \
+            --copy "artifacts/smc_microstructure_exports/smc_live_news_state.json=artifacts/smc_microstructure_exports/smc_live_news_state.json"

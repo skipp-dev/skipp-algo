@@ -29,9 +29,9 @@ def _step(prefix: str) -> dict:
     return _steps()[_idx(prefix)]
 
 
-def test_history_validate_step_present_and_always() -> None:
+def test_history_validate_step_requires_successful_restore() -> None:
     step = _step("Plan 2.8 history validate")
-    assert step["if"].strip() == "always()"
+    assert step["if"].strip() == "always() && steps.restore_history.outcome == 'success'"
 
 
 def test_history_validate_runs_after_rotate_and_before_upload() -> None:

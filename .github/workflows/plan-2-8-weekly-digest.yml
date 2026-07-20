@@ -476,7 +476,7 @@ jobs:
           echo "::warning::Step 'Download Plan 2.8 digest archive' failed silently (soft-fail step)"
 
       - name: Plan 2.8 digest archive + weekly compare
-        if: always()
+        if: always() && steps.dl_digest_archive.outcome == 'success'
         shell: bash
         run: |
           set +e
@@ -529,7 +529,7 @@ jobs:
           true
 
       - name: Upload Plan 2.8 digest archive
-        if: always()
+        if: always() && steps.dl_digest_archive.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: plan-2-8-digest-archive
@@ -984,7 +984,7 @@ jobs:
           echo "::warning::Step 'Download prior Plan 2.8 status ledger' failed silently (soft-fail step)"
 
       - name: Plan 2.8 status ledger append
-        if: always()
+        if: always() && steps.dl_status_ledger.outcome == 'success'
         shell: bash
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -1014,7 +1014,7 @@ jobs:
           true
 
       - name: Upload Plan 2.8 status ledger
-        if: always()
+        if: always() && steps.dl_status_ledger.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: plan-2-8-status-ledger

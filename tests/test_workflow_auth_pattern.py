@@ -153,25 +153,11 @@ def test_inventory_contains_known_workflows() -> None:
 # ---------------------------------------------------------------------------
 
 _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
-    # smc-live-news-refresh.yml: rolling bot/live-news-snapshot cache
-    # cursor; force-with-lease with prior fetch. See ADR-0024.
-    "smc-live-news-refresh.yml",
-    # run-open-prep-daily.yml: rolling bot/live-open-prep-snapshot snapshot of
-    # latest_open_prep_run.json for the realtime-signals producer; isolated
-    # detached-HEAD commit + force-with-lease with prior fetch. See ADR-0024.
-    "run-open-prep-daily.yml",
-    # smc-measurement-benchmark-rolling.yml: rolling bot/live-experiment-snapshot
-    # cache cursor for the daily experiment rollup + history consumed by the
-    # live-overlay daemon; force-with-lease with prior fetch. See ADR-0024.
-    "smc-measurement-benchmark-rolling.yml",
     # credential-health-check.yml: rolling bot/live-tv-credential-snapshot cache
     # cursor for the daily TradingView storage-state credential-age report
     # consumed by the live-overlay daemon; force-with-lease with prior fetch.
     # See ADR-0024.
     "credential-health-check.yml",
-    # plan-2-8-evaluation.yml: rolling bot/live-experiment-snapshot refresh
-    # for the Plan 2.8 TF-family evaluation artifact stream. See ADR-0024.
-    "plan-2-8-evaluation.yml",
     # evidence-freshness-snapshot.yml: rolling bot/live-evidence-freshness
     # refresh for the ADR-0023 evidence-chain freshness gauges the daemon
     # serves; force-with-lease with prior fetch (same pattern as

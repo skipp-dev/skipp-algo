@@ -182,3 +182,38 @@ def test_trade_days_covered_requires_one_valid_manifest(tmp_path) -> None:
 
     manifest.write_text("not json", encoding="utf-8")
     assert rb._trade_days_covered(tmp_path) == 0
+
+
+def test_trade_days_covered_rejects_declared_delta_even_when_deep(tmp_path) -> None:
+    manifest = tmp_path / "databento_volatility_production_merged_manifest.json"
+    dates = [f"2026-07-{day:02d}" for day in range(1, 21)]
+    manifest.write_text(
+        json.dumps(
+            {
+                "artifact_contract_version": 1,
+                "artifact_scope": "delta",
+                "coverage_trade_days": len(dates),
+                "trade_dates_covered": dates,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert rb._trade_days_covered(tmp_path) == 0
+
+
+def test_trade_days_covered_rejects_inconsistent_declared_coverage(tmp_path) -> None:
+    manifest = tmp_path / "databento_volatility_production_merged_manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "artifact_contract_version": 1,
+                "artifact_scope": "full_window",
+                "coverage_trade_days": 20,
+                "trade_dates_covered": ["2026-07-17", "2026-07-18"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert rb._trade_days_covered(tmp_path) == 0
