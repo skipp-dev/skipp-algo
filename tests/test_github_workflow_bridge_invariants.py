@@ -166,6 +166,24 @@ def test_snapshot_token_reuses_monitor_token_only_for_own_contents_api(monkeypat
     assert config.evidence_freshness_snapshot_url_token() == ""
 
 
+def test_snapshot_token_reuses_monitor_token_only_for_own_raw_repo(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_REPO", "skipp-dev/skipp-algo")
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_TOKEN", "monitor-token")
+    monkeypatch.delenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", raising=False)
+
+    monkeypatch.setenv(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL",
+        "https://raw.githubusercontent.com/skipp-dev/skipp-algo/bot/live-x/x.json",
+    )
+    assert config.evidence_freshness_snapshot_url_token() == "monitor-token"
+
+    monkeypatch.setenv(
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL",
+        "https://raw.githubusercontent.com/other/skipp-algo/bot/live-x/x.json",
+    )
+    assert config.evidence_freshness_snapshot_url_token() == ""
+
+
 def test_snapshot_specific_token_wins_for_custom_url(monkeypatch) -> None:
     monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL", "https://example.test/x.json")
     monkeypatch.setenv("EVIDENCE_FRESHNESS_SNAPSHOT_URL_TOKEN", "source-token")

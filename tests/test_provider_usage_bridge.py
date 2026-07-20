@@ -1,6 +1,7 @@
 """Tests for services.live_overlay_daemon.provider_usage_bridge."""
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
@@ -89,6 +90,27 @@ def test_load_raw_prefers_url_over_local(monkeypatch: pytest.MonkeyPatch, tmp_pa
     )
     out = bridge._load_raw()
     assert out["providers"]["fmp"]["bytes"] == 999  # URL wins
+
+
+def test_load_raw_decodes_github_contents_envelope(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    payload = {
+        "updated_at": "2026-07-20T13:38:46Z",
+        "current_month": "2026-07",
+        "months": {"2026-07": {"fmp": {"bytes": 999}}},
+    }
+    envelope = {
+        "encoding": "base64",
+        "content": base64.b64encode(json.dumps(payload).encode()).decode(),
+    }
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_url", lambda: "https://api.github.com/x")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_url_token", lambda: "token")
+    monkeypatch.setattr(bridge.config, "provider_usage_snapshot_path", lambda: tmp_path / "missing.json")
+    monkeypatch.setattr(bridge, "_fetch_url", lambda *args, **kwargs: json.dumps(envelope))
+
+    out = bridge._load_raw()
+
+    assert out["loaded"] == 1.0
+    assert out["providers"]["fmp"]["bytes"] == 999
 
 
 def test_load_raw_falls_back_to_local_on_url_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -99,7 +99,6 @@ def _fetch_url(url: str, token: str, timeout: float = 10.0) -> str | None:
     except Exception:
         return None
 
-
 def _load_raw() -> dict[str, Any]:
     """Fetch + parse the snapshot (URL first, local fallback); never raises."""
     url = config.provider_usage_snapshot_url()
@@ -111,7 +110,7 @@ def _load_raw() -> dict[str, Any]:
             except ValueError:
                 parsed = None
             if isinstance(parsed, dict):
-                return _coerce(parsed)
+                return _coerce(_decode_github_envelope(parsed) or parsed)
 
     path = config.provider_usage_snapshot_path()
     if not path.exists():
@@ -132,6 +131,7 @@ def snapshot() -> dict[str, Any]:
     the producer-heartbeat age reflects true wall-clock age even while the
     payload is TTL-cached (matching the sweep-trap / evidence-freshness bridges,
     which recompute age live on each scrape instead of freezing it at load).
+    A failed reload continues to preserve the last successfully loaded payload.
     """
     global _cached, _cached_at_monotonic
     ttl = config.experiment_cache_ttl_secs()
@@ -147,3 +147,16 @@ def snapshot() -> dict[str, Any]:
             snap = dict(_cached)
     snap["snapshot_age_seconds"] = _age_seconds(str(snap.get("updated_at") or ""))
     return snap
+
+
+def _decode_github_envelope(parsed: dict[str, Any]) -> dict[str, Any] | None:
+    """Decode a GitHub Contents API base64 response when raw media is ignored."""
+    import base64
+
+    if str(parsed.get("encoding", "")).lower() != "base64" or "content" not in parsed:
+        return None
+    try:
+        decoded = json.loads(base64.b64decode(str(parsed["content"])).decode("utf-8"))
+    except (ValueError, TypeError):
+        return None
+    return decoded if isinstance(decoded, dict) else None
