@@ -126,12 +126,12 @@ import terminal_technicals
 from terminal_technicals import TechnicalResult
 
 
-def test_w3_default_source_is_tradingview() -> None:
+def test_w3_default_source_is_unknown_until_fetched() -> None:
     result = TechnicalResult(symbol="AAPL", interval="1D")
-    assert result.source == "tradingview"
+    assert result.source == "unknown"
 
 
-def test_w3_fmp_fallback_sets_source(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_w3_fmp_provider_sets_source(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_payload = {
         "symbol": "AAPL",
         "interval": "1D",
@@ -144,100 +144,46 @@ def test_w3_fmp_fallback_sets_source(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     result = terminal_technicals._fmp_fallback("AAPL", "1D", time.time())
     assert result is not None
-    assert result.source == "fmp_fallback"
+    assert result.source == "fmp"
 
 
-def test_w3_stale_cache_served_during_cooldown_discloses_source(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sym, interval = "W3STALE", "1D"
+def test_fmp_unavailable_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing FMP result is explicit and never substitutes another source."""
+    sym, interval = "W3FMPMISS", "1D"
     key = terminal_technicals._cache_key(sym, interval)
-    cached = TechnicalResult(
-        symbol=sym, interval=interval,
-        ts=time.time() - 10_000,  # well past _CACHE_TTL_S
-        summary_signal="BUY",
-    )
-    with terminal_technicals._cache_lock:
-        terminal_technicals._cache[key] = cached
-    monkeypatch.setattr(
-        terminal_technicals, "_tv_is_cooling_down", lambda: True
-    )
+    monkeypatch.setattr(terminal_technicals, "_fmp_fallback", lambda *_args: None)
     try:
-        result = terminal_technicals.fetch_technicals(sym, interval)
-        assert result.source == "stale_cache"
-        assert result.summary_signal == "BUY"
-        # The cache entry itself must NOT be mutated.
+        result = terminal_technicals.fetch_technicals(sym, interval, force=True)
+        assert result.source == "fmp"
+        assert result.error == "FMP technicals unavailable"
         with terminal_technicals._cache_lock:
-            assert terminal_technicals._cache[key].source == "tradingview"
+            assert terminal_technicals._cache[key].error == "FMP technicals unavailable"
     finally:
         with terminal_technicals._cache_lock:
             terminal_technicals._cache.pop(key, None)
 
 
-def test_cooldown_fmp_preempts_fresh_cached_transient_error(
+def test_cached_fmp_result_is_reused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A FRESH cached transient error (e.g. "Rate limited") must not preempt
-    the cooldown->FMP fallback: during a TV cooldown, FMP gets a chance and
-    the hit is cached so follow-up calls don't re-hit FMP."""
-    sym, interval = "W3FMPPRE", "1D"
+    sym, interval = "W3CACHE", "1D"
     key = terminal_technicals._cache_key(sym, interval)
     calls = {"n": 0}
 
     def fake_fmp(s: str, iv: str, ts: float) -> TechnicalResult:
         calls["n"] += 1
-        return TechnicalResult(
-            symbol=s, interval=iv, ts=ts, summary_signal="BUY", source="fmp_fallback"
-        )
+        result = TechnicalResult(symbol=s, interval=iv, ts=ts, source="fmp")
+        with terminal_technicals._cache_lock:
+            terminal_technicals._cache[key] = result
+        return result
 
-    with terminal_technicals._cache_lock:
-        terminal_technicals._cache[key] = TechnicalResult(
-            symbol=sym, interval=interval, ts=time.time(),  # FRESH error entry
-            error="Rate limited — cooldown 120s",
-        )
-    monkeypatch.setattr(terminal_technicals, "_tv_is_cooling_down", lambda: True)
     monkeypatch.setattr(terminal_technicals, "_fmp_fallback", fake_fmp)
     try:
-        result = terminal_technicals.fetch_technicals(sym, interval)
-        assert result.source == "fmp_fallback"
-        assert result.error == ""
-        assert calls["n"] == 1
-        # The FMP hit is cached (source preserved) ...
-        with terminal_technicals._cache_lock:
-            assert terminal_technicals._cache[key].source == "fmp_fallback"
-        # ... so a second call is served from cache, NOT a second FMP hit.
+        result = terminal_technicals.fetch_technicals(sym, interval, force=True)
+        assert result.source == "fmp"
         again = terminal_technicals.fetch_technicals(sym, interval)
-        assert again.source == "fmp_fallback"
+        assert again.source == "fmp"
         assert calls["n"] == 1
-    finally:
-        with terminal_technicals._cache_lock:
-            terminal_technicals._cache.pop(key, None)
-
-
-def test_cooldown_not_found_error_still_returns_early_without_fmp(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """"not found" is a stable negative: it must return early even during a
-    cooldown, and never hammer FMP for a symbol that stably has no data."""
-    sym, interval = "W3NOTFND", "1D"
-    key = terminal_technicals._cache_key(sym, interval)
-    calls = {"n": 0}
-
-    def fake_fmp(s: str, iv: str, ts: float) -> TechnicalResult:  # pragma: no cover
-        calls["n"] += 1
-        return TechnicalResult(symbol=s, interval=iv, ts=ts, source="fmp_fallback")
-
-    with terminal_technicals._cache_lock:
-        terminal_technicals._cache[key] = TechnicalResult(
-            symbol=sym, interval=interval, ts=time.time(),
-            error="Symbol not found on TradingView",
-        )
-    monkeypatch.setattr(terminal_technicals, "_tv_is_cooling_down", lambda: True)
-    monkeypatch.setattr(terminal_technicals, "_fmp_fallback", fake_fmp)
-    try:
-        result = terminal_technicals.fetch_technicals(sym, interval)
-        assert "not found" in result.error.lower()
-        assert calls["n"] == 0  # FMP never consulted for a stable negative
     finally:
         with terminal_technicals._cache_lock:
             terminal_technicals._cache.pop(key, None)

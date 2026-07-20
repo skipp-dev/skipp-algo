@@ -3,7 +3,8 @@
 Provides comprehensive Bitcoin market data from multiple sources:
 1. **Real-time price/quote** — FMP cryptocurrency quote
 2. **Historical OHLCV** — FMP + yfinance for candlestick charts
-3. **Technical analysis** — retired TradingView compatibility surface
+3. **Technical analysis** — compatibility surface; unavailable until a
+   supported crypto-indicator source is approved
 4. **News** — FMP articles filtered for Bitcoin (FMP-only; former
    NewsAPI.ai / Finnhub social-sentiment claims removed 2026-07-08 — no such code exists here)
 5. **Market cap / supply** — yfinance BTC-USD info
@@ -15,12 +16,13 @@ Provides comprehensive Bitcoin market data from multiple sources:
 Bitcoin markets are 24/7 — no market-hours restrictions apply.
 
 Primary source: FMP (``FMP_API_KEY``).
-Fallback/supplementary: yfinance.  TradingView is not queried.
+Fallback/supplementary: yfinance.
 """
 
 from __future__ import annotations
 
 import atexit
+import importlib.util
 import logging
 import os
 import re
@@ -32,13 +34,6 @@ from types import SimpleNamespace
 from typing import Any
 
 from open_prep_boundary import FMPClientLike, make_fmp_client
-from terminal_technicals import (
-    _tv_cooldown_remaining,
-    _tv_is_cooling_down,
-    _tv_register_429,
-    _tv_register_success,
-    _tv_throttle,
-)
 
 log = logging.getLogger(__name__)
 
@@ -57,17 +52,7 @@ except ImportError:
     yf = SimpleNamespace(Ticker=None)
     _YF = False
 
-try:
-    from tradingview_ta import Interval, TA_Handler  # type: ignore[import-untyped]
-    _TV = True
-except ImportError:
-    _TV = False
-
-try:
-    import pandas as pd  # type: ignore[import-untyped]  # noqa: F401
-    _PD = True
-except ImportError:
-    _PD = False
+_PD = importlib.util.find_spec("pandas") is not None
 
 # ── Config ───────────────────────────────────────────────────────
 
@@ -142,7 +127,7 @@ def _set_cached(key: str, val: Any) -> None:
 # TTLs (seconds) — slowed down for API budget optimisation
 _QUOTE_TTL = 300      # 5 min (was 60s) — sentiment only, not time-critical
 _OHLCV_TTL = 300      # 5 min for historical data
-_TECHNICALS_TTL = 900  # 15 min for TradingView (avoid 429 rate limits)
+_TECHNICALS_TTL = 900  # retain compatibility-cache semantics
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 300      # 5 min (was 120s) — not time-critical
 _LISTINGS_TTL = 3600   # 1h for exchange listings
@@ -239,7 +224,7 @@ class CryptoListing:
 
 @dataclass
 class BTCTechnicals:
-    """TradingView technical analysis for BTC."""
+    """Compatibility result for optional Bitcoin technical indicators."""
     summary: str = ""  # BUY / SELL / NEUTRAL / STRONG_BUY / STRONG_SELL
     buy: int = 0
     sell: int = 0
@@ -537,93 +522,19 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
 
 
 def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
-    """Retired TradingView technicals compatibility result.
+    """Return a fail-closed compatibility result.
 
-    The public return type is retained; no upstream request is issued.
+    The public return type is retained until a supported crypto-indicator
+    provider is approved; this function never performs an unapproved request.
     """
     cache_key = f"btc_tech:{interval}"
 
-    # Use longer TTL for cached 429 errors
     cached_raw = _get_cached(cache_key, _TECHNICALS_TTL)
     if cached_raw is not None:
         return cached_raw  # type: ignore
-
-    if _TV_PROVIDER_RETIRED or not _TV:
-        return BTCTechnicals(interval=interval, error="TradingView provider retired")
-
-    # Check 429 cooldown — return stale cache or error without hitting API
-    if _tv_is_cooling_down():
-        stale = _get_cached(cache_key, 86400)  # return any cached value
-        if stale is not None:
-            return stale  # type: ignore
-        remaining = _tv_cooldown_remaining()
-        log.debug("TradingView BTC cooldown active (%.0fs remaining), skipping %s", remaining, interval)
-        return BTCTechnicals(interval=interval, error="Rate limited — cooldown active")
-
-    interval_map = {
-        "1m": Interval.INTERVAL_1_MINUTE,
-        "5m": Interval.INTERVAL_5_MINUTES,
-        "15m": Interval.INTERVAL_15_MINUTES,
-        "30m": Interval.INTERVAL_30_MINUTES,
-        "1h": Interval.INTERVAL_1_HOUR,
-        "2h": Interval.INTERVAL_2_HOURS,
-        "4h": Interval.INTERVAL_4_HOURS,
-        "1d": Interval.INTERVAL_1_DAY,
-        "1w": Interval.INTERVAL_1_WEEK,
-        "1M": Interval.INTERVAL_1_MONTH,
-    }
-    tv_interval = interval_map.get(interval, Interval.INTERVAL_1_HOUR)
-
-    try:
-        _tv_throttle()  # enforce spacing + raises on cooldown
-        handler = TA_Handler(
-            symbol="BTCUSDT",
-            screener="crypto",
-            exchange="BINANCE",
-            interval=tv_interval,
-        )
-        analysis = handler.get_analysis()
-        if not analysis or not analysis.summary:
-            return BTCTechnicals(interval=interval, error="No analysis data")
-
-        s = analysis.summary
-        indicators = analysis.indicators or {}
-
-        result = BTCTechnicals(
-            summary=s.get("RECOMMENDATION", ""),
-            buy=s.get("BUY", 0),
-            sell=s.get("SELL", 0),
-            neutral=s.get("NEUTRAL", 0),
-            osc_signal=analysis.oscillators.get("RECOMMENDATION", "") if analysis.oscillators else "",
-            osc_buy=analysis.oscillators.get("BUY", 0) if analysis.oscillators else 0,
-            osc_sell=analysis.oscillators.get("SELL", 0) if analysis.oscillators else 0,
-            osc_neutral=analysis.oscillators.get("NEUTRAL", 0) if analysis.oscillators else 0,
-            ma_signal=analysis.moving_averages.get("RECOMMENDATION", "") if analysis.moving_averages else "",
-            ma_buy=analysis.moving_averages.get("BUY", 0) if analysis.moving_averages else 0,
-            ma_sell=analysis.moving_averages.get("SELL", 0) if analysis.moving_averages else 0,
-            ma_neutral=analysis.moving_averages.get("NEUTRAL", 0) if analysis.moving_averages else 0,
-            rsi=indicators.get("RSI"),
-            macd=indicators.get("MACD.macd"),
-            macd_signal=indicators.get("MACD.signal"),
-            stoch_k=indicators.get("Stoch.K"),
-            adx=indicators.get("ADX"),
-            cci=indicators.get("CCI20"),
-            interval=interval,
-        )
-        _set_cached(cache_key, result)
-        _tv_register_success()
-        return result
-    except Exception as exc:
-        _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-        if "429" in _msg:
-            _tv_register_429()
-            remaining = _tv_cooldown_remaining()
-            _msg = f"Rate limited — cooldown {remaining:.0f}s"
-        _log_fn = log.info if "Rate limited" in _msg else log.warning
-        _log_fn("TradingView BTC technicals (%s) failed: %s", interval, _msg)
-        result = BTCTechnicals(interval=interval, error=_msg)
-        _set_cached(cache_key, result)  # cache errors too
-        return result
+    result = BTCTechnicals(interval=interval, error="BTC technicals unavailable")
+    _set_cached(cache_key, result)
+    return result
 
 
 def fetch_fear_greed() -> FearGreed | None:
@@ -838,9 +749,7 @@ def fetch_btc_outlook() -> BTCOutlook:
 
     fg = fetch_fear_greed()
     tech_1h = fetch_btc_technicals("1h")
-    time.sleep(2.0)  # delay to avoid TradingView 429
     tech_4h = fetch_btc_technicals("4h")
-    time.sleep(2.0)
     tech_1d = fetch_btc_technicals("1d")
     quote = fetch_btc_quote()
 
@@ -935,7 +844,7 @@ def fetch_btc_outlook() -> BTCOutlook:
 
 def is_available() -> bool:
     """Check if at least one data source is available."""
-    return bool(_fmp_key()) or _YF or _TV
+    return bool(_fmp_key()) or _YF
 
 
 def format_large_number(n: float) -> str:
@@ -966,7 +875,7 @@ def format_supply(n: float) -> str:
 
 
 def technicals_signal_label(signal: str) -> str:
-    """Return a human-readable label for a TradingView signal."""
+    """Return a human-readable label for a technical signal."""
     return {
         "STRONG_BUY": "Strong Buy",
         "BUY": "Buy",
@@ -977,7 +886,7 @@ def technicals_signal_label(signal: str) -> str:
 
 
 def technicals_signal_icon(signal: str) -> str:
-    """Return an emoji for a TradingView signal."""
+    """Return an emoji for a technical signal."""
     return {
         "STRONG_BUY": "🟢",
         "BUY": "🟢",
@@ -985,8 +894,3 @@ def technicals_signal_icon(signal: str) -> str:
         "SELL": "🔴",
         "STRONG_SELL": "🔴",
     }.get(signal, "⚪")
-
-
-# Deliberate product boundary.  Kept at EOF so legacy security-ledger anchors
-# above remain stable while the old optional adapter stays permanently off.
-_TV_PROVIDER_RETIRED = True

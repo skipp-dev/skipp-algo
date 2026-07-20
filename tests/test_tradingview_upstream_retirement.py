@@ -27,29 +27,17 @@ def test_live_news_bus_ignores_explicit_tv_request() -> None:
     assert result.items == []
 
 
-def test_equity_technicals_never_enter_retired_tv_adapter(monkeypatch) -> None:
+def test_equity_technicals_fail_closed_without_fmp(monkeypatch) -> None:
     import terminal_technicals as technicals
 
-    monkeypatch.setattr(technicals, "_TV_AVAILABLE", True)
     monkeypatch.setattr(technicals, "_fmp_fallback", lambda *_args: None)
-    monkeypatch.setattr(
-        technicals,
-        "_try_exchanges",
-        lambda *_args: (_ for _ in ()).throw(AssertionError("TradingView adapter called")),
-    )
     result = technicals.fetch_technicals("RETIRETV", "1D", force=True)
-    assert result.error == "FMP technicals unavailable; TradingView provider retired"
+    assert result.error == "FMP technicals unavailable"
 
 
-def test_bitcoin_technicals_never_enter_retired_tv_adapter(monkeypatch) -> None:
+def test_bitcoin_technicals_fail_closed_without_unapproved_provider() -> None:
     import terminal_bitcoin as bitcoin
 
     bitcoin._cache.clear()
-    monkeypatch.setattr(bitcoin, "_TV", True)
-    monkeypatch.setattr(
-        bitcoin,
-        "TA_Handler",
-        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("TradingView adapter called")),
-    )
     result = bitcoin.fetch_btc_technicals("1h")
-    assert result.error == "TradingView provider retired"
+    assert result.error == "BTC technicals unavailable"

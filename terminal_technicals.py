@@ -1,8 +1,7 @@
 """Technical-analysis helper for the Streamlit terminal.
 
-The former TradingView adapter is retired.  Consumers keep the historical
-``TechnicalResult`` contract, but live requests use only the FMP adapter and
-fail closed when FMP is unavailable.  No upstream HTTP request is issued.
+Consumers keep the historical ``TechnicalResult`` contract, but live requests
+use only the FMP adapter and fail closed when FMP is unavailable.
 
 """
 
@@ -12,37 +11,24 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from dataclasses import replace as dc_replace
 from typing import Any
-
-from databento_utils import _redact_sensitive_error_text
 
 log = logging.getLogger(__name__)
 
-try:
-    from tradingview_ta import Interval, TA_Handler  # type: ignore[import-untyped]
-
-    _TV_AVAILABLE = True
-except ImportError:
-    TA_Handler = None
-    Interval = None
-    _TV_AVAILABLE = False
-
-# ── Interval labels (TradingView interval codes: 1m…1M, not localized) ─
-INTERVAL_MAP: dict[str, str] = {}
-if _TV_AVAILABLE:
-    INTERVAL_MAP = {
-        "1m": Interval.INTERVAL_1_MINUTE,
-        "5m": Interval.INTERVAL_5_MINUTES,
-        "15m": Interval.INTERVAL_15_MINUTES,
-        "30m": Interval.INTERVAL_30_MINUTES,
-        "1h": Interval.INTERVAL_1_HOUR,
-        "2h": Interval.INTERVAL_2_HOURS,
-        "4h": Interval.INTERVAL_4_HOURS,
-        "1D": Interval.INTERVAL_1_DAY,
-        "1W": Interval.INTERVAL_1_WEEK,
-        "1M": Interval.INTERVAL_1_MONTH,
-    }
+# Public interval labels used by the terminal controls.  Values are kept
+# human-readable because the FMP adapter owns provider-specific mappings.
+INTERVAL_MAP: dict[str, str] = {
+    "1m": "1m",
+    "5m": "5m",
+    "15m": "15m",
+    "30m": "30m",
+    "1h": "1h",
+    "2h": "2h",
+    "4h": "4h",
+    "1D": "1D",
+    "1W": "1W",
+    "1M": "1M",
+}
 
 # Default interval for the quick summary badge
 DEFAULT_INTERVAL = "1D"
@@ -133,7 +119,7 @@ _MA_VALUE_KEY: dict[str, str] = {
 
 @dataclass
 class TechnicalResult:
-    """Holds TradingView technical analysis for one symbol + interval."""
+    """Holds provider technical analysis for one symbol + interval."""
 
     symbol: str
     interval: str  # label key like "1D"
@@ -161,11 +147,8 @@ class TechnicalResult:
 
     error: str = ""
 
-    # Which provider actually produced this result: "tradingview" (live),
-    # "fmp_fallback" (FMP substitute during TV rate-limit/absence) or
-    # "stale_cache" (expired cache entry served during 429 cooldown).
     # Disclosed so consumers can weight signals by provenance (audit #2670 W3).
-    source: str = "tradingview"
+    source: str = "unknown"
 
 
 # ── In-memory cache ──────────────────────────────────────────────────
@@ -175,137 +158,12 @@ _CACHE_NOT_FOUND_TTL_S = 3600.0  # 1 hour for symbols not found on any exchange
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
 
-# ── Symbol blacklist (symbols never found on any exchange) ───────────
-_NOT_FOUND_SYMBOLS: dict[str, float] = {}  # sym -> timestamp of first miss
-_NOT_FOUND_TTL_S = 7200.0  # remember unfound symbols for 2 hours
-_NOT_FOUND_MAX_SIZE = 500  # hard cap on blacklist entries
-
-# ── Global TradingView rate limiter ──────────────────────────────────
-_TV_MIN_CALL_SPACING_BASE = 12.0  # minimum seconds between TradingView API calls
-_TV_MIN_CALL_SPACING_POST_429 = 20.0  # wider spacing for 5 min after cooldown ends
-_TV_POST_429_WINDOW = 300.0  # 5 minutes of cautious spacing after cooldown
-_tv_last_call_ts: float = 0.0
-_tv_rate_lock = threading.Lock()
-
-# 429 cooldown: after a 429 response, block ALL TradingView calls for a period
-_tv_cooldown_until: float = 0.0
-_tv_cooldown_ended_at: float = 0.0  # when the last cooldown expired
-_tv_consecutive_429s: int = 0
-_TV_COOLDOWN_BASE = 120.0   # base cooldown: 2 minutes
-_TV_COOLDOWN_MAX = 900.0   # max cooldown: 15 minutes
-_TV_429_LOG_WINDOW_S = 45.0
-_tv_last_429_log_ts: float = 0.0
-_tv_last_429_log_key: tuple[int, int] | None = None
-_tv_suppressed_429_logs: int = 0
-
-
-def _tv_is_cooling_down() -> bool:
-    """Return True if we are in a 429 cooldown period."""
-    with _tv_rate_lock:
-        deadline = _tv_cooldown_until
-    return time.time() < deadline
-
-
-def _tv_cooldown_remaining() -> float:
-    """Return seconds remaining in the 429 cooldown, or 0 if not cooling down."""
-    with _tv_rate_lock:
-        deadline = _tv_cooldown_until
-    return max(0.0, deadline - time.time())
-
-
-def _tv_register_429() -> None:
-    """Register a 429 response and set a cooldown period."""
-    global _tv_cooldown_until, _tv_consecutive_429s
-    global _tv_last_429_log_ts, _tv_last_429_log_key, _tv_suppressed_429_logs
-    with _tv_rate_lock:
-        _tv_consecutive_429s += 1
-        cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
-        _tv_cooldown_until = time.time() + cooldown
-        now = time.time()
-        log_key = (int(cooldown), _tv_consecutive_429s)
-        if (
-            _tv_last_429_log_key == log_key
-            and (now - _tv_last_429_log_ts) < _TV_429_LOG_WINDOW_S
-        ):
-            _tv_suppressed_429_logs += 1
-            return
-        if _tv_suppressed_429_logs > 0:
-            log.info("TradingView 429 — suppressed %d duplicate log(s)", _tv_suppressed_429_logs)
-            _tv_suppressed_429_logs = 0
-        _log_fn = log.warning if _tv_consecutive_429s <= 1 else log.info
-        _log_fn(
-            "TradingView 429 — cooldown %.0fs (consecutive: %d)",
-            cooldown, _tv_consecutive_429s,
-        )
-        _tv_last_429_log_ts = now
-        _tv_last_429_log_key = log_key
-
-
-def _tv_register_success() -> None:
-    """Reset 429 counter on successful call.
-
-    Only resets when the cooldown has fully expired — otherwise a
-    success for symbol A would reset the counter while symbol B is
-    still being 429'd, preventing exponential back-off.
-    """
-    global _tv_consecutive_429s
-    with _tv_rate_lock:
-        # Keep the counter during the post-cooldown cautious window so
-        # repeated 429s can still escalate backoff instead of flapping at 1.
-        reset_after = _tv_cooldown_until + _TV_POST_429_WINDOW
-        if _tv_consecutive_429s > 0 and time.time() >= reset_after:
-            _tv_consecutive_429s = 0
-            log.info("TradingView 429 counter reset after successful call")
-
-
-def _tv_throttle() -> None:
-    """Enforce minimum spacing AND 429 cooldown between TradingView API calls.
-
-    Raises ``RuntimeError`` if a 429 cooldown is active so the caller can
-    abort immediately instead of hitting the API and collecting another 429.
-    Uses wider spacing for 5 min after a cooldown ends to ease back in.
-    """
-    global _tv_last_call_ts, _tv_cooldown_ended_at
-    sleep_dur = 0.0
-    with _tv_rate_lock:
-        now = time.time()
-        # Check cooldown FIRST — don't even space-wait if we're blocked
-        remaining = _tv_cooldown_until - now
-        if remaining > 0:
-            raise RuntimeError(f"TradingView 429 cooldown active ({remaining:.0f}s remaining)")
-        # If cooldown just ended, record it (once)
-        if _tv_cooldown_until > 0 and _tv_cooldown_ended_at < _tv_cooldown_until:
-            _tv_cooldown_ended_at = now
-        # Use wider spacing during post-429 cautious window
-        if (now - _tv_cooldown_ended_at) < _TV_POST_429_WINDOW:
-            spacing = _TV_MIN_CALL_SPACING_POST_429
-        else:
-            spacing = _TV_MIN_CALL_SPACING_BASE
-        elapsed = now - _tv_last_call_ts
-        if elapsed < spacing:
-            # Clamp elapsed at 0: a _tv_last_call_ts in the FUTURE (a backward
-            # system-clock step, or an extreme concurrent burst) makes elapsed
-            # negative and would otherwise sleep spacing + |elapsed| — up to
-            # thousands of seconds. The clamp caps any single wait at `spacing`.
-            sleep_dur = spacing - max(0.0, elapsed)
-        # Optimistically update timestamp so concurrent callers don't
-        # compute the same wait.
-        _tv_last_call_ts = now + sleep_dur
-    # Sleep OUTSIDE the lock so other threads aren't blocked
-    if sleep_dur > 0:
-        time.sleep(sleep_dur)
-
-
 def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
     return (symbol.upper().strip(), interval)
 
 
 def _fmp_fallback(symbol: str, interval: str, ts: float) -> TechnicalResult | None:
-    """Try FMP as a fallback provider when TradingView is rate-limited.
-
-    Returns a ``TechnicalResult`` on success, or ``None`` if FMP is
-    unavailable or returns no data.
-    """
+    """Fetch the sole technical provider and normalize its result."""
     try:
         from terminal_fmp_technicals import fetch_fmp_technicals
     except ImportError:
@@ -333,55 +191,13 @@ def _fmp_fallback(symbol: str, interval: str, ts: float) -> TechnicalResult | No
         ma_sell=data.get("ma_sell", 0),
         ma_neutral=data.get("ma_neutral", 0),
         ma_detail=data.get("ma_detail", []),
-        source="fmp_fallback",
+        source="fmp",
     )
-    log.info("FMP fallback provided technicals for %s/%s", symbol, interval)
-    # Cache the FMP result in the TV cache so subsequent calls get it instantly
+    log.info("FMP provided technicals for %s/%s", symbol, interval)
     key = _cache_key(symbol, interval)
     with _cache_lock:
         _cache[key] = result
     return result
-
-
-_SYMBOL_EXCHANGE_CACHE: dict[str, str] = {}
-
-
-def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
-    """Try common US exchanges in priority order.
-
-    On 429 the function stops immediately and re-raises so that the
-    caller's cooldown logic (``fetch_technicals``) handles back-off.
-    No internal retry loop — retrying inside cooldown only generates
-    more 429s and extends the ban.
-
-    Caches the successful exchange per symbol so that subsequent calls
-    skip probing and use only one throttle window.
-    """
-    cached_exchange = _SYMBOL_EXCHANGE_CACHE.get(symbol)
-    exchanges = ("NASDAQ", "NYSE", "AMEX")
-    if cached_exchange:
-        # Try cached exchange first, then fall through to the others
-        exchanges = (cached_exchange, *tuple(e for e in exchanges if e != cached_exchange))
-    for exchange in exchanges:
-        try:
-            _tv_throttle()  # enforces spacing + raises on cooldown
-            h = TA_Handler(
-                symbol=symbol,
-                screener="america",
-                exchange=exchange,
-                interval=interval_val,
-            )
-            analysis = h.get_analysis()
-            if analysis and analysis.summary:
-                _tv_register_success()
-                _SYMBOL_EXCHANGE_CACHE[symbol] = exchange
-                return analysis
-        except Exception as exc:
-            _msg = _redact_sensitive_error_text(str(exc))
-            if "429" in _msg or "cooldown active" in _msg:
-                raise  # let caller handle 429 / cooldown
-            continue
-    return None
 
 
 def fetch_technicals(
@@ -404,219 +220,30 @@ def fetch_technicals(
     force:
         Bypass cache and fetch fresh data.
     """
-    if _TV_PROVIDER_RETIRED or not _TV_AVAILABLE:
-        # FMP is the sole runtime provider.  The retired TradingView path is
-        # unreachable even if an old optional package remains installed.
-        sym = symbol.upper().strip()
-        now = time.time()
-        key = _cache_key(sym, interval)
-        cooling = _tv_is_cooling_down()
-        if not force:
-            with _cache_lock:
-                cached = _cache.get(key)
-                if cached and (now - cached.ts) < _CACHE_TTL_S:
-                    if cached.error and "not found" in cached.error.lower():
-                        return cached
-                    if not (cooling and cached.error):
-                        return cached
-                if cached and cooling and not cached.error:
-                    return dc_replace(cached, source="stale_cache")
-        fmp_result = _fmp_fallback(sym, interval, now)
-        if fmp_result is not None:
-            with _cache_lock:
-                _cache[key] = fmp_result
-            return fmp_result
-        with _cache_lock:
-            cached = _cache.get(key)
-            if cached:
-                return cached
-        return TechnicalResult(
-            symbol=symbol,
-            interval=interval,
-            ts=now,
-            source="fmp",
-            error="FMP technicals unavailable; TradingView provider retired",
-        )
-
     sym = symbol.upper().strip()
     key = _cache_key(sym, interval)
     now = time.time()
 
     if not force:
-        # Evaluated OUTSIDE _cache_lock: _tv_is_cooling_down() takes
-        # _tv_rate_lock, and nesting the two locks would introduce a new
-        # lock-ordering constraint for no benefit (a stale snapshot here is
-        # harmless — the cooldown block below re-checks authoritatively).
-        cooling = _tv_is_cooling_down()
         with _cache_lock:
             cached = _cache.get(key)
-            if cached:
-                # "not found" rarely changes -> longer TTL; everything else uses
-                # the normal TTL. There is NO 429-specific TTL: a real rate-limit
-                # is cached as "Rate limited — cooldown Ns" (no "429" substring),
-                # so the old `"429" in cached.error` branch never fired — and the
-                # _tv_cooldown_until mechanism is the real TV backoff anyway.
-                if cached.error and "not found" in cached.error.lower():
-                    ttl = _CACHE_NOT_FOUND_TTL_S
-                else:
-                    ttl = _CACHE_TTL_S
-                if (now - cached.ts) < ttl:
-                    # During a TV cooldown a fresh TRANSIENT error (e.g. "Rate
-                    # limited") must not preempt the cooldown->FMP fallback
-                    # below — fall through so FMP gets a chance. "not found" is
-                    # a stable negative and returns early either way (FMP would
-                    # be hammered for a symbol that stably has no data).
-                    transient_error = bool(cached.error) and "not found" not in cached.error.lower()
-                    if not (transient_error and cooling):
-                        return cached
-
-    # Check 429 cooldown — try FMP fallback, then stale cache, then error
-    if _tv_is_cooling_down():
-        with _cache_lock:
-            cached = _cache.get(key)
-            if cached and not cached.error:
-                # Expired cache entry served during cooldown — disclose via
-                # source without mutating the cache entry (audit #2670 W3).
-                return dc_replace(cached, source="stale_cache")
-
-        # Try FMP fallback. Cache the hit (same as the _TV_AVAILABLE=False
-        # path): without this, every call during a cooldown re-hits FMP —
-        # the fresh entry serves follow-ups from the cache check above and
-        # keeps disclosing source="fmp_fallback".
-        fmp_result = _fmp_fallback(sym, interval, now)
-        if fmp_result is not None:
-            with _cache_lock:
-                _cache[key] = fmp_result
-            return fmp_result
-
-        # Return stale error cache or fresh error
-        with _cache_lock:
-            cached = _cache.get(key)
-            if cached:
+            if cached and (now - cached.ts) < _CACHE_TTL_S:
                 return cached
-        remaining = _tv_cooldown_remaining()
-        log.debug("TradingView cooldown active (%.0fs remaining), skipping %s", remaining, sym)
-        result = TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
-        with _cache_lock:
-            _cache[key] = result
-        return result
-
-    interval_val = INTERVAL_MAP.get(interval)
-    if not interval_val:
+    if interval not in INTERVAL_MAP:
         return TechnicalResult(symbol=sym, interval=interval, error=f"Unknown interval: {interval}")
 
-    # Skip symbols previously not found on any exchange
-    with _tv_rate_lock:
-        nf_ts = _NOT_FOUND_SYMBOLS.get(sym)
-        if nf_ts and (now - nf_ts) < _NOT_FOUND_TTL_S:
-            log.debug("Skipping %s — previously not found on any exchange", sym)
-            return TechnicalResult(symbol=sym, interval=interval, ts=now, error="Symbol not found on TradingView")
-
-    try:
-        analysis = _try_exchanges(sym, interval_val)
-        if analysis is None:
-            with _tv_rate_lock:
-                _NOT_FOUND_SYMBOLS[sym] = now
-                # Prune stale + enforce max size
-                if len(_NOT_FOUND_SYMBOLS) > _NOT_FOUND_MAX_SIZE:
-                    stale = [s for s, ts in _NOT_FOUND_SYMBOLS.items() if now - ts > _NOT_FOUND_TTL_S]
-                    for s in stale:
-                        del _NOT_FOUND_SYMBOLS[s]
-                    if len(_NOT_FOUND_SYMBOLS) > _NOT_FOUND_MAX_SIZE:
-                        oldest = sorted(_NOT_FOUND_SYMBOLS, key=_NOT_FOUND_SYMBOLS.get)  # type: ignore[arg-type]
-                        for s in oldest[: len(_NOT_FOUND_SYMBOLS) - _NOT_FOUND_MAX_SIZE]:
-                            del _NOT_FOUND_SYMBOLS[s]
-            result = TechnicalResult(symbol=sym, interval=interval, ts=now, error="Symbol not found on TradingView")
-            with _cache_lock:
-                _cache[key] = result
-            return result
-
-        s = analysis.summary or {}
-        o = analysis.oscillators or {}
-        m = analysis.moving_averages or {}
-        ind = analysis.indicators or {}
-
-        # Build oscillator details
-        osc_compute = o.get("COMPUTE", {})
-        osc_detail: list[dict[str, Any]] = []
-        for osc_key, label in _OSC_NAMES.items():
-            action = osc_compute.get(osc_key)
-            if action is None:
-                continue
-            raw_key = _OSC_VALUE_KEY.get(osc_key, osc_key)
-            value = ind.get(raw_key)
-            osc_detail.append({
-                "name": label,
-                "value": round(value, 2) if isinstance(value, (int, float)) and value is not None else value,
-                "action": action,
-            })
-
-        # Build MA details
-        ma_compute = m.get("COMPUTE", {})
-        ma_detail: list[dict[str, Any]] = []
-        for ma_key, label in _MA_NAMES.items():
-            action = ma_compute.get(ma_key)
-            if action is None:
-                continue
-            raw_key = _MA_VALUE_KEY.get(ma_key, ma_key)
-            value = ind.get(raw_key)
-            ma_detail.append({
-                "name": label,
-                "value": round(value, 2) if isinstance(value, (int, float)) and value is not None else value,
-                "action": action,
-            })
-
+    result = _fmp_fallback(sym, interval, now)
+    if result is None:
         result = TechnicalResult(
             symbol=sym,
             interval=interval,
             ts=now,
-            summary_signal=s.get("RECOMMENDATION", ""),
-            summary_buy=s.get("BUY", 0),
-            summary_sell=s.get("SELL", 0),
-            summary_neutral=s.get("NEUTRAL", 0),
-            osc_signal=o.get("RECOMMENDATION", ""),
-            osc_buy=o.get("BUY", 0),
-            osc_sell=o.get("SELL", 0),
-            osc_neutral=o.get("NEUTRAL", 0),
-            osc_detail=osc_detail,
-            ma_signal=m.get("RECOMMENDATION", ""),
-            ma_buy=m.get("BUY", 0),
-            ma_sell=m.get("SELL", 0),
-            ma_neutral=m.get("NEUTRAL", 0),
-            ma_detail=ma_detail,
+            source="fmp",
+            error="FMP technicals unavailable",
         )
         with _cache_lock:
             _cache[key] = result
-            # Evict expired when cache grows beyond limit
-            if len(_cache) > _CACHE_MAX_SIZE:
-                expired_keys = [k for k, v in _cache.items() if now - v.ts > _CACHE_TTL_S]
-                for k in expired_keys:
-                    del _cache[k]
-        return result
-
-    except Exception as exc:
-        _msg = _redact_sensitive_error_text(str(exc))
-        if "cooldown active" in _msg:
-            # Cooldown RuntimeError from _tv_throttle — don't count as new 429
-            remaining = _tv_cooldown_remaining()
-            _msg = f"Rate limited — cooldown {remaining:.0f}s"
-            log.debug("TradingView cooldown blocked %s: %s", sym, _msg)
-        elif "429" in _msg:
-            _tv_register_429()
-            remaining = _tv_cooldown_remaining()
-            _msg = f"Rate limited — cooldown {remaining:.0f}s"
-            log.info("TradingView technicals fetch failed for %s: %s", sym, _msg)
-        else:
-            log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
-        result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=_msg)
-        with _cache_lock:
-            _cache[key] = result
-        return result
-
-
-# Deliberate product boundary.  Kept at EOF so legacy security-ledger anchors
-# above remain stable while old optional adapter symbols stay import-compatible.
-_TV_PROVIDER_RETIRED = True
+    return result
 
 
 def fetch_multi_interval(
@@ -628,7 +255,7 @@ def fetch_multi_interval(
     Returns a dict keyed by interval label.
     """
     if intervals is None:
-        intervals = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M"]  # no 10m: tradingview_ta has no 10-min interval (would return daily)
+        intervals = list(INTERVAL_MAP)
     return {iv: fetch_technicals(symbol, iv) for iv in intervals}
 
 

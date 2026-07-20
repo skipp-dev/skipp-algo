@@ -155,7 +155,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 5601-site relocated to enable_cache_probe_log()/reset_cache_probe_log().
         ("databento_volatility_screener.py", 94, ("_CACHE_PROBE_LOG",)),  # 2026-07-12 (re-export import): 87->94
         ("databento_volatility_screener.py", 101, ("_CACHE_PROBE_LOG",)),  # 2026-07-12 (re-export import): 94->101
-        ("terminal_bitcoin.py", 96, ("_client",)),
+        ("terminal_bitcoin.py", 81, ("_client",)),  # 2026-07-20: retire unused technical-adapter state
         (
             "terminal_finnhub.py",
             213,
@@ -175,22 +175,6 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             ),
         ),
         ("terminal_spike_scanner.py", 97, ("_YF_UNIVERSE_CACHE",)),
-        # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
-        # dc_replace import, shifting the four global sites +6 (212/213/245/262
-        # -> 218/219/251/268).
-        # 2026-06-19 (timeframe expansion): added 10m map/default interval,
-        # shifting these global sites 219/220/252/269 -> 220/221/253/270.
-        # 2026-07-09 (fix/tv-throttle-cooldown-fmp): removed dead _CACHE_ERROR_TTL_S
-        # const (line 175), shifting all four -1: 220/221/253/270 -> 219/220/252/269.
-        # 2026-07-12 (drop dead "10m" INTERVAL_MAP entry, line 37): all four -1.
-        ("terminal_technicals.py", 218, ("_tv_consecutive_429s", "_tv_cooldown_until")),
-        (
-            "terminal_technicals.py",
-            219,
-            ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
-        ),
-        ("terminal_technicals.py", 251, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 268, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
         # threading.Lock() per concurrency-shared-mutables guideline.
         # 2026-06-17 (fix/overlay-daemon-robustness): shifted by logging import,
