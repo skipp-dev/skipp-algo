@@ -2,7 +2,7 @@
 FROM golang:1.26.5-bookworm AS access-proxy-builder
 
 WORKDIR /src
-COPY services/terminal_access_proxy/go.mod services/terminal_access_proxy/main.go ./
+COPY services/terminal_access_proxy/go.mod services/terminal_access_proxy/main.go services/terminal_access_proxy/candidates.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /terminal-access-proxy .
 
 # ── SkippALGO Terminal — production image ──────────────────────

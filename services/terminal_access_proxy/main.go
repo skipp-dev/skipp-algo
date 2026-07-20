@@ -38,9 +38,12 @@ input,button{margin-top:.6rem;padding:.8rem;border-radius:7px;border:1px solid #
 </main></body></html>`))
 
 type config struct {
-	listenAddr string
-	upstream   *url.URL
-	token      string
+	listenAddr           string
+	upstream             *url.URL
+	token                string
+	candidateFeedPath    string
+	candidateMaxAge      time.Duration
+	candidateResultLimit int
 }
 
 type accessProxy struct {
@@ -49,6 +52,7 @@ type accessProxy struct {
 	upstream     *url.URL
 	reverseProxy *httputil.ReverseProxy
 	probeClient  *http.Client
+	candidates   candidateConfig
 }
 
 func loadConfig() (config, error) {
@@ -76,10 +80,50 @@ func loadConfig() (config, error) {
 	if err != nil || upstream.Scheme != "http" || upstream.Host == "" || upstream.User != nil {
 		return config{}, errors.New("TERMINAL_PROXY_UPSTREAM must be a plain internal http URL without credentials")
 	}
-	return config{listenAddr: listenAddr, upstream: upstream, token: token}, nil
+	candidateMaxAge, err := boundedEnvInt("TERMINAL_CANDIDATE_MAX_AGE_SECONDS", 4*3600, 60, 24*3600)
+	if err != nil {
+		return config{}, err
+	}
+	candidateResultLimit, err := boundedEnvInt("TERMINAL_CANDIDATE_LIMIT", 100, 1, 500)
+	if err != nil {
+		return config{}, err
+	}
+	candidateFeedPath := strings.TrimSpace(os.Getenv("TERMINAL_JSONL_PATH"))
+	if candidateFeedPath == "" {
+		candidateFeedPath = "artifacts/terminal_feed.jsonl"
+	}
+	return config{
+		listenAddr:           listenAddr,
+		upstream:             upstream,
+		token:                token,
+		candidateFeedPath:    candidateFeedPath,
+		candidateMaxAge:      time.Duration(candidateMaxAge) * time.Second,
+		candidateResultLimit: candidateResultLimit,
+	}, nil
+}
+
+func boundedEnvInt(name string, fallback, minimum, maximum int) (int, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < minimum || value > maximum {
+		return 0, fmt.Errorf("%s must be an integer within %d-%d", name, minimum, maximum)
+	}
+	return value, nil
 }
 
 func newAccessProxy(cfg config) *accessProxy {
+	if cfg.candidateFeedPath == "" {
+		cfg.candidateFeedPath = "artifacts/terminal_feed.jsonl"
+	}
+	if cfg.candidateMaxAge == 0 {
+		cfg.candidateMaxAge = 4 * time.Hour
+	}
+	if cfg.candidateResultLimit == 0 {
+		cfg.candidateResultLimit = 100
+	}
 	tokenDigest := sha256.Sum256([]byte(cfg.token))
 	mac := hmac.New(sha256.New, []byte(cfg.token))
 	_, _ = mac.Write([]byte("skipp-terminal-session-v1"))
@@ -104,6 +148,12 @@ func newAccessProxy(cfg config) *accessProxy {
 		upstream:     cfg.upstream,
 		reverseProxy: reverseProxy,
 		probeClient:  &http.Client{Timeout: 2 * time.Second},
+		candidates: candidateConfig{
+			feedPath: cfg.candidateFeedPath,
+			maxAge:   cfg.candidateMaxAge,
+			limit:    cfg.candidateResultLimit,
+			now:      time.Now,
+		},
 	}
 }
 
@@ -127,6 +177,10 @@ func (p *accessProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/ready" {
 		p.ready(w, r)
+		return
+	}
+	if r.URL.Path == "/api/v1/news-candidates" {
+		p.newsCandidates(w, r)
 		return
 	}
 	p.reverseProxy.ServeHTTP(w, r)

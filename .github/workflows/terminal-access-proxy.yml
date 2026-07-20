@@ -1,0 +1,40 @@
+name: Terminal access proxy
+
+on:
+  pull_request:
+    paths:
+      - "services/terminal_access_proxy/**"
+      - "Dockerfile"
+      - ".github/workflows/terminal-access-proxy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/terminal_access_proxy/**"
+      - "Dockerfile"
+      - ".github/workflows/terminal-access-proxy.yml"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: services/terminal_access_proxy
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: services/terminal_access_proxy/go.mod
+          cache: false
+      - run: go test ./...
+      - run: go build ./...
