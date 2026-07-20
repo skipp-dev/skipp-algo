@@ -78,7 +78,6 @@ def _run_bus(*, state: dict[str, Any] | None, now_ts: float, mock_results: dict[
             include_benzinga=True,
             include_fmp=False,
             include_newsapi_ai=False,
-            include_tradingview=False,
             include_fmp_articles=False,
         )
     finally:

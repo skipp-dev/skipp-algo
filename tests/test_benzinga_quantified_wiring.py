@@ -86,7 +86,6 @@ def test_news_bus_routes_direct_key_to_quantified() -> None:
             include_benzinga=True,
             include_fmp=False,
             include_newsapi_ai=False,
-            include_tradingview=False,
             now_ts=1_750_250_000.0,
         )
 

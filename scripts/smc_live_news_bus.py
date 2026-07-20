@@ -35,7 +35,6 @@ DEFAULT_STORY_WINDOW_SECONDS = 24 * 60 * 60
 DEFAULT_STATE_RETENTION_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_MAX_STATE_STORIES = 5000
 DEFAULT_SYMBOL_LIMIT = 100
-DEFAULT_TV_SYMBOL_LIMIT = 20
 _SHARED_CACHE_DIR = os.getenv("SHARED_NEWS_CACHE_DIR", DEFAULT_SHARED_NEWS_CACHE_DIR)
 _SHARED_CACHE_TTL_SECONDS = float(os.getenv("SHARED_NEWS_CACHE_TTL_SECONDS", str(DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS)))
 
@@ -155,7 +154,7 @@ def _source_tier(source: str, provider_bucket: str) -> str:
     lowered = (source or "").strip().lower()
     if any(token in lowered for token in ("reuters", "dow jones", "dow-jones", "marketwatch", "associated press", " ap ")):
         return "TIER_1"
-    if any(token in lowered for token in ("benzinga", "tradingview", "cnbc", "dpa", "afx")):
+    if any(token in lowered for token in ("benzinga", "cnbc", "dpa", "afx")):
         return "TIER_2"
     if any(token in lowered for token in ("pr newswire", "globe newswire", "business wire", "accesswire", "financial modeling prep", "financialmodelingprep", "fmp")):
         return "TIER_3"
@@ -774,12 +773,8 @@ def poll_live_news_bus(
     include_benzinga: bool = True,
     include_fmp: bool = True,
     include_newsapi_ai: bool | None = None,
-    include_tradingview: bool = False,
     include_fmp_articles: bool = True,
     page_size: int = 100,
-    tv_max_per_ticker: int = 3,
-    tv_max_total: int = 25,
-    tv_symbol_limit: int = DEFAULT_TV_SYMBOL_LIMIT,
     newsapi_lookback_days: int = 2,
     newsapi_articles_per_request: int = 100,
     story_window_seconds: int = DEFAULT_STORY_WINDOW_SECONDS,
@@ -895,9 +890,6 @@ def poll_live_news_bus(
                 },
             )
         )
-    if include_tradingview:
-        logger.warning("TradingView news provider is retired; ignoring include_tradingview")
-
     provider_results: dict[str, ProviderPollResult] = {}
     with ThreadPoolExecutor(max_workers=max(len(fetch_specs), 1)) as executor:
         futures = {
@@ -1168,12 +1160,8 @@ def export_live_news_snapshot(
     # None -> resolved from the ENABLE_NEWSAPI_AI SSOT flag in
     # poll_live_news_bus (paused by default; see comment there).
     include_newsapi_ai: bool | None = None,
-    include_tradingview: bool = False,
     include_fmp_articles: bool = True,
     page_size: int = 100,
-    tv_max_per_ticker: int = 3,
-    tv_max_total: int = 25,
-    tv_symbol_limit: int = DEFAULT_TV_SYMBOL_LIMIT,
     newsapi_lookback_days: int = 2,
     newsapi_articles_per_request: int = 100,
     story_window_seconds: int = DEFAULT_STORY_WINDOW_SECONDS,
@@ -1191,12 +1179,8 @@ def export_live_news_snapshot(
         include_benzinga=include_benzinga,
         include_fmp=include_fmp,
         include_newsapi_ai=include_newsapi_ai,
-        include_tradingview=include_tradingview,
         include_fmp_articles=include_fmp_articles,
         page_size=page_size,
-        tv_max_per_ticker=tv_max_per_ticker,
-        tv_max_total=tv_max_total,
-        tv_symbol_limit=tv_symbol_limit,
         newsapi_lookback_days=newsapi_lookback_days,
         newsapi_articles_per_request=newsapi_articles_per_request,
         story_window_seconds=story_window_seconds,

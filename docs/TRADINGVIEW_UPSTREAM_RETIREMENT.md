@@ -11,8 +11,8 @@ Effective 2026-07-18:
 - the legacy `ENABLE_TRADINGVIEW_NEWS` and
   `OPEN_PREP_ENABLE_TRADINGVIEW_NEWS` variables are retained for manifest
   compatibility but are permanently fail-closed;
-- the live-news bus accepts the former `include_tradingview` argument only as
-  a compatibility no-op and records `provider_retired` when called;
+- the live-news bus no longer exposes a TradingView provider argument or
+  provider-specific limits;
 - equity technicals use FMP and return an explicit retired-provider error when
   FMP is unavailable;
 - the Bitcoin technicals return the same fail-closed compatibility result;
