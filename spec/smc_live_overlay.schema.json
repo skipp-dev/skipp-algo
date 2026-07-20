@@ -26,6 +26,7 @@
       "description": "Chart timeframe the overlay was computed for. Indicators are aggregated from 1-minute bars to this timeframe.",
       "type": "string",
       "enum": [
+        "1m",
         "5m",
         "10m",
         "15m",

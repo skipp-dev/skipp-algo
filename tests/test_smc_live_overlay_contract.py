@@ -103,7 +103,7 @@ def test_missing_envelope_field_rejected_by_schema(missing: str) -> None:
         jsonschema.validate(instance=instance, schema=_load_schema())
 
 
-@pytest.mark.parametrize("bad_tf", ["1m", "1D", "5M", ""])
+@pytest.mark.parametrize("bad_tf", ["1D", "5M", ""])
 def test_invalid_timeframe_rejected_by_schema(bad_tf: str) -> None:
     instance = _load_golden()
     instance["tf"] = bad_tf
