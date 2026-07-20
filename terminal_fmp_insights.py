@@ -272,6 +272,7 @@ def assemble_context(
     feed: list[dict[str, Any]],
     *,
     fmp_data: dict[str, Any] | None = None,
+    databento_quotes: dict[str, Any] | None = None,
     technicals: dict[str, Any] | None = None,
     macro: dict[str, Any] | None = None,
     economic_calendar: list[dict[str, Any]] | None = None,
@@ -328,6 +329,8 @@ def assemble_context(
     }
     if fmp_data:
         ctx["fmp_financials"] = fmp_data
+    if databento_quotes:
+        ctx["databento_quotes"] = databento_quotes
     if technicals:
         ctx["technicals"] = technicals
     if macro:
@@ -364,6 +367,7 @@ financial data from FMP, Benzinga, and Finnhub.
 You have access to (when available in the data context):
 - A live feed of classified news articles with sentiment scores and ticker mentions
 - Real-time FMP quotes (price, change, volume, market cap, P/E, EPS)
+- Databento daily OHLCV (latest close, change, range, and volume)
 - Company profiles (sector, industry, beta, description)
 - Key TTM ratios (P/E, P/B, P/S, D/E, ROE, ROA, margins, dividend yield, FCF/share)
 - Technical indicators (RSI, MACD, Stochastic, ADX, moving averages) from FMP
@@ -383,6 +387,8 @@ Your role:
   analyst consensus, and macro environment.
 - When FMP quote data is available, always cite current prices, change %,
   volume vs average, and P/E ratios to support your analysis.
+- Prefer Databento for observed exchange price/volume fields when it is present;
+  use FMP alongside it for profiles, ratios, and provider-specific fundamentals.
 - When social sentiment data is present, note retail attention levels
   (mention counts) and sentiment divergences from institutional signals.
 - When analyst forecasts are present, cite price target upside/downside,
@@ -512,7 +518,7 @@ def query_fmp_llm(
     user_message = (
         f"Current time: {now_str}\n\n"
         f"## Question\n{question}\n\n"
-        f"## Data Context (multi-layer: FMP financials, technicals, social, analyst, macro)\n"
+        f"## Data Context (multi-layer: Databento, FMP, technicals, social, analyst, macro)\n"
         f"```json\n{context_json}\n```"
     )
 

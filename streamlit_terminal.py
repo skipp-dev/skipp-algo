@@ -14,8 +14,8 @@ Run with::
 
     streamlit run streamlit_terminal.py
 
-Requires a live-news provider in ``.env`` or environment, typically
-``BENZINGA_API_KEY`` or ``FMP_API_KEY``.
+Requires either the private signals-producer feed or a direct live-news
+provider in ``.env`` or environment.
 Optional: ``DATABENTO_API_KEY`` for real-time quote enrichment.
 """
 
@@ -1713,6 +1713,9 @@ with st.sidebar:
         benzinga_key=_bz_key,
         databento_available=databento_available(),
         openai_key=_oai_key,
+        producer_feed_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
+        direct_news_configured=bool(_bz_key or (cfg.fmp_enabled and _fmp_key)),
+        producer_ai_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
     )
     for _ks in _key_statuses:
         if _ks["configured"]:
@@ -1720,9 +1723,18 @@ with st.sidebar:
         elif _ks["icon"] == "❌":
             st.error(_ks["message"])
             if _ks["name"] == "News API":
-                st.info("Set `BENZINGA_API_KEY` for Benzinga live news or `FMP_API_KEY` for FMP live polling.")
+                st.info("Connect the signals producer or set `BENZINGA_API_KEY` / `FMP_API_KEY`.")
         else:
             st.caption(f"{_ks['name']}: {_ks['message']}")
+    st.toggle(
+        "Use direct news providers as primary",
+        value=cfg.direct_news_primary,
+        key="direct_news_primary",
+        help=(
+            "Off: producer first, direct providers only after a producer error. "
+            "On: direct providers first, producer only after a direct-provider error."
+        ),
+    )
     # Patch live config so downstream code sees keys added after session start
     _cfg_changed = False
     if _bz_key and not cfg.benzinga_api_key:
@@ -2379,6 +2391,25 @@ def _process_new_items(
     st.toast(f"📡 {len(items)} live story update(s) [{src_label}]", icon="✅")
 
 
+def _get_producer_feed_client() -> Any | None:
+    """Lazy-init the private producer client without exposing its token."""
+    cfg: TerminalConfig = st.session_state.cfg
+    if not (cfg.producer_feed_url and cfg.producer_feed_token):
+        return None
+    client = st.session_state.get("producer_feed_client")
+    if client is None:
+        from terminal_internal_feed import ProducerFeedClient
+
+        client = ProducerFeedClient(
+            cfg.producer_feed_url,
+            cfg.producer_feed_token,
+            timeout_s=cfg.producer_feed_timeout_s,
+            max_age_s=cfg.producer_feed_max_age_s,
+        )
+        st.session_state.producer_feed_client = client
+    return client
+
+
 def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
     cfg: TerminalConfig = st.session_state.cfg
@@ -2392,9 +2423,10 @@ def _should_poll(poll_interval: float) -> bool:
 def _do_poll() -> None:
     """Execute one provider-neutral live-news poll cycle."""
     cfg: TerminalConfig = st.session_state.cfg
+    producer_feed = _get_producer_feed_client()
     adapter = _get_adapter()
     fmp_adapter = _get_fmp_adapter()
-    if adapter is None and fmp_adapter is None:
+    if producer_feed is None and adapter is None and fmp_adapter is None:
         return
 
     store = _get_store()
@@ -2402,15 +2434,29 @@ def _do_poll() -> None:
     st.session_state["poll_attempts"] = st.session_state.get("poll_attempts", 0) + 1
 
     try:
-        items, provider_cursors, provider_counts = poll_and_classify_live_bus(
-            benzinga_adapter=adapter,
-            fmp_adapter=fmp_adapter,
-            store=store,
-            provider_cursors=st.session_state.provider_cursors,
-            page_size=cfg.page_size,
-            channels=cfg.channels or None,
-            topics=cfg.topics or None,
+        from terminal_news_routing import poll_news_sources
+
+        def _poll_direct() -> tuple[list[ClassifiedItem], dict[str, str], dict[str, int]]:
+            return poll_and_classify_live_bus(
+                benzinga_adapter=adapter,
+                fmp_adapter=fmp_adapter,
+                store=store,
+                provider_cursors=st.session_state.provider_cursors,
+                page_size=cfg.page_size,
+                channels=cfg.channels or None,
+                topics=cfg.topics or None,
+            )
+
+        poll_result = poll_news_sources(
+            producer_feed=producer_feed,
+            direct_poll=_poll_direct,
+            direct_available=adapter is not None or fmp_adapter is not None,
+            direct_primary=bool(st.session_state.get("direct_news_primary", False)),
         )
+        items = poll_result.items
+        provider_cursors = dict(st.session_state.provider_cursors)
+        provider_cursors.update(poll_result.provider_cursors)
+        provider_counts = poll_result.provider_counts
     except Exception as exc:
         _safe_msg = re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
         logger.exception("Poll failed: %s", _safe_msg)
@@ -2431,6 +2477,8 @@ def _do_poll() -> None:
     st.session_state.last_poll_error = ""
 
     src_label = live_news_source_label(provider_counts)
+    if poll_result.fallback_from:
+        src_label = f"{src_label} fallback:{poll_result.fallback_from}"
     st.session_state.last_poll_status = (
         f"{len(story_feed_items)} live / {len(items)} raw [{src_label}] (cursor={new_cursor})"
     )
@@ -2609,6 +2657,7 @@ if st.session_state.use_bg_poller:
             benzinga_adapter=_get_adapter(),
             fmp_adapter=_get_fmp_adapter(),
             store=_get_store(),
+            producer_feed_client=_get_producer_feed_client(),
         )
         _bp.start(cursor=st.session_state.provider_cursors or st.session_state.cursor)
         st.session_state.bg_poller = _bp
@@ -2620,6 +2669,9 @@ if st.session_state.use_bg_poller:
         st.session_state.bg_poller.update_adapters(
             benzinga_adapter=_get_adapter(),
             fmp_adapter=_get_fmp_adapter(),
+        )
+        st.session_state.bg_poller.update_source_priority(
+            direct_primary=bool(st.session_state.get("direct_news_primary", False))
         )
         # Update interval (may have changed via slider or off-hours adjustment)
         st.session_state.bg_poller.update_interval(_effective_interval)
@@ -2695,7 +2747,9 @@ st.markdown(
 
 if not _has_live_news_provider(st.session_state.cfg, st.session_state.feed):
     _stop_bg_poller_if_running(reason="missing_live_news_provider")
-    st.warning("No live news provider is configured. Enable Benzinga or FMP to resume polling.")
+    st.warning(
+        "No live news source is configured. Connect the signals producer or enable Benzinga/FMP."
+    )
 
 feed = st.session_state.feed
 

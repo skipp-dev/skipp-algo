@@ -138,8 +138,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3717, "unlink"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3694->3717
-    ("open_prep/realtime_signals.py", 3771, "unlink"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3748->3771
+    ("open_prep/realtime_signals.py", 3730, "unlink"),  # 2026-07-20 private AI endpoint shifted site: 3723->3730
+    ("open_prep/realtime_signals.py", 3784, "unlink"),  # 2026-07-20 private AI endpoint shifted site: 3777->3784
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
@@ -182,7 +182,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 43, "unlink"),  # 2026-07-13 (manifest generator provenance imports): 39->43
-    ("streamlit_terminal.py", 2188, "unlink"),  # 2026-07-20: remove retired TradingView UI surfaces
+    ("streamlit_terminal.py", 2200, "unlink"),  # 2026-07-20 source-priority UI shifted site: 2193->2200
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 615, "unlink"),  # 2026-07-12 (drop dead social read): 618->615

@@ -149,11 +149,11 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     ("terminal_export.py", 918),  # 2026-07-12 (drop dead social read): 921 -> 918
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
-    ("terminal_fmp_insights.py", 446),  # 2026-07-20 Cisco request/response inspection: 442->446
+    ("terminal_fmp_insights.py", 452),  # 2026-07-20 Databento context contract shifted site: 446->452
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).
-    ("streamlit_terminal.py", 2230),  # 2026-07-20: remove retired TradingView UI surfaces
+    ("streamlit_terminal.py", 2242),  # 2026-07-20 source-priority UI shifted site: 2235->2242
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
     ("terminal_ai_insights.py", 277),  # 2026-07-20 cache reinspection: 274->277

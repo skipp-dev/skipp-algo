@@ -172,6 +172,19 @@ def test_dockerfile_copies_open_prep_and_runs_engine() -> None:
     assert "USER appuser" in dockerfile
 
 
+def test_dockerfile_contains_private_ai_runtime_modules() -> None:
+    dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY terminal_fmp_insights.py" in dockerfile
+    assert "COPY cisco_ai_defense.py" in dockerfile
+    assert "COPY open_prep_boundary.py" in dockerfile
+
+    watch_patterns = set(_load_railway_config()["build"]["watchPatterns"])
+    assert "terminal_fmp_insights.py" in watch_patterns
+    assert "cisco_ai_defense.py" in watch_patterns
+    assert "open_prep_boundary.py" in watch_patterns
+
+
 def test_requirements_file_exists() -> None:
     assert (_SERVICE_DIR / "requirements.txt").is_file()
 
@@ -201,3 +214,14 @@ def test_signals_producer_httpx_pin_matches_root_requirements() -> None:
     assert service_httpx == root_httpx, (
         "signals_producer httpx pin drifted from root requirements.txt; keep both pins aligned"
     )
+
+
+def test_signals_producer_ai_defense_pin_matches_root_requirements() -> None:
+    root_requirements = _REPO_ROOT / "requirements.txt"
+    service_requirements = _SERVICE_DIR / "requirements.txt"
+
+    root_pin = _extract_exact_pin(root_requirements, "cisco-aidefense-sdk")
+    service_pin = _extract_exact_pin(service_requirements, "cisco-aidefense-sdk")
+
+    assert root_pin is not None
+    assert service_pin == root_pin

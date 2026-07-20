@@ -10,6 +10,8 @@ def _cfg(**overrides: object) -> SimpleNamespace:
         "benzinga_api_key": "",
         "fmp_api_key": "",
         "fmp_enabled": False,
+        "producer_feed_url": "",
+        "producer_feed_token": "",
         "jsonl_path": "artifacts/feed.jsonl",
         "sqlite_path": "artifacts/feed.db",
         "poll_interval_s": 10.0,
@@ -22,6 +24,30 @@ def _cfg(**overrides: object) -> SimpleNamespace:
 def test_has_live_news_provider_accepts_api_keys() -> None:
     assert has_live_news_provider(_cfg(benzinga_api_key="bz")) is True
     assert has_live_news_provider(_cfg(fmp_enabled=True, fmp_api_key="fmp")) is True
+
+
+def test_has_live_news_provider_accepts_complete_producer_connection() -> None:
+    cfg = _cfg(
+        producer_feed_url="http://producer.railway.internal:8080/news-feed.json",
+        producer_feed_token="token",
+        fmp_enabled=True,
+        fmp_api_key="fmp",
+    )
+
+    assert has_live_news_provider(cfg) is True
+    assert validate_terminal_config(cfg) == []
+
+
+def test_validate_terminal_config_rejects_partial_producer_connection() -> None:
+    cfg = _cfg(
+        producer_feed_url="http://producer.railway.internal:8080",
+        benzinga_api_key="direct-key-must-not-fallback",
+    )
+
+    assert has_live_news_provider(cfg) is True
+    assert validate_terminal_config(cfg) == [
+        "producer_feed_url and producer_feed_token must be set together"
+    ]
 
 
 def test_validate_terminal_config_accepts_valid_config() -> None:

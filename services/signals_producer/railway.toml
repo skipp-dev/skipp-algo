@@ -14,6 +14,9 @@ dockerfilePath = "services/signals_producer/Dockerfile"
 watchPatterns = [
     "open_prep/**",
     "newsstack_fmp/**",
+    "terminal_fmp_insights.py",
+    "cisco_ai_defense.py",
+    "open_prep_boundary.py",
     "terminal_technicals.py",
     "requirements.txt",
     "services/signals_producer/**",

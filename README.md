@@ -397,10 +397,13 @@ cd skipp-algo
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Configure API keys
+# 2. Configure a news source
 cp .env.example .env   # or create .env manually
-# Required:
+# Direct local polling:
 #   BENZINGA_API_KEY=your_key
+# Or consume the prepared feed from a private signals producer:
+#   TERMINAL_PRODUCER_FEED_URL=http://producer.railway.internal:8080/news-feed.json
+#   TERMINAL_PRODUCER_FEED_TOKEN=shared_internal_token
 # Optional (enables more tabs / surfaces):
 #   FMP_API_KEY=your_key
 #   NEWSAPI_KEY=your_key   # legacy research only; production lane retired 2026-07-08
@@ -420,23 +423,46 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
-| `BENZINGA_API_KEY` | Yes | Benzinga/Massive key for RSS/optional news and delayed movers/quotes |
+| `BENZINGA_API_KEY` | One news source required | Benzinga/Massive key for direct RSS/optional news and delayed movers/quotes; not needed when the producer feed is configured |
 | `BENZINGA_DIRECT_API_KEY` | No | Direct Benzinga key for quantified news or direct REST transport |
 | `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto, insider transactions |
 | `UNUSUAL_WHALES_API_KEY` | No | **DEPRECATED 2026-05-12** — Unusual Whales Bearer token. UOA flow replaced by self-hosted Databento OPRA UOA detector (PRs #2155/#2157/#2163); remaining adapters dormant. Sunset target: 2026-Q3 (deadline 2026-08-31, owner: ops). Safe to leave unset; see `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13. |
 | `NEWSAPI_KEY` | No | Legacy NewsAPI.ai key; production lane retired 2026-07-08 |
 | `DATABENTO_API_KEY` | No | Databento API key for historical OHLCV + reference market data (corporate actions, identifier state) |
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
-| `CISCO_AI_DEFENSE_API_KEY` | Required for AI Insights | Cisco AI Defense **Inspection API** key; AI calls fail closed when missing |
-| `CISCO_AI_DEFENSE_REGION` | Required for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
+| `OPENAI_API_KEY` | Producer only, for AI Insights | OpenAI key used by the Producer's private `/ai-insights` route; do not copy it into the Terminal |
+| `CISCO_AI_DEFENSE_API_KEY` | Producer only, for AI Insights | Cisco AI Defense **Inspection API** key; Producer-side AI calls fail closed when missing |
+| `CISCO_AI_DEFENSE_REGION` | Producer only, for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` (default) or time-bounded `monitor`; there is no runtime `off` mode |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Inspection timeout, 1–60 seconds (default: `10`) |
+| `TERMINAL_PRODUCER_FEED_URL` | One news source required | Private producer URL, normally `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json`; only loopback and `*.railway.internal` hosts are accepted |
+| `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Bearer token referenced from the producer's `SIGNALS_INTERNAL_TOKEN`; never put it in the URL |
+| `TERMINAL_PRODUCER_FEED_TIMEOUT_S` | No | Private-feed request timeout in seconds (default: `5`) |
+| `TERMINAL_PRODUCER_FEED_MAX_AGE_S` | No | Reject producer snapshots older than this many seconds (default: `300`) |
+| `TERMINAL_PRODUCER_AI_TIMEOUT_S` | No | Timeout for private interactive AI Insights requests (default: `150`) |
+| `TERMINAL_DIRECT_NEWS_PRIMARY` | No | `0` (default): Producer primary, direct providers on failure; `1`: direct providers primary, Producer on failure. The sidebar toggle changes this at runtime. |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
 | `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
+
+When both private Producer settings and direct-provider keys are present, the
+Terminal polls only one path per cycle. By default the prepared Producer feed
+is primary and direct Benzinga/FMP polling runs only when the Producer request
+fails. The sidebar toggle can reverse that order. A successful empty or
+deduplicated batch never triggers fallback, preventing duplicate calls and
+quota use. Partial Producer configuration is reported as invalid but does not
+disable a working direct-provider path.
+
+Interactive AI Insights always sends the Terminal-built, multi-source context
+to the private Producer `/ai-insights` route. The context can include explicit
+Databento OHLCV, FMP fundamentals, technicals, news, social, analyst, and macro
+layers. OpenAI and Cisco AI Defense credentials stay on the Producer; Cisco
+inspects both request and response and fails closed before content crosses the
+respective boundary. The private client accepts only loopback or direct
+`*.railway.internal` hosts and never follows redirects.
 
 > **NewsAPI.ai retirement**: the production pollers and generator snapshot no
 > longer call Event Registry. The remaining adapter and legacy UI tabs are

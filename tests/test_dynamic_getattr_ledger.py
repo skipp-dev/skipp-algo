@@ -196,7 +196,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int, str]] = {
     ("terminal_attention_state.py", 45, "param"),
     ("terminal_catalyst_state.py", 31, "param"),
     ("terminal_live_story_state.py", 41, "param"),  # 2026-07-11 (truth-audit): -1 (removed DEFAULT_LIVE_STORY_COOLDOWN_S)
-    ("terminal_poller.py", 1152, "param"),  # 2026-07-20: remove retired TradingView headline conversion
+    ("terminal_poller.py", 1175, "param"),  # 2026-07-20 source-priority config shifted site: 1169->1175
     ("terminal_posture_state.py", 53, "param"),
     ("terminal_reaction_state.py", 49, "param"),
     ("terminal_resolution_state.py", 43, "param"),

@@ -19,6 +19,9 @@ COPY open_prep/ /app/open_prep/
 # databento_utils — local helper used by terminal_tradingview_news.
 COPY newsstack_fmp/ /app/newsstack_fmp/
 COPY terminal_tradingview_news.py /app/terminal_tradingview_news.py
+COPY terminal_fmp_insights.py /app/terminal_fmp_insights.py
+COPY cisco_ai_defense.py /app/cisco_ai_defense.py
+COPY open_prep_boundary.py /app/open_prep_boundary.py
 COPY smc_core/ /app/smc_core/
 COPY databento_utils.py /app/databento_utils.py
 # scripts/smc_newsapi_ai.py — NewsAPI.ai / Event Registry client imported by
