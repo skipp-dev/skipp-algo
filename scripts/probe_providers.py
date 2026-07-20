@@ -854,8 +854,8 @@ def probe_openai() -> tuple[str, str]:
         return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
     data = r.json()
     models = [m.get("id") for m in data.get("data", [])]
-    has_4o = any("gpt-4o" in m for m in models if m)
-    return ("OK", f"{len(models)} models accessible, has gpt-4o={has_4o}")
+    has_default = "gpt-5.6-luna" in models
+    return ("OK", f"{len(models)} models accessible, has gpt-5.6-luna={has_default}")
 
 
 def probe_newsapi_ai() -> tuple[str, str]:

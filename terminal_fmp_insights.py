@@ -408,7 +408,7 @@ Your role:
 Current date/time context is provided in the user message.
 """
 
-_DEFAULT_MODEL = "gpt-4o"
+_DEFAULT_MODEL = "gpt-5.6-luna"
 _API_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
 
 
@@ -529,7 +529,7 @@ def query_fmp_llm(
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens, "reasoning_effort": "none",
         "temperature": temperature,
     }
 

@@ -194,7 +194,7 @@ Your role:
 Current date/time context is provided in the user message.
 """
 
-_DEFAULT_MODEL = "gpt-4o"
+_DEFAULT_MODEL = "gpt-5.6-luna"
 _API_TIMEOUT = 30.0  # seconds
 
 
@@ -264,7 +264,7 @@ def query_llm(
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens, "reasoning_effort": "none",
         "temperature": temperature,
     }
 

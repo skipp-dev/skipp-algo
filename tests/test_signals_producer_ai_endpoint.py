@@ -65,7 +65,7 @@ def test_ai_endpoint_fails_closed_and_routes_to_producer_llm(
         calls.append((question, context_json, api_key))
         return SimpleNamespace(
             answer="inspected response",
-            model="gpt-4o",
+            model="gpt-5.6-luna",
             cached=False,
             context_articles=1,
             context_tickers=1,

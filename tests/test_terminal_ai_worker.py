@@ -15,7 +15,7 @@ def test_worker_adds_databento_context_and_uses_private_producer(monkeypatch) ->
     producer_ai = MagicMock()
     producer_ai.query.return_value = ProducerAIResponse(
         answer="inspected answer",
-        model="gpt-4o",
+        model="gpt-5.6-luna",
         cached=False,
         context_articles=1,
         context_tickers=1,
