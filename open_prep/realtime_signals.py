@@ -4264,7 +4264,7 @@ def _serve_ai_insights(handler: Any) -> None:
         content_length = int(raw_length)
     except (TypeError, ValueError):
         content_length = -1
-    request_limit = 16_000 if validation_request else 900_000
+    request_limit = 64_000 if validation_request else 900_000
     if not 0 < content_length <= request_limit:
         handler.send_response(413 if content_length > request_limit else 400)
         handler.end_headers()
@@ -4301,7 +4301,7 @@ def _serve_ai_insights(handler: Any) -> None:
     if (
         not isinstance(question, str)
         or not question.strip()
-        or len(question) > 4_000
+        or len(question) > 32_000
         or not isinstance(context_json, str)
         or len(context_json) > 850_000
     ):
