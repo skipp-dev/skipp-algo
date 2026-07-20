@@ -64,7 +64,38 @@ def test_provider_sdk_imports_require_an_explicit_ai_defense_boundary():
                 imported.update(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module)
-        if imported & provider_modules and not ({"cisco_ai_defense", "aidefense.runtime.agentsec"} & imported):
+        if imported & provider_modules and "cisco_ai_defense" not in imported:
             offenders.append(path.relative_to(ROOT).as_posix())
 
     assert not offenders, f"provider SDK imports without Cisco AI Defense boundary: {offenders}"
+
+
+def test_agent_and_mcp_runtimes_remain_default_deny_until_reviewed():
+    """Adding a dependency is inert; activating its client is a new trust boundary."""
+    agent_mcp_modules = {
+        "claude_agent_sdk",
+        "langchain",
+        "langgraph",
+        "mcp",
+        "openai.agents",
+    }
+    offenders = []
+    for path in _production_python():
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+        if any(
+            imported_name == protected_name or imported_name.startswith(f"{protected_name}.")
+            for imported_name in imported
+            for protected_name in agent_mcp_modules
+        ):
+            offenders.append(path.relative_to(ROOT).as_posix())
+
+    assert not offenders, (
+        "first-party agent/MCP runtime added before dedicated Cisco runtime, "
+        f"tool-policy, and supply-chain review: {offenders}"
+    )
