@@ -495,6 +495,7 @@ class AsyncNewsstackPoller:
     def __init__(self, poll_interval: float = 15.0) -> None:
         import threading
         self._data: dict[str, dict[str, Any]] = {}
+        self._feed_items: list[dict[str, Any]] = []
         self._lock = threading.Lock()
         self._interval = max(poll_interval, 5.0)
         self._thread: threading.Thread | None = None
@@ -575,6 +576,7 @@ class AsyncNewsstackPoller:
                             new_data[tk] = nc
                 with self._lock:
                     self._data = new_data
+                    self._feed_items = [dict(item) for item in ns_candidates[:500]]
                     self.cached_tickers_count = len(new_data)
                     self.poll_count += 1
                     self.last_success_at = time.time()
@@ -1255,7 +1257,9 @@ def _start_telemetry_server(
     environment, both ``/signals`` and ``/metrics`` additionally require an
     ``Authorization: Bearer <token>`` header — a minimal shared-secret guard
     for the case where the bind host is exposed beyond the private network
-    (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).
+    (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).  The
+    private ``/news-feed`` endpoint always fails closed unless that token is
+    configured and supplied.
     """
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1330,6 +1334,8 @@ def _start_telemetry_server(
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path in ("/news-feed.json", "/news-feed"):
+                _serve_news_feed(self, engine)
             elif self.path == "/metrics":
                 _auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
                 if _auth_token:
@@ -1345,6 +1351,13 @@ def _start_telemetry_server(
                 self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self) -> None:
+            if self.path == "/ai-insights":
+                _serve_ai_insights(self)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -4156,6 +4169,125 @@ def _open_prep_snapshot_url() -> str:
         "artifacts/open_prep/latest/latest_open_prep_run.json"
         "?ref=bot/live-open-prep-snapshot",
     ).strip()
+
+
+def _serve_news_feed(handler: Any, engine: Any) -> None:
+    """Serve the fail-closed private news snapshot to an HTTP handler."""
+    if not _authorize_private_request(handler):
+        return
+
+    poller = getattr(engine, "_async_newsstack", None)
+    if poller is None:
+        generated_ts = None
+        items: list[dict[str, Any]] = []
+    else:
+        with poller._lock:
+            generated_ts = poller.last_success_at
+            items = [dict(item) for item in poller._feed_items]
+    payload = {
+        "schema_version": 1,
+        "generated_ts": generated_ts,
+        "source": "smc-signals-producer",
+        "status": "ready" if generated_ts is not None else "warming_up",
+        "item_count": len(items),
+        "items": items,
+    }
+    try:
+        body = json.dumps(payload, allow_nan=False, default=str).encode()
+        status = 200 if payload["status"] == "ready" else 503
+    except (TypeError, ValueError):
+        body = json.dumps({"error": "invalid producer feed payload"}).encode()
+        status = 500
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def _authorize_private_request(handler: Any) -> bool:
+    """Authorize a private Producer endpoint without exposing token material."""
+    auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
+    if not auth_token:
+        handler.send_response(503)
+        handler.end_headers()
+        return False
+
+    header = handler.headers.get("Authorization", "")
+    parts = header.split(" ", 1)
+    supplied = (
+        parts[1].strip()
+        if len(parts) == 2 and parts[0].lower() == "bearer"
+        else ""
+    )
+    constant_time_equals = hmac.compare_digest
+    if not constant_time_equals(supplied, auth_token):
+        handler.send_response(401)
+        handler.end_headers()
+        return False
+    return True
+
+
+def _serve_ai_insights(handler: Any) -> None:
+    """Run an AI Insights query at the Producer's inspected LLM boundary."""
+    if not _authorize_private_request(handler):
+        return
+
+    raw_length = handler.headers.get("Content-Length", "")
+    try:
+        content_length = int(raw_length)
+    except (TypeError, ValueError):
+        content_length = -1
+    if not 0 < content_length <= 900_000:
+        handler.send_response(413 if content_length > 900_000 else 400)
+        handler.end_headers()
+        return
+
+    try:
+        payload = json.loads(handler.rfile.read(content_length))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        handler.send_response(400)
+        handler.end_headers()
+        return
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        handler.send_response(400)
+        handler.end_headers()
+        return
+    question = payload.get("question")
+    context_json = payload.get("context_json")
+    if (
+        not isinstance(question, str)
+        or not question.strip()
+        or len(question) > 4_000
+        or not isinstance(context_json, str)
+        or len(context_json) > 850_000
+    ):
+        handler.send_response(400)
+        handler.end_headers()
+        return
+
+    from terminal_fmp_insights import query_fmp_llm
+
+    result = query_fmp_llm(
+        question=question.strip(),
+        context_json=context_json,
+        api_key=os.getenv("OPENAI_API_KEY", "").strip(),
+    )
+    response_payload = {
+        "schema_version": 1,
+        "answer": result.answer,
+        "model": result.model,
+        "cached": result.cached,
+        "context_articles": result.context_articles,
+        "context_tickers": result.context_tickers,
+        "fmp_tickers": result.fmp_tickers,
+        "error": result.error,
+    }
+    body = json.dumps(response_payload, allow_nan=False).encode("utf-8")
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
 if __name__ == "__main__":

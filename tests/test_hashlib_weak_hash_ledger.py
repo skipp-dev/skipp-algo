@@ -80,11 +80,11 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics / _extract_snapshot_epoch.
-    "open_prep/realtime_signals.py": {"md5": frozenset({1809})},  # 2026-07-19 authenticated snapshot fallback shifted site: 1786->1809
+    "open_prep/realtime_signals.py": {"md5": frozenset({1822})},  # 2026-07-20 private AI endpoint shifted site: 1815->1822
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},
-    "terminal_poller.py": {"md5": frozenset({195})},
+    "terminal_poller.py": {"md5": frozenset({199})},  # 2026-07-20 producer cursor label shifted site: 195->199
 }
 
 _FROZEN_TOTAL = sum(

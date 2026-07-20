@@ -147,6 +147,27 @@ operator access is no longer required.
 | `CISCO_AI_DEFENSE_REGION` | Yes | `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1`; must match the tenant region |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` by default; `monitor` permits policy violations but still blocks unavailable or invalid inspection |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Integer 1–60; default `10` |
+| `TERMINAL_PRODUCER_FEED_URL` | Yes for centralized news | `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json` |
+| `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Railway reference to the producer's `SIGNALS_INTERNAL_TOKEN` |
+| `TERMINAL_PRODUCER_AI_TIMEOUT_S` | No | Private `/ai-insights` timeout; default `150` seconds |
+| `TERMINAL_DIRECT_NEWS_PRIMARY` | No | `0`: Producer news primary/direct fallback; `1`: direct news primary/Producer fallback |
+
+The production Terminal normally consumes the Producer's private
+`/news-feed.json` snapshot, while retaining FMP/Benzinga credentials for a
+failure fallback or an operator-selected direct-primary mode. Exactly one news
+path is called per successful cycle. The private client accepts only loopback
+or direct `*.railway.internal` hosts, sends no redirects, rejects
+stale/oversized/unknown-schema responses, and preserves the last good Terminal
+feed when a refresh fails.
+
+Interactive AI Insights is separate from news ingestion. The Terminal builds a
+bounded context from available news, Databento OHLCV, FMP fundamentals,
+technicals, social/analyst, and macro layers, then posts it to the Producer's
+private `/ai-insights` endpoint. `OPENAI_API_KEY` and Cisco AI Defense settings
+exist only on the Producer. The Producer performs request inspection, calls
+OpenAI only after an allow decision, inspects the response, and returns the
+bounded schema to the Terminal. Prompts and model responses are never written
+to application request logs.
 
 If an OpenAI key exists but the Cisco key or region is absent, AI Insights
 fails closed before OpenAI receives any content.

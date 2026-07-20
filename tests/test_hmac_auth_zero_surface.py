@@ -62,8 +62,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # ac7a83e5a (the /signals.json|/signals and the /metrics bearer check, each still
     # guarded by `if _auth_token:`), and the file still holds exactly 2 compare_digest
     # sites — the same count as when last reviewed. main.py compare unchanged at 457.
-    ("open_prep/realtime_signals.py", 1307, "compare_digest"),  # 2026-07-17 A0 latency metrics: 1306->1307
-    ("open_prep/realtime_signals.py", 1339, "compare_digest"),  # 2026-07-17 A0 latency metrics: 1338->1339
+    ("open_prep/realtime_signals.py", 1311, "compare_digest"),  # 2026-07-20 private producer feed shifted site: 1307->1311
+    ("open_prep/realtime_signals.py", 1345, "compare_digest"),  # 2026-07-20 private producer feed shifted site: 1339->1345
     ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the

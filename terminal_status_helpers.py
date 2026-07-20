@@ -16,6 +16,9 @@ def api_key_status(
     benzinga_key: str,
     databento_available: bool,
     openai_key: str,
+    producer_feed_configured: bool = False,
+    direct_news_configured: bool | None = None,
+    producer_ai_configured: bool = False,
 ) -> list[dict[str, Any]]:
     """Return per-provider status dicts suitable for sidebar rendering.
 
@@ -23,11 +26,20 @@ def api_key_status(
     """
     results: list[dict[str, Any]] = []
 
+    direct_news = bool(benzinga_key) if direct_news_configured is None else direct_news_configured
+    if producer_feed_configured and direct_news:
+        news_message = "producer primary + direct fallback configured"
+    elif producer_feed_configured:
+        news_message = "configured via signals producer"
+    elif direct_news:
+        news_message = "direct providers configured"
+    else:
+        news_message = "No live news source configured"
     results.append({
         "name": "News API",
-        "configured": bool(benzinga_key),
-        "icon": "✅" if benzinga_key else "❌",
-        "message": "configured" if benzinga_key else "No BENZINGA_API_KEY found",
+        "configured": direct_news or producer_feed_configured,
+        "icon": "✅" if direct_news or producer_feed_configured else "❌",
+        "message": news_message,
     })
     results.append({
         "name": "Databento",
@@ -37,9 +49,17 @@ def api_key_status(
     })
     results.append({
         "name": "OpenAI",
-        "configured": bool(openai_key),
-        "icon": "✅" if openai_key else "—",
-        "message": "configured" if openai_key else "not configured (AI Insights disabled)",
+        "configured": producer_ai_configured,
+        "icon": "✅" if producer_ai_configured else "—",
+        "message": (
+            "configured via signals producer"
+            if producer_ai_configured
+            else (
+                "local key ignored; Producer AI route not configured"
+                if openai_key
+                else "not configured (AI Insights disabled)"
+            )
+        ),
     })
     return results
 

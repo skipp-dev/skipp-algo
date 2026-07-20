@@ -18,7 +18,10 @@ class TestApiKeyStatus:
 
     def test_all_configured(self) -> None:
         result = api_key_status(
-            benzinga_key="abc", databento_available=True, openai_key="xyz"
+            benzinga_key="abc",
+            databento_available=True,
+            openai_key="",
+            producer_ai_configured=True,
         )
         assert all(r["configured"] for r in result)
         assert all("✅" in r["icon"] for r in result)
@@ -37,6 +40,38 @@ class TestApiKeyStatus:
         )
         assert result[0]["configured"]
         assert not result[1]["configured"]
+
+    def test_private_producer_counts_as_configured_news_source(self) -> None:
+        result = api_key_status(
+            benzinga_key="",
+            databento_available=False,
+            openai_key="",
+            producer_feed_configured=True,
+        )
+
+        assert result[0]["configured"] is True
+        assert result[0]["message"] == "configured via signals producer"
+
+    def test_producer_ai_counts_as_configured_without_terminal_openai_key(self) -> None:
+        result = api_key_status(
+            benzinga_key="",
+            databento_available=False,
+            openai_key="",
+            producer_ai_configured=True,
+        )
+
+        assert result[2]["configured"] is True
+        assert result[2]["message"] == "configured via signals producer"
+
+    def test_local_openai_key_does_not_enable_producer_only_ai(self) -> None:
+        result = api_key_status(
+            benzinga_key="",
+            databento_available=False,
+            openai_key="local-key",
+        )
+
+        assert result[2]["configured"] is False
+        assert result[2]["message"] == "local key ignored; Producer AI route not configured"
 
 
 class TestFeedStaleness:

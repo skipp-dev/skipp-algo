@@ -26,9 +26,16 @@ from terminal_fmp_insights import (
     FMPLLMResponse,
     assemble_context,
     assemble_fmp_data,
-    query_fmp_llm,
 )
+from terminal_internal_ai import ProducerAIInsightsClient
 from terminal_ui_helpers import safe_markdown_text
+
+try:
+    from terminal_databento import fetch_databento_quote_map
+    from terminal_databento import is_available as _databento_available
+    _DATABENTO_AVAILABLE = _databento_available()
+except ImportError:
+    _DATABENTO_AVAILABLE = False
 
 try:
     from terminal_technicals import fetch_technicals
@@ -79,7 +86,7 @@ def _analysis_worker(
     feed: list[dict[str, Any]],
     question: str,
     fmp_key: str,
-    openai_key: str,
+    producer_ai: ProducerAIInsightsClient,
     benzinga_key: str,
     macro: dict[str, Any] | None,
     cached: dict[str, Any],
@@ -87,14 +94,16 @@ def _analysis_worker(
     finnhub_available: bool,
     forecast_available: bool,
     poller_available: bool,
+    databento_available: bool,
 ) -> dict[str, Any]:
     """Run AI analysis in a background thread.  **Thread-safe**: no Streamlit API calls."""
     return _analysis_worker_inner(
         feed=feed, question=question, fmp_key=fmp_key,
-        openai_key=openai_key, benzinga_key=benzinga_key,
+        producer_ai=producer_ai, benzinga_key=benzinga_key,
         macro=macro, cached=cached,
         technicals_available=technicals_available, finnhub_available=finnhub_available,
         forecast_available=forecast_available, poller_available=poller_available,
+        databento_available=databento_available,
     )
 
 
@@ -103,7 +112,7 @@ def _analysis_worker_inner(
     feed: list[dict[str, Any]],
     question: str,
     fmp_key: str,
-    openai_key: str,
+    producer_ai: ProducerAIInsightsClient,
     benzinga_key: str,
     macro: dict[str, Any] | None,
     cached: dict[str, Any],
@@ -111,6 +120,7 @@ def _analysis_worker_inner(
     finnhub_available: bool,
     forecast_available: bool,
     poller_available: bool,
+    databento_available: bool,
 ) -> dict[str, Any]:
     """Inner worker — runs with a global socket timeout set by the outer wrapper."""
     cache_updates: dict[str, Any] = {}
@@ -334,17 +344,30 @@ def _analysis_worker_inner(
         if not congress_trades:
             congress_trades = cached.get("_cached_congress_trades")
 
+        # --- Databento exchange-observed daily OHLCV ---
+        databento_quotes: dict[str, Any] | None = None
+        if databento_available and _top_tickers:
+            try:
+                databento_quotes = fetch_databento_quote_map(_top_tickers[:30])
+                if databento_quotes:
+                    cache_updates["_cached_databento_quotes"] = databento_quotes
+            except Exception as exc:
+                logger.debug("AI worker: Databento enrichment failed (%s)", type(exc).__name__)
+        if not databento_quotes:
+            databento_quotes = cached.get("_cached_databento_quotes")
+
         # --- Enrichment layer count ---
         _n_layers = sum(1 for x in [
             fmp_data, technicals, econ_cal, sector_perf,
             social_sent, forecasts_ctx,
-            insider_trades, congress_trades, macro,
+            insider_trades, congress_trades, macro, databento_quotes,
         ] if x)
 
         logger.info("FMP AI worker: assembling %d-layer context and querying LLM…", _n_layers)
         context_json = assemble_context(
             feed,
             fmp_data=fmp_data,
+            databento_quotes=databento_quotes,
             technicals=technicals,
             macro=macro,
             economic_calendar=econ_cal,
@@ -355,10 +378,9 @@ def _analysis_worker_inner(
             congressional_trades=congress_trades,
             max_articles=40,
         )
-        result: FMPLLMResponse = query_fmp_llm(
+        result = producer_ai.query(
             question=question,
             context_json=context_json,
-            api_key=openai_key,
         )
 
         logger.info("FMP AI worker: analysis complete (model=%s, cached=%s)", result.model, result.cached)
@@ -444,25 +466,25 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the FMP AI tab."""
     cfg = st.session_state.cfg
 
-    # Need both FMP key (for data) and OpenAI key (for LLM)
+    # Market-data enrichment is optional per source; LLM egress is Producer-only.
     fmp_key = getattr(cfg, "fmp_api_key", "")
-    openai_key = getattr(cfg, "openai_api_key", "")
+    producer_url = getattr(cfg, "producer_feed_url", "")
+    producer_token = getattr(cfg, "producer_feed_token", "")
 
-    if not fmp_key:
-        st.warning("💡 Set `FMP_API_KEY` in your `.env` file to enable FMP AI.")
+    if not fmp_key and not _DATABENTO_AVAILABLE:
+        st.warning("💡 Configure FMP or Databento to enable market-data enrichment.")
         st.info(
-            "This tab uses the FMP API to fetch real-time quotes, company "
-            "profiles, and financial data — then sends the enriched context "
-            "to the LLM for analysis.  Add your FMP key and restart."
+            "AI Insights needs at least one market-data source. Configure "
+            "`FMP_API_KEY` and/or `DATABENTO_API_KEY`, then restart."
         )
         return
 
-    if not openai_key:
-        st.warning("💡 Set `OPENAI_API_KEY` in your `.env` file to enable AI analysis.")
+    if not producer_url or not producer_token:
+        st.warning("💡 The private Signals Producer AI route is not configured.")
         st.info(
-            "FMP AI enriches the context with financial data from FMP, "
-            "then uses OpenAI (GPT-4o) for the actual analysis.  "
-            "Both keys are required."
+            "Set `TERMINAL_PRODUCER_FEED_URL` and "
+            "`TERMINAL_PRODUCER_FEED_TOKEN`. OpenAI and Cisco AI Defense "
+            "remain on the Producer; no OpenAI key is required in the Terminal."
         )
         return
 
@@ -470,7 +492,15 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("No articles in the feed yet — wait for the first poll to complete.")
         return
 
-    st.caption(f"Feed: {len(feed)} articles · Session: {current_session} · 🏦 FMP-enriched")
+    _sources = ", ".join(
+        source
+        for source, available in (("Databento", _DATABENTO_AVAILABLE), ("FMP", bool(fmp_key)))
+        if available
+    )
+    st.caption(
+        f"Feed: {len(feed)} articles · Session: {current_session} · "
+        f"Market data: {_sources} · AI via protected Signals Producer"
+    )
 
     # Persist FMP AI workflow state (separate keys from AI Insights)
     st.session_state.setdefault("fmp_ai_selected_question", "")
@@ -505,7 +535,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         if _q:
             st.session_state["fmp_ai_selected_question"] = _q
             st.session_state["fmp_ai_run_requested"] = True
-            logger.info("FMP AI custom question submitted via Enter: %s", _q[:60])
+            logger.info("AI custom question submitted via Enter")
 
     st.text_input(
         "Your question about the current market data:",
@@ -583,16 +613,22 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "_cached_econ_cal", "_cached_sector_perf", "_cached_social_sent",
             "_cached_forecasts",
             "_cached_insider_trades", "_cached_congress_trades",
+            "_cached_databento_quotes",
         ]
         _cached_snapshot = {k: st.session_state.get(k) for k in _cache_keys}
         _bz_key = getattr(cfg, "benzinga_api_key", "") if cfg else ""
+        _producer_ai = ProducerAIInsightsClient(
+            producer_url,
+            producer_token,
+            timeout_s=getattr(cfg, "producer_ai_timeout_s", 150.0),
+        )
 
         _submitted = _ai_pool.submit(
             _analysis_worker,
             feed=list(feed),  # shallow copy — avoid concurrent mutation
             question=question,
             fmp_key=fmp_key,
-            openai_key=openai_key,
+            producer_ai=_producer_ai,
             benzinga_key=_bz_key,
             macro=_cached_snapshot.get("_cached_macro"),
             cached=_cached_snapshot,
@@ -600,13 +636,14 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             finnhub_available=_FINNHUB_AVAILABLE,
             forecast_available=_FORECAST_AVAILABLE,
             poller_available=_POLLER_AVAILABLE,
+            databento_available=_DATABENTO_AVAILABLE,
         )
         st.session_state["_fmp_ai_future"] = _submitted
         st.session_state["_fmp_ai_executing"] = True
         st.session_state["_fmp_ai_submit_ts"] = time.time()
         st.session_state["fmp_ai_run_requested"] = False  # consume immediately
         st.toast("🤖 AI analysis started in background…")
-        logger.info("FMP AI analysis submitted to background thread (question=%r)", question[:60])
+        logger.info("AI analysis submitted to background thread")
 
     # Step C: show progress if analysis is running
     _MAX_WORKER_SECONDS = 180  # hard timeout — cancel after 3 minutes
