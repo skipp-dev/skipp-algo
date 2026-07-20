@@ -5799,7 +5799,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Days since Databento last delivered market data (DBEQ.BASIC). Good < 3d; a growing gap means the feed is falling behind.",
+      "description": "Days since the configured Databento delivery probe last reported market data (DBEQ.BASIC). Good < 3d; a growing gap means the feed is falling behind. If no delivery probe is configured or its credential-health snapshot is unavailable, this shows NOT CONFIGURED.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -5808,7 +5808,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_credential_health_databento_delivery_staleness_days{job=~\"$job\"}",
+          "expr": "live_overlay_credential_health_databento_delivery_staleness_days{job=~\"$job\"} or on() vector(-1)",
           "legendFormat": "delivery age",
           "instant": true,
           "datasource": {
@@ -5832,8 +5832,18 @@
       "fieldConfig": {
         "defaults": {
           "unit": "d",
-          "noValue": "NO DATA",
-          "mappings": [],
+          "noValue": "NOT CONFIGURED",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "NOT CONFIGURED",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -5979,7 +5989,7 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. N/A when no report has been ingested yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 18,
         "y": 221,
@@ -5988,7 +5998,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_tradingview_credential_valid{job=~\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_loaded{job=~\"$job\"} == 1)",
+          "expr": "(live_overlay_tradingview_credential_valid{job=~\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_loaded{job=~\"$job\"} == 1)) or on(job,instance) (live_overlay_tradingview_credential_loaded{job=~\"$job\"} * 0 - 1)",
           "instant": true,
           "refId": "A",
           "datasource": {
@@ -5999,7 +6009,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "N/A",
+          "noValue": "NOT LOADED",
           "mappings": [
             {
               "type": "value",
@@ -6013,6 +6023,11 @@
                   "text": "valid",
                   "color": "green",
                   "index": 1
+                },
+                "-1": {
+                  "text": "NOT LOADED",
+                  "color": "red",
+                  "index": 2
                 }
               }
             }
@@ -6049,7 +6064,7 @@
     {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. N/A when no report/age is available.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 0,
         "y": 228,
@@ -6058,7 +6073,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_tradingview_credential_age_hours{job=~\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_age_known{job=~\"$job\"} == 1)",
+          "expr": "(live_overlay_tradingview_credential_age_hours{job=~\"$job\"} and on(job,instance) (live_overlay_tradingview_credential_age_known{job=~\"$job\"} == 1)) or on(job,instance) (live_overlay_tradingview_credential_loaded{job=~\"$job\"} * 0 - 1)",
           "instant": true,
           "refId": "A",
           "datasource": {
@@ -6090,7 +6105,18 @@
             ]
           },
           "unit": "h",
-          "noValue": "N/A"
+          "noValue": "NOT LOADED",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "NOT LOADED",
+                  "color": "red"
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },
@@ -6119,7 +6145,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Is the Benzinga/Massive news API key valid? Load-bearing since 2026-07-08 (open_prep Core News lane + hourly live-news cron).",
+      "description": "Is the configured Benzinga/Massive news API key valid? Load-bearing since 2026-07-08 (open_prep Core News lane + hourly live-news cron). If the provider is not configured or its credential-health snapshot is unavailable, this shows NOT CONFIGURED.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -6128,7 +6154,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_credential_health_benzinga_key_valid{job=~\"$job\"}",
+          "expr": "live_overlay_credential_health_benzinga_key_valid{job=~\"$job\"} or on() vector(-1)",
           "legendFormat": "Benzinga/Massive API Key",
           "instant": true,
           "datasource": {
@@ -6151,7 +6177,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "noValue": "NO DATA",
+          "noValue": "NOT CONFIGURED",
           "mappings": [
             {
               "type": "value",
@@ -6163,6 +6189,10 @@
                 "1": {
                   "text": "VALID",
                   "color": "green"
+                },
+                "-1": {
+                  "text": "NOT CONFIGURED",
+                  "color": "gray"
                 }
               }
             }
@@ -7588,7 +7618,7 @@
       }
     },
     {
-      "title": "Scrape Targets Up",
+      "title": "Service Metrics Present",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -7602,7 +7632,7 @@
       },
       "targets": [
         {
-          "expr": "up{job=~\"alloy|signals_producer|live_overlay\"}",
+          "expr": "(count by (job) ({__name__=~\"live_overlay_health_status_code|signals_producer_watchlist_symbols\",job=~\"live_overlay|signals_producer\"}) > bool 0) or on() vector(0)",
           "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
@@ -7621,7 +7651,7 @@
           }
         }
       },
-      "description": "Scrape target liveness from Alloy for alloy, signals_producer and live_overlay jobs.",
+      "description": "Presence of the canonical health/watchlist metrics for the remote-write services. This intentionally does not use Prometheus up: up only exists for pull-scraped targets and is empty when these services publish through remote_write.",
       "id": 2133310723,
       "options": {}
     },
