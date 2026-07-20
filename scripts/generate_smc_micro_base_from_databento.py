@@ -1600,6 +1600,7 @@ def finalize_pipeline(
     enrich_institutional: bool = False,
     enrich_analyst: bool = False,
     enrich_insider: bool = False,
+    static_control_plane: bool = False,
     debug_mode: bool = False,
     live_news_snapshot_path: Path | None = None,
     emit_live_news_snapshot: bool = False,
@@ -1751,6 +1752,7 @@ def finalize_pipeline(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
+        static_control_plane=static_control_plane,
     )
     _progress(
         f"Finalize {pine_step_label} complete in {time_module.perf_counter() - pine_started_at:.1f}s "
@@ -1902,6 +1904,7 @@ def main() -> None:
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
         emit_live_news_snapshot=True,
+        static_control_plane=bool(args.static_only),
         debug_mode=bool(args.debug),
         progress_callback=cli_progress_callback,
         **enrichment_flags,

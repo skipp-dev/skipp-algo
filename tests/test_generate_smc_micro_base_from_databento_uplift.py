@@ -785,6 +785,7 @@ def test_main_bundle_path_invokes_generate_and_finalize(
 
     def fake_finalize(*, base_result: Any, **kwargs: Any) -> dict[str, Any]:
         captured["base_result"] = base_result
+        captured["finalize_kwargs"] = kwargs
         return {"ok": True, "rows": 0}
 
     monkeypatch.setattr(gsm, "generate_base_from_bundle", fake_generate)
@@ -795,6 +796,7 @@ def test_main_bundle_path_invokes_generate_and_finalize(
             "generate_smc_micro_base_from_databento",
             "--bundle", str(bundle_path),
             "--asof-date", "2026-04-23",
+            "--static-only",
         ],
     )
 
@@ -803,3 +805,4 @@ def test_main_bundle_path_invokes_generate_and_finalize(
     assert captured["bundle"] == bundle_path
     assert captured["asof_date"] == "2026-04-23"
     assert captured["base_result"] == "fake-base-result"
+    assert captured["finalize_kwargs"]["static_control_plane"] is True
