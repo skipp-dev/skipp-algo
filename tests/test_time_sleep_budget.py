@@ -140,15 +140,6 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/run_open_prep.py", 2008),  # 2026-07-19 remove retired TradingView news lane
         ("open_prep/run_open_prep.py", 2010),  # 2026-07-19 remove retired TradingView news lane
         ("newsstack_fmp/_bz_http.py", 44),
-        # 2026-07-11 (truth-audit): removed inert _TECHNICALS_429_TTL + dead 429 branch (-5).
-        ("terminal_bitcoin.py", 841),
-        ("terminal_bitcoin.py", 843),
-        # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
-        # 2026-06-19 (timeframe expansion): INTERVAL_MAP/default list additions
-        # shifted the throttle sleep site 293 -> 294.
-        # 2026-07-09 (fix/tv-throttle-cooldown-fmp): -1 (removed _CACHE_ERROR_TTL_S)
-        # +4 (clock-step clamp comment) shifted the throttle sleep 294 -> 297.
-        ("terminal_technicals.py", 296),  # 2026-07-12 (drop dead "10m"): 297->296
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (198→199, 209→210 after RSS improvements).
         # 2026-06-24 feat/benzinga-rss-improvements: added retry sleep in

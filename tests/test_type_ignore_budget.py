@@ -105,7 +105,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "smc_core/resilient.py": 2,
     "streamlit_terminal.py": 7,
     "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
-    "terminal_bitcoin.py": 16,  # 2026-07-11 (truth-audit): -2 from removing the inert 429 branch (its 2 type-ignores)
+    "terminal_bitcoin.py": 13,  # 2026-07-20: remove retired technical-adapter imports
     "terminal_export.py": 1,
     "terminal_finnhub.py": 4,
     "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
@@ -113,7 +113,6 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_poller.py": 12,  # rebaselined 2026-05-30 PR #2451 (was 13; -1 for dead-code removal)
     "terminal_spike_scanner.py": 1,
     "terminal_tabs/tab_live_incubation.py": 1,
-    "terminal_technicals.py": 2,
     "smc_integration/measurement_evidence.py": 1,  # 2026-06-24: datetime subtraction type narrowing
     "open_prep/realtime_signals.py": 1,  # 2026-06-24: _resource=None POSIX-guard shim (type: ignore[assignment])
     "services/live_overlay_daemon/metrics.py": 2,  # 2026-06-24: resource=None POSIX-guard shim (type: ignore[assignment]) + possibly-undefined

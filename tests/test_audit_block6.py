@@ -14,7 +14,6 @@ Covers:
 from __future__ import annotations
 
 import json
-import threading
 import time
 from datetime import UTC
 from unittest.mock import MagicMock, patch
@@ -112,115 +111,14 @@ class TestCalendarSort:
         assert dates == ["2025-01-15", "2024-12-01", "2024-06-30"]
 
 
-# === Fix #9: tv_throttle sleeps outside lock ================================
+# === Fix #9/#10: provider retirement is explicit ===========================
 
-class TestTvThrottleNoLockHeldDuringSleep:
-    """Verify the rate lock is NOT held while sleeping."""
+def test_terminal_technicals_exposes_only_supported_intervals() -> None:
+    from terminal_technicals import INTERVAL_MAP
 
-    def test_lock_released_during_sleep(self):
-        import terminal_technicals as tt
-
-        # Force a long spacing so sleep is triggered
-        original_base = tt._TV_MIN_CALL_SPACING_BASE
-        try:
-            tt._TV_MIN_CALL_SPACING_BASE = 2.0
-            tt._tv_last_call_ts = time.time()  # just called
-            tt._tv_cooldown_until = 0.0  # no cooldown
-            tt._tv_cooldown_ended_at = 0.0
-
-            acquired = threading.Event()
-
-            def try_acquire():
-                with tt._tv_rate_lock:
-                    acquired.set()
-
-            t = threading.Thread(target=try_acquire, daemon=True)
-
-            def throttle_and_signal():
-                tt._tv_throttle()
-
-            throttle_thread = threading.Thread(target=throttle_and_signal, daemon=True)
-            throttle_thread.start()
-
-            # Give throttle thread a moment to enter sleep
-            time.sleep(0.2)
-
-            # Now try to acquire the lock from another thread
-            t.start()
-            t.join(timeout=1.0)
-            assert acquired.is_set(), "Lock should be acquirable while _tv_throttle sleeps"
-        finally:
-            tt._TV_MIN_CALL_SPACING_BASE = original_base
-            # Wait for throttle thread
-            throttle_thread.join(timeout=3.0)
-
-
-class TestTvThrottleClampsFutureLastCall:
-    """A _tv_last_call_ts in the FUTURE (backward system-clock step, or an
-    extreme concurrent burst) must never make _tv_throttle sleep longer than
-    `spacing`; without the max(0.0, elapsed) clamp it slept spacing + |elapsed|
-    (up to thousands of seconds)."""
-
-    def test_future_last_call_never_sleeps_longer_than_spacing(self):
-        import terminal_technicals as tt
-
-        original_base = tt._TV_MIN_CALL_SPACING_BASE
-        try:
-            tt._TV_MIN_CALL_SPACING_BASE = 2.0
-            with tt._tv_rate_lock:
-                tt._tv_last_call_ts = time.time() + 1000.0  # 1000s in the future
-                tt._tv_cooldown_until = 0.0
-                # Well past the post-429 window so BASE spacing (2.0s) applies,
-                # not the 20s post-429 spacing — makes the clamp bound tight.
-                tt._tv_cooldown_ended_at = time.time() - 10_000.0
-            with patch.object(tt.time, "sleep") as mock_sleep:  # capture, don't wait
-                tt._tv_throttle()
-            slept = mock_sleep.call_args[0][0] if mock_sleep.call_args else 0.0
-            assert slept <= tt._TV_MIN_CALL_SPACING_BASE + 0.01, (
-                f"clamp failed: slept {slept:.1f}s for a future _tv_last_call_ts"
-            )
-        finally:
-            tt._TV_MIN_CALL_SPACING_BASE = original_base
-
-
-# === Fix #10: Exchange resolution cache =====================================
-
-class TestExchangeCache:
-    """_try_exchanges should cache successful exchange and try it first."""
-
-    def test_caches_exchange(self):
-        import terminal_technicals as tt
-
-        # Clear cache
-        tt._SYMBOL_EXCHANGE_CACHE.clear()
-
-        mock_analysis = MagicMock()
-        mock_analysis.summary = {"RECOMMENDATION": "BUY"}
-
-        call_log = []
-
-        def fake_handler(**kwargs):
-            call_log.append(kwargs["exchange"])
-            m = MagicMock()
-            if kwargs["exchange"] == "NYSE":
-                m.get_analysis.return_value = mock_analysis
-            else:
-                m.get_analysis.return_value = None
-            return m
-
-        with patch.object(tt, "_tv_throttle", lambda: None), \
-             patch.object(tt, "_tv_register_success", lambda: None), \
-             patch("terminal_technicals.TA_Handler", side_effect=fake_handler):
-            # First call: probes NASDAQ (fails), NYSE (succeeds)
-            result = tt._try_exchanges("TESTX", "1h")
-            assert result is not None
-            assert tt._SYMBOL_EXCHANGE_CACHE["TESTX"] == "NYSE"
-
-            call_log.clear()
-            # Second call: should try NYSE first
-            result2 = tt._try_exchanges("TESTX", "1h")
-            assert result2 is not None
-            assert call_log[0] == "NYSE", f"Expected NYSE first, got {call_log}"
+    assert set(INTERVAL_MAP) == {
+        "1m", "5m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M",
+    }
 
 
 # === Fix #11: Shutdown cleanup ==============================================

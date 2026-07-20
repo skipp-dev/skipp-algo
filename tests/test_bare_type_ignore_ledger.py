@@ -59,19 +59,18 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         ("rl/simulator/sb3_execution_env.py", 23),
         # 2026-07-11 (truth-audit): removed inert _TECHNICALS_429_TTL + dead 429
         # branch (-1 above /-5 below; dropped the branch's own bare type-ignore).
-        ("terminal_bitcoin.py", 311),
-        ("terminal_bitcoin.py", 395),
-        ("terminal_bitcoin.py", 475),
-        ("terminal_bitcoin.py", 480),
-        ("terminal_bitcoin.py", 535),
-        ("terminal_bitcoin.py", 549),
-        ("terminal_bitcoin.py", 558),
-        ("terminal_bitcoin.py", 636),
-        ("terminal_bitcoin.py", 691),
-        ("terminal_bitcoin.py", 733),
-        ("terminal_bitcoin.py", 758),
-        ("terminal_bitcoin.py", 784),
-        ("terminal_bitcoin.py", 837),
+        ("terminal_bitcoin.py", 296),
+        ("terminal_bitcoin.py", 380),
+        ("terminal_bitcoin.py", 460),
+        ("terminal_bitcoin.py", 465),
+        ("terminal_bitcoin.py", 520),
+        ("terminal_bitcoin.py", 534),
+        ("terminal_bitcoin.py", 547),
+        ("terminal_bitcoin.py", 602),
+        ("terminal_bitcoin.py", 644),
+        ("terminal_bitcoin.py", 669),
+        ("terminal_bitcoin.py", 695),
+        ("terminal_bitcoin.py", 748),
     }
 )
 
