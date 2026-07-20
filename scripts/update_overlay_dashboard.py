@@ -194,6 +194,7 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
         {
             "expr": 'live_overlay_expected_market_traffic{job=~"$job"}',
             "legendFormat": "expected_market_traffic",
+            "instant": True,
             "datasource": {
                 "type": "prometheus",
                 "uid": "grafanacloud-prom",
