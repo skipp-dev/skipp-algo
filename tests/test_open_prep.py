@@ -871,6 +871,23 @@ class TestOpenPrep(unittest.TestCase):
         label, _score = classify_article_sentiment("Tempus AI Earnings Report: Financial Analysis")
         self.assertEqual(label, "neutral")
 
+    def test_sentiment_earnings_previews_do_not_infer_direction(self):
+        examples = (
+            (
+                "T-Mobile Set to Report Q2 Results: Can Revenue Growth Lift Earnings?",
+                "Preview of expectations before the company reports.",
+            ),
+            (
+                "Element Solutions Reports Next Week: Wall Street Expects Earnings Growth",
+                "The company has ingredients for a likely earnings beat in its upcoming report.",
+            ),
+        )
+        for title, content in examples:
+            with self.subTest(title=title):
+                label, score = classify_article_sentiment(title, content)
+                self.assertEqual(label, "neutral")
+                self.assertEqual(score, 0.0)
+
     def test_sentiment_negation_flips_bullish_to_bearish(self):
         label, score = classify_article_sentiment("Company shows no growth and not profitable")
         self.assertEqual(label, "bearish")
@@ -3638,6 +3655,13 @@ class TestSeniorReviewFixesPlaybook(unittest.TestCase):
             result = classify_source_quality(word, "generic-source")
             self.assertNotEqual(result["source_tier"], SOURCE_TIER_1,
                                 f"'{word}' must not match Tier 1")
+
+    def test_source_quality_zacks_is_general_financial_media(self):
+        from open_prep.playbook import SOURCE_TIER_3, classify_source_quality
+
+        result = classify_source_quality("zacks.com", "Earnings preview")
+        self.assertEqual(result["source_tier"], SOURCE_TIER_3)
+        self.assertEqual(result["source_rank"], 3)
 
     def test_execution_quality_no_dollar_volume_param(self):
         """M-6: _execution_quality no longer accepts dollar_volume."""

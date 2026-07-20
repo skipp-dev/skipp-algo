@@ -246,6 +246,43 @@ class TestScoring(unittest.TestCase):
         )
         self.assertLess(r.polarity, 0)
 
+    def test_earnings_previews_are_neutral_and_lower_impact(self):
+        from newsstack_fmp.scoring import classify_and_score
+
+        headlines = (
+            "T-Mobile Set to Report Q2 Results: Can Revenue Growth Lift Earnings?",
+            "Element Solutions Reports Next Week: Wall Street Expects Earnings Growth",
+        )
+        snippets = (
+            "Analysts discuss what investors should expect from the upcoming report.",
+            "The company has ingredients for a likely earnings beat in its upcoming report.",
+        )
+        for headline, snippet in zip(headlines, snippets, strict=True):
+            with self.subTest(headline=headline):
+                result = classify_and_score(
+                    {"headline": headline, "snippet": snippet, "tickers": ["TEST"]},
+                    cluster_count=1,
+                )
+                self.assertEqual(result.category, "earnings")
+                self.assertEqual(result.polarity, 0.0)
+                self.assertLessEqual(result.impact, 0.35)
+                self.assertLess(result.score, 0.60)
+
+    def test_realised_earnings_result_keeps_directional_score(self):
+        from newsstack_fmp.scoring import classify_and_score
+
+        result = classify_and_score(
+            {
+                "headline": "T-Mobile Reports Q2 Revenue Growth and Beats Estimates",
+                "snippet": "Wall Street expected lower earnings before the release.",
+                "tickers": ["TMUS"],
+            },
+            cluster_count=1,
+        )
+        self.assertEqual(result.category, "earnings")
+        self.assertGreater(result.polarity, 0.0)
+        self.assertGreater(result.score, 0.70)
+
     def test_score_bounded(self):
         from newsstack_fmp.scoring import classify_and_score
 

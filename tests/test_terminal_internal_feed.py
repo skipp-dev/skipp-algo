@@ -12,7 +12,13 @@ import pytest
 
 from open_prep import realtime_signals as rs
 from terminal_background_poller import BackgroundPoller
-from terminal_internal_feed import ProducerFeedClient, ProducerFeedError
+from terminal_catalyst_state import annotate_feed_with_ticker_catalyst_state
+from terminal_internal_feed import (
+    ProducerFeedClient,
+    ProducerFeedError,
+    candidate_to_classified_item,
+)
+from terminal_posture_state import effective_posture_action, effective_posture_state
 
 
 def _candidate(**overrides: object) -> dict[str, object]:
@@ -80,6 +86,38 @@ def test_client_reads_private_snapshot_and_emits_only_changes() -> None:
     assert len(changed) == 1
     assert changed[0].item_id == first[0].item_id
     assert changed[0].news_score == 0.95
+
+
+def test_producer_earnings_preview_stays_non_directional() -> None:
+    item = candidate_to_classified_item(
+        _candidate(
+            ticker="ESI",
+            headline=(
+                "Element Solutions (ESI) Reports Next Week: "
+                "Wall Street Expects Earnings Growth"
+            ),
+            snippet=(
+                "The company has ingredients for a likely earnings beat "
+                "in its upcoming report."
+            ),
+            news_source="zacks.com",
+            news_score=0.53,
+        ),
+        generated_ts=time.time(),
+    )
+
+    assert item.sentiment_label == "neutral"
+    assert item.sentiment_score == 0.0
+    assert item.source_tier == "TIER_3"
+    assert item.source_rank == 3
+
+    annotated, ticker_state = annotate_feed_with_ticker_catalyst_state(
+        [item.to_dict()], now=time.time()
+    )
+    assert ticker_state["ESI"]["catalyst_direction"] == "NEUTRAL"
+    assert ticker_state["ESI"]["catalyst_actionable"] is False
+    assert effective_posture_state(annotated[0]) == "NEUTRAL"
+    assert effective_posture_action(annotated[0]) == "ignore"
 
 
 @pytest.mark.parametrize(
