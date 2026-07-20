@@ -892,8 +892,8 @@ def test_dashboard_refresh_rate_reduced() -> None:
     assert dashboard.get("refresh") == "5m"
 
 
-def test_dashboard_has_collector_scrape_targets_row() -> None:
-    """Collector scrape-target panels must live in the Infrastructure section (expanded)."""
+def test_dashboard_has_collector_service_metrics_row() -> None:
+    """Collector service-metric panels must live in the Infrastructure section (expanded)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     row = next(
         p for p in dashboard["panels"]
@@ -901,9 +901,9 @@ def test_dashboard_has_collector_scrape_targets_row() -> None:
     )
     assert row.get("collapsed") is False
     titles = {p.get("title") for p in _dashboard_panels(dashboard)}
-    assert "Scrape Targets Up" in titles
+    assert "Service Metrics Present" in titles
     assert "Collector Resident Memory" in titles
-    assert _section_of(dashboard, "Scrape Targets Up") == "Infrastructure (Railway / Collector)"
+    assert _section_of(dashboard, "Service Metrics Present") == "Infrastructure (Railway / Collector)"
 
 
 def test_dashboard_latency_panel_uses_only_histogram_quantile() -> None:
@@ -1195,6 +1195,37 @@ def test_dashboard_databento_and_fmp_are_surfaced_as_providers() -> None:
         assert _section_of(dashboard, title) == "Providers (Feeds, News & Credentials)", title
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Databento Delivery Age")
     assert "databento_delivery_staleness_days" in panel["targets"][0]["expr"]
+
+
+def test_dashboard_optional_provider_panels_have_explicit_not_configured_state() -> None:
+    """Missing optional credential probes must not be presented as ambiguous NO DATA."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title, metric in (
+        ("Databento Delivery Age", "databento_delivery_staleness_days"),
+        ("Benzinga/Massive API Key", "benzinga_key_valid"),
+    ):
+        panel = panels[title]
+        target = panel["targets"][0]
+        assert metric in target["expr"]
+        assert "or on() vector(-1)" in target["expr"]
+        defaults = panel["fieldConfig"]["defaults"]
+        assert defaults["noValue"] == "NOT CONFIGURED"
+        assert defaults["mappings"][0]["options"]["-1"]["text"] == "NOT CONFIGURED"
+
+
+def test_dashboard_tradingview_credential_panels_surface_unloaded_state() -> None:
+    """The TV credential panels must show NOT LOADED instead of dropping the series."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title in ("TradingView Credential Status", "TradingView Credential Age"):
+        panel = panels[title]
+        expr = panel["targets"][0]["expr"]
+        assert "or on(job,instance)" in expr
+        assert "* 0 - 1" in expr
+        defaults = panel["fieldConfig"]["defaults"]
+        assert defaults["noValue"] == "NOT LOADED"
+        assert defaults["mappings"][0]["options"]["-1"]["text"] == "NOT LOADED"
 
 
 def test_dashboard_fmp_bandwidth_panels_present() -> None:
@@ -1614,7 +1645,7 @@ def test_dashboard_signal_pipeline_ready_links_to_concrete_detail_panels() -> No
         "2165782568": "signals_producer_open_prep_snapshot_loaded",
         "2165782569": "signals_producer_watchlist_symbols",
         "2165782570": "signals_producer_last_poll_age_seconds",
-        "2133310723": 'up{job=~"alloy|signals_producer|live_overlay"}',
+        "2133310723": "live_overlay_health_status_code|signals_producer_watchlist_symbols",
     }
     for panel_id, metric in expected.items():
         assert any(f"viewPanel={panel_id}" in url for url in urls), f"missing drilldown to panel {panel_id}"

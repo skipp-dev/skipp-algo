@@ -192,7 +192,7 @@ When snapshot is missing:
 
 ---
 
-### 8-9. ⚠️ TradingView Credential Panels - N/A Values
+### 8-9. ⚠️ TradingView Credential Panels - NOT LOADED State
 
 **Affected Panels:**
 - TradingView Credential Age
@@ -235,6 +235,10 @@ def _load_tradingview_credential_snapshot() -> dict[str, Any]:
   ]
 }
 ```
+
+The panels now preserve that distinction: a missing or unloaded report is
+rendered as **NOT LOADED** with a red fallback value instead of an empty series
+that could be mistaken for a healthy state.
 
 **Metrics Logic** (`services/live_overlay_daemon/metrics.py:289-345`):
 
