@@ -1,7 +1,8 @@
 # Cisco AI Defense for skipp-algo
 
-Status: code integration prepared; Cisco tenant objects, secrets, and live
-enforcement still require an operator-approved rollout.
+Status: tenant rollout and live runtime controls verified on 2026-07-20 in the
+dedicated, private Railway service `skipp-terminal-ai`.  Repository merge and
+general availability remain gated by Draft PR review and CI.
 
 ## Objective
 
@@ -61,6 +62,31 @@ The wrapper adds two intentional hardening rules around the SDK:
    value as `True`.
 2. Logs contain decision metadata only.  Prompt text, response text, Cisco
    explanations, and keys are never logged by the application boundary.
+3. The optional `Metadata.created_at` field is omitted.  SDK 2.1.2 accepts a
+   Python `datetime` in that field but fails to JSON-serialize it on a real
+   inspection request.  Cisco timestamps the event server-side; a regression
+   assertion pins this workaround until the SDK contract changes.
+
+## Verified rollout state (2026-07-20)
+
+| Control | Verified state |
+| --- | --- |
+| Tenant region | `eu-central-1`, proven by an authenticated live inspection; the US endpoint rejected the same key |
+| Application | `skipp-algo`, type `API` |
+| Connection | `skipp-algo-runtime-openai`, Cisco AI Defense SaaS data plane |
+| Guardrail profile | `skipp-algo-strict-runtime-profile-v1`; security 4/4 configured to block, privacy 3/3 enabled, safety 8/8 enabled, medium filter strength |
+| Policy | `skipp-algo-strict-runtime-v1`, enabled and attached to the dedicated connection |
+| Inspection key | `skipp-algo-runtime-openai-railway`, 64 characters, finite expiry on 2026-08-19 |
+| Railway runtime | private/unexposed `skipp-terminal-ai`, one replica, `eu-central-1`, timeout `10`, final mode `enforce` |
+| Monitor smoke | safe request allowed; synthetic injection recorded with `Prompt Injection` and `General Harms` rules |
+| Enforcement smoke | safe request allowed; the same synthetic injection raised `AIDefenseBlockedError` before provider egress |
+| Logging | decision/event metadata only; no key or inspected content emitted by the wrapper |
+
+The temporary local credential entry created during setup was removed after it
+was found to contain an invalid value.  The valid Inspection key is held by
+Cisco and Railway only.  The dedicated Railway SSH public key used for the
+smoke test is named `codex-skipp-cisco-smoke`; review or remove it when remote
+operator access is no longer required.
 
 ## Runtime configuration
 

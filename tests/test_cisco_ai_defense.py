@@ -59,6 +59,10 @@ def test_safe_decision_allows_and_attaches_sanitized_metadata(monkeypatch):
     assert decision.phase == "request"
     sent_messages, kwargs = client.calls[0]
     assert [message.role.value for message in sent_messages] == ["system", "user"]
+    # Cisco SDK 2.1.2 accepts ``datetime`` here but fails to JSON-serialize it
+    # on a real inspection request.  Omit the optional field and let Cisco
+    # timestamp the event server-side.
+    assert kwargs["metadata"].created_at is None
     assert kwargs["metadata"].src_app == "skipp-algo:terminal-ai-insights"
     assert kwargs["metadata"].dst_app == "openai:gpt-test"
     assert kwargs["metadata"].client_transaction_id == decision.transaction_id

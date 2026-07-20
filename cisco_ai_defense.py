@@ -16,7 +16,6 @@ import os
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -174,7 +173,6 @@ def inspect_messages(
     normalized = _normalize_messages(messages)
     transaction_id = str(uuid.uuid4())
     metadata = Metadata(
-        created_at=datetime.now(UTC),
         src_app=f"skipp-algo:{source}"[:128],
         dst_app=f"openai:{model}"[:128],
         client_transaction_id=transaction_id,
