@@ -147,7 +147,7 @@ def test_validation_endpoint_uses_dedicated_auth_and_application_boundary(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     validation_token = "validation-only-token-0123456789abcdef"
-    prompt = "cisco-validation-prompt-marker"
+    prompt = "cisco-validation-prompt-marker" + ("x" * 12_000)
     calls: list[tuple[str, dict[str, object], str, str]] = []
 
     def fake_query(
