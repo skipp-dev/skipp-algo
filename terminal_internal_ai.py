@@ -49,7 +49,7 @@ class ProducerAIInsightsClient:
         if timeout_s <= 0:
             raise ValueError("producer AI timeout must be greater than zero")
         self._client = client or httpx.Client(
-            timeout=httpx.Timeout(float(timeout_s)),
+            timeout=timeout_s,
             follow_redirects=False,
         )
 

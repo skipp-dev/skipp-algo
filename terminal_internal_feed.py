@@ -184,7 +184,7 @@ class ProducerFeedClient:
         self._max_age_s = float(max_age_s)
         self._max_response_bytes = int(max_response_bytes)
         self._client = client or httpx.Client(
-            timeout=httpx.Timeout(float(timeout_s)),
+            timeout=timeout_s,
             follow_redirects=False,
         )
         self._fingerprints: dict[str, str] = {}

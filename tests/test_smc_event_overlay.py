@@ -13,7 +13,11 @@ import re
 
 import pytest
 
-from tests.smc_manifest_test_utils import extract_group_titles, extract_input_bindings
+from tests.smc_manifest_test_utils import (
+    extract_group_titles,
+    extract_input_bindings,
+    published_micro_profiles_import_line,
+)
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_PATH = ROOT / "SMC_Event_Overlay.pine"
@@ -81,7 +85,7 @@ class TestOverlayStructure:
 
     def test_imports_library(self):
         src = _read(OVERLAY_PATH)
-        assert "import preuss_steffen/smc_micro_profiles_generated/156 as mp" in src
+        assert published_micro_profiles_import_line() in src
 
     def test_bus_lean_pack_a_input(self):
         src = _read(OVERLAY_PATH)
