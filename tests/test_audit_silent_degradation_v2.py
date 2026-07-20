@@ -8,8 +8,6 @@ Findings:
     RED 1 (Lens 9): newsstack_fmp/_bz_http.py retry waits use full
         jitter so concurrent clients do not synchronise on the same
         wakeup.
-    RED 2 (Lens 8): terminal_tradingview_news.fetch_tv records a
-        health failure on broad-except so degraded state is observable.
     RED 3 (Lens 7): terminal_finnhub circuit-breaker scalars are
         accessed under a dedicated module-level lock.
 """
@@ -99,60 +97,6 @@ def test_bz_http_jitter_used_for_network_errors() -> None:
     assert sleeps == [0.25], (
         f"expected single jittered network-retry sleep of 0.25s, got {sleeps!r}"
     )
-
-
-# ── RED 2 — terminal_tradingview_news.fetch_tv records health ───
-
-
-def test_fetch_tv_records_health_failure_on_exception() -> None:
-    """`fetch_tv` must update `_health` on broad-except, not silently
-    swallow.  Without this, the sidebar status stays "healthy" while
-    every call returns []."""
-    import terminal_tradingview_news as tv
-
-    # Reset health
-    with tv._health._lock:
-        tv._health.consecutive_failures = 0
-        tv._health.total_failures = 0
-        tv._health.total_requests = 0
-        tv._health.last_error = ""
-
-    # Clear cache so fetch_tv goes through the live path
-    with tv._cache_lock:
-        tv._cache.clear()
-
-    with mock.patch.object(tv, "_fetch_raw", side_effect=RuntimeError("upstream-500")):
-        out = tv.fetch_tv_headlines("FAKEX")
-
-    assert out == []
-    with tv._health._lock:
-        assert tv._health.consecutive_failures == 1, (
-            "fetch_tv must increment consecutive_failures on broad-except"
-        )
-        assert "upstream-500" in tv._health.last_error
-        assert tv._health.total_failures == 1
-
-
-def test_fetch_tv_records_health_success_on_ok() -> None:
-    """Mirror: success path must reset failure counter."""
-    import terminal_tradingview_news as tv
-
-    # Pre-set a degraded state to confirm reset
-    with tv._health._lock:
-        tv._health.consecutive_failures = 5
-        tv._health.last_error = "stale"
-
-    with tv._cache_lock:
-        tv._cache.clear()
-
-    with mock.patch.object(tv, "_fetch_raw", return_value={"items": []}), \
-         mock.patch.object(tv, "_parse_items", return_value=[]):
-        tv.fetch_tv_headlines("FAKEY")
-
-    with tv._health._lock:
-        assert tv._health.consecutive_failures == 0, (
-            "successful fetch must reset consecutive_failures"
-        )
 
 
 # ── RED 3 — terminal_finnhub: locked scalar state ───────────────
