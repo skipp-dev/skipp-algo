@@ -501,7 +501,7 @@ def query_fmp_llm(
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
     ck = _cache_key(question, digest, model, api_key)
     hit, cached_text = _get_cached(ck)
-    if hit:
+    if hit and not cached_text:
         return FMPLLMResponse(
             answer=cached_text, model=model, cached=True,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -527,7 +527,22 @@ def query_fmp_llm(
     }
 
     try:
-        answer = _call_openai_chat(payload, api_key)
+        if hit:
+            inspect_messages(
+                payload["messages"],
+                phase="request",
+                source="terminal-fmp-insights",
+                model=model,
+            )
+            answer = cached_text
+            inspect_messages(
+                append_assistant_message(payload["messages"], answer),
+                phase="response",
+                source="terminal-fmp-insights",
+                model=model,
+            )
+        else:
+            answer = _call_openai_chat(payload, api_key)
     except httpx.ReadTimeout:
         # PR-G audit 2026-05-10: negative-cache the failure.
         _set_cached_miss(ck)
@@ -569,9 +584,10 @@ def query_fmp_llm(
             error=f"Query failed: {_safe}",
         )
 
-    _set_cached(ck, answer)
+    if not hit:
+        _set_cached(ck, answer)
     return FMPLLMResponse(
-        answer=answer, model=model, cached=False,
+        answer=answer, model=model, cached=hit,
         context_articles=n_articles, context_tickers=n_tickers,
         fmp_tickers=n_fmp,
     )

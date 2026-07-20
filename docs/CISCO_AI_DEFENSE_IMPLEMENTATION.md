@@ -30,7 +30,58 @@ candidate PRE-A0 model into an approved trading model.
 
 The regression guard `tests/test_ai_defense_egress_guard.py` fails if a new
 known LLM generation endpoint or provider SDK import appears without an
-explicit Cisco boundary.
+explicit Cisco boundary.  It also fails when a first-party agent or MCP client
+is activated before its dedicated runtime design has been reviewed.
+
+## Protection scope decision (2026-07-20)
+
+The target is **organization-wide AI protection through two distinct control
+planes**, not the inaccurate claim that one repository wrapper protects every
+AI tool.  Cisco describes AI Defense as the control for first-party AI
+applications and Secure Access AI Access as the control for third-party and
+shadow-AI use.  We keep those ownership boundaries explicit:
+
+| Surface | Desired disposition | Enforcement owner | Current status | Gate before trusted use |
+| --- | --- | --- | --- | --- |
+| Terminal AI Insights and FMP AI Insights | Required now | Repository wrapper plus Cisco Inspection API | Covered by request and response inspection | Unit guard, Cisco event, blocked-provider proof, and blocked-UI proof |
+| Any future first-party LLM API call | Required before merge or deployment | Repository runtime using a supported AI Defense enforcement point | Not present beyond the two terminal calls | Egress inventory updated; request and response protection; fail-closed tests; live synthetic allow/block evidence |
+| Future first-party agent or MCP client | Default deny until designed and verified | AI Defense runtime enforcement plus least-privilege agent/tool identity; MCP supply-chain scanning where supported | No active first-party runtime | Dedicated threat model; tool/action policy; MCP/skill scan; prompt, response, tool-call, and failure tests; auditable Cisco events |
+| Codex conversations, GitHub Copilot, Claude Code, and other developer AI clients | Required organizationally, but outside repository enforcement | Cisco Secure Access AI Access or another verified in-path enterprise control | Not covered by PR #3803 | Traffic is steered through the control; the exact client is visible; DLP/guardrail policy applies; synthetic prompt and response block tests succeed |
+| Browser-based third-party AI tools | Required organizationally, but outside repository enforcement | Cisco Secure Access AI Access with sanctioned-app and data policy | Not covered by PR #3803 | Browser traffic is in path; sanctioned/unsanctioned behavior is proven; synthetic data-loss and harmful-response tests succeed |
+| PRE-A0/A0 inference | Explicitly outside LLM runtime inspection | Existing MLflow, artifact provenance, promotion, drift, and model-governance controls | Correctly separate | Do not call it Cisco runtime-protected; add AI supply-chain/model scanning only for a supported asset type with returned evidence |
+| Provider availability probes such as `GET /v1/models` | Outside content inspection | Credential and provider-health controls | Probe only | Must carry no prompt, completion, tool call, or user content |
+
+### Binding invariants
+
+1. Every first-party generative-AI request, response, cached answer, agent
+   action, and MCP tool invocation that can affect a trusted output must cross
+   a supported, fail-closed enforcement point before the effect occurs.
+2. New first-party agent or MCP imports remain blocked by the repository guard
+   until a reviewed implementation replaces the default-deny rule.  A package
+   dependency alone is not an active runtime and does not count as coverage.
+3. Repository code cannot claim coverage for traffic emitted by Codex,
+   Copilot, Claude Code, an IDE extension, or a browser.  Each client remains
+   `not covered` until its real traffic is visible at the enterprise
+   enforcement point and a harmless synthetic block test succeeds.
+4. Discovery, DNS visibility, an application inventory entry, or a permitted
+   TLS connection is not equivalent to prompt/response enforcement.  Record
+   the actual level as `discovered`, `access-controlled`, or
+   `content-enforced`.
+5. Until a developer client is content-enforced, it must receive only public,
+   synthetic, or deliberately redacted data.  Repository secrets, provider
+   payloads, customer information, private research, and production incident
+   data remain prohibited inputs.
+6. PRE-A0/A0 promotion evidence remains independent.  Cisco model or supply-
+   chain scanning may add evidence, but cannot approve a trading model or
+   replace MLflow and promotion gates.
+
+### Coverage acceptance record
+
+A surface may move to `covered` only when the record names the client or
+runtime, enforcement point, policy, test time, synthetic test class, Cisco
+event or transaction ID, observed block point, and operator.  Never use real
+credentials, customer data, licensed provider payloads, or private prompts as
+test content.
 
 ## Runtime architecture
 
@@ -166,21 +217,30 @@ distinguishable.
 
 The code integration cannot intercept this Codex conversation, a Copilot chat,
 or another SaaS UI because those requests originate outside the skipp-algo
-process.  Complete coverage requires one of these in-path approaches:
+process.  The selected control plane for these third-party clients is Cisco
+Secure Access AI Access, subject to confirmed licensing, traffic steering,
+TLS/application support, and client-specific validation.  AI Access provides
+the sanctioned-app, shadow-AI, access, DLP, and guardrail layer; the repository
+Inspection API remains the enforcement point for our own application code.
 
-- Cisco AI Defense Gateway for supported model/provider endpoints;
-- Cisco Secure Access or Multicloud Defense with AI-aware egress controls;
-- Cisco `agentsec.protect()` inside any first-party agent process, imported
-  before its supported LLM and MCP clients.
+For a future first-party agent or MCP runtime, select a supported AI Defense
+runtime enforcement point and pair it with agent/tool least privilege and the
+available MCP supply-chain scanning.  The current pinned Python SDK does not
+contain the previously assumed `aidefense.runtime.agentsec` module, so this
+runbook and the egress guard do not treat that import as a valid control.
 
-Whether the current licenses include the required gateway/SSE enforcement
-point must be confirmed in Security Cloud Control.  Do not claim 100% developer
-interaction coverage until a controlled test from each client (Codex, Claude,
-Copilot, browser) appears in Cisco telemetry and a block test succeeds.
+Whether the tenant license includes Secure Access AI Access, Gateway, hybrid,
+or MCP features must be confirmed in Security Cloud Control.  Do not claim
+complete developer interaction coverage until controlled tests from Codex,
+Claude Code, GitHub Copilot, and each approved browser tool appear in the
+relevant telemetry and a harmless block test succeeds for each client.
 
 ## Official references
 
 - Cisco AI Defense Inspection API: <https://developer.cisco.com/docs/ai-defense-inspection/>
 - Cisco AI Defense Management API: <https://developer.cisco.com/docs/ai-defense-management/>
+- Cisco AI Defense data sheet: <https://www.cisco.com/c/en/us/products/collateral/security/ai-defense/ai-defense-ds.html>
+- Cisco Secure Access AI Access: <https://www.cisco.com/site/us/en/products/security/secure-access/ai-access/index.html>
 - Cisco AI Defense Python SDK: <https://github.com/cisco-ai-defense/ai-defense-python-sdk>
+- Cisco AI Defense MCP Scanner: <https://github.com/cisco-ai-defense/mcp-scanner>
 - PyPI release: <https://pypi.org/project/cisco-aidefense-sdk/>

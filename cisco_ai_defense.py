@@ -100,9 +100,14 @@ def _runtime_config() -> tuple[str, str, int]:
 
 @lru_cache(maxsize=4)
 def _get_client(api_key: str, region: str, timeout: int) -> ChatInspectionClient:
-    # The upstream SDK logs complete request bodies at DEBUG.  Pin its logger
-    # to WARNING so a global application DEBUG setting cannot expose prompts.
+    # The upstream SDK logs complete request bodies at DEBUG and interpolates
+    # malformed response metadata into WARNING records.  Keep SDK-owned
+    # records inside a non-propagating null boundary; application-owned logs
+    # below retain sanitized decision metadata.
     sdk_logger = logging.getLogger("skipp_algo.cisco_ai_defense.sdk")
+    sdk_logger.handlers.clear()
+    sdk_logger.addHandler(logging.NullHandler())
+    sdk_logger.propagate = False
     sdk_logger.setLevel(logging.WARNING)
     config = Config(
         region=region,

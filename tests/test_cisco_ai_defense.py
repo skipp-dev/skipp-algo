@@ -75,6 +75,9 @@ def test_sdk_client_uses_the_region_endpoint_and_suppresses_body_debug_logs():
 
     assert client.endpoint == "https://eu.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat"
     assert client.config.logger.level == defense.logging.WARNING
+    assert client.config.logger.propagate is False
+    assert len(client.config.logger.handlers) == 1
+    assert isinstance(client.config.logger.handlers[0], defense.logging.NullHandler)
 
 
 def test_unsafe_decision_blocks_in_enforce_mode(monkeypatch):

@@ -156,7 +156,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     ("streamlit_terminal.py", 2230),  # 2026-07-20: remove retired TradingView UI surfaces
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
-    ("terminal_ai_insights.py", 274),  # 2026-07-20 Cisco request/response inspection: 271->274
+    ("terminal_ai_insights.py", 277),  # 2026-07-20 cache reinspection: 274->277
     # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):
     # both calls are internal Databento SDK POST paths using trust_env=False
     # + certifi CA bundle. Auth via HTTPBasicAuth(api_key, "").
