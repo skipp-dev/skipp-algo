@@ -100,7 +100,7 @@
 # 2026-06-25: shifted 1000 -> 1002 by stop-guard hardening in the poll loop.
 # 2026-06-28 (semantic monitoring): readiness metrics + _extract_snapshot_epoch
 # helper shifted the _fetch_json_url urlopen call +53 lines.
-"open_prep/realtime_signals.py" = [1438]  # 2026-07-19 authenticated snapshot fallback shifted site: 1415->1438
+"open_prep/realtime_signals.py" = [1451]  # 2026-07-20 private AI endpoint shifted site: 1444->1451
 "scripts/probe_fmp_13f_endpoints.py" = [77]  # 2026-07-10 truth-audit docstring: 75->77
 "scripts/resolve_workflow_runner.py" = [91]
 # 2026-06-21 (live-overlay bridge observability): optional external polling

@@ -123,8 +123,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3702, "mkstemp"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3679->3702
-    ("open_prep/realtime_signals.py", 3758, "mkstemp"),  # 2026-07-19 authenticated snapshot fallback shifted site: 3735->3758
+    ("open_prep/realtime_signals.py", 3715, "mkstemp"),  # 2026-07-20 private AI endpoint shifted site: 3708->3715
+    ("open_prep/realtime_signals.py", 3771, "mkstemp"),  # 2026-07-20 private AI endpoint shifted site: 3764->3771
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)
@@ -133,7 +133,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
-    ("streamlit_terminal.py", 2179, "mkstemp"),  # 2026-07-20: remove retired TradingView UI surfaces
+    ("streamlit_terminal.py", 2191, "mkstemp"),  # 2026-07-20 source-priority UI shifted site: 2184->2191
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 603, "mkstemp"),  # 2026-07-12 (drop dead social read): 606->603
