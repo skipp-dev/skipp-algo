@@ -237,7 +237,7 @@ _TIER_2_SOURCES: frozenset[str] = frozenset({
     "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
     "financial times", "barron's", "barrons", "marketwatch",
     "seeking alpha", "benzinga", "yahoo finance", "the motley fool",
-    "investors.com", "zacks", "tipranks",
+    "investors.com", "tipranks",
 })
 
 _TIER_4_SOURCES: frozenset[str] = frozenset({

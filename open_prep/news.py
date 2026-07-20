@@ -4,6 +4,8 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from newsstack_fmp.scoring import is_forward_looking_preview
+
 from .playbook import classify_news_event, classify_recency, classify_source_quality
 
 _TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9.-]{0,5}\b")
@@ -180,6 +182,9 @@ def classify_article_sentiment(title: str, content: str = "") -> tuple[str, floa
     Uses negation-aware keyword matching and multi-word phrase detection.
     Title words receive 2x weight (headlines are the strongest signal).
     """
+    if is_forward_looking_preview(title, content):
+        return "neutral", 0.0
+
     title_lower = title.lower()
     content_lower = content[:1200].lower() if content else ""
 
