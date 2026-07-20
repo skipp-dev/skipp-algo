@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import pathlib
 import re
 import sys
@@ -8,6 +9,9 @@ from types import ModuleType
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
+LIBRARY_RELEASE_MANIFEST_PATH = (
+    ROOT / 'artifacts' / 'tradingview' / 'library_release_manifest.json'
+)
 
 
 def load_manifest() -> ModuleType:
@@ -22,6 +26,20 @@ def load_manifest() -> ModuleType:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def published_micro_profiles_import_line(alias: str = 'mp') -> str:
+    payload = json.loads(
+        LIBRARY_RELEASE_MANIFEST_PATH.read_text(encoding='utf-8')
+    )
+    library = payload['library']
+    import_path = library['importPath']
+    canonical_path = (
+        f"{library['owner']}/{library['scriptName']}/"
+        f"{library['publishedVersion']}"
+    )
+    assert import_path == canonical_path
+    return f'import {import_path} as {alias}'
 
 
 def read_text(path: pathlib.Path) -> str:

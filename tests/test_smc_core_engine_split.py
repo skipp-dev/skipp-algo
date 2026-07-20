@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import re
 
-from tests.smc_manifest_test_utils import ROOT, load_manifest
+from tests.smc_manifest_test_utils import (
+    ROOT,
+    load_manifest,
+    published_micro_profiles_import_line,
+)
 
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 ENGINE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_engine_private.pine'
@@ -79,7 +83,7 @@ def test_core_engine_breadth_gate_uses_optional_text_input_and_guarded_request()
 
 def test_core_engine_uses_effective_microstructure_aliases_for_generated_library_handoff() -> None:
     source = _read_core_source()
-    assert 'import preuss_steffen/smc_micro_profiles_generated/156 as mp' in source
+    assert published_micro_profiles_import_line() in source
     assert 'input.string(\'\', \'Clean reclaim tickers\'' not in source
     assert 'string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS' in source
     assert 'string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS' in source
