@@ -185,6 +185,15 @@ def test_dockerfile_contains_private_ai_runtime_modules() -> None:
     assert "open_prep_boundary.py" in watch_patterns
 
 
+def test_dockerfile_keeps_smc_core_dependency_minimal() -> None:
+    """Importing the full package initializer pulls scoring-only modules into the lean image."""
+    dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY smc_core/resilient.py /app/smc_core/resilient.py" in dockerfile
+    assert "COPY smc_core/ /app/smc_core/" not in dockerfile
+    assert "touch /app/smc_core/__init__.py" in dockerfile
+
+
 def test_requirements_file_exists() -> None:
     assert (_SERVICE_DIR / "requirements.txt").is_file()
 
