@@ -128,7 +128,7 @@ The wrapper adds two intentional hardening rules around the SDK:
 | Guardrail profile | `skipp-algo-strict-runtime-profile-v1`; security 4/4 configured to block, privacy 3/3 enabled, safety 8/8 enabled, medium filter strength |
 | Policy | `skipp-algo-strict-runtime-v1`, enabled and attached to the dedicated connection |
 | Inspection key | `skipp-algo-runtime-openai-railway`, 64 characters, finite expiry on 2026-08-19 |
-| Railway runtime | private/unexposed `skipp-terminal-ai`, one replica, `eu-central-1`, timeout `10`, final mode `enforce` |
+| Railway runtime | `skipp-terminal-ai`, one replica, timeout `10`, final mode `enforce`; public ingress is permitted only through the fail-closed access proxy documented below |
 | Monitor smoke | safe request allowed; synthetic injection recorded with `Prompt Injection` and `General Harms` rules |
 | Enforcement smoke | safe request allowed; the same synthetic injection raised `AIDefenseBlockedError` before provider egress |
 | Logging | decision/event metadata only; no key or inspected content emitted by the wrapper |
@@ -150,6 +150,41 @@ operator access is no longer required.
 
 If an OpenAI key exists but the Cisco key or region is absent, AI Insights
 fails closed before OpenAI receives any content.
+
+## Public Railway ingress
+
+The container exposes a small access proxy on Railway's `PORT`; Streamlit
+listens only on `127.0.0.1:8501` behind it. `TERMINAL_ACCESS_TOKEN` is required
+and must contain 32-512 non-whitespace bytes. The container exits before
+listening when it is missing or malformed.
+
+- `GET /health` is the only unauthenticated success path and reports process
+  liveness only.
+- `/ready`, `/_stcore/health`, `/metrics`, the terminal UI, WebSocket traffic,
+  and all AI functions require `Authorization: Bearer <token>` or the secure
+  session cookie created by the login form.
+- An unauthenticated HTML request receives the local login form with status
+  `401`. The token is posted to `/_access/session`, checked in constant time,
+  and exchanged for an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. It is
+  never put in a URL.
+- Authorization headers and the access-session cookie are removed before the
+  request reaches Streamlit. The proxy does not log headers, request bodies,
+  prompts, response bodies, or rejected token values.
+- Cisco AI Defense remains a separate mandatory request-and-response guard in
+  the application layer. Proxy authentication never bypasses its fail-closed
+  behavior.
+
+Operator smoke test (do not paste the real token into shell history; source it
+from a protected environment or password manager):
+
+```bash
+curl -i "$TERMINAL_URL/health"                         # 200
+curl -i "$TERMINAL_URL/ready"                          # 401
+curl -i -H 'Authorization: Bearer deliberately-wrong' \
+  "$TERMINAL_URL/ready"                                # 401
+curl -i -H "Authorization: Bearer $TERMINAL_ACCESS_TOKEN" \
+  "$TERMINAL_URL/ready"                                # 200
+```
 
 ## Cisco tenant objects to create
 

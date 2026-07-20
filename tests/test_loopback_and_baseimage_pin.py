@@ -12,9 +12,10 @@ A. Loopback ledger
 
 B. Dockerfile FROM form-sanity
    ---------------------------
-   Single base-image discipline: every ``FROM`` line must have an explicit
-   tag and must NOT use ``:latest``. The current ledger is exactly one FROM
-   line (``python:3.12-slim AS base``); any addition is gated by this test.
+   Base-image discipline: every ``FROM`` line must have an explicit tag and
+   must NOT use ``:latest``. The current ledger is exactly two FROM lines: a
+   pinned Go builder for the access proxy and the Python runtime. Any addition
+   is gated by this test.
 
 Defense-only, no production code changes.
 """
@@ -167,8 +168,10 @@ def test_dockerfile_exists() -> None:
 
 def test_dockerfile_from_count_frozen() -> None:
     lines = _from_lines()
-    assert len(lines) == 1, (
-        f"Dockerfile FROM count drifted (expected 1, got {len(lines)}): {lines}. "
+    # 2026-07-20: 1->2 for the version-pinned terminal access-proxy builder;
+    # the compiled binary is copied into the existing Python runtime image.
+    assert len(lines) == 2, (
+        f"Dockerfile FROM count drifted (expected 2, got {len(lines)}): {lines}. "
         "Multi-stage builds need an explicit ledger bump."
     )
 
