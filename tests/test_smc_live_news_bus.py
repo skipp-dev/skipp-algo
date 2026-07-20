@@ -121,7 +121,6 @@ def test_poll_live_news_bus_deduplicates_across_providers_and_tracks_cursors() -
             state=None,
             fmp_api_key="fmp",
             benzinga_api_key="benzinga",
-            include_tradingview=True,
             now_ts=now_ts,
         )
 
@@ -213,7 +212,6 @@ def test_poll_live_news_bus_keeps_first_provider_for_existing_story() -> None:
             state=initial_state,
             fmp_api_key="fmp",
             benzinga_api_key="benzinga",
-            include_tradingview=True,
             now_ts=now_ts,
         )
 
@@ -471,7 +469,6 @@ def test_poll_live_news_bus_passes_and_persists_newsapi_feed_uri() -> None:
             state=initial_state,
             newsapi_ai_key="newsapi",
             include_newsapi_ai=True,
-            include_tradingview=True,
             now_ts=now_ts,
         )
 
@@ -523,7 +520,6 @@ def test_poll_live_news_bus_exports_newsapi_no_recent_matches_status() -> None:
             },
             newsapi_ai_key="newsapi",
             include_newsapi_ai=True,
-            include_tradingview=True,
             now_ts=now_ts,
         )
 
@@ -598,7 +594,6 @@ def test_poll_live_news_bus_redacts_provider_error_secrets() -> None:
             state=None,
             newsapi_ai_key="newsapi",
             include_newsapi_ai=True,
-            include_tradingview=True,
             now_ts=now_ts,
         )
 
@@ -669,7 +664,6 @@ def test_poll_live_news_bus_can_run_newsapi_only() -> None:
             include_benzinga=False,
             include_fmp=False,
             include_fmp_articles=False,
-            include_tradingview=False,
             newsapi_lookback_days=1,
             newsapi_articles_per_request=50,
             now_ts=now_ts,

@@ -49,8 +49,5 @@ helper in `open_prep.feature_flags`, rather than duplicated here.
 | `stock_latest_limit` | `FMP_STOCK_LATEST_LIMIT` | `200` |
 | `stock_latest_page` | `FMP_STOCK_LATEST_PAGE` | `0` |
 | `top_n_export` | `TOP_N_EXPORT` | `300` |
-| `tv_max_per_ticker` | `TV_MAX_PER_TICKER` | `3` |
-| `tv_max_total` | `TV_MAX_TOTAL` | `25` |
-| `tv_symbol_limit` | `TV_SYMBOL_LIMIT` | `20` |
 | `universe_path` | `UNIVERSE_PATH` | `universe.txt` |
 | `uw_news_limit` | `UW_NEWS_LIMIT` | `100` |
