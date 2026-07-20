@@ -8,6 +8,8 @@ older than the age horizon.
 """
 from __future__ import annotations
 
+import json
+
 from scripts import restore_databento_export_bundle as rb
 
 
@@ -17,6 +19,7 @@ def _artifact(name: str, created_at: str, run_id: int = 1) -> dict:
         "name": name,
         "created_at": created_at,
         "expired": False,
+        "size_in_bytes": 0,
         "workflow_run": {"id": run_id, "head_branch": "main"},
     }
 
@@ -42,7 +45,7 @@ def _serve_pages(monkeypatch, pages: dict[int, list[dict]], requested: list[int]
 
 
 def test_horizon_iso_is_run_date_minus_age_days() -> None:
-    assert rb._horizon_iso("2026-07-13") == "2026-07-06T00:00:00Z"
+    assert rb._horizon_iso("2026-07-20") == "2026-07-06T00:00:00Z"
 
 
 def test_fallback_beyond_page_three_is_found(monkeypatch) -> None:
@@ -109,3 +112,73 @@ def test_today_artifact_preferred_over_newer_fallback_name(monkeypatch) -> None:
         "smc-databento-production-export-2026-07-13-8",
         "smc-databento-production-export-2026-07-12-7",
     ]
+
+
+def test_larger_full_window_is_preferred_within_today(monkeypatch) -> None:
+    requested: list[int] = []
+    delta = _artifact(
+        "smc-databento-production-export-2026-07-20-9",
+        "2026-07-20T22:00:00Z",
+        run_id=9,
+    )
+    delta["size_in_bytes"] = 6_000_000
+    full = _artifact(
+        "smc-databento-production-export-2026-07-20-8",
+        "2026-07-20T09:00:00Z",
+        run_id=8,
+    )
+    full["size_in_bytes"] = 80_000_000
+    _serve_pages(monkeypatch, {1: [delta, full]}, requested)
+
+    got = rb._list_candidates(
+        "tok",
+        "o/r",
+        "smc-databento-production-export-2026-07-20-",
+        rb._horizon_iso("2026-07-20"),
+    )
+
+    assert [item["id"] for item in got] == [8]
+
+
+def test_fallback_keeps_largest_candidate_per_day_in_recency_order(monkeypatch) -> None:
+    requested: list[int] = []
+    newest_delta = _artifact(
+        "smc-databento-production-export-2026-07-19-12",
+        "2026-07-19T22:00:00Z",
+        run_id=12,
+    )
+    newest_delta["size_in_bytes"] = 7_000_000
+    newest_smaller_delta = _artifact(
+        "smc-databento-production-export-2026-07-19-11",
+        "2026-07-19T20:00:00Z",
+        run_id=11,
+    )
+    newest_smaller_delta["size_in_bytes"] = 6_000_000
+    older_full = _artifact(
+        "smc-databento-production-export-2026-07-18-10",
+        "2026-07-18T09:00:00Z",
+        run_id=10,
+    )
+    older_full["size_in_bytes"] = 80_000_000
+    _serve_pages(monkeypatch, {1: [newest_delta, newest_smaller_delta, older_full]}, requested)
+
+    got = rb._list_candidates(
+        "tok",
+        "o/r",
+        "smc-databento-production-export-2026-07-20-",
+        rb._horizon_iso("2026-07-20"),
+    )
+
+    assert [item["id"] for item in got] == [12, 10]
+
+
+def test_trade_days_covered_requires_one_valid_manifest(tmp_path) -> None:
+    manifest = tmp_path / "databento_volatility_production_merged_manifest.json"
+    manifest.write_text(
+        json.dumps({"trade_dates_covered": ["2026-07-17", "2026-07-18", "2026-07-18", None]}),
+        encoding="utf-8",
+    )
+    assert rb._trade_days_covered(tmp_path) == 2
+
+    manifest.write_text("not json", encoding="utf-8")
+    assert rb._trade_days_covered(tmp_path) == 0
