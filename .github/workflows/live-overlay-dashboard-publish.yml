@@ -7,6 +7,8 @@ on:
     paths:
       - services/live_overlay_daemon/infra/grafana/dashboard.json
       - services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json
+      - services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json
+      - scripts/build_pre_a0_dashboard.py
   workflow_dispatch:
     inputs:
       dry_run:
@@ -62,6 +64,7 @@ jobs:
           python scripts/update_overlay_dashboard.py \
             services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json \
             --check
+          python scripts/build_pre_a0_dashboard.py --check
 
       - name: Publish dashboards (or dry-run)
         env:
@@ -74,8 +77,9 @@ jobs:
 
           HOST="${INPUT_HOST:-bronzeporridge977.grafana.net}"
           DASHBOARDS=(
-            "services/live_overlay_daemon/infra/grafana/dashboard.json"
-            "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json"
+            "services/live_overlay_daemon/infra/grafana/dashboard.json|cfpozahbhfzswc"
+            "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json|cfpozahbhfzswc"
+            "services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json|bfshrlee72tc0d"
           )
 
           # push -> always publish (mutating workflow);
@@ -95,13 +99,14 @@ jobs:
           # mutating anything (audit P2 LOW). Without this, a failure on the
           # 2nd dashboard after the 1st is already published leaves Grafana
           # half-updated.
-          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
+          for dashboard in "${DASHBOARDS[@]}"; do
+            IFS="|" read -r DASHBOARD_PATH FOLDER_UID <<< "${dashboard}"
             echo "Preflight dry-run: validating payload for ${DASHBOARD_PATH} (no network publish)."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
               --namespace stacks-1697741 \
-              --folder cfpozahbhfzswc \
+              --folder "${FOLDER_UID}" \
               --dry-run \
               --token "dry-run-token" \
               --no-keychain
@@ -118,12 +123,13 @@ jobs:
           }
 
           # All dashboards passed preflight — now publish them.
-          for DASHBOARD_PATH in "${DASHBOARDS[@]}"; do
+          for dashboard in "${DASHBOARDS[@]}"; do
+            IFS="|" read -r DASHBOARD_PATH FOLDER_UID <<< "${dashboard}"
             echo "Publishing ${DASHBOARD_PATH} to ${HOST}."
             python scripts/publish_overlay_dashboard.py \
               "${DASHBOARD_PATH}" \
               --host "${HOST}" \
               --namespace stacks-1697741 \
-              --folder cfpozahbhfzswc \
+              --folder "${FOLDER_UID}" \
               --no-keychain
           done
