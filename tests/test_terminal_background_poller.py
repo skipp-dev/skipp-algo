@@ -121,7 +121,6 @@ class TestBackgroundPoller:
             "benzinga": "12345",
             "fmp_stock": "12345",
             "fmp_press": "12345",
-            "tv": "12345",
         }
 
     def test_cursor_property_reads_provider_cursors_under_lock(self):
@@ -344,16 +343,6 @@ class TestBackgroundPoller:
             assert bp.provider_cursors == {"benzinga": "111", "fmp_stock": "222"}
         finally:
             bp.stop_and_join(timeout=1.0)
-
-    def test_update_live_news_symbols(self):
-        bp = BackgroundPoller(
-            cfg=_FakeCfg(),
-            benzinga_adapter=None,
-            fmp_adapter=None,
-            store=MagicMock(),
-        )
-        bp.update_live_news_symbols(["aapl", " MSFT ", ""])
-        assert bp._tv_symbols == ["AAPL", "MSFT"]
 
     def test_queue_evicts_oldest_when_full(self):
         """When queue is full, oldest batches are evicted (ring-buffer)."""

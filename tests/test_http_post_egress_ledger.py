@@ -153,7 +153,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).
-    ("streamlit_terminal.py", 2300),  # 2026-07-18: removed retired TradingView supplement
+    ("streamlit_terminal.py", 2230),  # 2026-07-20: remove retired TradingView UI surfaces
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
     ("terminal_ai_insights.py", 271),  # 2026-07-12 (drop dead segment block): 283->271

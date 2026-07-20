@@ -203,8 +203,6 @@ def provider_icon(provider: str) -> str:
         return "🅱️"
     if "fmp" in provider:
         return "📊"
-    if "tv_" in provider or provider == "tradingview":
-        return "📺"
     return ""
 
 

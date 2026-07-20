@@ -59,9 +59,7 @@ def _provider_priority(provider: str) -> int:
         return 0
     if lowered.startswith("fmp"):
         return 1
-    if lowered.startswith("tv_") or lowered == "tradingview":
-        return 2
-    return 3
+    return 2
 
 
 def _materiality_weight(materiality: str) -> int:

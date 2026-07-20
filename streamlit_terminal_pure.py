@@ -5,7 +5,6 @@ from typing import Any
 
 def build_test_mode_config_overrides() -> dict[str, Any]:
     return {
-        "tv_news_enabled": False,
         "fmp_enabled": False,
         "poll_interval_s": 60.0,
     }

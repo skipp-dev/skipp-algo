@@ -1,6 +1,6 @@
 """Tab: FMP AI — LLM analysis enriched with multi-layer financial data.
 
-Combines data from FMP, TradingView, Finnhub, and Benzinga to build
+Combines data from FMP, Finnhub, and Benzinga to build
 the richest possible context for LLM analysis.  Data layers include:
 quotes, profiles, ratios, technicals, economic calendar, sector performance,
 social sentiment, analyst forecasts, analyst ratings, earnings calendar,
@@ -32,9 +32,9 @@ from terminal_ui_helpers import safe_markdown_text
 
 try:
     from terminal_technicals import fetch_technicals
-    _TV_AVAILABLE = True
+    _TECHNICALS_AVAILABLE = True
 except ImportError:
-    _TV_AVAILABLE = False
+    _TECHNICALS_AVAILABLE = False
 
 try:
     from terminal_finnhub import fetch_social_sentiment_batch
@@ -83,7 +83,7 @@ def _analysis_worker(
     benzinga_key: str,
     macro: dict[str, Any] | None,
     cached: dict[str, Any],
-    tv_available: bool,
+    technicals_available: bool,
     finnhub_available: bool,
     forecast_available: bool,
     poller_available: bool,
@@ -93,7 +93,7 @@ def _analysis_worker(
         feed=feed, question=question, fmp_key=fmp_key,
         openai_key=openai_key, benzinga_key=benzinga_key,
         macro=macro, cached=cached,
-        tv_available=tv_available, finnhub_available=finnhub_available,
+        technicals_available=technicals_available, finnhub_available=finnhub_available,
         forecast_available=forecast_available, poller_available=poller_available,
     )
 
@@ -107,7 +107,7 @@ def _analysis_worker_inner(
     benzinga_key: str,
     macro: dict[str, Any] | None,
     cached: dict[str, Any],
-    tv_available: bool,
+    technicals_available: bool,
     finnhub_available: bool,
     forecast_available: bool,
     poller_available: bool,
@@ -136,9 +136,9 @@ def _analysis_worker_inner(
         if not fmp_data:
             fmp_data = cached.get("_cached_fmp_data")
 
-        # --- Fetch TradingView technicals ---
+        # --- Fetch technical context ---
         technicals: dict[str, dict] | None = None
-        if tv_available and _top_tickers:
+        if technicals_available and _top_tickers:
             import time as _time
             _TECH_BUDGET_S = 30.0
             _tech_start = _time.time()
@@ -596,7 +596,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             benzinga_key=_bz_key,
             macro=_cached_snapshot.get("_cached_macro"),
             cached=_cached_snapshot,
-            tv_available=_TV_AVAILABLE,
+            technicals_available=_TECHNICALS_AVAILABLE,
             finnhub_available=_FINNHUB_AVAILABLE,
             forecast_available=_FORECAST_AVAILABLE,
             poller_available=_POLLER_AVAILABLE,

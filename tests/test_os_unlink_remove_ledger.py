@@ -182,7 +182,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 43, "unlink"),  # 2026-07-13 (manifest generator provenance imports): 39->43
-    ("streamlit_terminal.py", 2258, "unlink"),  # 2026-07-18: removed retired TradingView supplement
+    ("streamlit_terminal.py", 2188, "unlink"),  # 2026-07-20: remove retired TradingView UI surfaces
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 615, "unlink"),  # 2026-07-12 (drop dead social read): 618->615

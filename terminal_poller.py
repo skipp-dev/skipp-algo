@@ -224,41 +224,6 @@ def _dedup_raw_items_cross_provider(items: list[tuple[int, NewsItem]]) -> list[N
     return deduped
 
 
-def _tv_headline_to_news_item(headline: Any) -> NewsItem:
-    item_id = str(getattr(headline, "id", "") or getattr(headline, "story_url", "") or "").strip()
-    published = float(getattr(headline, "published", 0.0) or 0.0)
-    title = str(getattr(headline, "title", "") or "").strip()
-    if not item_id:
-        item_id = (
-            f"tv_{int(published)}_"
-            f"{hashlib.md5(title.encode('utf-8', errors='replace'), usedforsecurity=False).hexdigest()[:10]}"
-        )
-    provider = str(getattr(headline, "provider", "tradingview") or "tradingview").strip().lower()
-    source = str(getattr(headline, "source", "TradingView") or "TradingView").strip()
-    tickers = [
-        str(t).strip().upper()
-        for t in (getattr(headline, "tickers", []) or [])
-        if str(t).strip()
-    ]
-    story_url = str(getattr(headline, "story_url", "") or "").strip() or None
-    return NewsItem(
-        provider=f"tv_{provider}",
-        item_id=item_id,
-        published_ts=published,
-        updated_ts=published,
-        headline=title,
-        snippet="",
-        tickers=tickers,
-        url=story_url,
-        source=source,
-        raw={
-            "tv_provider": provider,
-            "permission": str(getattr(headline, "permission", "") or ""),
-            "tags": [{"name": "TradingView"}],
-            "channels": [],
-        },
-    )
-
 # ── Safe env-var parsers ────────────────────────────────────────
 
 def _env_float(key: str, default: float) -> float:
@@ -328,15 +293,6 @@ class TerminalConfig:
     )
     fmp_enabled: bool = field(
         default_factory=lambda: os.getenv("TERMINAL_FMP_ENABLED", "1") == "1",
-    )
-    tv_news_enabled: bool = field(
-        default_factory=lambda: os.getenv("TERMINAL_TV_NEWS_ENABLED", "1") == "1",
-    )
-    tv_news_symbols: str = field(
-        default_factory=lambda: os.getenv("TERMINAL_TV_NEWS_SYMBOLS", ""),
-    )
-    tv_news_max_symbols: int = field(
-        default_factory=lambda: _env_int("TERMINAL_TV_NEWS_MAX_SYMBOLS", 25),
     )
     live_story_ttl_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_LIVE_STORY_TTL_S", 7200.0),
@@ -794,7 +750,6 @@ def poll_and_classify_multi(
         page_size=page_size,
         channels=channels,
         topics=topics,
-        tv_symbols=None,
     )
     new_cursor = legacy_cursor_from_provider_cursors(provider_cursors) or (cursor or "")
     return all_classified, new_cursor
@@ -809,7 +764,6 @@ def poll_and_classify_live_bus(
     page_size: int = 100,
     channels: str | None = None,
     topics: str | None = None,
-    tv_symbols: list[str] | None = None,
 ) -> tuple[list[ClassifiedItem], dict[str, str], dict[str, int]]:
     """Poll all configured live-news providers in parallel.
 
@@ -848,11 +802,6 @@ def poll_and_classify_live_bus(
                 page=0,
                 limit=page_size,
             )] = (_CURSOR_KEY_FMP_PRESS, "FMP-press")
-        if tv_symbols:
-            logger.warning(
-                "TradingView news symbols were supplied but the upstream is retired; ignoring them"
-            )
-
         completion_order = 0
         for fut in as_completed(futures):
             provider_key, label = futures[fut]

@@ -51,10 +51,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     "newsstack_fmp/shared_fetch.py": 2,
     "open_prep/dirty_flag_manager.py": 1,
     "open_prep/realtime_signals.py": 1,
-    "terminal_poller.py": 2,
+    "terminal_poller.py": 1,
 }
 
-_TOTAL_BUDGET = sum(_FROZEN_LEDGER.values())  # = 18
+_TOTAL_BUDGET = sum(_FROZEN_LEDGER.values())  # = 17
 
 
 def _is_weak_hash_call(node: ast.AST) -> bool:
