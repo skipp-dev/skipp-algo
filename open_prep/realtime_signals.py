@@ -3870,6 +3870,8 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s — %(message)s",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     engine = RealtimeEngine(
         poll_interval=args.interval,
@@ -4173,7 +4175,11 @@ def _open_prep_snapshot_url() -> str:
 
 def _serve_news_feed(handler: Any, engine: Any) -> None:
     """Serve the fail-closed private news snapshot to an HTTP handler."""
-    if not _authorize_private_request(handler):
+    if not _authorize_private_request(
+        handler,
+        token_env="SIGNALS_INTERNAL_TOKEN",
+        minimum_length=1,
+    ):
         return
 
     poller = getattr(engine, "_async_newsstack", None)
