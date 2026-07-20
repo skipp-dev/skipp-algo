@@ -119,8 +119,9 @@ def _snapshot_url_token(key: str, url: str) -> str:
     """Return a source-specific token, or reuse the repo monitor token safely.
 
     The generic workflow-monitor token is attached only to the configured
-    repository's GitHub Contents API.  It is never forwarded to an arbitrary
-    custom URL.
+    repository's GitHub Contents API or its exact ``raw.githubusercontent.com``
+    path.  It is never forwarded to an arbitrary custom URL or another GitHub
+    repository.
     """
     explicit = _optional_str(key, "")
     if explicit:
@@ -131,11 +132,19 @@ def _snapshot_url_token(key: str, url: str) -> str:
         return ""
     owner, repo = github_workflow_repo()
     expected_prefix = f"/repos/{owner}/{repo}/contents/"
-    if (
+    is_own_contents_api = (
         parsed.scheme.lower() == "https"
         and parsed.netloc.lower() == "api.github.com"
         and parsed.path.startswith(expected_prefix)
-    ):
+    )
+    raw_parts = [urllib.parse.unquote(part).casefold() for part in parsed.path.split("/") if part]
+    is_own_raw_file = (
+        parsed.scheme.lower() == "https"
+        and parsed.netloc.lower() == "raw.githubusercontent.com"
+        and len(raw_parts) >= 3
+        and raw_parts[:2] == [owner.casefold(), repo.casefold()]
+    )
+    if is_own_contents_api or is_own_raw_file:
         return github_workflow_token()
     return ""
 
