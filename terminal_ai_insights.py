@@ -242,7 +242,7 @@ def query_llm(
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
     ck = _cache_key(question, digest, model, api_key)
     hit, cached_text = _get_cached(ck)
-    if hit:
+    if hit and not cached_text:
         return LLMResponse(
             answer=cached_text, model=model, cached=True,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -270,25 +270,28 @@ def query_llm(
 
     try:
         inspect_messages(payload["messages"], phase="request", source="terminal-ai-insights", model=model)
-        with httpx.Client(timeout=_API_TIMEOUT) as client:
-            resp = client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            choices = data.get("choices") or []
-            if not choices:
-                return LLMResponse(
-                    answer="", model=model, cached=False,
-                    context_articles=n_articles, context_tickers=n_tickers,
-                    error="OpenAI returned empty choices",
+        if hit:
+            answer = cached_text
+        else:
+            with httpx.Client(timeout=_API_TIMEOUT) as client:
+                resp = client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
                 )
-            answer = choices[0].get("message", {}).get("content", "").strip()
+                resp.raise_for_status()
+                data = resp.json()
+                choices = data.get("choices") or []
+                if not choices:
+                    return LLMResponse(
+                        answer="", model=model, cached=False,
+                        context_articles=n_articles, context_tickers=n_tickers,
+                        error="OpenAI returned empty choices",
+                    )
+                answer = choices[0].get("message", {}).get("content", "").strip()
         inspect_messages(
             append_assistant_message(payload["messages"], answer),
             phase="response",
@@ -317,9 +320,10 @@ def query_llm(
             error=f"Query failed: {_safe}",
         )
 
-    _set_cached(ck, answer)
+    if not hit:
+        _set_cached(ck, answer)
     return LLMResponse(
-        answer=answer, model=model, cached=False,
+        answer=answer, model=model, cached=hit,
         context_articles=n_articles, context_tickers=n_tickers,
     )
 

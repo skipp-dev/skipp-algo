@@ -107,3 +107,77 @@ def test_terminal_fmp_never_calls_provider_when_request_is_blocked(monkeypatch):
         fmp._call_openai_chat(payload, "openai-test-key")
 
     assert provider_called is False
+
+
+@pytest.mark.parametrize(
+    ("module", "query"),
+    [
+        (ai, ai.query_llm),
+        (fmp, fmp.query_fmp_llm),
+    ],
+)
+def test_positive_cache_hit_is_reinspected_without_recalling_provider(monkeypatch, module, query):
+    phases = []
+    provider_calls = 0
+
+    def _inspect(_messages, **kwargs):
+        phases.append(kwargs["phase"])
+
+    class _CountingClient(_Client):
+        def post(self, *_args, **_kwargs):
+            nonlocal provider_calls
+            provider_calls += 1
+            return _Response()
+
+    monkeypatch.setattr(module, "inspect_messages", _inspect)
+    monkeypatch.setattr(module.httpx, "Client", lambda *_args, **_kwargs: _CountingClient())
+    module._cache.clear()
+
+    first = query("repeat", "{}", "openai-test-key", model="gpt-test")
+    phases.clear()
+    second = query("repeat", "{}", "openai-test-key", model="gpt-test")
+
+    assert first.cached is False
+    assert second.answer == "inspected answer"
+    assert second.cached is True
+    assert phases == ["request", "response"]
+    assert provider_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("module", "query"),
+    [
+        (ai, ai.query_llm),
+        (fmp, fmp.query_fmp_llm),
+    ],
+)
+def test_current_response_policy_can_block_a_positive_cache_hit(monkeypatch, module, query):
+    phases = []
+    provider_calls = 0
+    block_response = False
+
+    def _inspect(_messages, **kwargs):
+        phases.append(kwargs["phase"])
+        if block_response and kwargs["phase"] == "response":
+            raise AIDefenseBlockedError("blocked current cached response")
+
+    class _CountingClient(_Client):
+        def post(self, *_args, **_kwargs):
+            nonlocal provider_calls
+            provider_calls += 1
+            return _Response()
+
+    monkeypatch.setattr(module, "inspect_messages", _inspect)
+    monkeypatch.setattr(module.httpx, "Client", lambda *_args, **_kwargs: _CountingClient())
+    module._cache.clear()
+
+    first = query("policy transition", "{}", "openai-test-key", model="gpt-test")
+    phases.clear()
+    block_response = True
+    second = query("policy transition", "{}", "openai-test-key", model="gpt-test")
+
+    assert first.answer == "inspected answer"
+    assert second.answer == ""
+    assert second.error is not None
+    assert phases == ["request", "response"]
+    assert provider_calls == 1
