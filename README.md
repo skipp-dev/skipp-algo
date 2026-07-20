@@ -427,6 +427,10 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `NEWSAPI_KEY` | No | Legacy NewsAPI.ai key; production lane retired 2026-07-08 |
 | `DATABENTO_API_KEY` | No | Databento API key for historical OHLCV + reference market data (corporate actions, identifier state) |
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
+| `CISCO_AI_DEFENSE_API_KEY` | Required for AI Insights | Cisco AI Defense **Inspection API** key; AI calls fail closed when missing |
+| `CISCO_AI_DEFENSE_REGION` | Required for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
+| `CISCO_AI_DEFENSE_MODE` | No | `enforce` (default) or time-bounded `monitor`; there is no runtime `off` mode |
+| `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Inspection timeout, 1–60 seconds (default: `10`) |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |

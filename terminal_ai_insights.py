@@ -22,6 +22,8 @@ from typing import Any
 
 import httpx
 
+from cisco_ai_defense import append_assistant_message, inspect_messages
+
 logger = logging.getLogger(__name__)
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
@@ -267,6 +269,7 @@ def query_llm(
     }
 
     try:
+        inspect_messages(payload["messages"], phase="request", source="terminal-ai-insights", model=model)
         with httpx.Client(timeout=_API_TIMEOUT) as client:
             resp = client.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -286,6 +289,12 @@ def query_llm(
                     error="OpenAI returned empty choices",
                 )
             answer = choices[0].get("message", {}).get("content", "").strip()
+        inspect_messages(
+            append_assistant_message(payload["messages"], answer),
+            phase="response",
+            source="terminal-ai-insights",
+            model=model,
+        )
     except httpx.HTTPStatusError as exc:
         _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("OpenAI API error: %s", _safe, exc_info=True)

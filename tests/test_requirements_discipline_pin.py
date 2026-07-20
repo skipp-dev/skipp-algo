@@ -45,7 +45,9 @@ _REQUIREMENT_FILES = {
 _DEP_LINE_BUDGETS = {
     # 2026-07-03: 28 → 29 for hypothesis==6.112.2 (property-based test lib,
     # exact-pinned) already present on main; budget bump was missing.
-    "requirements.txt": 29,
+    # 2026-07-20: 29 → 30 for cisco-aidefense-sdk==2.1.2, the official
+    # fail-closed request/response inspection boundary for LLM egress.
+    "requirements.txt": 30,
     "requirements-gpu.txt": 1,
 }
 

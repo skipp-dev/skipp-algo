@@ -16,7 +16,7 @@ and forces every future cache to either:
 Scope: workspace Python files only — third-party packages under
 ``.venv/`` are excluded.
 
-Currently expected: 3 sites in 2 modules (all bounded) — see
+Currently expected: 10 sites in 9 modules (all bounded) — see
 :data:`_BASELINE_LRU_CACHE_SITES`. Adding a new ``@lru_cache`` site
 without ``maxsize=`` fails the pin; adding a new bounded site requires
 extending the baseline.
@@ -61,6 +61,9 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # maxsize=1 — git HEAD / GITHUB_SHA for manifest provenance, resolved once
     # per process by design ("resolved once per process" per its docstring).
     ("smc_integration/structure_batch.py", "_cached_source_commit"),
+    # maxsize=4 — one Cisco client per active (key, region, timeout) tuple;
+    # the bound accommodates overlapping key rotation without unbounded growth.
+    ("cisco_ai_defense.py", "_get_client"),
 })
 
 
