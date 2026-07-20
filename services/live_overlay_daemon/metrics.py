@@ -1494,6 +1494,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         lines.append(f"# TYPE {prom_name} gauge")
         lines.append(f"{prom_name} {_prom_numeric_value(counts.get(key, 0))}")
 
+    expected_monitor_ids = config.uptimerobot_monitor_ids()
+    if expected_monitor_ids:
+        lines.append("# TYPE live_overlay_uptimerobot_monitors_expected gauge")
+        lines.append(
+            f"live_overlay_uptimerobot_monitors_expected {float(len(expected_monitor_ids))}"
+        )
+
     avg_response_time_ms = uptime_snapshot.get("avg_response_time_ms")
     if avg_response_time_ms is not None:
         lines.append("# TYPE live_overlay_uptimerobot_monitors_response_time_ms_avg gauge")

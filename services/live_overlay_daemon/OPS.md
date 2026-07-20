@@ -235,7 +235,7 @@ failure fails CI instead of silently leaving the old container running.
 | Variable | Bridge | Purpose |
 |----------|--------|---------|
 | `UPTIMEROBOT_API_KEY` | UptimeRobot | Free-tier API key |
-| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
+| `UPTIMEROBOT_MONITOR_IDS` | UptimeRobot | Comma-separated monitor IDs to poll; production allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
 | `UPTIMEROBOT_POLL_TTL_SECS` | UptimeRobot | Cache TTL (default 30) |
 | `UPTIMEROBOT_TIMEOUT_SECS` | UptimeRobot | HTTP timeout (default 5) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | GitHub | PAT with `repo` + `actions:read` |
@@ -953,6 +953,8 @@ UptimeRobot-specific detail series.
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
+| `live_overlay_uptimerobot_monitors_total` | gauge | — | Count returned by the UptimeRobot API |
+| `live_overlay_uptimerobot_monitors_expected` | gauge | — | Expected count derived from `UPTIMEROBOT_MONITOR_IDS` |
 | `live_overlay_uptimerobot_monitors_up_total` | gauge | — | Count of monitors currently UP |
 | `live_overlay_uptimerobot_monitors_down_total` | gauge | — | Count of monitors currently DOWN |
 | `live_overlay_uptimerobot_monitors_paused_total` | gauge | — | Count of monitors currently PAUSED |
@@ -980,20 +982,26 @@ UptimeRobot-specific detail series.
    currently monitors:
 
    ```env
-   UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511
+   UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511,803555263,803555264
    ```
+
+   The final two IDs monitor the public Terminal AI and MLflow `/health`
+   endpoints with HEAD every five minutes.
 
 4. Restart the daemon.
 
 ### Production guards
 
-Production expects exactly five UptimeRobot monitors in the bridge allowlist.
-Grafana alerts enforce both the count and the external-down state. These alerts
-gate on the generic bridge contract while keeping the UptimeRobot-specific
-monitor count gauges as the domain signal:
+Production expects the UptimeRobot API result to match the configured bridge
+allowlist. Grafana derives the expected count from `UPTIMEROBOT_MONITOR_IDS`
+instead of duplicating a hard-coded number. The alerts gate on the generic
+bridge contract while keeping the UptimeRobot-specific monitor count gauges as
+the domain signal:
 
 ```promql
-(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
+ != bool on(job)
+ live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
 and on(job)
 (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```

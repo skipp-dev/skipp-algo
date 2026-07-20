@@ -878,7 +878,9 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: '(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+        expr: '(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
+          != bool on(job)
+          live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
           and on(job)
           (live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)'
         instant: true
@@ -901,9 +903,9 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: UptimeRobot bridge is not reporting the expected 5 production monitors
+      summary: UptimeRobot bridge monitor count differs from the configured allowlist
       runbook: Verify UPTIMEROBOT_MONITOR_IDS in Railway and the UptimeRobot dashboard;
-        production currently expects exactly 5 monitors.
+        the expected count is exported from the configured allowlist.
   - uid: lo-uptimerobot-monitor-down
     title: UptimeRobot monitor down
     condition: C

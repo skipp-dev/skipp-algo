@@ -232,7 +232,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only when a real external `/smc_live` consumer is deployed and expected during US market-open windows; arms the first-zero traffic alert |
 | `UPTIMEROBOT_API_KEY` | ❌ | *(unset)* | Enables optional UptimeRobot API bridge metrics in `/metrics` |
-| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511` |
+| `UPTIMEROBOT_MONITOR_IDS` | ❌ | *(all monitors)* | Comma-separated monitor IDs to include in bridge poll; production allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
 | `UPTIMEROBOT_TIMEOUT_SECS` | ❌ | `5` | UptimeRobot API timeout in seconds (range 1–30) |
 | `UPTIMEROBOT_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for UptimeRobot snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
@@ -505,6 +505,8 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_experiment_family_*` | gauge | metrics.py per-family experiment series (`hit_rate`, `n_events`) |
 | `live_overlay_experiment_verdict_*` | gauge | metrics.py verdict series (`status_code`, `delta_hr`, `underpowered`, optional `p_value`) |
 | `live_overlay_experiment_day_family_*` | gauge | metrics.py per-day history timeline/backfill series (`hit_rate`, `n_events`) |
+| `live_overlay_uptimerobot_monitors_total` | gauge | UptimeRobot monitors returned by the current API poll |
+| `live_overlay_uptimerobot_monitors_expected` | gauge | configured `UPTIMEROBOT_MONITOR_IDS` allowlist size |
 | `live_overlay_uptimerobot_monitors_*_total` | gauge | uptimerobot_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
 | `live_overlay_uptimerobot_monitor_<id>_*` | gauge | uptimerobot_bridge.py |
 | `live_overlay_github_workflow_runs_*_total` | gauge | github_workflow_bridge.py (`_total` suffix reflects a count, but value is a snapshot) |
@@ -634,8 +636,8 @@ Operational UX additions:
   `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0`, and the
   `lo-expected-traffic-not-armed` reminder stays paused. Set the gauge to `1`
   only after a real external consumer has been deployed and verified.
-- Alert rules guard the UptimeRobot production monitor count (`5`), any
-  UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
+- Alert rules guard the UptimeRobot API monitor count against the configured
+  allowlist, any UptimeRobot monitors down, Railway memory-used ratio (`75%` warning, `90%`
   critical), and Alloy remote-write failures.
 - The `$job` template variable is hidden (`hide: 2`) and labeled
   `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
