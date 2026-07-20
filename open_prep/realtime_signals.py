@@ -1356,7 +1356,7 @@ def _start_telemetry_server(
                 self.end_headers()
 
         def do_POST(self) -> None:
-            if self.path == "/ai-insights":
+            if self.path in ("/ai-insights", "/ai-validation"):
                 _serve_ai_insights(self)
             else:
                 self.send_response(404)
@@ -4204,10 +4204,24 @@ def _serve_news_feed(handler: Any, engine: Any) -> None:
     handler.wfile.write(body)
 
 
-def _authorize_private_request(handler: Any) -> bool:
+def _authorize_private_request(
+    handler: Any,
+    *,
+    token_env: str,
+    minimum_length: int,
+) -> bool:
     """Authorize a private Producer endpoint without exposing token material."""
-    auth_token = os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip()
-    if not auth_token:
+    raw_token = os.getenv(token_env, "")
+    auth_token = raw_token.strip()
+    strict_config_invalid = minimum_length > 1 and (
+        len(auth_token) > 512
+        or auth_token != raw_token
+        or any(ord(character) < 0x21 or ord(character) == 0x7F for character in auth_token)
+    )
+    if (
+        len(auth_token) < minimum_length
+        or strict_config_invalid
+    ):
         handler.send_response(503)
         handler.end_headers()
         return False
@@ -4229,7 +4243,20 @@ def _authorize_private_request(handler: Any) -> bool:
 
 def _serve_ai_insights(handler: Any) -> None:
     """Run an AI Insights query at the Producer's inspected LLM boundary."""
-    if not _authorize_private_request(handler):
+    validation_request = handler.path == "/ai-validation"
+    if validation_request:
+        authorized = _authorize_private_request(
+            handler,
+            token_env="AI_VALIDATION_TOKEN",
+            minimum_length=32,
+        )
+    else:
+        authorized = _authorize_private_request(
+            handler,
+            token_env="SIGNALS_INTERNAL_TOKEN",
+            minimum_length=1,
+        )
+    if not authorized:
         return
 
     raw_length = handler.headers.get("Content-Length", "")
@@ -4237,8 +4264,9 @@ def _serve_ai_insights(handler: Any) -> None:
         content_length = int(raw_length)
     except (TypeError, ValueError):
         content_length = -1
-    if not 0 < content_length <= 900_000:
-        handler.send_response(413 if content_length > 900_000 else 400)
+    request_limit = 16_000 if validation_request else 900_000
+    if not 0 < content_length <= request_limit:
+        handler.send_response(413 if content_length > request_limit else 400)
         handler.end_headers()
         return
 
@@ -4248,12 +4276,28 @@ def _serve_ai_insights(handler: Any) -> None:
         handler.send_response(400)
         handler.end_headers()
         return
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+    if not isinstance(payload, dict):
         handler.send_response(400)
         handler.end_headers()
         return
-    question = payload.get("question")
-    context_json = payload.get("context_json")
+    if validation_request:
+        question = payload.get("prompt")
+        context_json = json.dumps(
+            {
+                "validation_target": "skipp-ai-insights",
+                "total_articles": 0,
+                "top_articles": [],
+                "ticker_summary": {},
+            },
+            separators=(",", ":"),
+        )
+    else:
+        if payload.get("schema_version") != 1:
+            handler.send_response(400)
+            handler.end_headers()
+            return
+        question = payload.get("question")
+        context_json = payload.get("context_json")
     if (
         not isinstance(question, str)
         or not question.strip()
@@ -4271,6 +4315,11 @@ def _serve_ai_insights(handler: Any) -> None:
         question=question.strip(),
         context_json=context_json,
         api_key=os.getenv("OPENAI_API_KEY", "").strip(),
+        blocked_answer=(
+            "This request was blocked by the Skipp AI security policy."
+            if validation_request
+            else ""
+        ),
     )
     response_payload = {
         "schema_version": 1,
@@ -4282,10 +4331,19 @@ def _serve_ai_insights(handler: Any) -> None:
         "fmp_tickers": result.fmp_tickers,
         "error": result.error,
     }
+    if validation_request and (result.error or not result.answer):
+        response_payload = {
+            "schema_version": 1,
+            "error": "validation backend unavailable",
+        }
+        response_status = 502
+    else:
+        response_status = 200
     body = json.dumps(response_payload, allow_nan=False).encode("utf-8")
-    handler.send_response(200)
+    handler.send_response(response_status)
     handler.send_header("Content-Type", "application/json")
     handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(body)
 

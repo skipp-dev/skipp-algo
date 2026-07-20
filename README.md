@@ -435,6 +435,7 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `CISCO_AI_DEFENSE_REGION` | Producer only, for AI Insights | Cisco tenant region: `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1` |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` (default) or time-bounded `monitor`; there is no runtime `off` mode |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Inspection timeout, 1–60 seconds (default: `10`) |
+| `AI_VALIDATION_TOKEN` | Producer only, for Cisco Validation | Dedicated 32–512 byte bearer token for the public `/ai-validation` application target; do not reuse `SIGNALS_INTERNAL_TOKEN` or `TERMINAL_ACCESS_TOKEN` |
 | `TERMINAL_PRODUCER_FEED_URL` | One news source required | Private producer URL, normally `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json`; only loopback and `*.railway.internal` hosts are accepted |
 | `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Bearer token referenced from the producer's `SIGNALS_INTERNAL_TOKEN`; never put it in the URL |
 | `TERMINAL_PRODUCER_FEED_TIMEOUT_S` | No | Private-feed request timeout in seconds (default: `5`) |

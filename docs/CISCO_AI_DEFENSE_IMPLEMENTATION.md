@@ -147,6 +147,7 @@ operator access is no longer required.
 | `CISCO_AI_DEFENSE_REGION` | Yes | `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1`; must match the tenant region |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` by default; `monitor` permits policy violations but still blocks unavailable or invalid inspection |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Integer 1–60; default `10` |
+| `AI_VALIDATION_TOKEN` | Yes for dashboard validation | Dedicated 32–512 byte bearer token accepted only by the Producer's public `/ai-validation` application target |
 | `TERMINAL_PRODUCER_FEED_URL` | Yes for centralized news | `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json` |
 | `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Railway reference to the producer's `SIGNALS_INTERNAL_TOKEN` |
 | `TERMINAL_PRODUCER_AI_TIMEOUT_S` | No | Private `/ai-insights` timeout; default `150` seconds |
@@ -171,6 +172,34 @@ to application request logs.
 
 If an OpenAI key exists but the Cisco key or region is absent, AI Insights
 fails closed before OpenAI receives any content.
+
+## Cisco Validation application target
+
+The public Producer exposes a narrow application-validation boundary without
+exposing provider credentials, model selection, or the private Producer API:
+
+| Cisco field | Value |
+| --- | --- |
+| Name | `Skipp AI Insights` |
+| Target type | `Application` |
+| Provider | `Custom endpoint` |
+| Data plane | `Cisco AI Defense SaaS` |
+| Endpoint | `https://smc-signals-producer-production.up.railway.app/ai-validation` |
+| Method | `POST` |
+| Request body | `{"prompt":"{{prompt}}"}` |
+| Response path | `answer` |
+| Headers | `Authorization: Bearer <AI_VALIDATION_TOKEN>` and `Content-Type: application/json` |
+
+`AI_VALIDATION_TOKEN` is distinct from `SIGNALS_INTERNAL_TOKEN`,
+`TERMINAL_ACCESS_TOKEN`, the OpenAI key, and both Cisco API-key types. The route
+accepts only a bounded prompt, supplies the application-owned system prompt and
+validation context internally, and returns the same inspected AI boundary used
+by Terminal AI Insights. Provider/model changes stay behind this stable target.
+Missing or malformed authentication fails before LLM egress, and provider or
+inspection failures return a non-2xx response without exposing upstream error
+details. A policy block is different: it returns a generic successful
+application response stating that Skipp blocked the request, so the validator
+can score the guardrail rather than misclassifying it as backend downtime.
 
 ## Public Railway ingress
 
