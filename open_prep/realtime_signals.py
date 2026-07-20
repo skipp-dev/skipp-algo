@@ -3885,7 +3885,7 @@ def main() -> None:
     # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
     # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
     # Default 0 = off (no extra thread, no extra FMP calls).
-    near_a0_secs = _env_int("RT_NEAR_A0_REPOLL_SECS", 0)
+    near_a0_secs = _env_int("RT_NEAR_A0_REPOLL_SECS", 0, minimum=0)
     if near_a0_secs > 0:
         engine.start_near_a0_repoller(float(near_a0_secs))
         logger.info("Near-A0 re-poller started (interval=%ds)", near_a0_secs)

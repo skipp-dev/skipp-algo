@@ -116,6 +116,7 @@ def test_runtime_poll_budget_is_env_configurable() -> None:
     source = inspect.getsource(rs.main)
     assert 'default=_env_int("RT_POLL_INTERVAL_SECS", DEFAULT_POLL_INTERVAL, maximum=None)' in source
     assert 'default=_env_int("RT_TOP_N", DEFAULT_TOP_N, minimum=0, maximum=None)' in source
+    assert '_env_int("RT_NEAR_A0_REPOLL_SECS", 0, minimum=0)' in source
 
 
 def test_poll_budget_env_is_not_clamped_to_the_tcp_port_range(monkeypatch) -> None:
@@ -133,6 +134,9 @@ def test_poll_budget_env_is_not_clamped_to_the_tcp_port_range(monkeypatch) -> No
     # 0 is the documented "monitor ALL symbols" sentinel and must be accepted.
     monkeypatch.setenv("RT_TOP_N", "0")
     assert rs._env_int("RT_TOP_N", rs.DEFAULT_TOP_N, minimum=0, maximum=None) == 0
+
+    monkeypatch.setenv("RT_NEAR_A0_REPOLL_SECS", "0")
+    assert rs._env_int("RT_NEAR_A0_REPOLL_SECS", 0, minimum=0) == 0
 
     # Below-minimum / garbage still falls back to the default.
     monkeypatch.setenv("RT_TOP_N", "-1")
