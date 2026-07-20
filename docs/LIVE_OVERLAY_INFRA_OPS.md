@@ -139,7 +139,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `PORT` | live_overlay_daemon | ✅ | Production-Pin auf `8080` (nicht auf `${{...PORT}}` referenzieren) |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | live_overlay_daemon | optional | `1` nur für einen verifizierten externen `/smc_live`-Konsumenten; solange keiner existiert bleibt Production auf `0` |
 | `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
-| `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511` |
+| `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
@@ -373,7 +373,7 @@ Prometheus-Scrape (/metrics)
 
 - API-Key in Railway-Variable `UPTIMEROBOT_API_KEY` (Read-Only-Key ausreichend).
 - Production setzt `UPTIMEROBOT_MONITOR_IDS` auf
-  `803309701,803341452,803343155,803343156,803362511`, damit neue
+  `803309701,803341452,803343155,803343156,803362511,803555263,803555264`, damit neue
   UptimeRobot-Monitore nicht automatisch die Bridge-Aggregate verändern.
 - Kein Outbound-Request wenn `UPTIMEROBOT_API_KEY` fehlt → Bridge-Metriken zeigen
   `enabled=0`, kein Fehler.
@@ -399,6 +399,7 @@ live_overlay_uptimerobot_bridge_enabled       # 1 = API-Key gesetzt, 0 = deaktiv
 live_overlay_uptimerobot_bridge_ok            # 1 = letzter Fetch erfolgreich
 live_overlay_uptimerobot_bridge_fetched_at    # Unix-Timestamp letzter Fetch
 live_overlay_uptimerobot_monitors_total
+live_overlay_uptimerobot_monitors_expected    # Anzahl aus UPTIMEROBOT_MONITOR_IDS
 live_overlay_uptimerobot_monitors_up
 live_overlay_uptimerobot_monitors_down
 live_overlay_uptimerobot_monitors_paused
@@ -415,24 +416,32 @@ Monitore erstellt, Pausen gesetzt und Alertkontakte konfiguriert.
 Das Repository hat **keinen** schreibenden Einfluss auf UptimeRobot-Monitore —
 der Datenfluss ist immer: UptimeRobot → Bridge → Grafana (nur lesend).
 
-Production erwartet exakt diese fünf Monitor-IDs in `UPTIMEROBOT_MONITOR_IDS`:
+Production erwartet diese sieben Monitor-IDs in `UPTIMEROBOT_MONITOR_IDS`:
 
 ```env
-UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511
+UPTIMEROBOT_MONITOR_IDS=803309701,803341452,803343155,803343156,803362511,803555263,803555264
 ```
 
-Grafana schützt die Konfiguration mit zwei Alerts:
+`803555263` prüft `skipp-terminal-ai/health`; `803555264` prüft
+`mlflow-tracking/health`. Beide verwenden HEAD im Fünf-Minuten-Intervall mit
+30 Sekunden Timeout und dem bestehenden Production-Alarmkontakt.
+
+Grafana schützt die Konfiguration mit zwei Alerts. Die erwartete Anzahl wird
+direkt aus `UPTIMEROBOT_MONITOR_IDS` exportiert und ist nicht zusätzlich in der
+Alert-Regel fest verdrahtet:
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
-(live_overlay_uptimerobot_monitors_total{job="live_overlay"} != bool 5)
+(live_overlay_uptimerobot_monitors_total{job="live_overlay"}
+ != bool on(job)
+ live_overlay_uptimerobot_monitors_expected{job="live_overlay"})
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 ```promql
-(live_overlay_uptimerobot_bridge_enabled{job="live_overlay"} == 1)
-* on(job)
 (live_overlay_uptimerobot_monitors_down_total{job="live_overlay"} > bool 0)
+and on(job)
+(live_overlay_bridge_enabled{job="live_overlay",bridge="uptimerobot"} == 1)
 ```
 
 ---

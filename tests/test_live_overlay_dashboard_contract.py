@@ -398,7 +398,9 @@ def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     )
     assert "live_overlay_uptimerobot_bridge_enabled" not in count_expr
     assert "live_overlay_uptimerobot_monitors_total" in count_expr
-    assert "!= bool 5" in count_expr
+    assert "live_overlay_uptimerobot_monitors_expected" in count_expr
+    assert "!= bool on(job)" in count_expr
+    assert "!= bool 5" not in count_expr
 
     down_rule = _alert_rule("lo-uptimerobot-monitor-down")
     down_expr = down_rule["data"][0]["model"]["expr"]
@@ -410,6 +412,19 @@ def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     assert "live_overlay_uptimerobot_monitors_down_total" in down_expr
     assert "> bool 0" in down_expr
     assert down_rule["labels"]["severity"] == "critical"
+
+
+def test_uptimerobot_panel_shows_configured_expected_count() -> None:
+    """The operator view must show actual and allowlist-derived monitor counts."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        item
+        for item in _dashboard_panels(dashboard)
+        if item.get("title") == "UptimeRobot Monitors"
+    )
+    expressions = {target.get("expr") for target in panel.get("targets", [])}
+    assert 'live_overlay_uptimerobot_monitors_total{job=~"$job"}' in expressions
+    assert 'live_overlay_uptimerobot_monitors_expected{job=~"$job"}' in expressions
 
 
 def test_alert_rules_use_generic_bridge_last_success_age_for_external_staleness() -> None:

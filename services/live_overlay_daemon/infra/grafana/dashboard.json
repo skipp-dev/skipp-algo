@@ -4868,6 +4868,14 @@
           }
         },
         {
+          "expr": "live_overlay_uptimerobot_monitors_expected{job=~\"$job\"}",
+          "legendFormat": "expected (allowlist)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        },
+        {
           "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"}",
           "legendFormat": "up",
           "datasource": {
@@ -4937,7 +4945,7 @@
           }
         ]
       },
-      "description": "Per-monitor up/down status and response time from UptimeRobot.",
+      "description": "UptimeRobot actual/allowlist-expected counts, up/down status, and response time.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

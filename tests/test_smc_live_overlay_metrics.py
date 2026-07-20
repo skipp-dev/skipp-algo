@@ -891,6 +891,19 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
             ],
         },
     )
+    monkeypatch.setattr(
+        metrics_mod.config,
+        "uptimerobot_monitor_ids",
+        lambda: [
+            "803309701",
+            "803341452",
+            "803343155",
+            "803343156",
+            "803362511",
+            "803555263",
+            "803555264",
+        ],
+    )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -901,6 +914,7 @@ def test_render_metrics_includes_uptimerobot_bridge_snapshot(monkeypatch: pytest
     assert "live_overlay_uptimerobot_bridge_enabled" not in body
     assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 4.0" in body
+    assert "live_overlay_uptimerobot_monitors_expected 7.0" in body
     assert "live_overlay_uptimerobot_monitors_up_total 4.0" in body
     assert "live_overlay_uptimerobot_monitors_response_time_ms_avg 101.5" in body
     assert "live_overlay_uptimerobot_monitor__803343156_up 1.0" in body
@@ -933,6 +947,7 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
             "monitors": [],
         },
     )
+    monkeypatch.setattr(metrics_mod.config, "uptimerobot_monitor_ids", lambda: [])
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
@@ -942,6 +957,7 @@ def test_render_metrics_handles_uptimerobot_bridge_disabled(monkeypatch: pytest.
     assert "live_overlay_uptimerobot_bridge_enabled" not in body
     assert "live_overlay_uptimerobot_scrape_success" not in body
     assert "live_overlay_uptimerobot_monitors_total 0.0" in body
+    assert "live_overlay_uptimerobot_monitors_expected" not in body
 
 
 def test_render_metrics_includes_github_workflow_bridge_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
