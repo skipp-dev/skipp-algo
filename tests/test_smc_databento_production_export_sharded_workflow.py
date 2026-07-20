@@ -33,6 +33,12 @@ def test_canonical_live_crons_are_pinned() -> None:
     assert '- cron: "0 16 * * 1-5"' in text
 
 
+def test_first_daily_tick_seeds_full_window_for_long_horizon_benchmarks() -> None:
+    text = _read()
+    assert 'github.event.schedule != \'0 8 * * 1-5\'' in text
+    assert '08:00 UTC – cache-backed full-window benchmark seed' in text
+
+
 def test_manual_dispatch_remains_available() -> None:
     text = _read()
     assert "workflow_dispatch:" in text

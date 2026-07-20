@@ -1,10 +1,11 @@
-"""Restore the latest Databento production export artifact for the rolling benchmark.
+"""Restore a sufficiently deep Databento production export for the rolling benchmark.
 
-Pulls today's ``smc-databento-production-export-<RUN_DATE>-*`` GitHub Actions
-artifact from the ``main`` branch (or the most recent same-prefix fallback)
-and extracts it into ``artifacts/smc_microstructure_exports/``. Survives
+Pulls one of today's ``smc-databento-production-export-<RUN_DATE>-*`` GitHub Actions
+artifact from the ``main`` branch (or a recent same-prefix fallback), verifies
+that its manifest covers enough trading days for long-horizon structure
+families, and extracts it into ``artifacts/smc_microstructure_exports/``. Survives
 transient zip corruption by retrying each candidate up to 3 times before
-falling back to the next-newer artifact. Only artifacts produced by the
+falling back to the next eligible artifact. Only artifacts produced by the
 canonical sharded producer workflow are eligible; emergency/manual artifacts
 from the deprecated monolith use the same legacy prefix but must not feed the
 rolling benchmark.
@@ -143,7 +144,8 @@ def _is_canonical_producer_run(token: str, repo: str, run_id: int, cache: dict[i
 # never restore a bundle older than the age horizon: a silently-stale bundle
 # feeding the benchmark would be worse than the honest missing-bundle abort.
 _MAX_PAGES = 30
-_MAX_CANDIDATE_AGE_DAYS = 7
+_MAX_CANDIDATE_AGE_DAYS = 14
+_MIN_TRADE_DAYS = 15
 
 
 def _horizon_iso(run_date: str) -> str:
@@ -187,7 +189,46 @@ def _list_candidates(token: str, repo: str, today_prefix: str, horizon_iso: str)
     artifacts.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
     preferred = [item for item in artifacts if str(item.get("name") or "").startswith(today_prefix)]
     fallback = [item for item in artifacts if item not in preferred]
-    return preferred + fallback
+    # A full-window bundle is materially larger than a two-day delta. Sorting
+    # each date bucket by size avoids downloading all eight known-small
+    # incremental artifacts before inspecting the daily full-window candidate.
+    # Only the largest artifact per UTC day can be the full seed; if it still
+    # fails semantic coverage validation, move to the next-newest day. Size is
+    # only an ordering hint; _trade_days_covered is the authority.
+    def _daily_representatives(items: list[dict]) -> list[dict]:
+        by_day: dict[str, dict] = {}
+        for item in items:
+            day = str(item.get("created_at") or "")[:10]
+            incumbent = by_day.get(day)
+            key = (int(item.get("size_in_bytes") or 0), str(item.get("created_at") or ""))
+            incumbent_key = (
+                int(incumbent.get("size_in_bytes") or 0),
+                str(incumbent.get("created_at") or ""),
+            ) if incumbent else (-1, "")
+            if key > incumbent_key:
+                by_day[day] = item
+        return sorted(
+            by_day.values(),
+            key=lambda item: str(item.get("created_at") or ""),
+            reverse=True,
+        )
+
+    return _daily_representatives(preferred) + _daily_representatives(fallback)
+
+
+def _trade_days_covered(target_dir: Path) -> int:
+    """Return unique manifest trade dates, or zero for an invalid bundle."""
+    manifests = sorted(target_dir.rglob("databento_volatility_production_*_manifest.json"))
+    if len(manifests) != 1:
+        return 0
+    try:
+        payload = json.loads(manifests[0].read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return 0
+    values = payload.get("trade_dates_covered")
+    if not isinstance(values, list):
+        return 0
+    return len({value for value in values if isinstance(value, str) and value.strip()})
 
 
 def main() -> int:
@@ -195,6 +236,9 @@ def main() -> int:
     token = os.environ["GH_TOKEN"]
     run_date = os.environ["RUN_DATE"]
     output_path = Path(os.environ["GITHUB_OUTPUT"])
+    min_trade_days = int(os.environ.get("DATABENTO_BENCHMARK_MIN_TRADE_DAYS", _MIN_TRADE_DAYS))
+    if min_trade_days < 1:
+        raise ValueError("DATABENTO_BENCHMARK_MIN_TRADE_DAYS must be positive")
 
     today_prefix = f"{_PREFIX}{run_date}-"
     _ROOT.mkdir(parents=True, exist_ok=True)
@@ -226,9 +270,24 @@ def main() -> int:
                         raise zipfile.BadZipFile(f"corrupt entry {bad_entry!r}")
                     zf.extractall(target_dir)
 
+                trade_days = _trade_days_covered(target_dir)
+                if trade_days < min_trade_days:
+                    errors.append(
+                        f"{artifact_name}: insufficient history "
+                        f"({trade_days} trading days < {min_trade_days})"
+                    )
+                    print(
+                        f"::notice::Skipping Databento export artifact {artifact_name}: "
+                        f"manifest covers {trade_days} trading days; benchmark requires "
+                        f"at least {min_trade_days}."
+                    )
+                    shutil.rmtree(target_dir, ignore_errors=True)
+                    break
+
                 print(
                     f"::notice::Restored Databento export artifact {artifact_name} "
-                    f"(run_id={run_id}, mode={mode}, attempt={attempt}).",
+                    f"(run_id={run_id}, mode={mode}, attempt={attempt}, "
+                    f"trade_days={trade_days}).",
                 )
                 _emit(output_path, "found_artifact", "true")
                 _emit(output_path, "artifact_name", artifact_name)
