@@ -14,6 +14,7 @@
 - [A0_EARLY_DETECTION_RESEARCH_2026-07-17.md](A0_EARLY_DETECTION_RESEARCH_2026-07-17.md) — verifizierte Analyse für A0-Fast und PRE-A0
 - [A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md](A0_EARLY_DETECTION_ACTION_PLAN_2026-07-17.md) — phasenweiser Umsetzungs-, Test- und Rolloutplan
 - [DATABENTO_VOLATILITY_SUITE.md](DATABENTO_VOLATILITY_SUITE.md)
+- [CISCO_AI_DEFENSE_IMPLEMENTATION.md](CISCO_AI_DEFENSE_IMPLEMENTATION.md) — fail-closed LLM runtime protection and enterprise coverage boundaries
 - [../ml/README.md](../ml/README.md)
 - [../rl/README.md](../rl/README.md)
 - [../artifacts/open_prep/outcomes/feature_importance/README.md](../artifacts/open_prep/outcomes/feature_importance/README.md)

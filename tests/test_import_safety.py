@@ -58,6 +58,7 @@ _HOSTILE_ENV_KEYS: tuple[str, ...] = (
     "UNUSUAL_WHALES_API_KEY",
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
+    "CISCO_AI_DEFENSE_API_KEY",
 )
 
 

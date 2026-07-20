@@ -21,6 +21,7 @@ from typing import Any, cast
 
 import httpx
 
+from cisco_ai_defense import append_assistant_message, inspect_messages
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from smc_core.resilient import resilient
 
@@ -438,6 +439,9 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
     how to surface), and ``_OpenAIEmptyChoicesError`` when the API returns a
     200 with an empty ``choices`` array.
     """
+    messages = payload.get("messages") or []
+    model = str(payload.get("model") or _DEFAULT_MODEL)
+    inspect_messages(messages, phase="request", source="terminal-fmp-insights", model=model)
     with httpx.Client(timeout=_API_TIMEOUT) as client:
         resp = client.post(
             "https://api.openai.com/v1/chat/completions",
@@ -453,7 +457,16 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
     if not choices:
         raise _OpenAIEmptyChoicesError()
     content = choices[0].get("message", {}).get("content", "")
-    return content.strip() if isinstance(content, str) else ""
+    answer = content.strip() if isinstance(content, str) else ""
+    if not answer:
+        raise _OpenAIEmptyChoicesError()
+    inspect_messages(
+        append_assistant_message(messages, answer),
+        phase="response",
+        source="terminal-fmp-insights",
+        model=model,
+    )
+    return answer
 
 
 def query_fmp_llm(

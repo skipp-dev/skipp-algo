@@ -49,6 +49,7 @@ class _Client:
 
 def _patch_httpx_client(monkeypatch, client):
     monkeypatch.setattr(fi.httpx, "Client", lambda *a, **kw: client)
+    monkeypatch.setattr(fi, "inspect_messages", lambda *_a, **_kw: None)
 
 
 def _no_sleep(monkeypatch):
