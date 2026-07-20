@@ -15,14 +15,18 @@ COPY open_prep/ /app/open_prep/
 # newsstack_fmp — multi-source news pipeline consumed by AsyncNewsstackPoller.
 # terminal_tradingview_news — free TradingView headlines (unofficial endpoint,
 #   no API key required; uses urllib + Browser UA, already in stdlib).
-# smc_core — local utilities used by newsstack_fmp._bz_http (resilient retry).
+# smc_core.resilient — the single local utility used by the news adapters.
+# Keep the package initializer empty in this lean image: the repository's full
+# smc_core/__init__.py eagerly imports the scoring stack, which is unrelated to
+# the producer and pulls in modules that are intentionally absent here.
 # databento_utils — local helper used by terminal_tradingview_news.
 COPY newsstack_fmp/ /app/newsstack_fmp/
 COPY terminal_tradingview_news.py /app/terminal_tradingview_news.py
 COPY terminal_fmp_insights.py /app/terminal_fmp_insights.py
 COPY cisco_ai_defense.py /app/cisco_ai_defense.py
 COPY open_prep_boundary.py /app/open_prep_boundary.py
-COPY smc_core/ /app/smc_core/
+RUN mkdir -p /app/smc_core && touch /app/smc_core/__init__.py
+COPY smc_core/resilient.py /app/smc_core/resilient.py
 COPY databento_utils.py /app/databento_utils.py
 # scripts/smc_newsapi_ai.py — NewsAPI.ai / Event Registry client imported by
 #   newsstack_fmp.pipeline._fetch_newsapi_provider_items.  Only this one script
