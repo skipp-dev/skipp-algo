@@ -9,14 +9,17 @@ Authorization: Bearer <TERMINAL_ACCESS_TOKEN>
 ```
 
 The response schema is `skipp-live-news-candidates/1`. It contains at most one
-current `ALERT`, `FOCUS`, or `MONITOR` item per ticker from the retained Terminal
-JSONL. This is a candidate export, not a complete-market or no-news assertion.
-Missing feed state fails with `503`; malformed, stale and inactive rows are not
-exported and are counted in diagnostics.
+current `ALERT`, `FOCUS`, or `MONITOR` item per ticker from a retained candidate
+snapshot. A dedicated process refreshes that snapshot from the private signals
+producer, so the contract does not depend on an open Streamlit browser session.
+This is a candidate export, not a complete-market or no-news assertion. Missing
+feed state fails with `503`; malformed, stale and inactive rows are not exported
+and are counted in diagnostics.
 
 Configuration:
 
-- `TERMINAL_JSONL_PATH` (default `artifacts/terminal_feed.jsonl`)
+- `TERMINAL_CANDIDATE_JSONL_PATH` (default `artifacts/terminal_candidates.jsonl`)
+- `TERMINAL_CANDIDATE_POLL_INTERVAL_SECONDS` (default 10; range 5–300)
 - `TERMINAL_CANDIDATE_MAX_AGE_SECONDS` (default 14400; range 60–86400)
 - `TERMINAL_CANDIDATE_LIMIT` (default 100; range 1–500)
 

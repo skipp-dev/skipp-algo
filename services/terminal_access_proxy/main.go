@@ -88,9 +88,9 @@ func loadConfig() (config, error) {
 	if err != nil {
 		return config{}, err
 	}
-	candidateFeedPath := strings.TrimSpace(os.Getenv("TERMINAL_JSONL_PATH"))
+	candidateFeedPath := strings.TrimSpace(os.Getenv("TERMINAL_CANDIDATE_JSONL_PATH"))
 	if candidateFeedPath == "" {
-		candidateFeedPath = "artifacts/terminal_feed.jsonl"
+		candidateFeedPath = "artifacts/terminal_candidates.jsonl"
 	}
 	return config{
 		listenAddr:           listenAddr,
@@ -116,7 +116,7 @@ func boundedEnvInt(name string, fallback, minimum, maximum int) (int, error) {
 
 func newAccessProxy(cfg config) *accessProxy {
 	if cfg.candidateFeedPath == "" {
-		cfg.candidateFeedPath = "artifacts/terminal_feed.jsonl"
+		cfg.candidateFeedPath = "artifacts/terminal_candidates.jsonl"
 	}
 	if cfg.candidateMaxAge == 0 {
 		cfg.candidateMaxAge = 4 * time.Hour
