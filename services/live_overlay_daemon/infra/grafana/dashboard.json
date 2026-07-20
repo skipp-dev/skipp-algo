@@ -342,6 +342,7 @@
         {
           "expr": "live_overlay_expected_market_traffic{job=~\"$job\"}",
           "legendFormat": "expected_market_traffic",
+          "instant": true,
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
