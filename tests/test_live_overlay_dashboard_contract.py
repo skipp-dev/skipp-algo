@@ -1757,6 +1757,7 @@ def test_dashboard_traffic_alert_armed_tile_uses_expected_market_traffic() -> No
 
     assert expr == 'live_overlay_expected_market_traffic{job=~"$job"}'
     assert panel["targets"][0]["legendFormat"] == "expected_market_traffic"
+    assert panel["targets"][0]["instant"] is True
     assert labels["NO CONSUMER EXPECTED"] == "gray"
     assert labels["CONSUMER EXPECTED"] == "dark-green"
     assert panel["fieldConfig"]["defaults"].get("noValue") == "NO SIGNAL"
