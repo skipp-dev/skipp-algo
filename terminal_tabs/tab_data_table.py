@@ -7,6 +7,9 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from terminal_tabs._shared import tv_symbol_column
+from terminal_ui_helpers import tv_linkify_rows
+
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Data Table tab."""
@@ -32,11 +35,17 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     if available_cols:
         df = df[available_cols]
 
+    _dt_cfg = {}
+    if "ticker" in df.columns:
+        _ticker_rows = df[["ticker"]].to_dict("records")
+        df = df.assign(ticker=pd.DataFrame(tv_linkify_rows(_ticker_rows, key="ticker"))["ticker"].to_numpy())
+        _dt_cfg["ticker"] = tv_symbol_column("Ticker")
     st.dataframe(
         df,
         width="stretch",
         height=min(1000, 40 + 35 * min(len(df), 30)),
         hide_index=True,
+        column_config=_dt_cfg or None,
     )
 
     # Download button

@@ -14,7 +14,9 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
+    tv_symbol_column,
 )
+from terminal_ui_helpers import tv_linkify_rows
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -64,7 +66,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         m4.metric("🏆 Top Mover", f"{top['symbol']} {top['chg_pct']:+.2f}%")
 
     # Build table
-    mov_rows = build_mover_table_rows(sorted_movers)
+    mov_rows = tv_linkify_rows(build_mover_table_rows(sorted_movers))
     df_mov = pd.DataFrame(mov_rows)
     df_mov.index = df_mov.index + 1
 
@@ -74,7 +76,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         height=min(800, 40 + 35 * len(df_mov)),
         column_config={
             "Dir": st.column_config.TextColumn("Dir", width="small"),
-            "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+            "Symbol": tv_symbol_column(),
             "Name": st.column_config.TextColumn("Name", width="medium"),
             "Change %": st.column_config.TextColumn("Change %", width="small"),
             "Age": st.column_config.TextColumn("Age", width="small"),

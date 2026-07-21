@@ -699,3 +699,17 @@ def render_forecast_expander(
                 hide_index=True,
                 height=min(500, 40 + 35 * len(ud_rows)),
             )
+
+
+# ── TradingView chart links ─────────────────────────────────────
+
+
+def tv_symbol_column(label: str = "Symbol", *, width: str = "small") -> Any:
+    """LinkColumn for ticker cells linkified via ``tv_linkify_rows`` /
+    ``tv_chart_url``: opens the TradingView chart, displays the bare symbol."""
+    return st.column_config.LinkColumn(
+        label,
+        width=width,
+        display_text=r"symbol=(.*)$",
+        help="Open the TradingView chart",
+    )

@@ -1118,3 +1118,30 @@ class TestEdgeCases:
         feed = [_item(channels=["biotech"])]
         segs = aggregate_segments(feed)
         assert segs[0]["segment"] == "Biotech"
+
+
+class TestTradingViewLinks:
+    def test_tv_chart_url_valid_symbol(self):
+        from terminal_ui_helpers import tv_chart_url
+        assert tv_chart_url("nvda") == "https://www.tradingview.com/chart/?symbol=NVDA"
+        assert tv_chart_url(" BRK.B ") == "https://www.tradingview.com/chart/?symbol=BRK.B"
+
+    def test_tv_chart_url_rejects_non_symbols(self):
+        from terminal_ui_helpers import tv_chart_url
+        for bad in ("", "?", "N/A", None, "TWO SYMS", "a" * 20, "1INVALID$"):
+            assert tv_chart_url(bad) is None
+
+    def test_tv_linkify_rows_replaces_valid_and_keeps_invalid(self):
+        from terminal_ui_helpers import tv_linkify_rows
+        rows = [{"Symbol": "AAPL", "x": 1}, {"Symbol": "?", "x": 2}, {"x": 3}]
+        out = tv_linkify_rows(rows)
+        assert out is rows
+        assert rows[0]["Symbol"] == "https://www.tradingview.com/chart/?symbol=AAPL"
+        assert rows[1]["Symbol"] == "?"
+        assert "Symbol" not in rows[2]
+
+    def test_tv_linkify_rows_custom_key(self):
+        from terminal_ui_helpers import tv_linkify_rows
+        rows = [{"ticker": "msft"}]
+        tv_linkify_rows(rows, key="ticker")
+        assert rows[0]["ticker"].endswith("symbol=MSFT")

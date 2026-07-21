@@ -145,7 +145,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 234, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            587,  # 2026-07-20: remove retired TradingView UI availability shim
+            589,  # 2026-07-21 (TV chart links imports): 587->589
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded

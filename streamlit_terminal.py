@@ -492,6 +492,7 @@ from terminal_spike_scanner import (
     SESSION_ICONS,
     market_session,
 )
+from terminal_tabs._shared import tv_symbol_column
 from terminal_technicals import (
     INTERVAL_MAP,
     fetch_technicals,
@@ -515,6 +516,7 @@ from terminal_ui_helpers import (
     safe_markdown_text,
     safe_url,
     split_segments_by_sentiment,
+    tv_linkify_rows,
 )
 
 logger = logging.getLogger(__name__)
@@ -3571,7 +3573,7 @@ else:
                     "Headline": _hl_url if _hl_url else _hl_text,
                 })
 
-            df_rank = pd.DataFrame(_rank_rows)
+            df_rank = pd.DataFrame(tv_linkify_rows(_rank_rows))
 
             # Auto-hide columns that are entirely empty/blank
             _hideable_cols = ["Signal", "Tech", "RSI", "MACD", "Analyst"]
@@ -3619,7 +3621,7 @@ else:
             # Build column config
             _rank_col_cfg: dict[str, Any] = {
                 "Dir": st.column_config.TextColumn("Dir", width="small"),
-                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Symbol": tv_symbol_column(),
                 "Signal": st.column_config.TextColumn("Signal", width="small"),
                 "Attention": st.column_config.TextColumn("Attention", width="small"),
                 "Posture": st.column_config.TextColumn("Posture", width="small"),
@@ -3858,10 +3860,10 @@ else:
                     "Vol": f"{_aq_vol:,.0f}" if _aq_vol else "—",
                 })
 
-            _df_act = pd.DataFrame(_act_rows).set_index("#")
+            _df_act = pd.DataFrame(tv_linkify_rows(_act_rows)).set_index("#")
 
             _act_col_cfg: dict[str, Any] = {
-                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Symbol": tv_symbol_column(),
                 "Price": st.column_config.TextColumn("Price", width="small"),
                 "Chg%": st.column_config.TextColumn("Chg%", width="small"),
                 "Score": st.column_config.NumberColumn("Score", width="small", format="%.3f"),
@@ -4118,14 +4120,14 @@ else:
                             "Headline": headline_display,
                         })
                     if tk_rows:
-                        df_tk = pd.DataFrame(tk_rows)
+                        df_tk = pd.DataFrame(tv_linkify_rows(tk_rows))
                         df_tk.index = df_tk.index + 1
                         st.dataframe(
                             df_tk,
                             width='stretch',
                             height=min(1000, 40 + 35 * len(df_tk)),
                             column_config={
-                                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                                "Symbol": tv_symbol_column(),
                                 "Price": st.column_config.TextColumn("Price", width="small"),
                                 "Chg%": st.column_config.TextColumn("Chg%", width="small"),
                                 "Tech": st.column_config.TextColumn("Tech", width="small"),
@@ -4775,6 +4777,12 @@ else:
 
             # Make headlines clickable links to the article URL
             _dt_col_cfg: dict[str, Any] = {}
+            if "ticker" in df_display.columns:
+                _dt_ticker_rows = df_display[["ticker"]].to_dict("records")
+                df_display["ticker"] = pd.DataFrame(
+                    tv_linkify_rows(_dt_ticker_rows, key="ticker")
+                )["ticker"].to_numpy()
+                _dt_col_cfg["ticker"] = tv_symbol_column("Ticker")
             if "url" in df.columns and "headline" in df_display.columns:
                 df_display["headline"] = df.apply(
                     lambda r: r["url"] if r.get("url") else r.get("headline", ""),

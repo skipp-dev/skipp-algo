@@ -64,7 +64,7 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
-    "streamlit_terminal.py": frozenset({1604}),  # 2026-07-20: remove retired TradingView UI surfaces
+    "streamlit_terminal.py": frozenset({1606}),  # 2026-07-21 (TV chart links imports): 1604->1606
     # 2026-07-11: scripts/check_pine_library_age.py removed with the dead
     # TV→repo Pine-sync gate (repo is SSOT; see pine/PINE_LIBRARIES_AUDIT.md).
 }
