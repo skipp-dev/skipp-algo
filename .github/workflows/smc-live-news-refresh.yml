@@ -132,11 +132,14 @@ jobs:
         # story-window state is effectively empty. A confirmed missing branch
         # is tolerated for the first run; fetch errors or a missing state file
         # on an existing branch fail closed to prevent an implicit reset.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/smc_microstructure_exports
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           fetch_error="$(mktemp)"
-          if git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>"${fetch_error}"; then
+          if git fetch "${remote_url}" "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>"${fetch_error}"; then
             :
           elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
             echo "::notice::no prior bot/live-news-snapshot branch — starting cold"
