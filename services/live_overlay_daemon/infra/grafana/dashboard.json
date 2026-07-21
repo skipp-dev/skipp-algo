@@ -7847,23 +7847,9 @@
       ]
     },
     {
-      "type": "row",
-      "title": "TradingView Dropdown Bindings",
-      "description": "Live status of the measured input.source assignments published by the scheduled read-only verifier.",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 305
-      },
-      "id": 1783960010,
-      "panels": []
-    },
-    {
       "type": "stat",
-      "title": "TradingView Binding Status",
-      "description": "Latest TradingView dropdown-binding verification. Healthy means the snapshot loaded, all 108 bindings were checked, the snapshot is less than 24 hours old, and both drift and mismatch counts are zero. Each value has its own health threshold.",
+      "title": "Pine library data freshness",
+      "description": "Age of ASOF_DATE inside pine/generated/smc_micro_profiles_generated.pine. This is the data watermark used by the SMC Long-Dip Suite warning label; it is independent of snapshot heartbeat and published-version drift.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7872,7 +7858,136 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 306
+        "y": 305
+      },
+      "id": 1783960004,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "noValue": "NO DATA"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Micro-profile data age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "d"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 2
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Data watermark known"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "UNKNOWN",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "KNOWN",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_library_data_age_seconds{job=\"live_overlay\",library=\"smc_micro_profiles_generated\"}) / 86400",
+          "legendFormat": "Micro-profile data age",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_library_data_age_known{job=\"live_overlay\",library=\"smc_micro_profiles_generated\"})",
+          "legendFormat": "Data watermark known",
+          "instant": true,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "TradingView Dropdown Bindings",
+      "description": "Live status of saved Pine source hashes and measured input.source assignments published by the scheduled read-only verifier.",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 311
+      },
+      "id": 1783960010,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "TradingView Binding Status",
+      "description": "Latest TradingView saved-source and dropdown-binding verification. Healthy means the snapshot loaded, all 8 saved Pine sources match the repo, all 108 bindings were checked, the snapshot is less than 24 hours old, and both drift and mismatch counts are zero.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 312
       },
       "id": 1783960011,
       "fieldConfig": {
@@ -8038,6 +8153,80 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source check known"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "MISSING",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "VERIFIED",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sources checked"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 8
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Source drift"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
           }
         ]
       },
@@ -8105,6 +8294,36 @@
           "legendFormat": "Mismatches",
           "instant": true,
           "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_consumer_source_check_known{job=\"live_overlay\"})",
+          "legendFormat": "Source check known",
+          "instant": true,
+          "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_consumer_sources_checked{job=\"live_overlay\"})",
+          "legendFormat": "Sources checked",
+          "instant": true,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_consumer_source_drift{job=\"live_overlay\"})",
+          "legendFormat": "Source drift",
+          "instant": true,
+          "refId": "H"
         }
       ]
     }
@@ -8164,6 +8383,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 60,
+  "version": 62,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

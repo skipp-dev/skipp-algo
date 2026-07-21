@@ -211,10 +211,10 @@ failure fails CI instead of silently leaving the old container running.
 | `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
 | `OVERLAY_SWEEP_TRAP_SHADOW_CACHE_TTL_SECS` | no | — | Sweep-trap shadow snapshot cache TTL (default 900) |
 | `OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS` | no | — | Sweep-trap shadow snapshot staleness threshold (default 96h; powers `lo-sweep-trap-shadow-stale`) |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot path (per-consumer import-pin drift gauges) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | no | `artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library snapshot path (import-pin drift and generated-library data age) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-pine-library-versions` snapshot; explicit empty disables remote loading |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of measured TradingView dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of saved-source SHA-256 checks and measured TradingView dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-tradingview-bindings` snapshot; explicit empty disables remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
@@ -301,6 +301,7 @@ custom URLs never receive that generic token.
 | Realtime signals | _host helper (no CI producer)_ | `bot/live-signals-snapshot` | `artifacts/open_prep/latest/latest_realtime_signals.json` | `artifacts/open_prep/latest/latest_realtime_signals.json` |
 | Sweep-trap shadow (WS4a) | `sweep-trap-shadow-daily.yml` | `bot/live-sweep-trap-shadow` | `artifacts/monitoring/latest/sweep_trap_shadow.json` | `artifacts/monitoring/sweep_trap_shadow.json` |
 | Pine-library versions | `pine-library-version-monitor.yml` | `bot/live-pine-library-versions` | `artifacts/monitoring/latest/pine_library_versions.json` | `artifacts/monitoring/pine_library_versions.json` |
+| TradingView saved sources + bindings | `tv-save-consumer-source.yml` | `bot/live-tradingview-bindings` | `artifacts/monitoring/latest/tradingview_consumer_bindings.json` | `artifacts/monitoring/tradingview_consumer_bindings.json` |
 
 `smc-measurement-benchmark-rolling.yml` writes temporary per-timeframe
 `structure_export_*.json` files only for inline notices and deletes them in the

@@ -1879,9 +1879,9 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
     binding = _v1_panel_by_title(data, "TradingView Binding Status")
     if binding is not None:
         wanted_description = (
-            "Latest TradingView dropdown-binding verification. Healthy means the snapshot loaded, "
-            "all 108 bindings were checked, the snapshot is less than 24 hours old, and both drift "
-            "and mismatch counts are zero. Each value has its own health threshold."
+            "Latest TradingView saved-source and dropdown-binding verification. Healthy means the "
+            "snapshot loaded, all 8 saved Pine sources match the repo, all 108 bindings were checked, "
+            "the snapshot is less than 24 hours old, and both drift and mismatch counts are zero."
         )
         if binding.get("description") != wanted_description:
             binding["description"] = wanted_description
@@ -1968,6 +1968,53 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
                     }
                     for field in ("Drift", "Mismatches")
                 ],
+                {
+                    "matcher": {"id": "byName", "options": "Source check known"},
+                    "properties": [
+                        {
+                            "id": "mappings",
+                            "value": [
+                                {
+                                    "type": "value",
+                                    "options": {
+                                        "0": {"text": "MISSING", "color": "red"},
+                                        "1": {"text": "VERIFIED", "color": "green"},
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "Sources checked"},
+                    "properties": [
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "red", "value": None},
+                                    {"color": "green", "value": 8},
+                                ],
+                            },
+                        }
+                    ],
+                },
+                {
+                    "matcher": {"id": "byName", "options": "Source drift"},
+                    "properties": [
+                        {
+                            "id": "thresholds",
+                            "value": {
+                                "mode": "absolute",
+                                "steps": [
+                                    {"color": "green", "value": None},
+                                    {"color": "red", "value": 1},
+                                ],
+                            },
+                        }
+                    ],
+                },
             ],
         }
         if binding.get("fieldConfig") != wanted_config:

@@ -2493,6 +2493,71 @@ groups:
       runbook: Inspect the scheduled tv-save-consumer-source run and TradingView auth, then rerun
         the workflow in its read-only scheduled mode or dispatch it normally after confirming that
         saved-script updates are intended.
+  - uid: lo-tv-consumer-source-check-missing
+    title: TradingView saved-source verification missing
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_consumer_source_check_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The TradingView snapshot loaded without proof that saved Pine sources were compared with the repo.
+      runbook: Run the scheduled tv-save-consumer-source workflow. It must open every configured saved script,
+        compare its SHA-256 with the repo source, and publish a snapshot with sources.expected and sources.checked.
+  - uid: lo-tv-consumer-source-drift
+    title: TradingView saved consumer source drifts from repo
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * live_overlay_tv_consumer_source_check_known{job="live_overlay"}
+          * (live_overlay_tv_consumer_source_drift{job="live_overlay"} > bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: At least one actual saved TradingView Pine source differs from the current repo source.
+      runbook: Inspect sources.consumers in the latest tradingview_consumer_bindings.json snapshot. Dispatch
+        tv-save-consumer-source with the intended mapping; when refreshing SMC Long-Dip Suite also set
+        refresh_producer=true and force_rebind=true.
   - uid: lo-pine-library-snapshot-unloadable
     title: Pine-library version snapshot unloadable
     condition: C
@@ -2608,6 +2673,72 @@ groups:
         (schema drift, a truncated write, or a non-raw GitHub Contents-API envelope -- see
         _fetch_url in pine_library_version_bridge.py). Inspect the payload; run/inspect
         .github/workflows/pine-library-version-monitor.yml.
+  - uid: lo-pine-library-data-age-unknown
+    title: SMC micro-profile library data age unknown
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"}
+          == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The Pine-library snapshot loaded but has no valid ASOF_DATE for smc_micro_profiles_generated.
+      runbook: Inspect pine/generated/smc_micro_profiles_generated.pine and the latest pine-library version
+        snapshot. The producer must export dataAsOf, dataAsOfUnix, and dataAsOfKnown for the generated library.
+  - uid: lo-pine-library-data-stale
+    title: SMC micro-profile library data stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"}
+          * (live_overlay_pine_library_data_age_seconds{job="live_overlay",library="smc_micro_profiles_generated"}
+          > bool 172800)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The smc_micro_profiles_generated ASOF_DATE is more than two days old.
+      runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
+        Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
+        the saved SMC Long-Dip Suite source in TradingView.
   - uid: lo-pine-consumer-version-drift
     title: Pine consumer pin drifts from published TradingView version
     condition: C

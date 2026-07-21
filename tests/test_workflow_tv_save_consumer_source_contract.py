@@ -37,6 +37,7 @@ def test_schedule_is_daily_and_forces_read_only_mapping() -> None:
     assert "github.event_name == 'schedule'" in mapping
     assert "&& '[]'" in mapping
     assert "github.event_name == 'workflow_dispatch'" in rollout["env"]["TV_FORCE_REBIND"]
+    assert "github.event_name == 'workflow_dispatch'" in rollout["env"]["TV_REFRESH_PRODUCER"]
 
 
 def test_fails_fast_without_tv_auth() -> None:
@@ -93,7 +94,17 @@ def test_transient_tradingview_save_failures_are_retried_once() -> None:
 
 def test_transient_binding_verification_failures_are_retried_once() -> None:
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
-    assert batch.count("for (let attempt = 1; attempt <= 2; attempt += 1)") == 2
+    assert batch.count("for (let attempt = 1; attempt <= 2; attempt += 1)") == 3
+
+
+def test_scheduled_run_verifies_actual_saved_source_hashes_without_writing() -> None:
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    saver = (_REPO_ROOT / "scripts" / "tv_save_consumer_source.ts").read_text(encoding="utf-8")
+    assert "sourceVerificationTargets = config.saveTargets" in batch
+    assert "verifyConsumerSource(session, target)" in batch
+    assert "report.sources.drifted === 0" in batch
+    assert 'createHash("sha256")' in saver
+    assert "readEditorContent(session.page" in saver
 
 
 def test_binding_parser_accepts_single_and_double_quoted_pine_labels() -> None:
@@ -178,6 +189,17 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert 'process.env.TV_FORCE_REBIND === "true"' in batch
     assert "verifyConsumerBindings(session, target, forceRebind, forceRebind)" in batch
+
+
+def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:
+    dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
+    assert dispatch["refresh_producer"]["default"] is False
+    rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+    assert "github.event.inputs.refresh_producer" in rollout["env"]["TV_REFRESH_PRODUCER"]
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    assert 'process.env.TV_REFRESH_PRODUCER === "true"' in batch
+    assert "refreshProducer && !forceRebind" in batch
+    assert "refreshChartScriptInstance(session.page, config.producerName)" in batch
 
 
 def test_scheduled_run_cannot_execute_repair_e2e() -> None:

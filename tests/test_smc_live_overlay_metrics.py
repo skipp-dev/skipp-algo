@@ -1649,6 +1649,7 @@ def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
         ("live-overlay-warning", "lo-news-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-pine-library-snapshot-stale", "snapshot_age_known"),
+        ("evidence-and-workflow-freshness", "lo-pine-library-data-stale", "data_age_known"),
         ("evidence-and-workflow-freshness", "lo-tv-binding-snapshot-stale", "snapshot_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-ledger-stale", "ledger_age_known"),
         ("evidence-and-workflow-freshness", "lo-evidence-audit-branch-stale", "audit_branch_age_known"),
@@ -1691,7 +1692,55 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
         'max(live_overlay_tv_bindings_checked{job="live_overlay"})',
         'max(live_overlay_tv_binding_drift{job="live_overlay"})',
         'max(live_overlay_tv_binding_mismatches{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_check_known{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_sources_checked{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_drift{job="live_overlay"})',
     }
+
+
+def test_dashboard_has_pine_library_data_freshness_panel() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Pine library data freshness")
+    expressions = {target["expr"] for target in panel["targets"]}
+    assert expressions == {
+        'max(live_overlay_pine_library_data_age_seconds{job="live_overlay",library="smc_micro_profiles_generated"}) / 86400',
+        'max(live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"})',
+    }
+
+
+def test_pine_library_data_stale_alert_uses_two_day_threshold() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "lo-pine-library-data-stale")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_pine_library_data_age_known" in expr
+    assert "live_overlay_pine_library_data_age_seconds" in expr
+    assert "> bool 172800" in expr
+    assert rule["labels"]["severity"] == "critical"
+
+
+def test_tradingview_saved_source_alerts_fail_closed_on_unknown_or_drift() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
+    by_uid = {rule["uid"]: rule for rule in group["rules"]}
+    missing = by_uid["lo-tv-consumer-source-check-missing"]
+    drift = by_uid["lo-tv-consumer-source-drift"]
+    assert "source_check_known" in missing["data"][0]["model"]["expr"]
+    assert "== bool 0" in missing["data"][0]["model"]["expr"]
+    assert "source_check_known" in drift["data"][0]["model"]["expr"]
+    assert "source_drift" in drift["data"][0]["model"]["expr"]
+    assert missing["labels"]["severity"] == "critical"
+    assert drift["labels"]["severity"] == "critical"
 
 
 def test_tradingview_binding_snapshot_stale_alert_uses_24_hour_threshold() -> None:

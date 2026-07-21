@@ -8,8 +8,15 @@ import {
   ensurePineEditor,
   gotoChart,
   newTradingViewSession,
+  refreshChartScriptInstance,
 } from "../automation/tradingview/lib/tv_shared.js";
-import { saveConsumerSource, type SaveConsumerResult, type SaveConsumerTarget } from "./tv_save_consumer_source.js";
+import {
+  saveConsumerSource,
+  verifyConsumerSource,
+  type SaveConsumerResult,
+  type SaveConsumerTarget,
+  type VerifyConsumerSourceResult,
+} from "./tv_save_consumer_source.js";
 import {
   verifyConsumerBindings,
   type VerifyConsumerResult,
@@ -30,6 +37,14 @@ type RolloutReport = {
   durationSeconds: number;
   ok: boolean;
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
+  producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
+  sources: {
+    expected: number;
+    checked: number;
+    drifted: number;
+    consumers: VerifyConsumerSourceResult[];
+    failed: FailedTarget[];
+  };
   bindings: {
     expectedConsumers: number;
     checkedConsumers: number;
@@ -51,9 +66,12 @@ async function main(): Promise<void> {
   const configPath = path.resolve(getFlag("--config", "automation/tradingview/config/consumer-rollout.json"));
   const outPath = path.resolve(getFlag("--out", "artifacts/monitoring/tradingview_consumer_bindings.json"));
   const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as RolloutConfig;
+  const sourceVerificationTargets = config.saveTargets.map((target) => ({ ...target }));
   const override = process.env.TV_CONSUMER_MAPPING_JSON?.trim();
   if (override) config.saveTargets = JSON.parse(override) as SaveConsumerTarget[];
   config.verifyTargets = config.verifyTargets.map((target) => ({ ...target, producerName: config.producerName }));
+  const forceRebind = process.env.TV_FORCE_REBIND === "true";
+  const refreshProducer = process.env.TV_REFRESH_PRODUCER === "true";
 
   const report: RolloutReport = {
     generatedAt: new Date().toISOString(),
@@ -61,6 +79,14 @@ async function main(): Promise<void> {
     durationSeconds: 0,
     ok: false,
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
+    producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
+    sources: {
+      expected: sourceVerificationTargets.length,
+      checked: 0,
+      drifted: 0,
+      consumers: [],
+      failed: [],
+    },
     bindings: {
       expectedConsumers: config.verifyTargets.length,
       checkedConsumers: 0,
@@ -74,6 +100,9 @@ async function main(): Promise<void> {
   const session = await newTradingViewSession();
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Rollout requires authenticated TradingView state");
+    if (refreshProducer && !forceRebind) {
+      throw new Error("TV_REFRESH_PRODUCER=true requires TV_FORCE_REBIND=true so child BUS sources follow the new parent instance");
+    }
     await gotoChart(session.page, config.primaryChartUrl);
     await ensurePineEditor(session.page);
 
@@ -95,10 +124,38 @@ async function main(): Promise<void> {
       if (lastError) report.save.failed.push({ target: target.scriptName, error: lastError });
     }
 
-    if (report.save.failed.length === 0) {
+    if (report.save.failed.length === 0 && refreshProducer) {
+      try {
+        report.producerRefresh.removedInstances = await refreshChartScriptInstance(session.page, config.producerName);
+        report.producerRefresh.ok = true;
+      } catch (error) {
+        report.producerRefresh.error = String((error as Error)?.message ?? error);
+      }
+    }
+
+    if (report.save.failed.length === 0 && report.producerRefresh.ok) {
+      for (const target of sourceVerificationTargets) {
+        let result: VerifyConsumerSourceResult | null = null;
+        let lastError = "unknown source verification failure";
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+          try {
+            result = await verifyConsumerSource(session, target);
+            lastError = "";
+            break;
+          } catch (error) {
+            lastError = String((error as Error)?.message ?? error);
+            if (attempt < 2) {
+              await gotoChart(session.page, config.primaryChartUrl).catch(() => undefined);
+              await ensurePineEditor(session.page).catch(() => undefined);
+            }
+          }
+        }
+        if (result) report.sources.consumers.push(result);
+        else report.sources.failed.push({ target: target.scriptName, error: lastError });
+      }
+
       // Opt-in only: TV_FORCE_REBIND re-selects every BUS source, so a stale parent study id
       // behind a correct-looking dropdown label is re-pointed. Default stays read-only.
-      const forceRebind = process.env.TV_FORCE_REBIND === "true";
       for (const target of config.verifyTargets) {
         const targetChartUrl = target.chartUrl ?? config.primaryChartUrl;
         if (!session.page.url().startsWith(targetChartUrl)) {
@@ -122,11 +179,17 @@ async function main(): Promise<void> {
     }
   } finally {
     await closeTradingViewSession(session);
+    report.sources.checked = report.sources.consumers.length;
+    report.sources.drifted = report.sources.consumers.filter((item) => !item.matches).length;
     report.bindings.checkedConsumers = report.bindings.consumers.length;
     report.bindings.checkedBindings = report.bindings.consumers.reduce((sum, item) => sum + item.checked, 0);
     report.bindings.mismatches = report.bindings.consumers.reduce((sum, item) => sum + item.mismatches.length, 0);
     report.durationSeconds = Math.round((Date.now() - started) / 100) / 10;
     report.ok = report.save.failed.length === 0
+      && report.producerRefresh.ok
+      && report.sources.failed.length === 0
+      && report.sources.checked === report.sources.expected
+      && report.sources.drifted === 0
       && report.bindings.failed.length === 0
       && report.bindings.checkedConsumers === report.bindings.expectedConsumers
       && report.bindings.mismatches === 0;

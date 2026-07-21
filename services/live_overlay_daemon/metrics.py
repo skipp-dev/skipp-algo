@@ -2140,6 +2140,8 @@ def _render_pine_library_version_metrics() -> list[str]:
     # of library count so the panel never blanks before the first snapshot.
     lines.append("# TYPE live_overlay_pine_library_tv_version gauge")
     lines.append("# TYPE live_overlay_pine_library_tv_version_known gauge")
+    lines.append("# TYPE live_overlay_pine_library_data_age_seconds gauge")
+    lines.append("# TYPE live_overlay_pine_library_data_age_known gauge")
     lines.append("# TYPE live_overlay_pine_consumer_pin_version gauge")
     lines.append("# TYPE live_overlay_pine_consumer_drift gauge")
     libraries = snap.get("libraries") or []
@@ -2147,6 +2149,13 @@ def _render_pine_library_version_metrics() -> list[str]:
         name = _escape_label_value(str(lib.get("name", "") or "unknown"))
         tv_known = _prom_numeric_value(lib.get("tv_version_known", 0.0))
         lines.append(f'live_overlay_pine_library_tv_version_known{{library="{name}"}} {tv_known}')
+        data_asof_unix = _prom_numeric_value(lib.get("data_asof_unix", 0.0))
+        data_age_known = 1.0 if (
+            _prom_numeric_value(lib.get("data_asof_known", 0.0)) >= 1.0 and data_asof_unix > 0
+        ) else 0.0
+        data_age = max(0.0, time.time() - data_asof_unix) if data_age_known >= 1.0 else 0.0
+        lines.append(f'live_overlay_pine_library_data_age_known{{library="{name}"}} {data_age_known}')
+        lines.append(f'live_overlay_pine_library_data_age_seconds{{library="{name}"}} {data_age:.1f}')
         # Only emit the version number when it is actually known — an unreachable
         # facade must not report version 0 as if it were the real TV version.
         if tv_known >= 1.0:
@@ -2188,13 +2197,32 @@ def _render_tradingview_binding_metrics() -> list[str]:
         f"live_overlay_tv_binding_failed_consumers {_prom_numeric_value(snap.get('failed_consumers', 0.0))}",
         "# TYPE live_overlay_tv_bindings_checked gauge",
         f"live_overlay_tv_bindings_checked {_prom_numeric_value(snap.get('checked_bindings', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_source_check_known gauge",
+        f"live_overlay_tv_consumer_source_check_known {_prom_numeric_value(snap.get('source_check_known', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_source_drift gauge",
+        f"live_overlay_tv_consumer_source_drift {_prom_numeric_value(snap.get('source_drift', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_sources_expected gauge",
+        f"live_overlay_tv_consumer_sources_expected {_prom_numeric_value(snap.get('source_expected', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_sources_checked gauge",
+        f"live_overlay_tv_consumer_sources_checked {_prom_numeric_value(snap.get('source_checked', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_sources_drifted gauge",
+        f"live_overlay_tv_consumer_sources_drifted {_prom_numeric_value(snap.get('source_drifted', 0.0))}",
+        "# TYPE live_overlay_tv_consumer_source_failures gauge",
+        f"live_overlay_tv_consumer_source_failures {_prom_numeric_value(snap.get('source_failed_consumers', 0.0))}",
         "# TYPE live_overlay_tv_consumer_binding_mismatches gauge",
+        "# TYPE live_overlay_tv_consumer_source_matches gauge",
     ]
     for consumer in snap.get("consumers") or []:
         name = _escape_label_value(str(consumer.get("script_name", "unknown")))
         lines.append(
             f'live_overlay_tv_consumer_binding_mismatches{{consumer="{name}"}} '
             f'{_prom_numeric_value(consumer.get("mismatches", 0.0))}'
+        )
+    for consumer in snap.get("source_consumers") or []:
+        name = _escape_label_value(str(consumer.get("script_name", "unknown")))
+        lines.append(
+            f'live_overlay_tv_consumer_source_matches{{consumer="{name}"}} '
+            f'{_prom_numeric_value(consumer.get("matches", 0.0))}'
         )
     return lines
 

@@ -11,6 +11,16 @@ def _raw(mismatches: int = 0) -> dict:
     return {
         "generated_at_unix": 1_784_176_000,
         "ok": mismatches == 0,
+        "sources": {
+            "expected": 2,
+            "checked": 2,
+            "drifted": 1,
+            "failed": [],
+            "consumers": [
+                {"scriptName": "SMC Long-Dip Suite", "matches": False},
+                {"scriptName": "SMC Decision Board", "matches": True},
+            ],
+        },
         "bindings": {
             "checkedBindings": 64,
             "mismatches": mismatches,
@@ -31,6 +41,18 @@ def test_coerce_preserves_measured_binding_drift() -> None:
     assert out["mismatches"] == 1.0
     assert out["checked_bindings"] == 64.0
     assert out["consumers"][0]["script_name"] == "SMC Decision Board"
+    assert out["source_check_known"] == 1.0
+    assert out["source_drift"] == 1.0
+    assert out["source_checked"] == 2.0
+    assert out["source_consumers"][0] == {"script_name": "SMC Long-Dip Suite", "matches": 0.0}
+
+
+def test_legacy_snapshot_marks_source_verification_unknown() -> None:
+    raw = _raw()
+    raw.pop("sources")
+    out = bridge._coerce(raw)
+    assert out["source_check_known"] == 0.0
+    assert out["source_drift"] == 0.0
 
 
 def test_load_local_snapshot_fail_soft(monkeypatch, tmp_path) -> None:
@@ -68,3 +90,6 @@ def test_metrics_expose_rollup_and_consumer(monkeypatch) -> None:
     assert "live_overlay_tv_binding_drift 1.0" in body
     assert "live_overlay_tv_binding_mismatches 1.0" in body
     assert 'live_overlay_tv_consumer_binding_mismatches{consumer="SMC Decision Board"} 1.0' in body
+    assert "live_overlay_tv_consumer_source_check_known 1.0" in body
+    assert "live_overlay_tv_consumer_source_drift 1.0" in body
+    assert 'live_overlay_tv_consumer_source_matches{consumer="SMC Long-Dip Suite"} 0.0' in body

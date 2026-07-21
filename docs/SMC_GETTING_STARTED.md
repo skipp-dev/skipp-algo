@@ -78,7 +78,10 @@ Right-click the SMC Long-Dip Suite v7 indicator → "Add Alert". You'll see 10 a
 7. **Earnings Tomorrow** — Heads-up for tomorrow
 8. **Regime Blocked** — Market switched to RISK_OFF
 9. **News Turned Bearish** — This ticker's sentiment flipped
-10. **Library Stale** — Data older than 2 days
+
+Library freshness is shown directly on the chart as a red **Library Nd alt** label once
+the embedded data watermark is older than two days. It is monitored centrally in
+Grafana; it is not a separate selectable TradingView alert condition.
 
 **Recommended minimum:** Enable "Enter Long" and "Setup Blocked".
 
