@@ -33,6 +33,17 @@ def _rule(uid: str, severity: str) -> dict:
     }
 
 
+def _group() -> dict:
+    return {
+        "title": patcher.RULE_GROUP,
+        "folderUid": patcher.FOLDER_UID,
+        "interval": 60,
+        "rules": [
+            _rule(uid, severity) for uid, severity in patcher.TARGET_RULES.items()
+        ],
+    }
+
+
 @pytest.mark.parametrize("uid,severity", patcher.TARGET_RULES.items())
 def test_patch_rule_excludes_all_three_synthetic_apfs_series(
     uid: str, severity: str
@@ -64,19 +75,56 @@ def test_provisioned_payload_drops_read_only_fields() -> None:
     assert payload["annotations"] == rule["annotations"]
 
 
+def test_provisioned_group_payload_preserves_all_rules() -> None:
+    group = _group()
+    payload = patcher.provisioned_group_payload(group)
+    assert payload["title"] == patcher.RULE_GROUP
+    assert [rule["uid"] for rule in payload["rules"]] == list(patcher.TARGET_RULES)
+    assert all("id" not in rule and "updated" not in rule for rule in payload["rules"])
+
+
 def test_reconcile_dry_run_never_writes(monkeypatch: pytest.MonkeyPatch) -> None:
-    rules = {
-        uid: _rule(uid, severity) for uid, severity in patcher.TARGET_RULES.items()
-    }
+    group = _group()
     calls: list[str] = []
 
     monkeypatch.setattr(patcher.grafana, "_api_key", lambda: "token")
 
     def request(method: str, path: str, _token: str, **_kwargs: object) -> dict:
         calls.append(method)
-        uid = path.rsplit("/", 1)[-1]
-        return copy.deepcopy(rules[uid])
+        assert path == patcher.GROUP_PATH
+        return copy.deepcopy(group)
 
     monkeypatch.setattr(patcher.grafana, "_request", request)
     assert patcher.reconcile(dry_run=True) == 0
-    assert calls == ["GET", "GET"]
+    assert calls == ["GET"]
+
+
+def test_reconcile_updates_converted_group_atomically(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = _group()
+    calls: list[tuple[str, dict | None, dict | None]] = []
+    monkeypatch.setattr(patcher.grafana, "_api_key", lambda: "token")
+
+    def request(
+        method: str,
+        path: str,
+        _token: str,
+        *,
+        payload: dict | None = None,
+        extra_headers: dict | None = None,
+    ) -> dict:
+        assert path == patcher.GROUP_PATH
+        calls.append((method, copy.deepcopy(payload), extra_headers))
+        if method == "PUT":
+            stored.clear()
+            stored.update(copy.deepcopy(payload))
+        return copy.deepcopy(stored)
+
+    monkeypatch.setattr(patcher.grafana, "_request", request)
+    assert patcher.reconcile(dry_run=False) == 0
+    assert [method for method, _, _ in calls] == ["GET", "PUT", "GET"]
+    assert calls[1][2] == {"X-Disable-Provenance": "true"}
+    for rule in stored["rules"]:
+        expression = rule["data"][0]["model"]["expr"]
+        assert expression.count(patcher.EXCLUSION_MATCHER) == 3
