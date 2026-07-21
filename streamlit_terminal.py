@@ -5059,7 +5059,15 @@ if st.session_state.auto_refresh and _has_live_news_provider(
         _ai_future = st.session_state.get("_fmp_ai_future")
         if _ai_future is not None and _ai_future.done():
             try:
-                st.session_state["fmp_ai_last_result"] = _ai_future.result()
+                _bg = _ai_future.result()
+                # Same harvest contract as tab_fmp_ai.render Step A: the
+                # worker returns {result_dict, context_json, cache_updates};
+                # storing the wrapper verbatim rendered a silent empty
+                # answer (review finding 2026-07-21).
+                st.session_state["fmp_ai_last_result"] = _bg["result_dict"]
+                st.session_state["fmp_ai_last_context_json"] = _bg.get("context_json", "")
+                for _ck, _cv in _bg.get("cache_updates", {}).items():
+                    st.session_state[_ck] = _cv
             except Exception as _ai_exc:
                 logger.warning("AI background task failed", exc_info=True)
                 st.session_state["fmp_ai_last_result"] = {
@@ -5080,18 +5088,22 @@ if st.session_state.auto_refresh and _has_live_news_provider(
             st.session_state["_last_fragment_rerun_ts"] = time.time()
             st.rerun()
 
-        # Safety: detect stale AI execution (worker hung > 180s)
+        # Safety: detect stale AI execution (aligned with tab_fmp_ai's
+        # 210 s hard timeout: enrichment budget + Producer LLM timeout + slack)
         if st.session_state.get("_fmp_ai_executing", False):
             _submit_ts = st.session_state.get("_fmp_ai_submit_ts", 0)
-            if _submit_ts and time.time() - _submit_ts > 180:
-                logger.warning("Fragment: FMP AI worker stale (>180s) — force-resetting")
+            if _submit_ts and time.time() - _submit_ts > 210:
+                logger.warning("Fragment: FMP AI worker stale (>210s) — force-resetting")
+                _cancel_ev = st.session_state.get("_fmp_ai_cancel")
+                if _cancel_ev is not None:
+                    _cancel_ev.set()
                 if _ai_future is not None:
                     _ai_future.cancel()
                 st.session_state["_fmp_ai_executing"] = False
                 st.session_state.pop("_fmp_ai_future", None)
                 st.session_state.pop("_fmp_ai_submit_ts", None)
                 st.session_state["fmp_ai_last_result"] = {
-                    "error": "Analysis timed out (>180s). The worker may have hung on a slow API call. Please try again.",
+                    "error": "Analysis timed out (>210s). The worker may have hung on a slow API call. Please try again.",
                     "question": st.session_state.get("fmp_ai_selected_question", ""),
                     "answer": "", "model": "", "cached": False,
                     "context_articles": 0, "context_tickers": 0, "fmp_tickers": 0, "enrichment_layers": 0,

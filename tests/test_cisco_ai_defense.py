@@ -14,6 +14,7 @@ def _configured(monkeypatch):
     monkeypatch.setenv("CISCO_AI_DEFENSE_REGION", "eu-central-1")
     monkeypatch.setenv("CISCO_AI_DEFENSE_MODE", "enforce")
     monkeypatch.setenv("CISCO_AI_DEFENSE_TIMEOUT_SECONDS", "7")
+    monkeypatch.delenv("CISCO_AI_DEFENSE_RESPONSE_MODE", raising=False)
     defense._get_client.cache_clear()
 
 
@@ -101,6 +102,32 @@ def test_unsafe_decision_is_recorded_but_allowed_in_monitor_mode(monkeypatch):
 
     assert decision.allowed is False
     assert decision.rules == ("Prompt Injection",)
+
+
+def test_response_mode_override_monitors_response_but_enforces_request(monkeypatch):
+    monkeypatch.setenv("CISCO_AI_DEFENSE_RESPONSE_MODE", "monitor")
+    client = _Client(_result(safe=False, action=Action.BLOCK, event_id="blocked-event"))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    decision = defense.inspect_messages(
+        _messages(), phase="response", source="terminal-fmp-insights", model="gpt-test",
+    )
+    assert decision.allowed is False
+
+    with pytest.raises(defense.AIDefenseBlockedError, match="blocked-event"):
+        defense.inspect_messages(
+            _messages(), phase="request", source="terminal-fmp-insights", model="gpt-test",
+        )
+
+
+@pytest.mark.parametrize("mode", ["off", "disabled", "allow"])
+def test_response_mode_override_cannot_disable_inspection(monkeypatch, mode):
+    monkeypatch.setenv("CISCO_AI_DEFENSE_RESPONSE_MODE", mode)
+
+    with pytest.raises(defense.AIDefenseConfigurationError, match="must be 'enforce' or 'monitor'"):
+        defense.inspect_messages(
+            _messages(), phase="response", source="terminal-ai-insights", model="gpt-test",
+        )
 
 
 def test_missing_key_is_fail_closed(monkeypatch):

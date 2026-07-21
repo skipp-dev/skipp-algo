@@ -69,8 +69,9 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "newsstack_fmp/normalize.py": {
         # 2026-07-09: +1/+9 shift — html-unescape import + Massive-shape chains.
         # 2026-07-11: +8 below quantified normalizer real-schema mapping.
-        "md5": frozenset({146, 285}),
-        "sha1": frozenset({366, 452, 490, 534}),
+        # 2026-07-21: +13 — WP-A2 UTC self-heal for future-dated naive stamps.
+        "md5": frozenset({159, 298}),
+        "sha1": frozenset({379, 465, 503, 547}),
     },
     # 2026-07-20: forward-looking earnings-preview patterns shifted the
     # non-security cluster-key fingerprint; algorithm and use are unchanged.

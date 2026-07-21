@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import terminal_ai_insights as ai
 import terminal_fmp_insights as fmp
 
 
@@ -19,7 +18,6 @@ class _Response:
 @pytest.mark.parametrize(
     ("module", "query"),
     [
-        (ai, ai.query_llm),
         (fmp, fmp.query_fmp_llm),
     ],
 )
@@ -43,3 +41,16 @@ def test_openai_default_uses_luna_with_gpt_4o_compatible_reasoning(
     assert payload["reasoning_effort"] == "none"
     assert payload["max_completion_tokens"] == 2500
     assert "max_tokens" not in payload
+
+
+def test_openai_model_env_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-test-override")
+    try:
+        importlib.reload(fmp)
+        assert fmp._DEFAULT_MODEL == "gpt-test-override"
+    finally:
+        monkeypatch.delenv("OPENAI_MODEL", raising=False)
+        importlib.reload(fmp)
+        assert fmp._DEFAULT_MODEL == "gpt-5.6-luna"

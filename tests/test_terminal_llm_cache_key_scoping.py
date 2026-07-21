@@ -1,7 +1,7 @@
 """Regression tests for PR-J3 (audit pass 2, 2026-05-10).
 
 Pin api_key fingerprint scoping of the LLM response cache in
-``terminal_ai_insights`` and ``terminal_fmp_insights``.
+``terminal_fmp_insights``.
 
 Pre-PR-J3, ``_cache_key(question, context_digest, model)`` did NOT
 include the OpenAI API key. Two callers with different OpenAI keys
@@ -15,11 +15,10 @@ import inspect
 
 import pytest
 
-import terminal_ai_insights as ai
 import terminal_fmp_insights as fmp
 
 
-@pytest.mark.parametrize("module", [ai, fmp], ids=["ai_insights", "fmp_insights"])
+@pytest.mark.parametrize("module", [fmp], ids=["fmp_insights"])
 def test_cache_key_signature_includes_api_key(module):
     """Contract: _cache_key MUST accept api_key as a parameter."""
     sig = inspect.signature(module._cache_key)
@@ -29,7 +28,7 @@ def test_cache_key_signature_includes_api_key(module):
     )
 
 
-@pytest.mark.parametrize("module", [ai, fmp], ids=["ai_insights", "fmp_insights"])
+@pytest.mark.parametrize("module", [fmp], ids=["fmp_insights"])
 def test_cache_key_differs_across_api_keys(module):
     """Same question + context + model but different api_key MUST
     produce different cache keys (no cross-account leakage)."""
@@ -41,7 +40,7 @@ def test_cache_key_differs_across_api_keys(module):
     )
 
 
-@pytest.mark.parametrize("module", [ai, fmp], ids=["ai_insights", "fmp_insights"])
+@pytest.mark.parametrize("module", [fmp], ids=["fmp_insights"])
 def test_cache_key_stable_for_same_api_key(module):
     """Determinism: same inputs MUST yield the same key."""
     k1 = module._cache_key("Q", "ctx", "gpt-4", "sk-same")
@@ -49,7 +48,7 @@ def test_cache_key_stable_for_same_api_key(module):
     assert k1 == k2
 
 
-@pytest.mark.parametrize("module", [ai, fmp], ids=["ai_insights", "fmp_insights"])
+@pytest.mark.parametrize("module", [fmp], ids=["fmp_insights"])
 def test_cache_key_differs_across_questions(module):
     """Sanity: question still participates in the key."""
     k_q1 = module._cache_key("Q1", "ctx", "gpt-4", "sk-same")
@@ -59,8 +58,8 @@ def test_cache_key_differs_across_questions(module):
 
 @pytest.mark.parametrize(
     "module,call_site_line",
-    [(ai, 223), (fmp, 425)],
-    ids=["ai_insights", "fmp_insights"],
+    [(fmp, 425)],
+    ids=["fmp_insights"],
 )
 def test_call_site_passes_api_key(module, call_site_line):
     """Source-pin: the production call site MUST pass api_key into

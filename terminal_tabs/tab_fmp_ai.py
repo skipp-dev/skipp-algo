@@ -11,10 +11,9 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
-import os
+import threading
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
@@ -69,16 +68,17 @@ logger = logging.getLogger(__name__)
 
 _ET = _ZoneInfo("America/New_York")
 
-_SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", os.path.expanduser("~/Downloads")))
+# Wall-clock budget for the parallel enrichment phase (deep mode). The LLM
+# call itself is bounded separately by the Producer client timeout (~150 s),
+# so the UI hard timeout must stay above the sum of both.
+_ENRICH_BUDGET_S = 45.0
 
-# ── Background executor for AI analysis ─────────────────────
-# Runs the analysis in a daemon thread so it is immune to
-# Streamlit's RerunException (which kills inline long-running code
-# when auto-refresh fires st.rerun() every ~5 s).
-_ai_pool = concurrent.futures.ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="fmp_ai",
-)
-
+# ── Background execution model ──────────────────────────────
+# Each analysis run gets its OWN single-worker executor plus a cancel
+# event. A hung run therefore never queues later runs behind it (the
+# old module-level max_workers=1 pool did exactly that), and Cancel /
+# hard-timeout can signal the worker to stop at the next checkpoint.
+# Daemon threads keep the run immune to Streamlit's RerunException.
 
 
 def _analysis_worker(
@@ -95,6 +95,9 @@ def _analysis_worker(
     forecast_available: bool,
     poller_available: bool,
     databento_available: bool,
+    deep: bool = True,
+    cancel: threading.Event | None = None,
+    stage: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Run AI analysis in a background thread.  **Thread-safe**: no Streamlit API calls."""
     return _analysis_worker_inner(
@@ -104,6 +107,7 @@ def _analysis_worker(
         technicals_available=technicals_available, finnhub_available=finnhub_available,
         forecast_available=forecast_available, poller_available=poller_available,
         databento_available=databento_available,
+        deep=deep, cancel=cancel, stage=stage,
     )
 
 
@@ -121,9 +125,33 @@ def _analysis_worker_inner(
     forecast_available: bool,
     poller_available: bool,
     databento_available: bool,
+    deep: bool = True,
+    cancel: threading.Event | None = None,
+    stage: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Inner worker — runs with a global socket timeout set by the outer wrapper."""
+    """Inner worker — fetches enrichment layers (concurrently in deep mode),
+    honours *cancel* between checkpoints, and reports progress via *stage*."""
+    cancel = cancel or threading.Event()
+    if stage is None:
+        stage = {}
     cache_updates: dict[str, Any] = {}
+
+    def _stage(label: str) -> None:
+        stage["label"] = label
+
+    # Session-state cache key per layer (fallback when a fresh fetch is
+    # unavailable, fails, or deep mode is off).
+    _CK = {
+        "fmp_data": "_cached_fmp_data",
+        "technicals": "_cached_fmp_technicals",
+        "econ_cal": "_cached_econ_cal",
+        "sector_perf": "_cached_sector_perf",
+        "social_sent": "_cached_social_sent",
+        "forecasts": "_cached_forecasts",
+        "insider_trades": "_cached_insider_trades",
+        "congress_trades": "_cached_congress_trades",
+        "databento_quotes": "_cached_databento_quotes",
+    }
 
     try:
         # --- Top tickers from feed ---
@@ -136,26 +164,16 @@ def _analysis_worker_inner(
             _tk_scores[_tk] = max(_tk_scores.get(_tk, 0), _sc)
         _top_tickers = sorted(_tk_scores, key=_tk_scores.get, reverse=True)[:12]
 
-        # --- Fetch FMP financial data ---
-        fmp_data: dict[str, Any] | None = None
-        if _top_tickers:
-            logger.info("FMP AI worker: fetching FMP data for %d tickers", len(_top_tickers))
-            fmp_data = assemble_fmp_data(fmp_key, _top_tickers)
-            if fmp_data:
-                cache_updates["_cached_fmp_data"] = fmp_data
-        if not fmp_data:
-            fmp_data = cached.get("_cached_fmp_data")
+        # --- Layer fetchers (each independent; run concurrently in deep mode) ---
+        def _layer_fmp_data() -> dict[str, Any] | None:
+            return assemble_fmp_data(fmp_key, _top_tickers) or None
 
-        # --- Fetch technical context ---
-        technicals: dict[str, dict] | None = None
-        if technicals_available and _top_tickers:
-            import time as _time
+        def _layer_technicals() -> dict[str, dict] | None:
             _TECH_BUDGET_S = 30.0
-            _tech_start = _time.time()
-            logger.info("FMP AI worker: fetching technicals for %d tickers", min(len(_top_tickers), 8))
+            _tech_start = time.time()
             _tech_ctx: dict[str, dict] = {}
             for _sym in _top_tickers[:8]:
-                if _time.time() - _tech_start > _TECH_BUDGET_S:
+                if cancel.is_set() or time.time() - _tech_start > _TECH_BUDGET_S:
                     break
                 _r = fetch_technicals(_sym, "15m")
                 if _r.error:
@@ -169,192 +187,209 @@ def _analysis_worker_inner(
                     "moving_averages": _r.ma_signal,
                     "indicators": _indicators,
                 }
-            if _tech_ctx:
-                technicals = _tech_ctx
-                cache_updates["_cached_fmp_technicals"] = _tech_ctx
-        if technicals is None:
-            technicals = cached.get("_cached_fmp_technicals")
+            return _tech_ctx or None
 
-        # --- Economic calendar ---
-        econ_cal: list[dict[str, Any]] | None = None
-        if poller_available and fmp_key:
-            try:
-                _today = datetime.now(_ET).date().isoformat()
-                _raw_cal = fetch_economic_calendar(fmp_key, _today, _today)
-                if _raw_cal:
-                    econ_cal = [
-                        {
-                            "event": e.get("event", ""),
-                            "country": e.get("country", ""),
-                            "estimate": e.get("estimate"),
-                            "actual": e.get("actual"),
-                            "previous": e.get("previous"),
-                            "impact": e.get("impact", ""),
-                            "date": e.get("date", ""),
-                        }
-                        for e in _raw_cal
-                        if (e.get("country") or "").upper() in ("US", "USA", "")
-                        and e.get("event")
-                    ][:25]
-                    if econ_cal:
-                        cache_updates["_cached_econ_cal"] = econ_cal
-            except Exception as exc:
-                logger.debug("FMP AI worker: economic calendar failed: %s", exc)
-        if not econ_cal:
-            econ_cal = cached.get("_cached_econ_cal")
+        def _layer_econ_cal() -> list[dict[str, Any]] | None:
+            _today = datetime.now(_ET).date().isoformat()
+            _raw_cal = fetch_economic_calendar(fmp_key, _today, _today)
+            if not _raw_cal:
+                return None
+            return [
+                {
+                    "event": e.get("event", ""),
+                    "country": e.get("country", ""),
+                    "estimate": e.get("estimate"),
+                    "actual": e.get("actual"),
+                    "previous": e.get("previous"),
+                    "impact": e.get("impact", ""),
+                    "date": e.get("date", ""),
+                }
+                for e in _raw_cal
+                if (e.get("country") or "").upper() in ("US", "USA", "")
+                and e.get("event")
+            ][:25] or None
 
-        # --- Sector performance ---
-        sector_perf: list[dict[str, Any]] | None = None
-        if poller_available and fmp_key:
-            try:
-                _raw_sectors = fetch_sector_performance(fmp_key)
-                if _raw_sectors:
-                    sector_perf = [
-                        {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
-                        for s in _raw_sectors if s.get("sector")
-                    ]
-                    if sector_perf:
-                        cache_updates["_cached_sector_perf"] = sector_perf
-            except Exception as exc:
-                logger.debug("FMP AI worker: sector performance failed: %s", exc)
-        if not sector_perf:
-            sector_perf = cached.get("_cached_sector_perf")
+        def _layer_sector_perf() -> list[dict[str, Any]] | None:
+            _raw_sectors = fetch_sector_performance(fmp_key)
+            if not _raw_sectors:
+                return None
+            return [
+                {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
+                for s in _raw_sectors if s.get("sector")
+            ] or None
 
-        # --- Finnhub social sentiment ---
-        social_sent: dict[str, Any] | None = None
-        if finnhub_available and _top_tickers:
-            try:
-                _raw_social = fetch_social_sentiment_batch(_top_tickers[:10])
-                if _raw_social:
-                    social_sent = {
-                        sym: {
-                            "reddit_mentions": s.reddit_mentions,
-                            "twitter_mentions": s.twitter_mentions,
-                            "total_mentions": s.total_mentions,
-                            "score": s.score,
-                            "label": s.sentiment_label,
-                        }
-                        for sym, s in _raw_social.items()
+        def _layer_social_sent() -> dict[str, Any] | None:
+            _raw_social = fetch_social_sentiment_batch(_top_tickers[:10])
+            if not _raw_social:
+                return None
+            return {
+                sym: {
+                    "reddit_mentions": s.reddit_mentions,
+                    "twitter_mentions": s.twitter_mentions,
+                    "total_mentions": s.total_mentions,
+                    "score": s.score,
+                    "label": s.sentiment_label,
+                }
+                for sym, s in _raw_social.items()
+            } or None
+
+        def _layer_forecasts() -> dict[str, Any] | None:
+            _fc_data: dict[str, Any] = {}
+            for _sym in _top_tickers[:8]:
+                if cancel.is_set():
+                    break
+                _fc = fetch_forecast(_sym)
+                if not _fc.has_data:
+                    continue
+                _entry: dict[str, Any] = {}
+                if _fc.price_target:
+                    _entry["price_target"] = {
+                        "current": _fc.price_target.current_price,
+                        "target_mean": _fc.price_target.target_mean,
+                        "target_high": _fc.price_target.target_high,
+                        "target_low": _fc.price_target.target_low,
+                        "upside_pct": round(_fc.price_target.upside_pct, 1),
                     }
-                    if social_sent:
-                        cache_updates["_cached_social_sent"] = social_sent
-            except Exception as exc:
-                logger.debug("FMP AI worker: social sentiment failed: %s", exc)
-        if not social_sent:
-            social_sent = cached.get("_cached_social_sent")
-
-        # --- Analyst forecasts ---
-        forecasts_ctx: dict[str, Any] | None = None
-        if forecast_available and _top_tickers:
-            try:
-                _fc_data: dict[str, Any] = {}
-                for _sym in _top_tickers[:8]:
-                    _fc = fetch_forecast(_sym)
-                    if not _fc.has_data:
-                        continue
-                    _entry: dict[str, Any] = {}
-                    if _fc.price_target:
-                        _entry["price_target"] = {
-                            "current": _fc.price_target.current_price,
-                            "target_mean": _fc.price_target.target_mean,
-                            "target_high": _fc.price_target.target_high,
-                            "target_low": _fc.price_target.target_low,
-                            "upside_pct": round(_fc.price_target.upside_pct, 1),
-                        }
-                    if _fc.rating:
-                        _entry["rating"] = {
-                            "consensus": _fc.rating.consensus,
-                            "strong_buy": _fc.rating.strong_buy,
-                            "buy": _fc.rating.buy,
-                            "hold": _fc.rating.hold,
-                            "sell": _fc.rating.sell,
-                            "strong_sell": _fc.rating.strong_sell,
-                        }
-                    if _fc.upgrades_downgrades:
-                        _entry["recent_changes"] = [
-                            {
-                                "date": ud.date,
-                                "firm": ud.firm,
-                                "action": ud.action,
-                                "to": ud.to_grade,
-                                "from": ud.from_grade,
-                            }
-                            for ud in _fc.upgrades_downgrades[:5]
-                        ]
-                    if _entry:
-                        _fc_data[_sym] = _entry
-                if _fc_data:
-                    forecasts_ctx = _fc_data
-                    cache_updates["_cached_forecasts"] = _fc_data
-            except Exception as exc:
-                logger.debug("FMP AI worker: analyst forecast failed: %s", exc)
-        if not forecasts_ctx:
-            forecasts_ctx = cached.get("_cached_forecasts")
-
-        # --- Insider trades ---
-        insider_trades: list[dict[str, Any]] | None = None
-        if fmp_key:
-            try:
-                _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
-                _raw_insider = _fmp_c.get_insider_trading_latest(limit=30)
-                if _raw_insider:
-                    insider_trades = [
+                if _fc.rating:
+                    _entry["rating"] = {
+                        "consensus": _fc.rating.consensus,
+                        "strong_buy": _fc.rating.strong_buy,
+                        "buy": _fc.rating.buy,
+                        "hold": _fc.rating.hold,
+                        "sell": _fc.rating.sell,
+                        "strong_sell": _fc.rating.strong_sell,
+                    }
+                if _fc.upgrades_downgrades:
+                    _entry["recent_changes"] = [
                         {
-                            "symbol": t.get("symbol", ""),
-                            "name": (t.get("reportingName") or t.get("ownerName", ""))[:40],
-                            "type": t.get("transactionType", ""),
-                            "shares": t.get("securitiesTransacted"),
-                            "price": t.get("price"),
-                            "value": t.get("value"),
-                            "date": t.get("filingDate", ""),
+                            "date": ud.date,
+                            "firm": ud.firm,
+                            "action": ud.action,
+                            "to": ud.to_grade,
+                            "from": ud.from_grade,
                         }
-                        for t in _raw_insider if t.get("symbol")
-                    ][:15]
-                    if insider_trades:
-                        cache_updates["_cached_insider_trades"] = insider_trades
-            except Exception as exc:
-                logger.debug("FMP AI worker: insider trades failed: %s", exc)
-        if not insider_trades:
-            insider_trades = cached.get("_cached_insider_trades")
+                        for ud in _fc.upgrades_downgrades[:5]
+                    ]
+                if _entry:
+                    _fc_data[_sym] = _entry
+            return _fc_data or None
 
-        # --- Congressional trades ---
-        congress_trades: list[dict[str, Any]] | None = None
+        def _layer_insider() -> list[dict[str, Any]] | None:
+            _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
+            _raw_insider = _fmp_c.get_insider_trading_latest(limit=30)
+            if not _raw_insider:
+                return None
+            return [
+                {
+                    "symbol": t.get("symbol", ""),
+                    "name": (t.get("reportingName") or t.get("ownerName", ""))[:40],
+                    "type": t.get("transactionType", ""),
+                    "shares": t.get("securitiesTransacted"),
+                    "price": t.get("price"),
+                    "value": t.get("value"),
+                    "date": t.get("filingDate", ""),
+                }
+                for t in _raw_insider if t.get("symbol")
+            ][:15] or None
+
+        def _layer_congress() -> list[dict[str, Any]] | None:
+            _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
+            _raw_senate = _fmp_c.get_senate_trading(limit=15)
+            _raw_house = _fmp_c.get_house_trading(limit=15)
+            _combined: list[dict[str, Any]] = []
+            for t in (_raw_senate or []) + (_raw_house or []):
+                if t.get("ticker") or t.get("symbol"):
+                    _combined.append({
+                        "ticker": t.get("ticker") or t.get("symbol", ""),
+                        "member": (t.get("firstName", "") + " " + t.get("lastName", "")).strip()
+                                  or t.get("representative", ""),
+                        "chamber": "Senate" if t in (_raw_senate or []) else "House",
+                        "type": t.get("type", "") or t.get("transactionType", ""),
+                        "amount": t.get("amount", ""),
+                        "date": t.get("transactionDate") or t.get("disclosureDate", ""),
+                    })
+            return _combined[:15] or None
+
+        def _layer_databento() -> dict[str, Any] | None:
+            return fetch_databento_quote_map(_top_tickers[:30]) or None
+
+        _jobs: dict[str, Any] = {}
+        if fmp_key and _top_tickers:
+            _jobs["fmp_data"] = _layer_fmp_data
+        if technicals_available and _top_tickers:
+            _jobs["technicals"] = _layer_technicals
+        if poller_available and fmp_key:
+            _jobs["econ_cal"] = _layer_econ_cal
+            _jobs["sector_perf"] = _layer_sector_perf
+        if finnhub_available and _top_tickers:
+            _jobs["social_sent"] = _layer_social_sent
+        if forecast_available and _top_tickers:
+            _jobs["forecasts"] = _layer_forecasts
         if fmp_key:
-            try:
-                _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
-                _raw_senate = _fmp_c.get_senate_trading(limit=15)
-                _raw_house = _fmp_c.get_house_trading(limit=15)
-                _combined: list[dict[str, Any]] = []
-                for t in (_raw_senate or []) + (_raw_house or []):
-                    if t.get("ticker") or t.get("symbol"):
-                        _combined.append({
-                            "ticker": t.get("ticker") or t.get("symbol", ""),
-                            "member": (t.get("firstName", "") + " " + t.get("lastName", "")).strip()
-                                      or t.get("representative", ""),
-                            "chamber": "Senate" if t in (_raw_senate or []) else "House",
-                            "type": t.get("type", "") or t.get("transactionType", ""),
-                            "amount": t.get("amount", ""),
-                            "date": t.get("transactionDate") or t.get("disclosureDate", ""),
-                        })
-                if _combined:
-                    congress_trades = _combined[:15]
-                    cache_updates["_cached_congress_trades"] = congress_trades
-            except Exception as exc:
-                logger.debug("FMP AI worker: congressional trades failed: %s", exc)
-        if not congress_trades:
-            congress_trades = cached.get("_cached_congress_trades")
-
-        # --- Databento exchange-observed daily OHLCV ---
-        databento_quotes: dict[str, Any] | None = None
+            _jobs["insider_trades"] = _layer_insider
+            _jobs["congress_trades"] = _layer_congress
         if databento_available and _top_tickers:
+            _jobs["databento_quotes"] = _layer_databento
+
+        _layers: dict[str, Any] = {}
+        if deep and _jobs and not cancel.is_set():
+            _stage(f"Fetching {len(_jobs)} market-data layers in parallel…")
+            logger.info(
+                "FMP AI worker: fetching %d layers in parallel (budget %.0fs)",
+                len(_jobs), _ENRICH_BUDGET_S,
+            )
+            _pool = concurrent.futures.ThreadPoolExecutor(
+                max_workers=min(6, len(_jobs)), thread_name_prefix="fmp_ai_layer",
+            )
             try:
-                databento_quotes = fetch_databento_quote_map(_top_tickers[:30])
-                if databento_quotes:
-                    cache_updates["_cached_databento_quotes"] = databento_quotes
-            except Exception as exc:
-                logger.debug("AI worker: Databento enrichment failed (%s)", type(exc).__name__)
-        if not databento_quotes:
-            databento_quotes = cached.get("_cached_databento_quotes")
+                _futs = {_pool.submit(fn): name for name, fn in _jobs.items()}
+                _deadline = time.time() + _ENRICH_BUDGET_S
+                try:
+                    for _fut in concurrent.futures.as_completed(_futs, timeout=_ENRICH_BUDGET_S):
+                        _name = _futs[_fut]
+                        try:
+                            _val = _fut.result()
+                        except Exception as _layer_exc:
+                            logger.debug("FMP AI worker: layer %s failed: %s", _name, _layer_exc)
+                            continue
+                        if _val:
+                            _layers[_name] = _val
+                            cache_updates[_CK[_name]] = _val
+                        _stage(f"Fetched {len(_layers)}/{len(_jobs)} data layers…")
+                        if cancel.is_set() or time.time() > _deadline:
+                            break
+                except concurrent.futures.TimeoutError:
+                    logger.warning(
+                        "FMP AI worker: enrichment budget (%.0fs) exhausted — continuing with %d layers",
+                        _ENRICH_BUDGET_S, len(_layers),
+                    )
+            finally:
+                _pool.shutdown(wait=False, cancel_futures=True)
+
+        def _resolved(name: str) -> Any:
+            return _layers.get(name) or cached.get(_CK[name])
+
+        fmp_data = _resolved("fmp_data")
+        technicals = _resolved("technicals")
+        econ_cal = _resolved("econ_cal")
+        sector_perf = _resolved("sector_perf")
+        social_sent = _resolved("social_sent")
+        forecasts_ctx = _resolved("forecasts")
+        insider_trades = _resolved("insider_trades")
+        congress_trades = _resolved("congress_trades")
+        databento_quotes = _resolved("databento_quotes")
+
+        if cancel.is_set():
+            return {
+                "result_dict": {
+                    "error": "Analysis cancelled.",
+                    "question": question, "answer": "", "model": "", "cached": False,
+                    "context_articles": 0, "context_tickers": 0,
+                    "fmp_tickers": 0, "enrichment_layers": 0,
+                },
+                "context_json": "",
+                "cache_updates": cache_updates,
+            }
 
         # --- Enrichment layer count ---
         _n_layers = sum(1 for x in [
@@ -364,6 +399,7 @@ def _analysis_worker_inner(
         ] if x)
 
         logger.info("FMP AI worker: assembling %d-layer context and querying LLM…", _n_layers)
+        _stage(f"Querying the model with a {_n_layers}-layer context…")
         context_json = assemble_context(
             feed,
             fmp_data=fmp_data,
@@ -558,6 +594,15 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             st.session_state["fmp_ai_run_requested"] = False
 
     st.toggle(
+        "🔬 Deep analysis — fetch fresh FMP/technicals/social data layers (slower)",
+        key="fmp_ai_deep_mode",
+        help=(
+            "Off: quick analysis from the live feed plus already-cached data "
+            "layers (usually <30s). On: fetch all market-data layers fresh "
+            "and in parallel before asking the model (up to ~3½ min)."
+        ),
+    )
+    st.toggle(
         "Pause auto-refresh while reviewing AI result",
         key="fmp_ai_pause_auto_refresh",
         help=(
@@ -623,7 +668,15 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             timeout_s=getattr(cfg, "producer_ai_timeout_s", 150.0),
         )
 
-        _submitted = _ai_pool.submit(
+        # Per-run executor: a hung previous run can never queue this one
+        # behind it (the executor is not shared), and shutdown(wait=False)
+        # lets the daemon thread finish on its own.
+        _cancel_event = threading.Event()
+        _stage_ref: dict[str, str] = {"label": "Starting…"}
+        _run_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="fmp_ai",
+        )
+        _submitted = _run_pool.submit(
             _analysis_worker,
             feed=list(feed),  # shallow copy — avoid concurrent mutation
             question=question,
@@ -637,8 +690,14 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             forecast_available=_FORECAST_AVAILABLE,
             poller_available=_POLLER_AVAILABLE,
             databento_available=_DATABENTO_AVAILABLE,
+            deep=bool(st.session_state.get("fmp_ai_deep_mode", False)),
+            cancel=_cancel_event,
+            stage=_stage_ref,
         )
+        _run_pool.shutdown(wait=False)
         st.session_state["_fmp_ai_future"] = _submitted
+        st.session_state["_fmp_ai_cancel"] = _cancel_event
+        st.session_state["_fmp_ai_stage"] = _stage_ref
         st.session_state["_fmp_ai_executing"] = True
         st.session_state["_fmp_ai_submit_ts"] = time.time()
         st.session_state["fmp_ai_run_requested"] = False  # consume immediately
@@ -646,7 +705,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         logger.info("AI analysis submitted to background thread")
 
     # Step C: show progress if analysis is running
-    _MAX_WORKER_SECONDS = 180  # hard timeout — cancel after 3 minutes
+    # Budget: enrichment ≤ _ENRICH_BUDGET_S + Producer LLM timeout (~150 s)
+    # + slack. The worker honours the cancel event at its checkpoints.
+    _MAX_WORKER_SECONDS = 210
     if st.session_state.get("_fmp_ai_executing"):
         _elapsed = time.time() - st.session_state.get("_fmp_ai_submit_ts", time.time())
         _ai_f = st.session_state.get("_fmp_ai_future")
@@ -656,6 +717,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         # Stale execution: cancel after hard timeout
         elif _elapsed > _MAX_WORKER_SECONDS:
             logger.warning("FMP AI worker exceeded %ds hard timeout — cancelling", _MAX_WORKER_SECONDS)
+            _cancel_ev = st.session_state.get("_fmp_ai_cancel")
+            if _cancel_ev is not None:
+                _cancel_ev.set()
             if _ai_f is not None:
                 _ai_f.cancel()
             st.session_state["_fmp_ai_executing"] = False
@@ -668,10 +732,21 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             }
             st.rerun()
         else:
-            st.info(f"⏳ AI analysis running… ({int(_elapsed)}s elapsed, up to ~60s)")
+            _stage_label = str(
+                (st.session_state.get("_fmp_ai_stage") or {}).get("label") or "Working…"
+            )
+            _budget_hint = (
+                "up to ~3½ min" if st.session_state.get("fmp_ai_deep_mode") else "usually <30s"
+            )
+            st.info(
+                f"⏳ AI analysis running… ({int(_elapsed)}s elapsed, {_budget_hint}) — {_stage_label}"
+            )
             _cc1, _cc2 = st.columns([1, 3])
             with _cc1:
                 if st.button("❌ Cancel", key="fmp_ai_cancel"):
+                    _cancel_ev = st.session_state.get("_fmp_ai_cancel")
+                    if _cancel_ev is not None:
+                        _cancel_ev.set()
                     if _ai_f is not None:
                         _ai_f.cancel()
                     st.session_state["_fmp_ai_executing"] = False
