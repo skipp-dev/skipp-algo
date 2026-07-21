@@ -867,8 +867,11 @@ python -m scripts.grafana_macos_node_filesystem_alert_patch
 
 The patch excludes only `/System/Volumes/VM`, `/System/Volumes/Update`, and
 `/System/Volumes/Preboot`. The canonical writable Data-volume signal and any
-independent external filesystem remain monitored. It updates the warning and
-critical rules individually, leaving the other integration rules untouched.
+independent external filesystem remain monitored. Grafana marks stock
+integration rules with `converted_prometheus` provenance, which rejects
+per-rule updates. The script therefore rewrites the six-rule group atomically,
+changes only the warning and critical expressions, and verifies that the four
+non-target rules remain unchanged.
 
 > ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
 > `POST /api/v1/provisioning/alert-rules`. That endpoint creates a _single_ rule
