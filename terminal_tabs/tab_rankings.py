@@ -14,8 +14,9 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
+    tv_symbol_column,
 )
-from terminal_ui_helpers import format_age_string
+from terminal_ui_helpers import format_age_string, tv_linkify_rows
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -105,12 +106,13 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "Source": m.get("source", ""),
         })
 
-    df_rank = pd.DataFrame(rank_rows)
+    df_rank = pd.DataFrame(tv_linkify_rows(rank_rows))
     st.dataframe(
         df_rank,
         width="stretch",
         height=min(800, 40 + 35 * len(df_rank)),
         hide_index=True,
+        column_config={"Symbol": tv_symbol_column()},
     )
 
     # Shared expanders

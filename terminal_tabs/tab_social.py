@@ -14,7 +14,8 @@ from terminal_finnhub import (
     is_available as finnhub_available,
 )
 from terminal_newsapi import fetch_social_ranked_articles, newsapi_available
-from terminal_ui_helpers import safe_markdown_text, safe_url
+from terminal_tabs._shared import tv_symbol_column
+from terminal_ui_helpers import safe_markdown_text, safe_url, tv_linkify_rows
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -85,9 +86,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     if _rows:
                         import pandas as pd
                         st.dataframe(
-                            pd.DataFrame(_rows),
+                            pd.DataFrame(tv_linkify_rows(_rows)),
                             hide_index=True,
                             height=min(40 * len(_rows) + 50, 500),
+                            column_config={"Symbol": tv_symbol_column()},
                         )
                 else:
                     st.caption("No social sentiment data available for current tickers.")

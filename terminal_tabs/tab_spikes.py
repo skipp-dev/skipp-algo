@@ -19,7 +19,9 @@ from terminal_tabs._shared import (
     render_event_clusters_expander,
     render_forecast_expander,
     render_technicals_expander,
+    tv_symbol_column,
 )
+from terminal_ui_helpers import tv_linkify_rows
 
 
 def _build_filtered_spike_rows(
@@ -128,12 +130,13 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "Source": r.get("source", ""),
         })
 
-    df = pd.DataFrame(table_rows)
+    df = pd.DataFrame(tv_linkify_rows(table_rows))
     df.index = df.index + 1
     st.dataframe(
         df,
         width="stretch",
         height=min(800, 40 + 35 * len(df)),
+        column_config={"Symbol": tv_symbol_column()},
     )
 
     # Shared expanders

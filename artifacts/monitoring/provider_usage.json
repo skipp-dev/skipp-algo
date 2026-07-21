@@ -8,6 +8,12 @@
         "rate_limit_hits": 0,
         "records": 0
       },
+      "finnhub": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 3,
+        "records": 0
+      },
       "fmp": {
         "bytes": 12,
         "calls": 10,
@@ -28,5 +34,5 @@
       }
     }
   },
-  "updated_at": "2026-07-13T12:21:19.545980+00:00"
+  "updated_at": "2026-07-21T20:56:50.738400+00:00"
 }
