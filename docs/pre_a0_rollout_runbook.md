@@ -31,3 +31,54 @@ corrupt, incompatible or expired model state disables PRE-A0 only.
 
 Set `RT_PRE_A0_MODE=off`. Confirm A0/A1/A2 and FMP polling are unchanged.
 Retain the model identifier, feature version, inputs and outcomes for review.
+
+## Retraining from live shadow data
+
+The bootstrap artifact (`71831770…`, calibrated on 2026-07-08 only, 210 test
+rows) has a degenerate feature envelope — e.g. `direction_stability` trained
+as `[1.0, 1.0]` while live values span `[0, 1]`, and `price_progress` trained
+up to `5.6` while live values reach four digits. Every quiet-universe score
+therefore raises `pre_a0_feature_out_of_range_total` by construction. Since
+2026-07-21 the runtime no longer scores `NONE`-state snapshots (they are still
+sampled for training), so the dashboard violation panels are a real alarm
+again. The durable fix is retraining on live shadow snapshots.
+
+**Precondition:** `build_walk_forward_manifest` requires at least three
+complete session days of snapshots. Collection only works since the
+2026-07-21 evidence-flow fixes; the first compliant retrain is possible once
+three complete sessions exist on the volume.
+
+1. Pull snapshots and journals from the Railway volume (from a directory
+   linked via `railway link --project skipp-algo --service a0-fast-shadow`;
+   note `railway ssh -- <cmd>` mangles quoted arguments, so drive the shell
+   over stdin and strip the `\r`/prompt noise before decoding):
+
+   ```bash
+   printf 'cd /app/data && tar czf - pre-a0-snapshots a0-fast-parity | base64\nexit\n' \
+     | railway ssh > shadow-raw.out
+   # keep only base64 lines, join, decode from the first "H4sI", untar
+   ```
+
+2. Prepare leakage-bounded datasets (fails closed below three sessions):
+
+   ```bash
+   .venv/bin/python -m scripts.prepare_pre_a0_training_data \
+     services/a0_fast_detector/bootstrap/pre-a0-model.json \
+     <extracted>/pre-a0-snapshots train.json test.json provenance.json \
+     <extracted>/a0-fast-parity/a0_shadow_databento_*.jsonl \
+     --code-revision "$(git rev-parse HEAD)"
+   ```
+
+3. Train and evaluate, then follow the promotion checklist above:
+
+   ```bash
+   .venv/bin/python -m scripts.train_pre_a0_model train.json artifact.json \
+     --split-hash "$(jq -r .split_manifest.split_sha256 provenance.json)" \
+     --review-after <ISO8601 expiry; the artifact hard-expires after this>
+   .venv/bin/python -m scripts.evaluate_pre_a0_model artifact.json test.json eval.json \
+     --validated-artifact-output artifact-validated.json
+   ```
+
+The new artifact replaces `services/a0_fast_detector/bootstrap/pre-a0-model.json`
+(and `RT_PRE_A0_MODEL_PATH` if it points elsewhere) only after the promotion
+checklist passes.
