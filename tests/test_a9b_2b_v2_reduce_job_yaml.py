@@ -131,6 +131,22 @@ def test_reduce_downloads_all_shard_artifacts_separately() -> None:
     )
 
 
+def test_reduce_normalizes_download_artifact_single_match_flattening() -> None:
+    """download-artifact@v7 flattens a single pattern match into `path`."""
+    steps = _reduce_steps()
+    diagnostic = next(
+        step for step in steps if step.get("name") == "List downloaded shard artifacts"
+    )
+    assert diagnostic.get("env", {}).get("EXPECTED") == (
+        "${{ needs.plan.outputs.shard_count }}"
+    )
+    run = diagnostic.get("run", "")
+    assert 'if [ "${#artifact_dirs[@]}" -eq 0 ]; then' in run
+    assert 'if [ "${EXPECTED}" != "1" ] || [ -z "${first_manifest}" ]; then' in run
+    assert "mv shard-artifact-flat shard-artifacts/a9b-2b-shard-1-of-1" in run
+    assert "refusing ambiguous normalization" in run
+
+
 def test_reduce_invokes_merge_shards_script_with_required_flags() -> None:
     steps = _reduce_steps()
     run_text = "\n".join(str(s.get("run", "")) for s in steps if "run" in s)

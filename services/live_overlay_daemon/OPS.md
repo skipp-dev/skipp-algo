@@ -853,6 +853,23 @@ editable in the UI.
 Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
 `skipp.grafana.api` (local). The token is never printed.
 
+### macOS APFS filesystem-alert deduplication
+
+Grafana's stock macOS integration evaluates every writable APFS system volume.
+Because `Data`, `VM`, `Update`, and `Preboot` share one APFS container, a single
+low-space condition otherwise produces four equivalent alerts. Apply the
+idempotent per-rule patch after installing or upgrading that integration:
+
+```bash
+python -m scripts.grafana_macos_node_filesystem_alert_patch --dry-run
+python -m scripts.grafana_macos_node_filesystem_alert_patch
+```
+
+The patch excludes only `/System/Volumes/VM`, `/System/Volumes/Update`, and
+`/System/Volumes/Preboot`. The canonical writable Data-volume signal and any
+independent external filesystem remain monitored. It updates the warning and
+critical rules individually, leaving the other integration rules untouched.
+
 > ⚠️ Do **not** `curl --data-binary @alert-rules.yaml` to
 > `POST /api/v1/provisioning/alert-rules`. That endpoint creates a _single_ rule
 > and ignores the `groups:` file-provisioning envelope, so it silently fails to
