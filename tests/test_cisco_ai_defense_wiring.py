@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-import terminal_ai_insights as ai
 import terminal_fmp_insights as fmp
 from cisco_ai_defense import AIDefenseBlockedError
 
@@ -28,25 +27,6 @@ class _Client:
         return _Response()
 
 
-def test_terminal_ai_inspects_request_and_response(monkeypatch):
-    calls = []
-    monkeypatch.setattr(ai, "inspect_messages", lambda messages, **kwargs: calls.append((messages, kwargs)))
-    monkeypatch.setattr(ai.httpx, "Client", lambda *_args, **_kwargs: _Client())
-    ai._cache.clear()
-
-    result = ai.query_llm(
-        "What matters?",
-        '{"total_articles": 0, "ticker_summary": {}}',
-        "openai-test-key",
-        model="gpt-test",
-    )
-
-    assert result.answer == "inspected answer"
-    assert [kwargs["phase"] for _, kwargs in calls] == ["request", "response"]
-    assert calls[0][0][-1]["role"] == "user"
-    assert calls[1][0][-1] == {"role": "assistant", "content": "inspected answer"}
-
-
 def test_terminal_fmp_inspects_request_and_response(monkeypatch):
     calls = []
     monkeypatch.setattr(fmp, "inspect_messages", lambda messages, **kwargs: calls.append((messages, kwargs)))
@@ -64,28 +44,6 @@ def test_terminal_fmp_inspects_request_and_response(monkeypatch):
     assert result == "inspected answer"
     assert [kwargs["phase"] for _, kwargs in calls] == ["request", "response"]
     assert calls[1][0][-1] == {"role": "assistant", "content": "inspected answer"}
-
-
-def test_terminal_ai_never_calls_provider_when_request_is_blocked(monkeypatch):
-    provider_called = False
-
-    def _blocked(*_args, **_kwargs):
-        raise AIDefenseBlockedError("blocked test decision")
-
-    def _client(*_args, **_kwargs):
-        nonlocal provider_called
-        provider_called = True
-        return _Client()
-
-    monkeypatch.setattr(ai, "inspect_messages", _blocked)
-    monkeypatch.setattr(ai.httpx, "Client", _client)
-    ai._cache.clear()
-
-    result = ai.query_llm("blocked", "{}", "openai-test-key", model="gpt-test")
-
-    assert provider_called is False
-    assert result.answer == ""
-    assert result.error is not None
 
 
 def test_terminal_fmp_never_calls_provider_when_request_is_blocked(monkeypatch):
@@ -140,7 +98,6 @@ def test_terminal_fmp_validation_returns_safe_answer_when_runtime_blocks(monkeyp
 @pytest.mark.parametrize(
     ("module", "query"),
     [
-        (ai, ai.query_llm),
         (fmp, fmp.query_fmp_llm),
     ],
 )
@@ -175,7 +132,6 @@ def test_positive_cache_hit_is_reinspected_without_recalling_provider(monkeypatc
 @pytest.mark.parametrize(
     ("module", "query"),
     [
-        (ai, ai.query_llm),
         (fmp, fmp.query_fmp_llm),
     ],
 )

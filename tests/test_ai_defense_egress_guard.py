@@ -12,7 +12,8 @@ _GENERATION_ENDPOINTS = (
     "api.anthropic.com/v1/messages",
 )
 _EXPECTED_DIRECT_EGRESS = {
-    "terminal_ai_insights.py",
+    # 2026-07-21: terminal_ai_insights dead engine removed (no production
+    # caller; Producer egress lives in terminal_fmp_insights).
     "terminal_fmp_insights.py",
 }
 

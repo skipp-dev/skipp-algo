@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -408,7 +409,10 @@ Your role:
 Current date/time context is provided in the user message.
 """
 
-_DEFAULT_MODEL = "gpt-5.6-luna"
+# Producer-side model selection: override with OPENAI_MODEL (service env)
+# so a model switch does not require a code change. The Terminal cannot pass
+# a model through the /ai-insights contract by design.
+_DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "").strip() or "gpt-5.6-luna"
 _API_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
 
 
@@ -509,10 +513,17 @@ def query_fmp_llm(
     ck = _cache_key(question, digest, model, api_key)
     hit, cached_text = _get_cached(ck)
     if hit and not cached_text:
+        # Negative-cache hit: surface WHY nothing is returned instead of
+        # rendering a silent empty answer (review finding 2026-07-21).
         return FMPLLMResponse(
             answer=cached_text, model=model, cached=True,
             context_articles=n_articles, context_tickers=n_tickers,
             fmp_tickers=n_fmp,
+            error=(
+                "The identical query just failed or was blocked by the AI "
+                f"security policy; retry is paused for up to {int(_MISS_TTL_S)}s. "
+                "Please try again shortly."
+            ),
         )
 
     now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")

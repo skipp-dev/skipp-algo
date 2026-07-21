@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 _API_KEY_ENV = "CISCO_AI_DEFENSE_API_KEY"
 _REGION_ENV = "CISCO_AI_DEFENSE_REGION"
 _MODE_ENV = "CISCO_AI_DEFENSE_MODE"
+_RESPONSE_MODE_ENV = "CISCO_AI_DEFENSE_RESPONSE_MODE"
 _TIMEOUT_ENV = "CISCO_AI_DEFENSE_TIMEOUT_SECONDS"
 
 _SUPPORTED_REGIONS = frozenset({"us-west-2", "eu-central-1", "ap-northeast-1", "me-central-1"})
@@ -71,6 +72,25 @@ def _mode() -> str:
     if mode not in {"enforce", "monitor"}:
         raise AIDefenseConfigurationError(f"{_MODE_ENV} must be 'enforce' or 'monitor'")
     return mode
+
+
+def _phase_mode(phase: str) -> str:
+    """Resolve the enforcement mode for one phase.
+
+    ``CISCO_AI_DEFENSE_RESPONSE_MODE`` optionally relaxes only the
+    response phase (e.g. ``monitor`` so model answers with markdown/code
+    are recorded, not censored) while requests stay on the global mode.
+    Inspection itself always runs; there is no off switch.
+    """
+    if phase == "response":
+        override = os.getenv(_RESPONSE_MODE_ENV, "").strip().lower()
+        if override:
+            if override not in {"enforce", "monitor"}:
+                raise AIDefenseConfigurationError(
+                    f"{_RESPONSE_MODE_ENV} must be 'enforce' or 'monitor'"
+                )
+            return override
+    return _mode()
 
 
 def _timeout_seconds() -> int:
@@ -173,7 +193,7 @@ def inspect_messages(
     if phase not in {"request", "response"}:
         raise AIDefenseConfigurationError("AI Defense phase must be 'request' or 'response'")
 
-    mode = _mode()
+    mode = _phase_mode(phase)
     api_key, region, timeout = _runtime_config()
     normalized = _normalize_messages(messages)
     transaction_id = str(uuid.uuid4())
