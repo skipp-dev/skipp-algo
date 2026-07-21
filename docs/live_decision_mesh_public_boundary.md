@@ -1,6 +1,6 @@
 # Live Decision Mesh — public repository boundary
 
-Status: factual architecture boundary, 2026-07-18.
+Status: factual architecture boundary, 2026-07-21.
 
 This public repository contains the Skipp producers, Pine-native calculations,
 library-refresh control plane, and server-side live-overlay services. It does
@@ -17,9 +17,11 @@ credentials, or user-specific browser state.
   plane. It is not a low-latency event transport and users must update the
   script/library version to receive a refresh.
 - The supported public runtime boundary is the existing server-side live
-  overlay and its documented clients. Any future first-party browser Sidecar
-  or user-confirmed Pine projection is developed in a separate private lab
-  until the repository is private and a release decision has been recorded.
+  overlay and its documented clients. A future first-party browser Sidecar
+  remains private until a release decision is recorded. User-confirmed Pine
+  projection/Packet Courier was rejected as a product transport on 2026-07-21:
+  supported Pine boundaries require manual copy and paste, and no convincing
+  recurring use case justifies that workflow.
 
 ## Phase status
 
@@ -29,7 +31,7 @@ credentials, or user-specific browser state.
 | 1 — alert ingress and Sidecar pilot | Private local prototype only; no public webhook endpoint or credential is committed. |
 | 2 — durable delivery and signatures | Private local hardening only; production signatures are required before promotion. |
 | 3 — producer/catalyst adapters | Existing backend producers remain authoritative; no new consumer claim is implied by this document. |
-| 4 — Pine-native/Courier pilot | Private probes and explanatory-only experiments; no publication or directional claim. |
+| 4 — Pine-native/Courier evaluation | Courier product path rejected 2026-07-21; Pine-native private probes may continue, but no manual packet transport is planned. |
 | 5 — observation and evidence | Local, manifest-bound shadow observation; no promotion before the predeclared evidence gates pass. |
 
 This document is intentionally a boundary, not a product announcement. It
