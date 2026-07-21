@@ -45,6 +45,19 @@
   the current session open (or connection time before the open). A failed
   Historical gap repair requests a fresh complete Live replay instead of
   repeatedly querying beyond Historical availability.
+- The first deployment of that contract (`cb61e217-a76e-4be6-a699-6b3070532c7f`)
+  failed closed because later sparse OHLCV-1s bars were still interpreted as
+  missing seconds. PR #3842 corrected the sparse-source contract, but its
+  deployment (`2a90ef0e-4457-43d5-9243-3e2f158520fe`) then exposed a separate
+  replay-burst overflow: several hours for 899 symbols arrived faster than the
+  3,596-bar live buffer could consume them. PR #3844 added bounded replay
+  backpressure while retaining live drop-and-resync behavior after
+  `replay_completed`.
+- Deployment `4b07fe75-2a42-4015-a257-e4f473e658a5` of merge commit
+  `92a4ac76b803913f1dd04fe60ea8f05b1ea309ba` passed Railway health on the first
+  attempt. Databento replay completed at `2026-07-21T17:31:59Z` without a
+  failed or successful Historical recovery, proving that no local replay drop
+  required reconstruction.
 - `up{job="a0_fast"}=1`, stream connectivity, model readiness and calibration
   readiness prove only control-plane health. They do not prove that PRE-A0
   measurement is active. `/evidencez=200`, increasing processing/inference/
@@ -52,17 +65,25 @@
   mandatory evidence-flow proof.
 - Databento Live authenticated and resolved the configured 899-symbol
   universe. `SVAC` was removed after Databento explicitly returned
-  `symbol_resolution_failed`; no other symbol was changed. Because 19 July
-  2026 is a Sunday, no market records were
-  manufactured: record, decision, snapshot and flush counters correctly
-  remain 0.
+  `symbol_resolution_failed`; no other symbol was changed. The verified
+  21 July runtime received and processed 19,301 records with zero queue drops
+  and zero unresolved resync symbols; a later independent sample increased
+  both counters to 19,342.
 - PRE-A0 loaded artifact `71831770afe43bdd424aa7ab` with
-  `pre_a0_model_ready=1` and `pre_a0_calibration_valid=1`.
-- `/app/data` is a ready 5-GB persistent Railway volume. At the 21 July audit
-  it was still empty apart from filesystem metadata.
-- No session before the first verified `/evidencez=200` interval and durable
-  snapshot partition counts toward the collection window. The valid-session
-  counter therefore remained zero at this audit.
+  `pre_a0_model_ready=1`, `pre_a0_calibration_valid=1`, artifact status
+  `ready` and calibration version `platt-v1`.
+- `/healthz=200`, `/evidencez=200`, `a0_fast_evidence_ready=1`, and Grafana
+  Cloud `up{job="a0_fast"}=1` were independently verified. Snapshot counters
+  increased from 7,067 to 7,083 while the worker remained connected;
+  7,000 rows were flushed with zero persistence errors.
+- `/app/data` contains the parity journal and 14 Parquet partitions with 14
+  matching manifests. The first durable Parquet partition was written at
+  `2026-07-21T17:31:56.341742Z`.
+- The PRE-A0 measurement period therefore began on 21 July at the first
+  durable, `/evidencez=200` interval. This partial regular session is not yet a
+  complete valid session: the completed-session counter remains zero until the
+  full replay-to-close session and its durable partitions pass the session
+  audit. The 20-session/200-episode notify gate remains closed.
 
 The separate `opra-live-shadow` daemon is deployed privately with its own
 `/app/data` volume and the five-parent hotlist `SPY,QQQ,AAPL,NVDA,TSLA`. The
