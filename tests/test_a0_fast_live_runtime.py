@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from databento_dbn import OHLCVMsg, RType
@@ -10,6 +11,8 @@ from databento_dbn import OHLCVMsg, RType
 from open_prep.a0_stream_buffer import BoundedBarBuffer
 from services.a0_fast_detector.live_runtime import start_live_reader
 from services.a0_fast_detector.telemetry import A0FastTelemetry
+
+_REPLAY_START = datetime(2026, 7, 21, 13, 30, tzinfo=UTC)
 
 
 class SymbolMappingMsg:
@@ -60,10 +63,12 @@ def test_reader_normalizes_into_bounded_buffer_and_exposes_overflow() -> None:
         symbols=["NVDA"],
         buffer=buffer,
         telemetry=telemetry,
+        replay_start=_REPLAY_START,
     )
     thread.join(timeout=2)
     assert not thread.is_alive()
     assert client.subscription["schema"] == "ohlcv-1s"
+    assert client.subscription["start"] == _REPLAY_START
     item = buffer.take(timeout=0)
     assert item.bar.sequence == 2
     assert item.resync_required is True
@@ -88,6 +93,7 @@ def test_reader_constructs_live_client_inside_reader_thread() -> None:
         symbols=["NVDA"],
         buffer=buffer,
         telemetry=A0FastTelemetry(),
+        replay_start=_REPLAY_START,
     )
     thread.join(timeout=2)
 
@@ -118,6 +124,7 @@ def test_reader_accepts_real_databento_ohlcv_without_receive_timestamp() -> None
         symbols=["NVDA"],
         buffer=buffer,
         telemetry=telemetry,
+        replay_start=_REPLAY_START,
     )
     thread.join(timeout=2)
 
@@ -138,6 +145,7 @@ def test_reader_counts_unmapped_and_invalid_records() -> None:
         symbols=["NVDA"],
         buffer=buffer,
         telemetry=telemetry,
+        replay_start=_REPLAY_START,
     )
     thread.join(timeout=2)
 

@@ -138,10 +138,42 @@ class A0FastTelemetry:
             return HTTPStatus.SERVICE_UNAVAILABLE, "disconnected"
         if snapshot["resync_required"]:
             return HTTPStatus.SERVICE_UNAVAILABLE, "resync_required"
+        if snapshot["records_received"] >= 10 and snapshot["records_processed"] == 0:
+            return HTTPStatus.SERVICE_UNAVAILABLE, "no_records_processed"
         return HTTPStatus.OK, "ok"
+
+    def evidence_status(self) -> tuple[HTTPStatus, str]:
+        """Report whether this process is producing persisted PRE-A0 evidence."""
+        snapshot = self.snapshot()
+        checks = (
+            (not snapshot["connected"], "disconnected"),
+            (snapshot["records_received"] == 0, "no_records_received"),
+            (snapshot["records_processed"] == 0, "no_records_processed"),
+            (snapshot["resync_required"] > 0, "resync_required"),
+        )
+        for failed, reason in checks:
+            if failed:
+                return HTTPStatus.SERVICE_UNAVAILABLE, reason
+        if self._pre_a0 is None:
+            return HTTPStatus.SERVICE_UNAVAILABLE, "pre_a0_telemetry_missing"
+        pre_a0 = self._pre_a0.snapshot()
+        pre_checks = (
+            (not pre_a0["enabled"], "pre_a0_disabled"),
+            (pre_a0["model_status"] != "ready", "model_not_ready"),
+            (pre_a0["calibration_version"] == "none", "calibration_invalid"),
+            (pre_a0["inference_count"] == 0, "no_inference"),
+            (pre_a0["snapshots_recorded"] == 0, "no_snapshots_recorded"),
+            (pre_a0["snapshot_rows_flushed"] == 0, "no_rows_flushed"),
+            (pre_a0["persistence_errors"] > 0, "persistence_errors"),
+        )
+        for failed, reason in pre_checks:
+            if failed:
+                return HTTPStatus.SERVICE_UNAVAILABLE, reason
+        return HTTPStatus.OK, "evidence_flowing"
 
     def render_prometheus(self) -> str:
         snapshot = self.snapshot()
+        evidence_status, evidence_reason = self.evidence_status()
         metrics = [
             _gauge("a0_fast_stream_connected", int(snapshot["connected"])),
             _counter("a0_fast_records_received_total", snapshot["records_received"]),
@@ -166,7 +198,15 @@ class A0FastTelemetry:
             _counter("a0_fast_process_cpu_seconds_total", snapshot["process_cpu_seconds"]),
             _gauge("a0_fast_process_peak_rss_bytes", snapshot["process_peak_rss_bytes"]),
             _gauge("a0_fast_uptime_seconds", snapshot["uptime_seconds"]),
+            _gauge(
+                "a0_fast_evidence_ready",
+                int(evidence_status is HTTPStatus.OK),
+            ),
         ]
+        metrics.append("# TYPE a0_fast_evidence_status_info gauge\n")
+        metrics.append(
+            f'a0_fast_evidence_status_info{{reason="{evidence_reason}"}} 1\n'
+        )
         metrics.append("# TYPE a0_fast_records_rejected_total counter\n")
         for reason, count in sorted(snapshot["record_rejections"].items()):
             metrics.append(
@@ -204,6 +244,10 @@ def start_metrics_server(
                 return
             if self.path == "/healthz":
                 status, body = telemetry.health_status()
+                self._write(status, body + "\n")
+                return
+            if self.path == "/evidencez":
+                status, body = telemetry.evidence_status()
                 self._write(status, body + "\n")
                 return
             self._write(HTTPStatus.NOT_FOUND, "not found\n")

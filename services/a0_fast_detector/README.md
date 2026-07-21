@@ -11,8 +11,12 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - Keine Notification-, Slack-, Pine- oder Signals-Publication-Abhängigkeit.
 - Explizites Symbolset; kein implizites `ALL_SYMBOLS`.
 - Referenzdatei muss Previous Close und ADV aus Databento enthalten.
-- Mid-session-Start und erkannte Lücken lösen vor einer Entscheidung eine
-  vollständige Databento-Historical-Rekonstruktion ab Session-Open aus.
+- Jeder Verbindungsaufbau nutzt Databento Live Intraday Replay ab dem früheren
+  Zeitpunkt von Verbindungszeit und 09:30 ET. Damit ist auch bei einem
+  Mid-session-Deploy die Lücke zwischen dem verzögerten Historical-Ende und
+  dem Echtzeitstrom vollständig belegt, bevor PRE-A0 ausgewertet wird.
+- Eine später im laufenden Stream erkannte Lücke löst weiterhin vor einer
+  Entscheidung eine vollständige Databento-Rekonstruktion ab Session-Open aus.
 - Fehlgeschlagene oder nicht belegbar vollständige Rekonstruktion sowie eine
   fehlende Referenz erzeugen kein A0.
 - Ausgaben sind `A0_FAST_SHADOW`-Logereignisse mit `decision_scope=core_only`.
@@ -90,9 +94,33 @@ fail-closed Zustand über den Mid-session-Bootstrap.
   Missingness, Out-of-range-Werte, Zustände, Score-Buckets, Snapshotwrites und
   Persistenzfehler. `pre_a0_enabled=0` unterdrückt Modellalarme im Off-Modus.
 - `/healthz`: `200` nur bei verbundener Quelle ohne ausstehende Resync-Pflicht,
-  andernfalls `503`.
+  andernfalls `503`; empfangene, aber dauerhaft unverarbeitete Records sind
+  ebenfalls ungesund.
+- `/evidencez`: `200` erst wenn die laufende Instanz Records empfängt und
+  verarbeitet, PRE-A0-Inferenz ausführt und mindestens einen Snapshot-Puffer
+  erfolgreich auf das persistente Volume gespült hat. Ein erfolgreiches
+  Railway-Deployment oder `/healthz=200` allein belegt ausdrücklich **nicht**,
+  dass die Messperiode läuft.
 - `alert-rules.yml`: Regeln für Disconnect, Slow-Reader-Drops, festhängenden
-  Resync, Queue-Druck und stale Daten.
+  Resync, Queue-Druck, stale Daten und empfangenen Markttraffic ohne
+  persistierten PRE-A0-Evidenzfluss.
+
+## Verbindlicher Deployment-Nachweis
+
+„PRE-A0 sammelt Messdaten“ darf erst berichtet werden, wenn derselbe laufende
+Container alle folgenden Nachweise liefert:
+
+1. `/healthz` und `/evidencez` antworten beide mit HTTP 200.
+2. `a0_fast_records_processed_total`, `pre_a0_scores_total` und
+   `pre_a0_snapshots_recorded_total` steigen über zwei zeitlich getrennte
+   Abfragen während der Regular Session.
+3. `pre_a0_snapshot_rows_flushed_total > 0` und
+   `pre_a0_persistence_errors_total == 0`.
+4. Unter `RT_PRE_A0_SNAPSHOT_DIR` existiert mindestens eine aktuelle
+   Parquet-Partition samt Manifest auf dem persistenten Volume.
+5. Die Session-/Episodenzählung wird aus diesen Dateien ermittelt; Deployment-
+   Alter, Stream-Verbindung und Modellbereitschaft werden niemals als
+   empirische Session-Evidenz gezählt.
 
 ## Reproduzierbare Lastprobe
 
