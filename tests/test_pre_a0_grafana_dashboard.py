@@ -45,7 +45,7 @@ def test_dashboard_has_complete_operational_sections() -> None:
     titles = {panel.get("title") for panel in panels}
     required = {
         "Status at a Glance",
-        "Overall Shadow Readiness",
+        "Control Plane Readiness",
         "Active Grafana Alerts",
         "Loaded Model Identity",
         "Last Disconnect Reason",
@@ -141,3 +141,36 @@ def test_shadow_safety_language_is_explicit() -> None:
     assert "unconfirmed early-warning shadow" in text
     assert "does not approve promotion" in text
     assert "fail-closed" in text
+
+
+def test_control_readiness_does_not_claim_live_processing() -> None:
+    panel = next(
+        panel
+        for panel in _dashboard()["panels"]
+        if panel.get("title") == "Control Plane Readiness"
+    )
+    mappings = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert mappings["1"]["text"] == "CONTROL READY"
+    description = panel["description"].lower()
+    assert "does not claim" in description
+    assert "live data path" in description
+
+
+def test_alert_list_is_scoped_to_pre_a0_folder() -> None:
+    panel = next(
+        panel
+        for panel in _dashboard()["panels"]
+        if panel.get("title") == "Active Grafana Alerts"
+    )
+    options = panel["options"]
+    assert options["datasource"] == "grafana"
+    assert options["folder"] == {"uid": "bfshrlee72tc0d", "title": "PRE-A0"}
+    assert options["showInactiveAlerts"] is False
+    assert options["stateFilter"] == {
+        "error": True,
+        "firing": True,
+        "noData": False,
+        "normal": False,
+        "pending": True,
+        "recovering": True,
+    }
