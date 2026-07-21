@@ -246,7 +246,15 @@ class A0StreamState:
                 return StreamApplyResult(StreamApplyStatus.DUPLICATE, state.gap_state, None)
             if bar.ts_event <= state.last_ts_event:
                 return StreamApplyResult(StreamApplyStatus.OUT_OF_ORDER, state.gap_state, None)
-            if bar.ts_event - state.last_ts_event > self._max_gap_seconds:
+            # OHLCV-1s is sparse: Databento emits a bar only when trades occur.
+            # While one uninterrupted replay/live subscription proves source
+            # coverage, elapsed wall-clock seconds therefore do not imply lost
+            # records.  A local buffer drop still sets ``forced_gap`` below,
+            # and disconnect handling clears source coverage before reconnect.
+            if (
+                self._source_coverage_started_at is None
+                and bar.ts_event - state.last_ts_event > self._max_gap_seconds
+            ):
                 state.gap_state = GapState.GAP_DETECTED
             if forced_gap:
                 state.gap_state = GapState.GAP_DETECTED
