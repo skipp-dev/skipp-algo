@@ -63,6 +63,18 @@ class BoundedBarBuffer:
             self._condition.notify()
             return BufferOffer(dropped=dropped, depth=len(self._items))
 
+    def put(self, bar: StreamBar) -> BufferOffer:
+        """Add one bar with backpressure, without dropping replay history."""
+        with self._condition:
+            while len(self._items) >= self._capacity and not self._closed:
+                self._condition.wait()
+            if self._closed:
+                raise RuntimeError("cannot put into a closed stream buffer")
+            self._items.append(bar)
+            self._high_watermark = max(self._high_watermark, len(self._items))
+            self._condition.notify()
+            return BufferOffer(dropped=None, depth=len(self._items))
+
     def take(self, *, timeout: float | None = None) -> BufferedBar | None:
         """Take one bar, or return None on timeout / a drained closed buffer."""
         deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
@@ -79,6 +91,7 @@ class BoundedBarBuffer:
             bar = self._items.popleft()
             symbol = bar.symbol.strip().upper()
             resync_required = symbol in self._dirty_symbols
+            self._condition.notify_all()
             return BufferedBar(bar=bar, resync_required=resync_required)
 
     def acknowledge_resync(self, symbol: str) -> None:
@@ -95,6 +108,7 @@ class BoundedBarBuffer:
             )
             self._items.clear()
             self._dropped_total += discarded
+            self._condition.notify_all()
             return discarded
 
     def close(self, reason: str | None = None) -> None:
