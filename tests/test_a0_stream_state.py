@@ -135,6 +135,34 @@ def test_live_replay_from_open_proves_sparse_symbol_coverage() -> None:
     assert midday.snapshot.cumulative_regular_volume == 50
 
 
+def test_live_replay_coverage_proves_sparse_interbar_absence() -> None:
+    state = A0StreamState(max_gap_seconds=2)
+    state.set_reference(_reference())
+    state.begin_source_replay(_OPEN.timestamp())
+
+    first = state.apply(_bar(90 * 60, volume=50, sequence=10))
+    sparse_next = state.apply(_bar(90 * 60 + 300, volume=25, sequence=11))
+
+    assert first.status is StreamApplyStatus.ACCEPTED
+    assert sparse_next.status is StreamApplyStatus.ACCEPTED
+    assert sparse_next.gap_state is GapState.COMPLETE
+    assert sparse_next.snapshot.cumulative_regular_volume == 75
+
+
+def test_live_replay_does_not_hide_a_local_drop() -> None:
+    state = A0StreamState(max_gap_seconds=2)
+    state.set_reference(_reference())
+    state.begin_source_replay(_OPEN.timestamp())
+    assert state.apply(_bar(0, sequence=1)).status is StreamApplyStatus.ACCEPTED
+
+    state.invalidate("NVDA")
+    dropped = state.apply(_bar(1, sequence=2))
+
+    assert dropped.status is StreamApplyStatus.GAP_DETECTED
+    assert dropped.gap_state is GapState.GAP_DETECTED
+    assert dropped.snapshot is None
+
+
 def test_cleared_replay_coverage_restores_fail_closed_mid_session_start() -> None:
     state = A0StreamState()
     state.set_reference(_reference())
