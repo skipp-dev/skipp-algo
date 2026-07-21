@@ -43,7 +43,7 @@ library("smc_micro_profiles_generated")
 
 export const string ASOF_DATE = "2026-07-20"
 export const string ASOF_TIME = ""
-export const int UNIVERSE_SIZE = 6936
+export const int UNIVERSE_SIZE = 6929
 export const int REFRESH_COUNT = 0
 export const string UNIVERSE_TICKERS = ""
 
