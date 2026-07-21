@@ -114,6 +114,7 @@ def test_dashboard_covers_runtime_and_dynamic_shadow_metrics() -> None:
         "a0_fast_stream_connected",
         "a0_fast_records_received_total",
         "a0_fast_records_processed_total",
+        "a0_fast_records_rejected_total",
         "a0_fast_queue_dropped_total",
         "a0_fast_historical_bars_total",
         "a0_fast_process_cpu_seconds_total",

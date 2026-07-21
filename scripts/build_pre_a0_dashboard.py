@@ -448,8 +448,9 @@ def build_dashboard() -> dict[str, Any]:
             27,
             "Input and Processing Throughput",
             (
-                "Five-minute rates for records received and processed. A sustained gap "
-                "shows that input arrives but the decision path is not consuming it."
+                "Five-minute rates for records received, processed, and rejected by "
+                "reason. A sustained gap now identifies whether input is rejected or "
+                "the decision path is not consuming it."
             ),
             [
                 _target(
@@ -461,6 +462,11 @@ def build_dashboard() -> dict[str, Any]:
                     'sum(rate(a0_fast_records_processed_total{job=~"$job"}[5m]))',
                     "processed/s",
                     "B",
+                ),
+                _target(
+                    'sum by (reason) (rate(a0_fast_records_rejected_total{job=~"$job"}[5m]))',
+                    "rejected · {{reason}}/s",
+                    "C",
                 ),
             ],
             x=0,

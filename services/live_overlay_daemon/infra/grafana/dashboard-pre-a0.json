@@ -1082,7 +1082,7 @@
       "id": 27,
       "title": "Input and Processing Throughput",
       "type": "timeseries",
-      "description": "Five-minute rates for records received and processed. A sustained gap shows that input arrives but the decision path is not consuming it.",
+      "description": "Five-minute rates for records received, processed, and rejected by reason. A sustained gap now identifies whether input is rejected or the decision path is not consuming it.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1111,6 +1111,15 @@
           "expr": "sum(rate(a0_fast_records_processed_total{job=~\"$job\"}[5m]))",
           "legendFormat": "processed/s",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "sum by (reason) (rate(a0_fast_records_rejected_total{job=~\"$job\"}[5m]))",
+          "legendFormat": "rejected · {{reason}}/s",
+          "refId": "C"
         }
       ],
       "fieldConfig": {
