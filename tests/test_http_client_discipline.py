@@ -150,6 +150,10 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # to ``_load_cache_with_drift_check``.
         # 2026-06-10: +5 (1423→1428).
         ("databento_volatility_screener.py", 1454),  # 2026-07-18 catalog alias added above the frozen HTTP call
+        # 2026-07-21 (feat/pre-a0-pilot-sidecar): deliberate pilot egress —
+        # Slack webhook POST in the read-only PRE-A0 pilot alert tailer,
+        # timeout=_POST_TIMEOUT_S. Mirrors the pin_registry.toml entry.
+        ("services/a0_fast_detector/pilot_alert_tailer.py", 54),
         ("open_prep/bea.py", 94),
         # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
         # was 692 after audit/discipline-pattern-v4 (originally 600).

@@ -15,4 +15,4 @@ COPY databento_client.py /app/databento_client.py
 COPY services /app/services
 COPY services/a0_fast_detector/bootstrap /app/bootstrap
 
-CMD ["python", "-m", "services.a0_fast_detector.worker"]
+CMD ["bash", "services/a0_fast_detector/start.sh"]

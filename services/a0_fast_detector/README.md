@@ -30,8 +30,11 @@ Regular-Hours-Volumen und verwendet die gemeinsame Kernentscheidung aus
 - PRE-A0 ist optional in denselben vollständigen Snapshotpfad eingebunden. Ein
   PRE-A0-Fehler wird protokolliert, darf aber die A0-Kernentscheidung nicht
   unterdrücken oder verändern.
-- Dieser Worker besitzt weiterhin keinen Notification-Pfad. `notify` wird auch
-  bei gesetzter Freigabe fail-closed abgelehnt.
+- Der Worker-Prozess besitzt weiterhin keinen Notification-Pfad. `notify` wird
+  auch bei gesetzter Freigabe fail-closed abgelehnt. Der optionale
+  PRE-A0-Pilot-Tailer (siehe „PRE-A0 Pilotbetrieb") ist ein separater,
+  read-only Prozess hinter dem Logstrom — kein Import und keine Codeänderung
+  im Worker.
 
 ## Pflichtvariablen
 
@@ -62,8 +65,32 @@ bleibt ausschließlich PRE-A0 aus; A0-Fast und FMP-A0 laufen unabhängig weiter.
 Sampling: ruhige Grundgesamtheit alle fünf Sekunden mit `sample_weight=5`,
 ab `WATCH` jede Sekunde mit `sample_weight=1`. Recovery, Queue-Lücke und
 Disconnect löschen den rollierenden PRE-A0-Zustand. `observe` schreibt nur ein
-klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; es existiert weiterhin kein
-Versandpfad.
+klar unbestätigtes `PRE_A0_OBSERVE`-Operatorlog; der Worker-Prozess selbst hat
+weiterhin keinen Versandpfad. Optional konsumiert der Pilot-Tailer dieses Log
+(siehe „PRE-A0 Pilotbetrieb").
+
+## PRE-A0 Pilotbetrieb
+
+Explizit freigeschalteter Pilot-Pfad (2026-07-21): `start.sh` pipet den
+Logstrom des Workers durch `pilot_alert_tailer.py`. Der Tailer reicht jede
+Zeile unverändert weiter (Railway-Logs bleiben intakt) und postet beim
+Übergang eines Symbols in `IMMINENT` eine klar gelabelte Pilot-Nachricht in
+einen dedizierten Slack-Kanal. Er ist bewusst **nicht** der `notify`-Pfad des
+Rollout-Runbooks und übernimmt dessen User-Semantik: kein A0-Claim, keine
+bestätigte Formulierung, ETA nur als Range, niemals eine Wahrscheinlichkeit
+(Bootstrap-Kalibrierung ist degeneriert, siehe #3847).
+
+| Variable | Bedeutung |
+| --- | --- |
+| `RT_PRE_A0_PILOT` | `1` schaltet den Tailer ein; sonst reiner Passthrough |
+| `RT_PRE_A0_PILOT_WEBHOOK_URL` | https-Slack-Incoming-Webhook des Pilot-Kanals |
+| `RT_PRE_A0_PILOT_COOLDOWN_S` | Re-Alert-Sperre je Symbol+Richtung, Default `1800` |
+| `RT_PRE_A0_PILOT_MAX_ALERTS_PER_HOUR` | hartes Stundenbudget, Default `20` |
+
+Voraussetzung: `RT_PRE_A0_MODE=observe` (das Bootstrap-Artefakt erfüllt das
+`offline_evaluated`-Gate). Fehlende oder ungültige Pilot-Variablen lassen den
+Tailer fail-closed als Passthrough laufen. Kill-Switch: `RT_PRE_A0_PILOT`
+entfernen (oder `RT_PRE_A0_MODE=shadow`) und redeployen.
 
 Optional: `A0_FAST_MAX_GAP_SECONDS`, `A0_FAST_A0_VOLUME`,
 `A0_FAST_A0_PRICE` und die entsprechenden A1-/A2-Schwellen sowie:

@@ -116,6 +116,11 @@
 # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up): repo↔TV
 # Pine-library version snapshot fetch — mirrors evidence_freshness_bridge egress.
 "services/live_overlay_daemon/pine_library_version_bridge.py" = [125] # 2026-07-21 (library ASOF_DATE fields): 121->125
+# 2026-07-21 (feat/pre-a0-pilot-sidecar): deliberate pilot egress — Slack
+# incoming-webhook POST in the read-only PRE-A0 pilot alert tailer. Gated by
+# RT_PRE_A0_PILOT=1 + https webhook env; NOT the notify path (worker contract
+# unchanged). timeout=_POST_TIMEOUT_S (10s).
+"services/a0_fast_detector/pilot_alert_tailer.py" = [54]
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97

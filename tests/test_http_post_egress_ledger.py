@@ -186,6 +186,10 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # 2026-06-24: Railway GraphQL API for container metrics polling.
     # 2026-07-07: `import math` for the non-finite guard shifted this 74 -> 75.
     ("services/live_overlay_daemon/railway_metrics.py", 75),
+    # 2026-07-21 (feat/pre-a0-pilot-sidecar): PRE-A0 pilot tailer — Slack
+    # incoming-webhook POST, gated by RT_PRE_A0_PILOT=1 + https env. Mirrors
+    # the urlopen pins (pin_registry.toml + http_client_discipline L54).
+    ("services/a0_fast_detector/pilot_alert_tailer.py", 48),
     # 2026-06-22: the Grafana dashboard publisher previously pinned here as a
     # literal Request(method="POST"). ADR-0025 consolidated its GET/POST/PUT
     # egress into a single method-agnostic urllib.request.Request in
