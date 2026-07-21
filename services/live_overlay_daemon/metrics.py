@@ -1392,6 +1392,29 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_last_bar_age_seconds gauge")
     lines.append(f"live_overlay_last_bar_age_seconds {bar_age:.1f}")
 
+    vix_level = cache.get_vix()
+    vix_age = cache.vix_age_secs()
+    vix_age_known = 1.0 if vix_age != float("inf") else 0.0
+    lines.append("# TYPE live_overlay_vix_age_known gauge")
+    lines.append(f"live_overlay_vix_age_known {vix_age_known}")
+    lines.append("# TYPE live_overlay_vix_age_seconds gauge")
+    # Unknown age renders 0.0, NOT nan: `lo-vix-unavailable` selects arithmetically
+    # with `(age * known) + ((1 - known) * 5401)` — the same contract as
+    # live_overlay_overlay_age_seconds above, where NaN * 0 would poison the sum.
+    lines.append(
+        f"live_overlay_vix_age_seconds {vix_age:.1f}"
+        if vix_age != float("inf")
+        else "live_overlay_vix_age_seconds 0.0"
+    )
+    lines.append("# TYPE live_overlay_vix_level gauge")
+    # 0.0 while never-fetched keeps the series present (absent-vs-zero stays
+    # distinguishable via vix_age_known; the dashboard panel gates on it).
+    lines.append(
+        f"live_overlay_vix_level {vix_level:.2f}"
+        if vix_level is not None
+        else "live_overlay_vix_level 0.0"
+    )
+
     feed_healthy = 1 if feed.is_ready() else 0
     lines.append("# TYPE live_overlay_feed_healthy gauge")
     lines.append(f"live_overlay_feed_healthy {feed_healthy}")

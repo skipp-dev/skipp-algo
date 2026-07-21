@@ -8326,6 +8326,56 @@
           "refId": "H"
         }
       ]
+    },
+    {
+      "title": "VIX Level (^VIX via FMP)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 318,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_vix_level{job=~\"$job\"} and on(job, instance) (live_overlay_vix_age_known{job=~\"$job\"} == 1)",
+          "legendFormat": "VIX level",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "N/A (never fetched)",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8
+          }
+        }
+      },
+      "description": "Cached CBOE VIX level polled from FMP on the overlay refresh cadence. Gated on live_overlay_vix_age_known so a never-fetched level renders N/A instead of a misleading 0; staleness pages via lo-vix-unavailable.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 2133310801
     }
   ],
   "schemaVersion": 39,

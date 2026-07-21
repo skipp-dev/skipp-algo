@@ -1822,3 +1822,40 @@ def test_dashboard_railway_bridge_shows_generic_contract() -> None:
     assert {"0", "1", "2"}.issubset(options_keys), options_keys
     labels = {v["text"] for m in mappings for v in (m.get("options") or {}).values()}
     assert {"DISABLED", "SCRAPE ERROR", "OK"}.issubset(labels), labels
+
+
+def test_vix_panel_gates_on_age_known_and_matches_alert_sentinel() -> None:
+    """The VIX panel must render never-fetched as N/A, and the alert must pair
+    a 5401 unknown-sentinel with its 5400 threshold.
+
+    live_overlay_vix_level exports 0.0 while never-fetched (series stays
+    present), so an ungated panel would chart a plausible-looking 0 instead of
+    N/A. And a sentinel <= threshold would make lo-vix-unavailable blind to the
+    never-fetched state — the exact F-2 gap this pair was added to close.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        p for p in _dashboard_panels(dashboard) if p.get("title") == "VIX Level (^VIX via FMP)"
+    )
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_vix_level" in expr
+    assert "live_overlay_vix_age_known" in expr, (
+        f"VIX panel plots the level without gating on age_known — a never-fetched "
+        f"level renders as a misleading 0. Got: {expr}"
+    )
+    assert panel["fieldConfig"]["defaults"].get("noValue"), (
+        "VIX panel gates on age_known (unknown -> empty series) but sets no "
+        "noValue text — it would render blank instead of N/A"
+    )
+
+    rule = _alert_rule("lo-vix-unavailable")
+    rule_expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_vix_age_seconds" in rule_expr
+    assert "live_overlay_vix_age_known" in rule_expr
+    sentinel = int(re.search(r"\*\s*(\d+)\s*\)?\s*$", rule_expr.strip()).group(1))
+    threshold_node = next(n for n in rule["data"] if n.get("refId") == rule["condition"])
+    threshold = threshold_node["model"]["conditions"][0]["evaluator"]["params"][0]
+    assert sentinel > threshold, (
+        f"lo-vix-unavailable sentinel ({sentinel}) must exceed its threshold "
+        f"({threshold}) or the never-fetched state can never fire"
+    )

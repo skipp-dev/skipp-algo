@@ -1844,6 +1844,45 @@ groups:
     annotations:
       summary: Live Overlay bridge has not succeeded recently
       runbook: Inspect live_overlay_bridge_error_info and bridge-specific detail panels.
+  - uid: lo-vix-unavailable
+    title: VIX level unavailable
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # (age * known) + ((1 - known) * 5401): never-fetched exports age_known=0 /
+        # age_seconds=0.0, so the 5401 sentinel — not a misleading fresh 0 — crosses
+        # the 5400 threshold (same arithmetic contract as lo-overlay-stale). The FMP
+        # ^VIX poll runs on the overlay refresh cadence (OVERLAY_REFRESH_SECS,
+        # default 1800s) around the clock, so 5400s = 3 consecutive missed polls.
+        expr: "(\n  live_overlay_vix_age_seconds{job=\"live_overlay\"}\n  * live_overlay_vix_age_known{job=\"\
+          live_overlay\"}\n)\n+ (\n  (1 - live_overlay_vix_age_known{job=\"live_overlay\"\
+          })\n  * 5401\n)\n"
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 5400
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: VIX stale > 90m or never fetched — FMP ^VIX poll failing (clients see
+        a frozen or null vix_level while core overlay health stays green)
+      runbook: Check credential-health FMP panels and FMP quota alerts; grep daemon
+        logs for "VIX poll disabled" (loader construction failed, no retry until restart).
+        Poll cadence = OVERLAY_REFRESH_SECS (default 30m); threshold = 3 missed polls.
 - orgId: 1
   name: signals-producer-readiness
   folder: SMC Live Overlay
