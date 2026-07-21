@@ -192,16 +192,32 @@ def _alert_list(panel_id: int, *, x: int, y: int, w: int, h: int) -> dict[str, A
         "title": "Active Grafana Alerts",
         "type": "alertlist",
         "description": (
-            "Currently firing Grafana alerts. PRE-A0 and A0-Fast rules are managed "
-            "in the PRE-A0 alert folder; use the alerting link above for the filtered view."
+            "Firing, pending, recovering, and error-state Grafana-managed alerts "
+            "from the PRE-A0 folder only."
         ),
         "datasource": PROMETHEUS,
         "gridPos": {"x": x, "y": y, "w": w, "h": h},
         "options": {
+            "alertInstanceLabelFilter": "",
+            "alertName": "",
+            "dashboardAlerts": False,
+            "datasource": "grafana",
+            "folder": {"uid": "bfshrlee72tc0d", "title": "PRE-A0"},
+            "groupBy": [],
             "showLabels": True,
+            "showInstances": True,
+            "showInactiveAlerts": False,
             "sortOrder": 1,
             "groupMode": "default",
             "maxItems": 20,
+            "stateFilter": {
+                "error": True,
+                "firing": True,
+                "noData": False,
+                "normal": False,
+                "pending": True,
+                "recovering": True,
+            },
             "viewMode": "list",
         },
     }
@@ -242,10 +258,12 @@ def build_dashboard() -> dict[str, Any]:
         ),
         _stat(
             11,
-            "Overall Shadow Readiness",
+            "Control Plane Readiness",
             (
-                "READY requires PRE-A0 enabled, model ready, calibration valid, and "
-                "the A0-Fast stream connected. It is operational readiness, not promotion approval."
+                "CONTROL READY requires PRE-A0 enabled, model ready, calibration valid, "
+                "and the A0-Fast stream connected. It does not claim that records are "
+                "being processed or that inference and persistence are active; verify "
+                "the Live Data Path separately."
             ),
             healthy,
             "readiness",
@@ -253,7 +271,10 @@ def build_dashboard() -> dict[str, Any]:
             y=3,
             w=5,
             h=5,
-            mappings={"0": ("NOT READY", "dark-red"), "1": ("READY", "dark-green")},
+            mappings={
+                "0": ("CONTROL NOT READY", "dark-red"),
+                "1": ("CONTROL READY", "dark-green"),
+            },
             thresholds=[(None, "dark-red"), (1, "dark-green")],
             no_value="NO TELEMETRY",
         ),

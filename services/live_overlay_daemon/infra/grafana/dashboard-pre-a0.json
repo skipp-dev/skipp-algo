@@ -120,9 +120,9 @@
     },
     {
       "id": 11,
-      "title": "Overall Shadow Readiness",
+      "title": "Control Plane Readiness",
       "type": "stat",
-      "description": "READY requires PRE-A0 enabled, model ready, calibration valid, and the A0-Fast stream connected. It is operational readiness, not promotion approval.",
+      "description": "CONTROL READY requires PRE-A0 enabled, model ready, calibration valid, and the A0-Fast stream connected. It does not claim that records are being processed or that inference and persistence are active; verify the Live Data Path separately.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -170,11 +170,11 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "NOT READY",
+                  "text": "CONTROL NOT READY",
                   "color": "dark-red"
                 },
                 "1": {
-                  "text": "READY",
+                  "text": "CONTROL READY",
                   "color": "dark-green"
                 }
               }
@@ -202,7 +202,7 @@
       "id": 12,
       "title": "Active Grafana Alerts",
       "type": "alertlist",
-      "description": "Currently firing Grafana alerts. PRE-A0 and A0-Fast rules are managed in the PRE-A0 alert folder; use the alerting link above for the filtered view.",
+      "description": "Firing, pending, recovering, and error-state Grafana-managed alerts from the PRE-A0 folder only.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -214,10 +214,29 @@
         "h": 5
       },
       "options": {
+        "alertInstanceLabelFilter": "",
+        "alertName": "",
+        "dashboardAlerts": false,
+        "datasource": "grafana",
+        "folder": {
+          "uid": "bfshrlee72tc0d",
+          "title": "PRE-A0"
+        },
+        "groupBy": [],
         "showLabels": true,
+        "showInstances": true,
+        "showInactiveAlerts": false,
         "sortOrder": 1,
         "groupMode": "default",
         "maxItems": 20,
+        "stateFilter": {
+          "error": true,
+          "firing": true,
+          "noData": false,
+          "normal": false,
+          "pending": true,
+          "recovering": true
+        },
         "viewMode": "list"
       }
     },
