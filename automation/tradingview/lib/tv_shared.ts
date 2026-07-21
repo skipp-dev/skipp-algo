@@ -4652,11 +4652,16 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
 
 export async function refreshChartScriptInstance(page: Page, scriptName: string): Promise<number> {
   return runTrackedStep(page, `refreshChartScriptInstance:${scriptName}`, async () => {
-    const initiallyVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+    // Use the exact legend-instance probe for refresh safety. The broader chart
+    // visibility probe also accepts "Strategy Report" plus a script-name text
+    // match; after a successful removal TradingView can briefly retain those
+    // texts outside the legend and make a cleared 1 -> 0 instance look stale.
+    const initialCount = await countChartScriptInstances(page, scriptName).catch(() => 0);
     const removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
-    const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+    const remainingCount = await countChartScriptInstances(page, scriptName).catch(() => initialCount);
+    tracePageEvent(page, "script-refresh-instance-counts", `${scriptName}:${initialCount}->${remainingCount}`);
 
-    if (initiallyVisible && stillVisible) {
+    if (initialCount > 0 && remainingCount > 0) {
       throw new Error(`Could not clear stale chart instance before refresh for ${scriptName}`);
     }
 

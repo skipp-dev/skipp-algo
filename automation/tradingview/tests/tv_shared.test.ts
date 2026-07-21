@@ -1150,6 +1150,15 @@ test("countChartScriptInstances ignores buttons whose ancestors carry no matchin
   assert.equal(instances, 1, "only the visible, name-carrying legend row counts");
 });
 
+test("refresh safety treats a removed 1 -> 0 legend instance as cleared", async () => {
+  const scriptName = "SMC Long-Dip Suite";
+  const before = makeLegendPage([makeLegendButton({ 1: "", 2: scriptName })]) as never;
+  const after = makeLegendPage([]) as never;
+
+  assert.equal(await countChartScriptInstances(before, scriptName), 1);
+  assert.equal(await countChartScriptInstances(after, scriptName), 0);
+});
+
 test("findLegendRowWrappers rejects a pane container that contains sibling script names", async () => {
   const suiteName = "SMC Long-Dip Suite";
   const suiteButton = makeLegendButton({ 1: "", 2: suiteName }, true, { 2: 1 });
