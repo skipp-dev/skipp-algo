@@ -71,6 +71,7 @@ def _read(
     telemetry.set_connected(True)
     adapter = DatabentoOhlcv1sAdapter()
     symbol_map: dict[int, str] = {}
+    replay_active = True
     for record in client:
         record_type = type(record).__name__
         if record_type == "SymbolMappingMsg":
@@ -78,6 +79,10 @@ def _read(
             raw_symbol = getattr(record, "stype_out_symbol", None)
             if instrument_id is not None and raw_symbol:
                 symbol_map[int(instrument_id)] = str(raw_symbol).strip().upper()
+            continue
+        if record_type == "SystemMsg":
+            if _system_code(record) == "replay_completed":
+                replay_active = False
             continue
         if "OHLCV" not in record_type.upper() and "BAR" not in record_type.upper():
             continue
@@ -92,10 +97,20 @@ def _read(
             telemetry.record_rejected("invalid_record")
             logger.debug("A0-Fast rejected malformed stream record", exc_info=True)
             continue
-        offer = buffer.offer(bar)
+        # Intraday replay arrives much faster than wall clock.  Apply bounded
+        # backpressure until Databento announces replay completion so complete
+        # source history is preserved.  Once live, prefer latency and retain
+        # the existing fail-closed drop/resync contract on overload.
+        offer = buffer.put(bar) if replay_active else buffer.offer(bar)
         if offer.dropped is not None:
             telemetry.record_queue_drop()
         telemetry.set_buffer(buffer.snapshot())
+
+
+def _system_code(record: Any) -> str:
+    code = getattr(record, "code", "")
+    value = getattr(code, "value", code)
+    return str(value).strip().lower()
 
 
 def _symbol_from_record(record: Any, symbol_map: dict[int, str]) -> str | None:

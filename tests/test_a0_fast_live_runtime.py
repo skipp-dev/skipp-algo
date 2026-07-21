@@ -20,6 +20,10 @@ class SymbolMappingMsg:
     stype_out_symbol = "NVDA"
 
 
+class SystemMsg:
+    code = "replay_completed"
+
+
 class OhlcvMsg:
     def __init__(self, sequence: int) -> None:
         self.close = 102_000_000_000
@@ -55,7 +59,9 @@ class _Client:
 
 
 def test_reader_normalizes_into_bounded_buffer_and_exposes_overflow() -> None:
-    client = _Client([SymbolMappingMsg(), OhlcvMsg(1), OhlcvMsg(2)])
+    client = _Client(
+        [SymbolMappingMsg(), SystemMsg(), OhlcvMsg(1), OhlcvMsg(2)]
+    )
     buffer = BoundedBarBuffer(capacity=1)
     telemetry = A0FastTelemetry()
     thread = start_live_reader(
@@ -77,6 +83,28 @@ def test_reader_normalizes_into_bounded_buffer_and_exposes_overflow() -> None:
     assert snapshot["queue_dropped"] == 1
     assert snapshot["connected"] is False
     assert buffer.snapshot().close_reason == "stream_ended"
+
+
+def test_reader_applies_backpressure_during_replay_without_dropping() -> None:
+    client = _Client([SymbolMappingMsg(), OhlcvMsg(1), OhlcvMsg(2)])
+    buffer = BoundedBarBuffer(capacity=1)
+    telemetry = A0FastTelemetry()
+    thread = start_live_reader(
+        client,
+        symbols=["NVDA"],
+        buffer=buffer,
+        telemetry=telemetry,
+        replay_start=_REPLAY_START,
+    )
+
+    first = buffer.take(timeout=1)
+    second = buffer.take(timeout=1)
+    thread.join(timeout=2)
+
+    assert first is not None and first.bar.sequence == 1
+    assert second is not None and second.bar.sequence == 2
+    assert not thread.is_alive()
+    assert telemetry.snapshot()["queue_dropped"] == 0
 
 
 def test_reader_constructs_live_client_inside_reader_thread() -> None:
