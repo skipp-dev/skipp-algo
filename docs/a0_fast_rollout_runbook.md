@@ -18,6 +18,23 @@ disable it.
 Configure with `RT_A0_FAST_MODE` and `RT_A0_FAST_MAX_DATA_AGE_MS`. Invalid
 configuration fails to `off`.
 
+## Deployment truth gate
+
+A successful build/deploy, a connected stream, a green scrape target and a
+ready model are necessary control-plane checks, not proof that shadow evidence
+is being collected. Report collection as active only after all of these are
+observed on the same running deployment during a regular session:
+
+1. `/healthz=200` and `/evidencez=200`;
+2. processed-record, inference and snapshot counters increase between two
+   separate observations;
+3. at least one snapshot batch is flushed with zero persistence errors;
+4. a current Parquet partition and manifest exist on the mounted volume.
+
+If any check is absent, state "deployed but evidence flow unverified" and keep
+the valid-session count unchanged. Never derive collected sessions from
+deployment uptime or calendar days.
+
 ## Promotion checklist
 
 1. At least 20 complete representative sessions, including Open Burst and a

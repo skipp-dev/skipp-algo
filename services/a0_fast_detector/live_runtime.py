@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime
 from typing import Any
 
 from open_prep.a0_stream import DatabentoOhlcv1sAdapter
@@ -20,6 +21,7 @@ def start_live_reader(
     symbols: list[str],
     buffer: BoundedBarBuffer,
     telemetry: A0FastTelemetry,
+    replay_start: datetime,
 ) -> threading.Thread:
     """Create, subscribe, and drain the SDK client on one daemon thread.
 
@@ -32,7 +34,13 @@ def start_live_reader(
         reason = "stream_ended"
         try:
             client = client_or_factory() if callable(client_or_factory) else client_or_factory
-            _read(client, symbols=symbols, buffer=buffer, telemetry=telemetry)
+            _read(
+                client,
+                symbols=symbols,
+                buffer=buffer,
+                telemetry=telemetry,
+                replay_start=replay_start,
+            )
         except Exception as exc:
             reason = f"{type(exc).__name__}: {exc}"
             logger.warning("A0-Fast live reader stopped: %s", reason)
@@ -51,12 +59,14 @@ def _read(
     symbols: list[str],
     buffer: BoundedBarBuffer,
     telemetry: A0FastTelemetry,
+    replay_start: datetime,
 ) -> None:
     client.subscribe(
         dataset="EQUS.MINI",
         schema="ohlcv-1s",
         symbols=symbols,
         stype_in="raw_symbol",
+        start=replay_start,
     )
     telemetry.set_connected(True)
     adapter = DatabentoOhlcv1sAdapter()

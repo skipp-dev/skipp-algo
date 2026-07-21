@@ -25,6 +25,14 @@ groups:
         annotations:
           summary: A0-Fast rejected Databento bars before decision processing
 
+      - alert: A0FastEvidenceNotFlowing
+        expr: increase(a0_fast_records_received_total[5m]) > 100 and a0_fast_evidence_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: A0-Fast receives market data but PRE-A0 evidence is not persisted
+
       - alert: A0FastResyncStuck
         expr: a0_fast_resync_required_symbols > 0
         for: 2m

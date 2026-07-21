@@ -3991,7 +3991,7 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: (increase(a0_fast_records_processed_total{job="a0_fast"}[15m]) > bool 100) * (increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m]) == bool 0)
+        expr: (increase(a0_fast_records_received_total{job="a0_fast"}[15m]) > bool 100) * (a0_fast_evidence_ready{job="a0_fast"} == bool 0)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -4004,7 +4004,7 @@ groups:
           operator: {type: and}
           query: {params: [A]}
     for: 5m
-    labels: {severity: high}
+    labels: {severity: critical}
     annotations:
-      summary: A0-Fast is processing records but PRE-A0 shadow snapshots are not being persisted.
-      runbook: Check the PRE-A0 snapshot directory, volume mount, writer errors, and flush configuration.
+      summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
+      runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.

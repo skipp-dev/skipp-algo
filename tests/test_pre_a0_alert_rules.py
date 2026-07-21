@@ -53,5 +53,6 @@ def test_grafana_pre_a0_rules_cover_scrape_runtime_and_shadow_integrity() -> Non
     assert "pre_a0_model_ready" in expressions
     assert "pre_a0_calibration_valid" in expressions
     assert "pre_a0_persistence_errors_total" in expressions
-    assert "pre_a0_snapshots_recorded_total" in expressions
+    assert "a0_fast_records_received_total" in expressions
+    assert "a0_fast_evidence_ready" in expressions
     assert "== bool 0" in expressions

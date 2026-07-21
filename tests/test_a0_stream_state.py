@@ -123,6 +123,29 @@ def test_mid_session_start_requires_proven_bootstrap() -> None:
     assert recovered.snapshot.cumulative_regular_volume == 2_050
 
 
+def test_live_replay_from_open_proves_sparse_symbol_coverage() -> None:
+    state = A0StreamState()
+    state.set_reference(_reference())
+    state.begin_source_replay(_OPEN.timestamp())
+
+    midday = state.apply(_bar(90 * 60, volume=50, sequence=10))
+
+    assert midday.status is StreamApplyStatus.ACCEPTED
+    assert midday.gap_state is GapState.COMPLETE
+    assert midday.snapshot.cumulative_regular_volume == 50
+
+
+def test_cleared_replay_coverage_restores_fail_closed_mid_session_start() -> None:
+    state = A0StreamState()
+    state.set_reference(_reference())
+    state.begin_source_replay(_OPEN.timestamp())
+    state.clear_source_coverage()
+
+    assert state.apply(_bar(90 * 60, sequence=10)).status is (
+        StreamApplyStatus.BOOTSTRAP_REQUIRED
+    )
+
+
 def test_gap_detection_stays_fail_closed_until_bootstrap() -> None:
     state = A0StreamState(max_gap_seconds=2)
     state.set_reference(_reference())
