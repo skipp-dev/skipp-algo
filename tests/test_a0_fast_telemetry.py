@@ -24,6 +24,8 @@ def test_metrics_expose_bounded_queue_disconnect_recovery_and_usage() -> None:
     telemetry = A0FastTelemetry(record_wire_bytes=104)
     telemetry.set_connected(True)
     telemetry.record_received()
+    telemetry.record_rejected("invalid_record")
+    telemetry.record_rejected("unmapped_symbol")
     telemetry.record_processed()
     telemetry.record_queue_drop()
     telemetry.record_queue_drop()
@@ -34,6 +36,8 @@ def test_metrics_expose_bounded_queue_disconnect_recovery_and_usage() -> None:
     assert "a0_fast_stream_connected 1" in text
     assert "a0_fast_queue_capacity 100" in text
     assert "a0_fast_queue_dropped_total 2" in text
+    assert 'a0_fast_records_rejected_total{reason="invalid_record"} 1' in text
+    assert 'a0_fast_records_rejected_total{reason="unmapped_symbol"} 1' in text
     assert "a0_fast_wire_bytes_total 104" in text
     assert 'a0_fast_recoveries_total{status="recovered"} 1' in text
     assert telemetry.health_status() == (HTTPStatus.OK, "ok")

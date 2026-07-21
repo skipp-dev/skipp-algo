@@ -17,6 +17,14 @@ groups:
         annotations:
           summary: A0-Fast bounded queue dropped bars and forced resync
 
+      - alert: A0FastRecordRejections
+        expr: increase(a0_fast_records_rejected_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: A0-Fast rejected Databento bars before decision processing
+
       - alert: A0FastResyncStuck
         expr: a0_fast_resync_required_symbols > 0
         for: 2m

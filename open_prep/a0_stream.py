@@ -27,7 +27,10 @@ def _field(record: Any, name: str, default: Any = None) -> Any:
     if isinstance(record, Mapping):
         return record.get(name, default)
     reader = _ATTR_READERS.get(name)
-    return default if reader is None else reader(record)
+    if reader is None:
+        return default
+    value = reader(record)
+    return default if value is None else value
 
 
 def _epoch_seconds(value: Any) -> float:

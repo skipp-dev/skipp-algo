@@ -28,6 +28,7 @@ class A0FastTelemetry:
         self._connected = False
         self._records_received = 0
         self._records_processed = 0
+        self._record_rejections: Counter[str] = Counter()
         self._wire_bytes = 0
         self._disconnects = 0
         self._decisions = 0
@@ -56,6 +57,10 @@ class A0FastTelemetry:
     def record_processed(self) -> None:
         with self._lock:
             self._records_processed += 1
+
+    def record_rejected(self, reason: str) -> None:
+        with self._lock:
+            self._record_rejections[_metric_reason(reason)] += 1
 
     def record_queue_drop(self, count: int = 1) -> None:
         with self._lock:
@@ -105,6 +110,7 @@ class A0FastTelemetry:
                 "connected": self._connected,
                 "records_received": self._records_received,
                 "records_processed": self._records_processed,
+                "record_rejections": dict(self._record_rejections),
                 "wire_bytes": self._wire_bytes,
                 "disconnects": self._disconnects,
                 "decisions": self._decisions,
@@ -161,6 +167,11 @@ class A0FastTelemetry:
             _gauge("a0_fast_process_peak_rss_bytes", snapshot["process_peak_rss_bytes"]),
             _gauge("a0_fast_uptime_seconds", snapshot["uptime_seconds"]),
         ]
+        metrics.append("# TYPE a0_fast_records_rejected_total counter\n")
+        for reason, count in sorted(snapshot["record_rejections"].items()):
+            metrics.append(
+                f'a0_fast_records_rejected_total{{reason="{reason}"}} {count}\n'
+            )
         metrics.append("# TYPE a0_fast_recoveries_total counter\n")
         for status, count in sorted(snapshot["recovery_counts"].items()):
             metrics.append(

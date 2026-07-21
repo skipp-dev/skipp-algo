@@ -5,6 +5,8 @@ from __future__ import annotations
 import threading
 from types import SimpleNamespace
 
+from databento_dbn import OHLCVMsg, RType
+
 from open_prep.a0_stream_buffer import BoundedBarBuffer
 from services.a0_fast_detector.live_runtime import start_live_reader
 from services.a0_fast_detector.telemetry import A0FastTelemetry
@@ -23,6 +25,18 @@ class OhlcvMsg:
         self.ts_recv = self.ts_event + 100_000_000
         self.sequence = sequence
         self.hd = SimpleNamespace(instrument_id=1)
+
+
+class UnmappedOhlcvMsg(OhlcvMsg):
+    def __init__(self) -> None:
+        super().__init__(1)
+        self.hd = SimpleNamespace(instrument_id=2)
+
+
+class InvalidOhlcvMsg(OhlcvMsg):
+    def __init__(self) -> None:
+        super().__init__(2)
+        self.close = None
 
 
 class _Client:
@@ -80,3 +94,56 @@ def test_reader_constructs_live_client_inside_reader_thread() -> None:
     assert created_on == [thread.ident]
     assert created_on[0] != threading.get_ident()
     assert buffer.take(timeout=0) is not None
+
+
+def test_reader_accepts_real_databento_ohlcv_without_receive_timestamp() -> None:
+    event_ns = 1_752_758_200_000_000_000
+    record = OHLCVMsg(
+        RType.OHLCV_1S,
+        1,
+        1,
+        event_ns,
+        102_000_000_000,
+        102_000_000_000,
+        102_000_000_000,
+        102_000_000_000,
+        100,
+    )
+    client = _Client([SymbolMappingMsg(), record])
+    buffer = BoundedBarBuffer(capacity=2)
+    telemetry = A0FastTelemetry()
+
+    thread = start_live_reader(
+        client,
+        symbols=["NVDA"],
+        buffer=buffer,
+        telemetry=telemetry,
+    )
+    thread.join(timeout=2)
+
+    item = buffer.take(timeout=0)
+    assert item is not None
+    assert item.bar.ts_event == event_ns / 1_000_000_000
+    assert item.bar.ts_recv == item.bar.ts_event
+    assert telemetry.snapshot()["record_rejections"] == {}
+
+
+def test_reader_counts_unmapped_and_invalid_records() -> None:
+    client = _Client([SymbolMappingMsg(), UnmappedOhlcvMsg(), InvalidOhlcvMsg()])
+    buffer = BoundedBarBuffer(capacity=2)
+    telemetry = A0FastTelemetry()
+
+    thread = start_live_reader(
+        client,
+        symbols=["NVDA"],
+        buffer=buffer,
+        telemetry=telemetry,
+    )
+    thread.join(timeout=2)
+
+    snapshot = telemetry.snapshot()
+    assert snapshot["records_received"] == 2
+    assert snapshot["record_rejections"] == {
+        "invalid_record": 1,
+        "unmapped_symbol": 1,
+    }

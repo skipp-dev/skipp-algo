@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
+from databento_dbn import OHLCVMsg, RType
 
 from open_prep.a0_contract import A0ThresholdContext, decide_core_level
 from open_prep.a0_stream import DatabentoOhlcv1sAdapter
@@ -66,6 +67,27 @@ def test_databento_adapter_preserves_event_and_receive_time() -> None:
     assert bar.ts_event == _OPEN.timestamp()
     assert bar.ts_recv == pytest.approx(_OPEN.timestamp() + 0.1)
     assert bar.sequence == 7
+
+
+def test_databento_adapter_falls_back_to_event_time_for_real_ohlcv_record() -> None:
+    event_ns = int(_OPEN.timestamp() * 1_000_000_000)
+    record = OHLCVMsg(
+        RType.OHLCV_1S,
+        1,
+        1,
+        event_ns,
+        102_500_000_000,
+        102_500_000_000,
+        102_500_000_000,
+        102_500_000_000,
+        321,
+    )
+
+    assert not hasattr(record, "ts_recv")
+    bar = DatabentoOhlcv1sAdapter().normalize(record, symbol="NVDA")
+
+    assert bar.ts_event == _OPEN.timestamp()
+    assert bar.ts_recv == bar.ts_event
 
 
 def test_duplicate_and_out_of_order_bars_do_not_double_count() -> None:

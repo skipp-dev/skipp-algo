@@ -74,10 +74,12 @@ def _read(
         telemetry.record_received()
         symbol = _symbol_from_record(record, symbol_map)
         if symbol is None:
+            telemetry.record_rejected("unmapped_symbol")
             continue
         try:
             bar = adapter.normalize(record, symbol=symbol)
         except (TypeError, ValueError, OverflowError):
+            telemetry.record_rejected("invalid_record")
             logger.debug("A0-Fast rejected malformed stream record", exc_info=True)
             continue
         offer = buffer.offer(bar)
