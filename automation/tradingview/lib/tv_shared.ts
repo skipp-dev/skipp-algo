@@ -6361,6 +6361,99 @@ export async function setEditorContent(
   }, editorContentTimeoutMs);
 }
 
+/** Read the complete source currently loaded in TradingView's Pine editor. */
+export async function readEditorContent(
+  page: Page,
+  options: { editorAlreadyOpen?: boolean } = {},
+): Promise<string> {
+  return runTrackedStep(page, "readEditorContent", async () => {
+    await dismissCookieBanner(page);
+    if (!options.editorAlreadyOpen) await ensurePineEditor(page);
+
+    const monacoValue = await page.evaluate(() => {
+      const w = window as unknown as {
+        monaco?: MonacoLike;
+        webpackChunktradingview?: unknown[] & {
+          push?: (...args: unknown[]) => unknown;
+          pop?: () => unknown;
+        };
+      };
+      type MonacoLike = {
+        editor?: { getModels?: () => Array<{ getValue: () => string }> };
+      };
+
+      const valueFromMonaco = (candidate: MonacoLike | null | undefined): string | null => {
+        const models = candidate?.editor?.getModels?.();
+        return models?.length ? models[0].getValue() : null;
+      };
+      const findMonaco = (value: unknown, seen: Set<unknown>): MonacoLike | null => {
+        if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
+        seen.add(value);
+        const direct = value as MonacoLike;
+        if (typeof direct.editor?.getModels === "function") return direct;
+        for (const nested of Object.values(value as Record<string, unknown>)) {
+          const found = findMonaco(nested, seen);
+          if (found) return found;
+        }
+        return null;
+      };
+
+      const direct = valueFromMonaco(w.monaco);
+      if (direct !== null) return direct;
+
+      const chunk = w.webpackChunktradingview;
+      if (!chunk || typeof chunk.push !== "function") return null;
+      let moduleCache: Record<string, { exports?: unknown }> = {};
+      try {
+        const chunkId = `tv-monaco-read-${Date.now()}`;
+        chunk.push([
+          [chunkId],
+          {},
+          (requireFn: { c?: Record<string, { exports?: unknown }> }) => {
+            moduleCache = requireFn.c ?? {};
+          },
+        ]);
+        if (typeof chunk.pop === "function") chunk.pop();
+      } catch {
+        return null;
+      }
+
+      const seen = new Set<unknown>();
+      for (const moduleRecord of Object.values(moduleCache)) {
+        const found = findMonaco(moduleRecord?.exports, seen);
+        const source = valueFromMonaco(found);
+        if (source !== null) return source;
+      }
+      return null;
+    }).catch(() => null);
+
+    if (typeof monacoValue === "string" && monacoValue.trim()) return monacoValue;
+
+    const mod = process.platform === "darwin" ? "Meta" : "Control";
+    for (const host of tvSelectors.editorHosts(page)) {
+      const count = await host.count().catch(() => 0);
+      for (let index = 0; index < count; index += 1) {
+        const candidate = host.nth(index);
+        if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false))) continue;
+        await candidate.click({ force: true }).catch(() => undefined);
+        await page.keyboard.press(`${mod}+A`).catch(() => undefined);
+        await page.keyboard.press(`${mod}+C`).catch(() => undefined);
+        await page.waitForTimeout(150);
+        const copied = await page.evaluate(async () => {
+          try {
+            return await navigator.clipboard.readText();
+          } catch {
+            return "";
+          }
+        }).catch(() => "");
+        if (copied.trim()) return copied;
+      }
+    }
+
+    throw new Error("Could not read complete Pine editor source via Monaco or clipboard");
+  }, Math.max(stepTimeoutMs(), 45_000));
+}
+
 export async function saveScript(page: Page, scriptName: string): Promise<void> {
   await runTrackedStep(page, `saveScript:${scriptName}`, async () => {
     await dismissSignInModal(page);

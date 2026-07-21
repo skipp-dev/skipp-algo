@@ -6,6 +6,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -15,6 +16,7 @@ import {
   gotoChart,
   newTradingViewSession,
   openExistingScript,
+  readEditorContent,
   saveScript,
   setEditorContent,
   waitForPostSaveCompileSettlement,
@@ -28,6 +30,20 @@ export type SaveConsumerResult = {
   sourcePath: string;
   bytes: number;
 };
+export type VerifyConsumerSourceResult = {
+  ok: boolean;
+  matches: boolean;
+  scriptName: string;
+  sourcePath: string;
+  expectedSha256: string;
+  actualSha256: string;
+  expectedBytes: number;
+  actualBytes: number;
+};
+
+export function pineSourceSha256(source: string): string {
+  return createHash("sha256").update(source.replace(/\r\n/g, "\n"), "utf-8").digest("hex");
+}
 
 function getFlag(name: string, fallback = ""): string {
   const args = process.argv.slice(2);
@@ -52,6 +68,32 @@ export async function saveConsumerSource(
   await waitForPostSaveCompileSettlement(session.page, target.scriptName);
   await assertNoVisibleCompileError(session.page);
   return { ok: true, scriptName: target.scriptName, sourcePath, bytes: code.length };
+}
+
+/** Compare the actual saved TradingView editor source with the repo source. */
+export async function verifyConsumerSource(
+  session: TradingViewSession,
+  target: SaveConsumerTarget,
+): Promise<VerifyConsumerSourceResult> {
+  const sourcePath = path.resolve(target.source);
+  if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
+  const expected = fs.readFileSync(sourcePath, "utf-8");
+  const opened = await openExistingScript(session.page, target.scriptName, { forceSelection: true }).catch(() => false);
+  if (!opened) throw new Error(`Could not open existing saved script for source verification: ${target.scriptName}`);
+  const actual = await readEditorContent(session.page, { editorAlreadyOpen: true });
+  const expectedSha256 = pineSourceSha256(expected);
+  const actualSha256 = pineSourceSha256(actual);
+  const matches = expectedSha256 === actualSha256;
+  return {
+    ok: matches,
+    matches,
+    scriptName: target.scriptName,
+    sourcePath,
+    expectedSha256,
+    actualSha256,
+    expectedBytes: Buffer.byteLength(expected, "utf-8"),
+    actualBytes: Buffer.byteLength(actual, "utf-8"),
+  };
 }
 
 export async function runSaveConsumerSourceCli(): Promise<number> {

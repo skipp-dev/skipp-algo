@@ -19,7 +19,8 @@
  *      (`fetchPublishedLibraryVersionViaFacade` — the #3603-corrected source;
  *      `filter=saved` counts editor save revisions, not the importable
  *      version), and
- *   3. writes a compact snapshot the live-overlay daemon's
+ *   3. reads ASOF_DATE from repo-owned generated library sources, and
+ *   4. writes a compact snapshot the live-overlay daemon's
  *      `pine_library_version_bridge` turns into Prometheus gauges +
  *      repo↔TV drift alerts in Grafana.
  *
@@ -57,6 +58,9 @@ export type LibrarySnapshot = {
   name: string;
   tvVersion: number | null;
   tvVersionKnown: boolean;
+  dataAsOf: string;
+  dataAsOfUnix: number | null;
+  dataAsOfKnown: boolean;
   consumers: ConsumerEntry[];
   anyConsumerDrift: boolean;
 };
@@ -73,6 +77,7 @@ export type PineLibraryVersionSnapshot = {
 
 const OWNER_PREFIX = "preuss_steffen";
 const PIN_RE = new RegExp(`import\\s+${OWNER_PREFIX}\\/([A-Za-z0-9_]+)\\/(\\d+)`, "g");
+const ASOF_DATE_RE = /export\s+const\s+string\s+ASOF_DATE\s*=\s*"(\d{4}-\d{2}-\d{2})"/;
 
 /** Directories that hold fixtures / generated snapshots / vendored code — never live consumer pins. */
 const EXCLUDED_DIR_NAMES = new Set(["tests", "pine", "node_modules", ".git", ".claude"]);
@@ -136,6 +141,29 @@ export function discoverConsumerPins(root: string): Map<string, ConsumerPin[]> {
   return byLibrary;
 }
 
+/** Parse a generated Pine library's exported data watermark. */
+export function parseLibraryDataAsOf(pineText: string): string | null {
+  const value = ASOF_DATE_RE.exec(pineText)?.[1] ?? "";
+  if (!value) return null;
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) return null;
+  return value;
+}
+
+/** Resolve ASOF_DATE for generated libraries whose source is part of this repo. */
+export function discoverLibraryDataAsOf(root: string, libraryNames: string[]): Map<string, string | null> {
+  const result = new Map<string, string | null>();
+  for (const name of libraryNames) {
+    const source = path.join(root, "pine", "generated", `${name}.pine`);
+    try {
+      result.set(name, parseLibraryDataAsOf(fs.readFileSync(source, "utf-8")));
+    } catch {
+      result.set(name, null);
+    }
+  }
+  return result;
+}
+
 /**
  * Assemble the snapshot from discovered pins + probed TV versions. Pure so the
  * drift logic is unit-testable without a TradingView session. `tvVersions`
@@ -147,11 +175,15 @@ export function buildSnapshot(
   tvVersions: Map<string, number | null>,
   nowUnix: number,
   facadeError = "",
+  dataAsOfByLibrary: Map<string, string | null> = new Map(),
 ): PineLibraryVersionSnapshot {
   const libraries: LibrarySnapshot[] = [];
   for (const name of [...pinsByLibrary.keys()].sort()) {
     const tvVersion = tvVersions.get(name) ?? null;
     const tvVersionKnown = typeof tvVersion === "number";
+    const dataAsOf = dataAsOfByLibrary.get(name) ?? "";
+    const parsedDataAsOf = dataAsOf ? Date.parse(`${dataAsOf}T00:00:00Z`) : Number.NaN;
+    const dataAsOfUnix = Number.isFinite(parsedDataAsOf) ? Math.floor(parsedDataAsOf / 1000) : null;
     const pins = pinsByLibrary.get(name) ?? [];
     const consumers: ConsumerEntry[] = pins
       .slice()
@@ -168,6 +200,9 @@ export function buildSnapshot(
       name,
       tvVersion,
       tvVersionKnown,
+      dataAsOf,
+      dataAsOfUnix,
+      dataAsOfKnown: dataAsOfUnix !== null,
       consumers,
       anyConsumerDrift,
     });
@@ -211,6 +246,7 @@ export async function runBuildPineLibraryVersionSnapshotCli(argv: string[] = pro
 
   const pinsByLibrary = discoverConsumerPins(cli.root);
   const libraryNames = [...pinsByLibrary.keys()].sort();
+  const dataAsOfByLibrary = discoverLibraryDataAsOf(cli.root, libraryNames);
 
   const tvVersions = new Map<string, number | null>();
   let facadeError = "";
@@ -256,7 +292,7 @@ export async function runBuildPineLibraryVersionSnapshotCli(argv: string[] = pro
     }
   }
 
-  const snapshot = buildSnapshot(pinsByLibrary, tvVersions, nowUnix, facadeError);
+  const snapshot = buildSnapshot(pinsByLibrary, tvVersions, nowUnix, facadeError, dataAsOfByLibrary);
   writeJsonFile(cli.out, snapshot);
   process.stdout.write(JSON.stringify(snapshot, null, 2));
   process.stdout.write("\n");

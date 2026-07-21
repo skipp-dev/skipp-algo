@@ -89,7 +89,7 @@
 "open_prep/bea.py" = [94]
 # 2026-07-16: measured TradingView dropdown snapshot bridge. HTTPS-only,
 # explicit 10s timeout, optional bearer token, local-file fallback.
-"services/live_overlay_daemon/tradingview_binding_bridge.py" = [61]
+"services/live_overlay_daemon/tradingview_binding_bridge.py" = [84] # 2026-07-21 (saved-source hash fields): 61->84
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [741] # 2026-07-19 (provider telemetry helper): 740->741
 "open_prep/sentiment_fng.py" = [100]
@@ -115,7 +115,7 @@
 "services/live_overlay_daemon/evidence_freshness_bridge.py" = [147]
 # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up): repo↔TV
 # Pine-library version snapshot fetch — mirrors evidence_freshness_bridge egress.
-"services/live_overlay_daemon/pine_library_version_bridge.py" = [121]
+"services/live_overlay_daemon/pine_library_version_bridge.py" = [125] # 2026-07-21 (library ASOF_DATE fields): 121->125
 # 2026-07-07 (feat/provider-usage): provider data-volume snapshot fetcher,
 # https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/provider_usage_bridge.py" = [97]  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97

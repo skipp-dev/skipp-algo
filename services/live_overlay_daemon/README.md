@@ -213,10 +213,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `PROVIDER_USAGE_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/provider_usage.json` | Local provider-usage snapshot |
 | `PROVIDER_USAGE_SNAPSHOT_URL` | ❌ | canonical `bot/live-open-prep-snapshot` URL | HTTPS URL for the provider-usage snapshot; set explicitly empty to disable remote loading |
 | `PROVIDER_USAGE_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PROVIDER_USAGE_SNAPSHOT_URL` |
-| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library version snapshot (per-consumer import-pin drift gauges) |
+| `PINE_LIBRARY_VERSIONS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/pine_library_versions.json` | Local Repo↔TradingView Pine-library snapshot (import-pin drift plus generated-library `ASOF_DATE` age gauges) |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` | ❌ | canonical `bot/live-pine-library-versions` URL | HTTPS URL for the Pine-library version snapshot; set explicitly empty to disable remote loading |
 | `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `PINE_LIBRARY_VERSIONS_SNAPSHOT_URL` |
-| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured `input.source` dropdown assignments |
+| `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured saved-source SHA-256 comparisons and `input.source` dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | canonical `bot/live-tradingview-bindings` URL | HTTPS URL for the binding snapshot; set explicitly empty to disable remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
 | `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |

@@ -1,6 +1,6 @@
 name: tv-save-consumer-source
-# live-window: off-hours-only  # Daily cron is read-only; only manual dispatch mutates TradingView.
-# Manual dispatch can push fresh repo source into the operator's saved TradingView scripts.
+# live-window: off-hours-only  # Daily cron verifies saved-source hashes + bindings; only manual dispatch mutates TradingView.
+# Manual dispatch can push fresh repo source and explicitly refresh the producer chart instance.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
 # strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
@@ -10,8 +10,9 @@ name: tv-save-consumer-source
 # imports (Core Engine pinned every lib at /1 → CE10271/CE10272). The repo is
 # SSOT; this recompiles the saved copies against the current library surface.
 #
-# Scheduled runs force an empty save mapping and therefore only inspect dropdown
-# assignments. Manual dispatch remains the only path that writes PERSONAL saved scripts.
+# Scheduled runs force an empty save mapping and therefore inspect saved-source
+# hashes and dropdown assignments without writing. Manual dispatch remains the
+# only path that writes PERSONAL saved scripts or refreshes a chart instance.
 #
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
@@ -43,6 +44,11 @@ on:
         default: false
       force_rebind:
         description: "Re-select every BUS source to replace stale TradingView parent IDs"
+        type: boolean
+        required: false
+        default: false
+      refresh_producer:
+        description: "Remove and re-add SMC Long-Dip Suite; requires force_rebind=true"
         type: boolean
         required: false
         default: false
@@ -133,6 +139,7 @@ jobs:
           # Cron is fail-safe read-only: [] skips every saved-script write.
           TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
           TV_FORCE_REBIND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
+          TV_REFRESH_PRODUCER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
         run: |
           npx tsx scripts/tv_batch_consumer_rollout.ts
 

@@ -1,15 +1,16 @@
 name: pine-library-version-monitor
 # live-window: mutating-on-cron  # Daily Repo↔TradingView Pine-library version snapshot (2026-07-13)
 
-# Produces the Pine-library version snapshot the live-overlay daemon serves as
-# Prometheus gauges (services/live_overlay_daemon/pine_library_version_bridge.py).
+# Produces the Pine-library version/data-watermark snapshot the live-overlay
+# daemon serves as Prometheus gauges (services/live_overlay_daemon/pine_library_version_bridge.py).
 # This is the monitoring layer that was missing during the 2026-07 incident
 # chain (#3599/#3603): the `import preuss_steffen/<lib>/<N>` pins silently
 # drifted from the real published TradingView version (micro_profiles /1 vs a
 # live /152 for ~4 months) and NOTHING alerted — CE10272 on every modern mp.*
 # symbol. It probes each library's published version via the pine-facade
-# `filter=published` listing and compares it to every repo pin, so a stale pin
-# becomes a red Grafana panel + alert instead of a silent compile break.
+# `filter=published` listing, compares it to every repo pin, and exports the
+# generated library's ASOF_DATE. Stale data and stale pins therefore become
+# separate Grafana panels + alerts instead of one misleading green heartbeat.
 #
 # Publishes to the rolling bot/live-pine-library-versions branch (mirrors
 # evidence-freshness-snapshot.yml) so the daemon can fetch via

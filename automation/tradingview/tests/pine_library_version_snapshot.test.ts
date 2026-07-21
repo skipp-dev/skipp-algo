@@ -6,7 +6,9 @@ import test from "node:test";
 
 import {
   buildSnapshot,
+  discoverLibraryDataAsOf,
   discoverConsumerPins,
+  parseLibraryDataAsOf,
   parseImportPins,
   type ConsumerPin,
 } from "../../../scripts/build_pine_library_version_snapshot.js";
@@ -39,6 +41,12 @@ test("parseImportPins ignores non-preuss imports and lines without a pin", () =>
   assert.deepEqual(parseImportPins(src, "f.pine"), []);
 });
 
+test("parseLibraryDataAsOf accepts only a valid exported ISO date", () => {
+  assert.equal(parseLibraryDataAsOf('export const string ASOF_DATE = "2026-07-20"'), "2026-07-20");
+  assert.equal(parseLibraryDataAsOf('export const string ASOF_DATE = "2026-02-31"'), null);
+  assert.equal(parseLibraryDataAsOf('const string ASOF_DATE = "2026-07-20"'), null);
+});
+
 test("buildSnapshot flags drift only when the TV version is KNOWN and differs", () => {
   const pins = new Map<string, ConsumerPin[]>([
     ["smc_micro_profiles_generated", [{ file: "SMC_Long_Dip_Dashboard.pine", library: "smc_micro_profiles_generated", pinnedVersion: 1 }]],
@@ -51,11 +59,20 @@ test("buildSnapshot flags drift only when the TV version is KNOWN and differs", 
     ["smc_bus_private", null], // unknown → never drift
   ]);
 
-  const snap = buildSnapshot(pins, tvVersions, 1_000);
+  const snap = buildSnapshot(
+    pins,
+    tvVersions,
+    1_000,
+    "",
+    new Map([["smc_micro_profiles_generated", "2026-07-20"]]),
+  );
 
   const byName = Object.fromEntries(snap.libraries.map((l) => [l.name, l]));
   assert.equal(byName["smc_micro_profiles_generated"].consumers[0].drift, true);
   assert.equal(byName["smc_micro_profiles_generated"].anyConsumerDrift, true);
+  assert.equal(byName["smc_micro_profiles_generated"].dataAsOf, "2026-07-20");
+  assert.equal(byName["smc_micro_profiles_generated"].dataAsOfKnown, true);
+  assert.equal(byName["smc_micro_profiles_generated"].dataAsOfUnix, 1_784_505_600);
   assert.equal(byName["smc_utils"].consumers[0].drift, false);
   assert.equal(byName["smc_bus_private"].consumers[0].drift, false, "unknown TV version must not masquerade as drift");
   assert.equal(byName["smc_bus_private"].tvVersionKnown, false);
@@ -106,6 +123,22 @@ test("discoverConsumerPins walks .pine files and skips excluded dirs", () => {
     assert.deepEqual([...byLib.keys()], ["smc_utils"]);
     // Only the root consumer counts — tests/ and pine/ are excluded.
     assert.deepEqual(byLib.get("smc_utils")!.map((p) => [p.file, p.pinnedVersion]), [["Consumer.pine", 1]]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("discoverLibraryDataAsOf reads generated library watermarks", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pine-asof-"));
+  try {
+    fs.mkdirSync(path.join(root, "pine", "generated"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "pine", "generated", "smc_micro_profiles_generated.pine"),
+      'export const string ASOF_DATE = "2026-07-20"\n',
+    );
+    const values = discoverLibraryDataAsOf(root, ["smc_micro_profiles_generated", "smc_utils"]);
+    assert.equal(values.get("smc_micro_profiles_generated"), "2026-07-20");
+    assert.equal(values.get("smc_utils"), null);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

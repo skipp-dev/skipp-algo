@@ -71,6 +71,9 @@ def _raw_snapshot() -> dict:
                 "name": "smc_micro_profiles_generated",
                 "tvVersion": 152,
                 "tvVersionKnown": True,
+                "dataAsOf": "2026-07-20",
+                "dataAsOfUnix": 1_784_505_600,
+                "dataAsOfKnown": True,
                 "consumers": [{"file": "SMC_Long_Dip_Dashboard.pine", "pinnedVersion": 1, "drift": True}],
                 "anyConsumerDrift": True,
             },
@@ -98,6 +101,9 @@ def test_coerce_normalizes_drift_and_known_flags():
     micro = out["libraries"][0]
     assert micro["tv_version"] == 152.0
     assert micro["tv_version_known"] == 1.0
+    assert micro["data_asof"] == "2026-07-20"
+    assert micro["data_asof_unix"] == 1_784_505_600.0
+    assert micro["data_asof_known"] == 1.0
     assert micro["consumers"][0]["drift"] == 1.0
     bus = out["libraries"][1]
     assert bus["tv_version_known"] == 0.0
@@ -212,6 +218,8 @@ def test_metrics_render_gates_unknown_tv_version(monkeypatch):
         'consumer="SMC_Long_Dip_Dashboard.pine"} 1.0' in body
     )
     assert "live_overlay_pine_library_any_drift 1.0" in body
+    assert 'live_overlay_pine_library_data_age_known{library="smc_micro_profiles_generated"} 1.0' in body
+    assert 'live_overlay_pine_library_data_age_seconds{library="smc_micro_profiles_generated"}' in body
 
 
 def test_metrics_render_facade_ok_false_on_probe_error(monkeypatch):

@@ -119,7 +119,8 @@ Constraints that must hold for the allowance to remain valid:
   freshest snapshot for the `lo-sweep-trap-shadow-stale` gauge. Same rolling
   `bot/*` cache-cursor pattern; force-with-lease with prior fetch.
 * `tv-save-consumer-source.yml` (added 2026-07-16) publishes the latest
-  measured TradingView `input.source` dropdown assignments on the dedicated
+  saved-source SHA-256 comparisons and measured TradingView `input.source`
+  dropdown assignments on the dedicated
   `bot/live-tradingview-bindings` cache branch. The workflow fetches
   the current tip and uses an explicit lease; the branch remains a pure
   machine-generated cache cursor consumed by the live-overlay daemon.

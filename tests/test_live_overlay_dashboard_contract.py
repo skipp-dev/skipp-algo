@@ -337,6 +337,14 @@ def test_dashboard_freshness_thresholds_match_alert_rules() -> None:
     )
     assert binding_red == binding_seconds / 3600
 
+    library_rule_expr = _alert_rule("lo-pine-library-data-stale")["data"][0]["model"]["expr"]
+    library_seconds = int(re.search(r"> bool\s*(\d+)", library_rule_expr).group(1))
+    library_props = _field_override_properties(panels["Pine library data freshness"], "Micro-profile data age")
+    library_red = next(
+        step["value"] for step in library_props["thresholds"]["steps"] if step.get("color") == "red"
+    )
+    assert library_red == library_seconds / 86400
+
 
 def test_tradingview_binding_health_fields_have_independent_colours() -> None:
     """A failed load, incomplete check, drift, or mismatch must never stay green."""
@@ -361,6 +369,21 @@ def test_tradingview_binding_health_fields_have_independent_colours() -> None:
             {"color": "green", "value": None},
             {"color": "red", "value": 1},
         ]
+
+    source_known = _field_override_properties(panel, "Source check known")
+    source_mappings = source_known["mappings"][0]["options"]
+    assert source_mappings["0"] == {"text": "MISSING", "color": "red"}
+    assert source_mappings["1"] == {"text": "VERIFIED", "color": "green"}
+
+    source_checked = _field_override_properties(panel, "Sources checked")
+    assert source_checked["thresholds"]["steps"] == [
+        {"color": "red", "value": None},
+        {"color": "green", "value": 8},
+    ]
+    assert _field_override_properties(panel, "Source drift")["thresholds"]["steps"] == [
+        {"color": "green", "value": None},
+        {"color": "red", "value": 1},
+    ]
 
 
 def test_fmp_quota_panel_thresholds_match_alert_rules() -> None:
