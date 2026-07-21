@@ -94,10 +94,14 @@ class PreA0Runtime:
         )
         estimate = machine.evaluate(features)
         self.telemetry.record_estimate(estimate.state.name)
-        scores = tuple(
-            self.scorer.score(_model_features(features, horizon), horizon_s=horizon)
-            for horizon in self.config.pre_a0_allowed_horizons
-        )
+        scores: tuple[ShadowScore, ...] = ()
+        if estimate.state is not PreA0State.NONE:
+            # Quiet universe stays sampled for training data, but is not scored:
+            # the model envelope only covers symbols progressing toward A0.
+            scores = tuple(
+                self.scorer.score(_model_features(features, horizon), horizon_s=horizon)
+                for horizon in self.config.pre_a0_allowed_horizons
+            )
         for score in scores:
             self.telemetry.record_score(score)
 

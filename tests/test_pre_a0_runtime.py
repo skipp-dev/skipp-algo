@@ -107,14 +107,48 @@ def test_observe_runtime_scores_and_persists_without_confirming_a0(tmp_path) -> 
     frame = pd.concat(pd.read_parquet(path) for path in parquet)
     assert set(frame["selection_reason"]) == {"base_5s", "warm_1s"}
     assert frame["episode_id"].notna().any()
-    assert frame["model_artifact_id"].eq(json.loads(model_path.read_text())["artifact_id"]).all()
-    assert frame["probability_30"].between(0, 1).all()
-    assert frame["probability_60"].between(0, 1).all()
-    assert frame["probability_180"].between(0, 1).all()
-    assert frame["score_status_60"].eq("ready").all()
+    scored = frame[frame["state"] != "NONE"]
+    quiet = frame[frame["state"] == "NONE"]
+    assert len(scored) > 0
+    assert scored["model_artifact_id"].eq(json.loads(model_path.read_text())["artifact_id"]).all()
+    assert scored["probability_30"].between(0, 1).all()
+    assert scored["probability_60"].between(0, 1).all()
+    assert scored["probability_180"].between(0, 1).all()
+    assert scored["score_status_60"].eq("ready").all()
+    assert quiet["probability_60"].isna().all()
+    assert quiet["score_status_60"].isna().all()
     metrics = telemetry.render_prometheus()
     assert "pre_a0_model_ready 1" in metrics
     assert "pre_a0_snapshots_recorded_total" in metrics
+
+
+def test_state_none_snapshots_record_without_scoring(tmp_path) -> None:
+    model_path = tmp_path / "model.json"
+    output = tmp_path / "snapshots"
+    _artifact(model_path)
+    telemetry = PreA0Telemetry()
+    runtime = build_pre_a0_runtime(
+        {
+            "RT_A0_FAST_MODE": "shadow",
+            "RT_PRE_A0_MODE": "shadow",
+            "RT_PRE_A0_MODEL_PATH": str(model_path),
+            "RT_PRE_A0_SNAPSHOT_DIR": str(output),
+            "RT_PRE_A0_SNAPSHOT_FLUSH_ROWS": "100",
+            "RT_PRE_A0_CODE_REVISION": "test",
+        },
+        thresholds=_THRESHOLDS,
+        telemetry=telemetry,
+    )
+    assert runtime is not None
+    results = [runtime.process(_snapshot(second, 0.1)) for second in range(11)]
+    assert all(result.estimate.state.name == "NONE" for result in results)
+    assert all(result.scores == () for result in results)
+    snapshot = telemetry.snapshot()
+    assert snapshot["inference_count"] == 0
+    assert snapshot["feature_missing"] == 0
+    assert snapshot["feature_out_of_range"] == 0
+    assert snapshot["states"]["none"] == 11
+    assert runtime.flush() > 0
 
 
 def test_missing_model_disables_only_pre_a0(tmp_path) -> None:
