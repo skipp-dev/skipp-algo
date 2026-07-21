@@ -4670,7 +4670,12 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
     await addCurrentScriptToChart(page, scriptName, { forceInsert: true });
     await page.waitForTimeout(1_250);
     return removedCount;
-  });
+  // This is a composite operation: removal, editor recovery, script lookup and
+  // chart insertion each have their own tracked work. A normal CI run observed
+  // the insertion effect at 44s, then the default 45s outer timer closed the
+  // otherwise healthy session. Keep operator overrides, but provide enough
+  // floor for the whole refresh transaction.
+  }, Math.max(stepTimeoutMs(), 90_000));
 }
 
 async function tryOpenScriptSettingsByDoubleClick(
