@@ -79,6 +79,17 @@ def test_set_editor_content_prepare_timeout_respects_ci_step_budget() -> None:
     assert '}, editorContentTimeoutMs);' in source
 
 
+def test_producer_refresh_has_composite_timeout_floor() -> None:
+    source = _read(TV_SHARED_PATH)
+
+    pattern = re.compile(
+        r"export async function refreshChartScriptInstance\(page: Page, scriptName: string\): Promise<number> \{"
+        r".*?Math\.max\(stepTimeoutMs\(\), 90_000\)\);",
+        re.S,
+    )
+    assert pattern.search(source), "producer refresh must keep a 90s outer timeout floor"
+
+
 def test_tradingview_timeout_budget_contract_is_documented() -> None:
     runbook = _read(RUNBOOK_PATH)
 
