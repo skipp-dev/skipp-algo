@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -180,6 +180,70 @@ class TestVIXFmpPoll:
         feed_mod._poll_vix_from_fmp()  # must not raise
 
         assert calls == []
+
+    def test_failed_construction_retries_after_bounded_interval(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Truth-audit F-3: a transient FMP-loader construction failure (e.g.
+        a DNS hiccup at boot) used to disable VIX for the process lifetime.
+        The failure path must stamp a timestamp and retry construction after
+        the bounded interval — not on every poll (no retry storm)."""
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.feed as feed_mod
+        import services.live_overlay_daemon.fmp_data_loader as fmp_mod
+
+        calls: list[Any] = []
+        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        try:
+            feed_mod._runtime.pop("vix_loader", None)
+            feed_mod._runtime.pop("vix_loader_failed_at", None)
+
+            boom = MagicMock(side_effect=ValueError("FMP_API_KEY not provided"))
+            monkeypatch.setattr(fmp_mod, "FMPDataLoader", boom)
+            feed_mod._poll_vix_from_fmp()  # construction fails -> sentinel + stamp
+            assert feed_mod._runtime["vix_loader"] is None
+            assert "vix_loader_failed_at" in feed_mod._runtime
+            assert boom.call_count == 1
+
+            feed_mod._poll_vix_from_fmp()  # within interval -> NO reconstruction
+            assert boom.call_count == 1, "retry storm: reconstructed before the interval"
+            assert calls == []
+
+            feed_mod._runtime["vix_loader_failed_at"] -= feed_mod._VIX_LOADER_RETRY_SECS + 1
+            good_loader = self._FakeLoader(19.0)
+            monkeypatch.setattr(fmp_mod, "FMPDataLoader", MagicMock(return_value=good_loader))
+            feed_mod._poll_vix_from_fmp()  # interval elapsed -> retry succeeds
+            assert calls == [19.0], "recovered loader must refresh VIX again"
+            assert feed_mod._runtime["vix_loader"] is good_loader
+            assert "vix_loader_failed_at" not in feed_mod._runtime
+        finally:
+            feed_mod._runtime.pop("vix_loader", None)
+            feed_mod._runtime.pop("vix_loader_failed_at", None)
+
+    def test_manual_none_sentinel_without_timestamp_never_retries(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A bare None sentinel with no failure timestamp (the pre-F-3 state,
+        also used by hermetic tests) must stay a permanent no-op — the bounded
+        retry only arms itself via the construction-failure path."""
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.feed as feed_mod
+        import services.live_overlay_daemon.fmp_data_loader as fmp_mod
+
+        calls: list[Any] = []
+        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        monkeypatch.setitem(feed_mod._runtime, "vix_loader", None)
+        try:
+            feed_mod._runtime.pop("vix_loader_failed_at", None)
+            probe = MagicMock()
+            monkeypatch.setattr(fmp_mod, "FMPDataLoader", probe)
+
+            feed_mod._poll_vix_from_fmp()
+
+            assert probe.call_count == 0, "timestamp-less sentinel must not reconstruct"
+            assert calls == []
+        finally:
+            feed_mod._runtime.pop("vix_loader_failed_at", None)
 
 
 class TestFeedReadinessRaceCondition:
