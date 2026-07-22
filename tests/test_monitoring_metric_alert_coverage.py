@@ -141,11 +141,27 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_credential_health_probe_info": "info-pattern",
     "live_overlay_health_status_info": "info-pattern",
     "live_overlay_trading_signal_info": "info-pattern",
-    # Genuine gaps — real gauges, plausibly worth a panel. Request latency has
-    # no visualisation at all today.
-    "live_overlay_smc_live_latency_ms_sum": "gap: request latency is unvisualised",
-    "live_overlay_smc_live_latency_p95_ms": "gap: request latency is unvisualised",
-    "live_overlay_smc_live_latency_p99_ms": "gap: request latency is unvisualised",
+    # NOT gaps — request latency is both visualised and alerted, just through
+    # the histogram rather than through these names: the "Request Latency
+    # Against 500 ms Target" panel and alert rule lo-latency-p99-high both run
+    # histogram_quantile over live_overlay_smc_live_latency_ms_bucket.
+    "live_overlay_smc_live_latency_ms_sum": (
+        "histogram component: quantiles come from _bucket; only a mean would read this"
+    ),
+    # Pre-computed legacy gauges the dashboard deliberately migrated away from.
+    # Wiring them is not merely unnecessary, it is FORBIDDEN — two contract
+    # tests assert their absence, so treating these as gaps to fill turns
+    # tests/test_live_overlay_dashboard_contract.py red. The real follow-up is
+    # to delete their emission in metrics.py, which then evicts them from this
+    # list via the no-longer-emitted guard above.
+    "live_overlay_smc_live_latency_p95_ms": (
+        "legacy: superseded by histogram_quantile; wiring forbidden by "
+        "test_dashboard_latency_panel_uses_only_histogram_quantile"
+    ),
+    "live_overlay_smc_live_latency_p99_ms": (
+        "legacy: superseded by histogram_quantile; wiring forbidden by "
+        "test_latency_alert_uses_histogram_quantile_bucket"
+    ),
     # Pre-existing, not yet classified.
     "live_overlay_bar_requested_symbols_evicted_total": "unaudited",
     "live_overlay_bars_per_symbol": "unaudited",
@@ -180,6 +196,11 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_tv_consumer_sources_drifted": "unaudited",
     "live_overlay_tv_consumer_sources_expected": "unaudited",
 }
+
+# 2026-07-22: 39 entries when the fail-closed inversion landed. This number may
+# only go DOWN. Without it the register above is a permit — see
+# test_orphan_debt_does_not_grow for what that costs.
+_ORPHAN_SCAN_DEBT_CEILING = 39
 
 
 def _alert_expr_text() -> str:
@@ -300,8 +321,10 @@ def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
     assert not orphans, (
         "these monitoring metrics are emitted but referenced by no alert rule "
         f"and no dashboard panel — they are invisible: {orphans}\n"
-        "Wire each into an alert or a dashboard panel, or add it to "
-        "_ORPHAN_SCAN_KNOWN_DEBT with a stated reason."
+        "Wire each into an alert rule or a dashboard panel. Excusing one via "
+        "_ORPHAN_SCAN_KNOWN_DEBT is a last resort: it also forces raising "
+        "_ORPHAN_SCAN_DEBT_CEILING, which is a reviewable act, not a formality. "
+        "The list is a debt register, not a permit."
     )
 
 
@@ -327,6 +350,27 @@ def test_no_stale_orphan_debt_entries() -> None:
     assert not no_longer_emitted, (
         "these metrics are no longer emitted — remove them from "
         f"_ORPHAN_SCAN_KNOWN_DEBT: {no_longer_emitted}"
+    )
+
+
+def test_orphan_debt_does_not_grow() -> None:
+    """The debt list may only shrink — this is the half that makes it a ratchet.
+
+    ``test_no_stale_orphan_debt_entries`` only evicts entries that went stale.
+    On its own that leaves the list free to GROW, and the orphan scan's own
+    failure message points straight at it, so a new unconsumed metric could be
+    excused in the very commit that adds it — the exact case the fail-closed
+    inversion exists to catch. Verified by falsification: adding one emitted
+    orphan plus a matching debt entry passed all 29 tests before this pin.
+
+    Raising the ceiling is allowed, but only as a deliberate, reviewed edit
+    that shows up in the diff instead of hiding inside a 39-line dict.
+    """
+    assert len(_ORPHAN_SCAN_KNOWN_DEBT) <= _ORPHAN_SCAN_DEBT_CEILING, (
+        f"orphan debt grew to {len(_ORPHAN_SCAN_KNOWN_DEBT)} entries, over the "
+        f"{_ORPHAN_SCAN_DEBT_CEILING} pinned on 2026-07-22. Wire the metric into "
+        "an alert or a panel instead of excusing it; if the exemption is truly "
+        "right, raise the ceiling in the same commit and say why."
     )
 
 
