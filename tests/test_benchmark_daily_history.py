@@ -151,8 +151,9 @@ def test_workflow_fetches_long_history_and_feeds_both_1d_consumers() -> None:
     assert "--workbook" in run
     # No dynamic GITHUB_ENV write for the override (zizmor github-env
     # ratchet) — the benchmark step declares the FIXED path statically and
-    # the harness falls through when the file is absent.
-    assert "SMC_DAILY_BARS_WORKBOOK_OVERRIDE" not in run
+    # the harness falls through when the file is absent. (The bare name may
+    # appear in comments; the WRITE form `NAME=...` must not.)
+    assert "SMC_DAILY_BARS_WORKBOOK_OVERRIDE=" not in run
     assert step["env"]["DATABENTO_API_KEY"] == "${{ secrets.DATABENTO_API_KEY }}"
 
     wf = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
