@@ -827,6 +827,27 @@ class TestVixFiniteContract:
 
         assert cache_mod.get_vix() == 20.5
 
+    def test_vix_age_tracks_only_accepted_updates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Rejected non-finite quotes must not refresh the freshness timestamp.
+
+        vix_age_secs() feeds live_overlay_vix_age_known/_seconds and thereby the
+        lo-vix-unavailable sentinel: a garbage-only poll loop has to keep ageing
+        instead of masquerading as a fresh feed.
+        """
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_vix_level", None)
+        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
+
+        assert cache_mod.vix_age_secs() == float("inf")
+
+        cache_mod.set_vix(20.5)
+        assert cache_mod.vix_age_secs() != float("inf")
+
+        stamped = cache_mod._vix_updated_at["ts"]
+        cache_mod.set_vix(float("nan"))
+        assert cache_mod._vix_updated_at["ts"] == stamped
+
     def test_flow_patch_cycle_does_not_write_non_finite_vix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
         import services.live_overlay_daemon.compute as compute_mod

@@ -262,8 +262,27 @@ def set_vix(level: float) -> None:
         return
     with _vix_lock:
         _vix_level = level
+        _vix_updated_at["ts"] = time.monotonic()
 
 
 def get_vix() -> float | None:
     with _vix_lock:
         return _vix_level
+
+
+# Monotonic timestamp of the last ACCEPTED set_vix. Kept in a mutable holder
+# (declared below the pinned `global` sites) instead of a rebound module global:
+# a new `global` statement would add a site to the global-statement budget
+# ledger. Mirrors the feed._runtime precedent.
+_vix_updated_at: dict[str, float] = {}
+
+
+def vix_age_secs() -> float:
+    """Seconds since the last accepted VIX refresh (``inf`` before the first).
+
+    Rejected non-finite quotes do not stamp the timestamp, so a poll loop that
+    only ever yields garbage keeps ageing instead of masquerading as fresh.
+    """
+    with _vix_lock:
+        ts = _vix_updated_at.get("ts")
+    return float("inf") if ts is None else time.monotonic() - ts

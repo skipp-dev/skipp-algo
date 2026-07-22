@@ -748,6 +748,53 @@ def test_render_metrics_known_age_still_renders_finite_value(monkeypatch: pytest
     assert "live_overlay_last_bar_age_seconds 12.5" in body
 
 
+def test_render_metrics_emits_vix_gauges_when_fetched(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.cache as cache
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(cache, "get_vix", lambda: 22.354)
+    monkeypatch.setattr(cache, "vix_age_secs", lambda: 120.0)
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_vix_level 22.35" in body
+    assert "live_overlay_vix_age_known 1.0" in body
+    assert "live_overlay_vix_age_seconds 120.0" in body
+
+
+def test_render_metrics_vix_never_fetched_is_distinguishable_from_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.cache as cache
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(cache, "get_vix", lambda: None)
+    monkeypatch.setattr(cache, "vix_age_secs", lambda: float("inf"))
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_vix_age_known 0.0" in body
+    # 0.0 and NOT nan: `lo-vix-unavailable` selects with
+    # `(age * known) + ((1 - known) * 5401)`, so a NaN age would swallow the
+    # unknown-sentinel exactly like the lo-overlay-stale case above.
+    assert "live_overlay_vix_age_seconds 0.0" in body
+    assert "live_overlay_vix_level 0.0" in body
+
+
 def test_render_metrics_emits_hotspot_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 

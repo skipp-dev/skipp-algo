@@ -93,7 +93,17 @@ _PINE_LIBRARY_SIGNAL_METRICS = (
     "live_overlay_pine_library_facade_ok",
 )
 
-_METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow)_[a-z0-9_]+")
+# VIX enrichment signals that MUST have a watcher. Before 2026-07-21 the daemon
+# polled ^VIX from FMP fail-soft (keep-last) but exported nothing: an FMP outage
+# froze the payload's vix_level with NO operator signal (truth-audit finding F-2).
+# The freshness pair must alert (lo-vix-unavailable) and the level must be
+# charted; `_METRIC_RE` also auto-discovers the family for the orphan scan.
+_VIX_SIGNAL_METRICS = (
+    "live_overlay_vix_age_seconds",
+    "live_overlay_vix_age_known",
+)
+
+_METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow|vix)_[a-z0-9_]+")
 
 
 def _alert_expr_text() -> str:
@@ -177,6 +187,23 @@ def test_pine_library_signals_have_alert_coverage() -> None:
     alerts = _alert_expr_text()
     missing = [m for m in _PINE_LIBRARY_SIGNAL_METRICS if m not in alerts]
     assert not missing, f"pine-library version-drift signals lack alert coverage: {missing}"
+
+
+def test_vix_signals_have_alert_coverage() -> None:
+    """The VIX freshness pair must alert and the level must be charted.
+
+    The FMP ^VIX poll is fail-soft keep-last by design, so without a watcher an
+    FMP outage is invisible while clients consume a frozen vix_level. The
+    lo-vix-unavailable rule owns the freshness axis (sentinel form, so
+    never-fetched fires too); the dashboard panel owns the level.
+    """
+    alerts = _alert_expr_text()
+    missing = [m for m in _VIX_SIGNAL_METRICS if m not in alerts]
+    assert not missing, f"VIX freshness signals lack alert coverage: {missing}"
+    assert "live_overlay_vix_level" in _dashboard_expr_text(), (
+        "live_overlay_vix_level is emitted but charted nowhere — the VIX panel "
+        "vanished and the level is invisible again (truth-audit F-2)"
+    )
 
 
 def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
