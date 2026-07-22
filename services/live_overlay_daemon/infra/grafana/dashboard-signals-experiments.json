@@ -325,7 +325,7 @@
     {
       "title": "Signals Snapshot Age",
       "type": "stat",
-      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown.",
+      "description": "Seconds since the realtime engine last wrote latest_realtime_signals.json. Red once the snapshot is older than the 480s (8 min) max signal age — stale signals should not be trusted. Shows N/A when the snapshot timestamp is unknown. The dashed-in threshold series is the env-configured OVERLAY_SIGNALS_MAX_AGE_SECS contract the stale gauge/alert is computed against.",
       "gridPos": {
         "h": 6,
         "w": 6,
@@ -341,6 +341,16 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           }
+        },
+        {
+          "expr": "live_overlay_trading_signals_snapshot_max_age_seconds{job=~\"$job\"}",
+          "legendFormat": "staleness threshold (OVERLAY_SIGNALS_MAX_AGE_SECS)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -2083,6 +2093,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 11,
+  "version": 12,
   "weekStart": ""
 }

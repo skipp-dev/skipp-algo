@@ -1474,12 +1474,15 @@ def test_render_metrics_includes_trading_signals_snapshot(
     # A2 early-warning tier is a first-class gauge (added 2026-07-08).
     assert "live_overlay_trading_signals_a2 1.0" in body
     assert "live_overlay_trading_signals_watched 3.0" in body
-    # Deprecated *_total aliases stay emitted during the naming transition.
-    assert "live_overlay_trading_signals_active_total 3.0" in body
-    assert "live_overlay_trading_signals_a0_total 1.0" in body
-    assert "live_overlay_trading_signals_a1_total 1.0" in body
-    assert "live_overlay_trading_signals_a2_total 1.0" in body
-    assert "live_overlay_trading_signals_watched_total 3.0" in body
+    # The deprecated *_total aliases were dropped 2026-07-22 (transition over:
+    # all committed dashboards use the suffix-less names, and the orphan scan
+    # covers the trading_signals family). Pin the removal — a revert would
+    # reintroduce five emitted-but-unconsumed series.
+    assert "live_overlay_trading_signals_active_total" not in body
+    assert "live_overlay_trading_signals_a0_total" not in body
+    assert "live_overlay_trading_signals_a1_total" not in body
+    assert "live_overlay_trading_signals_a2_total" not in body
+    assert "live_overlay_trading_signals_watched_total" not in body
     # A2 signals also surface as labelled per-signal series (level="A2").
     assert 'live_overlay_trading_signal_score{symbol="NVDA",level="A2"' in body
     assert "live_overlay_trading_signals_snapshot_age_known 1.0" in body
@@ -1703,7 +1706,6 @@ def test_render_metrics_handles_trading_signals_snapshot_missing(
 
     assert "live_overlay_trading_signals_loaded 0.0" in body
     assert "live_overlay_trading_signals_active 0.0" in body
-    assert "live_overlay_trading_signals_active_total 0.0" in body
     assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
     # No per-signal series when the snapshot is empty.
     assert "live_overlay_trading_signal_score{" not in body
@@ -2869,15 +2871,9 @@ def test_render_metrics_tolerates_non_numeric_signal_counts(monkeypatch: pytest.
     assert "live_overlay_trading_signals_a0 0.0" in body
     assert "live_overlay_trading_signals_a1 0.0" in body
     assert "live_overlay_trading_signals_a2 0.0" in body
-    # Deprecated *_total aliases stay emitted during the naming transition.
-    assert "live_overlay_trading_signals_active_total 0.0" in body
-    assert "live_overlay_trading_signals_a0_total 0.0" in body
-    assert "live_overlay_trading_signals_a1_total 0.0" in body
-    assert "live_overlay_trading_signals_a2_total 0.0" in body
     # The snapshot still loaded and the (valid) watched list still parsed.
     assert "live_overlay_trading_signals_loaded 1.0" in body
     assert "live_overlay_trading_signals_watched 1.0" in body
-    assert "live_overlay_trading_signals_watched_total 1.0" in body
 
 
 def test_coerce_count_coerces_all_edge_inputs() -> None:
