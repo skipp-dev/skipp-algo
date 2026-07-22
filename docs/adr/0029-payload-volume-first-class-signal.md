@@ -85,8 +85,8 @@ snapshot that feeds Prometheus.
 ### 2. Hard blockers are contradictions between field pairs, never bare emptiness
 
 ```text
-empty_universe_tickers:  ¬static ∧ UNIVERSE_SIZE > 0 ∧ universe_tickers_count == 0
-empty_membership_lists:  (UNIVERSE_SIZE > 0 ∨ universe_tickers_count > 0) ∧ list_total == 0
+empty_universe_tickers:  UNIVERSE_SIZE > 0          ∧  universe_tickers_count == 0
+empty_membership_lists:  universe_tickers_count > 0  ∧  list_total == 0
 ```
 
 Both say the same thing: *material was present and nothing arrived*. Neither
@@ -104,17 +104,49 @@ repaired is not "someone forgot an emptiness check" — it is that a field was
 validated *in isolation*. A gate that compares field pairs closes the pattern,
 not just this instance.
 
-**Mode awareness.** `static_control_plane` suppresses the *universe* reason
-only. Per the #3896 operator decision, that mode deliberately leaves provider
-data to the runtime sidecar, so an absent `UNIVERSE_TICKERS` there is by
-construction and not a contradiction. The membership reason therefore keys its
-"material was present" side off `UNIVERSE_SIZE` rather than
-`universe_tickers_count`, since `UNIVERSE_SIZE` is populated in both modes.
-The consequence is the one that matters: the incident signature — 6929 beside
-a wholly empty payload — stays blocked in *both* modes, via the universe
-reason when provider-enriched and via the membership reason when static.
+Both reasons apply in every generation mode. There is no mode-dependent
+suppression, because the one mode that would have needed it is retired — see
+the next section.
 
-### 3. No bootstrap carve-out
+### 3. `static_control_plane` is retired from the publish path
+
+**Operator decision, 2026-07-22: there will be no flip back to `--static-only`.**
+
+The intermediate design suppressed the universe reason in
+`static_control_plane`, on the grounds that #3896 leaves provider data to the
+runtime sidecar in that mode, so an absent `UNIVERSE_TICKERS` is by
+construction there. That suppression was the answer to "what if static
+publishes again?". With the question withdrawn, the answer does not belong in
+the code.
+
+The embedded payload is therefore **permanently load-bearing**: the sidecar
+(#3897/#3898) is a live layer on top of the library, not a replacement for it.
+That reclassifies this ADR's monitoring from a bridge until sidecar parity
+into standing production surveillance.
+
+Two consequences follow, and both simplify things:
+
+*   The contradictions apply unconditionally, and the publish-contract verifier
+    no longer reads `generation_mode` to evaluate them. This restores a
+    property the mode-awareness had quietly broken: **gate and alert evaluate
+    the identical condition on identical data.** The Grafana rule cannot see
+    the mode — the snapshot builder reads only the `.pine`, while
+    `generation_mode` lives in the manifest beside it — so a mode-dependent
+    gate meant the two layers were answering the same question from different
+    inputs. That divergence is the very defect this ADR repairs.
+*   A new blocking reason, `static_control_plane_retired`, makes a static
+    manifest never publish-ready. The workflow contract test pins the automated
+    path only (`--enrich-all` present, `--static-only` absent); blocking the
+    mode itself refuses a manual or local publish as well. **Absence of use is
+    not a substitute for refusal** — the same lesson as the incident. This also
+    replaces the former static-mode suppression of `default_event_risk`, which
+    existed solely to let static publish.
+
+The mode stays *generable* for local use. Removing the now-dead `--static-only`
+plumbing that threads through four production files is a separate concern
+(ADR-0013) and is deliberately not bundled here.
+
+### 4. No bootstrap carve-out
 
 An earlier draft proposed exempting bootstrap runs from
 `empty_membership_lists`, on the theory that membership state accumulates over
@@ -139,7 +171,7 @@ defect this ADR repairs. Both blockers therefore read only fields present in
 the published artifact, so gate and alert evaluate the identical condition on
 identical data.
 
-### 4. `not_run` is scored against a required-check set
+### 5. `not_run` is scored against a required-check set
 
 `combineVerificationStatuses` stays as it is; as a pure combinator it is
 correct, and its test keeps testing what it actually promises. Alongside it,
@@ -149,7 +181,7 @@ scores a `not_run` **in a required slot** as `not_verified`. Optional slots may
 remain `not_run`, so targets that legitimately skip input or chart checks do
 not turn red.
 
-### 5. Two gauges and two alert rules
+### 6. Two gauges and two alert rules
 
 The transport already exists and carries no volume information:
 
@@ -174,7 +206,7 @@ additional TradingView traffic, no new Playwright surface.
 
 Both carry `runbook` annotations, per the convention established in #1750bf5d6.
 
-### 6. The parser must handle the sharded export form
+### 7. The parser must handle the sharded export form
 
 `render_csv_export` (`scripts/generate_smc_micro_profiles.py:656-665`) emits a
 single literal only while the payload fits in `max_chars`. `UNIVERSE_TICKERS`
@@ -222,23 +254,33 @@ handling.
   returns the saved revision rather than the published one, so it would be new
   and materially more fragile automation. Version-level drift remains covered by
   the existing facade probe.
-- New metric families must be registered with the orphan scan
-  (`tests/test_monitoring_metric_alert_coverage.py`, #3627df27e), which requires
-  an alert or dashboard reference for each.
+- The orphan scan does **not** cover these gauges, contrary to what an earlier
+  draft of this ADR assumed. `test_monitoring_metric_alert_coverage._METRIC_RE`
+  enumerates `evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals`
+  — the `pine_library` family is absent, so a green scan says nothing about
+  payload metrics. This is the same failure shape the ADR repairs, one level up:
+  a check trusted without reading what it covers. The new gauges are therefore
+  wired to an explicit dashboard panel rather than relying on the scan.
+  Extending the family list surfaces three pre-existing orphans
+  (`pine_consumer_pin_version`, `pine_library_tv_version[_known]`) and belongs
+  in its own PR (ADR-0013).
 
 ## Enforced by
 
-Gate layer (decisions 1–3, 6):
+Gate layer (decisions 1–4, 7):
 
 - `tests/test_smc_payload_volume.py` — parser (literal, sharded, absent),
-  contradiction rules, mode awareness, and the productivity-gate wiring. Pins
-  the shipped signature (6929 beside an empty payload) as **blocked** in both
-  generation modes.
+  contradiction rules, and the productivity-gate wiring. Pins the shipped
+  signature (6929 beside an empty payload) as **blocked**, and a static
+  manifest as never publish-ready.
+- `tests/test_generate_smc_micro_profiles.py::test_manifest_static_control_plane_is_not_publishable`
+  — the inverted pin. It previously asserted the opposite; that premise is what
+  #3790 acted on.
 - `tests/test_verify_smc_micro_publish_contract.py` — the verifier rejects a
   library that contradicts its manifest, and a manifest whose recorded counts
   diverge from the library.
 
-Staged (decisions 4–5):
+Staged (decisions 5–6):
 
 - `automation/tradingview/tests/tv_validation_model.test.ts` — `[true, not_run,
   not_run]` in required slots must yield `overall_preflight_ok === false`.
