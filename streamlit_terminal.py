@@ -494,6 +494,7 @@ from terminal_spike_scanner import (
     market_session,
 )
 from terminal_tabs._shared import tv_symbol_column
+from terminal_tabs.style import dir_glyph, label, style_directional
 from terminal_technicals import (
     INTERVAL_MAP,
     fetch_technicals,
@@ -1771,7 +1772,7 @@ def _snapshot_bg_poller_state(poller: BackgroundPoller, *, reason: str, restarti
 # ── Sidebar ─────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("📡 Terminal Config")
+    st.title("Terminal Config")
 
     cfg: TerminalConfig = st.session_state.cfg
 
@@ -1790,7 +1791,9 @@ with st.sidebar:
     )
     for _ks in _key_statuses:
         if _ks["configured"]:
-            st.success(f"{_ks['name']}: {_ks['icon']} {_ks['message']}")
+            # Quiet neutral status — green is reserved for market direction,
+            # not for "is configured".
+            st.caption(f"● {_ks['name']} — {_ks['message']}")
         elif _ks["icon"] == "❌":
             st.error(_ks["message"])
             if _ks["name"] == "News API":
@@ -2812,7 +2815,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.markdown(
     '<p style="font-size:2.05rem; line-height:1.24; font-weight:700; color:inherit; margin-bottom:1.75rem;">'
-    '📡 Skipp Terminal <span style="font-size:1.05rem; font-weight:400; color:#8ea0c8;">Real-time news intelligence · Stocks + Bitcoin · AI supported</span></p>',
+    'Skipp Terminal <span style="font-size:1.05rem; font-weight:400; color:#8ea0c8;">Real-time news intelligence · Stocks + Bitcoin · AI supported</span></p>',
     unsafe_allow_html=True,
 )
 
@@ -3027,10 +3030,10 @@ else:
             logger.exception("Tab %s render error", label)
 
     tab_rank, tab_tech, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
-        ["🏆 Rankings", "📊 Technical Data", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
-         "📰 Live Feed", "₿ Bitcoin",
-         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
-         "🪪 Decision-First"],
+        ["Rankings", "Technical Data", "Actionable", "AI Insights", "Segments", "Outlook",
+         "Live Feed", "Bitcoin",
+         "Alerts", "Data Table", "Signal Replay", "Provider Health",
+         "Decision-First"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -3525,58 +3528,23 @@ else:
             top_n = min(50, len(_ranked))
             _rank_rows = []
             for i, m in enumerate(_ranked[:top_n], 1):
-                _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
-                _sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(
-                    (m.get("sentiment") or "").lower(), ""
-                )
+                _dir = dir_glyph(m.get("chg_pct", 0))
                 _hl_url = m.get("url", "")
                 _hl_text = m.get("headline", "")
                 _catalyst_col = ""
                 _reaction_state = str(m.get("reaction_state") or "").strip().upper()
-                _reaction_icon = {
-                    "CONFIRMED": "✅",
-                    "WATCH": "👀",
-                    "IDLE": "⏳",
-                    "FADE": "↘",
-                    "CONFLICTED": "⚠️",
-                }.get(_reaction_state, "")
-                _reaction_col = f"{_reaction_icon} {_reaction_state.title()}" if _reaction_state else ""
+                _reaction_col = label(_reaction_state)
                 _attention_state = str(m.get("attention_state") or "").strip().upper()
-                _attention_icon = _ATTENTION_ICONS.get(_attention_state, "")
-                _attention_col = (
-                    f"{_attention_icon} {_attention_state.title()}"
-                    if _attention_state
-                    else ""
-                )
+                _attention_col = label(_attention_state)
                 _posture_state = str(m.get("posture_state") or "").strip().upper()
-                _posture_icon = {
-                    "LONG": "🟢",
-                    "SHORT": "🔴",
-                    "WATCH_LONG": "👀",
-                    "WATCH_SHORT": "👀",
-                    "NEUTRAL": "⚪",
-                    "AVOID": "⛔",
-                }.get(_posture_state, "")
-                _posture_col = f"{_posture_icon} {_posture_state.replace('_', ' ').title()}" if _posture_state else ""
+                _posture_col = label(_posture_state)
                 _resolution_state = str(m.get("resolution_state") or "").strip().upper()
-                _resolution_icon = {
-                    "FOLLOW_THROUGH": "🚀",
-                    "OPEN": "🕒",
-                    "STALLED": "⏸️",
-                    "FAILED": "❌",
-                    "REVERSAL": "↩️",
-                }.get(_resolution_state, "")
-                _resolution_col = (
-                    f"{_resolution_icon} {_resolution_state.replace('_', ' ').title()}"
-                    if _resolution_state
-                    else ""
-                )
+                _resolution_col = label(_resolution_state)
                 # Use the feed item's news_score so the ranking
                 # table is consistent with the header cards.
                 _ns_fallback = float(m.get("news_score") or 0)
                 if _ns_fallback > 0:
-                    _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
-                    _catalyst_col = f"{_ns_icon} {_ns_fallback:.2f}"
+                    _catalyst_col = f"{_ns_fallback:.2f}"
                 _r_price = m.get("price") or 0
                 _r_sym = m.get("symbol", "?")
 
@@ -3589,8 +3557,7 @@ else:
                 _rt_dir = m.get("_rt_direction", "")
 
                 # Format technical indicator column
-                _tech_icon = {"STRONG_BUY": "🟢", "BUY": "🟢", "STRONG_SELL": "🔴", "SELL": "🔴"}.get(_rt_tech_sig, "🟡")
-                _tech_col = f"{_tech_icon} {_rt_tech:.2f}" if _rt_tech_sig else ""
+                _tech_col = f"{_rt_tech:.2f}" if _rt_tech_sig else ""
 
                 # Format RSI column
                 _rsi_col = ""
@@ -3601,8 +3568,7 @@ else:
                     except (ValueError, TypeError):
                         _rsi_v = None
                     if _rsi_v is not None:
-                        _rsi_icon = "🔴" if _rsi_v > 70 else ("🟢" if _rsi_v < 30 else "🟡")
-                        _rsi_col = f"{_rsi_icon} {_rsi_v:.0f}"
+                        _rsi_col = f"{_rsi_v:.0f}"
 
                 # Analyst forecast
                 _raf = _rank_forecasts.get(_r_sym, {})
@@ -3611,9 +3577,8 @@ else:
                 _analyst_col = ""
                 if _raf_pt.get("upside_pct") is not None:
                     _up = _raf_pt["upside_pct"]
-                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
                     _consensus = _raf_rating.get("consensus", "")
-                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
+                    _analyst_col = f"{_up:+.0f}%"
                     if _consensus:
                         _analyst_col += f" {_consensus}"
 
@@ -3632,7 +3597,7 @@ else:
                     "Score": round(_composite_score(m), 2),
                     "Attention": _attention_col,
                     "Age": format_age_string(m.get("_ts")),
-                    "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
+                    "Sentiment": label(m.get("sentiment", "")),
                     "Posture": _posture_col,
                     "Resolution": _resolution_col,
                     "Reaction": _reaction_col,
@@ -3668,7 +3633,7 @@ else:
                 f"{_n_rank_enriched} enrichment layers"
             )
 
-            with st.popover("ℹ️ Column guide"):
+            with st.popover("Column guide"):
                 st.markdown(
                     "- **Signal** — RT engine actionability tier (A0 = top conviction, A1 = secondary)\n"
                     "- **Attention** — Operator escalation state above posture (alert/focus/monitor/background/suppress)\n"
@@ -3676,7 +3641,7 @@ else:
                     "- **Resolution** — Outcome-state overlay after the initial reaction window (follow-through/open/stalled/failed/reversal)\n"
                     "- **Reaction** — Execution-state overlay from live quote confirmation (confirmed/watch/fade/conflicted)\n"
                     "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%, Summary 10%)\n"
-                    "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
+                    "- **RSI** — RSI-14 (<30 oversold, >70 overbought)\n"
                     "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
                     "- **Score** — Composite: 50% price + 20% catalyst + 15% technical + 15% signal\n"
@@ -3715,7 +3680,7 @@ else:
                 )
 
             st.dataframe(
-                df_rank,
+                style_directional(df_rank, ["Dir", "Change", "Change %"]),
                 width='stretch',
                 height=min(800, 40 + 35 * len(df_rank)),
                 column_config=_rank_col_cfg,
@@ -3973,7 +3938,7 @@ else:
                     width="large",
                 )
 
-            with st.popover("ℹ️ Column guide"):
+            with st.popover("Column guide"):
                 st.markdown(
                     "- **Price / Chg%** — Quote from Databento (price, daily change %)\n"
                     "- **Score** — Attention-aware ticker score used for surfacing, alerts, and prioritization\n"
