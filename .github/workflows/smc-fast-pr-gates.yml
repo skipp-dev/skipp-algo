@@ -511,7 +511,20 @@ jobs:
             tests/test_pine_engine_fill_boundary.py \
             tests/test_pine_handlib_publisher_inventory.py \
             tests/test_pine_library_import_permissions.py \
-            tests/test_monitoring_metric_alert_coverage.py
+            tests/test_monitoring_metric_alert_coverage.py \
+            tests/test_grafana_alert_rules_upsert.py \
+            tests/test_grafana_dashboard_pullback.py \
+            tests/test_live_overlay_alert_rules_publish_workflow.py \
+            tests/test_live_overlay_dashboard_contract.py \
+            tests/test_live_overlay_dashboard_publish_workflow.py \
+            tests/test_pre_a0_alert_rules.py \
+            tests/test_pre_a0_grafana_dashboard.py \
+            tests/test_publish_overlay_dashboard.py \
+            tests/test_signals_dashboard_contract.py \
+            tests/test_smc_fast_pr_gates_workflow.py \
+            tests/test_smc_live_overlay_metrics.py \
+            tests/test_smc_product_cut_manifest.py \
+            tests/test_update_overlay_dashboard.py
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'

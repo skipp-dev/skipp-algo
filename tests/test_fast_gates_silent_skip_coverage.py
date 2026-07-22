@@ -125,6 +125,8 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_gha_action_allowlist.py",
     "tests/test_global_statement_budget.py",
     "tests/test_globals_call_zero_surface.py",
+    "tests/test_grafana_alert_rules_upsert.py",
+    "tests/test_grafana_dashboard_pullback.py",
     "tests/test_guard_corpus_tracked_files.py",
     "tests/test_hashlib_weak_hash_ledger.py",
     "tests/test_hmac_auth_zero_surface.py",
@@ -133,6 +135,9 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_httpx_timeout_invariant.py",
     "tests/test_library_discipline_zero_surface.py",
     "tests/test_lint_debt_no_regression.py",
+    "tests/test_live_overlay_alert_rules_publish_workflow.py",
+    "tests/test_live_overlay_dashboard_contract.py",
+    "tests/test_live_overlay_dashboard_publish_workflow.py",
     "tests/test_loopback_and_baseimage_pin.py",
     "tests/test_lru_cache_maxsize_discipline.py",
     "tests/test_mkdir_makedirs_exist_ok_invariant.py",
@@ -158,7 +163,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_request_security_per_file_budget.py",
     "tests/test_pine_var_budget_pin.py",
     "tests/test_point_in_time_integrity.py",
+    "tests/test_pre_a0_alert_rules.py",
+    "tests/test_pre_a0_grafana_dashboard.py",
     "tests/test_prod_print_ledger.py",
+    "tests/test_publish_overlay_dashboard.py",
     "tests/test_pytest_marker_bucket_discipline.py",
     "tests/test_pytest_skip_budget.py",
     "tests/test_random_tempfile_ledger_pin.py",
@@ -166,12 +174,16 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_requirements_discipline_pin.py",
     "tests/test_run_edge_pipeline.py",
     "tests/test_schema_version_manifest_alignment.py",
+    "tests/test_signals_dashboard_contract.py",
     "tests/test_silent_error_swallow_pin.py",
     "tests/test_silent_security_and_boundary_bundle.py",
     "tests/test_six_zero_tripwires_bundle.py",
     "tests/test_smc_bus_v2_freeze.py",
     "tests/test_smc_context_golden.py",
+    "tests/test_smc_fast_pr_gates_workflow.py",
     "tests/test_smc_library_refresh_workflow.py",
+    "tests/test_smc_live_overlay_metrics.py",
+    "tests/test_smc_product_cut_manifest.py",
     "tests/test_socket_bind_loopback_pin.py",
     "tests/test_subprocess_run_check_invariant.py",
     "tests/test_subprocess_shell_injection_pin.py",
@@ -185,6 +197,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_tls_jwt_verification_zero_surface.py",
     "tests/test_to_datetime_utc_discipline.py",
     "tests/test_type_ignore_budget.py",
+    "tests/test_update_overlay_dashboard.py",
     "tests/test_urllib_urlopen_ledger.py",
     "tests/test_verdict_panel.py",
     "tests/test_warnings_simplefilter_ledger.py",
@@ -693,4 +706,76 @@ def test_every_sibling_corpus_user_is_on_the_required_path() -> None:
         "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES and "
         "FAST_TEST_FILES — the meta-guards will name them), or add it to "
         "_SIBLING_CORPUS_INTENTIONALLY_UNGATED with a justification."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Derived monitoring-artifact rule (2026-07-23)
+# ---------------------------------------------------------------------------
+# The rules above key off what a guard freezes (line pins, per-file counts), what
+# it is named (`*_zero_surface*`), or which corpus it imports. A test that asserts
+# the *deployed observability contract* — that a Grafana panel queries a metric
+# the exposition actually emits, that an alert rule targets a series that exists —
+# matches none of those: it freezes nothing, is named nothing in particular, and
+# imports no corpus. It just reads `dashboard*.json` / `alert-rules*.yaml`.
+#
+# Reading a shipped monitoring artifact is the structural signal that survives.
+#
+# This gap is not hypothetical and not new. The drift-guard step already carries
+# a comment explaining that test_monitoring_metric_alert_coverage.py "until #3665
+# ran in no PR lane at all ... It only ran post-merge on main push." That was one
+# instance; 13 more had the same shape when this landed. PR #3919 is what surfaced
+# it: it pointed a Railway panel at `live_overlay_railway_service_memory_gb`, a
+# metric the exposition does not emit under that name, and every PR check went
+# green because the only test that checks it ran on no PR lane.
+_MONITORING_ARTIFACT_SIGNAL = re.compile(r"dashboard[-\w]*\.json|alert-rules[-\w]*\.yaml")
+
+# Per-surface exceptions, each justified. Empty: every monitoring-artifact guard
+# found at introduction was cheap enough to gate (373 tests, ~28 s serial).
+_MONITORING_ARTIFACT_INTENTIONALLY_UNGATED: frozenset[str] = frozenset()
+
+
+def _monitoring_artifact_guards() -> set[str]:
+    """Every test that reads a shipped Grafana dashboard or alert-rules file."""
+    return {
+        f"tests/{path.name}"
+        for path in sorted((ROOT / "tests").glob("test_*.py"))
+        if _MONITORING_ARTIFACT_SIGNAL.search(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
+    }
+
+
+def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
+    """An ungated dashboard/alert guard lets broken observability merge green.
+
+    Monitoring breakage is uniquely quiet: nothing crashes, no user sees an
+    error, and the only symptom is a panel that plots nothing or an alert that
+    can never fire — discovered during the next incident, which is exactly when
+    the dashboard is needed. Post-merge `validate` catches it in principle, but
+    only if someone reads a run that no longer blocks anything.
+    """
+    guards = _monitoring_artifact_guards()
+    # Sanity: discovery must not silently collapse to an empty set if the
+    # artifacts are renamed or moved.
+    assert len(guards) >= 10, (
+        f"monitoring-artifact discovery found only {len(guards)} guards — the "
+        "dashboard/alert-rules naming or the tests/ layout changed, and this "
+        "rule is no longer measuring anything"
+    )
+
+    step = _drift_guard_step_text()
+    referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
+    ungated = sorted(guards - referenced - _MONITORING_ARTIFACT_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "monitoring-artifact guard(s) are not on the required path. fast-gates "
+        "is the only merge-gating job, so a PR that points a panel at a metric "
+        "nothing emits, or drops the series an alert rule fires on, merges "
+        "green — and the dashboard is only found broken when it is next "
+        "needed.\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to the 'Run pin / ledger drift guard' step in "
+        "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES and "
+        "FAST_TEST_FILES — the meta-guards will name them), or add it to "
+        "_MONITORING_ARTIFACT_INTENTIONALLY_UNGATED with a justification."
     )
