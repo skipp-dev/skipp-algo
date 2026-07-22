@@ -71,3 +71,44 @@ test("reports failure instead of pretending when the panel has no close control"
     await browser.close();
   }
 });
+
+// 2026-07-22 follow-up. The panel is not a dialog that was left open: on the
+// primary layout (vWgAWyfC) the Pine editor is DOCKED into the saved workspace —
+// `#pine-editor-dialog` is present and 878x950 on every fresh page load, and no
+// affordance dismisses it (Escape, the `[data-name="pine-dialog-button"]` toggle
+// via real mouse click / force / DOM `.click()` across 8 attempts, and the More
+// menu, all no-ops). On the mobile layout (YcGLVHXR) the element does not exist
+// at all. The panel is therefore layout state, and only the human who owns that
+// layout can remove it.
+//
+// Given that, the blind `Escape` the helper used to fire on failure bought
+// nothing and was not free: Escape is a GLOBAL key that dismisses whatever
+// TradingView surface happens to be focused. A function scoped to the Pine
+// editor must not reach outside itself once it has established it cannot act.
+test("does not fire a global Escape at a panel it cannot close", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div id="pine-editor-dialog">
+        <div><button type="button" title="More"></button></div>
+      </div>
+      <script>
+        window.__escapes = 0;
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") { window.__escapes += 1; }
+        });
+      </script>
+    `);
+
+    assert.equal(await closePineEditorIfVisible(page), false);
+    assert.equal(
+      await page.evaluate(() => (window as unknown as { __escapes: number }).__escapes),
+      0,
+      "closePineEditorIfVisible pressed Escape at a panel it cannot close — that "
+      + "key belongs to whatever surface is focused, not to this helper",
+    );
+  } finally {
+    await browser.close();
+  }
+});
