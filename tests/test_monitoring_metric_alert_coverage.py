@@ -148,20 +148,9 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_smc_live_latency_ms_sum": (
         "histogram component: quantiles come from _bucket; only a mean would read this"
     ),
-    # Pre-computed legacy gauges the dashboard deliberately migrated away from.
-    # Wiring them is not merely unnecessary, it is FORBIDDEN — two contract
-    # tests assert their absence, so treating these as gaps to fill turns
-    # tests/test_live_overlay_dashboard_contract.py red. The real follow-up is
-    # to delete their emission in metrics.py, which then evicts them from this
-    # list via the no-longer-emitted guard above.
-    "live_overlay_smc_live_latency_p95_ms": (
-        "legacy: superseded by histogram_quantile; wiring forbidden by "
-        "test_dashboard_latency_panel_uses_only_histogram_quantile"
-    ),
-    "live_overlay_smc_live_latency_p99_ms": (
-        "legacy: superseded by histogram_quantile; wiring forbidden by "
-        "test_latency_alert_uses_histogram_quantile_bucket"
-    ),
+    # The two pre-computed legacy gauges that sat here (smc_live_latency_p95_ms
+    # / _p99_ms) are gone: their emission was deleted from metrics.py, so the
+    # no-longer-emitted guard below evicted them. Debt repaid, not reclassified.
     # Pre-existing, not yet classified.
     "live_overlay_bar_requested_symbols_evicted_total": "unaudited",
     "live_overlay_bars_per_symbol": "unaudited",
@@ -200,7 +189,8 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
 # 2026-07-22: 39 entries when the fail-closed inversion landed. This number may
 # only go DOWN. Without it the register above is a permit — see
 # test_orphan_debt_does_not_grow for what that costs.
-_ORPHAN_SCAN_DEBT_CEILING = 39
+# 2026-07-22 (legacy latency gauges deleted from metrics.py): 39->37.
+_ORPHAN_SCAN_DEBT_CEILING = 37
 
 
 def _alert_expr_text() -> str:

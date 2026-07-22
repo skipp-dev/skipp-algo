@@ -684,8 +684,11 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    assert "live_overlay_smc_live_latency_p95_ms" in body
-    assert "live_overlay_smc_live_latency_p99_ms" in body
+    # The derived p95/p99 gauges are gone: consumers read the buckets via
+    # histogram_quantile(), and two dashboard/alert contract tests forbid the
+    # gauges outright, so emitting them served nothing.
+    assert "live_overlay_smc_live_latency_p95_ms" not in body
+    assert "live_overlay_smc_live_latency_p99_ms" not in body
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="10"} 0.0' in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="25"} 0.0' in body
@@ -710,29 +713,22 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
 
 
-def test_estimate_histogram_quantile_ms_inf_only_bucket_is_none() -> None:
-    """All observations in the +Inf bucket (every latency exceeds the finite
-    bounds) must NOT interpolate to a misleadingly-perfect 0.0 ms."""
-    import services.live_overlay_daemon.metrics as metrics_mod
+def test_render_metrics_never_reemits_legacy_latency_quantile_gauges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The p95/p99 gauges stay deleted — reviving them re-opens the orphan.
 
-    counters = {
-        "lat.count": 100.0,
-        "lat.bucket_le_inf": 100.0,
-    }
-    for q in (0.95, 0.99, 0.5):
-        result = metrics_mod._estimate_histogram_quantile_ms(counters, base_name="lat", quantile=q)
-        assert result is None
+    They existed only "until dashboard/alert consumers are fully migrated to
+    histogram_quantile()". That migration is done and enforced by
+    test_dashboard_latency_panel_uses_only_histogram_quantile and
+    test_latency_alert_uses_histogram_quantile_bucket, which forbid the gauges
+    in every panel and rule. Re-emitting them would therefore produce a series
+    nothing is allowed to consume, so this pins their absence in the one place
+    that could bring them back.
 
-    # A finite bucket carrying the target still interpolates normally.
-    counters_finite = {
-        "lat.count": 100.0,
-        "lat.bucket_le_100": 96.0,
-        "lat.bucket_le_inf": 100.0,
-    }
-    assert metrics_mod._estimate_histogram_quantile_ms(counters_finite, base_name="lat", quantile=0.95) is not None
-
-
-def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    Exercised with the +Inf-only counter state that used to be their trickiest
+    case (it once risked a misleadingly-perfect 0.000 ms reading).
+    """
     import services.live_overlay_daemon.metrics as metrics_mod
     import services.live_overlay_daemon.observability as obs
 
@@ -744,11 +740,12 @@ def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    # The metric is omitted (no misleading `... 0.000` line).
-    assert "live_overlay_smc_live_latency_p95_ms 0.000" not in body
-    assert "live_overlay_smc_live_latency_p99_ms 0.000" not in body
-    assert "live_overlay_smc_live_latency_p95_ms " not in body
-    assert "live_overlay_smc_live_latency_p99_ms " not in body
+    assert "live_overlay_smc_live_latency_p95_ms" not in body
+    assert "live_overlay_smc_live_latency_p99_ms" not in body
+    # The histogram itself must still be there — this deletion removed the
+    # derived duplicates, not the latency signal.
+    assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
+    assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
 
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
