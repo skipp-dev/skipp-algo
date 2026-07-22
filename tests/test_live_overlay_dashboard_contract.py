@@ -61,16 +61,11 @@ def _field_override_properties(panel: dict, field_name: str) -> dict[str, object
     return {}
 
 
-def test_active_alerts_panel_no_data_filter_disabled() -> None:
-    """Grafana alert list should not include no_data to avoid unknown-state rows."""
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    panels = _dashboard_panels(dashboard)
-    panel = next(p for p in panels if p.get("title") == "Active Alerts")
-    options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
-    state_filter = options.get("stateFilter")
-    if state_filter is None:
-        pytest.skip("Active Alerts panel has no stateFilter in current dashboard layout")
-    assert state_filter.get("no_data") is False
+# (Removed 2026-07-22: test_active_alerts_panel_no_data_filter_disabled. The
+# Active Alerts panel never shipped a stateFilter, so the test only ever
+# skipped — a guard that cannot fail. Post-audit the DELIBERATE contract is
+# the opposite: no_data rows stay visible (a vanished series is a signal, not
+# noise); README §Grafana dashboard documents this.)
 
 
 def test_alert_rules_include_dedicated_news_snapshot_series_missing_rule() -> None:
@@ -1759,13 +1754,15 @@ def test_dashboard_external_checks_ignores_unconfigured_bridges() -> None:
 
 
 def test_dashboard_market_data_freshness_hides_when_market_closed() -> None:
-    """Market Data Freshness must show MARKET CLOSED instead of 0%% when idle."""
+    """Market Data Freshness: closed market renders MARKET CLOSED via the
+    presence-gated -1 mapping; noValue is reserved for a dead exporter and
+    must not claim the market is closed (audit: noValue double duty)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Market Data Freshness")
     expr = panel["targets"][0]["expr"]
     assert "unless on()" in expr, expr
     assert 'sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0' in expr
-    assert panel["fieldConfig"]["defaults"].get("noValue") == "MARKET CLOSED"
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "NO DATA"
 
 
 def test_dashboard_core_metrics_present_checks_critical_series() -> None:
@@ -1905,3 +1902,67 @@ def test_feed_down_critical_covers_silent_stall_via_bar_age_ladder() -> None:
 
     assert critical["labels"]["severity"] == "critical"
     assert high["labels"]["severity"] == "high"
+
+
+def _panel_by_id(dashboard: dict, panel_id: int) -> dict:
+    match = [p for p in _dashboard_panels(dashboard) if p.get("id") == panel_id]
+    assert match, f"panel id {panel_id} not found"
+    return match[0]
+
+
+def test_external_consumer_traffic_distinguishes_dead_daemon_from_closed_market() -> None:
+    """A dead daemon/exporter must not render as benign gray MARKET CLOSED:
+    the vector(0) fallbacks made 'everything absent' numerically identical to
+    a weekend night, even mid-session (audit finding C3). The expr must gate
+    on exporter presence and map the absent case to a red NO DATA state."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = _panel_by_id(dashboard, 471930109)
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_uptime_seconds" in expr, "expr must gate on exporter presence"
+    assert "vector(-1)" in expr, "absent exporter must resolve to the -1 sentinel"
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    flat: dict[str, dict] = {}
+    for m in mappings:
+        flat.update(m.get("options", {}))
+    assert flat.get("-1", {}).get("text") == "NO DATA"
+    assert flat.get("-1", {}).get("color") == "red"
+    assert flat.get("0", {}).get("text") == "MARKET CLOSED"
+
+
+def test_market_data_freshness_novalue_is_not_benign() -> None:
+    """noValue did double duty for 'market closed' AND 'daemon dead' — the
+    dead case must not read as a benign closed market. Genuine closed
+    sessions get the presence-gated -1 mapping instead."""
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = _panel_by_id(dashboard, 1544709606)
+    assert panel["fieldConfig"]["defaults"]["noValue"] == "NO DATA"
+    expr = panel["targets"][0]["expr"]
+    assert "live_overlay_uptime_seconds" in expr, "expr must presence-gate the closed-market sentinel"
+    mappings = panel["fieldConfig"]["defaults"]["mappings"]
+    flat: dict[str, dict] = {}
+    for m in mappings:
+        flat.update(m.get("options", {}))
+    assert flat.get("-1", {}).get("text") == "MARKET CLOSED"
+
+
+def test_stat_panels_without_sparkline_use_instant_queries() -> None:
+    """Stat panels reduce with lastNotNull; over a range query that renders
+    the last pre-death sample as current for up to the whole dashboard window
+    after the exporter dies (audit finding C6). Panels with no sparkline
+    (graphMode none) have no use for range data — their queries must be
+    instant so absent data becomes NO DATA immediately."""
+    for path in (_DASHBOARD_JSON, _DASHBOARD_JSON.parent / "dashboard-signals-experiments.json"):
+        dashboard = json.loads(path.read_text(encoding="utf-8"))
+        offenders = []
+        for panel in _dashboard_panels(dashboard):
+            if panel.get("type") != "stat":
+                continue
+            if panel.get("options", {}).get("graphMode", "area") != "none":
+                continue
+            for target in panel.get("targets", []):
+                if "expr" in target and not target.get("instant"):
+                    offenders.append(f"{path.name}: {panel.get('title')}")
+        assert not offenders, (
+            "sparkline-free stat panels with range queries (stale lastNotNull "
+            f"renders dead exporters green): {sorted(set(offenders))}"
+        )

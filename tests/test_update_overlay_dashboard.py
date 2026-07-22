@@ -456,13 +456,21 @@ def test_update_script_adds_no_checks_configured_mapping(temp_dashboard: Path) -
 
 
 def test_update_script_market_data_freshness_hides_when_closed(temp_dashboard: Path) -> None:
-    """Market Data Freshness should display MARKET CLOSED instead of 0%%."""
+    """Market Data Freshness: closed market shows MARKET CLOSED via the
+    presence-gated -1 mapping; noValue is reserved for a dead exporter and
+    must NOT read as a benign closed market (audit: noValue did double duty
+    for closed AND dead)."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
     panel = next(p for p in data["panels"] if p.get("title") == "Market Data Freshness")
     expr = panel["targets"][0]["expr"]
     assert "unless on()" in expr
-    assert panel["fieldConfig"]["defaults"].get("noValue") == "MARKET CLOSED"
+    assert "live_overlay_uptime_seconds" in expr  # presence gate for the sentinel
+    assert panel["fieldConfig"]["defaults"].get("noValue") == "NO DATA"
+    flat: dict[str, dict] = {}
+    for m in panel["fieldConfig"]["defaults"].get("mappings", []):
+        flat.update(m.get("options", {}))
+    assert flat.get("-1", {}).get("text") == "MARKET CLOSED"
 
 
 def test_update_script_core_metrics_present_checks_critical_series(temp_dashboard: Path) -> None:

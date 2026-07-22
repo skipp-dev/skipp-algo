@@ -176,10 +176,8 @@ failure fails CI instead of silently leaving the old container running.
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Set to `1` only for a verified external `/smc_live` consumer; no supported Pine REST consumer exists |
-| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists. |
-| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 10000 | Max queued bars before drop |
+| `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
 | `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 | `OVERLAY_FLOW_REFRESH_SECS` | no | — | Flow refresh interval |
@@ -414,7 +412,9 @@ Source JSON:
 ### Success Rate panel and no-traffic semantics
 
 The **Success Rate (%)** panel shows the percentage of recent `/smc_live`
-compute cycles that completed without errors.
+HTTP requests that completed without errors (`smc_live_success_total` over
+`smc_live_requests_total` — request-level, NOT compute cycles; the dashboard
+contract test pins that wording on the panel itself).
 
 #### Historical bug: "0.00 %" with no traffic
 
@@ -470,10 +470,11 @@ unless on()
 sum(rate(live_overlay_smc_live_requests_total{job=~"$job"}[$__rate_interval])) == 0
 ```
 
-The panel's field config sets `noValue: "NO TRAFFIC"`, so Grafana displays
-**NO TRAFFIC** instead of `0.00 %` when the query returns no data. As soon as
+The panel's field config sets `noValue: "NO REQUESTS"`, so Grafana displays
+**NO REQUESTS** instead of `0.00 %` when the query returns no data. As soon as
 traffic appears, the series becomes non-zero and the panel shows the real
-success rate again.
+success rate again. (The contract test pins that the label is NOT the
+ambiguous "NO TRAFFIC" — that wording collided with the market-traffic tile.)
 
 #### External Consumer Traffic wiring
 

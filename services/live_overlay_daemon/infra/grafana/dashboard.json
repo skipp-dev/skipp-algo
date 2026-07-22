@@ -117,7 +117,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -414,7 +416,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -757,7 +761,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_samples_target{job=~\"$job\"}",
@@ -765,7 +771,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -907,7 +915,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_ledger_rows{job=~\"$job\"}",
@@ -915,7 +925,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_ledger_candidate_pass{job=~\"$job\"}",
@@ -923,7 +935,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_ledger_info{job=~\"$job\"}",
@@ -931,7 +945,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -1030,7 +1046,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_ledger_age_known{job=~\"$job\"}",
@@ -1038,7 +1056,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_audit_branch_age_known{job=~\"$job\"}",
@@ -1046,7 +1066,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_wsh_age_known{job=~\"$job\"}",
@@ -1054,7 +1076,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -1113,7 +1137,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"} / 60",
@@ -1121,7 +1147,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -1180,7 +1208,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_fills_filled_total{job=~\"$job\"}",
@@ -1188,7 +1218,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         },
         {
           "expr": "live_overlay_evidence_fills_target{job=~\"$job\"}",
@@ -1196,7 +1228,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -1552,7 +1586,7 @@
       },
       "targets": [
         {
-          "expr": "100 * (\n  sum_over_time(\n    (\n      live_overlay_overlay_fresh{job=~\"$job\"}\n      * live_overlay_market_us_open{job=~\"$job\"}\n    )[1h:]\n  )\n  /\n  sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:])\n)\nunless on() (\n  sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:]) == 0\n)",
+          "expr": "(100 * (\n  sum_over_time(\n    (\n      live_overlay_overlay_fresh{job=~\"$job\"}\n      * live_overlay_market_us_open{job=~\"$job\"}\n    )[1h:]\n  )\n  /\n  sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:])\n)\nunless on() (\n  sum_over_time(live_overlay_market_us_open{job=~\"$job\"}[1h:]) == 0\n))\nor on() ((count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0) - 2)",
           "legendFormat": "freshness_slo",
           "datasource": {
             "type": "prometheus",
@@ -1593,7 +1627,18 @@
               }
             ]
           },
-          "noValue": "MARKET CLOSED"
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "MARKET CLOSED",
+                  "color": "gray"
+                }
+              }
+            }
+          ]
         }
       },
       "description": "Are market-open bars still arriving on time? Shows freshness SLO over the last hour.",
@@ -1623,7 +1668,7 @@
       },
       "targets": [
         {
-          "expr": "max((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (live_overlay_expected_market_traffic{job=~\"$job\"} or on() vector(0))) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (live_overlay_expected_market_traffic{job=~\"$job\"} or on() vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or on() vector(0)) > bool 0.001))))",
+          "expr": "(max((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (live_overlay_expected_market_traffic{job=~\"$job\"} or on() vector(0))) + ((live_overlay_market_us_open{job=~\"$job\"} or on() vector(0)) * (live_overlay_expected_market_traffic{job=~\"$job\"} or on() vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m]) or on() vector(0)) > bool 0.001))))) and on() (count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0) or on() vector(-1)",
           "legendFormat": "open_req_health",
           "datasource": {
             "type": "prometheus",
@@ -1645,6 +1690,15 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "NO DATA",
+                  "color": "red"
+                }
+              }
+            },
             {
               "type": "value",
               "options": {
@@ -3255,7 +3309,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -3540,7 +3596,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -3611,7 +3669,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -3672,7 +3732,9 @@
           },
           "expr": "sum(changes(live_overlay_process_start_time_seconds{job=~\"$job\"}[24h])) or vector(0)",
           "refId": "A",
-          "legendFormat": "restarts"
+          "legendFormat": "restarts",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -4408,7 +4470,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -4485,7 +4549,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -4707,7 +4773,9 @@
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
-          }
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -8433,6 +8501,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 62,
+  "version": 63,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
