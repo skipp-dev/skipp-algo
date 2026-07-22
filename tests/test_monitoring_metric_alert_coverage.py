@@ -115,11 +115,14 @@ _VIX_SIGNAL_METRICS = (
 # — the pine family was simply absent from this list, so a green run said
 # nothing about it. That is the ADR's own failure shape one level up: a check
 # trusted without reading what it covers. The extension immediately surfaced
-# three orphans (consumer_pin_version, library_tv_version[_known]).
+# three orphans (consumer_pin_version, library_tv_version[_known]) — and the
+# first draft of THAT extension missed the plural pine_libraries_* form,
+# hiding two more. Hence librar(?:y|ies): an allowlist fails by omission,
+# which is why the fail-closed inversion is queued as its own audit.
 _METRIC_RE = re.compile(
     r"live_overlay_"
     r"(?:evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals"
-    r"|pine_library|pine_consumer)"
+    r"|pine_librar(?:y|ies)|pine_consumer)"
     r"_[a-z0-9_]+"
 )
 

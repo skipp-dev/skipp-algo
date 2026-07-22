@@ -7793,7 +7793,7 @@
     {
       "type": "stat",
       "title": "Pine consumers drifted from published TV version",
-      "description": "sum of live_overlay_pine_consumer_drift \u2014 a repo import pin (import preuss_steffen/<lib>/<N>) whose N != the real published TradingView version (the #3599/#3603 failure mode: micro_profiles /1 vs /152). 0 = all pins current.",
+      "description": "Drift rollup. Consumers drifted counts individual import sites; libraries drifted and probed give the denominator \u2014 'probed' is how many libraries the facade actually reached this run, so a low probe count means the comparison itself was incomplete, not that everything is in sync.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7842,8 +7842,29 @@
             "uid": "grafanacloud-prom"
           },
           "expr": "sum(live_overlay_pine_consumer_drift{job=\"live_overlay\"})",
+          "legendFormat": "Consumers drifted",
           "instant": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_libraries_drifted{job=\"live_overlay\"})",
+          "legendFormat": "Libraries drifted",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_libraries_probed{job=\"live_overlay\"})",
+          "legendFormat": "Libraries probed",
+          "instant": true,
+          "refId": "C"
         }
       ]
     },
