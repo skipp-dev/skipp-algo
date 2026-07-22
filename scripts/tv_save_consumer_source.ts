@@ -80,7 +80,13 @@ export async function verifyConsumerSource(
   const expected = fs.readFileSync(sourcePath, "utf-8");
   const opened = await openExistingScript(session.page, target.scriptName, { forceSelection: true }).catch(() => false);
   if (!opened) throw new Error(`Could not open existing saved script for source verification: ${target.scriptName}`);
-  const actual = await readEditorContent(session.page, { editorAlreadyOpen: true });
+  // The saved script name IS the Pine declaration title for every rollout
+  // consumer (asserted by the tv:test declaration-title contract), so it pins
+  // the Monaco model of THIS script instead of an arbitrary page buffer.
+  const actual = await readEditorContent(session.page, {
+    editorAlreadyOpen: true,
+    expectedDeclarationTitle: target.scriptName,
+  });
   const expectedSha256 = pineSourceSha256(expected);
   const actualSha256 = pineSourceSha256(actual);
   const matches = expectedSha256 === actualSha256;
