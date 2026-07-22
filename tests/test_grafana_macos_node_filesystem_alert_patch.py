@@ -44,7 +44,7 @@ def _group() -> dict:
     }
 
 
-@pytest.mark.parametrize("uid,severity", patcher.TARGET_RULES.items())
+@pytest.mark.parametrize("uid,severity", sorted(patcher.TARGET_RULES.items()))  # sorted: xdist-deterministic collection
 def test_patch_rule_excludes_all_three_synthetic_apfs_series(
     uid: str, severity: str
 ) -> None:

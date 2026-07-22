@@ -58,6 +58,10 @@ _FROZEN_SITES: dict[str, int] = {
     "open_prep/streamlit_monitor.py": 1,
     "scripts/analyze_smc_contextual_calibration_history.py": 1,
     "scripts/build_phase_a_inputs.py": 1,
+    # 2026-07-22 (CI full-suite green): REPO_ROOT bootstrap so the atomic-write
+    # import resolves under the by-path invocation used by
+    # live-overlay-dashboard-publish.yml (mirrors analyze_smc_… F-01 pattern).
+    "scripts/build_pre_a0_dashboard.py": 1,
     "scripts/check_environment.py": 1,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 2 because the
     # cross-process import-order fix added a module-level
