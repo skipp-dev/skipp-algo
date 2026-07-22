@@ -815,3 +815,55 @@ def test_credential_probe_census_matches_alerted_valid_gauges() -> None:
         "alert + extend _CREDENTIAL_SIGNAL_METRICS, or justify in "
         f"_ALERT_EXEMPT_PROBES): {unalerted}"
     )
+
+
+def _iter_alert_rules() -> list[dict]:
+    doc = yaml.safe_load(_ALERT_RULES.read_text(encoding="utf-8"))
+    found: list[dict] = []
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            if "uid" in node and "title" in node and "condition" in node:
+                found.append(node)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(doc)
+    return found
+
+
+def test_restart_data_loss_has_closed_market_coverage() -> None:
+    """Truth-audit F-1: a restart wipes the in-memory bar/overlay caches, and
+    lo-no-symbols is deliberately market-open gated — so an overnight deploy
+    silently dropped every held symbol with zero signal until the next open.
+    Pin the closed-market complement: recent restart (uptime window) AND zero
+    overlay symbols AND market closed must fire a warning."""
+    rules = {r["uid"]: r for r in _iter_alert_rules()}
+    rule = rules.get("lo-restart-data-loss-closed")
+    assert rule is not None, "closed-market restart data-loss rule missing"
+    exprs = "\n".join(
+        str(d.get("model", {}).get("expr", "")) + str(d.get("model", {}).get("expression", ""))
+        for d in rule.get("data", [])
+    )
+    assert "live_overlay_overlay_symbols" in exprs
+    assert "live_overlay_uptime_seconds" in exprs
+    assert "live_overlay_market_us_open" in exprs
+    assert "$E == 0" in exprs, "must gate on market CLOSED (the open case is lo-no-symbols)"
+    assert rule.get("labels", {}).get("severity") == "warning"
+    assert rule.get("for") == "30m"
+
+
+def test_every_alert_rule_links_a_runbook_url() -> None:
+    """Truth-audit F-4: no rule carried a clickable link, so every page started
+    with a manual hunt for OPS.md / the dashboard. Grafana renders the
+    first-class ``runbook_url`` annotation as a button — require it on every
+    rule so new rules cannot regress to link-less runbook prose."""
+    missing = sorted(
+        r["uid"]
+        for r in _iter_alert_rules()
+        if not str(r.get("annotations", {}).get("runbook_url", "")).startswith("https://")
+    )
+    assert not missing, f"alert rules without a clickable runbook_url annotation: {missing}"

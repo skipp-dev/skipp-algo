@@ -35,6 +35,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Prometheus is not scraping live-overlay metrics
       runbook: Check metrics-collector service and /metrics auth/path wiring.
   - uid: lo-core-signal-missing
@@ -66,6 +67,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Core readiness metric missing from scrape output
       runbook: Verify daemon /metrics output and exporter logic for overlay_fresh
         gauge.
@@ -109,6 +111,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Live overlay feed is DOWN or silently stalled (no bar > 10 min) during
         market-open for > 5 min
       runbook: Check Railway logs for BentoError / circuit breaker; verify DATABENTO_API_KEY
@@ -143,6 +146,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more worker threads are dead
       runbook: Check worker_liveness in /health. Railway may need restart (ON_FAILURE
         should auto-recover).
@@ -175,6 +179,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Overlay age > 1h — compute cycle likely hung or erroring
       runbook: Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds).
   - uid: lo-no-symbols
@@ -222,10 +227,57 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No symbols computed after 10 min uptime WHILE the US market is open
       runbook: Service is up and the US market is open but the compute cycle never
         produced symbols. Check feed + compute logs. (Zero symbols outside market
         hours is expected and does not fire.)
+  - uid: lo-restart-data-loss-closed
+    title: Overlay data lost after restart (market closed)
+    condition: C
+    # Truth-audit F-1: a restart (deploy or ON_FAILURE escalation) wipes the
+    # in-memory bar/overlay caches. During US market hours lo-no-symbols
+    # catches the empty state; overnight it is deliberately silent (a
+    # closed-market redeploy clearing 69 held symbols was its documented
+    # false-fire case), so a nightly restart silently dropped every held
+    # symbol with no signal until the next open. This complement fires
+    # WARNING (visibility, not paging) when the daemon restarted recently
+    # (uptime < 6h), has held zero overlay symbols for 30m+, and the market
+    # is closed. It self-resolves at 6h uptime or when data returns; a
+    # long-running daemon holding weekend data never trips it.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_overlay_symbols{job="live_overlay"}
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_uptime_seconds{job="live_overlay"}
+        instant: true
+    - refId: E
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_market_us_open{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: math
+        expression: $A == 0 && $E == 0 && $B > 600 && $B < 21600
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Daemon restarted while the market was closed and all previously held overlay
+        symbols were wiped — consumers see empty overlays until bars accumulate after the
+        next open.
+      runbook: Expected after any overnight deploy/restart (in-memory caches do not survive
+        restarts); no action needed if a deploy just happened. If no deploy explains it,
+        check the restart-cause panel and Railway logs for an ON_FAILURE crash escalation.
   - uid: lo-bridge-contract-missing
     title: Generic bridge contract missing
     condition: D
@@ -292,6 +344,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more generic bridge contracts are missing from the scrape
       # 2026-07-08: the last_success_age / last_scrape_duration legs are gated
       # on bridge_enabled == 1 — a deliberately DISABLED bridge omits those two
@@ -328,6 +381,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer RSS exceeds 3072 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
@@ -363,6 +417,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Cannot scrape smc-signals-producer /metrics — container may be down
       runbook: Check Railway deploy logs. Verify SIGNALS_SERVICE_URL env var in Alloy
         service. Check UptimeRobot /healthz.
@@ -394,6 +449,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-live-overlay RSS exceeds 3072 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 3072 MB is 37% of it. OOM risk is owned solely by
@@ -427,6 +483,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy self-scrape failing — metrics pipeline is blind
       runbook: If Alloy self-scrape is down, NO metrics from any container reach Grafana.
         Check Railway deploy logs for alloy container crash/OOM.
@@ -457,6 +514,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy (metric-collector) RSS exceeds 1536 MB — severe footprint regression
       runbook: 'NOT an OOM alarm: the Railway limit is 8 GB (MEMORY_LIMIT_GB=8.00,
         verified 2026-07-15), so 1536 MB is 19% of it. OOM risk is owned solely by
@@ -494,6 +552,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more Railway services are unreachable from Alloy
       runbook: Check Railway internal networking. Verify OVERLAY_SERVICE_URL and SIGNALS_SERVICE_URL
         env vars. Target service may have crashed.
@@ -532,6 +591,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No fresh bar for > 5 min while market is open
       runbook: Check feed thread liveness and Databento connectivity. Compare with
         feed_healthy/workers_healthy.
@@ -562,6 +622,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed circuit breaker increased in last 15m
       runbook: Persistent Databento outage. Service may need restart if breaker keeps
         incrementing.
@@ -592,6 +653,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Sustained Databento error rate > 0.1/s for 10 min
       runbook: Check Databento status page. May indicate API key quota or network
         issues.
@@ -622,6 +684,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Auth denied requests spiked in the last 15m
       runbook: Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout
         in authenticated API clients.
@@ -655,6 +718,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No /smc_live requests since the US market opened while an external
         consumer is explicitly expected
       runbook: LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1 is only valid after a real
@@ -691,6 +755,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The external /smc_live consumer watchdog is disabled
         (LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0)
       runbook: Keep this rule paused and the variable at 0 while no supported client
@@ -726,6 +791,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: An external client was calling /smc_live earlier today but has dropped
         to near zero while the US market is open
       runbook: A client was calling /smc_live earlier today but has stopped. Check the
@@ -760,6 +826,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Compute cycles are erroring persistently
       runbook: Check Railway logs for stack traces in compute.py. Likely data quality
         issue in cached bars.
@@ -790,6 +857,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: SLO error budget burn rate pages on both 5m and 1h windows
       runbook: Inspect error mix, latency p95/p99, and freshness timeline; mitigate
         request failures immediately.
@@ -820,6 +888,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: SLO error budget burn rate tickets on both 30m and 6h windows
       runbook: Check request success rate trend and investigate recent failure-type
         spikes before critical threshold is reached.
@@ -853,6 +922,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: p99 latency above 500ms for 10m
       runbook: Check request hotspots and saturation. Verify live_overlay_smc_live_latency_ms_bucket{le="+Inf"}
         increases with request traffic.
@@ -886,6 +956,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: UptimeRobot bridge data is stale
       runbook: Check UptimeRobot API key/quota and bridge scrape health state.
   - uid: lo-uptimerobot-monitor-count-mismatch
@@ -920,6 +991,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: UptimeRobot bridge monitor count differs from the configured allowlist
       runbook: Verify UPTIMEROBOT_MONITOR_IDS in Railway and the UptimeRobot dashboard;
         the expected count is exported from the configured allowlist.
@@ -953,6 +1025,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: One or more UptimeRobot production monitors are down
       runbook: Open UptimeRobot and the External Integrations row; correlate failed
         checks with Railway /health, /ready, /version and public endpoint probes.
@@ -987,6 +1060,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: GitHub workflow bridge data is stale
       runbook: Check GitHub workflow token/repo config and bridge scrape status.
   - uid: lo-ingest-queue-depth-high
@@ -1016,6 +1090,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Ingest queue depth is persistently high
       runbook: 'Backpressure detected: review feed throughput, compute cadence, and
         queue max setting.'
@@ -1046,6 +1121,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Bars are being dropped due to ingest queue saturation
       runbook: Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer
         imbalance.
@@ -1083,6 +1159,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Bars for unmapped instruments are being dropped at a sustained rate — a symbology
         gap is silently removing symbols from overlays.
       runbook: Check SymbolMappingMsg coverage vs the dropped instrument_ids (feed logs the first
@@ -1119,6 +1196,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: OHLCV records are arriving that cannot be parsed into bars — possible Databento
         schema drift; affected bars are silently lost.
       runbook: Inspect feed logs (first three bar=None warnings per connection carry sym and
@@ -1152,6 +1230,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Multiple news providers are degraded
       runbook: Inspect provider error fields in news snapshot and upstream provider
         quotas/auth.
@@ -1185,6 +1264,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News snapshot metrics are missing from scrape output
       runbook: Check /metrics exposure for news snapshot gauges and scrape target
         label wiring.
@@ -1216,6 +1296,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News provider snapshot file is not loaded
       runbook: Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check
         seed/producer job.
@@ -1259,6 +1340,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: News provider snapshot is older than 3 hours during the US regular session
       runbook: Check NEWS_SNAPSHOT_PATH producer job (smc-live-news-refresh.yml, hourly
         Mon-Fri) and file update cadence; inspect fetched_at_unix in snapshot. Weekend/holiday
@@ -1300,6 +1382,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The news provider snapshot loads but carries no timestamp -- the producer
         heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_provider_news_snapshot_age_known is 0 while loaded=1. The
@@ -1342,6 +1425,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: No new news stories ingested in over 6 hours
       runbook: News flows in bursts, so a quiet window is normal; a 6h+ gap while
         the US regular session is open (live_overlay_market_us_open gates this
@@ -1379,6 +1463,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: TradingView credential age > 72 h
       runbook: Refresh TradingView session/cookie. Credential becomes invalid around
         72-96 h.
@@ -1411,6 +1496,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: TradingView credential report loads but carries no usable age
       runbook: The tv_storage_state_age probe exists, but details.age_hours is missing
         or invalid. Inspect credential_health.json and rerun credential-health-check;
@@ -1442,6 +1528,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed ingest queue lag > 5000 ms
       runbook: Ingest processor is falling behind. Check CPU, queue depth and dropped
         bars.
@@ -1483,6 +1570,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: More than 3 daemon restarts within 15 min (crash-loop; routine deploys spread over a day no
         longer trip this).
       runbook: Check Railway deployment/restart logs for the crash loop, and the
@@ -1521,6 +1609,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Feed supervisor healed workers more than twice in the last hour
       runbook: The feed is crash-flapping behind the supervisor. Check
         live_overlay_feed_bento_errors / circuit_breakers and Databento status
@@ -1555,6 +1644,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Realtime signals snapshot exceeded its configured max age
       runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
         refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
@@ -1588,6 +1678,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Trading signals snapshot loads but carries no usable updated_epoch
       runbook: Inspect the realtime signals snapshot for a missing, zero, non-numeric,
         or non-finite updated_epoch. Until repaired, the stale rule reads zero and
@@ -1628,6 +1719,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Plan 2.8 experiment rollup exceeded its configured max age
       runbook: The daily measurement-benchmark producer has not published a
         fresh rollup within OVERLAY_EXPERIMENT_MAX_AGE_SECS. Check the rolling
@@ -1661,6 +1753,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Experiment rollup loads but its run date cannot be determined
       runbook: Inspect scoring_root in the Plan 2.8 rollup. A missing or malformed
         date leaves age_known=0 and keeps the stale rule silently green.
@@ -1692,6 +1785,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer RSS exceeds 2048 MB for > 5 min — footprint regression
       runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
         8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of it and
@@ -1733,6 +1827,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-live-overlay RSS exceeds 2048 MB for > 5 min — footprint regression
       runbook: Footprint-regression detector, NOT an OOM alarm. The Railway limit
         is 8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 2048 MB is 25% of
@@ -1769,6 +1864,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Railway service memory is above 75% of its configured limit
       runbook: Check the Railway Resources row, service logs and recent deploys;
         ratio-based alerting follows the actual memory limit per service.
@@ -1801,6 +1897,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Railway service memory is above 90% of its configured limit
       runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
         if growth is monotonic, and check feed/bridge buffers.
@@ -1831,6 +1928,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy (metric-collector) RSS exceeds 1024 MB for > 5 min — footprint regression
       runbook: 'Footprint-regression detector, NOT an OOM alarm. The Railway limit is
         8 GB (MEMORY_LIMIT_GB=8.00, verified 2026-07-15), so 1024 MB is 12% of it; OOM
@@ -1868,6 +1966,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Alloy is failing to remote-write samples to Grafana Cloud
       runbook: Check metrics-collector logs, GRAFANA_CLOUD_* credentials, network
         egress and WAL/backlog state before assuming target services are healthy.
@@ -1901,6 +2000,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Live Overlay bridge scrape failed
       runbook: Check bridge error_info, API tokens, quotas, and upstream service status.
   - uid: lo-bridge-last-success-stale
@@ -1933,6 +2033,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Live Overlay bridge has not succeeded recently
       runbook: Inspect live_overlay_bridge_error_info and bridge-specific detail panels.
   - uid: lo-vix-unavailable
@@ -1969,6 +2070,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: VIX stale > 90m or never fetched — FMP ^VIX poll failing (clients see
         a frozen or null vix_level while core overlay health stays green)
       runbook: Check credential-health FMP panels and FMP quota alerts; grep daemon
@@ -2007,6 +2109,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has zero watchlist symbols
       runbook: Verify OPEN_PREP_SNAPSHOT_URL / latest_open_prep_run.json exists and
         contains ranked_v2 symbols.
@@ -2038,6 +2141,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has not loaded an Open-Prep snapshot
       runbook: Check Railway env OPEN_PREP_SNAPSHOT_URL and verify the snapshot endpoint
         returns a JSON object.
@@ -2069,6 +2173,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer has not completed a poll cycle in > 5 min
       runbook: Check producer logs for FMP client failures, network errors, or telemetry
         server crashes.
@@ -2105,6 +2210,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer is running without an FMP client — it can never fetch quotes and publishes empty signals every cycle. /readyz reports 503 "client disabled (<reason>)".
       runbook: Check signals_producer_client_disabled_info{reason=...} for the failure class, verify FMP_API_KEY is set on the smc-signals-producer Railway service, then redeploy/restart — the client is only constructed at boot.
   - uid: sp-data-stale
@@ -2140,6 +2246,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET) — likely an FMP outage (poll loop alive, every fetch empty). Pages ~15 min after onset (5-min stall + 10-min for:).
       runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
   - uid: sp-fmp-profile-bulk-used
@@ -2170,6 +2277,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The realtime signals producer called the provider-wide profile-bulk endpoint, which previously burned about 113 MB every six minutes.
       runbook: Inspect _enrich_watchlist_live and recent deploys. Realtime avg-volume gaps must use bounded per-symbol profile lookups with negative caching; never restore profile-bulk in this service.
   - uid: sp-fmp-byte-burn-high
@@ -2200,6 +2308,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: smc-signals-producer transferred more than 50 MB of FMP payloads in one hour.
       runbook: Break down signals_producer_fmp_endpoint_response_bytes_total by endpoint. Normal 200-symbol minute quotes measured about 5.4 MB/hour; profile-bulk previously exceeded 1 GB/hour.
   - uid: sp-fmp-extended-shadow-stale
@@ -2230,6 +2339,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The enabled FMP extended-hours shadow probe has not completed for more than three minutes during premarket or postmarket.
       runbook: Check the three batch endpoint counters and producer logs. Live extended-hours signals remain disabled; do not enable them while this alert is active.
   - uid: sp-fmp-shadow-no-fresh-data
@@ -2260,6 +2370,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP's dedicated aftermarket quote and trade endpoints returned no rows with a timestamp from the last five minutes.
       runbook: Compare endpoint request/error/byte counters and the regular-reference fresh-row gauge. Keep extended-hours signal publishing disabled until dedicated data is reliably current.
   - uid: sp-fmp-postmarket-baseline-missing
@@ -2290,6 +2401,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The postmarket shadow adapter has no same-session regular-close cumulative-volume baseline, so price rows cannot become signal-ready.
       runbook: Verify that the producer completed at least one successful regular-session quote poll and persisted postmarket_close_volume. Keep extended-hours signal publishing disabled until the baseline is present.
 - orgId: 1
@@ -2332,6 +2444,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored GitHub Actions workflow's latest run ended in failure/timed_out/startup_failure (cancelled and stale are intentionally non-paging).
       runbook: Open the named workflow in GitHub Actions; direct signal the adr0023/promotion/c13 crons
         were missing (red for weeks unseen).
@@ -2366,6 +2479,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored workflow has had no successful run for 24h (daily crons should reset this each
         day).
       runbook: Check the workflow's recent runs; a persistent 0 means the daily cron is failing or not
@@ -2406,6 +2520,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The github_workflow bridge is enabled but exports no series for the workflow
         named "CI" -- lo-ci-full-suite-red (pinned to that label) cannot fire and a red
         main-push suite would be invisible.
@@ -2453,6 +2568,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The main-push CI workflow (full pytest suite) has been red for 2h -- a merge broke tests
         that the required fast-gates check does not run.
       runbook: Open the newest CI run on main and find the failing test; fast-gates stays green because it
@@ -2486,6 +2602,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A monitored workflow's newest run is older than 48h -- the cron may be disabled or never
         firing.
       runbook: Verify the workflow schedule and that GitHub Actions crons are enabled (60-day inactivity
@@ -2525,6 +2642,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness bridge cannot load the snapshot (loaded=0) -- the ledger/audit/fills
         freshness signals are blind.
       runbook: Check EVIDENCE_FRESHNESS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
@@ -2558,6 +2676,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness snapshot loads but is older than 24h -- the producer workflow has
         stopped committing.
       runbook: Run/inspect .github/workflows/evidence-freshness-snapshot.yml; without it the ledger/audit/fills
@@ -2598,6 +2717,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence-freshness snapshot loads but carries no generated_at_unix -- the
         producer heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_evidence_freshness_snapshot_age_known is 0 while loaded=1. The
@@ -2633,6 +2753,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daemon cannot load the latest measured TradingView dropdown assignments.
       runbook: Configure TRADINGVIEW_BINDINGS_SNAPSHOT_URL(_TOKEN) to the latest JSON on
         bot/live-tradingview-bindings or inspect the local snapshot path.
@@ -2664,6 +2785,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one measured TradingView input.source dropdown is mapped to the wrong Suite channel.
       runbook: Inspect artifacts/monitoring/latest/tradingview_consumer_bindings.json on
         bot/live-tradingview-bindings, then run tv-save-consumer-source with repair_e2e only for a
@@ -2703,6 +2825,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The TradingView binding snapshot loads but carries no generated_at_unix -- the
         binding-drift staleness rule multiplies by age_known and stays green with zero data.
       runbook: live_overlay_tv_binding_snapshot_age_known is 0 while loaded=1. The snapshot at
@@ -2738,6 +2861,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The last measured TradingView dropdown snapshot is older than 24 hours.
       runbook: Inspect the scheduled tv-save-consumer-source run and TradingView auth, then rerun
         the workflow in its read-only scheduled mode or dispatch it normally after confirming that
@@ -2771,6 +2895,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The TradingView snapshot loaded without proof that saved Pine sources were compared with the repo.
       runbook: Run the scheduled tv-save-consumer-source workflow. It must open every configured saved script,
         compare its SHA-256 with the repo source, and publish a snapshot with sources.expected and sources.checked.
@@ -2803,6 +2928,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one actual saved TradingView Pine source differs from the current repo source.
       runbook: Inspect sources.consumers in the latest tradingview_consumer_bindings.json snapshot. Dispatch
         tv-save-consumer-source with the intended mapping; when refreshing SMC Long-Dip Suite also set
@@ -2840,6 +2966,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version bridge cannot load the snapshot (loaded=0) -- repo↔TradingView
         pin drift is blind.
       runbook: Check PINE_LIBRARY_VERSIONS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
@@ -2875,6 +3002,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version snapshot loads but is older than 48h -- the producer workflow has
         stopped committing.
       runbook: Run/inspect .github/workflows/pine-library-version-monitor.yml; without it repo↔TradingView
@@ -2915,6 +3043,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library version snapshot loads but carries no generated_at_unix -- the
         producer heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_pine_library_snapshot_age_known is 0 while loaded=1. The
@@ -2951,6 +3080,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Pine-library snapshot loaded but has no valid ASOF_DATE for smc_micro_profiles_generated.
       runbook: Inspect pine/generated/smc_micro_profiles_generated.pine and the latest pine-library version
         snapshot. The producer must export dataAsOf, dataAsOfUnix, and dataAsOfKnown for the generated library.
@@ -2984,6 +3114,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The smc_micro_profiles_generated ASOF_DATE is more than two days old.
       runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
         Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
@@ -3020,6 +3151,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one repo Pine import pin no longer matches the real published TradingView library
         version -- a consumer will hit CE10272 on modern symbols.
       runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift) and repin the
@@ -3055,6 +3187,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The pine-library monitor could not probe TradingView's published version this run -- drift
         detection is blind until the session/facade recovers.
       runbook: Check TV_STORAGE_STATE freshness for pine-library-version-monitor.yml; the pine-facade
@@ -3094,6 +3227,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude shadow ledger's newest row is older than 5 days -- the daily measurement
         stopped growing (the 2026-06/07 silent freeze).
       runbook: Check adr0023-magnitude-shadow-daily runs and the accumulate_family_events pool; the ledger
@@ -3138,6 +3272,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude shadow (1D) ledger has had zero rows for > 3 days -- the daily measurement
         is not committing rows (distinct from a cold start).
       runbook: Check that adr0023-magnitude-shadow-daily commits a row each weekday and that the
@@ -3180,6 +3315,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The magnitude ledger reports rows but no parseable newest_date -- the stale rule
         cannot see this state and stays green.
       runbook: live_overlay_evidence_ledger_age_known is 0 while rows > 0 and the snapshot
@@ -3216,6 +3352,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The data/phase-a-audit branch has had no commit in > 4 days -- the C13 audit-push / reconcile
         publish has stopped.
       runbook: Check the c13 reconcile/audit-push launchd jobs and lib_c13_data_push.sh publish clone;
@@ -3261,6 +3398,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence snapshot loads but carries no audit-branch commit date -- the
         stale rule cannot see this state and stays green with zero data.
       runbook: live_overlay_evidence_audit_branch_age_known is 0 while the snapshot loaded=1.
@@ -3297,6 +3435,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WSH earnings snapshot on the audit branch is older than 7 days (secondary earnings
         filter; looser budget).
       runbook: 'Known limitation: the WSH filter needs IBKR conIds on the watchlist rows; see automation/launchd/README.md.'
@@ -3334,6 +3473,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The evidence snapshot loads but carries no WSH newest_date -- the stale rule
         cannot see this state and stays green with zero data.
       runbook: live_overlay_evidence_wsh_age_known is 0 while the snapshot loaded=1. The
@@ -3378,6 +3518,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The C8 paper-incubation ladder is submitting orders but 0 have ever filled -- execution is
         stalled (paper TWS down/unreachable?).
       runbook: Check the paper TWS/IBKR gateway is up on port 7497 during the 09:28 ET order window and the
@@ -3418,6 +3559,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: C8 paper submits are placing brackets that never rest (all legs cancelled/rejected, e.g. IB
         error-110) and nothing has ever filled -- the bracket dies at submit.
       runbook: Inspect the newest incubation_<DATE>.jsonl for action=submit_failed; check TP/SL prices snap to
@@ -3460,6 +3602,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The C13 paper-submit Mac is running order-path code behind origin/main -- a merged fix has not
         been deployed to the box that submits; nothing new takes effect until it is pulled.
       runbook: On the submit Mac, cd to the checkout and `git pull --ff-only` (never --no-verify); confirm
@@ -3505,6 +3648,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP data-volume consumption this month has reached >=80% of the configured monthly
         bandwidth quota (150 GB default).
       runbook: Check the FMP dashboard usage; reduce poll frequency / page limits in newsstack_fmp/config.py
@@ -3544,6 +3688,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: FMP data-volume consumption this month has reached >=95% of the monthly bandwidth
         quota -- ingest will start failing when the quota is exhausted.
       runbook: Immediately reduce FMP polling (newsstack_fmp/config.py FMP_*_LIMIT / poll interval) or
@@ -3581,6 +3726,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A data provider (Massive/Benzinga/Unusual Whales/FMP/Databento/Finnhub) returned HTTP
         429 in the last 6h -- ingest is brushing its rate limit; retries are currently absorbing it.
       runbook: Reduce polling frequency / concurrency for the throttled provider (newsstack_fmp poll
@@ -3623,6 +3769,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage snapshot metrics are missing from scrape output
       runbook: Check /metrics exposure for the live_overlay_provider_usage_* gauges and
         scrape-target label wiring; the FMP bandwidth and provider-429 alerts all read
@@ -3659,6 +3806,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage monthly snapshot is not loaded (FMP quota telemetry blind)
       runbook: Verify PROVIDER_USAGE_SNAPSHOT_URL / PROVIDER_USAGE_SNAPSHOT_PATH and that
         the daily open-prep workflow commits artifacts/monitoring/provider_usage.json;
@@ -3697,6 +3845,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Provider-usage monthly snapshot is older than 4 days (FMP quota figures may be stale)
       runbook: The daily open-prep workflow has not refreshed
         artifacts/monitoring/provider_usage.json within 4 days. Check the open-prep run
@@ -3738,6 +3887,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The provider-usage snapshot loads but carries no updated_at -- the producer
         heartbeat is unwatched and the stale rule stays green with zero data.
       runbook: live_overlay_provider_usage_snapshot_age_known is 0 while loaded=1. The
@@ -3775,6 +3925,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WS4a sweep-trap shadow eval has not published a fresh snapshot within its max-age budget
       runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
         artifacts/monitoring/sweep_trap_shadow.json within OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS.
@@ -3818,6 +3969,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The sweep-trap shadow bridge has never loaded a real snapshot (missing/unreadable file or the no-data seed)
       runbook: live_overlay_sweep_trap_shadow_snapshot_age_known is 0 — the daemon is
         serving the committed no-data seed (generated_at=0) or cannot fetch/read the
@@ -3863,6 +4015,7 @@ groups:
     labels:
       severity: info
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The WS4a sweep-trap shadow verdict has held PROMOTABLE for 3 days — WS4b promotion candidate
       runbook: The observe-only sweep_trap_quality_score has beaten baseline Brier with
         positive top/bottom-tercile lift on >= 40 samples for 3 consecutive days. This is the
@@ -3909,6 +4062,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The FMP API key is failing its daily auth probe (401/403/402) -- the core FMP data pipeline
         will start failing.
       runbook: Rotate FMP_API_KEY (or resolve billing on a 402) and update the secret; see
@@ -3941,6 +4095,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Databento API key is failing its daily auth probe -- OPRA options flow ingestion will
         stop.
       runbook: Rotate DATABENTO_API_KEY and update the secret; see scripts/credential_health_check.py
@@ -3973,6 +4128,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Databento auth is OK but delivery has stalled (402 unpaid invoice or entitlement lapse) --
         data silently stops while auth stays 200 (2026-06-12 post-mortem).
       runbook: Check the Databento invoice/entitlement; see scripts/credential_health_check.py
@@ -4005,6 +4161,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Benzinga/Massive API key is failing its daily auth probe -- the Core News lane and
         hourly live-news cron will stop ingesting.
       runbook: Rotate BENZINGA_API_KEY (the paid Massive reseller key) and confirm BENZINGA_PROVIDER
@@ -4037,6 +4194,7 @@ groups:
     labels:
       severity: warning
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The Finnhub API key is failing its daily auth probe -- terminal_finnhub and open_prep macro
         Finnhub lookups will fail. Optional provider; only alerts when FINNHUB_API_KEY is configured.
       runbook: Rotate FINNHUB_API_KEY and update the secret; see scripts/credential_health_check.py
@@ -4069,6 +4227,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The GH_PAT is failing its daily probe -- every workflow that opens auto-PRs, publishes
         snapshots, or refreshes the TV cookie will start failing.
       runbook: Rotate GH_PAT and update the secret; see scripts/credential_health_check.py
@@ -4101,6 +4260,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The TradingView storage-state cookie is past its 72h TTL -- the next Pine publish will fail
         at preflight (complements lo-tradingview-credential-age-high).
       runbook: Refresh the cookie via npm run tv:storage-state (or the storage-refresh workflow) and
@@ -4134,6 +4294,7 @@ groups:
     labels:
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daily credential-health snapshot is older than 36h -- the probe cron or its snapshot
         publish has silently stopped and every credential gauge is now stale-green (the exact 12-day
         blind spot this monitor exists to prevent).
@@ -4195,6 +4356,7 @@ groups:
       # test_age_unknown_severity_never_below_its_stale_rule.
       severity: critical
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The credential-health snapshot loads but has no parseable generated_at -- its freshness
         is unverifiable and lo-credential-monitor-stale can never fire.
       runbook: live_overlay_credential_health_snapshot_age_known is 0 while _loaded is 1 -- the report at
@@ -4229,6 +4391,7 @@ groups:
     labels:
       severity: high
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The daemon is up but could not load any credential-health snapshot -- credential
         observability is blind (distinct from lo-scrape-missing which covers the daemon being down).
       runbook: Check TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL and the bot/live-tv-credential-snapshot branch;
@@ -4261,6 +4424,7 @@ groups:
     for: 3m
     labels: {severity: critical}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 telemetry is no longer reaching Grafana Cloud.
       runbook: Check the metrics-collector a0_fast target, A0_FAST_SERVICE_URL, and the a0-fast-shadow /metrics endpoint.
   - uid: pre-a0-model-unavailable
@@ -4286,6 +4450,7 @@ groups:
     for: 5m
     labels: {severity: critical}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 is enabled but its local fail-closed model contract is unavailable.
       runbook: Inspect a0-fast-shadow startup logs and verify the model artifact identity, signature, validity window, and runtime contract.
   - uid: pre-a0-calibration-invalid
@@ -4311,6 +4476,7 @@ groups:
     for: 5m
     labels: {severity: critical}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 calibration validation is failing.
       runbook: Keep PRE-A0 in shadow/fail-closed mode and inspect calibration window, thresholds, and artifact review_after.
   - uid: pre-a0-runtime-errors
@@ -4336,6 +4502,7 @@ groups:
     for: 0s
     labels: {severity: critical}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 reported an inference, duplicate-decision, or persistence integrity error.
       runbook: Inspect a0-fast-shadow logs and snapshots; preserve the confirmed-A0 path and do not promote the model.
   - uid: pre-a0-input-drift
@@ -4361,6 +4528,7 @@ groups:
     for: 5m
     labels: {severity: high}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 feature missingness or range violations exceeded the shadow threshold.
       runbook: Compare the live feature distribution with the training manifest before retraining or promotion.
   - uid: pre-a0-shadow-data-missing
@@ -4386,5 +4554,6 @@ groups:
     for: 5m
     labels: {severity: critical}
     annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
       runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.
