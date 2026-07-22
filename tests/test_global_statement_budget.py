@@ -336,7 +336,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-21 (auth decode hardening): binascii import shifted
         # _startup_ts to line 72.
         # WP2 epoch clock added `global _startup_ts, _startup_epoch` (line 73).
-        ("services/live_overlay_daemon/main.py", 73, ("_startup_epoch", "_startup_ts")),
+        # 2026-07-22 (stale-flag data-freshness docstring): 73->74
+        ("services/live_overlay_daemon/main.py", 74, ("_startup_epoch", "_startup_ts")),
     }
 )
 

@@ -1,11 +1,13 @@
 """Tests for the realtime-signal / trade-context fields on the /smc_live payload.
 
 Covers ``compute._get_signal_fields`` (strongest-then-freshest selection, null
-handling, producer-predates-fields tolerance) and the build_payload ↔
-minimal-stale-response key parity that keeps the two payload shapes in sync.
+handling, producer-predates-fields tolerance, snapshot freshness gating) and
+the build_payload ↔ minimal-stale-response key parity that keeps the two
+payload shapes in sync.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +27,46 @@ def _row(symbol: str, level: str, fired: float = 1000.0, **extra: Any) -> dict[s
     return base
 
 
-def _patch_snapshot(monkeypatch: pytest.MonkeyPatch, rows: list[dict[str, Any]] | Any) -> None:
-    snap = {"signals": rows} if isinstance(rows, list) else rows
+def _patch_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    rows: list[dict[str, Any]] | Any,
+    *,
+    updated_epoch: float | None = -1.0,
+) -> None:
+    """Patch the signals snapshot; a fresh ``updated_epoch`` is stamped by
+    default (the producer stamps it on every save), ``None`` omits it."""
+    if isinstance(rows, list):
+        snap: Any = {"signals": rows}
+        if updated_epoch == -1.0:
+            snap["updated_epoch"] = time.time()
+        elif updated_epoch is not None:
+            snap["updated_epoch"] = updated_epoch
+    else:
+        snap = rows
     monkeypatch.setattr(compute, "_load_signals_snapshot", lambda: snap)
+
+
+def test_stale_snapshot_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A snapshot older than OVERLAY_SIGNALS_MAX_AGE_SECS must not serve
+    signals: when the producer dies, its last write-through snapshot would
+    otherwise keep an A0 + trade bracket live in the overlay forever."""
+    stale_epoch = time.time() - (compute.config.signals_max_age_secs() + 120)
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0")], updated_epoch=stale_epoch)
+    assert compute._get_signal_fields("NVDA")["signal_level"] is None
+
+
+def test_snapshot_without_updated_epoch_yields_all_null(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Freshness that cannot be proven is treated as stale (fail closed) —
+    mirrors the exporter's snapshot-age-unknown critical alert posture."""
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0")], updated_epoch=None)
+    assert compute._get_signal_fields("NVDA")["signal_level"] is None
+
+
+def test_fresh_snapshot_serves_signals(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0")])
+    assert compute._get_signal_fields("NVDA")["signal_level"] == "A0"
 
 
 def test_no_snapshot_or_no_match_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:

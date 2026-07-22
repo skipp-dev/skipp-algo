@@ -219,7 +219,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # import and endpoint movement shifted basicConfig to line 39.
     # 2026-06-21 (auth decode hardening): binascii import shifted
     # basicConfig to line 40.
-    ("services/live_overlay_daemon/main.py", 40),
+    # 2026-07-22 (stale-flag data-freshness docstring): 40->41
+    ("services/live_overlay_daemon/main.py", 41),
     # 2026-07-17: isolated Railway entry point for the shadow-only A0 worker;
     # 2026-07-17: bounded runtime, reconnect and telemetry shifted the isolated
     # entry-point basicConfig from 180 -> 285.
