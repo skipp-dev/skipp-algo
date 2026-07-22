@@ -551,3 +551,96 @@ def test_main_malformed_date_is_usage_error_not_verdict(tmp_path: Path) -> None:
     )
     assert code == 1
     assert not ledger.exists()
+
+
+# --------------------------------------------------------------------------- #
+# --plane governed-plane filter (issue #3872)
+# --------------------------------------------------------------------------- #
+def _intraday_event(family: str, anchor_ts: float, bar_seconds: float = 300.0) -> dict:
+    event = _triggered_event(family, anchor_ts)
+    event["forward_timestamps"] = [
+        anchor_ts + (i + 1) * bar_seconds for i in range(10)
+    ]
+    return event
+
+
+def test_event_measurement_plane_is_per_event() -> None:
+    assert shadow.event_measurement_plane(_triggered_event("BOS", 1_780_000_000.0)) == "1D"
+    assert shadow.event_measurement_plane(_intraday_event("BOS", 1_780_000_000.0)) == "5m"
+    assert shadow.event_measurement_plane({"family": "BOS"}) is None
+
+
+def test_main_plane_filter_grades_only_governed_plane_events(tmp_path) -> None:
+    """A 5m-dominated pool must not flip the ledger's plane (2026-07-16..21):
+    with --plane 1D only 1D-cadence events are graded, the row's events_hash
+    is the FILTERED evidence hash, and the plane column stays 1D even though
+    the pool's modal cadence is 5m."""
+    one_d = [_triggered_event("BOS", 1_780_000_000.0 + i * 90_000) for i in range(3)]
+    pool = one_d + [
+        _intraday_event("BOS", 1_781_000_000.0 + i * 4_000) for i in range(20)
+    ]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(pool))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    rc = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-07-22", "--plane", "1D"]
+    )
+    assert rc == 3  # thin 1D subset -> all_thin heartbeat, a valid verdict
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert {r["plane"] for r in rows} == {"1D"}
+    # The graded evidence is exactly the 1D subset, not the raw pool.
+    assert {r["events_hash"] for r in rows} == {shadow.events_content_hash(one_d)}
+    assert all(r["fail_reasons"] == ["all_thin"] for r in rows)
+
+
+def test_main_plane_starved_pool_heartbeats_and_stays_single_plane(tmp_path) -> None:
+    """Zero governed-plane events (the observed 2026-07-20 pool: 5m..1H, no
+    1D) must append plane_starved heartbeats stamped with the GOVERNED plane
+    — never grade foreign-cadence evidence, never rc 1."""
+    pool = [_intraday_event("BOS", 1_780_000_000.0 + i * 4_000) for i in range(5)]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(pool))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    rc = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-07-22", "--plane", "1D"]
+    )
+    assert rc == 3
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
+    assert {r["plane"] for r in rows} == {"1D"}
+    assert all(r["fail_reasons"] == ["plane_starved"] for r in rows)
+    assert all(r["status"] == "INCONCLUSIVE" for r in rows)
+
+
+def test_main_plane_starved_repeat_is_stale_skip(tmp_path) -> None:
+    """Day 2 of an unchanged starved pool must rc-5-skip (empty filtered
+    evidence hashes identically), so the ledger freezes and the gap guard —
+    not silent heartbeats — escalates a persistent starvation."""
+    pool = [_intraday_event("BOS", 1_780_000_000.0 + i * 4_000) for i in range(5)]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(pool))
+    ledger = tmp_path / "shadow_1d.jsonl"
+    args = [str(events_path), "--ledger", str(ledger), "--plane", "1D"]
+    assert shadow.main([*args, "--date", "2026-07-22"]) == 3
+    assert shadow.main([*args, "--date", "2026-07-23"]) == 5
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert all(r["date"] == "2026-07-22" for r in rows)
+
+
+def test_committed_live_ledger_is_single_plane_1d() -> None:
+    """The committed live ledger must never mix planes again (issue #3872):
+    a mix wedges the weekly evaluator for days before anyone notices. The
+    2026-07-16..21 mixed-pool rows live in the 5m quarantine file, which
+    nothing grades."""
+    repo = Path(__file__).resolve().parents[1]
+    live = repo / "artifacts/governance/magnitude_resolution_shadow.jsonl"
+    rows = [json.loads(ln) for ln in live.read_text().splitlines() if ln.strip()]
+    assert rows, "live ledger must not be empty"
+    assert {r.get("plane") for r in rows} <= {"1D"}
+    quarantine = repo / (
+        "artifacts/governance/magnitude_resolution_shadow_5m_mixed_quarantine.jsonl"
+    )
+    qrows = [
+        json.loads(ln) for ln in quarantine.read_text().splitlines() if ln.strip()
+    ]
+    assert {r.get("plane") for r in qrows} == {"5m"}

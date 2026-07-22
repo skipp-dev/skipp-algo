@@ -357,6 +357,24 @@ Cadence and evidence-honesty rules:
   `magnitude_resolution_shadow_15m_seed.jsonl` is the **frozen 15m proof**
   (the BOS/SWEEP PASS the armed status rests on), read only by the
   promotion gate. Nothing pools the two.
+- **Governed-plane filter + 5m quarantine (2026-07-22, issue #3872).** The
+  rolling benchmark's accumulated pool became genuinely multi-TF (#2667
+  per-TF structure artifacts) and by 2026-07-16 was 5m-dominated with **zero
+  1D events**. The daily runner graded that mixed pool as-is and stamped the
+  rows with the pool's modal plane (`"5m"`), wedging the weekly plane guard —
+  and each such row pooled 5m/10m/15m/30m/1H evidence inside ONE grading,
+  which no single plane label can honestly carry. Those rows (2026-07-16,
+  -17, -21) are preserved in
+  `magnitude_resolution_shadow_5m_mixed_quarantine.jsonl` — quarantined, not
+  a seed: they are valid evidence for **no** plane and nothing reads them.
+  The daily append now passes `--plane 1D`, grading only events whose own
+  bar cadence is 1D; zero matching events appends `plane_starved` heartbeat
+  rows (rc 3) and an unchanged starved pool then exits rc 5, so the gap
+  guard escalates within its 10-day budget. **Open decision:** restore 1D
+  events to the accumulated pool, or govern a deliberate migration of the
+  live track to an intraday plane (`armed_plane` update per the
+  plane-clarification doc). Until decided, the 1D track records starvation
+  loudly instead of silently becoming a different experiment.
 - **Thin-day heartbeat (2026-07-06).** When the 1D pool is too thin for any
   family to reach `MIN_OOS`, the daily runner appends one **INCONCLUSIVE**
   heartbeat row per family (`fail_reasons=["all_thin"]`, `n_oos` = per-family

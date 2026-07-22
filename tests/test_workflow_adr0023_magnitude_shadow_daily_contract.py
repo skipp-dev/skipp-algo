@@ -96,6 +96,17 @@ def test_job_invokes_shadow_ledger_script() -> None:
     assert "artifacts/governance/magnitude_resolution_shadow.jsonl" in steps_run
 
 
+def test_append_pins_the_governed_1d_plane() -> None:
+    """Issue #3872: the accumulated pool is multi-TF since #2667; without an
+    explicit governed plane the append inherits the pool's modal cadence
+    (5m-dominated since 2026-07-16), mixes cadences inside one grading, and
+    wedges the weekly plane guard. The live-1D track must pin its plane."""
+    data = _load()
+    job = data["jobs"]["magnitude-shadow"]
+    steps_run = " ".join(step.get("run", "") for step in job["steps"])
+    assert "--plane 1D" in steps_run
+
+
 def test_fail_soft_treats_2_and_3_as_valid_verdicts() -> None:
     data = _load()
     job = data["jobs"]["magnitude-shadow"]
