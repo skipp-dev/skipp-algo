@@ -6587,12 +6587,42 @@ export async function readEditorContent(
     const readClipboard = (): Promise<string> =>
       page.evaluate("navigator.clipboard.readText().catch(() => \"\")").then((raw) => (typeof raw === "string" ? raw : "")).catch(() => "");
     const mod = process.platform === "darwin" ? "Meta" : "Control";
+    const clipboardMarker = `__tv_editor_source_probe_${Date.now()}__`;
     for (const host of tvSelectors.editorHosts(page)) {
       const count = await host.count().catch(() => 0);
       for (let index = 0; index < count; index += 1) {
         const candidate = host.nth(index);
         if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false))) continue;
-        await candidate.click({ force: true }).catch(() => undefined);
+        // Clicking a Monaco *container* does not reliably focus its hidden
+        // input. In that state Ctrl+A/C copies a visible viewport fragment or
+        // a stale page selection, so a healthy saved source reads back
+        // truncated (735-1,177 bytes for ~200KB scripts) or even identical
+        // across different scripts. Focus the actual textarea/contenteditable
+        // Monaco uses instead.
+        const tagName = await candidate.evaluate((node) => node.tagName.toLowerCase()).catch(() => "");
+        let input = candidate;
+        if (tagName !== "textarea" && !(await candidate.getAttribute("contenteditable").catch(() => null))) {
+          const descendant = candidate.locator('textarea, [contenteditable="true"]').first();
+          if (!(await descendant.isVisible({ timeout: 250 }).catch(() => false))) continue;
+          input = descendant;
+        }
+        const focused = await input.focus().then(() => true).catch(() => false);
+        if (!focused) continue;
+        await input.click({ force: true }).catch(() => undefined);
+        // Pre-seed a marker so a copy that never lands cannot masquerade as
+        // source: the clipboard otherwise keeps stale content, which the
+        // copy-until-stable check below reads as "stable" (it never changes)
+        // and — with no expected declaration title to reject it — would
+        // return as the saved source. Fail closed instead.
+        const seededClipboard = await page.evaluate(async (marker) => {
+          try {
+            await navigator.clipboard.writeText(marker);
+            return true;
+          } catch {
+            return false;
+          }
+        }, clipboardMarker).catch(() => false);
+        if (!seededClipboard) continue;
         // Copy-until-stable: for a ~200KB document the editor may still be
         // streaming the buffer in, and a single quick select-all/copy captured
         // only the loaded head (552-byte suite grab, run 29888669703). Accept a
@@ -6603,6 +6633,14 @@ export async function readEditorContent(
           await page.keyboard.press(`${mod}+C`).catch(() => undefined);
           await page.waitForTimeout(400);
           const copied = await readClipboard();
+          tracePageEvent(
+            page,
+            "editor-source-readback",
+            `candidate:${index}:attempt:${attempt}:bytes:${Buffer.byteLength(copied, "utf-8")}`,
+          );
+          // The copy never landed — the marker is still all the clipboard
+          // holds. Retry; never let it stabilise into an accepted read.
+          if (copied === clipboardMarker) continue;
           if (copied.trim() && copied === previousCopy) {
             // The clipboard grab is as untargeted as the old models[0] read;
             // with a known declaration title only accept this script's buffer.

@@ -107,6 +107,47 @@ def test_scheduled_run_verifies_actual_saved_source_hashes_without_writing() -> 
     assert "readEditorContent(session.page" in saver
 
 
+def test_saved_source_readback_focuses_monaco_input_and_rejects_stale_clipboard() -> None:
+    """The clipboard fallback must not turn a failed copy into "verified source".
+
+    Two independent failure modes, both observed in tv-save-consumer-source
+    runs (8/8 sources "drifted" on 2026-07-21):
+
+    * clicking a Monaco *container* does not focus its hidden input, so
+      Ctrl+A/C grabs a viewport fragment or a stale selection — a healthy
+      ~200KB source read back as 735-1,177 bytes;
+    * a copy that never lands leaves the previous clipboard content in place,
+      which the copy-until-stable check reads as "stable" (it never changes)
+      and, absent an expected declaration title, would return as source.
+
+    The marker guard makes that second case fail closed. Structure may change
+    (``continue`` vs a negated return) as long as the marker can never be
+    returned as source.
+    """
+    shared = (
+        _REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts"
+    ).read_text(encoding="utf-8")
+    readback = shared.split("export async function readEditorContent", 1)[1].split(
+        "export async function saveScript", 1
+    )[0]
+    # Focus the real Monaco input, never just the container.
+    assert "candidate.locator('textarea, [contenteditable=\"true\"]')" in readback
+    assert "const focused = await input.focus()" in readback
+    assert "if (!focused) continue" in readback
+    # Pre-seed a marker and never accept it as read-back evidence.
+    assert "navigator.clipboard.writeText(marker)" in readback
+    assert "if (!seededClipboard) continue" in readback
+    assert "if (copied === clipboardMarker) continue" in readback
+    # The marker must be rejected BEFORE the stability check can accept it.
+    assert readback.index("if (copied === clipboardMarker) continue") < readback.index(
+        "copied === previousCopy"
+    )
+    # Retained from the model-pinning work (#3858/#3866): a grab counts only
+    # when two consecutive copies agree AND match this script's declaration.
+    assert "copied === previousCopy" in readback
+    assert "declarationPattern.test(copied)" in readback
+
+
 def test_binding_parser_accepts_single_and_double_quoted_pine_labels() -> None:
     # The BUS label parser is the single source of truth shared by the runtime
     # verifier and the build-time packager, so the regex now lives in the shared
