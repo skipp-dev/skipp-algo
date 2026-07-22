@@ -189,7 +189,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int, str]] = {
     # _record_to_bar dynamic getattr site 81 -> 82.
     # 2026-07-03 correctness lane: _feed_connected_at global shifted
     # _record_to_bar dynamic getattr site 101 -> 102.
-    ("services/live_overlay_daemon/feed.py", 104, "param"),
+    ("services/live_overlay_daemon/feed.py", 108, "param"),  # 2026-07-22 (F-2 drop counters): 104->108
     ("smc_core/event_ledger.py", 100, "param"),  # 2026-07-13 schema-v1.1: label relocation + record docstring/field shifted (84->94); schema-v1.2 rename+calibrated_prob (94->100)
     ("smc_core/scoring.py", 339, "param"),  # 2026-07-13 (normalize_sweep_side + calibration-honesty docstrings): 308->339
     ("streamlit_terminal_alerts.py", 41, "param"),

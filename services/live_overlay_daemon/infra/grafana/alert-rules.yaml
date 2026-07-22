@@ -1049,6 +1049,80 @@ groups:
       summary: Bars are being dropped due to ingest queue saturation
       runbook: Increase LIVE_OVERLAY_INGEST_QUEUE_MAX and investigate sustained producer-consumer
         imbalance.
+  - uid: lo-feed-sym-none-drops
+    title: Feed symbology drops sustained
+    condition: C
+    # Truth-audit F-2: unmapped-instrument bars were logged <=3x per connection
+    # and then silently swallowed — a partial symbology gap (e.g. new listings
+    # missing from SymbolMappingMsg) dropped those symbols with zero
+    # visibility. Threshold: a symmap builds progressively on every (re)connect,
+    # so a small burst right after subscribe is normal; >100 dropped bars in an
+    # hour sustained for 30m is a real coverage gap, not connect noise.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_feed_sym_none_drops_total{job="live_overlay"}[1h])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 100
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: Bars for unmapped instruments are being dropped at a sustained rate — a symbology
+        gap is silently removing symbols from overlays.
+      runbook: Check SymbolMappingMsg coverage vs the dropped instrument_ids (feed logs the first
+        three per connection); new listings missing from the symmap drop every bar while all
+        health signals stay green.
+  - uid: lo-feed-bar-none-drops
+    title: Feed unparseable-bar drops detected
+    condition: C
+    # Truth-audit F-2 (parse-failure class): unlike sym-none there is no
+    # benign connect burst — a well-formed feed produces zero unparseable
+    # OHLCV records, so any sustained increase is schema drift or corruption.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_feed_bar_none_drops_total{job="live_overlay"}[1h])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: OHLCV records are arriving that cannot be parsed into bars — possible Databento
+        schema drift; affected bars are silently lost.
+      runbook: Inspect feed logs (first three bar=None warnings per connection carry sym and
+        rec_type) and compare against the current DBN OhlcvMsg schema.
   - uid: lo-news-provider-health-degraded
     title: News provider health degraded
     condition: C

@@ -70,6 +70,10 @@ _metrics: dict[str, int] = {
     "circuit_breakers": 0,
     "partial_restarts": 0,
     "supervisor_heals": 0,
+    # Truth-audit F-2: seeded at 0 so the hermetic exporter render and
+    # rate()/increase() see both drop classes from boot (cf. #3863 seeding).
+    "sym_none_drops_total": 0,
+    "bar_none_drops_total": 0,
 }
 _backpressure_lock = threading.Lock()
 _backpressure: dict[str, float] = {
@@ -326,6 +330,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     sym = _symbol_from_record(record, symmap)
                     if sym is None:
                         _sym_none_count += 1
+                        _inc_metric("sym_none_drops_total")  # F-2: unmapped instrument -> bar silently lost
                         if _sym_none_count <= 3:
                             logger.warning(
                                 "sym=None for instrument_id=%s symmap_size=%d",
@@ -337,6 +342,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     bar = _record_to_bar(record)
                     if bar is None:
                         _bar_none_count += 1
+                        _inc_metric("bar_none_drops_total")  # F-2: unparseable OHLCV -> bar silently lost
                         if _bar_none_count <= 3:
                             logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue

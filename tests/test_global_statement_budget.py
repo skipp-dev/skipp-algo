@@ -283,10 +283,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # ingest loop into the feed loop (F2.1). The +3-line arming block in the
         # feed loop shifted every anchor below it: 421->427 (the ingest-side
         # swap was net-zero), 586->589, 685->688. 229 is above the edit.
-        ("services/live_overlay_daemon/feed.py", 231, ("_feed_connected_at",)),
-        ("services/live_overlay_daemon/feed.py", 483, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 646, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 745, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-07-22 (truth-audit F-2 drop counters): _metrics seed +4 lines and
+        # two _inc_metric drop sites shifted every anchor: 231->235, 483->489,
+        # 646->652, 745->751.
+        ("services/live_overlay_daemon/feed.py", 235, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 489, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 652, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 751, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

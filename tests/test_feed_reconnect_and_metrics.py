@@ -303,3 +303,72 @@ class TestFeedReadyOwnership:
             "ingest loop re-armed _feed_ready from a bar queued before the disconnect"
         )
         assert not feed.is_ready(), "/health must not report ready while the feed is down"
+
+
+class OHLCVUnknownInstrument:
+    """OHLCV record whose instrument_id never appears in the symmap (sym=None drop)."""
+
+    instrument_id = 999
+    open = 1_000_000_000
+    high = 1_100_000_000
+    low = 900_000_000
+    close = 1_050_000_000
+    volume = 100
+    ts_event = 1
+
+
+class OHLCVUnparseable:
+    """OHLCV-typed record with a mapped symbol but none of the OHLC price
+    attributes, so _record_to_bar returns None (bar=None drop)."""
+
+    instrument_id = 1
+    volume = 100
+
+
+class TestFeedDropCounters:
+    """Truth-audit F-2: sym=None / bar=None drops were logged at most three
+    times per connection and then silently swallowed — no metric moved, so a
+    partial symbology gap (e.g. new listings missing from SymbolMappingMsg)
+    dropped those symbols' bars with zero operator visibility. These pins
+    require both drop classes to (a) be seeded at 0 so the hermetic exporter
+    render and rate()/increase() see them from boot, and (b) increment on the
+    corresponding drop."""
+
+    def test_drop_counters_are_seeded_at_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
+        feed = _reload_feed_module()
+        snapshot = feed.metrics_snapshot()
+        assert snapshot.get("sym_none_drops_total") == 0
+        assert snapshot.get("bar_none_drops_total") == 0
+
+    def test_sym_none_and_bar_none_drops_increment_counters(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
+        feed = _reload_feed_module()
+        _patch_reconnect_delays(feed)
+
+        sequence = [
+            SymbolMappingMsg(),
+            OHLCVUnknownInstrument(),  # unmapped instrument -> sym=None drop
+            OHLCVUnparseable(),        # mapped but priceless -> bar=None drop
+            OHLCV_1m(),                # healthy record still flows
+        ]
+
+        with patch.object(db, "Live", side_effect=lambda **_: _live_factory(sequence)):
+            _run_feed_loop_until(
+                feed,
+                until=lambda: (
+                    feed.metrics_snapshot().get("sym_none_drops_total", 0) >= 1
+                    and feed.metrics_snapshot().get("bar_none_drops_total", 0) >= 1
+                ),
+                max_runtime=2.0,
+            )
+
+        snapshot = feed.metrics_snapshot()
+        assert snapshot.get("sym_none_drops_total", 0) >= 1, "unmapped-instrument drop not counted"
+        assert snapshot.get("bar_none_drops_total", 0) >= 1, "unparseable-bar drop not counted"
+        # The healthy record must still have been ingested — the counters must
+        # observe drops, not cause them.
+        assert feed.last_bar_age_secs() is not None, "healthy bar was never ingested"
