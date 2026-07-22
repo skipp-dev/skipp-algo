@@ -228,7 +228,13 @@ jobs:
           # high 92→91 on PR #2741: excessive-permissions finding in
           # f2-promotion-gate-daily.yml resolved by moving issues:write to
           # job-level in promotion-gate. medium 53→52 (artipacked fix).
-          ZIZMOR_HIGH_BUDGET: "91"
+          # high 91→92 (2026-07-22): dangerous-triggers for the new
+          # workflow_run chain in tv-save-consumer-source.yml (post-refresh
+          # auto-save + producer instance refresh). Risk assessed: the
+          # upstream smc-library-refresh runs only on schedule/dispatch —
+          # never from fork PRs — the job gates on conclusion == 'success',
+          # and the workflow holds contents:read only.
+          ZIZMOR_HIGH_BUDGET: "92"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
