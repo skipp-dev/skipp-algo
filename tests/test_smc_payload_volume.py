@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.generate_smc_micro_profiles import (
     LIST_EXPORTS,
     LISTS,
@@ -210,3 +212,45 @@ def test_an_unreadable_library_is_unknown_not_blocked(tmp_path: Path) -> None:
     assert gate["payload_known"] is False
     assert gate["universe_tickers_count"] is None
     assert gate["blocking_reasons"] == []
+
+
+# ── Cross-language parser contract (ADR-0029) ───────────────────
+
+_PARSER_CASES_PATH = Path("tests/fixtures/payload_volume_parser_cases.json")
+
+
+def _parser_cases() -> list[dict]:
+    return json.loads(_PARSER_CASES_PATH.read_text(encoding="utf-8"))["cases"]
+
+
+@pytest.mark.parametrize("case", _parser_cases(), ids=lambda c: c["name"])
+def test_python_parser_matches_the_shared_contract(case: dict) -> None:
+    """The TS builder consumes the same cases — see
+    automation/tradingview/tests/pine_library_version_snapshot.test.ts."""
+    volume = measure_payload_volume(case["pine"])
+    expected = case["expect"]
+
+    assert volume.known is expected["known"], case["why"]
+    assert volume.universe_size == expected["universeSize"], case["why"]
+    assert volume.universe_tickers_count == expected["universeSymbols"], case["why"]
+    assert volume.list_total == expected["listSymbols"], case["why"]
+
+
+def test_seed_manifest_records_what_the_parser_measures() -> None:
+    """The checked-in seed artifact is the shared anchor for both parsers.
+
+    The generator writes the Python measurement into the manifest; the TS test
+    parses the same .pine and compares against these numbers. Regenerating the
+    seed keeps both honest without either side importing the other.
+    """
+    seed = Path("tests/fixtures/generated_seed/pine/generated")
+    manifest = json.loads((seed / "smc_micro_profiles_generated.json").read_text(encoding="utf-8"))
+    gate = manifest["productivity_gate"]
+
+    volume = measure_payload_volume(
+        (seed / "smc_micro_profiles_generated.pine").read_text(encoding="utf-8")
+    )
+
+    assert volume.known is gate["payload_known"]
+    assert volume.universe_tickers_count == gate["universe_tickers_count"]
+    assert volume.list_total == gate["list_total"]

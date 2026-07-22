@@ -1,0 +1,71 @@
+{
+  "_comment": "Cross-language parser contract (ADR-0029). The payload parser exists twice \u2014 scripts/smc_payload_volume.py (gate) and scripts/build_pine_library_version_snapshot.ts (metric) \u2014 because the TS builder cannot import Python. Both consume these cases, so a behavioural divergence fails on the side that drifts. Keys are neutral; each suite maps them onto its own field names.",
+  "cases": [
+    {
+      "name": "single_literal",
+      "why": "The plain form: one string literal holding the whole CSV.",
+      "pine": "export const int UNIVERSE_SIZE = 3\nexport const string UNIVERSE_TICKERS = \"AAPL,MSFT,NVDA\"\nexport const string CLEAN_RECLAIM_TICKERS = \"AAPL\"\nexport const string STOP_HUNT_PRONE_TICKERS = \"\"",
+      "expect": {
+        "known": true,
+        "universeSize": 3,
+        "universeSymbols": 3,
+        "listSymbols": 1
+      }
+    },
+    {
+      "name": "sharded_concatenation",
+      "why": "The form a healthy 6929-symbol universe actually renders as. render_csv_export splits at max_chars (3900 for UNIVERSE_TICKERS), so the export line is an expression and carries NO literal. A parser shaped like ASOF_DATE_RE scores this 0 and inverts every rule built on it.",
+      "pine": "export const int UNIVERSE_SIZE = 5\nconst string UNIVERSE_TICKERS_PART_1 = \"AAPL,MSFT\"\nconst string UNIVERSE_TICKERS_PART_2 = \"NVDA,TSLA,AMD\"\nexport const string UNIVERSE_TICKERS = UNIVERSE_TICKERS_PART_1 + \",\" + UNIVERSE_TICKERS_PART_2\nexport const string CLEAN_RECLAIM_TICKERS = \"AAPL,MSFT\"",
+      "expect": {
+        "known": true,
+        "universeSize": 5,
+        "universeSymbols": 5,
+        "listSymbols": 2
+      }
+    },
+    {
+      "name": "sharded_out_of_order",
+      "why": "Shard order must come from the PART index, not from file order.",
+      "pine": "export const int UNIVERSE_SIZE = 4\nconst string UNIVERSE_TICKERS_PART_2 = \"NVDA,TSLA\"\nconst string UNIVERSE_TICKERS_PART_1 = \"AAPL,MSFT\"\nexport const string UNIVERSE_TICKERS = UNIVERSE_TICKERS_PART_1 + \",\" + UNIVERSE_TICKERS_PART_2",
+      "expect": {
+        "known": true,
+        "universeSize": 4,
+        "universeSymbols": 4,
+        "listSymbols": 0
+      }
+    },
+    {
+      "name": "incident_signature",
+      "why": "What actually shipped: 6929 scanned, nothing in the payload.",
+      "pine": "export const int UNIVERSE_SIZE = 6929\nexport const string UNIVERSE_TICKERS = \"\"\nexport const string CLEAN_RECLAIM_TICKERS = \"\"",
+      "expect": {
+        "known": true,
+        "universeSize": 6929,
+        "universeSymbols": 0,
+        "listSymbols": 0
+      }
+    },
+    {
+      "name": "absent_exports",
+      "why": "A hand-authored library. Unknown must not collapse to a measured zero.",
+      "pine": "//@version=6\nlibrary(\"smc_bus_private\")\nexport f() => 1",
+      "expect": {
+        "known": false,
+        "universeSize": null,
+        "universeSymbols": 0,
+        "listSymbols": 0
+      }
+    },
+    {
+      "name": "prefix_collision",
+      "why": "NEWS_BULLISH_TICKERS and friends must not be counted as membership lists, and a longer identifier must not match a shorter export name.",
+      "pine": "export const int UNIVERSE_SIZE = 2\nexport const string UNIVERSE_TICKERS = \"AAPL,MSFT\"\nexport const string NEWS_BULLISH_TICKERS = \"X,Y,Z\"\nexport const string EARNINGS_TODAY_TICKERS = \"Q\"\nexport const string RTH_ONLY_TICKERS = \"AAPL\"",
+      "expect": {
+        "known": true,
+        "universeSize": 2,
+        "universeSymbols": 2,
+        "listSymbols": 1
+      }
+    }
+  ]
+}

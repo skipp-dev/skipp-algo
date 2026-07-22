@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildSnapshot,
@@ -13,6 +14,8 @@ import {
   parseImportPins,
   type ConsumerPin,
 } from "../../../scripts/build_pine_library_version_snapshot.js";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 test("parseImportPins extracts library + pinned version from import lines", () => {
   const src = [
@@ -226,4 +229,69 @@ test("buildSnapshot defaults payload to unknown when no measurement was supplied
   const snap = buildSnapshot(pins, new Map([["smc_profile_engine", 1]]), 1_800_000_000);
 
   assert.equal(snap.libraries[0].payloadKnown, false);
+});
+
+// ── Cross-language parser contract (ADR-0029) ───────────────────
+//
+// The payload parser exists twice — scripts/smc_payload_volume.py (publish
+// gate) and this builder (Grafana metric) — because the TS side cannot import
+// Python. Nothing but these shared cases keeps the two in step: the name pin in
+// tests/test_pine_library_version_bridge.py catches a renamed list, not a
+// divergent shard summation.
+
+type ParserCase = {
+  name: string;
+  why: string;
+  pine: string;
+  expect: {
+    known: boolean;
+    universeSize: number | null;
+    universeSymbols: number;
+    listSymbols: number;
+  };
+};
+
+const PARSER_CASES: ParserCase[] = JSON.parse(
+  fs.readFileSync(
+    path.join(REPO_ROOT, "tests", "fixtures", "payload_volume_parser_cases.json"),
+    "utf-8",
+  ),
+).cases;
+
+test("shared parser contract has cases and covers the sharded form", () => {
+  // Guards against a fixture that silently empties or loses the trap case.
+  assert.ok(PARSER_CASES.length >= 6, "parser contract fixture looks truncated");
+  assert.ok(
+    PARSER_CASES.some((c) => c.pine.includes("_PART_1")),
+    "the sharded case is the whole point — it must not disappear",
+  );
+});
+
+for (const parserCase of PARSER_CASES) {
+  test(`parseLibraryPayloadVolume matches the shared contract: ${parserCase.name}`, () => {
+    const volume = parseLibraryPayloadVolume(parserCase.pine);
+
+    assert.equal(volume.known, parserCase.expect.known, parserCase.why);
+    assert.equal(volume.universeSize, parserCase.expect.universeSize, parserCase.why);
+    assert.equal(volume.universeSymbols, parserCase.expect.universeSymbols, parserCase.why);
+    assert.equal(volume.listSymbols, parserCase.expect.listSymbols, parserCase.why);
+  });
+}
+
+test("parseLibraryPayloadVolume agrees with the seed manifest's Python measurement", () => {
+  // The checked-in seed artifact is the shared anchor: the generator wrote the
+  // Python measurement into the manifest, this parses the .pine beside it.
+  const seed = path.join(REPO_ROOT, "tests", "fixtures", "generated_seed", "pine", "generated");
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(seed, "smc_micro_profiles_generated.json"), "utf-8"),
+  );
+  const gate = manifest.productivity_gate;
+
+  const volume = parseLibraryPayloadVolume(
+    fs.readFileSync(path.join(seed, "smc_micro_profiles_generated.pine"), "utf-8"),
+  );
+
+  assert.equal(volume.known, gate.payload_known);
+  assert.equal(volume.universeSymbols, gate.universe_tickers_count);
+  assert.equal(volume.listSymbols, gate.list_total);
 });
