@@ -26,9 +26,11 @@ on:
         type: choice
         options: [restart, check-firing, check-resolved]
 
+# Least privilege: the two check phases are read-only; only the restart phase
+# needs actions:write, so it is scoped to that job (workflow-level actions:write
+# is a zizmor high-severity excessive-permissions finding).
 permissions:
   contents: read
-  actions: write  # dispatch deploy-live-overlay-daemon for the controlled restart
 
 concurrency:
   # F-V5-C2: cron workflows queue overlapping runs, never cancel them — a
@@ -51,6 +53,9 @@ jobs:
   restart:
     if: github.event.schedule == '10 0 23 7 *' || inputs.phase == 'restart'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: write  # dispatch deploy-live-overlay-daemon for the controlled restart
     steps:
       - name: Dispatch the proven deploy workflow (controlled overnight restart)
         env:
