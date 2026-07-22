@@ -9,6 +9,14 @@ fileWatcherType = "auto"
 
 [theme]
 base = "dark"
+# Skipp brand palette — aligned with the terminal auth gate (#0b1020 bg, azure
+# accent). primaryColor must NOT be Streamlit's default red (#FF4B4B): red is
+# reserved for bearish/down semantics in a trading terminal.
+primaryColor = "#5b9bf0"
+backgroundColor = "#0b1020"
+secondaryBackgroundColor = "#151c32"
+textColor = "#eef2ff"
+font = "sans-serif"
 
 [browser]
 gatherUsageStats = false

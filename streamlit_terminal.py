@@ -611,7 +611,7 @@ if _SMC_TERMINAL_TEST_MODE:
 # ── Page config ─────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Real-Time News Intelligence Stock + Bitcoin Dashboard",
+    page_title="Skipp Terminal",  # short browser-tab identity, matches the auth gate
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -2742,8 +2742,8 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.markdown(
-    '<p style="font-size:2.05rem; line-height:1.24; font-weight:400; color:inherit; margin-bottom:1.75rem;">'
-    '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported</p>',
+    '<p style="font-size:2.05rem; line-height:1.24; font-weight:700; color:inherit; margin-bottom:1.75rem;">'
+    '📡 Skipp Terminal <span style="font-size:1.05rem; font-weight:400; color:#8ea0c8;">Real-time news intelligence · Stocks + Bitcoin · AI supported</span></p>',
     unsafe_allow_html=True,
 )
 
