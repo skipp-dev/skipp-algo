@@ -13,7 +13,7 @@ No gate blocked it, no test failed, no alert fired.
 The state is still reproducible on `origin/main` (`1c7d659a8`). The generated
 manifest says:
 
-```
+```text
 universe_size      = 6929
 list_counts        = {clean_reclaim: 0, stop_hunt_prone: 0, midday_dead: 0,
                       rth_only: 0, weak_premarket: 0, weak_afterhours: 0, fast_decay: 0}
@@ -84,24 +84,35 @@ snapshot that feeds Prometheus.
 
 ### 2. Hard blockers are contradictions between field pairs, never bare emptiness
 
-```
-empty_universe_tickers:   UNIVERSE_SIZE > 0          ∧  universe_tickers_count == 0
-empty_membership_lists:   universe_tickers_count > 0  ∧  list_total == 0
+```text
+empty_universe_tickers:  ¬static ∧ UNIVERSE_SIZE > 0 ∧ universe_tickers_count == 0
+empty_membership_lists:  (UNIVERSE_SIZE > 0 ∨ universe_tickers_count > 0) ∧ list_total == 0
 ```
 
 Both say the same thing: *material was present and nothing arrived*. Neither
 asks whether "empty" is legitimate, because a contradiction cannot be
 legitimate — 6929 scanned symbols of which none reach the payload is not a
-valid state under any configuration. When both quantities are zero the first
-blocker already fires, so no coverage is lost by making the second
-conditional.
+valid state under any configuration.
+
+A payload that is empty *consistently* — no universe size, no tickers, no
+lists — triggers neither reason, by design. Nothing contradicts anything
+there, so the gate has no evidence of a defect. That shape is the
+relative-collapse warning rule's job, not the gate's.
 
 This form is the decision, not an implementation detail. The failure being
 repaired is not "someone forgot an emptiness check" — it is that a field was
 validated *in isolation*. A gate that compares field pairs closes the pattern,
 not just this instance.
 
-Both blockers apply in `static_control_plane` mode.
+**Mode awareness.** `static_control_plane` suppresses the *universe* reason
+only. Per the #3896 operator decision, that mode deliberately leaves provider
+data to the runtime sidecar, so an absent `UNIVERSE_TICKERS` there is by
+construction and not a contradiction. The membership reason therefore keys its
+"material was present" side off `UNIVERSE_SIZE` rather than
+`universe_tickers_count`, since `UNIVERSE_SIZE` is populated in both modes.
+The consequence is the one that matters: the incident signature — 6929 beside
+a wholly empty payload — stays blocked in *both* modes, via the universe
+reason when provider-enriched and via the membership reason when static.
 
 ### 3. No bootstrap carve-out
 
@@ -142,7 +153,7 @@ not turn red.
 
 The transport already exists and carries no volume information:
 
-```
+```text
 build_pine_library_version_snapshot.ts   (daily 05:30 UTC; already reads ASOF_DATE)
   → bot/live-pine-library-versions       (rolling branch)
   → pine_library_version_bridge.py
@@ -215,13 +226,21 @@ handling.
   (`tests/test_monitoring_metric_alert_coverage.py`, #3627df27e), which requires
   an alert or dashboard reference for each.
 
-## Enforced by (planned)
+## Enforced by
 
-- `tests/test_generate_smc_micro_profiles.py` — the current artifact
-  (6929 / empty) is expected to be **blocked**.
-- `tests/test_generated_artifact_drift.py` — fixture coverage for both the
-  single-literal and sharded export forms.
+Gate layer (decisions 1–3, 6):
+
+- `tests/test_smc_payload_volume.py` — parser (literal, sharded, absent),
+  contradiction rules, mode awareness, and the productivity-gate wiring. Pins
+  the shipped signature (6929 beside an empty payload) as **blocked** in both
+  generation modes.
+- `tests/test_verify_smc_micro_publish_contract.py` — the verifier rejects a
+  library that contradicts its manifest, and a manifest whose recorded counts
+  diverge from the library.
+
+Staged (decisions 4–5):
+
 - `automation/tradingview/tests/tv_validation_model.test.ts` — `[true, not_run,
-  not_run]` in required slots yields `overall_preflight_ok === false`.
+  not_run]` in required slots must yield `overall_preflight_ok === false`.
 - `tests/test_monitoring_metric_alert_coverage.py`,
   `tests/test_grafana_alert_rules_upsert.py` — metric/alert wiring.
