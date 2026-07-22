@@ -96,3 +96,52 @@ three complete sessions exist on the volume.
 The new artifact replaces `services/a0_fast_detector/bootstrap/pre-a0-model.json`
 (and `RT_PRE_A0_MODEL_PATH` if it points elsewhere) only after the promotion
 checklist passes.
+
+### Adding the 30s horizon at the next retrain (operator decision 2026-07-22)
+
+Goal: the next artifact carries `horizons: [30, 60, 180]` so
+`RT_PRE_A0_ALLOWED_HORIZONS=30,60,180` becomes valid. Setting the env alone
+does NOT work today: the runtime requires configured horizons to be a subset
+of the artifact's horizons (`configured_horizon_not_supported` disables
+PRE-A0 entirely), and the bootstrap artifact carries only `[60, 180]`.
+
+Verified facts this plan relies on (all checked 2026-07-22 on `main`):
+
+- Labels always record all three outcomes — `HORIZONS = (30, 60, 180)` and
+  `y_30` in `open_prep/pre_a0_labels.py`. The 30s outcome is already in every
+  collected evidence session; no collection change is needed.
+- `scripts/prepare_pre_a0_training_data.py` derives the dataset's horizons
+  from the *reference artifact* passed as its first argument (it iterates
+  `artifact.horizons` and writes them into `train.json`), and
+  `scripts/train_pre_a0_model.py` copies `train.json`'s horizons into the new
+  artifact.
+- `compute_artifact_id` does NOT include `horizons` (identity =
+  contract/schema/feature/split/model/calibration), so a reference copy with
+  extended horizons still passes `verify_artifact_id` in the prepare step.
+
+Procedure — identical to the standard retrain above except for step 0:
+
+0. Create the reference copy with extended horizons (do not edit the deployed
+   bootstrap file in place):
+
+   ```bash
+   jq '.horizons = [30, 60, 180]' \
+     services/a0_fast_detector/bootstrap/pre-a0-model.json \
+     > /tmp/pre-a0-model-ref-30-60-180.json
+   ```
+
+1. Run `prepare_pre_a0_training_data` with the reference copy as the first
+   argument. The dataset now materializes horizon-30 rows from the existing
+   `y_30` labels; `train.json` carries `[30, 60, 180]`.
+2. Train, evaluate, promotion checklist — unchanged. The new artifact gets a
+   fresh content-derived id and `horizons: [30, 60, 180]`.
+3. Deploy the new artifact (replace the bootstrap file / repoint
+   `RT_PRE_A0_MODEL_PATH`), then — and only then — set
+   `RT_PRE_A0_ALLOWED_HORIZONS=30,60,180` on `a0-fast-shadow`.
+
+Timing: evidence collection is compliant since the 2026-07-21 evidence-flow
+fixes; with complete sessions on 2026-07-22/23/24 the three-session
+precondition (`build_walk_forward_manifest`) is met after the 2026-07-24
+close, so the first compliant retrain window opens 2026-07-25. The pilot
+tailer is horizon-agnostic (it alerts on IMMINENT state transitions), so the
+pilot keeps running unchanged throughout.
