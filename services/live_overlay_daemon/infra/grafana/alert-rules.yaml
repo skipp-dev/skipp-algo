@@ -2296,6 +2296,49 @@ groups:
         day).
       runbook: Check the workflow's recent runs; a persistent 0 means the daily cron is failing or not
         firing.
+  - uid: lo-ci-workflow-series-missing
+    title: CI workflow series missing while workflow bridge is enabled
+    condition: C
+    # Guards the workflow="CI" label pin used by lo-ci-full-suite-red (below):
+    # every workflow rule in this group is noDataState: OK, so if the CI
+    # workflow is renamed, dropped from GITHUB_WORKFLOW_MONITOR_IDS, or
+    # scrolls out of the runs page, its series vanish and the red-suite alert
+    # goes permanently green. This companion fires exactly then: bridge
+    # enabled but no CI-labeled series. With the bridge disabled the expr is
+    # empty -> NoData -> OK (intended stand-down; contract-missing covers the
+    # family).
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_bridge_enabled{bridge="github_workflow",job="live_overlay"} == bool 1) and on() absent(live_overlay_github_workflow_latest_success{workflow="CI",job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      summary: The github_workflow bridge is enabled but exports no series for the workflow
+        named "CI" -- lo-ci-full-suite-red (pinned to that label) cannot fire and a red
+        main-push suite would be invisible.
+      runbook: Check GITHUB_WORKFLOW_MONITOR_IDS on the daemon service and the workflow
+        name in .github/workflows (a rename must be mirrored in the alert label pin).
+        live_overlay_github_workflow_runs_seen_total shows whether the bridge sees any
+        runs at all.
   - uid: lo-ci-full-suite-red
     title: CI full-suite red on main
     condition: C
