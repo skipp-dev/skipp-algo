@@ -31,6 +31,14 @@ _APPROVED_EMAILS: frozenset[str] = frozenset(
     }
 )
 
+# Committer-only. GitHub stamps its own identity when a merge is performed
+# through the web UI. ``--no-merges`` below exempts a real merge commit, but a
+# SQUASH-merge has a single parent and slips past that filter — so stacking a
+# PR onto another PR's branch and squashing it in used to fail this gate.
+# Approved as committer only: the author check stays closed against it, so the
+# human who wrote the code must still be an approved identity.
+_APPROVED_COMMITTER_ONLY_EMAILS: frozenset[str] = frozenset({"noreply@github.com"})
+
 
 def _run(args: list[str]) -> str:
     result = subprocess.run(  # noqa: S603
@@ -55,11 +63,14 @@ def _commit_identities(rev_range: str) -> list[tuple[str, str, str]]:
 
 def _offenders(rows: list[tuple[str, str, str]]) -> list[str]:
     approved = {e.lower() for e in _APPROVED_EMAILS}
+    approved_committers = approved | {
+        e.lower() for e in _APPROVED_COMMITTER_ONLY_EMAILS
+    }
     bad: list[str] = []
     for sha, author, committer in rows:
         if author not in approved:
             bad.append(f"{sha[:12]} author={author}")
-        if committer not in approved:
+        if committer not in approved_committers:
             bad.append(f"{sha[:12]} committer={committer}")
     return bad
 

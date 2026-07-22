@@ -126,7 +126,7 @@ def test_dynamic_setattr_zero_surface_pin() -> None:
 # overrides. The name comes from a small, trusted override-mapping
 # defined in the same module.
 DYNAMIC_HASATTR_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 584),  # 2026-07-22 Technical Data tab: 583->584
+    ("streamlit_terminal.py", 585),  # 2026-07-23 Technical Data tab: 584->585
 }
 
 

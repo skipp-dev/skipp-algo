@@ -40,6 +40,25 @@ def test_corporate_committer_is_flagged() -> None:
     assert "committer=someone@corp.example" in offenders[0]
 
 
+def test_github_squash_merge_committer_is_allowed() -> None:
+    # A stacked PR squash-merged through the web UI: single parent, so
+    # --no-merges does not exempt it, but the author is still the maintainer.
+    rows = [
+        ("f" * 40, "221361569+skipp-dev@users.noreply.github.com", "noreply@github.com"),
+    ]
+    assert mod._offenders(rows) == []
+
+
+def test_github_identity_as_author_is_still_flagged() -> None:
+    # Committer-only approval must not leak into the author check.
+    rows = [
+        ("0" * 40, "noreply@github.com", "221361569+skipp-dev@users.noreply.github.com"),
+    ]
+    offenders = mod._offenders(rows)
+    assert len(offenders) == 1
+    assert "author=noreply@github.com" in offenders[0]
+
+
 def test_case_insensitive_match() -> None:
     rows = [
         ("e" * 40, "Preuss.Steffen@Yahoo.com", "PREUSS.STEFFEN@YAHOO.COM"),

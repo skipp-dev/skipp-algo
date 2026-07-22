@@ -7793,7 +7793,7 @@
     {
       "type": "stat",
       "title": "Pine consumers drifted from published TV version",
-      "description": "sum of live_overlay_pine_consumer_drift \u2014 a repo import pin (import preuss_steffen/<lib>/<N>) whose N != the real published TradingView version (the #3599/#3603 failure mode: micro_profiles /1 vs /152). 0 = all pins current.",
+      "description": "Drift rollup. Consumers drifted counts individual import sites; libraries drifted and probed give the denominator \u2014 'probed' is how many libraries the facade actually reached this run, so a low probe count means the comparison itself was incomplete, not that everything is in sync.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7842,15 +7842,36 @@
             "uid": "grafanacloud-prom"
           },
           "expr": "sum(live_overlay_pine_consumer_drift{job=\"live_overlay\"})",
+          "legendFormat": "Consumers drifted",
           "instant": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_libraries_drifted{job=\"live_overlay\"})",
+          "legendFormat": "Libraries drifted",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_pine_libraries_probed{job=\"live_overlay\"})",
+          "legendFormat": "Libraries probed",
+          "instant": true,
+          "refId": "C"
         }
       ]
     },
     {
       "type": "table",
       "title": "Pine consumer pins vs published TradingView version",
-      "description": "Per-consumer import-pin drift. Value=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the real published version. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
+      "description": "Per-consumer import-pin drift against the real published TradingView version. Drift=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the published version. Pinned version (B) and published version (C) are the two numbers to compare when the drift alert fires; tv_version_known (D) distinguishes 'no drift' from 'the facade probe failed this run' \u2014 an unreachable facade emits no tv_version at all rather than reporting 0. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7919,6 +7940,42 @@
           "instant": true,
           "format": "table",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_consumer_pin_version{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_library_tv_version{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_library_tv_version_known{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "D"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
         }
       ]
     },
