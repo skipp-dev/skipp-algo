@@ -12,3 +12,7 @@ httpx==0.28.1          # keep aligned with root requirements.txt to avoid runtim
 cisco-aidefense-sdk==2.1.2  # request/response inspection for private /ai-insights
 feedparser==6.0.11     # lenient RSS/Atom parser for BenzingaRssAdapter
 certifi==2026.4.22     # CA bundle used by terminal_tradingview_news SSL context
+
+# terminal_technicals primary source (RSI et al. for the signal quality
+# gates); keep aligned with root requirements.txt to avoid runtime drift.
+tradingview-ta==3.3.0
