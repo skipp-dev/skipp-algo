@@ -101,7 +101,28 @@ export type InputContractDiagnosis = {
 export type AddToChartOptions = {
   forceInsert?: boolean;
   tolerateFailure?: boolean;
+  // Override for the tracked-step timeout. The refresh path passes the same
+  // 90s floor as its outer wrapper: a healthy insertion was observed at 44s,
+  // and the default 45s inner timer closed the session right after
+  // (documented in refreshChartScriptInstance; live run 29929470730).
+  stepTimeoutMs?: number;
 };
+
+// Pure helper for the producer chart-instance refresh: the applied Suite
+// instance lives in EVERY layout that carries consumers, so the refresh must
+// cover the primary layout plus every distinct per-target chartUrl. The
+// 2026-07-22 live run refreshed only primaryChartUrl (desktop) while the
+// operator watched the Mobile layout — the visible instance stayed frozen.
+export function resolveProducerRefreshChartUrls(config: {
+  primaryChartUrl: string;
+  verifyTargets: Array<{ chartUrl?: string }>;
+}): string[] {
+  const urls = [config.primaryChartUrl];
+  for (const target of config.verifyTargets) {
+    if (target.chartUrl && !urls.includes(target.chartUrl)) urls.push(target.chartUrl);
+  }
+  return urls;
+}
 
 type PageLifecycleTracker = {
   pageClosed: boolean;
@@ -4667,7 +4688,7 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
 
     await ensurePineEditor(page).catch(() => undefined);
     await openExistingScript(page, scriptName).catch(() => undefined);
-    await addCurrentScriptToChart(page, scriptName, { forceInsert: true });
+    await addCurrentScriptToChart(page, scriptName, { forceInsert: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
     await page.waitForTimeout(1_250);
     return removedCount;
   // This is a composite operation: removal, editor recovery, script lookup and
@@ -7166,7 +7187,7 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
       return;
     }
     throw new Error(errorMsg);
-  });
+  }, options.stepTimeoutMs ?? stepTimeoutMs());
 }
 
 async function openSettingsForScriptOnce(page: Page, scriptName: string): Promise<boolean> {
