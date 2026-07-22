@@ -214,10 +214,30 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help="Drop events older than N calendar days before today UTC (default: 30).",
     )
+    parser.add_argument(
+        "--max-shrink-fraction",
+        type=float,
+        default=None,
+        metavar="F",
+        help=(
+            "Pool-continuity guard (issue #3872 post-mortem): refuse to write "
+            "when the merged pool keeps fewer than (1-F) of --previous's "
+            "events, and always refuse an EMPTY merge when a non-empty "
+            "--previous existed. On 2026-07-13 an empty-list pool slipped "
+            "through the workflow's file-size check (a JSON '[]' is a "
+            "non-empty FILE) and the accumulated lineage was wiped and "
+            "rebuilt from single-day snapshots. rc=4 on refusal; the "
+            "workflow maps any non-zero rc to publishable=false, preserving "
+            "the last-good artifact. Default: guard off (previous behaviour)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.max_age_days <= 0:
         print("error: --max-age-days must be a positive integer", file=sys.stderr)
+        return 1
+    if args.max_shrink_fraction is not None and not (0.0 < args.max_shrink_fraction < 1.0):
+        print("error: --max-shrink-fraction must be in (0, 1)", file=sys.stderr)
         return 1
 
     if args.input_files is not None:
@@ -228,6 +248,22 @@ def main(argv: list[str] | None = None) -> int:
             input_files.append(Path(args.previous))
 
     merged = accumulate(input_files, max_age_days=args.max_age_days)
+
+    if args.max_shrink_fraction is not None and args.previous is not None:
+        prev_count = len(_load_events(Path(args.previous)))
+        floor_count = int(prev_count * (1.0 - args.max_shrink_fraction))
+        if prev_count > 0 and (not merged or len(merged) < floor_count):
+            print(
+                "error: pool-continuity guard refused the merge: "
+                f"previous pool had {prev_count} events, merged result has "
+                f"{len(merged)} (floor: {floor_count}). A legitimate age-out "
+                "never shrinks this fast; this looks like a wiped or "
+                "truncated input. Not writing output — the last-good "
+                "artifact stays canonical. Rebuild deliberately via the "
+                "reseed dispatch if the shrink is intentional.",
+                file=sys.stderr,
+            )
+            return 4
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

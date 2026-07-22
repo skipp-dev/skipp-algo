@@ -739,6 +739,13 @@ jobs:
           fi
           ARGS=("--current" "${CURRENT}" "--output" "${ACCUMULATED}" "--max-age-days" "30")
           ARGS+=("--previous" "${PREV}")
+          # Pool-continuity guard (issue #3872 post-mortem): on 2026-07-13 an
+          # empty-list merge (JSON '[]' passes the -s file check below)
+          # REPLACED the canonical pool and the lineage rebuilt from
+          # single-day snapshots. rc=4 from the guard lands in the same
+          # publishable=false branch as any failure — last-good stays
+          # canonical; a deliberate rebuild goes through reseed_accumulated.
+          ARGS+=("--max-shrink-fraction" "0.5")
           set +e
           "$SMC_PYTHON_BIN" scripts/accumulate_family_events.py "${ARGS[@]}"
           rc=$?
