@@ -9,6 +9,7 @@ import {
   discoverLibraryDataAsOf,
   discoverConsumerPins,
   parseLibraryDataAsOf,
+  parseLibraryPayloadVolume,
   parseImportPins,
   type ConsumerPin,
 } from "../../../scripts/build_pine_library_version_snapshot.js";
@@ -142,4 +143,87 @@ test("discoverLibraryDataAsOf reads generated library watermarks", () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+// ── ADR-0029: payload volume ────────────────────────────────────
+
+test("parseLibraryPayloadVolume reads a single-literal universe export", () => {
+  const src = [
+    "export const int UNIVERSE_SIZE = 3",
+    'export const string UNIVERSE_TICKERS = "AAPL,MSFT,NVDA"',
+    'export const string CLEAN_RECLAIM_TICKERS = "AAPL"',
+  ].join("\n");
+
+  const volume = parseLibraryPayloadVolume(src);
+
+  assert.equal(volume.known, true);
+  assert.equal(volume.universeSize, 3);
+  assert.equal(volume.universeSymbols, 3);
+  assert.equal(volume.listSymbols, 1);
+});
+
+test("parseLibraryPayloadVolume sums the sharded concatenation form", () => {
+  // The form a healthy 6929-symbol universe actually renders as: UNIVERSE_TICKERS
+  // is emitted at max_chars=3900, so the export is an expression, not a literal.
+  // A parser shaped like ASOF_DATE_RE would score this as 0 and invert the alert.
+  const parts = [
+    'const string UNIVERSE_TICKERS_PART_1 = "AAPL,MSFT"',
+    'const string UNIVERSE_TICKERS_PART_2 = "NVDA,TSLA,AMD"',
+    'export const string UNIVERSE_TICKERS = UNIVERSE_TICKERS_PART_1 + "," + UNIVERSE_TICKERS_PART_2',
+  ];
+  const src = ["export const int UNIVERSE_SIZE = 5", ...parts].join("\n");
+
+  const volume = parseLibraryPayloadVolume(src);
+
+  assert.equal(volume.known, true);
+  assert.equal(volume.universeSymbols, 5);
+});
+
+test("parseLibraryPayloadVolume measures the artifact that shipped empty", () => {
+  const src = [
+    "export const int UNIVERSE_SIZE = 6929",
+    'export const string UNIVERSE_TICKERS = ""',
+    'export const string CLEAN_RECLAIM_TICKERS = ""',
+  ].join("\n");
+
+  const volume = parseLibraryPayloadVolume(src);
+
+  assert.equal(volume.known, true);
+  assert.equal(volume.universeSize, 6929);
+  assert.equal(volume.universeSymbols, 0);
+  assert.equal(volume.listSymbols, 0);
+});
+
+test("parseLibraryPayloadVolume reports unknown rather than empty when absent", () => {
+  const volume = parseLibraryPayloadVolume("// hand-authored library, no payload exports");
+
+  assert.equal(volume.known, false);
+  assert.equal(volume.universeSymbols, 0);
+});
+
+test("buildSnapshot carries payload volume per library", () => {
+  const pins = new Map<string, ConsumerPin[]>([
+    ["smc_micro_profiles_generated", [
+      { file: "SMC_Long_Dip_Suite.pine", library: "smc_micro_profiles_generated", pinnedVersion: 161 },
+    ]],
+  ]);
+  const payload = new Map([
+    ["smc_micro_profiles_generated", { known: true, universeSize: 6929, universeSymbols: 0, listSymbols: 0 }],
+  ]);
+
+  const snap = buildSnapshot(pins, new Map([["smc_micro_profiles_generated", 161]]), 1_800_000_000, "", new Map(), payload);
+
+  assert.equal(snap.libraries[0].payloadKnown, true);
+  assert.equal(snap.libraries[0].payloadUniverseSymbols, 0);
+  assert.equal(snap.libraries[0].payloadListSymbols, 0);
+});
+
+test("buildSnapshot defaults payload to unknown when no measurement was supplied", () => {
+  const pins = new Map<string, ConsumerPin[]>([
+    ["smc_profile_engine", [{ file: "SMC_Core_Engine.pine", library: "smc_profile_engine", pinnedVersion: 1 }]],
+  ]);
+
+  const snap = buildSnapshot(pins, new Map([["smc_profile_engine", 1]]), 1_800_000_000);
+
+  assert.equal(snap.libraries[0].payloadKnown, false);
 });

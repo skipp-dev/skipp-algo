@@ -3129,6 +3129,102 @@ groups:
       runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
         Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
         the saved SMC Long-Dip Suite source in TradingView.
+  - uid: lo-pine-library-payload-empty
+    title: SMC micro-profile library published with an empty payload
+    condition: C
+    # ADR-0029. Every other gauge in this family measures metadata ABOUT the
+    # library — published version, ASOF_DATE. None measured the payload, so
+    # five versions shipped with UNIVERSE_TICKERS = "" under a fresh ASOF_DATE
+    # and read green until an operator noticed it on the chart.
+    #
+    # The condition is a CONTRADICTION, not a bare emptiness check:
+    # UNIVERSE_SIZE > 0 (the base scan found symbols) while payload_symbols == 0
+    # (none of them reached the artifact). That cannot be a legitimate state, so
+    # the rule needs no calibrated threshold. Multiplying by payload_known keeps
+    # an unmeasured library (hand-authored, or an unreadable source) out of it —
+    # unknown must read neither as empty nor as green.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_payload_known{job="live_overlay",library="smc_micro_profiles_generated"}
+          * (live_overlay_pine_library_payload_universe_size{job="live_overlay",library="smc_micro_profiles_generated"}
+          > bool 0)
+          * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # The snapshot producer runs once daily (05:30Z), so a 30m window is a
+    # debounce against a partially-written snapshot, not a wait for recovery.
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: smc_micro_profiles_generated reports UNIVERSE_SIZE > 0 but carries zero symbols in
+        UNIVERSE_TICKERS — the scan found symbols and none of them reached the published library.
+      runbook: Inspect pine/generated/smc_micro_profiles_generated.pine for `UNIVERSE_TICKERS = ""`
+        and the latest smc-library-refresh run. The usual cause is an enrichment-sidecar failure -
+        UNIVERSE_SIZE comes from the base scan, UNIVERSE_TICKERS from enrichment.meta.scanned_symbols,
+        so the number survives while the list disappears. Do not treat a green ASOF_DATE or version
+        pin as evidence of payload; re-run the refresh with --enrich-all and republish.
+  - uid: lo-pine-library-payload-collapsed
+    title: SMC micro-profile library payload collapsed against yesterday
+    condition: C
+    # Companion to lo-pine-library-payload-empty. That rule needs a
+    # contradiction; this one catches the shape that produces none — a payload
+    # that shrinks drastically but stays non-zero (6929 -> 12), or one that goes
+    # consistently empty so that no field contradicts any other. Relative to the
+    # previous day, so no absolute floor has to be calibrated or maintained.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_payload_known{job="live_overlay",library="smc_micro_profiles_generated"}
+          * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
+          < bool (0.5 * (live_overlay_pine_library_payload_symbols{job="live_overlay",library="smc_micro_profiles_generated"}
+          offset 1d)))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The published smc_micro_profiles_generated payload is less than half of yesterday's
+        symbol count — a partial collapse the contradiction rule cannot see.
+      runbook: Compare pine/generated/smc_micro_profiles_generated.json list_counts and the
+        UNIVERSE_TICKERS length against the previous refresh. A legitimate universe change is
+        gradual; a halving in one run points at a truncated provider response or a partially
+        failed enrichment. Warning, not critical - confirm against the base snapshot before republishing.
   - uid: lo-pine-consumer-version-drift
     title: Pine consumer pin drifts from published TradingView version
     condition: C

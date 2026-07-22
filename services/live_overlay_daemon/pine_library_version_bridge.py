@@ -79,6 +79,13 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
                 "data_asof_known": 1.0 if bool(lib.get("dataAsOfKnown")) else 0.0,
                 "consumers": consumers,
                 "any_consumer_drift": 1.0 if bool(lib.get("anyConsumerDrift")) else 0.0,
+                # ADR-0029 payload volume. Absent in snapshots written before
+                # the producer carried it — those default to unknown, never to
+                # a measured zero, so an old snapshot cannot read as "empty".
+                "payload_known": 1.0 if bool(lib.get("payloadKnown")) else 0.0,
+                "payload_universe_size": _num(lib.get("payloadUniverseSize")),
+                "payload_universe_symbols": _num(lib.get("payloadUniverseSymbols")),
+                "payload_list_symbols": _num(lib.get("payloadListSymbols")),
             }
         )
 
