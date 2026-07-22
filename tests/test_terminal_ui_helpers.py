@@ -1145,3 +1145,18 @@ class TestTradingViewLinks:
         rows = [{"ticker": "msft"}]
         tv_linkify_rows(rows, key="ticker")
         assert rows[0]["ticker"].endswith("symbol=MSFT")
+
+    def test_tv_chart_url_rejects_market_sentinel(self):
+        """``MARKET`` is the poller's sentinel for ticker-less items. It matches
+        the ticker pattern but has no chart, so it must not become a dead link
+        in the Data Table / Live Feed, which render raw feed tickers."""
+        from terminal_ui_helpers import tv_chart_url
+        assert tv_chart_url("MARKET") is None
+        assert tv_chart_url("market") is None
+
+    def test_tv_symbol_md_links_valid_and_leaves_placeholders_bare(self):
+        from terminal_ui_helpers import tv_symbol_md
+        assert tv_symbol_md("aapl") == "[AAPL](https://www.tradingview.com/chart/?symbol=AAPL)"
+        # Placeholders stay visible as plain text rather than becoming dead links.
+        for placeholder in ("?", "", "N/A", "MARKET", None):
+            assert "](" not in tv_symbol_md(placeholder)

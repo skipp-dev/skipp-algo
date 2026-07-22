@@ -135,7 +135,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
-    ("streamlit_terminal.py", 2193, "mkstemp"),  # 2026-07-21 TV chart links imports: 2191->2193
+    ("streamlit_terminal.py", 2194, "mkstemp"),  # 2026-07-22 TV symbol-link coverage: 2193->2194
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 603, "mkstemp"),  # 2026-07-12 (drop dead social read): 606->603
