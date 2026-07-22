@@ -158,6 +158,14 @@ def is_asia_regular_session_open(now_utc: datetime.datetime | None = None) -> bo
     )
 
 
+# A non-ok, non-idle state only counts as "starting" while the daemon can
+# plausibly still be warming up. 900s is comfortably past a healthy boot (the
+# feed connects within seconds; the first full compute is staggered <= 60s
+# after start), so a failure that persists beyond it during an open US
+# session is a sustained outage, not boot noise.
+_DEGRADED_MIN_UPTIME_SECS = 900.0
+
+
 def compute_daemon_health_status(
     *,
     feed_healthy: bool,
@@ -165,11 +173,27 @@ def compute_daemon_health_status(
     overlay_fresh: bool,
     market_open: bool,
     bar_count: int,
+    uptime_secs: float | None = None,
 ) -> str:
-    """Compute daemon status string used by /ready and /metrics gauges."""
+    """Compute daemon status string used by /ready and /metrics gauges.
+
+    ``uptime_secs=None`` (uptime unknown) never yields "degraded": a caller
+    that cannot say how long the daemon has been up keeps the conservative
+    "starting" label instead of reporting a fresh boot as an outage.
+    """
     if feed_healthy and workers_healthy and overlay_fresh:
         return "ok"
     if (not market_open) and workers_healthy and (not feed_healthy) and bar_count == 0:
         # Expected idle state outside regular market session before first bar.
         return "idle_market_closed"
+    if (
+        market_open
+        and uptime_secs is not None
+        and uptime_secs >= _DEGRADED_MIN_UPTIME_SECS
+    ):
+        # Long past warmup during an open US session: a dead feed, stale
+        # overlay or dead worker at this point is a sustained outage. Before
+        # this state existed, a multi-hour market-open outage read as a
+        # perpetual "starting" on every dashboard (truth-audit 2026-07-22 F-3).
+        return "degraded"
     return "starting"

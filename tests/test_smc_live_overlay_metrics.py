@@ -564,12 +564,67 @@ def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) 
         overlay_age=float("inf"),
     )
 
-    body = metrics_mod.render_metrics(startup_ts=100.0)
+    # Fresh boot (uptime < warmup): a non-ok state during the open session is
+    # still "starting", not "degraded".
+    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 30.0)
     assert "live_overlay_health_status_code 1" in body
     assert 'live_overlay_health_status_info{status="starting"} 1' in body
     assert "live_overlay_health_status_ok 0" in body
     assert "live_overlay_health_status_starting 1" in body
     assert "live_overlay_health_status_idle_market_closed 0" in body
+
+
+def test_render_metrics_health_status_degraded_past_warmup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A market-open failure that outlives warmup must not read as boot noise.
+
+    Before the degraded state, a multi-hour feed outage rendered the same
+    status_code 1 / "starting" as a 30-second-old boot (truth-audit
+    2026-07-22 F-3), so dashboards reported outages as perpetual startups.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=False,
+        market_open=True,
+        bar_count=0,
+        overlay_symbols=0,
+        overlay_age=float("inf"),
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 3600.0)
+    assert "live_overlay_health_status_code 4" in body
+    assert 'live_overlay_health_status_info{status="degraded"} 1' in body
+    assert "live_overlay_health_status_ok 0" in body
+    assert "live_overlay_health_status_starting 0" in body
+    assert "live_overlay_health_status_idle_market_closed 0" in body
+
+
+def test_render_metrics_market_closed_failure_stays_starting_not_degraded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside the US session a long-lived non-idle failure keeps "starting".
+
+    "degraded" is deliberately market-open-gated: overnight the feed is
+    expected to be quiet (bars age out, feed_healthy drops with bar_count > 0),
+    and the 24/7 age alerts own genuine overnight compute hangs.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=False,
+        market_open=False,
+        bar_count=10,
+        overlay_symbols=0,
+        overlay_age=float("inf"),
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 3600.0)
+    assert "live_overlay_health_status_code 1" in body
+    assert 'live_overlay_health_status_info{status="starting"} 1' in body
 
 
 def test_render_metrics_sanitizes_non_finite_counters(monkeypatch: pytest.MonkeyPatch) -> None:

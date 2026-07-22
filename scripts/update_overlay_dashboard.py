@@ -1705,9 +1705,11 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
         _v1_panel_by_title(data, "Overall Health"),
         description=(
             "Core daemon runtime health only. HEALTHY means the market-data feed, worker "
-            "threads, and overlay output are healthy. It does not include provider quotas, "
-            "workflow results, credentials, or external integrations; review Active Alerts "
-            "for those systems. IDLE means the market is closed before the first bar."
+            "threads, and overlay output are healthy. DEGRADED means a non-healthy state "
+            "has persisted past warmup (15 min) during an open US session — a sustained "
+            "outage, not a boot. It does not include provider quotas, workflow results, "
+            "credentials, or external integrations; review Active Alerts for those "
+            "systems. IDLE means the market is closed before the first bar."
         ),
     ) or changed
 

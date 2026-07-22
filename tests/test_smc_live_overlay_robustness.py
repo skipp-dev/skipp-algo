@@ -738,6 +738,43 @@ class TestHealthStatusSignals:
         assert payload["status"] == "starting"
         assert payload["market_open"] is True
 
+    def test_health_degraded_when_market_open_failure_outlives_warmup(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same failure shape as the starting test, but 1h into the process.
+
+        /ready must report "degraded" instead of masquerading a sustained
+        market-open outage as a perpetual boot (truth-audit 2026-07-22 F-3).
+        HTTP stays 200 — the WP1c contract (503 only for dead workers) is
+        unchanged; only the status string gains resolution.
+        """
+        import time as time_mod
+
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: False)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: None)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 0})
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: float("inf"))
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: True)
+        monkeypatch.setattr(main_mod, "_startup_ts", time_mod.monotonic() - 3600.0)
+
+        response = main_mod.ready()
+        payload = json.loads(response.body)
+
+        assert payload["status"] == "degraded"
+        assert payload["market_open"] is True
+        assert response.status_code == 200
+
 
 class TestSmcLiveTimeframeContract:
     """Endpoint tf validation must match published schema contract."""
