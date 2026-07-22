@@ -6384,6 +6384,141 @@ export function pineDeclarationTitlePattern(title: string): RegExp {
 }
 
 /**
+ * Build the in-page Monaco model picker as a PLAIN-JS source string.
+ *
+ * Why a string and not a function: tsx/esbuild compiles this file with
+ * keep-names, wrapping named inner arrows in a `__name(...)` helper that only
+ * exists in the compiled module scope. Playwright serializes a function-form
+ * `page.evaluate` callback via toString, so inside the page every such closure
+ * throws `ReferenceError: __name is not defined` — which is why the monaco
+ * path of readEditorContent (and of the legacy models[0] reader) NEVER ran in
+ * CI and every read silently fell through to the untargeted clipboard grab
+ * (run 29888669703; reproduced locally with the raw error). A source string is
+ * never transformed, so what we author is exactly what the page executes.
+ *
+ * Selection rules (unchanged from #3858): prefer visible/focused editor
+ * instances, resolve by the anchored Pine declaration title when provided,
+ * else accept only an unambiguous single buffer; never an arbitrary model.
+ */
+export function buildPineEditorModelPickerSource(patternSource: string): string {
+  return `(() => {
+  var patternSource = ${JSON.stringify(patternSource)};
+  function findMonaco(value, seen) {
+    if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
+    seen.add(value);
+    try {
+      if (value.editor && typeof value.editor.getModels === "function") return value;
+    } catch (error) {
+      return null;
+    }
+    var nested;
+    try {
+      nested = Object.values(value);
+    } catch (error) {
+      return null; // throwing getters (webpack TDZ namespaces) — skip object
+    }
+    for (var i = 0; i < nested.length; i += 1) {
+      var found = findMonaco(nested[i], seen);
+      if (found) return found;
+    }
+    return null;
+  }
+  function findMonacoViaWebpack() {
+    var chunk = window.webpackChunktradingview;
+    if (!chunk || typeof chunk.push !== "function") return null;
+    var moduleCache = {};
+    try {
+      chunk.push([["tv-monaco-read-" + Date.now()], {}, function (requireFn) { moduleCache = (requireFn && requireFn.c) || {}; }]);
+      if (typeof chunk.pop === "function") chunk.pop();
+    } catch (error) {
+      return null;
+    }
+    var seen = new Set();
+    var records = Object.values(moduleCache);
+    for (var i = 0; i < records.length; i += 1) {
+      var record = records[i];
+      try {
+        var found = findMonaco(record && record.exports, seen);
+        if (found) return found;
+      } catch (error) {
+        // tolerate modules whose exports enumeration throws
+      }
+    }
+    return null;
+  }
+  function safeValue(model) {
+    try {
+      var value = model && model.getValue();
+      return typeof value === "string" ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  function distinct(values) {
+    return Array.from(new Set(values));
+  }
+
+  var direct = null;
+  try {
+    if (window.monaco && window.monaco.editor && typeof window.monaco.editor.getModels === "function") direct = window.monaco;
+  } catch (error) {
+    direct = null;
+  }
+  var monaco = direct || findMonacoViaWebpack();
+  if (!monaco) return { value: null, reason: "monaco-not-found" };
+
+  // Visible/focused editor instances beat the bare model list: they are the
+  // buffers actually rendered to the operator.
+  var editorValues = [];
+  try {
+    var editors = (monaco.editor && typeof monaco.editor.getEditors === "function") ? monaco.editor.getEditors() : [];
+    for (var i = 0; i < editors.length; i += 1) {
+      var editor = editors[i];
+      var dom = editor && typeof editor.getDomNode === "function" ? editor.getDomNode() : null;
+      if (!dom || !dom.isConnected) continue;
+      var rect = dom.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      var editorValue = safeValue(editor && typeof editor.getModel === "function" ? editor.getModel() : null);
+      if (editorValue === null || !editorValue.trim()) continue;
+      var focused = false;
+      try { focused = typeof editor.hasTextFocus === "function" && editor.hasTextFocus() === true; } catch (error) { focused = false; }
+      editorValues.push({ value: editorValue, focused: focused });
+    }
+  } catch (error) {
+    // getEditors is unavailable on older Monaco builds; model fallback below.
+  }
+
+  var modelValues = [];
+  try {
+    var models = monaco.editor.getModels();
+    for (var j = 0; j < models.length; j += 1) {
+      var modelValue = safeValue(models[j]);
+      if (modelValue !== null && modelValue.trim() !== "") modelValues.push(modelValue);
+    }
+  } catch (error) {
+    return { value: null, reason: "get-models-threw:" + String(error).slice(0, 120) };
+  }
+
+  if (patternSource) {
+    var pattern = new RegExp(patternSource);
+    var matchingEditorValues = distinct(editorValues.filter(function (entry) { return pattern.test(entry.value); }).map(function (entry) { return entry.value; }));
+    if (matchingEditorValues.length === 1) return { value: matchingEditorValues[0], reason: "editor-declaration-match" };
+    var matchingModelValues = distinct(modelValues.filter(function (value) { return pattern.test(value); }));
+    if (matchingModelValues.length === 1) return { value: matchingModelValues[0], reason: "model-declaration-match" };
+    return { value: null, reason: "declaration-title-unresolved:editors=" + matchingEditorValues.length + ":models=" + matchingModelValues.length + ":totalModels=" + modelValues.length };
+  }
+
+  var focusedValues = editorValues.filter(function (entry) { return entry.focused; });
+  if (focusedValues.length === 1) return { value: focusedValues[0].value, reason: "focused-editor" };
+  var distinctEditorValues = distinct(editorValues.map(function (entry) { return entry.value; }));
+  if (distinctEditorValues.length === 1) return { value: distinctEditorValues[0], reason: "single-visible-editor" };
+  var distinctModelValues = distinct(modelValues);
+  if (distinctModelValues.length === 1) return { value: distinctModelValues[0], reason: "single-model" };
+  return { value: null, reason: "ambiguous-models:editors=" + distinctEditorValues.length + ":models=" + distinctModelValues.length };
+})()`;
+}
+
+/**
  * Read the complete source currently loaded in TradingView's Pine editor.
  *
  * Model targeting contract (2026-07-22, #3846 follow-up): `getModels()[0]` is
@@ -6396,7 +6531,9 @@ export function pineDeclarationTitlePattern(title: string): RegExp {
  * is unambiguously the requested script — matched via its anchored Pine
  * declaration title when provided, else a focused/visible editor or a single
  * surviving model — and require the value to be stable across two reads before
- * trusting it.
+ * trusting it. The picker runs as a source string, see
+ * buildPineEditorModelPickerSource for why function-form evaluate is unusable
+ * here.
  */
 export async function readEditorContent(
   page: Page,
@@ -6409,122 +6546,18 @@ export async function readEditorContent(
     const declarationPatternSource = options.expectedDeclarationTitle
       ? pineDeclarationTitlePattern(options.expectedDeclarationTitle).source
       : "";
+    const pickerSource = buildPineEditorModelPickerSource(declarationPatternSource);
 
     const readOnce = (): Promise<{ value: string | null; reason: string }> =>
-      page.evaluate((patternSource: string) => {
-        const w = window as unknown as {
-          monaco?: MonacoLike;
-          webpackChunktradingview?: unknown[] & {
-            push?: (...args: unknown[]) => unknown;
-            pop?: () => unknown;
-          };
-        };
-        type ModelLike = { getValue: () => string };
-        type EditorLike = {
-          getModel?: () => ModelLike | null;
-          getDomNode?: () => Element | null;
-          hasTextFocus?: () => boolean;
-        };
-        type MonacoLike = {
-          editor?: {
-            getModels?: () => ModelLike[];
-            getEditors?: () => EditorLike[];
-          };
-        };
-
-        const findMonaco = (value: unknown, seen: Set<unknown>): MonacoLike | null => {
-          if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
-          seen.add(value);
-          const direct = value as MonacoLike;
-          if (typeof direct.editor?.getModels === "function") return direct;
-          for (const nested of Object.values(value as Record<string, unknown>)) {
-            const found = findMonaco(nested, seen);
-            if (found) return found;
-          }
-          return null;
-        };
-
-        const findMonacoViaWebpack = (): MonacoLike | null => {
-          const chunk = w.webpackChunktradingview;
-          if (!chunk || typeof chunk.push !== "function") return null;
-          let moduleCache: Record<string, { exports?: unknown }> = {};
-          try {
-            const chunkId = `tv-monaco-read-${Date.now()}`;
-            chunk.push([
-              [chunkId],
-              {},
-              (requireFn: { c?: Record<string, { exports?: unknown }> }) => {
-                moduleCache = requireFn.c ?? {};
-              },
-            ]);
-            if (typeof chunk.pop === "function") chunk.pop();
-          } catch {
-            return null;
-          }
-          const seen = new Set<unknown>();
-          for (const moduleRecord of Object.values(moduleCache)) {
-            const found = findMonaco(moduleRecord?.exports, seen);
-            if (found) return found;
-          }
-          return null;
-        };
-
-        const monaco = (typeof w.monaco?.editor?.getModels === "function" ? w.monaco : null) ?? findMonacoViaWebpack();
-        if (!monaco) return { value: null, reason: "monaco-not-found" };
-
-        const safeValue = (model: ModelLike | null | undefined): string | null => {
-          try {
-            const value = model?.getValue();
-            return typeof value === "string" ? value : null;
-          } catch {
-            return null;
-          }
-        };
-
-        // Visible/focused editor instances beat the bare model list: they are
-        // the buffers actually rendered to the operator.
-        const editorValues: Array<{ value: string; focused: boolean }> = [];
-        try {
-          for (const editor of monaco.editor?.getEditors?.() ?? []) {
-            const dom = editor.getDomNode?.();
-            if (!dom || !dom.isConnected) continue;
-            const rect = dom.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) continue;
-            const value = safeValue(editor.getModel?.());
-            if (value === null || !value.trim()) continue;
-            editorValues.push({ value, focused: editor.hasTextFocus?.() === true });
-          }
-        } catch {
-          // getEditors is unavailable on older Monaco builds; model fallback below.
-        }
-
-        const modelValues = (monaco.editor?.getModels?.() ?? [])
-          .map((model) => safeValue(model))
-          .filter((value): value is string => value !== null && value.trim() !== "");
-
-        if (patternSource) {
-          const pattern = new RegExp(patternSource);
-          const matchingEditorValues = [...new Set(editorValues.filter((entry) => pattern.test(entry.value)).map((entry) => entry.value))];
-          if (matchingEditorValues.length === 1) return { value: matchingEditorValues[0], reason: "editor-declaration-match" };
-          const matchingModelValues = [...new Set(modelValues.filter((value) => pattern.test(value)))];
-          if (matchingModelValues.length === 1) return { value: matchingModelValues[0], reason: "model-declaration-match" };
-          return {
-            value: null,
-            reason: `declaration-title-unresolved:editors=${matchingEditorValues.length}:models=${matchingModelValues.length}:totalModels=${modelValues.length}`,
-          };
-        }
-
-        const focused = editorValues.filter((entry) => entry.focused);
-        if (focused.length === 1) return { value: focused[0].value, reason: "focused-editor" };
-        const distinctEditorValues = [...new Set(editorValues.map((entry) => entry.value))];
-        if (distinctEditorValues.length === 1) return { value: distinctEditorValues[0], reason: "single-visible-editor" };
-        const distinctModelValues = [...new Set(modelValues)];
-        if (distinctModelValues.length === 1) return { value: distinctModelValues[0], reason: "single-model" };
-        return {
-          value: null,
-          reason: `ambiguous-models:editors=${distinctEditorValues.length}:models=${distinctModelValues.length}`,
-        };
-      }, declarationPatternSource).catch(() => ({ value: null, reason: "evaluate-failed" }));
+      page
+        .evaluate(pickerSource)
+        .then((raw) => {
+          const picked = raw as { value?: unknown; reason?: unknown } | null;
+          const value = typeof picked?.value === "string" ? picked.value : null;
+          const reason = typeof picked?.reason === "string" ? picked.reason : "malformed-picker-result";
+          return { value, reason };
+        })
+        .catch((error) => ({ value: null, reason: `evaluate-rejected:${String(error).slice(0, 160)}` }));
 
     // Poll for the buffer swap (openExistingScript verifies the TITLE only; the
     // model content can lag), then require two identical consecutive reads so a
@@ -6551,6 +6584,8 @@ export async function readEditorContent(
     const declarationPattern = options.expectedDeclarationTitle
       ? pineDeclarationTitlePattern(options.expectedDeclarationTitle)
       : null;
+    const readClipboard = (): Promise<string> =>
+      page.evaluate("navigator.clipboard.readText().catch(() => \"\")").then((raw) => (typeof raw === "string" ? raw : "")).catch(() => "");
     const mod = process.platform === "darwin" ? "Meta" : "Control";
     for (const host of tvSelectors.editorHosts(page)) {
       const count = await host.count().catch(() => 0);
@@ -6558,21 +6593,24 @@ export async function readEditorContent(
         const candidate = host.nth(index);
         if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false))) continue;
         await candidate.click({ force: true }).catch(() => undefined);
-        await page.keyboard.press(`${mod}+A`).catch(() => undefined);
-        await page.keyboard.press(`${mod}+C`).catch(() => undefined);
-        await page.waitForTimeout(150);
-        const copied = await page.evaluate(async () => {
-          try {
-            return await navigator.clipboard.readText();
-          } catch {
-            return "";
+        // Copy-until-stable: for a ~200KB document the editor may still be
+        // streaming the buffer in, and a single quick select-all/copy captured
+        // only the loaded head (552-byte suite grab, run 29888669703). Accept a
+        // grab only when two consecutive copies return the identical text.
+        let previousCopy = "";
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          await page.keyboard.press(`${mod}+A`).catch(() => undefined);
+          await page.keyboard.press(`${mod}+C`).catch(() => undefined);
+          await page.waitForTimeout(400);
+          const copied = await readClipboard();
+          if (copied.trim() && copied === previousCopy) {
+            // The clipboard grab is as untargeted as the old models[0] read;
+            // with a known declaration title only accept this script's buffer.
+            if (!declarationPattern || declarationPattern.test(copied)) return copied;
+            break; // stable but wrong buffer — try the next host, not more copies
           }
-        }).catch(() => "");
-        if (!copied.trim()) continue;
-        // The clipboard grab is as untargeted as the old models[0] read; with a
-        // known declaration title only accept the requested script's buffer.
-        if (declarationPattern && !declarationPattern.test(copied)) continue;
-        return copied;
+          previousCopy = copied;
+        }
       }
     }
 
