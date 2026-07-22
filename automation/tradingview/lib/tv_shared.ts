@@ -6371,74 +6371,186 @@ export async function setEditorContent(
   }, editorContentTimeoutMs);
 }
 
-/** Read the complete source currently loaded in TradingView's Pine editor. */
+/**
+ * Anchored Pine declaration matcher for a saved script title. Matches the
+ * script's own `indicator("<title>"` / `strategy('<title>'` declaration only —
+ * NOT incidental mentions of the title (e.g. a consumer's
+ * `input.source(..., "SMC Long-Dip Suite: BUS Armed")` binding labels), so it
+ * uniquely identifies the Monaco model that holds the requested script buffer.
+ */
+export function pineDeclarationTitlePattern(title: string): RegExp {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b(?:indicator|strategy|library)\\s*\\(\\s*(["'])${escaped}\\1`);
+}
+
+/**
+ * Read the complete source currently loaded in TradingView's Pine editor.
+ *
+ * Model targeting contract (2026-07-22, #3846 follow-up): `getModels()[0]` is
+ * NOT the open script — after a save/producer-refresh transition the page holds
+ * several Monaco models (console/snippet buffers of a few hundred bytes), and
+ * TradingView can keep a previous buffer while already repainting the requested
+ * title (see openExistingScript). Reading an arbitrary model made every source
+ * verification compare garbage (735–1177-byte reads with duplicated hashes
+ * across different scripts, run 29863161441). We therefore poll until a model
+ * is unambiguously the requested script — matched via its anchored Pine
+ * declaration title when provided, else a focused/visible editor or a single
+ * surviving model — and require the value to be stable across two reads before
+ * trusting it.
+ */
 export async function readEditorContent(
   page: Page,
-  options: { editorAlreadyOpen?: boolean } = {},
+  options: { editorAlreadyOpen?: boolean; expectedDeclarationTitle?: string } = {},
 ): Promise<string> {
   return runTrackedStep(page, "readEditorContent", async () => {
     await dismissCookieBanner(page);
     if (!options.editorAlreadyOpen) await ensurePineEditor(page);
 
-    const monacoValue = await page.evaluate(() => {
-      const w = window as unknown as {
-        monaco?: MonacoLike;
-        webpackChunktradingview?: unknown[] & {
-          push?: (...args: unknown[]) => unknown;
-          pop?: () => unknown;
+    const declarationPatternSource = options.expectedDeclarationTitle
+      ? pineDeclarationTitlePattern(options.expectedDeclarationTitle).source
+      : "";
+
+    const readOnce = (): Promise<{ value: string | null; reason: string }> =>
+      page.evaluate((patternSource: string) => {
+        const w = window as unknown as {
+          monaco?: MonacoLike;
+          webpackChunktradingview?: unknown[] & {
+            push?: (...args: unknown[]) => unknown;
+            pop?: () => unknown;
+          };
         };
-      };
-      type MonacoLike = {
-        editor?: { getModels?: () => Array<{ getValue: () => string }> };
-      };
+        type ModelLike = { getValue: () => string };
+        type EditorLike = {
+          getModel?: () => ModelLike | null;
+          getDomNode?: () => Element | null;
+          hasTextFocus?: () => boolean;
+        };
+        type MonacoLike = {
+          editor?: {
+            getModels?: () => ModelLike[];
+            getEditors?: () => EditorLike[];
+          };
+        };
 
-      const valueFromMonaco = (candidate: MonacoLike | null | undefined): string | null => {
-        const models = candidate?.editor?.getModels?.();
-        return models?.length ? models[0].getValue() : null;
-      };
-      const findMonaco = (value: unknown, seen: Set<unknown>): MonacoLike | null => {
-        if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
-        seen.add(value);
-        const direct = value as MonacoLike;
-        if (typeof direct.editor?.getModels === "function") return direct;
-        for (const nested of Object.values(value as Record<string, unknown>)) {
-          const found = findMonaco(nested, seen);
-          if (found) return found;
+        const findMonaco = (value: unknown, seen: Set<unknown>): MonacoLike | null => {
+          if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
+          seen.add(value);
+          const direct = value as MonacoLike;
+          if (typeof direct.editor?.getModels === "function") return direct;
+          for (const nested of Object.values(value as Record<string, unknown>)) {
+            const found = findMonaco(nested, seen);
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const findMonacoViaWebpack = (): MonacoLike | null => {
+          const chunk = w.webpackChunktradingview;
+          if (!chunk || typeof chunk.push !== "function") return null;
+          let moduleCache: Record<string, { exports?: unknown }> = {};
+          try {
+            const chunkId = `tv-monaco-read-${Date.now()}`;
+            chunk.push([
+              [chunkId],
+              {},
+              (requireFn: { c?: Record<string, { exports?: unknown }> }) => {
+                moduleCache = requireFn.c ?? {};
+              },
+            ]);
+            if (typeof chunk.pop === "function") chunk.pop();
+          } catch {
+            return null;
+          }
+          const seen = new Set<unknown>();
+          for (const moduleRecord of Object.values(moduleCache)) {
+            const found = findMonaco(moduleRecord?.exports, seen);
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const monaco = (typeof w.monaco?.editor?.getModels === "function" ? w.monaco : null) ?? findMonacoViaWebpack();
+        if (!monaco) return { value: null, reason: "monaco-not-found" };
+
+        const safeValue = (model: ModelLike | null | undefined): string | null => {
+          try {
+            const value = model?.getValue();
+            return typeof value === "string" ? value : null;
+          } catch {
+            return null;
+          }
+        };
+
+        // Visible/focused editor instances beat the bare model list: they are
+        // the buffers actually rendered to the operator.
+        const editorValues: Array<{ value: string; focused: boolean }> = [];
+        try {
+          for (const editor of monaco.editor?.getEditors?.() ?? []) {
+            const dom = editor.getDomNode?.();
+            if (!dom || !dom.isConnected) continue;
+            const rect = dom.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+            const value = safeValue(editor.getModel?.());
+            if (value === null || !value.trim()) continue;
+            editorValues.push({ value, focused: editor.hasTextFocus?.() === true });
+          }
+        } catch {
+          // getEditors is unavailable on older Monaco builds; model fallback below.
         }
-        return null;
-      };
 
-      const direct = valueFromMonaco(w.monaco);
-      if (direct !== null) return direct;
+        const modelValues = (monaco.editor?.getModels?.() ?? [])
+          .map((model) => safeValue(model))
+          .filter((value): value is string => value !== null && value.trim() !== "");
 
-      const chunk = w.webpackChunktradingview;
-      if (!chunk || typeof chunk.push !== "function") return null;
-      let moduleCache: Record<string, { exports?: unknown }> = {};
-      try {
-        const chunkId = `tv-monaco-read-${Date.now()}`;
-        chunk.push([
-          [chunkId],
-          {},
-          (requireFn: { c?: Record<string, { exports?: unknown }> }) => {
-            moduleCache = requireFn.c ?? {};
-          },
-        ]);
-        if (typeof chunk.pop === "function") chunk.pop();
-      } catch {
-        return null;
+        if (patternSource) {
+          const pattern = new RegExp(patternSource);
+          const matchingEditorValues = [...new Set(editorValues.filter((entry) => pattern.test(entry.value)).map((entry) => entry.value))];
+          if (matchingEditorValues.length === 1) return { value: matchingEditorValues[0], reason: "editor-declaration-match" };
+          const matchingModelValues = [...new Set(modelValues.filter((value) => pattern.test(value)))];
+          if (matchingModelValues.length === 1) return { value: matchingModelValues[0], reason: "model-declaration-match" };
+          return {
+            value: null,
+            reason: `declaration-title-unresolved:editors=${matchingEditorValues.length}:models=${matchingModelValues.length}:totalModels=${modelValues.length}`,
+          };
+        }
+
+        const focused = editorValues.filter((entry) => entry.focused);
+        if (focused.length === 1) return { value: focused[0].value, reason: "focused-editor" };
+        const distinctEditorValues = [...new Set(editorValues.map((entry) => entry.value))];
+        if (distinctEditorValues.length === 1) return { value: distinctEditorValues[0], reason: "single-visible-editor" };
+        const distinctModelValues = [...new Set(modelValues)];
+        if (distinctModelValues.length === 1) return { value: distinctModelValues[0], reason: "single-model" };
+        return {
+          value: null,
+          reason: `ambiguous-models:editors=${distinctEditorValues.length}:models=${distinctModelValues.length}`,
+        };
+      }, declarationPatternSource).catch(() => ({ value: null, reason: "evaluate-failed" }));
+
+    // Poll for the buffer swap (openExistingScript verifies the TITLE only; the
+    // model content can lag), then require two identical consecutive reads so a
+    // mid-swap snapshot is never reported as the saved source.
+    const pollDeadline = Date.now() + numEnv("TV_READ_EDITOR_POLL_MS", 20_000);
+    let lastReason = "not-attempted";
+    let previousValue: string | null = null;
+    while (Date.now() < pollDeadline) {
+      const attempt = await readOnce();
+      lastReason = attempt.reason;
+      if (attempt.value !== null) {
+        if (previousValue !== null && attempt.value === previousValue) {
+          tracePageEvent(page, "read-editor-content", `resolved:${attempt.reason}:${attempt.value.length}`);
+          return attempt.value;
+        }
+        previousValue = attempt.value;
+      } else {
+        previousValue = null;
       }
+      await page.waitForTimeout(500);
+    }
+    tracePageEvent(page, "read-editor-content", `monaco-unresolved:${lastReason}`);
 
-      const seen = new Set<unknown>();
-      for (const moduleRecord of Object.values(moduleCache)) {
-        const found = findMonaco(moduleRecord?.exports, seen);
-        const source = valueFromMonaco(found);
-        if (source !== null) return source;
-      }
-      return null;
-    }).catch(() => null);
-
-    if (typeof monacoValue === "string" && monacoValue.trim()) return monacoValue;
-
+    const declarationPattern = options.expectedDeclarationTitle
+      ? pineDeclarationTitlePattern(options.expectedDeclarationTitle)
+      : null;
     const mod = process.platform === "darwin" ? "Meta" : "Control";
     for (const host of tvSelectors.editorHosts(page)) {
       const count = await host.count().catch(() => 0);
@@ -6456,11 +6568,17 @@ export async function readEditorContent(
             return "";
           }
         }).catch(() => "");
-        if (copied.trim()) return copied;
+        if (!copied.trim()) continue;
+        // The clipboard grab is as untargeted as the old models[0] read; with a
+        // known declaration title only accept the requested script's buffer.
+        if (declarationPattern && !declarationPattern.test(copied)) continue;
+        return copied;
       }
     }
 
-    throw new Error("Could not read complete Pine editor source via Monaco or clipboard");
+    throw new Error(
+      `Could not read complete Pine editor source via Monaco or clipboard (last monaco state: ${lastReason})`,
+    );
   }, Math.max(stepTimeoutMs(), 45_000));
 }
 
