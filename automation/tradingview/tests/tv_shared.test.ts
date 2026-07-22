@@ -70,18 +70,42 @@ test("generic script-name text alone does not count as chart presence", () => {
   }), false);
 });
 
-test("legend or strategy report confirm chart presence", () => {
+test("the legend row is what confirms chart presence", () => {
   assert.equal(isScriptVisibleOnChartState({
     hasLegendMatch: true,
     hasStrategyReportMatch: false,
     hasScriptNameMatch: false,
   }), true);
+});
 
+test("a visible strategy report is not evidence that THIS script is on the chart", () => {
+  // `hasStrategyReportMatch` only asks whether the text "Strategy report" is
+  // visible anywhere on the page — it is never scoped to `scriptName`. Any
+  // strategy on the chart makes it true, so pairing it with a page-wide name
+  // match (the library name is in the Pine editor title) reported a library as
+  // "already on the chart" when it was not. The same flag then flips to false
+  // the moment the Pine editor takes over the bottom panel from the Strategy
+  // Tester, which is what stalled the 2026-07-22 publishes.
   assert.equal(isScriptVisibleOnChartState({
     hasLegendMatch: false,
     hasStrategyReportMatch: true,
     hasScriptNameMatch: true,
-  }), true);
+  }), false);
+});
+
+test("chart presence does not depend on the bottom panel being open", () => {
+  // Same script, same chart — only the bottom panel differs. The verdict must
+  // not move, or the publish path becomes a coin flip on panel occupancy.
+  const withStrategyTester = {
+    hasLegendMatch: false,
+    hasStrategyReportMatch: true,
+    hasScriptNameMatch: true,
+  };
+  const withPineEditor = { ...withStrategyTester, hasStrategyReportMatch: false };
+  assert.equal(
+    isScriptVisibleOnChartState(withStrategyTester),
+    isScriptVisibleOnChartState(withPineEditor),
+  );
 });
 
 test("bare strategy report without script identity does not count as chart presence", () => {

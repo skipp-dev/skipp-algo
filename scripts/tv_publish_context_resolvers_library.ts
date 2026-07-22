@@ -201,7 +201,7 @@ export async function runPublishContextResolversLibraryCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
-      await addCurrentScriptToChart(session.page, details.scriptName);
+      await addCurrentScriptToChart(session.page, details.scriptName, { tolerateFailure: true });
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;

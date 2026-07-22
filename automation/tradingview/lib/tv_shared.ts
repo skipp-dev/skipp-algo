@@ -4275,7 +4275,14 @@ export async function collectVisibleChartScriptState(
 }
 
 function isScriptVisibleOnChart(state: VisibleChartScriptState): boolean {
-  return state.hasLegendMatch || (state.hasStrategyReportMatch && state.hasScriptNameMatch);
+  // The legend row is the only signal tied to THIS script. `hasStrategyReportMatch`
+  // merely asks whether "Strategy report" is visible anywhere on the page, and
+  // `hasScriptNameMatch` matches the name anywhere — including the Pine editor's
+  // own title. Combining them reported a library as already-on-chart whenever any
+  // strategy happened to be loaded, and flipped to a false negative as soon as the
+  // Pine editor replaced the Strategy Tester in the bottom panel. Both flags stay in
+  // the state because the traces they feed are useful evidence; neither decides.
+  return state.hasLegendMatch;
 }
 
 export function isScriptVisibleOnChartState(state: VisibleChartScriptState): boolean {
@@ -5688,13 +5695,30 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
   tracePageEvent(page, stillReadOnly ? "pine-editor-read-only-still-visible" : "pine-editor-read-only-cleared");
 }
 
-async function closePineEditorIfVisible(page: Page): Promise<void> {
+/**
+ * Best-effort: dismiss the Pine editor so it stops covering chart surfaces.
+ *
+ * Returns whether the editor is gone — `true` also when none was open. It is
+ * NOT a guarantee: as of 2026-07-22 TradingView serves no close affordance for
+ * this panel at all. Live probing of the real chart found `#pine-editor-dialog`
+ * right-docked at 878x950 carrying only Add-to-chart / Save / Publish / More;
+ * Escape does not dismiss it; the `[data-name="pine-dialog-button"]` toolbar
+ * toggle keeps its `isActive` class even on a direct DOM `.click()` (the click
+ * is not intercepted — `elementFromPoint` resolves into the button); and the
+ * More menu offers only editor-settings/window items. Callers must therefore
+ * treat a `false` as normal and stay correct with the editor still open.
+ *
+ * A blind mouse click into the panel's top-right corner used to follow the
+ * Escape fallback. Probing showed it lands on empty header chrome — it opened
+ * no menu and closed nothing — so it is gone rather than left as cargo cult.
+ */
+export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
   const dialog = await firstVisibleLocator(
     page.locator('#pine-editor-dialog, [data-name="pine-dialog"], [id*="pine-editor" i]'),
     500,
   );
   if (!dialog) {
-    return;
+    return true;
   }
 
   tracePageEvent(page, "pine-editor-close-start");
@@ -5720,19 +5744,8 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
   }
 
   const dialogStillVisible = await dialog.isVisible({ timeout: 500 }).catch(() => false);
-  if (!dialogStillVisible) {
-    tracePageEvent(page, "pine-editor-close-ok");
-    return;
-  }
-
-  const box = await dialog.boundingBox().catch(() => null);
-  if (box) {
-    await page.mouse.click(box.x + box.width - 18, box.y + 18).catch(() => undefined);
-    await page.waitForTimeout(400);
-  }
-
-  const stillVisibleAfterCorner = await dialog.isVisible({ timeout: 500 }).catch(() => false);
-  tracePageEvent(page, stillVisibleAfterCorner ? "pine-editor-close-still-visible" : "pine-editor-close-ok");
+  tracePageEvent(page, dialogStillVisible ? "pine-editor-close-still-visible" : "pine-editor-close-ok");
+  return !dialogStillVisible;
 }
 
 export async function openExistingScript(
