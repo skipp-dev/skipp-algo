@@ -1420,11 +1420,11 @@ def write_manifest(
     library_version: int,
     recommended_import_path: str,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
     relative_to: Path | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    from scripts.smc_payload_volume import measure_payload_volume, payload_blocking_reasons
     from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
 
     normalized_enrichment = normalize_v55_lean_enrichment(enrichment)
@@ -1454,7 +1454,10 @@ def write_manifest(
 
     normalized_input_path = _rel(input_path).replace("\\", "/")
     event_risk_source = "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults"
-    generation_mode = "static_control_plane" if static_control_plane else "provider_enriched"
+    # ADR-0029 decision 3 retired the static control plane, so the publishing
+    # pipeline is enriched-only. Kept as a provenance record of how the
+    # artifact was produced, not as a switch.
+    generation_mode = "provider_enriched"
     fixture_input_detected = "/tests/fixtures/" in f"/{normalized_input_path.strip('/')}"
     placeholder_symbols = sorted(
         {
@@ -1464,13 +1467,21 @@ def write_manifest(
             if symbol in PLACEHOLDER_SYMBOL_SENTINELS
         }
     )
+    # ADR-0029: measure the artifact the consumers actually read, not metadata
+    # about it. The library is written before the manifest, so this reads what
+    # was just rendered. A missing/unreadable library yields known=False, which
+    # blocks nothing but is recorded so it cannot pass as green either.
+    payload = measure_payload_volume(
+        pine_path.read_text(encoding="utf-8") if pine_path.exists() else ""
+    )
     blocking_reasons: list[str] = []
     if fixture_input_detected:
         blocking_reasons.append("fixture_input")
-    if event_risk_source == "defaults" and not static_control_plane:
+    if event_risk_source == "defaults":
         blocking_reasons.append("default_event_risk")
     if fixture_input_detected and placeholder_symbols:
         blocking_reasons.append("placeholder_symbols")
+    blocking_reasons.extend(payload_blocking_reasons(payload))
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -1518,6 +1529,9 @@ def write_manifest(
             "fixture_input_detected": fixture_input_detected,
             "default_event_risk_detected": event_risk_source == "defaults",
             "placeholder_symbols": placeholder_symbols,
+            "payload_known": payload.known,
+            "universe_tickers_count": payload.universe_tickers_count if payload.known else None,
+            "list_total": payload.list_total if payload.known else None,
         },
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
@@ -1542,7 +1556,6 @@ def run_generation(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
 ) -> dict[str, Path]:
     """Orchestrate generate → validate → publish in sequence.
 
@@ -1581,7 +1594,6 @@ def run_generation(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
-        static_control_plane=static_control_plane,
     )
 
 
