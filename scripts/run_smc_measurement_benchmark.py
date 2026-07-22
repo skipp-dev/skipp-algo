@@ -49,6 +49,7 @@ from smc_integration.release_policy import (
     csv_from_values,
     parse_csv,
 )
+from smc_integration.timeframes import is_daily_timeframe
 
 
 def _path_token(raw: str) -> str:
@@ -568,6 +569,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--scoring-anchor-window-days-daily",
+        type=float,
+        default=None,
+        help=(
+            "Anchor window override for DAILY (1D) pairs. The intraday window "
+            "above (5 days in CI) can never admit a completed 1D event — a 1D "
+            "label horizon spans up to 20 daily bars, so every anchor inside "
+            "a 5-day trailing window is still censored (issue #3872). Daily "
+            "frames are tiny, so a wider window costs nothing. Default: "
+            "inherit --scoring-anchor-window-days."
+        ),
+    )
+    parser.add_argument(
         "--strict-frame-distinctness",
         action="store_true",
         help=(
@@ -636,12 +650,16 @@ def main() -> int:
     pair_runs: list[dict[str, Any]] = []
     for symbol in symbols:
         for timeframe in timeframes:
+            anchor_window_days = getattr(args, "scoring_anchor_window_days", None)
+            daily_window = getattr(args, "scoring_anchor_window_days_daily", None)
+            if daily_window is not None and is_daily_timeframe(timeframe):
+                anchor_window_days = daily_window
             pair_runs.append(
                 run_pair(
                     symbol,
                     timeframe,
                     output_root=output_root,
-                    anchor_window_days=getattr(args, "scoring_anchor_window_days", None),
+                    anchor_window_days=anchor_window_days,
                 )
             )
 

@@ -326,6 +326,9 @@ jobs:
           # A2 (2026-06-10): env-var indirection for user-supplied inputs.
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,10m,15m,30m,1H,4H,1D' }}
+          # Issue #3872 (ADR-0023 1D track): the long-history 1D fetch below
+          # uses the same guarded Databento loaders as the production export.
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           set -euo pipefail
           SYMBOLS="${INPUT_SYMBOLS}"
@@ -345,11 +348,47 @@ jobs:
           }
           echo "SMC_BENCH_SYMBOLS=${SYMBOLS}" >> "$GITHUB_ENV"
           echo "SMC_BENCH_TIMEFRAMES=${TIMEFRAMES}" >> "$GITHUB_ENV"
+
+          # Issue #3872: the rolling bundle spans only ~21 trading days —
+          # structurally too short for 1D warmup + label horizons (FVG=20
+          # daily bars), so the 1D slice yields zero FamilyEvents and the
+          # governed live-1D magnitude track starves. Fetch a long daily
+          # history (420 trading days, 20 symbols — a few thousand ohlcv-1d
+          # rows) and feed it to BOTH 1D consumers: the structure exporter
+          # (--workbook, sole daily source when no bundle root is passed)
+          # and the measurement harness (SMC_DAILY_BARS_WORKBOOK_OVERRIDE),
+          # so detection and labeling see the SAME long frame. Fail-soft:
+          # without the workbook the 1D slice keeps today's starved-but-
+          # alarmed behaviour (plane_starved heartbeats + gap guard).
+          # The benchmark step references this FIXED path statically via its
+          # env block (no dynamic GITHUB_ENV write — zizmor github-env
+          # ratchet); the harness override falls through cleanly when the
+          # file is absent, so fail-soft needs no env plumbing.
+          DAILY_HISTORY_XLSX="artifacts/ci/benchmark_daily_history.xlsx"
+          rc=0
+          "$SMC_PYTHON_BIN" scripts/fetch_benchmark_daily_history.py \
+            --symbols "${SYMBOLS}" \
+            --output "${DAILY_HISTORY_XLSX}" || rc=$?
+          if [ "${rc}" != "0" ] || [ ! -s "${DAILY_HISTORY_XLSX}" ]; then
+            echo "::warning title=benchmark-daily-history::long-history 1D fetch failed (rc=${rc}); 1D slice falls back to the short bundle daily_bars (zero events, alarmed by plane_starved heartbeats + gap guard)."
+            rm -f "${DAILY_HISTORY_XLSX}"
+          fi
+
           for tf in ${TIMEFRAMES//,/ }; do
+            # 1D with a long-history workbook: pass --workbook WITHOUT
+            # --export-bundle-root — an explicit workbook alone makes it the
+            # sole daily source (write_structure_artifacts_from_workbook
+            # nulls the bundle root), while the 21-day bundle daily_bars
+            # would win over the workbook if both were passed.
+            if [ "${tf}" = "1D" ] && [ -s "${DAILY_HISTORY_XLSX}" ]; then
+              TF_SOURCE_ARGS=(--workbook "${DAILY_HISTORY_XLSX}")
+            else
+              TF_SOURCE_ARGS=(--export-bundle-root artifacts/smc_microstructure_exports)
+            fi
             if "$SMC_PYTHON_BIN" scripts/export_smc_structure_artifacts_from_workbook.py \
                 --timeframe "${tf}" \
                 --symbols "${SYMBOLS}" \
-                --export-bundle-root artifacts/smc_microstructure_exports \
+                "${TF_SOURCE_ARGS[@]}" \
                 > "structure_export_${tf}.json"; then
               "$SMC_PYTHON_BIN" -c "import json; m = json.load(open('structure_export_${tf}.json')); c = m['counts']; print(f\"::notice title=per-tf-structure::tf=${tf} written={c['artifacts_written']} errors={c['errors']}\")"
             else
@@ -371,6 +410,12 @@ jobs:
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          # Issue #3872: long-history daily bars for the 1D pairs, written by
+          # the fetch in the per-TF export step. FIXED literal path (no
+          # dynamic GITHUB_ENV write — zizmor github-env ratchet); when the
+          # fetch failed the file is absent and _load_source_bars falls
+          # through to the default resolution with a logged warning.
+          SMC_DAILY_BARS_WORKBOOK_OVERRIDE: artifacts/ci/benchmark_daily_history.xlsx
           # WS4a shadow-observe: log sweep_trap_* quality into the event ledgers
           # (observe-only; does NOT affect the score — confluence reads the coarse
           # SWEEP_QUALITY_SCORE). Consumed by sweep-trap-shadow-daily.yml. ARMING:
@@ -408,6 +453,11 @@ jobs:
           # real frames (run 29276673623 timed out); older events reach the
           # corpus via the accumulated pool. Disclosed per pair in
           # frame_integrity.skipped_out_of_window_counts.
+          # --scoring-anchor-window-days-daily 40 (issue #3872): the 5-day
+          # intraday window can never admit a COMPLETED 1D event — 1D label
+          # horizons span up to 20 daily bars, so every anchor inside a
+          # 5-day trailing window is still censored. Daily frames are tiny
+          # (420 bars/symbol), so the wider window costs nothing.
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols "${SMC_BENCH_SYMBOLS}" \
             --timeframes "${SMC_BENCH_TIMEFRAMES}" \
@@ -415,7 +465,8 @@ jobs:
             --require-evidence \
             --strict-structure-tf \
             --strict-frame-distinctness \
-            --scoring-anchor-window-days 5
+            --scoring-anchor-window-days 5 \
+            --scoring-anchor-window-days-daily 40
 
       - name: Zone priority + testable calibration (rolling)
         if: always()
