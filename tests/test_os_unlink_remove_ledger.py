@@ -138,8 +138,10 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3730, "unlink"),  # 2026-07-20 private AI endpoint shifted site: 3723->3730
-    ("open_prep/realtime_signals.py", 3784, "unlink"),  # 2026-07-20 private AI endpoint shifted site: 3777->3784
+    ("open_prep/realtime_signals.py", 3747, "unlink"),  # 2026-07-22 client-disabled visibility shifted site: 3730->3747
+
+    ("open_prep/realtime_signals.py", 3801, "unlink"),  # 2026-07-22 client-disabled visibility shifted site: 3784->3801
+
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.

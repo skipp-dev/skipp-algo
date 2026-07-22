@@ -1106,6 +1106,18 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_last_data_age_seconds {_last_data_age:.1f}")
         lines.append(f"# TYPE {_prefix}_data_stale gauge")
         lines.append(f"{_prefix}_data_stale {_data_stale}")
+        # Client-disabled visibility: FMPClient.from_env() failed at boot (e.g.
+        # missing FMP_API_KEY) and every cycle publishes empty signals while
+        # loop-liveness stays green — without this gauge that state is
+        # indistinguishable from a healthy zero-signal market. Rendered
+        # unconditionally so absence == scrape-down (sp-scrape-down covers it).
+        _disabled_reason = getattr(engine, "_client_disabled_reason", None)
+        lines.append(f"# TYPE {_prefix}_client_disabled gauge")
+        lines.append(f"{_prefix}_client_disabled {1 if _disabled_reason else 0}")
+        if _disabled_reason:
+            _reason_label = str(_disabled_reason).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f"# TYPE {_prefix}_client_disabled_info gauge")
+            lines.append(f'{_prefix}_client_disabled_info{{reason="{_reason_label}"}} 1')
         _session_name = str(getattr(engine, "_market_session_name", "closed"))
         lines.append(f"# TYPE {_prefix}_market_session gauge")
         for _session in ("closed", "premarket", "regular", "postmarket"):
@@ -1278,6 +1290,11 @@ def _start_telemetry_server(
                 reason = "engine not initialised"
                 if engine is None:
                     pass
+                elif getattr(engine, "_client_disabled_reason", None):
+                    # A producer that could not build its FMP client can never
+                    # fetch data; only a restart (fresh env) cures it. Loop
+                    # "success" on disabled cycles must not mask that here.
+                    reason = f"client disabled ({engine._client_disabled_reason})"
                 elif len(getattr(engine, "_watchlist", [])) == 0:
                     reason = "watchlist not loaded"
                 elif getattr(engine, "open_prep_snapshot_loaded", 0.0) != 1.0:

@@ -204,7 +204,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3869),  # 2026-07-20 private AI endpoint shifted site: 3862->3869
+    ("open_prep/realtime_signals.py", 3886),  # 2026-07-22 client-disabled visibility shifted site: 3869->3886
+
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
     ("open_prep/run_open_prep.py", 6110),  # 2026-07-19 remove retired TradingView news lane
@@ -285,7 +286,8 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 1874, "insert"),  # 2026-07-20 private AI endpoint shifted site: 1867->1874
+    ("open_prep/realtime_signals.py", 1891, "insert"),  # 2026-07-22 client-disabled visibility shifted site: 1874->1891
+
     ("open_prep/streamlit_monitor.py", 35, "insert"),  # 2026-07-18: dataset-usage import shifted +1
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
