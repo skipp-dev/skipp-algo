@@ -222,8 +222,13 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     assert dispatch["force_rebind"]["default"] is False, "rebinding must never be the default"
 
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+    # 2026-07-22: the workflow_run (post-library-refresh) chain forces rebind
+    # ON — refreshChartScriptInstance replaces the parent instance, which
+    # invalidates every child BUS parent id. Dispatch stays opt-in; schedule
+    # stays read-only 'false'.
     assert rollout["env"]["TV_FORCE_REBIND"] == (
-        "${{ github.event_name == 'workflow_dispatch' && "
+        "${{ github.event_name == 'workflow_run' && 'true' || "
+        "github.event_name == 'workflow_dispatch' && "
         "github.event.inputs.force_rebind || 'false' }}"
     )
 
@@ -290,3 +295,53 @@ def test_cache_runs_on_native_node24_without_force_override() -> None:
     assert "actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5" in workflow
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in workflow
+
+
+def _save_workflow_text() -> str:
+    return (
+        _REPO_ROOT / ".github" / "workflows" / "tv-save-consumer-source.yml"
+    ).read_text(encoding="utf-8")
+
+
+def test_library_refresh_completion_triggers_writing_save() -> None:
+    """Closing the last manual gap in repo->TV: after every library refresh the
+    consumers must be SAVED (not just cron-verified read-only) and the applied
+    Suite chart instance must be refreshed, else the on-chart instance stays
+    frozen on the old library version until an operator re-adds it by hand
+    (the 'Library 9d alt' incident, 2026-07-22). Pine itself cannot help here:
+    imports are mandatorily version-pinned and applied instances never
+    re-resolve, so the automation owns the refresh."""
+    text = _save_workflow_text()
+    assert "workflow_run:" in text, "save workflow must chain off the library refresh"
+    assert "- smc-library-refresh" in text or '"smc-library-refresh"' in text, (
+        "workflow_run must reference the smc-library-refresh workflow by name"
+    )
+    # Only a SUCCESSFUL refresh may trigger a writing save: a failed refresh
+    # means the repo pin/library state is unknown — saving then could roll
+    # consumers onto a half-published state.
+    assert "github.event.workflow_run.conclusion == 'success'" in text
+
+
+def test_refresh_triggered_save_enables_producer_refresh_and_rebind() -> None:
+    """The workflow_run path must run with TV_REFRESH_PRODUCER=true AND
+    TV_FORCE_REBIND=true: refreshChartScriptInstance replaces the applied
+    parent instance, which invalidates every child BUS parent id, so the
+    rollout script itself hard-fails on refresh-without-rebind. The cron
+    stays read-only-verify and the dispatch inputs keep working."""
+    text = _save_workflow_text()
+    assert "github.event_name == 'workflow_run' && 'true'" in text, (
+        "both TV_FORCE_REBIND and TV_REFRESH_PRODUCER must resolve to 'true' "
+        "on the workflow_run path"
+    )
+    force_rebind_line = next(
+        line for line in text.splitlines() if "TV_FORCE_REBIND:" in line
+    )
+    refresh_producer_line = next(
+        line for line in text.splitlines() if "TV_REFRESH_PRODUCER:" in line
+    )
+    for line in (force_rebind_line, refresh_producer_line):
+        assert "github.event_name == 'workflow_run' && 'true'" in line, line
+        # dispatch inputs must still be honoured after the workflow_run branch
+        assert "github.event.inputs" in line, line
+    # The read-only cron contract stays: schedule keeps the empty mapping.
+    assert "github.event_name == 'schedule' && '[]'" in text

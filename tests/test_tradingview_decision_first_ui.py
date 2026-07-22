@@ -728,3 +728,9 @@ def test_lib_freshness_warning_threshold_absorbs_t1_cadence() -> None:
     assert "lib_days_old > 2" not in source, (
         "the structurally-false 2-day threshold must not come back"
     )
+    # The label must carry the FIX, not just the symptom: an applied chart
+    # instance is frozen by TradingView and only re-adding it picks up the
+    # current library — four escalation rounds were spent discovering that.
+    assert "neu hinzuf" in source, (
+        "staleness label must tell the operator to re-add the indicator"
+    )

@@ -1,6 +1,17 @@
 name: tv-save-consumer-source
-# live-window: off-hours-only  # Daily cron verifies saved-source hashes + bindings; only manual dispatch mutates TradingView.
+# live-window: off-hours-only  # Daily cron verifies saved-source hashes + bindings read-only; TradingView is mutated by manual dispatch AND by the post-refresh chain (workflow_run) below.
 # Manual dispatch can push fresh repo source and explicitly refresh the producer chart instance.
+#
+# workflow_run chain (2026-07-22): a SUCCESSFUL smc-library-refresh triggers a
+# WRITING save with TV_REFRESH_PRODUCER + TV_FORCE_REBIND. Without this the
+# applied Suite chart instance stays frozen on the old library version until an
+# operator re-adds it by hand — Pine imports are mandatorily version-pinned and
+# TradingView never re-resolves applied instances ('Library 9d alt' incident,
+# 2026-07-22). Trade-off (accepted): refreshChartScriptInstance re-adds the
+# Suite with DEFAULT inputs, so custom inputs edited directly on the applied
+# instance do not survive the refresh; persistent tweaks belong in the saved
+# script source. The refresh normally completes pre-market (~09-13Z), so the
+# chained save stays inside the off-hours posture on normal days.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
 # strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
@@ -11,8 +22,9 @@ name: tv-save-consumer-source
 # SSOT; this recompiles the saved copies against the current library surface.
 #
 # Scheduled runs force an empty save mapping and therefore inspect saved-source
-# hashes and dropdown assignments without writing. Manual dispatch remains the
-# only path that writes PERSONAL saved scripts or refreshes a chart instance.
+# hashes and dropdown assignments without writing. Writing paths: manual
+# dispatch, and the workflow_run chain after a successful library refresh
+# (which also refreshes the applied producer chart instance).
 #
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
@@ -31,6 +43,11 @@ name: tv-save-consumer-source
 on:
   schedule:
     - cron: "17 5 * * *"
+  workflow_run:
+    workflows:
+      - smc-library-refresh
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       mapping:
@@ -69,6 +86,10 @@ env:
 
 jobs:
   save:
+    # Only a SUCCESSFUL library refresh may trigger the writing chain: after a
+    # failed refresh the repo pin/library state is unknown, and saving then
+    # could roll consumers onto a half-published state.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
@@ -138,8 +159,11 @@ jobs:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           # Cron is fail-safe read-only: [] skips every saved-script write.
           TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
-          TV_FORCE_REBIND: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
-          TV_REFRESH_PRODUCER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
+          # workflow_run (post-refresh chain) writes with producer refresh +
+          # rebind; the rollout script hard-fails on refresh-without-rebind,
+          # so both flags flip together here.
+          TV_FORCE_REBIND: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
+          TV_REFRESH_PRODUCER: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
         run: |
           npx tsx scripts/tv_batch_consumer_rollout.ts
 
