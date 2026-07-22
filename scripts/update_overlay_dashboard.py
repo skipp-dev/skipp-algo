@@ -1441,8 +1441,13 @@ def _fix_market_data_freshness_panel(data: dict[str, Any]) -> bool:
             expr = target.get("expr", "")
             if "live_overlay_overlay_fresh" not in expr:
                 continue
+            # The closed-market case resolves to the presence-gated -1
+            # sentinel (mapped MARKET CLOSED, gray). noValue is then reserved
+            # for "no exporter series at all", which must NOT read as a
+            # benign closed market (audit finding: noValue did double duty
+            # for closed AND dead).
             new_expr = (
-                "100 * (\n"
+                "(100 * (\n"
                 "  sum_over_time(\n"
                 "    (\n"
                 '      live_overlay_overlay_fresh{job=~"$job"}\n'
@@ -1454,14 +1459,20 @@ def _fix_market_data_freshness_panel(data: dict[str, Any]) -> bool:
                 ")\n"
                 "unless on() (\n"
                 '  sum_over_time(live_overlay_market_us_open{job=~"$job"}[1h:]) == 0\n'
-                ")"
+                "))\n"
+                'or on() ((count(live_overlay_uptime_seconds{job=~"$job"}) > bool 0) - 2)'
             )
             if expr != new_expr:
                 target["expr"] = new_expr
                 changed = True
         defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
-        if defaults.get("noValue") != "MARKET CLOSED":
-            defaults["noValue"] = "MARKET CLOSED"
+        if defaults.get("noValue") != "NO DATA":
+            defaults["noValue"] = "NO DATA"
+            changed = True
+        closed_mapping = _value_mapping(-1, "MARKET CLOSED", COLOR_NEUTRAL)
+        mappings = defaults.setdefault("mappings", [])
+        if closed_mapping not in mappings:
+            mappings.insert(0, closed_mapping)
             changed = True
     return changed
 
@@ -1589,14 +1600,21 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if panel.get("description") != wanted:
         panel["description"] = wanted
         changed = True
+    # Presence-gated: the inner vector(0) fallbacks make "exporter dead" sum
+    # to the same 0 as a weekend night, so the tile showed benign gray MARKET
+    # CLOSED mid-session while everything was down (audit finding C3). The
+    # gate collapses to empty when no exporter series exists, and the outer
+    # vector(-1) maps that to an explicit red NO DATA state.
     expected_expr = (
-        'max((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
+        '(max((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0))) '
         '+ ((live_overlay_market_us_open{job=~"$job"} or on() vector(0)) '
         '* (live_overlay_expected_market_traffic{job=~"$job"} or on() vector(0)) '
         '* (((rate(live_overlay_smc_live_requests_total{job=~"$job"}[5m]) '
-        'or on() vector(0)) > bool 0.001))))'
+        'or on() vector(0)) > bool 0.001))))) '
+        'and on() (count(live_overlay_uptime_seconds{job=~"$job"}) > bool 0) '
+        'or on() vector(-1)'
     )
     targets = panel.get("targets", [])
     if targets and targets[0].get("expr") != expected_expr:
@@ -1604,6 +1622,7 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
         changed = True
     defaults = panel.setdefault("fieldConfig", {}).setdefault("defaults", {})
     desired_mappings = [
+        _value_mapping(-1, "NO DATA", "red"),
         _value_mapping(0, "MARKET CLOSED", COLOR_NEUTRAL),
         _value_mapping(1, "NO CONSUMER EXPECTED", COLOR_NEUTRAL),
         _value_mapping(2, "EXPECTED · NO REQUESTS", COLOR_WARN),
@@ -1620,6 +1639,27 @@ def _fix_market_traffic_health_description(data: dict[str, Any]) -> bool:
     if defaults.setdefault("thresholds", {}).get("steps") != desired_steps:
         defaults["thresholds"] = {"mode": "absolute", "steps": desired_steps}
         changed = True
+    return changed
+
+
+def _force_instant_on_sparkline_free_stats(data: dict[str, Any]) -> bool:
+    """Stat panels reduce with lastNotNull; over a range query that keeps
+    rendering the last pre-death sample as current for up to the dashboard
+    window after the exporter dies (audit finding C6). Panels without a
+    sparkline (graphMode none) have no use for range data — force their
+    Prometheus queries to instant so absent data becomes NO DATA immediately.
+    Sparkline panels keep range queries (the trend needs them)."""
+    changed = False
+    for panel in _iter_v1_panels(data):
+        if panel.get("type") != "stat":
+            continue
+        if panel.get("options", {}).get("graphMode", "area") != "none":
+            continue
+        for target in panel.get("targets", []):
+            if "expr" in target and not target.get("instant"):
+                target["instant"] = True
+                target["range"] = False
+                changed = True
     return changed
 
 
@@ -2237,6 +2277,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _fix_market_data_freshness_panel(data) or changed
         changed = _fix_core_metrics_present_panel(data) or changed
         changed = _fix_railway_bridge_panel(data) or changed
+        changed = _force_instant_on_sparkline_free_stats(data) or changed
         changed = _keep_all_rows_expanded(data) or changed
         changed = _apply_user_facing_semantics(data) or changed
         changed = _co_locate_external_integration_details(data) or changed

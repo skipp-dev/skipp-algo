@@ -31,7 +31,8 @@
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
 "tests/test_no_merge_conflict_markers.py" = 1
-"tests/test_live_overlay_dashboard_contract.py" = 4
+# 2026-07-22: 4 -> 3 (removed the skip-only Active-Alerts stateFilter guard)
+"tests/test_live_overlay_dashboard_contract.py" = 3
 "tests/test_performance_report.py" = 1
 "tests/test_pine_boundary_literals.py" = 1
 "tests/test_pine_input_surface.py" = 2

@@ -68,6 +68,7 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
   "workers_healthy": true,
   "worker_liveness": {"live_feed": true, "ingest_processor": true, "overlay_refresh": true, "flow_refresh": true, "supervisor": true},
   "feed_metrics": {"reconnect_attempts": 0, "bento_errors": 0, "unexpected_errors": 0, "circuit_breakers": 0, "partial_restarts": 0},
+  "market_open": true,
   "overlay_fresh": true,
   "last_bar_age_secs": 12.3,
   "uptime_secs": 406,
@@ -81,8 +82,12 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 
 > `status` is market-aware and can be `"ok"`, `"starting"`, or
 > `"idle_market_closed"` (outside US regular session while otherwise healthy).
+> The response also carries `market_open` (US regular-session gauge).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
-> `workers_healthy` is `false` if any of the four background threads (feed, ingest, refresh, flow) is dead.
+> `workers_healthy` is `false` if any of the five background threads
+> (feed, ingest, refresh, flow, supervisor) is dead — and the endpoint then
+> returns **HTTP 503** (WP1c: a dead worker is a genuine zombie a restart
+> fixes; idle states stay 200 so market-closed nights never restart-loop).
 > `overlay_fresh` is `false` when overlay_symbols == 0 or overlay_age > max_stale_secs.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
 
@@ -243,7 +248,6 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
 | `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | ❌ | `0` | Set to `1` only for a verified external `/smc_live` consumer. Keep `0` while no supported consumer exists. |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
@@ -560,52 +564,42 @@ observability.py (structured log lines + in-process counters)
 | `overlay_age_seconds > max_stale_secs` | high | Compute not running |
 | `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
-### Grafana dashboard layout (v43)
+### Grafana dashboard layout
 
 The operations dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized for 3-a.m. incident triage:
+is organized for 3-a.m. incident triage. The row order below is a production
+contract — `tests/test_live_overlay_dashboard_contract.py` (`SECTION_ORDER`)
+pins it, so this list changes only together with that test:
 
-- **Impact first** — pinned top section with `Overall Health`,
-  `Active Alerts`, and an `Incident Triage Guide` that speaks in user-impact
-  terms (feed, workers, overlay freshness, external checks) instead of raw
-  metric names.
-- **Root causes next** — a clean stat row (`Feed Healthy`, `Overlay Fresh`,
-  `Workers Healthy`, `External Checks`, `Market Status`, `Last Bar Age`) with
-  no grid overlaps so an on-call engineer can read the health story at a glance.
-- **User-impact / SLO block** — immediately after the root-cause row:
-  `Success Rate (%)`, `External Consumer Traffic`, `Market Data Freshness`,
-  `Core Metrics Present`, `Request Latency Against 500 ms Target`, and `Error Budget Burn Rate`
-  are promoted to the top so SLO pages require no scrolling.
-- **Context after health** — `Service Status`, `Uptime`, symbol counts,
-  `Process Resident Memory`, and `Global Market Sessions` follow below.
-  `CLOSED` sessions and `IDLE (MARKET CLOSED)` states are shown in gray, not
-  red/orange, because a closed market is not an incident.
-- **Incident Overview** — compact triage row containing only the pinned health
-  story: `Overall Health`, `Active Alerts`, `Incident Triage Guide`, the
-  root-cause stat row, market sessions, and the user-impact/SLO block.
-  Drill-down detail panels live below a dedicated `Operational Drill-down`
-  row so the first screen does not overwhelm a 3-a.m. on-call engineer.
-- **Operational Drill-down** — root-cause detail placed after the incident
-  overview: `Request Rate`, `Overlay & Bar Age`, `Compute Cycle Errors`,
-  `Feed Health Counters`, `Worker Liveness`, `Failure Mix`,
-  `Readiness Components Timeline`, and related restart/backpressure stats.
-- **External Integrations** — UptimeRobot, GitHub workflow, and bridge health.
-  `UptimeRobot Monitor States` lives here, not inside the Incident Overview.
-- **Reliability Drill-down** — restart causes, hotspots, ingest queue
-  backpressure and lag; renamed from `SLO & Reliability` to reflect that the
-  top-level SLO panels have been promoted to the user-impact block above.
-- **Provider Health** — service-owner detail: live news provider state and ingest status.
-- **Collector / Scrape Targets** — service-owner detail: alloy/signals_producer/live_overlay scrape
-  health and collector memory, separated from provider/GitHub detail panels to
-  avoid grid collisions.
-- **Railway Resources** — service-owner detail: Railway service metrics and bridge health.
+1. **Status at a Glance** — `Overall Health`, `Active Alerts`, the
+   `Incident Triage Guide`, the root-cause stat row (`Feed Healthy`,
+   `Overlay Fresh`, `Workers Healthy`, …), market sessions, and the
+   user-impact/SLO block (`Success Rate (%)`, `External Consumer Traffic`,
+   `Market Data Freshness`, `Core Metrics Present`, latency/error-budget).
+   `CLOSED` sessions and `IDLE (MARKET CLOSED)` states render gray, not
+   red/orange, because a closed market is not an incident — while a dead
+   exporter renders red `NO DATA`, never a benign closed-market state.
+2. **Trading Evidence and Promotion Readiness** — evidence-chain freshness,
+   fills/incubation, promotion-gate posture.
+3. **Live Data Chain (Feed → Overlay → Pine)** — feed/bar/overlay ages,
+   compute cycles, trading-signals snapshot state.
+4. **Overlay API Reliability** — request rate, failure mix, latency
+   histogram, traffic-alert arming.
+5. **Daemon Operations** — worker liveness, restarts, ingest queue
+   backpressure/lag, process memory.
+6. **External Checks and Automation** — UptimeRobot, GitHub workflow runs,
+   bridge scrape health (`UptimeRobot Monitor States` lives here).
+7. **Providers (Feeds, News & Credentials)** — per-provider news state,
+   ingest freshness, credential-health probes.
+8. **Infrastructure (Railway / Collector)** — Railway service resources and
+   alloy/signals_producer/live_overlay scrape targets.
+9. **Pine Library ↔ TradingView Versions** — repo↔TV version-drift rollup.
+10. **TradingView Dropdown Bindings** — read-only binding verification.
 
-Row headers (`Incident Overview`, `Operational Drill-down`,
-`Collector / Scrape Targets`, `Railway Resources`) carry descriptions that
-explain their purpose, reducing ambiguity for on-call engineers and
-stakeholders. The service-owner detail rows (`Provider Health`,
-`Collector / Scrape Targets`, `Railway Resources`) are explicitly labeled as
-such so stakeholders know they are secondary during the first minutes of triage.
+Row headers carry descriptions that explain their purpose, reducing ambiguity
+for on-call engineers and stakeholders; the service-owner detail rows
+(providers, infrastructure) are explicitly labeled as secondary during the
+first minutes of triage.
 `Freshness SLO (Market Open, 1h)` was renamed to
 `Market Data Freshness` with the SLO moved into the description so the title
 is stakeholder-friendly. Top incident tiles (`External Checks`,
@@ -642,8 +636,11 @@ Operational UX additions:
 - The `$job` template variable is hidden (`hide: 2`) and labeled
   `Prometheus job (advanced)`; it defaults to `live_overlay` and keeps the UI
   approachable for stakeholders.
-- Alert-list `no_data` state is intentionally filtered out to avoid ambiguous
-  `unknown/no_data` UI noise during incidents.
+- The `Active Alerts` list shows every alert state, including `no_data`:
+  after the truthfulness audit a NoData row is a signal (a series stopped
+  existing), not noise, and must stay visible during incidents. (An earlier
+  revision claimed no_data was filtered out; the panel never shipped that
+  filter and the guard test for it only skipped — both removed.)
 - A dedicated alert rule (`lo-news-snapshot-series-missing`) captures missing
   news snapshot metric series via explicit `absent(...)` checks.
 - Provider drill-down query excludes aggregate health series so per-provider
