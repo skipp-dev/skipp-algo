@@ -4,6 +4,7 @@ import test from "node:test";
 import type { LaunchOptions } from "playwright";
 
 import {
+  CHROME_CHANNEL_FALLBACK_TIMEOUT_MS,
   describeTradingViewLaunchTarget,
   isMissingBrowserExecutableError,
   launchWithTradingViewFallback,
@@ -203,6 +204,69 @@ test("launchWithTradingViewFallback: missing bundled chromium -> logged chrome-c
   assert.equal(logs.length, 1);
   assert.match(logs[0], /falling back to channel "chrome"/);
   assert.match(logs[0], /npx playwright install chromium/);
+});
+
+// The chrome-channel fallback is a convenience for a machine that never ran
+// `npx playwright install`. It inherits Playwright's 180s default launch timeout,
+// so when system Chrome cannot be driven at all (e.g. a Chrome far newer than the
+// pinned Playwright), EVERY browser-backed test hangs the full timeout instead of
+// reporting the real, one-line cause. That is what turned `npm run tv:test` on
+// main into 25 uniform ~210s "timeouts" whose messages never mentioned the
+// missing pinned browser. Bounding the fallback keeps it useful and fails fast.
+test("launchWithTradingViewFallback: chrome-channel fallback is time-bounded, not Playwright's 180s default", async () => {
+  const calls: LaunchOptions[] = [];
+  await launchWithTradingViewFallback(
+    async (options) => {
+      calls.push(options);
+      if (calls.length === 1) throw MISSING_BROWSER_ERROR;
+      return "chrome-browser";
+    },
+    { headless: true },
+    { fallbackToChromeChannel: true, log: () => undefined },
+  );
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].timeout, CHROME_CHANNEL_FALLBACK_TIMEOUT_MS);
+  // Well under Playwright's 180s default, so 25 tests cannot burn ~90 minutes.
+  assert.ok(CHROME_CHANNEL_FALLBACK_TIMEOUT_MS < 180_000);
+  // The FIRST (pinned) launch keeps whatever the caller asked for — the bound is
+  // a property of the last-ditch fallback only.
+  assert.equal(calls[0].timeout, undefined);
+});
+
+test("launchWithTradingViewFallback: an explicit caller timeout wins over the fallback bound", async () => {
+  const calls: LaunchOptions[] = [];
+  await launchWithTradingViewFallback(
+    async (options) => {
+      calls.push(options);
+      if (calls.length === 1) throw MISSING_BROWSER_ERROR;
+      return "chrome-browser";
+    },
+    { headless: true, timeout: 5_000 },
+    { fallbackToChromeChannel: true, log: () => undefined },
+  );
+  assert.equal(calls[1].timeout, 5_000);
+});
+
+test("launchWithTradingViewFallback: a hanging chrome fallback still names the missing pinned browser", async () => {
+  const logs: string[] = [];
+  await assert.rejects(
+    launchWithTradingViewFallback(
+      async (options) => {
+        if (options.channel !== "chrome") throw MISSING_BROWSER_ERROR;
+        throw new Error(`browserType.launch: Timeout ${options.timeout}ms exceeded.`);
+      },
+      { headless: true },
+      { fallbackToChromeChannel: true, log: (message) => logs.push(message) },
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      // The actionable remedy must survive; a bare "Timeout exceeded" sent the
+      // 2026-07-22 investigation looking for a TradingView flake that never existed.
+      assert.match(error.message, /npx playwright install chromium/);
+      assert.equal(error.cause, MISSING_BROWSER_ERROR);
+      return true;
+    },
+  );
 });
 
 test("launchWithTradingViewFallback: non-install failures propagate untouched (no masking retry)", async () => {
