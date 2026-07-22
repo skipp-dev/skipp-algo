@@ -28,6 +28,7 @@ import re
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -821,6 +822,73 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     )
                 else:
                     st.info("No moving average data available.")
+
+
+def _render_technicals_overview(symbols: list[str], *, key_prefix: str = "techov") -> None:
+    """Technical summary for *every* ranked symbol at once, one row each.
+
+    The per-symbol expander answers "how does AAPL look?". This answers
+    "which of today's ranked symbols look strong?" — the question you
+    actually have when scanning a ranking. Fetches run concurrently because
+    a serial pass over 50 symbols would stall the whole rerun; results are
+    served from ``fetch_technicals``' 3-minute cache on the way back.
+    """
+    if not INTERVAL_MAP or not symbols:
+        st.info("No ranked symbols yet — the ranking feeds this view.")
+        return
+
+    _c1, _c2 = st.columns([1, 3])
+    with _c1:
+        _iv = st.selectbox(
+            "Interval",
+            list(INTERVAL_MAP.keys()),
+            index=list(INTERVAL_MAP.keys()).index("1D"),
+            key=f"{key_prefix}_iv",
+        )
+    with _c2:
+        _limit = st.slider(
+            "Symbols", min_value=5, max_value=min(50, len(symbols)),
+            value=min(25, len(symbols)),
+            key=f"{key_prefix}_limit",
+            help="More symbols means more provider calls on a cache miss.",
+        )
+
+    _syms = symbols[:_limit]
+    with st.spinner(f"Loading technicals for {len(_syms)} symbols…"), ThreadPoolExecutor(max_workers=8) as _pool:
+        _results = list(_pool.map(lambda s: fetch_technicals(s, _iv), _syms))
+
+    _rows = []
+    _failed = 0
+    for _sym, _t in zip(_syms, _results, strict=True):
+        if _t.error:
+            _failed += 1
+            continue
+        _rows.append({
+            "Symbol": _sym,
+            "Summary": f"{signal_icon(_t.summary_signal)} {signal_label(_t.summary_signal)}",
+            "Buy": _t.summary_buy,
+            "Neutral": _t.summary_neutral,
+            "Sell": _t.summary_sell,
+            "Oscillators": f"{signal_icon(_t.osc_signal)} {signal_label(_t.osc_signal)}",
+            "Moving Averages": f"{signal_icon(_t.ma_signal)} {signal_label(_t.ma_signal)}",
+        })
+
+    if not _rows:
+        st.warning(f"No technical data available for any of the {len(_syms)} ranked symbols.")
+        return
+
+    st.dataframe(
+        pd.DataFrame(tv_linkify_rows(_rows)),
+        width='stretch',
+        hide_index=True,
+        height=min(800, 40 + 35 * len(_rows)),
+        column_config={"Symbol": tv_symbol_column()},
+    )
+    # Say what is missing rather than silently showing a shorter table.
+    _caption = f"{len(_rows)} of {len(_syms)} symbols · interval {_iv}"
+    if _failed:
+        _caption += f" · {_failed} without data"
+    st.caption(_caption)
 
 
 def _render_event_clusters_expander(symbols: list[str], *, key_prefix: str = "ec") -> None:
@@ -2958,8 +3026,8 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
-        ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
+    tab_rank, tab_tech, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
+        ["🏆 Rankings", "📊 Technical Data", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
          "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
          "🪪 Decision-First"],
@@ -3653,14 +3721,29 @@ else:
                 column_config=_rank_col_cfg,
             )
 
-            # Technical Analysis expander
-            _rank_symbols = [m["symbol"] for m in _ranked[:50]]
-            if _intel_enabled():
-                _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
-                _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
-                _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
-            else:
+            # Technicals + forecast now live in their own "Technical Data" tab,
+            # where they cover every ranked symbol instead of one at a time.
+            if not _intel_enabled():
                 st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+
+    # ── TAB: Technical Data ────────────────────────────────
+    with tab_tech, _tab_guard("Technical Data"):
+        st.header("📊 Technical Data")
+        st.caption("Technical posture of every symbol in the current ranking, plus the analyst forecast.")
+
+        if not _intel_enabled():
+            st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+        else:
+            _tech_symbols = [
+                m["symbol"] for m in st.session_state.get("_ranked_list", [])[:50]
+            ]
+            _render_technicals_overview(_tech_symbols, key_prefix="tech_tab")
+
+            st.divider()
+            st.subheader("🔍 Single-symbol detail")
+            _render_technicals_expander(_tech_symbols, key_prefix="tech_rank")
+            _render_forecast_expander(_tech_symbols, key_prefix="fc_rank")
+            _render_event_clusters_expander(_tech_symbols, key_prefix="ec_rank")
 
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable, _tab_guard("Actionable"):
