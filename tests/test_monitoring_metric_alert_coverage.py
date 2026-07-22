@@ -103,28 +103,83 @@ _VIX_SIGNAL_METRICS = (
     "live_overlay_vix_age_known",
 )
 
-# Orphan-scan families: literal metric names in these families must have a
-# consumer (alert rule or dashboard panel). Extended 2026-07-22 beyond
-# evidence|github_workflow|vix to the remaining core families — the first
-# sweep immediately caught five emitted-but-unconsumed deprecated
-# trading_signals *_total aliases plus an unwired snapshot_max_age gauge,
-# which is exactly the blind-spot class this scan exists for.
+# Orphan scan: EVERY emitted ``live_overlay_*`` metric must have a consumer —
+# an alert rule or a dashboard panel — or an explicit, reasoned entry in
+# ``_ORPHAN_SCAN_KNOWN_DEBT`` below.
 #
-# Extended again 2026-07-22 to pine_library|pine_consumer. ADR-0029 assumed
-# this scan already forced new metric families to have a consumer; it did not
-# — the pine family was simply absent from this list, so a green run said
-# nothing about it. That is the ADR's own failure shape one level up: a check
-# trusted without reading what it covers. The extension immediately surfaced
-# three orphans (consumer_pin_version, library_tv_version[_known]) — and the
-# first draft of THAT extension missed the plural pine_libraries_* form,
-# hiding two more. Hence librar(?:y|ies): an allowlist fails by omission,
-# which is why the fail-closed inversion is queued as its own audit.
-_METRIC_RE = re.compile(
-    r"live_overlay_"
-    r"(?:evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals"
-    r"|pine_librar(?:y|ies)|pine_consumer)"
-    r"_[a-z0-9_]+"
-)
+# This was an allowlist of families until 2026-07-22, and it failed three times
+# in a single afternoon, always the same way: a family nobody had added.
+# ADR-0029 assumed the scan covered new metric families; it did not, because
+# ``pine_library`` was simply absent, so a green run said nothing about any
+# pine metric. Extending the list surfaced three orphans — and that extension
+# itself missed the plural ``pine_libraries_*`` form, hiding two more.
+#
+# An allowlist fails by OMISSION, and omission is silent. A green scan with a
+# scope gap is worse than no scan at all, because it suggests coverage that was
+# never attempted — structurally the same defect ADR-0029 repairs one level
+# down, where ``universe_size`` was trusted without reading the list it claimed
+# to describe.
+#
+# So the scan is inverted to fail-closed: match everything, exclude explicitly.
+# A new metric with no consumer now fails on the commit that adds it.
+_METRIC_RE = re.compile(r"live_overlay_[a-z0-9_]+")
+
+# Metrics that were already orphaned when the inversion landed (2026-07-22).
+# Seeded so the inversion could go in without bundling 39 unrelated wiring
+# decisions; the list is allowed to SHRINK ONLY — an entry that gains a
+# consumer must be deleted here in the same commit, which
+# ``test_no_stale_orphan_debt_entries`` enforces.
+#
+# Reasons are stated per metric. "unaudited" means exactly that: pre-existing,
+# not yet classified — not "reviewed and accepted".
+_ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
+    # Prometheus info-pattern: the value is always 1 and the labels carry the
+    # payload. These are joined onto other queries rather than alerted on, so
+    # a direct consumer is not the right shape for them. Verified at the
+    # emission sites in metrics.py.
+    "live_overlay_credential_health_overall_severity_info": "info-pattern",
+    "live_overlay_credential_health_probe_info": "info-pattern",
+    "live_overlay_health_status_info": "info-pattern",
+    "live_overlay_trading_signal_info": "info-pattern",
+    # Genuine gaps — real gauges, plausibly worth a panel. Request latency has
+    # no visualisation at all today.
+    "live_overlay_smc_live_latency_ms_sum": "gap: request latency is unvisualised",
+    "live_overlay_smc_live_latency_p95_ms": "gap: request latency is unvisualised",
+    "live_overlay_smc_live_latency_p99_ms": "gap: request latency is unvisualised",
+    # Pre-existing, not yet classified.
+    "live_overlay_bar_requested_symbols_evicted_total": "unaudited",
+    "live_overlay_bars_per_symbol": "unaudited",
+    "live_overlay_bar_symbols_evicted_total": "unaudited",
+    "live_overlay_credential_health_overall_valid": "unaudited",
+    "live_overlay_credential_health_probe_severity_code": "unaudited",
+    "live_overlay_credential_health_probe_valid": "unaudited",
+    "live_overlay_credential_health_probe_value": "unaudited",
+    "live_overlay_experiment_snapshot_max_age_seconds": "unaudited",
+    "live_overlay_experiment_tf_hit_rate": "unaudited",
+    "live_overlay_experiment_tf_n_events": "unaudited",
+    "live_overlay_experiment_verdict_delta_hr": "unaudited",
+    "live_overlay_experiment_verdict_p_value": "unaudited",
+    "live_overlay_experiment_verdict_underpowered": "unaudited",
+    "live_overlay_health_status_idle_market_closed": "unaudited",
+    "live_overlay_health_status_ok": "unaudited",
+    "live_overlay_health_status_starting": "unaudited",
+    "live_overlay_hotspot_symbols_tracked": "unaudited",
+    "live_overlay_hotspot_timeframes_tracked": "unaudited",
+    "live_overlay_provider_usage_calls": "unaudited",
+    "live_overlay_provider_usage_records": "unaudited",
+    "live_overlay_railway_service_memory_gb": "unaudited",
+    "live_overlay_sweep_trap_shadow_brier_baseline": "unaudited",
+    "live_overlay_sweep_trap_shadow_brier_signal": "unaudited",
+    "live_overlay_sweep_trap_shadow_loaded": "unaudited",
+    "live_overlay_sweep_trap_shadow_min_samples": "unaudited",
+    "live_overlay_tradingview_credential_validated_at_seconds": "unaudited",
+    "live_overlay_tv_binding_failed_consumers": "unaudited",
+    "live_overlay_tv_consumer_binding_mismatches": "unaudited",
+    "live_overlay_tv_consumer_source_failures": "unaudited",
+    "live_overlay_tv_consumer_source_matches": "unaudited",
+    "live_overlay_tv_consumer_sources_drifted": "unaudited",
+    "live_overlay_tv_consumer_sources_expected": "unaudited",
+}
 
 
 def _alert_expr_text() -> str:
@@ -239,10 +294,39 @@ def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
     assert any(m.startswith("live_overlay_feed_") for m in emitted), emitted
     assert any(m.startswith("live_overlay_pine_library_") for m in emitted), emitted
     assert any(m.startswith("live_overlay_pine_consumer_") for m in emitted), emitted
-    orphans = sorted(m for m in emitted if m not in consumers)
+    orphans = sorted(
+        m for m in emitted if m not in consumers and m not in _ORPHAN_SCAN_KNOWN_DEBT
+    )
     assert not orphans, (
         "these monitoring metrics are emitted but referenced by no alert rule "
-        f"and no dashboard panel — they are invisible: {orphans}"
+        f"and no dashboard panel — they are invisible: {orphans}\n"
+        "Wire each into an alert or a dashboard panel, or add it to "
+        "_ORPHAN_SCAN_KNOWN_DEBT with a stated reason."
+    )
+
+
+def test_no_stale_orphan_debt_entries() -> None:
+    """The debt list may only shrink.
+
+    An entry that has since gained a consumer must be deleted in the same
+    commit that wires it. Without this the list would silently accumulate
+    names that no longer describe anything — a stale exemption reads exactly
+    like a reviewed one, which is the failure mode the inversion exists to
+    remove.
+    """
+    consumers = _alert_expr_text() + "\n" + _dashboard_expr_text()
+    emitted = _emitted_metrics()
+
+    consumed_but_listed = sorted(m for m in _ORPHAN_SCAN_KNOWN_DEBT if m in consumers)
+    assert not consumed_but_listed, (
+        "these metrics now have a consumer — remove them from "
+        f"_ORPHAN_SCAN_KNOWN_DEBT: {consumed_but_listed}"
+    )
+
+    no_longer_emitted = sorted(m for m in _ORPHAN_SCAN_KNOWN_DEBT if m not in emitted)
+    assert not no_longer_emitted, (
+        "these metrics are no longer emitted — remove them from "
+        f"_ORPHAN_SCAN_KNOWN_DEBT: {no_longer_emitted}"
     )
 
 
