@@ -1814,7 +1814,11 @@ def test_dashboard_has_pine_library_data_freshness_panel() -> None:
     }
 
 
-def test_pine_library_data_stale_alert_uses_two_day_threshold() -> None:
+def test_pine_library_data_stale_alert_uses_five_day_threshold() -> None:
+    # 432000s = 5 days, resized 2026-07-22 to the T-1 + morning-refresh
+    # cadence (2 days false-fired nightly; weekend peak is ~4d13h) — full
+    # rationale in the rule comment and in
+    # test_micro_profile_stale_threshold_absorbs_weekday_cadence.
     import yaml
 
     repo_root = Path(__file__).resolve().parents[1]
@@ -1825,7 +1829,7 @@ def test_pine_library_data_stale_alert_uses_two_day_threshold() -> None:
     expr = rule["data"][0]["model"]["expr"]
     assert "live_overlay_pine_library_data_age_known" in expr
     assert "live_overlay_pine_library_data_age_seconds" in expr
-    assert "> bool 172800" in expr
+    assert "> bool 432000" in expr
     assert rule["labels"]["severity"] == "critical"
 
 
