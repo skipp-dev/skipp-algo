@@ -20,6 +20,14 @@ name: adr0023-magnitude-shadow-daily
 # on) lives in magnitude_resolution_shadow_15m_seed.jsonl and is read
 # only by the promotion gate — the two planes are never pooled (a k-of-n
 # across planes is invalid; see the weekly evaluator's plane guard).
+# Since #2667 the accumulated pool is genuinely multi-TF (5m..1D), so the
+# append step passes --plane 1D: only events whose own bar cadence is 1D
+# are graded. 2026-07-16..21 this filter was missing — the pool went
+# 5m-dominated, three mixed-pool gradings were stamped "5m", and the
+# weekly plane guard wedged (issue #3872); those rows now live in
+# magnitude_resolution_shadow_5m_mixed_quarantine.jsonl. Zero 1D events
+# in the pool appends plane_starved heartbeats (rc 3) — an ongoing
+# starvation surfaces via rc 5 + the gap guard, not via silent 5m rows.
 #
 # Thin-day heartbeat: when the 1D pool is too thin for any family to
 # reach MIN_OOS, the runner appends one INCONCLUSIVE heartbeat row per
@@ -279,6 +287,7 @@ jobs:
           python scripts/run_magnitude_shadow_ledger.py "${EVENTS_PATH}" \
             --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
             --seed "${SEED}" \
+            --plane 1D \
             2>&1 | tee ledger.log || rc=$?
           # Exit codes 0 (>=1 family resolves), 2 (none resolve), 3
           # (all thin) and 5 (stale feed: same events_hash already graded
