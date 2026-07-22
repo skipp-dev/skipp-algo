@@ -43,7 +43,11 @@ name: tv-save-consumer-source
 on:
   schedule:
     - cron: "17 5 * * *"
-  workflow_run:
+  # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
+  # smc-library-refresh on the default branch (no fork/PR-controlled context);
+  # this consumer only re-saves repo-owned sources with repo secrets it
+  # already holds for schedule/dispatch runs (#3893 cadence fix).
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - smc-library-refresh
     types:
