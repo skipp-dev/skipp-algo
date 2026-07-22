@@ -141,26 +141,14 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_credential_health_probe_info": "info-pattern",
     "live_overlay_health_status_info": "info-pattern",
     "live_overlay_trading_signal_info": "info-pattern",
-    # NOT gaps — request latency is both visualised and alerted, just through
-    # the histogram rather than through these names: the "Request Latency
-    # Against 500 ms Target" panel and alert rule lo-latency-p99-high both run
-    # histogram_quantile over live_overlay_smc_live_latency_ms_bucket.
+    # NOT a gap — request latency is both visualised and alerted, just through
+    # the histogram rather than through this name: the "Request Latency Against
+    # 500 ms Target" panel and alert rule lo-latency-p99-high both run
+    # histogram_quantile over live_overlay_smc_live_latency_ms_bucket. _sum
+    # completes the conventional _bucket/_sum/_count triple so a mean stays
+    # computable; it is not a series to chart on its own.
     "live_overlay_smc_live_latency_ms_sum": (
         "histogram component: quantiles come from _bucket; only a mean would read this"
-    ),
-    # Pre-computed legacy gauges the dashboard deliberately migrated away from.
-    # Wiring them is not merely unnecessary, it is FORBIDDEN — two contract
-    # tests assert their absence, so treating these as gaps to fill turns
-    # tests/test_live_overlay_dashboard_contract.py red. The real follow-up is
-    # to delete their emission in metrics.py, which then evicts them from this
-    # list via the no-longer-emitted guard above.
-    "live_overlay_smc_live_latency_p95_ms": (
-        "legacy: superseded by histogram_quantile; wiring forbidden by "
-        "test_dashboard_latency_panel_uses_only_histogram_quantile"
-    ),
-    "live_overlay_smc_live_latency_p99_ms": (
-        "legacy: superseded by histogram_quantile; wiring forbidden by "
-        "test_latency_alert_uses_histogram_quantile_bucket"
     ),
     # Pre-existing, not yet classified.
     "live_overlay_bar_requested_symbols_evicted_total": "unaudited",

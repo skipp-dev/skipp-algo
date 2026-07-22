@@ -83,71 +83,6 @@ def _parse_bucket_upper_bound(suffix: str) -> float | None:
         return None
 
 
-def _estimate_histogram_quantile_ms(
-    counters: dict[str, float],
-    *,
-    base_name: str,
-    quantile: float,
-) -> float | None:
-    """Estimate a latency quantile from cumulative bucket counters.
-
-    The in-process histogram stores counters as flattened names like
-    ``{base_name}.bucket_le_100``. This function computes an approximate
-    quantile using linear interpolation across cumulative buckets.
-    """
-    if not 0.0 < quantile <= 1.0:
-        return None
-
-    total_raw = counters.get(f"{base_name}.count")
-    if total_raw is None:
-        return None
-    total = _prom_numeric_value(total_raw)
-    if not math.isfinite(total) or total <= 0:
-        return None
-
-    prefix = f"{base_name}.bucket_le_"
-    bucket_points: list[tuple[float, float]] = []
-    for key, value in counters.items():
-        if not key.startswith(prefix):
-            continue
-        suffix = key[len(prefix) :]
-        upper = _parse_bucket_upper_bound(suffix)
-        if upper is None:
-            continue
-        cumulative = _prom_numeric_value(value)
-        if not math.isfinite(cumulative):
-            continue
-        bucket_points.append((upper, cumulative))
-
-    if not bucket_points:
-        return None
-
-    bucket_points.sort(key=lambda x: x[0])
-    target = quantile * total
-    prev_upper = 0.0
-    prev_cumulative = 0.0
-
-    for upper, cumulative in bucket_points:
-        if cumulative >= target:
-            if upper == float("inf"):
-                # Only the +Inf bucket carried the target: every observation
-                # exceeds the finite bucket bounds, so no finite quantile can
-                # be interpolated. Returning prev_upper's initial 0.0 here would
-                # report a misleadingly-perfect 0 ms while real latencies blow
-                # the SLO — omit the metric (None) instead in that case.
-                return prev_upper if prev_upper > 0.0 else None
-            span = cumulative - prev_cumulative
-            if span <= 0:
-                return upper
-            position = (target - prev_cumulative) / span
-            return prev_upper + (upper - prev_upper) * max(0.0, min(1.0, position))
-        if upper != float("inf"):
-            prev_upper = upper
-        prev_cumulative = cumulative
-
-    return prev_upper
-
-
 # Provider health state codes exposed via live_overlay_provider_news_*_state_code
 # and the live_overlay_provider_news_info{state=...} label.
 # NOTE: the per-provider metric names (live_overlay_provider_news_<provider>_state_code)
@@ -1270,26 +1205,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         f"live_overlay_smc_live_latency_ms_sum {_prom_numeric_value(counters.get(f'{latency_base}.sum_ms', 0.0))}"
     )
     lines.append(f"live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}")
-
-    # Keep the derived gauges for backward compatibility until dashboard/alert
-    # consumers are fully migrated to histogram_quantile() over the buckets.
-    latency_p95_ms = _estimate_histogram_quantile_ms(
-        counters,
-        base_name=latency_base,
-        quantile=0.95,
-    )
-    if latency_p95_ms is not None:
-        lines.append("# TYPE live_overlay_smc_live_latency_p95_ms gauge")
-        lines.append(f"live_overlay_smc_live_latency_p95_ms {latency_p95_ms:.3f}")
-
-    latency_p99_ms = _estimate_histogram_quantile_ms(
-        counters,
-        base_name=latency_base,
-        quantile=0.99,
-    )
-    if latency_p99_ms is not None:
-        lines.append("# TYPE live_overlay_smc_live_latency_p99_ms gauge")
-        lines.append(f"live_overlay_smc_live_latency_p99_ms {latency_p99_ms:.3f}")
 
     # --- Feed counters ---
     feed_metrics = feed.metrics_snapshot()
