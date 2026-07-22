@@ -63,10 +63,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # guarded by `if _auth_token:`), and the file still holds exactly 2 compare_digest
     # sites — the same count as when last reviewed. main.py compare unchanged at 457.
     ("open_prep/realtime_signals.py", 1328, "compare_digest"),  # 2026-07-22 client-disabled visibility shifted site: 1311->1328
-
     ("open_prep/realtime_signals.py", 1362, "compare_digest"),  # 2026-07-22 client-disabled visibility shifted site: 1345->1362
-
-    ("services/live_overlay_daemon/main.py", 457, "compare_digest"),
+    # 2026-07-22 (stale-flag data-freshness helper + 5m block): 457->476
+    ("services/live_overlay_daemon/main.py", 476, "compare_digest"),
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
     # endpoint raises 503 when the secret is unset (no empty-secret bypass) and 401

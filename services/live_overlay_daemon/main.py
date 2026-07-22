@@ -11,9 +11,10 @@ Security model:
   be embedded in Pine source or exposed to chart users.
 
 Stale handling:
-  If the overlay cache is older than OVERLAY_MAX_STALE_SECS, the response
-  still returns 200 but with stale=true and asof_ts showing the last computation
-  time, so downstream server-side consumers can fail closed.
+  If the overlay cache OR the newest cached bar for the symbol is older than
+  OVERLAY_MAX_STALE_SECS (a recompute from frozen bars must not look live),
+  the response still returns 200 but with stale=true and asof_ts showing the
+  last computation time, so downstream server-side consumers can fail closed.
 """
 from __future__ import annotations
 
@@ -287,6 +288,24 @@ def prometheus_metrics(request: Request) -> PlainTextResponse:
 # Timeframe-aware payload lookup / on-demand compute
 # ---------------------------------------------------------------------------
 
+def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
+    """Age in seconds of the newest bar carrying a usable ts_event, else None.
+
+    None means "no recency evidence" — callers must treat it as stale, never
+    as fresh.
+    """
+    valid_ts_events = [
+        ts
+        for bar in bars
+        if isinstance((ts := bar.get("ts_event")), int)
+        and not isinstance(ts, bool)
+        and ts > 0
+    ]
+    if not valid_ts_events:
+        return None
+    return max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
+
+
 def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     """Return overlay payload for symbol and timeframe.
 
@@ -309,19 +328,12 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     )
     # On-demand payloads should be marked stale based on bar recency, not
     # overlay cache age (which tracks only the background 5m snapshot).
-    valid_ts_events = [
-        ts
-        for bar in bars
-        if isinstance((ts := bar.get("ts_event")), int)
-        and not isinstance(ts, bool)
-        and ts > 0
-    ]
-    if not valid_ts_events:
-        payload["stale"] = True
-        return payload
-
-    latest_bar_age_secs = max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
-    payload["stale"] = latest_bar_age_secs > config.max_stale_secs()
+    latest_bar_age_secs = _latest_bar_age_secs(bars)
+    payload["stale"] = (
+        True
+        if latest_bar_age_secs is None
+        else latest_bar_age_secs > config.max_stale_secs()
+    )
     return payload
 
 
@@ -399,10 +411,17 @@ def smc_live(
 
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
         if tf == "5m":
-            # Re-evaluate stale for cached background snapshots.
+            # Re-evaluate stale for cached background snapshots. Overlay age
+            # alone measures compute-thread liveness: with a dead feed the
+            # refresh thread keeps recomputing from frozen bars, so the flag
+            # must also track bar recency (the actual data flow) or the
+            # consumer-side degrade-to-fallback contract can never trigger.
             age = cache.overlay_age_secs()
             max_stale = config.max_stale_secs()
-            payload["stale"] = (age > max_stale) if age != float("inf") else True
+            compute_stale = (age > max_stale) if age != float("inf") else True
+            bar_age = _latest_bar_age_secs(cache.get_bars_snapshot(sym))
+            data_stale = bar_age is None or bar_age > max_stale
+            payload["stale"] = compute_stale or data_stale
         if payload.get("stale"):
             observability.metric_counter("live_overlay.smc_live_stale_served.total")
         # Inject tf into response

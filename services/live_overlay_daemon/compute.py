@@ -1323,6 +1323,28 @@ _NO_SIGNAL_FIELDS: dict[str, Any] = {
 }
 
 
+def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
+    """True when the snapshot's ``updated_epoch`` is within signals_max_age_secs.
+
+    Fail-closed: a missing, non-numeric, non-finite, or non-positive epoch
+    means freshness cannot be proven, so callers must not serve trade signals
+    from it. Mirrors the exporter's ``trading_signals_snapshot_stale`` /
+    ``_age_unknown`` contract (metrics._trading_signals_snapshot) so the
+    overlay payload and the alerting layer agree on what "stale" means.
+    """
+    updated = snap.get("updated_epoch")
+    if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):
+        return False
+    try:
+        epoch = float(updated)
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(epoch) or epoch <= 0:
+        return False
+    age_seconds = max(0.0, time.time() - epoch)
+    return age_seconds <= float(config.signals_max_age_secs())
+
+
 def _get_signal_fields(symbol: str) -> dict[str, Any]:
     """Realtime signal + ATR trade context for ``symbol`` from the signals snapshot.
 
@@ -1330,10 +1352,15 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     and passes its trade_* fields through (nulled when non-positive) — computed ONCE in
     the producer (open_prep/trade_context.py), so the Pine overlay shows the
     same numbers as the Slack push. All-null when the symbol has no active
-    signal, the snapshot is unavailable, or the producer predates the fields.
+    signal, the snapshot is unavailable, stale, or of unprovable age
+    (``updated_epoch`` vs OVERLAY_SIGNALS_MAX_AGE_SECS — a dead producer's
+    frozen write-through snapshot must not keep signals live), or the
+    producer predates the trade fields.
     """
     snap = _load_signals_snapshot()
-    rows = snap.get("signals") if isinstance(snap, dict) else None
+    if not isinstance(snap, dict) or not _signals_snapshot_is_fresh(snap):
+        return dict(_NO_SIGNAL_FIELDS)
+    rows = snap.get("signals")
     if not isinstance(rows, list):
         return dict(_NO_SIGNAL_FIELDS)
     sym = symbol.upper().strip()
