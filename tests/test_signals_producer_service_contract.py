@@ -243,3 +243,65 @@ def test_signal_engine_suppresses_http_client_request_urls() -> None:
 
     assert 'logging.getLogger("httpx").setLevel(logging.WARNING)' in source
     assert 'logging.getLogger("httpcore").setLevel(logging.WARNING)' in source
+
+
+def test_image_ships_technical_scorer_chain() -> None:
+    """The deployed producer silently ran with _noop_fetch technicals: the
+    image lacked terminal_technicals.py (and its FMP-fallback import chain)
+    plus the tradingview-ta dependency, so every prod signal scored
+    technical_score=0.5 NEUTRAL and the RSI A1->A0 upgrades / STRONG_SELL A0
+    blocks were inert — one WARNING log, no metric (audit finding P2)."""
+    dockerfile = (_REPO_ROOT / "services" / "signals_producer" / "Dockerfile").read_text(encoding="utf-8")
+    for module in (
+        "terminal_technicals.py",
+        "terminal_fmp_technicals.py",
+        "open_prep_boundary.py",
+    ):
+        assert f"COPY {module}" in dockerfile, f"image must ship {module}"
+
+    reqs = (_REPO_ROOT / "services" / "signals_producer" / "requirements.txt").read_text(encoding="utf-8")
+    assert "tradingview-ta==" in reqs, "tradingview-ta pin missing from producer image requirements"
+
+    # Keep the pin aligned with the root requirements (same rationale as the
+    # httpx alignment comment in the producer requirements file).
+    root_reqs = (_REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+    root_pin = next(
+        line.split("#")[0].strip()
+        for line in root_reqs.splitlines()
+        if line.strip().startswith("tradingview-ta==")
+    )
+    assert root_pin in reqs, f"producer tradingview-ta pin drifted from root ({root_pin})"
+
+
+def test_railway_watch_patterns_cover_every_copied_module() -> None:
+    """railway.toml watchPatterns OVERRIDE the dashboard setting, so a copied
+    module missing from the list means changes to it silently do NOT redeploy
+    the producer (the file's own comment says the list must be complete —
+    the audit found four copied paths it did not cover)."""
+    dockerfile = (_REPO_ROOT / "services" / "signals_producer" / "Dockerfile").read_text(encoding="utf-8")
+    toml_text = (_REPO_ROOT / "services" / "signals_producer" / "railway.toml").read_text(encoding="utf-8")
+
+    copy_sources = [
+        line.split()[1]
+        for line in dockerfile.splitlines()
+        if line.startswith("COPY ") and not line.split()[1].startswith("services/")
+    ]
+    assert copy_sources, "no COPY sources parsed from the Dockerfile"
+
+    import re as _re
+
+    patterns = _re.findall(r'"([^"]+)"', toml_text.split("watchPatterns", 1)[1].split("]", 1)[0])
+
+    def _covered(src: str) -> bool:
+        for pat in patterns:
+            if pat.endswith("/**") and src.rstrip("/").startswith(pat[:-3].rstrip("/")):
+                return True
+            if pat == src or pat == src.rstrip("/"):
+                return True
+        return False
+
+    uncovered = sorted(src for src in copy_sources if not _covered(src))
+    assert not uncovered, (
+        "Dockerfile COPY sources not covered by railway.toml watchPatterns — "
+        f"changes to them will not redeploy the producer: {uncovered}"
+    )
