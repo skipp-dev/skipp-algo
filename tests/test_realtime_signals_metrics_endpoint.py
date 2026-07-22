@@ -456,3 +456,67 @@ def test_collect_metrics_data_stale_is_market_gated() -> None:
     eng = _engine(now - rs.DATA_STALL_SECONDS - 60, in_market=True)
     del eng._in_market_hours
     assert "signals_producer_data_stale 0" in rs._collect_process_metrics(eng)
+
+
+# ---------------------------------------------------------------------------
+# Client-disabled visibility (a producer that can never build its FMP client
+# must not look healthy: gauge for alerting + /readyz 503)
+# ---------------------------------------------------------------------------
+
+def test_collect_metrics_exports_client_disabled_gauge() -> None:
+    """signals_producer_client_disabled is 0/1 and rendered unconditionally;
+    when disabled, the reason surfaces as an info label so the runbook does
+    not have to shell into the container to find it."""
+    import time as _t
+    import types
+
+    def _engine(reason: str | None) -> types.SimpleNamespace:
+        return types.SimpleNamespace(
+            last_poll_success_epoch=_t.time(),
+            last_poll_duration_seconds=0.1,
+            open_prep_snapshot_loaded=1,
+            open_prep_snapshot_age_seconds=10.0,
+            _watchlist=[],
+            _client=None,
+            _last_data_epoch=_t.time(),
+            _in_market_hours=False,
+            _client_disabled_reason=reason,
+        )
+
+    body = rs._collect_process_metrics(_engine(None))
+    assert "signals_producer_client_disabled 0" in body
+    assert "signals_producer_client_disabled_info" not in body
+
+    body = rs._collect_process_metrics(_engine("RuntimeError"))
+    assert "signals_producer_client_disabled 1" in body
+    assert 'signals_producer_client_disabled_info{reason="RuntimeError"} 1' in body
+
+    # Old engine object without the attribute → healthy default, never a crash.
+    eng = _engine(None)
+    del eng._client_disabled_reason
+    assert "signals_producer_client_disabled 0" in rs._collect_process_metrics(eng)
+
+
+def test_readyz_returns_503_when_client_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A permanently disabled FMP client can never produce data: /readyz must
+    fail closed even though the poll loop keeps marking loop-liveness success
+    on every disabled cycle ("UIs stay green" empty-snapshot path)."""
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    engine = SimpleNamespace(
+        _watchlist=[{"symbol": "AAPL"}],
+        open_prep_snapshot_loaded=1.0,
+        last_poll_success_epoch=time.time(),
+        _client_disabled_reason="RuntimeError",
+    )
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
+    if server is None:
+        return
+    try:
+        port = int(server.server_port)
+        status, body = _get(f"http://127.0.0.1:{port}/readyz")
+        assert status == 503
+        assert "client disabled" in body
+    finally:
+        server.shutdown()

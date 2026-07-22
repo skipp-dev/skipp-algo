@@ -1981,6 +1981,41 @@ groups:
       summary: smc-signals-producer has not completed a poll cycle in > 5 min
       runbook: Check producer logs for FMP client failures, network errors, or telemetry
         server crashes.
+  - uid: sp-client-disabled
+    title: Signals Producer FMP client disabled (no data possible)
+    condition: C
+    # signals_producer_client_disabled is a 0/1 gauge rendered unconditionally:
+    # 1 means FMPClient.from_env() failed at boot (e.g. missing FMP_API_KEY)
+    # and every cycle publishes empty signals while loop-liveness (readyz-age,
+    # poll_age, updated_epoch) would otherwise stay green. Producer-down is
+    # covered by sp-scrape-down, so NoData here is OK.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(signals_producer_client_disabled{job="signals_producer"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: smc-signals-producer is running without an FMP client — it can never fetch quotes and publishes empty signals every cycle. /readyz reports 503 "client disabled (<reason>)".
+      runbook: Check signals_producer_client_disabled_info{reason=...} for the failure class, verify FMP_API_KEY is set on the smc-signals-producer Railway service, then redeploy/restart — the client is only constructed at boot.
   - uid: sp-data-stale
     title: Signals Producer data stale (market-hours FMP outage)
     condition: C
