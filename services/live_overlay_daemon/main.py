@@ -30,7 +30,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, compute, config, feed, metrics, observability, request_hotspots
+from . import cache, compute, config, feed, library_context_bridge, metrics, observability, request_hotspots
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -410,6 +410,11 @@ def smc_live(
             )
 
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
+        # SC-LIB-001 (issue #3872 aftermath): additive library-context fields —
+        # universe membership + provider trust parsed from the committed
+        # generated Pine library. Fail-soft: a static/missing library yields
+        # None fields; the sidecar renders them as "not measured".
+        payload.update(library_context_bridge.context_for_symbol(sym))
         if tf == "5m":
             # Re-evaluate stale for cached background snapshots. Overlay age
             # alone measures compute-thread liveness: with a dead feed the
