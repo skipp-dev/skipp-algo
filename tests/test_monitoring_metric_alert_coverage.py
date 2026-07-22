@@ -153,12 +153,20 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_smc_live_latency_ms_sum": (
         "histogram component: quantiles come from _bucket; only a mean would read this"
     ),
+    # The two pre-computed legacy gauges that sat here (smc_live_latency_p95_ms
+    # / _p99_ms) are gone: their emission was deleted from metrics.py, so the
+    # no-longer-emitted guard below evicted them. Debt repaid, not reclassified.
 }
 
 # 2026-07-22: 39 entries when the fail-closed inversion landed. This number may
 # only go DOWN. Without it the register above is a permit — see
 # test_orphan_debt_does_not_grow for what that costs.
-_ORPHAN_SCAN_DEBT_CEILING = 39
+# 2026-07-22 (legacy latency gauges deleted from metrics.py): 39->37.
+# 2026-07-23 (all 32 unaudited entries resolved): 37->4. Leaving it at 37 would
+# hand back exactly the 33 slots this PR just cleared, so the next unconsumed
+# metric could be excused into the gap without the reviewable edit the ratchet
+# exists to force. The four survivors each state a verified reason.
+_ORPHAN_SCAN_DEBT_CEILING = 4
 
 
 def _alert_expr_text() -> str:

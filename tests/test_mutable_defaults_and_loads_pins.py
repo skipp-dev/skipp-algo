@@ -215,7 +215,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-21 (PRE-A0 replay/readiness hardening): 221->230, 222->231.
         ("services/a0_fast_detector/worker.py", 230),
         ("services/a0_fast_detector/worker.py", 231),
-        ("streamlit_terminal.py", 327),
+        ("streamlit_terminal.py", 328),  # 2026-07-22 Technical Data tab: 327->328
         # 2026-07-04 (WP-3 backtest CLI): `os.environ["FMP_API_KEY"] = args.api_key`
     }
 )

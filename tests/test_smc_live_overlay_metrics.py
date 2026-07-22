@@ -672,9 +672,9 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    # The deprecated derived gauges are gone: every consumer (the latency panel
-    # and lo-latency-p99-high) computes percentiles with histogram_quantile()
-    # over the buckets, which is the migration the emission comment named.
+    # The derived p95/p99 gauges are gone: consumers read the buckets via
+    # histogram_quantile(), and two dashboard/alert contract tests forbid the
+    # gauges outright, so emitting them served nothing.
     assert "live_overlay_smc_live_latency_p95_ms" not in body
     assert "live_overlay_smc_live_latency_p99_ms" not in body
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
@@ -701,7 +701,22 @@ def test_render_metrics_emits_latency_quantile_gauges(monkeypatch: pytest.Monkey
     assert 0 < p10 < p100 < p1000, "histogram buckets not sorted numerically"
 
 
-def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_render_metrics_never_reemits_legacy_latency_quantile_gauges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The p95/p99 gauges stay deleted — reviving them re-opens the orphan.
+
+    They existed only "until dashboard/alert consumers are fully migrated to
+    histogram_quantile()". That migration is done and enforced by
+    test_dashboard_latency_panel_uses_only_histogram_quantile and
+    test_latency_alert_uses_histogram_quantile_bucket, which forbid the gauges
+    in every panel and rule. Re-emitting them would therefore produce a series
+    nothing is allowed to consume, so this pins their absence in the one place
+    that could bring them back.
+
+    Exercised with the +Inf-only counter state that used to be their trickiest
+    case (it once risked a misleadingly-perfect 0.000 ms reading).
+    """
     import services.live_overlay_daemon.metrics as metrics_mod
     import services.live_overlay_daemon.observability as obs
 
@@ -713,13 +728,14 @@ def test_render_metrics_omits_latency_quantiles_when_only_inf_bucket(monkeypatch
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
 
-    # With only the +Inf bucket populated there is no finite bound to
-    # interpolate, so the histogram still exposes its count and sum but the
-    # exposition carries no derived percentile series at all.
     assert "live_overlay_smc_live_latency_p95_ms" not in body
     assert "live_overlay_smc_live_latency_p99_ms" not in body
+    # The histogram itself must still be there — this deletion removed the
+    # derived duplicates, not the latency signal.
+    assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
     assert "live_overlay_smc_live_latency_ms_count 100.0" in body
+
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.metrics as metrics_mod

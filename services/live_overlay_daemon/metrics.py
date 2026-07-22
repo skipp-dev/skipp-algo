@@ -1206,6 +1206,14 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     )
     lines.append(f"live_overlay_smc_live_latency_ms_count {_prom_numeric_value(latency_count or 0.0)}")
 
+    # The derived p95/p99 gauges that lived here were kept only "until
+    # dashboard/alert consumers are fully migrated to histogram_quantile() over
+    # the buckets". That migration is complete and now enforced:
+    # test_dashboard_latency_panel_uses_only_histogram_quantile and
+    # test_latency_alert_uses_histogram_quantile_bucket assert the gauges are
+    # ABSENT from every panel and rule. Emitting a series nothing may consume is
+    # the blind spot the orphan scan exists to surface, so they are gone.
+
     # --- Feed counters ---
     feed_metrics = feed.metrics_snapshot()
     for name, value in sorted(feed_metrics.items()):
