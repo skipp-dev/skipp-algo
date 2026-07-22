@@ -76,7 +76,20 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_market_us_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
+        # Two critical paths, not one: `1 - feed_healthy` catches loud failures
+        # (BentoError/circuit-break clears _feed_ready) and never-seen bars
+        # (is_ready() is False while last_bar_at <= 0), but a SILENT stall keeps
+        # _feed_ready set and only ages the last bar — feed_healthy stays 1
+        # until the 3600s payload-staleness gate (truth-audit 2026-07-22 F-1:
+        # critical was blind for up to ~1h). The bar-age term closes that gap at
+        # 600s = 2x the lo-last-bar-stale-open high threshold (escalation
+        # ladder, NOT a duplicate 300s page) and past the supervisor's 180s
+        # stall-detect + heal window, so a successful self-heal never pages.
+        # Gated on age_known so the unknown-age 0.0 cannot read as fresh.
+        expr: "live_overlay_market_us_open{job=\"live_overlay\"} * (\n  (1 - live_overlay_feed_healthy{job=\"\
+          live_overlay\"})\n  + (\n    live_overlay_last_bar_age_known{job=\"live_overlay\"\
+          }\n    * (live_overlay_last_bar_age_seconds{job=\"live_overlay\"} > bool\
+          \ 600)\n  )\n)\n"
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -96,9 +109,13 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: Live overlay feed is DOWN during market-open for > 5 min
-      runbook: Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY
-        validity.
+      summary: Live overlay feed is DOWN or silently stalled (no bar > 10 min) during
+        market-open for > 5 min
+      runbook: Check Railway logs for BentoError / circuit breaker; verify DATABENTO_API_KEY
+        validity. If feed_healthy is still 1, this is the silent-stall path — check
+        supervisor partial_restarts/circuit_breakers counters and last_bar_age_seconds
+        (supervisor stall-detect is 180s; escalation here means self-heal did not
+        restore bars).
   - uid: lo-workers-degraded
     title: Workers unhealthy
     condition: C

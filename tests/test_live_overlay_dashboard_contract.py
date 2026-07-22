@@ -1859,3 +1859,49 @@ def test_vix_panel_gates_on_age_known_and_matches_alert_sentinel() -> None:
         f"lo-vix-unavailable sentinel ({sentinel}) must exceed its threshold "
         f"({threshold}) or the never-fetched state can never fire"
     )
+
+
+def test_feed_down_critical_covers_silent_stall_via_bar_age_ladder() -> None:
+    """The critical feed-down rule must fire on a silent stall, not only a loud one.
+
+    `feed_healthy` (= feed.is_ready()) only drops on BentoError/circuit-break or
+    the 3600s payload-staleness gate — a silent stall keeps _feed_ready set, so
+    `1 - feed_healthy` alone left the critical blind for up to ~1h (truth-audit
+    2026-07-22 F-1). The bar-age term must use the `> bool` form: a bare `>`
+    filter would drop the series while fresh and empty the whole arithmetic
+    sum, silencing the feed_healthy path too. The 600s gate is pinned as
+    exactly 2x the lo-last-bar-stale-open high threshold so the escalation
+    ladder (high -> critical) cannot silently collapse or drift apart.
+    """
+    critical = _alert_rule("lo-feed-down-market-open")
+    critical_expr = critical["data"][0]["model"]["expr"]
+    assert "live_overlay_market_us_open" in critical_expr
+    assert "1 - live_overlay_feed_healthy" in critical_expr, (
+        f"loud-failure path vanished from the critical feed-down rule: {critical_expr}"
+    )
+    assert "live_overlay_last_bar_age_known" in critical_expr, (
+        f"bar-age term must gate on age_known so unknown-age 0.0 cannot read as "
+        f"fresh: {critical_expr}"
+    )
+    critical_gate = re.search(
+        r"live_overlay_last_bar_age_seconds\{[^}]*\}\s*>\s*bool\s*(\d+)", critical_expr
+    )
+    assert critical_gate, (
+        f"critical feed-down rule lost its `> bool` bar-age gate (bare `>` would "
+        f"filter the series away and silence the whole sum): {critical_expr}"
+    )
+
+    high = _alert_rule("lo-last-bar-stale-open")
+    high_expr = high["data"][0]["model"]["expr"]
+    high_gate = re.search(
+        r"live_overlay_last_bar_age_seconds\{[^}]*\}\s*>\s*bool\s*(\d+)", high_expr
+    )
+    assert high_gate, f"high bar-age rule lost its `> bool` gate: {high_expr}"
+
+    assert int(critical_gate.group(1)) == 2 * int(high_gate.group(1)), (
+        f"escalation ladder broke: critical bar-age gate {critical_gate.group(1)}s "
+        f"must stay exactly 2x the high rule's {high_gate.group(1)}s"
+    )
+
+    assert critical["labels"]["severity"] == "critical"
+    assert high["labels"]["severity"] == "high"
