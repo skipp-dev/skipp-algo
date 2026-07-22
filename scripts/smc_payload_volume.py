@@ -118,11 +118,10 @@ def payload_blocking_reasons(volume: PayloadVolume) -> list[str]:
     A contradiction cannot be legitimate, so neither reason needs a threshold
     or an exemption list.
 
-    The reasons apply in every generation mode. ``static_control_plane`` — the
-    one mode where an absent ``UNIVERSE_TICKERS`` was by construction — is
-    retired from the publish path entirely (operator decision 2026-07-22, no
-    flip back; the generator adds ``static_control_plane_retired`` for it), so
-    no mode-dependent suppression exists here.
+    The reasons apply unconditionally. The static control plane — the one mode
+    in which an absent ``UNIVERSE_TICKERS`` was by construction — was retired
+    and removed (ADR-0029 decision 3, operator decision 2026-07-22), so no
+    mode-dependent suppression exists here.
 
     An unmeasurable payload blocks nothing; ``known=False`` is surfaced
     separately rather than being read as empty.

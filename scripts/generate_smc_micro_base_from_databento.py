@@ -1600,7 +1600,6 @@ def finalize_pipeline(
     enrich_institutional: bool = False,
     enrich_analyst: bool = False,
     enrich_insider: bool = False,
-    static_control_plane: bool = False,
     debug_mode: bool = False,
     live_news_snapshot_path: Path | None = None,
     emit_live_news_snapshot: bool = False,
@@ -1752,7 +1751,6 @@ def finalize_pipeline(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
-        static_control_plane=static_control_plane,
     )
     _progress(
         f"Finalize {pine_step_label} complete in {time_module.perf_counter() - pine_started_at:.1f}s "
@@ -1862,11 +1860,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-analyst", action="store_true", help="Add v6 analyst consensus enrichment (FMP)")
     parser.add_argument("--enrich-insider", action="store_true", help="Add v6 insider transactions enrichment (FMP)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
-    parser.add_argument(
-        "--static-only",
-        action="store_true",
-        help="Generate the Library Control Plane from the Databento/base snapshot only; never fetch or bake live provider values",
-    )
     parser.add_argument("--debug", action="store_true", help="Include diagnostic fields (LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE, etc.)")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
@@ -1904,7 +1897,6 @@ def main() -> None:
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
         emit_live_news_snapshot=True,
-        static_control_plane=bool(args.static_only),
         debug_mode=bool(args.debug),
         progress_callback=cli_progress_callback,
         **enrichment_flags,
@@ -1995,8 +1987,6 @@ def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
         "enrich_analyst",
         "enrich_insider",
     )
-    if getattr(args, "static_only", False):
-        return {flag_name: False for flag_name in flag_names}
     if args.enrich_all:
         return {flag_name: True for flag_name in flag_names}
     return {flag_name: bool(getattr(args, flag_name)) for flag_name in flag_names}
