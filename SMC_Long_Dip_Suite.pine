@@ -425,7 +425,11 @@ render_lib_freshness() =>
     asof_ts    = timestamp(int(asof_year), int(asof_month), int(asof_day), 0, 0, 0)
     lib_days_old = math.floor((timenow - asof_ts) / 86400000)
     var label stale_label = na
-    if barstate.islast and lib_days_old > 2
+    // T-1 cadence: ASOF_DATE stamps the last completed TRADING day and only
+    // advances with the ~09-13Z refresh — weekend peak is ~4d13h, a Monday
+    // holiday reaches floor 5. `> 2` warned every Monday on healthy data;
+    // `> 5` mirrors the lo-pine-library-data-stale alert (432000s, #3878).
+    if barstate.islast and lib_days_old > 5
         if not na(stale_label)
             label.delete(stale_label)
         stale_label := label.new(bar_index, high,
