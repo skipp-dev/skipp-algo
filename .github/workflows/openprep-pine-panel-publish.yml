@@ -97,6 +97,12 @@ jobs:
 
       - name: Regenerate panel (traded data-branch outcomes preferred)
         if: ${{ inputs.regenerate || github.event_name == 'schedule' }}
+        env:
+          # Scoped auth for the data-branch fetch only. The job checkout runs
+          # with persist-credentials: false (hardening: the Playwright/TV steps
+          # must not see ambient git credentials — PR #3217), which broke this
+          # fetch when the repo went private (fatal: could not read Username).
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Option-a decision (2026-07-09): the PUBLISHED panel shows the
           # TRADED universe. The local audit-push (17:30 ET) lands the traded,
@@ -108,10 +114,20 @@ jobs:
           # universe would shrink the 929-symbol signal watchlist to ~10.
           # Fail-soft on every step; a disjoint universe still warns loudly in
           # the generator.
-          git fetch --depth 1 origin data/phase-a-audit || true
-          committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1)"
+          #
+          # URL-scoped token (repo idiom, cf. adr0023-magnitude-shadow-daily):
+          # auth lives only in this one fetch command, never in git config, so
+          # the persist-credentials: false posture of the job is preserved. The
+          # runner masks the token in logs.
+          git fetch --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            data/phase-a-audit:refs/remotes/origin/data/phase-a-audit || true
+          # `|| true` INSIDE the substitutions: under set -e -o pipefail an
+          # empty glob (ls rc=2) or a missing origin/data/phase-a-audit ref
+          # (grep rc=1) otherwise kills the assignment line itself — exactly
+          # the silent 90ms death this step died of when the fetch broke.
+          committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1 || true)"
           committed_date="$(basename "${committed_latest:-}" .json | sed 's/^outcomes_//')"
-          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1)"
+          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
           db_date="$(basename "${db_latest:-}" .json | sed 's/^outcomes_//')"
           outcomes_args=()
           panel_date="${committed_date}"
