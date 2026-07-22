@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Callable
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -22,6 +23,8 @@ def _is_open_between(
     start_local: datetime.time,
     end_local: datetime.time,
     holiday_calendar_code: str | None = None,
+    early_close_end_local: datetime.time | None = None,
+    is_early_close: Callable[[datetime.date], bool] | None = None,
 ) -> bool:
     """Return whether a local-clock market session is open.
 
@@ -29,6 +32,10 @@ def _is_open_between(
     fixed UTC fallback is wrong during part of every year and is especially
     dangerous while US and European DST calendars are temporarily out of
     sync.
+
+    When both ``early_close_end_local`` and ``is_early_close`` are given and
+    the local date is an early-close day, the session ends at
+    ``early_close_end_local`` instead of ``end_local``.
     """
     if now_utc.tzinfo is None or now_utc.utcoffset() is None:
         raise ValueError("now_utc must be timezone-aware")
@@ -45,8 +52,15 @@ def _is_open_between(
         return False
     if holiday_calendar_code and _is_holiday(holiday_calendar_code, now_local.date()):
         return False
+    effective_end = end_local
+    if (
+        early_close_end_local is not None
+        and is_early_close is not None
+        and is_early_close(now_local.date())
+    ):
+        effective_end = early_close_end_local
     current_local = now_local.time()
-    return start_local <= current_local < end_local
+    return start_local <= current_local < effective_end
 
 
 @lru_cache(maxsize=64)
@@ -71,8 +85,43 @@ def _is_holiday(calendar_code: str, local_date: datetime.date) -> bool:
     return local_date in _holiday_dates_for_year(calendar_code, local_date.year)
 
 
+# NYSE half-days close at 13:00 ET.
+_US_EARLY_CLOSE_LOCAL = datetime.time(13, 0)
+
+
+def _is_us_early_close(local_date: datetime.date) -> bool:
+    """Return True on NYSE 13:00-ET early-close half-days (~3/yr).
+
+    Recurring rule set: July 3, the day after Thanksgiving (always a Friday),
+    and December 24 — each only when it falls on a weekday and is not itself
+    an observed full holiday. The holiday exclusion handles the shifted
+    years: July 4 on a Saturday makes July 3 the observed FULL holiday
+    (e.g. 2026), and Christmas on a Saturday does the same to December 24.
+    Deliberately NOT lru_cached: it routes through the cached
+    _holiday_dates_for_year, and an own cache would freeze monkeypatched
+    holiday sets across tests.
+    """
+    if local_date.weekday() >= 5:
+        return False
+    year = local_date.year
+    if local_date not in (datetime.date(year, 7, 3), datetime.date(year, 12, 24)):
+        november_first = datetime.date(year, 11, 1)
+        first_thursday = november_first + datetime.timedelta(
+            days=(3 - november_first.weekday()) % 7
+        )
+        thanksgiving = first_thursday + datetime.timedelta(weeks=3)
+        if local_date != thanksgiving + datetime.timedelta(days=1):
+            return False
+    return not _is_holiday("NYSE", local_date)
+
+
 def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
-    """Return True during regular US equities session (Mon-Fri 09:30-16:00 ET). Known limitation: NYSE early-close half-days (~3/yr) are treated as full sessions — the gauge stays 1 until 16:00, so US-gated staleness alerts can fire on those afternoons."""
+    """Return True during regular US equities session (Mon-Fri 09:30-16:00 ET).
+
+    NYSE early-close half-days (July 3, day after Thanksgiving, Dec 24 —
+    ~3/yr) end at 13:00 ET, so US-gated staleness alerts stand down after the
+    real close instead of false-firing until 16:00 (truth-audit 2026-07-22 F-4).
+    """
     now_utc = now_utc or datetime.datetime.now(datetime.UTC)
     return _is_open_between(
         now_utc=now_utc,
@@ -80,6 +129,8 @@ def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool
         start_local=datetime.time(9, 30),
         end_local=datetime.time(16, 0),
         holiday_calendar_code="NYSE",
+        early_close_end_local=_US_EARLY_CLOSE_LOCAL,
+        is_early_close=_is_us_early_close,
     )
 
 
