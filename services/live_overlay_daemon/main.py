@@ -375,9 +375,17 @@ def smc_live(
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
             observability.metric_counter("live_overlay.smc_live_stale_served.total")
             observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
-            # Symbol not yet in cache — return minimal stale response
+            # Symbol not yet in cache — return minimal stale response.
+            # SC-LIB-001 follow-up: library context and VIX are NOT
+            # symbol-cache-derived — the library file is on disk and VIX is a
+            # market-wide poll — so a per-symbol cache miss must not blank
+            # them. Before this, a warming daemon (fresh deploy) served the
+            # sidecar an all-null payload and the panel's Chart-Kontext card
+            # read "keine Daten" although both were known.
+            cache_miss_vix = cache.get_vix()
             return JSONResponse(
                 {
+                    **library_context_bridge.context_for_symbol(sym),
                     "schema": "smc-live-overlay/1",
                     "symbol": sym,
                     "tf": tf,
@@ -390,7 +398,7 @@ def smc_live(
                     "squeeze_on": None,
                     "ats_state": None, "volume_accumulation_distribution_state": None,
                     "ats_zscore": None, "volume_current_bar_zscore": None,
-                    "vix_level": None,
+                    "vix_level": round(cache_miss_vix, 4) if cache_miss_vix is not None else None,
                     "tone": None,
                     "global_heat": None,
                     "event_window_state": None,
