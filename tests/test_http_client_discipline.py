@@ -185,7 +185,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot fetcher, https-only +
         # explicit timeout= (mirrors evidence_freshness_bridge).
-        ("services/live_overlay_daemon/pine_library_version_bridge.py", 125),  # 2026-07-21 (library ASOF_DATE fields): 121->125
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 132),  # 2026-07-22 (ADR-0029 payload volume fields): 125->132
         # 2026-07-16: actual TradingView dropdown-binding snapshot fetcher;
         # HTTPS-only with an explicit 10-second timeout.
         ("services/live_overlay_daemon/tradingview_binding_bridge.py", 84),  # 2026-07-21 (saved-source hash fields): 61->84

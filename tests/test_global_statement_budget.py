@@ -314,7 +314,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot bridge — same TTL-cache
         # singleton pattern (snapshot() + _cached/_cached_at_monotonic).
-        ("services/live_overlay_daemon/pine_library_version_bridge.py", 180, ("_cached", "_cached_at_monotonic")),  # 2026-07-21 (library ASOF_DATE fields): 176->180
+        ("services/live_overlay_daemon/pine_library_version_bridge.py", 187, ("_cached", "_cached_at_monotonic")),  # 2026-07-22 (ADR-0029 payload volume fields): 180->187
         # 2026-06-24 (feat/railway-metrics): Railway GraphQL bridge for container
         # metrics exposes a lazily-refreshed TTL cache (mirroring uptimerobot).
         # 2026-06-25 (fix/live-overlay-bridge-contract-followup): added
