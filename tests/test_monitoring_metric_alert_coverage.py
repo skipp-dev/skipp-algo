@@ -103,7 +103,17 @@ _VIX_SIGNAL_METRICS = (
     "live_overlay_vix_age_known",
 )
 
-_METRIC_RE = re.compile(r"live_overlay_(?:evidence|github_workflow|vix)_[a-z0-9_]+")
+# Orphan-scan families: literal metric names in these families must have a
+# consumer (alert rule or dashboard panel). Extended 2026-07-22 beyond
+# evidence|github_workflow|vix to the remaining core families — the first
+# sweep immediately caught five emitted-but-unconsumed deprecated
+# trading_signals *_total aliases plus an unwired snapshot_max_age gauge,
+# which is exactly the blind-spot class this scan exists for.
+_METRIC_RE = re.compile(
+    r"live_overlay_"
+    r"(?:evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals)"
+    r"_[a-z0-9_]+"
+)
 
 
 def _alert_expr_text() -> str:
@@ -213,6 +223,9 @@ def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
     # Sanity: discovery actually found the families (guards against a rename
     # silently emptying the set and making this test vacuously pass).
     assert any(m.startswith("live_overlay_evidence_") for m in emitted), emitted
+    assert any(m.startswith("live_overlay_trading_signals_") for m in emitted), emitted
+    assert any(m.startswith("live_overlay_bridge_") for m in emitted), emitted
+    assert any(m.startswith("live_overlay_feed_") for m in emitted), emitted
     orphans = sorted(m for m in emitted if m not in consumers)
     assert not orphans, (
         "these monitoring metrics are emitted but referenced by no alert rule "
