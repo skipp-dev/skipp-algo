@@ -229,10 +229,7 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
     # library it contradicted — which is how an empty payload shipped green.
     payload = measure_payload_volume(_read_text(library_path))
     _verify_payload_matches_manifest(productivity_gate, payload)
-    payload_reasons = payload_blocking_reasons(
-        payload,
-        static_control_plane=manifest.get("generation_mode") == "static_control_plane",
-    )
+    payload_reasons = payload_blocking_reasons(payload)
     if payload_reasons:
         raise RuntimeError(
             "Generated Pine library carries no payload: " + ", ".join(payload_reasons)

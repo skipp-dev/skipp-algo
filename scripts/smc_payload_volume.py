@@ -108,11 +108,7 @@ def measure_payload_volume(text: str) -> PayloadVolume:
     )
 
 
-def payload_blocking_reasons(
-    volume: PayloadVolume,
-    *,
-    static_control_plane: bool = False,
-) -> list[str]:
+def payload_blocking_reasons(volume: PayloadVolume) -> list[str]:
     """Blocking reasons for the productivity gate.
 
     Each reason is a *contradiction between two fields*, never a bare emptiness
@@ -122,12 +118,11 @@ def payload_blocking_reasons(
     A contradiction cannot be legitimate, so neither reason needs a threshold
     or an exemption list.
 
-    ``static_control_plane`` suppresses only the *universe* reason. In that
-    mode the provider data is meant to live in the runtime sidecar rather than
-    the library, so an absent ``UNIVERSE_TICKERS`` is by construction and not a
-    contradiction (#3896). The membership reason still applies in both modes:
-    it keys off ``UNIVERSE_SIZE``, which is populated regardless of mode, so a
-    wholly empty payload stays blocked either way.
+    The reasons apply in every generation mode. ``static_control_plane`` — the
+    one mode where an absent ``UNIVERSE_TICKERS`` was by construction — is
+    retired from the publish path entirely (operator decision 2026-07-22, no
+    flip back; the generator adds ``static_control_plane_retired`` for it), so
+    no mode-dependent suppression exists here.
 
     An unmeasurable payload blocks nothing; ``known=False`` is surfaced
     separately rather than being read as empty.
@@ -135,14 +130,8 @@ def payload_blocking_reasons(
     if not volume.known or volume.universe_size is None:
         return []
 
-    if (
-        not static_control_plane
-        and volume.universe_size > 0
-        and volume.universe_tickers_count == 0
-    ):
+    if volume.universe_size > 0 and volume.universe_tickers_count == 0:
         return ["empty_universe_tickers"]
-
-    has_material = volume.universe_size > 0 or volume.universe_tickers_count > 0
-    if has_material and volume.list_total == 0:
+    if volume.universe_tickers_count > 0 and volume.list_total == 0:
         return ["empty_membership_lists"]
     return []

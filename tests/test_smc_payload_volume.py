@@ -180,14 +180,15 @@ def test_gate_blocks_the_artifact_that_actually_shipped(tmp_path: Path) -> None:
 
 
 def test_gate_blocks_in_static_control_plane_mode(tmp_path: Path) -> None:
-    """The mode the incident ran in. Static tolerates an absent provider
-    universe (#3896), so the membership reason is what must hold the line."""
+    """The mode the incident ran in. The payload contradiction applies
+    unconditionally, and the retired mode adds its own reason on top."""
     gate = _write_manifest_for(
         tmp_path, INCIDENT_PINE, static_control_plane=True
     )["productivity_gate"]
 
     assert gate["publish_ready"] is False
-    assert "empty_membership_lists" in gate["blocking_reasons"]
+    assert "empty_universe_tickers" in gate["blocking_reasons"]
+    assert "static_control_plane_retired" in gate["blocking_reasons"]
 
 
 def test_gate_records_the_measured_counts(tmp_path: Path) -> None:
@@ -198,11 +199,14 @@ def test_gate_records_the_measured_counts(tmp_path: Path) -> None:
     assert gate["list_total"] == 1
 
 
+# Real event-risk enrichment isolates the payload dimension: without it the
+# pre-existing default_event_risk blocker fires on a stub enrichment.
+_EVENT_RISK_ENRICHMENT = {"event_risk": {"EVENT_WINDOW_STATE": "CLEAR"}}
+
+
 def test_a_healthy_payload_stays_publishable(tmp_path: Path) -> None:
-    # static_control_plane isolates the payload dimension: without it the
-    # pre-existing default_event_risk blocker fires on this stub enrichment.
     gate = _write_manifest_for(
-        tmp_path, HEALTHY_PINE, static_control_plane=True
+        tmp_path, HEALTHY_PINE, enrichment=_EVENT_RISK_ENRICHMENT
     )["productivity_gate"]
 
     assert gate["publish_ready"] is True
@@ -212,7 +216,7 @@ def test_a_healthy_payload_stays_publishable(tmp_path: Path) -> None:
 def test_an_unreadable_library_is_unknown_not_blocked(tmp_path: Path) -> None:
     """Unknown must not read as empty — and must not read as green either."""
     gate = _write_manifest_for(
-        tmp_path, None, static_control_plane=True
+        tmp_path, None, enrichment=_EVENT_RISK_ENRICHMENT
     )["productivity_gate"]
 
     assert gate["payload_known"] is False
@@ -220,26 +224,21 @@ def test_an_unreadable_library_is_unknown_not_blocked(tmp_path: Path) -> None:
     assert gate["blocking_reasons"] == []
 
 
-# ── Mode awareness (#3896) ──────────────────────────────────────
+# ── Static-mode retirement (operator decision 2026-07-22) ───────
 
-def test_static_mode_tolerates_an_absent_provider_universe() -> None:
-    """In static_control_plane the provider data lives in the sidecar by design."""
-    text = "\n".join([
-        "export const int UNIVERSE_SIZE = 6929",
-        'export const string UNIVERSE_TICKERS = ""',
-        'export const string CLEAN_RECLAIM_TICKERS = "AAPL"',
-    ])
+def test_static_mode_is_never_publishable(tmp_path: Path) -> None:
+    """Operator decision 2026-07-22 (ADR-0029): no flip back to static-only.
 
-    volume = measure_payload_volume(text)
+    Even a healthy payload with real event-risk enrichment must not publish in
+    static_control_plane mode. The workflow contract only guards the automated
+    path; this blocks the mode itself, so a manual publish is refused too.
+    """
+    gate = _write_manifest_for(
+        tmp_path,
+        HEALTHY_PINE,
+        static_control_plane=True,
+        enrichment={"event_risk": {"EVENT_WINDOW_STATE": "CLEAR"}},
+    )["productivity_gate"]
 
-    assert payload_blocking_reasons(volume) == ["empty_universe_tickers"]
-    assert payload_blocking_reasons(volume, static_control_plane=True) == []
-
-
-def test_static_mode_still_blocks_a_wholly_empty_payload() -> None:
-    """The incident signature stays blocked in static mode — via the lists."""
-    volume = measure_payload_volume(INCIDENT_PINE)
-
-    assert payload_blocking_reasons(volume, static_control_plane=True) == [
-        "empty_membership_lists"
-    ]
+    assert gate["publish_ready"] is False
+    assert "static_control_plane_retired" in gate["blocking_reasons"]

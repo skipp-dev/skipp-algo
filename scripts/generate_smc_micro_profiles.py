@@ -1475,13 +1475,19 @@ def write_manifest(
     blocking_reasons: list[str] = []
     if fixture_input_detected:
         blocking_reasons.append("fixture_input")
-    if event_risk_source == "defaults" and not static_control_plane:
+    if event_risk_source == "defaults":
         blocking_reasons.append("default_event_risk")
     if fixture_input_detected and placeholder_symbols:
         blocking_reasons.append("placeholder_symbols")
-    blocking_reasons.extend(
-        payload_blocking_reasons(payload, static_control_plane=static_control_plane)
-    )
+    # Operator decision 2026-07-22 (ADR-0029): static_control_plane is retired
+    # from the publish path — there will be no flip back to static-only. The
+    # mode stays generable for local use, but its manifest is never
+    # publish-ready, so even a manual publish attempt is refused. This also
+    # replaces the former static-mode suppression of default_event_risk, which
+    # existed solely to let static publish.
+    if static_control_plane:
+        blocking_reasons.append("static_control_plane_retired")
+    blocking_reasons.extend(payload_blocking_reasons(payload))
 
     payload = {
         "schema_version": SCHEMA_VERSION,

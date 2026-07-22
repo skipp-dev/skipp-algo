@@ -908,8 +908,15 @@ def test_manifest_event_risk_defaults_provenance(tmp_path: Path) -> None:
     assert "default_event_risk" in manifest["productivity_gate"]["blocking_reasons"]
 
 
-def test_manifest_static_control_plane_allows_runtime_event_risk(tmp_path: Path) -> None:
-    """Static libraries may publish while provider data stays in runtime sidecars."""
+def test_manifest_static_control_plane_is_not_publishable(tmp_path: Path) -> None:
+    """Operator decision 2026-07-22 (ADR-0029): no flip back to static-only.
+
+    This test previously pinned the opposite ("static libraries may publish
+    while provider data stays in runtime sidecars") — the premise behind #3790,
+    whose flip shipped five empty library versions. The mode stays generable
+    for local use, but its manifest is never publish-ready and the
+    publish-contract verifier refuses it, so a manual publish is blocked too.
+    """
     outputs = run_generation(
         schema_path=Path(SCHEMA_PATH),
         input_path=Path("data/input/microstructure_base_snapshot_2026-03-23.csv"),
@@ -919,14 +926,14 @@ def test_manifest_static_control_plane_allows_runtime_event_risk(tmp_path: Path)
     manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
     assert manifest["generation_mode"] == "static_control_plane"
     assert manifest["event_risk_source"] == "defaults"
-    assert manifest["productivity_gate"]["default_event_risk_detected"] is True
-    assert manifest["productivity_gate"]["publish_ready"] is True
-    assert "default_event_risk" not in manifest["productivity_gate"]["blocking_reasons"]
+    assert manifest["productivity_gate"]["publish_ready"] is False
+    assert "static_control_plane_retired" in manifest["productivity_gate"]["blocking_reasons"]
+    assert "default_event_risk" in manifest["productivity_gate"]["blocking_reasons"]
     core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
     snippet = outputs["core_import_snippet_path"].read_text(encoding="utf-8")
     core_path.write_text(f"//@version=6\n{snippet}", encoding="utf-8")
-    verified = verify_publish_contract(outputs["manifest_path"], core_path)
-    assert verified["publish_ready"] == "true"
+    with pytest.raises(RuntimeError, match="static_control_plane_retired"):
+        verify_publish_contract(outputs["manifest_path"], core_path)
 
 
 # ── Debug mode tests ────────────────────────────────────────────────
