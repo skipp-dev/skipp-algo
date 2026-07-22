@@ -517,6 +517,7 @@ from terminal_ui_helpers import (
     safe_url,
     split_segments_by_sentiment,
     tv_linkify_rows,
+    tv_symbol_md,
 )
 
 logger = logging.getLogger(__name__)
@@ -2862,7 +2863,7 @@ else:
                 _t3_sub += f" · Catalyst {_t3_ns:.2f}"
             _t3_name_safe = safe_markdown_text(_t3_name) if _t3_name else ""
             with _t3_cols[_t3i]:
-                st.markdown(f"### #{_t3i+1} {_t3_sym}")
+                st.markdown(f"### #{_t3i+1} {tv_symbol_md(_t3_sym)}")
                 if _t3_name_safe:
                     st.caption(_t3_name_safe)
                 st.markdown(_t3_sub)
@@ -2886,7 +2887,7 @@ else:
             _hl = safe_markdown_text((_best.get("headline") or "")[:100])
             _u = safe_url(_best.get("url") or "")
             _link = f"[{_hl}]({_u})" if _u else _hl
-            st.markdown(f"**{_tk_sym}** — {_link}")
+            st.markdown(f"**{tv_symbol_md(_tk_sym)}** — {_link}")
 
     with _detail_cols[1], st.expander(f"Actionable ({_stats['actionable']})"):
         _act_items = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
@@ -2899,9 +2900,9 @@ else:
                 _att = effective_attention_state(_ai)
                 _link = f"[{_hl}]({_u})" if _u else _hl
                 if _att:
-                    st.markdown(f"**{_tk}** ({_att.title()} · {_sc:.2f}) — {_link}")
+                    st.markdown(f"**{tv_symbol_md(_tk)}** ({_att.title()} · {_sc:.2f}) — {_link}")
                 else:
-                    st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+                    st.markdown(f"**{tv_symbol_md(_tk)}** ({_sc:.2f}) — {_link}")
         else:
             st.caption("No actionable items.")
 
@@ -2914,7 +2915,7 @@ else:
                 _u = safe_url(_hi.get("url") or "")
                 _sc = effective_catalyst_score(_hi)
                 _link = f"[{_hl}]({_u})" if _u else _hl
-                st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+                st.markdown(f"**{tv_symbol_md(_tk)}** ({_sc:.2f}) — {_link}")
         else:
             st.caption("No HIGH materiality items.")
 
@@ -3134,7 +3135,7 @@ else:
             with st.container():
                 cols = st.columns([1, 4, 1, 1, 1, 1, 1])
                 with cols[0]:
-                    st.markdown(f"**{ticker}**")
+                    st.markdown(f"**{tv_symbol_md(ticker)}**")
                 with cols[1]:
                     safe_hl = safe_markdown_text(headline[:100])
                     link = f"[{safe_hl}]({_safe_url})" if _safe_url else headline[:100]
@@ -4708,14 +4709,14 @@ else:
 
         if rules:
             st.caption(f"{len(rules)} active rule(s)")
-            rule_df = pd.DataFrame([{
+            rule_df = pd.DataFrame(tv_linkify_rows([{
                 "Ticker": r["ticker"],
                 "Condition": r["condition"],
                 "Threshold": r.get("threshold", ""),
                 "Category": r.get("category", ""),
                 "Webhook": "✅" if r.get("webhook_url") else "❌",
-            } for r in rules])
-            st.dataframe(rule_df, width='stretch')
+            } for r in rules], key="Ticker"))
+            st.dataframe(rule_df, width='stretch', column_config={"Ticker": tv_symbol_column("Ticker")})
         else:
             st.info("No alert rules configured. Add rules in the sidebar ➡️")
 
@@ -4890,7 +4891,7 @@ else:
                             "P&L 30m": f"{float(_sr.get('pnl_30m_pct') or 0):+.2f}%" if _sr.get("pnl_30m_pct") is not None else "—",
                             "Bucket": f"{_sr.get('gap_bucket_label', '')}:{_sr.get('rvol_bucket_label', '')}",
                         })
-                    st.dataframe(pd.DataFrame(_signal_rows), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(tv_linkify_rows(_signal_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
 
     # ── TAB: Provider Health ────────────────────────────────────
     with tab_health, _tab_guard("Provider Health"):
@@ -4948,7 +4949,7 @@ else:
                         "Present": ", ".join(_vr.get("domains_present", [])),
                         "Missing": ", ".join(_vr.get("domains_missing", [])) or "—",
                     })
-                st.dataframe(pd.DataFrame(_dv_rows), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(tv_linkify_rows(_dv_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
 
             # ── Domain alerts ─────────────────────────────────
             _alerts = _health_report.get("domain_alerts", [])
@@ -4967,7 +4968,7 @@ else:
                         "Entry Risk": "⚠️" if _a.get("failure_affects_entry") else "—",
                         "Message": str(_a.get("message", ""))[:120],
                     })
-                st.dataframe(pd.DataFrame(_alert_rows), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(tv_linkify_rows(_alert_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
 
             # ── Stale / missing artifacts ─────────────────────
             _stale = _health_report.get("stale_artifacts", [])

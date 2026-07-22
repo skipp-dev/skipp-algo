@@ -735,7 +735,9 @@ def tv_chart_url(symbol: Any) -> str | None:
     """TradingView chart URL for *symbol*, or ``None`` when the cell is
     not a plain single ticker."""
     sym = str(symbol or "").strip().upper()
-    if sym in {"", "N/A"} or not _TV_SYMBOL_RE.match(sym):
+    # "MARKET" is the sentinel the poller assigns to ticker-less items
+    # (terminal_poller.py) — it matches the ticker pattern but has no chart.
+    if sym in {"", "N/A", "MARKET"} or not _TV_SYMBOL_RE.match(sym):
         return None
     return TV_CHART_URL_PREFIX + sym
 
@@ -748,3 +750,17 @@ def tv_linkify_rows(rows: list[dict[str, Any]], key: str = "Symbol") -> list[dic
         if key in row:
             row[key] = tv_chart_url(row[key]) or row[key]
     return rows
+
+
+def tv_symbol_md(symbol: Any) -> str:
+    """Markdown for a ticker that links to its TradingView chart.
+
+    The counterpart to ``tv_symbol_column`` for the surfaces that render
+    tickers as text rather than in a dataframe. Returns the bare symbol
+    unlinked when it is not a plain single ticker (``?``, ``MARKET``, ``''``),
+    so placeholder markers stay visible instead of turning into dead links.
+    Callers add their own emphasis.
+    """
+    sym = str(symbol or "").strip().upper()
+    url = tv_chart_url(sym)
+    return f"[{sym}]({url})" if url else sym
