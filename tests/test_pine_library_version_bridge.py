@@ -232,3 +232,97 @@ def test_metrics_render_facade_ok_false_on_probe_error(monkeypatch):
     )
     body = "\n".join(metrics._render_pine_library_version_metrics())
     assert "live_overlay_pine_library_facade_ok 0.0" in body
+
+
+# --------------------------------------------------------------------------- #
+# ADR-0029: payload volume. The pre-existing gauges measure metadata *about* the
+# library (version, ASOF_DATE); an empty payload under a fresh date reads green.
+# --------------------------------------------------------------------------- #
+
+
+def _payload_snapshot(*, known=True, universe_size=6929, universe=0, lists=0) -> dict:
+    raw = _raw_snapshot()
+    raw["libraries"][0].update(
+        {
+            "payloadKnown": known,
+            "payloadUniverseSize": universe_size,
+            "payloadUniverseSymbols": universe,
+            "payloadListSymbols": lists,
+        }
+    )
+    return raw
+
+
+def test_coerce_carries_payload_volume():
+    micro = bridge._coerce(_payload_snapshot(universe=6900, lists=412))["libraries"][0]
+
+    assert micro["payload_known"] == 1.0
+    assert micro["payload_universe_size"] == 6929.0
+    assert micro["payload_universe_symbols"] == 6900.0
+    assert micro["payload_list_symbols"] == 412.0
+
+
+def test_coerce_defaults_payload_to_unknown_for_legacy_snapshots():
+    """A snapshot written before this change must not read as an empty payload."""
+    micro = bridge._coerce(_raw_snapshot())["libraries"][0]
+
+    assert micro["payload_known"] == 0.0
+
+
+def test_metrics_render_payload_volume_gauges(monkeypatch):
+    from services.live_overlay_daemon import metrics
+
+    monkeypatch.setattr(
+        metrics.pine_library_version_bridge,
+        "snapshot",
+        lambda: bridge._coerce(_payload_snapshot(universe=6900, lists=412)),
+    )
+    body = "\n".join(
+        line for line in metrics._render_pine_library_version_metrics() if not line.startswith("#")
+    )
+
+    lib = 'library="smc_micro_profiles_generated"'
+    assert f"live_overlay_pine_library_payload_known{{{lib}}} 1.0" in body
+    assert f"live_overlay_pine_library_payload_symbols{{{lib}}} 6900.0" in body
+    assert f"live_overlay_pine_library_payload_lists{{{lib}}} 412.0" in body
+    assert f"live_overlay_pine_library_payload_universe_size{{{lib}}} 6929.0" in body
+
+
+def test_metrics_render_omits_payload_series_when_unknown(monkeypatch):
+    """Hand-authored libraries carry no payload exports — they must not read as 0."""
+    from services.live_overlay_daemon import metrics
+
+    monkeypatch.setattr(
+        metrics.pine_library_version_bridge,
+        "snapshot",
+        lambda: bridge._coerce(_payload_snapshot(known=False)),
+    )
+    body = "\n".join(
+        line for line in metrics._render_pine_library_version_metrics() if not line.startswith("#")
+    )
+
+    lib = 'library="smc_micro_profiles_generated"'
+    assert f"live_overlay_pine_library_payload_known{{{lib}}} 0.0" in body
+    assert f"live_overlay_pine_library_payload_symbols{{{lib}}}" not in body
+
+
+def test_snapshot_builder_list_exports_match_the_generator() -> None:
+    """The TS builder duplicates the seven membership export names.
+
+    It cannot import them from Python, so pin them here: a list renamed in the
+    generator without updating the builder would silently drop that list from
+    the payload count and make the metric read low forever.
+    """
+    import re
+    from pathlib import Path
+
+    from scripts.generate_smc_micro_profiles import LIST_EXPORTS
+
+    source = Path("scripts/build_pine_library_version_snapshot.ts").read_text(encoding="utf-8")
+    block = re.search(
+        r"const MEMBERSHIP_LIST_EXPORTS = \[(.*?)\] as const;", source, re.DOTALL
+    )
+    assert block is not None, "MEMBERSHIP_LIST_EXPORTS not found in the snapshot builder"
+    names = set(re.findall(r'"([A-Z_]+)"', block.group(1)))
+
+    assert names == set(LIST_EXPORTS.values())

@@ -2205,6 +2205,13 @@ def _render_pine_library_version_metrics() -> list[str]:
     lines.append("# TYPE live_overlay_pine_library_data_age_known gauge")
     lines.append("# TYPE live_overlay_pine_consumer_pin_version gauge")
     lines.append("# TYPE live_overlay_pine_consumer_drift gauge")
+    # ADR-0029: payload volume. Every other gauge here measures metadata about
+    # the library — version, ASOF_DATE — so an empty payload under a fresh date
+    # reads green. These measure the payload itself.
+    lines.append("# TYPE live_overlay_pine_library_payload_known gauge")
+    lines.append("# TYPE live_overlay_pine_library_payload_symbols gauge")
+    lines.append("# TYPE live_overlay_pine_library_payload_lists gauge")
+    lines.append("# TYPE live_overlay_pine_library_payload_universe_size gauge")
     libraries = snap.get("libraries") or []
     for lib in libraries:
         name = _escape_label_value(str(lib.get("name", "") or "unknown"))
@@ -2223,6 +2230,24 @@ def _render_pine_library_version_metrics() -> list[str]:
             lines.append(
                 f'live_overlay_pine_library_tv_version{{library="{name}"}} '
                 f"{_prom_numeric_value(lib.get('tv_version', 0.0))}"
+            )
+        # Payload counts are emitted ONLY when measured. A hand-authored library
+        # carries no payload exports, and an unreadable generated one must not
+        # report 0 symbols as though it had been measured and found empty.
+        payload_known = _prom_numeric_value(lib.get("payload_known", 0.0))
+        lines.append(f'live_overlay_pine_library_payload_known{{library="{name}"}} {payload_known}')
+        if payload_known >= 1.0:
+            lines.append(
+                f'live_overlay_pine_library_payload_symbols{{library="{name}"}} '
+                f"{_prom_numeric_value(lib.get('payload_universe_symbols', 0.0))}"
+            )
+            lines.append(
+                f'live_overlay_pine_library_payload_lists{{library="{name}"}} '
+                f"{_prom_numeric_value(lib.get('payload_list_symbols', 0.0))}"
+            )
+            lines.append(
+                f'live_overlay_pine_library_payload_universe_size{{library="{name}"}} '
+                f"{_prom_numeric_value(lib.get('payload_universe_size', 0.0))}"
             )
         for consumer in lib.get("consumers") or []:
             cfile = _escape_label_value(str(consumer.get("file", "") or "unknown"))

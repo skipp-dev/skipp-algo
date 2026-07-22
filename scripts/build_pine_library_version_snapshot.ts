@@ -63,6 +63,10 @@ export type LibrarySnapshot = {
   dataAsOfKnown: boolean;
   consumers: ConsumerEntry[];
   anyConsumerDrift: boolean;
+  payloadKnown: boolean;
+  payloadUniverseSize: number | null;
+  payloadUniverseSymbols: number;
+  payloadListSymbols: number;
 };
 
 export type PineLibraryVersionSnapshot = {
@@ -141,6 +145,91 @@ export function discoverConsumerPins(root: string): Map<string, ConsumerPin[]> {
   return byLibrary;
 }
 
+/**
+ * How much payload a generated library actually carries (ADR-0029).
+ *
+ * `known=false` means the exports were not found at all — distinct from a
+ * measured zero. Hand-authored libraries have no payload exports, and an
+ * unreadable file must read neither as empty nor as green.
+ */
+export type LibraryPayloadVolume = {
+  known: boolean;
+  universeSize: number | null;
+  universeSymbols: number;
+  listSymbols: number;
+};
+
+/** Mirrors ``smc_payload_volume.MEMBERSHIP_LIST_EXPORTS`` (pinned by a Python test). */
+const MEMBERSHIP_LIST_EXPORTS = [
+  "CLEAN_RECLAIM_TICKERS",
+  "STOP_HUNT_PRONE_TICKERS",
+  "MIDDAY_DEAD_TICKERS",
+  "RTH_ONLY_TICKERS",
+  "WEAK_PREMARKET_TICKERS",
+  "WEAK_AFTERHOURS_TICKERS",
+  "FAST_DECAY_TICKERS",
+] as const;
+
+const UNIVERSE_SIZE_RE = /export\s+const\s+int\s+UNIVERSE_SIZE\s*=\s*(\d+)/;
+
+function countCsvExportSymbols(pineText: string, exportName: string): number | null {
+  const literal = new RegExp(
+    `export\\s+const\\s+string\\s+(?<![A-Za-z0-9_])${exportName}(?![A-Za-z0-9_])\\s*=\\s*"([^"]*)"`,
+  ).exec(pineText);
+  if (literal) {
+    return literal[1].split(",").filter((part) => part.length > 0).length;
+  }
+
+  // Sharded form. `render_csv_export` splits at max_chars (3900 for
+  // UNIVERSE_TICKERS), so a healthy 6929-symbol payload is a concatenation
+  // expression and carries NO literal on the export line. Scoring that as 0
+  // would invert every rule built on this metric.
+  const shardRe = new RegExp(`const\\s+string\\s+${exportName}_PART_\\d+\\s*=\\s*"([^"]*)"`, "g");
+  let total = 0;
+  let sawShard = false;
+  for (const match of pineText.matchAll(shardRe)) {
+    sawShard = true;
+    total += match[1].split(",").filter((part) => part.length > 0).length;
+  }
+  return sawShard ? total : null;
+}
+
+/** Measure a generated Pine library's payload volume. */
+export function parseLibraryPayloadVolume(pineText: string): LibraryPayloadVolume {
+  const sizeMatch = UNIVERSE_SIZE_RE.exec(pineText);
+  const universeSize = sizeMatch ? Number.parseInt(sizeMatch[1], 10) : null;
+  const universeSymbols = countCsvExportSymbols(pineText, "UNIVERSE_TICKERS");
+
+  let listSymbols = 0;
+  for (const exportName of MEMBERSHIP_LIST_EXPORTS) {
+    listSymbols += countCsvExportSymbols(pineText, exportName) ?? 0;
+  }
+
+  return {
+    known: universeSize !== null && universeSymbols !== null,
+    universeSize,
+    universeSymbols: universeSymbols ?? 0,
+    listSymbols,
+  };
+}
+
+/** Resolve payload volume for generated libraries whose source is part of this repo. */
+export function discoverLibraryPayloadVolume(
+  root: string,
+  libraryNames: string[],
+): Map<string, LibraryPayloadVolume> {
+  const result = new Map<string, LibraryPayloadVolume>();
+  for (const name of libraryNames) {
+    const source = path.join(root, "pine", "generated", `${name}.pine`);
+    try {
+      result.set(name, parseLibraryPayloadVolume(fs.readFileSync(source, "utf-8")));
+    } catch {
+      result.set(name, { known: false, universeSize: null, universeSymbols: 0, listSymbols: 0 });
+    }
+  }
+  return result;
+}
+
 /** Parse a generated Pine library's exported data watermark. */
 export function parseLibraryDataAsOf(pineText: string): string | null {
   const value = ASOF_DATE_RE.exec(pineText)?.[1] ?? "";
@@ -176,6 +265,7 @@ export function buildSnapshot(
   nowUnix: number,
   facadeError = "",
   dataAsOfByLibrary: Map<string, string | null> = new Map(),
+  payloadByLibrary: Map<string, LibraryPayloadVolume> = new Map(),
 ): PineLibraryVersionSnapshot {
   const libraries: LibrarySnapshot[] = [];
   for (const name of [...pinsByLibrary.keys()].sort()) {
@@ -196,6 +286,12 @@ export function buildSnapshot(
         drift: tvVersionKnown && pin.pinnedVersion !== tvVersion,
       }));
     const anyConsumerDrift = consumers.some((c) => c.drift);
+    const payload = payloadByLibrary.get(name) ?? {
+      known: false,
+      universeSize: null,
+      universeSymbols: 0,
+      listSymbols: 0,
+    };
     libraries.push({
       name,
       tvVersion,
@@ -205,6 +301,10 @@ export function buildSnapshot(
       dataAsOfKnown: dataAsOfUnix !== null,
       consumers,
       anyConsumerDrift,
+      payloadKnown: payload.known,
+      payloadUniverseSize: payload.universeSize,
+      payloadUniverseSymbols: payload.universeSymbols,
+      payloadListSymbols: payload.listSymbols,
     });
   }
 
@@ -247,6 +347,7 @@ export async function runBuildPineLibraryVersionSnapshotCli(argv: string[] = pro
   const pinsByLibrary = discoverConsumerPins(cli.root);
   const libraryNames = [...pinsByLibrary.keys()].sort();
   const dataAsOfByLibrary = discoverLibraryDataAsOf(cli.root, libraryNames);
+  const payloadByLibrary = discoverLibraryPayloadVolume(cli.root, libraryNames);
 
   const tvVersions = new Map<string, number | null>();
   let facadeError = "";
@@ -292,7 +393,14 @@ export async function runBuildPineLibraryVersionSnapshotCli(argv: string[] = pro
     }
   }
 
-  const snapshot = buildSnapshot(pinsByLibrary, tvVersions, nowUnix, facadeError, dataAsOfByLibrary);
+  const snapshot = buildSnapshot(
+    pinsByLibrary,
+    tvVersions,
+    nowUnix,
+    facadeError,
+    dataAsOfByLibrary,
+    payloadByLibrary,
+  );
   writeJsonFile(cli.out, snapshot);
   process.stdout.write(JSON.stringify(snapshot, null, 2));
   process.stdout.write("\n");
