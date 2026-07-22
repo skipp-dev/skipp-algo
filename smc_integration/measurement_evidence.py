@@ -251,6 +251,46 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
     canonical_tf = str(timeframe).strip()
     daily = is_daily_timeframe(canonical_tf)
 
+    # ADR-0023 issue #3872: opt-in long-history override for the DAILY frame.
+    # The rolling bundle's daily_bars spans only ~21 trading days — shorter
+    # than 1D warmup + label horizons (FVG=20 daily bars), so the bundle-first
+    # order below starves the 1D slice structurally. The rolling-bench
+    # workflow points this env at the long-history workbook written by
+    # scripts/fetch_benchmark_daily_history.py, so 1D detection (structure
+    # exporter --workbook) and labeling (these bars) see the SAME long frame.
+    # Strictly opt-in: env absent, file missing, or symbol not covered falls
+    # through to the unchanged resolution order.
+    if daily:
+        override_raw = os.environ.get("SMC_DAILY_BARS_WORKBOOK_OVERRIDE", "").strip()
+        if override_raw:
+            override_path = Path(override_raw)
+            override_bars = pd.DataFrame()
+            if override_path.exists():
+                try:
+                    override_frame = read_daily_bars(override_path)
+                except Exception as exc:
+                    logger.warning(
+                        "daily-bars override workbook unreadable for symbol=%s path=%s: %s",
+                        symbol_name,
+                        override_path,
+                        exc,
+                    )
+                    override_frame = pd.DataFrame()
+                if not override_frame.empty:
+                    override_frame["symbol"] = (
+                        override_frame.get("symbol", "").astype(str).str.strip().str.upper()
+                    )
+                    filtered = override_frame.loc[override_frame["symbol"].eq(symbol_name)].copy()
+                    override_bars = _normalize_numeric_bars(filtered, timestamp_column="trade_date")
+            else:
+                logger.warning(
+                    "daily-bars override set but missing for symbol=%s path=%s; using default resolution",
+                    symbol_name,
+                    override_path,
+                )
+            if not override_bars.empty:
+                return override_bars.reset_index(drop=True), "workbook_override"
+
     bundle_load_failed = False
     if export_bundle_root is not None:
         # Frame-integrity audit 2026-07-13: intraday resolution prefers a
