@@ -346,7 +346,10 @@ def test_publish_workflow_joins_setups_from_data_branch() -> None:
     from pathlib import Path
     wf = (Path(__file__).resolve().parents[1] / ".github" / "workflows"
           / "openprep-pine-panel-publish.yml").read_text(encoding="utf-8")
-    assert "git fetch --depth 1 origin data/phase-a-audit" in wf
+    # 2026-07-22: the fetch is URL-token-scoped (repo went private; the job
+    # checkout keeps persist-credentials: false) and must stay fail-soft.
+    assert 'git fetch --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"' in wf
+    assert "data/phase-a-audit:refs/remotes/origin/data/phase-a-audit || true" in wf
     assert "setups_${panel_date}.jsonl" in wf
     assert "--setups-json" in wf
 
