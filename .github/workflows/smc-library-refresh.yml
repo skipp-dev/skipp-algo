@@ -1122,7 +1122,17 @@ jobs:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
-          TV_STEP_TIMEOUT_MS: "90000"
+          # 2026-07-22: 90000 -> 240000. The publish step loads the generated
+          # library into the TradingView Pine editor and adds it to a chart.
+          # A provider-enriched library is ~83 KB (UNIVERSE_TICKERS carries
+          # ~6900 symbols) vs ~13.6 KB for the static one — 6x the content to
+          # write and compile. Two consecutive enriched publishes (runs
+          # 29938507420, 29942451978) died at EXACTLY the 90 s budget inside
+          # addCurrentScriptToChart, while the last static publish passed.
+          # The readonly preflight keeps 90000 (it writes nothing); only this
+          # write step gets the larger budget. The 240-min job cap still bounds
+          # a genuine hang.
+          TV_STEP_TIMEOUT_MS: "240000"
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \
             --manifest pine/generated/smc_micro_profiles_generated.json \
