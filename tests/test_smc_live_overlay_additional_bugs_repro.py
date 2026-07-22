@@ -508,3 +508,87 @@ class TestSnapshotTimestampAge:
         import services.live_overlay_daemon.metrics as metrics_mod
 
         assert metrics_mod._snapshot_timestamp({"providers": {}}) is None
+
+
+class TestFlowPatchCanonicalLockstep:
+    """The schema documents flow_delta_proxy_pct (legacy) and
+    price_candle_body_return_pct (canonical) as "the same candle-body return",
+    and build_payload sets them identically. The fast flow-patch cycle only
+    refreshes the legacy alias, so the canonical name silently freezes at the
+    last full-compute value between cycles. These regressions pin both names to
+    the same value on every flow patch — fresh and cleared-to-None alike.
+    """
+
+    def test_flow_patch_cycle_keeps_canonical_body_return_in_lockstep(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        # Prior full-compute snapshot: both names carry the same (now stale) value.
+        cache_mod.set_overlay(
+            {
+                "AAPL": {
+                    "flow_rel_vol": 2.5,
+                    "flow_delta_proxy_pct": 9.9,
+                    "price_candle_body_return_pct": 9.9,
+                }
+            }
+        )
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 120},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 130},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 140},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["flow_delta_proxy_pct"] == 0.5
+        # Canonical must track the alias, not remain frozen at 9.9.
+        assert payload["price_candle_body_return_pct"] == 0.5
+
+    def test_flow_patch_cycle_clears_canonical_body_return_in_lockstep(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        cache_mod.set_overlay(
+            {
+                "AAPL": {
+                    "flow_delta_proxy_pct": 1.0,
+                    "price_candle_body_return_pct": 1.0,
+                }
+            }
+        )
+        # Malformed last bar (open=None) → fresh candle-body return is None.
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
+                    {"open": None, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 140},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["flow_delta_proxy_pct"] is None
+        # Both names clear together; the canonical must not keep the stale 1.0.
+        assert payload["price_candle_body_return_pct"] is None
