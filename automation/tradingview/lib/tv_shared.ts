@@ -229,6 +229,18 @@ export function isMissingBrowserExecutableError(error: unknown): boolean {
   return MISSING_BROWSER_ERROR_MARKERS.some((marker) => message.includes(marker));
 }
 
+/**
+ * Launch bound for the last-ditch system-Chrome fallback. Playwright's default is
+ * 180s, which it spends waiting on a Chrome that already started but never answers
+ * the CDP handshake (an arm64 Chrome 150 against the pinned Playwright 1.55 does
+ * exactly this). Unbounded, every browser-backed test in `npm run tv:test` burned
+ * that full timeout — 25 uniform ~210s failures whose messages said "Timeout
+ * 180000ms exceeded" and never once named the actually-missing pinned browser.
+ * A launch that has not connected in 30s is not going to; failing fast surfaces
+ * the real remedy instead of a 90-minute suite of misleading timeouts.
+ */
+export const CHROME_CHANNEL_FALLBACK_TIMEOUT_MS = 30_000;
+
 export type TradingViewLaunchFallbackOptions = {
   /**
    * Whether a missing bundled chromium may fall back to the system Chrome channel.
@@ -293,7 +305,13 @@ export async function launchWithTradingViewFallback<T>(
       + "falling back to channel \"chrome\". Run `npx playwright install chromium` to use the pinned browser.",
     );
     try {
-      return await launch({ ...launchOptions, channel: "chrome" });
+      // Bounded: an explicit caller timeout still wins, otherwise the fallback gets
+      // CHROME_CHANNEL_FALLBACK_TIMEOUT_MS instead of Playwright's 180s default.
+      return await launch({
+        ...launchOptions,
+        channel: "chrome",
+        timeout: launchOptions.timeout ?? CHROME_CHANNEL_FALLBACK_TIMEOUT_MS,
+      });
     } catch (fallbackError) {
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       // Preserve the fallback failure's FULL detail via the log channel — the thrown
