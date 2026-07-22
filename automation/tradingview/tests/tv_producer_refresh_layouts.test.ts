@@ -43,6 +43,11 @@ test("rollout loops the producer refresh over every resolved layout", () => {
   );
   assert.match(source, /resolveProducerRefreshChartUrls\(config\)/);
   assert.match(source, /for \(const producerChartUrl of /);
+  // The loop must NOT call ensurePineEditor itself: the intolerant outer
+  // call stranded run 29946386778 on /pine-screener/ before layout 2;
+  // refreshChartScriptInstance opens the editor fault-tolerantly.
+  const producerBlock = source.split("resolveProducerRefreshChartUrls(config)", 2)[1]?.split("report.producerRefresh.ok = true", 1)[0] ?? "";
+  assert.doesNotMatch(producerBlock, /await ensurePineEditor/);
 });
 
 test("refresh-path add-to-chart carries the same 90s floor as its wrapper", () => {
