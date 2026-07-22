@@ -27,15 +27,35 @@ const (
 )
 
 var loginPage = template.Must(template.New("login").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>Skipp Terminal access</title><style>
-body{font:16px system-ui,sans-serif;max-width:30rem;margin:10vh auto;padding:1.5rem;background:#0b1020;color:#eef2ff}
-main{background:#151c32;border:1px solid #2b3659;border-radius:12px;padding:1.5rem}label,input,button{display:block;width:100%;box-sizing:border-box}
-input,button{margin-top:.6rem;padding:.8rem;border-radius:7px;border:1px solid #52618c}input{background:#090e1c;color:#fff}button{background:#526df5;color:#fff;font-weight:700;cursor:pointer}.error{color:#ffb4b4}
-</style></head><body><main><h1>Skipp Terminal</h1><p>Enter the access token supplied by the operator.</p>
-{{if .Error}}<p class="error">Invalid access token.</p>{{end}}
-<form method="post" action="/_access/session"><label for="token">Access token</label><input id="token" name="token" type="password" autocomplete="current-password" required maxlength="512"><button type="submit">Continue</button></form>
-</main></body></html>`))
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#eef2ff;background:radial-gradient(55rem 38rem at 50% -8%,rgba(82,109,245,.16),transparent 60%),#0b1020}
+main{width:100%;max-width:25rem;padding:1.9rem 1.75rem;background:#151c32;border:1px solid #2b3659;border-radius:14px;box-shadow:0 24px 60px -24px rgba(0,0,0,.7)}
+.eyebrow{display:flex;align-items:center;gap:.45rem;margin:0 0 .7rem;color:#7c8cff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.68rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase}
+.eyebrow svg{width:.9rem;height:.9rem}
+h1{margin:0;font-size:1.5rem;letter-spacing:-.02em}
+.sub{margin:.5rem 0 1.4rem;color:#98a4cf;font-size:.95rem}
+label{display:block;margin-bottom:.45rem;font-size:.78rem;font-weight:600;letter-spacing:.02em;color:#98a4cf}
+input{display:block;width:100%;padding:.8rem .9rem;color:#fff;background:#090e1c;border:1px solid #3a4670;border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95rem;letter-spacing:.02em}
+input::placeholder{color:#586590}
+button{display:block;width:100%;margin-top:1rem;padding:.85rem;color:#fff;font-weight:700;font-size:.95rem;background:#526df5;border:0;border-radius:9px;cursor:pointer;transition:background .15s,transform .05s}
+button:hover{background:#6b81ff}
+button:active{transform:translateY(1px)}
+input:focus-visible,button:focus-visible{outline:2px solid #8ea0ff;outline-offset:2px}
+input:focus-visible{border-color:#8ea0ff}
+.error{margin:0 0 1rem;padding:.6rem .75rem;border-left:3px solid #ffb4b4;border-radius:6px;background:rgba(255,120,120,.1);color:#ffb4b4;font-size:.9rem}
+.hint{margin:1.3rem 0 0;color:#98a4cf;font-size:.78rem;text-align:center}
+</style></head><body>
+<main>
+<p class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10.5" width="16" height="10" rx="2"></rect><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path></svg>Secure access</p>
+<h1>Skipp Terminal</h1>
+<p class="sub">Enter the access token supplied by the operator.</p>
+{{if .Error}}<p class="error" role="alert">Invalid access token.</p>{{end}}
+<form method="post" action="/_access/session"><label for="token">Access token</label><input id="token" name="token" type="password" autocomplete="current-password" autofocus required maxlength="512"><button type="submit">Continue</button></form>
+<p class="hint">No token? Contact your operator.</p>
+</main>
+</body></html>`))
 
 type config struct {
 	listenAddr           string
