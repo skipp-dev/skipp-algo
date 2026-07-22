@@ -360,6 +360,10 @@ jobs:
           # so detection and labeling see the SAME long frame. Fail-soft:
           # without the workbook the 1D slice keeps today's starved-but-
           # alarmed behaviour (plane_starved heartbeats + gap guard).
+          # The benchmark step references this FIXED path statically via its
+          # env block (no dynamic GITHUB_ENV write — zizmor github-env
+          # ratchet); the harness override falls through cleanly when the
+          # file is absent, so fail-soft needs no env plumbing.
           DAILY_HISTORY_XLSX="artifacts/ci/benchmark_daily_history.xlsx"
           rc=0
           "$SMC_PYTHON_BIN" scripts/fetch_benchmark_daily_history.py \
@@ -368,8 +372,6 @@ jobs:
           if [ "${rc}" != "0" ] || [ ! -s "${DAILY_HISTORY_XLSX}" ]; then
             echo "::warning title=benchmark-daily-history::long-history 1D fetch failed (rc=${rc}); 1D slice falls back to the short bundle daily_bars (zero events, alarmed by plane_starved heartbeats + gap guard)."
             rm -f "${DAILY_HISTORY_XLSX}"
-          else
-            echo "SMC_DAILY_BARS_WORKBOOK_OVERRIDE=${DAILY_HISTORY_XLSX}" >> "$GITHUB_ENV"
           fi
 
           for tf in ${TIMEFRAMES//,/ }; do
@@ -408,6 +410,12 @@ jobs:
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          # Issue #3872: long-history daily bars for the 1D pairs, written by
+          # the fetch in the per-TF export step. FIXED literal path (no
+          # dynamic GITHUB_ENV write — zizmor github-env ratchet); when the
+          # fetch failed the file is absent and _load_source_bars falls
+          # through to the default resolution with a logged warning.
+          SMC_DAILY_BARS_WORKBOOK_OVERRIDE: artifacts/ci/benchmark_daily_history.xlsx
           # WS4a shadow-observe: log sweep_trap_* quality into the event ledgers
           # (observe-only; does NOT affect the score — confluence reads the coarse
           # SWEEP_QUALITY_SCORE). Consumed by sweep-trap-shadow-daily.yml. ARMING:

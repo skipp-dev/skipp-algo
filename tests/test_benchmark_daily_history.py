@@ -149,9 +149,22 @@ def test_workflow_fetches_long_history_and_feeds_both_1d_consumers() -> None:
     # bundle root passed alongside would win and reintroduce the 21-day frame).
     assert '"${tf}" = "1D"' in run
     assert "--workbook" in run
-    # Harness: the override env is only exported when the fetch succeeded.
-    assert "SMC_DAILY_BARS_WORKBOOK_OVERRIDE=" in run
+    # No dynamic GITHUB_ENV write for the override (zizmor github-env
+    # ratchet) — the benchmark step declares the FIXED path statically and
+    # the harness falls through when the file is absent.
+    assert "SMC_DAILY_BARS_WORKBOOK_OVERRIDE" not in run
     assert step["env"]["DATABENTO_API_KEY"] == "${{ secrets.DATABENTO_API_KEY }}"
+
+    wf = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    bench_step = next(
+        s
+        for s in wf["jobs"]["rolling-benchmark"]["steps"]
+        if "run_smc_measurement_benchmark.py" in s.get("run", "")
+    )
+    assert (
+        bench_step["env"]["SMC_DAILY_BARS_WORKBOOK_OVERRIDE"]
+        == "artifacts/ci/benchmark_daily_history.xlsx"
+    )
 
 
 def test_workflow_widens_the_daily_anchor_window() -> None:
