@@ -855,6 +855,24 @@ editable in the UI.
 Auth: `GRAFANA_API_KEY` env var (CI) or the macOS Keychain entry
 `skipp.grafana.api` (local). The token is never printed.
 
+### Reading the live firing state (read-only)
+
+The reader is the missing half of the upsert flow — "is anything firing?"
+without opening the UI (same auth chain, GET-only):
+
+```bash
+python -m scripts.grafana_alert_state                   # firing/pending/unhealthy + active instances
+python -m scripts.grafana_alert_state --all             # include inactive rules
+python -m scripts.grafana_alert_state --rule vix        # filter by rule-name substring
+python -m scripts.grafana_alert_state --json            # machine-readable
+python -m scripts.grafana_alert_state --fail-on-firing  # exit 1 if anything fires (scripts/CI)
+```
+
+Rules with `health=error` (unevaluable) are always surfaced in the default
+view — an unevaluable rule is operationally worse than a firing one. Run in
+module form (`-m`) from the repo root; the script reuses the upsert module's
+keychain/HTTP helpers and adds no credentials of its own.
+
 ### macOS APFS filesystem-alert deduplication
 
 Grafana's stock macOS integration evaluates every writable APFS system volume.
