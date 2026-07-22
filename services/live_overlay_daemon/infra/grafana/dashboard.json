@@ -7850,7 +7850,7 @@
     {
       "type": "table",
       "title": "Pine consumer pins vs published TradingView version",
-      "description": "Per-consumer import-pin drift. Value=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the real published version. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
+      "description": "Per-consumer import-pin drift against the real published TradingView version. Drift=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the published version. Pinned version (B) and published version (C) are the two numbers to compare when the drift alert fires; tv_version_known (D) distinguishes 'no drift' from 'the facade probe failed this run' \u2014 an unreachable facade emits no tv_version at all rather than reporting 0. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7919,6 +7919,42 @@
           "instant": true,
           "format": "table",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_consumer_pin_version{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_library_tv_version{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_pine_library_tv_version_known{job=\"live_overlay\"}",
+          "instant": true,
+          "format": "table",
+          "refId": "D"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
         }
       ]
     },

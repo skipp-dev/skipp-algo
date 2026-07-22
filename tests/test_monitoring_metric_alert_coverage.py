@@ -109,9 +109,17 @@ _VIX_SIGNAL_METRICS = (
 # sweep immediately caught five emitted-but-unconsumed deprecated
 # trading_signals *_total aliases plus an unwired snapshot_max_age gauge,
 # which is exactly the blind-spot class this scan exists for.
+#
+# Extended again 2026-07-22 to pine_library|pine_consumer. ADR-0029 assumed
+# this scan already forced new metric families to have a consumer; it did not
+# — the pine family was simply absent from this list, so a green run said
+# nothing about it. That is the ADR's own failure shape one level up: a check
+# trusted without reading what it covers. The extension immediately surfaced
+# three orphans (consumer_pin_version, library_tv_version[_known]).
 _METRIC_RE = re.compile(
     r"live_overlay_"
-    r"(?:evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals)"
+    r"(?:evidence|github_workflow|vix|feed|bridge|provider_news|trading_signals"
+    r"|pine_library|pine_consumer)"
     r"_[a-z0-9_]+"
 )
 
@@ -226,6 +234,8 @@ def test_no_emitted_monitoring_metric_is_unconsumed() -> None:
     assert any(m.startswith("live_overlay_trading_signals_") for m in emitted), emitted
     assert any(m.startswith("live_overlay_bridge_") for m in emitted), emitted
     assert any(m.startswith("live_overlay_feed_") for m in emitted), emitted
+    assert any(m.startswith("live_overlay_pine_library_") for m in emitted), emitted
+    assert any(m.startswith("live_overlay_pine_consumer_") for m in emitted), emitted
     orphans = sorted(m for m in emitted if m not in consumers)
     assert not orphans, (
         "these monitoring metrics are emitted but referenced by no alert rule "
