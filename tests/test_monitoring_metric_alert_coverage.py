@@ -124,21 +124,24 @@ _VIX_SIGNAL_METRICS = (
 # A new metric with no consumer now fails on the commit that adds it.
 _METRIC_RE = re.compile(r"live_overlay_[a-z0-9_]+")
 
-# Metrics that were already orphaned when the inversion landed (2026-07-22).
-# Seeded so the inversion could go in without bundling 39 unrelated wiring
-# decisions; the list is allowed to SHRINK ONLY — an entry that gains a
-# consumer must be deleted here in the same commit, which
-# ``test_no_stale_orphan_debt_entries`` enforces.
+# Metrics deliberately exempt from the orphan scan. The list is allowed to
+# SHRINK ONLY — an entry that gains a consumer, or stops being emitted, must be
+# deleted here in the same commit, which ``test_no_stale_orphan_debt_entries``
+# enforces.
 #
-# Reasons are stated per metric. "unaudited" means exactly that: pre-existing,
-# not yet classified — not "reviewed and accepted".
+# The inversion seeded this with 39 pre-existing orphans, 32 of them marked
+# "unaudited". All 32 have since been resolved: wired into a panel where they
+# carried operator-relevant information, or deleted where a consumed sibling
+# already carried it. What remains are the two shapes for which a direct
+# consumer is genuinely the wrong answer, each verified at the emission site.
+#
+# Every entry states its reason. There is no "unaudited" category any more, and
+# adding one back would mean deferring a decision rather than recording one.
 _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     # Prometheus info-pattern: the value is always 1 and the labels carry the
-    # payload. These are joined onto other queries rather than alerted on, so
-    # a direct consumer is not the right shape for them. Verified at the
-    # emission sites in metrics.py.
+    # payload. These are joined onto other queries rather than alerted on, so a
+    # direct consumer is not the right shape. Verified at the emission sites.
     "live_overlay_credential_health_overall_severity_info": "info-pattern",
-    "live_overlay_credential_health_probe_info": "info-pattern",
     "live_overlay_health_status_info": "info-pattern",
     "live_overlay_trading_signal_info": "info-pattern",
     # NOT a gap — request latency is both visualised and alerted, just through
@@ -150,39 +153,6 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
     "live_overlay_smc_live_latency_ms_sum": (
         "histogram component: quantiles come from _bucket; only a mean would read this"
     ),
-    # Pre-existing, not yet classified.
-    "live_overlay_bar_requested_symbols_evicted_total": "unaudited",
-    "live_overlay_bars_per_symbol": "unaudited",
-    "live_overlay_bar_symbols_evicted_total": "unaudited",
-    "live_overlay_credential_health_overall_valid": "unaudited",
-    "live_overlay_credential_health_probe_severity_code": "unaudited",
-    "live_overlay_credential_health_probe_valid": "unaudited",
-    "live_overlay_credential_health_probe_value": "unaudited",
-    "live_overlay_experiment_snapshot_max_age_seconds": "unaudited",
-    "live_overlay_experiment_tf_hit_rate": "unaudited",
-    "live_overlay_experiment_tf_n_events": "unaudited",
-    "live_overlay_experiment_verdict_delta_hr": "unaudited",
-    "live_overlay_experiment_verdict_p_value": "unaudited",
-    "live_overlay_experiment_verdict_underpowered": "unaudited",
-    "live_overlay_health_status_idle_market_closed": "unaudited",
-    "live_overlay_health_status_ok": "unaudited",
-    "live_overlay_health_status_starting": "unaudited",
-    "live_overlay_hotspot_symbols_tracked": "unaudited",
-    "live_overlay_hotspot_timeframes_tracked": "unaudited",
-    "live_overlay_provider_usage_calls": "unaudited",
-    "live_overlay_provider_usage_records": "unaudited",
-    "live_overlay_railway_service_memory_gb": "unaudited",
-    "live_overlay_sweep_trap_shadow_brier_baseline": "unaudited",
-    "live_overlay_sweep_trap_shadow_brier_signal": "unaudited",
-    "live_overlay_sweep_trap_shadow_loaded": "unaudited",
-    "live_overlay_sweep_trap_shadow_min_samples": "unaudited",
-    "live_overlay_tradingview_credential_validated_at_seconds": "unaudited",
-    "live_overlay_tv_binding_failed_consumers": "unaudited",
-    "live_overlay_tv_consumer_binding_mismatches": "unaudited",
-    "live_overlay_tv_consumer_source_failures": "unaudited",
-    "live_overlay_tv_consumer_source_matches": "unaudited",
-    "live_overlay_tv_consumer_sources_drifted": "unaudited",
-    "live_overlay_tv_consumer_sources_expected": "unaudited",
 }
 
 # 2026-07-22: 39 entries when the fail-closed inversion landed. This number may

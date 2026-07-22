@@ -1411,12 +1411,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_health_status_code {health_status_code}")
     lines.append("# TYPE live_overlay_health_status_info gauge")
     lines.append(f'live_overlay_health_status_info{{status="{_escape_label_value(status)}"}} 1')
-    lines.append("# TYPE live_overlay_health_status_ok gauge")
-    lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
-    lines.append("# TYPE live_overlay_health_status_starting gauge")
-    lines.append(f"live_overlay_health_status_starting {1 if status == 'starting' else 0}")
-    lines.append("# TYPE live_overlay_health_status_idle_market_closed gauge")
-    lines.append(f"live_overlay_health_status_idle_market_closed {1 if status == 'idle_market_closed' else 0}")
 
     for worker_name, alive in workers.items():
         prom_worker = _sanitize_name(worker_name)
@@ -1695,10 +1689,6 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_tradingview_credential_age_known {_prom_numeric_value(tv_credential['age_known'])}")
     lines.append("# TYPE live_overlay_tradingview_credential_age_hours gauge")
     lines.append(f"live_overlay_tradingview_credential_age_hours {tv_credential['age_hours']:.3f}")
-    lines.append("# TYPE live_overlay_tradingview_credential_validated_at_seconds gauge")
-    lines.append(
-        f"live_overlay_tradingview_credential_validated_at_seconds {tv_credential['validated_at_seconds']:.0f}"
-    )
 
     # ----- Full credential-health report -----------------------------------
     # Sourced from the same daily credential-health report as the legacy
@@ -1721,28 +1711,28 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     cred_age_float = float(cred_age_value) if isinstance(cred_age_value, (int, float)) else 0.0
     lines.append(f"live_overlay_credential_health_snapshot_age_seconds {cred_age_float:.1f}")
 
+    # Per-probe series are dynamically named (credential_health_<probe>_valid
+    # etc.), so a single # TYPE line cannot describe them. Four such headers
+    # used to be emitted for names no sample ever carried — inert metadata
+    # that the orphan scan then reported as unconsumed metrics. Dropped.
     probe_rows = credential.get("probes") or []
     if probe_rows:
-        lines.append("# TYPE live_overlay_credential_health_probe_severity_code gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             code = _prom_numeric_value(probe["code"])
             lines.append(f"live_overlay_credential_health_{name}_severity_code {code}")
 
-        lines.append("# TYPE live_overlay_credential_health_probe_valid gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             valid = _prom_numeric_value(probe["valid"])
             lines.append(f"live_overlay_credential_health_{name}_valid {valid}")
 
-        lines.append("# TYPE live_overlay_credential_health_probe_info gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             severity = _escape_label_value(str(probe["severity"]))
             message = _escape_label_value(str(probe["message"])[:200])
             lines.append(f'live_overlay_credential_health_{name}_info{{severity="{severity}",message="{message}"}} 1')
 
-        lines.append("# TYPE live_overlay_credential_health_probe_value gauge")
         for probe in probe_rows:
             name = _sanitize_name(str(probe["name"]))
             numeric = probe.get("numeric") or {}
