@@ -842,7 +842,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       await saveScript(session.page, details.libraryName);
       await waitForPostSaveCompileSettlement(session.page, details.libraryName);
       await assertNoVisibleCompileError(session.page);
-      await addCurrentScriptToChart(session.page, details.libraryName);
+      await addCurrentScriptToChart(session.page, details.libraryName, { tolerateFailure: true });
       await takeScreenshot(session.page, runId, `${details.libraryName}-compiled`, screenshots);
 
       publishAttempted = true;

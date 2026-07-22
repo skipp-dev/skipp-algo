@@ -4257,7 +4257,14 @@ export async function collectVisibleChartScriptState(
 }
 
 function isScriptVisibleOnChart(state: VisibleChartScriptState): boolean {
-  return state.hasLegendMatch || (state.hasStrategyReportMatch && state.hasScriptNameMatch);
+  // The legend row is the only signal tied to THIS script. `hasStrategyReportMatch`
+  // merely asks whether "Strategy report" is visible anywhere on the page, and
+  // `hasScriptNameMatch` matches the name anywhere — including the Pine editor's
+  // own title. Combining them reported a library as already-on-chart whenever any
+  // strategy happened to be loaded, and flipped to a false negative as soon as the
+  // Pine editor replaced the Strategy Tester in the bottom panel. Both flags stay in
+  // the state because the traces they feed are useful evidence; neither decides.
+  return state.hasLegendMatch;
 }
 
 export function isScriptVisibleOnChartState(state: VisibleChartScriptState): boolean {
