@@ -5,8 +5,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+# The import below depends on REPO_ROOT being on sys.path so the script works
+# both as ``python -m scripts.build_pre_a0_dashboard`` and as
+# ``python scripts/build_pre_a0_dashboard.py`` (the form used by
+# live-overlay-dashboard-publish.yml and this script's own --check hint).
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_OUTPUT = Path(
     "services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json"
@@ -976,7 +987,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.output} is up to date")
         return 0
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(rendered, encoding="utf-8")
+    atomic_write_text(rendered, args.output)  # atomic tempfile+os.replace; see tests/test_no_direct_to_csv_in_production.py
     print(f"Wrote {args.output}")
     return 0
 
