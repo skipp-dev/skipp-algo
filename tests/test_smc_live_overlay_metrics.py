@@ -2842,3 +2842,82 @@ def test_coerce_count_coerces_all_edge_inputs() -> None:
     assert c(float("nan")) == 0
     assert c(float("inf")) == 0
     assert c(-4) == 0
+
+
+def test_render_metrics_bridge_scrape_success_reflects_last_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A retained keep-last-good snapshot with a failed last attempt must
+    render scrape_success=0 and the truthful error label — not the frozen
+    ok=1/error=none of the last success (audit: lo-bridge-scrape-failed was
+    unreachable while the runbook pointed at the lying error_info)."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.uptimerobot_bridge,
+        "snapshot",
+        lambda: {
+            "enabled": 1,
+            "configured": 1,
+            "ok": 1,  # retained last-good payload
+            "fetched_at_unix": 1_700_000_000.0,
+            "last_success_fetched_at_unix": 1_700_000_000.0,
+            "scrape_duration_seconds": 0.123,
+            "counts": {"total": 4, "up": 4, "down": 0, "paused": 0, "unknown": 0},
+            "avg_response_time_ms": 101.5,
+            "monitors": [],
+            "last_attempt_ok": 0,
+            "last_attempt_error_code": "timeout",
+        },
+    )
+
+    body = metrics_mod.render_metrics(100.0, 1_700_000_000.0)
+
+    assert 'live_overlay_bridge_scrape_success{bridge="uptimerobot"} 0' in body
+    assert 'live_overlay_bridge_error_info{bridge="uptimerobot",error="timeout"} 1' in body
+    # last-good data stays served (retention is the point of the cache)
+    assert "live_overlay_uptimerobot_monitors_up_total 4" in body
+
+
+def test_render_metrics_hotspot_name_collisions_are_aggregated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbols that sanitize to the same metric name (BRK.A / BRK-A) must
+    render as ONE series: duplicate TYPE headers + samples make Prometheus
+    reject the entire exposition — a whole-scrape blackout from one request
+    pair (runtime-verified in the data-path audit)."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.request_hotspots,
+        "snapshot",
+        lambda top_n=5: {
+            "symbol_count": 2,
+            "tf_count": 2,
+            "top_symbols": [("BRK.A", 3.0), ("BRK-A", 2.0)],
+            "top_tfs": [("5m", 4.0), ("5M", 1.0)],
+        },
+    )
+
+    body = metrics_mod.render_metrics(100.0, 1_700_000_000.0)
+
+    assert body.count("# TYPE live_overlay_hotspot_symbol_brk_a_requests_total counter") == 1
+    assert "live_overlay_hotspot_symbol_brk_a_requests_total 5.0" in body
+    assert body.count("# TYPE live_overlay_hotspot_tf__5m_requests_total counter") == 1
+    assert "live_overlay_hotspot_tf__5m_requests_total 5.0" in body
