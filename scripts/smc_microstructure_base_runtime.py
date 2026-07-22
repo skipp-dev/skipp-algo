@@ -2638,7 +2638,6 @@ def generate_pine_library_from_base(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
 ) -> dict[str, Path]:
     """Generate a Pine library from a base snapshot CSV.
 
@@ -2666,9 +2665,6 @@ def generate_pine_library_from_base(
         ``export const`` blocks for regime, news, calendar, layering,
         provider status, and volume-regime data.  When ``None``, all
         enrichment constants receive safe neutral defaults.
-    static_control_plane:
-        Whether provider-backed values are intentionally delivered by
-        runtime sidecars instead of being embedded in this library.
 
     Returns
     -------
@@ -2684,6 +2680,5 @@ def generate_pine_library_from_base(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
-        static_control_plane=static_control_plane,
     )
 

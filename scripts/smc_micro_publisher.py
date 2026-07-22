@@ -30,7 +30,6 @@ def publish_generation_result(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
 ) -> dict[str, Path]:
     """Write all generator output artifacts to disk.
 
@@ -91,7 +90,6 @@ def publish_generation_result(
         library_version=library_version,
         recommended_import_path=recommended_import_path,
         enrichment=enrichment,
-        static_control_plane=static_control_plane,
         relative_to=output_root,
     )
 

@@ -179,18 +179,6 @@ def test_gate_blocks_the_artifact_that_actually_shipped(tmp_path: Path) -> None:
     assert "empty_universe_tickers" in gate["blocking_reasons"]
 
 
-def test_gate_blocks_in_static_control_plane_mode(tmp_path: Path) -> None:
-    """The mode the incident ran in. The payload contradiction applies
-    unconditionally, and the retired mode adds its own reason on top."""
-    gate = _write_manifest_for(
-        tmp_path, INCIDENT_PINE, static_control_plane=True
-    )["productivity_gate"]
-
-    assert gate["publish_ready"] is False
-    assert "empty_universe_tickers" in gate["blocking_reasons"]
-    assert "static_control_plane_retired" in gate["blocking_reasons"]
-
-
 def test_gate_records_the_measured_counts(tmp_path: Path) -> None:
     gate = _write_manifest_for(tmp_path, HEALTHY_PINE)["productivity_gate"]
 
@@ -222,23 +210,3 @@ def test_an_unreadable_library_is_unknown_not_blocked(tmp_path: Path) -> None:
     assert gate["payload_known"] is False
     assert gate["universe_tickers_count"] is None
     assert gate["blocking_reasons"] == []
-
-
-# ── Static-mode retirement (operator decision 2026-07-22) ───────
-
-def test_static_mode_is_never_publishable(tmp_path: Path) -> None:
-    """Operator decision 2026-07-22 (ADR-0029): no flip back to static-only.
-
-    Even a healthy payload with real event-risk enrichment must not publish in
-    static_control_plane mode. The workflow contract only guards the automated
-    path; this blocks the mode itself, so a manual publish is refused too.
-    """
-    gate = _write_manifest_for(
-        tmp_path,
-        HEALTHY_PINE,
-        static_control_plane=True,
-        enrichment={"event_risk": {"EVENT_WINDOW_STATE": "CLEAR"}},
-    )["productivity_gate"]
-
-    assert gate["publish_ready"] is False
-    assert "static_control_plane_retired" in gate["blocking_reasons"]

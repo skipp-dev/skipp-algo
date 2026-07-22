@@ -1420,7 +1420,6 @@ def write_manifest(
     library_version: int,
     recommended_import_path: str,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
     relative_to: Path | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1455,7 +1454,10 @@ def write_manifest(
 
     normalized_input_path = _rel(input_path).replace("\\", "/")
     event_risk_source = "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults"
-    generation_mode = "static_control_plane" if static_control_plane else "provider_enriched"
+    # ADR-0029 decision 3 retired the static control plane, so the publishing
+    # pipeline is enriched-only. Kept as a provenance record of how the
+    # artifact was produced, not as a switch.
+    generation_mode = "provider_enriched"
     fixture_input_detected = "/tests/fixtures/" in f"/{normalized_input_path.strip('/')}"
     placeholder_symbols = sorted(
         {
@@ -1479,14 +1481,6 @@ def write_manifest(
         blocking_reasons.append("default_event_risk")
     if fixture_input_detected and placeholder_symbols:
         blocking_reasons.append("placeholder_symbols")
-    # Operator decision 2026-07-22 (ADR-0029): static_control_plane is retired
-    # from the publish path — there will be no flip back to static-only. The
-    # mode stays generable for local use, but its manifest is never
-    # publish-ready, so even a manual publish attempt is refused. This also
-    # replaces the former static-mode suppression of default_event_risk, which
-    # existed solely to let static publish.
-    if static_control_plane:
-        blocking_reasons.append("static_control_plane_retired")
     blocking_reasons.extend(payload_blocking_reasons(payload))
 
     payload = {
@@ -1562,7 +1556,6 @@ def run_generation(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrichment: EnrichmentDict | None = None,
-    static_control_plane: bool = False,
 ) -> dict[str, Path]:
     """Orchestrate generate → validate → publish in sequence.
 
@@ -1601,7 +1594,6 @@ def run_generation(
         library_owner=library_owner,
         library_version=library_version,
         enrichment=enrichment,
-        static_control_plane=static_control_plane,
     )
 
 

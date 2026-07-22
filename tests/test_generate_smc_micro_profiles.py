@@ -28,7 +28,6 @@ from scripts.generate_smc_micro_profiles import (
 )
 from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-from scripts.verify_smc_micro_publish_contract import verify_publish_contract
 
 SCHEMA_PATH = str(resolve_microstructure_schema_path())
 
@@ -906,37 +905,6 @@ def test_manifest_event_risk_defaults_provenance(tmp_path: Path) -> None:
     assert manifest["generation_mode"] == "provider_enriched"
     assert manifest["productivity_gate"]["publish_ready"] is False
     assert "default_event_risk" in manifest["productivity_gate"]["blocking_reasons"]
-
-
-def test_manifest_static_control_plane_is_not_publishable(tmp_path: Path) -> None:
-    """Operator decision 2026-07-22 (ADR-0029): no flip back to static-only.
-
-    This test previously pinned the opposite ("static libraries may publish
-    while provider data stays in runtime sidecars") — the premise behind #3790,
-    whose flip shipped five empty library versions. The mode stays generable
-    for local use, but its manifest is never publish-ready and the
-    publish-contract verifier refuses it, so a manual publish is blocked too.
-    """
-    outputs = run_generation(
-        schema_path=Path(SCHEMA_PATH),
-        input_path=Path("data/input/microstructure_base_snapshot_2026-03-23.csv"),
-        output_root=tmp_path,
-        static_control_plane=True,
-    )
-    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
-    assert manifest["generation_mode"] == "static_control_plane"
-    assert manifest["event_risk_source"] == "defaults"
-    assert manifest["productivity_gate"]["publish_ready"] is False
-    assert "static_control_plane_retired" in manifest["productivity_gate"]["blocking_reasons"]
-    assert "default_event_risk" in manifest["productivity_gate"]["blocking_reasons"]
-    core_path = tmp_path / "SMC_Long_Dip_Suite.pine"
-    snippet = outputs["core_import_snippet_path"].read_text(encoding="utf-8")
-    core_path.write_text(f"//@version=6\n{snippet}", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="static_control_plane_retired"):
-        verify_publish_contract(outputs["manifest_path"], core_path)
-
-
-# ── Debug mode tests ────────────────────────────────────────────────
 
 
 def test_debug_mode_includes_diagnostic_fields(tmp_path: Path) -> None:
