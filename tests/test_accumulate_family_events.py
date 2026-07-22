@@ -571,3 +571,92 @@ def test_age_pruning_prevents_unbounded_growth(tmp_path: Path) -> None:
         f"expected ≤ {max_expected} (age-pruned to {MAX_AGE_DAYS} days × "
         f"{EVENTS_PER_DAY} events/day).  The age filter is not pruning correctly."
     )
+
+
+# --------------------------------------------------------------------------- #
+# --max-shrink-fraction pool-continuity guard (issue #3872 post-mortem)
+# --------------------------------------------------------------------------- #
+def _guard_args(tmp_path: Path, prev_events: list, curr_events: list) -> list[str]:
+    prev = tmp_path / "prev.json"
+    curr = tmp_path / "curr.json"
+    prev.write_text(json.dumps(prev_events))
+    curr.write_text(json.dumps(curr_events))
+    return [
+        "--current", str(curr),
+        "--previous", str(prev),
+        "--output", str(tmp_path / "out.json"),
+        "--max-age-days", "30",
+        "--max-shrink-fraction", "0.5",
+    ]
+
+
+def test_guard_refuses_empty_merge_of_nonempty_previous(tmp_path: Path):
+    """2026-07-13 wipe: an all-aged-out merge produced a JSON '[]' that
+    passed the workflow's file-size check and REPLACED the canonical pool;
+    the lineage then rebuilt from single-day snapshots. The guard must
+    refuse to write and leave the last-good artifact canonical."""
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    ancient = [_event("BOS", now - 90 * 86_400 + i) for i in range(10)]
+    rc = main(_guard_args(tmp_path, prev_events=ancient, curr_events=[]))
+    assert rc == 4
+    assert not (tmp_path / "out.json").exists()
+
+
+def test_guard_refuses_pathological_shrink(tmp_path: Path):
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    fresh = [_event("BOS", now - 86_400 + i) for i in range(10)]
+    aged = [_event("BOS", now - 90 * 86_400 + i) for i in range(90)]
+    # merged keeps 10 of 100 previous events -> below the 50% floor.
+    rc = main(_guard_args(tmp_path, prev_events=fresh + aged, curr_events=[]))
+    assert rc == 4
+    assert not (tmp_path / "out.json").exists()
+
+
+def test_guard_allows_normal_ageout_and_growth(tmp_path: Path):
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    prev = [_event("BOS", now - (2 + i) * 86_400) for i in range(8)]
+    curr = [_event("SWEEP", now - 3_600 + i) for i in range(3)]
+    rc = main(_guard_args(tmp_path, prev_events=prev, curr_events=curr))
+    assert rc == 0
+    result = json.loads((tmp_path / "out.json").read_text())
+    assert len(result) == 11
+
+
+def test_guard_off_by_default_keeps_previous_behaviour(tmp_path: Path):
+    from scripts.accumulate_family_events import main
+
+    now = time.time()
+    ancient = [_event("BOS", now - 90 * 86_400 + i) for i in range(10)]
+    prev = tmp_path / "prev.json"
+    curr = tmp_path / "curr.json"
+    prev.write_text(json.dumps(ancient))
+    curr.write_text(json.dumps([]))
+    rc = main([
+        "--current", str(curr),
+        "--previous", str(prev),
+        "--output", str(tmp_path / "out.json"),
+        "--max-age-days", "30",
+    ])
+    assert rc == 0
+    assert json.loads((tmp_path / "out.json").read_text()) == []
+
+
+def test_guard_rejects_invalid_fraction(tmp_path: Path):
+    from scripts.accumulate_family_events import main
+
+    rc = main([*_guard_args(tmp_path, prev_events=[], curr_events=[])[:-1], "1.5"])
+    assert rc == 1
+
+
+def test_rolling_workflow_arms_the_continuity_guard():
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github" / "workflows" / "smc-measurement-benchmark-rolling.yml"
+    ).read_text(encoding="utf-8")
+    assert '"--max-shrink-fraction" "0.5"' in workflow
