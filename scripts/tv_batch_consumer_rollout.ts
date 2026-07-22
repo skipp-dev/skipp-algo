@@ -144,10 +144,19 @@ async function main(): Promise<void> {
         report.producerRefresh.ok = true;
       } catch (error) {
         report.producerRefresh.error = `${session.page.url()}: ${String((error as Error)?.message ?? error)}`;
+        // Best-effort, but never silent: the refresh only re-applies an ALREADY
+        // published script so the chart shows the new version. Its failure costs
+        // one manual "add to chart" on the next version bump — it must not hide
+        // the source/binding truth below, so it warns instead of failing the run.
+        console.warn(`[rollout] producer refresh failed (cosmetic, non-fatal): ${report.producerRefresh.error}`);
       }
     }
 
-    if (report.save.failed.length === 0 && report.producerRefresh.ok) {
+    // Gated on saves ALONE. The cosmetic refresh above used to gate this block too,
+    // so a single refresh timeout reported `sources.checked 0` / `bindings 0` and
+    // skipped the load-bearing verification entirely (live runs 29929470730 and
+    // 29946386778, 2026-07-22).
+    if (report.save.failed.length === 0) {
       for (const target of sourceVerificationTargets) {
         let result: VerifyConsumerSourceResult | null = null;
         let lastError = "unknown source verification failure";
@@ -199,8 +208,10 @@ async function main(): Promise<void> {
     report.bindings.checkedBindings = report.bindings.consumers.reduce((sum, item) => sum + item.checked, 0);
     report.bindings.mismatches = report.bindings.consumers.reduce((sum, item) => sum + item.mismatches.length, 0);
     report.durationSeconds = Math.round((Date.now() - started) / 100) / 10;
+    // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
+    // already-published script, and TradingView's SPA makes it the flakiest step in
+    // the run. Its outcome stays in report.producerRefresh.{ok,error} as evidence.
     report.ok = report.save.failed.length === 0
-      && report.producerRefresh.ok
       && report.sources.failed.length === 0
       && report.sources.checked === report.sources.expected
       && report.sources.drifted === 0

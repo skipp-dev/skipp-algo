@@ -50,6 +50,39 @@ test("rollout loops the producer refresh over every resolved layout", () => {
   assert.doesNotMatch(producerBlock, /await ensurePineEditor/);
 });
 
+// The applied-instance refresh is cosmetic (it re-adds an already-published
+// script so the visible chart picks up the new version). Verifying consumer
+// SOURCES and BINDINGS is the critical, load-bearing work. Runs 29929470730 and
+// 29946386778 both reported `sources.checked 0` / `bindings 0` purely because
+// the fragile refresh timed out first and its `ok` flag gated the verification
+// block — the important check was blocked by the nice-to-have one.
+test("consumer verification gates on save success alone, never on the cosmetic refresh", () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, "scripts", "tv_batch_consumer_rollout.ts"),
+    "utf-8",
+  );
+  assert.doesNotMatch(source, /report\.save\.failed\.length === 0 && report\.producerRefresh\.ok/);
+  // Saves still gate verification: verifying sources we failed to write is meaningless.
+  assert.match(
+    source,
+    /if \(report\.save\.failed\.length === 0\) \{\s*\n\s*for \(const target of sourceVerificationTargets\)/,
+  );
+});
+
+test("a failed producer refresh is non-fatal but stays visible as evidence", () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, "scripts", "tv_batch_consumer_rollout.ts"),
+    "utf-8",
+  );
+  const okExpression = source.split("report.ok = ", 2)[1]?.split(";", 1)[0] ?? "";
+  assert.notEqual(okExpression, "");
+  // Best-effort: a cosmetic refresh timeout must not turn a fully verified run red.
+  assert.doesNotMatch(okExpression, /producerRefresh/);
+  // Non-fatal must never mean silent — the failure keeps a warning and its report field.
+  assert.match(source, /report\.producerRefresh\.error/);
+  assert.match(source, /console\.warn\([^)]*producer refresh/i);
+});
+
 test("refresh-path add-to-chart carries the same 90s floor as its wrapper", () => {
   // The inner addCurrentScriptToChart step timed out at its default 45s while
   // the outer refreshChartScriptInstance timer had already been raised to 90s
