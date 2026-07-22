@@ -201,11 +201,16 @@ jobs:
           # carries universe_survivorship_bias_risk so the gate refuses to promote
           # a survivorship-biased run without --universe-trade-date. Fail-soft glob.
           UNIV_MANIFEST="$(ls -1t "${{ steps.download.outputs.scoring_root }}"/databento_volatility_production_*_manifest.json 2>/dev/null | head -1)"
+          # --plane 1D (issue #3872 follow-up): the accumulated pool is
+          # multi-TF since #2667 (5m-dominated by 2026-07-16), so unfiltered
+          # Tier-1 direction metrics silently measured a plane governance
+          # never chose. Mirror the shadow daily's governed-plane filter.
           python scripts/build_promotion_gate_bundle.py \
             --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
             --output           "${BUNDLE}" \
             --date             "${{ steps.date.outputs.value }}" \
             --magnitude-ledger artifacts/governance/magnitude_resolution_shadow_15m_seed.jsonl \
+            --plane            1D \
             ${EVENTS_POOL:+--events "${EVENTS_POOL}"} \
             ${UNIV_MANIFEST:+--universe-manifest "${UNIV_MANIFEST}"}
           echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
