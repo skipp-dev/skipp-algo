@@ -40,6 +40,13 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
 
+# Required by scripts/lint_workflow_defaults.py: without it every `run:` step
+# defaults to PowerShell on the Windows self-hosted runner and the heredocs
+# below would not parse.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   restart:
     if: github.event.schedule == '10 0 23 7 *' || inputs.phase == 'restart'
