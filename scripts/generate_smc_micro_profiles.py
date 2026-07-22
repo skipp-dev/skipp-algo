@@ -1425,6 +1425,7 @@ def write_manifest(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    from scripts.smc_payload_volume import measure_payload_volume, payload_blocking_reasons
     from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
 
     normalized_enrichment = normalize_v55_lean_enrichment(enrichment)
@@ -1464,6 +1465,13 @@ def write_manifest(
             if symbol in PLACEHOLDER_SYMBOL_SENTINELS
         }
     )
+    # ADR-0029: measure the artifact the consumers actually read, not metadata
+    # about it. The library is written before the manifest, so this reads what
+    # was just rendered. A missing/unreadable library yields known=False, which
+    # blocks nothing but is recorded so it cannot pass as green either.
+    payload = measure_payload_volume(
+        pine_path.read_text(encoding="utf-8") if pine_path.exists() else ""
+    )
     blocking_reasons: list[str] = []
     if fixture_input_detected:
         blocking_reasons.append("fixture_input")
@@ -1471,6 +1479,9 @@ def write_manifest(
         blocking_reasons.append("default_event_risk")
     if fixture_input_detected and placeholder_symbols:
         blocking_reasons.append("placeholder_symbols")
+    blocking_reasons.extend(
+        payload_blocking_reasons(payload, static_control_plane=static_control_plane)
+    )
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -1518,6 +1529,9 @@ def write_manifest(
             "fixture_input_detected": fixture_input_detected,
             "default_event_risk_detected": event_risk_source == "defaults",
             "placeholder_symbols": placeholder_symbols,
+            "payload_known": payload.known,
+            "universe_tickers_count": payload.universe_tickers_count if payload.known else None,
+            "list_total": payload.list_total if payload.known else None,
         },
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
