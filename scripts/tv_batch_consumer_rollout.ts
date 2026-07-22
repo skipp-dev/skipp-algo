@@ -133,8 +133,11 @@ async function main(): Promise<void> {
       try {
         for (const producerChartUrl of resolveProducerRefreshChartUrls(config)) {
           if (!session.page.url().startsWith(producerChartUrl)) {
+            // No ensurePineEditor here: refreshChartScriptInstance opens the
+            // editor itself FAULT-TOLERANTLY. An intolerant outer call
+            // stranded run 29946386778 on /pine-screener/ (editor recovery)
+            // and aborted the whole block before the second layout.
             await gotoChart(session.page, producerChartUrl);
-            await ensurePineEditor(session.page);
           }
           report.producerRefresh.removedInstances += await refreshChartScriptInstance(session.page, config.producerName);
         }
