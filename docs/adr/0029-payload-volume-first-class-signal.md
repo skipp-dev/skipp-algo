@@ -282,7 +282,8 @@ Gate layer (decisions 1–4, 7):
 
 Staged (decisions 5–6):
 
-- `automation/tradingview/tests/tv_validation_model.test.ts` — `[true, not_run,
-  not_run]` in required slots must yield `overall_preflight_ok === false`.
+- `automation/tradingview/tests/tv_validation_model.test.ts` —
+  `[true, not_run, not_run]` in required slots must yield
+  `overall_preflight_ok === false`.
 - `tests/test_monitoring_metric_alert_coverage.py`,
   `tests/test_grafana_alert_rules_upsert.py` — metric/alert wiring.
