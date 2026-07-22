@@ -20,6 +20,8 @@ import time
 from collections import deque
 from typing import Any
 
+from . import request_hotspots
+
 logger = logging.getLogger(__name__)
 
 # BarCache: symbol → deque of bar dicts (OHLCV), capped at rolling_bars
@@ -56,6 +58,15 @@ _evict_summary = _EvictSummary()
 _overlay_lock = threading.Lock()
 _overlay: dict[str, dict[str, Any]] = {}
 _overlay_computed_at: float = 0.0
+
+# Bar-cache eviction counters. Cap churn had NO metric before 2026-07-22, so
+# the cache thrashing that starved every rolling metric was invisible to
+# monitoring; `evicted_protected_total` rising means the cap is genuinely too
+# small for actual demand (not just for the ALL_SYMBOLS firehose).
+# Mutated in place under `_bar_lock` — no ``global`` statement (statement-budget
+# guard) and trivially resettable in tests.
+_evict_counters: dict[str, int] = {"total": 0, "protected": 0}
+
 
 # VIX level (updated separately since it's a single value)
 _vix_lock = threading.Lock()
@@ -135,6 +146,18 @@ def bar_symbol_count() -> int:
         return len(_bars)
 
 
+def evicted_symbols_total() -> int:
+    """Symbols dropped from the bar cache since process start."""
+    with _bar_lock:
+        return _evict_counters["total"]
+
+
+def evicted_protected_total() -> int:
+    """Evictions that hit a REQUESTED symbol — the cap is too small when >0."""
+    with _bar_lock:
+        return _evict_counters["protected"]
+
+
 def total_bar_count() -> int:
     with _bar_lock:
         return sum(len(dq) for dq in _bars.values())
@@ -153,10 +176,27 @@ def _evict_n_stale_symbols_locked(n_evict: int) -> None:
     n_evict = max(0, min(n_evict, len(_bars)))
     if n_evict == 0:
         return
-    victims = sorted(_bar_last_update, key=lambda s: _bar_last_update[s])[:n_evict]
+    # Demand-aware retention: with an ALL_SYMBOLS feed every tracked symbol
+    # ticks about once a minute, so `_bar_last_update` is near-uniform and
+    # sorting by it alone evicts essentially at random — including the few
+    # symbols someone is actually watching. Observed 2026-07-22 in production:
+    # bar_symbols pinned at the 2000 cap with bar_count also 2000, i.e. ONE bar
+    # per symbol, so every rolling metric (relative volume needs 19 prior bars,
+    # squeeze 20, ATS z-score history) was structurally unavailable and the
+    # sidecar's technical feed rendered "—" for every symbol.
+    # Requested symbols are therefore evicted only when nothing else is left;
+    # the cap stays a hard limit.
+    protected = request_hotspots.requested_symbols()
+    victims = sorted(
+        _bar_last_update,
+        key=lambda s: (s in protected, _bar_last_update[s]),
+    )[:n_evict]
     for sym in victims:
         _bars.pop(sym, None)
         _bar_last_update.pop(sym, None)
+        _evict_counters["total"] += 1
+        if sym in protected:
+            _evict_counters["protected"] += 1
     logger.debug("Evicted %d stale symbols from bar cache (cap=%d)", len(victims), _max_symbols)
 
     # Throttle the INFO line: aggregate churn and emit at most one summary per

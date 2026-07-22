@@ -1386,6 +1386,22 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_bar_count gauge")
     lines.append(f"live_overlay_bar_count {bar_count}")
 
+    # Cap-churn visibility (2026-07-22): without these the bar cache could
+    # thrash at the symbol cap — one bar per symbol, every rolling metric
+    # unavailable — with no metric moving. `bars_per_symbol` is the direct
+    # health signal (needs >= 20 for squeeze/relative-volume/ATS z-score);
+    # `evicted_protected_total` rising means real demand exceeds the cap.
+    lines.append("# TYPE live_overlay_bars_per_symbol gauge")
+    lines.append(
+        f"live_overlay_bars_per_symbol {bar_count / bar_symbols if bar_symbols else 0}"
+    )
+    lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
+    lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
+    lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")
+    lines.append(
+        f"live_overlay_bar_requested_symbols_evicted_total {cache.evicted_protected_total()}"
+    )
+
     overlay_age = cache.overlay_age_secs()
     overlay_age_known = 1.0 if overlay_age != float("inf") else 0.0
     lines.append("# TYPE live_overlay_overlay_age_known gauge")
