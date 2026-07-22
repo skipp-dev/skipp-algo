@@ -9,6 +9,7 @@ import {
   gotoChart,
   newTradingViewSession,
   refreshChartScriptInstance,
+  resolveProducerRefreshChartUrls,
 } from "../automation/tradingview/lib/tv_shared.js";
 import {
   saveConsumerSource,
@@ -125,11 +126,21 @@ async function main(): Promise<void> {
     }
 
     if (report.save.failed.length === 0 && refreshProducer) {
+      // The applied producer instance lives in EVERY layout that carries
+      // consumers (desktop primary + e.g. the Mobile layout the operator
+      // actually watches). Refreshing only primaryChartUrl left the visible
+      // instance frozen (live run 29929470730, 2026-07-22).
       try {
-        report.producerRefresh.removedInstances = await refreshChartScriptInstance(session.page, config.producerName);
+        for (const producerChartUrl of resolveProducerRefreshChartUrls(config)) {
+          if (!session.page.url().startsWith(producerChartUrl)) {
+            await gotoChart(session.page, producerChartUrl);
+            await ensurePineEditor(session.page);
+          }
+          report.producerRefresh.removedInstances += await refreshChartScriptInstance(session.page, config.producerName);
+        }
         report.producerRefresh.ok = true;
       } catch (error) {
-        report.producerRefresh.error = String((error as Error)?.message ?? error);
+        report.producerRefresh.error = `${session.page.url()}: ${String((error as Error)?.message ?? error)}`;
       }
     }
 
