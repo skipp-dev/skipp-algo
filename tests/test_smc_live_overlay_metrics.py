@@ -566,7 +566,13 @@ def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) 
 
     # Fresh boot (uptime < warmup): a non-ok state during the open session is
     # still "starting", not "degraded".
-    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 30.0)
+    # Pin monotonic: on a fresh CI runner time.monotonic() is only minutes
+    # old, so "now - X" can go NEGATIVE and render_metrics' `startup_ts > 0`
+    # guard silently zeroes the uptime (the F-3 degraded test failed on every
+    # main full-CI run this way while passing on long-booted dev machines).
+    now = 1_000_000.0
+    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
+    body = metrics_mod.render_metrics(startup_ts=now - 30.0)
     assert "live_overlay_health_status_code 1" in body
     assert 'live_overlay_health_status_info{status="starting"} 1' in body
     assert "live_overlay_health_status_ok 0" in body
@@ -594,7 +600,9 @@ def test_render_metrics_health_status_degraded_past_warmup(
         overlay_age=float("inf"),
     )
 
-    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 3600.0)
+    now = 1_000_000.0  # pinned: epoch-independent uptime (see warmup test above)
+    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
+    body = metrics_mod.render_metrics(startup_ts=now - 3600.0)
     assert "live_overlay_health_status_code 4" in body
     assert 'live_overlay_health_status_info{status="degraded"} 1' in body
     assert "live_overlay_health_status_ok 0" in body
@@ -622,7 +630,9 @@ def test_render_metrics_market_closed_failure_stays_starting_not_degraded(
         overlay_age=float("inf"),
     )
 
-    body = metrics_mod.render_metrics(startup_ts=time.monotonic() - 3600.0)
+    now = 1_000_000.0  # pinned: epoch-independent uptime (see warmup test above)
+    monkeypatch.setattr(metrics_mod.time, "monotonic", lambda: now)
+    body = metrics_mod.render_metrics(startup_ts=now - 3600.0)
     assert "live_overlay_health_status_code 1" in body
     assert 'live_overlay_health_status_info{status="starting"} 1' in body
 

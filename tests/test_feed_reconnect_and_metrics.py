@@ -363,7 +363,9 @@ class TestFeedDropCounters:
                     feed.metrics_snapshot().get("sym_none_drops_total", 0) >= 1
                     and feed.metrics_snapshot().get("bar_none_drops_total", 0) >= 1
                 ),
-                max_runtime=2.0,
+                # 10s bound: exits early via until(); 2.0 flaked once under a
+                # loaded machine (three-file run) before the counters landed.
+                max_runtime=10.0,
             )
 
         snapshot = feed.metrics_snapshot()
