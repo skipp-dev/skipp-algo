@@ -1186,6 +1186,12 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         "live_overlay.smc_live_bad_tf.total",
         "live_overlay.smc_live_cache_miss.total",
         "live_overlay.smc_live_stale_served.total",
+        # Compute-cycle error counters feed lo-compute-errors-rate. They were
+        # created lazily on first error, so Prometheus increase() treated the
+        # first-seen sample as baseline and the FIRST error burst per process
+        # lifetime never fired the alert. Seed 0 like the traffic counters.
+        "live_overlay.full_compute_cycle.errors",
+        "live_overlay.flow_patch_cycle.errors",
     ):
         counters.setdefault(traffic_counter, 0.0)
 

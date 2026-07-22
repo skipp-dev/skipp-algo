@@ -618,3 +618,187 @@ def test_alert_rule_uids_stay_in_the_portable_charset() -> None:
         "character passes the length and uniqueness checks and reaches Grafana:\n"
         + "\n".join(f"  {u!r}  [group: {g}]  offending: {o}" for u, g, o in offenders)
     )
+
+
+# ---------------------------------------------------------------------------
+# Part D — referenced -> emitted: every metric name a dashboard panel or alert
+# rule references must actually be produced by an exporter. The audit found 20
+# consumed exporter names pinned by no test: renaming any of them in
+# metrics.py/feed.py passed the whole suite while the paired alert (e.g.
+# lo-circuit-breaker, lo-news-ingest-stale) silently went to permanent no-data
+# behind noDataState: OK. This closes the reverse direction of Part C.
+# ---------------------------------------------------------------------------
+
+# Families that are legitimately absent from a bare hermetic render because
+# their names are built dynamically from runtime data. Each entry documents
+# the construction site; keep these as NARROW as possible — a family regex
+# added here is exempt from the rename guard.
+_DYNAMIC_EMITTED_FAMILIES: tuple[tuple[str, str], ...] = (
+    # metrics.py _render_credential_health: per-probe names from the snapshot
+    # (probe census is enforced separately against credential_health_check.py).
+    (r"live_overlay_credential_health_[a-z0-9_]+", "metrics.py per-probe f-string"),
+    (r"live_overlay_tradingview_credential_[a-z0-9_]+", "metrics.py legacy credential gauges"),
+    # metrics.py hotspot render: per-symbol/tf names from live traffic.
+    (r"live_overlay_hotspot_[a-z0-9_]+", "metrics.py request-hotspot f-string"),
+    # metrics.py railway block: per-service names, bridge disabled in test env.
+    (r"live_overlay_railway_service_[a-z0-9_]+", "metrics.py railway per-service"),
+    # metrics.py uptimerobot block: per-monitor names, bridge disabled here.
+    (r"live_overlay_uptimerobot_[a-z0-9_]+", "metrics.py uptimerobot per-monitor"),
+    # metrics.py workflow block: per-workflow labels exist only with the bridge
+    # enabled; family-level presence is guarded by lo-bridge-contract-missing.
+    (r"live_overlay_github_workflow_[a-z0-9_]+", "metrics.py workflow bridge"),
+    # metrics.py trading-signals block: per-signal series from the snapshot.
+    (r"live_overlay_trading_signal_[a-z0-9_]+", "metrics.py per-signal series"),
+    # metrics.py experiment block: per-TF/family/day series from the rollup.
+    (r"live_overlay_experiment_[a-z0-9_]+", "metrics.py experiment snapshot"),
+    # metrics.py provider-news block: per-provider names from the snapshot.
+    (r"live_overlay_provider_news_[a-z0-9_]+", "metrics.py provider-news"),
+    # metrics.py pine-library block: per-library/consumer names.
+    (r"live_overlay_pine_[a-z0-9_]+", "metrics.py pine-library bridge"),
+    # Latency histogram suffixes are concatenated onto the base name.
+    (r"live_overlay_smc_live_latency_ms_(?:bucket|sum|count)", "metrics.py histogram suffixes"),
+    # Omitted while every bridge is disabled (age/duration are None then);
+    # with a bridge enabled their presence is guarded by
+    # lo-bridge-contract-missing + the last-success-stale alert pair.
+    (r"live_overlay_bridge_last_success_age_seconds", "metrics.py disabled-bridge omission"),
+    (r"live_overlay_bridge_last_scrape_duration_seconds", "metrics.py disabled-bridge omission"),
+)
+
+
+def _hermetic_daemon_render(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Render the daemon exposition with every optional upstream disabled."""
+    for var in (
+        "NEWS_SNAPSHOT_URL",
+        "SIGNALS_SERVICE_URL",
+        "SIGNALS_SNAPSHOT_URL",
+        "TRADINGVIEW_CREDENTIAL_SNAPSHOT_URL",
+        "TRADINGVIEW_BINDINGS_SNAPSHOT_URL",
+        "EXPERIMENT_SNAPSHOT_URL",
+        "EXPERIMENT_HISTORY_URL",
+        "EVIDENCE_FRESHNESS_SNAPSHOT_URL",
+        "PROVIDER_USAGE_SNAPSHOT_URL",
+        "PINE_LIBRARY_VERSIONS_SNAPSHOT_URL",
+        "SWEEP_TRAP_SHADOW_SNAPSHOT_URL",
+        "UPTIMEROBOT_API_KEY",
+        "GITHUB_WORKFLOW_MONITOR_TOKEN",
+        "RAILWAY_API_TOKEN",
+        "RAILWAY_METRICS_ENABLED",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    return metrics_mod.render_metrics(100.0, 1_700_000_000.0)
+
+
+def test_every_referenced_daemon_metric_is_emitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every live_overlay_* name referenced by alert-rules.yaml or a dashboard
+    must appear in a hermetic exporter render or match a documented
+    dynamically-constructed family. Catches exporter renames/dashboard typos
+    that previously survived the entire suite (audit finding: 20 such names)."""
+    referenced = {
+        # Drop trailing-underscore fragments from templated exprs like
+        # live_overlay_bridge_${var} — the regex stops at the `$`.
+        name
+        for name in re.findall(
+            r"\blive_overlay_[a-z0-9_]+", _alert_expr_text() + _dashboard_expr_text()
+        )
+        if not name.endswith("_")
+    }
+    body = _hermetic_daemon_render(monkeypatch)
+    emitted = set(re.findall(r"\blive_overlay_[a-z0-9_]+", body))
+
+    unmatched = sorted(
+        name
+        for name in referenced - emitted
+        if not any(re.fullmatch(rx, name) for rx, _site in _DYNAMIC_EMITTED_FAMILIES)
+    )
+    assert not unmatched, (
+        "Metric name(s) referenced by alert rules / dashboards but absent from "
+        "a hermetic exporter render and not on the documented dynamic-family "
+        f"allowlist — exporter rename or consumer typo: {unmatched}"
+    )
+
+
+def test_every_referenced_producer_metric_is_emitted() -> None:
+    """signals_producer_* names referenced by alerts/dashboards must be
+    rendered by the producer's /metrics collector (same rename guard as the
+    daemon-side test above, using the producer's own render path)."""
+    import time as _t
+    import types
+
+    import open_prep.realtime_signals as rs
+
+    engine = types.SimpleNamespace(
+        last_poll_success_epoch=_t.time(),
+        last_poll_duration_seconds=0.1,
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=10.0,
+        _watchlist=[{"symbol": "AAPL"}],
+        _client=None,
+        _last_data_epoch=_t.time(),
+        _in_market_hours=False,
+        _client_disabled_reason=None,
+    )
+    body = rs._collect_process_metrics(engine)
+    emitted = set(re.findall(r"\bsignals_producer_[a-z0-9_]+", body))
+    referenced = set(
+        re.findall(r"\bsignals_producer_[a-z0-9_]+", _alert_expr_text() + _dashboard_expr_text())
+    )
+    # client_disabled_info carries a reason label and is emitted only while
+    # disabled; the paired 0/1 gauge is unconditional and covers the alert.
+    # The fmp_* counters exist only once an FMP client object was constructed
+    # (realtime_signals._collect_process_metrics reads them off the client);
+    # a producer with NO client pages via sp-client-disabled instead.
+    dynamic = {
+        "signals_producer_client_disabled_info",
+        "signals_producer_fmp_requests_total",
+        "signals_producer_fmp_endpoint_requests_total",
+        "signals_producer_fmp_endpoint_response_bytes_total",
+    }
+    unmatched = sorted(referenced - emitted - dynamic)
+    assert not unmatched, (
+        "signals_producer metric(s) referenced by alerts/dashboards but not "
+        f"rendered by _collect_process_metrics: {unmatched}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Part E — credential-probe census: the seven per-probe `_valid` alerts are
+# noDataState: OK, so a probe renamed/removed in credential_health_check.py
+# makes its alert silently green FOREVER (series vanishes, rule never fires).
+# Pin the checker's probe names to the alert-consumed set so that failure
+# mode becomes a CI failure instead.
+# ---------------------------------------------------------------------------
+
+_CREDENTIAL_CHECKER = _REPO_ROOT / "scripts" / "credential_health_check.py"
+
+# Probes the checker produces that deliberately have no per-probe alert.
+# Keep justified: newsapi is a best-effort enrichment source; its failure is
+# visible via provider-news health, not worth a dedicated credential page.
+_ALERT_EXEMPT_PROBES = frozenset({"newsapi_key"})
+
+
+def test_credential_probe_census_matches_alerted_valid_gauges() -> None:
+    source = _CREDENTIAL_CHECKER.read_text(encoding="utf-8")
+    checker_probes = set(re.findall(r'name\s*=\s*"([a-z0-9_]+)"', source))
+    assert checker_probes, "no probe names found — extraction regex broke?"
+
+    alerted_probes = {
+        name.removeprefix("live_overlay_credential_health_").removesuffix("_valid")
+        for name in _CREDENTIAL_SIGNAL_METRICS
+        if name.endswith("_valid")
+    }
+
+    missing_in_checker = sorted(alerted_probes - checker_probes)
+    assert not missing_in_checker, (
+        "Alert rules pin per-probe _valid gauges whose probe no longer exists "
+        "in credential_health_check.py — those alerts are noDataState: OK and "
+        f"will stay silently green forever: {missing_in_checker}"
+    )
+
+    unalerted = sorted(checker_probes - alerted_probes - _ALERT_EXEMPT_PROBES)
+    assert not unalerted, (
+        "New credential probe(s) without a per-probe _valid alert pin (add the "
+        "alert + extend _CREDENTIAL_SIGNAL_METRICS, or justify in "
+        f"_ALERT_EXEMPT_PROBES): {unalerted}"
+    )
