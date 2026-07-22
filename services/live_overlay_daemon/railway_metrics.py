@@ -269,6 +269,13 @@ def snapshot() -> dict[str, Any]:
             cached = _CACHE
         failed = _failed_snapshot(error, cached=cached)
         failed["scrape_duration_seconds"] = time.monotonic() - started
+        # Failure backoff: cache the (truthful, ok=0) failed snapshot for one
+        # TTL so a hanging Railway API costs at most one fetch timeout per TTL
+        # instead of one per scrape — inline fetch latency here counts against
+        # Alloy's scrape_timeout for the whole /metrics exposition.
+        with _LOCK:
+            _CACHE = failed
+            _CACHE_EXPIRES_AT = time.monotonic() + config.railway_metrics_poll_ttl_secs()
         return failed
 
     ttl = config.railway_metrics_poll_ttl_secs()

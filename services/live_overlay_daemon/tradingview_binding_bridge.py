@@ -110,6 +110,12 @@ def snapshot() -> dict[str, Any]:
     with _lock:
         now = time.monotonic()
         if _cache["snapshot"] is None or now - float(_cache["at"]) >= config.experiment_cache_ttl_secs():
-            _cache["snapshot"] = _load()
+            fresh = _load()
+            # Keep last-good on transient failures (sibling-bridge contract):
+            # a failed reload must not evict a previously loaded snapshot for
+            # a full TTL — staleness stays visible via the age gauges, which
+            # recompute from the retained generated_at_unix every scrape.
+            if fresh.get("loaded") == 1.0 or _cache["snapshot"] is None:
+                _cache["snapshot"] = fresh
             _cache["at"] = now
         return dict(_cache["snapshot"])

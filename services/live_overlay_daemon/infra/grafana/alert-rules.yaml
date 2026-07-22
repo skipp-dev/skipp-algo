@@ -2551,6 +2551,47 @@ groups:
       runbook: Inspect artifacts/monitoring/latest/tradingview_consumer_bindings.json on
         bot/live-tradingview-bindings, then run tv-save-consumer-source with repair_e2e only for a
         controlled repair test or use tv_verify_consumer_bindings.ts --repair for the affected consumer.
+  - uid: lo-tv-binding-snapshot-age-unknown
+    title: TradingView binding snapshot age unknown (loads but carries no generated_at)
+    condition: C
+    # Mirrors the sibling *-age-unknown rules: the stale rule below multiplies
+    # by age_known, so a snapshot that parses without generated_at_unix yields
+    # age_known=0 and the stale rule can never fire — a frozen producer (or a
+    # wrong-but-JSON-object body from an auth proxy) would stay green forever.
+    # Every other snapshot bridge has this companion; tv_binding was the gap.
+    # Gated on `loaded` to page once, not twice (unloadable covers loaded<1).
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_binding_snapshot_age_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      summary: The TradingView binding snapshot loads but carries no generated_at_unix -- the
+        binding-drift staleness rule multiplies by age_known and stays green with zero data.
+      runbook: live_overlay_tv_binding_snapshot_age_known is 0 while loaded=1. The snapshot at
+        TRADINGVIEW_BINDINGS_SNAPSHOT_URL parsed but has no/zero generated_at_unix (schema
+        drift, truncated write, or an auth-proxy JSON page instead of the raw snapshot).
+        Inspect the snapshot body and the workflow that publishes it.
   - uid: lo-tv-binding-snapshot-stale
     title: TradingView binding snapshot stale
     condition: C

@@ -1200,15 +1200,25 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_hotspot_timeframes_tracked gauge")
     lines.append(f"live_overlay_hotspot_timeframes_tracked {_prom_numeric_value(hotspot.get('tf_count', 0))}")
 
+    # Aggregate by SANITIZED name: distinct raw keys can collide after
+    # sanitization ("BRK.A"/"BRK-A" -> brk_a), and duplicate TYPE headers +
+    # samples make Prometheus reject the entire exposition (whole-scrape
+    # blackout from one colliding request pair).
+    symbol_totals: dict[str, float] = {}
     for symbol, count in hotspot.get("top_symbols") or []:
         sym = _sanitize_name(str(symbol).lower())
+        symbol_totals[sym] = symbol_totals.get(sym, 0.0) + float(_prom_numeric_value(count))
+    for sym, total in symbol_totals.items():
         lines.append(f"# TYPE live_overlay_hotspot_symbol_{sym}_requests_total counter")
-        lines.append(f"live_overlay_hotspot_symbol_{sym}_requests_total {_prom_numeric_value(count)}")
+        lines.append(f"live_overlay_hotspot_symbol_{sym}_requests_total {total}")
 
+    tf_totals: dict[str, float] = {}
     for tf, count in hotspot.get("top_tfs") or []:
         tf_name = _sanitize_name(str(tf).lower())
+        tf_totals[tf_name] = tf_totals.get(tf_name, 0.0) + float(_prom_numeric_value(count))
+    for tf_name, total in tf_totals.items():
         lines.append(f"# TYPE live_overlay_hotspot_tf_{tf_name}_requests_total counter")
-        lines.append(f"live_overlay_hotspot_tf_{tf_name}_requests_total {_prom_numeric_value(count)}")
+        lines.append(f"live_overlay_hotspot_tf_{tf_name}_requests_total {total}")
 
     # --- Latency histogram -------------------------------------------------
     # Export real classic histogram bucket series so Prometheus can compute
@@ -1478,7 +1488,10 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     uptime_snapshot = uptimerobot_bridge.snapshot()
     uptime_enabled = bool(uptime_snapshot.get("enabled"))
     uptime_configured = bool(uptime_snapshot.get("configured", uptime_enabled))
-    uptime_ok = bool(uptime_snapshot.get("ok"))
+    # scrape_success reflects the LAST ATTEMPT, not the retained snapshot's
+    # ok: the keep-last-good cache preserves data across failures, and mapping
+    # its ok froze scrape_success=1/error=none during persistent outages.
+    uptime_ok = bool(uptime_snapshot.get("last_attempt_ok", uptime_snapshot.get("ok")))
     # Age comes from last_success ONLY — never from fetched_at, which on a
     # failed poll is the timestamp of the failed ATTEMPT and fabricated a
     # near-zero "last success age" while a bridge was failing from boot,
@@ -1497,7 +1510,12 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         startup_epoch=startup_epoch,
     )
 
-    error_code = str(uptime_snapshot.get("error_code") or "")
+    # Presence-based (not truthiness) preference: last_attempt_error_code
+    # exists only on retained-failure snapshots and then always wins.
+    if "last_attempt_error_code" in uptime_snapshot:
+        error_code = str(uptime_snapshot["last_attempt_error_code"])
+    else:
+        error_code = str(uptime_snapshot.get("error_code") or "")
 
     _append_bridge_metrics(
         lines,
@@ -1547,7 +1565,8 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     workflow_snapshot = github_workflow_bridge.snapshot()
     wf_enabled = bool(workflow_snapshot.get("enabled"))
     wf_configured = bool(workflow_snapshot.get("configured", wf_enabled))
-    wf_ok = bool(workflow_snapshot.get("ok"))
+    # Last-attempt mapping — see the uptimerobot block above.
+    wf_ok = bool(workflow_snapshot.get("last_attempt_ok", workflow_snapshot.get("ok")))
     # last_success only — see the uptimerobot block above for the rationale
     # (fetched_at on a failed poll fabricated a fresh "last success age").
     wf_last_success_ts = _prom_numeric_value(
@@ -1560,7 +1579,11 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         startup_epoch=startup_epoch,
     )
 
-    wf_error_code = str(workflow_snapshot.get("error_code") or "")
+    # Presence-based preference — see the uptimerobot block above.
+    if "last_attempt_error_code" in workflow_snapshot:
+        wf_error_code = str(workflow_snapshot["last_attempt_error_code"])
+    else:
+        wf_error_code = str(workflow_snapshot.get("error_code") or "")
 
     _append_bridge_metrics(
         lines,

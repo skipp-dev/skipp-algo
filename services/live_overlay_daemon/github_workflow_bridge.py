@@ -317,5 +317,15 @@ def snapshot() -> dict[str, Any]:
 
         if fresh.get("ok") == 1 or _cached_snapshot is None:
             _cached_snapshot = fresh
+        else:
+            # Keep last-good DATA but carry the truthful last-attempt STATUS
+            # (see uptimerobot_bridge: retaining ok=1/error=none froze
+            # bridge_scrape_success/error_info green during persistent
+            # failures). A later success replaces the snapshot wholesale.
+            _cached_snapshot = {
+                **_cached_snapshot,
+                "last_attempt_ok": 0,
+                "last_attempt_error_code": str(fresh.get("error_code") or "unknown"),
+            }
         _cached_at_monotonic = time.monotonic()
         return dict(_cached_snapshot)
