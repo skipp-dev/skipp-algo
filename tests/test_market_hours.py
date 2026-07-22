@@ -114,3 +114,88 @@ def test_asia_session_closed_on_holiday_during_regular_hours(monkeypatch) -> Non
     # 01:00 UTC -> 10:00 Tokyo (inside regular session window).
     now_utc = datetime.datetime(2026, 1, 1, 1, 0, tzinfo=datetime.UTC)
     assert mh.is_asia_regular_session_open(now_utc) is False
+
+
+def test_us_session_closes_at_1300_et_on_day_after_thanksgiving(monkeypatch) -> None:
+    """NYSE half-days end 13:00 ET — the gauge must drop with the real close.
+
+    Before the early-close calendar, market_us_open stayed 1 until 16:00 ET on
+    ~3 half-days/yr and US-gated staleness alerts false-fired all afternoon
+    (truth-audit 2026-07-22 F-4).
+    """
+    monkeypatch.setattr(mh, "_holiday_dates_for_year", lambda code, year: frozenset())
+
+    # Thanksgiving 2026 = Thu Nov 26 -> half-day Fri Nov 27.
+    # 17:30 UTC -> 12:30 ET: still open.
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 11, 27, 17, 30, tzinfo=datetime.UTC)
+    ) is True
+    # 18:30 UTC -> 13:30 ET: closed on the half-day...
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 11, 27, 18, 30, tzinfo=datetime.UTC)
+    ) is False
+    # ...but the same wall-clock time on a full session day stays open.
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 11, 30, 18, 30, tzinfo=datetime.UTC)
+    ) is True
+
+
+def test_us_session_closes_at_1300_et_on_christmas_eve_weekday(monkeypatch) -> None:
+    monkeypatch.setattr(mh, "_holiday_dates_for_year", lambda code, year: frozenset())
+
+    # Dec 24 2026 is a Thursday -> half-day. 18:30 UTC -> 13:30 ET: closed.
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 12, 24, 18, 30, tzinfo=datetime.UTC)
+    ) is False
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 12, 24, 17, 30, tzinfo=datetime.UTC)
+    ) is True
+
+
+def test_us_session_closes_at_1300_et_on_july_3_when_july_4_is_weekend_holiday(
+    monkeypatch,
+) -> None:
+    # 2025: July 4 fell on a Friday (full holiday), July 3 on a Thursday
+    # (half-day). Mock only July 4 as the NYSE holiday.
+    monkeypatch.setattr(
+        mh,
+        "_holiday_dates_for_year",
+        lambda code, year: (
+            frozenset({datetime.date(2025, 7, 4)}) if code == "NYSE" else frozenset()
+        ),
+    )
+
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2025, 7, 3, 16, 30, tzinfo=datetime.UTC)  # 12:30 ET
+    ) is True
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2025, 7, 3, 17, 30, tzinfo=datetime.UTC)  # 13:30 ET
+    ) is False
+
+
+def test_july_3_observed_full_holiday_is_not_downgraded_to_half_day(monkeypatch) -> None:
+    """July 4 on a Saturday makes July 3 the observed FULL holiday (e.g. 2026).
+
+    The early-close rule must yield to the holiday calendar: the whole day is
+    closed, not open-until-13:00.
+    """
+    monkeypatch.setattr(
+        mh,
+        "_holiday_dates_for_year",
+        lambda code, year: (
+            frozenset({datetime.date(2026, 7, 3)}) if code == "NYSE" else frozenset()
+        ),
+    )
+
+    assert mh._is_us_early_close(datetime.date(2026, 7, 3)) is False
+    assert mh.is_us_regular_session_open(
+        datetime.datetime(2026, 7, 3, 15, 0, tzinfo=datetime.UTC)  # 11:00 ET
+    ) is False
+
+
+def test_early_close_calendar_ignores_ordinary_days(monkeypatch) -> None:
+    monkeypatch.setattr(mh, "_holiday_dates_for_year", lambda code, year: frozenset())
+
+    assert mh._is_us_early_close(datetime.date(2026, 7, 22)) is False
+    # Weekend July 3 (2027: Saturday) is no early-close candidate either.
+    assert mh._is_us_early_close(datetime.date(2027, 7, 3)) is False
