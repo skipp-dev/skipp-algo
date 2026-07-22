@@ -1010,6 +1010,16 @@ sum by (cause) (
 > `live_overlay_daemon_start_time_seconds{cause}` carries the start epoch as its
 > value, so `changes()` counts real restarts per cause.
 
+**F-1 drill evidence (2026-07-23, one-night practice test, PR #3875/#3884/#3892):**
+the `lo-restart-data-loss-closed` firing path was exercised against production —
+dead-zone restart dispatched 00:52:51Z (deploy run 29970302656, success); rule
+`Overlay data lost after restart (market closed)` observed `state=firing
+health=ok` at 03:17:22Z; self-resolved to `state=inactive health=ok` at
+08:17:10Z after the 6h-uptime window. The quiet path was live-confirmed
+2026-07-22 (09:13Z restart, premarket repopulated, rule stayed silent). The
+temporary drill workflow and its contract test were removed in #3892 — this
+line is the surviving record.
+
 ---
 
 ## UptimeRobot Bridge
