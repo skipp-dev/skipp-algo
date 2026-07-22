@@ -294,7 +294,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
     ("streamlit_databento_volatility_screener.py", 8, "insert"),
     ("streamlit_smc_micro_base_generator.py", 8, "insert"),
-    ("streamlit_terminal.py", 275, "insert"),
+    ("streamlit_terminal.py", 276, "insert"),  # 2026-07-22 Technical Data tab: 275->276
 })
 
 

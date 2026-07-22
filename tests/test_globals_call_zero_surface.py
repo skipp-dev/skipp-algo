@@ -144,7 +144,7 @@ GLOBALS_CALL_ALLOWED: set[tuple[str, int, str]] = {
     # Line shifted 2225 → 2230 (F-V8-cutover branch, 2026-05-18).
     # 2026-07-15: "read" is now the THIRD tuple element and enforced — the
     # no-mutation claim above used to be prose the collector never read.
-    ("streamlit_terminal.py", 2172, "read"),  # 2026-07-21 TV chart links imports: 2170->2172
+    ("streamlit_terminal.py", 2240, "read"),  # 2026-07-22 Technical Data tab: 2172->2240
     # The two documented lazy-import writes (PEP 562 module __getattr__ caches
     # the resolved render fn, or None when the trader dep is absent). Pinned as
     # "write" so they stay distinguishable from a read that turned into one.
