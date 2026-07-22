@@ -161,6 +161,7 @@ _HEALTH_STATUS_CODES = {
     "starting": 1,
     "idle_market_closed": 2,
     "ok": 3,
+    "degraded": 4,  # sustained non-ok during open US session, past warmup (F-3)
 }
 
 # Map the raw snapshot "error" reason onto a human-readable message that the
@@ -1458,6 +1459,7 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         overlay_fresh=overlay_fresh,
         market_open=us_open,
         bar_count=bar_count,
+        uptime_secs=uptime,  # distinguishes warmup from sustained failure (F-3)
     )
 
     lines.append("# TYPE live_overlay_market_open gauge")

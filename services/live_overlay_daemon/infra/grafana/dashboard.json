@@ -103,7 +103,7 @@
     {
       "title": "Overall Health",
       "type": "stat",
-      "description": "Core daemon runtime health only. HEALTHY means the market-data feed, worker threads, and overlay output are healthy. It does not include provider quotas, workflow results, credentials, or external integrations; review Active Alerts for those systems. IDLE means the market is closed before the first bar.",
+      "description": "Core daemon runtime health only. HEALTHY means the market-data feed, worker threads, and overlay output are healthy. DEGRADED means a non-healthy state has persisted past warmup (15 min) during an open US session — a sustained outage, not a boot. It does not include provider quotas, workflow results, credentials, or external integrations; review Active Alerts for those systems. IDLE means the market is closed before the first bar.",
       "gridPos": {
         "x": 0,
         "y": 3,
@@ -154,6 +154,10 @@
                 "3": {
                   "text": "HEALTHY",
                   "color": "green"
+                },
+                "4": {
+                  "text": "DEGRADED",
+                  "color": "red"
                 }
               }
             }
@@ -3346,6 +3350,10 @@
                 "3": {
                   "text": "OK",
                   "color": "green"
+                },
+                "4": {
+                  "text": "DEGRADED",
+                  "color": "red"
                 }
               }
             }
@@ -3374,7 +3382,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Daemon lifecycle state: UNKNOWN, STARTING, IDLE or OK. Combines feed readiness, worker liveness, overlay freshness and market-open context.",
+      "description": "Daemon lifecycle state: UNKNOWN, STARTING, IDLE, DEGRADED or OK. Combines feed readiness, worker liveness, overlay freshness, market-open context and uptime (STARTING flips to DEGRADED once a failure outlives the 15-min warmup during an open US session).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"

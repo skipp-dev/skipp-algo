@@ -180,7 +180,7 @@ def ready() -> JSONResponse:
         workers_healthy=workers_healthy,
         overlay_fresh=overlay_fresh,
         market_open=market_open,
-        bar_count=bar_count,
+        bar_count=bar_count, uptime_secs=uptime,  # one line: compare_digest below is pinned by (file, lineno)
     )
     observability.metric_gauge("live_overlay.health.status_ok", 1 if status == "ok" else 0)
     observability.audit_event(

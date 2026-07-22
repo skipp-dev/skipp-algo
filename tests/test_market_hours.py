@@ -199,3 +199,85 @@ def test_early_close_calendar_ignores_ordinary_days(monkeypatch) -> None:
     assert mh._is_us_early_close(datetime.date(2026, 7, 22)) is False
     # Weekend July 3 (2027: Saturday) is no early-close candidate either.
     assert mh._is_us_early_close(datetime.date(2027, 7, 3)) is False
+def test_daemon_status_degraded_requires_market_open_and_warmup_elapsed() -> None:
+    """Sustained market-open failure past warmup is "degraded", not "starting".
+
+    Truth-audit 2026-07-22 F-3: a 3h feed outage rendered identically to a
+    fresh boot. The degraded state is deliberately narrow — market-open only
+    (overnight non-idle states stay "starting"; the 24/7 age alerts own those)
+    and only with a KNOWN uptime past _DEGRADED_MIN_UPTIME_SECS.
+    """
+    failing = dict(
+        feed_healthy=False,
+        workers_healthy=True,
+        overlay_fresh=False,
+        bar_count=100,
+    )
+
+    assert (
+        mh.compute_daemon_health_status(market_open=True, uptime_secs=3600.0, **failing)
+        == "degraded"
+    )
+    # Below warmup: still starting.
+    assert (
+        mh.compute_daemon_health_status(market_open=True, uptime_secs=30.0, **failing)
+        == "starting"
+    )
+    # Exactly at the threshold: degraded (>=, not >).
+    assert (
+        mh.compute_daemon_health_status(
+            market_open=True, uptime_secs=mh._DEGRADED_MIN_UPTIME_SECS, **failing
+        )
+        == "degraded"
+    )
+    # Unknown uptime (legacy caller): conservative starting, never degraded.
+    assert (
+        mh.compute_daemon_health_status(market_open=True, **failing) == "starting"
+    )
+    # Market closed: overnight bar aging is expected, not an outage.
+    assert (
+        mh.compute_daemon_health_status(market_open=False, uptime_secs=3600.0, **failing)
+        == "starting"
+    )
+
+
+def test_daemon_status_ok_and_idle_are_unchanged_by_uptime() -> None:
+    assert (
+        mh.compute_daemon_health_status(
+            feed_healthy=True,
+            workers_healthy=True,
+            overlay_fresh=True,
+            market_open=True,
+            bar_count=100,
+            uptime_secs=7200.0,
+        )
+        == "ok"
+    )
+    assert (
+        mh.compute_daemon_health_status(
+            feed_healthy=False,
+            workers_healthy=True,
+            overlay_fresh=False,
+            market_open=False,
+            bar_count=0,
+            uptime_secs=7200.0,
+        )
+        == "idle_market_closed"
+    )
+
+
+def test_daemon_status_dead_worker_past_warmup_is_degraded_not_starting() -> None:
+    # A dead worker thread during the open session is the clearest sustained
+    # failure — /ready already serves 503 for it (WP1c), and the status gauge
+    # must agree instead of reporting "starting" forever.
+    assert (
+        mh.compute_daemon_health_status(
+            feed_healthy=True,
+            workers_healthy=False,
+            overlay_fresh=True,
+            market_open=True,
+            bar_count=100,
+            uptime_secs=3600.0,
+        )
+        == "degraded"
+    )

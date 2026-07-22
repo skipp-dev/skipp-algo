@@ -1966,3 +1966,23 @@ def test_stat_panels_without_sparkline_use_instant_queries() -> None:
             "sparkline-free stat panels with range queries (stale lastNotNull "
             f"renders dead exporters green): {sorted(set(offenders))}"
         )
+
+
+def test_health_status_panels_map_degraded_code() -> None:
+    """Both status stat panels must label code 4 as DEGRADED.
+
+    metrics.py exports status code 4 for a sustained market-open failure past
+    warmup (truth-audit F-3). Without the value mapping the stat renders a raw
+    "4" — worse than the old perpetual STARTING it replaced. Descriptions must
+    also name the state so operators can look it up.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    for title in ("Overall Health", "Service Status"):
+        panel = panels[title]
+        options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+        assert "4" in options, f"{title!r} lacks a mapping for status code 4"
+        assert options["4"]["text"] == "DEGRADED"
+        assert "DEGRADED" in str(panel.get("description", "")), (
+            f"{title!r} description no longer names the DEGRADED state"
+        )
