@@ -1,0 +1,129 @@
+# live-window: any-trigger  # f1-restart-drill — TEMPORARY one-night practice test (added 2026-07-22)
+#
+# Full practice test for the lo-restart-data-loss-closed alert (truth-audit
+# F-1, PR #3875): a REAL deploy-restart inside the overnight dead zone
+# (~00:00-08:00 UTC, no bars) must (a) fire the warning ~40min later and
+# (b) self-resolve via the 6h uptime window. The morning quiet-path (restart
+# with premarket recovery) was already observed live on 2026-07-22 09:13Z;
+# this drill covers the firing path nobody wants to wait weeks for.
+#
+# REMOVE this file after evaluating the 2026-07-23 run — the date-pinned
+# crons would otherwise re-run every July 23. All checks are read-only
+# (Grafana state via scripts.grafana_alert_state); the restart reuses the
+# proven deploy workflow via dispatch instead of a second Railway path.
+name: f1-restart-drill
+
+on:
+  schedule:
+    - cron: "10 0 23 7 *"   # 00:10 UTC Jul 23 — restart (dead zone began 00:00)
+    - cron: "10 2 23 7 *"   # 02:10 UTC — rule must be FIRING (fires ~00:55-01:30 incl. cron lag)
+    - cron: "30 7 23 7 *"   # 07:30 UTC — rule must be resolved (6h uptime window expired ~06:15-06:40)
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Which drill phase to run manually"
+        required: true
+        type: choice
+        options: [restart, check-firing, check-resolved]
+
+# Least privilege: the two check phases are read-only; only the restart phase
+# needs actions:write, so it is scoped to that job (workflow-level actions:write
+# is a zizmor high-severity excessive-permissions finding).
+permissions:
+  contents: read
+
+concurrency:
+  # F-V5-C2: cron workflows queue overlapping runs, never cancel them — a
+  # killed check phase would silently skip a drill assertion.
+  group: f1-restart-drill
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+# Required by scripts/lint_workflow_defaults.py: without it every `run:` step
+# defaults to PowerShell on the Windows self-hosted runner and the heredocs
+# below would not parse.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  restart:
+    if: github.event.schedule == '10 0 23 7 *' || inputs.phase == 'restart'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      actions: write  # dispatch deploy-live-overlay-daemon for the controlled restart
+    steps:
+      - name: Dispatch the proven deploy workflow (controlled overnight restart)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run deploy-live-overlay-daemon.yml --ref main --repo "${GITHUB_REPOSITORY}"
+          echo "Dispatched deploy-live-overlay-daemon at $(date -u +%FT%TZ) — F-1 drill restart." >> "$GITHUB_STEP_SUMMARY"
+
+  check-firing:
+    if: github.event.schedule == '10 2 23 7 *' || inputs.phase == 'check-firing'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+      - name: Assert lo-restart-data-loss-closed is FIRING
+        env:
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          python -m scripts.grafana_alert_state --json --all --rule "Overlay data lost" > /tmp/state.json
+          python - <<'PY'
+          import json, os
+          state = json.load(open("/tmp/state.json"))
+          rules = state["rules"]
+          assert rules, "lo-restart-data-loss-closed rule not found in live Grafana"
+          rule = rules[0]
+          line = f"F-1 drill check-firing: {rule['name']} state={rule['state']} health={rule['health']}"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write(line + "\n")
+          print(line)
+          assert rule["health"] == "ok", f"rule unevaluable: {rule}"
+          assert rule["state"] in ("firing", "pending"), (
+              "F-1 FIRING PATH NOT CONFIRMED: expected firing (restart ~00:10Z, "
+              f"no bars in the dead zone), got {rule['state']!r}"
+          )
+          PY
+
+  check-resolved:
+    if: github.event.schedule == '30 7 23 7 *' || inputs.phase == 'check-resolved'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+      - name: Assert lo-restart-data-loss-closed has resolved
+        env:
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          python -m scripts.grafana_alert_state --json --all --rule "Overlay data lost" > /tmp/state.json
+          python - <<'PY'
+          import json, os
+          state = json.load(open("/tmp/state.json"))
+          rules = state["rules"]
+          assert rules, "lo-restart-data-loss-closed rule not found in live Grafana"
+          rule = rules[0]
+          line = f"F-1 drill check-resolved: {rule['name']} state={rule['state']} health={rule['health']}"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write(line + "\n")
+          print(line)
+          assert rule["health"] == "ok", f"rule unevaluable: {rule}"
+          assert rule["state"] == "inactive", (
+              "F-1 SELF-RESOLUTION NOT CONFIRMED: expected inactive (6h uptime "
+              f"window expired ~06:40Z), got {rule['state']!r}"
+          )
+          PY
