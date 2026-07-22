@@ -1489,8 +1489,8 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                 updates["vix_level"] = round(vix_value, 4)
             patched = cache.patch_overlay(
                 sym,
-                updates,
-                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct"},
+                {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},
+                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct", "price_candle_body_return_pct"},
             )
             if patched:
                 count += 1
