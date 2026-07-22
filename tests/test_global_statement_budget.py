@@ -286,10 +286,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-22 (truth-audit F-2 drop counters): _metrics seed +4 lines and
         # two _inc_metric drop sites shifted every anchor: 231->235, 483->489,
         # 646->652, 745->751.
-        ("services/live_overlay_daemon/feed.py", 235, ("_feed_connected_at",)),
-        ("services/live_overlay_daemon/feed.py", 489, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 652, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 751, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-07-22 (F-3 VIX bounded retry): +1 constant, +18 poll lines shifted
+        # every anchor: 235->254, 489->508, 652->671, 751->770.
+        ("services/live_overlay_daemon/feed.py", 254, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 508, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 671, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 770, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

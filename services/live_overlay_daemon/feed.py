@@ -44,6 +44,7 @@ _INGEST_STOP_SENTINEL = object()
 
 # VIX index level — polled from FMP's ^VIX quote (the CBOE index does not trade
 _VIX_FMP_SYMBOL = "^VIX"  # on EQUS.MINI; only ETFs like VIXY resolve there, so bars can't supply it
+_VIX_LOADER_RETRY_SECS = 3600.0  # F-3: bounded retry of a failed FMP loader construction (was: permanent disable)
 
 _feed_thread: threading.Thread | None = None
 _refresh_thread: threading.Thread | None = None
@@ -151,8 +152,12 @@ def _poll_vix_from_fmp() -> None:
     VIXY resolve there), so it is polled from FMP on the overlay refresh cadence
     instead. Fail-soft: a missing FMP key, HTTP error, or non-finite price leaves
     the last cached value untouched. The loader is built once and cached in
-    ``_runtime`` (``None`` sentinel = construction failed, do not retry) to avoid
-    adding a module-level ``global``.
+    ``_runtime`` to avoid adding a module-level ``global``. Truth-audit F-3: a
+    construction failure stamps ``vix_loader_failed_at`` and is retried after
+    ``_VIX_LOADER_RETRY_SECS`` (bounded — one attempt per interval, no retry
+    storm), so a transient boot error (e.g. DNS hiccup) no longer disables VIX
+    for the whole process lifetime. A bare ``None`` sentinel WITHOUT the stamp
+    (the pre-F-3 state, also used by hermetic tests) stays permanently off.
     """
     if "vix_loader" not in _runtime:
         try:
@@ -161,10 +166,24 @@ def _poll_vix_from_fmp() -> None:
             _runtime["vix_loader"] = FMPDataLoader()
         except Exception as exc:
             _runtime["vix_loader"] = None
+            _runtime["vix_loader_failed_at"] = time.monotonic()  # arms the bounded retry
             logger.warning("VIX poll disabled — FMP loader unavailable: %s", exc)
     loader = _runtime.get("vix_loader")
     if loader is None:
-        return
+        failed_at = _runtime.get("vix_loader_failed_at")
+        if failed_at is None or (time.monotonic() - failed_at) < _VIX_LOADER_RETRY_SECS:
+            return
+        try:
+            from .fmp_data_loader import FMPDataLoader
+
+            loader = FMPDataLoader()
+        except Exception as exc:
+            _runtime["vix_loader_failed_at"] = time.monotonic()
+            logger.warning("VIX poll still disabled — FMP loader retry failed: %s", exc)
+            return
+        _runtime["vix_loader"] = loader
+        _runtime.pop("vix_loader_failed_at", None)
+        logger.info("VIX poll re-enabled — FMP loader constructed on bounded retry")
     level = loader.get_quote(_VIX_FMP_SYMBOL)
     if level is not None:
         cache.set_vix(level)
