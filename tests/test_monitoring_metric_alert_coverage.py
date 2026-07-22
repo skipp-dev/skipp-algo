@@ -188,7 +188,11 @@ _ORPHAN_SCAN_KNOWN_DEBT: dict[str, str] = {
 # 2026-07-22: 39 entries when the fail-closed inversion landed. This number may
 # only go DOWN. Without it the register above is a permit — see
 # test_orphan_debt_does_not_grow for what that costs.
-_ORPHAN_SCAN_DEBT_CEILING = 39
+# 2026-07-23: 39 -> 37. This branch deletes the p95/p99 gauge emission, so their
+# two debt entries are gone. Ratcheting the ceiling down in the same commit is
+# what stops repaid debt from being silently re-borrowed — left at 39 it would
+# be slack that the next unconsumed metric could slip into unreviewed.
+_ORPHAN_SCAN_DEBT_CEILING = 37
 
 
 def _alert_expr_text() -> str:
