@@ -710,3 +710,21 @@ def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
     assert 'strict_universe_entries = input.bool(false, "Strict Universe Mode"' in strategy
     assert 'bool universe_gate_ok = not strict_universe_entries or not snapshot_gates_live or strategy_universe_status_code == 3 or strategy_universe_status_code == 2' in strategy
     assert 'bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok and universe_gate_ok' in strategy
+
+
+def test_lib_freshness_warning_threshold_absorbs_t1_cadence() -> None:
+    """The suite's on-chart "Library Xd alt" warning must not structurally
+    false-fire: ASOF_DATE stamps the last completed TRADING day (T-1) and only
+    advances with the ~09-13Z refresh, so over a weekend the NORMAL age peaks
+    at ~4d13h and a Monday holiday pushes floor(days) to 5. The original
+    `> 2` threshold showed a red warning label every single Monday on healthy
+    data. Threshold must be `> 5`, mirroring lo-pine-library-data-stale
+    (432000s = 5d, PR #3878) so chart and alerting agree on what stale means.
+    """
+    source = _read("SMC_Long_Dip_Suite.pine")
+    assert "lib_days_old > 5" in source, (
+        "suite freshness warning must use the 5-day T-1-cadence threshold"
+    )
+    assert "lib_days_old > 2" not in source, (
+        "the structurally-false 2-day threshold must not come back"
+    )
