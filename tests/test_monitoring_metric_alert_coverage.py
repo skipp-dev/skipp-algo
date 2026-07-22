@@ -867,3 +867,23 @@ def test_every_alert_rule_links_a_runbook_url() -> None:
         if not str(r.get("annotations", {}).get("runbook_url", "")).startswith("https://")
     )
     assert not missing, f"alert rules without a clickable runbook_url annotation: {missing}"
+
+
+def test_micro_profile_stale_threshold_absorbs_weekday_cadence() -> None:
+    """The ASOF_DATE stamps the last completed trading day (T-1) and advances
+    with the morning refresh (~09-13Z). At 00:00Z the newest possible ASOF is
+    therefore exactly 2 days old — a 2-day threshold false-fired every night
+    (observed live 2026-07-22: age 213141s at 11:11Z with a healthy pipeline),
+    and over a weekend the normal age peaks at ~4d13h (Fri ASOF until the Tue
+    refresh). 5 days absorbs the full Mon-Fri cadence + a Monday holiday while
+    still catching a genuinely frozen generator input — the same sizing lesson
+    the evidence-ledger rule documents (lo-evidence-ledger-stale, 432000s)."""
+    rules = {r["uid"]: r for r in _iter_alert_rules()}
+    rule = rules.get("lo-pine-library-data-stale")
+    assert rule is not None
+    exprs = "\n".join(str(d.get("model", {}).get("expr", "")) for d in rule.get("data", []))
+    assert "432000" in exprs, (
+        "micro-profile stale threshold must be 5 days (432000s) — 2 days "
+        "false-fires nightly against the T-1 + morning-refresh cadence"
+    )
+    assert "172800" not in exprs

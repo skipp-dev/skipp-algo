@@ -3091,10 +3091,19 @@ groups:
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
+      # 432000s = 5 days. ASOF_DATE stamps the last completed trading day
+      # (T-1) and advances with the ~09-13Z refresh, so at 00:00Z the newest
+      # possible ASOF is exactly 2 days old — the original 2-day threshold
+      # false-fired every night from midnight until the morning refresh
+      # (observed live 2026-07-22: age 213141s at 11:11Z with a healthy
+      # pipeline), and over a weekend the normal age peaks at ~4d13h (Friday
+      # ASOF until the Tuesday refresh). 5 days absorbs the full Mon-Fri
+      # cadence + a Monday holiday while still catching a genuinely frozen
+      # generator input — the same sizing lesson as lo-evidence-ledger-stale.
       model:
         expr: live_overlay_pine_library_data_age_known{job="live_overlay",library="smc_micro_profiles_generated"}
           * (live_overlay_pine_library_data_age_seconds{job="live_overlay",library="smc_micro_profiles_generated"}
-          > bool 172800)
+          > bool 432000)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3115,7 +3124,8 @@ groups:
       severity: critical
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: The smc_micro_profiles_generated ASOF_DATE is more than two days old.
+      summary: The smc_micro_profiles_generated ASOF_DATE is more than five days old — beyond the normal
+        T-1 + weekend refresh cadence, the generator input has genuinely stopped advancing.
       runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
         Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
         the saved SMC Long-Dip Suite source in TradingView.
