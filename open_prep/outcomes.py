@@ -3,7 +3,11 @@ computation for gap+RVOL setups, and feature importance analysis.
 
 Stores daily outcomes in JSON files under ``artifacts/open_prep/outcomes/``.
 Computes bucketed statistics: given a (gap_bucket, rvol_bucket) combination,
-what fraction of historical entries were profitable after 30 minutes?
+what fraction of historical entries were profitable after 30 minutes — or,
+since A1 (2026-07-23), after 60 m / 120 m / to the close; see
+``OUTCOME_HORIZONS`` and the ``horizon`` argument of ``compute_hit_rates``.
+Every horizon is a **cost-free mark-to-market** measurement: no exit signal,
+no fees, no spread, no slippage (see the ``OUTCOME_HORIZONS`` note).
 
 Feature Importance (#3):
   - ``FeatureImportanceCollector`` accumulates per-run scoring component
@@ -285,13 +289,98 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Outcome horizons (A1, 2026-07-23)
+# ---------------------------------------------------------------------------
+#
+# Until 2026-07-23 the outcome pipeline measured exactly one window: the
+# 30 minutes after the 09:30 ET open. Long-horizon signal panels need
+# 60 m / 120 m / EOD as well, and an intraday real-time signal must be
+# measured from ITS OWN fire time — an 11:00 signal has nothing to do with
+# the 09:30-10:00 span.
+#
+# IMPORTANT — what the P&L is and is NOT: every horizon is a **cost-free
+# mark-to-market** move (entry = open of the entry bar, exit = close of the
+# last bar in the window). There is no exit signal, and no fees, spread or
+# slippage are modelled. On longer horizons that omission weighs more —
+# and it weighs most on thin micro-caps, where the quoted spread alone can
+# exceed the measured edge. Read these numbers as an upper bound.
+
+
+@dataclass(frozen=True, slots=True)
+class OutcomeHorizon:
+    """One measurement window.
+
+    ``minutes`` is the window length in minutes, or ``None`` for the
+    end-of-day horizon, which runs from the anchor to the RTH close.
+    ``min_window_min`` is the completeness floor: the exit bar must be at
+    least this many minutes past the anchor, else the horizon stays
+    unresolved instead of carrying a truncated window mislabelled as the
+    full horizon (the per-horizon form of the legacy ``_MIN_WINDOW_MIN``).
+    """
+
+    key: str
+    minutes: int | None
+    min_window_min: int
+
+
+# The 30m floor keeps its legacy value (25) — changing it would silently
+# re-label historical records. The longer floors keep the same ~83 % ratio.
+OUTCOME_HORIZONS: tuple[OutcomeHorizon, ...] = (
+    OutcomeHorizon("30m", 30, 25),
+    OutcomeHorizon("60m", 60, 50),
+    OutcomeHorizon("120m", 120, 100),
+    OutcomeHorizon("eod", None, 25),
+)
+HORIZON_KEYS: tuple[str, ...] = tuple(h.key for h in OUTCOME_HORIZONS)
+# The primary horizon. ``profitable_30m`` doubles as the pipeline's
+# "is this record resolved?" marker, so it is never optional.
+DEFAULT_HORIZON = "30m"
+_HORIZONS_BY_KEY: dict[str, OutcomeHorizon] = {h.key: h for h in OUTCOME_HORIZONS}
+
+
+def get_horizon(key: str) -> OutcomeHorizon:
+    """Look up a horizon spec by key; raises ``ValueError`` on an unknown key."""
+    try:
+        return _HORIZONS_BY_KEY[key]
+    except KeyError:
+        raise ValueError(
+            f"unknown outcome horizon {key!r} (known: {', '.join(HORIZON_KEYS)})",
+        ) from None
+
+
+def horizon_fields(key: str) -> dict[str, str]:
+    """Record field names for *key*.
+
+    The 30m mapping reproduces the legacy names EXACTLY
+    (``pnl_30m_pct`` / ``profitable_30m`` / ``pnl_30m_pct_signed`` /
+    ``profitable_30m_directional``) so old readers and old files keep
+    working unchanged.
+    """
+    get_horizon(key)  # validate
+    return {
+        "pnl": f"pnl_{key}_pct",
+        "pnl_signed": f"pnl_{key}_pct_signed",
+        "profitable": f"profitable_{key}",
+        "profitable_directional": f"profitable_{key}_directional",
+    }
+
+
+# ---------------------------------------------------------------------------
 # Hit-rate computation
 # ---------------------------------------------------------------------------
 
 def compute_hit_rates(
     lookback_days: int = 20,
+    horizon: str = DEFAULT_HORIZON,
 ) -> dict[str, dict[str, Any]]:
     """Compute hit rates bucketed by (gap_bucket, rvol_bucket).
+
+    *horizon* selects which measurement window to read (``"30m"`` —
+    the default and the legacy behaviour — ``"60m"``, ``"120m"`` or
+    ``"eod"``). Records that carry no label for the selected horizon
+    (every record written before A1, and any row whose window was
+    truncated) count as ``unresolved`` and stay OUT of the denominator —
+    the same survivorship discipline the 30m path already applies.
 
     Returns a dict keyed by ``"gap_bucket:rvol_bucket"`` with::
 
@@ -302,6 +391,7 @@ def compute_hit_rates(
             "avg_pnl_pct": float,
         }
     """
+    fields = horizon_fields(horizon)  # raises on an unknown horizon
     records = _load_outcomes_range(lookback_days)
     if not records:
         return {}
@@ -322,11 +412,11 @@ def compute_hit_rates(
         # fall back AS A PAIR (like compute_gap_playbook_report) so a
         # directional hit-rate is never averaged with long-only PnL when a
         # field-level null desyncs the two.
-        profitable = rec.get("profitable_30m_directional")
-        pnl_raw = rec.get("pnl_30m_pct_signed")
+        profitable = rec.get(fields["profitable_directional"])
+        pnl_raw = rec.get(fields["pnl_signed"])
         if profitable is None or pnl_raw is None:
-            profitable = rec.get("profitable_30m")
-            pnl_raw = rec.get("pnl_30m_pct")
+            profitable = rec.get(fields["profitable"])
+            pnl_raw = rec.get(fields["pnl"])
         pnl = _safe_float(pnl_raw, default=0.0)
 
         gb = _gap_bucket_label(gap_pct)
@@ -573,6 +663,15 @@ def prepare_outcome_snapshot(
             "profitable_30m_directional": None,
             "label_tb": None,
             "profitable_tb": None,
+            # Longer measurement windows (A1, 2026-07-23) — also back-filled
+            # post-open. Declared here so the schema is explicit rather than
+            # "key appears once the backfill happens to run".
+            **{
+                name: None
+                for key in HORIZON_KEYS
+                if key != DEFAULT_HORIZON
+                for name in horizon_fields(key).values()
+            },
             # Weighted score components (c10b producer-bug fix): persisted
             # flat so backfill_feature_importance() reads real values
             # instead of defaulting every component to 0.0.

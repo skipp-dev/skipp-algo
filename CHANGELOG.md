@@ -6,6 +6,57 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-23) — Outcome pipeline measures 60 m / 120 m / EOD, anchored at `fired_at` (A1)
+
+- **The problem.** `open_prep/outcome_backfill.py` measured exactly one
+  window: 09:30→10:00 ET, hard-coded. Two consequences. (a) Any signal whose
+  thesis plays out over hours had no measured track record at all. (b) A
+  real-time signal that fires intraday was scored on the 09:30–10:00 span
+  regardless of when it fired — an 11:00 signal's "outcome" was a number about
+  a window it never traded.
+- **Horizons.** `open_prep/outcomes.py` now owns an explicit catalogue,
+  `OUTCOME_HORIZONS` = 30 m / 60 m / 120 m / EOD (to the 16:00 close), each
+  with its own completeness floor. Every horizon writes its own field quartet
+  (`pnl_60m_pct`, `pnl_60m_pct_signed`, `profitable_60m`,
+  `profitable_60m_directional`, and the same for `120m` / `eod`). The 30 m
+  fields keep their exact legacy names, their long-only semantics, their
+  25-minute floor and their role as the record's resolved-marker, so existing
+  files in `artifacts/open_prep/outcomes/` and every existing reader keep
+  working unchanged.
+- **Anchor.** Pre-open capsules stay anchored at the 09:30 open. A record
+  carrying `fired_at` (an intraday real-time signal) is anchored at its own
+  fire time; the anchor actually used is disclosed per record in
+  `outcome_anchor` / `outcome_anchor_et`. A `fired_at` that is unparseable,
+  belongs to another date, or lands pre-market falls back to the open and says
+  so — pre-market bars are outside the fetched window.
+- **Guards kept, per horizon.** Unresolved stays `None`, never 0 or a
+  substitute value; the non-finite entry/exit price guard is unchanged; the
+  shared `_MAX_ENTRY_DELAY_MIN` entry guard is unchanged; `_MIN_WINDOW_MIN`
+  became `OutcomeHorizon.min_window_min` (25/50/100). EOD additionally requires
+  a print within 10 minutes of the close, so a symbol that stops trading at
+  lunchtime does not get its 13:00 quote labelled as the end-of-day outcome.
+  A row that resolves only on a longer horizon is reported as `partial` in the
+  run summary instead of being miscounted as a failure.
+- **Fetch window.** The Databento query (`EQUS.MINI` / `ohlcv-1m`) widens from
+  09:29–10:01 to 09:29–16:01 whenever an extended horizon or an intraday
+  anchor is in play. `--horizons 30m` restores the narrow legacy query.
+- **Reading side.** `compute_hit_rates(..., horizon=...)` selects the window
+  (default `"30m"`, byte-identical to the previous behaviour); records with no
+  label for the selected horizon count as `unresolved` and stay out of the
+  denominator. The Signal Replay tab gains a horizon selector plus an
+  `Anchor` column.
+- **Honesty note (UI + docs).** P&L on every horizon is a **cost-free
+  mark-to-market** move — no exit signal, and no fees, spread or slippage
+  modelled. The longer the horizon the more that flatters the number, and it
+  flatters most on thin micro-caps where the quoted spread alone can exceed the
+  measured edge. Stated in the Signal Replay expander, in a caption above the
+  metrics, and in both module docstrings.
+- **Filling history.** New records get every horizon automatically. Records
+  written before this change carry only the 30 m label; the opt-in
+  `python -m open_prep.outcome_backfill --backfill-horizons` re-measures them.
+  It is opt-in because it re-fetches bars for days that are otherwise settled.
+- Tests: `tests/test_outcome_horizons.py` (43 cases).
+
 ### Fixed (2026-07-18) — Removed an invalid Pine delivery assumption
 
 - Removed stale operational guidance that treated Pine as a network client of

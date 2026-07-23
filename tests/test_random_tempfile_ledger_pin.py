@@ -93,7 +93,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
     # 2026-07-05 (bug-hunt round 7): import math → 115→116.
-    ("open_prep/outcome_backfill.py", 138, "mkstemp"),  # 2026-07-18 (dataset-role import): 137->138
+    ("open_prep/outcome_backfill.py", 178, "mkstemp"),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 138->178
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
@@ -103,8 +103,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 774, "mkstemp"),  # 2026-07-18 (dataset-role import): 773->774
-    ("open_prep/outcomes.py", 209, "mkstemp"),  # 2026-07-09 robustness: _null_non_finite_floats helper + sanitize call above
+    ("open_prep/outcome_backfill.py", 1079, "mkstemp"),  # 2026-07-23 (A1 horizons: multi-horizon PnL + anchor + CLI above): 774->1079
+    ("open_prep/outcomes.py", 213, "mkstemp"),  # 2026-07-23 (A1 horizons: module docstring above): 209->213
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
@@ -117,7 +117,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 732, "mkstemp"),  # 2026-07-23 (RVOL fix: volume_ratio + None-for-missing above): 714->732
+    ("open_prep/outcomes.py", 831, "mkstemp"),  # 2026-07-23 (A1 horizons: OUTCOME_HORIZONS catalogue above): 732->831
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 121, "mkstemp"),  # 2026-07-16 market-session import shifted site: 120->121
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
@@ -135,7 +135,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
-    ("streamlit_terminal.py", 2292, "mkstemp"),  # dezent fixes line drift
+    ("streamlit_terminal.py", 2298, "mkstemp"),  # 2026-07-23 (A1 horizons: outcomes import block above): 2292->2298
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 603, "mkstemp"),  # 2026-07-12 (drop dead social read): 606->603
