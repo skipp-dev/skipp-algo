@@ -67,7 +67,7 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-07-22 (stale-flag data-freshness helper + 5m block): 457->476
     # 2026-07-22 (SC-LIB-001 library-context payload merge): 476->481
     # 2026-07-22 (cache-miss context+VIX served): 481->489
-    ("services/live_overlay_daemon/main.py", 489, "compare_digest"),
+    ("services/live_overlay_daemon/main.py", 493, "compare_digest"),  # 2026-07-23: 489->493
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
     # endpoint raises 503 when the secret is unset (no empty-secret bypass) and 401

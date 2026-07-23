@@ -1576,8 +1576,8 @@ groups:
       runbook: Check Railway deployment/restart logs for the crash loop, and the
         "Restart Causes (24h)" dashboard panel (changes() of
         live_overlay_daemon_start_time_seconds by cause) for the cause breakdown.
-        Do NOT rely on the live_overlay_daemon_restart_cause_*_total counters -- they
-        reset to 1 each process, so they carry no cross-restart history.
+        The live_overlay_daemon_restart_cause_*_total counters no longer exist -- they
+        reset to 1 each process and carried no cross-restart history.
   - uid: lo-feed-supervisor-heals-recurring
     title: Feed supervisor healing repeatedly (1h)
     condition: C
@@ -2074,7 +2074,10 @@ groups:
       summary: VIX stale > 90m or never fetched — FMP ^VIX poll failing (clients see
         a frozen or null vix_level while core overlay health stays green)
       runbook: Check credential-health FMP panels and FMP quota alerts; grep daemon
-        logs for "VIX poll disabled" (loader construction failed, no retry until restart).
+        logs for "VIX poll disabled" (FMP loader construction failed). Since truth-audit
+        F-3 that failure is retried once an hour (_VIX_LOADER_RETRY_SECS), so a restart
+        is NOT required to recover from a transient boot error -- if VIX is still absent
+        an hour later the cause is persistent (key, quota, DNS), not the missed boot.
         Poll cadence = OVERLAY_REFRESH_SECS (default 30m); threshold = 3 missed polls.
 - orgId: 1
   name: signals-producer-readiness
