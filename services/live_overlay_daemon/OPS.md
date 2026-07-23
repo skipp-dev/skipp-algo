@@ -323,6 +323,43 @@ means the poller is not running. Confirm with `railway logs --http --json`
 grouped by `clientUa`: absent `skipp-sidecar/` entries now indicate a dead
 consumer, not an idle operator.
 
+**2026-07-23 drill — the firing path is proven end-to-end (both directions).**
+This closes the test #3954 left open: firing under real stopped traffic, and
+self-resolution when it returns. Method: both `/smc_live` consumers stopped at
+once during US market open — the hosted poller by pointing
+`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN` at an invalid value, the local Sidecar via
+`launchctl disable` + kill. Stopping both is required, and is itself the
+finding below.
+
+- **Fire.** Consumers stopped 17:15:24Z. The daemon ran continuously through
+  the whole drill (uptime climbed monotonically 47s → 3526s across 56 samples,
+  no reset), so the `uptime_seconds > 600` guard cleared cleanly and the
+  request counter stayed flat once traffic stopped. `pending` observed from
+  17:31:10Z; the rule went to `firing` (Alertmanager `active`, `sev=warning`,
+  `since 2026-07-23T17:40:40Z`) — exactly the 10-minute `for:` after pending
+  began — and stayed active continuously for ~32 min through 18:13Z. (One
+  isolated `inactive` read at 17:52:20Z was a polling artifact of the
+  state-dump script: the `since 17:40:40Z` timestamp was identical before and
+  after, so Alertmanager treated it as one uninterrupted episode.)
+- **Resolve.** Consumers restored 18:13:20Z; `/smc_live` traffic resumed
+  immediately (counter 6 → 9 → 13 → 18). The rule self-resolved at 18:16:27Z,
+  ~3 min after restore, once `rate[10m]` climbed back above the threshold — no
+  manual intervention.
+- **Total time to fire is ~30 min, not 10.** The daemon must run >600s AND the
+  10-minute rate window must empty AND the 10-minute `for:` must elapse, all
+  continuously. A daemon restart resets the first two clocks; budget for it
+  when running this drill.
+- **Caveat — the rule sums all consumers.** The drill only fired because
+  **both** consumers were stopped. `rate(live_overlay_smc_live_requests_total)`
+  is the aggregate across every caller, so while any one consumer polls — e.g.
+  one open Chrome panel on an operator's Mac (seen as the `aapl` hotspot during
+  this drill) — the rule cannot fire even if the hosted service is dead. It
+  detects "no one is calling", not "the service that matters is gone". The
+  daemon already exports per-symbol counters
+  (`live_overlay_hotspot_symbol_<sym>_requests_total`), so a sharper rule
+  targeting the hosted poller's idle symbol is possible; tracked in the
+  skipp-live-lab plan as A6, not armed here.
+
 **Second consumer relationship — `/signals` (documented, not armed).**
 `skipp-live-lab` PR #45 (merged 2026-07-23 15:15Z) added
 `sidecar_server/signal_subscriber.py`, which polls the
