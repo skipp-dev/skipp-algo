@@ -719,6 +719,32 @@ groups:
         in authenticated API clients.
   - uid: lo-request-rate-absent-open
     title: Expected external client is not calling /smc_live (US market open)
+    # THE CONSUMER (identified 2026-07-23, so nobody has to guess again):
+    # repo skipp-live-lab, sidecar_server/technical.py. It builds
+    # <origin>/<token>/smc_live?symbol=X&tf=1m from
+    # SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN/_TOKEN, validates the reply against the
+    # smc-live-overlay/1 schema, and sends User-Agent: skipp-sidecar/<version>.
+    # It runs as the `lab-worker` service in the skipp-live-lab Railway project.
+    # Confirmed in this daemon's Railway HTTP logs: 12/12 /smc_live requests in
+    # the 14:14-14:17Z sample carried clientUa="skipp-sidecar/0.3.0" from a
+    # single source IP, all HTTP 200. To re-identify a future consumer, use
+    # `railway logs --http --json` and group by clientUa. Earlier suspects
+    # smc_tv_bridge and terminal_access_proxy are NOT callers (the first is a
+    # library in this repo, the second unrelated); realtime_signals.py and
+    # trade_context.py mention /smc_live only in comments.
+    #
+    # KNOWN LIMITATION until the sidecar moves to server-side polling: the
+    # traffic is panel-driven. The Chrome side panel refreshes the 1m technical
+    # feed every 15s (sidepanel.js scheduleTechnicalRefresh) only WHILE it is
+    # connected, so a connected panel yields ~40 requests/10m against this
+    # rule's ~0.6/10m threshold -- comfortably above -- but a CLOSED panel during
+    # US hours drives the rate to zero and fires this alert. In single-user
+    # operation the rule therefore currently measures "is the panel open", not
+    # "is the infrastructure healthy". A firing caused by a closed panel is NOT
+    # an infra incident: confirm via the absence of skipp-sidecar/ entries in
+    # the HTTP log and close it. The fix lives in skipp-live-lab (a long-running
+    # server-side poller, independent of connected panels, which is a
+    # prerequisite for multi-user anyway) and is tracked there, not here.
     condition: C
     data:
     - refId: A
