@@ -19,7 +19,9 @@
 #   bash services/signals_producer/e2e/smoke.sh
 #
 # Env overrides: PORT (default 8199), TOKEN (default smokebearer123),
-#   PY (default .venv/bin/python, falls back to python3).
+#   PY (default: this checkout's .venv, then the main checkout's .venv,
+#       then python3 — first candidate that can import
+#       open_prep.realtime_signals wins).
 set -uo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -27,8 +29,35 @@ cd "$ROOT"
 
 PORT="${PORT:-8199}"
 TOKEN="${TOKEN:-smokebearer123}"
-PY="${PY:-.venv/bin/python}"
-[ -x "$PY" ] || PY="python3"
+# Interpreter resolution (worktree-aware): $PY > this checkout's .venv >
+# the MAIN checkout's .venv (via git-common-dir) > python3. `git worktree`
+# checkouts have no .venv of their own, so the old two-line fallback landed on
+# the system python3 (3.9) while pyproject.toml declares requires-python
+# ">=3.12" — the smoke then died on `cannot import name 'UTC' from 'datetime'`
+# and similar, which reads like a product bug rather than a wrong interpreter.
+# Mirrors scripts/run_ledger_drift_guard.sh, including its "candidate must be
+# able to import what we need" check: probing the exact module this smoke runs
+# covers both the version floor and the third-party deps in one go. The probe
+# is side-effect free — open_prep.realtime_signals loads .env inside main(), not at
+# import time.
+MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+PY_RESOLVED=""
+for cand in "${PY:-}" "$ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/python" \
+            "$ROOT/.venv/Scripts/python.exe" "$MAIN_ROOT/.venv/Scripts/python.exe" \
+            python3 python; do
+  [ -n "$cand" ] || continue
+  if "$cand" -c "import open_prep.realtime_signals" 2>/dev/null; then
+    PY_RESOLVED="$cand"
+    break
+  fi
+done
+if [ -z "$PY_RESOLVED" ]; then
+  echo "ERROR: no python that can import open_prep.realtime_signals (tried \$PY, $ROOT/.venv, $MAIN_ROOT/.venv, python3, python)." >&2
+  echo "       This repo requires Python >=3.12 (pyproject.toml). Create the project venv" >&2
+  echo "       and install requirements.txt, or set PY=/path/to/python." >&2
+  exit 1
+fi
+PY="$PY_RESOLVED"
 B="http://127.0.0.1:${PORT}"
 LOG="$(mktemp -t signals-producer.XXXXXX.log)"
 FAILED=0
