@@ -6,6 +6,7 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
 2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
+   Purpose, audience, and the six invariants that bound its hosted deployment: [ADR-0030](docs/adr/0030-terminal-purpose-and-audience.md).
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 > New to the codebase? See the [Glossary](docs/GLOSSARY.md) for the sprint
