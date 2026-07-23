@@ -126,7 +126,7 @@ def test_dynamic_setattr_zero_surface_pin() -> None:
 # overrides. The name comes from a small, trusted override-mapping
 # defined in the same module.
 DYNAMIC_HASATTR_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 602),  # dezent fixes line drift
+    ("streamlit_terminal.py", 608),  # 2026-07-23 (A1 horizons: outcomes import block above): 602->608
 }
 
 

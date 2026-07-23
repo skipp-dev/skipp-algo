@@ -350,7 +350,13 @@ from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from open_prep.log_redaction import apply_global_log_redaction
-from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
+from open_prep.outcomes import (
+    DEFAULT_HORIZON,
+    HORIZON_KEYS,
+    _load_outcomes_range,
+    compute_hit_rates,
+    horizon_fields,
+)
 from open_prep.playbook import classify_recency as _classify_recency
 from open_prep.realtime_signals import (
     RealtimeEngine,
@@ -4880,45 +4886,100 @@ else:
                 "logged when it fires, and its result is measured a fixed window later. "
                 "This tab replays that record:\n\n"
                 "- **Hit rate** — share of *resolved* signals that were profitable within "
-                "the 30-minute window after firing.\n"
-                "- **P&L 30m** — the realised move in the signal's direction over that window.\n"
-                "- **Pending** — signals whose outcome window has not closed yet.\n\n"
+                "the selected window after firing.\n"
+                "- **P&L** — the realised move in the signal's direction over that window.\n"
+                "- **Pending** — signals whose outcome window has not closed yet, plus "
+                "every record written before a horizon existed (older files carry only "
+                "the 30-minute label).\n\n"
+                "**Horizon and anchor.** Pre-open capsules are measured from the 09:30 ET "
+                "open; a real-time signal that fires intraday is measured from **its own "
+                "fire time** (`fired_at`), so an 11:00 signal is never scored on the "
+                "09:30–10:00 span. The end-of-day horizon runs to the 16:00 close.\n\n"
+                "**What the P&L is not.** It is a *cost-free mark-to-market* move — entry "
+                "at the first bar of the window, exit at the last, with **no exit signal "
+                "and no fees, spread or slippage modelled**. That omission weighs more the "
+                "longer the horizon, and weighs most on thin micro-caps, where the quoted "
+                "spread alone can exceed the measured edge. Read these numbers as an "
+                "upper bound, not as an achievable return.\n\n"
                 "It is a **track record, not a live trade feed**: use it to see which "
                 "signal states (posture, attention, catalyst strength) have actually paid "
                 "off historically before you act on a live one. The history is produced by "
                 "the Open Prep pipeline — run it to populate this tab."
             )
 
-        _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
+        _rp_col1, _rp_col2 = st.columns([3, 1])
+        with _rp_col1:
+            _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
+        with _rp_col2:
+            _replay_horizon = st.selectbox(
+                "Horizon",
+                options=list(HORIZON_KEYS),
+                index=list(HORIZON_KEYS).index(DEFAULT_HORIZON),
+                key="replay_horizon",
+                help=(
+                    "Measurement window after the anchor (09:30 open for pre-open "
+                    "capsules, fired_at for intraday real-time signals). 'eod' runs "
+                    "to the 16:00 close."
+                ),
+            )
+        _hz = horizon_fields(_replay_horizon)
         _replay_records = _load_outcomes_range(lookback_days=_replay_days)
+
+        st.caption(
+            "P&L is cost-free mark-to-market (no exit signal, no fees/spread/slippage) — "
+            "the longer the horizon, the more that flatters the number, especially on "
+            "micro-caps."
+        )
 
         if not _replay_records:
             st.info("No outcome data found. Run the Open Prep pipeline to generate signal history.")
         else:
             # ── Aggregate metrics ───────────────────────────────
+            # Directional label + PnL are read AS A PAIR (matching
+            # compute_hit_rates) so a directional hit-rate is never averaged
+            # with long-only PnL.
+            def _replay_outcome(rec: dict[str, Any]) -> tuple[Any, Any]:
+                _lbl = rec.get(_hz["profitable_directional"])
+                _val = rec.get(_hz["pnl_signed"])
+                if _lbl is None or _val is None:
+                    _lbl = rec.get(_hz["profitable"])
+                    _val = rec.get(_hz["pnl"])
+                return _lbl, _val
+
             _total = len(_replay_records)
             _with_outcome: list[dict[str, Any]] = [
-                r for r in _replay_records if r.get("profitable_30m") is not None
+                r for r in _replay_records if _replay_outcome(r)[0] is not None
             ]
             _winners: list[dict[str, Any]] = [
-                r for r in _with_outcome if r.get("profitable_30m") is True
+                r for r in _with_outcome if _replay_outcome(r)[0] is True
             ]
             _pending = _total - len(_with_outcome)
 
             _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
-            _pnl_values = [float(r.get("pnl_30m_pct") or 0) for r in _with_outcome]
+            _pnl_values = [float(_replay_outcome(r)[1] or 0) for r in _with_outcome]
             _avg_pnl = sum(_pnl_values) / len(_pnl_values) if _pnl_values else 0.0
             _total_pnl = sum(_pnl_values)
 
             mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
             mcol1.metric("Signals", _total)
-            mcol2.metric("Resolved", len(_with_outcome))
+            mcol2.metric(f"Resolved ({_replay_horizon})", len(_with_outcome))
             mcol3.metric("Hit Rate", f"{_hit_rate:.1%}")
             mcol4.metric("Avg P&L", f"{_avg_pnl:+.2f}%")
             mcol5.metric("Total P&L", f"{_total_pnl:+.2f}%")
 
+            if not _with_outcome and _replay_horizon != DEFAULT_HORIZON:
+                st.info(
+                    f"No record in this window carries a {_replay_horizon} label yet. "
+                    "Files written before the horizon extension only have the 30m "
+                    "measurement; run "
+                    "`python -m open_prep.outcome_backfill --backfill-horizons` "
+                    "to fill the longer horizons into history."
+                )
+
             # ── Hit rate by bucket ──────────────────────────────
-            _bucket_rates = compute_hit_rates(lookback_days=_replay_days)
+            _bucket_rates = compute_hit_rates(
+                lookback_days=_replay_days, horizon=_replay_horizon,
+            )
             if _bucket_rates:
                 st.subheader("Hit Rate by Gap × RVOL Bucket")
                 _bucket_rows = []
@@ -4943,10 +5004,10 @@ else:
 
             for _rd in sorted(_by_date.keys(), reverse=True):
                 _day_records = _by_date[_rd]
-                _day_resolved = [r for r in _day_records if r.get("profitable_30m") is not None]
-                _day_wins = sum(1 for r in _day_resolved if r.get("profitable_30m") is True)
+                _day_resolved = [r for r in _day_records if _replay_outcome(r)[0] is not None]
+                _day_wins = sum(1 for r in _day_resolved if _replay_outcome(r)[0] is True)
                 _day_hr = _day_wins / len(_day_resolved) if _day_resolved else 0.0
-                _day_pnl = sum(float(r.get("pnl_30m_pct") or 0) for r in _day_resolved)
+                _day_pnl = sum(float(_replay_outcome(r)[1] or 0) for r in _day_resolved)
 
                 _day_label = f"{_rd} — {len(_day_records)} signals"
                 if _day_resolved:
@@ -4954,10 +5015,11 @@ else:
                 with st.expander(_day_label, expanded=(_rd == sorted(_by_date.keys(), reverse=True)[0])):
                     _signal_rows = []
                     for _sr in _day_records:
+                        _sr_label, _sr_pnl = _replay_outcome(_sr)
                         _outcome_icon = "pending"
-                        if _sr.get("profitable_30m") is True:
+                        if _sr_label is True:
                             _outcome_icon = "win"
-                        elif _sr.get("profitable_30m") is False:
+                        elif _sr_label is False:
                             _outcome_icon = "loss"
                         _signal_rows.append({
                             "": _outcome_icon,
@@ -4967,7 +5029,8 @@ else:
                             "RVOL": (f"{float(_sr['rvol']):.2f}" if _sr.get("rvol") is not None else "—"),  # None = ratio unavailable at scoring time, not 0.00 (RVOL fix 2026-07-23)
                             "Tier": _sr.get("confidence_tier", ""),
                             "Regime": _sr.get("regime", ""),
-                            "P&L 30m": f"{float(_sr.get('pnl_30m_pct') or 0):+.2f}%" if _sr.get("pnl_30m_pct") is not None else "—",
+                            f"P&L {_replay_horizon}": f"{float(_sr_pnl or 0):+.2f}%" if _sr_pnl is not None else "—",
+                            "Anchor": _sr.get("outcome_anchor") or "—",  # market_open (pre-open capsule) vs fired_at (intraday RT signal)
                             "Bucket": f"{_sr.get('gap_bucket_label') or ''}:{_sr.get('rvol_bucket_label') or ''}",  # `or ''`: rvol_bucket_label is None for missing-rvol records (RVOL fix 2026-07-23)
                         })
                     st.dataframe(pd.DataFrame(tv_linkify_rows(_signal_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})

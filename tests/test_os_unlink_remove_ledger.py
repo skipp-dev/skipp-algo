@@ -113,13 +113,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # combined — measured 125/711; outcomes.py guard shift → 161.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 125→124.
     # 2026-07-05 (bug-hunt round 7): import math → 124→125.
-    ("open_prep/outcome_backfill.py", 147, "unlink"),  # 2026-07-18 dataset-role default
+    ("open_prep/outcome_backfill.py", 187, "unlink"),  # 2026-07-23 (A1 horizons: docstring + horizon constants above): 147->187
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 782, "unlink"),  # 2026-07-18 dataset-role default
-    ("open_prep/outcomes.py", 218, "unlink"),  # 2026-07-09 robustness: outcomes hardening above
+    ("open_prep/outcome_backfill.py", 1087, "unlink"),  # 2026-07-23 (A1 horizons: multi-horizon PnL + anchor + CLI above): 782->1087
+    ("open_prep/outcomes.py", 222, "unlink"),  # 2026-07-23 (A1 horizons: module docstring above): 218->222
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -133,7 +133,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 744, "unlink"),  # 2026-07-23 (RVOL fix: volume_ratio + None-for-missing above): 726->744
+    ("open_prep/outcomes.py", 843, "unlink"),  # 2026-07-23 (A1 horizons: OUTCOME_HORIZONS catalogue above): 744->843
     ("open_prep/realtime_signals.py", 129, "remove"),  # 2026-07-16 market-session import shifted site: 128->129
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -184,7 +184,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 43, "unlink"),  # 2026-07-13 (manifest generator provenance imports): 39->43
-    ("streamlit_terminal.py", 2301, "unlink"),  # dezent fixes line drift
+    ("streamlit_terminal.py", 2307, "unlink"),  # 2026-07-23 (A1 horizons: outcomes import block above): 2301->2307
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 615, "unlink"),  # 2026-07-12 (drop dead social read): 618->615
