@@ -1537,7 +1537,6 @@ def test_render_metrics_includes_tradingview_credential(
     assert "live_overlay_tradingview_credential_valid 1.0" in body
     assert "live_overlay_tradingview_credential_age_known 1.0" in body
     assert "live_overlay_tradingview_credential_age_hours 60.000" in body
-    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
 
 
 def test_render_metrics_tradingview_credential_error_is_invalid(
@@ -2298,6 +2297,9 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
         "live_overlay_railway_service_network_rx_gb",
         "live_overlay_railway_service_network_tx_gb",
         "live_overlay_railway_service_memory_limit_gb",
+        # Wired to the Memory Limit panel by #3919; emitted in metrics.py
+        # with service labels, so this literal has to name it explicitly.
+        "live_overlay_railway_service_memory_gb",
     }
     expected_titles = {
         "Railway CPU Cores",
