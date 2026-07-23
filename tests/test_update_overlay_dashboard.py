@@ -481,6 +481,10 @@ def test_update_script_core_metrics_present_checks_critical_series(temp_dashboar
     expr = panel["targets"][0]["expr"]
     assert "absent(live_overlay_uptime_seconds" in expr
     assert "absent(live_overlay_overlay_fresh" in expr
+    # The other two readiness inputs; a selective export bug in either was
+    # invisible to both this panel and lo-core-signal-missing before 2026-07-23.
+    assert "absent(live_overlay_feed_healthy" in expr
+    assert "absent(live_overlay_workers_healthy" in expr
     assert "absent(live_overlay_market_us_open" in expr
     assert "absent(live_overlay_last_bar_age_known" in expr
     assert "absent(live_overlay_smc_live_requests_total" in expr

@@ -22,7 +22,7 @@
   "id": null,
   "links": [
     {
-      "title": "\u2192 Signals & Experiments",
+      "title": "→ Signals & Experiments",
       "type": "link",
       "url": "/d/smc-live-overlay-signals-v1",
       "tooltip": "Trading-signal & strategy-experiment view: active signals, breakouts, signal score, FVG 5m / BOS 4H verdicts, and family hit-rate over time.",
@@ -83,7 +83,7 @@
       "transparent": true,
       "options": {
         "mode": "markdown",
-        "content": "\ud83d\udd17 **[\u2192 Signals & Experiments](/d/smc-live-overlay-signals-v1?orgId=1)** \u2014 trading signals & strategy experiments: active signals, breakouts, signal score, FVG 5m / BOS 4H verdicts, family hit-rate."
+        "content": "🔗 **[→ Signals & Experiments](/d/smc-live-overlay-signals-v1?orgId=1)** — trading signals & strategy experiments: active signals, breakouts, signal score, FVG 5m / BOS 4H verdicts, family hit-rate."
       }
     },
     {
@@ -103,7 +103,7 @@
     {
       "title": "Overall Health",
       "type": "stat",
-      "description": "Core daemon runtime health only. HEALTHY means the market-data feed, worker threads, and overlay output are healthy. DEGRADED means a non-healthy state has persisted past warmup (15 min) during an open US session \u2014 a sustained outage, not a boot. It does not include provider quotas, workflow results, credentials, or external integrations; review Active Alerts for those systems. IDLE means the market is closed before the first bar.",
+      "description": "Core daemon runtime health only. HEALTHY means the market-data feed, worker threads, and overlay output are healthy. DEGRADED means a non-healthy state has persisted past warmup (15 min) during an open US session — a sustained outage, not a boot. It does not include provider quotas, workflow results, credentials, or external integrations; review Active Alerts for those systems. IDLE means the market is closed before the first bar.",
       "gridPos": {
         "x": 0,
         "y": 3,
@@ -256,7 +256,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If internal API traffic is missing while **Market Status** is open: check authorized server-side consumers, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** \u00b7 [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) \u00b7 [GitHub Actions](https://github.com/skipp-dev/skipp-algo/actions) \u00b7 [Runbook: live-overlay on-call](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
+        "content": "**Incident triage**\n\n1. Check **Active Alerts** first.\n2. If **Feed Healthy** is red: check Databento credentials, feed reconnects, and Railway logs.\n3. If **Workers Healthy** is red: open Worker Liveness and restart the daemon if a worker is dead.\n4. If **Overlay Fresh** is red: check Compute Cycle Errors and Overlay & Bar Age.\n5. If internal API traffic is missing while **Market Status** is open: check authorized server-side consumers, auth denied, and request rate.\n6. If dashboards show no data: check Collector / Scrape Targets.\n\nRunbook: [README](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/README.md)\n7. If **Signal Pipeline Ready** is red: check **Open-Prep Snapshot**, **Watchlist Symbols**, **Producer Poll Age**, then Collector / Scrape Targets and signals-producer Railway logs.\n\n---\n**Quick links** · [Railway logs](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/logs?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [Railway deployments](https://railway.com/project/0616a3b7-7b7f-41d1-8fac-a0b8922c94ca/service/705582c5-ba8b-4c6e-848c-33bffe0a61b0/deployments?environmentId=470fbd0f-894d-46cd-8722-6b072d255d99) · [GitHub Actions](https://github.com/skipp-dev/skipp-algo/actions) · [Runbook: live-overlay on-call](https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md)"
       },
       "datasource": {
         "type": "prometheus",
@@ -415,7 +415,7 @@
       },
       "targets": [
         {
-          "expr": "(\n  absent(live_overlay_uptime_seconds{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_overlay_fresh{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_market_us_open{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_last_bar_age_known{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_requests_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_success_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_errors_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}) or vector(0)\n)",
+          "expr": "(\n  absent(live_overlay_uptime_seconds{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_overlay_fresh{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_feed_healthy{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_workers_healthy{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_market_us_open{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_last_bar_age_known{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_requests_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_success_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_errors_total{job=~\"$job\"}) or vector(0)\n) + (\n  absent(live_overlay_smc_live_latency_ms_count{job=~\"$job\"}) or vector(0)\n)",
           "legendFormat": "core_metrics_present",
           "datasource": {
             "type": "prometheus",
@@ -515,6 +515,24 @@
               "type": "value",
               "options": {
                 "8": {
+                  "text": "8 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "9": {
+                  "text": "9 MISSING",
+                  "color": "dark-red"
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "10": {
                   "text": "ALL MISSING",
                   "color": "dark-red"
                 }
@@ -832,7 +850,7 @@
               },
               {
                 "id": "displayName",
-                "value": "SWEEP (n/a \u2014 proof of concept)"
+                "value": "SWEEP (n/a — proof of concept)"
               }
             ]
           },
@@ -1120,7 +1138,7 @@
     },
     {
       "id": 950010050,
-      "title": "GitHub Crons \u2014 Newest Run (agg)",
+      "title": "GitHub Crons — Newest Run (agg)",
       "type": "stat",
       "description": "Aggregate across all monitored workflows: age and duration of the single newest run the daemon has seen. A large age here means the whole GitHub-Actions cron fleet has gone quiet (complements the per-workflow rules).",
       "datasource": {
@@ -1345,9 +1363,9 @@
     },
     {
       "type": "row",
-      "title": "Live Data Chain (Feed \u2192 Overlay \u2192 Pine)",
+      "title": "Live Data Chain (Feed → Overlay → Pine)",
       "collapsed": false,
-      "description": "The market-data path end to end: Databento feed \u2192 overlay computation \u2192 TradingView/Pine polling. A break here stops signals reaching users.",
+      "description": "The market-data path end to end: Databento feed → overlay computation → TradingView/Pine polling. A break here stops signals reaching users.",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1725,7 +1743,7 @@
               "type": "value",
               "options": {
                 "2": {
-                  "text": "EXPECTED \u00b7 NO REQUESTS",
+                  "text": "EXPECTED · NO REQUESTS",
                   "color": "dark-yellow"
                 }
               }
@@ -4395,7 +4413,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Is the daemon successfully SCRAPING the GitHub-Actions workflow monitor? OK = scraped & healthy \u00b7 SCRAPE ERROR = configured but the scrape is failing \u00b7 DISABLED = monitor not configured. (This is the monitoring bridge itself \u2014 actual workflow pass/fail is in the panels below.)",
+      "description": "Is the daemon successfully SCRAPING the GitHub-Actions workflow monitor? OK = scraped & healthy · SCRAPE ERROR = configured but the scrape is failing · DISABLED = monitor not configured. (This is the monitoring bridge itself — actual workflow pass/fail is in the panels below.)",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -4698,7 +4716,7 @@
           "noValue": "NO DATA"
         }
       },
-      "description": "Is the daemon successfully SCRAPING the UptimeRobot monitor? OK = scraped & healthy \u00b7 SCRAPE ERROR = configured but failing \u00b7 DISABLED = not configured. (Individual monitor states are in the panels below.)",
+      "description": "Is the daemon successfully SCRAPING the UptimeRobot monitor? OK = scraped & healthy · SCRAPE ERROR = configured but failing · DISABLED = not configured. (Individual monitor states are in the panels below.)",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -5038,7 +5056,7 @@
       "id": 931520681
     },
     {
-      "title": "GitHub Workflows \u2014 Latest Run Detail",
+      "title": "GitHub Workflows — Latest Run Detail",
       "type": "table",
       "gridPos": {
         "x": 0,
@@ -5046,7 +5064,7 @@
         "w": 24,
         "h": 14
       },
-      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / \u2026), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
+      "description": "Per-workflow detail of the most recent run the daemon observed: trigger event (schedule / push / …), current status, run duration and age. One row per named workflow. Driven by the labelled live_overlay_github_workflow_* gauges (phase_code, latest_duration_seconds, latest_age_seconds, latest_success).",
       "targets": [
         {
           "expr": "live_overlay_github_workflow_phase_code{job=~\"$job\"}",
@@ -5244,11 +5262,11 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "\u2717",
+                        "text": "✗",
                         "color": "red"
                       },
                       "1": {
-                        "text": "\u2713",
+                        "text": "✓",
                         "color": "green"
                       }
                     }
@@ -5457,7 +5475,7 @@
       "id": 1350096766
     },
     {
-      "title": "GitHub Workflow Status \u2014 Timeline",
+      "title": "GitHub Workflow Status — Timeline",
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
@@ -5671,7 +5689,7 @@
         },
         "overrides": []
       },
-      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion \u2014 green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
+      "description": "Colour-coded latest status of each GitHub Actions workflow over time. Every row is one named workflow ({{workflow}} legend); the cell colour encodes the run conclusion — green=success, red=failure/timed-out/startup-failure, orange=cancelled/action-required, blue=in-progress/neutral, yellow=queued/stale, gray=unknown, purple=skipped. Series come from live_overlay_github_workflow_phase_code{workflow,event,workflow_id}, sampled at the daemon's GitHub workflow bridge interval (so runs shorter than one scrape interval may not appear).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -5682,7 +5700,7 @@
       "type": "row",
       "title": "Providers (Feeds, News & Credentials)",
       "collapsed": false,
-      "description": "Upstream data providers: Databento market-data feed + FMP + TradingView credential/delivery health, and news ingest state. (Databento feed VOLUME \u2014 bars/symbols \u2014 is in the Live Data Chain section.) Service-owner detail.",
+      "description": "Upstream data providers: Databento market-data feed + FMP + TradingView credential/delivery health, and news ingest state. (Databento feed VOLUME — bars/symbols — is in the Live Data Chain section.) Service-owner detail.",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -5820,7 +5838,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Is the Databento market-data API key valid? (The feed itself \u2014 bars/symbols/queue \u2014 is in the Live Data Chain section.)",
+      "description": "Is the Databento market-data API key valid? (The feed itself — bars/symbols/queue — is in the Live Data Chain section.)",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -6101,7 +6119,7 @@
     {
       "title": "TradingView Credential Status",
       "type": "stat",
-      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. NOT LOADED means the credential-health report has not loaded yet.",
+      "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 18,
         "y": 239,
@@ -6176,7 +6194,7 @@
     {
       "title": "TradingView Credential Age",
       "type": "stat",
-      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. NOT LOADED means the credential-health report has not loaded yet.",
+      "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 0,
         "y": 246,
@@ -6470,7 +6488,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "description": "Is the Finnhub API key valid? Optional provider (terminal_finnhub / open_prep macro). Shows NO DATA until FINNHUB_API_KEY is configured \u2014 the probe self-skips when the key is unset.",
+      "description": "Is the Finnhub API key valid? Optional provider (terminal_finnhub / open_prep macro). Shows NO DATA until FINNHUB_API_KEY is configured — the probe self-skips when the key is unset.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -6595,7 +6613,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers \u2014 Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok, `3` = disabled (not ingested). The **News Providers — Ingest Status & Reason** table shows the human-readable reason (e.g. API key missing, no active subscription, provider disabled) and whether each provider is actually consumed."
       },
       "datasource": {
         "type": "prometheus",
@@ -6604,7 +6622,7 @@
       "id": 755773609
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
@@ -6926,7 +6944,7 @@
       "id": 2133310726
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
@@ -6977,7 +6995,7 @@
       "id": 2078851417
     },
     {
-      "title": "News Providers \u2014 Ingest Status & Reason",
+      "title": "News Providers — Ingest Status & Reason",
       "type": "table",
       "gridPos": {
         "x": 12,
@@ -6985,7 +7003,7 @@
         "w": 12,
         "h": 8
       },
-      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, \u2026) and whether the provider is actually consumed.",
+      "description": "Per-provider ingest status with the human-readable degraded reason (API key missing, no active subscription, provider disabled, …) and whether the provider is actually consumed.",
       "targets": [
         {
           "expr": "live_overlay_provider_news_info{job=~\"$job\"}",
@@ -7814,8 +7832,8 @@
     },
     {
       "type": "row",
-      "title": "Pine Library \u2194 TradingView Versions",
-      "description": "Repo\u2194TradingView Pine-library version drift (#3599/#3603). Each SMC_*.pine consumer pins import preuss_steffen/<lib>/<N>; this section shows where N no longer matches the real published TradingView version. Drift here is what caused CE10272 on every modern mp.* symbol after micro_profiles sat at /1 vs a live /152 for ~4 months. Fix: repin the offending consumers.",
+      "title": "Pine Library ↔ TradingView Versions",
+      "description": "Repo↔TradingView Pine-library version drift (#3599/#3603). Each SMC_*.pine consumer pins import preuss_steffen/<lib>/<N>; this section shows where N no longer matches the real published TradingView version. Drift here is what caused CE10272 on every modern mp.* symbol after micro_profiles sat at /1 vs a live /152 for ~4 months. Fix: repin the offending consumers.",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -7829,7 +7847,7 @@
     {
       "type": "stat",
       "title": "Pine consumers drifted from published TV version",
-      "description": "Drift rollup. Consumers drifted counts individual import sites; libraries drifted and probed give the denominator \u2014 'probed' is how many libraries the facade actually reached this run, so a low probe count means the comparison itself was incomplete, not that everything is in sync.",
+      "description": "Drift rollup. Consumers drifted counts individual import sites; libraries drifted and probed give the denominator — 'probed' is how many libraries the facade actually reached this run, so a low probe count means the comparison itself was incomplete, not that everything is in sync.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -7907,7 +7925,7 @@
     {
       "type": "table",
       "title": "Pine consumer pins vs published TradingView version",
-      "description": "Per-consumer import-pin drift against the real published TradingView version. Drift=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the published version. Pinned version (B) and published version (C) are the two numbers to compare when the drift alert fires; tv_version_known (D) distinguishes 'no drift' from 'the facade probe failed this run' \u2014 an unreachable facade emits no tv_version at all rather than reporting 0. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
+      "description": "Per-consumer import-pin drift against the real published TradingView version. Drift=1 means an SMC_*.pine consumer pins import preuss_steffen/<library>/<N> at an N != the published version. Pinned version (B) and published version (C) are the two numbers to compare when the drift alert fires; tv_version_known (D) distinguishes 'no drift' from 'the facade probe failed this run' — an unreachable facade emits no tv_version at all rather than reporting 0. Sourced from pine_library_version_bridge (bot/live-pine-library-versions).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -8133,7 +8151,7 @@
     {
       "type": "stat",
       "title": "Pine library payload volume",
-      "description": "How many symbols the published smc_micro_profiles_generated library actually carries (ADR-0029). Every other panel in this row measures metadata ABOUT the library \u2014 version, ASOF_DATE \u2014 so an empty payload under a fresh date reads green; five versions shipped that way in 2026-07 and it was found on a chart, not here. Universe size comes from the base scan, universe symbols from the enrichment sidecar: a large size beside zero symbols is the contradiction lo-pine-library-payload-empty fires on. UNMEASURED means the source carried no payload exports \u2014 that is not the same as empty.",
+      "description": "How many symbols the published smc_micro_profiles_generated library actually carries (ADR-0029). Every other panel in this row measures metadata ABOUT the library — version, ASOF_DATE — so an empty payload under a fresh date reads green; five versions shipped that way in 2026-07 and it was found on a chart, not here. Universe size comes from the base scan, universe symbols from the enrichment sidecar: a large size beside zero symbols is the contradiction lo-pine-library-payload-empty fires on. UNMEASURED means the source carried no payload exports — that is not the same as empty.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -8796,7 +8814,7 @@
     {
       "type": "stat",
       "title": "Bar cache depth and cap churn",
-      "description": "Whether the bar cache holds enough history per symbol for the rolling features to work at all. bars_per_symbol must stay at or above 20 \u2014 squeeze, relative volume and the ATS z-score all need that window, and below it they degrade silently rather than erroring. Requested-symbol evictions rising means live demand exceeds the symbol cap, which is the thrash #3903 fixed: one bar per symbol, every rolling metric unavailable, and not a single metric moving to say so.",
+      "description": "Whether the bar cache holds enough history per symbol for the rolling features to work at all. bars_per_symbol must stay at or above 20 — squeeze, relative volume and the ATS z-score all need that window, and below it they degrade silently rather than erroring. Requested-symbol evictions rising means live demand exceeds the symbol cap, which is the thrash #3903 fixed: one bar per symbol, every rolling metric unavailable, and not a single metric moving to say so.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -8915,7 +8933,7 @@
     {
       "type": "stat",
       "title": "Request hotspot coverage",
-      "description": "How many distinct symbols and timeframes the hotspot tracker is holding. The panels above show which items are hottest but not how many exist, so a collapse from a broad request mix to a handful \u2014 the shape that makes the hotspot ranking meaningless \u2014 was previously invisible.",
+      "description": "How many distinct symbols and timeframes the hotspot tracker is holding. The panels above show which items are hottest but not how many exist, so a collapse from a broad request mix to a handful — the shape that makes the hotspot ranking meaningless — was previously invisible.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -9087,7 +9105,7 @@
     {
       "type": "stat",
       "title": "Daily experiment verdict detail",
-      "description": "What sits behind experiment_verdict_status_code, which alerts consume while nothing showed its inputs. delta_hr is the hit-rate difference the verdict rests on, p_value its significance, and underpowered=1 means the sample is too small for the verdict to mean anything \u2014 a distinction the status code alone cannot express. max_age is the oldest scanned experiment file, which the snapshot's own age does not cover.",
+      "description": "What sits behind experiment_verdict_status_code, which alerts consume while nothing showed its inputs. delta_hr is the hit-rate difference the verdict rests on, p_value its significance, and underpowered=1 means the sample is too small for the verdict to mean anything — a distinction the status code alone cannot express. max_age is the oldest scanned experiment file, which the snapshot's own age does not cover.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -9234,7 +9252,7 @@
     },
     {
       "type": "stat",
-      "title": "Credentials \u2014 overall",
+      "title": "Credentials — overall",
       "description": "Single rollup across every credential probe. The per-provider tiles below each answer one key; nothing answered 'is anything expired right now', so a failure was only visible to whoever scanned all seven tiles.",
       "datasource": {
         "type": "prometheus",
@@ -9352,6 +9370,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 63,
+  "version": 64,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
