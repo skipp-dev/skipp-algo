@@ -138,7 +138,15 @@ def render(payload: Mapping[str, Any] | None) -> None:  # pragma: no cover
     cols = st.columns(len(VERDICT_BADGE))
     for i, verdict in enumerate(VERDICT_BADGE):
         cols[i].metric(verdict, view["totals"].get(verdict, 0))
-    st.dataframe(view["rows"], use_container_width=True)
+    import pandas as pd
+
+    from terminal_tabs.style import style_semantic
+
+    _live_df = pd.DataFrame(view["rows"])
+    st.dataframe(
+        style_semantic(_live_df, ["verdict", "slippage_ks_reference_type"]),
+        use_container_width=True,
+    )
 
 
 # ---------------------------------------------------------------------------

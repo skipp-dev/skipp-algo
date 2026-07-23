@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from terminal_tabs._shared import render_segment_articles
+from terminal_tabs.style import color_text
 from terminal_ui_helpers import dedup_articles
 
 
@@ -59,6 +60,16 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     m2.metric("Bullish", len(bullish))
     m3.metric("Neutral", len(neutral))
     m4.metric("Bearish", len(bearish))
+
+    # Subtle state colour cue for the three groups (dezent)
+    st.markdown(
+        color_text("bullish", f"Bullish {len(bullish)}")
+        + "  ·  "
+        + color_text("neutral", f"Neutral {len(neutral)}")
+        + "  ·  "
+        + color_text("bearish", f"Bearish {len(bearish)}"),
+        unsafe_allow_html=True,
+    )
 
     # Render each group using shared helper (item 3)
     render_segment_articles("Bullish Segments", bullish)

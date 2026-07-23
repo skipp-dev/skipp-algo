@@ -17,6 +17,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     tv_symbol_column,
 )
+from terminal_tabs.style import style_table
 from terminal_ui_helpers import tv_linkify_rows
 
 
@@ -61,7 +62,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     if gainers:
         g_rows = tv_linkify_rows(build_bz_mover_rows(gainers, quote_map))
         st.dataframe(
-            pd.DataFrame(g_rows),
+            style_table(
+                pd.DataFrame(g_rows), directional=["Change", "Change %"]
+            ),
             width="stretch",
             hide_index=True,
             height=min(500, 40 + 35 * len(g_rows)),
@@ -75,7 +78,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     if losers:
         l_rows = tv_linkify_rows(build_bz_mover_rows(losers, quote_map))
         st.dataframe(
-            pd.DataFrame(l_rows),
+            style_table(
+                pd.DataFrame(l_rows), directional=["Change", "Change %"]
+            ),
             width="stretch",
             hide_index=True,
             height=min(500, 40 + 35 * len(l_rows)),

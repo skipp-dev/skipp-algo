@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from terminal_tabs._shared import cached_econ_calendar
+from terminal_tabs.style import style_semantic
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -55,7 +56,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     df = pd.DataFrame(rows)
     st.dataframe(
-        df,
+        style_semantic(df, ["Impact"]),
         width="stretch",
         height=min(600, 40 + 35 * len(df)),
         hide_index=True,

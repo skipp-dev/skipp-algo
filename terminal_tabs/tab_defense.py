@@ -16,7 +16,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     safe_float,
 )
-from terminal_tabs.style import dir_glyph
+from terminal_tabs.style import dir_glyph, style_table
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -69,7 +69,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     df = pd.DataFrame(rows)
     st.dataframe(
-        df,
+        style_table(df, directional=["Dir", "Change", "Change %"]),
         width="stretch",
         height=min(600, 40 + 35 * len(df)),
         hide_index=True,
@@ -90,7 +90,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     "Sector": i.get("sector", ""),
                 })
             st.dataframe(
-                pd.DataFrame(ind_rows),
+                style_table(pd.DataFrame(ind_rows), directional=["Change %"]),
                 width="stretch",
                 hide_index=True,
                 height=min(500, 40 + 35 * len(ind_rows)),

@@ -153,7 +153,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).
-    ("streamlit_terminal.py", 2295),  # emoji declutter + rebase line drift
+    ("streamlit_terminal.py", 2342),  # dezent pass line drift
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
     # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):

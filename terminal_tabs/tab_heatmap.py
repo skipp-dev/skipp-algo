@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from terminal_tabs._shared import cached_sector_perf, safe_float
+from terminal_tabs.style import DOWN, UP
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -56,13 +57,13 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             safe_float(s.get("changesPercentage", s.get("change", 0)))
             for s in sorted_sectors
         ]
-        colors = ["green" if v > 0 else "red" for v in values]
+        colors = ["up" if v > 0 else "down" for v in values]
 
         fig = px.bar(
             x=labels,
             y=values,
             color=colors,
-            color_discrete_map={"green": "#22c55e", "red": "#ef4444"},
+            color_discrete_map={"up": UP, "down": DOWN},
             labels={"x": "Sector", "y": "Change %"},
             title="Sector Performance",
         )

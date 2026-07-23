@@ -20,6 +20,7 @@ from terminal_bitcoin import (
     is_available,
     technicals_signal_label,
 )
+from terminal_tabs.style import color_text
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +59,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── Technicals (1H) ─────────────────────────────────────────
     tech = fetch_btc_technicals("1h")
     if tech and not tech.error:
-        st.markdown(f"### 1H Technicals: **{technicals_signal_label(tech.summary)}**")
+        _tech_label = technicals_signal_label(tech.summary)
+        st.markdown(
+            f"### 1H Technicals: **{color_text(_tech_label)}**",
+            unsafe_allow_html=True,
+        )
         tc1, tc2, tc3 = st.columns(3)
         tc1.metric("Buy / Sell / Neutral", f"{tech.buy} / {tech.sell} / {tech.neutral}")
         tc2.metric("Oscillators", f"{technicals_signal_label(tech.osc_signal)} ({tech.osc_buy}B/{tech.osc_sell}S)")
@@ -90,7 +95,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── Outlook ──────────────────────────────────────────────────
     outlook = fetch_btc_outlook()
     if outlook and not outlook.error:
-        st.markdown(f"### Outlook: **{outlook.trend_label}**")
+        st.markdown(
+            f"### Outlook: **{color_text(outlook.trend_label)}**",
+            unsafe_allow_html=True,
+        )
         oc1, oc2, oc3 = st.columns(3)
         oc1.metric("Support", format_btc_price(outlook.support))
         oc2.metric("Resistance", format_btc_price(outlook.resistance))
