@@ -2576,6 +2576,52 @@ groups:
         that the required fast-gates check does not run.
       runbook: Open the newest CI run on main and find the failing test; fast-gates stays green because it
         runs a subset. Fix-forward or revert; then confirm CI goes green on the next main push.
+  # lo-workflow-run-stale below can only fire while a flow still HAS a run on the
+  # fetched page: once it stops running its age series vanishes and the rule goes
+  # NoData -> OK -> silent, exactly when it should page. This rule is the absence
+  # counterpart -- it reads a declared workflow's presence gauge, which stays at 0
+  # instead of disappearing. Gated on the bridge scraping successfully so a token
+  # outage reports as a bridge fault (lo-bridge-*) rather than as vanished flows.
+  - uid: lo-workflow-expected-missing
+    title: Declared workflow produced no runs
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: |-
+          sum(
+            (min by (workflow) (live_overlay_github_workflow_expected_present{job="live_overlay"}) == bool 0)
+            and on() (max(live_overlay_bridge_scrape_success{job="live_overlay",bridge="github_workflow"}) == 1)
+          ) or on() vector(0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 6h
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A workflow listed in GITHUB_WORKFLOW_MONITOR_EXPECTED has produced no run on the
+        monitored branch within the fetched page -- its cron may be disabled, deleted or renamed.
+      runbook: Check the workflow in the GitHub Actions tab. If it was intentionally removed or
+        renamed, update GITHUB_WORKFLOW_MONITOR_EXPECTED to match; otherwise re-enable the cron
+        (60-day repo inactivity auto-disables scheduled workflows). If the flow does still run but
+        rarely, its newest run may have scrolled past GITHUB_WORKFLOW_MONITOR_PER_PAGE (max 100)
+        -- that needs pagination in github_workflow_bridge, not a config change.
   - uid: lo-workflow-run-stale
     title: Monitored workflow has not run recently
     condition: C
