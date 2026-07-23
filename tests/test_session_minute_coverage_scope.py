@@ -83,3 +83,38 @@ def test_symbols_are_upper_cased_and_blanks_dropped() -> None:
     day = date(2026, 6, 23)
     assert scope.expected_symbols_by_trade_day[day] == {"AAPL"}
     assert scope.universe_symbols == {"AAPL"}
+
+
+def test_string_false_is_not_required() -> None:
+    """`has_intraday` survives a parquet round-trip as strings in some bundles.
+
+    A naive `astype(bool)` turns every non-empty string into True, which would
+    make the whole universe required again — the exact failure that killed export
+    run 29985038127, but silent: the scope would simply be wrong.
+    """
+    scope = build_session_minute_coverage_scope(
+        _frame(
+            [
+                {"trade_date": "2026-06-23", "symbol": "AAPL", "has_intraday": "true"},
+                {"trade_date": "2026-06-23", "symbol": "AACB", "has_intraday": "false"},
+                {"trade_date": "2026-06-23", "symbol": "AACG", "has_intraday": "no"},
+                {"trade_date": "2026-06-23", "symbol": "AACI", "has_intraday": "0"},
+            ]
+        )
+    )
+    day = date(2026, 6, 23)
+    assert scope.expected_symbols_by_trade_day[day] == {"AAPL", "AACB", "AACG", "AACI"}
+    assert scope.required_symbols_by_trade_day[day] == {"AAPL"}
+
+
+def test_numeric_and_null_intraday_flags() -> None:
+    scope = build_session_minute_coverage_scope(
+        _frame(
+            [
+                {"trade_date": "2026-06-23", "symbol": "AAPL", "has_intraday": 1},
+                {"trade_date": "2026-06-23", "symbol": "AACB", "has_intraday": 0},
+                {"trade_date": "2026-06-23", "symbol": "AACG", "has_intraday": None},
+            ]
+        )
+    )
+    assert scope.required_symbols_by_trade_day[date(2026, 6, 23)] == {"AAPL"}

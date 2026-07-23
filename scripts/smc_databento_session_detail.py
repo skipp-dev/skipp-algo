@@ -124,6 +124,53 @@ def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
 # ── Main collection function ───────────────────────────────────────
 
 
+# ── Shared coercion ─────────────────────────────────────────────
+# Lifted verbatim from smc_microstructure_base_runtime so the runtime and the
+# export derive the session-minute coverage scope through ONE implementation.
+# `_coerce_bool` is semantic about strings: a parquet round-trip can deliver
+# "false"/"no"/"0", and a naive astype(bool) would read every one of those as
+# True — silently making the whole universe a hard coverage expectation.
+def _coerce_trade_date_series(values: pd.Series) -> pd.Series:
+    codes, uniques = pd.factorize(values, sort=False)
+    parsed_uniques = np.asarray(
+        [
+            pd.NaT
+            if pd.isna(parsed := pd.to_datetime(pd.Index([value]), errors="coerce")[0])
+            else parsed.date()
+            for value in uniques
+        ],
+        dtype=object,
+    )
+    parsed_values = np.empty(len(codes), dtype=object)
+    valid = codes >= 0
+    parsed_values[valid] = parsed_uniques[codes[valid]]
+    parsed_values[~valid] = pd.NaT
+    return pd.Series(parsed_values, index=values.index, name=values.name)
+
+
+def _coerce_bool(value: Any) -> bool:
+    if pd.isna(value):
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
+def _coerce_bool_series(series: pd.Series) -> pd.Series:
+    result = pd.Series(False, index=series.index, dtype=bool, name=series.name)
+    if series.empty:
+        return result
+
+    non_null = ~series.isna()
+    if not bool(non_null.any()):
+        return result
+
+    values = series.loc[non_null]
+    mapping = {value: _coerce_bool(value) for value in pd.unique(values).tolist()}
+    result.loc[non_null] = values.map(mapping).fillna(False).astype(bool).to_numpy()
+    return result
+
+
 @dataclass(frozen=True)
 class SessionMinuteCoverageScope:
     """Fetch scope and hard coverage expectation for one session-minute pull."""
@@ -149,12 +196,12 @@ def build_session_minute_coverage_scope(daily_symbol_features: pd.DataFrame) -> 
     if frame.empty:
         return SessionMinuteCoverageScope({}, {}, set())
 
-    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce").dt.date
+    frame["trade_date"] = _coerce_trade_date_series(frame["trade_date"])
     frame["symbol"] = frame.get("symbol", pd.Series(index=frame.index, dtype=object)).astype(str).str.strip().str.upper()
 
     has_intraday_available = "has_intraday" in frame.columns
     if has_intraday_available:
-        frame["has_intraday"] = frame["has_intraday"].fillna(False).astype(bool)
+        frame["has_intraday"] = _coerce_bool_series(frame["has_intraday"])
     else:
         frame["has_intraday"] = True
         logger.warning(

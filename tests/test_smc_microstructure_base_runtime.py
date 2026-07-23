@@ -12,11 +12,11 @@ import pytest
 
 import scripts.smc_databento_session_detail as session_detail
 import scripts.smc_microstructure_base_runtime as runtime
+from scripts.smc_databento_session_detail import _coerce_bool
 from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
     _clip01,
     _clip01_series,
-    _coerce_bool,
     _coerce_bool_series,
     _coerce_trade_date_series,
     _column_nanmeans_or_zero,
