@@ -8448,6 +8448,32 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "Binding check known"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "MISSING",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "VERIFIED",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "Source check known"
             },
             "properties": [
@@ -8674,6 +8700,36 @@
           "expr": "live_overlay_tv_consumer_source_failures{job=\"live_overlay\"}",
           "legendFormat": "Consumer source checks failed",
           "refId": "N",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_binding_check_known{job=\"live_overlay\"})",
+          "legendFormat": "Binding check known",
+          "refId": "O",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_binding_consumers_expected{job=\"live_overlay\"})",
+          "legendFormat": "Binding consumers expected",
+          "refId": "P",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_tv_binding_consumers_checked{job=\"live_overlay\"})",
+          "legendFormat": "Binding consumers checked",
+          "refId": "Q",
           "instant": true
         }
       ]
