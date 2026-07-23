@@ -4964,11 +4964,11 @@ else:
                             "Symbol": _sr.get("symbol", "?"),
                             "Score": round(float(_sr.get("score") or 0), 2),
                             "Gap%": f"{float(_sr.get('gap_pct') or 0):+.2f}",
-                            "RVOL": f"{float(_sr.get('rvol') or 0):.2f}",
+                            "RVOL": (f"{float(_sr['rvol']):.2f}" if _sr.get("rvol") is not None else "—"),  # None = ratio unavailable at scoring time, not 0.00 (RVOL fix 2026-07-23)
                             "Tier": _sr.get("confidence_tier", ""),
                             "Regime": _sr.get("regime", ""),
                             "P&L 30m": f"{float(_sr.get('pnl_30m_pct') or 0):+.2f}%" if _sr.get("pnl_30m_pct") is not None else "—",
-                            "Bucket": f"{_sr.get('gap_bucket_label', '')}:{_sr.get('rvol_bucket_label', '')}",
+                            "Bucket": f"{_sr.get('gap_bucket_label') or ''}:{_sr.get('rvol_bucket_label') or ''}",  # `or ''`: rvol_bucket_label is None for missing-rvol records (RVOL fix 2026-07-23)
                         })
                     st.dataframe(pd.DataFrame(tv_linkify_rows(_signal_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
 
