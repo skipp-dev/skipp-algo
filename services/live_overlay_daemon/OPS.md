@@ -278,9 +278,12 @@ redeploy, and the consumer confirmed back at 4.0 req/min; the
 to `0` now pages within 15 minutes. Set it back to `0` only together with
 re-pausing that rule, and record why.
 
-**Who the consumer is.** Repo `skipp-live-lab`, `sidecar_server/technical.py`,
-running as the `lab-worker` service in the `skipp-live-lab` Railway project. It
-builds `<origin>/<token>/smc_live?symbol=X&tf=1m` from
+**Who the consumer is.** Repo `skipp-live-lab`,
+`sidecar_server/technical_poller.py` — the shared `POLLER` owns the cadence and
+calls `sidecar_server/technical.py::fetch`, which was itself the direct caller
+before that module existed (2026-07-23). It runs as the `lab-worker` service in
+the `skipp-live-lab` Railway project. It builds
+`<origin>/<token>/smc_live?symbol=X&tf=1m` from
 `SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN` / `_TOKEN`, validates the reply against the
 `smc-live-overlay/1` schema, and identifies itself as
 `User-Agent: skipp-sidecar/<version>`. Verified 2026-07-23 in this daemon's
@@ -292,20 +295,58 @@ carried `clientUa="skipp-sidecar/0.3.0"` from one source IP, all HTTP 200, on a
 `realtime_signals.py` and `trade_context.py` mention `/smc_live` in comments
 only.)
 
-**Known limitation — a firing alert may not be an incident.** The traffic is
-panel-driven today: the Chrome side panel refreshes the 1m technical feed every
-15s (`sidepanel.js` `scheduleTechnicalRefresh`) only *while it is connected*. A
-connected panel produces ~40 requests per 10 minutes against this rule's ~0.6
-threshold, so it stays quiet; a **closed** panel during US market hours drives
-the rate to zero and fires `lo-request-rate-absent-open`. In single-user
-operation the alert therefore currently measures "is the panel open", not "is
-the infrastructure healthy". If it fires, first check for `skipp-sidecar/`
-entries in the HTTP log — none means a closed panel, which is expected and not
-an infra incident. The fix is a long-running server-side poller in the hosted
-sidecar (independent of connected panels, and a prerequisite for multi-user
-anyway); it is follow-up work in `skipp-live-lab`, not here, and shares the
-pattern of the planned signal-subscriber component (documented consumer,
-meaningful User-Agent).
+**2026-07-23 — the panel dependency is gone; a firing alert is now an
+incident.** Until that date the traffic was panel-driven: the Chrome side panel
+refreshed the 1m technical feed every 15s only *while it was connected*, so a
+**closed** panel during US market hours drove the rate to zero and fired
+`lo-request-rate-absent-open`. The alert measured "is the panel open", not "is
+the infrastructure healthy". `skipp-live-lab` PR #43 (merged 2026-07-23 15:05Z)
+moved the cadence server-side:
+
+- A poller owns the interval in **both** servers that serve this overlay — the
+  local Sidecar (ASGI lifespan task) and the hosted Layer-B read API
+  (`cloud_worker/main.py`, thread `technical-feed`). Both start it
+  unconditionally; there is no feature flag to forget.
+- Its due-symbol set is never empty. With no panel connected it keeps polling
+  the **last pinned symbol**, persisted via `SKIPP_LAB_TECHNICAL_STATE` so a
+  restart does not silence the feed. Only if no symbol was ever pinned does it
+  fall back to `SPY`.
+- Cadence is 15s per tracked symbol; a symbol leaves the active set 90s after
+  the last panel request, and at most 32 symbols are polled concurrently.
+
+**Operational consequence.** From the deploy of that revision onward, treat a
+firing `lo-request-rate-absent-open` as a **real infra signal** — the consuming
+service is down, or this overlay is unreachable from it — and no longer as
+"nobody had the panel open". The market-open floor is one request per 15s
+(~40 per 10 minutes) against the rule's ~0.6 threshold, so a sustained zero
+means the poller is not running. Confirm with `railway logs --http --json`
+grouped by `clientUa`: absent `skipp-sidecar/` entries now indicate a dead
+consumer, not an idle operator.
+
+**Second consumer relationship — `/signals` (documented, not armed).**
+`skipp-live-lab` PR #45 (merged 2026-07-23 15:15Z) added
+`sidecar_server/signal_subscriber.py`, which polls the
+`smc-signals-producer` `/signals` endpoint (`open_prep/realtime_signals.py` in
+this repo) every 5s server-side, with the same `User-Agent: skipp-sidecar/*`.
+This is recorded so a future reader can attribute that traffic, **not** as a
+reason to arm anything. No `/signals` traffic watchdog exists today, and none
+may be armed until two conditions hold:
+
+1. **The subscriber runs permanently.** It is opt-in — it only starts when
+   `SKIPP_LAB_SIGNALS_ORIGIN` is set (`signal_subscriber.configured()`), in
+   both the local Sidecar and the hosted read API. While it is unset there is
+   no `/signals` consumer traffic at all, so a watchdog would page on a
+   configuration state, repeating exactly the mistake the panel-driven
+   `lo-request-rate-absent-open` made.
+2. **The producer exposes an inbound request counter.** It does not:
+   `realtime_signals.py` serves `/signals` and `/signals.json` but exports no
+   counter for inbound requests (`signals_producer_*_requests_total` covers
+   outbound FMP calls only), so there is currently no metric such a rule could
+   evaluate.
+
+Existing producer alerts (`up{job="signals_producer"}` scrape health, RSS, and
+the `lo-trading-signals-snapshot-*` family) are unaffected — they watch the
+producer and its snapshot, not consumer traffic.
 
 #### Alloy service
 
@@ -579,17 +620,24 @@ Production also has a guard alert:
 live_overlay_expected_market_traffic{job="live_overlay"} == bool 0
 ```
 
-This reminder is paused while no supported consumer exists. Set
+This reminder stays paused only while no supported consumer exists. Set
 `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=1` only after a real client has been deployed
 and end-to-end requests are verified.
 
-#### Current production mode: no supported external consumer
+#### Current production mode: external consumer verified and armed
 
-Pine cannot call `/smc_live` directly. Keep
-`LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` and
-`lo-expected-traffic-not-armed` paused (`isPaused: true`). The API's own health,
-latency, error, and auth-denied alerts remain active. Arm a future watchdog only
-after a real external API client is deployed and verified.
+**Superseded 2026-07-23.** This section previously read "no supported external
+consumer" and told on-call to keep `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC=0` with
+`lo-expected-traffic-not-armed` paused. That is no longer the production state:
+a real consumer was identified and verified, the flag is `1`, and the reminder
+is unpaused (`isPaused: false`) — see
+[Expected market traffic alert rollout](#expected-market-traffic-alert-rollout).
+
+Pine still cannot call `/smc_live` directly; the consumer is the
+`skipp-live-lab` Sidecar, not TradingView. The API's own health, latency,
+error, and auth-denied alerts remain active regardless of this flag. Revert to
+`0` only together with re-pausing `lo-expected-traffic-not-armed`, and record
+why.
 
 ### Dashboard masking semantics
 

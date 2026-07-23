@@ -720,7 +720,9 @@ groups:
   - uid: lo-request-rate-absent-open
     title: Expected external client is not calling /smc_live (US market open)
     # THE CONSUMER (identified 2026-07-23, so nobody has to guess again):
-    # repo skipp-live-lab, sidecar_server/technical.py. It builds
+    # repo skipp-live-lab, sidecar_server/technical_poller.py -- the shared
+    # POLLER owns the cadence and calls sidecar_server/technical.py::fetch,
+    # which was the direct caller before that module existed. It builds
     # <origin>/<token>/smc_live?symbol=X&tf=1m from
     # SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN/_TOKEN, validates the reply against the
     # smc-live-overlay/1 schema, and sends User-Agent: skipp-sidecar/<version>.
@@ -733,18 +735,27 @@ groups:
     # library in this repo, the second unrelated); realtime_signals.py and
     # trade_context.py mention /smc_live only in comments.
     #
-    # KNOWN LIMITATION until the sidecar moves to server-side polling: the
-    # traffic is panel-driven. The Chrome side panel refreshes the 1m technical
-    # feed every 15s (sidepanel.js scheduleTechnicalRefresh) only WHILE it is
-    # connected, so a connected panel yields ~40 requests/10m against this
-    # rule's ~0.6/10m threshold -- comfortably above -- but a CLOSED panel during
-    # US hours drives the rate to zero and fires this alert. In single-user
-    # operation the rule therefore currently measures "is the panel open", not
-    # "is the infrastructure healthy". A firing caused by a closed panel is NOT
-    # an infra incident: confirm via the absence of skipp-sidecar/ entries in
-    # the HTTP log and close it. The fix lives in skipp-live-lab (a long-running
-    # server-side poller, independent of connected panels, which is a
-    # prerequisite for multi-user anyway) and is tracked there, not here.
+    # SEMANTICS CHANGED 2026-07-23 (skipp-live-lab PR #43, merged 15:05Z): the
+    # traffic is no longer panel-driven. It used to be -- the Chrome side panel
+    # refreshed every 15s only WHILE connected, so a closed panel drove the rate
+    # to zero and this rule measured "is the panel open" rather than "is the
+    # infrastructure healthy". A server-side poller now owns the cadence in
+    # BOTH servers that serve the overlay: the local Sidecar (ASGI lifespan
+    # task) and the hosted Layer-B read API (cloud_worker/main.py thread
+    # "technical-feed"). Both start it unconditionally, and its due-symbol set
+    # is never empty: with no panel connected it keeps polling the last pinned
+    # symbol, persisted via SKIPP_LAB_TECHNICAL_STATE so a restart does not
+    # silence the feed, and only when no symbol was ever pinned does it fall
+    # back to SPY. Cadence is 15s per tracked symbol (POLL_INTERVAL_SECONDS),
+    # a symbol leaves the active set 90s after the last panel request, and at
+    # most 32 symbols are tracked concurrently.
+    #
+    # CONSEQUENCE: from the deploy of that revision onward, a firing of this
+    # rule is a REAL infra signal -- the consuming service is down or this
+    # overlay is unreachable from it -- and no longer "nobody had the panel
+    # open". Treat it as an incident. Floor while the market is open is one
+    # request per 15s (~40/10m) against this rule's ~0.6/10m threshold, so any
+    # sustained zero means the poller is not running.
     condition: C
     data:
     - refId: A
@@ -795,6 +806,15 @@ groups:
     # post-redeploy, consumer back at 4.0 req/min), so this reminder is quiet on
     # arrival --- it now guards the flag against being reverted to 0 while the
     # consumer is still live, which is what it was written for.
+    #
+    # THE CONSUMER this flag is armed for: repo skipp-live-lab,
+    # sidecar_server/technical_poller.py (previously sidecar_server/technical.py
+    # as the direct caller), User-Agent skipp-sidecar/*. Since 2026-07-23 a
+    # server-side poller drives a 15s cadence per tracked symbol in both the
+    # local Sidecar and the hosted Layer-B read API, and it idles on the last
+    # pinned symbol (fallback SPY) rather than stopping, so the consumer no
+    # longer depends on a connected Chrome panel. See
+    # lo-request-rate-absent-open above for the full identification.
     isPaused: false
     condition: C
     data:
