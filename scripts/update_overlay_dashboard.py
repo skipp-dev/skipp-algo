@@ -2011,6 +2011,23 @@ def _apply_user_facing_semantics(data: dict[str, Any]) -> bool:
                     for field in ("Drift", "Mismatches")
                 ],
                 {
+                    "matcher": {"id": "byName", "options": "Binding check known"},
+                    "properties": [
+                        {
+                            "id": "mappings",
+                            "value": [
+                                {
+                                    "type": "value",
+                                    "options": {
+                                        "0": {"text": "MISSING", "color": "red"},
+                                        "1": {"text": "VERIFIED", "color": "green"},
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
                     "matcher": {"id": "byName", "options": "Source check known"},
                     "properties": [
                         {

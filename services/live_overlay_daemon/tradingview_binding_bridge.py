@@ -17,6 +17,9 @@ _cache: dict[str, Any] = {"snapshot": None, "at": 0.0}
 def _empty(error: str) -> dict[str, Any]:
     return {"loaded": 0.0, "generated_at_unix": 0.0, "ok": 0.0, "mismatches": 0.0,
             "failed_consumers": 0.0, "checked_bindings": 0.0, "consumers": [],
+            "binding_drift": 0.0,
+            "binding_check_known": 0.0, "binding_expected_consumers": 0.0,
+            "binding_checked_consumers": 0.0,
             "source_check_known": 0.0, "source_drift": 0.0, "source_expected": 0.0,
             "source_checked": 0.0, "source_drifted": 0.0, "source_failed_consumers": 0.0,
             "source_consumers": [], "error": error}
@@ -49,6 +52,14 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
             "script_name": str(item.get("scriptName", "") or "unknown"),
             "matches": 1.0 if bool(item.get("matches")) else 0.0,
         })
+    # Binding coverage. ``mismatches``/``failed`` alone cannot distinguish "every
+    # dropdown verified and correct" from "nothing was verified at all": a run
+    # that opened no consumer reports both as 0. Measured 2026-07-23 in
+    # production -- expectedConsumers=7, checkedConsumers=0, snapshot ok=false,
+    # and live_overlay_tv_binding_drift still read 0 (green, no alert). The
+    # coverage terms below close that, mirroring the saved-source half.
+    binding_expected = _num(bindings.get("expectedConsumers"))
+    binding_checked = _num(bindings.get("checkedConsumers"))
     source_expected = _num(sources.get("expected")) if sources else 0.0
     source_checked = _num(sources.get("checked")) if sources else 0.0
     source_drifted = _num(sources.get("drifted")) if sources else 0.0
@@ -61,6 +72,14 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
         "failed_consumers": float(len(bindings.get("failed") or [])),
         "checked_bindings": _num(bindings.get("checkedBindings")),
         "consumers": consumers,
+        "binding_drift": 1.0 if (
+            _num(bindings.get("mismatches")) > 0
+            or len(bindings.get("failed") or []) > 0
+            or binding_checked != binding_expected
+        ) else 0.0,
+        "binding_check_known": 1.0 if binding_expected > 0 else 0.0,
+        "binding_expected_consumers": binding_expected,
+        "binding_checked_consumers": binding_checked,
         "source_check_known": 1.0 if sources is not None and source_expected > 0 else 0.0,
         "source_drift": 1.0 if source_drifted > 0 or source_failed > 0 or source_checked != source_expected else 0.0,
         "source_expected": source_expected,
