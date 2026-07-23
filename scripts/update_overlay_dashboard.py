@@ -1501,6 +1501,13 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
                 ") + (\n"
                 '  absent(live_overlay_overlay_fresh{job=~"$job"}) or vector(0)\n'
                 ") + (\n"
+                # feed_healthy/workers_healthy are the other two readiness
+                # inputs; a selective export bug in either was invisible here
+                # and in lo-core-signal-missing until 2026-07-23.
+                '  absent(live_overlay_feed_healthy{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
+                '  absent(live_overlay_workers_healthy{job=~"$job"}) or vector(0)\n'
+                ") + (\n"
                 '  absent(live_overlay_market_us_open{job=~"$job"}) or vector(0)\n'
                 ") + (\n"
                 '  absent(live_overlay_last_bar_age_known{job=~"$job"}) or vector(0)\n'
@@ -1527,7 +1534,9 @@ def _fix_core_metrics_present_panel(data: dict[str, Any]) -> bool:
             _value_mapping(5, "5 MISSING", COLOR_ERROR),
             _value_mapping(6, "6 MISSING", COLOR_ERROR),
             _value_mapping(7, "7 MISSING", COLOR_ERROR),
-            _value_mapping(8, "ALL MISSING", COLOR_ERROR),
+            _value_mapping(8, "8 MISSING", COLOR_ERROR),
+            _value_mapping(9, "9 MISSING", COLOR_ERROR),
+            _value_mapping(10, "ALL MISSING", COLOR_ERROR),
         ]
         if defaults.get("mappings") != desired_mappings:
             defaults["mappings"] = desired_mappings

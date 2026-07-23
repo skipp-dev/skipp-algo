@@ -1731,6 +1731,47 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     assert "snapshot_age_known" in stale["data"][0]["model"]["expr"]
 
 
+def test_alert_rules_cover_absence_of_every_core_readiness_gauge() -> None:
+    """All three readiness inputs need an absent() guard, not just overlay_fresh.
+
+    lo-scrape-missing only catches a whole-daemon outage. A *selective* export
+    bug in one gauge was alert-blind, and each consumer fails silently rather
+    than loudly when its input disappears:
+
+    * ``feed_healthy`` — lo-feed-down-market-open computes
+      ``market_us_open * ((1 - feed_healthy) + bar-age-term)``. Vector
+      arithmetic inner-joins, so an empty ``(1 - feed_healthy)`` empties the
+      entire sum: the bar-age term is lost as well and the feed-down alert
+      goes silent exactly when the feed is what's in question.
+    * ``workers_healthy`` — lo-workers-degraded evaluates ``< 1`` against an
+      empty vector, which never crosses the threshold.
+    """
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    all_rules = [rule for group in rules_doc["groups"] for rule in group["rules"]]
+    guarded = " ".join(
+        expr for expr in (rule["data"][0]["model"].get("expr", "") for rule in all_rules) if "absent(" in expr
+    )
+    for gauge in (
+        "live_overlay_overlay_fresh",
+        "live_overlay_feed_healthy",
+        "live_overlay_workers_healthy",
+    ):
+        assert f"absent({gauge}" in guarded, (
+            f"{gauge} has no absent() alert; if only that series stops being exported, "
+            "its consuming rule evaluates an empty vector and never fires"
+        )
+
+    # The consumers this protects must still be the ones described above, so a
+    # rename or rewrite re-opens the review rather than silently voiding it.
+    by_uid = {rule.get("uid"): rule for rule in all_rules}
+    assert "live_overlay_feed_healthy" in by_uid["lo-feed-down-market-open"]["data"][0]["model"]["expr"]
+    assert "live_overlay_workers_healthy" in by_uid["lo-workers-degraded"]["data"][0]["model"]["expr"]
+
+
 def test_alert_rules_cover_trading_signals_snapshot_unavailable() -> None:
     """A signals snapshot that never loads (loaded==0) must page on its own.
 
