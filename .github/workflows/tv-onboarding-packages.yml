@@ -11,11 +11,13 @@ on:
       - "automation/tradingview/config/consumer-onboarding.json"
       - "automation/tradingview/lib/**"
       - "automation/tradingview/tests/tv_onboarding.test.ts"
+      - "automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts"
       - "docs/tradingview-onboarding/**"
       - "package.json"
       - "package-lock.json"
       - "scripts/build_tv_onboarding_package.mjs"
       - "scripts/tv_onboard_consumers.ts"
+      - "scripts/tv_preflight.ts"
       - "scripts/tv_verify_consumer_bindings.ts"
   pull_request:
     paths:
@@ -23,11 +25,13 @@ on:
       - "automation/tradingview/config/consumer-onboarding.json"
       - "automation/tradingview/lib/**"
       - "automation/tradingview/tests/tv_onboarding.test.ts"
+      - "automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts"
       - "docs/tradingview-onboarding/**"
       - "package.json"
       - "package-lock.json"
       - "scripts/build_tv_onboarding_package.mjs"
       - "scripts/tv_onboard_consumers.ts"
+      - "scripts/tv_preflight.ts"
       - "scripts/tv_verify_consumer_bindings.ts"
 
 permissions:
@@ -96,6 +100,14 @@ jobs:
 
       - name: Test onboarding behavior
         run: npx tsx --test automation/tradingview/tests/tv_onboarding.test.ts
+
+      - name: Test preflight add-to-chart floor
+        # Source-only pin (node: builtins, ~160ms) guarding the 90s
+        # add-to-chart floor in scripts/tv_preflight.ts (#3967). It ran in
+        # no workflow before this and the only TS runner excluded it via
+        # paths, so a follow-up removing the floor would have re-opened the
+        # 45s-timeout release-gate failure (run 30023429034).
+        run: npx tsx --test automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts
 
       - name: Build portable package
         run: npm run tv:onboarding:package -- --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH" --out-dir dist/tv-onboarding
