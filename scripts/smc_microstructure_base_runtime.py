@@ -37,8 +37,11 @@ from scripts.smc_databento_session_detail import (
     REGULAR_MINUTES,
     REGULAR_OPEN_ET,
     _assert_complete_symbol_coverage,
+    _coerce_bool_series,
+    _coerce_trade_date_series,
     _coverage_stats,
     _universe_fingerprint,
+    build_session_minute_coverage_scope,
     collect_full_universe_session_minute_detail,
 )
 from scripts.smc_enrichment_types import EnrichmentDict
@@ -679,47 +682,6 @@ def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
     minutes[valid] = unique_minutes[codes[valid]]
     minutes[~valid] = -1
     return pd.Series(minutes, index=timestamp.index)
-
-
-def _coerce_trade_date_series(values: pd.Series) -> pd.Series:
-    codes, uniques = pd.factorize(values, sort=False)
-    parsed_uniques = np.asarray(
-        [
-            pd.NaT
-            if pd.isna(parsed := pd.to_datetime(pd.Index([value]), errors="coerce")[0])
-            else parsed.date()
-            for value in uniques
-        ],
-        dtype=object,
-    )
-    parsed_values = np.empty(len(codes), dtype=object)
-    valid = codes >= 0
-    parsed_values[valid] = parsed_uniques[codes[valid]]
-    parsed_values[~valid] = pd.NaT
-    return pd.Series(parsed_values, index=values.index, name=values.name)
-
-
-def _coerce_bool(value: Any) -> bool:
-    if pd.isna(value):
-        return False
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-    return bool(value)
-
-
-def _coerce_bool_series(series: pd.Series) -> pd.Series:
-    result = pd.Series(False, index=series.index, dtype=bool, name=series.name)
-    if series.empty:
-        return result
-
-    non_null = ~series.isna()
-    if not bool(non_null.any()):
-        return result
-
-    values = series.loc[non_null]
-    mapping = {value: _coerce_bool(value) for value in pd.unique(values).tolist()}
-    result.loc[non_null] = values.map(mapping).fillna(False).astype(bool).to_numpy()
-    return result
 
 
 def _numeric_values(series: pd.Series) -> np.ndarray:
@@ -2523,43 +2485,13 @@ def run_databento_base_scan_pipeline(
             "Unable to resolve trade dates for the SMC base scan. The export manifest is missing trade_dates_covered "
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
-    intraday_expected = daily_feature_frame.copy()
-    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
-    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
-    has_intraday_available = "has_intraday" in intraday_expected.columns
-    if has_intraday_available:
-        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
-    else:
-        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
-        logger.warning(
-            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch all symbol-days for minute detail coverage."
-        )
-    intraday_expected = intraday_expected.loc[
-        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
-    ].copy()
-    if has_intraday_available:
-        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
-        if has_intraday_false_count > 0:
-            logger.warning(
-                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
-                has_intraday_false_count,
-            )
-    expected_symbols_by_trade_day = {
-        trade_day: set(group["symbol"].tolist())
-        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
-    }
-    if has_intraday_available:
-        required_symbols_by_trade_day = {
-            trade_day: set() for trade_day in expected_symbols_by_trade_day
-        }
-        for trade_day, group in intraday_expected.loc[intraday_expected["has_intraday"]].groupby("trade_date", sort=False):
-            required_symbols_by_trade_day[trade_day] = set(group["symbol"].tolist())
-    else:
-        required_symbols_by_trade_day = {
-            trade_day: set(symbols)
-            for trade_day, symbols in expected_symbols_by_trade_day.items()
-        }
-    universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
+    # Fetch every symbol-day, require only the ones flagged has_intraday.
+    # Shared with the export's Step 9c so the two cannot drift: an illiquid
+    # ticker with no bars that session must not fail the run.
+    session_minute_scope = build_session_minute_coverage_scope(daily_feature_frame)
+    expected_symbols_by_trade_day = session_minute_scope.expected_symbols_by_trade_day
+    required_symbols_by_trade_day = session_minute_scope.required_symbols_by_trade_day
+    universe_symbols = session_minute_scope.universe_symbols
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
     session_detail_started_at = time_module.perf_counter()
