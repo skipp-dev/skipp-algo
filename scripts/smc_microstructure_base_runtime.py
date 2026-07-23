@@ -90,6 +90,14 @@ REQUIRED_BUNDLE_FRAMES = (
     "daily_symbol_features_full_universe",
 )
 
+#: Every frame the base derivation actually reads. Kept next to
+#: REQUIRED_BUNDLE_FRAMES because the two must be edited together: a frame that
+#: becomes required must also become readable.
+BUNDLE_FRAMES_READ_BY_BASE_DERIVATION = (
+    *REQUIRED_BUNDLE_FRAMES,
+    "session_minute_detail_full_universe",
+)
+
 INCREMENTAL_BASE_SEED_DIR_NAME = "incremental_base_seed"
 INCREMENTAL_BASE_SEED_MANIFEST_NAME = "smc_incremental_base_seed.json"
 INCREMENTAL_BASE_SEED_DAILY_BARS_NAME = "daily_bars.parquet"
@@ -2076,6 +2084,10 @@ def generate_base_from_bundle(
         bundle,
         required_frames=REQUIRED_BUNDLE_FRAMES,
         manifest_prefix="databento_volatility_production_",
+        # Read only what this chain touches. The bundle carries ~25 payload
+        # frames and reached 1.0 GB compressed after #3941 restored the intraday
+        # grain — close_trade_detail alone is 464 MB and is never read here.
+        only_frames=BUNDLE_FRAMES_READ_BY_BASE_DERIVATION,
     )
     target_dir = output_dir or Path(bundle_payload["bundle_dir"])
     if symbol_day_features is None:

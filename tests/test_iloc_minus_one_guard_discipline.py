@@ -131,7 +131,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # implementation, deleting 88 lines above this site): 818 -> 780.
         # Still the single iloc[-1] in the file, still _window_efficiency's
         # closing-price read; the data semantics are unchanged.
-        ("scripts/smc_microstructure_base_runtime.py", 780),
+        # 2026-07-23 (BUNDLE_FRAMES_READ_BY_BASE_DERIVATION constant added
+        # beside REQUIRED_BUNDLE_FRAMES): 780 -> 788.
+        ("scripts/smc_microstructure_base_runtime.py", 788),
     }
 )
 
