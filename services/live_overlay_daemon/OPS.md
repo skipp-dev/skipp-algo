@@ -176,7 +176,7 @@ failure fails CI instead of silently leaving the old container running.
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
-| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists. |
+| `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
 | `LIVE_OVERLAY_RESTART_CAUSE` | no | — | `cause` label on `live_overlay_daemon_start_time_seconds` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
@@ -265,6 +265,18 @@ live_overlay_expected_market_traffic{job="live_overlay"} == 1
 ```
 
 If the deployment is local, dev, or warm-standby, leave the value at `0`.
+
+**Production is armed as of 2026-07-23.** It ran with the flag at `0` while a
+real consumer was already polling: `/metrics` reported 110 `/smc_live` requests
+over 1707s of uptime, a measured 3.9 req/min across a 77s window (lifetime
+average 3.8), with `auth_denied=0` and `errors=0`. Because
+`lo-request-rate-absent-open` is multiplied by `expected_market_traffic`, that
+whole period had **no** coverage for a client outage. The flag was set to `1` on
+the Railway `live_overlay` service, the gauge verified at `1` after the
+redeploy, and the consumer confirmed back at 4.0 req/min; the
+`lo-expected-traffic-not-armed` reminder was then unpaused, so a silent revert
+to `0` now pages within 15 minutes. Set it back to `0` only together with
+re-pausing that rule, and record why.
 
 #### Alloy service
 

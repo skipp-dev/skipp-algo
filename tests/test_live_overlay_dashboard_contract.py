@@ -262,8 +262,21 @@ def test_alert_rules_include_expected_traffic_missing_alert() -> None:
     assert "< bool 0.001" in expr
 
 
-def test_alert_rules_keep_consumer_reminder_paused_without_a_real_client() -> None:
-    """The reminder must stay paused while no supported client exists."""
+def test_alert_rules_arm_consumer_reminder_for_the_verified_client() -> None:
+    """The reminder is active now that a real /smc_live consumer is verified.
+
+    It was paused 2026-07-16 because no supported external client existed. On
+    2026-07-23 production /metrics showed sustained traffic while the flag still
+    read 0 (110 requests over 1707s uptime, 3.9 req/min measured, auth_denied=0,
+    errors=0), so lo-request-rate-absent-open was gated off by
+    ``expected_market_traffic == 0`` and could not have reported a client outage.
+    LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC is now 1 in production, which makes this
+    rule quiet; its job from here is to catch the flag being reverted to 0 while
+    the consumer is still live.
+
+    Re-pausing it is a deliberate act (the consumer was retired) and must edit
+    this test in the same PR, keeping the audit trail the paused version had.
+    """
     rule = _alert_rule("lo-expected-traffic-not-armed")
     expr = rule["data"][0]["model"]["expr"]
 
@@ -271,8 +284,10 @@ def test_alert_rules_keep_consumer_reminder_paused_without_a_real_client() -> No
     assert "== bool 0" in expr
     assert rule["labels"]["severity"] == "warning"
     assert rule.get("for") == "15m"
-    assert rule.get("isPaused") is True
-    assert "no supported" in rule.get("runbook", "").lower() or "no supported" in str(rule).lower()
+    assert rule.get("isPaused") is False, (
+        "a verified external consumer is live; a paused reminder cannot catch "
+        "LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC being reverted to 0 underneath it"
+    )
 
 
 def test_multi_target_stat_panels_use_field_specific_units() -> None:

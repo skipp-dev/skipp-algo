@@ -758,7 +758,18 @@ groups:
     # Paused 2026-07-16: Pine cannot call arbitrary REST endpoints and no supported
     # external /smc_live consumer is deployed. Unpause only when a verified client
     # exists and LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC must remain 1 in production.
-    isPaused: true
+    #
+    # UNPAUSED 2026-07-23: a client is verified. Production /metrics showed
+    # sustained /smc_live traffic while the flag still read 0 --- 110 requests
+    # over 1707s uptime, measured 3.9 req/min across a 77s window (lifetime avg
+    # 3.8), auth_denied=0, errors=0 --- i.e. a real consumer existed and
+    # lo-request-rate-absent-open was gated off by expected_market_traffic=0 and
+    # could not have reported its outage. LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC was
+    # set to 1 on the Railway live_overlay service first (gauge verified at 1
+    # post-redeploy, consumer back at 4.0 req/min), so this reminder is quiet on
+    # arrival --- it now guards the flag against being reverted to 0 while the
+    # consumer is still live, which is what it was written for.
+    isPaused: false
     condition: C
     data:
     - refId: A
