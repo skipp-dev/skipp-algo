@@ -8621,7 +8621,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_binding_failed_consumers{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_binding_failed_consumers{job=\"live_overlay\"})",
           "legendFormat": "Binding checks failed",
           "refId": "I",
           "instant": true
@@ -8631,7 +8631,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_consumer_binding_mismatches{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_consumer_binding_mismatches{job=\"live_overlay\"})",
           "legendFormat": "Consumer binding mismatches",
           "refId": "J",
           "instant": true
@@ -8641,7 +8641,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_consumer_sources_expected{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_consumer_sources_expected{job=\"live_overlay\"})",
           "legendFormat": "Consumer sources expected",
           "refId": "K",
           "instant": true
@@ -8651,7 +8651,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_consumer_sources_drifted{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_consumer_sources_drifted{job=\"live_overlay\"})",
           "legendFormat": "Consumer sources drifted",
           "refId": "L",
           "instant": true
@@ -8661,7 +8661,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_consumer_source_matches{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_consumer_source_matches{job=\"live_overlay\"})",
           "legendFormat": "Consumer sources matching",
           "refId": "M",
           "instant": true
@@ -8671,7 +8671,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "live_overlay_tv_consumer_source_failures{job=\"live_overlay\"}",
+          "expr": "max(live_overlay_tv_consumer_source_failures{job=\"live_overlay\"})",
           "legendFormat": "Consumer source checks failed",
           "refId": "N",
           "instant": true

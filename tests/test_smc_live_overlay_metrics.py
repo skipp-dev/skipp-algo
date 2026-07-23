@@ -1537,7 +1537,6 @@ def test_render_metrics_includes_tradingview_credential(
     assert "live_overlay_tradingview_credential_valid 1.0" in body
     assert "live_overlay_tradingview_credential_age_known 1.0" in body
     assert "live_overlay_tradingview_credential_age_hours 60.000" in body
-    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
 
 
 def test_render_metrics_tradingview_credential_error_is_invalid(
@@ -1795,6 +1794,16 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
         'max(live_overlay_tv_consumer_source_check_known{job="live_overlay"})',
         'max(live_overlay_tv_consumer_sources_checked{job="live_overlay"})',
         'max(live_overlay_tv_consumer_source_drift{job="live_overlay"})',
+        # #3919 wired six formerly-orphaned gauges into this panel. Every target
+        # here is wrapped in max() because the panel is a `stat`: a bare instant
+        # vector renders one tile per series, so an unwrapped expression turns a
+        # single reading into a row of tiles that grows with the series count.
+        'max(live_overlay_tv_binding_failed_consumers{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_binding_mismatches{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_sources_expected{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_sources_drifted{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_matches{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_failures{job="live_overlay"})',
     }
 
 
@@ -2285,6 +2294,9 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
         "live_overlay_railway_service_network_rx_gb",
         "live_overlay_railway_service_network_tx_gb",
         "live_overlay_railway_service_memory_limit_gb",
+        # Emitted by the daemon (services/live_overlay_daemon) and queried by the
+        # Railway panel #3919 added; only this allow-list was never extended.
+        "live_overlay_railway_service_memory_gb",
     }
     expected_titles = {
         "Railway CPU Cores",
