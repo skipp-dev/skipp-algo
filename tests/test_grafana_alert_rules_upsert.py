@@ -678,6 +678,30 @@ def test_absent_rules_pin_nodata_state_ok() -> None:
         assert all_rules[uid].get("noDataState") == "OK", f"{uid} must pin noDataState: OK"
 
 
+def test_core_signal_missing_covers_every_absent_blind_gauge() -> None:
+    """Each gauge whose own consumer dies on an empty vector must be in
+    lo-core-signal-missing, or its disappearance is alert-blind.
+
+    The consumers below all inner-join their input, so an absent series empties
+    the whole expression instead of crossing a threshold: lo-feed-down-market-open
+    (feed_healthy), lo-workers-degraded (workers_healthy), lo-no-symbols
+    (overlay_symbols) and the overlay_fresh readiness read. overlay_symbols was
+    missing from the original three and nothing else covered it.
+    """
+    all_rules = {r["uid"]: r for g in mod.load_alert_groups(ALERT_RULES) for r in g["rules"]}
+    expr = _rule_expr(all_rules["lo-core-signal-missing"])
+    for series in (
+        "live_overlay_overlay_fresh",
+        "live_overlay_feed_healthy",
+        "live_overlay_workers_healthy",
+        "live_overlay_overlay_symbols",
+    ):
+        assert f"absent({series}{{job=" in expr, (
+            f"lo-core-signal-missing must guard {series}: its consumer inner-joins "
+            "the series and cannot fire once it vanishes"
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Provider-usage feed-health + FMP quota consumption (monitoring truth fixes)
 # --------------------------------------------------------------------------- #
