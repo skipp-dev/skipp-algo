@@ -14,6 +14,7 @@ import hashlib
 import json
 import logging
 import warnings
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
@@ -121,6 +122,68 @@ def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
 
 
 # ── Main collection function ───────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class SessionMinuteCoverageScope:
+    """Fetch scope and hard coverage expectation for one session-minute pull."""
+
+    expected_symbols_by_trade_day: dict[date, set[str]]
+    required_symbols_by_trade_day: dict[date, set[str]]
+    universe_symbols: set[str]
+
+
+def build_session_minute_coverage_scope(daily_symbol_features: pd.DataFrame) -> SessionMinuteCoverageScope:
+    """Derive the fetch scope and the coverage expectation from daily features.
+
+    Every symbol-day is FETCHED; only the ones flagged ``has_intraday`` are
+    REQUIRED to come back. An illiquid ticker legitimately has no minute bars on
+    a given day, so requiring the whole universe turns normal thin-book days into
+    a hard failure — export run 29985038127 died on exactly that
+    (``incomplete symbol coverage (5822/6917)``).
+
+    Without a ``has_intraday`` column there is nothing to relax against, so the
+    expectation stays strict.
+    """
+    frame = daily_symbol_features.copy()
+    if frame.empty:
+        return SessionMinuteCoverageScope({}, {}, set())
+
+    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce").dt.date
+    frame["symbol"] = frame.get("symbol", pd.Series(index=frame.index, dtype=object)).astype(str).str.strip().str.upper()
+
+    has_intraday_available = "has_intraday" in frame.columns
+    if has_intraday_available:
+        frame["has_intraday"] = frame["has_intraday"].fillna(False).astype(bool)
+    else:
+        frame["has_intraday"] = True
+        logger.warning(
+            "daily_symbol_features is missing has_intraday; every symbol-day stays a hard "
+            "coverage expectation for the session-minute fetch."
+        )
+
+    frame = frame.loc[frame["trade_date"].notna() & frame["symbol"].ne("") & frame["symbol"].ne("NAN")]
+
+    expected = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in frame.groupby("trade_date", sort=False)
+    }
+    if has_intraday_available:
+        required = {trade_day: set() for trade_day in expected}
+        for trade_day, group in frame.loc[frame["has_intraday"]].groupby("trade_date", sort=False):
+            required[trade_day] = set(group["symbol"].tolist())
+        skipped = int((~frame["has_intraday"]).sum())
+        if skipped:
+            logger.warning(
+                "%d symbol-days carry has_intraday=False; they stay in the minute-detail fetch "
+                "scope but are excluded from the hard coverage expectation.",
+                skipped,
+            )
+    else:
+        required = {trade_day: set(symbols) for trade_day, symbols in expected.items()}
+
+    universe = set().union(*expected.values()) if expected else set()
+    return SessionMinuteCoverageScope(expected, required, universe)
 
 
 def collect_full_universe_session_minute_detail(
