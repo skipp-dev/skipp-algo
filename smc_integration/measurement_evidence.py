@@ -313,6 +313,14 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
                     export_bundle_root,
                     required_frames=required_frames,
                     manifest_prefix="databento_volatility_production_",
+                    only_frames=(
+                        # Behaviour-preserving: after the load this module reads
+                        # daily_bars OR opportunistically BOTH intraday frames,
+                        # regardless of which single frame the attempt required.
+                        "daily_bars",
+                        "benchmark_universe_ohlcv_1m",
+                        "full_universe_second_detail_open",
+                    ),
                 )
                 break
             except FileNotFoundError as exc:

@@ -2478,6 +2478,7 @@ def run_databento_base_scan_pipeline(
         manifest_path,
         required_frames=REQUIRED_BUNDLE_FRAMES,
         manifest_prefix="databento_volatility_production_",
+        only_frames=BUNDLE_FRAMES_READ_BY_BASE_DERIVATION,
     )
     _progress(
         "Base scan: Export bundle load complete in "

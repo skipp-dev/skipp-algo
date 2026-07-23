@@ -290,7 +290,21 @@ def _resample_intraday_to_timeframe(bars: pd.DataFrame, timeframe: str) -> pd.Da
 
 def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     try:
-        bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
+        # only_frames is load-bearing, not an optimisation. This function reads
+        # exactly three frames; loading the whole bundle materialised ~6-8 GB
+        # once #3941 restored the intraday grain, and a single unmocked test
+        # calling this ballooned a pytest worker to 5.95 GB — which is what
+        # killed the 7 GB github-hosted refresh runners on 2026-07-23
+        # ("The runner has received a shutdown signal", exit 143, five runs).
+        bundle = load_export_bundle(
+            _DEFAULT_EXPORT_DIR,
+            manifest_prefix="databento_volatility_production_",
+            only_frames=(
+                "daily_bars",
+                "benchmark_universe_ohlcv_1m",
+                "full_universe_second_detail_open",
+            ),
+        )
     except Exception as exc:
         logger.warning(
             "Failed to load export bundle for context bars (%s, %s): %s",
