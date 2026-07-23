@@ -42,7 +42,15 @@ def label_snapshots(
     *,
     session_end_by_date: dict[str, float],
 ) -> list[PreA0Label]:
-    """Label each row only with events inside its declared horizon."""
+    """Label each row only with events inside its declared horizon.
+
+    Filters the EVENT side (0..max(HORIZONS)) only; it does NOT check the
+    feature side (``max_feature_time <= prediction_time``). Feature look-ahead
+    is caught by :func:`audit_dataset` as a ``critical``/``future_feature``
+    finding, which the training pipeline runs as a hard gate before labelling
+    (``prepare_pre_a0_training_data`` raises on a failed audit). Callers that
+    skip that gate can get labels on look-ahead rows.
+    """
     sorted_events = sorted(events, key=lambda event: event.occurred_at)
     output: list[PreA0Label] = []
     for row in rows:
@@ -164,6 +172,10 @@ def build_walk_forward_manifest(
         "dataset_sha256": dataset_hash,
         "split_sha256": split_hash,
         "code_revision": code_revision,
+        # Declared for manifest completeness; NOT applied as an explicit filter.
+        # The whole-day split makes them structurally satisfied — the gap between
+        # a train day and the next split's day is >= one overnight (>> max horizon
+        # of 180s), so no sample within a purge/embargo window ever crosses splits.
         "purge_seconds": max(HORIZONS),
         "embargo_seconds": max(embargo_seconds, max(HORIZONS)),
         "days": {"train": train_days, "calibration": calibration, "test": test},
