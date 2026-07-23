@@ -1696,7 +1696,23 @@ def build_base_snapshot_from_bundle_payload(
     frames = bundle_payload["frames"]
     daily_features = frames["daily_symbol_features_full_universe"]
     if session_minute_detail is None:
-        session_minute_detail = frames.get("session_minute_detail_full_universe", pd.DataFrame())
+        session_minute_detail = frames.get("session_minute_detail_full_universe")
+        # 2026-07-22: this frame is load-bearing but absent from
+        # REQUIRED_BUNDLE_FRAMES, so a bundle without it used to fall through to
+        # an empty DataFrame. Every minute-derived metric then resolves to 0.0,
+        # no symbol clears a membership threshold, and the generated library
+        # ships seven empty ticker lists — with the run reporting success. An
+        # input this load-bearing must fail closed. A caller that genuinely has
+        # no minute detail can still say so by passing an explicit frame.
+        if session_minute_detail is None or session_minute_detail.empty:
+            raise RuntimeError(
+                "Bundle has daily_symbol_features_full_universe but no usable "
+                "session_minute_detail_full_universe frame; every minute-derived "
+                "metric would silently resolve to 0.0 and the library would ship "
+                "empty membership lists. Collect it via "
+                "collect_full_universe_session_minute_detail, or pass "
+                "session_minute_detail explicitly to accept the gap."
+            )
     symbol_day_features = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
     if symbol_day_features.empty:
         raise RuntimeError("Unable to derive symbol-day microstructure features from the bundle")
