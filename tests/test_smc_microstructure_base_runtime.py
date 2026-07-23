@@ -2319,3 +2319,25 @@ def test_collect_full_universe_session_minute_detail_writes_unresolved_cache_sid
     payload = json.loads(cache_meta_path.read_text(encoding="utf-8"))
     assert payload["trade_day"] == "2026-02-10"
     assert payload["runtime_unsupported_symbols"] == ["AACB"]
+
+
+def test_bundle_without_session_minute_detail_fails_loudly(tmp_path: Path) -> None:
+    """A bundle that carries daily features but no minute detail must not pass.
+
+    2026-07-22 incident: `session_minute_detail_full_universe` is not in
+    REQUIRED_BUNDLE_FRAMES, so a bundle missing it fell back to an empty frame.
+    Every minute-derived metric then resolved to 0.0, no symbol crossed a
+    membership threshold, and the generated library shipped seven empty ticker
+    lists. Nothing failed — the run was green and the payload was worthless.
+    Silently zeroed inputs must be an error, not a default.
+    """
+    bundle_payload, _session_minute_detail = _make_bundle_payload(tmp_path)
+    assert "session_minute_detail_full_universe" not in bundle_payload["frames"]
+
+    with pytest.raises(RuntimeError, match=r"session_minute_detail_full_universe"):
+        build_base_snapshot_from_bundle_payload(
+            bundle_payload,
+            schema_path=SCHEMA_PATH,
+            session_minute_detail=None,
+            asof_date="2026-03-20",
+        )
