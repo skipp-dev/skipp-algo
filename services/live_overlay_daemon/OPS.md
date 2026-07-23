@@ -278,6 +278,35 @@ redeploy, and the consumer confirmed back at 4.0 req/min; the
 to `0` now pages within 15 minutes. Set it back to `0` only together with
 re-pausing that rule, and record why.
 
+**Who the consumer is.** Repo `skipp-live-lab`, `sidecar_server/technical.py`,
+running as the `lab-worker` service in the `skipp-live-lab` Railway project. It
+builds `<origin>/<token>/smc_live?symbol=X&tf=1m` from
+`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN` / `_TOKEN`, validates the reply against the
+`smc-live-overlay/1` schema, and identifies itself as
+`User-Agent: skipp-sidecar/<version>`. Verified 2026-07-23 in this daemon's
+Railway HTTP logs: 12 of 12 `/smc_live` requests in the 14:14–14:17Z sample
+carried `clientUa="skipp-sidecar/0.3.0"` from one source IP, all HTTP 200, on a
+15.4s cadence. Re-identify any future consumer with
+`railway logs --http --json` grouped by `clientUa`. (`smc_tv_bridge` and
+`terminal_access_proxy` are *not* callers — the first is a library in this repo;
+`realtime_signals.py` and `trade_context.py` mention `/smc_live` in comments
+only.)
+
+**Known limitation — a firing alert may not be an incident.** The traffic is
+panel-driven today: the Chrome side panel refreshes the 1m technical feed every
+15s (`sidepanel.js` `scheduleTechnicalRefresh`) only *while it is connected*. A
+connected panel produces ~40 requests per 10 minutes against this rule's ~0.6
+threshold, so it stays quiet; a **closed** panel during US market hours drives
+the rate to zero and fires `lo-request-rate-absent-open`. In single-user
+operation the alert therefore currently measures "is the panel open", not "is
+the infrastructure healthy". If it fires, first check for `skipp-sidecar/`
+entries in the HTTP log — none means a closed panel, which is expected and not
+an infra incident. The fix is a long-running server-side poller in the hosted
+sidecar (independent of connected panels, and a prerequisite for multi-user
+anyway); it is follow-up work in `skipp-live-lab`, not here, and shares the
+pattern of the planned signal-subscriber component (documented consumer,
+meaningful User-Agent).
+
 #### Alloy service
 
 | Variable | Purpose |
