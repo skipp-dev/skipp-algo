@@ -726,7 +726,7 @@ function popActiveStep(page: Page, stepName: string): void {
   tracker.activeStep = tracker.stepStack[tracker.stepStack.length - 1] ?? null;
 }
 
-function stepTimeoutMs(): number {
+export function stepTimeoutMs(): number {
   return numEnv("TV_STEP_TIMEOUT_MS", 45_000);
 }
 
