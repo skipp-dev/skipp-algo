@@ -143,7 +143,7 @@ def render(  # pragma: no cover
     import streamlit as st
 
     detail = build_detail(payload, variant_name)
-    st.subheader(f"🔬 Calibration detail — {variant_name}")
+    st.subheader(f"Calibration detail — {variant_name}")
     if detail["status"] == "not_found":
         st.warning(f"Variant {variant_name!r} not present in current payload.")
         return

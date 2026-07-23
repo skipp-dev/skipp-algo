@@ -152,20 +152,20 @@ def render(payload: Mapping[str, Any] | None) -> None:  # pragma: no cover
     import streamlit as st
 
     summary = build_summary(payload)
-    st.subheader("📊 Track Record")
+    st.subheader("Track Record")
     if summary["status"] == "empty":
         st.info("No track-record artifact available yet.")
         for w in summary["warnings"]:
-            st.caption(f"⚠️ {w}")
+            st.caption(f"{w}")
         return
 
     st.caption(f"As of: {summary['as_of_date']}")
     totals = summary["totals"]
     cols = st.columns(4)
     cols[0].metric("Total", totals["total"])
-    cols[1].metric(f"{GATE_BADGE['green']} Green", totals["green"])
-    cols[2].metric(f"{GATE_BADGE['amber']} Amber", totals["amber"])
-    cols[3].metric(f"{GATE_BADGE['red']} Red", totals["red"])
+    cols[1].metric("Green", totals["green"])
+    cols[2].metric("Amber", totals["amber"])
+    cols[3].metric("Red", totals["red"])
 
     st.dataframe(summary["rows"], use_container_width=True)
 
@@ -177,4 +177,4 @@ def render(payload: Mapping[str, Any] | None) -> None:  # pragma: no cover
                 st.markdown(f"- {f}")
 
     for w in summary["warnings"]:
-        st.caption(f"⚠️ {w}")
+        st.caption(f"{w}")

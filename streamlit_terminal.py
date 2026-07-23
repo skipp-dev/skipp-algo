@@ -360,7 +360,6 @@ from open_prep.realtime_signals import (
 )
 from smc_integration.provider_health import (
     _FAILURE_SEMANTICS_MATRIX,
-    FailureAction,
     run_provider_health_check,
 )
 from terminal_attention_state import (
@@ -703,7 +702,7 @@ st.markdown(
 def _bz_tier_warning(label: str, fallback: str) -> None:
     """Show tier-limited warning if endpoint is known-blocked, else info."""
     if label in _WARNED_ENDPOINTS:
-        st.warning(f"⚠️ {label} – endpoint not available on your API plan.")
+        st.warning(f"{label} – endpoint not available on your API plan.")
     else:
         st.info(fallback)
 
@@ -721,7 +720,7 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
     if not INTERVAL_MAP or not symbols:
         return
 
-    with st.expander("📊 Technical Data", expanded=False):
+    with st.expander("Technical Data", expanded=False):
         _tc1, _tc2 = st.columns([1, 3])
         with _tc1:
             _sel_sym = st.selectbox(
@@ -789,11 +788,10 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     _osc_rows = []
                     for d in _tech.osc_detail:
                         _a = d["action"]
-                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
                         _osc_rows.append({
                             "Name": d["name"],
                             "Value": d["value"] if d["value"] is not None else "—",
-                            "Action": f"{_a_icon} {_a}",
+                            "Action": _a,
                         })
                     st.dataframe(
                         pd.DataFrame(_osc_rows),
@@ -809,11 +807,10 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     _ma_rows = []
                     for d in _tech.ma_detail:
                         _a = d["action"]
-                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
                         _ma_rows.append({
                             "Name": d["name"],
                             "Value": d["value"] if d["value"] is not None else "—",
-                            "Action": f"{_a_icon} {_a}",
+                            "Action": _a,
                         })
                     st.dataframe(
                         pd.DataFrame(_ma_rows),
@@ -906,7 +903,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
     if not symbols:
         return
 
-    with st.expander("🔮 Forecast", expanded=False):
+    with st.expander("Forecast", expanded=False):
 
         _fc_sym = st.selectbox(
             "Symbol",
@@ -920,7 +917,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         if fc.error:
             # ETF/fund — show info (blue) instead of warning (yellow)
             if "ETF" in fc.error or "Fund" in fc.error:
-                st.info(f"📊 {_fc_sym}: {fc.error}")
+                st.info(f"{_fc_sym}: {fc.error}")
             else:
                 st.warning(f"No forecast data: {fc.error}")
             return
@@ -934,7 +931,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         # ── Price Target ─────────────────────────────────
         if fc.price_target and fc.price_target.target_mean > 0:
             pt = fc.price_target
-            st.markdown("### 🎯 Price Target")
+            st.markdown("### Price Target")
             _pt1, _pt2, _pt3, _pt4 = st.columns(4)
             _pt1.metric("Current", f"${pt.current_price:.2f}")
             _pt2.metric("Target (Avg)", f"${pt.target_mean:.2f}", f"{pt.upside_pct:+.1f}%")
@@ -955,7 +952,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
         # ── Analyst Rating ───────────────────────────────
         if fc.rating and fc.rating.total > 0:
             rt = fc.rating
-            st.markdown(f"### 📊 Analyst Rating — {rt.consensus_icon} {rt.consensus}")
+            st.markdown(f"### Analyst Rating — {rt.consensus_icon} {rt.consensus}")
             st.caption(f"Based on {rt.total} analysts")
             _rt1, _rt2, _rt3, _rt4, _rt5 = st.columns(5)
             _rt1.metric("Strong Buy", rt.strong_buy)
@@ -966,7 +963,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
 
         # ── EPS Estimates ────────────────────────────────
         if fc.eps_estimates:
-            st.markdown("### 📈 EPS Estimates")
+            st.markdown("### EPS Estimates")
             _eps_rows = []
             for e in fc.eps_estimates:
                 row: dict[str, Any] = {
@@ -992,21 +989,13 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
 
         # ── Upgrades / Downgrades ────────────────────────
         if fc.upgrades_downgrades:
-            st.markdown("### 📋 Recent Upgrades / Downgrades")
-            _action_icons = {
-                "upgrade": "⬆️", "up": "⬆️",
-                "downgrade": "⬇️", "down": "⬇️",
-                "maintain": "➡️", "main": "➡️",
-                "init": "🆕", "initiated": "🆕",
-                "reiterate": "🔄", "reit": "🔄",
-            }
+            st.markdown("### Recent Upgrades / Downgrades")
             _ud_rows = []
             for u in fc.upgrades_downgrades:
-                _action_icon = _action_icons.get(u.action.lower(), "")
                 _ud_rows.append({
                     "Date": u.date,
                     "Firm": u.firm,
-                    "Action": f"{_action_icon} {u.action}",
+                    "Action": u.action,
                     "From": u.from_grade,
                     "To": u.to_grade,
                 })
@@ -1836,10 +1825,10 @@ with st.sidebar:
     st.toggle("Auto-refresh", key="auto_refresh")
 
     # Manual poll button
-    force_poll = st.button("🔄 Poll Now", width='stretch')
+    force_poll = st.button("Poll Now", width='stretch')
 
     # Reset cursor (forces next poll to fetch latest without updatedSince)
-    if st.button("🔃 Reset Cursor", width='stretch',
+    if st.button("Reset Cursor", width='stretch',
                  help="Reset the API cursor so the next poll fetches the most recent articles "
                       "without an updatedSince filter. Use when data appears stale."):
         _store = _get_store()
@@ -1858,7 +1847,7 @@ with st.sidebar:
         if _bp_reset_cursor is not None:
             _bp_reset_cursor.consecutive_empty_polls = 0
             _bp_reset_cursor.wake_and_reset_cursor()
-        st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
+        st.toast("Cursor reset — next poll will fetch latest articles")
         st.rerun()
 
     st.divider()
@@ -1916,7 +1905,7 @@ with st.sidebar:
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
-    if st.button("🗑️ Reset dedup DB", width='stretch'):
+    if st.button("Reset dedup DB", width='stretch'):
         # Stop background poller AND WAIT for it to finish so it
         # doesn't use the store/adapters after we close them.
         _bp_reset = st.session_state.get("bg_poller")
@@ -1963,15 +1952,15 @@ with st.sidebar:
         st.session_state.last_poll_status = "DB reset — will re-poll"
         st.session_state.last_poll_error = ""
         st.session_state.bg_poller = None
-        st.toast("Dedup DB cleared. Next poll will re-ingest.", icon="🗑️")
+        st.toast("Dedup DB cleared. Next poll will re-ingest.")
         st.rerun()
 
     st.divider()
 
     # ── Compound Alert Builder (sidebar) ────────────────────
-    st.subheader("⚡ Alert Rules")
+    st.subheader("Alert Rules")
 
-    with st.expander("➕ New Alert Rule"):
+    with st.expander("New Alert Rule"):
         alert_ticker = st.text_input("Ticker (or * for all)", value="*", key="alert_tk")
         alert_cond = st.selectbox("Condition", [
             "score >= threshold",
@@ -2025,7 +2014,7 @@ with st.sidebar:
                         )
                     except OSError:
                         logger.warning("Failed to persist alert rules to disk", exc_info=True)
-                    st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
+                    st.toast(f"Alert rule added for {new_rule['ticker']}")
                     st.rerun()
 
     # Show existing rules
@@ -2059,7 +2048,7 @@ with st.sidebar:
     st.divider()
 
     # ── Background Poller + Lifecycle ───────────────────────
-    st.subheader("🔧 Engine")
+    st.subheader("Engine")
 
     st.toggle(
         "Background Polling",
@@ -2086,9 +2075,9 @@ with st.sidebar:
     _lc_status = st.session_state.lifecycle_mgr.get_status_display()
     st.caption(f"Market: {_lc_status['phase']} ({_lc_status['time_et']})")
     if _lc_status["weekend_cleared"] == "✅":
-        st.caption("Weekend clear: ✅")
+        st.caption("Weekend clear: done")
     if _lc_status["preseed_done"] == "✅":
-        st.caption("Pre-seed: ✅")
+        st.caption("Pre-seed: done")
 
     # Notification status
     _nc = st.session_state.notify_config
@@ -2130,7 +2119,7 @@ with st.sidebar:
     # RT engine status — skip on Streamlit Cloud where the local engine can't run
     _is_cloud = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
     if _is_cloud:
-        st.caption("RT Engine: ☁️ Cloud mode (local-only feature)")
+        st.caption("RT Engine: Cloud mode (local-only feature)")
     else:
         _rt_status = get_rt_engine_status()
         _telemetry_status = get_rt_engine_telemetry_status()
@@ -2242,16 +2231,6 @@ def _intel_enabled() -> bool:
     toggle position.
     """
     return bool(globals().get("_INTEL_ENABLED", False))
-
-
-_ATTENTION_ICONS = {
-    "ALERT": "🚨",
-    "FOCUS": "🎯",
-    "MONITOR": "👀",
-    "BACKGROUND": "⚪",
-    "SUPPRESS": "⛔",
-}
-
 
 
 
@@ -2462,7 +2441,7 @@ def _process_new_items(
                 logger.debug("Extended-hours quote fetch skipped", exc_info=True)
     save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
 
-    st.toast(f"📡 {len(items)} live story update(s) [{src_label}]", icon="✅")
+    st.toast(f"{len(items)} live story update(s) [{src_label}]")
 
 
 def _get_producer_feed_client() -> Any | None:
@@ -2693,7 +2672,7 @@ elif _lc_result.get("feed_action") == "stale_recovery":
 _effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
 if _effective_interval != float(interval):
     st.sidebar.caption(
-        f"⏳ Effective interval: {_effective_interval:.0f}s "
+        f"Effective interval: {_effective_interval:.0f}s "
         f"({'weekend' if _lifecycle.get_status_display().get('phase', '').startswith('🌙 Weekend') else 'off-hours'} throttle)"
     )
 
@@ -2917,17 +2896,15 @@ else:
         for _t3i, _t3r in enumerate(_top3_ranked):
             _t3_sym = _t3r["symbol"]
             _t3_sent = (_t3r.get("sentiment") or "").lower()
-            _t3_sent_icon = "🟢" if _t3_sent == "bullish" else "🔴" if _t3_sent == "bearish" else "⚪"
             _t3_sent_label = _t3_sent.title() if _t3_sent else "Neutral"
             _t3_ns = _t3r.get("news_score", 0)
             _t3_attention_state = str(_t3r.get("attention_state") or "").strip().upper()
-            _t3_attention_icon = _ATTENTION_ICONS.get(_t3_attention_state, "")
             _t3_price = _t3r.get("price", 0)
             _t3_name = _t3r.get("name", "")
             _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
-            _t3_sub = f"{_t3_sent_icon} {_t3_sent_label}"
+            _t3_sub = _t3_sent_label
             if _t3_attention_state:
-                _t3_sub = f"{_t3_attention_icon} {_t3_attention_state.title()} · " + _t3_sub
+                _t3_sub = f"{_t3_attention_state.title()} · " + _t3_sub
             if _t3_price_str:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
@@ -3013,7 +2990,7 @@ else:
         try:
             body_fn(*args, **kwargs)
         except Exception as _tab_exc:
-            st.error(f"⚠️ {label} tab failed to render.")
+            st.error(f"{label} tab failed to render.")
             import traceback as _tb
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
@@ -3024,7 +3001,7 @@ else:
         try:
             yield
         except Exception:
-            st.error(f"⚠️ {label} tab failed to render.")
+            st.error(f"{label} tab failed to render.")
             import traceback as _tb
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
@@ -3042,7 +3019,7 @@ else:
         fcol1, fcol2, fcol3, fcol4 = st.columns([3, 1.5, 1.5, 1])
         with fcol1:
             search_q = st.text_input(
-                "🔍 Search headlines", value="", placeholder="e.g. AAPL earnings",
+                "Search headlines", value="", placeholder="e.g. AAPL earnings",
                 key="feed_search",
             )
         with fcol2:
@@ -3103,11 +3080,11 @@ else:
         # Show filtered items
         # Column headers with info popovers
         _hdr_cols = st.columns([1, 4, 1, 1, 1, 1, 1])
-        with _hdr_cols[0], st.popover("**Ticker** ℹ️"):
+        with _hdr_cols[0], st.popover("**Ticker**"):
             st.markdown("**Stock symbol** — The ticker symbol of the company mentioned in the article (e.g. AAPL, TSLA, NVDA).")
-        with _hdr_cols[1], st.popover("**Headline** ℹ️"):
+        with _hdr_cols[1], st.popover("**Headline**"):
             st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
-        with _hdr_cols[2], st.popover("**Category** ℹ️"):
+        with _hdr_cols[2], st.popover("**Category**"):
             st.markdown(
                 "**News category** — Classifies the type of news.\n\n"
                 "Common values:\n"
@@ -3120,7 +3097,7 @@ else:
                 "- `insider` — Insider trading\n"
                 "- `govt` — Government/regulation"
             )
-        with _hdr_cols[3], st.popover("**Score** ℹ️"):
+        with _hdr_cols[3], st.popover("**Score**"):
             st.markdown(
                 "**News importance score** (0–1) computed by the scoring engine based on "
                 "source tier, relevance, materiality, and sentiment strength.\n\n"
@@ -3146,7 +3123,7 @@ else:
                 "| **−** | Bearish impact |\n\n"
                 "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
             )
-        with _hdr_cols[4], st.popover("**Age** ℹ️"):
+        with _hdr_cols[4], st.popover("**Age**"):
             st.markdown(
                 "**Time since publication** — How long ago the article was published.\n\n"
                 "Recency icons:\n"
@@ -3154,7 +3131,7 @@ else:
                 "- 🟡 Recent (1–4 hours)\n"
                 "- ⚪ Older (> 4 hours)"
             )
-        with _hdr_cols[5], st.popover("**Event** ℹ️"):
+        with _hdr_cols[5], st.popover("**Event**"):
             st.markdown(
                 "**Event classification label** — Describes the type of market event.\n\n"
                 "Examples:\n"
@@ -3165,7 +3142,7 @@ else:
                 "- `stock split` — Corporate action\n\n"
                 "The provider icon shows the data source."
             )
-        with _hdr_cols[6], st.popover("**Price** ℹ️"):
+        with _hdr_cols[6], st.popover("**Price**"):
             st.markdown(
                 "**Databento daily close price** — The most recent closing price "
                 "from Databento market data."
@@ -3224,7 +3201,7 @@ else:
                     _db_data = _feed_nlp.get(ticker.upper())
                     if _db_data and _db_data.get("price"):
                         _db_p = _db_data["price"]
-                        st.markdown(f"💲 `${_db_p:.2f}`" if _db_p >= 1 else f"💲 `${_db_p:.4f}`")
+                        st.markdown(f"`${_db_p:.2f}`" if _db_p >= 1 else f"`${_db_p:.4f}`")
                     else:
                         st.markdown("")
 
@@ -3232,7 +3209,7 @@ else:
     with tab_rank, _tab_guard("Rankings"):
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
-        st.header("🏆 Rankings")
+        st.header("Rankings")
         st.caption(f"**{_session_label_rank}** — Symbols ranked by operator attention first, then directional state and composite score (price + catalyst + tech + RT signal). Feed + RT spike + realtime signals.")
 
         # Build unified symbol map from feed + RT spikes (zero API calls)
@@ -3689,15 +3666,15 @@ else:
             # Technicals + forecast now live in their own "Technical Data" tab,
             # where they cover every ranked symbol instead of one at a time.
             if not _intel_enabled():
-                st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+                st.caption("Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Technical Data ────────────────────────────────
     with tab_tech, _tab_guard("Technical Data"):
-        st.header("📊 Technical Data")
+        st.header("Technical Data")
         st.caption("Technical posture of every symbol in the current ranking, plus the analyst forecast.")
 
         if not _intel_enabled():
-            st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+            st.caption("Low-latency mode: optional intelligence modules are disabled.")
         else:
             _tech_symbols = [
                 m["symbol"] for m in st.session_state.get("_ranked_list", [])[:50]
@@ -3712,7 +3689,7 @@ else:
 
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable, _tab_guard("Actionable"):
-        st.header("🎯 Actionable Items")
+        st.header("Actionable Items")
 
         # Broadened actionable criteria now prefer the derived ticker state
         # overlays when present and fall back to the raw story attributes.
@@ -3828,30 +3805,6 @@ else:
                 _ai_reaction = effective_reaction_state(_ai)
                 _ai_resolution = effective_resolution_state(_ai)
                 _ai_posture = effective_posture_state(_ai)
-                _ai_attention_icon = _ATTENTION_ICONS.get(_ai_attention, "")
-                _ai_posture_icon = {
-                    "LONG": "🟢",
-                    "SHORT": "🔴",
-                    "WATCH_LONG": "👀",
-                    "WATCH_SHORT": "👀",
-                    "NEUTRAL": "⚪",
-                    "AVOID": "⛔",
-                }.get(_ai_posture, "")
-                _ai_resolution_icon = {
-                    "FOLLOW_THROUGH": "🚀",
-                    "OPEN": "🕒",
-                    "STALLED": "⏸️",
-                    "FAILED": "❌",
-                    "REVERSAL": "↩️",
-                }.get(_ai_resolution, "")
-                _ai_reaction_icon = {
-                    "CONFIRMED": "✅",
-                    "WATCH": "👀",
-                    "IDLE": "⏳",
-                    "FADE": "↘",
-                    "CONFLICTED": "⚠️",
-                }.get(_ai_reaction, "")
-                _ai_sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ai_sent, "")
                 _ai_hl = (_ai.get("headline") or "")[:120]
                 _ai_url = _ai.get("url") or ""
                 _ai_cat = _ai.get("category") or ""
@@ -3868,10 +3821,9 @@ else:
                 _as = _act_social.get(_ai_tk, {})
                 _as_label = _as.get("label", "")
                 _as_mentions = _as.get("total_mentions", 0)
-                _social_col = "⚪ —"
+                _social_col = "—"
                 if _as_label:
-                    _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_as_label, "⚪")
-                    _social_col = f"{_soc_icon} {_as_mentions}"
+                    _social_col = f"{_as_mentions}"
 
                 # Analyst forecast
                 _af = _act_forecasts.get(_ai_tk, {})
@@ -3880,9 +3832,8 @@ else:
                 _analyst_col = ""
                 if _af_pt.get("upside_pct") is not None:
                     _up = _af_pt["upside_pct"]
-                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
                     _consensus = _af_rating.get("consensus", "")
-                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
+                    _analyst_col = f"{_up:+.0f}%"
                     if _consensus:
                         _analyst_col += f" {_consensus}"
 
@@ -3893,11 +3844,11 @@ else:
                     "Chg%": f"{_aq_chg:+.2f}%" if _aq_chg else "—",
                     "Score": round(_ai_sc, 3),
                     "Catalyst": round(_ai_catalyst_sc, 3),
-                    "Attention": f"{_ai_attention_icon} {_ai_attention.title()}" if _ai_attention else "",
-                    "Posture": f"{_ai_posture_icon} {_ai_posture.replace('_', ' ').title()}" if _ai_posture else "",
-                    "Resolution": f"{_ai_resolution_icon} {_ai_resolution.replace('_', ' ').title()}" if _ai_resolution else "",
-                    "Reaction": f"{_ai_reaction_icon} {_ai_reaction.title()}" if _ai_reaction else "",
-                    "Sentiment": f"{_ai_sent_icon} {_ai_sent.title()}" if _ai_sent else "",
+                    "Attention": _ai_attention.title() if _ai_attention else "",
+                    "Posture": _ai_posture.replace('_', ' ').title() if _ai_posture else "",
+                    "Resolution": _ai_resolution.replace('_', ' ').title() if _ai_resolution else "",
+                    "Reaction": _ai_reaction.title() if _ai_reaction else "",
+                    "Sentiment": _ai_sent.title() if _ai_sent else "",
                     "Category": _ai_cat,
                     "Materiality": _ai_mat,
                     "Headline": _ai_url if _ai_url else _ai_hl,
@@ -3962,7 +3913,7 @@ else:
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments, _tab_guard("Segments"):
-        st.header("🏗️ Segments")
+        st.header("Segments")
         seg_rows = aggregate_segments(feed)
 
         if not seg_rows:
@@ -4040,11 +3991,11 @@ else:
                                 st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
 
             with scols[0]:
-                _render_seg_block("🟢 Bullish Segments", leading)
+                _render_seg_block("Bullish Segments", leading)
             with scols[1]:
-                _render_seg_block("🟡 Neutral Segments", neutral_segs, bold=False)
+                _render_seg_block("Neutral Segments", neutral_segs, bold=False)
             with scols[2]:
-                _render_seg_block("🔴 Bearish Segments", lagging)
+                _render_seg_block("Bearish Segments", lagging)
 
             st.divider()
 
@@ -4142,8 +4093,7 @@ else:
                         _ss_mentions = _ss.get("total_mentions", 0)
                         _social_col = ""
                         if _ss_label:
-                            _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ss_label, "⚪")
-                            _social_col = f"{_soc_icon} {_ss_mentions}"
+                            _social_col = f"{_ss_mentions}"
 
                         # Analyst consensus
                         _saf = _seg_forecasts.get(_tk_sym, {})
@@ -4151,15 +4101,14 @@ else:
                         _analyst_col = ""
                         if _saf_pt.get("upside_pct") is not None:
                             _up = _saf_pt["upside_pct"]
-                            _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
-                            _analyst_col = f"{_up_icon} {_up:+.0f}%"
+                            _analyst_col = f"{_up:+.0f}%"
 
                         tk_rows.append({
                             "Symbol": _tk_sym,
                             "Price": f"${_sfq_price:.2f}" if _sfq_price >= 1 else ("—" if _sfq_price == 0 else f"${_sfq_price:.4f}"),
                             "Chg%": f"{_sfq_chg:+.2f}%" if _sfq_chg else "—",
                             "Score": round(d.get("news_score", 0), 4),
-                            "Sentiment": _SENTIMENT_COLORS.get(sent_label, "🟡") + " " + sent_label,
+                            "Sentiment": sent_label,
                             "Tech": _get_tech_summary(_tk_sym),
                             "Social": _social_col,
                             "Analyst": _analyst_col,
@@ -4194,7 +4143,7 @@ else:
 
     # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook, _tab_guard("Outlook"):
-        st.header("🔮 Outlook")
+        st.header("Outlook")
 
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key  # terminal's FMP key (env FMP_API_KEY); factors skip gracefully if unset
@@ -4227,15 +4176,15 @@ else:
                     _bear_ratio = _bear_c / _total_f
                     _bull_ratio = _bull_c / _total_f
                     if _bear_ratio > 0.55:
-                        _feed_sentiment_label = "🔴 Bearish-heavy"
+                        _feed_sentiment_label = "Bearish-heavy"
                     elif _bull_ratio > 0.55:
-                        _feed_sentiment_label = "🟢 Bullish-heavy"
+                        _feed_sentiment_label = "Bullish-heavy"
                     else:
-                        _feed_sentiment_label = "🟡 Mixed"
+                        _feed_sentiment_label = "Mixed"
                 else:
-                    _feed_sentiment_label = "⚪ Insufficient data"
+                    _feed_sentiment_label = "Insufficient data"
             else:
-                _feed_sentiment_label = "⚪ No feed data"
+                _feed_sentiment_label = "No feed data"
 
             # ────────────────────────────────────────────────
             # ── TODAY'S OUTLOOK ──
@@ -4263,7 +4212,7 @@ else:
                     # High-impact events for today
                     _to_hi: list[dict[str, Any]] = today_outlook.get("high_impact_events_details") or []
                     if _to_hi:
-                        with st.expander(f"📋 Today's High-Impact Events ({len(_to_hi)})", expanded=False):
+                        with st.expander(f"Today's High-Impact Events ({len(_to_hi)})", expanded=False):
                             for _ev in _to_hi:
                                 _ev_n = safe_markdown_text(str(_ev.get("event", "—")))
                                 _ev_c = safe_markdown_text(str(_ev.get("country", "US")))
@@ -4273,7 +4222,7 @@ else:
                     # Notable earnings today
                     _to_earn = today_outlook.get("notable_earnings") or []
                     if _to_earn:
-                        with st.expander(f"📊 Earnings Reporting Today ({len(_to_earn)})", expanded=False):
+                        with st.expander(f"Earnings Reporting Today ({len(_to_earn)})", expanded=False):
                             _to_df = pd.DataFrame(_to_earn)
                             _to_disp = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _to_df.columns]
                             st.dataframe(
@@ -4285,10 +4234,9 @@ else:
                     # Today factors & mood
                     _to_reasons = today_outlook.get("reasons") or []
                     _to_mood = today_outlook.get("sector_mood", "neutral")
-                    _to_mood_e = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(_to_mood, "⚪")
                     st.caption(
                         f"**Factors:** {' · '.join(_to_reasons)}  ·  "
-                        f"**Sector Mood:** {_to_mood_e} {_to_mood.title()}"
+                        f"**Sector Mood:** {_to_mood.title()}"
                     )
 
                 st.divider()
@@ -4320,7 +4268,7 @@ else:
             # ── High-impact events detail ──
             hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
             if hi_details:
-                st.subheader("📋 Scheduled High-Impact Events")
+                st.subheader("Scheduled High-Impact Events")
                 _show_unmatched_hi = st.toggle(
                     "Show scheduled events without related feed articles",
                     value=False,
@@ -4377,7 +4325,7 @@ else:
             # ── Notable earnings ──
             notable = outlook.get("notable_earnings") or []
             if notable:
-                st.subheader(f"📊 Earnings Reporting on {next_td_str}")
+                st.subheader(f"Earnings Reporting on {next_td_str}")
                 _ne_df = pd.DataFrame(notable)
                 display_cols = [c for c in ["ticker", "eps_surprise", "eps_surprise_percent"] if c in _ne_df.columns]
                 st.dataframe(
@@ -4394,8 +4342,7 @@ else:
 
             # ── Sector mood ──
             sector_mood = outlook.get("sector_mood", "neutral")
-            mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
-            st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
+            st.caption(f"**Sector Mood:** {sector_mood.title()}")
 
             # (Trending Themes section removed — NewsAPI.ai no longer available)
 
@@ -4406,19 +4353,19 @@ else:
             from terminal_tabs.tab_fmp_ai import render as render_fmp_ai
             _safe_tab("AI Insights", render_fmp_ai, feed, current_session=_current_session)
         else:
-            st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
+            st.info("Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
 
     # ── TAB: Bitcoin ────────────────────────────────────────
     with tab_bitcoin, _tab_guard("Bitcoin"):
-        st.header("₿ Bitcoin Dashboard")
-        st.caption("🟢 Market: 24/7 — always open")
+        st.header("Bitcoin Dashboard")
+        st.caption("Market: 24/7 — always open")
 
         if not btc_available():
             st.warning("No Bitcoin data source is available. Configure FMP or the local market-data adapter.")
         else:
             # ── Tomorrow Outlook (on top as requested) ──────
             with st.container():
-                st.markdown("### 🔮 Bitcoin Outlook")
+                st.markdown("### Bitcoin Outlook")
                 _btc_outlook = fetch_btc_outlook()
                 if _btc_outlook and not _btc_outlook.error:
                     _oc1, _oc2, _oc3, _oc4 = st.columns(4)
@@ -4434,7 +4381,7 @@ else:
                             _fg_val = _ol_fg.value
                             _fg_label = _ol_fg.label
                             st.metric("Fear & Greed", f"{_fg_val:.0f}", delta=_fg_label)
-                            with st.expander(f"ℹ️ {_fg_label} — what does {_fg_val:.0f} mean?"):
+                            with st.expander(f"{_fg_label} — what does {_fg_val:.0f} mean?"):
                                 st.markdown(
                                     f"**Fear & Greed Index: {_fg_val:.0f}** means **{_fg_label}**. "
                                     "The scale runs 0–100:\n\n"
@@ -4468,19 +4415,19 @@ else:
                                     f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})"
                                 )
                             elif _tech and _tech.error:
-                                st.caption(f"{_label}: ⚠️ {_tech.error}")
+                                st.caption(f"{_label}: {_tech.error}")
 
-                    with st.expander("📋 Full Outlook Analysis", expanded=True):
+                    with st.expander("Full Outlook Analysis", expanded=True):
                         st.markdown(_btc_outlook.summary_text)
                 elif _btc_outlook and _btc_outlook.error:
-                    st.warning(f"⚠️ Bitcoin outlook unavailable: {_btc_outlook.error}")
+                    st.warning(f"Bitcoin outlook unavailable: {_btc_outlook.error}")
 
                 st.markdown("---")
 
             # ── Real-time Quote ─────────────────────────────
             _btc_quote = fetch_btc_quote()
             if _btc_quote and _btc_quote.price > 0:
-                st.markdown("### 💰 Real-time Quote")
+                st.markdown("### Real-time Quote")
                 _qc1, _qc2, _qc3, _qc4 = st.columns(4)
                 with _qc1:
                     st.metric(
@@ -4508,7 +4455,7 @@ else:
                 st.markdown("---")
 
             # ── Combined Price + Volume Chart ───────────────
-            with st.expander("📊 Price & Volume Chart (48h)"):
+            with st.expander("Price & Volume Chart (48h)"):
                 try:
                     import plotly.graph_objects as go
                     from plotly.subplots import make_subplots
@@ -4586,7 +4533,7 @@ else:
             st.markdown("---")
 
             # ── Technical Analysis ──────────────────────────
-            st.markdown("### 📐 Technical Analysis")
+            st.markdown("### Technical Analysis")
             _btc_tech_interval = st.selectbox(
                 "Interval", ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"],
                 index=4,  # default 1h
@@ -4615,11 +4562,11 @@ else:
                     st.caption(f"Buy {_btc_tech.ma_buy} · Sell {_btc_tech.ma_sell} · Neutral {_btc_tech.ma_neutral}")
 
                 # Key indicators
-                with st.expander("📊 Key Indicators"):
+                with st.expander("Key Indicators"):
                     _ind_c1, _ind_c2, _ind_c3 = st.columns(3)
                     with _ind_c1:
                         if _btc_tech.rsi is not None:
-                            _rsi_status = "🔴 Overbought" if _btc_tech.rsi > 70 else ("🟢 Oversold" if _btc_tech.rsi < 30 else "⚪ Normal")
+                            _rsi_status = "Overbought" if _btc_tech.rsi > 70 else ("Oversold" if _btc_tech.rsi < 30 else "Normal")
                             st.metric("RSI (14)", f"{_btc_tech.rsi:.1f}", delta=_rsi_status)
                         if _btc_tech.adx is not None:
                             st.metric("ADX", f"{_btc_tech.adx:.1f}")
@@ -4640,7 +4587,7 @@ else:
             st.markdown("---")
 
             # ── Fear & Greed Index ──────────────────────────
-            st.markdown("### 😱 Fear & Greed Index")
+            st.markdown("### Fear & Greed Index")
             _fg = fetch_fear_greed()
             if _fg:
                 _fg_c1, _fg_c2 = st.columns([1, 3])
@@ -4656,7 +4603,7 @@ else:
             st.markdown("---")
 
             # ── Market Cap & Supply ─────────────────────────
-            st.markdown("### 🏦 Market Cap & Supply")
+            st.markdown("### Market Cap & Supply")
             _supply = fetch_btc_supply()
             if _supply and _supply.market_cap > 0:
                 _sc1, _sc2, _sc3 = st.columns(3)
@@ -4676,7 +4623,7 @@ else:
             st.markdown("---")
 
             # ── Bitcoin News ────────────────────────────────
-            st.markdown("### 📰 Bitcoin News")
+            st.markdown("### Bitcoin News")
             _btc_news_articles = fetch_btc_news(limit=10)
             if _btc_news_articles:
                 for _btc_art in _btc_news_articles:
@@ -4684,14 +4631,12 @@ else:
                     _art_url = _btc_art.get("url", "")
                     _art_source = _btc_art.get("source", "")
                     _art_date = _btc_art.get("date", "")
-                    _art_sent = _btc_art.get("sentiment", "")
-                    _sent_icon = "🟢" if _art_sent == "Bullish" else ("🔴" if _art_sent == "Bearish" else "⚪")
                     _source_str = f" — *{_art_source}*" if _art_source else ""
                     _date_str = f" · {_art_date[:10]}" if _art_date else ""
                     if _art_url:
-                        st.markdown(f"- {_sent_icon} [{safe_markdown_text(_art_title[:120])}]({safe_url(_art_url)}){_source_str}{_date_str}")
+                        st.markdown(f"- [{safe_markdown_text(_art_title[:120])}]({safe_url(_art_url)}){_source_str}{_date_str}")
                     else:
-                        st.markdown(f"- {_sent_icon} {safe_markdown_text(_art_title[:120])}{_source_str}{_date_str}")
+                        st.markdown(f"- {safe_markdown_text(_art_title[:120])}{_source_str}{_date_str}")
                     if _btc_art.get("text"):
                         st.caption(f"  {_btc_art['text'][:200]}...")
             else:
@@ -4702,11 +4647,11 @@ else:
             st.markdown("---")
 
             # ── Crypto Movers ───────────────────────────────
-            st.markdown("### 🚀 Crypto Movers (24h)")
+            st.markdown("### Crypto Movers (24h)")
             _crypto_movers = fetch_crypto_movers()
             _movers_c1, _movers_c2 = st.columns(2)
             with _movers_c1:
-                st.markdown("#### 🟢 Top Gainers")
+                st.markdown("#### Top Gainers")
                 _gainers = _crypto_movers.get("gainers", [])[:10]
                 if _gainers:
                     _gainer_data = [{
@@ -4719,7 +4664,7 @@ else:
                 else:
                     st.caption("No gainers data.")
             with _movers_c2:
-                st.markdown("#### 🔴 Top Losers")
+                st.markdown("#### Top Losers")
                 _losers = _crypto_movers.get("losers", [])[:10]
                 if _losers:
                     _loser_data = [{
@@ -4735,7 +4680,7 @@ else:
             st.markdown("---")
 
             # ── Exchange Listings ───────────────────────────
-            with st.expander("🏦 Cryptocurrency Exchange Listings"):
+            with st.expander("Cryptocurrency Exchange Listings"):
                 _listings = fetch_crypto_listings(limit=50)
                 if _listings:
                     _listing_data = [{
@@ -4750,7 +4695,7 @@ else:
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts, _tab_guard("Alerts"):
-        st.header("⚡ Alert Log")
+        st.header("Alert Log")
 
         alert_log = st.session_state.alert_log
         rules = st.session_state.alert_rules
@@ -4766,7 +4711,7 @@ else:
             } for r in rules], key="Ticker"))
             st.dataframe(rule_df, width='stretch', column_config={"Ticker": tv_symbol_column("Ticker")})
         else:
-            st.info("No alert rules configured. Add rules in the sidebar ➡️")
+            st.info("No alert rules configured. Add rules in the sidebar")
 
         st.divider()
 
@@ -4776,7 +4721,7 @@ else:
                 ts = datetime.fromtimestamp(entry["ts"], tz=UTC).strftime("%H:%M:%S")
                 _ahl = safe_markdown_text(entry['headline'][:80])
                 st.markdown(
-                    f"⚡ `{ts}` **{entry['ticker']}** — "
+                    f"`{ts}` **{entry['ticker']}** — "
                     f"{_ahl} | Rule: {entry['rule']} | Score: {entry['score']:.3f}"
                 )
         else:
@@ -4784,14 +4729,14 @@ else:
 
         # ── Push Notification Log ───────────────────────────
         st.divider()
-        st.subheader("📱 Push Notification Log")
+        st.subheader("Push Notification Log")
         _nlog = st.session_state.notify_log
         if _nlog:
             st.caption(f"{len(_nlog)} notification(s) sent")
             for _n in _nlog[:20]:
                 _ch_names = ", ".join(c["name"] for c in _n.get("channels", []) if c.get("ok"))
                 st.markdown(
-                    f"📱 **{_n['ticker']}** — score {_n['score']:.3f} → {_ch_names}"
+                    f"**{_n['ticker']}** — score {_n['score']:.3f} → {_ch_names}"
                 )
         else:
             _nc = st.session_state.notify_config
@@ -4855,7 +4800,7 @@ else:
 
     # ── TAB: Signal Replay ──────────────────────────────────────
     with tab_replay, _tab_guard("Signal Replay"):
-        st.header("📜 Signal Replay")
+        st.header("Signal Replay")
         st.caption("Historical signal outcomes — per-day breakdown with hit rates and P&L.")
 
         _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
@@ -4917,17 +4862,17 @@ else:
                 _day_hr = _day_wins / len(_day_resolved) if _day_resolved else 0.0
                 _day_pnl = sum(float(r.get("pnl_30m_pct") or 0) for r in _day_resolved)
 
-                _day_label = f"📅 {_rd} — {len(_day_records)} signals"
+                _day_label = f"{_rd} — {len(_day_records)} signals"
                 if _day_resolved:
                     _day_label += f" | HR {_day_hr:.0%} | P&L {_day_pnl:+.2f}%"
                 with st.expander(_day_label, expanded=(_rd == sorted(_by_date.keys(), reverse=True)[0])):
                     _signal_rows = []
                     for _sr in _day_records:
-                        _outcome_icon = "⏳"
+                        _outcome_icon = "pending"
                         if _sr.get("profitable_30m") is True:
-                            _outcome_icon = "✅"
+                            _outcome_icon = "win"
                         elif _sr.get("profitable_30m") is False:
-                            _outcome_icon = "❌"
+                            _outcome_icon = "loss"
                         _signal_rows.append({
                             "": _outcome_icon,
                             "Symbol": _sr.get("symbol", "?"),
@@ -4943,7 +4888,7 @@ else:
 
     # ── TAB: Provider Health ────────────────────────────────────
     with tab_health, _tab_guard("Provider Health"):
-        st.header("🩺 Provider Health")
+        st.header("Provider Health")
         st.caption("Live provider status, domain visibility, staleness, failure semantics, and fallback chains.")
 
         try:
@@ -4955,11 +4900,10 @@ else:
         if _health_report:
             # ── Overall status badge ──────────────────────────
             _overall = _health_report.get("overall_status", "unknown")
-            _status_icon = {"ok": "🟢", "warn": "🟡", "fail": "🔴"}.get(_overall, "⚪")
             _checked_iso = _health_report.get("checked_at_iso", "")
 
             hcol1, hcol2, hcol3, hcol4 = st.columns(4)
-            hcol1.metric("Status", f"{_status_icon} {_overall.upper()}")
+            hcol1.metric("Status", _overall.upper())
             _vis_score = _health_report.get("domain_visibility_score")
             hcol2.metric("Domain Coverage", f"{_vis_score:.0%}" if _vis_score is not None else "—")
             hcol3.metric("Warnings", len(_health_report.get("warnings", [])))
@@ -4973,11 +4917,11 @@ else:
                 for _p in _providers:
                     _prov_rows.append({
                         "Provider": _p.get("provider", "?"),
-                        "Status": "✅" if _p.get("status") == "ok" else "⚠️",
-                        "Structure": "✅" if _p.get("maps_structure") else "—",
-                        "Meta": "✅" if _p.get("maps_meta") else "—",
-                        "Technical": "✅" if _p.get("maps_technical") else "—",
-                        "News": "✅" if _p.get("maps_news") else "—",
+                        "Status": "OK" if _p.get("status") == "ok" else "warn",
+                        "Structure": "yes" if _p.get("maps_structure") else "—",
+                        "Meta": "yes" if _p.get("maps_meta") else "—",
+                        "Technical": "yes" if _p.get("maps_technical") else "—",
+                        "News": "yes" if _p.get("maps_news") else "—",
                         "Gaps": ", ".join(_p.get("known_gaps", [])) or "none",
                     })
                 st.dataframe(pd.DataFrame(_prov_rows), hide_index=True, use_container_width=True)
@@ -4993,7 +4937,7 @@ else:
                         "Symbol": _vr.get("symbol", "?"),
                         "TF": _vr.get("timeframe", "?"),
                         "Score": f"{_vr.get('score', 0):.0%}",
-                        "Complete": "✅" if _vr.get("complete") else "❌",
+                        "Complete": "yes" if _vr.get("complete") else "no",
                         "Present": ", ".join(_vr.get("domains_present", [])),
                         "Missing": ", ".join(_vr.get("domains_missing", [])) or "—",
                     })
@@ -5006,14 +4950,13 @@ else:
                 _alert_rows = []
                 for _a in _alerts:
                     _sev = str(_a.get("severity", "")).upper()
-                    _sev_icon = {"WARN": "⚠️", "INFO": "ℹ️", "ERROR": "🔴"}.get(_sev, "⚪")
                     _alert_rows.append({
-                        "": _sev_icon,
+                        "Severity": _sev.title(),
                         "Domain": _a.get("domain", "?"),
                         "Code": _a.get("code", "?"),
                         "Symbol": _a.get("symbol", ""),
                         "Action": _a.get("failure_action", "—"),
-                        "Entry Risk": "⚠️" if _a.get("failure_affects_entry") else "—",
+                        "Entry Risk": "Yes" if _a.get("failure_affects_entry") else "—",
                         "Message": str(_a.get("message", ""))[:120],
                     })
                 st.dataframe(pd.DataFrame(tv_linkify_rows(_alert_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
@@ -5025,26 +4968,20 @@ else:
                 st.subheader("Artifact Issues")
                 _art_rows = []
                 for _s in _stale:
-                    _art_rows.append({"Type": "⏰ Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
+                    _art_rows.append({"Type": "Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
                 for _m in _missing:
-                    _art_rows.append({"Type": "❌ Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
+                    _art_rows.append({"Type": "Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
                 st.dataframe(pd.DataFrame(_art_rows), hide_index=True, use_container_width=True)
 
             # ── Failure semantics reference ───────────────────
-            with st.expander("📖 Failure Semantics Reference"):
+            with st.expander("Failure Semantics Reference"):
                 _sem_rows = []
                 for _fs in _FAILURE_SEMANTICS_MATRIX:
-                    _action_icon = {
-                        FailureAction.FALLBACK: "🔄",
-                        FailureAction.ADVISORY: "ℹ️",
-                        FailureAction.SUPPRESS: "🚫",
-                        FailureAction.HARD_DEGRADE: "💀",
-                    }.get(_fs.action, "")
                     _sem_rows.append({
                         "Domain": _fs.domain,
                         "Failure": _fs.failure_type,
-                        "Action": f"{_action_icon} {_fs.action.value}",
-                        "Entry Risk": "⚠️" if _fs.affects_entry else "—",
+                        "Action": _fs.action.value,
+                        "Entry Risk": "Yes" if _fs.affects_entry else "—",
                         "Max Hours": str(_fs.max_tolerable_hours) if _fs.max_tolerable_hours else "—",
                         "Description": _fs.description,
                     })
@@ -5052,7 +4989,7 @@ else:
 
     # ── TAB: Decision-First Panel (C7.1 / W1 wiring) ─────────────────────
     with tab_decisions, _tab_guard("Decision-First"):
-        st.header("🪪 Decision-First Panel")
+        st.header("Decision-First Panel")
         st.caption(
             "One card per family: posture, top blocker, walk-forward Brier sparkline, "
             "headline metrics. Source = governance.promotion_gate decisions."

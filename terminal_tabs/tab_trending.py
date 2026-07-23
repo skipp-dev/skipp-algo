@@ -12,7 +12,7 @@ from terminal_ui_helpers import safe_markdown_text
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Trending Topics tab."""
-    st.subheader("📈 Trending Topics")
+    st.subheader("Trending Topics")
     st.caption("NewsAPI.ai trending integration has been decommissioned.")
 
     if not newsapi_available():
@@ -28,4 +28,4 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         safe_label = safe_markdown_text(c.label or "?")
         score_txt = f" · score: `{c.trending_score:.1f}`" if c.trending_score else ""
         arts_txt = f" · {c.article_count} articles" if c.article_count else ""
-        st.markdown(f"**{i}.** {c.type_icon} {safe_label}{score_txt}{arts_txt}")
+        st.markdown(f"**{i}.** {safe_label}{score_txt}{arts_txt}")

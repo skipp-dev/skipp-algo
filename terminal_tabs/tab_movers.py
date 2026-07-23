@@ -30,7 +30,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time movers.")
         return
 
-    st.subheader("🔥 Real-Time Top Movers")
+    st.subheader("Real-Time Top Movers")
     st.caption(
         f"**{session_label}** — Live gainers & losers ranked by absolute percentage change. "
         "Auto-refreshes each cycle."
@@ -59,11 +59,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     n_dn = sum(1 for m in sorted_movers if m.get("chg_pct", 0) < 0)
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total Movers", len(sorted_movers))
-    m2.metric("🟢 Gainers", n_up)
-    m3.metric("🔴 Losers", n_dn)
+    m2.metric("Gainers", n_up)
+    m3.metric("Losers", n_dn)
     if sorted_movers:
         top = sorted_movers[0]
-        m4.metric("🏆 Top Mover", f"{top['symbol']} {top['chg_pct']:+.2f}%")
+        m4.metric("Top Mover", f"{top['symbol']} {top['chg_pct']:+.2f}%")
 
     # Build table
     mov_rows = tv_linkify_rows(build_mover_table_rows(sorted_movers))

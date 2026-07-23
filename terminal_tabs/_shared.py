@@ -41,10 +41,10 @@ from terminal_spike_scanner import (
     fetch_losers,
     fetch_most_active,
 )
+from terminal_tabs.style import dir_glyph
 from terminal_technicals import (
     INTERVAL_MAP,
     fetch_technicals,
-    signal_icon,
     signal_label,
 )
 from terminal_ui_helpers import (
@@ -73,7 +73,7 @@ def safe_float(val: Any, default: float = 0.0) -> float:
 def bz_tier_warning(label: str, fallback: str) -> None:
     """Show tier-limited warning if endpoint is known-blocked, else info."""
     if label in _WARNED_ENDPOINTS:
-        st.warning(f"⚠️ {label} – endpoint not available on your API plan.")
+        st.warning(f"{label} – endpoint not available on your API plan.")
     else:
         st.info(fallback)
 
@@ -326,9 +326,8 @@ def build_mover_table_rows(
     now = time.time()
     rows: list[dict[str, Any]] = []
     for m in sorted_movers[:max_rows]:
-        dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
         rows.append({
-            "Dir": dir_icon,
+            "Dir": dir_glyph(m.get("chg_pct", 0)),
             "Symbol": m["symbol"],
             "Name": m.get("name", ""),
             "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
@@ -421,7 +420,7 @@ def render_technicals_expander(
     if not INTERVAL_MAP or not symbols:
         return
 
-    with st.expander("📊 Technical Data", expanded=False):
+    with st.expander("Technical Data", expanded=False):
         tc1, tc2 = st.columns([1, 3])
         with tc1:
             sel_sym = st.selectbox("Symbol", symbols[:50], key=f"{key_prefix}_sym")
@@ -445,7 +444,7 @@ def render_technicals_expander(
             with g1:
                 st.metric(
                     "Summary",
-                    f"{signal_icon(tech.summary_signal)} {signal_label(tech.summary_signal)}",
+                    signal_label(tech.summary_signal),
                 )
                 st.caption(
                     f"Buy {tech.summary_buy} · Neutral {tech.summary_neutral} · Sell {tech.summary_sell}"
@@ -453,7 +452,7 @@ def render_technicals_expander(
             with g2:
                 st.metric(
                     "Oscillators",
-                    f"{signal_icon(tech.osc_signal)} {signal_label(tech.osc_signal)}",
+                    signal_label(tech.osc_signal),
                 )
                 st.caption(
                     f"Buy {tech.osc_buy} · Neutral {tech.osc_neutral} · Sell {tech.osc_sell}"
@@ -461,7 +460,7 @@ def render_technicals_expander(
             with g3:
                 st.metric(
                     "Moving Averages",
-                    f"{signal_icon(tech.ma_signal)} {signal_label(tech.ma_signal)}",
+                    signal_label(tech.ma_signal),
                 )
                 st.caption(
                     f"Buy {tech.ma_buy} · Neutral {tech.ma_neutral} · Sell {tech.ma_sell}"
@@ -477,8 +476,7 @@ def render_technicals_expander(
                         st.caption(f"**{siv}**\n—")
                     else:
                         st.caption(
-                            f"**{siv}**\n{signal_icon(sr.summary_signal)} "
-                            f"{signal_label(sr.summary_signal)}"
+                            f"**{siv}**\n{signal_label(sr.summary_signal)}"
                         )
 
             # Oscillator + MA detail tables
@@ -496,11 +494,10 @@ def _render_indicator_table(
             rows = []
             for d in detail:
                 action = d["action"]
-                icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(action, "")
                 rows.append({
                     "Name": d["name"],
                     "Value": d["value"] if d["value"] is not None else "—",
-                    "Action": f"{icon} {action}",
+                    "Action": action,
                 })
             st.dataframe(
                 pd.DataFrame(rows),
@@ -519,7 +516,7 @@ def render_event_clusters_expander(
     if not symbols or not newsapi_available():
         return
 
-    with st.expander("📰 Event-Clustered News (NewsAPI.ai)", expanded=False):
+    with st.expander("Event-Clustered News (NewsAPI.ai)", expanded=False):
         ec_sym = st.selectbox("Symbol", symbols[:50], key=f"{key_prefix}_sym")
         if not ec_sym:
             return
@@ -538,8 +535,8 @@ def render_event_clusters_expander(
             c_sources = ", ".join(cluster.sources[:3]) if cluster.sources else ""
 
             with st.expander(
-                f"{cluster.sentiment_icon} **{c_title[:100]}** — "
-                f"📰 {cluster.article_count} articles · {cluster.event_date}",
+                f"**{c_title[:100]}** — "
+                f"{cluster.article_count} articles · {cluster.event_date}",
                 expanded=(ci == 0),
             ):
                 ec1, ec2, ec3 = st.columns(3)
@@ -578,7 +575,7 @@ def render_forecast_expander(
     if not symbols:
         return
 
-    with st.expander("🔮 Forecast", expanded=False):
+    with st.expander("Forecast", expanded=False):
         fc_sym = st.selectbox("Symbol", symbols[:50], key=f"{key_prefix}_sym")
         if not fc_sym:
             return
@@ -597,7 +594,7 @@ def render_forecast_expander(
         # Price Target
         if fc.price_target and fc.price_target.target_mean > 0:
             pt = fc.price_target
-            st.markdown("### 🎯 Price Target")
+            st.markdown("### Price Target")
             pt1, pt2, pt3, pt4 = st.columns(4)
             pt1.metric("Current", f"${pt.current_price:.2f}")
             pt2.metric("Target (Avg)", f"${pt.target_mean:.2f}", f"{pt.upside_pct:+.1f}%")
@@ -634,7 +631,7 @@ def render_forecast_expander(
         # Analyst Rating
         if fc.rating and fc.rating.total > 0:
             rt = fc.rating
-            st.markdown(f"### 📊 Analyst Rating — {rt.consensus_icon} {rt.consensus}")
+            st.markdown(f"### Analyst Rating — {rt.consensus}")
             st.caption(f"Based on {rt.total} analysts")
             rt1, rt2, rt3, rt4, rt5 = st.columns(5)
             rt1.metric("Strong Buy", rt.strong_buy)
@@ -645,7 +642,7 @@ def render_forecast_expander(
 
         # EPS Estimates
         if fc.eps_estimates:
-            st.markdown("### 📈 EPS Estimates")
+            st.markdown("### EPS Estimates")
             eps_rows: list[dict[str, Any]] = []
             for e in fc.eps_estimates:
                 row: dict[str, Any] = {
@@ -675,21 +672,13 @@ def render_forecast_expander(
 
         # Upgrades / Downgrades
         if fc.upgrades_downgrades:
-            st.markdown("### 📋 Recent Upgrades / Downgrades")
-            action_icons = {
-                "upgrade": "⬆️", "up": "⬆️",
-                "downgrade": "⬇️", "down": "⬇️",
-                "maintain": "➡️", "main": "➡️",
-                "init": "🆕", "initiated": "🆕",
-                "reiterate": "🔄", "reit": "🔄",
-            }
+            st.markdown("### Recent Upgrades / Downgrades")
             ud_rows: list[dict[str, Any]] = []
             for u in fc.upgrades_downgrades:
-                icon = action_icons.get(u.action.lower(), "")
                 ud_rows.append({
                     "Date": u.date,
                     "Firm": u.firm,
-                    "Action": f"{icon} {u.action}",
+                    "Action": u.action,
                     "From": u.from_grade,
                     "To": u.to_grade,
                 })
