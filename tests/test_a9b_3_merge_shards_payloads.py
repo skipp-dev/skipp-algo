@@ -320,3 +320,74 @@ def test_merge_shard_payloads_single_shard_passthrough(mod, tmp_path):
     assert summary["daily_bars"] == 4
     merged = pd.read_parquet(out_dir / f"{mod.MERGED_BASENAME}__daily_bars.parquet")
     assert len(merged) == 4
+
+
+# ── Intraday grain (2026-07-23) ──────────────────────────────────────────
+# Export run 29989844567 merged green while destroying five frames: the first
+# matching key candidate was ("symbol", "trade_date"), which is the SYMBOL-DAY
+# grain, so every sub-day frame collapsed to one arbitrary row per symbol-day.
+# Observed in that run:
+#   full_universe_close_trade_detail       dropped 20,792,063 rows
+#   session_minute_detail_full_universe    dropped 20,693,489 rows
+#   full_universe_second_detail_close      dropped  7,483,345 rows
+#   full_universe_second_detail_open       dropped  1,540,933 rows
+#   full_universe_close_outcome_minute     dropped     71,049 rows
+# ~50M rows, silently, with the workflow reporting success. A frame that carries
+# a sub-day grain column must dedupe on that grain, never above it.
+
+
+def _intraday_frame() -> pd.DataFrame:
+    import pandas as pd
+
+    return pd.DataFrame(
+        [
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "timestamp": "2026-06-23T13:30:00Z", "close": 1.0},
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "timestamp": "2026-06-23T13:31:00Z", "close": 2.0},
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "timestamp": "2026-06-23T13:32:00Z", "close": 3.0},
+            {"symbol": "MSFT", "trade_date": "2026-06-23", "timestamp": "2026-06-23T13:30:00Z", "close": 4.0},
+        ]
+    )
+
+
+def test_sub_day_frames_keep_every_minute() -> None:
+    from scripts.databento_production_merge_shards import _dedupe_frame
+
+    out = _dedupe_frame("session_minute_detail_full_universe", _intraday_frame())
+    assert len(out) == 4, (
+        "a frame with a timestamp column must dedupe at minute grain, not at "
+        f"symbol-day grain; got {len(out)} rows from 4"
+    )
+    assert out.groupby(["symbol", "trade_date"]).size().max() == 3
+
+
+def test_sub_day_frames_still_drop_true_cross_shard_duplicates() -> None:
+    import pandas as pd
+
+    from scripts.databento_production_merge_shards import _dedupe_frame
+
+    frame = _intraday_frame()
+    duplicated = pd.concat([frame, frame.iloc[[0]]], ignore_index=True)
+    out = _dedupe_frame("session_minute_detail_full_universe", duplicated)
+    assert len(out) == 4, "an identical (symbol, trade_date, timestamp) row is still a duplicate"
+
+
+def test_symbol_day_frames_are_unaffected() -> None:
+    """`premarket_window_features_full_universe` really is one row per symbol-day.
+
+    Verified against the same run: window_tag carries a single value and the
+    merged frame has exactly one row per (symbol, trade_date), so its 761,750
+    dropped rows were genuine cross-shard repeats. Coarse dedupe must stay for
+    frames without a sub-day grain column.
+    """
+    import pandas as pd
+
+    from scripts.databento_production_merge_shards import _dedupe_frame
+
+    frame = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "window_tag": "pm_0900_0930", "fetched_at": "a"},
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "window_tag": "pm_0900_0930", "fetched_at": "b"},
+        ]
+    )
+    out = _dedupe_frame("premarket_window_features_full_universe", frame)
+    assert len(out) == 1

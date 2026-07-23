@@ -67,6 +67,19 @@ MERGED_BASENAME = "databento_volatility_production_merged"
 # acceptable because the planner guarantees shard windows are calendar-
 # day-disjoint, so cross-shard duplicates are not expected.
 _DEDUPE_KEY_CANDIDATES: tuple[tuple[str, ...], ...] = (
+    # Sub-day grain FIRST. A frame that carries a timestamp holds many rows per
+    # symbol-day, so reducing it on ("symbol", "trade_date") keeps one arbitrary
+    # minute and discards the rest. Export run 29989844567 lost ~50M rows that
+    # way across five frames — green workflow, gutted payload — because the
+    # symbol-day key sat at the top of this list.
+    ("symbol", "trade_date", "timestamp"),
+    ("symbol", "trade_date", "ts_event"),
+    ("symbol", "date", "timestamp"),
+    ("symbol", "timestamp"),
+    # Symbol-day grain: correct for frames with one row per symbol per day
+    # (e.g. premarket_window_features_full_universe, whose window_tag carries a
+    # single value), where per-shard columns like *_fetched_at differ and the
+    # coarse key is what collapses genuine cross-shard repeats.
     ("symbol", "trade_date"),
     ("symbol", "date"),
     ("symbol", "ts_event"),
