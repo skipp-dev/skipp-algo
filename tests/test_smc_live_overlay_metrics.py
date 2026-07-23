@@ -1779,6 +1779,33 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     assert options.get("3", {}).get("text") == "OK"
 
 
+def test_stat_panel_targets_are_aggregated() -> None:
+    """Every target on the binding `stat` panel must collapse to one value.
+
+    A `stat` panel renders one tile per returned series. An unaggregated instant
+    vector therefore turns a single reading into a row of tiles that grows with
+    the series count — the panel silently reshapes itself as the label set
+    changes. #3919 added six targets without the `max()` every pre-existing
+    target carries; this is a property rather than another exact-string pin so
+    the next addition cannot reintroduce it.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "TradingView Binding Status")
+    assert panel.get("type") == "stat", "this contract only holds for stat panels"
+
+    unaggregated = [
+        target["expr"]
+        for target in panel["targets"]
+        if not target["expr"].lstrip().startswith(("max(", "min(", "sum(", "avg(", "count("))
+    ]
+    assert not unaggregated, (
+        "stat-panel targets must be wrapped in an aggregation so they collapse to "
+        f"a single series; unaggregated: {unaggregated}"
+    )
+
+
 def test_dashboard_has_tradingview_binding_status_panel() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
@@ -1801,12 +1828,12 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
         'max(live_overlay_tv_consumer_source_check_known{job="live_overlay"})',
         'max(live_overlay_tv_consumer_sources_checked{job="live_overlay"})',
         'max(live_overlay_tv_consumer_source_drift{job="live_overlay"})',
-        'live_overlay_tv_binding_failed_consumers{job="live_overlay"}',
-        'live_overlay_tv_consumer_binding_mismatches{job="live_overlay"}',
-        'live_overlay_tv_consumer_sources_expected{job="live_overlay"}',
-        'live_overlay_tv_consumer_sources_drifted{job="live_overlay"}',
-        'live_overlay_tv_consumer_source_matches{job="live_overlay"}',
-        'live_overlay_tv_consumer_source_failures{job="live_overlay"}',
+        'max(live_overlay_tv_binding_failed_consumers{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_binding_mismatches{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_sources_expected{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_sources_drifted{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_matches{job="live_overlay"})',
+        'max(live_overlay_tv_consumer_source_failures{job="live_overlay"})',
     }
 
 
