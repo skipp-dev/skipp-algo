@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   addExistingScriptToChartViaIndicators,
   addCurrentScriptToChart,
+  stepTimeoutMs,
   assertNoVisibleCompileError,
   closeModal,
   closeTradingViewSession,
@@ -677,9 +678,9 @@ async function main(): Promise<number> {
       if (target.addToChart || target.checkInputs) {
         if (usedFreshDraftPath && target.scriptName) {
           await removeVisibleChartScriptInstances(session.page, target.scriptName).catch(() => 0);
-          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true });
+          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
         } else {
-          await addCurrentScriptToChart(session.page, target.scriptName, { tolerateFailure: true });
+          await addCurrentScriptToChart(session.page, target.scriptName, { tolerateFailure: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
         }
         targetResult.script_found_on_chart_ok = await isScriptVisibleOnChartSurface(session.page, target.scriptName);
         if (targetResult.script_found_on_chart_ok !== true) {
