@@ -48,7 +48,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 32.7658,
+    "pnl_60m_pct_signed": 32.7658,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 37.8049,
+    "pnl_120m_pct_signed": 37.8049,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 68.8909,
+    "pnl_eod_pct_signed": 68.8909,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -99,7 +111,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 7.8889,
+    "pnl_60m_pct_signed": 7.8889,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 6.4205,
+    "pnl_120m_pct_signed": 6.4205,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 7.2112,
+    "pnl_eod_pct_signed": 7.2112,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -150,7 +174,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": -4.6576,
+    "pnl_60m_pct_signed": 4.6576,
+    "profitable_60m": false,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": -10.312,
+    "pnl_120m_pct_signed": 10.312,
+    "profitable_120m": false,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -17.3506,
+    "pnl_eod_pct_signed": 17.3506,
+    "profitable_eod": false,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -201,7 +237,15 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_120m_pct": 4.2945,
+    "pnl_120m_pct_signed": 4.2945,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -5.0307,
+    "pnl_eod_pct_signed": -5.0307,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-07-09",
@@ -252,7 +296,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 20.8669,
+    "pnl_60m_pct_signed": 20.8669,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 23.2474,
+    "pnl_120m_pct_signed": 23.2474,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 22.722,
+    "pnl_eod_pct_signed": 22.722,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -303,7 +359,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 2.1533,
+    "pnl_60m_pct_signed": -2.1533,
+    "profitable_60m": true,
+    "profitable_60m_directional": false,
+    "pnl_120m_pct": 2.474,
+    "pnl_120m_pct_signed": -2.474,
+    "profitable_120m": true,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": -0.3018,
+    "pnl_eod_pct_signed": 0.3018,
+    "profitable_eod": false,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -354,7 +422,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": -5.0889,
+    "pnl_60m_pct_signed": 5.0889,
+    "profitable_60m": false,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": -3.6701,
+    "pnl_120m_pct_signed": 3.6701,
+    "profitable_120m": false,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -4.0421,
+    "pnl_eod_pct_signed": 4.0421,
+    "profitable_eod": false,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-07-09",
@@ -405,7 +485,19 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 0.1429,
+    "pnl_60m_pct_signed": 0.1429,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": -3.4175,
+    "pnl_120m_pct_signed": -3.4175,
+    "profitable_120m": false,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": -8.6925,
+    "pnl_eod_pct_signed": -8.6925,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-07-09",
@@ -507,6 +599,18 @@
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
     "universe_source": "FMP_US_MID_LARGE",
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 8.9225,
+    "pnl_60m_pct_signed": -8.9225,
+    "profitable_60m": true,
+    "profitable_60m_directional": false,
+    "pnl_120m_pct": 8.8703,
+    "pnl_120m_pct_signed": -8.8703,
+    "profitable_120m": true,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": 12.3924,
+    "pnl_eod_pct_signed": -12.3924,
+    "profitable_eod": true,
+    "profitable_eod_directional": false
   }
 ]
