@@ -587,6 +587,30 @@ chase false reds:
   family even though the daemon is still scraped.
 
 
+### Why `degraded` has no alert rule of its own
+
+`health_status_code == 4` (`degraded`) is a dashboard rollup, not an
+independent failure mode, and **no alert rule references
+`live_overlay_health_status_code`**. That is deliberate.
+
+`compute_daemon_health_status` returns `degraded` when — past a 900 s warmup,
+during an open US session — any of `feed_healthy`, `workers_healthy` or
+`overlay_fresh` is false. Each of those three already has a rule that fires
+*before* the 900 s gate opens:
+
+| input | rule | fires after |
+|---|---|---|
+| `feed_healthy` | `lo-feed-down-market-open` | 5 min |
+| `workers_healthy` | `lo-workers-degraded` | 3 min |
+| `overlay_fresh` (no symbols) | `lo-no-symbols` | 5 min |
+| `overlay_fresh` (stale) | `lo-overlay-stale` | 5 min |
+
+A dedicated `degraded` rule could therefore never page first — it would be
+pure duplicate noise. The cost of that choice is that the coverage is
+*implicit*: delete one component rule and the gap opens with nothing red.
+`tests/test_degraded_status_alert_coverage.py` pins the invariant, including
+the "fires before 900 s" property, so such an edit fails CI.
+
 ### Generic bridge troubleshooting contract
 
 | State | Expected metrics | Operational meaning |
