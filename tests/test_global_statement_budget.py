@@ -129,8 +129,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.
         (
             "scripts/databento_production_export.py",
-            # 2026-07-23 (session-minute-detail collector import): 851->854
-            854,  # 2026-07-18 (dataset-policy imports): 846->851
+            # 2026-07-23 (session-minute-detail collector + coverage-scope imports): 851->855
+            855,  # 2026-07-18 (dataset-policy imports): 846->851
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the

@@ -174,6 +174,7 @@ from scripts.databento_production_workbook import (
 from scripts.market_structure_features import build_market_structure_feature_frame
 from scripts.smc_atomic_write import atomic_write_csv
 from scripts.smc_databento_session_detail import (
+    build_session_minute_coverage_scope,
     collect_full_universe_session_minute_detail,
 )
 
@@ -4367,13 +4368,18 @@ def run_production_export_pipeline(
     # rather than silently zero the payload. The collector caches per trade day
     # (`use_file_cache`), so a warm cache only fetches the new day.
     session_minute_started_at = time_module.perf_counter()
+    # Fetch every symbol-day, but only REQUIRE the ones flagged has_intraday.
+    # Requiring the whole universe makes a normal thin-book day a hard failure:
+    # run 29985038127 died with `incomplete symbol coverage (5822/6917)`, the
+    # missing names all illiquid tickers with no bars that session.
+    session_minute_scope = build_session_minute_coverage_scope(daily_symbol_features_full_universe)
     session_minute_detail_full_universe = collect_full_universe_session_minute_detail(
         databento_api_key,
         dataset=dataset,
         trading_days=trading_days,
-        universe_symbols=set(
-            daily_symbol_features_full_universe["symbol"].dropna().astype(str).str.upper()
-        ),
+        universe_symbols=session_minute_scope.universe_symbols,
+        expected_symbols_by_trade_day=session_minute_scope.expected_symbols_by_trade_day,
+        required_symbols_by_trade_day=session_minute_scope.required_symbols_by_trade_day,
         display_timezone=display_timezone,
         cache_dir=resolved_cache_dir,
         use_file_cache=use_file_cache,
