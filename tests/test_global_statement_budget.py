@@ -146,7 +146,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 234, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            607,  # 2026-07-23 (dezent colour pass, +16 lines above): 591->607
+            608,  # 2026-07-23 (dezent fixes, +1 line above): 591->607->608
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
