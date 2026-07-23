@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed (retroactive scope definition — ratify or amend) |
+| Status | Accepted — ratified 2026-07-23 by the owner; scope definition written retroactively |
 | Date | 2026-07-23 |
 | Deciders | @preuss_steffen |
 | Related | `docs/BLOOMBERG_TERMINAL_PLAN.md`; `docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md`; `README.md` §Product Positioning |
