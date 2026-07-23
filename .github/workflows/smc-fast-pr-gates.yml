@@ -403,6 +403,7 @@ jobs:
             tests/test_assert_and_open_encoding_pin.py \
             tests/test_assert_in_production_budget.py \
             tests/test_bare_type_ignore_ledger.py \
+            tests/test_bundle_loader_frame_discipline.py \
             tests/test_broad_except_silent_budget.py \
             tests/test_builtin_open_encoding_ledger.py \
             tests/test_dynamic_getattr_ledger.py \
@@ -420,6 +421,7 @@ jobs:
             tests/test_noqa_suppression_ledger.py \
             tests/test_os_environ_mutation_ledger.py \
             tests/test_os_unlink_remove_ledger.py \
+            tests/test_outcome_horizons.py \
             tests/test_path_text_io_encoding_ledger.py \
             tests/test_pine_alertcondition_and_declaration_pin.py \
             tests/test_pine_request_security_htf_pin.py \
