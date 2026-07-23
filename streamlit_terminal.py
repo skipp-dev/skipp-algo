@@ -508,6 +508,7 @@ from terminal_tabs.style import (
     color_text,
     dir_glyph,
     label,
+    semantic_color,
     style_semantic,
     style_table,
 )
@@ -2958,7 +2959,13 @@ else:
                 _t3_sub += f" · Catalyst {_t3_ns:.2f}"
             _t3_name_safe = safe_markdown_text(_t3_name) if _t3_name else ""
             with _t3_cols[_t3i]:
-                st.markdown(f"### #{_t3i+1} {tv_symbol_md(_t3_sym)}")
+                _t3_hdr_css = semantic_color(_t3_sent)
+                _t3_hdr_hex = _t3_hdr_css.split(":", 1)[1].strip() if _t3_hdr_css else _COL_NEUTRAL
+                st.markdown(
+                    f'<div style="font-size:1.35rem;font-weight:700;line-height:1.2">'
+                    f'#{_t3i + 1} <span style="color:{_t3_hdr_hex}">{_t3_sym}</span></div>',
+                    unsafe_allow_html=True,
+                )
                 if _t3_name_safe:
                     st.caption(_t3_name_safe)
                 st.markdown(_t3_sub, unsafe_allow_html=True)
@@ -4201,6 +4208,20 @@ else:
     with tab_outlook, _tab_guard("Outlook"):
         st.header("Outlook")
 
+        def _outlook_banner(prefix: str, label_text: Any, date_text: Any) -> None:
+            # Dezent: a soft tinted bar with a state-coloured border + text,
+            # not a saturated fill with white text.
+            _clean = re.sub(r"^[^0-9A-Za-z]+", "", str(label_text)).strip() or str(label_text)
+            _css = semantic_color(_clean)
+            _hex = _css.split(":", 1)[1].strip() if _css else _COL_NEUTRAL
+            st.markdown(
+                f"<div style='padding:0.55rem 1.1rem;border-radius:0.5rem;"
+                f"border-left:4px solid {_hex};background:{_hex}1f;"
+                f"color:{_hex};font-weight:700;font-size:1.05rem;margin-bottom:0.8rem'>"
+                f"{prefix}  {_clean} — {date_text}</div>",
+                unsafe_allow_html=True,
+            )
+
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key  # terminal's FMP key (env FMP_API_KEY); factors skip gracefully if unset
 
@@ -4247,16 +4268,8 @@ else:
             # ────────────────────────────────────────────────
             if today_outlook:
                 _to_label = today_outlook.get("outlook_label", "🟡 NEUTRAL")
-                _to_color = today_outlook.get("outlook_color", "orange")
                 _to_date = today_outlook.get("target_date", _today_iso)
-
-                st.markdown(
-                    f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
-                    f"background:{_to_color};color:white;font-weight:700;"
-                    f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
-                    f"TODAY  {_to_label} — {_to_date}</div>",
-                    unsafe_allow_html=True,
-                )
+                _outlook_banner("TODAY", _to_label, _to_date)
 
                 if _to_label != "⚪ MARKET CLOSED":
                     _to_cols = st.columns(4)
@@ -4301,16 +4314,8 @@ else:
             # ── TOMORROW'S OUTLOOK ──
             # ────────────────────────────────────────────────
             o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
-            o_color = outlook.get("outlook_color", "orange")
             next_td_str = outlook.get("next_trading_day", "—")
-
-            st.markdown(
-                f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
-                f"background:{o_color};color:white;font-weight:700;"
-                f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
-                f"NEXT TRADING DAY  {o_label} — {next_td_str}</div>",
-                unsafe_allow_html=True,
-            )
+            _outlook_banner("NEXT TRADING DAY", o_label, next_td_str)
 
             # ── Key metrics ──
             ocols = st.columns(4)
@@ -4984,7 +4989,12 @@ else:
             _checked_iso = _health_report.get("checked_at_iso", "")
 
             hcol1, hcol2, hcol3, hcol4 = st.columns(4)
-            hcol1.metric("Status", _overall.upper())
+            hcol1.markdown(
+                f'<div style="color:{_COL_NEUTRAL};font-size:0.8rem">Status</div>'
+                f'<div style="font-size:1.6rem;font-weight:600;line-height:1.15">'
+                f'{color_text(_overall, _overall.upper())}</div>',
+                unsafe_allow_html=True,
+            )
             _vis_score = _health_report.get("domain_visibility_score")
             hcol2.metric("Domain Coverage", f"{_vis_score:.0%}" if _vis_score is not None else "—")
             hcol3.metric("Warnings", len(_health_report.get("warnings", [])))
