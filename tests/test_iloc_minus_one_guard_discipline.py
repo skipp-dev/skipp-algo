@@ -113,7 +113,8 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # + env-resolver block (~61 lines), shifting 2397 -> 2458.
         # PR #3703 and subsequent mainline helper growth shifted this
         # production-export snapshot from 2458 -> 2510.
-        ("scripts/databento_production_export.py", 2510),
+        # 2026-07-23 (session-minute-detail collector import): 2510->2513
+        ("scripts/databento_production_export.py", 2513),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
