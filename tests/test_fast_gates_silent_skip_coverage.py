@@ -784,3 +784,145 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
         "FAST_TEST_FILES — the meta-guards will name them), or add it to "
         "_MONITORING_ARTIFACT_INTENTIONALLY_UNGATED with a justification."
     )
+
+
+# --------------------------------------------------------------------------- #
+# TypeScript lane (TradingView automation)
+#
+# The meta-guards above cover the PYTHON merge gate (fast-gates). They are
+# blind to the TypeScript lane, which is a separate workflow
+# (tv-onboarding-packages.yml) with no auto-discovery: it runs a hand-picked
+# `npx tsx --test <file>` list. A TS pin can therefore exist and run NOWHERE —
+# exactly what happened to tv_preflight_add_to_chart_floor.test.ts (#3967): it
+# pinned the 90s add-to-chart floor but was in no run step and excluded by the
+# workflow's own paths filter, so a follow-up removing the floor would have
+# merged green and re-opened the 45s-timeout release-gate failure.
+#
+# This freezes the current TS state: every *.test.ts must be either RUN by the
+# workflow or on the exempt set below. A new TS test then forces a conscious
+# choice (wire it, or exempt it with a reason) instead of silently running
+# nowhere. It does NOT try to auto-classify hermetic-vs-browser tests: most of
+# the exempt set drive a real browser (the local `tv:test` lane, which needs a
+# pinned Playwright browser and hangs without it), so demanding they run in
+# this packaging workflow would break it. Wiring the *hermetic* source-scan
+# pins among them into CI is a separate follow-up.
+TV_ONBOARDING_WORKFLOW = ROOT / ".github" / "workflows" / "tv-onboarding-packages.yml"
+_TV_TEST_DIR = ROOT / "automation" / "tradingview" / "tests"
+
+#: TS tests that legitimately do not run in tv-onboarding-packages.yml. Frozen
+#: 2026-07-23 at the one-gated-of-25 baseline. Adding a member is a deliberate
+#: edit (audit trail), the same contract as the *_INTENTIONALLY_UNGATED sets
+#: above. Most need a real browser; the hermetic source-scan pins here are a
+#: CI-wiring follow-up, not a permanent exemption.
+_TS_TESTS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
+    {
+        "hand_authored_publisher_facade_authority.test.ts",
+        "pine_library_version_snapshot.test.ts",
+        "selectors.test.ts",
+        "tv_auth_probe_precedence.test.ts",
+        "tv_binding_repair.test.ts",
+        "tv_launch_options.test.ts",
+        "tv_library_publisher_add_to_chart.test.ts",
+        "tv_pine_editor_close.test.ts",
+        # tv_preflight_add_to_chart_floor.test.ts is NOT here — it is wired into
+        # the run step (#3970) and gates.
+        "tv_preflight_identity_assertion.test.ts",
+        "tv_producer_refresh_layouts.test.ts",
+        "tv_publish_continue_label.test.ts",
+        "tv_publish_draw_library.test.ts",
+        "tv_publish_hand_authored_libraries.test.ts",
+        "tv_publish_import_path_evidence.test.ts",
+        "tv_publish_micro_library.test.ts",
+        "tv_publish_openprep_panel.test.ts",
+        "tv_publish_overlay_library.test.ts",
+        "tv_read_editor_content.test.ts",
+        "tv_runtime_errors.test.ts",
+        "tv_save_consumer_source.test.ts",
+        "tv_selectors_strict_mode.test.ts",
+        "tv_shared.test.ts",
+        "tv_validation_model.test.ts",
+    }
+)
+
+
+def _tv_workflow_text() -> str:
+    return TV_ONBOARDING_WORKFLOW.read_text(encoding="utf-8")
+
+
+def _tv_run_step_tests() -> set[str]:
+    """Basenames of *.test.ts invoked by an `npx tsx --test` line."""
+    text = _tv_workflow_text()
+    tests: set[str] = set()
+    for line in text.splitlines():
+        if "tsx --test" not in line:
+            continue
+        tests.update(re.findall(r"([A-Za-z0-9_./-]+\.test\.ts)", line))
+    return {Path(t).name for t in tests}
+
+
+def _tv_paths_filter_tests() -> set[str]:
+    """Basenames of *.test.ts listed under any `paths:` filter."""
+    return {Path(t).name for t in re.findall(r"([A-Za-z0-9_./-]+\.test\.ts)", _tv_workflow_text())} - _tv_run_step_tests() | {
+        Path(t).name
+        for t in re.findall(r'-\s*"([^"]+\.test\.ts)"', _tv_workflow_text())
+    }
+
+
+def _all_ts_tests() -> set[str]:
+    return {p.name for p in _TV_TEST_DIR.glob("*.test.ts")}
+
+
+def test_every_ts_test_is_gated_or_exempt() -> None:
+    """A new TypeScript test must run in CI or be a conscious exemption.
+
+    The Python meta-guards do not see the TS lane. tv-onboarding-packages.yml
+    has no test discovery — it runs an explicit `npx tsx --test` list — so a TS
+    pin added without touching that list runs nowhere and gates nothing
+    (tv_preflight_add_to_chart_floor.test.ts, #3967). Freezing the set makes
+    every new *.test.ts a deliberate wire-or-exempt decision.
+    """
+    all_ts = _all_ts_tests()
+    assert len(all_ts) >= 20, (
+        f"TS test discovery found only {len(all_ts)} files — the tests/ layout "
+        "moved and this rule is no longer measuring anything"
+    )
+    gated = _tv_run_step_tests()
+    ungated = sorted(all_ts - gated - _TS_TESTS_INTENTIONALLY_UNGATED)
+    assert not ungated, (
+        "TypeScript test(s) run in no workflow. tv-onboarding-packages.yml is "
+        "the only TS runner and has no discovery, so these gate nothing and a "
+        "PR breaking them merges green.\n\n"
+        f"Ungated: {ungated}\n\n"
+        "Add each to an `npx tsx --test` step AND the push+pull_request "
+        "`paths:` filters in tv-onboarding-packages.yml (plus the source it "
+        "scans, so a change there triggers the run), or add it to "
+        "_TS_TESTS_INTENTIONALLY_UNGATED with a reason."
+    )
+
+
+def test_exempt_ts_tests_still_exist() -> None:
+    """A stale exemption silently shrinks the guarded set — flag renamed/removed."""
+    missing = sorted(_TS_TESTS_INTENTIONALLY_UNGATED - _all_ts_tests())
+    assert not missing, (
+        "_TS_TESTS_INTENTIONALLY_UNGATED names TS test(s) that no longer exist "
+        f"(renamed/removed): {missing}. Drop them so the exemption set stays a "
+        "true mirror of the tests/ dir."
+    )
+
+
+def test_gated_ts_tests_trigger_their_own_workflow() -> None:
+    """A TS test that runs but is not in `paths:` does not trigger on its change.
+
+    tv_preflight_add_to_chart_floor needed BOTH a run step and a paths entry
+    (#3970): without the paths entry, editing the test — or the source it
+    guards — would not start the workflow, so the pin could not fire on its own
+    regression. Every run test must therefore also be in the paths filter.
+    """
+    gated = _tv_run_step_tests()
+    in_paths = _tv_paths_filter_tests()
+    missing = sorted(gated - in_paths)
+    assert not missing, (
+        "TS test(s) run in tv-onboarding-packages.yml but are absent from its "
+        f"`paths:` filter: {missing}. A change to the test then does not trigger "
+        "the workflow. Add each to both the push and pull_request `paths:` lists."
+    )
