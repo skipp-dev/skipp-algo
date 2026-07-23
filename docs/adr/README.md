@@ -45,10 +45,11 @@ old one and update the table below.
 | 0026 | [Record executed status of the tier-2 magnitude re-target + OHLCV queue closure](0026-magnitude-retarget-executed-and-ohlcv-queue-closed.md) | Accepted (records-only) | 2026-07-12 | doc-only; reconciles the index with executed ADR-0019/0022/0023 decisions + `williams_vix_fix` retirement; no code changed |
 | 0027 | [Structure artifacts are runtime outputs](0027-structure-artifacts-runtime-outputs.md) | Accepted (Design B) | 2026-07-13 | structure-provider integration tests + production/release workflow availability gates |
 | 0029 | [Payload volume is a first-class signal; publish gates compare field pairs](0029-payload-volume-first-class-signal.md) | Proposed | 2026-07-22 | doc-only (design); enforcement staged — see *Enforced by (planned)* in the ADR |
+| 0030 | [Hosted Terminal purpose and audience — growth expected, class change gated](0030-terminal-purpose-and-audience.md) | Proposed | 2026-07-23 | invariant 3 by `tests/test_ai_defense_egress_guard.py`; invariants 1/2/4/5/6 are review-time only |
 
 ## Reservation rule
 
-The next free ADR number is **0030**. To avoid concurrent-PR collisions:
+The next free ADR number is **0031**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
