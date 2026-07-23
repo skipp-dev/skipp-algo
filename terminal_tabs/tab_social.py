@@ -15,7 +15,7 @@ from terminal_finnhub import (
 )
 from terminal_newsapi import fetch_social_ranked_articles, newsapi_available
 from terminal_tabs._shared import tv_symbol_column
-from terminal_tabs.style import label
+from terminal_tabs.style import label, style_semantic
 from terminal_ui_helpers import safe_markdown_text, safe_url, tv_linkify_rows
 
 
@@ -86,8 +86,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                         })
                     if _rows:
                         import pandas as pd
+                        _social_df = pd.DataFrame(tv_linkify_rows(_rows))
                         st.dataframe(
-                            pd.DataFrame(tv_linkify_rows(_rows)),
+                            style_semantic(_social_df, ["Sentiment", "Label"]),
                             hide_index=True,
                             height=min(40 * len(_rows) + 50, 500),
                             column_config={"Symbol": tv_symbol_column()},

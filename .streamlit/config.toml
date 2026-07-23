@@ -15,9 +15,9 @@ base = "dark"
 primaryColor = "#5b9bf0"
 backgroundColor = "#0b1020"
 secondaryBackgroundColor = "#151c32"
-# Softened from #eef2ff (16.9:1 against the background — glaring on a dark
-# terminal stared at for hours). 11.9:1 still clears WCAG AAA (7:1).
-textColor = "#c3cde3"
+# Softened for long dark-terminal sessions: #eef2ff -> #c3cde3 -> #a7b1c6.
+# ~8.7:1 on #0b1020 still clears WCAG AAA (7:1) but reads calm, not glaring.
+textColor = "#a7b1c6"
 font = "sans-serif"
 
 [browser]

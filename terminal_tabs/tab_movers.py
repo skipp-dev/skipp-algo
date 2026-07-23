@@ -16,6 +16,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     tv_symbol_column,
 )
+from terminal_tabs.style import style_table
 from terminal_ui_helpers import tv_linkify_rows
 
 
@@ -71,7 +72,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     df_mov.index = df_mov.index + 1
 
     st.dataframe(
-        df_mov,
+        style_table(df_mov, directional=["Dir", "Change", "Change %"]),
         width="stretch",
         height=min(800, 40 + 35 * len(df_mov)),
         column_config={

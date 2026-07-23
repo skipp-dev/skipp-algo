@@ -167,7 +167,15 @@ def render(payload: Mapping[str, Any] | None) -> None:  # pragma: no cover
     cols[2].metric("Amber", totals["amber"])
     cols[3].metric("Red", totals["red"])
 
-    st.dataframe(summary["rows"], use_container_width=True)
+    import pandas as pd
+
+    from terminal_tabs.style import style_semantic
+
+    _rows_df = pd.DataFrame(summary["rows"])
+    st.dataframe(
+        style_semantic(_rows_df, ["gate_status"]),
+        use_container_width=True,
+    )
 
     if summary["red_failures"]:
         st.subheader("Gate failures (red)")

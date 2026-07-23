@@ -8,6 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from terminal_tabs._shared import tv_symbol_column
+from terminal_tabs.style import style_semantic
 from terminal_ui_helpers import tv_linkify_rows
 
 
@@ -40,8 +41,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         _ticker_rows = df[["ticker"]].to_dict("records")
         df = df.assign(ticker=pd.DataFrame(tv_linkify_rows(_ticker_rows, key="ticker"))["ticker"].to_numpy())
         _dt_cfg["ticker"] = tv_symbol_column("Ticker")
+    _state_cols = [
+        c for c in ("sentiment_label", "materiality", "recency_bucket")
+        if c in df.columns
+    ]
     st.dataframe(
-        df,
+        style_semantic(df, _state_cols) if _state_cols else df,
         width="stretch",
         height=min(1000, 40 + 35 * min(len(df), 30)),
         hide_index=True,

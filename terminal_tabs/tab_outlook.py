@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 
 from terminal_tabs._shared import cached_tomorrow_outlook
-from terminal_tabs.style import label
+from terminal_tabs.style import color_text, label
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -37,7 +37,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     m1, m2, m3 = st.columns(3)
     if "bias" in outlook:
         bias = outlook["bias"]
-        m1.metric("Bias", label(bias))
+        with m1:
+            st.caption("Bias")
+            st.markdown(
+                color_text(bias, label(bias)), unsafe_allow_html=True
+            )
     if "confidence" in outlook:
         m2.metric("Confidence", f"{outlook['confidence']:.0%}")
     if "event_count" in outlook:

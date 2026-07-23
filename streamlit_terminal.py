@@ -451,7 +451,6 @@ from terminal_bitcoin import (
     format_btc_price,
     format_large_number,
     format_supply,
-    technicals_signal_icon,
     technicals_signal_label,
 )
 from terminal_bitcoin import (
@@ -493,11 +492,28 @@ from terminal_spike_scanner import (
     market_session,
 )
 from terminal_tabs._shared import tv_symbol_column
-from terminal_tabs.style import dir_glyph, label, style_directional
+from terminal_tabs.style import (
+    DOWN as _COL_DOWN,
+)
+from terminal_tabs.style import (
+    NEUTRAL as _COL_NEUTRAL,
+)
+from terminal_tabs.style import (
+    UP as _COL_UP,
+)
+from terminal_tabs.style import (
+    WARN as _COL_WARN,
+)
+from terminal_tabs.style import (
+    color_text,
+    dir_glyph,
+    label,
+    style_semantic,
+    style_table,
+)
 from terminal_technicals import (
     INTERVAL_MAP,
     fetch_technicals,
-    signal_icon,
     signal_label,
 )
 from terminal_ui_helpers import (
@@ -680,19 +696,43 @@ st.markdown(
         opacity: 1 !important;
     }
 
-    /* 8. Tab labels – larger, bolder text */
-    button[data-baseweb="tab"],
-    button[data-baseweb="tab"] p,
-    button[data-baseweb="tab"] span,
-    div[data-baseweb="tab-list"] button p,
-    .stTabs [data-baseweb="tab-list"] button,
-    .stTabs [data-baseweb="tab-list"] button p {
-        font-size: 1.35rem !important;
-        font-weight: 700 !important;
+    /* 8. Tabs — readable chips that WRAP instead of overflowing into a scroll */
+    .stTabs [data-baseweb="tab-list"] {
+        flex-wrap: wrap;
+        gap: 6px;
+        row-gap: 6px;
+        border-bottom: 0;
     }
-    button[data-baseweb="tab"] {
-        padding-top: 0.65rem !important;
-        padding-bottom: 0.65rem !important;
+    .stTabs [data-baseweb="tab-list"] button[data-baseweb="tab"] {
+        background: #141c32;
+        border: 1px solid #2b3659;
+        border-radius: 8px;
+        padding: 0.38rem 0.85rem !important;
+        min-height: 0;
+    }
+    .stTabs [data-baseweb="tab-list"] button[data-baseweb="tab"] p {
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+    }
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        background: #1e2a4a;
+        border-color: #5b9bf0;
+    }
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] p {
+        color: #cfd9f2 !important;
+    }
+    /* chip background carries the "selected" cue, so drop the sliding underline */
+    .stTabs [data-baseweb="tab-highlight"] { background: transparent !important; }
+
+    /* 9. Buttons — a visible affordance without needing hover to discover it */
+    .stButton > button {
+        background: #1a2340;
+        border: 1px solid #37426e;
+        border-radius: 8px;
+    }
+    .stButton > button:hover {
+        background: #223056;
+        border-color: #5b9bf0;
     }
     </style>""",
     unsafe_allow_html=True,
@@ -747,21 +787,22 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
             st.markdown(f"### {_sel_sym} · Technical Data · {_sel_iv}")
 
             _g1, _g2, _g3 = st.columns(3)
+            def _tech_gauge(title: str, sig: Any, buy: Any, neutral: Any, sell: Any) -> None:
+                # st.metric can't carry colour, so render a titled, muted-coloured value.
+                st.markdown(
+                    f'<div style="color:{_COL_NEUTRAL};font-size:0.8rem">{title}</div>'
+                    f'<div style="font-size:1.6rem;font-weight:600;line-height:1.15">'
+                    f'{color_text(sig, signal_label(sig))}</div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption(f"Buy {buy} · Neutral {neutral} · Sell {sell}")
+
             with _g1:
-                _s_icon = signal_icon(_tech.summary_signal)
-                _s_label = signal_label(_tech.summary_signal)
-                st.metric("Summary", f"{_s_icon} {_s_label}")
-                st.caption(f"Buy {_tech.summary_buy} · Neutral {_tech.summary_neutral} · Sell {_tech.summary_sell}")
+                _tech_gauge("Summary", _tech.summary_signal, _tech.summary_buy, _tech.summary_neutral, _tech.summary_sell)
             with _g2:
-                _o_icon = signal_icon(_tech.osc_signal)
-                _o_label = signal_label(_tech.osc_signal)
-                st.metric("Oscillators", f"{_o_icon} {_o_label}")
-                st.caption(f"Buy {_tech.osc_buy} · Neutral {_tech.osc_neutral} · Sell {_tech.osc_sell}")
+                _tech_gauge("Oscillators", _tech.osc_signal, _tech.osc_buy, _tech.osc_neutral, _tech.osc_sell)
             with _g3:
-                _m_icon = signal_icon(_tech.ma_signal)
-                _m_label = signal_label(_tech.ma_signal)
-                st.metric("Moving Averages", f"{_m_icon} {_m_label}")
-                st.caption(f"Buy {_tech.ma_buy} · Neutral {_tech.ma_neutral} · Sell {_tech.ma_sell}")
+                _tech_gauge("Moving Averages", _tech.ma_signal, _tech.ma_buy, _tech.ma_neutral, _tech.ma_sell)
 
             # ── Multi-interval summary strip ─────────────────
             _strip_intervals = ["1m", "15m", "1h", "4h", "1D"]
@@ -776,9 +817,8 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                     if _sr.error:
                         st.caption(f"**{_siv}**\n—")
                     else:
-                        _si_icon = signal_icon(_sr.summary_signal)
                         _si_lbl = signal_label(_sr.summary_signal)
-                        st.caption(f"**{_siv}**\n{_si_icon} {_si_lbl}")
+                        st.caption(f"**{_siv}**\n{_si_lbl}")
 
             # ── Oscillator detail table ──────────────────────
             _osc_tab, _ma_tab = st.tabs(["Oscillators", "Moving Averages"])
@@ -794,7 +834,7 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                             "Action": _a,
                         })
                     st.dataframe(
-                        pd.DataFrame(_osc_rows),
+                        style_semantic(pd.DataFrame(_osc_rows), ["Action"]),
                         width='stretch',
                         hide_index=True,
                         height=min(500, 40 + 35 * len(_osc_rows)),
@@ -813,7 +853,7 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                             "Action": _a,
                         })
                     st.dataframe(
-                        pd.DataFrame(_ma_rows),
+                        style_semantic(pd.DataFrame(_ma_rows), ["Action"]),
                         width='stretch',
                         hide_index=True,
                         height=min(500, 40 + 35 * len(_ma_rows)),
@@ -863,12 +903,12 @@ def _render_technicals_overview(symbols: list[str], *, key_prefix: str = "techov
             continue
         _rows.append({
             "Symbol": _sym,
-            "Summary": f"{signal_icon(_t.summary_signal)} {signal_label(_t.summary_signal)}",
+            "Summary": signal_label(_t.summary_signal),
             "Buy": _t.summary_buy,
             "Neutral": _t.summary_neutral,
             "Sell": _t.summary_sell,
-            "Oscillators": f"{signal_icon(_t.osc_signal)} {signal_label(_t.osc_signal)}",
-            "Moving Averages": f"{signal_icon(_t.ma_signal)} {signal_label(_t.ma_signal)}",
+            "Oscillators": signal_label(_t.osc_signal),
+            "Moving Averages": signal_label(_t.ma_signal),
         })
 
     if not _rows:
@@ -876,7 +916,7 @@ def _render_technicals_overview(symbols: list[str], *, key_prefix: str = "techov
         return
 
     st.dataframe(
-        pd.DataFrame(tv_linkify_rows(_rows)),
+        style_semantic(pd.DataFrame(tv_linkify_rows(_rows)), ["Summary", "Oscillators", "Moving Averages"]),
         width='stretch',
         hide_index=True,
         height=min(800, 40 + 35 * len(_rows)),
@@ -1778,17 +1818,24 @@ with st.sidebar:
         direct_news_configured=bool(_bz_key or (cfg.fmp_enabled and _fmp_key)),
         producer_ai_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
     )
+    def _status_line(dot_colour: str, name: str, message: str) -> None:
+        # Dezent: a small coloured dot carries the state, the text stays muted.
+        st.markdown(
+            f'<div style="margin:2px 0;font-size:0.86rem;line-height:1.4">'
+            f'<span style="color:{dot_colour}">●</span> '
+            f'<span style="color:{_COL_NEUTRAL}">{name} — {message}</span></div>',
+            unsafe_allow_html=True,
+        )
+
     for _ks in _key_statuses:
         if _ks["configured"]:
-            # Quiet neutral status — green is reserved for market direction,
-            # not for "is configured".
-            st.caption(f"● {_ks['name']} — {_ks['message']}")
+            _status_line(_COL_UP, _ks["name"], _ks["message"])
         elif _ks["icon"] == "❌":
-            st.error(_ks["message"])
+            _status_line(_COL_DOWN, _ks["name"], _ks["message"])
             if _ks["name"] == "News API":
-                st.info("Connect the signals producer or set `BENZINGA_API_KEY` / `FMP_API_KEY`.")
+                st.caption("Connect the signals producer or set BENZINGA_API_KEY / FMP_API_KEY.")
         else:
-            st.caption(f"{_ks['name']}: {_ks['message']}")
+            _status_line(_COL_WARN, _ks["name"], _ks["message"])
     st.toggle(
         "Use direct news providers as primary",
         value=cfg.direct_news_primary,
@@ -2902,9 +2949,9 @@ else:
             _t3_price = _t3r.get("price", 0)
             _t3_name = _t3r.get("name", "")
             _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
-            _t3_sub = _t3_sent_label
+            _t3_sub = color_text(_t3_sent, _t3_sent_label)
             if _t3_attention_state:
-                _t3_sub = f"{_t3_attention_state.title()} · " + _t3_sub
+                _t3_sub = f"{color_text(_t3_attention_state, _t3_attention_state.title())} · " + _t3_sub
             if _t3_price_str:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
@@ -2914,7 +2961,7 @@ else:
                 st.markdown(f"### #{_t3i+1} {tv_symbol_md(_t3_sym)}")
                 if _t3_name_safe:
                     st.caption(_t3_name_safe)
-                st.markdown(_t3_sub)
+                st.markdown(_t3_sub, unsafe_allow_html=True)
     else:
         st.caption("No ranked symbols yet — waiting for data…")
 
@@ -2981,9 +3028,8 @@ else:
         if not entry:
             return "\u2014"
         sig = entry.get("summary", "")
-        icon = signal_icon(sig)
         label = signal_label(sig)
-        return f"{icon} {label}" if icon else (label or "\u2014")
+        return label or "\u2014"
 
     def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:
         """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
@@ -3580,7 +3626,6 @@ else:
                     "Reaction": _reaction_col,
                     "Catalyst": _catalyst_col,
                     "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
-                    "Name": m.get("name", ""),
                     "Headline": _hl_url if _hl_url else _hl_text,
                 })
 
@@ -3657,7 +3702,11 @@ else:
                 )
 
             st.dataframe(
-                style_directional(df_rank, ["Dir", "Change", "Change %"]),
+                style_table(
+                    df_rank,
+                    directional=["Dir", "Change", "Change %"],
+                    semantic=["Sentiment", "Posture", "Attention", "Reaction", "Resolution"],
+                ),
                 width='stretch',
                 height=min(800, 40 + 35 * len(df_rank)),
                 column_config=_rank_col_cfg,
@@ -3905,7 +3954,14 @@ else:
                 )
 
             st.dataframe(
-                _df_act,
+                style_table(
+                    _df_act,
+                    directional=["Chg%"],
+                    semantic=[
+                        "Attention", "Posture", "Resolution",
+                        "Reaction", "Sentiment", "Materiality",
+                    ],
+                ),
                 width='stretch',
                 height=min(800, 40 + 35 * len(_df_act)),
                 column_config=_act_col_cfg,
@@ -4410,9 +4466,9 @@ else:
                         with _col:
                             if _tech and not _tech.error:
                                 st.markdown(
-                                    f"**{_label}:** {technicals_signal_icon(_tech.summary)} "
-                                    f"{technicals_signal_label(_tech.summary)} "
-                                    f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})"
+                                    f"**{_label}:** {color_text(_tech.summary, technicals_signal_label(_tech.summary))} "
+                                    f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})",
+                                    unsafe_allow_html=True,
                                 )
                             elif _tech and _tech.error:
                                 st.caption(f"{_label}: {_tech.error}")
@@ -4544,20 +4600,20 @@ else:
                 _tech_c1, _tech_c2, _tech_c3 = st.columns(3)
                 with _tech_c1:
                     st.markdown(
-                        f"**Overall:** {technicals_signal_icon(_btc_tech.summary)} "
-                        f"{technicals_signal_label(_btc_tech.summary)}"
+                        f"**Overall:** {color_text(_btc_tech.summary, technicals_signal_label(_btc_tech.summary))}",
+                        unsafe_allow_html=True,
                     )
                     st.caption(f"Buy {_btc_tech.buy} · Sell {_btc_tech.sell} · Neutral {_btc_tech.neutral}")
                 with _tech_c2:
                     st.markdown(
-                        f"**Oscillators:** {technicals_signal_icon(_btc_tech.osc_signal)} "
-                        f"{technicals_signal_label(_btc_tech.osc_signal)}"
+                        f"**Oscillators:** {color_text(_btc_tech.osc_signal, technicals_signal_label(_btc_tech.osc_signal))}",
+                        unsafe_allow_html=True,
                     )
                     st.caption(f"Buy {_btc_tech.osc_buy} · Sell {_btc_tech.osc_sell} · Neutral {_btc_tech.osc_neutral}")
                 with _tech_c3:
                     st.markdown(
-                        f"**Moving Avgs:** {technicals_signal_icon(_btc_tech.ma_signal)} "
-                        f"{technicals_signal_label(_btc_tech.ma_signal)}"
+                        f"**Moving Avgs:** {color_text(_btc_tech.ma_signal, technicals_signal_label(_btc_tech.ma_signal))}",
+                        unsafe_allow_html=True,
                     )
                     st.caption(f"Buy {_btc_tech.ma_buy} · Sell {_btc_tech.ma_sell} · Neutral {_btc_tech.ma_neutral}")
 
@@ -4660,7 +4716,11 @@ else:
                         "Price": f"${g.price:,.4f}" if g.price < 1 else f"${g.price:,.2f}",
                         "Change %": f"{g.change_pct:+.2f}%",
                     } for g in _gainers]
-                    st.dataframe(_gainer_data, width='stretch', hide_index=True)
+                    st.dataframe(
+                        style_table(pd.DataFrame(_gainer_data), directional=["Change %"]),
+                        width='stretch',
+                        hide_index=True,
+                    )
                 else:
                     st.caption("No gainers data.")
             with _movers_c2:
@@ -4673,7 +4733,11 @@ else:
                         "Price": f"${lo.price:,.4f}" if lo.price < 1 else f"${lo.price:,.2f}",
                         "Change %": f"{lo.change_pct:+.2f}%",
                     } for lo in _losers]
-                    st.dataframe(_loser_data, width='stretch', hide_index=True)
+                    st.dataframe(
+                        style_table(pd.DataFrame(_loser_data), directional=["Change %"]),
+                        width='stretch',
+                        hide_index=True,
+                    )
                 else:
                     st.caption("No losers data.")
 
@@ -4803,6 +4867,23 @@ else:
         st.header("Signal Replay")
         st.caption("Historical signal outcomes — per-day breakdown with hit rates and P&L.")
 
+        with st.expander("What is Signal Replay, and how do I use it?"):
+            st.markdown(
+                "Each **actionable signal** the terminal surfaces — the directional "
+                "decision capsules from the **Open Prep** pipeline (news catalysts + "
+                "technical posture + the real-time engine, joined per symbol) — is "
+                "logged when it fires, and its result is measured a fixed window later. "
+                "This tab replays that record:\n\n"
+                "- **Hit rate** — share of *resolved* signals that were profitable within "
+                "the 30-minute window after firing.\n"
+                "- **P&L 30m** — the realised move in the signal's direction over that window.\n"
+                "- **Pending** — signals whose outcome window has not closed yet.\n\n"
+                "It is a **track record, not a live trade feed**: use it to see which "
+                "signal states (posture, attention, catalyst strength) have actually paid "
+                "off historically before you act on a live one. The history is produced by "
+                "the Open Prep pipeline — run it to populate this tab."
+            )
+
         _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
         _replay_records = _load_outcomes_range(lookback_days=_replay_days)
 
@@ -4924,7 +5005,7 @@ else:
                         "News": "yes" if _p.get("maps_news") else "—",
                         "Gaps": ", ".join(_p.get("known_gaps", [])) or "none",
                     })
-                st.dataframe(pd.DataFrame(_prov_rows), hide_index=True, use_container_width=True)
+                st.dataframe(style_semantic(pd.DataFrame(_prov_rows), ["Status"]), hide_index=True, use_container_width=True)
 
             # ── Domain visibility breakdown ───────────────────
             _vis = _health_report.get("domain_visibility", {})
@@ -4959,7 +5040,7 @@ else:
                         "Entry Risk": "Yes" if _a.get("failure_affects_entry") else "—",
                         "Message": str(_a.get("message", ""))[:120],
                     })
-                st.dataframe(pd.DataFrame(tv_linkify_rows(_alert_rows)), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
+                st.dataframe(style_semantic(pd.DataFrame(tv_linkify_rows(_alert_rows)), ["Severity", "Action"]), hide_index=True, use_container_width=True, column_config={"Symbol": tv_symbol_column()})
 
             # ── Stale / missing artifacts ─────────────────────
             _stale = _health_report.get("stale_artifacts", [])
@@ -4971,7 +5052,7 @@ else:
                     _art_rows.append({"Type": "Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
                 for _m in _missing:
                     _art_rows.append({"Type": "Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
-                st.dataframe(pd.DataFrame(_art_rows), hide_index=True, use_container_width=True)
+                st.dataframe(style_semantic(pd.DataFrame(_art_rows), ["Type"]), hide_index=True, use_container_width=True)
 
             # ── Failure semantics reference ───────────────────
             with st.expander("Failure Semantics Reference"):
@@ -4985,7 +5066,7 @@ else:
                         "Max Hours": str(_fs.max_tolerable_hours) if _fs.max_tolerable_hours else "—",
                         "Description": _fs.description,
                     })
-                st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
+                st.dataframe(style_semantic(pd.DataFrame(_sem_rows), ["Action"]), hide_index=True, use_container_width=True)
 
     # ── TAB: Decision-First Panel (C7.1 / W1 wiring) ─────────────────────
     with tab_decisions, _tab_guard("Decision-First"):
