@@ -377,13 +377,13 @@ def compute_pnl_from_bars(
         # the entry bar — the fetch window starts at 09:29, so an unbounded
         # mask could pick the 09:29 edge bar as "exit" for a symbol whose
         # first trade printed late (a reversed, pre-market-anchored PnL).
-        # Also require the exit bar to reach the horizon's min_window_min so
-        # the label covers most of the window it claims to measure.
+        # Also require min_window_min minutes FROM THE ENTRY BAR (not the
+        # anchor) so a late entry can't carry a truncated window as the label.
         exit_mask = (sym_df["_et"] < exit_dt) & (sym_df["_et"] > open_bar["_et"])
         if not exit_mask.any():
             continue
         exit_bar = sym_df.loc[exit_mask].iloc[-1]
-        if exit_bar["_et"] < anchor_dt + timedelta(minutes=spec.min_window_min):
+        if exit_bar["_et"] < open_bar["_et"] + timedelta(minutes=spec.min_window_min):
             continue
         # EOD only: the closing bar must actually print near the close, or a
         # symbol that stopped trading at lunchtime gets its 13:00 quote
