@@ -143,6 +143,9 @@ def _discover_available_reference_symbols(
                 export_bundle_root,
                 required_frames=required_frames,
                 manifest_prefix="databento_volatility_production_",
+                # This function reads exactly frames[required_frames[0]] (see
+                # _ingest below), so the declared need IS the read set.
+                only_frames=required_frames,
             )
         except Exception:
             bundle = None
