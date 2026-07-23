@@ -1817,6 +1817,15 @@ with st.sidebar:
     _bz_key = os.environ.get("BENZINGA_API_KEY", "") or cfg.benzinga_api_key
     _fmp_key = os.environ.get("FMP_API_KEY", "") or cfg.fmp_api_key
     _oai_key = os.environ.get("OPENAI_API_KEY", "") or cfg.openai_api_key
+    # Name the direct providers explicitly — the status row is an ingest route
+    # (producer + direct fallback), not one vendor, so a generic label reads as
+    # a provider that does not exist.
+    _direct_names = tuple(
+        _name for _name, _on in (
+            ("Benzinga", bool(_bz_key)),
+            ("FMP", bool(cfg.fmp_enabled and _fmp_key)),
+        ) if _on
+    )
     _key_statuses = api_key_status(
         benzinga_key=_bz_key,
         databento_available=databento_available(),
@@ -1824,6 +1833,7 @@ with st.sidebar:
         producer_feed_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
         direct_news_configured=bool(_bz_key or (cfg.fmp_enabled and _fmp_key)),
         producer_ai_configured=bool(cfg.producer_feed_url and cfg.producer_feed_token),
+        direct_provider_names=_direct_names,
     )
     def _status_line(dot_colour: str, name: str, message: str) -> None:
         # Dezent: a small coloured dot carries the state, the text stays muted.
@@ -1839,7 +1849,7 @@ with st.sidebar:
             _status_line(_COL_UP, _ks["name"], _ks["message"])
         elif _ks["icon"] == "❌":
             _status_line(_COL_DOWN, _ks["name"], _ks["message"])
-            if _ks["name"] == "News API":
+            if _ks["name"] == "News Ingest":
                 st.caption("Connect the signals producer or set BENZINGA_API_KEY / FMP_API_KEY.")
         else:
             _status_line(_COL_WARN, _ks["name"], _ks["message"])
@@ -1948,8 +1958,12 @@ with st.sidebar:
     elif poll_status:
         st.caption(f"Last poll: {poll_status}")
 
-    # Data sources active
+    # Data sources active. The producer feed is listed FIRST when configured:
+    # it is the primary news route unless direct_news_primary is on, and
+    # omitting it made this line read as if news came from BZ/FMP directly.
     sources = []
+    if cfg.producer_feed_url and cfg.producer_feed_token:
+        sources.append("Producer")
     if cfg.benzinga_api_key:
         sources.append("BZ")
     if cfg.fmp_enabled and cfg.fmp_api_key:
@@ -4928,7 +4942,8 @@ else:
         st.caption(
             "P&L is cost-free mark-to-market (no exit signal, no fees/spread/slippage) — "
             "the longer the horizon, the more that flatters the number, especially on "
-            "micro-caps."
+            "micro-caps. Hit rate and P&L are direction-aware and read as a pair, with a "
+            "paired fallback to the legacy long-only fields on older records."
         )
 
         if not _replay_records:
@@ -4982,6 +4997,15 @@ else:
             )
             if _bucket_rates:
                 st.subheader("Hit Rate by Gap × RVOL Bucket")
+                st.caption(
+                    "Direction-aware: the win/loss label and the P&L are read as a "
+                    "signed pair, falling back together to the legacy long-only "
+                    "fields for records written before directional labels existed. "
+                    "A short signal's history therefore reads slightly differently "
+                    "here than under a pure long-only view. Records with no RVOL "
+                    "ratio are excluded from these buckets entirely — they are not "
+                    "pooled into the low-RVOL bucket."
+                )
                 _bucket_rows = []
                 for bkey, bdata in sorted(_bucket_rates.items()):
                     gap_b, rvol_b = bkey.split(":", 1)
