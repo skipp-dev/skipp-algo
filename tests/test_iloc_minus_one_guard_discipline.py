@@ -127,7 +127,11 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # over a full closed frame (open from first row, close from
         # last row). PR #2180 added `import sys` (1 line) shifting 817 -> 818.
         # PR #2198 main churn added 1 line near top, shifting 818 -> 819.
-        ("scripts/smc_microstructure_base_runtime.py", 818),
+        # 2026-07-23 (PR #3937 collapsed the duplicate coverage-scope
+        # implementation, deleting 88 lines above this site): 818 -> 780.
+        # Still the single iloc[-1] in the file, still _window_efficiency's
+        # closing-price read; the data semantics are unchanged.
+        ("scripts/smc_microstructure_base_runtime.py", 780),
     }
 )
 

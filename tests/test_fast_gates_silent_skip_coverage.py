@@ -133,6 +133,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",
     "tests/test_httpx_timeout_invariant.py",
+    "tests/test_iloc_minus_one_guard_discipline.py",
     "tests/test_library_discipline_zero_surface.py",
     "tests/test_lint_debt_no_regression.py",
     "tests/test_live_overlay_alert_rules_publish_workflow.py",
