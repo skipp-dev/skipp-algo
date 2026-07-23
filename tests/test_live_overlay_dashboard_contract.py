@@ -1559,6 +1559,40 @@ def test_dashboard_signal_pipeline_ready_panel_uses_boolean_expression() -> None
     assert " or on() vector(" in expr
 
 
+def test_dashboard_signal_pipeline_ready_absent_series_render_unknown_not_not_ready() -> None:
+    """An absent signals_producer target must read UNKNOWN, not NOT READY.
+
+    The readiness verdict is a product of three ``signals_producer`` series. If
+    the whole target disappears (scrape down, job-label mismatch, exporter not
+    serving) the product is an empty vector and only the outer fallback renders.
+    With ``vector(0)`` that fallback claimed a *functional* verdict — "the
+    pipeline is not ready" — for what is a telemetry failure, blaming the
+    producer for a collector outage and erasing the distinction operators need.
+
+    ``vector(-1)`` + an explicit UNKNOWN mapping keeps the panel populated (no
+    NO DATA blank) while attributing the gap honestly. Paging is unchanged:
+    sp-scrape-down covers the absent target, and sp-watchlist-empty /
+    sp-snapshot-missing / sp-poll-stale each carry ``or on() vector(1)``.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(p for p in _dashboard_panels(dashboard) if p.get("title") == "Signal Pipeline Ready")
+    expr = panel["targets"][0]["expr"]
+    assert expr.rstrip().endswith("or on() vector(-1)"), (
+        f"absent-series fallback must be the sentinel -1, not a functional verdict; got {expr!r}"
+    )
+    assert " or on() vector(0)" not in expr
+
+    mapped = {}
+    for mapping in panel["fieldConfig"]["defaults"]["mappings"]:
+        if mapping.get("type") == "value":
+            mapped.update(mapping.get("options", {}))
+    assert mapped["-1"]["text"] == "UNKNOWN", "the -1 sentinel must render as UNKNOWN, not as a bare number"
+    assert mapped["-1"]["color"] != "green", "unknown telemetry must never render as a healthy colour"
+    # The real verdicts must keep their meaning.
+    assert mapped["0"]["text"] == "NOT READY"
+    assert mapped["1"]["text"] == "READY"
+
+
 def test_dashboard_open_prep_snapshot_panel_uses_label_safe_fallback() -> None:
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
