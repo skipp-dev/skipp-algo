@@ -178,7 +178,7 @@ failure fails CI instead of silently leaving the old container running.
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists. |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
-| `LIVE_OVERLAY_RESTART_CAUSE` | no | — | Label for `live_overlay_daemon_restart_cause_*_total` |
+| `LIVE_OVERLAY_RESTART_CAUSE` | no | — | `cause` label on `live_overlay_daemon_start_time_seconds` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 | `OVERLAY_FLOW_REFRESH_SECS` | no | — | Flow refresh interval |
 | `OVERLAY_MAX_FEED_FAILURES` | no | — | Circuit breaker threshold |
@@ -990,10 +990,11 @@ sum by (cause) (
 )
 ```
 
-> Do **not** use `increase(live_overlay_daemon_restart_cause_*_total[…])`: those
-> per-cause counters are reset to `1` on every process start and stay constant,
-> so Prometheus sees `1,1,…` across restarts and `increase()` is always `0` (the
-> same inert class already fixed for `live_overlay_daemon_restarts_total`).
+> The `live_overlay_daemon_restart_cause_*_total` and
+> `live_overlay_daemon_restarts_total` counters no longer exist. They were reset
+> to `1` on every process start and stayed constant, so Prometheus saw `1,1,…`,
+> detected no reset, and `increase()` was always `0` — measured 2026-07-23, the
+> series read `1` against 51 real restarts in the same 24h.
 > `live_overlay_daemon_start_time_seconds{cause}` carries the start epoch as its
 > value, so `changes()` counts real restarts per cause.
 

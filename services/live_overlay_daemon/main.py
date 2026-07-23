@@ -74,10 +74,14 @@ async def _lifespan(app: FastAPI):
     global _startup_ts, _startup_epoch
     logger.info("Starting SMC Live Overlay Daemon …")
     observability.metric_counter("live_overlay.daemon.start_attempt")
-    observability.metric_counter("live_overlay.daemon.restarts_total")  # == process starts incl. the initial boot (and failed-env boots); overcounts true restarts — read via rate()/increase(), not the absolute value
-    observability.metric_counter(
-        f"live_overlay.daemon.restart_cause.{config.restart_cause()}.total"
-    )
+    # No restarts_total / restart_cause_*_total counters here: they live in
+    # process memory, so every restart reset them back to 1. Prometheus saw
+    # 1,1,1,… — no decrease, therefore no reset detected, therefore increase()
+    # and rate() were structurally 0. Measured 2026-07-23: the series read 1
+    # while changes(live_overlay_process_start_time_seconds[24h]) read 51.
+    # Both facts are served truthfully elsewhere: restart COUNT by
+    # changes(process_start_time_seconds), restart CAUSE by the labeled
+    # live_overlay_daemon_start_time_seconds{cause=...} gauge below.
 
     # Validate required env vars fail-fast at startup
     with observability.trace_span("live_overlay.daemon_lifespan"):

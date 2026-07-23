@@ -2328,12 +2328,26 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
     assert not bad, f"Railway panels query non-existent metrics: {bad}"
 
 
-def test_render_metrics_includes_daemon_restarts_total_counter(
+def test_inert_restart_counters_are_no_longer_emitted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The dedicated restart counter is rendered as a counter series."""
+    """live_overlay_daemon_restarts_total and restart_cause_*_total lived in
+    process memory, so every restart reset them to 1. Prometheus saw 1,1,1,...
+    -- no decrease, so no counter reset was detected, so increase()/rate() were
+    structurally 0. Measured in production 2026-07-23: the series read 1 while
+    changes(live_overlay_process_start_time_seconds[24h]) read 51.
+
+    Both facts are served truthfully elsewhere (restart count via
+    changes(process_start_time_seconds), cause via the labeled start-time gauge
+    pinned in the next test), so these two are removed rather than documented
+    around for a third time.
+    """
+    import services.live_overlay_daemon.main as main_mod
     import services.live_overlay_daemon.metrics as metrics_mod
-    import services.live_overlay_daemon.observability as obs
+
+    source = Path(main_mod.__file__).read_text(encoding="utf-8")
+    assert '"live_overlay.daemon.restarts_total"' not in source
+    assert "live_overlay.daemon.restart_cause." not in source
 
     _patch_common(
         monkeypatch,
@@ -2343,16 +2357,12 @@ def test_render_metrics_includes_daemon_restarts_total_counter(
         overlay_symbols=5,
         overlay_age=60.0,
     )
-
-    with obs._counter_lock:
-        obs._counters["live_overlay.daemon.restarts_total"] = 3.0
-        obs._counters["live_overlay.daemon.restart_cause.deploy.total"] = 3.0
-
     body = metrics_mod.render_metrics(startup_ts=100.0)
-    assert "# TYPE live_overlay_daemon_restarts_total counter" in body
-    assert "live_overlay_daemon_restarts_total 3.0" in body
-    assert "# TYPE live_overlay_daemon_restart_cause_deploy_total counter" in body
-    assert "live_overlay_daemon_restart_cause_deploy_total 3.0" in body
+    assert "live_overlay_daemon_restarts_total" not in body
+    assert "live_overlay_daemon_restart_cause_" not in body
+    # The working replacement must still be there — removing the inert pair
+    # must not take the cause attribution with it.
+    assert "live_overlay_daemon_start_time_seconds{" in body
 
 
 def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
@@ -2381,16 +2391,6 @@ def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
     assert (
         'live_overlay_daemon_start_time_seconds{cause="deploy"} 1700000000.000' in body
     )
-
-
-def test_main_lifespan_increments_restarts_total_counter() -> None:
-    """main.py _lifespan increments the dedicated restart counter."""
-    import services.live_overlay_daemon.main as main_mod
-
-    source = Path(main_mod.__file__).read_text(encoding="utf-8")
-    assert 'observability.metric_counter("live_overlay.daemon.restarts_total")' in source
-    assert "observability.metric_counter(" in source
-    assert "restart_cause" in source
 
 
 def test_dashboard_all_panels_have_datasource() -> None:

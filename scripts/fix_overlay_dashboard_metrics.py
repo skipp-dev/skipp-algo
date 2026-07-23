@@ -9,7 +9,9 @@ Changes:
 - Point the restarts panel at changes(live_overlay_process_start_time_seconds)
   (live_overlay_daemon_restarts_total is a constant-1 gauge — increase()/changes()
   over it are always 0; found 2026-07-07/08).
-- Fix restart-cause panels to preserve __name__ in aggregation.
+- Point restart-cause panels at changes(live_overlay_daemon_start_time_seconds)
+  by cause (the *_total counters they used were removed 2026-07-23 — reset to 1
+  on every process start, so increase() was structurally 0).
 - Fix GitHub workflow rate() queries to deriv() because counts are gauges.
 - Replace signals_producer container row with Railway metrics.
 - Generate stable panel ids.
@@ -85,9 +87,9 @@ def _fix_restart_causes_counted(panel: dict) -> None:
     panel["targets"] = [
         {
             "datasource": DATASOURCE,
-            "expr": 'sum by (__name__) (increase({__name__=~"live_overlay_daemon_restart_cause_.*_total",job=~"$job"}[24h]))',
+            "expr": 'sum by (cause) (changes(live_overlay_daemon_start_time_seconds{job=~"$job"}[24h]))',
             "refId": "A",
-            "legendFormat": "{{__name__}}",
+            "legendFormat": "{{cause}}",
         }
     ]
 
@@ -98,9 +100,9 @@ def _fix_restart_causes_by_cause(panel: dict) -> None:
     panel["targets"] = [
         {
             "datasource": DATASOURCE,
-            "expr": 'sum by (__name__) (increase({__name__=~"live_overlay_daemon_restart_cause_.*_total",job=~"$job"}[24h]))',
+            "expr": 'sum by (cause) (changes(live_overlay_daemon_start_time_seconds{job=~"$job"}[24h]))',
             "refId": "A",
-            "legendFormat": "{{__name__}}",
+            "legendFormat": "{{cause}}",
         }
     ]
 
