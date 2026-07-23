@@ -684,3 +684,34 @@ class TestComputeHitRatesHorizon:
         _store(outcomes_dir, self._records())
         with pytest.raises(ValueError):
             compute_hit_rates(lookback_days=5, horizon="45m")
+
+
+# ── Late-entry window completeness (F1 regression) ───────────────────────────
+
+
+def test_late_entry_truncates_the_30m_window_below_its_floor() -> None:
+    """A within-delay late open must not carry a sub-floor 30m window.
+
+    First print at 09:35 (entry lag 5 min = ``_MAX_ENTRY_DELAY_MIN``): the
+    last bar before 10:00 is 09:59, so the entry->exit window is 24 bar-min,
+    below the 30m floor of 25. Before the fix the completeness guard measured
+    from the 09:30 anchor (09:59 >= 09:55) and published a truncated window
+    as ``pnl_30m_pct``. 60m/120m keep enough buffer to stay resolved.
+    """
+    d = date(2026, 4, 17)
+    df = _rth_bars("LATEOPEN", d, lambda i: 100.0 + i * 0.10, start=dt_time(9, 35))
+    res = compute_pnl_from_bars(df, "LATEOPEN", d)
+    assert res is not None
+    assert res["pnl_30m_pct"] is None
+    assert res["profitable_30m"] is None
+    assert res["pnl_60m_pct"] is not None
+    assert res["pnl_120m_pct"] is not None
+
+
+def test_punctual_entry_still_keeps_its_30m_window() -> None:
+    """The floor must not over-reject: a 09:30 entry resolves 30m as before."""
+    d = date(2026, 4, 17)
+    df = _rth_bars("ONTIME", d, lambda i: 100.0 + i * 0.10)
+    res = compute_pnl_from_bars(df, "ONTIME", d)
+    assert res is not None
+    assert res["pnl_30m_pct"] is not None
