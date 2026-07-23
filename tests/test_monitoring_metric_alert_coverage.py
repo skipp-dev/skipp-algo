@@ -994,3 +994,24 @@ def test_micro_profile_stale_threshold_absorbs_weekday_cadence() -> None:
         "false-fires nightly against the T-1 + morning-refresh cadence"
     )
     assert "172800" not in exprs
+
+
+def test_single_degraded_news_provider_has_info_visibility() -> None:
+    """A single degraded news provider must be alert-visible before redundancy is lost.
+
+    ``lo-news-provider-health-degraded`` deliberately keys on ``>= 2`` (paging
+    policy: one flapping provider must not page while redundancy holds). The
+    2026-07-23 v6 truth audit flagged the gap: exactly one degraded provider
+    was dashboard-only. The info-severity companion closes it without changing
+    paging behaviour — and this test pins BOTH halves of that policy so
+    neither threshold silently drifts.
+    """
+    single = _rules_by_uid()["lo-news-provider-health-degraded-single"]
+    expr = _rule_exprs()["lo-news-provider-health-degraded-single"]
+    assert "live_overlay_provider_news_snapshot_loaded" in expr
+    assert "live_overlay_provider_news_providers_degraded_total" in expr
+    assert "== bool 1" in expr
+    assert (single.get("labels") or {}).get("severity") == "info"
+    assert single.get("for") == "30m"
+    # The paging rule keeps its deliberate >=2 redundancy threshold.
+    assert ">= bool 2" in _rule_exprs()["lo-news-provider-health-degraded"]
