@@ -1649,6 +1649,50 @@ groups:
       runbook: The A0/A1 signals feed (producer or snapshot URL/path) has not
         refreshed within OVERLAY_SIGNALS_MAX_AGE_SECS. Check the
         smc-signals-producer service and the snapshot publishing branch.
+  - uid: lo-trading-signals-snapshot-unavailable
+    title: Trading signals snapshot unavailable
+    condition: C
+    # loaded==0 means compute._load_signals_snapshot returned {} — no
+    # SIGNALS_SERVICE_URL, no SIGNALS_SNAPSHOT_URL and no readable local
+    # snapshot. Neither sibling rule can see that state: both
+    # lo-trading-signals-snapshot-stale (via the exporter's own `stale` verdict,
+    # which stays 0 while age_known==0) and lo-trading-signals-snapshot-age-unknown
+    # (literally multiplied by `..._loaded`) read 0 when nothing loaded at all,
+    # so a fresh deploy or a misconfigured URL leaves the A0/A1/A2 overlays blank
+    # with every signals alert green. Mirrors lo-news-snapshot-unavailable and
+    # lo-tv-binding-snapshot-unloadable (found 2026-07-23).
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_trading_signals_loaded{job="live_overlay"} < bool 1
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: high
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The realtime trading-signals snapshot is not loading at all (loaded=0)
+        - A0/A1/A2 overlays are blank and the stale rule cannot see it.
+      runbook: Check SIGNALS_SERVICE_URL / SIGNALS_SNAPSHOT_URL and the local signals
+        snapshot path on the daemon; grep the compute logs for signals-snapshot fetch
+        failures. A frozen but present last-good snapshot fires
+        lo-trading-signals-snapshot-stale instead.
   - uid: lo-trading-signals-snapshot-age-unknown
     title: Trading signals snapshot age unknown
     condition: C

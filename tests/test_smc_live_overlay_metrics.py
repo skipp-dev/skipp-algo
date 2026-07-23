@@ -1731,6 +1731,83 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     assert "snapshot_age_known" in stale["data"][0]["model"]["expr"]
 
 
+def test_alert_rules_cover_trading_signals_snapshot_unavailable() -> None:
+    """A signals snapshot that never loads (loaded==0) must page on its own.
+
+    Both sibling rules read 0 in that state — the stale rule consumes the
+    exporter's ``_snapshot_stale`` verdict (which stays 0 while age_known==0)
+    and the age-unknown rule is multiplied by ``_loaded`` — so without this rule
+    a fresh deploy or a misconfigured SIGNALS_* URL leaves the A0/A1/A2 overlays
+    blank with every signals alert green.
+    """
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    warning_group = next(g for g in rules_doc["groups"] if g.get("name") == "live-overlay-warning")
+    rules_by_uid = {r.get("uid"): r for r in warning_group["rules"]}
+    assert "lo-trading-signals-snapshot-unavailable" in rules_by_uid, (
+        "neither lo-trading-signals-snapshot-stale nor -age-unknown can fire while "
+        "live_overlay_trading_signals_loaded == 0; a dedicated unavailable rule is required"
+    )
+    rule = rules_by_uid["lo-trading-signals-snapshot-unavailable"]
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_trading_signals_loaded" in expr
+    assert "< bool 1" in expr
+    assert rule["labels"]["severity"] == "high"
+    # The sibling rules must keep their loaded-gating; this rule is what covers
+    # the gap they leave, so it must not itself be gated on loaded.
+    age_unknown_expr = rules_by_uid["lo-trading-signals-snapshot-age-unknown"]["data"][0]["model"]["expr"]
+    assert "live_overlay_trading_signals_loaded" in age_unknown_expr
+
+
+def test_uptimerobot_monitor_count_series_marked_keep_last_good() -> None:
+    """Monitor-count gauges serve last-good data during a bridge outage.
+
+    ``uptimerobot_bridge._snapshot`` keeps the previous counts/monitors when a
+    scrape fails (only the status keys are overridden), so a legend reading
+    plain "up"/"down" implies a live poll that is not happening. The legends and
+    the panel description must say so; ``bridge_scrape_success``/``error_info``
+    remain the truthful liveness signals.
+    """
+    import json
+
+    repo_root = Path(__file__).resolve().parents[1]
+    dash_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dash_path.read_text(encoding="utf-8"))
+
+    def _walk(obj: object):
+        if isinstance(obj, dict):
+            yield obj
+            for value in obj.values():
+                yield from _walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                yield from _walk(item)
+
+    legends = [
+        (node["expr"], node["legendFormat"])
+        for node in _walk(dashboard)
+        if isinstance(node.get("expr"), str)
+        and "legendFormat" in node
+        and "live_overlay_uptimerobot_monitors_" in node["expr"]
+    ]
+    assert legends, "expected uptimerobot monitor-count series in the dashboard"
+    for expr, legend in legends:
+        assert "last-good" in legend, (
+            f"uptimerobot monitor series {expr!r} has legend {legend!r}, which implies live data "
+            "although the bridge serves the last successful counts during an outage"
+        )
+
+    panel = next(
+        node
+        for node in _walk(dashboard)
+        if node.get("title") == "UptimeRobot Monitors" and isinstance(node.get("description"), str)
+    )
+    assert "KEEP-LAST-GOOD" in panel["description"]
+
+
 def test_age_unknown_gated_stale_alert_rules_require_known_age() -> None:
     """Every stale alert that reads an _age_seconds gauge must gate on the matching _known flag.
 

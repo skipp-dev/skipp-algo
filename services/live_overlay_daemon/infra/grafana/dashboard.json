@@ -4937,7 +4937,7 @@
       "targets": [
         {
           "expr": "live_overlay_uptimerobot_monitors_total{job=~\"$job\"}",
-          "legendFormat": "total",
+          "legendFormat": "total (last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -4945,7 +4945,7 @@
         },
         {
           "expr": "live_overlay_uptimerobot_monitors_expected{job=~\"$job\"}",
-          "legendFormat": "expected (allowlist)",
+          "legendFormat": "expected (allowlist, last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -4953,7 +4953,7 @@
         },
         {
           "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"}",
-          "legendFormat": "up",
+          "legendFormat": "up (last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -4961,7 +4961,7 @@
         },
         {
           "expr": "live_overlay_uptimerobot_monitors_down_total{job=~\"$job\"}",
-          "legendFormat": "down",
+          "legendFormat": "down (last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -4969,7 +4969,7 @@
         },
         {
           "expr": "live_overlay_uptimerobot_monitors_paused_total{job=~\"$job\"}",
-          "legendFormat": "paused",
+          "legendFormat": "paused (last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -4977,7 +4977,7 @@
         },
         {
           "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=~\"$job\"}",
-          "legendFormat": "avg response (ms)",
+          "legendFormat": "avg response (ms, last-good)",
           "datasource": {
             "type": "prometheus",
             "uid": "grafanacloud-prom"
@@ -5021,7 +5021,7 @@
           }
         ]
       },
-      "description": "UptimeRobot actual/allowlist-expected counts, up/down status, and response time.",
+      "description": "UptimeRobot actual/allowlist-expected counts, up/down status, and response time. These series are KEEP-LAST-GOOD: when the bridge scrape fails the daemon serves the last successful counts unchanged, so a flat line here does not prove the monitors are still being polled. Read it together with the UptimeRobot Bridge / Bridge Error / Snapshot Age panels, which stay truthful during an outage.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
