@@ -41,7 +41,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 1.4737,
+    "pnl_60m_pct_signed": 1.4737,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 0.1184,
+    "pnl_120m_pct_signed": 0.1184,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -0.7368,
+    "pnl_eod_pct_signed": -0.7368,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -85,7 +97,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 1.4073,
+    "pnl_60m_pct_signed": 1.4073,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 1.3738,
+    "pnl_120m_pct_signed": 1.3738,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -1.1393,
+    "pnl_eod_pct_signed": -1.1393,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -129,7 +153,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 2.1351,
+    "pnl_60m_pct_signed": 2.1351,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 1.08,
+    "pnl_120m_pct_signed": 1.08,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -0.5027,
+    "pnl_eod_pct_signed": -0.5027,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -173,7 +209,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": -0.3444,
+    "pnl_60m_pct_signed": -0.3444,
+    "profitable_60m": false,
+    "profitable_60m_directional": false,
+    "pnl_120m_pct": -1.1815,
+    "pnl_120m_pct_signed": -1.1815,
+    "profitable_120m": false,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": -2.3801,
+    "pnl_eod_pct_signed": -2.3801,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -217,7 +265,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 2.6571,
+    "pnl_60m_pct_signed": 2.6571,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 1.649,
+    "pnl_120m_pct_signed": 1.649,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 1.4102,
+    "pnl_eod_pct_signed": 1.4102,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-06-29",
@@ -261,7 +321,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 0.7656,
+    "pnl_60m_pct_signed": 0.7656,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 0.2193,
+    "pnl_120m_pct_signed": 0.2193,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 0.313,
+    "pnl_eod_pct_signed": 0.313,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-06-29",
@@ -305,7 +377,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 1.6003,
+    "pnl_60m_pct_signed": 1.6003,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 0.0473,
+    "pnl_120m_pct_signed": 0.0473,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": -0.4646,
+    "pnl_eod_pct_signed": -0.4646,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -349,7 +433,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": -0.159,
+    "pnl_60m_pct_signed": -0.159,
+    "profitable_60m": false,
+    "profitable_60m_directional": false,
+    "pnl_120m_pct": -1.0656,
+    "pnl_120m_pct_signed": -1.0656,
+    "profitable_120m": false,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": -2.6337,
+    "pnl_eod_pct_signed": -2.6337,
+    "profitable_eod": false,
+    "profitable_eod_directional": false
   },
   {
     "date": "2026-06-29",
@@ -393,7 +489,19 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 0.1705,
+    "pnl_60m_pct_signed": 0.1705,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": -1.0588,
+    "pnl_120m_pct_signed": -1.0588,
+    "profitable_120m": false,
+    "profitable_120m_directional": false,
+    "pnl_eod_pct": 0.7171,
+    "pnl_eod_pct_signed": 0.7171,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   },
   {
     "date": "2026-06-29",
@@ -437,6 +545,18 @@
     "freshness_component": 0.3,
     "institutional_component": 0.0,
     "estimate_revision_component": 0.0,
-    "tb_barrier_source": "atr"
+    "tb_barrier_source": "atr",
+    "pnl_60m_pct": 0.3167,
+    "pnl_60m_pct_signed": 0.3167,
+    "profitable_60m": true,
+    "profitable_60m_directional": true,
+    "pnl_120m_pct": 0.7324,
+    "pnl_120m_pct_signed": 0.7324,
+    "profitable_120m": true,
+    "profitable_120m_directional": true,
+    "pnl_eod_pct": 0.6037,
+    "pnl_eod_pct_signed": 0.6037,
+    "profitable_eod": true,
+    "profitable_eod_directional": true
   }
 ]
