@@ -5738,14 +5738,26 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
       return !dialogStillVisible;
     },
   ).catch(() => false);
-  if (!clickedClose) {
-    await page.keyboard.press("Escape").catch(() => undefined);
-    await page.waitForTimeout(400);
-  }
 
   const dialogStillVisible = await dialog.isVisible({ timeout: 500 }).catch(() => false);
-  tracePageEvent(page, dialogStillVisible ? "pine-editor-close-still-visible" : "pine-editor-close-ok");
-  return !dialogStillVisible;
+  if (!dialogStillVisible) {
+    tracePageEvent(page, "pine-editor-close-ok");
+    return true;
+  }
+
+  // No close affordance exists. Live-probed 2026-07-22: on the primary layout
+  // (vWgAWyfC) the Pine editor is DOCKED into the saved workspace — the panel is
+  // present and 878x950 on every fresh load, its toolbar carries only
+  // Add-to-chart / Save / Publish / More, and Escape, the
+  // `[data-name="pine-dialog-button"]` toggle (real click, force, DOM .click(),
+  // 8 attempts) and the More menu are all no-ops. On the mobile layout
+  // (YcGLVHXR) the element is absent entirely. This is layout state; only the
+  // human who owns the layout can undock it, so the helper reports and stops
+  // rather than firing a global Escape at whatever surface happens to be
+  // focused. Callers already treat the result as advisory — a docked editor has
+  // never blocked the chart-surface work these call sites do.
+  tracePageEvent(page, "pine-editor-docked-not-closeable");
+  return false;
 }
 
 export async function openExistingScript(
