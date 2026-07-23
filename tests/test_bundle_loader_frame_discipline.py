@@ -19,6 +19,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 
 #: Callers allowed to load the full bundle, with why. Tightening each of these
@@ -74,7 +76,9 @@ def test_every_bundle_load_declares_its_frames() -> None:
     )
 
 
-def test_service_context_bars_load_exactly_what_they_read() -> None:
+def test_service_context_bars_load_exactly_what_they_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The killer call site: the service reads three frames, so it must request three."""
     import smc_integration.service as service
 
@@ -84,12 +88,10 @@ def test_service_context_bars_load_exactly_what_they_read() -> None:
         captured.update(kwargs)
         return {"frames": {}}
 
-    original = service.load_export_bundle
-    service.load_export_bundle = fake_load
-    try:
-        service._load_symbol_bars_for_context("AAPL", "15m")
-    finally:
-        service.load_export_bundle = original
+    # monkeypatch.setattr instead of manual assign+try/finally: same semantics,
+    # but restoration is fixture-managed and holds under xdist same-process runs.
+    monkeypatch.setattr(service, "load_export_bundle", fake_load)
+    service._load_symbol_bars_for_context("AAPL", "15m")
 
     assert captured.get("only_frames") == (
         "daily_bars",
