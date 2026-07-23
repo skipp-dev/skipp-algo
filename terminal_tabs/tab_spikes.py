@@ -21,6 +21,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     tv_symbol_column,
 )
+from terminal_tabs.style import dir_glyph
 from terminal_ui_helpers import tv_linkify_rows
 
 
@@ -57,7 +58,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         return
 
     session_label = SESSION_ICONS.get(current_session, current_session)
-    st.subheader("🔎 Spike Scanner")
+    st.subheader("Spike Scanner")
     st.caption(
         f"**{session_label}** — Gainers / Losers / Most Active "
         "(yfinance real-time, FMP 15-min fallback) with volume-weighted spike scoring."
@@ -118,9 +119,8 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     table_rows: list[dict[str, Any]] = []
     for r in filtered_rows[:100]:
         change_pct = float(r.get("change_pct") or 0.0)
-        dir_icon = "🟢" if change_pct > 0 else "🔴"
         table_rows.append({
-            "Dir": dir_icon,
+            "Dir": dir_glyph(change_pct),
             "Symbol": r["symbol"],
             "Name": (r.get("name") or "")[:40],
             "Price": f"${r['price']:.2f}" if r["price"] >= 1 else f"${r['price']:.4f}",

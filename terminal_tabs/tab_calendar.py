@@ -20,7 +20,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` in `.env` for the economic calendar.")
         return
 
-    st.subheader("📅 Economic Calendar")
+    st.subheader("Economic Calendar")
     st.caption("Upcoming macro events from FMP (7-day window).")
 
     today = datetime.now(UTC).date()
@@ -43,17 +43,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         estimate = ev.get("estimate", ev.get("forecast", ""))
         previous = ev.get("previous", "")
 
-        impact_icon = {
-            "High": "🔴", "high": "🔴",
-            "Medium": "🟡", "medium": "🟡",
-            "Low": "🟢", "low": "🟢",
-        }.get(str(impact), "⚪")
-
         rows.append({
             "Date": date_str,
             "Event": event_name[:60],
             "Country": country,
-            "Impact": f"{impact_icon} {impact}",
+            "Impact": impact,
             "Actual": actual,
             "Estimate": estimate,
             "Previous": previous,

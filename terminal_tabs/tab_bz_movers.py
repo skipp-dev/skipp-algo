@@ -29,7 +29,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga movers.")
         return
 
-    st.subheader("📈 Benzinga Market Movers")
+    st.subheader("Benzinga Market Movers")
     st.caption("Most active gainers & losers from Benzinga with delayed quotes.")
 
     movers = cached_bz_movers(bz_key)
@@ -57,7 +57,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         }
 
     # Gainers table (shared builder — item 11)
-    st.markdown("### 🟢 Top Gainers")
+    st.markdown("### Top Gainers")
     if gainers:
         g_rows = tv_linkify_rows(build_bz_mover_rows(gainers, quote_map))
         st.dataframe(
@@ -71,7 +71,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.caption("—")
 
     # Losers table (shared builder — item 11)
-    st.markdown("### 🔴 Top Losers")
+    st.markdown("### Top Losers")
     if losers:
         l_rows = tv_linkify_rows(build_bz_mover_rows(losers, quote_map))
         st.dataframe(

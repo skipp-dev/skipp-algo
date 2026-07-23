@@ -12,7 +12,7 @@ from terminal_ui_helpers import safe_markdown_text
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Breaking News tab."""
-    st.subheader("🔔 Breaking News")
+    st.subheader("Breaking News")
     st.caption("NewsAPI.ai integration has been decommissioned.")
 
     if not newsapi_available():

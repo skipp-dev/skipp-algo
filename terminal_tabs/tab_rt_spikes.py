@@ -15,6 +15,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     tv_symbol_column,
 )
+from terminal_tabs.style import dir_glyph
 from terminal_ui_helpers import format_age_string, tv_linkify_rows
 
 
@@ -23,7 +24,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     _cfg = st.session_state.cfg
     spike_det: SpikeDetector | None = st.session_state.get("spike_detector")
 
-    st.subheader("⚡ Real-Time Spike Detection")
+    st.subheader("Real-Time Spike Detection")
     st.caption(
         "Symbols detected in the live feed that had abnormal price moves, "
         "scored by spike magnitude."
@@ -40,20 +41,19 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     m1, m2, m3 = st.columns(3)
     m1.metric("Active Spikes", len(events))
     m2.metric(
-        "🟢 Up Spikes",
+        "Up Spikes",
         sum(1 for e in events if e.direction == "up"),
     )
     m3.metric(
-        "🔴 Down Spikes",
+        "Down Spikes",
         sum(1 for e in events if e.direction == "down"),
     )
 
     # Build table
     rows: list[dict[str, Any]] = []
     for ev in events[:50]:
-        dir_icon = "🟢" if ev.direction == "up" else "🔴"
         rows.append({
-            "Dir": dir_icon,
+            "Dir": dir_glyph(ev.change),
             "Symbol": ev.symbol,
             "Name": ev.name[:40],
             "Price": f"${ev.price:.2f}" if ev.price >= 1 else f"${ev.price:.4f}",

@@ -18,7 +18,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` in `.env` for sector heatmap data.")
         return
 
-    st.subheader("🗺️ Sector Heatmap")
+    st.subheader("Sector Heatmap")
     st.caption("US market sector performance from FMP.")
 
     sectors = cached_sector_perf(fmp_key)
@@ -41,9 +41,8 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         for i, sec in enumerate(batch):
             name = sec.get("sector") or sec.get("name", "?")
             chg = safe_float(sec.get("changesPercentage", sec.get("change", 0)))
-            icon = "🟢" if chg > 0 else ("🔴" if chg < 0 else "⚪")
             with cols[i]:
-                st.metric(name[:20], f"{icon} {chg:+.2f}%")
+                st.metric(name[:20], f"{chg:+.2f}%")
 
     # Also render as a bar chart
     try:

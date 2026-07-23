@@ -508,7 +508,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     producer_token = getattr(cfg, "producer_feed_token", "")
 
     if not fmp_key and not _DATABENTO_AVAILABLE:
-        st.warning("💡 Configure FMP or Databento to enable market-data enrichment.")
+        st.warning("Configure FMP or Databento to enable market-data enrichment.")
         st.info(
             "AI Insights needs at least one market-data source. Configure "
             "`FMP_API_KEY` and/or `DATABENTO_API_KEY`, then restart."
@@ -516,7 +516,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         return
 
     if not producer_url or not producer_token:
-        st.warning("💡 The private Signals Producer AI route is not configured.")
+        st.warning("The private Signals Producer AI route is not configured.")
         st.info(
             "Set `TERMINAL_PRODUCER_FEED_URL` and "
             "`TERMINAL_PRODUCER_FEED_TOKEN`. OpenAI and Cisco AI Defense "
@@ -581,20 +581,20 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     )
     _qa_c1, _qa_c2 = st.columns([1, 1])
     with _qa_c1:
-        if st.button("🔁 Ask Again", key="fmp_ai_regenerate",
+        if st.button("Ask Again", key="fmp_ai_regenerate",
                       help="Re-run the last question with fresh data"):
             _q = (st.session_state.get("fmp_ai_selected_question") or "").strip()
             if _q:
                 st.session_state["fmp_ai_run_requested"] = True
     with _qa_c2:
-        if st.button("🧹 Clear AI result", key="fmp_ai_clear_result"):
+        if st.button("Clear AI result", key="fmp_ai_clear_result"):
             st.session_state["fmp_ai_last_result"] = None
             st.session_state["fmp_ai_last_context_json"] = ""
             st.session_state["fmp_ai_selected_question"] = ""
             st.session_state["fmp_ai_run_requested"] = False
 
     st.toggle(
-        "🔬 Deep analysis — fetch fresh FMP/technicals/social data layers (slower)",
+        "Deep analysis — fetch fresh FMP/technicals/social data layers (slower)",
         key="fmp_ai_deep_mode",
         help=(
             "Off: quick analysis from the live feed plus already-cached data "
@@ -645,7 +645,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             }
         st.session_state["_fmp_ai_executing"] = False
         st.session_state.pop("_fmp_ai_future", None)
-        st.toast("✅ AI analysis complete!")
+        st.toast("AI analysis complete!")
 
     # Step B: start new analysis if requested and not already running
     question = str(st.session_state.get("fmp_ai_selected_question") or "").strip()
@@ -701,7 +701,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.session_state["_fmp_ai_executing"] = True
         st.session_state["_fmp_ai_submit_ts"] = time.time()
         st.session_state["fmp_ai_run_requested"] = False  # consume immediately
-        st.toast("🤖 AI analysis started in background…")
+        st.toast("AI analysis started in background…")
         logger.info("AI analysis submitted to background thread")
 
     # Step C: show progress if analysis is running
@@ -739,11 +739,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 "up to ~3½ min" if st.session_state.get("fmp_ai_deep_mode") else "usually <30s"
             )
             st.info(
-                f"⏳ AI analysis running… ({int(_elapsed)}s elapsed, {_budget_hint}) — {_stage_label}"
+                f"AI analysis running… ({int(_elapsed)}s elapsed, {_budget_hint}) — {_stage_label}"
             )
             _cc1, _cc2 = st.columns([1, 3])
             with _cc1:
-                if st.button("❌ Cancel", key="fmp_ai_cancel"):
+                if st.button("Cancel", key="fmp_ai_cancel"):
                     _cancel_ev = st.session_state.get("_fmp_ai_cancel")
                     if _cancel_ev is not None:
                         _cancel_ev.set()
@@ -766,7 +766,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.markdown(f"**Question:** {_last_question}")
 
     if last_result.get("error"):
-        st.error(f"⚠️ {safe_markdown_text(str(last_result.get('error') or 'Unknown AI error'))}")
+        st.error(f"{safe_markdown_text(str(last_result.get('error') or 'Unknown AI error'))}")
         return
 
     result = FMPLLMResponse(
@@ -784,12 +784,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     _layers = int(last_result.get("enrichment_layers", 0))
     meta_parts = [f"Model: `{result.model}`"]
     if result.cached:
-        meta_parts.append("⚡ cached")
+        meta_parts.append("cached")
     meta_parts.append(f"{result.context_articles} articles")
     meta_parts.append(f"{result.context_tickers} tickers")
-    meta_parts.append(f"🏦 {result.fmp_tickers} FMP quotes")
+    meta_parts.append(f"{result.fmp_tickers} FMP quotes")
     if _layers:
-        meta_parts.append(f"🔗 {_layers} data layers")
+        meta_parts.append(f"{_layers} data layers")
     st.caption(" · ".join(meta_parts))
 
     # The answer
@@ -805,7 +805,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         n_fmp=result.fmp_tickers,
     )
     st.download_button(
-        "💾 Download AI report",
+        "Download AI report",
         data=_save_content,
         file_name=_save_fname,
         mime="text/plain",
@@ -813,7 +813,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     )
 
     # --- Divider and context details ---
-    with st.expander("📋 Context sent to AI (multi-layer enriched)"):
+    with st.expander("Context sent to AI (multi-layer enriched)"):
         st.caption(
             f"Top {min(40, len(feed))} articles by |score|, "
             f"up to 30 ticker summaries, top 15 segments, "

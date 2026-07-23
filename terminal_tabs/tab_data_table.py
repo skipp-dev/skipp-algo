@@ -13,7 +13,7 @@ from terminal_ui_helpers import tv_linkify_rows
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Data Table tab."""
-    st.subheader("📋 Raw Feed Data")
+    st.subheader("Raw Feed Data")
     st.caption(f"Full dataset — {len(feed)} items")
 
     if not feed:

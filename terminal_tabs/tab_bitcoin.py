@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Bitcoin tab."""
-    st.subheader("₿ Bitcoin Terminal")
+    st.subheader("Bitcoin Terminal")
     st.caption("Real-time BTC price, dominance, fear/greed index, technicals.")
 
     if not is_available():
@@ -49,7 +49,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     fg = fetch_fear_greed()
     if fg:
         st.markdown(
-            f"### {fg.icon} Fear & Greed: **{fg.value:.0f}** — {fg.label}"
+            f"### Fear & Greed: **{fg.value:.0f}** — {fg.label}"
         )
         st.progress(fg.value / 100)
         if fg.timestamp:
@@ -58,7 +58,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── Technicals (1H) ─────────────────────────────────────────
     tech = fetch_btc_technicals("1h")
     if tech and not tech.error:
-        st.markdown(f"### {tech.signal_icon} 1H Technicals: **{technicals_signal_label(tech.summary)}**")
+        st.markdown(f"### 1H Technicals: **{technicals_signal_label(tech.summary)}**")
         tc1, tc2, tc3 = st.columns(3)
         tc1.metric("Buy / Sell / Neutral", f"{tech.buy} / {tech.sell} / {tech.neutral}")
         tc2.metric("Oscillators", f"{technicals_signal_label(tech.osc_signal)} ({tech.osc_buy}B/{tech.osc_sell}S)")
@@ -77,7 +77,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── Supply data ──────────────────────────────────────────────
     supply = fetch_btc_supply()
     if supply and supply.circulating_supply > 0:
-        with st.expander("₿ Supply & On-Chain"):
+        with st.expander("Supply & On-Chain"):
             sc1, sc2, sc3 = st.columns(3)
             sc1.metric("Circulating", format_supply(supply.circulating_supply))
             sc2.metric("Max Supply", format_supply(supply.total_supply))
@@ -90,7 +90,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── Outlook ──────────────────────────────────────────────────
     outlook = fetch_btc_outlook()
     if outlook and not outlook.error:
-        st.markdown(f"### {outlook.trend_icon} Outlook: **{outlook.trend_label}**")
+        st.markdown(f"### Outlook: **{outlook.trend_label}**")
         oc1, oc2, oc3 = st.columns(3)
         oc1.metric("Support", format_btc_price(outlook.support))
         oc2.metric("Resistance", format_btc_price(outlook.resistance))
@@ -104,7 +104,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # ── News ─────────────────────────────────────────────────────
     news = fetch_btc_news(limit=8)
     if news:
-        with st.expander(f"📰 BTC News ({len(news)} articles)"):
+        with st.expander(f"BTC News ({len(news)} articles)"):
             for art in news:
                 title = art.get("title", "—")
                 url = art.get("url", "")

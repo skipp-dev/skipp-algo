@@ -16,6 +16,7 @@ from terminal_tabs._shared import (
     render_technicals_expander,
     safe_float,
 )
+from terminal_tabs.style import dir_glyph
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -27,7 +28,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.info("Set `FMP_API_KEY` in `.env` for the Defense watchlist.")
         return
 
-    st.subheader("🛡️ Aerospace & Defense")
+    st.subheader("Aerospace & Defense")
     st.caption("Watchlist + industry screen for A&D sector.")
 
     # Custom tickers input
@@ -56,9 +57,8 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         vol = int(safe_float(q.get("volume")))
         name = q.get("name", q.get("companyName", ""))
 
-        dir_icon = "🟢" if chg_pct > 0 else ("🔴" if chg_pct < 0 else "⚪")
         rows.append({
-            "Dir": dir_icon,
+            "Dir": dir_glyph(chg_pct),
             "Symbol": sym,
             "Name": name[:40],
             "Price": f"${price:.2f}",
@@ -76,7 +76,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     )
 
     # Industry performance
-    with st.expander("📊 Industry Screen", expanded=False):
+    with st.expander("Industry Screen", expanded=False):
         ind = cached_industry_performance(fmp_key, industry="Aerospace & Defense")
         if ind:
             ind_rows: list[dict[str, Any]] = []
