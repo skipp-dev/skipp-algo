@@ -1594,6 +1594,23 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                 f"{{{_workflow_labels(workflow)}}} {_prom_numeric_value(workflow_duration)}"
             )
 
+    # Presence of each DECLARED workflow (config.github_workflow_expected).
+    # Every other workflow series is keyed off rows discovered in the fetched
+    # runs page, so a flow that stops running loses its series entirely and each
+    # rule over it goes NoData -> silent. This gauge is the one series that
+    # survives that disappearance: it stays present and reads 0. Labelled by
+    # NAME only -- workflow_id/event are unknown for a flow with no runs, and
+    # inventing them would churn labels the moment it returns.
+    expected_present = workflow_snapshot.get("expected_present")
+    if isinstance(expected_present, Mapping) and expected_present:
+        lines.append("# TYPE live_overlay_github_workflow_expected_present gauge")
+        for workflow_name in sorted(expected_present):
+            lines.append(
+                "live_overlay_github_workflow_expected_present"
+                f'{{workflow="{_escape_label_value(workflow_name)}"}} '
+                f"{_prom_numeric_value(expected_present[workflow_name])}"
+            )
+
     # ---- Realtime trading signals (A0 strongest / A1 confirmed / A2 early-warning) ----------
     # Sourced from the realtime engine snapshot via
     # compute._load_signals_snapshot (local file or SIGNALS_SNAPSHOT_URL).

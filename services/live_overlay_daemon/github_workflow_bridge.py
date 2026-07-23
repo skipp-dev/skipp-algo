@@ -233,6 +233,12 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
     for row in workflows_latest.values():
         row.pop("latest_success_final", None)
 
+    # Presence of each DECLARED workflow, judged against this poll's runs page.
+    # A flow that stopped running contributes no row above, so without this the
+    # only trace of it is the absence of its series — which alerts cannot see.
+    seen_names = {str(row.get("name") or "") for row in workflows_latest.values()}
+    expected_present = {name: (1 if name in seen_names else 0) for name in config.github_workflow_expected()}
+
     return {
         "enabled": 1,
         "configured": 1,
@@ -243,6 +249,7 @@ def _fetch_snapshot(token: str) -> dict[str, Any]:
         "latest_run_age_seconds": latest_age,
         "latest_run_duration_seconds": latest_duration,
         "workflows": list(workflows_latest.values()),
+        "expected_present": expected_present,
     }
 
 
@@ -268,6 +275,9 @@ def snapshot() -> dict[str, Any]:
             "latest_run_age_seconds": None,
             "latest_run_duration_seconds": None,
             "workflows": [],
+            # No fetch happened, so presence is UNKNOWN, not "missing": emit no
+            # series rather than a fabricated 0 that would page a disabled bridge.
+            "expected_present": {},
             # Disabled bridge (no token → enabled=0) is NOT an error — the
             # missing-token state is already conveyed by configured=0. Emit
             # error=None so bridge_error_info stays 0, consistent with railway's
@@ -310,6 +320,10 @@ def snapshot() -> dict[str, Any]:
                 "latest_run_age_seconds": None,
                 "latest_run_duration_seconds": None,
                 "workflows": [],
+                # Scrape failed — presence is UNKNOWN. The keep-last-good path below
+                # preserves the previous truthful map; this empty one only takes effect
+                # when the very first poll failed, where silence beats a false "missing".
+                "expected_present": {},
                 "error": type(exc).__name__,
                 "error_code": error_code,
                 "error_message": str(exc),

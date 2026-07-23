@@ -243,9 +243,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skipp-dev/skipp-algo` | Target repository in `owner/repo` format (validated; invalid values fall back to default) |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
+| `GITHUB_WORKFLOW_MONITOR_EXPECTED` | ❌ | *(none)* | Comma-separated workflow **names** that must keep producing runs. Each gets a `live_overlay_github_workflow_expected_present` series that reads `0` when the flow has no run on the fetched page, so `lo-workflow-expected-missing` can fire. Without it, a workflow that stops running simply loses all its series and alerts go silent. |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
-| `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
+| `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `100` | Number of workflow runs fetched per API poll (range 1–100). 100 is GitHub's page ceiling and the value is clamped to it, so this can only *lower* coverage; a sparse flow buried past one page needs pagination in the bridge, not a larger value. |
 | `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |

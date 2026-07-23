@@ -752,6 +752,34 @@ def github_workflow_ids() -> list[str]:
     return unique_ids
 
 
+def github_workflow_expected() -> list[str]:
+    """Workflow NAMES that must keep producing runs, from a comma-separated env var.
+
+    Everything else about workflow health is *discovered* from the fetched runs
+    page, which cannot express "this flow stopped running": a workflow with no
+    runs on the page contributes no row, so its age/verdict series simply vanish
+    and every rule over them goes NoData (silent under ``noDataState: OK``). The
+    staler a flow gets, the likelier it is missing — so absence, not staleness,
+    is the signal that needs a declared expectation to compare against.
+
+    Names (not ids) because this list is maintained by hand alongside
+    ``.github/workflows/``; ids are opaque and change when a workflow is
+    recreated. Empty (the default) disables presence monitoring entirely.
+    """
+    raw = _optional_str("GITHUB_WORKFLOW_MONITOR_EXPECTED", "")
+    if not raw:
+        return []
+    seen: set[str] = set()
+    expected: list[str] = []
+    for item in raw.split(","):
+        name = item.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        expected.append(name)
+    return expected
+
+
 def github_workflow_timeout_secs() -> int:
     """HTTP timeout for GitHub workflow polling requests."""
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS", 5, 1, 30)
@@ -770,7 +798,10 @@ def github_workflow_per_page() -> int:
     scrolls past the window, ``latest_success`` falls back to its provisional 0 and
     ``no-green-24h`` false-fires (seen for the databento export on a heavy main-push
     day, 2026-07-08). Defaults to the max (100) so a busy day of main pushes does not
-    bury a sparse workflow's last verdict; raise via env / paginate if that recurs.
+    bury a sparse workflow's last verdict. 100 is GitHub's per-page ceiling and this
+    value is clamped to it, so the env var can only lower it — a flow buried past one
+    page needs pagination here, not a bigger number. Until then, declare it in
+    ``github_workflow_expected`` so its disappearance alerts instead of going quiet.
     """
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_PER_PAGE", 100, 1, 100)
 
