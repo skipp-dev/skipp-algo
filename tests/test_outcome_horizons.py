@@ -37,6 +37,7 @@ from open_prep.outcomes import (
     OUTCOME_HORIZONS,
     compute_hit_rates,
     get_horizon,
+    get_symbol_hit_rate,
     horizon_fields,
 )
 
@@ -627,6 +628,47 @@ class TestComputeHitRatesHorizon:
         assert stats["total"] == 0
         assert stats["unresolved"] == 2
         assert stats["hit_rate"] == 0.0
+
+    def test_lookup_reports_no_data_when_the_bucket_never_resolved(
+        self, outcomes_dir: Path,
+    ) -> None:
+        """total==0 must reach a consumer as None, never as a 0 % hit rate.
+
+        compute_hit_rates creates the bucket as soon as one record lands in it,
+        so an all-unresolved bucket carries total=0 with hit_rate=0.0 and
+        avg_pnl_pct=0.0 (pinned by the test above). Handing those to a caller
+        publishes a confident "0 % historical hit rate / 0 % avg PnL" for a
+        window that was never measured -- indistinguishable from a genuinely
+        losing bucket. Measured on the real store 2026-07-23: at 60m the four
+        tiny:* buckets read total=0 while the same buckets are 1.000 (n=3) and
+        0.714 (n=7) at 30m.
+
+        The unresolved count is still reported, because "seen 13 times, none
+        measurable" is what tells an operator to run
+        `outcome_backfill --backfill-horizons`, whereas an absent bucket means
+        no such candidate ever appeared.
+        """
+        _store(outcomes_dir, self._records())
+        rates = compute_hit_rates(lookback_days=5, horizon="eod")
+        bucket_key, stats = next(iter(rates.items()))
+        assert stats["total"] == 0 and stats["hit_rate"] == 0.0, "fixture drifted"
+
+        gap_label, rvol_label = bucket_key.split(":", 1)
+        record = self._records()[0]
+        looked_up = get_symbol_hit_rate("A", record["gap_pct"], record["rvol"], rates)
+        assert (looked_up["gap_bucket"], looked_up["rvol_bucket"]) == (gap_label, rvol_label)
+        assert looked_up["historical_hit_rate"] is None
+        assert looked_up["historical_avg_pnl_pct"] is None
+        assert looked_up["historical_sample_size"] == 0
+        assert looked_up["historical_unresolved"] == stats["unresolved"]
+
+        # A bucket WITH resolved records must still come through untouched.
+        resolved = get_symbol_hit_rate(
+            "A", record["gap_pct"], record["rvol"],
+            compute_hit_rates(lookback_days=5, horizon=DEFAULT_HORIZON),
+        )
+        assert resolved["historical_hit_rate"] == 1.0
+        assert resolved["historical_sample_size"] == 2
 
     def test_directional_pair_fallback_per_horizon(self, outcomes_dir: Path) -> None:
         _store(outcomes_dir, [{

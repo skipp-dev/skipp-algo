@@ -133,7 +133,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 843, "unlink"),  # 2026-07-23 (A1 horizons: OUTCOME_HORIZONS catalogue above): 744->843
+    ("open_prep/outcomes.py", 856, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 843->856
     ("open_prep/realtime_signals.py", 129, "remove"),  # 2026-07-16 market-session import shifted site: 128->129
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -152,21 +152,21 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
     # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
-    ("open_prep/run_open_prep.py", 2282, "unlink"),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 2284, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 2282->2284
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3132, "unlink"),  # 2026-07-19 remove retired TradingView news lane
-    ("open_prep/run_open_prep.py", 3532, "unlink"),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 3134, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 3132->3134
+    ("open_prep/run_open_prep.py", 3534, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 3532->3534
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5641, "unlink"),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 5663, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 5641->5663
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -174,7 +174,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 5967, "unlink"),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 6001, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 5967->6001
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

@@ -1,5 +1,39 @@
 {
   "current_month": "2026-07",
+  "dimensions": {
+    "2026-07": {
+      "fmp|/stable/batch-quote|open_prep.fmp_client": {
+        "bytes": 20.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.097541997092776,
+        "rate_limit_hits": 0.0,
+        "records": 1.0
+      },
+      "fmp|/stable/economic-calendar|open_prep.fmp_client": {
+        "bytes": 2.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 1.0,
+        "errors": 0.0,
+        "latency_ms_total": 6.718959004501812,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp|/stable/eod-bulk|open_prep.fmp_client": {
+        "bytes": 234.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 2.0,
+        "errors": 0.0,
+        "latency_ms_total": 10.650874995917547,
+        "rate_limit_hits": 0.0,
+        "records": 3.0
+      }
+    }
+  },
   "months": {
     "2026-07": {
       "benzinga": {
@@ -15,10 +49,10 @@
         "records": 0
       },
       "fmp": {
-        "bytes": 12,
-        "calls": 10,
+        "bytes": 268,
+        "calls": 14,
         "rate_limit_hits": 14,
-        "records": 0
+        "records": 4
       },
       "unknown": {
         "bytes": 0,
@@ -34,5 +68,5 @@
       }
     }
   },
-  "updated_at": "2026-07-21T20:56:50.738400+00:00"
+  "updated_at": "2026-07-23T16:49:31.492143+00:00"
 }

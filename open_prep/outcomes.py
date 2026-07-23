@@ -464,7 +464,16 @@ def get_symbol_hit_rate(
     rb = _rvol_bucket_label(rvol)
     key = f"{gb}:{rb}"
     stats = hit_rates.get(key)
-    if stats:
+    # total == 0 is NO DATA, not a zero hit-rate. The bucket still exists in
+    # the map (compute_hit_rates creates it as soon as one record lands in it)
+    # while every record is unresolved for the selected horizon, leaving
+    # hit_rate=0.0 and avg_pnl_pct=0.0. Returning those verbatim publishes a
+    # confident "0 % historical hit rate / 0 % avg PnL" for a bucket that was
+    # never measured. Measured 2026-07-23 on the real store: at the 60m horizon
+    # the four tiny:* buckets carry total=0 while the same buckets read 1.000
+    # (n=3) and 0.714 (n=7) at 30m. Fall through to the no-data shape, which
+    # every consumer already renders as "no value" rather than as a zero.
+    if stats and stats.get("total", 0) > 0:
         return {
             "historical_hit_rate": stats["hit_rate"],
             "historical_sample_size": stats["total"],
@@ -476,7 +485,11 @@ def get_symbol_hit_rate(
     return {
         "historical_hit_rate": None,
         "historical_sample_size": 0,
-        "historical_unresolved": 0,
+        # Keep the unresolved count when the bucket exists but nothing in it
+        # resolved for this horizon — it is the difference between "we have
+        # never seen this bucket" and "we saw it N times and could not measure
+        # any of them", which is what tells an operator to run the backfill.
+        "historical_unresolved": int((stats or {}).get("unresolved", 0) or 0),
         "historical_avg_pnl_pct": None,
         "gap_bucket": gb,
         "rvol_bucket": rb,

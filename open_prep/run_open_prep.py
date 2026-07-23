@@ -45,6 +45,8 @@ from .macro import (
 from .market_microstructure import compute_microstructure_snapshot, weather_summary_line
 from .news import build_news_scores
 from .outcomes import (
+    DEFAULT_HORIZON,
+    HORIZON_KEYS,
     compute_hit_rates,
     get_symbol_hit_rate,
     prepare_outcome_snapshot,
@@ -4708,6 +4710,7 @@ def _build_result_payload(
     watchlist: list[dict[str, Any]] | None = None,
     alert_results: list[dict[str, Any]] | None = None,
     hit_rates: dict[str, dict[str, Any]] | None = None,
+    hit_rates_by_horizon: dict[str, dict[str, dict[str, Any]]] | None = None,
     vix_level: float | None = None,
     data_capabilities: dict[str, dict[str, Any]] | None = None,
     data_capabilities_summary: dict[str, Any] | None = None,
@@ -4821,6 +4824,9 @@ def _build_result_payload(
         "watchlist": watchlist or [],
         "alert_results": alert_results or [],
         "historical_hit_rates": hit_rates or {},
+        # Same buckets per measurement window. The flat key above stays
+        # the 30m view so existing readers are unaffected.
+        "historical_hit_rates_by_horizon": hit_rates_by_horizon or {},
         "data_capabilities": data_capabilities or {},
         "data_capabilities_summary": data_capabilities_summary or {},
     }
@@ -5566,8 +5572,24 @@ def generate_open_prep_result(
     # Save regime-adjusted weights for this run (so scorer picks them up)
     save_weight_set("_regime_adjusted", adjusted_weights)
 
-    # Compute historical hit rates for backward validation
-    hit_rates = compute_hit_rates(lookback_days=20)
+    # Compute historical hit rates for backward validation.
+    #
+    # All measurement windows, not just the 30m default (2026-07-23). The
+    # longer horizons existed in outcomes.py and the Signal-Replay UI but no
+    # production caller ever asked for them, so the artifact carried a single
+    # 30m view. `python -m open_prep.outcome_backfill --backfill-horizons`
+    # filled the history first; before that run the longer horizons had ZERO
+    # labelled records and switching to them would have published an empty
+    # table (see the get_symbol_hit_rate total==0 guard).
+    #
+    # 30m stays the primary `historical_hit_rate` on each row. It is not a
+    # preference, it is coverage: over the same 20-day window 30m resolves 141
+    # records against 66 for each longer horizon, and 4 of 10 buckets have no
+    # resolved 60m record at all. Demoting it would halve the sample behind the
+    # headline number. The longer horizons ride ALONGSIDE it so an operator can
+    # compare windows on the same candidate.
+    hit_rates_by_horizon = {h: compute_hit_rates(lookback_days=20, horizon=h) for h in HORIZON_KEYS}
+    hit_rates = hit_rates_by_horizon[DEFAULT_HORIZON]
 
     # Run v2 two-stage pipeline (filter → score → tier)
     with _profiler.stage("Score + Rank (v2)"):
@@ -5655,6 +5677,17 @@ def generate_open_prep_result(
         hr = get_symbol_hit_rate(row.get("symbol", ""), gap_pct, rvol_ratio, hit_rates)
         row["historical_hit_rate"] = hr.get("historical_hit_rate")
         row["historical_sample_size"] = hr.get("historical_sample_size", 0)
+        # Longer windows next to the 30m headline. Suffixed keys keep the
+        # existing `historical_hit_rate` contract intact for the monitor line
+        # and for anything reading last week's artifacts.
+        for _hz in HORIZON_KEYS:
+            if _hz == DEFAULT_HORIZON:
+                continue
+            _hr = get_symbol_hit_rate(
+                row.get("symbol", ""), gap_pct, rvol_ratio, hit_rates_by_horizon[_hz]
+            )
+            row[f"historical_hit_rate_{_hz}"] = _hr.get("historical_hit_rate")
+            row[f"historical_sample_size_{_hz}"] = _hr.get("historical_sample_size", 0)
         row["regime"] = regime_snapshot.regime
 
     # --- Breakout & Consolidation enrichment (#6, #7) ---
@@ -5935,6 +5968,7 @@ def generate_open_prep_result(
         watchlist=watchlist,
         alert_results=alert_results,
         hit_rates=hit_rates,
+        hit_rates_by_horizon=hit_rates_by_horizon,
         vix_level=vix_level,
         data_capabilities=data_capabilities,
         data_capabilities_summary=data_capabilities_summary,

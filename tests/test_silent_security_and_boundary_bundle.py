@@ -208,7 +208,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6110),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 6144),  # 2026-07-23 (all-horizon hit-rate imports + enrichment above): 6110->6144
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
