@@ -56,7 +56,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6096),  # 2026-07-19 remove retired TradingView news lane
+    ("open_prep/run_open_prep.py", 6130),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 6096->6130
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     # 2026-07-15 (provenance v2): active_root_pine_scripts() + its docstring

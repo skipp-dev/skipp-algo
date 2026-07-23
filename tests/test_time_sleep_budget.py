@@ -140,8 +140,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # +8 lines (1943→1951, 1945→1953).
         # 2026-07-04 (market-microstructure observe-only): module import
         # shifted these rate-limit sleeps +1 (2038->2039, 2040->2041).
-        ("open_prep/run_open_prep.py", 2008),  # 2026-07-19 remove retired TradingView news lane
-        ("open_prep/run_open_prep.py", 2010),  # 2026-07-19 remove retired TradingView news lane
+        ("open_prep/run_open_prep.py", 2010),  # 2026-07-23 (all-horizon hit-rate imports + enrichment above): 2008->2010
+        ("open_prep/run_open_prep.py", 2012),  # 2026-07-23 (all-horizon hit-rate imports + enrichment above): 2010->2012
         ("newsstack_fmp/_bz_http.py", 44),
         # 2026-06-24 feat/benzinga-rss: retry backoff sleeps in REST client
         # (198→199, 209→210 after RSS improvements).
