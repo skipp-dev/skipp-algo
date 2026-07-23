@@ -3129,6 +3129,89 @@ groups:
       runbook: Inspect the latest smc-library-refresh run and pine/generated/smc_micro_profiles_generated.pine.
         Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
         the saved SMC Long-Dip Suite source in TradingView.
+  - uid: lo-bar-cache-depth-low
+    title: Bar cache too shallow for the rolling features
+    condition: C
+    # Added with the metrics from #3903, which were emitted for exactly this
+    # visibility and then consumed by nothing. Below ~20 bars per symbol the
+    # squeeze, relative-volume and ATS z-score features degrade SILENTLY —
+    # they do not error, they just stop being computable — so without this rule
+    # the cache can thrash at the symbol cap with no signal moving at all.
+    # Gated on market-open and past warmup: a shallow cache right after a
+    # restart is expected, not a defect.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_market_us_open{job="live_overlay"}
+          * (live_overlay_uptime_seconds{job="live_overlay"} > bool 900)
+          * (live_overlay_bar_symbols{job="live_overlay"} > bool 0)
+          * (live_overlay_bars_per_symbol{job="live_overlay"} < bool 20)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Fewer than 20 bars per symbol in the live cache while the US session is open —
+        squeeze, relative volume and the ATS z-score are silently unavailable.
+      runbook: Check live_overlay_bar_symbols against the configured symbol cap and the
+        eviction counters. Demand above the cap makes the cache churn one bar per symbol
+        (#3903). Raise the cap or narrow the requested universe; do not read a healthy
+        bar_count as healthy depth — bar_count/bar_symbols is the number that matters.
+  - uid: lo-bar-cache-protected-evictions
+    title: Requested symbols evicted from the bar cache
+    condition: C
+    # evicted_protected_total counts symbols evicted despite being actively
+    # requested — by construction that means live demand exceeds the cap.
+    # Warning, not critical: the depth rule above owns the outage axis, this one
+    # is the leading indicator that gets there.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_bar_requested_symbols_evicted_total{job="live_overlay"}[30m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Symbols that were actively requested are being evicted from the bar cache —
+        live demand exceeds the symbol cap.
+      runbook: Compare live_overlay_bar_symbols with the cap and watch bars_per_symbol.
+        Sustained protected evictions precede the depth collapse that lo-bar-cache-depth-low
+        alerts on; raising the cap or trimming the requested universe resolves both.
   - uid: lo-pine-library-payload-empty
     title: SMC micro-profile library published with an empty payload
     condition: C

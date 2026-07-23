@@ -2704,7 +2704,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 72
       },
       "id": 1003,
       "panels": []
@@ -2714,7 +2714,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 67,
+        "y": 73,
         "w": 6,
         "h": 5
       },
@@ -2785,7 +2785,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 6,
-        "y": 67,
+        "y": 73,
         "w": 12,
         "h": 8
       },
@@ -2872,7 +2872,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 75,
+        "y": 81,
         "w": 12,
         "h": 8
       },
@@ -2966,7 +2966,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 75,
+        "y": 81,
         "w": 12,
         "h": 8
       },
@@ -3072,7 +3072,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 83,
+        "y": 89,
         "w": 12,
         "h": 8
       },
@@ -3150,7 +3150,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 83,
+        "y": 89,
         "w": 12,
         "h": 8
       },
@@ -3221,7 +3221,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 91,
+        "y": 97,
         "w": 12,
         "h": 8
       },
@@ -3292,7 +3292,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 99
+        "y": 105
       },
       "id": 1004,
       "panels": []
@@ -3302,7 +3302,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 100,
+        "y": 106,
         "w": 4,
         "h": 3
       },
@@ -3394,7 +3394,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 100,
+        "y": 106,
         "w": 4,
         "h": 3
       },
@@ -3449,7 +3449,7 @@
       "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
       "gridPos": {
         "x": 8,
-        "y": 100,
+        "y": 106,
         "w": 4,
         "h": 3
       },
@@ -3517,7 +3517,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 12,
-        "y": 100,
+        "y": 106,
         "w": 4,
         "h": 3
       },
@@ -3593,7 +3593,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 100,
+        "y": 106,
         "w": 6,
         "h": 6
       },
@@ -3666,7 +3666,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 106,
+        "y": 112,
         "w": 6,
         "h": 6
       },
@@ -3728,7 +3728,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 106,
+        "y": 112,
         "w": 6,
         "h": 6
       },
@@ -3799,7 +3799,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 12,
-        "y": 106,
+        "y": 112,
         "w": 12,
         "h": 6
       },
@@ -3904,7 +3904,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 112,
+        "y": 118,
         "w": 12,
         "h": 8
       },
@@ -4001,7 +4001,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 112,
+        "y": 118,
         "w": 12,
         "h": 8
       },
@@ -4051,7 +4051,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 120,
+        "y": 126,
         "w": 12,
         "h": 8
       },
@@ -4138,7 +4138,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 120,
+        "y": 126,
         "w": 12,
         "h": 8
       },
@@ -4212,7 +4212,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 134,
         "w": 12,
         "h": 8
       },
@@ -4262,7 +4262,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 136,
+        "y": 142,
         "w": 24,
         "h": 8
       },
@@ -4316,7 +4316,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 144
+        "y": 154
       },
       "id": 1005,
       "panels": []
@@ -4326,7 +4326,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 145,
+        "y": 155,
         "w": 6,
         "h": 4
       },
@@ -4398,7 +4398,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 145,
+        "y": 155,
         "w": 6,
         "h": 4
       },
@@ -4467,7 +4467,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 145,
+        "y": 155,
         "w": 6,
         "h": 4
       },
@@ -4546,7 +4546,7 @@
       "description": "Counts how many of the generic bridge contracts are absent. A non-zero value means the exporter or metrics path is broken, not that a bridge is disabled.",
       "gridPos": {
         "x": 18,
-        "y": 145,
+        "y": 155,
         "w": 6,
         "h": 5
       },
@@ -4629,7 +4629,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 150,
+        "y": 160,
         "w": 6,
         "h": 4
       },
@@ -4701,7 +4701,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 150,
+        "y": 160,
         "w": 6,
         "h": 4
       },
@@ -4770,7 +4770,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 150,
+        "y": 160,
         "w": 6,
         "h": 4
       },
@@ -4848,7 +4848,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 154,
+        "y": 164,
         "w": 12,
         "h": 8
       },
@@ -4930,7 +4930,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 154,
+        "y": 164,
         "w": 12,
         "h": 8
       },
@@ -5033,7 +5033,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 162,
+        "y": 172,
         "w": 24,
         "h": 14
       },
@@ -5276,7 +5276,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 176,
+        "y": 186,
         "w": 12,
         "h": 8
       },
@@ -5360,7 +5360,7 @@
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
         "x": 0,
-        "y": 184,
+        "y": 194,
         "w": 24,
         "h": 6
       },
@@ -5452,7 +5452,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 190,
+        "y": 200,
         "w": 18,
         "h": 25
       },
@@ -5678,7 +5678,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 215
+        "y": 225
       },
       "id": 1006,
       "panels": []
@@ -5696,7 +5696,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 216
+        "y": 234
       },
       "targets": [
         {
@@ -5760,7 +5760,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 216
+        "y": 234
       },
       "targets": [
         {
@@ -5816,7 +5816,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 216
+        "y": 234
       },
       "targets": [
         {
@@ -5889,7 +5889,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 216
+        "y": 234
       },
       "targets": [
         {
@@ -5963,7 +5963,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 221
+        "y": 239
       },
       "targets": [
         {
@@ -6036,7 +6036,7 @@
         "h": 7,
         "w": 12,
         "x": 6,
-        "y": 221
+        "y": 239
       },
       "targets": [
         {
@@ -6046,6 +6046,24 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           }
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_provider_usage_calls{job=\"live_overlay\"}",
+          "legendFormat": "API calls",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_provider_usage_records{job=\"live_overlay\"}",
+          "legendFormat": "Records fetched",
+          "refId": "B"
         }
       ],
       "options": {
@@ -6077,7 +6095,7 @@
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error \u2192 re-capture TV_STORAGE_STATE. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 18,
-        "y": 221,
+        "y": 239,
         "w": 6,
         "h": 5
       },
@@ -6152,7 +6170,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6\u201372h, red once the cached login is older than 72h and must be re-captured. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 0,
-        "y": 228,
+        "y": 246,
         "w": 6,
         "h": 5
       },
@@ -6235,7 +6253,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 228
+        "y": 246
       },
       "targets": [
         {
@@ -6312,7 +6330,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 228
+        "y": 246
       },
       "targets": [
         {
@@ -6385,7 +6403,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 228
+        "y": 246
       },
       "targets": [
         {
@@ -6448,7 +6466,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 233
+        "y": 251
       },
       "targets": [
         {
@@ -6521,7 +6539,7 @@
         "h": 5,
         "w": 18,
         "x": 6,
-        "y": 233
+        "y": 251
       },
       "targets": [
         {
@@ -6562,7 +6580,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 238,
+        "y": 256,
         "w": 24,
         "h": 2
       },
@@ -6581,7 +6599,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 240,
+        "y": 258,
         "w": 24,
         "h": 10
       },
@@ -6677,7 +6695,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 250,
+        "y": 268,
         "w": 12,
         "h": 8
       },
@@ -6772,7 +6790,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 250,
+        "y": 268,
         "w": 6,
         "h": 8
       },
@@ -6822,7 +6840,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 250,
+        "y": 268,
         "w": 6,
         "h": 8
       },
@@ -6903,7 +6921,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 258,
+        "y": 276,
         "w": 12,
         "h": 8
       },
@@ -6954,7 +6972,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 258,
+        "y": 276,
         "w": 12,
         "h": 8
       },
@@ -7115,7 +7133,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 266
+        "y": 284
       },
       "id": 1007,
       "panels": []
@@ -7126,7 +7144,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 267,
+        "y": 285,
         "w": 4,
         "h": 3
       },
@@ -7276,7 +7294,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 267,
+        "y": 285,
         "w": 4,
         "h": 3
       },
@@ -7340,7 +7358,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 267,
+        "y": 285,
         "w": 4,
         "h": 3
       },
@@ -7415,7 +7433,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 267,
+        "y": 285,
         "w": 8,
         "h": 7
       },
@@ -7461,7 +7479,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 274,
+        "y": 292,
         "w": 8,
         "h": 7
       },
@@ -7504,6 +7522,15 @@
           "refId": "A",
           "legendFormat": "{{service}}",
           "interval": "1m"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_railway_service_memory_gb{job=\"live_overlay\"}",
+          "legendFormat": "Memory used (GB)",
+          "refId": "B"
         }
       ],
       "options": {
@@ -7524,7 +7551,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 274,
+        "y": 292,
         "w": 8,
         "h": 7
       },
@@ -7571,7 +7598,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 274,
+        "y": 292,
         "w": 8,
         "h": 7
       },
@@ -7619,7 +7646,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 281,
+        "y": 299,
         "w": 8,
         "h": 7
       },
@@ -7666,7 +7693,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 281,
+        "y": 299,
         "w": 8,
         "h": 7
       },
@@ -7711,7 +7738,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 288,
+        "y": 306,
         "w": 12,
         "h": 8
       },
@@ -7749,7 +7776,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 288,
+        "y": 306,
         "w": 12,
         "h": 8
       },
@@ -7785,7 +7812,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 296
+        "y": 314
       },
       "id": 1783960001,
       "panels": []
@@ -7802,7 +7829,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 297
+        "y": 315
       },
       "id": 1783960002,
       "fieldConfig": {
@@ -7880,7 +7907,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 297
+        "y": 315
       },
       "id": 1783960003,
       "fieldConfig": {
@@ -7991,7 +8018,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 305
+        "y": 323
       },
       "id": 1783960004,
       "fieldConfig": {
@@ -8106,7 +8133,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 311
+        "y": 329
       },
       "id": 1783960005,
       "fieldConfig": {
@@ -8234,7 +8261,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 317
+        "y": 335
       },
       "id": 1783960010,
       "panels": []
@@ -8251,7 +8278,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 318
+        "y": 336
       },
       "id": 1783960011,
       "fieldConfig": {
@@ -8588,6 +8615,66 @@
           "legendFormat": "Source drift",
           "instant": true,
           "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_binding_failed_consumers{job=\"live_overlay\"}",
+          "legendFormat": "Binding checks failed",
+          "refId": "I",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_consumer_binding_mismatches{job=\"live_overlay\"}",
+          "legendFormat": "Consumer binding mismatches",
+          "refId": "J",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_consumer_sources_expected{job=\"live_overlay\"}",
+          "legendFormat": "Consumer sources expected",
+          "refId": "K",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_consumer_sources_drifted{job=\"live_overlay\"}",
+          "legendFormat": "Consumer sources drifted",
+          "refId": "L",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_consumer_source_matches{job=\"live_overlay\"}",
+          "legendFormat": "Consumer sources matching",
+          "refId": "M",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_tv_consumer_source_failures{job=\"live_overlay\"}",
+          "legendFormat": "Consumer source checks failed",
+          "refId": "N",
+          "instant": true
         }
       ]
     },
@@ -8596,7 +8683,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 324,
+        "y": 342,
         "w": 6,
         "h": 8
       },
@@ -8640,6 +8727,509 @@
         "uid": "grafanacloud-prom"
       },
       "id": 2133310801
+    },
+    {
+      "type": "stat",
+      "title": "Bar cache depth and cap churn",
+      "description": "Whether the bar cache holds enough history per symbol for the rolling features to work at all. bars_per_symbol must stay at or above 20 \u2014 squeeze, relative volume and the ATS z-score all need that window, and below it they degrade silently rather than erroring. Requested-symbol evictions rising means live demand exceeds the symbol cap, which is the thrash #3903 fixed: one bar per symbol, every rolling metric unavailable, and not a single metric moving to say so.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "id": 1784100001,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "noValue": "NO DATA"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bars per symbol"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 20
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requested symbols evicted (1h)"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_bars_per_symbol{job=\"live_overlay\"})",
+          "legendFormat": "Bars per symbol",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(increase(live_overlay_bar_requested_symbols_evicted_total{job=\"live_overlay\"}[1h]))",
+          "legendFormat": "Requested symbols evicted (1h)",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(increase(live_overlay_bar_symbols_evicted_total{job=\"live_overlay\"}[1h]))",
+          "legendFormat": "Symbols evicted (1h)",
+          "instant": true,
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Request hotspot coverage",
+      "description": "How many distinct symbols and timeframes the hotspot tracker is holding. The panels above show which items are hottest but not how many exist, so a collapse from a broad request mix to a handful \u2014 the shape that makes the hotspot ranking meaningless \u2014 was previously invisible.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 150
+      },
+      "id": 1784100002,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "noValue": "NO DATA"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_hotspot_symbols_tracked{job=\"live_overlay\"}",
+          "legendFormat": "Symbols tracked",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_hotspot_timeframes_tracked{job=\"live_overlay\"}",
+          "legendFormat": "Timeframes tracked",
+          "instant": true,
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Sweep-trap shadow evidence",
+      "description": "The shadow ledger's promotion evidence. Only the Brier delta and the raw sample count were exported to alerts and nothing charted them, so the delta was readable without its two operands and the sample count without the MIN_SHADOW_SAMPLES threshold it accrues towards. A positive delta means the signal beats the baseline; loaded=0 means there is no ledger to judge at all, which is different from a delta of zero.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 350
+      },
+      "id": 1784100003,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "noValue": "NO DATA",
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ledger loaded"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "NO LEDGER",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "LOADED",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_sweep_trap_shadow_brier_signal{job=\"live_overlay\"}",
+          "legendFormat": "Brier (signal)",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_sweep_trap_shadow_brier_baseline{job=\"live_overlay\"}",
+          "legendFormat": "Brier (baseline)",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_sweep_trap_shadow_min_samples{job=\"live_overlay\"}",
+          "legendFormat": "Samples required",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_sweep_trap_shadow_loaded{job=\"live_overlay\"}",
+          "legendFormat": "Ledger loaded",
+          "instant": true,
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Daily experiment verdict detail",
+      "description": "What sits behind experiment_verdict_status_code, which alerts consume while nothing showed its inputs. delta_hr is the hit-rate difference the verdict rests on, p_value its significance, and underpowered=1 means the sample is too small for the verdict to mean anything \u2014 a distinction the status code alone cannot express. max_age is the oldest scanned experiment file, which the snapshot's own age does not cover.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 355
+      },
+      "id": 1784100004,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "noValue": "NO DATA",
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Oldest experiment file"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Underpowered"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "POWERED",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "UNDERPOWERED",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_experiment_verdict_delta_hr{job=\"live_overlay\"})",
+          "legendFormat": "Verdict delta (hit rate)",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "min(live_overlay_experiment_verdict_p_value{job=\"live_overlay\"})",
+          "legendFormat": "Verdict p-value",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_experiment_verdict_underpowered{job=\"live_overlay\"})",
+          "legendFormat": "Underpowered",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_experiment_tf_hit_rate{job=\"live_overlay\"})",
+          "legendFormat": "Best timeframe hit rate",
+          "instant": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "sum(live_overlay_experiment_tf_n_events{job=\"live_overlay\"})",
+          "legendFormat": "Timeframe events",
+          "instant": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_experiment_snapshot_max_age_seconds{job=\"live_overlay\"}",
+          "legendFormat": "Oldest experiment file",
+          "instant": true,
+          "refId": "F"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Credentials \u2014 overall",
+      "description": "Single rollup across every credential probe. The per-provider tiles below each answer one key; nothing answered 'is anything expired right now', so a failure was only visible to whoever scanned all seven tiles.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 226
+      },
+      "id": 1784100005,
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "NO DATA",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INVALID",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ALL VALID",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "live_overlay_credential_health_overall_valid{job=~\"$job\"}",
+          "legendFormat": "All credentials valid",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,

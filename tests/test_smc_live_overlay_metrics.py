@@ -503,9 +503,6 @@ def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "live_overlay_overlay_fresh 1" in body
     assert "live_overlay_health_status_code 3" in body
     assert 'live_overlay_health_status_info{status="ok"} 1' in body
-    assert "live_overlay_health_status_ok 1" in body
-    assert "live_overlay_health_status_starting 0" in body
-    assert "live_overlay_health_status_idle_market_closed 0" in body
     assert "live_overlay_market_us_open 1" in body
     assert "live_overlay_market_europe_open 0" in body
     assert "live_overlay_market_asia_open 0" in body
@@ -547,9 +544,6 @@ def test_render_metrics_health_status_idle_market_closed(monkeypatch: pytest.Mon
     body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_health_status_code 2" in body
     assert 'live_overlay_health_status_info{status="idle_market_closed"} 1' in body
-    assert "live_overlay_health_status_ok 0" in body
-    assert "live_overlay_health_status_starting 0" in body
-    assert "live_overlay_health_status_idle_market_closed 1" in body
 
 
 def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -575,9 +569,6 @@ def test_render_metrics_health_status_starting(monkeypatch: pytest.MonkeyPatch) 
     body = metrics_mod.render_metrics(startup_ts=now - 30.0)
     assert "live_overlay_health_status_code 1" in body
     assert 'live_overlay_health_status_info{status="starting"} 1' in body
-    assert "live_overlay_health_status_ok 0" in body
-    assert "live_overlay_health_status_starting 1" in body
-    assert "live_overlay_health_status_idle_market_closed 0" in body
 
 
 def test_render_metrics_health_status_degraded_past_warmup(
@@ -605,9 +596,6 @@ def test_render_metrics_health_status_degraded_past_warmup(
     body = metrics_mod.render_metrics(startup_ts=now - 3600.0)
     assert "live_overlay_health_status_code 4" in body
     assert 'live_overlay_health_status_info{status="degraded"} 1' in body
-    assert "live_overlay_health_status_ok 0" in body
-    assert "live_overlay_health_status_starting 0" in body
-    assert "live_overlay_health_status_idle_market_closed 0" in body
 
 
 def test_render_metrics_market_closed_failure_stays_starting_not_degraded(
@@ -746,6 +734,7 @@ def test_render_metrics_never_reemits_legacy_latency_quantile_gauges(
     # derived duplicates, not the latency signal.
     assert "# TYPE live_overlay_smc_live_latency_ms histogram" in body
     assert 'live_overlay_smc_live_latency_ms_bucket{le="+Inf"} 100.0' in body
+    assert "live_overlay_smc_live_latency_ms_count 100.0" in body
 
 
 def test_render_metrics_emits_age_known_gauges(monkeypatch: pytest.MonkeyPatch) -> None:
