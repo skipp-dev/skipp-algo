@@ -117,7 +117,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 714, "mkstemp"),  # 2026-07-13 (directional-era cutoff + loader skip; _pearson_r removed): 704->714
+    ("open_prep/outcomes.py", 732, "mkstemp"),  # 2026-07-23 (RVOL fix: volume_ratio + None-for-missing above): 714->732
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 121, "mkstemp"),  # 2026-07-16 market-session import shifted site: 120->121
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted

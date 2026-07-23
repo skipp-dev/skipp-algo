@@ -309,6 +309,13 @@ def compute_hit_rates(
     buckets: dict[str, dict[str, Any]] = {}
     for rec in records:
         gap_pct = _safe_float(rec.get("gap_pct"))
+        # rvol is None when the ratio was unavailable at scoring time (RVOL
+        # fix 2026-07-23). Skip the record — _safe_float's 0.0 default would
+        # silently pool it into the "low" bucket, mixing missing-data records
+        # with genuine low-RVOL signals and inflating the apparent edge of
+        # the high buckets. Legacy records always carry a numeric rvol.
+        if rec.get("rvol") is None:
+            continue
         rvol = _safe_float(rec.get("rvol"))
         # Direction-signed label when present, falling back to the legacy
         # long-only label for old records (eval-findings C3a). Label and PnL
@@ -481,21 +488,32 @@ def prepare_outcome_snapshot(
     records: list[dict[str, Any]] = []
     for row in ranked:
         gap_pct = _safe_float(row.get("gap_pct"))
-        rvol = _safe_float(row.get("volume"))
-        # Missing avg_volume must not masquerade as rvol=raw_volume: default 0.0
-        # so the guard below yields an honest 0.0 instead of a huge ratio (WP-D7).
-        avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
-        rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
+        # RVOL fix (2026-07-23): read the scorer's ``volume_ratio`` (emitted on
+        # every ranked row; the get_symbol_hit_rate lookup side already keys on
+        # it) instead of re-deriving volume/avg_volume here. When the ratio is
+        # missing or non-positive (the scorer emits 0.0 when the provider has
+        # no volume/avg_volume data), record None — the old fabricated 0.0
+        # pooled every missing-data record into the "low" rvol bucket of
+        # compute_hit_rates(), contaminating "low" and leaving the higher
+        # buckets a positively-selected remnant. The volume/avg_volume
+        # fallback keeps rows from callers that don't carry volume_ratio;
+        # missing avg_volume must still not masquerade as rvol=raw_volume
+        # (WP-D7), so it degrades to 0.0 → None, never to a huge ratio.
+        rvol_ratio = _safe_float(row.get("volume_ratio"), default=0.0)
+        if rvol_ratio <= 0.0:
+            avg_vol = _safe_float(row.get("avg_volume"), default=0.0)
+            rvol_ratio = (_safe_float(row.get("volume")) / avg_vol) if avg_vol > 0 else 0.0
+        has_rvol = rvol_ratio > 0.0
 
         records.append({
             "date": run_date.isoformat(),
             "symbol": row.get("symbol"),
             "gap_pct": gap_pct,
-            "rvol": round(rvol_ratio, 4),
+            "rvol": round(rvol_ratio, 4) if has_rvol else None,
             "score": row.get("score", 0.0),
             "confidence_tier": row.get("confidence_tier", "STANDARD"),
             "gap_bucket_label": _gap_bucket_label(gap_pct),
-            "rvol_bucket_label": _rvol_bucket_label(rvol_ratio),
+            "rvol_bucket_label": _rvol_bucket_label(rvol_ratio) if has_rvol else None,
             "regime": row.get("regime"),
             # Sprint C1: explicit alias consumed by the C5 regime
             # stratification + C9 drift watchdog. We emit BOTH keys so
