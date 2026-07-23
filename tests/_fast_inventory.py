@@ -107,6 +107,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_orphan_inventory.py",
     "test_workflow_permissions_present.py",
     "test_workflow_auth_pattern.py",
+    "test_tv_onboarding_floor_step_pinned.py",
     "test_atexit_register_zero_surface.py",
     "test_atomic_write_call_sites.py",
     "test_dynamic_setattr_hasattr_zero_surface.py",
