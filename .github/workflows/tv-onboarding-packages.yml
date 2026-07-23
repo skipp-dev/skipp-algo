@@ -10,8 +10,19 @@ on:
       - ".github/workflows/tv-onboarding-packages.yml"
       - "automation/tradingview/config/consumer-onboarding.json"
       - "automation/tradingview/lib/**"
+      - "automation/tradingview/selectors.ts"
       - "automation/tradingview/tests/tv_onboarding.test.ts"
       - "automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts"
+      - "automation/tradingview/tests/hand_authored_publisher_facade_authority.test.ts"
+      - "automation/tradingview/tests/pine_library_version_snapshot.test.ts"
+      - "automation/tradingview/tests/selectors.test.ts"
+      - "automation/tradingview/tests/tv_library_publisher_add_to_chart.test.ts"
+      - "automation/tradingview/tests/tv_publish_continue_label.test.ts"
+      - "automation/tradingview/tests/tv_publish_hand_authored_libraries.test.ts"
+      - "automation/tradingview/tests/tv_publish_import_path_evidence.test.ts"
+      - "automation/tradingview/tests/tv_runtime_errors.test.ts"
+      - "automation/tradingview/tests/tv_selectors_strict_mode.test.ts"
+      - "automation/tradingview/tests/tv_validation_model.test.ts"
       - "docs/tradingview-onboarding/**"
       - "package.json"
       - "package-lock.json"
@@ -19,13 +30,27 @@ on:
       - "scripts/tv_onboard_consumers.ts"
       - "scripts/tv_preflight.ts"
       - "scripts/tv_verify_consumer_bindings.ts"
+      - "scripts/build_pine_library_version_snapshot.ts"
+      - "scripts/smc_bus_manifest.py"
+      - "scripts/tv_publish_*.ts"
   pull_request:
     paths:
       - ".github/workflows/tv-onboarding-packages.yml"
       - "automation/tradingview/config/consumer-onboarding.json"
       - "automation/tradingview/lib/**"
+      - "automation/tradingview/selectors.ts"
       - "automation/tradingview/tests/tv_onboarding.test.ts"
       - "automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts"
+      - "automation/tradingview/tests/hand_authored_publisher_facade_authority.test.ts"
+      - "automation/tradingview/tests/pine_library_version_snapshot.test.ts"
+      - "automation/tradingview/tests/selectors.test.ts"
+      - "automation/tradingview/tests/tv_library_publisher_add_to_chart.test.ts"
+      - "automation/tradingview/tests/tv_publish_continue_label.test.ts"
+      - "automation/tradingview/tests/tv_publish_hand_authored_libraries.test.ts"
+      - "automation/tradingview/tests/tv_publish_import_path_evidence.test.ts"
+      - "automation/tradingview/tests/tv_runtime_errors.test.ts"
+      - "automation/tradingview/tests/tv_selectors_strict_mode.test.ts"
+      - "automation/tradingview/tests/tv_validation_model.test.ts"
       - "docs/tradingview-onboarding/**"
       - "package.json"
       - "package-lock.json"
@@ -33,6 +58,9 @@ on:
       - "scripts/tv_onboard_consumers.ts"
       - "scripts/tv_preflight.ts"
       - "scripts/tv_verify_consumer_bindings.ts"
+      - "scripts/build_pine_library_version_snapshot.ts"
+      - "scripts/smc_bus_manifest.py"
+      - "scripts/tv_publish_*.ts"
 
 permissions:
   contents: read
@@ -108,6 +136,12 @@ jobs:
         # paths, so a follow-up removing the floor would have re-opened the
         # 45s-timeout release-gate failure (run 30023429034).
         run: npx tsx --test automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts
+
+      - name: Test hermetic TV pins
+        # Source-scan / pure-logic pins (no playwright import, verified green
+        # in <2s each). They ran in no CI job before; the exempt set in
+        # test_fast_gates_silent_skip_coverage.py shrank by exactly these.
+        run: npx tsx --test automation/tradingview/tests/hand_authored_publisher_facade_authority.test.ts automation/tradingview/tests/pine_library_version_snapshot.test.ts automation/tradingview/tests/selectors.test.ts automation/tradingview/tests/tv_library_publisher_add_to_chart.test.ts automation/tradingview/tests/tv_publish_continue_label.test.ts automation/tradingview/tests/tv_publish_hand_authored_libraries.test.ts automation/tradingview/tests/tv_publish_import_path_evidence.test.ts automation/tradingview/tests/tv_runtime_errors.test.ts automation/tradingview/tests/tv_selectors_strict_mode.test.ts automation/tradingview/tests/tv_validation_model.test.ts
 
       - name: Build portable package
         run: npm run tv:onboarding:package -- --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH" --out-dir dist/tv-onboarding
