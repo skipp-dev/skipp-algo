@@ -1300,6 +1300,40 @@ groups:
       summary: Multiple news providers are degraded
       runbook: Inspect provider error fields in news snapshot and upstream provider
         quotas/auth.
+  - uid: lo-news-provider-health-degraded-single
+    title: Single news provider degraded
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool
+          1) * (live_overlay_provider_news_providers_degraded_total{job="live_overlay"}
+          == bool 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: info
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Exactly one news provider is degraded
+      runbook: Redundancy still holds; inspect the degraded provider's error fields
+        in the news snapshot and its upstream quota/auth before a second provider
+        degrades and lo-news-provider-health-degraded pages.
   - uid: lo-news-snapshot-series-missing
     title: News snapshot series missing
     condition: C
