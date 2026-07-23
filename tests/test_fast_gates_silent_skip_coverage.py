@@ -801,46 +801,37 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # This freezes the current TS state: every *.test.ts must be either RUN by the
 # workflow or on the exempt set below. A new TS test then forces a conscious
 # choice (wire it, or exempt it with a reason) instead of silently running
-# nowhere. It does NOT try to auto-classify hermetic-vs-browser tests: most of
-# the exempt set drive a real browser (the local `tv:test` lane, which needs a
-# pinned Playwright browser and hangs without it), so demanding they run in
-# this packaging workflow would break it. Wiring the *hermetic* source-scan
-# pins among them into CI is a separate follow-up.
+# nowhere. The exempt set is exactly the tests whose import graph reaches
+# `playwright` (via lib/tv_shared.ts) — verified by running each: the 13 exempt
+# fail fast with ERR_MODULE_NOT_FOUND 'playwright' locally and need a pinned
+# browser (the local `tv:test` lane, which hangs without it), so demanding they
+# run in this packaging workflow would break it. The hermetic source-scan /
+# pure-logic pins (no playwright import) all gate: 12 run, 13 exempt.
 TV_ONBOARDING_WORKFLOW = ROOT / ".github" / "workflows" / "tv-onboarding-packages.yml"
 _TV_TEST_DIR = ROOT / "automation" / "tradingview" / "tests"
 
-#: TS tests that legitimately do not run in tv-onboarding-packages.yml. Frozen
-#: 2026-07-23 at the one-gated-of-25 baseline. Adding a member is a deliberate
-#: edit (audit trail), the same contract as the *_INTENTIONALLY_UNGATED sets
-#: above. Most need a real browser; the hermetic source-scan pins here are a
-#: CI-wiring follow-up, not a permanent exemption.
+#: TS tests that legitimately do not run in tv-onboarding-packages.yml — the
+#: 13 that import `playwright` transitively and need a pinned browser. Adding a
+#: member is a deliberate edit (audit trail), the same contract as the
+#: *_INTENTIONALLY_UNGATED sets above. Reducing it means a browserless test was
+#: wired into CI (the 10 hermetic pins were, 2026-07-24).
 _TS_TESTS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
     {
-        "hand_authored_publisher_facade_authority.test.ts",
-        "pine_library_version_snapshot.test.ts",
-        "selectors.test.ts",
         "tv_auth_probe_precedence.test.ts",
         "tv_binding_repair.test.ts",
         "tv_launch_options.test.ts",
-        "tv_library_publisher_add_to_chart.test.ts",
         "tv_pine_editor_close.test.ts",
         # tv_preflight_add_to_chart_floor.test.ts is NOT here — it is wired into
         # the run step (#3970) and gates.
         "tv_preflight_identity_assertion.test.ts",
         "tv_producer_refresh_layouts.test.ts",
-        "tv_publish_continue_label.test.ts",
         "tv_publish_draw_library.test.ts",
-        "tv_publish_hand_authored_libraries.test.ts",
-        "tv_publish_import_path_evidence.test.ts",
         "tv_publish_micro_library.test.ts",
         "tv_publish_openprep_panel.test.ts",
         "tv_publish_overlay_library.test.ts",
         "tv_read_editor_content.test.ts",
-        "tv_runtime_errors.test.ts",
         "tv_save_consumer_source.test.ts",
-        "tv_selectors_strict_mode.test.ts",
         "tv_shared.test.ts",
-        "tv_validation_model.test.ts",
     }
 )
 
