@@ -101,11 +101,15 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['library']['productivityGate']['publishReady'] is True
     assert payload['library']['productivityGate']['blockingReasons'] == []
     assert payload['library']['productivityGate']['fixtureInputDetected'] is False
-    # Static-control-plane releases intentionally keep event risk in runtime
-    # sidecars, so generated library defaults are detected but non-blocking.
-    assert payload['library']['productivityGate']['defaultEventRiskDetected'] is True
-    assert payload['library']['productivityGate']['eventRiskSource'] == 'defaults'
-    assert payload['library']['productivityGate']['placeholderSymbols'] == []
+    # 2026-07-23: the enriched pipeline is restored (#3896 revert landed and the
+    # data path is fixed end-to-end), so v162 carries REAL event risk from the
+    # builder — not the static-control-plane defaults the old assertions pinned.
+    # placeholderSymbols is non-empty (CCC) but non-blocking, because that only
+    # blocks when paired with fixture input (generator: fixture_input AND
+    # placeholder_symbols), and fixtureInputDetected is False here.
+    assert payload['library']['productivityGate']['defaultEventRiskDetected'] is False
+    assert payload['library']['productivityGate']['eventRiskSource'] == 'smc_event_risk_builder'
+    assert payload['library']['productivityGate']['placeholderSymbols'] == ['CCC']
     assert payload['productCut']['mainlineFiles'] == product_cut['mainlineSurfaceFiles']
     assert payload['productCut']['manifestVersion'] == 2
     assert payload['productCut']['litePrimaryFiles'] == product_cut['litePrimaryFiles']

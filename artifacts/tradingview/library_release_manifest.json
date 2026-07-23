@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-07-22T11:44:35.374Z",
+  "generatedAt": "2026-07-23T17:15:08.604Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/161",
-    "expectedVersion": 161,
-    "publishedVersion": 161,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/162",
+    "expectedVersion": 162,
+    "publishedVersion": 162,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
@@ -15,11 +15,13 @@
       "publishReady": true,
       "blockingReasons": [],
       "fixtureInputDetected": false,
-      "defaultEventRiskDetected": true,
-      "placeholderSymbols": [],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-07-21.csv",
-      "universeSize": 6929,
-      "eventRiskSource": "defaults"
+      "defaultEventRiskDetected": false,
+      "placeholderSymbols": [
+        "CCC"
+      ],
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-07-22.csv",
+      "universeSize": 6925,
+      "eventRiskSource": "smc_event_risk_builder"
     }
   },
   "consumers": [
@@ -1879,7 +1881,7 @@
       "deprecatedGroups": []
     }
   },
-  "lastPreflightReport": "tv_post_release_validation.json",
+  "lastPreflightReport": "/home/runner/work/skipp-algo/skipp-algo/automation/tradingview/reports/preflight-micro-library-2026-07-23T17-09-47-661Z.json",
   "notes": [
     "Manifest, generated import snippet, and SMC_Core_Engine import path must stay identical.",
     "Pine library import version is explicit; TradingView does not auto-resolve the newest version in the core import.",
