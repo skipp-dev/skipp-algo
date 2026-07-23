@@ -53,6 +53,7 @@ jobs:
   restart:
     if: github.event.schedule == '10 0 23 7 *' || inputs.phase == 'restart'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
     permissions:
       contents: read
       actions: write  # dispatch deploy-live-overlay-daemon for the controlled restart
@@ -67,6 +68,7 @@ jobs:
   check-firing:
     if: github.event.schedule == '10 2 23 7 *' || inputs.phase == 'check-firing'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -99,6 +101,7 @@ jobs:
   check-resolved:
     if: github.event.schedule == '30 7 23 7 *' || inputs.phase == 'check-resolved'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
