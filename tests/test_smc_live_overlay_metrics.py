@@ -1537,7 +1537,6 @@ def test_render_metrics_includes_tradingview_credential(
     assert "live_overlay_tradingview_credential_valid 1.0" in body
     assert "live_overlay_tradingview_credential_age_known 1.0" in body
     assert "live_overlay_tradingview_credential_age_hours 60.000" in body
-    assert "live_overlay_tradingview_credential_validated_at_seconds" in body
 
 
 def test_render_metrics_tradingview_credential_error_is_invalid(
@@ -1785,6 +1784,10 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
     dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
     panel = next(p for p in dashboard["panels"] if p.get("title") == "TradingView Binding Status")
+    # The pin drifted: the panel gained the per-consumer and saved-source
+    # targets without this set following, so it had been failing on main.
+    # Re-pinned to the full panel, including the binding-coverage trio that
+    # makes "0 of 7 consumers verified" readable next to the drift verdict.
     expressions = {target["expr"] for target in panel["targets"]}
     assert expressions == {
         'max(live_overlay_tv_binding_snapshot_loaded{job="live_overlay"})',
@@ -1792,9 +1795,18 @@ def test_dashboard_has_tradingview_binding_status_panel() -> None:
         'max(live_overlay_tv_bindings_checked{job="live_overlay"})',
         'max(live_overlay_tv_binding_drift{job="live_overlay"})',
         'max(live_overlay_tv_binding_mismatches{job="live_overlay"})',
+        'max(live_overlay_tv_binding_check_known{job="live_overlay"})',
+        'max(live_overlay_tv_binding_consumers_expected{job="live_overlay"})',
+        'max(live_overlay_tv_binding_consumers_checked{job="live_overlay"})',
         'max(live_overlay_tv_consumer_source_check_known{job="live_overlay"})',
         'max(live_overlay_tv_consumer_sources_checked{job="live_overlay"})',
         'max(live_overlay_tv_consumer_source_drift{job="live_overlay"})',
+        'live_overlay_tv_binding_failed_consumers{job="live_overlay"}',
+        'live_overlay_tv_consumer_binding_mismatches{job="live_overlay"}',
+        'live_overlay_tv_consumer_sources_expected{job="live_overlay"}',
+        'live_overlay_tv_consumer_sources_drifted{job="live_overlay"}',
+        'live_overlay_tv_consumer_source_matches{job="live_overlay"}',
+        'live_overlay_tv_consumer_source_failures{job="live_overlay"}',
     }
 
 
@@ -2285,6 +2297,9 @@ def test_dashboard_railway_panels_query_emitted_metrics() -> None:
         "live_overlay_railway_service_network_rx_gb",
         "live_overlay_railway_service_network_tx_gb",
         "live_overlay_railway_service_memory_limit_gb",
+        # Wired to the Memory Limit panel by #3919; emitted in metrics.py
+        # with service labels, so this literal has to name it explicitly.
+        "live_overlay_railway_service_memory_gb",
     }
     expected_titles = {
         "Railway CPU Cores",

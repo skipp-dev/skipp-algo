@@ -2765,7 +2765,8 @@ groups:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
-        expr: live_overlay_tv_binding_drift{job="live_overlay"} > bool 0
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * live_overlay_tv_binding_check_known{job="live_overlay"}
+          * (live_overlay_tv_binding_drift{job="live_overlay"} > bool 0)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -2786,10 +2787,51 @@ groups:
       severity: warning
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: At least one measured TradingView input.source dropdown is mapped to the wrong Suite channel.
+      summary: A measured TradingView input.source dropdown is wrong, or the run left consumers unverified.
       runbook: Inspect artifacts/monitoring/latest/tradingview_consumer_bindings.json on
-        bot/live-tradingview-bindings, then run tv-save-consumer-source with repair_e2e only for a
-        controlled repair test or use tv_verify_consumer_bindings.ts --repair for the affected consumer.
+        bot/live-tradingview-bindings. Compare bindings.checkedConsumers with bindings.expectedConsumers
+        first -- a shortfall means the run aborted before opening every consumer and NOTHING was proven,
+        which this rule reports as drift on purpose. For a genuine mismatch, run tv-save-consumer-source
+        with repair_e2e only for a controlled repair test, or use tv_verify_consumer_bindings.ts --repair
+        for the affected consumer.
+  - uid: lo-tv-binding-check-missing
+    title: TradingView dropdown verification missing
+    condition: C
+    # Companion to the drift rule above, which is multiplied by check_known and
+    # therefore CANNOT fire on a snapshot that carries no expectedConsumers at
+    # all. Without this rule such a snapshot would read as "no drift" forever.
+    # Mirrors lo-tv-consumer-source-check-missing for the saved-source half.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_tv_binding_snapshot_loaded{job="live_overlay"} * (live_overlay_tv_binding_check_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The TradingView snapshot loaded without stating how many consumer dropdowns it expected to verify.
+      runbook: Run the scheduled tv-save-consumer-source workflow. Its snapshot must publish
+        bindings.expectedConsumers and bindings.checkedConsumers; without them no dropdown
+        verification can be proven and the drift gauge means nothing.
   - uid: lo-tv-binding-snapshot-age-unknown
     title: TradingView binding snapshot age unknown (loads but carries no generated_at)
     condition: C
