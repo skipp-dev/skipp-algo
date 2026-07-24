@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pandas as pd
 
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
@@ -78,6 +79,18 @@ LISTS = [
 ]
 
 LIST_EXPORTS = {name: f"{name.upper()}_TICKERS" for name in LISTS}
+
+# Composite-score column feeding each list's add/remove decision. Also mirrored in
+# update_membership_state's local score_col_map (kept there to avoid a churny edit).
+_SCORE_COLUMN_BY_LIST = {
+    "clean_reclaim": "clean_reclaim_score",
+    "stop_hunt_prone": "stop_hunt_score",
+    "midday_dead": "midday_dead_score",
+    "rth_only": "rth_only_score",
+    "weak_premarket": "weak_premarket_score",
+    "weak_afterhours": "weak_afterhours_score",
+    "fast_decay": "fast_decay_score",
+}
 STATE_COLUMNS = [
     "symbol",
     "list_name",
@@ -253,6 +266,13 @@ def validate_schema(df: pd.DataFrame, schema: dict[str, Any]) -> None:
 
 
 def pr(series: pd.Series) -> pd.Series:
+    # Percentile rank of winsorised (2%/98%) values.
+    # P2 calibration caveat: method="average" centres a block of tied inputs on its
+    # mean rank, so in dense ties (many identical 20d values — e.g. stop_hunt_rate=0
+    # on calm days) the whole tied block sits at ~0.5 regardless of block size. The
+    # effective add-threshold (0.70) therefore drifts with the tie mass. This is a
+    # calibration risk to monitor, not a bug: "min"/"max" would bias the tie block
+    # conservative/aggressive per direction, whereas "average" is the neutral choice.
     lo = float(series.quantile(0.02))
     hi = float(series.quantile(0.98))
     clipped = series.clip(lower=lo, upper=hi)
@@ -339,7 +359,23 @@ def add_bucket_features(df: pd.DataFrame, schema: dict[str, Any]) -> pd.DataFram
             + 0.15 * pr(current["open_30m_dollar_share_20d"])
         )
         buckets.append(current)
-    return pd.concat(buckets, ignore_index=True)
+    scored = pd.concat(buckets, ignore_index=True)
+    # P3 visibility: a NaN composite score silently fails every `>= threshold_add`
+    # test, so a symbol whose feature inputs are missing drops out of candidacy with
+    # no trace. Surface the per-list NaN-score counts rather than leaving the
+    # NaN -> False chain invisible (missing data must look like missing data, not
+    # like "structurally never listed").
+    nan_score_counts = {
+        list_name: int(scored[score_col].isna().sum())
+        for list_name, score_col in _SCORE_COLUMN_BY_LIST.items()
+        if score_col in scored.columns
+    }
+    if any(nan_score_counts.values()):
+        logger.warning(
+            "micro-profiles: NaN composite scores per list (silently non-candidate): %s",
+            {name: count for name, count in nan_score_counts.items() if count},
+        )
+    return scored
 
 
 def _bucket_quantile(df: pd.DataFrame, column: str, quantile: float) -> pd.Series:
@@ -490,7 +526,6 @@ def update_membership_state(
     bootstrap_mode = state.empty
     previous_rows = {(row["symbol"], row["list_name"]): row for _, row in state.iterrows()}
     rows: list[dict[str, Any]] = []
-    asof_ts = pd.Timestamp(asof_date)
 
     for _, row in df.iterrows():
         for list_name in LISTS:
@@ -517,9 +552,15 @@ def update_membership_state(
                 remove_streak = 0
 
             is_active = previous_active
+            # P1: the hysteresis streaks count generator RUNS (trading days), so the
+            # min-hold floor must be measured in the same unit. Calendar-day spacing
+            # let a Friday activation clear a "5-day" floor by its 3rd trading day
+            # (Fri->Wed = 5 calendar / 3 trading days). Count business days so the
+            # floor holds in the unit it is declared in. (US market holidays remain a
+            # small residual — weekends are the dominant, now-corrected case.)
             held_days = 0
             if active_since:
-                held_days = int((asof_ts - pd.Timestamp(active_since)).days)
+                held_days = int(np.busday_count(np.datetime64(str(active_since)[:10]), np.datetime64(asof_date)))
             if bootstrap_mode and add_candidate:
                 is_active = True
                 add_streak = hysteresis["add_runs_required"]

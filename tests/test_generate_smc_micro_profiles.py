@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -273,6 +274,89 @@ def test_update_membership_state_uses_remove_threshold_for_active_rows() -> None
     assert row["remove_streak"] == 0
     assert row["candidate_active"] == 1
     assert row["decision_reason"] == "retained by remove threshold"
+
+
+def _hold_test_row(clean_reclaim_score: float) -> pd.DataFrame:
+    scores = {
+        "clean_reclaim_score": clean_reclaim_score,
+        "stop_hunt_score": 0.0,
+        "midday_dead_score": 0.0,
+        "rth_only_score": 0.0,
+        "weak_premarket_score": 0.0,
+        "weak_afterhours_score": 0.0,
+        "fast_decay_score": 0.0,
+    }
+    cands = {
+        "cand_clean_reclaim": False,
+        "cand_stop_hunt_prone": False,
+        "cand_midday_dead": False,
+        "cand_rth_only": False,
+        "cand_weak_premarket": False,
+        "cand_weak_afterhours": False,
+        "cand_fast_decay": False,
+    }
+    return pd.DataFrame([{"symbol": "AAA", **scores, **cands}])
+
+
+def _hold_prev_state(remove_streak: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "symbol": "AAA",
+                "list_name": "clean_reclaim",
+                "is_active": "1",
+                "active_since": "2026-07-24",  # a Friday
+                "add_streak": 0,
+                "remove_streak": remove_streak,
+                "last_score": 0.9,
+                "last_run_date": "2026-07-24",
+                "candidate_active": 1,
+                "decision_source": "generator",
+                "decision_reason": "retained",
+            }
+        ]
+    )
+
+
+def test_min_hold_floor_is_measured_in_trading_days() -> None:
+    """P1: the min-hold floor counts trading (business) days, not calendar days.
+
+    A Friday activation reaches 5 *calendar* days by the next Wednesday but only 3
+    *trading* days. The remove-runs hysteresis counts runs (trading days), so the
+    min_hold_days floor must too — otherwise a weekend shortens the declared hold by
+    ~40%. Score 0.30 < threshold_remove (0.45) so the row is not retained and the
+    remove streak reaches remove_runs_required (3).
+    """
+    schema = load_schema(Path(SCHEMA_PATH))
+
+    # Wednesday = 3 trading days after Friday activation -> below the 5-day floor.
+    wednesday = update_membership_state(_hold_test_row(0.30), _hold_prev_state(2), "2026-07-29", schema)
+    wed_row = next(r for r in wednesday.to_dict("records") if r["list_name"] == "clean_reclaim")
+    assert wed_row["is_active"] == 1, "held below the 5-trading-day floor (3 elapsed) despite 5 calendar days"
+
+    # The following Friday = 5 trading days after activation -> floor met -> released.
+    friday = update_membership_state(_hold_test_row(0.30), _hold_prev_state(2), "2026-07-31", schema)
+    fri_row = next(r for r in friday.to_dict("records") if r["list_name"] == "clean_reclaim")
+    assert fri_row["is_active"] == 0, "released once 5 trading days have elapsed"
+
+
+def test_add_bucket_features_warns_on_nan_composite_score(caplog) -> None:
+    """P3: a NaN composite score (missing feature inputs) is surfaced, not silent.
+
+    A NaN score fails every ``>= threshold_add`` test, dropping the symbol from
+    candidacy with no trace. The generator must log the per-list NaN-score counts so
+    missing data looks like missing data rather than "structurally never listed".
+    """
+    schema = load_schema(Path(SCHEMA_PATH))
+    rows = _base_rows()
+    rows[0]["clean_intraday_score_20d"] = float("nan")  # a clean_reclaim_score input
+    df = coerce_input_frame(pd.DataFrame(rows))
+
+    with caplog.at_level(logging.WARNING):
+        scored = add_bucket_features(df, schema)
+
+    assert scored.loc[scored["symbol"] == "AAA", "clean_reclaim_score"].isna().all()
+    assert "NaN composite scores" in caplog.text
 
 
 def test_run_generation_writes_expected_outputs(tmp_path) -> None:
