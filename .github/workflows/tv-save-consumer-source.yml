@@ -100,6 +100,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
+          # smc-library-refresh pushes its output commit DURING its run, but the
+          # workflow_run event's head_sha is the commit that run STARTED from —
+          # the parent of the refresh commit. Defaulting to that head_sha checks
+          # out the pre-refresh tree, so the chained save re-saves the OLD source
+          # (a no-op) and the fresh consumer source is never pushed to TradingView,
+          # leaving "saved consumer source drifts from repo" firing until a manual
+          # dispatch. For workflow_run, check out the branch tip instead so the
+          # post-refresh source is what gets saved. Empty ref keeps the default
+          # (github.sha) for schedule/dispatch, which already land on main's tip.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
           fetch-depth: 1
           persist-credentials: false
 
