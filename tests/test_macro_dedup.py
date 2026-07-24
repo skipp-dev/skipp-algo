@@ -29,6 +29,20 @@ class TestMacroDedup(unittest.TestCase):
             "Gross Domestic Product QoQ (Q4)",
         )
 
+    def test_dedupe_tie_break_prefers_parseable_actual_over_placeholder(self):
+        # M4: the tie-break must favour a duplicate whose ``actual`` is a real
+        # number over one carrying a non-numeric placeholder. The old
+        # ``actual is not None`` check treated a string like "—" as "has actual"
+        # and could keep it over a genuine numeric release, discarding its
+        # contribution. ``_to_float(actual) is not None`` is the correct test.
+        events = [
+            {"country": "US", "date": "2026-02-20", "event": "Core PCE Price Index MoM (Dec)", "actual": "—", "consensus": 0.2, "impact": "High"},
+            {"country": "US", "date": "2026-02-20", "event": "Core PCE Price Index MoM (Dec)", "actual": 0.3, "consensus": 0.2, "impact": "High"},
+        ]
+        deduped = dedupe_events(events)
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["actual"], 0.3)
+
     def test_score_components_include_dedup_metadata(self):
         events = [
             {

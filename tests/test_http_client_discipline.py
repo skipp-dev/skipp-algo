@@ -168,7 +168,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # instrumentation block in macro.py.
         # 2026-06-11 (eval-findings B8): surprise-scale comment +8 (713→721).
         # 2026-06-13: profile-bulk pagination constant shifted +1 (721→722).
-        ("open_prep/macro.py", 741),  # 2026-07-19 (provider telemetry helper): 740->741
+        # 2026-07-24 (macro dedup/dead-branch cleanup): removed a dead _macro_weight
+        # branch (-2 lines above the urlopen call): 741->739.
+        ("open_prep/macro.py", 739),
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
         ("terminal_notifications.py", 255),

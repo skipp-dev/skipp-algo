@@ -344,8 +344,8 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
 
         existing = kept[key]
-        existing_score = (_event_impact_rank(existing), existing.get("actual") is not None)
-        new_score = (_event_impact_rank(cloned), cloned.get("actual") is not None)
+        existing_score = (_event_impact_rank(existing), _to_float(existing.get("actual")) is not None)  # M4: parseable numeric actual wins the tie-break, not a non-numeric placeholder
+        new_score = (_event_impact_rank(cloned), _to_float(cloned.get("actual")) is not None)  # M4: as above
         if new_score > existing_score:
             dropped[key].append(existing)
             kept[key] = cloned
@@ -399,8 +399,6 @@ def _macro_weight(
     if impact_rank == 2:
         return 1.0
     if impact_rank == 1:
-        return 0.25 if allow_mid_impact else 0.0
-    if canonical_event in {"consumer_sentiment", "ism_services", "ism_manufacturing", "philadelphia_fed"}:
         return 0.25 if allow_mid_impact else 0.0
     return 1.0 if _is_high_impact_event_name(str(event.get("event") or event.get("name") or "")) else 0.0
 
