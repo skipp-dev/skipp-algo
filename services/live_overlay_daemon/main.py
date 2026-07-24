@@ -293,11 +293,18 @@ def prometheus_metrics(request: Request) -> PlainTextResponse:
 # ---------------------------------------------------------------------------
 
 def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
-    """Age in seconds of the newest bar carrying a usable ts_event, else None.
+    """Age in seconds since the newest bar CLOSED, else None.
+
+    ``ts_event`` stamps the bar OPEN. The cache holds 1-minute bars, so the
+    newest bar closes one bar-length (_BAR_LEN_SECS) after its open; measuring
+    from the open would report a fully-closed bar as a full bar-length older
+    than it is and trip ``stale`` at the boundary (e.g. a bar that opened 90s
+    ago closed 30s ago, but read as 90s old under a 60s budget).
 
     None means "no recency evidence" — callers must treat it as stale, never
     as fresh.
     """
+    _BAR_LEN_SECS = 60.0  # cache stores 1-minute bars; close = open + 60s
     valid_ts_events = [
         ts
         for bar in bars
@@ -307,7 +314,8 @@ def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
     ]
     if not valid_ts_events:
         return None
-    return max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
+    newest_close = max(valid_ts_events) / 1_000_000_000 + _BAR_LEN_SECS
+    return max(0.0, time.time() - newest_close)
 
 
 def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:

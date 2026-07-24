@@ -1175,7 +1175,16 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
     Squeeze = True when Bollinger Band width < Keltner Channel width.
-    Approximated here as: BB width < 2 × ATR (simplified single-symbol check).
+
+    Matches the Pine reference (pine/legacy/USI-CHOCH.pine sq_bbMult=2.0,
+    sq_kcMult=1.5, ``ta.atr`` = True Range):
+      BB width = 4 × stdev(close)               (2σ each side, mult 2.0)
+      KC width = 3 × ATR_true                    (±1.5 × ATR, mult 1.5)
+    where ATR_true averages the True Range max(high−low, |high−close_prev|,
+    |low−close_prev|), so prior-close gaps widen the channel exactly as Pine's
+    ta.atr does. Prior work used ``2 × mean(high−low)`` (mult 1.0, no prior
+    close), a ~2.4× too-tight channel that fired squeeze far less often than
+    the chart the consumer sees beside the overlay.
 
     Uses aligned filtering: only bars that have ALL of close, high, and low
     are included, so the TR calculation is never computed from misaligned bars
@@ -1206,19 +1215,29 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     if len(triples) < period:
         return None
 
-    window = triples[-period:]
-    closes_w = [t[0] for t in window]
-    highs_w = [t[1] for t in window]
-    lows_w = [t[2] for t in window]
+    closes_w = [t[0] for t in triples[-period:]]
 
     std_c = _safe_std(closes_w)
 
-    # Approximate ATR (True Range without prior-close continuity)
-    trs = [h - lo for h, lo in zip(highs_w, lows_w)]
+    # True Range with prior-close continuity (Pine ta.atr parity):
+    # TR = max(high−low, |high−close_prev|, |low−close_prev|). Prior close is
+    # taken from the aligned triple immediately before each window bar so gaps
+    # widen ATR. The first bar of the whole series has no prior close and seeds
+    # TR = high−low, matching Pine's first-bar TR.
+    start = len(triples) - period
+    trs: list[float] = []
+    for i in range(start, len(triples)):
+        _c, h, lo = triples[i]
+        if i > 0:
+            c_prev = triples[i - 1][0]
+            tr = max(h - lo, abs(h - c_prev), abs(lo - c_prev))
+        else:
+            tr = h - lo
+        trs.append(tr)
     atr = sum(trs) / len(trs)
 
-    bb_width = 4 * std_c  # upper - lower (2σ each side)
-    kc_width = 2 * atr     # Keltner ±1 ATR approximation
+    bb_width = 4 * std_c  # 2σ each side (Pine sq_bbMult=2.0)
+    kc_width = 3 * atr    # ±1.5 × ATR_true (Pine sq_kcMult=1.5)
 
     return bool(bb_width < kc_width)
 
@@ -1227,7 +1246,9 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """
     ATS (accumulation/distribution read, NOT average-trade-size) state:
       ats_state  — "accumulation" | "distribution" | "neutral"
-      ats_zscore — z-score of most recent bar's volume vs rolling avg
+      ats_zscore — full z-score (vol − mean) / stdev of the most recent bar's
+                   volume vs the prior-19-bar rolling window (not a ratio to
+                   the mean)
 
     All fields are anchored to bars[-1] to avoid cross-bar misalignment.
     B19: if bars[-1] has no volume, zscore and state are both None.

@@ -227,8 +227,8 @@ class TestSqueezeAlignedWindow:
         """
         25 bars; bar[5] has no high. After fix, bar[5] is excluded from
         the aligned triples. The remaining 24 complete bars all have
-        close=100 (std=0, BB_width=0) and high-low=20 (ATR=20, KC_width=40).
-        0 < 40 → squeeze=True.
+        close=100 (std=0, BB_width=0) and high-low=20 (ATR_true=20, KC_width=60).
+        0 < 60 → squeeze=True.
 
         Pre-fix: bar[4].high paired with bar[5].low → phantom TR=19,
         corrupting ATR and potentially flipping the squeeze signal.
@@ -243,7 +243,7 @@ class TestSqueezeAlignedWindow:
 
         result = compute.compute_squeeze_on(bars, period=20)
         assert result is True, (
-            f"B22: Expected squeeze=True (std=0, ATR=20, BB_width=0 < KC_width=40). "
+            f"B22: Expected squeeze=True (std=0, ATR_true=20, BB_width=0 < KC_width=60). "
             f"Got: {result!r}"
         )
 
@@ -259,7 +259,7 @@ class TestSqueezeAlignedWindow:
 
         result = compute.compute_squeeze_on(bars, period=20)
         # bar[0] excluded → 24 complete bars. triples[-20:] = bars[4:25] (all complete).
-        # close=100 (std=0), high-low=20 (ATR=20). 0 < 40 → True.
+        # close=100 (std=0), high-low=20 (ATR_true=20). 0 < 60 → True.
         assert result is True
 
     def test_insufficient_complete_bars_returns_none(self):
@@ -288,7 +288,8 @@ class TestSqueezeAlignedWindow:
             {"close": c, "high": c + 0.5, "low": c - 0.5}
             for c in closes
         ]
-        # ATR ≈ 1.0 per bar → KC_width=2.0. BB_width=4*std_c >> 2.0.
+        # Close swings +-10 -> prior-close gaps drive ATR_true ≈ 6.4,
+        # KC_width = 3*ATR ≈ 19.2. BB_width = 4*std_c ≈ 28.2 > KC -> False.
         result = compute.compute_squeeze_on(bars, period=20)
         assert result is False, (
             f"Expected squeeze=False (wide BB, narrow KC). Got: {result!r}"
