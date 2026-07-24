@@ -31,8 +31,9 @@
 
 ## 1. signal_decay.py
 
-### HIGH — Half-life formula is mathematically wrong
+### RESOLVED (2026-07-06, PR #3217) — Half-life formula is mathematically wrong
 
+- **Resolution:** `adaptive_freshness_decay` now uses `math.exp(-elapsed_seconds * _LN2 / hl)` (`_LN2 = math.log(2)`) — the true half-life form recommended below. Verified empirically: decay is exactly `0.5` at `t == hl` and `0.25` at `2·hl` (the old `exp(-t/hl)` gave `0.368`). The module docstring documents the contract. Historical description retained below; do not re-file.
 - **Location:** `adaptive_freshness_decay()`, line ~103
 - **Bug:** The function uses `math.exp(-elapsed_seconds / hl)` but the parameter is named and documented as `half_life`. The actual half-life of `exp(-t/τ)` is `τ * ln(2)` ≈ `0.693 * τ`, not `τ`. The function returns `1/e ≈ 0.368` at `t == hl`, not `0.5` as the name implies.
 - **Impact:** A signal with a stated "10-minute half-life" actually decays to 50 % at ~6.93 minutes, meaning signals are treated as 30 % staler than intended. This systematically under-weights older signals versus the documented contract.
@@ -60,8 +61,9 @@
 - **Impact:** Negative macro environments are under-penalised in the composite score vs. what the weight configuration intends. Scores cluster higher than they should on risk-off days.
 - **Fix:** Intentional design decision? If so, document it. If not, allow `macro_component` to go negative when bias is negative.
 
-### MEDIUM — `freshness_decay` uses `signal_decay.adaptive_freshness_decay` but `elapsed_seconds` may be `None`
+### RESOLVED — `freshness_decay` uses `signal_decay.adaptive_freshness_decay` but `elapsed_seconds` may be `None`
 
+- **Resolution:** `adaptive_freshness_decay(None)` now returns `0.5` (neutral), not `0.0` — `signal_decay.py:100-101` (`# Unknown age → neutral, not dead`); `scorer.py:168` documents that the live filter path relies on this "neutral, not dead" behaviour. Landed with the §1 half-life rewrite. Do not re-file.
 - **Location:** `filter_candidate()`, lines ~320-335
 - **Bug:** When `premarket_freshness_sec` is `None` (quote has no timestamp), the code passes `None` to `adaptive_freshness_decay()`, which returns `0.0`. A `freshness_decay = 0.0` then contributes `w["freshness_decay"] * 0.0 = 0.0` to the score. This means symbols without any timestamp data receive **zero freshness credit**, which is harsher than a moderately stale score. The intent is likely "no data → neutral default" rather than "no data → maximally penalised".
 - **Impact:** Symbols that lack `premarket_freshness_sec` (common for some FMP data tiers) are scored as maximally stale, artificially depressing their ranking relative to peers with any timestamp.
@@ -376,8 +378,9 @@
 
 ## 16. regime.py
 
-### MEDIUM — `classify_regime` VIX thresholds produce regime flicker
+### RESOLVED (2026-07-24, PR #3991) — `classify_regime` VIX thresholds produce regime flicker
 
+- **Resolution:** `classify_regime` carries a ±1pt VIX dead-zone, but it was inert in prod — the pipeline reset the hysteresis anchor every run, and batch runs are per-process, so `_prev_regime` was always `None`. PR #3991 seeds the anchor from the prior run's persisted regime when it is the same session (else reset), so intra-session dashboard refreshes no longer flicker. See `regime.seed_regime_hysteresis_from_prior_run`.
 - **Location:** `classify_regime()`, lines ~200-280
 - **Bug:** The regime transitions are based on instantaneous VIX level: `vix > 30 → RISK_OFF`, `vix < 15 → RISK_ON`. When VIX oscillates around 30 (common during moderate stress), the regime alternates between RISK_OFF and NEUTRAL every run. This causes:
   - Alternating weight adjustments (regime-adjusted weights change every run)
