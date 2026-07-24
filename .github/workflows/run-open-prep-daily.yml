@@ -153,11 +153,21 @@ jobs:
         # inert. Restore the rolling snapshot before the run. A confirmed
         # missing branch is the only cold-start path; transient fetch errors
         # fail closed so cumulative usage cannot reset silently.
+        #
+        # 2026-07-24: the checkout uses `persist-credentials: false`, so a bare
+        # `git fetch origin` carries no token and fails auth on this private
+        # repo -- NOT with "could not find remote ref", so it hit the fail-
+        # closed `else` and reddened every run since cad5da216 made this step
+        # hard-fail. Fetch from the tokened URL, mirroring the proven restore
+        # in smc-live-news-refresh.yml.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/monitoring
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           fetch_error="$(mktemp)"
-          if git fetch origin "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>"${fetch_error}"; then
+          if git fetch "${remote_url}" "+refs/heads/bot/live-open-prep-snapshot:refs/remotes/origin/bot/live-open-prep-snapshot" 2>"${fetch_error}"; then
             :
           elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
             echo "::notice::no prior bot/live-open-prep-snapshot branch — starting a fresh accumulation"
