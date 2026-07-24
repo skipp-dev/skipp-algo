@@ -371,13 +371,46 @@ def test_sub_day_frames_still_drop_true_cross_shard_duplicates() -> None:
     assert len(out) == 4, "an identical (symbol, trade_date, timestamp) row is still a duplicate"
 
 
-def test_symbol_day_frames_are_unaffected() -> None:
-    """`premarket_window_features_full_universe` really is one row per symbol-day.
+def test_window_frame_preserves_every_configured_window() -> None:
+    """Multi-window frames must keep one row per window_tag, not collapse to one.
 
-    Verified against the same run: window_tag carries a single value and the
-    merged frame has exactly one row per (symbol, trade_date), so its 761,750
-    dropped rows were genuine cross-shard repeats. Coarse dedupe must stay for
-    frames without a sub-day grain column.
+    premarket_window_features_full_universe carries NO timestamp column but up
+    to six rows per symbol-day — one per configured premarket window_tag
+    (bullish_quality_config.build_default_premarket_window_definitions). Before
+    2026-07-24 the coarse ("symbol", "trade_date") key kept only the last window
+    and destroyed the other five: the merged manifest recorded 6 configured tags
+    while the merged parquet retained 1 (~762k window-rows lost per merge).
+    window_tag belongs in the dedupe key.
+    """
+    import pandas as pd
+
+    from scripts.databento_production_merge_shards import _dedupe_frame
+
+    tags = [
+        "pm_0400_0500",
+        "pm_0500_0600",
+        "pm_0600_0700",
+        "pm_0700_0800",
+        "pm_0800_0900",
+        "pm_0900_0930",
+    ]
+    frame = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "trade_date": "2026-06-23", "window_tag": tag, "window_close": 100 + i}
+            for i, tag in enumerate(tags)
+        ]
+    )
+    out = _dedupe_frame("premarket_window_features_full_universe", frame)
+    assert len(out) == 6, f"every configured premarket window must survive; got {len(out)} from 6"
+    assert sorted(out["window_tag"].tolist()) == sorted(tags)
+
+
+def test_window_frame_still_drops_true_cross_shard_repeats() -> None:
+    """A genuine cross-shard repeat (same symbol-day-window) still collapses to one.
+
+    The coarse dedupe existed to drop per-shard repeats that differ only in
+    columns like *_fetched_at; keeping window_tag in the key preserves that
+    behaviour while no longer merging distinct windows.
     """
     import pandas as pd
 
@@ -390,4 +423,4 @@ def test_symbol_day_frames_are_unaffected() -> None:
         ]
     )
     out = _dedupe_frame("premarket_window_features_full_universe", frame)
-    assert len(out) == 1
+    assert len(out) == 1, "identical (symbol, trade_date, window_tag) rows are still duplicates"
