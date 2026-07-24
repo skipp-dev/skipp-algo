@@ -1311,13 +1311,24 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
 
     # Cap-churn visibility (2026-07-22): without these the bar cache could
     # thrash at the symbol cap — one bar per symbol, every rolling metric
-    # unavailable — with no metric moving. `bars_per_symbol` is the direct
-    # health signal (needs >= 20 for squeeze/relative-volume/ATS z-score);
-    # `evicted_protected_total` rising means real demand exceeds the cap.
+    # unavailable — with no metric moving. NOTE (2026-07-24): under the
+    # ALL_SYMBOLS feed this GLOBAL mean sits at ~1.0 by design — demand-aware
+    # retention (#3903) pins the cache at the cap with the unrequested majority
+    # holding one bar — so it is NOT the health signal for the rolling features.
+    # `requested_bars_per_symbol` below (depth of the symbols a consumer reads)
+    # is; `evicted_protected_total` rising means real demand exceeds the cap.
     lines.append("# TYPE live_overlay_bars_per_symbol gauge")
     lines.append(
         f"live_overlay_bars_per_symbol {bar_count / bar_symbols if bar_symbols else 0}"
     )
+    # Requested-symbol depth: the number that actually gates squeeze /
+    # relative-volume / ATS z-score (needs >= 20). Restricted to cached symbols
+    # a consumer has read, so the ALL_SYMBOLS churn no longer masks or fakes it.
+    req_bar_symbols, req_bars_per_symbol = cache.requested_bar_depth()
+    lines.append("# TYPE live_overlay_requested_bar_symbols gauge")
+    lines.append(f"live_overlay_requested_bar_symbols {req_bar_symbols}")
+    lines.append("# TYPE live_overlay_requested_bars_per_symbol gauge")
+    lines.append(f"live_overlay_requested_bars_per_symbol {req_bars_per_symbol}")
     lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
     lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
     lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")

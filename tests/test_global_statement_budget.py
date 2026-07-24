@@ -202,8 +202,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # count is unchanged.
         ("services/live_overlay_daemon/cache.py", 81, ("_max_symbols", "_rolling_bars_cap")),  # 2026-07-22 demand-aware bar retention: 70->81
         ("services/live_overlay_daemon/cache.py", 103, ("_last_eviction_at",)),  # 2026-07-22 demand-aware bar retention: 92->103
-        ("services/live_overlay_daemon/cache.py", 225, ("_overlay_computed_at",)),  # 2026-07-22 demand-aware bar retention: 185->225
-        ("services/live_overlay_daemon/cache.py", 299, ("_vix_level",)),  # 2026-07-22 demand-aware bar retention: 259->299
+        ("services/live_overlay_daemon/cache.py", 248, ("_overlay_computed_at",)),  # 2026-07-24 requested_bar_depth helper: 225->248
+        ("services/live_overlay_daemon/cache.py", 322, ("_vix_level",)),  # 2026-07-24 requested_bar_depth helper: 299->322
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.

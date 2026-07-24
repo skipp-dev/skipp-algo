@@ -3387,13 +3387,16 @@ groups:
   - uid: lo-bar-cache-depth-low
     title: Bar cache too shallow for the rolling features
     condition: C
-    # Added with the metrics from #3903, which were emitted for exactly this
-    # visibility and then consumed by nothing. Below ~20 bars per symbol the
-    # squeeze, relative-volume and ATS z-score features degrade SILENTLY —
-    # they do not error, they just stop being computable — so without this rule
-    # the cache can thrash at the symbol cap with no signal moving at all.
-    # Gated on market-open and past warmup: a shallow cache right after a
-    # restart is expected, not a defect.
+    # Below ~20 bars per symbol the squeeze, relative-volume and ATS z-score
+    # features degrade SILENTLY — they do not error, they just stop being
+    # computable. Measured on REQUESTED symbols (`requested_bars_per_symbol`),
+    # NOT the global mean: under the ALL_SYMBOLS feed the cache pins at the cap
+    # with the unrequested majority holding one bar, so `bars_per_symbol` sits
+    # at ~1.0 by design (demand-aware retention, #3903) and firing on it flagged
+    # a healthy system every market-open minute (2026-07-24). Gated on a cached
+    # consumer (`requested_bar_symbols > 0`), market-open, and past warmup: a
+    # shallow cache right after a restart is expected, not a defect; an absent
+    # consumer is left to lo-request-rate-absent-open.
     noDataState: OK
     data:
     - refId: A
@@ -3401,8 +3404,8 @@ groups:
       model:
         expr: live_overlay_market_us_open{job="live_overlay"}
           * (live_overlay_uptime_seconds{job="live_overlay"} > bool 900)
-          * (live_overlay_bar_symbols{job="live_overlay"} > bool 0)
-          * (live_overlay_bars_per_symbol{job="live_overlay"} < bool 20)
+          * (live_overlay_requested_bar_symbols{job="live_overlay"} > bool 0)
+          * (live_overlay_requested_bars_per_symbol{job="live_overlay"} < bool 20)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3423,12 +3426,16 @@ groups:
       severity: critical
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Fewer than 20 bars per symbol in the live cache while the US session is open —
-        squeeze, relative volume and the ATS z-score are silently unavailable.
-      runbook: Check live_overlay_bar_symbols against the configured symbol cap and the
-        eviction counters. Demand above the cap makes the cache churn one bar per symbol
-        (#3903). Raise the cap or narrow the requested universe; do not read a healthy
-        bar_count as healthy depth — bar_count/bar_symbols is the number that matters.
+      summary: Fewer than 20 bars per REQUESTED symbol in the live cache while the US
+        session is open — squeeze, relative volume and the ATS z-score are silently
+        unavailable for the symbols a consumer is reading.
+      runbook: This measures live_overlay_requested_bars_per_symbol (depth of the symbols
+        a consumer actually reads), NOT the global bar_count/bar_symbols, which sits at
+        ~1.0 by design under the ALL_SYMBOLS feed (#3903) and is NOT a health signal.
+        Firing means requested symbols are being evicted before they accumulate history —
+        check live_overlay_bar_requested_symbols_evicted_total (its increase is the
+        leading indicator, lo-bar-cache-protected-evictions). Raise the symbol cap
+        (OVERLAY_MAX_SYMBOLS) so demand fits, or narrow the requested universe.
   - uid: lo-bar-cache-protected-evictions
     title: Requested symbols evicted from the bar cache
     condition: C

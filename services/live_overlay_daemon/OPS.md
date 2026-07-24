@@ -676,6 +676,33 @@ error, and auth-denied alerts remain active regardless of this flag. Revert to
 `0` only together with re-pausing `lo-expected-traffic-not-armed`, and record
 why.
 
+### Bar cache depth — "too shallow" alert (`lo-bar-cache-depth-low`)
+
+The rolling features (squeeze, relative volume, ATS z-score) need ~20 bars of
+history per symbol. `lo-bar-cache-depth-low` fires when that floor is breached
+**for the symbols a consumer actually reads**.
+
+**Read the right metric.** The alert evaluates
+`live_overlay_requested_bars_per_symbol` — mean bar depth over the intersection
+of the cache and the requested-symbol set — gated on
+`live_overlay_requested_bar_symbols > 0`. Do **not** diagnose from the global
+`live_overlay_bars_per_symbol` (`bar_count / bar_symbols`): the feed subscribes
+to `ALL_SYMBOLS` and the cache caps at `OVERLAY_MAX_SYMBOLS` (default 2000), so
+demand-aware retention (#3903) deliberately pins the cache at the cap with the
+unrequested majority holding a single bar. That makes the global mean sit at
+~1.0 during every open session **by design** — it is not a health signal, and
+alerting on it flagged a healthy system every market-open minute until
+2026-07-24.
+
+**When it fires, it is real.** Past warmup, a requested symbol only stays
+shallow if it is being evicted before it can accumulate history — i.e. live
+demand exceeds the cap. Confirm with
+`increase(live_overlay_bar_requested_symbols_evicted_total[30m]) > 0` (the
+leading-indicator alert `lo-bar-cache-protected-evictions`). Remedy: raise
+`OVERLAY_MAX_SYMBOLS` so demand fits, or narrow the requested universe. A shallow
+cache in the first ~15 min after a restart or a freshly pinned symbol is
+expected warmup, not a defect (the 900 s uptime gate + 15 m `for` absorb it).
+
 ### Dashboard masking semantics
 
 The dashboard intentionally masks data in a few panels so on-call does not
