@@ -53,7 +53,7 @@ from .outcomes import (
     store_daily_outcomes,
 )
 from .playbook import assign_playbooks
-from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
+from .regime import apply_regime_adjustments, classify_regime, seed_regime_hysteresis_from_prior_run
 
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
@@ -4870,7 +4870,7 @@ def generate_open_prep_result(
 
     TOTAL_STAGES = 17
     _profiler = StageProfiler()
-    reset_regime_state()  # prevent stale hysteresis from prior run
+    seed_regime_hysteresis_from_prior_run(now_utc)  # RG1: seed same-session regime for anti-flicker (else reset — no cross-session bleed)
     run_dt = now_utc or datetime.now(UTC)
     data_client = client or FMPClient.from_env()
     finnhub_client = FinnhubClient.from_env()  # Phase 1+2 Finnhub integration
