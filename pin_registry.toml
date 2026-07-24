@@ -92,7 +92,7 @@
 # explicit 10s timeout, optional bearer token, local-file fallback.
 "services/live_overlay_daemon/tradingview_binding_bridge.py" = [103] # 2026-07-23 (binding coverage terms): 84->103
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
-"open_prep/macro.py" = [741] # 2026-07-19 (provider telemetry helper): 740->741
+"open_prep/macro.py" = [739] # 2026-07-24 (dead _macro_weight branch removed, -2): 741->739
 "open_prep/sentiment_fng.py" = [100]
 # 2026-06-23 (signals-producer consumer hook): _fetch_json_url pulls the
 # open-prep snapshot from OPEN_PREP_SNAPSHOT_URL (raw bot-branch JSON) so the
