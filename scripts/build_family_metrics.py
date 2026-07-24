@@ -447,7 +447,11 @@ def build_family_metrics_from_returns(
     regime_degraded: bool | None = None,
     provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
+    """Compute a ``FamilyMetrics`` slice for *family*.
+
+    Covers PSR/MinTRL plus the block-bootstrap p-value, optional calibration
+    (Brier/ECE/PSI), conformal coverage and the PSI trend — not only the
+    PSR/MinTRL pair the older name implied.
 
     Parameters
     ----------
@@ -527,11 +531,16 @@ def build_family_metrics_from_returns(
     # series is event-driven, not daily bars, so the declared
     # ``periods_per_year`` (the annualization basis the gate uses for MinTRL)
     # may not match how often the events actually fire. When event timestamps
-    # are supplied we derive the REALIZED events-per-year from their span and
-    # surface it alongside the declared basis so any annualized Sharpe can be
-    # read on its true time-basis. Purely diagnostic — it does NOT change the
-    # gate's MinTRL arithmetic. ``None`` when timestamps are absent or the
-    # span collapses (single instant carries no cadence).
+    # are supplied we derive the events-per-year from their span and surface it
+    # alongside the declared basis so any annualized Sharpe can be read on its
+    # true time-basis.
+    #
+    # NOTE (calendar-time, not trading-time): the span is wall-clock seconds
+    # (SECONDS_PER_YEAR = 365.25 calendar days), so weekends/holidays sit in
+    # the denominator and this rate runs BELOW the true trading cadence — read
+    # it as calendar-events-per-year, not sessions-per-year. Purely diagnostic
+    # — it does NOT change the gate's MinTRL arithmetic. ``None`` when
+    # timestamps are absent or the span collapses (single instant, no cadence).
     observed_ppy: float | None = None
     if timestamps is not None:
         span_seconds = observed_span_seconds(timestamps)
