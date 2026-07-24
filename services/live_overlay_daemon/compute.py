@@ -1176,7 +1176,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     """
     Squeeze = True when Bollinger Band width < Keltner Channel width.
 
-    Matches the Pine reference (pine/legacy/USI-CHOCH.pine sq_bbMult=2.0,
+    Matches the legacy USI-CHOCH Pine reference (pine/legacy/, sq_bbMult=2.0,
     sq_kcMult=1.5, ``ta.atr`` = True Range):
       BB width = 4 × stdev(close)               (2σ each side, mult 2.0)
       KC width = 3 × ATR_true                    (±1.5 × ATR, mult 1.5)
