@@ -191,7 +191,7 @@ def build_trade_cards(
             invalidation = "Loss of VWAP after entry or close below opening range low."
 
         # Override with playbook-specific instructions when available
-        if playbook and playbook.get("playbook") != "NO_TRADE":
+        if playbook:  # TC1 2026-07-24: incl. NO_TRADE so engine no-trade texts override the bias/gap default
             entry_trigger = playbook.get("entry_trigger", entry_trigger)
             invalidation = playbook.get("invalidation", invalidation)
 
