@@ -273,9 +273,10 @@ def _assert_baseline_disjoint(
     overlap, the watchdog compares a distribution against itself and will
     always pass — a vacuous green that masks real drift.  Guard against
     this by checking whether the baseline's ``backtest_end_date`` falls
-    inside the live window.  The threshold is >=5% overlap (i.e. at least
-    one day out of a 20-day window, or more than 1 day in a 30-day window)
-    rather than any overlap, to tolerate off-by-one date conventions.
+    inside the live window.  Overlap is counted in trading days (weekend
+    padding is excluded so it cannot inflate a single trading day into a
+    raise — D1); the threshold is >=6% of the window's trading days: one day
+    in a 20-day window raises, one day in a 30-day window is tolerated.
 
     If the baseline carries no ``backtest_end_date`` the check is skipped
     with a warning — callers should add the field to new baselines.
@@ -303,16 +304,14 @@ def _assert_baseline_disjoint(
         )
         return
 
-    live_dates = {
-        (today - timedelta(days=offset)).isoformat()
-        for offset in range(window_days)
-    }
-    overlap = {d for d in live_dates if date.fromisoformat(d) <= baseline_end}
+    window = (today - timedelta(days=offset) for offset in range(window_days))
+    live_dates = {day for day in window if day.weekday() < 5}  # trading days only
+    overlap = {d for d in live_dates if d <= baseline_end}
     overlap_fraction = len(overlap) / max(len(live_dates), 1)
-    if overlap_fraction >= 0.05:
+    if overlap_fraction >= 0.06:  # D1: 1 day/20 raises, 1 day/30 tolerated
         raise ValueError(
-            f"Live window overlaps backtest baseline by {len(overlap)} date(s) "
-            f"({overlap_fraction:.0%} of {len(live_dates)}-day window; "
+            f"Live window overlaps backtest baseline by {len(overlap)} trading day(s) "
+            f"({overlap_fraction:.0%} of {len(live_dates)} trading days in the window; "
             f"baseline ends {baseline_end}).  This would compare the "
             "distribution against itself — self-comparison detected (W9-5)."
         )
