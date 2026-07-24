@@ -1028,11 +1028,11 @@ def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
     Databento ts_event is in nanoseconds since the Unix epoch. We align
     to the end of the N-minute bucket in UTC. Intraday timeframes only.
 
-    For bar-close stamps, events between boundaries are ceiled to the next
-    boundary while events already on a boundary remain unchanged.
+    The live feed stamps ts_event at the 1-minute bar OPEN, so we bucket by
+    the bar's close (open + 1 minute) to keep candles clock-aligned.
     """
     ns_per_minute = 60_000_000_000
-    minute = ts_event // ns_per_minute
+    minute = ts_event // ns_per_minute + 1  # ts_event = 1m bar OPEN; bucket by close (open + 1m)
     floored_minute = (minute // minutes) * minutes
     aligned_minute = floored_minute if minute == floored_minute else floored_minute + minutes
     return aligned_minute * ns_per_minute
