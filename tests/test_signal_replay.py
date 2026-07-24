@@ -10,6 +10,7 @@ import pytest
 from open_prep.outcomes import (
     _load_outcomes_range,
     compute_hit_rates,
+    get_symbol_hit_rate,
     store_daily_outcomes,
 )
 
@@ -126,6 +127,41 @@ class TestComputeHitRates:
         assert rates["medium:low"]["total"] == 1  # MISS skipped, not counted
         assert rates["medium:low"]["hit_rate"] == 1.0
         assert rates["medium:low"]["avg_pnl_pct"] == 1.0
+
+
+class TestGetSymbolHitRateMissingRvol:
+    """Lookup-side symmetry of the store's rvol=None discipline (F1).
+
+    The store degrades a missing volume baseline to ``rvol=None`` and
+    ``compute_hit_rates`` skips it, so the ``low`` bucket holds only genuine
+    low-RVOL records. The live lookup must not then read that low-bucket rate
+    back for a symbol whose RVOL is simply unknown — the scorer emits 0.0 when
+    it has no ``avg_volume`` baseline, and ``_rvol_bucket_label(0.0)`` == "low".
+    """
+
+    @staticmethod
+    def _populated_low_bucket() -> dict[str, dict[str, object]]:
+        # A medium-gap / low-RVOL bucket populated by genuine low-RVOL records.
+        return {
+            "medium:low": {
+                "total": 8,
+                "profitable": 8,
+                "hit_rate": 1.0,
+                "unresolved": 0,
+                "avg_pnl_pct": 5.0,
+            }
+        }
+
+    def test_missing_rvol_returns_no_data_not_the_low_bucket(self) -> None:
+        looked_up = get_symbol_hit_rate("MISS", 3.0, 0.0, self._populated_low_bucket())
+        assert looked_up["historical_hit_rate"] is None
+        assert looked_up["historical_sample_size"] == 0
+
+    def test_genuine_low_rvol_still_reads_its_bucket(self) -> None:
+        # The floor must not over-reject: a real 0.5x RVOL still resolves "low".
+        looked_up = get_symbol_hit_rate("REAL", 3.0, 0.5, self._populated_low_bucket())
+        assert looked_up["historical_hit_rate"] == 1.0
+        assert looked_up["historical_sample_size"] == 8
 
 
 class TestPrepareOutcomeSnapshotRvol:

@@ -463,7 +463,7 @@ def get_symbol_hit_rate(
     gb = _gap_bucket_label(gap_pct)
     rb = _rvol_bucket_label(rvol)
     key = f"{gb}:{rb}"
-    stats = hit_rates.get(key)
+    stats = hit_rates.get(key) if rvol > 0.0 else None  # F1: rvol<=0 == missing baseline (scorer 0.0) → no bucket, mirror store rvol=None discipline
     # total == 0 is NO DATA, not a zero hit-rate. The bucket still exists in
     # the map (compute_hit_rates creates it as soon as one record lands in it)
     # while every record is unresolved for the selected horizon, leaving
