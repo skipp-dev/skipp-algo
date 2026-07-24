@@ -24,10 +24,28 @@ name: pine-library-version-monitor
 
 on:
   schedule:
-    # 05:30 UTC daily — after the micro_profiles refresh cron (09:00 Mon–Fri is
-    # the publisher; drift can appear any day) and outside the US trading window.
+    # 05:30 UTC daily — a floor, outside the US trading window. NOTE: this cron
+    # runs BEFORE the daily publisher (smc-library-refresh / handlibs), so on its
+    # own it always captures the PRE-publish pin state and misses any same-day
+    # republish for ~24h. The `push` trigger below is what actually keeps the
+    # snapshot fresh; the cron only backstops days with no pin change.
     - cron: "30 5 * * *"
   workflow_dispatch:
+  # Event-driven refresh: regenerate the snapshot the moment a publish/repin
+  # lands on main, instead of waiting for the next 05:30 cron. A generated-library
+  # publish bumps `library_release_manifest.json` (and, in the same bot PR, the
+  # consumer `import .../<N>` pins); a manual repin edits the `.pine` consumers.
+  # Either event moves repo↔TradingView parity, so the once-daily snapshot would
+  # otherwise report a stale FALSE drift for up to ~24h (e.g. run 967 / #3996:
+  # the 12:57 UTC refresh reconciled micro_profiles 165->166 while the 06:19 UTC
+  # snapshot still showed 162-vs-165, firing `lo-pine-consumer-version-drift`
+  # for the rest of the day). Re-probing here clears it within minutes.
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/tradingview/library_release_manifest.json"
+      - "*.pine"
+      - "SMC++/*.pine"
 
 permissions:
   # The publish step writes the rolling bot/live-pine-library-versions branch.
