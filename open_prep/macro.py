@@ -367,7 +367,7 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _macro_orientation(canonical_event: str) -> float:
-    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims")):
+    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims", "unemployment_rate")):  # unemployment_rate = labor weakness (higher=worse) => risk-off like jobless_claims; was falling to the +1 growth default
         return -1.0
     return 1.0
 

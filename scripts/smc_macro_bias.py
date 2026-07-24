@@ -341,7 +341,7 @@ def _summarize_macro_event_audit(event_audit: list[dict[str, Any]]) -> dict[str,
 
 
 def _macro_orientation(canonical_event: str) -> float:
-    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims")):
+    if canonical_event.startswith(("cpi", "core_cpi", "ppi", "core_ppi", "pce", "core_pce", "jobless_claims", "unemployment_rate")):  # unemployment_rate = labor weakness (higher=worse) => risk-off; mirrors open_prep/macro.py
         return -1.0
     return 1.0
 
