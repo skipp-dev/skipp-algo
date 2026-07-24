@@ -57,6 +57,13 @@ therefore raises `pre_a0_feature_out_of_range_total` by construction. Since
 sampled for training), so the dashboard violation panels are a real alarm
 again. The durable fix is retraining on live shadow snapshots.
 
+Since 2026-07-24 the `pre-a0-input-drift` Grafana alert gates its
+`pre_a0_feature_out_of_range_total` term on a non-bootstrap `pre_a0_model_info`
+artifact id, so this by-construction range noise no longer pages while
+`71831770…` is deployed; the missingness term still pages, and the range term
+re-arms automatically once the retrained artifact goes live (dashboard panels
+are unchanged and still show the raw violations).
+
 **Precondition:** `build_walk_forward_manifest` requires at least three
 complete session days of snapshots. Collection only works since the
 2026-07-21 evidence-flow fixes; the first compliant retrain is possible once
