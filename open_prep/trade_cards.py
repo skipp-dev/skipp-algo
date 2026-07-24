@@ -190,8 +190,11 @@ def build_trade_cards(
             entry_trigger = "Break and hold above opening range high OR first pullback reclaim above VWAP."
             invalidation = "Loss of VWAP after entry or close below opening range low."
 
-        # Override with playbook-specific instructions when available
-        if playbook and playbook.get("playbook") != "NO_TRADE":
+        # Override with playbook-specific instructions when available — INCLUDING
+        # NO_TRADE, whose engine text is "No trade: ..." / "N/A — no trade selected."
+        # Excluding it left the gap-based default, printing a live entry trigger on
+        # a card whose setup_type/note already say "No Trade" (self-contradictory).
+        if playbook:
             entry_trigger = playbook.get("entry_trigger", entry_trigger)
             invalidation = playbook.get("invalidation", invalidation)
 
