@@ -163,6 +163,29 @@ def total_bar_count() -> int:
         return sum(len(dq) for dq in _bars.values())
 
 
+def requested_bar_depth() -> tuple[int, float]:
+    """Depth of the bar cache restricted to symbols a consumer actually reads.
+
+    Returns ``(count, mean_bars)`` over the intersection of the cache and
+    ``request_hotspots.requested_symbols()``. This — not the global
+    ``bar_count / bar_symbols`` — is the number that gates the rolling
+    features: with an ``ALL_SYMBOLS`` feed the cache pins at the cap with the
+    unrequested majority holding a single bar, so the global mean sits at ~1.0
+    by design (demand-aware retention, #3903) even while every watched symbol
+    carries full history. ``count`` is 0 when no requested symbol is cached, so
+    callers can leave the "no consumer" case to the request-rate watchdog.
+
+    Lock order matches ``_evict_n_stale_symbols_locked``: hold ``_bar_lock``
+    first, then read the hotspots snapshot, so the two never deadlock.
+    """
+    with _bar_lock:
+        requested = request_hotspots.requested_symbols()
+        depths = [len(_bars[sym]) for sym in requested if sym in _bars]
+    if not depths:
+        return 0, 0.0
+    return len(depths), sum(depths) / len(depths)
+
+
 def _evict_stale_symbols_locked() -> None:
     """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
     n_evict = max(1, len(_bars) // 10)
