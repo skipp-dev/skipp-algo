@@ -163,6 +163,11 @@ _ALLOWLISTED_SYMBOLS: frozenset[str] = frozenset(
         # Pine Script (TradingView) qualified identifiers, not Python.
         "syminfo.period",
         "timeframe.period",
+        # Pine built-in cited in the squeeze/stale Pine-parity docstring
+        # (tests/test_live_overlay_squeeze_stale_pine_parity.py, #3978). ``ta.atr``
+        # is TradingView's True-Range ATR, not a Python module.function; the file
+        # is only R2-scanned because ``_pine_parity`` matches the ``*_pin*`` glob.
+        "ta.atr",
         # Optional-dep references whose import would gate the test.
         "scipy.stats.norm.cdf",
     }
