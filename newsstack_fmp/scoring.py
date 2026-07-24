@@ -70,7 +70,24 @@ _FORWARD_LOOKING_PREVIEW_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bexpected\s+to\s+(?:report|post|announce)\b", re.I),
     re.compile(r"\b(?:wall\s+street|analysts?|the\s+market)\s+expects?\b", re.I),
     re.compile(r"\b(?:upcoming|next)\s+(?:earnings\s+|quarterly\s+)?report\b", re.I),
-    re.compile(r"\bahead\s+of\b.{0,80}\b(?:earnings|results?|report)\b", re.I),
+    # "ahead of <event>" is a preview only when the event noun is the near-object
+    # of "ahead of" (modified by determiner/date/adjective qualifiers). The old
+    # ".{0,80}" window also matched the realized-move idiom "<surges> ahead of
+    # <the market / rivals / peers> after earnings", wrongly neutralising a
+    # realised catalyst and suppressing the live A0 news-catalyst upgrade
+    # (realtime_signals.py:3315). 2026-07-25.
+    re.compile(
+        r"\bahead\s+of\s+"
+        r"(?:(?:the|its|their|his|her|this|next|a|an|upcoming|coming|tomorrow|today|"
+        r"\w+day|week|month|quarter|q[1-4]|fiscal|quarterly|annual|full[-\s]year|"
+        r"fy\s?\d{2,4}|\d{4}|key|big|latest|crucial|pivotal|major|closely[-\s]watched|"
+        r"highly[-\s]anticipated|much[-\s]anticipated|hotly[-\s]anticipated|"
+        r"long[-\s]awaited|much[-\s]awaited|eagerly[-\s]awaited|anticipated|awaited|"
+        r"watched|expected|pending|hotly|much|eagerly|widely|keenly|long|company|firm)"
+        r"['’]?s?\s+){0,5}"
+        r"(?:earnings|results?|report)\b",
+        re.I,
+    ),
     re.compile(r"\b(?:earnings|results?)\s+preview\b", re.I),
     re.compile(r"\bwhat\s+to\s+(?:expect|watch|look\s+for)\b", re.I),
     re.compile(r"\b(?:likely|potential|possible)\s+earnings?\s+beat\b", re.I),
