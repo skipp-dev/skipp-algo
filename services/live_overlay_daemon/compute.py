@@ -968,6 +968,37 @@ def _safe_std(vals: list[float]) -> float:
     return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
 
 
+def _population_std(vals: list[float]) -> float:
+    """Population std (÷ n) — Pine ``ta.stdev`` default (biased=true)."""
+    n = len(vals)
+    if n < 1:
+        return 0.0
+    mean = sum(vals) / n
+    return math.sqrt(sum((v - mean) ** 2 for v in vals) / n)
+
+
+def _ema_last(vals: list[float], length: int) -> float | None:
+    """Last value of Pine ``ta.ema``: seed = first value, alpha = 2/(length+1)."""
+    if not vals:
+        return None
+    alpha = 2.0 / (length + 1)
+    ema = vals[0]
+    for v in vals[1:]:
+        ema = alpha * v + (1.0 - alpha) * ema
+    return ema
+
+
+def _wilder_rma_last(vals: list[float], length: int) -> float | None:
+    """Last value of Pine ``ta.rma``: seed = SMA of first ``length``, alpha = 1/length."""
+    if len(vals) < length:
+        return None
+    alpha = 1.0 / length
+    rma = sum(vals[:length]) / length
+    for v in vals[length:]:
+        rma = alpha * v + (1.0 - alpha) * rma
+    return rma
+
+
 def _coerce_finite_float(v: Any) -> float | None:
     """Coerce value to finite float, returning None on invalid/non-finite input."""
     if v is None:
@@ -1174,21 +1205,23 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
-    Squeeze = True when Bollinger Band width < Keltner Channel width.
+    Squeeze = True when the Bollinger Bands sit fully inside the Keltner
+    Channel (Pine ``_sqOn``: ``bbLower > kcLower and bbUpper < kcUpper``).
 
-    Matches the legacy USI-CHOCH Pine reference (pine/legacy/, sq_bbMult=2.0,
-    sq_kcMult=1.5, ``ta.atr`` = True Range):
-      BB width = 4 × stdev(close)               (2σ each side, mult 2.0)
-      KC width = 3 × ATR_true                    (±1.5 × ATR, mult 1.5)
-    where ATR_true averages the True Range max(high−low, |high−close_prev|,
-    |low−close_prev|), so prior-close gaps widen the channel exactly as Pine's
-    ta.atr does. Prior work used ``2 × mean(high−low)`` (mult 1.0, no prior
-    close), a ~2.4× too-tight channel that fired squeeze far less often than
-    the chart the consumer sees beside the overlay.
+    Faithful to the legacy USI-CHOCH Pine reference
+    (pine/legacy/USI-CHOCH.pine:281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
+    sq_kcMult=1.5):
+      BB: basis = ta.sma(close, 20); dev = ta.stdev(close, 20) × 2.0. Pine
+          ta.stdev defaults to biased/POPULATION std (÷ n), not sample ÷ (n−1).
+      KC: basis = ta.ema(close, 20); atr = ta.atr(20) = ta.rma(ta.tr, 20), a
+          Wilder RMA of True Range recursive over the whole series.
+    Edge containment — not a bare width comparison — because the BB centre
+    (SMA) and KC centre (EMA) differ, so equal widths do not imply the same
+    channel. TR = max(high−low, |high−close_prev|, |low−close_prev|); the first
+    bar of the series seeds TR = high−low (Pine ta.tr handle_na).
 
-    Uses aligned filtering: only bars that have ALL of close, high, and low
-    are included, so the TR calculation is never computed from misaligned bars
-    (which would happen if each field were filtered independently).
+    Uses aligned filtering: only bars that have ALL of close, high, and low are
+    included, so TR/ATR are never computed from misaligned bars.
     """
     # Build aligned triples so that closes_w[i], highs_w[i], lows_w[i]
     # all refer to the SAME bar. Independent per-field filtering would
@@ -1215,18 +1248,20 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     if len(triples) < period:
         return None
 
-    closes_w = [t[0] for t in triples[-period:]]
+    closes_all = [t[0] for t in triples]
+    closes_w = closes_all[-period:]
 
-    std_c = _safe_std(closes_w)
+    # Bollinger Bands around an SMA basis with biased/population stdev.
+    bb_basis = sum(closes_w) / period
+    bb_dev = _population_std(closes_w) * 2.0  # Pine sq_bbMult=2.0
+    bb_upper = bb_basis + bb_dev
+    bb_lower = bb_basis - bb_dev
 
-    # True Range with prior-close continuity (Pine ta.atr parity):
-    # TR = max(high−low, |high−close_prev|, |low−close_prev|). Prior close is
-    # taken from the aligned triple immediately before each window bar so gaps
-    # widen ATR. The first bar of the whole series has no prior close and seeds
-    # TR = high−low, matching Pine's first-bar TR.
-    start = len(triples) - period
+    # True Range over the FULL aligned series (Pine ta.tr, handle_na: the first
+    # bar seeds TR = high−low). Prior close is the aligned triple immediately
+    # before each bar so gaps widen the range.
     trs: list[float] = []
-    for i in range(start, len(triples)):
+    for i in range(len(triples)):
         _c, h, lo = triples[i]
         if i > 0:
             c_prev = triples[i - 1][0]
@@ -1234,12 +1269,19 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
         else:
             tr = h - lo
         trs.append(tr)
-    atr = sum(trs) / len(trs)
 
-    bb_width = 4 * std_c  # 2σ each side (Pine sq_bbMult=2.0)
-    kc_width = 3 * atr    # ±1.5 × ATR_true (Pine sq_kcMult=1.5)
+    # Keltner Channel around an EMA basis with a Wilder-RMA ATR (Pine ta.ema +
+    # ta.atr = ta.rma(ta.tr, length)), both recursive over the whole series.
+    kc_basis = _ema_last(closes_all, period)
+    atr = _wilder_rma_last(trs, period)
+    if kc_basis is None or atr is None:
+        return None
+    kc_upper = kc_basis + atr * 1.5  # Pine sq_kcMult=1.5
+    kc_lower = kc_basis - atr * 1.5
 
-    return bool(bb_width < kc_width)
+    # Squeeze = BB fully inside KC (edge containment, not a width comparison;
+    # the SMA and EMA centres differ).
+    return bool(bb_lower > kc_lower and bb_upper < kc_upper)
 
 
 def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
