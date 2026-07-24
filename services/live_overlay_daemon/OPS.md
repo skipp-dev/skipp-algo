@@ -360,6 +360,41 @@ finding below.
   targeting the hosted poller's idle symbol is possible; tracked in the
   skipp-live-lab plan as A6, not armed here.
 
+**2026-07-24 drill — re-confirmed with the hosted poller as the sole active
+consumer.** An independent re-run during US market open, this time stopping
+**only** the hosted `lab-worker` poller (deleted
+`SKIPP_LAB_TECHNICAL_OVERLAY_ORIGIN`, then `railway redeploy`; the local Sidecar
+was not polling). It reproduced the full
+fire-and-self-resolve cycle and adds a single-consumer data point to the
+aggregate-sum caveat above. State edges are from the Grafana rule state-history
+API (`/api/v1/rules/history?ruleUID=lo-request-rate-absent-open`), not a polled
+snapshot.
+
+- **Fire.** `ORIGIN` deleted 16:51:08Z; because Railway rolls deployments, the
+  old poller kept calling until the new (origin-less) process cut over, so the
+  last `/smc_live` request was 16:53:25Z (`skipp-sidecar/0.5.14`, HTTP 200, clean
+  15s cadence) — then aggregate traffic was **zero**. Since stopping only the
+  hosted poller drove the aggregate to zero, `lab-worker` was the **only** active
+  consumer this session (contrast 2026-07-23, when a local Sidecar/panel also had
+  to be stopped). Rate-based `pending` began 17:05:40Z (~10-min `rate[10m]`
+  window emptying after the last request) and the rule went to **`Alerting`**
+  (`sev=warning`) at 17:15:40Z — exactly the 10-minute `for:` later — firing the
+  real Slack warning. ~22 min from traffic stop to fire; the daemon did not
+  restart, so the `uptime_seconds > 600` gate held throughout (reaching
+  `Alerting` requires it).
+- **Resolve.** `ORIGIN` restored 17:16:12Z and `lab-worker` redeployed 17:16:17Z
+  (deploy `74170860`, `SUCCESS`). Traffic resumed after the cutover and the rule
+  self-resolved to **`Normal`** at 17:20:40Z once `rate[10m]` climbed back above
+  threshold — ~5 min of `Alerting`, no manual clear. Continuous HTTP-200
+  `/smc_live` traffic verified from 17:53:40Z onward. Technical-overlay data gap
+  ≈ 16:53:25Z → ~17:19Z (~26 min).
+- **Benign NoData blip from redeploying the consumer.** The stop-redeploy caused
+  a brief scrape gap that tripped the rule's NoData handling: `Normal` →
+  `Pending (NoData)` at 16:50:40Z → back to `Normal (MissingSeries)` at 16:55:40Z.
+  It self-cleared well inside the 10-minute `for:` and never reached `Alerting`,
+  so **it did not page** — but expect this transient whenever the consumer
+  service is redeployed, distinct from the real rate-based path that fired later.
+
 **Second consumer relationship — `/signals` (documented, not armed).**
 `skipp-live-lab` PR #45 (merged 2026-07-23 15:15Z) added
 `sidecar_server/signal_subscriber.py`, which polls the
