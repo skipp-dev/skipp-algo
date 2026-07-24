@@ -167,6 +167,54 @@ failure fails CI instead of silently leaving the old container running.
   panel / `live_overlay_build_info{commit,branch}` — it must show the intended
   commit (`unknown` = an image without a git stamp).
 
+#### The Railway service must have NO native GitHub deploy trigger
+
+"Source is `none`" above is load-bearing and **drifts silently** — it lives in
+Railway config, not the repo. A native Railway GitHub trigger has **no path
+filter**, so it redeploys the daemon on *every* push to `main`, not just the
+ones touching `services/live_overlay_daemon/**`. Each redeploy is a full
+container swap: the bar cache is wiped (requested symbols then need ~20 min to
+re-accumulate the depth the rolling features want) and `uptime_seconds` resets.
+
+This actually happened. On **2026-07-24** the service carried a native trigger
+(`repository: skipp-dev/skipp-algo`, `branch: main`, `provider: github`,
+`checkSuites: false`) — reconnected sometime after the 2026-07-07 note in
+`deploy-live-overlay-daemon.yml` that the old `skippALGO`-slug connection was
+broken. With ~23 merges/day to `main`, the daemon was redeploying ~20×/day, the
+vast majority for commits that changed nothing in it, and `checkSuites: false`
+meant Railway deployed `main` HEAD *before* CI validated it. It was removed the
+same day, restoring the CI-only model. Symptom to recognise: `uptime_seconds`
+sawtooth resetting several times a day with **every** feed/worker/supervisor
+health metric clean across each reset (not a crash, not OOM — a redeploy).
+
+**Check for the trigger (read-only):**
+
+```bash
+railway whoami >/dev/null   # refresh local creds
+TOKEN=$(python -c "import json,os;print(json.load(open(os.path.expanduser('~/.railway/config.json')))['user']['accessToken'])")
+curl -s https://backboard.railway.app/graphql/v2 \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"query($p:String!,$e:String!,$s:String!){deploymentTriggers(projectId:$p,environmentId:$e,serviceId:$s){edges{node{id repository branch provider}}}}","variables":{"p":"0616a3b7-7b7f-41d1-8fac-a0b8922c94ca","e":"470fbd0f-894d-46cd-8722-6b072d255d99","s":"705582c5-ba8b-4c6e-848c-33bffe0a61b0"}}'
+# Expect: {"data":{"deploymentTriggers":{"edges":[]}}}  (empty = CI-only, healthy)
+```
+
+**Remove it if present** — either disconnect the repo in the Railway dashboard
+(Service → Settings → Source), or delete the trigger by id:
+
+```bash
+curl -s https://backboard.railway.app/graphql/v2 \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"mutation($id:String!){deploymentTriggerDelete(id:$id)}","variables":{"id":"<TRIGGER_ID>"}}'
+```
+
+The scheduled workflow **`live-overlay-deploy-trigger-guard.yml`** runs
+`scripts/check_live_overlay_deploy_trigger.py` daily and fails if a native
+trigger reappears. It reuses the read-capable Railway API secrets the
+`railway_metrics` bridge already needs (`RAILWAY_API_TOKEN`,
+`RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`; optional
+`RAILWAY_LIVE_OVERLAY_SERVICE_ID`) and stays inert (prints `SKIP`, passes) until
+those secrets are added to the repo.
+
 ### Environment variables
 
 #### Daemon (`live_overlay_daemon`)
