@@ -68,8 +68,13 @@ def test_verifies_actual_consumer_source_selections_after_save() -> None:
         "SMC Confluence Hub",
         "SMC Long-Dip Mobile",
     }
+    # 2026-07-24: the dedicated Mobile layout (YcGLVHXR) no longer opens; the
+    # Mobile consumer now lives on the primary chart alongside the others. With
+    # no chartUrl override the rollout resolves it to primaryChartUrl
+    # (tv_batch_consumer_rollout.ts: `target.chartUrl ?? config.primaryChartUrl`).
     mobile = next(target for target in config["verifyTargets"] if target["scriptName"] == "SMC Long-Dip Mobile")
-    assert mobile["chartUrl"] == "https://www.tradingview.com/chart/YcGLVHXR/"
+    assert "chartUrl" not in mobile
+    assert mobile.get("chartUrl", config["primaryChartUrl"]) == "https://www.tradingview.com/chart/vWgAWyfC/"
 
 
 def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:

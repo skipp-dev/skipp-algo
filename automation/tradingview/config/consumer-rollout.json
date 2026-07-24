@@ -18,7 +18,7 @@
     {"source": "SMC_Setup_Check.pine", "savedScriptName": "SMC Setup Check", "scriptName": "SMC Setup Check"},
     {"source": "SMC_Breakout_Overlay.pine", "savedScriptName": "SMC Breakout Overlay", "scriptName": "SMC Breakout Overlay"},
     {"source": "SMC_Confluence_Hub.pine", "savedScriptName": "SMC Confluence Hub", "scriptName": "SMC Confluence Hub"},
-    {"source": "SMC_Long_Dip_Mobile.pine", "savedScriptName": "SMC Long-Dip Mobile", "scriptName": "SMC Long-Dip Mobile", "chartUrl": "https://www.tradingview.com/chart/YcGLVHXR/"}
+    {"source": "SMC_Long_Dip_Mobile.pine", "savedScriptName": "SMC Long-Dip Mobile", "scriptName": "SMC Long-Dip Mobile"}
   ],
   "repairE2ETarget": {
     "source": "SMC_Long_Dip_Dashboard.pine",

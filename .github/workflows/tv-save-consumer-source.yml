@@ -171,15 +171,6 @@ jobs:
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          # Open the operator's actual chart, not the bare /chart/ account
-          # default. gotoChart() falls back to https://www.tradingview.com/chart/
-          # when TV_CHART_URL is unset, which resolves to whatever layout the
-          # session's IndexedDB cache happens to restore — a chart WITHOUT the
-          # SMC consumers after any storage-state re-capture. Pinning the layout
-          # makes the binding verify deterministic (2026-07-24 binding-drift
-          # incident: a fresh capture dropped the cached layout and every
-          # consumer read "instance not found").
-          TV_CHART_URL: https://www.tradingview.com/chart/vWgAWyfC/
           # Cron is fail-safe read-only: [] skips every saved-script write.
           TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
           # workflow_run (post-refresh chain) writes with producer refresh +
