@@ -93,7 +93,9 @@
 
 ## 4. macro.py
 
-### HIGH — CircuitBreaker is not thread-safe
+### RESOLVED (verified 2026-07-24) — CircuitBreaker is not thread-safe
+
+- **Resolution:** `_CircuitBreaker` is fully lock-guarded (`self._lock = threading.Lock()`; `allow_request`/`on_success`/`on_failure` all `with self._lock`) — macro.py:527/531/535. The referenced `record_success`/`_consecutive_failures` API no longer exists.
 
 - **Location:** `CircuitBreaker.__init__()`, lines ~40-55, `record_success()`, `record_failure()`
 - **Bug:** The `CircuitBreaker` instance is shared across all threads via `FMPClient._circuit_breaker`. `_consecutive_failures`, `_state`, and `_opened_at` are read/written without any locking. With `ThreadPoolExecutor` parallelism in `_atr14_by_symbol()` (up to 8 workers) and `_fetch_premarket_high_low_bulk()` (6 workers), concurrent calls to `_get()` can race on `record_success()` / `record_failure()`, causing:
@@ -103,7 +105,9 @@
 - **Impact:** Under heavy parallel load, the circuit breaker may either fail to trip (allowing a flood of requests to a down API) or trip prematurely on a spurious race, silently dropping enrichment data. Both degrade ranking quality without any error trail.
 - **Fix:** Use `threading.Lock` to guard state mutations, or use `threading.atomic` counters. Alternatively, make the circuit breaker per-thread (but this reduces its effectiveness as a global rate-protector).
 
-### MEDIUM — CSV fallback in `_get()` uses fragile type coercion heuristic
+### RESOLVED (verified 2026-07-24) — CSV fallback in `_get()` uses fragile type coercion heuristic
+
+- **Resolution:** Rewritten as `_coerce_csv_value` (macro.py:110): negatives via the int path, `NaN`/`inf` stay strings, `1e5`→float. The `v.isdigit()` heuristic is gone.
 
 - **Location:** `_get()`, lines ~270-290
 - **Bug:** The CSV parser attempts `int(v) if v.isdigit() else float(v)` for every value. This fails for:
@@ -116,7 +120,9 @@
 - **Impact:** Downstream code expecting `int` market-cap values may get `float`, causing type-check failures in strict comparisons. Low practical impact since the CSV fallback is rare.
 - **Fix:** Try `int(v)` first in a try/except, then `float(v)`, then keep as string. Or use `ast.literal_eval` with a safety wrapper.
 
-### LOW — `_get()` re-creates `Request` object on every retry
+### RESOLVED (verified 2026-07-24) — `_get()` re-creates `Request` object on every retry
+
+- **Resolution:** Refactored into `_request_once` (macro.py:736); the self-admittedly “not a bug” concern is moot.
 
 - **Location:** `_get()`, line ~230 (loop body)
 - **Bug:** The `Request` object is constructed once before the loop at line ~225, but `urlopen()` may consume internal state. Since `Request` objects are lightweight and `urlopen` doesn't mutate them, this is **not** a correctness bug, but the `request` reference shadows the module-level `Request` import. No actual issue — included for completeness.
@@ -132,7 +138,9 @@
 - **Impact:** Every restart window produces duplicate alerts. In a Streamlit auto-reload scenario, reloading the page can trigger a burst of alerts for the same symbols.
 - **Fix:** Persist `_last_sent` to a file (e.g. `artifacts/open_prep/alert_throttle.json`) using the same atomic-write pattern used elsewhere. Load on import, save on `_mark_sent()`.
 
-### MEDIUM — TradersPost payload uses `prev_close` instead of current price
+### RESOLVED (verified 2026-07-24) — TradersPost payload uses `prev_close` instead of current price
+
+- **Resolution:** `_format_traderspost_payload` reads `candidate.get('price') or candidate.get('prev_close')` (alerts.py:190) — current price first, prev_close only as fallback.
 
 - **Location:** `_format_traderspost_payload()`, line ~132
 - **Bug:** `"price": candidate.get("prev_close")` — this sends the *previous day's close* as the alert price, not the current/premarket price. TradersPost expects the intended entry price.
@@ -149,7 +157,9 @@
 
 ## 6. technical_analysis.py
 
-### MEDIUM — `calculate_support_resistance_targets` swallows all exceptions
+### RESOLVED (verified 2026-07-24) — `calculate_support_resistance_targets` swallows all exceptions
+
+- **Resolution:** Now uses per-section `try/except` with `logger.warning` (7 sites in technical_analysis.py) — no single outer silent catch.
 
 - **Location:** `calculate_support_resistance_targets()` (outer try/except wrapping entire function body, line ~400-550)
 - **Bug:** The function catches `except Exception` at the outermost level and returns a neutral fallback dict. This hides bugs in the S/R calculation (e.g. division by zero, bad OHLCV data, logic errors) without any logging or re-raise option.
@@ -163,7 +173,9 @@
 - **Impact:** Symbols with 50-64 daily bars are classified as `"insufficient_data"` and miss breakout detection, even though the data is sufficient. This is common for recently-IPO'd names (3-4 months of history).
 - **Fix:** Use `min_bars = max(short_n, long_n)` without the `+5` padding, or compute the actual minimum from the accesses.
 
-### LOW — `_ema()` returns `NaN` for empty input
+### RESOLVED (verified 2026-07-24) — `_ema()` returns `NaN` for empty input
+
+- **Resolution:** Intentional and documented (“distinguish no-data from a genuine zero”); callers guard. By-design, not a defect.
 
 - **Location:** `_ema()`, line ~260
 - **Bug:** Function returns `float("nan")` when `values` is empty. Callers (e.g. `detect_breakout`) check `ema_20 != ema_20` (NaN self-comparison) before use, which works, but this NaN can propagate if a new caller forgets the check.
@@ -254,21 +266,27 @@
 
 ## 9. realtime_signals.py
 
-### MEDIUM — `_quote_hash` uses MD5 with truncation to 16 chars
+### RESOLVED (verified 2026-07-24) — `_quote_hash` uses MD5 with truncation to 16 chars
+
+- **Resolution:** Actual is `hexdigest()[:12]` with `usedforsecurity=False` (realtime_signals.py:1839); change-detection only, self-heals next poll. The report’s own verdict (“practically zero collision risk”) stands — non-issue.
 
 - **Location:** `_quote_hash()`, line ~90
 - **Bug:** `hashlib.md5(raw.encode()).hexdigest()[:16]` — 16 hex chars = 64 bits of hash space. For change-detection on ~500 symbols polled every few seconds, the collision probability per cycle is ~`n²/2^65`. With 500 symbols and 86400/5 ≈ 17,280 cycles/day, the cumulative collision probability per day is effectively negligible (~10⁻¹⁰).
 - **Impact:** Practically zero collision risk. Noted only because MD5 is deprecated for cryptographic use; for non-security hash comparisons it's fine. Using SHA-256 would be equally fast and avoid MD5 in audits.
 - **Fix:** Optional: replace with `hashlib.sha256(...).hexdigest()[:16]`.
 
-### MEDIUM — `poll_once()` imports `newsstack_fmp` inside the function body
+### RESOLVED (verified 2026-07-24) — `poll_once()` imports `newsstack_fmp` inside the function body
+
+- **Resolution:** Cached: the sync path guards `if not hasattr(self, '_ns_poll_fn')` (realtime_signals.py:3179) and the async loop caches in locals; the import runs once.
 
 - **Location:** `poll_once()`, line ~450 (approximate)
 - **Bug:** `from newsstack_fmp import ...` is called on every poll cycle. If `newsstack_fmp` is unavailable (optional dependency), the `ImportError` is caught and news integration is silently disabled, which is correct. But the repeated import attempt adds overhead on every poll cycle (~17,000/day).
 - **Impact:** Minor CPU overhead. If `newsstack_fmp` raises `ImportError`, it's re-attempted every cycle instead of being cached as unavailable.
 - **Fix:** Cache the import result at module level: `_newsstack = None` / try-import once.
 
-### LOW — `GateHysteresis.should_fire()` state persists indefinitely
+### RESOLVED (verified 2026-07-24) — `GateHysteresis.should_fire()` state persists indefinitely
+
+- **Resolution:** Renamed to `evaluate()` over `_state` with `max_state_size=1000` eviction (realtime_signals.py:1657/1691); no `should_fire`/`_last_fired`.
 
 - **Location:** `GateHysteresis` class (lines ~60-90)
 - **Bug:** The `_last_fired` dict grows unboundedly as new symbols are tracked. There's no eviction of symbols that haven't been seen in days.
@@ -295,7 +313,9 @@
 
 ## 11. outcomes.py
 
-### MEDIUM — Feature importance uses Pearson correlation for binary outcomes
+### RESOLVED (verified 2026-07-24) — Feature importance uses Pearson correlation for binary outcomes
+
+- **Resolution:** n-gate (`_MIN_TUNING_SAMPLES=200`) + Welch t-test + Benjamini–Hochberg FDR (outcomes.py:1099/1366) are implemented and wired into `compute_weight_adjustments`.
 
 - **Location:** `FeatureImportanceCollector.compute_importance()`, lines ~350-400
 - **Bug:** The code computes Pearson correlation between continuous features (gap_pct, volume_ratio, score) and a binary outcome (profitable_30m: 0/1). Pearson correlation between a continuous variable and a binary variable is mathematically the point-biserial correlation, which is valid, but:
@@ -305,7 +325,9 @@
 - **Impact:** Feature importance rankings may suggest a feature is important purely due to sample noise, leading to false confidence in weight adjustments.
 - **Fix:** Add a minimum sample-size gate (e.g. n ≥ 30), report confidence intervals, or switch to a rank-based metric (Spearman's rho) that's more robust to outliers.
 
-### LOW — File rotation uses calendar days, not trading days
+### RESOLVED (verified 2026-07-24) — File rotation uses calendar days, not trading days
+
+- **Resolution:** Rotates by file count (`OPEN_PREP_OUTCOME_RETENTION_DAYS`, default 90 newest = one per trading day; outcomes.py:227/234) — already the trading-day retention asked for.
 
 - **Location:** `store_daily_outcomes()`, lines ~240-260
 - **Bug:** Outcome files are retained by calendar-day count (`max_age_days=30`). On weekends and holidays, no new files are created, but the retention window counts those days. Effectively, 30 calendar days retains ~21 trading days of data.
@@ -322,7 +344,9 @@
 - **Impact:** On POSIX (Linux/macOS production): no issue. On Windows dev environments: potential data loss if two processes write simultaneously.
 - **Fix:** Document the limitation or use `msvcrt.locking()` on Windows for advisory locking.
 
-### LOW — `auto_add_high_conviction` always appends, never deduplicates against existing watchlist
+### RESOLVED (verified 2026-07-24) — `auto_add_high_conviction` always appends, never deduplicates against existing watchlist
+
+- **Resolution:** Dedups against the `existing` symbol set before appending (watchlist.py:153/160).
 
 - **Location:** `auto_add_high_conviction()`, line ~160-180
 - **Bug:** If the same symbol re-qualifies as HIGH_CONVICTION on the next run, it's appended again (with a newer timestamp). The watchlist grows with duplicates.
