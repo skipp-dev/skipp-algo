@@ -835,6 +835,17 @@ def _session_stats(frame: pd.DataFrame, *, available_minutes: int) -> dict[str, 
     }
 
 
+# M3: session-length-independent "never decayed within the session" marker. The
+# no-hit half-life used to be the count of observed 30m buckets, which is smaller on
+# early-close days (7 buckets for a 13:00 close vs 13 for a full session) — so an
+# undecayed half-day looked like *faster* decay purely because the session was short.
+# Report a fixed full-session bucket count instead, so no-decay is scored the same
+# regardless of session length. Kept numeric (not None/NaN) because the metric feeds
+# percentile-rank scores in generate_smc_micro_profiles (a NaN would silently zero a
+# symbol's fast_decay candidacy — the exact NaN->score trap fixed separately as P3).
+_NO_DECAY_HALF_LIFE_BUCKETS = REGULAR_MINUTES // 30
+
+
 def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     if frame.empty:
         return 0.0
@@ -849,7 +860,7 @@ def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     later = bucket_dollar.iloc[1:]
     hit = later[later <= threshold]
     if hit.empty:
-        return float(max(len(bucket_dollar), 1))
+        return float(_NO_DECAY_HALF_LIFE_BUCKETS)
     return float(int(hit.index[0]))
 
 
@@ -875,10 +886,12 @@ def _grouped_setup_decay_half_life_30m_buckets(
     grouped = bucket_frame.groupby(group_columns, sort=False, observed=True)
     summary = grouped.agg(
         first_bucket_dollar=("bucket_dollar", "first"),
-        bucket_count=("bucket_index", "size"),
     )
 
-    result = summary["bucket_count"].clip(lower=1).astype(float)
+    # M3: default = "never decayed within the session" as a fixed full-session bucket
+    # count (_NO_DECAY_HALF_LIFE_BUCKETS) rather than the observed bucket count, which
+    # shrank on early-close days and mislabelled a short session as faster decay.
+    result = pd.Series(float(_NO_DECAY_HALF_LIFE_BUCKETS), index=summary.index, dtype=float)
     zero_first_bucket = summary["first_bucket_dollar"].le(0)
     if bool(zero_first_bucket.any()):
         result.loc[zero_first_bucket] = 0.0
@@ -916,6 +929,21 @@ def _window_efficiency_from_aggregates(
     return pd.Series(efficiency, index=open_price.index).clip(lower=0.0, upper=1.0)
 
 
+def _observed_available_minutes_by_date(subset: pd.DataFrame, *, scheduled_minutes: int) -> pd.Series:
+    """Per-trade_date session length observed in a window, capped at its scheduled full length.
+
+    M3: ``active_minutes_share`` divided by a fixed constant (e.g. 390 for RTH), so a
+    fully-active early-close session (13:00 close -> 210 minutes) capped at 210/390 =
+    0.54 instead of ~1.0. Using the observed ``et_minute`` span (last minus first
+    observed minute, inclusive) as the denominator — capped at the scheduled length —
+    leaves a full trading day at the scheduled length (unchanged) while an early-close
+    day divides by its actual, shorter session. Returned per trade_date.
+    """
+    minute = subset.groupby("trade_date")["et_minute"]
+    span = minute.max() - minute.min() + 1.0
+    return span.clip(lower=1.0, upper=float(scheduled_minutes))
+
+
 def _aggregate_window_metrics(
     frame: pd.DataFrame,
     mask: pd.Series,
@@ -936,7 +964,7 @@ def _aggregate_window_metrics(
     ]
     subset = frame.loc[
         mask,
-        [*group_columns, "open", "high", "low", "close", "dollar_volume", "trade_proxy", "active_minute", "spread_bps_proxy", "wickiness_proxy"],
+        [*group_columns, "et_minute", "open", "high", "low", "close", "dollar_volume", "trade_proxy", "active_minute", "spread_bps_proxy", "wickiness_proxy"],
     ]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
@@ -963,11 +991,19 @@ def _aggregate_window_metrics(
         },
         index=open_price.index,
     )
-    aggregated["active_minutes_share"] = _safe_ratio_to_constant_series(
-        active_minutes,
-        denominator=float(available_minutes),
-        default=0.0,
-    ).to_numpy()
+    # M3: divide by the session length actually observed on each trade_date (capped at
+    # the scheduled full-session length) so early-close days are not measured against a
+    # full-day denominator. Full trading days observe the full span and are unchanged.
+    available_by_date = _observed_available_minutes_by_date(subset, scheduled_minutes=available_minutes)
+    trade_dates = active_minutes.index.get_level_values("trade_date")
+    available_aligned = available_by_date.reindex(trade_dates).to_numpy(dtype=float)
+    active_values = active_minutes.to_numpy(dtype=float)
+    aggregated["active_minutes_share"] = np.divide(
+        active_values,
+        available_aligned,
+        out=np.zeros_like(active_values),
+        where=np.isfinite(available_aligned) & (available_aligned > 0),
+    )
     aggregated["efficiency"] = _window_efficiency_from_aggregates(
         open_price,
         close_price,
