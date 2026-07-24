@@ -4963,8 +4963,17 @@ groups:
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
+      # Missingness always pages (a model-expected feature absent from the live
+      # feature dict = a real input/schema break). Range violations only page
+      # under a TRAINED model: the bootstrap artifact 71831770 has a degenerate
+      # feature envelope (direction_stability=[1.0,1.0], price_progress<=5.6) that
+      # raises pre_a0_feature_out_of_range_total on every live score BY CONSTRUCTION
+      # (docs/pre_a0_rollout_runbook.md). The `* on() group_left() (max(model_info
+      # != bootstrap) or vector(0))` factor is 0 while only the bootstrap model is
+      # live and 1 once a retrained artifact deploys, so the range term re-arms
+      # automatically. 2026-07-24: gate added; verified live expr = 0 (was 225).
       model:
-        expr: sum(increase(pre_a0_feature_missing_total{job="a0_fast"}[15m])) + sum(increase(pre_a0_feature_out_of_range_total{job="a0_fast"}[15m]))
+        expr: sum(increase(pre_a0_feature_missing_total{job="a0_fast"}[15m])) + sum(increase(pre_a0_feature_out_of_range_total{job="a0_fast"}[15m])) * on() group_left() (max(pre_a0_model_info{job="a0_fast",artifact_id!="71831770afe43bdd424aa7ab"}) or vector(0))
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -4980,8 +4989,8 @@ groups:
     labels: {severity: high}
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: PRE-A0 feature missingness or range violations exceeded the shadow threshold.
-      runbook: Compare the live feature distribution with the training manifest before retraining or promotion.
+      summary: PRE-A0 feature missingness, or range violations under a trained (non-bootstrap) model, exceeded the shadow threshold.
+      runbook: Range violations under the bootstrap artifact 71831770 are expected by construction and are gated out until a retrained model deploys; compare the live feature distribution with the training manifest before retraining or promotion. See docs/pre_a0_rollout_runbook.md.
   - uid: pre-a0-shadow-data-missing
     title: PRE-A0 shadow snapshots missing under live load
     condition: C
