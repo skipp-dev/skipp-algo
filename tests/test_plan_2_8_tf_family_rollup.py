@@ -62,6 +62,40 @@ def test_rollup_partitions_multiple_tfs(tmp_path: Path) -> None:
     assert rollup["per_tf"]["4H"]["n_events"] == 0
 
 
+def test_empty_tf_hit_rate_is_none_not_zero(tmp_path: Path) -> None:
+    """R1: a TF with no events reports ``hit_rate: None`` — distinguishable
+    from a real 0% hit rate (n>0, all misses), which stays 0.0."""
+    _write_scoring(tmp_path, "AAPL", "5m", n=40, hr=0.0)  # real 0% hit rate
+    # 15m/1H/4H get no artifacts -> n=0 slots.
+    rollup = build_rollup(scoring_root=tmp_path)
+
+    assert rollup["per_tf"]["5m"]["n_events"] == 40
+    assert rollup["per_tf"]["5m"]["hit_rate"] == 0.0  # real 0%, NOT None
+    for empty_tf in ("15m", "1H", "4H"):
+        slot = rollup["per_tf"][empty_tf]
+        assert slot["n_events"] == 0
+        assert slot["hit_rate"] is None  # no events -> not measured, not 0.0
+
+
+def test_empty_family_hit_rate_is_none(tmp_path: Path) -> None:
+    """R1: a family slice with zero events reports ``hit_rate: None``."""
+    _write_scoring(tmp_path, "AAPL", "5m", n=50, hr=0.6,
+                   families={"FVG": (0, 0.0)})
+    fvg = build_rollup(scoring_root=tmp_path, timeframes=("5m",))[
+        "per_tf"]["5m"]["families"]["FVG"]
+    assert fvg["n_events"] == 0
+    assert fvg["hit_rate"] is None
+
+
+def test_render_markdown_empty_tf_renders_na(tmp_path: Path) -> None:
+    """R1: the per-TF markdown renders ``n/a`` for a None hit rate instead of
+    crashing on ``{None:.3f}`` or printing a misleading 0.000."""
+    _write_scoring(tmp_path, "AAPL", "5m", n=40, hr=0.0)
+    md = render_markdown(build_rollup(scoring_root=tmp_path))
+    assert "| `15m` | 0 | n/a |" in md  # empty TF -> n/a
+    assert "| `5m` | 40 | 0.000 |" in md  # real 0% -> 0.000
+
+
 def test_rollup_phase_e2_verdict_measured(tmp_path: Path) -> None:
     # FVG 5m (n=200, hr=0.65) vs merged 15m+1H baseline (n=150, hr=0.58)
     _write_scoring(tmp_path, "AAPL", "5m", n=200, hr=0.65,
