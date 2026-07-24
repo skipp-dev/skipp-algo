@@ -1,0 +1,52 @@
+# Drift guard: the live_overlay_daemon Railway service must stay CI-only —
+# i.e. have NO native GitHub deploy trigger. A native trigger has no path
+# filter, so it redeploys the daemon on every push to main (2026-07-24:
+# ~23/day, most touching nothing in the daemon), wiping the bar cache and
+# resetting uptime. See services/live_overlay_daemon/OPS.md.
+#
+# Requires the read-capable Railway API secrets the railway_metrics bridge
+# already uses: RAILWAY_API_TOKEN, RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT_ID
+# (optionally RAILWAY_LIVE_OVERLAY_SERVICE_ID). Without them the script prints
+# SKIP and the job passes, so this file is inert until the secrets are added.
+name: "live-overlay-deploy-trigger-guard"
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, off-peak
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-overlay-deploy-trigger-guard
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Assert no native Railway deploy trigger
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+          RAILWAY_LIVE_OVERLAY_SERVICE_ID: ${{ secrets.RAILWAY_LIVE_OVERLAY_SERVICE_ID }}
+        run: python scripts/check_live_overlay_deploy_trigger.py
