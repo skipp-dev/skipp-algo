@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .technical_analysis import detect_symbol_regime as _detect_symbol_regime
@@ -27,6 +28,7 @@ REGIME_RISK_ON = "RISK_ON"
 REGIME_RISK_OFF = "RISK_OFF"
 REGIME_ROTATION = "ROTATION"
 REGIME_NEUTRAL = "NEUTRAL"
+_VALID_REGIMES = frozenset({REGIME_RISK_ON, REGIME_RISK_OFF, REGIME_ROTATION, REGIME_NEUTRAL})
 
 # ---------------------------------------------------------------------------
 # VIX thresholds — dead-zone of ±1 pt applied via _prev_regime to prevent
@@ -120,15 +122,93 @@ _prev_regime: str | None = None
 _prev_regime_lock = threading.Lock()
 
 
-def reset_regime_state() -> None:
-    """Reset module-level hysteresis state.
+def reset_regime_state(seed: str | None = None) -> None:
+    """Reset — or seed — the module-level hysteresis anchor.
 
-    Call at session boundaries or test setUp to prevent stale regime
-    bleeding across pipeline runs in long-lived processes.
+    Call with no argument at session boundaries or test setUp to clear the
+    anchor and prevent stale regime bleeding across pipeline runs in long-lived
+    processes. Pass a known prior regime as *seed* to anchor the VIX dead-zone
+    in :func:`classify_regime` so it can suppress boundary flicker within a
+    session; an unknown value clears the anchor (identical to a plain reset).
     """
     global _prev_regime
     with _prev_regime_lock:
-        _prev_regime = None
+        _prev_regime = seed if seed in _VALID_REGIMES else None
+
+
+# Two runs are the "same session" when their timestamps are within this window.
+# Pre-open + RTH span ~12h; day-to-day runs are >=24h apart, so this cleanly
+# separates intra-session dashboard refreshes from a fresh trading day.
+_SAME_SESSION_MAX_AGE_HOURS = 12.0
+
+
+def seed_regime_state(regime: str | None) -> None:
+    """Seed the hysteresis anchor from a known prior regime.
+
+    Thin alias over ``reset_regime_state(seed=regime)`` kept for call-site
+    clarity (see :func:`reset_regime_state`).
+    """
+    reset_regime_state(seed=regime)
+
+
+def _prior_regime_if_same_session(
+    snapshot: dict[str, Any],
+    now_utc: datetime | None = None,
+) -> str | None:
+    """Return the prior run's regime iff its snapshot is from the same session.
+
+    ``snapshot`` is the persisted previous-run payload (``diff.save_result_snapshot``)
+    carrying ``regime`` and ``ts`` (the run's ``generated_at`` ISO timestamp).
+    Returns ``None`` — meaning "reset, do not seed" — when the regime/ts are
+    missing, unparseable, in the future (clock skew), or older than
+    ``_SAME_SESSION_MAX_AGE_HOURS`` (a different trading session).
+    """
+    prior = snapshot.get("regime")
+    ts = snapshot.get("ts")
+    if prior not in _VALID_REGIMES or not isinstance(ts, str):
+        return None
+    try:
+        prior_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if prior_dt.tzinfo is None:
+        prior_dt = prior_dt.replace(tzinfo=UTC)
+    now = now_utc or datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    age_hours = (now - prior_dt).total_seconds() / 3600.0
+    if 0.0 <= age_hours < _SAME_SESSION_MAX_AGE_HOURS:
+        return prior
+    return None
+
+
+def seed_regime_hysteresis_from_prior_run(now_utc: datetime | None = None) -> str | None:
+    """Seed the regime hysteresis from the prior run's persisted regime.
+
+    Replaces the unconditional :func:`reset_regime_state` at the head of the
+    pipeline. The anti-flicker VIX dead-zone in :func:`classify_regime` needs a
+    prior regime, but every ``generate_open_prep_result`` call — including each
+    streamlit dashboard refresh — otherwise wiped it, so the regime (and the
+    regime-adjusted scoring weights) flickered when VIX hovered near a threshold.
+    The diff snapshot already persists the prior run's regime; seed from it when
+    the run is in the same session, else reset (no stale cross-session bleed).
+
+    Fails safe: any error loading/parsing the snapshot resets the anchor,
+    exactly matching the previous ``reset_regime_state`` behaviour. Returns the
+    seeded regime (or ``None`` when reset) for logging/tests.
+    """
+    prior_regime: str | None = None
+    try:
+        from .diff import load_previous_snapshot  # lazy: avoid an import cycle at module load
+
+        snapshot = load_previous_snapshot()
+        if isinstance(snapshot, dict):
+            prior_regime = _prior_regime_if_same_session(snapshot, now_utc)
+    except Exception as exc:  # fail-safe: any snapshot error resets the anchor, exactly like reset_regime_state()
+        logger.debug("regime hysteresis seed failed, resetting anchor: %s", exc)
+        prior_regime = None
+    seed_regime_state(prior_regime)
+    return prior_regime
 
 
 def classify_regime(

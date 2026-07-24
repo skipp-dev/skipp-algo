@@ -99,8 +99,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             1169,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
-        ("open_prep/regime.py", 129, ("_prev_regime",)),
-        ("open_prep/regime.py", 156, ("_prev_regime",)),
+        # RG1 (2026-07-24): same-session regime hysteresis seed — reset_regime_state
+        # gains a seed param (still the sole _prev_regime writer, no NEW global) and
+        # helper functions inserted above classify_regime shifted these anchors
+        # 129->134 and 156->236.
+        ("open_prep/regime.py", 134, ("_prev_regime",)),
+        ("open_prep/regime.py", 236, ("_prev_regime",)),
         # R-E2 audit (2026-06-14): thread-safe one-time guard for
         # _normalize_tls_certificate_env os.environ write (see macro.py R-E2).
         # Line shifted 145→148 by M1 iteration-limit addition (PR #2828).
