@@ -207,6 +207,20 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _a1_volume_pace(s: Any) -> float:
+    """Volume metric the A1 conviction/calibration keys on: the NORMALIZED volume
+    pace (realized/expected fraction) that the A0/A1 volume floors and the
+    calibration table use — NOT the raw daily ``volume_ratio`` the signal carries
+    for display. Falls back to the raw ratio only for legacy signals that predate
+    the ``details['normalized_volume_pace']`` field."""
+    details = getattr(s, "details", None)
+    if isinstance(details, dict):
+        pace = details.get("normalized_volume_pace")
+        if pace is not None:
+            return _safe_float(pace, 0.0)
+    return _safe_float(getattr(s, "volume_ratio", 0.0))
+
+
 # P(follow-through) at/above which a calibrated A1 earns the ⭐ (armed only).
 try:
     _CALIBRATION_P_THRESHOLD = float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"))
@@ -222,7 +236,7 @@ def _is_high_conviction_a1(s: Any) -> bool:
     Calibrated path (opt-in via RT_CALIBRATION_ARMED): once the nightly job has
     enough follow-through data for this (level, vol_bucket), the measured P
     replaces the hard-coded midpoints; otherwise it falls back to them."""
-    vol_ratio = _safe_float(getattr(s, "volume_ratio", 0.0))
+    vol_ratio = _a1_volume_pace(s)  # normalized pace, not raw daily ratio (the calibration + floors key on pace)
     abs_change = abs(_safe_float(getattr(s, "change_pct", 0.0)))
     p = _calibrated_follow_through_p("A1", vol_ratio)
     if p is not None:
@@ -233,7 +247,7 @@ def _is_high_conviction_a1(s: Any) -> bool:
 def _a1_conviction_label(s: Any) -> str:
     """⭐ tail for a high-conviction A1: the measured follow-through P when the
     calibration is armed and populated (e.g. " ⭐P58%"), else " ⭐near-A0"."""
-    p = _calibrated_follow_through_p("A1", _safe_float(getattr(s, "volume_ratio", 0.0)))
+    p = _calibrated_follow_through_p("A1", _a1_volume_pace(s))
     return f" ⭐P{round(p * 100)}%" if p is not None else " ⭐near-A0"
 
 
