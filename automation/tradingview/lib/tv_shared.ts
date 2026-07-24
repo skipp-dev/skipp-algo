@@ -4698,6 +4698,12 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
 
 export async function refreshChartScriptInstance(page: Page, scriptName: string): Promise<number> {
   return runTrackedStep(page, `refreshChartScriptInstance:${scriptName}`, async () => {
+    // Remember the chart this refresh started on: ensurePineEditor's recovery
+    // clicks can navigate the tab off the chart onto /pine-screener/ (CI run
+    // 29946386778; two headed repros 2026-07-24). Off-chart, every editor and
+    // script-open candidate misses until the outer 90s timer fires, so a URL
+    // check + goto back converts that strand into a same-step retry.
+    const originChartUrl = page.url();
     // Use the exact legend-instance probe for refresh safety. The broader chart
     // visibility probe also accepts "Strategy Report" plus a script-name text
     // match; after a successful removal TradingView can briefly retain those
@@ -4712,6 +4718,11 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
     }
 
     await ensurePineEditor(page).catch(() => undefined);
+    if (originChartUrl.includes("/chart/") && !page.url().includes("/chart/")) {
+      tracePageEvent(page, "script-refresh-strand-recovered", `${page.url()} -> ${originChartUrl}`);
+      await gotoChart(page, originChartUrl);
+      await ensurePineEditor(page).catch(() => undefined);
+    }
     await openExistingScript(page, scriptName).catch(() => undefined);
     await addCurrentScriptToChart(page, scriptName, { forceInsert: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
     await page.waitForTimeout(1_250);
