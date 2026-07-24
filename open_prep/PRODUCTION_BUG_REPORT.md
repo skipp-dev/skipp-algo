@@ -185,8 +185,9 @@
 
 ## 7. run_open_prep.py
 
-### HIGH — `_save_atr_cache` / `_save_atr_cache`: `prev_close_map` key-case mismatch
+### NOT REACHABLE (verified 2026-07-24) — `_save_atr_cache` / `_save_atr_cache`: `prev_close_map` key-case mismatch
 
+- **Not reachable:** symbols are upper-cased at ingestion (`atr_symbols` double-uppered — `.strip().upper()` at run_open_prep.py:4563 + `_normalize_symbols`; `_incremental_atr_from_eod_bulk` uppers eod rows into `by_symbol`; batch-fallback + cached map upper), so `prev_close_map` has no lowercase keys and `clean_prev_close_map`'s `.get(UPPER_k)` always hits (empirically confirmed). Case-fragile but no reachable trigger — do not build speculative hardening.
 - **Location:** `_save_atr_cache()`, lines ~2060-2080, vs `_incremental_atr_from_eod_bulk()`, line ~2115
 - **Bug:** In `_save_atr_cache`, the `clean_prev_close_map` is keyed by `str(k).upper()` from `clean_atr_map` keys. But `prev_close_map` is populated from `cached_prev_close` (upper-cased) merged with `incremental_close` (which keys are whatever `eod_row` returned). If `eod_row` returns lowercase symbols, the `prev_close_map.get(k)` lookup uses the upper-cased `k` from `clean_atr_map`, which misses the lowercase key in `prev_close_map`, yielding `0.0`.
 - **Impact:** `prev_close` values silently become `0.0` in the cache when EOD bulk returns lowercase symbols. On next-day incremental ATR update, `prev_close <= 0.0` causes the symbol to be skipped in `_incremental_atr_from_eod_bulk()`, forcing an expensive per-symbol fallback fetch.
