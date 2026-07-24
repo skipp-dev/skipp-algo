@@ -430,7 +430,7 @@ def _compute_fade_score(
         s += 0.25 * (1.0 - min(max(ext_hours_score, 0.0), 1.0))
 
     # Low-ish RVOL for a gap (0..0.15)
-    if rvol < 2.0:
+    if 0.0 < rvol < 2.0:  # 2026-07-24: rvol==0.0 is a MISSING avg_volume baseline, not a genuine low (store's has_rvol discipline, #3976) — do not fabricate a fade edge from absent data
         s += 0.15
 
     # Poor macro/breadth context (0..0.15)
@@ -806,7 +806,14 @@ def assign_playbook(
         pb_reason = f"Post-News Drift: {event_info['event_label']}, materiality={event_info['materiality']}"
     else:
         playbook = PLAYBOOK_NO_TRADE
-        pb_reason = f"No playbook scores above threshold (go={go_score:.2f}, fade={fade_score:.2f}, drift={drift_score:.2f})"
+        # 2026-07-24: when Gap&Go was the top score but the long-only sign-gate
+        # (gap<=0) blocked it, say so — the old blanket "No playbook scores above
+        # threshold" is false whenever go>=0.30, and reads to an operator as
+        # "nothing set up" when a setup existed and only the gap sign killed it.
+        if go_score >= 0.30 and gap_pct <= 0:
+            pb_reason = f"No trade: Gap&Go was the top score (go={go_score:.2f} >= 0.30) but gap {gap_pct:.1f}% <= 0 blocks the long-only setup (sign-gate); fade={fade_score:.2f}, drift={drift_score:.2f}"
+        else:
+            pb_reason = f"No playbook scores above threshold (go={go_score:.2f}, fade={fade_score:.2f}, drift={drift_score:.2f})"
 
     # Regime alignment check
     regime_aligned = True

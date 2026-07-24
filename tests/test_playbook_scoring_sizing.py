@@ -221,3 +221,71 @@ def test_tier2_short_tokens_require_word_boundary() -> None:
     assert swift["source_tier"] != pb.SOURCE_TIER_2
     ft = pb.classify_source_quality("FT", "some headline")
     assert ft["source_tier"] == pb.SOURCE_TIER_2
+
+
+# ── missing-rvol discipline in the fade score (scoring-path sibling of #3976) ─
+
+def _fade_flip_shape(*, avg_volume: float, volume: float) -> dict:
+    # A gap-DOWN whose |gap| is below the fade "overdone" line and whose tape is
+    # above the fade weak-tape cutoff, so the ONLY lift to the 0.30 selection
+    # line is the low-RVOL bonus. rvol is set purely by (volume, avg_volume),
+    # which isolates the missing-baseline question.
+    return {
+        "symbol": "MISS",
+        "gap_pct": -(pb._FADE_GAP_OVERDONE - 1.0),        # no overdone bonus
+        "price": 50.0,
+        "volume": volume,
+        "avg_volume": avg_volume,
+        "ext_hours_score": pb._FADE_MAX_EXT_SCORE + 0.1,  # above cutoff: no weak-tape bonus
+        "premarket_spread_bps": None,                     # unknown spread -> exec CAUTION, not POOR
+    }
+
+
+def test_missing_volume_baseline_does_not_fabricate_a_fade_setup() -> None:
+    # Store discipline in the SCORING path: the scorer emits rvol=0.0 when it has
+    # no avg_volume baseline (has_rvol = rvol_ratio > 0.0). That is "no data",
+    # not a genuine low RVOL — awarding the fade "low RVOL" bonus to it fabricates
+    # a Gap Fade (a real trade card) on a symbol whose volume is unknown, flipping
+    # NO_TRADE -> GAP_FADE. Missing baseline must not, by itself, cross the line.
+    result = pb.assign_playbook(
+        _fade_flip_shape(avg_volume=0.0, volume=10_000.0),  # rvol -> 0.0 (missing baseline)
+        regime="RISK_ON",
+        sector_breadth=0.3,
+        news_metrics_entry={},
+        now_utc=datetime.now(UTC),
+    )
+    assert result.playbook == pb.PLAYBOOK_NO_TRADE
+
+
+def test_genuine_low_rvol_still_earns_the_fade_bonus() -> None:
+    # Guard against over-correction: a MEASURED low RVOL (0.5x) is a real fade
+    # signal and must keep the bonus — only the missing (0.0) baseline is denied.
+    result = pb.assign_playbook(
+        _fade_flip_shape(avg_volume=1_000_000.0, volume=500_000.0),  # rvol = 0.5 (measured low)
+        regime="RISK_ON",
+        sector_breadth=0.3,
+        news_metrics_entry={},
+        now_utc=datetime.now(UTC),
+    )
+    assert result.playbook == pb.PLAYBOOK_GAP_FADE
+
+
+def test_sign_gated_gap_and_go_reason_names_the_gate_not_a_false_zero() -> None:
+    # A gap-DOWN with a high Gap&Go score is blocked by the long-only sign-gate,
+    # not because "no playbook scores above threshold". The operator line must
+    # name the real block, not falsely claim nothing scored — the setup existed.
+    candidate = _strong_gap_go_candidate()
+    candidate["gap_pct"] = -6.0
+    candidate["ext_hours_score"] = 0.9
+    result = pb.assign_playbook(
+        candidate,
+        regime="RISK_ON",
+        sector_breadth=0.7,
+        news_metrics_entry={},
+        now_utc=datetime.now(UTC),
+    )
+    assert result.playbook == pb.PLAYBOOK_NO_TRADE
+    assert result.gap_go_score >= 0.30  # the setup DID score above threshold
+    reason = result.playbook_reason.lower()
+    assert "no playbook scores above threshold" not in reason
+    assert "sign-gate" in reason
