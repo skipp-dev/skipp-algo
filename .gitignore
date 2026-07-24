@@ -140,6 +140,7 @@ docs/audit-*.md
 !.claude/skills/truth-audit/
 !.claude/skills/verify-review-findings/
 !.claude/skills/skipp-pr-flow/
+!.claude/skills/deep-review/
 !.claude/agents/
 .claude/agents/*
 !.claude/agents/truth-auditor.md
