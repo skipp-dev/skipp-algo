@@ -44,9 +44,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # already-resampled HTF buckets; the daily/weekly/monthly
         # frames are produced via pandas resample which drops the
         # partial bucket when the source frame is bar-close clean.
-        ("smc_core/session_context.py", 131),
-        ("smc_core/session_context.py", 137),
-        ("smc_core/session_context.py", 143),
+        ("smc_core/session_context.py", 133),  # 2026-07-25 killzone settle field: 131->133
+        ("smc_core/session_context.py", 139),  # 2026-07-25 killzone settle field: 137->139
+        ("smc_core/session_context.py", 145),  # 2026-07-25 killzone settle field: 143->145
         # smc_core/vol_regime.py — ATR / variance current values. The live-ish
         # caller (smc_integration/service.py:_build_context_payloads) now passes
         # the frame through `guard_closed_bars(interval=timeframe, now=time.time())`

@@ -53,16 +53,22 @@ def _direction_from_counter(counter: int) -> BiasDirection:
 
 
 def _direction_from_killzones(killzones: list[dict[str, Any]]) -> BiasDirection:
-    """Derive session bias from the most recent killzone high/low relationship."""
+    """Derive session bias from where price SETTLED in the latest killzone range.
+
+    Keys off the session close position in ``[low, high]``.  The geometric
+    midpoint (``mid``) is directionally inert — ``(mid-low)/(high-low)`` is
+    always 0.5 — so we prefer ``close`` and only fall back to ``mid`` for
+    callers/fixtures that don't supply a settle.  2026-07-25.
+    """
     if not killzones:
         return "NEUTRAL"
     latest = killzones[-1]
-    mid = float(latest.get("mid", 0))
+    settle = float(latest.get("close", latest.get("mid", 0)))
     high = float(latest.get("high", 0))
     low = float(latest.get("low", 0))
     if high == low:
         return "NEUTRAL"
-    ratio = (mid - low) / (high - low) if (high - low) != 0 else 0.5
+    ratio = (settle - low) / (high - low) if (high - low) != 0 else 0.5
     if ratio > 0.55:
         return "BULLISH"
     if ratio < 0.45:
