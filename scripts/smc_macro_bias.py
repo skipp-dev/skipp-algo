@@ -266,8 +266,8 @@ def _dedupe_events_internal(events: list[dict[str, Any]]) -> tuple[list[dict[str
             continue
 
         existing = kept[key]
-        existing_score = (_event_impact_rank(existing), existing.get("actual") is not None)
-        new_score = (_event_impact_rank(cloned), cloned.get("actual") is not None)
+        existing_score = (_event_impact_rank(existing), _to_float(existing.get("actual")) is not None)  # M4/#3987 parity: parseable numeric actual wins the tie-break, not a placeholder
+        new_score = (_event_impact_rank(cloned), _to_float(cloned.get("actual")) is not None)  # M4/#3987 parity: as above
         if new_score > existing_score:
             dropped[key].append(existing)
             kept[key] = cloned
