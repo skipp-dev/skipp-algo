@@ -294,9 +294,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-22 (F-3 VIX bounded retry): +1 constant, +18 poll lines shifted
         # every anchor: 235->254, 489->508, 652->671, 751->770.
         ("services/live_overlay_daemon/feed.py", 254, ("_feed_connected_at",)),
-        ("services/live_overlay_daemon/feed.py", 508, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 671, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 770, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-07-25 (fix/live-overlay-feed-stream-circuit): the recovery
+        # comment is deliberately local to the iterator success boundary,
+        # shifting these existing singleton anchors by three lines.
+        ("services/live_overlay_daemon/feed.py", 511, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 674, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 773, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

@@ -168,6 +168,29 @@ class TestFeedReconnectAndCircuitBreaker:
         assert snapshot["bento_errors"] >= 3
         assert not feed._feed_ready.is_set()
 
+    def test_iterator_failures_trip_circuit_breaker(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A successful subscribe is not a recovery until one record arrives."""
+        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
+        feed = _reload_feed_module()
+        _patch_reconnect_delays(feed)
+
+        failure = db.BentoError("stream disconnected")
+
+        def make_client(**_):
+            return FakeLive([failure])
+
+        with patch.object(db, "Live", side_effect=make_client):
+            _run_feed_loop_until(
+                feed,
+                until=lambda: feed.metrics_snapshot()["circuit_breakers"] >= 1,
+                max_runtime=2.0,
+            )
+
+        snapshot = feed.metrics_snapshot()
+        assert snapshot["circuit_breakers"] == 1
+        assert snapshot["bento_errors"] >= 3
+
     def test_unexpected_error_increments_unexpected_errors_metric(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
