@@ -2050,6 +2050,21 @@ def test_pine_library_data_stale_alert_uses_five_day_threshold() -> None:
     assert rule["labels"]["severity"] == "critical"
 
 
+def test_pine_library_empty_probe_alert_detects_loaded_but_empty_snapshot() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "lo-pine-library-no-probes")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_pine_library_snapshot_loaded" in expr
+    assert "live_overlay_pine_libraries_probed" in expr
+    assert "== bool 0" in expr
+    assert rule["labels"]["severity"] == "critical"
+
+
 def test_tradingview_saved_source_alerts_fail_closed_on_unknown_or_drift() -> None:
     import yaml
 
