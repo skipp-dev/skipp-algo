@@ -1,7 +1,9 @@
 """Tests for multi-timeframe aggregation in compute.py."""
 from __future__ import annotations
 
+import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -59,6 +61,96 @@ def test_aggregate_10m_combines_five_minute_bars() -> None:
     assert last["high"] == 205.0
     assert last["low"] == 99.0
     assert last["volume"] == 5 * 100.0 + 5 * 50.0
+
+
+@pytest.mark.parametrize(
+    ("session_date", "expected_utc_offset"),
+    [
+        (datetime.date(2026, 1, 15), datetime.timedelta(hours=-5)),
+        (datetime.date(2026, 7, 24), datetime.timedelta(hours=-4)),
+    ],
+)
+def test_aggregate_hourly_uses_new_york_rth_session_across_dst(
+    session_date: datetime.date,
+    expected_utc_offset: datetime.timedelta,
+) -> None:
+    market_tz = ZoneInfo("America/New_York")
+    session_open = datetime.datetime.combine(
+        session_date,
+        datetime.time(9, 30),
+        tzinfo=market_tz,
+    )
+    assert session_open.utcoffset() == expected_utc_offset
+
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1.0,
+            "ts_event": int(
+                (session_open + datetime.timedelta(minutes=minute)).timestamp()
+                * 1_000_000_000
+            ),
+        }
+        for minute in range(390)
+    ]
+    aggregated = compute._aggregate_bars(bars, "1H")
+
+    assert [bar["volume"] for bar in aggregated] == [
+        60.0,
+        60.0,
+        60.0,
+        60.0,
+        60.0,
+        60.0,
+        30.0,
+    ]
+    assert [
+        datetime.datetime.fromtimestamp(
+            int(bar["ts_event"]) / 1_000_000_000,
+            market_tz,
+        ).strftime("%H:%M")
+        for bar in aggregated
+    ] == ["10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:00"]
+
+
+def test_aggregate_four_hour_bars_anchor_to_rth_and_ignore_extended_hours() -> None:
+    market_tz = ZoneInfo("America/New_York")
+    session_open = datetime.datetime(
+        2026,
+        7,
+        24,
+        9,
+        30,
+        tzinfo=market_tz,
+    )
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1.0,
+            "ts_event": int(
+                (session_open + datetime.timedelta(minutes=minute)).timestamp()
+                * 1_000_000_000
+            ),
+        }
+        for minute in range(-1, 391)
+    ]
+
+    aggregated = compute._aggregate_bars(bars, "4H")
+
+    assert [bar["volume"] for bar in aggregated] == [240.0, 150.0]
+    assert [
+        datetime.datetime.fromtimestamp(
+            int(bar["ts_event"]) / 1_000_000_000,
+            market_tz,
+        ).strftime("%H:%M")
+        for bar in aggregated
+    ] == ["13:30", "16:00"]
 
 
 def test_aggregate_higher_timeframe_changes_indicators() -> None:
