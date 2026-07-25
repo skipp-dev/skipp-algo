@@ -230,8 +230,15 @@ class OpraShadowState:
             self._seen.add(key)
             self._seen_order.append(key)
             cutoff = max(0, self.last_event_ns - self.window_ns)
-            while self._trades and _timestamp_ns(self._trades[0].get("ts_event")) < cutoff:
-                self._trades.popleft()
+            # Out-of-order arrivals land at the RIGHT of this append-order deque, so a
+            # left-prefix pop can leave a stale (pre-cutoff) trade behind a newer one at
+            # index 0. Filter the whole window so a late old print is not retained and
+            # emitted as a "current" UOA candidate. 2026-07-25.
+            self._trades = deque(
+                trade
+                for trade in self._trades
+                if _timestamp_ns(trade.get("ts_event")) >= cutoff
+            )
             return True
 
     def build_snapshot(self, *, now: datetime | None = None) -> dict[str, Any]:
