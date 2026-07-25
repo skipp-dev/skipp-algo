@@ -12,10 +12,12 @@ import pytest
 from scripts.bz_ws_shadow_recorder import (
     ShadowJoinLedger,
     ShadowRecord,
+    attach_cross_source,
     compute_deltas,
     quick_catalyst_score,
     record_to_dict,
 )
+from scripts.news_event_matcher import SourceItem
 
 # ── quick_catalyst_score ────────────────────────────────────────────
 
@@ -148,3 +150,52 @@ def test_record_to_dict_includes_reserved_tx_and_deltas() -> None:
     assert d["tickers"] == ["ACME"]
     # both epoch and ISO forms so the JSONL is human-inspectable
     assert "t_ws" in d and "t_ws_iso" in d
+
+
+# ── cross-source resolver (t_tv / t_x) ──────────────────────────────
+
+
+def _rec(**kw) -> ShadowRecord:
+    base = dict(item_id="bz1", headline="Apple beats Q3 earnings, raises guidance",
+                tickers=["AAPL"], t_published=100.0, t_ws=101.0, t_rest=140.0)
+    base.update(kw)
+    return ShadowRecord(**base)
+
+
+def _tv(iid, published, arrival, hl="Apple Q3 earnings beat; guidance raised",
+        tickers=("AAPL",)) -> SourceItem:
+    return SourceItem(source="tv", item_id=iid, published_ts=published,
+                      headline=hl, tickers=list(tickers), arrival_ts=arrival)
+
+
+def test_attach_cross_source_sets_t_tv_from_arrival() -> None:
+    rec = _rec()
+    tv = _tv("tv1", published=98.0, arrival=95.0)  # TV published near, arrived at 95
+    attach_cross_source([rec], {"tv": [tv]}, time_window_s=180.0, min_headline_sim=0.5)
+    assert rec.t_tv == 95.0                  # arrival time, not published
+    assert rec.t_x is None                   # no x source
+
+
+def test_attach_cross_source_no_match_leaves_t_tv_none() -> None:
+    rec = _rec()
+    unrelated = _tv("tv1", published=98.0, arrival=95.0,
+                    hl="Tesla recalls 40,000 vehicles", tickers=("TSLA",))
+    attach_cross_source([rec], {"tv": [unrelated]}, time_window_s=180.0, min_headline_sim=0.5)
+    assert rec.t_tv is None
+
+
+def test_attach_cross_source_earliest_matching_arrival_wins() -> None:
+    rec = _rec()
+    tvs = [_tv("tv1", 99.0, arrival=120.0), _tv("tv2", 97.0, arrival=88.0)]
+    attach_cross_source([rec], {"tv": tvs}, time_window_s=180.0, min_headline_sim=0.5)
+    assert rec.t_tv == 88.0
+
+
+def test_compute_deltas_includes_tv_when_present() -> None:
+    rec = ShadowRecord(item_id="x", t_published=90.0, t_ws=101.0, t_rest=140.0, t_tv=95.0)
+    d = compute_deltas(rec)
+    assert d["ws_tv_delta_s"] == 95.0 - 101.0   # TV arrived before WS here → negative
+    assert d["rest_tv_delta_s"] == 95.0 - 140.0
+    assert d["pub_tv_delta_s"] == 95.0 - 90.0
+    # tv deltas are None-safe when t_tv is absent
+    assert compute_deltas(ShadowRecord(item_id="x", t_ws=100.0))["ws_tv_delta_s"] is None
