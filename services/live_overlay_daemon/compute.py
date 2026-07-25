@@ -1047,10 +1047,32 @@ _TF_TO_MINUTES: dict[str, int] = {
     "4H": 240,
 }
 
+# Raw 1-minute history required to make a 20-bar rolling window available.
+# The RTH-anchored hourly views retain enough liquid extended-session minutes
+# to span the required number of regular sessions instead of assuming that
+# every cached minute contributes to an RTH candle.
+_TF_RAW_BAR_REQUIREMENTS: dict[str, int] = {
+    "1m": 20,
+    "5m": 100,
+    "10m": 200,
+    "15m": 300,
+    "30m": 600,
+    "1H": 2_880,
+    "4H": 9_600,
+}
+
 
 def supported_timeframes() -> tuple[str, ...]:
     """Return supported intraday overlay timeframes in canonical order."""
     return tuple(_TF_TO_MINUTES.keys())
+
+
+def raw_bars_required(tf: str) -> int:
+    """Return retained 1-minute bars needed for rolling fields at ``tf``."""
+    try:
+        return _TF_RAW_BAR_REQUIREMENTS[tf]
+    except KeyError as exc:
+        raise ValueError(f"unsupported timeframe: {tf}") from exc
 
 
 def _bar_minute_bucket(ts_event: int, minutes: int) -> int:

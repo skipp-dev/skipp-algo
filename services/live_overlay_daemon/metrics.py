@@ -1341,6 +1341,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_requested_bar_symbols {req_bar_symbols}")
     lines.append("# TYPE live_overlay_requested_bars_per_symbol gauge")
     lines.append(f"live_overlay_requested_bars_per_symbol {req_bars_per_symbol}")
+    history_symbols, history_readiness = cache.requested_bar_history_readiness()
+    lines.append("# TYPE live_overlay_requested_bar_history_symbols gauge")
+    lines.append(f"live_overlay_requested_bar_history_symbols {history_symbols}")
+    lines.append("# TYPE live_overlay_requested_bar_history_readiness_ratio gauge")
+    lines.append(
+        f"live_overlay_requested_bar_history_readiness_ratio {history_readiness}"
+    )
     lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
     lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
     lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")

@@ -70,7 +70,7 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-07-24 (S2 stale close-based recency: _latest_bar_age_secs helper grew
     # +8 lines ABOVE this block): pure line drift, unchanged constant-time compare,
     # still exactly one main.py compare_digest site: 493->501
-    ("services/live_overlay_daemon/main.py", 501, "compare_digest"),  # 2026-07-24: 493->501
+    ("services/live_overlay_daemon/main.py", 506, "compare_digest"),  # 2026-07-25 TF-history sizing: 501->506
     # 2026-07-13 (security review): Composio ChatOps webhook token check. Constant-
     # time compare of the URL-path token vs COMPOSIO_CHATOPS_WEBHOOK_TOKEN; the
     # endpoint raises 503 when the secret is unset (no empty-secret bypass) and 401

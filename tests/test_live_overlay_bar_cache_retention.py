@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from services.live_overlay_daemon import cache, request_hotspots
+from services.live_overlay_daemon import cache, compute, request_hotspots
 
 
 def _bar(i: int) -> dict[str, float]:
@@ -126,3 +126,43 @@ def test_requested_bar_depth_is_zero_without_a_cached_consumer() -> None:
     count, mean_depth = cache.requested_bar_depth()
     assert count == 0
     assert mean_depth == 0.0
+
+
+def test_timeframe_requirements_cover_twenty_aggregated_bars() -> None:
+    assert compute.raw_bars_required("1m") == 20
+    assert compute.raw_bars_required("5m") == 100
+    assert compute.raw_bars_required("1H") == 2_880
+    assert compute.raw_bars_required("4H") == 9_600
+    with pytest.raises(ValueError, match="unsupported timeframe"):
+        compute.raw_bars_required("1D")
+
+
+def test_requested_timeframe_expands_only_its_symbol_history() -> None:
+    for i in range(75):
+        cache.push_bar("AAPL", _bar(i))
+        cache.push_bar("MSFT", _bar(i))
+
+    assert cache.ensure_bar_capacity("AAPL", 2_880) == 2_880
+    for i in range(75, 100):
+        cache.push_bar("AAPL", _bar(i))
+        cache.push_bar("MSFT", _bar(i))
+
+    # Expansion preserves the 60 bars that still exist; the 15 already
+    # discarded before the request cannot be recovered from an in-memory feed.
+    assert len(cache.get_bars_snapshot("AAPL")) == 85
+    assert len(cache.get_bars_snapshot("MSFT")) == 60
+    symbols, readiness = cache.requested_bar_history_readiness()
+    assert symbols == 1
+    assert readiness == pytest.approx(85 / 2_880)
+
+
+def test_expanded_history_is_bounded_to_recent_symbols() -> None:
+    cache.init_bar_cache(60, max_symbols=cache._MAX_EXPANDED_BAR_SYMBOLS + 2)
+    for index in range(cache._MAX_EXPANDED_BAR_SYMBOLS + 1):
+        symbol = f"S{index}"
+        cache.push_bar(symbol, _bar(index))
+        cache.ensure_bar_capacity(symbol, 2_880)
+
+    assert cache.get_bars_snapshot("S0")
+    assert cache._bars["S0"].maxlen == 60
+    assert len(cache._expanded_retention.caps) == cache._MAX_EXPANDED_BAR_SYMBOLS

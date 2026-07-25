@@ -325,6 +325,7 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     it in the overlay cache. For non-default timeframes we aggregate the cached
     1-minute bars on demand so callers still get timeframe-consistent fields.
     """
+    cache.ensure_bar_capacity(sym, compute.raw_bars_required(tf))
     if tf == "5m":
         return cache.get_overlay(sym)
 
@@ -380,8 +381,12 @@ def smc_live(
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
         record_latency = True
-        payload = _get_payload_for_timeframe(sym, tf)
+        # Protect and size the requested symbol before reading its bars. Under
+        # ALL_SYMBOLS cap churn, recording only after the read left a narrow
+        # race where the just-requested symbol could be evicted while its
+        # expanded timeframe history was being prepared.
         request_hotspots.record_request(sym, tf)
+        payload = _get_payload_for_timeframe(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
