@@ -458,7 +458,7 @@ def probe_benzinga_news() -> tuple[str, str]:
         return ("OK", f"{len(rows)} items via massive, latest id={row.get('benzinga_id')} ({str(row.get('published') or '?')[:19]})")
     r = httpx.get(
         "https://api.benzinga.com/api/v2/news",
-        params={"token": key, "pageSize": 5, "displayOutput": "abstract"},
+        params={"token": os.getenv("BENZINGA_DIRECT_API_KEY") or key, "pageSize": 5, "displayOutput": "abstract"},  # direct mode: prefer dedicated direct key, matches BenzingaRestAdapter (ingest_benzinga.py)
         headers={"Accept": "application/json"},
         timeout=15.0,
     )
