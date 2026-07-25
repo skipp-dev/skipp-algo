@@ -13,13 +13,18 @@ Endpoint functions are invoked directly (repo convention — no TestClient).
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
+import jsonschema
 import pytest
 
 import services.live_overlay_daemon.main as main_mod
 
 _TOKEN = "test-token"
+_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1] / "spec" / "smc_live_overlay.schema.json"
+)
 
 _LIBRARY_CONTEXT = {
     "universe_member": True,
@@ -63,6 +68,11 @@ def test_cache_miss_still_serves_market_wide_vix(cache_miss) -> None:
     assert _get()["vix_level"] == 16.8123
 
 
+def test_cache_miss_library_enrichment_matches_strict_wire_schema(cache_miss) -> None:
+    schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    jsonschema.validate(instance=_get(), schema=schema)
+
+
 def test_cache_miss_keeps_symbol_fields_null(cache_miss) -> None:
     """The fix must not fabricate symbol data: everything that genuinely
     depends on the missing per-symbol cache stays null/neutral."""
@@ -78,6 +88,8 @@ def test_cache_miss_keeps_symbol_fields_null(cache_miss) -> None:
     ):
         assert payload[key] is None, key
     assert payload["event_provider_status"] == "unknown"
+    assert payload["market_event_blocked"] is None
+    assert payload["symbol_event_blocked"] is None
 
 
 def test_cache_miss_envelope_is_not_overwritten_by_context(cache_miss) -> None:

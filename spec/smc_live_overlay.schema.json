@@ -44,6 +44,55 @@
       "description": "Server-side freshness verdict. True means the producer already knows the payload is older than its target refresh budget; consumers must not treat its optional values as current.",
       "type": "boolean"
     },
+    "universe_member": {
+      "description": "Generated-library universe membership for the requested symbol. Null means the loaded library does not carry a verifiable universe.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "universe_size": {
+      "description": "Number of symbols in the generated-library universe. Null when the universe is unavailable.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "library_asof_date": {
+      "description": "Generator-declared library as-of date. Null when unavailable.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "library_asof_time": {
+      "description": "Generator-declared library as-of timestamp. Null when unavailable.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provider_trust_status": {
+      "description": "Trust state derived from the generated library's provider count and stale-provider list.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ok",
+        "degraded",
+        "unavailable",
+        null
+      ]
+    },
+    "provider_stale_list": {
+      "description": "Comma-separated stale providers declared by the generated library. Null when none are declared or provider evidence is unavailable.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "news_strength": {
       "description": "B1. Magnitude of the mean signed news score in [0,1] — |mean|, so opposing stories cancel (NOT a coverage/intensity count) (live snapshot, ~10min TTL). Null when no fresh reading is available.",
       "type": [
@@ -252,12 +301,6 @@
         "null"
       ],
       "exclusiveMinimum": 0
-    },
-    "universe_member": {"type": ["boolean", "null"]},
-    "universe_size": {"type": ["integer", "null"], "minimum": 0},
-    "library_asof_date": {"type": ["string", "null"]},
-    "library_asof_time": {"type": ["string", "null"]},
-    "provider_trust_status": {"type": ["string", "null"]},
-    "provider_stale_list": {"type": ["string", "null"]}
+    }
   }
 }
