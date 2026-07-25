@@ -1,35 +1,44 @@
-"""Reference-file coverage test for the full open_prep production universe.
+"""Producer quote-reference coverage test for the full open_prep production
+universe.
 
-Task 0.2 (Databento signal migration). The A0-Fast bootstrap reference today
+Task 0.2 (Databento signal migration). The A0-Fast bootstrap reference
 (``services/a0_fast_detector/bootstrap/a0-reference.json``) is scoped to a
-micro-cap symbol population, not the full open_prep production candidate
-universe. This test proves the parametrized generator in
-``scripts/build_a0_reference.py`` instead builds ``previous_close`` +
-``average_daily_volume`` for the full liquid open_prep candidate universe the
-realtime producer monitors (``DEFAULT_TOP_N=0`` = ALL, ~900 symbols).
+micro-cap symbol population and is deliberately Databento-source-pure (see
+``services/a0_fast_detector/README.md``). This test instead proves the
+STANDALONE producer reference in ``open_prep/quote_reference.py`` builds
+``previous_close`` + ``average_daily_volume`` for the full liquid open_prep
+candidate universe the realtime producer monitors (``DEFAULT_TOP_N=0`` =
+ALL, ~900 symbols) -- the interface Task 1.3's ``DatabentoQuoteSource`` will
+consume.
 
-2026-07-25 fix (Option A): prev_close/ADV are sourced from FMP's adjusted EOD
-history (``FMPClient.get_historical_price_eod_full`` ->
-``/stable/historical-price-eod/full``), NOT Databento daily bars -- a
-Databento ``ohlcv-1d`` bar on EQUS.MINI is raw/unadjusted for corporate
-actions, so the prior Databento-sourced implementation's
-``corporate_action_adjusted=True`` label was factually wrong. Only the live
-intraday bars remain Databento. Fixtures below use the real
-``historical-price-eod/full`` response shape (both the bare-list and the
-``{"historical": [...]}``-wrapped variant this repo's other call sites
-already handle) -- no live network access, no real API keys.
+2026-07-25 decoupling decision: this module is fully independent of
+``services/a0_fast_detector`` -- it does not import ``StreamReference``,
+``open_prep.a0_reference``, or ``open_prep.a0_stream_state``, and it writes
+its own artifact at its own path (``artifacts/open_prep/latest/
+quote_reference.json``), never ``A0_FAST_REFERENCE_FILE``. prev_close/ADV
+are sourced from FMP's adjusted EOD history (``FMPClient.
+get_historical_price_eod_full`` -> ``/stable/historical-price-eod/full``) --
+daily values, not latency-critical, and FMP delivers split/dividend-adjusted
+prices unlike a raw Databento ``ohlcv-1d`` bar. Only the live intraday bars
+stay Databento. Fixtures below use the real ``historical-price-eod/full``
+response shape (both the bare-list and the ``{"historical": [...]}``-wrapped
+variant this repo's other call sites already handle) -- no live network
+access, no real API keys.
 """
 
 from __future__ import annotations
 
-from scripts.build_a0_reference import (
-    build_reference_for_universe,
+from open_prep.quote_reference import (
+    DEFAULT_OUTPUT_PATH,
+    QuoteReference,
+    build_quote_reference_for_universe,
     extract_candidate_symbols_from_open_prep_run,
     fmp_eod_response_to_bars,
+    write_quote_reference_file,
 )
 
 # Liquid, large-cap production-universe names -- deliberately NOT the
-# micro-cap-only symbols the existing bootstrap file's process targets.
+# micro-cap-only symbols the A0-Fast bootstrap file's process targets.
 _PRODUCER_UNIVERSE_SYMBOLS = ["AAPL", "NVDA", "SPY", "TSLA", "MSFT"]
 
 _LOOKBACK_SESSIONS = 15
@@ -85,40 +94,36 @@ def test_reference_covers_producer_universe() -> None:
     symbol in the full liquid producer universe (brief Step 1)."""
     bars_by_symbol = _fixture_bars_by_symbol()
 
-    references, skipped = build_reference_for_universe(
+    rows_by_symbol, skipped = build_quote_reference_for_universe(
         _PRODUCER_UNIVERSE_SYMBOLS,
         bars_by_symbol,
         as_of_session=_AS_OF_SESSION,
         lookback_sessions=_LOOKBACK_SESSIONS,
-        reference_version="fmp-bootstrap-test",
     )
 
     assert skipped == []
-    assert {reference.symbol for reference in references} == set(_PRODUCER_UNIVERSE_SYMBOLS)
-    for reference in references:
-        assert reference.previous_close > 0
-        assert reference.average_daily_volume > 0
-        assert reference.source == "fmp:adjusted-eod"
-        assert reference.corporate_action_version == "fmp-adjusted-eod-v1"
-        assert reference.lookback_sessions == _LOOKBACK_SESSIONS
+    assert set(rows_by_symbol.keys()) == set(_PRODUCER_UNIVERSE_SYMBOLS)
+    for row in rows_by_symbol.values():
+        assert row.previous_close > 0
+        assert row.average_daily_volume > 0
+        assert row.source == "fmp:adjusted-eod"
+        assert row.as_of_session  # non-empty ISO date string
 
 
 def test_reference_skips_symbols_with_insufficient_history() -> None:
     """A candidate symbol with no fetched EOD bars is omitted (not
-    fabricated) rather than emitted with a zero/garbage reference -- the
-    worker's StreamReference.is_valid_for() requires previous_close>0."""
+    fabricated) rather than emitted with a zero/garbage row."""
     bars_by_symbol = _fixture_bars_by_symbol()
 
-    references, skipped = build_reference_for_universe(
+    rows_by_symbol, skipped = build_quote_reference_for_universe(
         [*_PRODUCER_UNIVERSE_SYMBOLS, "NODATA"],
         bars_by_symbol,
         as_of_session=_AS_OF_SESSION,
         lookback_sessions=_LOOKBACK_SESSIONS,
-        reference_version="fmp-bootstrap-test",
     )
 
     assert skipped == ["NODATA"]
-    assert {reference.symbol for reference in references} == set(_PRODUCER_UNIVERSE_SYMBOLS)
+    assert set(rows_by_symbol.keys()) == set(_PRODUCER_UNIVERSE_SYMBOLS)
 
 
 def test_fmp_eod_response_to_bars_handles_list_and_historical_wrapped_shapes() -> None:
@@ -143,8 +148,7 @@ def test_extract_candidate_symbols_merges_ranked_overflow_and_quotes() -> None:
     """Mirrors open_prep.realtime_signals._load_watchlist's DEFAULT_TOP_N=0
     (ALL) merge: ranked_v2 + filtered_out_v2 rows scoped only by
     below_top_n_cutoff + any symbol seen in enriched_quotes -- the full
-    ~900-symbol production universe, not the ranked-only top slice.
-    (Unchanged by the 2026-07-25 FMP source fix.)"""
+    ~900-symbol production universe, not the ranked-only top slice."""
     payload = {
         "ranked_v2": [{"symbol": "AAPL"}, {"symbol": "nvda"}],
         "filtered_out_v2": [
@@ -155,3 +159,40 @@ def test_extract_candidate_symbols_merges_ranked_overflow_and_quotes() -> None:
     }
     symbols = extract_candidate_symbols_from_open_prep_run(payload)
     assert symbols == ["AAPL", "NVDA", "MSFT", "SPY"]
+
+
+def test_quote_reference_loader_round_trips_artifact(tmp_path) -> None:
+    """The QuoteReference loader -- the interface Task 1.3's
+    DatabentoQuoteSource consumes -- round-trips write_quote_reference_file's
+    artifact and serves previous_close()/average_daily_volume() per symbol,
+    with no Databento-purity gate and no dependency on a0_fast machinery."""
+    bars_by_symbol = _fixture_bars_by_symbol()
+    rows_by_symbol, _skipped = build_quote_reference_for_universe(
+        _PRODUCER_UNIVERSE_SYMBOLS,
+        bars_by_symbol,
+        as_of_session=_AS_OF_SESSION,
+        lookback_sessions=_LOOKBACK_SESSIONS,
+    )
+    artifact_path = tmp_path / "quote_reference.json"
+    write_quote_reference_file(rows_by_symbol, artifact_path)
+
+    reference = QuoteReference.load(artifact_path)
+
+    assert len(reference) == len(_PRODUCER_UNIVERSE_SYMBOLS)
+    for symbol in _PRODUCER_UNIVERSE_SYMBOLS:
+        assert symbol in reference
+        assert reference.previous_close(symbol) == rows_by_symbol[symbol].previous_close
+        assert reference.average_daily_volume(symbol) == rows_by_symbol[symbol].average_daily_volume
+    # Missing symbol: served as None, not a fabricated/zero row and not a KeyError.
+    assert "DOESNOTEXIST" not in reference
+    assert reference.previous_close("DOESNOTEXIST") is None
+    assert reference.average_daily_volume("DOESNOTEXIST") is None
+
+
+def test_default_output_path_is_producer_owned_not_a0_fast() -> None:
+    """The artifact path must be its own, distinct from
+    services/a0_fast_detector/bootstrap/a0-reference.json, so the A0-Fast
+    worker's _load_references() never loads it."""
+    assert "a0_fast_detector" not in str(DEFAULT_OUTPUT_PATH)
+    assert "a0-reference.json" not in str(DEFAULT_OUTPUT_PATH)
+    assert str(DEFAULT_OUTPUT_PATH) == "artifacts/open_prep/latest/quote_reference.json"
