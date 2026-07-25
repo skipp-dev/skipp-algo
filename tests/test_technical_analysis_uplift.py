@@ -124,6 +124,24 @@ def test_compute_risk_penalty_includes_volume_and_spread_components() -> None:
     assert 0.05 < out < 0.20
 
 
+def test_compute_risk_penalty_spread_gradient_scales_with_width() -> None:
+    """A wider spread must incur a strictly larger penalty than a tighter one.
+
+    Regression: the spread term was ``min(spread_pct * 10.0, 0.02)`` — calibrated for
+    a fraction-of-price input, but the live caller (scorer.py) now passes percentage
+    points (``spread_pct * 100``). At pct-points, ``* 10.0`` saturated the 0.02 cap for
+    any spread wider than ~0.2 bps, so the width signal collapsed to a binary "spread
+    present -> -0.02" and the tightest, most-liquid names were over-penalised. The
+    gradient must scale: 1 bps (0.01 pp) small, 20 bps (0.20 pp) at the cap.
+    """
+    base = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.0)
+    p_tight = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.01)   # 1 bps
+    p_wide = compute_risk_penalty(price=100.0, atr=2.0, volume_ratio=0.4, spread_pct=0.20)     # 20 bps
+    assert p_tight < p_wide, "spread-width gradient collapsed (tight penalised same as wide)"
+    assert p_tight == pytest.approx(base + 0.001, abs=1e-6)   # 1 bps -> 0.001 contribution
+    assert p_wide == pytest.approx(base + 0.02, abs=1e-6)     # 20 bps -> 0.02 cap
+
+
 # ---------------------------------------------------------------------------
 # classify_instrument
 # ---------------------------------------------------------------------------
