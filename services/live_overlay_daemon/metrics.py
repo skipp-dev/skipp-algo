@@ -258,6 +258,24 @@ def _trading_signals_snapshot() -> dict[str, object]:
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
+    now_epoch = time.time()
+
+    def _is_current_signal(sig: dict[str, object]) -> bool:
+        fired_value = sig.get("fired_epoch")
+        if isinstance(fired_value, bool) or not isinstance(
+            fired_value, (int, float, str)
+        ):
+            return False
+        try:
+            fired_epoch = float(fired_value)
+        except (TypeError, ValueError):
+            return False
+        return (
+            str(sig.get("level", "")) in {"A0", "A1", "A2"}
+            and math.isfinite(fired_epoch)
+            and 0.0 < fired_epoch <= now_epoch
+            and now_epoch - fired_epoch <= max_age_seconds
+        )
 
     def _score_key(sig: dict[str, object]) -> float:
         value = sig.get("score")
@@ -272,12 +290,17 @@ def _trading_signals_snapshot() -> dict[str, object]:
                 return 0.0
         return 0.0
 
-    normalized.sort(key=_score_key, reverse=True)
-    if stale:
-        # ``loaded`` and the age/stale gauges retain the diagnostic evidence,
-        # but expired values must not render as currently actionable signals.
-        counts.update(active=0, a0=0, a1=0, a2=0)
+    if not age_known or stale:
         normalized = []
+    else:
+        normalized = [sig for sig in normalized if _is_current_signal(sig)]
+    normalized.sort(key=_score_key, reverse=True)
+    counts.update(
+        active=len(normalized),
+        a0=sum(str(sig.get("level", "")) == "A0" for sig in normalized),
+        a1=sum(str(sig.get("level", "")) == "A1" for sig in normalized),
+        a2=sum(str(sig.get("level", "")) == "A2" for sig in normalized),
+    )
 
     return {
         "loaded": loaded,
