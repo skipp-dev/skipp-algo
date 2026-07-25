@@ -60,6 +60,7 @@ from pathlib import Path
 from newsstack_fmp._market_cal import is_us_equity_trading_day, regular_session_close_minutes
 
 from .macro import FMPClient
+from .quote_source import FMPQuoteSource, QuoteSource
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
 
@@ -2167,6 +2168,13 @@ class RealtimeEngine:
         self.ultra_mode = ultra_mode
         self._client = fmp_client
         self._client_disabled_reason: str | None = None
+        # Quote-source seam (Databento signal-migration Task 1.1). Default is
+        # FMP; RT_QUOTE_SOURCE=databento is reserved for a later task — no
+        # Databento branch exists yet, so that value intentionally leaves
+        # _quote_source unset.
+        self._quote_source: QuoteSource | None = None
+        if os.environ.get("RT_QUOTE_SOURCE") != "databento":
+            self._quote_source = FMPQuoteSource(lambda: self.client)
         self._active_signals: list[RealtimeSignal] = []
         self._lock = threading.Lock()  # guards _active_signals
         self._watchlist: list[dict[str, Any]] = []  # all scored symbols from pipeline
@@ -2596,23 +2604,21 @@ class RealtimeEngine:
         if not symbols:
             return {}
 
+        # Quote-source seam (Databento signal-migration Task 1.1): the
+        # chunked fetch-and-collect logic now lives in FMPQuoteSource,
+        # moved verbatim.  Self-heal if an instance was built via
+        # RealtimeEngine.__new__() (bypassing __init__, e.g. in some tests)
+        # so its behavior stays identical to the pre-refactor inline code.
+        quote_source = getattr(self, "_quote_source", None)
+        if quote_source is None:
+            quote_source = FMPQuoteSource(lambda: self.client)
+            self._quote_source = quote_source
+
         quotes: dict[str, dict[str, Any]] = {}
-        # Chunk into batches for large watchlists
-        chunk_size = _BATCH_QUOTE_CHUNK_SIZE
-        for chunk_start in range(0, len(symbols), chunk_size):
-            chunk = symbols[chunk_start:chunk_start + chunk_size]
-            try:
-                fetch_quotes = getattr(self.client, "get_stable_batch_quotes", None)
-                raw = (fetch_quotes or self.client.get_batch_quotes)(chunk)
-                for q in raw:
-                    sym = str(q.get("symbol", "")).strip().upper()
-                    if sym:
-                        quotes[sym] = q
-            except Exception as exc:
-                logger.warning(
-                    "Failed to fetch realtime quotes for chunk %d–%d: %s",
-                    chunk_start, chunk_start + len(chunk), exc,
-                )
+        for q in quote_source.fetch(symbols, "regular"):
+            sym = str(q.get("symbol", "")).strip().upper()
+            if sym:
+                quotes[sym] = q
         return quotes
 
     def _capture_regular_close_baseline(self, quotes: dict[str, dict[str, Any]]) -> None:
