@@ -20,7 +20,7 @@ import time
 from collections import deque
 from typing import Any
 
-from . import request_hotspots
+from . import config, request_hotspots
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             and not need_cap_evict
             and (now - _last_eviction_at) >= _EVICT_INTERVAL_SECS
         ):
-            _evict_stale_symbols_locked()
+            _evict_stale_symbols_locked(now)
             _last_eviction_at = now
 
 
@@ -186,17 +186,27 @@ def requested_bar_depth() -> tuple[int, float]:
     return len(depths), sum(depths) / len(depths)
 
 
-def _evict_stale_symbols_locked() -> None:
-    """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
+def _evict_stale_symbols_locked(now: float) -> None:
+    """Evict old, unrequested symbols periodically. Caller MUST hold _bar_lock."""
+    stale_before = now - config.max_stale_secs()
+    protected = request_hotspots.requested_symbols()
+    candidates = {
+        symbol
+        for symbol, updated_at in _bar_last_update.items()
+        if updated_at < stale_before and symbol not in protected
+    }
     n_evict = max(1, len(_bars) // 10)
-    _evict_n_stale_symbols_locked(n_evict)
+    _evict_n_stale_symbols_locked(n_evict, candidates=candidates)
 
 
-def _evict_n_stale_symbols_locked(n_evict: int) -> None:
+def _evict_n_stale_symbols_locked(
+    n_evict: int, *, candidates: set[str] | None = None
+) -> None:
     """Evict N least-recently-updated symbols. Caller MUST hold _bar_lock."""
-    if not _bar_last_update:
+    available = _bar_last_update.keys() if candidates is None else candidates
+    if not available:
         return
-    n_evict = max(0, min(n_evict, len(_bars)))
+    n_evict = max(0, min(n_evict, len(available)))
     if n_evict == 0:
         return
     # Demand-aware retention: with an ALL_SYMBOLS feed every tracked symbol
@@ -211,7 +221,7 @@ def _evict_n_stale_symbols_locked(n_evict: int) -> None:
     # the cap stays a hard limit.
     protected = request_hotspots.requested_symbols()
     victims = sorted(
-        _bar_last_update,
+        available,
         key=lambda s: (s in protected, _bar_last_update[s]),
     )[:n_evict]
     for sym in victims:
