@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from open_prep.a0_contract import A0ThresholdContext, build_market_snapshot
 from open_prep.a0_stream_state import A0StreamFeatureSnapshot, GapState
+from open_prep.pre_a0 import PreA0State
 from open_prep.pre_a0_model import (
     fit_platt_calibration,
     make_artifact,
     train_logistic_regression,
 )
 from open_prep.pre_a0_telemetry import PreA0Telemetry
-from services.a0_fast_detector.pre_a0_runtime import build_pre_a0_runtime
+from services.a0_fast_detector.pre_a0_runtime import PreA0Runtime, build_pre_a0_runtime
 
 _OPEN = datetime(2026, 7, 20, 9, 30, tzinfo=ZoneInfo("America/New_York"))
 _THRESHOLDS = A0ThresholdContext(3.0, 1.0, 0.6, 2.0, 1.0, 0.5)
@@ -186,3 +188,76 @@ def test_observe_rejects_unsupported_horizon_and_unreviewed_artifact(tmp_path) -
     only_60 = {**base_env, "RT_PRE_A0_ALLOWED_HORIZONS": "60"}
     assert build_pre_a0_runtime(only_60, thresholds=_THRESHOLDS, telemetry=telemetry) is None
     assert telemetry.snapshot()["disabled_reasons"] == ("observe_requires_offline_evaluation_gate",)
+
+
+def _estimate(state, *, symbol="NVDA", session_date="2026-07-23", direction="up", observed_at=0.0):
+    return SimpleNamespace(
+        state=state,
+        direction=direction,
+        features=SimpleNamespace(symbol=symbol, session_date=session_date, observed_at=observed_at),
+    )
+
+
+def test_episode_id_ignores_observation_time() -> None:
+    # The id must not depend on observed_at (the field the old in-memory seed used),
+    # so the same record hashes identically no matter which bar the process saw first.
+    early = PreA0Runtime._episode_id(_estimate(PreA0State.WATCH, observed_at=100.0))
+    later = PreA0Runtime._episode_id(_estimate(PreA0State.WATCH, observed_at=987.0))
+    assert early is not None
+    assert early == later
+
+
+def test_episode_id_survives_a_mid_episode_restart(tmp_path) -> None:
+    # Real regression for the 2026-07-23 conflict: two fresh runtimes (a restart
+    # loses the in-memory episode map) see different-length prefixes of the same
+    # bar stream. Every record they BOTH emit must carry the same episode_id.
+    model_path = tmp_path / "model.json"
+    _artifact(model_path)
+
+    def _episode_ids(out, seconds):
+        runtime = build_pre_a0_runtime(
+            {
+                "RT_A0_FAST_MODE": "shadow",
+                "RT_PRE_A0_MODE": "observe",
+                "RT_PRE_A0_MODEL_PATH": str(model_path),
+                "RT_PRE_A0_SNAPSHOT_DIR": str(out),
+                "RT_PRE_A0_SNAPSHOT_FLUSH_ROWS": "100",
+                "RT_PRE_A0_CODE_REVISION": "test",
+            },
+            thresholds=_THRESHOLDS,
+            telemetry=PreA0Telemetry(),
+        )
+        assert runtime is not None
+        for second in seconds:
+            runtime.process(_snapshot(second, 0.45 + second * 0.02))
+        runtime.flush()
+        frame = pd.concat(pd.read_parquet(path) for path in out.rglob("*.parquet"))
+        return frame.set_index("record_id")["episode_id"]
+
+    full = _episode_ids(tmp_path / "full", range(21))
+    restarted = _episode_ids(tmp_path / "restarted", range(10, 21))
+    shared = [
+        rid
+        for rid in full.index.intersection(restarted.index)
+        if pd.notna(full[rid]) and pd.notna(restarted[rid])
+    ]
+    assert shared, "no shared scored record between the two runs"
+    for rid in shared:
+        assert full[rid] == restarted[rid]
+
+
+def test_episode_id_is_none_for_quiet_state() -> None:
+    assert PreA0Runtime._episode_id(_estimate(PreA0State.NONE)) is None
+
+
+def test_episode_id_distinguishes_symbol_direction_and_session() -> None:
+    base = _estimate(PreA0State.WATCH)
+    assert PreA0Runtime._episode_id(base) != PreA0Runtime._episode_id(
+        _estimate(PreA0State.WATCH, symbol="AMD")
+    )
+    assert PreA0Runtime._episode_id(base) != PreA0Runtime._episode_id(
+        _estimate(PreA0State.WATCH, direction="down")
+    )
+    assert PreA0Runtime._episode_id(base) != PreA0Runtime._episode_id(
+        _estimate(PreA0State.WATCH, session_date="2026-07-24")
+    )
