@@ -40,6 +40,24 @@ def test_killzone_windows_present() -> None:
     assert "NY AM" in names
 
 
+def test_killzone_carries_session_settle_for_direction() -> None:
+    # Regression: build_killzones must emit the session settle (close) so the
+    # session bias is not stuck NEUTRAL. The geometric midpoint (`mid`) is
+    # directionally inert — (mid-low)/(high-low) is always 0.5 — so a session
+    # that clearly rallied and closed near its high must read BULLISH.
+    from smc_core.bias_merge import _direction_from_killzones
+
+    rows = [
+        _bar("2026-03-25 09:30", 100.0, 100.5, 99.8, 100.1),
+        _bar("2026-03-25 10:30", 100.1, 103.0, 100.0, 102.9),  # closes near the high
+    ]
+    kz = build_killzones(pd.DataFrame(rows), tz="America/New_York")
+    assert kz, "expected a NY AM killzone"
+    latest = kz[-1]
+    assert latest["close"] == 102.9  # last-bar settle, not the geometric midpoint
+    assert _direction_from_killzones(kz) == "BULLISH"
+
+
 def test_dwm_levels_generated() -> None:
     rows = [
         _bar("2026-03-24 10:00", 100, 101, 99, 100.5),
