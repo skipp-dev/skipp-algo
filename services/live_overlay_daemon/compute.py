@@ -1209,7 +1209,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     Channel (Pine ``_sqOn``: ``bbLower > kcLower and bbUpper < kcUpper``).
 
     Faithful to the legacy USI-CHOCH Pine reference
-    (pine/legacy/USI-CHOCH.pine:281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
+    (pine/legacy/USI-CHOCH lines 281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
     sq_kcMult=1.5):
       BB: basis = ta.sma(close, 20); dev = ta.stdev(close, 20) × 2.0. Pine
           ta.stdev defaults to biased/POPULATION std (÷ n), not sample ÷ (n−1).
