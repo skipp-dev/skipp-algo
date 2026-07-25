@@ -38,11 +38,11 @@ def _midnight_epoch(date_str: str) -> float | None:
 
 
 def age_seconds_from_date(date_str: str, *, now: float | None = None) -> float | None:
-    """Seconds between UTC-midnight of ``date_str`` and ``now`` (never negative)."""
+    """Seconds since a proven past UTC date; invalid/future dates are unknown."""
     epoch = _midnight_epoch(date_str)
     if epoch is None:
         return None
-    return max(0.0, (time.time() if now is None else now) - epoch)
+    return age if (age := (time.time() if now is None else now) - epoch) >= 0.0 else None
 
 
 def _empty(loaded: float, error: str) -> dict[str, Any]:

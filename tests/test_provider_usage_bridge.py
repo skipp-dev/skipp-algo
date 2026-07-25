@@ -59,6 +59,10 @@ def test_coerce_empty_on_no_months() -> None:
     assert bridge._coerce({})["loaded"] == 0.0
 
 
+def test_future_snapshot_timestamp_has_unknown_age() -> None:
+    assert bridge._age_seconds("2099-01-01T00:00:00Z", now=1_783_000_000.0) is None
+
+
 def test_load_raw_reads_local_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     p = tmp_path / "provider_usage.json"
     _write(p, {"current_month": "2026-07", "months": {"2026-07": {"fmp": {"bytes": 42}}}})

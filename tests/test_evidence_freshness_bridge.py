@@ -248,6 +248,5 @@ def test_age_seconds_from_date_unparseable_is_none():
     assert bridge.age_seconds_from_date("not-a-date", now=1_783_000_000.0) is None
 
 
-def test_age_seconds_never_negative_for_future_date():
-    # A future date must clamp to 0, not report negative age.
-    assert bridge.age_seconds_from_date("2099-01-01", now=1_783_000_000.0) == 0.0
+def test_age_seconds_is_unknown_for_future_date():
+    assert bridge.age_seconds_from_date("2099-01-01", now=1_783_000_000.0) is None
