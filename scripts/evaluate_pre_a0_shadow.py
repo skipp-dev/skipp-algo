@@ -70,7 +70,24 @@ def _load_snapshots(root: Path) -> tuple[pd.DataFrame, list[Path]]:
         frames.append(frame)
     combined = pd.concat(frames, ignore_index=True)
     if combined["record_id"].duplicated().any():
-        raise ValueError("snapshot dataset contains duplicate record_id values")
+        # record_id is content-addressed and the store's in-memory de-dup set
+        # resets on restart, so a mid-session restart or a duplicate producer /
+        # replay re-emits byte-identical rows into a fresh part file (observed
+        # 2026-07-23). Collapse those idempotently; only record_ids whose
+        # CONTENT conflicts are real corruption and still fail closed.
+        seen: dict[str, str] = {}
+        keep: list[int] = []
+        for index, row in enumerate(_rows(combined)):
+            canonical = json.dumps(asdict(row), sort_keys=True, separators=(",", ":"))
+            previous = seen.get(row.record_id)
+            if previous is None:
+                seen[row.record_id] = canonical
+                keep.append(index)
+            elif previous != canonical:
+                raise ValueError(
+                    "snapshot dataset contains conflicting duplicate record_id values"
+                )
+        combined = combined.iloc[keep].reset_index(drop=True)
     return combined, paths
 
 
