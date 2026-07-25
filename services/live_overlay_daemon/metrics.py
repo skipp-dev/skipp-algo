@@ -2080,7 +2080,9 @@ def _render_provider_usage_metrics() -> list[str]:
         f"live_overlay_provider_usage_snapshot_age_seconds {float(age) if age_known else 0.0:.1f}"
     )
 
-    providers = snap.get("providers") or {}
+    raw_providers = snap.get("providers")
+    providers = dict(raw_providers) if isinstance(raw_providers, dict) else {}
+    providers.setdefault("fmp", {})
     lines.append("# TYPE live_overlay_provider_usage_bytes gauge")
     lines.append("# TYPE live_overlay_provider_usage_calls gauge")
     lines.append("# TYPE live_overlay_provider_usage_records gauge")
