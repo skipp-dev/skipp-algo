@@ -307,6 +307,7 @@ def _counts_from_payload(structure: dict[str, Any], auxiliary: dict[str, Any]) -
         "session_ranges": len(auxiliary.get("session_ranges", [])),
         "session_pivots": len(auxiliary.get("session_pivots", [])),
         "broken_fractal_signals": len(auxiliary.get("broken_fractal_signals", [])),
+        "rejection_blocks": len(auxiliary.get("rejection_blocks", [])),
     }
 
 
