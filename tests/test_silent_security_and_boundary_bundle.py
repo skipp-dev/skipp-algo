@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3886),  # 2026-07-22 client-disabled visibility shifted site: 3869->3886
+    ("open_prep/realtime_signals.py", 3895),  # 2026-07-22 client-disabled visibility shifted site: 3869->3886; 2026-07-25 re-qual fresh-signal exemption: 3886->3895
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
