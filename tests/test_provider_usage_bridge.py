@@ -185,6 +185,29 @@ def test_metrics_emit_provider_usage_gauges(monkeypatch: pytest.MonkeyPatch) -> 
     # 142.99 GB / 150 GB ~= 95% -> the dashboard/alert ratio is computable.
 
 
+def test_metrics_emit_zero_fmp_series_for_empty_loaded_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid empty month must not make FMP quota alerts lose their series."""
+    from services.live_overlay_daemon import metrics
+
+    monkeypatch.setattr(
+        metrics.provider_usage_bridge,
+        "snapshot",
+        lambda: {
+            "loaded": 1.0,
+            "snapshot_age_seconds": 12.0,
+            "providers": {},
+        },
+    )
+
+    text = "\n".join(metrics._render_provider_usage_metrics())
+    assert 'live_overlay_provider_usage_bytes{provider="fmp"} 0' in text
+    assert 'live_overlay_provider_usage_calls{provider="fmp"} 0' in text
+    assert 'live_overlay_provider_usage_records{provider="fmp"} 0' in text
+    assert 'live_overlay_provider_usage_rate_limit_hits{provider="fmp"} 0' in text
+
+
 def test_snapshot_age_recomputed_each_call_while_cached(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
