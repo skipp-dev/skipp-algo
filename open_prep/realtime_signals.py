@@ -745,7 +745,30 @@ class NearA0Repoller:
         quote source" bullet). Converts the ``QuoteSource.fetch`` list
         contract into the ``{symbol: row}`` dict ``_detect_fresh_a0`` wants,
         identically to ``RealtimeEngine._fetch_realtime_quotes`` (same
-        upper-case keying, same last-wins dedup on duplicate symbols)."""
+        upper-case keying, same last-wins dedup on duplicate symbols).
+
+        Deliberate failure-semantics change, accepted (Finding-2 followup):
+        pre-fix, a FMP fetch exception propagated out of this method to
+        ``_loop()``'s outer ``except``, bumping ``poll_errors``. Post-fix,
+        the SAME seam the main loop uses (``FMPQuoteSource._fetch_regular``)
+        swallows per-chunk fetch errors internally (``logger.warning``, no
+        re-raise) and returns ``[]`` — so a FMP outage now surfaces as an
+        empty ``quotes`` dict, and ``_tick()``'s ``if not quotes: return``
+        exits silently instead of recording a ``poll_errors`` count. This is
+        "same seam = same failure semantics" by design, not a regression:
+        the main loop already swallows FMP chunk errors the identical way,
+        and a uniform failure path across both lanes is the point of routing
+        through one shared source. Provider-level failures stay visible at
+        the seam (FMPQuoteSource warnings, provider_usage tracking, the
+        connected gauge) and via the main loop's own ``data_stale``
+        gauge/visibility — this thread is only an acceleration of the main
+        loop's signals, not an independent data-health source of truth, so
+        it does not need its own redundant error counter for the same
+        outage. (The Databento path's empty-fetch case is the analogous
+        *normal* outcome — fail-closed omission of quote-less symbols — so
+        treating an empty fetch here as an error would be false-positive
+        prone on that path.)
+        """
         quotes: dict[str, dict[str, Any]] = {}
         for q in self._quote_source_or_init().fetch(symbols, "regular"):
             sym = str(q.get("symbol", "")).strip().upper()
