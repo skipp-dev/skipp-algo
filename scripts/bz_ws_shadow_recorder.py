@@ -66,6 +66,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.news_event_matcher import SourceItem, items_match
+
 logger = logging.getLogger("bz_ws_shadow_recorder")
 
 # ── Catalyst keyword scorer (deterministic; NO LLM in this path) ─────
@@ -129,6 +131,7 @@ class ShadowRecord:
     t_published: float | None = None
     t_ws: float | None = None
     t_rest: float | None = None
+    t_tv: float | None = None  # TradingView arrival, via the cross-source matcher
     t_x: float | None = None  # RESERVED — filled by a future X event matcher
     catalyst_score: float = 0.0
     first_seen_ts: float = 0.0
@@ -222,6 +225,10 @@ def compute_deltas(rec: ShadowRecord) -> dict[str, float | None]:
         "ws_rest_delta_s": _sub(rec.t_rest, rec.t_ws),
         "pub_ws_delta_s": _sub(rec.t_ws, rec.t_published),
         "pub_rest_delta_s": _sub(rec.t_rest, rec.t_published),
+        # TradingView deltas (positive => the other channel arrived earlier than TV).
+        "ws_tv_delta_s": _sub(rec.t_tv, rec.t_ws),
+        "rest_tv_delta_s": _sub(rec.t_tv, rec.t_rest),
+        "pub_tv_delta_s": _sub(rec.t_tv, rec.t_published),
     }
 
 
@@ -242,14 +249,62 @@ def record_to_dict(rec: ShadowRecord) -> dict[str, Any]:
         "t_published": rec.t_published,
         "t_ws": rec.t_ws,
         "t_rest": rec.t_rest,
+        "t_tv": rec.t_tv,  # TradingView arrival (matched cross-source)
         "t_x": rec.t_x,  # reserved — null until the X event matcher lands
         "t_published_iso": _iso(rec.t_published),
         "t_ws_iso": _iso(rec.t_ws),
         "t_rest_iso": _iso(rec.t_rest),
+        "t_tv_iso": _iso(rec.t_tv),
         "t_x_iso": _iso(rec.t_x),
     }
     d.update(compute_deltas(rec))
     return d
+
+
+def attach_cross_source(
+    records: list[ShadowRecord],
+    foreign: dict[str, list[SourceItem]],
+    *,
+    time_window_s: float,
+    min_headline_sim: float,
+) -> list[ShadowRecord]:
+    """Populate ``t_tv`` / ``t_x`` on each record from foreign-source items.
+
+    Foreign providers (TradingView, X) share no Benzinga ``item_id``, so we
+    match on content: each Benzinga record is compared against every buffered
+    foreign item via :func:`items_match` (shared ticker + published-time
+    proximity + headline similarity). On a match, the record's ``t_tv`` /
+    ``t_x`` is set to the foreign item's *arrival* time (its local receipt,
+    comparable to ``t_ws`` / ``t_rest``), taking the earliest matching arrival.
+
+    Pure and side-effect free apart from mutating the passed records.
+    """
+    for rec in records:
+        if not rec.headline or not rec.tickers:
+            continue
+        anchor_ts = rec.t_published if rec.t_published is not None else (rec.t_ws or rec.t_rest)
+        if anchor_ts is None:
+            continue
+        anchor = SourceItem(
+            source="benzinga", item_id=rec.item_id, published_ts=anchor_ts,
+            headline=rec.headline, tickers=list(rec.tickers),
+        )
+        for src, items in foreign.items():
+            best: float | None = None
+            for it in items:
+                if not items_match(anchor, it, time_window_s=time_window_s,
+                                   min_headline_sim=min_headline_sim):
+                    continue
+                ts = it.arrival_ts if it.arrival_ts is not None else it.published_ts
+                if ts is not None and (best is None or ts < best):
+                    best = ts
+            if best is None:
+                continue
+            if src == "tv":
+                rec.t_tv = best
+            elif src == "x":
+                rec.t_x = best
+    return records
 
 
 # ── I/O shim: live WS + REST capture threads (not unit-tested) ──────
@@ -289,6 +344,10 @@ def run_recorder(
     flush_seconds: float,
     max_runtime: float | None,
     channels: str | None,
+    tv_symbols: list[str] | None = None,
+    tv_interval: float = 20.0,
+    match_window_s: float = 180.0,
+    match_sim: float = 0.6,
 ) -> int:
     """Run the standalone WS+REST shadow recorder until ``max_runtime``.
 
@@ -318,6 +377,38 @@ def run_recorder(
     ws.start()
     rest = BenzingaRestAdapter(key, provider="direct")
 
+    # Optional TradingView (Reuters/DJ) shadow poller — populates t_tv via the
+    # cross-source matcher. First-seen arrival per TV id wins; buffer is pruned
+    # past the linger+match horizon. Standalone read of the unofficial endpoint
+    # for MEASUREMENT — NOT a re-enable of the retired runtime provider (#3777).
+    tv_buf: dict[str, SourceItem] = {}
+    tv_lock = threading.Lock()
+
+    def _tv_loop() -> None:
+        from scripts.bz_tv_lead_study import _tv_items
+        while not stop.is_set():
+            try:
+                now = time.time()
+                fetched = _tv_items(tv_symbols or [])
+                with tv_lock:
+                    for it in fetched:
+                        if it.item_id and it.item_id not in tv_buf:
+                            it.arrival_ts = now
+                            tv_buf[it.item_id] = it
+                    horizon = now - (linger_seconds + match_window_s + 60.0)
+                    for k in [k for k, v in tv_buf.items()
+                              if (v.arrival_ts or 0.0) < horizon]:
+                        del tv_buf[k]
+            except Exception:  # pragma: no cover - live loop resilience
+                logger.debug("tv poll error", exc_info=True)
+            stop.wait(tv_interval)
+
+    def _foreign_snapshot() -> dict[str, list[SourceItem]]:
+        if not tv_symbols:
+            return {}
+        with tv_lock:
+            return {"tv": list(tv_buf.values())}
+
     def _ws_loop() -> None:
         while not stop.is_set():
             try:
@@ -341,6 +432,8 @@ def run_recorder(
         ready = ledger.pop_ready(time.time(), linger_seconds)
         if not ready:
             return
+        attach_cross_source(ready, _foreign_snapshot(),
+                            time_window_s=match_window_s, min_headline_sim=match_sim)
         with lock:
             written.extend(record_to_dict(r) for r in ready)
             _write_jsonl(out_path, written)
@@ -350,6 +443,8 @@ def run_recorder(
         threading.Thread(target=_ws_loop, name="bz-ws", daemon=True),
         threading.Thread(target=_rest_loop, name="bz-rest", daemon=True),
     ]
+    if tv_symbols:
+        threads.append(threading.Thread(target=_tv_loop, name="tv-poll", daemon=True))
     for t in threads:
         t.start()
 
@@ -368,6 +463,8 @@ def run_recorder(
             ws.stop()
         # Final drain: emit everything still pending regardless of linger.
         remaining = ledger.pop_ready(time.time() + linger_seconds + 1.0, linger_seconds)
+        attach_cross_source(remaining, _foreign_snapshot(),
+                            time_window_s=match_window_s, min_headline_sim=match_sim)
         with lock:
             written.extend(record_to_dict(r) for r in remaining)
             _write_jsonl(out_path, written)
@@ -404,9 +501,20 @@ def main(argv: list[str] | None = None) -> int:
                    help="stop after N seconds (e.g. a session); default: run forever")
     p.add_argument("--channels", type=str, default=None,
                    help="optional Benzinga channel filter (comma-separated)")
+    p.add_argument("--tv-symbols", type=str, default=None,
+                   help="comma-separated symbols to also poll TradingView headlines "
+                        "for (populates t_tv via the cross-source matcher); off if unset")
+    p.add_argument("--tv-interval", type=float, default=20.0,
+                   help="TradingView poll cadence in seconds")
+    p.add_argument("--match-window-s", type=float, default=180.0,
+                   help="max published-time gap when matching a foreign item to a Benzinga event")
+    p.add_argument("--match-sim", type=float, default=0.6,
+                   help="min headline similarity for a cross-source match")
     args = p.parse_args(argv)
 
     out_path = args.out or _default_out_path()
+    tv_symbols = ([s.strip().upper() for s in args.tv_symbols.split(",") if s.strip()]
+                  if args.tv_symbols else None)
     return 0 if run_recorder(
         out_path=out_path,
         rest_interval=args.rest_interval,
@@ -414,6 +522,10 @@ def main(argv: list[str] | None = None) -> int:
         flush_seconds=args.flush_seconds,
         max_runtime=args.max_runtime,
         channels=args.channels,
+        tv_symbols=tv_symbols,
+        tv_interval=args.tv_interval,
+        match_window_s=args.match_window_s,
+        match_sim=args.match_sim,
     ) >= 0 else 1
 
 
