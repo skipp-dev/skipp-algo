@@ -78,8 +78,11 @@
 3. Grafana Alloy (Railway-Service `metrics-collector`) scraped `/metrics` beider Services
    alle 30 s und schreibt die Zeitreihen nach Grafana Cloud.
 4. Grafana Cloud dient ausschließlich dem Monitoring — nicht der Datenweiterleitung.
-5. Für `/smc_live` ist derzeit kein externer Produktionskonsument ausgerollt;
-   Pine kann den REST-Endpunkt nicht direkt aufrufen.
+5. Pine kann den REST-Endpunkt nicht direkt aufrufen. Der gehostete
+   `skipp-live-lab`-Worker konsumiert `/smc_live?tf=1m` jedoch über seinen
+   Technical-Poller und stellt den daraus abgeleiteten Kontext an seiner
+   lizenzpflichtigen Read-API bereit. Der Endpunkt ist damit ein
+   Produktions-Input für den Sidecar-Pfad, nicht nur eine Monitoring-Quelle.
 
 ---
 
