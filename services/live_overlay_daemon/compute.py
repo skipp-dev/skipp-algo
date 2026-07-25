@@ -1429,6 +1429,8 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     sym = symbol.upper().strip()
     best: dict[str, Any] | None = None
     best_key = (-1, float("-inf"))
+    now_epoch = time.time()
+    max_signal_age = float(config.signals_max_age_secs())
     for row in rows:
         if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != sym:
             continue
@@ -1439,6 +1441,12 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             fired = float(row.get("fired_epoch") or 0.0)
         except (TypeError, ValueError):
             fired = 0.0
+        if (
+            not math.isfinite(fired)
+            or fired <= 0.0
+            or now_epoch - fired > max_signal_age
+        ):
+            continue
         if (rank, fired) > best_key:
             best_key = (rank, fired)
             best = row
