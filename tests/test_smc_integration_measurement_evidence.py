@@ -1654,3 +1654,36 @@ def test_anchor_window_filters_old_events_and_discloses(monkeypatch) -> None:
     assert unbounded.details["scoring_anchor_window_days"] is None
     assert unbounded.details["skipped_out_of_window_counts"]["FVG"] == 0
     assert unbounded.details["evaluated_event_counts"]["FVG"] == 2
+
+
+class TestSessionContextScoreFamilyParity:
+    """The per-event SESSION_CONTEXT_SCORE structure bonus must treat all four
+    event families uniformly.
+
+    Regression: ``_session_context_light_for_event`` awarded a +1 structure bonus
+    to ``{BOS, OB, FVG}`` but silently omitted ``SWEEP`` (the 4th member of
+    ``_FAMILIES``), so a sweep event scored one point below an otherwise-identical
+    structural event — flipping the ``build_signal_quality`` session-alignment
+    bucket (>=4 killzone / >=3) at the boundary. Every other family iteration in the
+    module treats the four families symmetrically.
+    """
+
+    def test_sweep_scores_same_as_structural_families(self) -> None:
+        # Identical inputs; the ONLY variable is the event family. Any session /
+        # killzone classification from the fixed anchor applies equally to all four,
+        # so the score must be equal across families.
+        common = dict(
+            anchor_ts=1704207600.0,  # fixed 2024 instant; classification is family-agnostic
+            expected_direction="BULLISH",
+            bias_direction="BULLISH",
+            vol_regime_label="NORMAL",
+        )
+        scores = {
+            fam: measurement_evidence._session_context_light_for_event(family=fam, **common)[
+                "SESSION_CONTEXT_SCORE"
+            ]
+            for fam in ("BOS", "OB", "FVG", "SWEEP")
+        }
+        assert scores["SWEEP"] == scores["BOS"] == scores["OB"] == scores["FVG"], (
+            f"SWEEP must receive the same structure bonus as BOS/OB/FVG, got {scores}"
+        )
