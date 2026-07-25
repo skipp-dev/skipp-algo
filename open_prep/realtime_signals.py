@@ -60,7 +60,7 @@ from pathlib import Path
 from newsstack_fmp._market_cal import is_us_equity_trading_day, regular_session_close_minutes
 
 from .macro import FMPClient
-from .quote_source import FMPQuoteSource, QuoteSource
+from .quote_source import DatabentoQuoteSource, FMPQuoteSource, QuoteSource
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
 
@@ -2168,13 +2168,18 @@ class RealtimeEngine:
         self.ultra_mode = ultra_mode
         self._client = fmp_client
         self._client_disabled_reason: str | None = None
-        # Quote-source seam (Databento signal-migration Task 1.1). Default is
-        # FMP; RT_QUOTE_SOURCE=databento is reserved for a later task — no
-        # Databento branch exists yet, so that value intentionally leaves
-        # _quote_source unset.
+        # Quote-source seam (Databento signal-migration Task 1.1 introduced
+        # the seam; Task 2.1 wires RT_QUOTE_SOURCE=databento through
+        # _default_quote_source() -- the single factory also used by the
+        # _fetch_realtime_quotes self-heal below, so the two always agree and
+        # the env flag is actually honored. _databento_feed is the engine's
+        # own handle on the constructed DatabentoQuoteFeed (kept separate
+        # from DatabentoQuoteSource's internals, untouched by this task) so
+        # start_quote_source()/stop_quote_source() know what to start/stop.
+        # Both are built AFTER _load_watchlist() further down, once the
+        # watchlist has a symbol list for a Databento feed to subscribe to.
+        self._databento_feed: Any = None
         self._quote_source: QuoteSource | None = None
-        if os.environ.get("RT_QUOTE_SOURCE") != "databento":
-            self._quote_source = FMPQuoteSource(lambda: self.client)
         self._active_signals: list[RealtimeSignal] = []
         self._lock = threading.Lock()  # guards _active_signals
         self._watchlist: list[dict[str, Any]] = []  # all scored symbols from pipeline
@@ -2268,6 +2273,16 @@ class RealtimeEngine:
         self.last_poll_duration_seconds: float = 0.0
 
         self._load_watchlist()
+        try:
+            self._quote_source = self._default_quote_source()
+        except Exception as exc:
+            logger.warning(
+                "Failed to build quote source (RT_QUOTE_SOURCE=%s): %s -- "
+                "will retry via the _fetch_realtime_quotes self-heal once "
+                "the watchlist is non-empty.",
+                os.environ.get("RT_QUOTE_SOURCE", "fmp"), exc, exc_info=True,
+            )
+            self._quote_source = None
         self._restore_signals_from_disk()
 
     # ------------------------------------------------------------------
@@ -2604,14 +2619,17 @@ class RealtimeEngine:
         if not symbols:
             return {}
 
-        # Quote-source seam (Databento signal-migration Task 1.1): the
-        # chunked fetch-and-collect logic now lives in FMPQuoteSource,
-        # moved verbatim.  Self-heal if an instance was built via
-        # RealtimeEngine.__new__() (bypassing __init__, e.g. in some tests)
-        # so its behavior stays identical to the pre-refactor inline code.
+        # Quote-source seam (Databento signal-migration Task 1.1 introduced
+        # this self-heal for engines built via RealtimeEngine.__new__(),
+        # bypassing __init__, e.g. in some tests. Task 2.1: reuse
+        # _default_quote_source() -- the SAME factory __init__ uses -- so a
+        # None _quote_source under RT_QUOTE_SOURCE=databento rebuilds a
+        # DatabentoQuoteSource here too, instead of always silently falling
+        # back to FMP regardless of the flag (the Task 1.1 carry-forward
+        # this task fixes).
         quote_source = getattr(self, "_quote_source", None)
         if quote_source is None:
-            quote_source = FMPQuoteSource(lambda: self.client)
+            quote_source = self._default_quote_source()
             self._quote_source = quote_source
 
         quotes: dict[str, dict[str, Any]] = {}
@@ -2620,6 +2638,76 @@ class RealtimeEngine:
             if sym:
                 quotes[sym] = q
         return quotes
+
+    # ------------------------------------------------------------------
+    # Quote-source factory + Databento feed lifecycle (Task 2.1)
+    # ------------------------------------------------------------------
+    def _default_quote_source(self) -> QuoteSource:
+        """Build the engine's quote source per ``RT_QUOTE_SOURCE``.
+
+        Single factory shared by ``__init__`` and the
+        ``_fetch_realtime_quotes`` self-heal above so the two always agree
+        -- this is what makes ``RT_QUOTE_SOURCE=databento`` actually take
+        effect (Task 1.1 left the self-heal always rebuilding FMP,
+        regardless of the flag; this factory is the fix).
+        """
+        if os.environ.get("RT_QUOTE_SOURCE") == "databento":
+            return self._build_databento_quote_source()
+        return FMPQuoteSource(lambda: self.client)
+
+    def _build_databento_quote_source(self) -> DatabentoQuoteSource:
+        """Construct a Databento-backed ``QuoteSource`` over the current
+        watchlist's symbols: a ``DatabentoQuoteFeed`` (Task 1.2, NOT started
+        here -- see ``start_quote_source()``) plus the daily
+        ``QuoteReference`` (Task 0.2) for ``previousClose``/``avgVolume``.
+
+        Local imports (``databento``, ``DatabentoQuoteFeed``,
+        ``QuoteReference``) keep the FMP default path free of any Databento
+        import cost -- they only execute when this branch is actually taken.
+        """
+        import databento as db
+
+        from .databento_quote_feed import DatabentoQuoteFeed
+        from .quote_reference import QuoteReference
+
+        symbols = [
+            str(r.get("symbol", "")).strip().upper()
+            for r in self._watchlist if r.get("symbol")
+        ]
+        api_key = os.environ.get("DATABENTO_API_KEY", "")
+
+        # Today's regular-session open (09:30 ET) as a UTC datetime, bounded
+        # to now -- mirrors services/a0_fast_detector/worker.py's
+        # _live_replay_start(): a fresh boot backfills the session-so-far
+        # instead of starting silent, without ever requesting a future start.
+        from zoneinfo import ZoneInfo
+
+        now = datetime.now(UTC)
+        now_et = now.astimezone(ZoneInfo("America/New_York"))
+        session_open_et = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+        replay_start = min(now, session_open_et.astimezone(UTC))
+
+        feed = DatabentoQuoteFeed(
+            symbols,
+            lambda: db.Live(key=api_key),
+            replay_start=replay_start,
+        )
+        reference = QuoteReference.load()
+        self._databento_feed = feed
+        return DatabentoQuoteSource(feed, reference)
+
+    def start_quote_source(self) -> None:
+        """Start the Databento feed's background threads (call once, at
+        run-loop start -- see ``main()``). No-op for the FMP default: no
+        feed is constructed, so there is nothing to start."""
+        if self._databento_feed is not None:
+            self._databento_feed.start()
+
+    def stop_quote_source(self) -> None:
+        """Stop the Databento feed's background threads (call on shutdown
+        -- see ``main()``). No-op for the FMP default."""
+        if self._databento_feed is not None:
+            self._databento_feed.stop()
 
     def _capture_regular_close_baseline(self, quotes: dict[str, dict[str, Any]]) -> None:
         """Retain the latest regular-session cumulative volume for postmarket."""
@@ -3903,6 +3991,11 @@ def main() -> None:
         ultra_mode=args.ultra,
     )
 
+    # Start the Databento feed's background threads now that the run loop is
+    # actually beginning (Task 2.1). No-op for the FMP default -- no feed was
+    # constructed, so there is nothing to start.
+    engine.start_quote_source()
+
     # Start telemetry HTTP server (daemon thread — auto-stops on exit).
     # Pass the engine so /signals can fall back to live state during the
     # cold-start window before the first poll cycle writes SIGNALS_PATH.
@@ -4048,6 +4141,9 @@ def main() -> None:
             # Stop the near-A0 fast-lane re-poller gracefully
             if engine._near_a0_repoller is not None:
                 engine._near_a0_repoller.stop()
+            # Stop the Databento feed's background threads gracefully
+            # (no-op for the FMP default)
+            engine.stop_quote_source()
             # Shutdown telemetry HTTP server
             if telemetry_server is not None:
                 telemetry_server.shutdown()
