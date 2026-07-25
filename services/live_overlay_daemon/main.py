@@ -315,7 +315,7 @@ def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
     if not valid_ts_events:
         return None
     newest_close = max(valid_ts_events) / 1_000_000_000 + _BAR_LEN_SECS
-    return max(0.0, time.time() - newest_close)
+    return max(0.0, now - newest_close) if (now := time.time()) >= newest_close - _BAR_LEN_SECS else None
 
 
 def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
