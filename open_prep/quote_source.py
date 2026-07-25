@@ -28,8 +28,12 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    from .databento_quote_feed import DatabentoQuoteFeed
+    from .quote_reference import QuoteReference
 
 logger = logging.getLogger(__name__)
 
@@ -151,3 +155,93 @@ class FMPQuoteSource:
             self.last_adapted_stats = adapted.stats
 
         return regular
+
+
+class DatabentoQuoteSource:
+    """Databento-backed ``QuoteSource`` (Task 1.3 of the signal-migration
+    plan).
+
+    Combines a ``DatabentoQuoteFeed``'s thread-safe live-bar cache (Task 1.2)
+    with a ``QuoteReference``'s daily previous-close/ADV lookup (Task 0.2)
+    into rows conforming to the Task 0.1 contract
+    (``docs/databento_quote_row_contract.md``): ``price``/``lastPrice`` =
+    latest bar close, ``volume`` = cumulative regular-session volume,
+    ``previousClose``/``avgVolume`` = the reference row, ``timestamp``/
+    ``received_at`` = the bar's ``ts_event``/``ts_recv``, ``dayHigh``/
+    ``dayLow`` = the cache's session high/low.
+
+    Unlike ``FMPQuoteSource`` (whose FMP batch-quote endpoint never returns
+    ``avgVolume`` — see the Task 0.1 contract doc), this source CAN and DOES
+    populate ``avgVolume`` directly from the reference, so it is always
+    present in the emitted row rather than depending on a watchlist
+    fallback.
+
+    Fail-closed: a symbol with no cached bar yet, or with no reference
+    entry, is OMITTED from the result entirely — never emitted with a
+    fabricated or stale price, mirroring how the FMP path drops symbols FMP
+    didn't return a quote for.
+
+    This class is deliberately standalone: it is NOT wired into
+    ``RealtimeEngine`` and does not touch the ``RT_QUOTE_SOURCE`` self-heal
+    (Task 2.1's job).
+    """
+
+    def __init__(
+        self,
+        feed: DatabentoQuoteFeed,
+        reference: QuoteReference,
+        *,
+        source_label: str = "databento",
+    ) -> None:
+        self._feed = feed
+        self._reference = reference
+        self._source_label = source_label
+
+    def fetch(self, symbols: list[str], session: str) -> list[dict[str, Any]]:
+        """Build contract-conformant quote rows for ``symbols``.
+
+        ``session`` is accepted for ``QuoteSource`` protocol parity with
+        ``FMPQuoteSource``; the feed itself only ever caches regular-session
+        bars (Task 1.2's RTH gate), so rows are built identically regardless
+        of the value passed here.
+        """
+        rows: list[dict[str, Any]] = []
+        for symbol_raw in symbols:
+            symbol = str(symbol_raw).strip().upper()
+            if not symbol:
+                continue
+
+            bar = self._feed.latest_bar(symbol)
+            if bar is None:
+                continue  # fail-closed: no bar yet -- omit, never fabricate
+
+            reference_row = self._reference.get(symbol)
+            if reference_row is None:
+                continue  # fail-closed: no daily reference -- omit
+
+            day_high, day_low = self._feed.session_high_low(symbol)
+            if day_high is None or day_low is None:
+                continue  # fail-closed: incomplete cache entry -- omit
+
+            price = bar.close
+            prev_close = reference_row.previous_close
+            change_pct = ((price - prev_close) / prev_close) * 100 if prev_close else 0.0
+
+            rows.append({
+                "symbol": symbol,
+                "price": price,
+                "lastPrice": price,
+                "previousClose": prev_close,
+                "volume": self._feed.cumulative_volume(symbol),
+                # Present unlike FMP's batch-quote row (see class docstring)
+                # -- sourced straight from the daily reference, not a
+                # watchlist fallback.
+                "avgVolume": reference_row.average_daily_volume,
+                "timestamp": bar.ts_event,
+                "received_at": bar.ts_recv,
+                "dayHigh": day_high,
+                "dayLow": day_low,
+                "changesPercentage": change_pct,
+                "source": self._source_label,
+            })
+        return rows

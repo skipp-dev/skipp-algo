@@ -9,8 +9,11 @@ premarket/postmarket extended-shadow path (``_poll_extended_shadow``).
 from __future__ import annotations
 
 import open_prep.realtime_signals as rs
+from open_prep.a0_contract import A0ThresholdContext, build_market_snapshot, decide_core_level
+from open_prep.databento_quote_feed import BarState
 from open_prep.postmarket_quotes import build_postmarket_quotes
-from open_prep.quote_source import _BATCH_QUOTE_CHUNK_SIZE, FMPQuoteSource
+from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
+from open_prep.quote_source import _BATCH_QUOTE_CHUNK_SIZE, DatabentoQuoteSource, FMPQuoteSource
 
 
 class _RegularOnlyClient:
@@ -232,3 +235,155 @@ def test_fmp_quote_source_client_resolved_lazily_via_callable() -> None:
 
     assert calls["n"] == 1  # first (only) chunk's exception was caught, not raised
     assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# Task 1.3: FMP-vs-Databento signal-core parity.
+# ---------------------------------------------------------------------------
+
+
+class _FakeDatabentoQuoteFeedForParity:
+    """Minimal duck-typed ``DatabentoQuoteFeed`` stand-in: only the three
+    read methods ``DatabentoQuoteSource`` consumes, backed by plain dicts —
+    no real feed, no network, no threads."""
+
+    def __init__(self) -> None:
+        self._bars: dict[str, BarState] = {}
+        self._cumulative_volume: dict[str, int] = {}
+        self._session_high_low: dict[str, tuple[float | None, float | None]] = {}
+
+    def set_symbol(
+        self,
+        symbol: str,
+        *,
+        bar: BarState,
+        cumulative_volume: int,
+        session_high: float,
+        session_low: float,
+    ) -> None:
+        self._bars[symbol] = bar
+        self._cumulative_volume[symbol] = cumulative_volume
+        self._session_high_low[symbol] = (session_high, session_low)
+
+    def latest_bar(self, symbol: str) -> BarState | None:
+        return self._bars.get(symbol.strip().upper())
+
+    def cumulative_volume(self, symbol: str) -> int:
+        return self._cumulative_volume.get(symbol.strip().upper(), 0)
+
+    def session_high_low(self, symbol: str) -> tuple[float | None, float | None]:
+        return self._session_high_low.get(symbol.strip().upper(), (None, None))
+
+
+def _core_level_for_row(row: dict, *, expected_volume_fraction: float, observed_at: float) -> str | None:
+    """Reproduces exactly the field-extraction pipeline
+    ``RealtimeEngine._detect_signal`` runs on a quote row before calling the
+    shared, provider-neutral signal core (``build_market_snapshot`` +
+    ``decide_core_level``) — the same two calls, same thresholds module
+    constants, same ``_volume_semantics`` helper. ``expected_volume_fraction``
+    is passed explicitly (mirroring ``_detect_signal``'s own override
+    parameter) so the result never depends on wall-clock time."""
+    price = rs._safe_float(row.get("price") or row.get("lastPrice"), 0.0)
+    prev_close = rs._safe_float(row.get("previousClose"), 0.0)
+    volume = rs._safe_float(row.get("volume"), 0.0)
+    avg_volume = rs._safe_float(row.get("avgVolume"), 0.0)
+    change_pct = ((price / prev_close) - 1) * 100
+    raw_volume_ratio, vol_frac, volume_pace = rs._volume_semantics(
+        volume, avg_volume, expected_volume_fraction,
+    )
+    snapshot = build_market_snapshot(
+        symbol=str(row["symbol"]),
+        price=price,
+        prev_close=prev_close,
+        change_pct=change_pct,
+        raw_daily_volume_ratio=raw_volume_ratio,
+        expected_volume_fraction=vol_frac,
+        normalized_volume_pace=volume_pace,
+        source=str(row.get("source") or "fmp"),
+        raw_ts_event=row.get("timestamp"),
+        raw_ts_recv=row.get("received_at"),
+        observed_at=observed_at,
+    )
+    decision = decide_core_level(
+        snapshot,
+        A0ThresholdContext(
+            a0_volume=rs.A0_VOLUME_RATIO_MIN,
+            a1_volume=rs.A1_VOLUME_RATIO_MIN,
+            a2_volume=rs.A2_VOLUME_RATIO_MIN,
+            a0_price=rs.A0_PRICE_CHANGE_PCT_MIN,
+            a1_price=rs.A1_PRICE_CHANGE_PCT_MIN,
+            a2_price=rs.A2_PRICE_CHANGE_PCT_MIN,
+        ),
+    )
+    return decision.core_level
+
+
+def test_databento_vs_fmp_same_core_decision() -> None:
+    """The key parity test (Task 1.3, Step 5): feed the SAME underlying
+    numbers (prev_close, price, volume, avgVolume) through an FMP-shaped row
+    and the row ``DatabentoQuoteSource`` derives from an equivalent
+    feed+reference, run both through ``decide_core_level`` (the shared,
+    provider-neutral signal core), and assert the identical core decision.
+    Proves the Databento row is a drop-in for the signal math — not just
+    shape-compatible."""
+    symbol = "AAPL"
+    price = 103.0
+    prev_close = 100.0
+    volume = 900_000
+    avg_volume = 2_000_000.0
+    expected_volume_fraction = 0.5
+    ts_event = 1_784_642_400.0
+    ts_recv = 1_784_642_400.25
+    observed_at = 1_784_642_500.0
+
+    fmp_row = {
+        "symbol": symbol,
+        "price": price,
+        "previousClose": prev_close,
+        "volume": volume,
+        "avgVolume": avg_volume,
+        "timestamp": ts_event,
+        "received_at": ts_recv,
+        "source": "fmp",
+    }
+
+    feed = _FakeDatabentoQuoteFeedForParity()
+    feed.set_symbol(
+        symbol,
+        bar=BarState(
+            symbol=symbol,
+            open=price - 1.0,
+            high=price + 0.5,
+            low=price - 1.5,
+            close=price,
+            volume=volume,
+            ts_event=ts_event,
+            ts_recv=ts_recv,
+        ),
+        cumulative_volume=volume,
+        session_high=price + 0.5,
+        session_low=price - 1.5,
+    )
+    reference = QuoteReference({
+        symbol: QuoteReferenceRow(
+            previous_close=prev_close,
+            average_daily_volume=avg_volume,
+            as_of_session="2026-07-24",
+            source="fmp:adjusted-eod",
+        )
+    })
+    databento_rows = DatabentoQuoteSource(feed, reference).fetch([symbol], "regular")
+    assert len(databento_rows) == 1
+    databento_row = databento_rows[0]
+
+    fmp_decision = _core_level_for_row(
+        fmp_row, expected_volume_fraction=expected_volume_fraction, observed_at=observed_at,
+    )
+    databento_decision = _core_level_for_row(
+        databento_row, expected_volume_fraction=expected_volume_fraction, observed_at=observed_at,
+    )
+
+    # Sanity: the chosen inputs actually trip a level (3% move, large-move
+    # branch) rather than both trivially landing on None.
+    assert fmp_decision == "A1"
+    assert fmp_decision == databento_decision
