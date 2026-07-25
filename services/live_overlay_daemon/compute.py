@@ -1456,15 +1456,20 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
         return dict(_NO_SIGNAL_FIELDS)
 
     def _pos_float(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
         try:
             number = float(value)
         except (TypeError, ValueError):
             return None
         return number if (number > 0.0 and math.isfinite(number)) else None  # inf > 0.0 is True
 
+    direction = best.get("direction")
     return {
         "signal_level": str(best.get("level")),
-        "signal_direction": str(best.get("direction") or "") or None,
+        "signal_direction": (
+            direction if isinstance(direction, str) and direction.strip() else None
+        ),
         "trade_entry": _pos_float(best.get("trade_entry")),
         "trade_stop": _pos_float(best.get("trade_stop")),
         "trade_target": _pos_float(best.get("trade_target")),

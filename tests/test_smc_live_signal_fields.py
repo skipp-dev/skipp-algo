@@ -130,6 +130,34 @@ def test_non_finite_trade_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> 
     assert fields["trade_stop"] == 192.01
 
 
+def test_boolean_direction_and_trade_fields_are_not_coerced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_snapshot(
+        monkeypatch,
+        [
+            _row(
+                "NVDA",
+                "A0",
+                direction=True,
+                trade_entry=True,
+                trade_stop=True,
+                trade_target=True,
+                trade_r=True,
+            )
+        ],
+    )
+
+    fields = compute._get_signal_fields("NVDA")
+
+    assert fields["signal_level"] == "A0"
+    assert fields["signal_direction"] is None
+    assert fields["trade_entry"] is None
+    assert fields["trade_stop"] is None
+    assert fields["trade_target"] is None
+    assert fields["trade_r"] is None
+
+
 def test_strongest_then_freshest_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     now = time.time()
     _patch_snapshot(monkeypatch, [
