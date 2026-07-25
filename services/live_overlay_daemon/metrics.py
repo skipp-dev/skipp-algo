@@ -245,9 +245,16 @@ def _trading_signals_snapshot() -> dict[str, object]:
             except (TypeError, ValueError):
                 epoch_float = 0.0
         if math.isfinite(epoch_float) and epoch_float > 0:
-            age_known = 1.0
-            age_seconds = max(0.0, time.time() - epoch_float)
-            stale = 1.0 if age_seconds > max_age_seconds else 0.0
+            raw_age_seconds = time.time() - epoch_float
+            if raw_age_seconds >= 0.0:
+                age_known = 1.0
+                age_seconds = raw_age_seconds
+                stale = 1.0 if age_seconds > max_age_seconds else 0.0
+            else:
+                # A producer clock ahead of this process cannot prove that a
+                # snapshot is current. Keep the age unknown and stale so the
+                # alerting contract matches compute._signals_snapshot_is_fresh.
+                stale = 1.0
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
