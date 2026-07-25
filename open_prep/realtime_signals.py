@@ -2971,9 +2971,9 @@ class RealtimeEngine:
             )
 
         # Boost: strong tech alignment can raise A1→A0 for high-conviction
-        if (level == "A1" and tech_score >= 0.75
-                and ((direction == "LONG" and tech_signal in ("STRONG_BUY", "BUY"))
-                     or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
+        if (level == "A1"
+                and ((direction == "LONG" and tech_score >= 0.75 and tech_signal in ("STRONG_BUY", "BUY"))
+                     or (direction == "SHORT" and tech_score <= 0.25 and tech_signal in ("STRONG_SELL", "SELL")))
                 and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
             level = "A0"
             reason_codes.append(A0ReasonCode.TECHNICAL_ALIGNMENT_UPGRADE)
