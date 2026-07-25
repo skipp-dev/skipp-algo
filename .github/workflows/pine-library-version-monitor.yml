@@ -45,7 +45,9 @@ on:
     paths:
       - "artifacts/tradingview/library_release_manifest.json"
       - "*.pine"
-      - "SMC++/*.pine"
+      # `+` is a filter-pattern special char (one-or-more); the SMC++ dir name
+      # needs both escaped so actionlint accepts the glob (fast-gates, 2026-07-25).
+      - 'SMC\+\+/*.pine'
 
 permissions:
   # The publish step writes the rolling bot/live-pine-library-versions branch.
