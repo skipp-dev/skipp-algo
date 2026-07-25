@@ -5,6 +5,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
 from open_prep.pre_a0_model import fit_platt_calibration, make_artifact, train_logistic_regression
 from open_prep.pre_a0_schema import PreA0SnapshotRow, write_snapshot_partition
 from scripts import evaluate_pre_a0_shadow, prepare_pre_a0_training_data
@@ -204,3 +206,36 @@ def test_prepare_training_data_is_walk_forward_and_reproducible(tmp_path: Path) 
     assert test["split_sha256"] == provenance["split_manifest"]["split_sha256"]
     assert provenance["audit"]["passed"] is True
     assert provenance["reproducible"] is True
+
+
+def test_load_snapshots_collapses_byte_identical_duplicate_records(tmp_path: Path) -> None:
+    # A mid-session restart / duplicate producer re-emits byte-identical rows
+    # (record_id is content-addressed) into a fresh part file. The loader must
+    # collapse them idempotently instead of failing closed (observed 2026-07-23).
+    snapshots = tmp_path / "snapshots"
+    shared = _row(1, 0, probability=0.9, artifact_id="art-1")
+    other = _row(1, 10, probability=0.1, artifact_id="art-1", symbol="ABC")
+    write_snapshot_partition([shared, other], snapshots, build_id="b1", code_revision="rev")
+    write_snapshot_partition([shared], snapshots, build_id="b2", code_revision="rev")
+
+    frame, paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
+
+    assert len(paths) == 2  # both part files were read and manifest-validated
+    assert not frame["record_id"].duplicated().any()
+    assert set(frame["record_id"]) == {shared.record_id, other.record_id}
+    assert len(frame) == 2
+
+
+def test_load_snapshots_rejects_conflicting_duplicate_records(tmp_path: Path) -> None:
+    # Same record_id (identical identity fields) but DIFFERENT content is real
+    # corruption, not an idempotent re-emit, and must still fail closed.
+    snapshots = tmp_path / "snapshots"
+    original = _row(1, 0, probability=0.9, artifact_id="art-1")
+    conflicting = _row(1, 0, probability=0.1, artifact_id="art-1")
+    assert original.record_id == conflicting.record_id
+    assert asdict(original) != asdict(conflicting)
+    write_snapshot_partition([original], snapshots, build_id="b1", code_revision="rev")
+    write_snapshot_partition([conflicting], snapshots, build_id="b2", code_revision="rev")
+
+    with pytest.raises(ValueError, match="conflicting duplicate record_id"):
+        evaluate_pre_a0_shadow._load_snapshots(snapshots)
