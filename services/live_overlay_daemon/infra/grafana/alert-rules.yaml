@@ -3605,8 +3605,13 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one repo Pine import pin no longer matches the real published TradingView library
         version -- a consumer will hit CE10272 on modern symbols.
-      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift) and repin the
-        offending consumers to the published version (see #3599/#3603).
+      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift). FIRST rule out
+        a stale snapshot from an intraday refresh - compare each offending consumer's pin on main against the
+        published version in artifacts/tradingview/library_release_manifest.json. If main ALREADY pins the
+        published version, a same-day publish reconciled the drift and this is just the once-daily snapshot
+        lagging - trigger pine-library-version-monitor.yml (workflow_dispatch) to refresh it, do NOT repin
+        (repinning to the snapshot's older number would CREATE real drift). Only when main genuinely lags the
+        published version, repin the offending consumers to it (see #3599/#3603).
   - uid: lo-pine-library-facade-probe-failing
     title: Pine-library TradingView facade probe failing
     condition: C
