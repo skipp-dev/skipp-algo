@@ -15,8 +15,10 @@ Ported patterns (see task-1.2-report.md for the full mapping):
 - Explicit-symbol ``ohlcv-1s`` subscription with ``stype_in="raw_symbol"``
   and intraday replay via ``start=`` — ported from
   ``services/a0_fast_detector/live_runtime.py``.
-- Cumulative regular-session volume semantics (reset at the ET session-date
-  boundary) — ported from ``open_prep/a0_stream_state.py``.
+- Cumulative regular-session volume semantics, including the RTH gate
+  (pre-market/post-market/non-trading-day bars cause no cache mutation at
+  all, mirroring ``OUTSIDE_SESSION``) and the reset at the ET session-date
+  boundary — ported from ``open_prep/a0_stream_state.py``.
 - ``data_age_ms`` formula (``max(0, ts_recv - ts_event) * 1000``) — ported
   from ``open_prep/a0_contract.py::build_market_snapshot``.
 
@@ -46,10 +48,16 @@ from zoneinfo import ZoneInfo
 
 import databento as db
 
+from newsstack_fmp._market_cal import (
+    is_us_equity_trading_day,
+    regular_session_close_minutes,
+)
+
 logger = logging.getLogger(__name__)
 
 _ET = ZoneInfo("America/New_York")
 _PRICE_SCALE = 1e-9
+_OPEN_MINUTES = 9 * 60 + 30  # 09:30 ET, mirrors open_prep/a0_stream_state.py
 
 # databento_dbn.SystemCode values (see SystemMsg.code).
 _SYSTEM_CODE_END_OF_INTERVAL = 4
@@ -220,6 +228,20 @@ def _epoch_seconds(value: Any) -> float:
 
 def _session_date_et(ts_event: float) -> str:
     return datetime.fromtimestamp(ts_event, _ET).date().isoformat()
+
+
+def _is_regular_session(ts_event: float) -> bool:
+    """Regular-trading-hours gate — mirrors
+    ``open_prep/a0_stream_state.py::A0StreamState.apply``'s ``OUTSIDE_SESSION``
+    check (non-trading day, or before 09:30 / at-or-after the regular close,
+    including early-close days). Pre-market and post-market bars are outside
+    this window and must not reach the cache: the whole open_prep/a0 pipeline
+    is RTH-centric, and the producer hot path this feed backs only runs while
+    ``market_session == "regular"``."""
+    event_et = datetime.fromtimestamp(ts_event, _ET)
+    minute = event_et.hour * 60 + event_et.minute
+    close_minute = regular_session_close_minutes(event_et.date())
+    return is_us_equity_trading_day(event_et.date()) and _OPEN_MINUTES <= minute < close_minute
 
 
 def _symbol_from_record(record: Any, symbol_map: dict[int, str]) -> str | None:
@@ -631,16 +653,24 @@ class DatabentoQuoteFeed:
         self._pending = {}
         with self._cache_lock:
             for symbol, bar in batch.items():
-                self._apply_bar_to_cache(symbol, bar)
+                applied = self._apply_bar_to_cache(symbol, bar)
+                if not applied:
+                    continue
                 self._last_committed_ts_event = (
                     bar.ts_event
                     if self._last_committed_ts_event is None
                     else max(self._last_committed_ts_event, bar.ts_event)
                 )
 
-    def _apply_bar_to_cache(self, symbol: str, bar: BarState) -> None:
+    def _apply_bar_to_cache(self, symbol: str, bar: BarState) -> bool:
         """Must be called with ``_cache_lock`` held. Cumulative-volume-since-
-        session-open semantics ported from ``open_prep/a0_stream_state.py``."""
+        session-open semantics ported from ``open_prep/a0_stream_state.py``,
+        including its RTH gate: a pre-market/post-market/non-trading-day bar
+        causes no mutation at all (not to cumulative_volume, session hi/lo,
+        *or* latest_bar) — same as ``A0StreamState.apply``'s early-return on
+        ``OUTSIDE_SESSION``. Returns True if the bar was applied."""
+        if not _is_regular_session(bar.ts_event):
+            return False
         session_date = _session_date_et(bar.ts_event)
         entry = self._cache.get(symbol)
         if entry is None or entry.session_date != session_date:
@@ -657,3 +687,4 @@ class DatabentoQuoteFeed:
             entry.session_high = max(entry.session_high, bar.high)
             entry.session_low = min(entry.session_low, bar.low)
         self._cache[symbol] = entry
+        return True

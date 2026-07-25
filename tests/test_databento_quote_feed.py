@@ -13,6 +13,7 @@ import threading
 import time
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import databento as db
 import pytest
@@ -20,14 +21,24 @@ from databento_dbn import OHLCVMsg, RType, SystemCode
 
 from open_prep.databento_quote_feed import DatabentoQuoteFeed
 
+_ET = ZoneInfo("America/New_York")
 _REPLAY_START = datetime(2026, 7, 21, 13, 30, tzinfo=UTC)
 
-# Nanosecond epoch for 2026-07-21 13:30:05 UTC (well inside the RTH session
-# used by the fakes below) plus small per-second increments.
-_BASE_TS_EVENT_NS = 1_784_115_005_000_000_000
+# Nanosecond epoch for 2026-07-21 10:00:00 ET (well inside the regular
+# trading session, away from the 09:30 open boundary) plus small per-second
+# increments. NOTE: an earlier value here (2026-07-15 07:30:05 ET) was
+# actually pre-market and only ever ended up in the cache because the RTH
+# gate didn't exist yet — fixed alongside adding that gate.
+_BASE_TS_EVENT_NS = 1_784_642_400_000_000_000
 
 _END_OF_INTERVAL = 4
 _REPLAY_COMPLETED = 3
+
+
+def _ns_et(hour: int, minute: int, second: int = 0) -> int:
+    """Epoch nanoseconds for 2026-07-21 (a normal NYSE trading Tuesday) at
+    the given ET local time."""
+    return int(datetime(2026, 7, 21, hour, minute, second, tzinfo=_ET).timestamp() * 1e9)
 
 
 # Fake record classes named exactly like the real databento_dbn wire types
@@ -274,6 +285,101 @@ class TestSessionBoundary:
         assert low == pytest.approx(198.0)
 
 
+class TestRegularTradingHoursGate:
+    """The whole open_prep/a0 pipeline is RTH-centric (the producer hot path
+    this feed backs only runs while market_session == "regular"). Pre-market
+    and post-market bars must not reach the cache — mirrors
+    a0_stream_state.py's OUTSIDE_SESSION early return (no mutation at all)."""
+
+    def test_premarket_and_postmarket_bars_are_excluded_entirely(self) -> None:
+        records = [
+            _symbol_mapping(1, "NVDA"),
+            OhlcvMsg(
+                instrument_id=1,
+                open_=int(100 * 1e9),
+                high=int(100 * 1e9),
+                low=int(100 * 1e9),
+                close=int(100 * 1e9),
+                volume=999,
+                ts_event=_ns_et(8, 0),  # 08:00 ET — pre-market
+                ts_recv=_ns_et(8, 0),
+            ),
+            _system_msg(_END_OF_INTERVAL),
+            OhlcvMsg(
+                instrument_id=1,
+                open_=int(100 * 1e9),
+                high=int(100 * 1e9),
+                low=int(100 * 1e9),
+                close=int(100 * 1e9),
+                volume=888,
+                ts_event=_ns_et(17, 0),  # 17:00 ET — post-market (close is 16:00)
+                ts_recv=_ns_et(17, 0),
+            ),
+            _system_msg(_END_OF_INTERVAL),
+        ]
+        feed, _client = _make_feed(records)
+        _start_and_join(feed)
+
+        # No regular-session bar ever arrived -> no cache entry at all.
+        assert feed.latest_bar("NVDA") is None
+        assert feed.cumulative_volume("NVDA") == 0
+        assert feed.session_high_low("NVDA") == (None, None)
+
+    def test_extreme_premarket_and_postmarket_bars_do_not_contaminate_session_high_low(
+        self,
+    ) -> None:
+        """A thin illiquid after-hours spike must not set a false
+        session_high/low, and pre/post-market volume must not inflate
+        cumulative_volume — the regression this whole gate exists for."""
+        records = [
+            _symbol_mapping(1, "NVDA"),
+            OhlcvMsg(
+                instrument_id=1,
+                open_=int(150 * 1e9),
+                high=int(150 * 1e9),  # would blow session_high way up if leaked
+                low=int(50 * 1e9),  # would blow session_low way down if leaked
+                close=int(120 * 1e9),
+                volume=1_000_000,
+                ts_event=_ns_et(8, 0),  # pre-market
+                ts_recv=_ns_et(8, 0),
+            ),
+            _system_msg(_END_OF_INTERVAL),
+            OhlcvMsg(
+                instrument_id=1,
+                open_=int(100 * 1e9),
+                high=int(101 * 1e9),
+                low=int(99 * 1e9),
+                close=int(100.5 * 1e9),
+                volume=100,
+                ts_event=_ns_et(10, 0),  # regular session
+                ts_recv=_ns_et(10, 0),
+            ),
+            _system_msg(_END_OF_INTERVAL),
+            OhlcvMsg(
+                instrument_id=1,
+                open_=int(200 * 1e9),
+                high=int(200 * 1e9),  # would blow session_high way up if leaked
+                low=int(10 * 1e9),  # would blow session_low way down if leaked
+                close=int(150 * 1e9),
+                volume=2_000_000,
+                ts_event=_ns_et(17, 0),  # post-market
+                ts_recv=_ns_et(17, 0),
+            ),
+            _system_msg(_END_OF_INTERVAL),
+        ]
+        feed, _client = _make_feed(records)
+        _start_and_join(feed)
+
+        # Only the single regular-session bar's volume/price/high/low counts.
+        assert feed.cumulative_volume("NVDA") == 100
+        high, low = feed.session_high_low("NVDA")
+        assert high == pytest.approx(101.0)
+        assert low == pytest.approx(99.0)
+        bar = feed.latest_bar("NVDA")
+        assert bar is not None
+        assert bar.close == pytest.approx(100.5)
+
+
 class TestStreamEndFlushesPending:
     def test_stream_end_without_trailing_barrier_still_flushes(self) -> None:
         """A recorded stream that ends mid-interval (no closing
@@ -428,6 +534,13 @@ class TestReconnectAndReplay:
 
 class TestThreadSafety:
     def test_concurrent_reads_during_ingestion_do_not_raise(self) -> None:
+        """No exceptions across 4 concurrent reader threads, plus a mid-flight
+        consistency check: session_high/session_low are two separate
+        assignments inside ``_apply_bar_to_cache`` (both under _cache_lock),
+        so a reader could in principle observe a torn update between them
+        without the lock (high already bumped, low not yet). Asserting
+        high >= low on every concurrently-read snapshot is a real invariant
+        the lock is responsible for — not just "no crash"."""
         records: list[Any] = [_symbol_mapping(1, "NVDA")]
         for i in range(50):
             records.append(_ohlcv(seconds_offset=i, close=100.0 + i, volume=10))
@@ -441,7 +554,9 @@ class TestThreadSafety:
                 for _ in range(200):
                     feed.latest_bar("NVDA")
                     feed.cumulative_volume("NVDA")
-                    feed.session_high_low("NVDA")
+                    high, low = feed.session_high_low("NVDA")
+                    if high is not None and low is not None:
+                        assert high >= low, f"torn session hi/lo read: high={high} low={low}"
             except BaseException as exc:
                 errors.append(exc)
 
