@@ -694,7 +694,7 @@ def test_write_library_derives_v55_lean_blocks_from_broad_enrichment(tmp_path: P
     assert 'PRIMARY_OB_DISTANCE = 7.8431' in text
     assert 'PRIMARY_FVG_SIDE = "BULL"' in text
     assert 'STRUCTURE_LAST_EVENT = "BOS_BULL"' in text
-    assert 'SIGNAL_QUALITY_TIER = "good"' in text
+    assert 'SIGNAL_QUALITY_TIER = "high"' in text
     assert 'EVENT_RISK_LIGHT_LEVEL' not in text
     assert 'SESSION_CONTEXT_LIGHT' not in text
     assert 'SESSION_LIGHT_VOLATILITY_STATE' not in text
