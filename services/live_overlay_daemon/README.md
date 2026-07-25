@@ -80,8 +80,10 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 }
 ```
 
-> `status` is market-aware and can be `"ok"`, `"starting"`, or
+> `status` is market-aware and can be `"ok"`, `"starting"`, `"degraded"`, or
 > `"idle_market_closed"` (outside US regular session while otherwise healthy).
+> `"degraded"` means the US session is open and an unhealthy dependency has
+> persisted for at least 15 minutes after process start.
 > The response also carries `market_open` (US regular-session gauge).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
 > `workers_healthy` is `false` if any of the five background threads
@@ -153,7 +155,7 @@ Returns **404** on wrong token (does not leak route existence).
 | `symbol` | str | e.g. `"NVDA"` | Uppercased |
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
 | `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
-| `stale` | bool | | True when overlay_age > max_stale_secs |
+| `stale` | bool | | For `5m`, true when overlay age or the symbol's newest source-bar age exceeds `max_stale_secs`; other timeframe caches use their compute age. |
 | `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
 | `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
@@ -179,7 +181,10 @@ Returns **404** on wrong token (does not leak route existence).
 
 (symbol not yet in cache — pre-market or feed not connected)
 
-All numeric fields are `null`, all bool fields are `false`, `stale: true`.
+Symbol-derived numeric, signal, news, and event fields are `null`, and
+`stale: true`. Event-block booleans remain `null` (unknown). Market-wide VIX
+and library context can remain populated because they do not depend on the
+missing symbol cache entry.
 
 ---
 
@@ -533,7 +538,8 @@ observability.py (structured log lines + in-process counters)
 > The exporter always emits the full default bucket set on every scrape, carrying
 > the previous bucket's cumulative count forward for missing buckets, so
 > `histogram_quantile()` results are stable. Derived `*_p95_ms` / `*_p99_ms`
-> gauges remain for backward compatibility but are deprecated. Age and staleness
+> gauges were removed; dashboards must derive percentiles from the histogram.
+> Age and staleness
 > panels/alerts gate on companion `*_age_known` gauges rather than treating an
 > absent or zero-valued age series as meaningful.
 | `live_overlay_railway_service_memory_limit_gb{service,service_id}` | gauge | metrics.py Railway per-service memory limit |
