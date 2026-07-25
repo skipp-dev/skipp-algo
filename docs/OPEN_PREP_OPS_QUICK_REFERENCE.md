@@ -120,7 +120,7 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 ### Newsstack
 
 - `ENABLE_FMP` (default `1`)
-- `ENABLE_FMP_ARTICLES` (default `1`)
+- `ENABLE_FMP_ARTICLES` (default `0` since 2026-07-25 — `/stable/fmp-articles` was ~76% of FMP news volume with no proven edge; set `1` to re-enable)
 - `ENABLE_FMP_GENERAL` (default `1`) — `/stable/news/general-latest`
 - `ENABLE_BENZINGA_REST` (default `0`)
 - `ENABLE_BENZINGA_WS` (default `0`)

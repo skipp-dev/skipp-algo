@@ -2,6 +2,86 @@
   "current_month": "2026-07",
   "dimensions": {
     "2026-07": {
+      "benzinga_rest|response|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 3.0
+      },
+      "benzinga_rest|shared_cache|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 3.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp_general_latest|response|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp_general_latest|shared_cache|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 9.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp_press_latest|response|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp_press_latest|shared_cache|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 8.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp_stock_latest|response|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 3.0
+      },
+      "fmp_stock_latest|shared_cache|shared_fetch": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 6.0,
+        "calls": 0.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
       "fmp|/stable/batch-quote|open_prep.fmp_client": {
         "bytes": 20.0,
         "cache_hits": 0.0,
@@ -31,6 +111,26 @@
         "latency_ms_total": 10.650874995917547,
         "rate_limit_hits": 0.0,
         "records": 3.0
+      },
+      "fmp|/stable/fmp-articles|newsstack_fmp.ingest_fmp": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 2.0,
+        "errors": 0.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
+      },
+      "fmp|/stable/news/stock-latest|newsstack_fmp.ingest_fmp": {
+        "bytes": 0.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 0.0,
+        "errors": 1.0,
+        "latency_ms_total": 0.0,
+        "rate_limit_hits": 0.0,
+        "records": 0.0
       }
     }
   },
@@ -42,6 +142,12 @@
         "rate_limit_hits": 0,
         "records": 0
       },
+      "benzinga_rest": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 0,
+        "records": 3
+      },
       "finnhub": {
         "bytes": 0,
         "calls": 0,
@@ -50,9 +156,27 @@
       },
       "fmp": {
         "bytes": 268,
-        "calls": 14,
+        "calls": 16,
         "rate_limit_hits": 14,
         "records": 4
+      },
+      "fmp_general_latest": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 0,
+        "records": 0
+      },
+      "fmp_press_latest": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 0,
+        "records": 0
+      },
+      "fmp_stock_latest": {
+        "bytes": 0,
+        "calls": 0,
+        "rate_limit_hits": 0,
+        "records": 3
       },
       "unknown": {
         "bytes": 0,
@@ -63,10 +187,10 @@
       "unusual_whales": {
         "bytes": 0,
         "calls": 0,
-        "rate_limit_hits": 2,
+        "rate_limit_hits": 3,
         "records": 0
       }
     }
   },
-  "updated_at": "2026-07-23T16:49:31.492143+00:00"
+  "updated_at": "2026-07-25T10:53:47.453085+00:00"
 }
