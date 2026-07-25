@@ -6,14 +6,31 @@ from pathlib import Path
 import pytest
 
 from scripts.export_smc_structure_artifact import (
+    _auxiliary_from_payload as _legacy_auxiliary_from_payload,
+)
+from scripts.export_smc_structure_artifact import (
     build_structure_artifact_payload,
     export_structure_artifact,
     validate_artifact_provenance,
 )
 from smc_core.schema_version import SCHEMA_VERSION
+from smc_integration.structure_batch import _auxiliary_from_payload as _batch_auxiliary_from_payload
+from smc_integration.structure_contract import AUXILIARY_KEYS
 from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_legacy_and_batch_exporters_preserve_the_same_auxiliary_contract() -> None:
+    rejection_blocks = [{"id": "rjb:AAPL:1D:1"}]
+    payload = {"auxiliary": {"rejection_blocks": rejection_blocks}}
+
+    legacy = _legacy_auxiliary_from_payload(payload)
+    batch = _batch_auxiliary_from_payload(payload)
+
+    assert legacy == batch
+    assert set(legacy) == set(AUXILIARY_KEYS)
+    assert legacy["rejection_blocks"] == rejection_blocks
 
 
 def test_structure_producer_emits_honest_structure_payload(tmp_path: Path) -> None:
@@ -34,10 +51,12 @@ def test_structure_producer_emits_honest_structure_payload(tmp_path: Path) -> No
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
+        "rejection_blocks",
     }
     assert first["diagnostics"]["structure_profile_used"] == "hybrid_default"
     assert first["diagnostics"]["event_logic_version"] == "v2"
     assert first["diagnostics"]["counts"]["bos"] == len(structure["bos"])
+    assert first["diagnostics"]["counts"]["rejection_blocks"] == len(first["auxiliary"]["rejection_blocks"])
 
     assert payload["coverage"]["mode"] in {"full", "partial", "none"}
     assert payload["coverage"]["has_bos"] == any(entry["structure"]["bos"] for entry in payload["entries"])

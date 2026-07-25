@@ -226,7 +226,8 @@
             "liquidity_lines": { "type": "integer", "minimum": 0 },
             "session_ranges": { "type": "integer", "minimum": 0 },
             "session_pivots": { "type": "integer", "minimum": 0 },
-            "broken_fractal_signals": { "type": "integer", "minimum": 0 }
+            "broken_fractal_signals": { "type": "integer", "minimum": 0 },
+            "rejection_blocks": { "type": "integer", "minimum": 0 }
           }
         },
         "warnings": {
