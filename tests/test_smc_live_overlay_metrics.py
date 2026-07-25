@@ -1527,6 +1527,42 @@ def test_future_trading_signals_snapshot_is_unknown_and_stale(
     assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
 
 
+def test_stale_trading_signals_snapshot_exports_no_active_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dashboards must not present an expired snapshot as an active signal."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "updated_epoch": _time.time() - (metrics_mod.config.signals_max_age_secs() + 1),
+            "watched_symbols": ["AAPL"],
+            "signal_count": 1,
+            "a0_count": 1,
+            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
+    assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signal_score{" not in body
+
+
 def test_render_metrics_includes_tradingview_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
