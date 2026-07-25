@@ -430,10 +430,10 @@ def smc_live(
             )
 
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-        # SC-LIB-001 (issue #3872 aftermath): additive library-context fields —
-        # universe membership + provider trust parsed from the committed
-        # generated Pine library. Fail-soft: a static/missing library yields
-        # None fields; the sidecar renders them as "not measured".
+        # Overlay 8-minute signals at read time; the 5m technical cache lives 30 minutes.
+        if tf == "5m":
+            payload.update(compute._get_signal_fields(sym))
+        # SC-LIB-001: additive library context fails soft when its source is unavailable.
         payload.update(library_context_bridge.context_for_symbol(sym))
         if tf == "5m":
             # Re-evaluate stale for cached background snapshots. Overlay age
