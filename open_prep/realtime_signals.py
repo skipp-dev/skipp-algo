@@ -646,8 +646,17 @@ class NearA0Repoller:
       poll's detector (the news-catalyst A1→A0 upgrade stays full-poll-only). Reads
       ``_watchlist``/``_volume_regime``/active signals — but NOT read-only: detecting
       an A0 records a (shared, lock-guarded) DynamicCooldown transition.
-    * **Own FMP client** — the main poll thread's client (with its circuit
-      breaker / usage counters) is never shared across threads.
+    * **Shared quote source** — fetches through the engine's shared
+      ``QuoteSource`` (``engine._quote_source``), the SAME seam
+      ``RealtimeEngine._fetch_realtime_quotes`` uses for the main poll loop
+      (self-healed the same way if not yet built). This guarantees the fast
+      lane and the main loop always read off the SAME data source — both
+      realtime Databento or both 15-min-delayed FMP, never split across the
+      two. (Pre-Finding-2-fix this lane held its own ``FMPClient``, bypassing
+      the seam entirely — the exact defect this fixes.) ``QuoteSource.fetch``
+      does independent, side-effect-free HTTP/cache reads for
+      ``session="regular"``, so concurrent calls from this thread and the
+      main poll thread are safe.
     * **rt_notify dedup** — fresh A0s are pushed through the same per-(symbol,
       direction) dedup as the full poll, so the next full cycle never
       double-sends.
@@ -657,12 +666,10 @@ class NearA0Repoller:
     poll — nothing short of polling everything faster can change that.
     """
 
-    def __init__(self, engine: Any, interval: float, *, client_factory: Any = None) -> None:
+    def __init__(self, engine: Any, interval: float) -> None:
         import threading
         self._engine = engine
         self._interval = max(float(interval), 2.0)
-        self._client_factory = client_factory  # injectable for tests
-        self._client: Any = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -698,14 +705,26 @@ class NearA0Repoller:
                 "last_error_msg": self.last_error_msg,
             }
 
-    def _client_or_init(self) -> Any:
-        if self._client is None:
-            if self._client_factory is not None:
-                self._client = self._client_factory()
-            else:
-                from open_prep.macro import FMPClient
-                self._client = FMPClient.from_env()
-        return self._client
+    def _quote_source_or_init(self) -> Any:
+        """Resolve the engine's shared ``QuoteSource``, self-healing a
+        rebuild if it hasn't been constructed yet.
+
+        Mirrors ``RealtimeEngine._fetch_realtime_quotes``'s own self-heal
+        (``getattr`` + ``_default_quote_source()`` + ``start_quote_source()``)
+        exactly, so both lanes always converge on the identical
+        ``QuoteSource`` instance rather than each independently deciding
+        FMP-vs-Databento. In production this branch is essentially never
+        taken: ``main()`` builds the engine (which sets ``_quote_source`` in
+        ``__init__``) and calls ``engine.start_quote_source()`` before
+        ``start_near_a0_repoller()`` ever spins up this thread.
+        """
+        eng = self._engine
+        quote_source = getattr(eng, "_quote_source", None)
+        if quote_source is None:
+            quote_source = eng._default_quote_source()
+            eng._quote_source = quote_source
+            eng.start_quote_source()
+        return quote_source
 
     def _warm_set(self) -> list[str]:
         """Current A1/A2 symbols — the tiers below A0 that can still escalate to it."""
@@ -720,11 +739,15 @@ class NearA0Repoller:
                     out.append(sym)
         return out
 
-    def _fetch(self, client: Any, symbols: list[str]) -> dict[str, dict[str, Any]]:
+    def _fetch(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch quotes for ``symbols`` through the engine's shared
+        ``QuoteSource`` (Finding 2 fix — see the class docstring's "Shared
+        quote source" bullet). Converts the ``QuoteSource.fetch`` list
+        contract into the ``{symbol: row}`` dict ``_detect_fresh_a0`` wants,
+        identically to ``RealtimeEngine._fetch_realtime_quotes`` (same
+        upper-case keying, same last-wins dedup on duplicate symbols)."""
         quotes: dict[str, dict[str, Any]] = {}
-        fetch_quotes = getattr(client, "get_stable_batch_quotes", None)
-        raw = (fetch_quotes or client.get_batch_quotes)(symbols)
-        for q in raw or []:
+        for q in self._quote_source_or_init().fetch(symbols, "regular"):
             sym = str(q.get("symbol", "")).strip().upper()
             if sym:
                 quotes[sym] = q
@@ -772,13 +795,13 @@ class NearA0Repoller:
 
     def _tick(self) -> None:
         if not _is_within_market_hours():
-            return  # no orders resting off-hours; skip the FMP call entirely
+            return  # no orders resting off-hours; skip the quote fetch entirely
         warm = self._warm_set()
         with self._lock:
             self.last_warm_set_size = len(warm)
         if not warm:
             return
-        quotes = self._fetch(self._client_or_init(), warm)
+        quotes = self._fetch(warm)
         if not quotes:
             return
         fresh = self._detect_fresh_a0(quotes)
