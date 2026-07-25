@@ -37,6 +37,32 @@ def test_summarize_latency_counts_ws_advantage() -> None:
     assert s["ws_earlier_count"] == 2
     assert abs(s["ws_earlier_share"] - 2 / 3) < 1e-9
     assert s["ws_rest_delta_s"]["median"] == 5.0
+    # no TV matched here → tv summary is empty but present
+    assert s["records_with_tv"] == 0
+    assert s["tv_matched_share"] == 0.0
+    assert s["ws_tv_delta_s"]["n"] == 0
+
+
+def test_summarize_latency_includes_tv_deltas() -> None:
+    records = [
+        # TV matched: arrived before both WS and REST
+        _rec(item_id="a", t_ws=100.0, t_rest=130.0, t_tv=90.0,
+             ws_rest_delta_s=30.0, ws_tv_delta_s=100.0 - 90.0,
+             rest_tv_delta_s=130.0 - 90.0),
+        # TV matched: arrived after REST
+        _rec(item_id="b", t_ws=200.0, t_rest=205.0, t_tv=210.0,
+             ws_rest_delta_s=5.0, ws_tv_delta_s=200.0 - 210.0,
+             rest_tv_delta_s=205.0 - 210.0),
+        # no TV
+        _rec(item_id="c", t_ws=300.0, t_rest=330.0, ws_rest_delta_s=30.0),
+    ]
+    s = summarize_latency(records)
+    assert s["records_with_tv"] == 2
+    assert abs(s["tv_matched_share"] - 2 / 3) < 1e-9
+    assert s["rest_tv_delta_s"]["n"] == 2
+    # rest_tv deltas are {40, -5}: positive means REST earlier than TV
+    assert s["rest_tv_delta_s"]["max"] == 40.0
+    assert s["rest_tv_delta_s"]["min"] == -5.0
 
 
 def test_select_catalyst_windows_filters() -> None:

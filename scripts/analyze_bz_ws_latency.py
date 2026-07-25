@@ -81,10 +81,17 @@ def _dist(values: list[float]) -> dict[str, Any]:
 
 
 def summarize_latency(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Summarize the WS↔REST latency gap across all joined records."""
+    """Summarize the WS↔REST latency gap (+ TradingView) across all records.
+
+    TradingView is a REST-poll source like Benzinga REST, so ``rest_tv_delta_s``
+    (poll-vs-poll) is the fair comparison; ``ws_tv_delta_s`` contrasts TV against
+    the WS push path. In both, a positive value means the named Benzinga channel
+    arrived earlier than TradingView.
+    """
     both = [r for r in records if r.get("ws_rest_delta_s") is not None]
     deltas = [float(r["ws_rest_delta_s"]) for r in both]
     ws_earlier = sum(1 for d in deltas if d > 0)
+    tv_matched = sum(1 for r in records if r.get("t_tv") is not None)
     return {
         "records_total": len(records),
         "records_ws_and_rest": len(both),
@@ -94,6 +101,16 @@ def summarize_latency(records: list[dict[str, Any]]) -> dict[str, Any]:
         "pub_ws_delta_s": _dist(
             [float(r["pub_ws_delta_s"]) for r in records
              if r.get("pub_ws_delta_s") is not None]
+        ),
+        "records_with_tv": tv_matched,
+        "tv_matched_share": (tv_matched / len(records)) if records else 0.0,
+        "ws_tv_delta_s": _dist(
+            [float(r["ws_tv_delta_s"]) for r in records
+             if r.get("ws_tv_delta_s") is not None]
+        ),
+        "rest_tv_delta_s": _dist(
+            [float(r["rest_tv_delta_s"]) for r in records
+             if r.get("rest_tv_delta_s") is not None]
         ),
     }
 
