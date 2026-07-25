@@ -11,6 +11,7 @@ fast lane and the main poll loop always read off the SAME data source.
 from __future__ import annotations
 
 import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -234,10 +235,15 @@ def test_repoller_fetches_via_engine_databento_source_under_flag(monkeypatch: py
     monkeypatch.setenv("DATABENTO_API_KEY", "test-key-not-real")
     monkeypatch.setattr("open_prep.rt_notify.notify_fresh_signals", lambda sigs, **kw: list(sigs))
 
+    # ts_event/ts_recv anchored to real wall-clock time (not a fixed
+    # historical epoch): this exercises the real, un-clocked
+    # DatabentoQuoteSource.fetch() path, whose bounded-age staleness guard
+    # (see quote_source.py) defaults to `time.time()`, not a test clock.
+    _now = time.time()
     fake_feed = _FakeDatabentoQuoteFeed()
     fake_feed.set_symbol("NVDA", bar=BarState(
         symbol="NVDA", open=249.0, high=251.0, low=248.5, close=250.5,
-        volume=12_345, ts_event=1_784_900_000.0, ts_recv=1_784_900_000.2,
+        volume=12_345, ts_event=_now - 1.0, ts_recv=_now - 0.5,
     ), cumulative_volume=500_000, session_high=251.0, session_low=248.0)
 
     class _FakeDatabentoQuoteFeedFactory:

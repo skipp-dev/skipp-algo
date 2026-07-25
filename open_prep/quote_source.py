@@ -26,6 +26,7 @@ Row shape: see ``docs/databento_quote_row_contract.md`` (Task 0.1).
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol
@@ -40,6 +41,32 @@ logger = logging.getLogger(__name__)
 # Mirrors realtime_signals._BATCH_QUOTE_CHUNK_SIZE — kept as a private local
 # constant so this module has no import-time dependency on realtime_signals.
 _BATCH_QUOTE_CHUNK_SIZE = 250
+
+# Bounded-age staleness guard for DatabentoQuoteSource (final-review Finding
+# 3). Env-overridable, kept local (no import-time dependency on
+# realtime_signals — same rationale as _BATCH_QUOTE_CHUNK_SIZE above).
+_MAX_BAR_AGE_ENV_VAR = "DATABENTO_QUOTE_MAX_BAR_AGE_SECS"
+# 90s: comfortably above the producer's default 20s poll interval (tolerates
+# a few missed 1s-bars/poll cycles without flapping) yet well below the
+# producer's DATA_STALL_SECONDS=300 data_stale threshold (>3x margin), so a
+# dead feed's symbols age out and fetch() goes empty long before the
+# producer-level gauge would even notice — see class docstring.
+_DEFAULT_MAX_BAR_AGE_SECS = 90.0
+
+
+def _resolve_max_bar_age_secs(explicit: float | None) -> float:
+    if explicit is not None:
+        return float(explicit)
+    raw = os.environ.get(_MAX_BAR_AGE_ENV_VAR)
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            logger.warning(
+                "Invalid %s=%r -- falling back to default %.1fs",
+                _MAX_BAR_AGE_ENV_VAR, raw, _DEFAULT_MAX_BAR_AGE_SECS,
+            )
+    return _DEFAULT_MAX_BAR_AGE_SECS
 
 
 class QuoteSource(Protocol):
@@ -176,10 +203,28 @@ class DatabentoQuoteSource:
     present in the emitted row rather than depending on a watchlist
     fallback.
 
-    Fail-closed: a symbol with no cached bar yet, or with no reference
-    entry, is OMITTED from the result entirely — never emitted with a
-    fabricated or stale price, mirroring how the FMP path drops symbols FMP
-    didn't return a quote for.
+    Fail-closed: a symbol with no cached bar yet, with a bar older than
+    ``max_bar_age_secs`` (final-review Finding 3 — see below), or with no
+    reference entry, is OMITTED from the result entirely — never emitted
+    with a fabricated or stale price, mirroring how the FMP path drops
+    symbols FMP didn't return a quote for.
+
+    Bounded-age staleness guard (Finding 3): if the feed's background
+    reconnect loop dies (its circuit breaker trips after
+    ``max_consecutive_failures`` — see ``DatabentoQuoteFeed._run_feed_loop``)
+    nothing purges its cache, so ``latest_bar``/``cumulative_volume`` would
+    otherwise keep returning the LAST CACHED entry forever, and this source
+    would keep emitting a frozen price with no signal reaching the producer.
+    ``fetch`` instead treats a bar older than ``max_bar_age_secs`` (measured
+    against ``bar.ts_recv``, the feed's capture time) exactly like "no bar":
+    omit the symbol. Once every symbol has aged out, ``fetch`` returns an
+    empty list, which is what stops ``RealtimeEngine._last_data_epoch`` from
+    advancing (it is stamped only on a non-empty fetch —
+    ``open_prep/realtime_signals.py``) and lets the existing
+    ``signals_producer_data_stale`` gauge fire after ``DATA_STALL_SECONDS``
+    (300s) — turning a silently-frozen feed into an observable, fail-closed
+    one. This is deliberately NOT a supervisor that restarts the dead feed
+    (a separate, deferred item) — only the source-side gate.
 
     This class is deliberately standalone: it is NOT wired into
     ``RealtimeEngine`` and does not touch the ``RT_QUOTE_SOURCE`` self-heal
@@ -192,19 +237,34 @@ class DatabentoQuoteSource:
         reference: QuoteReference,
         *,
         source_label: str = "databento",
+        max_bar_age_secs: float | None = None,
     ) -> None:
         self._feed = feed
         self._reference = reference
         self._source_label = source_label
+        # None -> DATABENTO_QUOTE_MAX_BAR_AGE_SECS env override, else the
+        # built-in default (see _resolve_max_bar_age_secs above).
+        self._max_bar_age_secs = _resolve_max_bar_age_secs(max_bar_age_secs)
 
-    def fetch(self, symbols: list[str], session: str) -> list[dict[str, Any]]:
+    def fetch(
+        self,
+        symbols: list[str],
+        session: str,
+        *,
+        now: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Build contract-conformant quote rows for ``symbols``.
 
         ``session`` is accepted for ``QuoteSource`` protocol parity with
         ``FMPQuoteSource``; the feed itself only ever caches regular-session
         bars (Task 1.2's RTH gate), so rows are built identically regardless
         of the value passed here.
+
+        ``now`` is an injectable clock (defaults to ``time.time()``) so the
+        bounded-age staleness guard (class docstring) is deterministic in
+        tests without real wall-clock sleeps.
         """
+        resolved_now = now if now is not None else time.time()
         rows: list[dict[str, Any]] = []
         for symbol_raw in symbols:
             symbol = str(symbol_raw).strip().upper()
@@ -214,6 +274,9 @@ class DatabentoQuoteSource:
             bar = self._feed.latest_bar(symbol)
             if bar is None:
                 continue  # fail-closed: no bar yet -- omit, never fabricate
+
+            if resolved_now - bar.ts_recv > self._max_bar_age_secs:
+                continue  # fail-closed: bar too old -- omit, never emit a frozen price
 
             reference_row = self._reference.get(symbol)
             if reference_row is None:

@@ -372,7 +372,9 @@ def test_databento_vs_fmp_same_core_decision() -> None:
             source="fmp:adjusted-eod",
         )
     })
-    databento_rows = DatabentoQuoteSource(feed, reference).fetch([symbol], "regular")
+    databento_rows = DatabentoQuoteSource(feed, reference).fetch(
+        [symbol], "regular", now=ts_recv + 5.0,  # fresh -- independent of `observed_at` below
+    )
     assert len(databento_rows) == 1
     databento_row = databento_rows[0]
 

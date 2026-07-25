@@ -106,7 +106,7 @@ def test_databento_source_row_matches_contract() -> None:
     reference = _reference({"AAPL": _reference_row(previous_close=100.0, average_daily_volume=2_000_000.0)})
 
     source = DatabentoQuoteSource(feed, reference)
-    rows = source.fetch(["AAPL"], "regular")
+    rows = source.fetch(["AAPL"], "regular", now=1_784_642_405.0)  # 4.75s after ts_recv -- fresh
 
     assert len(rows) == 1
     row = rows[0]
@@ -130,7 +130,7 @@ def test_databento_source_normalizes_symbol_case() -> None:
     reference = _reference({"AAPL": _reference_row()})
 
     source = DatabentoQuoteSource(feed, reference)
-    rows = source.fetch(["aapl"], "regular")
+    rows = source.fetch(["aapl"], "regular", now=1_784_642_405.0)  # fresh
 
     assert len(rows) == 1
     assert rows[0]["symbol"] == "AAPL"
@@ -157,7 +157,7 @@ def test_databento_source_omits_symbol_with_no_reference_entry() -> None:
     reference = _reference({})  # no AAPL entry
 
     source = DatabentoQuoteSource(feed, reference)
-    rows = source.fetch(["AAPL"], "regular")
+    rows = source.fetch(["AAPL"], "regular", now=1_784_642_405.0)  # fresh -- omission is reference-driven, not staleness-driven
 
     assert rows == []
 
@@ -176,7 +176,7 @@ def test_databento_source_mixed_universe_only_emits_complete_rows() -> None:
     })
 
     source = DatabentoQuoteSource(feed, reference)
-    rows = source.fetch(["AAPL", "TSLA", "MSFT"], "regular")
+    rows = source.fetch(["AAPL", "TSLA", "MSFT"], "regular", now=1_784_642_405.0)  # fresh
 
     assert [row["symbol"] for row in rows] == ["AAPL"]
 
@@ -187,3 +187,122 @@ def test_databento_source_no_symbols_returns_empty_list() -> None:
     source = DatabentoQuoteSource(feed, reference)
 
     assert source.fetch([], "regular") == []
+
+
+# ---------------------------------------------------------------------------
+# Bounded-age staleness guard (final-review Finding 3): a dead feed keeps
+# `latest_bar`/`cumulative_volume` returning the LAST CACHED entry forever
+# (nothing purges the cache on a circuit-breaker trip -- see
+# ``DatabentoQuoteFeed._run_feed_loop``), so without this guard `fetch()`
+# would keep emitting a frozen price/volume row with no signal reaching the
+# producer's `data_stale` clock. The guard omits any symbol whose bar has
+# aged past ``max_bar_age_secs``, exactly like the existing no-bar/no-
+# reference fail-closed omissions above.
+# ---------------------------------------------------------------------------
+
+
+def test_databento_source_omits_stale_symbol_but_keeps_fresh_one_in_same_call() -> None:
+    """(a) A symbol whose latest bar ``ts_recv`` is older than
+    ``max_bar_age_secs`` is OMITTED; a fresh symbol in the SAME ``fetch()``
+    call is still included."""
+    feed = _FakeDatabentoQuoteFeed()
+    stale_ts_recv = 1_784_642_400.25
+    fresh_ts_recv = 1_784_642_400.25 + 195.0  # arrives 195s after the stale bar
+    feed.set_symbol(
+        "AAPL",
+        bar=_bar("AAPL", ts_event=stale_ts_recv - 0.25, ts_recv=stale_ts_recv),
+        cumulative_volume=1_000,
+        session_high=102.0,
+        session_low=99.0,
+    )
+    feed.set_symbol(
+        "MSFT",
+        bar=_bar("MSFT", ts_event=fresh_ts_recv - 0.25, ts_recv=fresh_ts_recv),
+        cumulative_volume=2_000,
+        session_high=210.0,
+        session_low=205.0,
+    )
+    reference = _reference({"AAPL": _reference_row(), "MSFT": _reference_row()})
+
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=60.0)
+    now = fresh_ts_recv + 5.0  # AAPL age = 200s (> 60s, stale); MSFT age = 5s (fresh)
+    rows = source.fetch(["AAPL", "MSFT"], "regular", now=now)
+
+    assert [row["symbol"] for row in rows] == ["MSFT"]
+
+
+def test_databento_source_dead_feed_returns_empty_fetch() -> None:
+    """(b) Dead-feed scenario: the circuit breaker tripped and every cached
+    bar has aged well past ``max_bar_age_secs`` (nothing refreshes the
+    cache), so ``fetch()`` returns an EMPTY list for the whole universe --
+    this is precisely what stops the producer's ``_last_data_epoch`` from
+    advancing (``realtime_signals.py`` only stamps it on a non-empty fetch)
+    and lets the ``data_stale`` gauge fire after ``DATA_STALL_SECONDS``."""
+    feed = _FakeDatabentoQuoteFeed()
+    stale_ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=stale_ts_recv),
+        cumulative_volume=1_000, session_high=102.0, session_low=99.0,
+    )
+    feed.set_symbol(
+        "MSFT", bar=_bar("MSFT", ts_recv=stale_ts_recv),
+        cumulative_volume=2_000, session_high=210.0, session_low=205.0,
+    )
+    reference = _reference({"AAPL": _reference_row(), "MSFT": _reference_row()})
+
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=90.0)
+    now = stale_ts_recv + 600.0  # feed has been dead for 10 minutes
+    rows = source.fetch(["AAPL", "MSFT"], "regular", now=now)
+
+    assert rows == []
+
+
+def test_databento_source_emits_bar_within_max_age() -> None:
+    """(c) A bar within ``max_bar_age_secs`` is still emitted normally."""
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=ts_recv),
+        cumulative_volume=1_000, session_high=102.0, session_low=99.0,
+    )
+    reference = _reference({"AAPL": _reference_row()})
+
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=90.0)
+    now = ts_recv + 30.0  # well within the 90s budget
+    rows = source.fetch(["AAPL"], "regular", now=now)
+
+    assert [row["symbol"] for row in rows] == ["AAPL"]
+
+
+def test_databento_source_max_bar_age_defaults_when_unset(monkeypatch) -> None:
+    """No explicit ``max_bar_age_secs`` and no env override -> the built-in
+    default (90s) applies: a bar 89s old survives, one at 91s does not."""
+    monkeypatch.delenv("DATABENTO_QUOTE_MAX_BAR_AGE_SECS", raising=False)
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=ts_recv),
+        cumulative_volume=1_000, session_high=102.0, session_low=99.0,
+    )
+    reference = _reference({"AAPL": _reference_row()})
+    source = DatabentoQuoteSource(feed, reference)
+
+    assert source.fetch(["AAPL"], "regular", now=ts_recv + 89.0) != []
+    assert source.fetch(["AAPL"], "regular", now=ts_recv + 91.0) == []
+
+
+def test_databento_source_max_bar_age_env_override(monkeypatch) -> None:
+    """``DATABENTO_QUOTE_MAX_BAR_AGE_SECS`` overrides the built-in default
+    when the constructor isn't given an explicit value."""
+    monkeypatch.setenv("DATABENTO_QUOTE_MAX_BAR_AGE_SECS", "30")
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=ts_recv),
+        cumulative_volume=1_000, session_high=102.0, session_low=99.0,
+    )
+    reference = _reference({"AAPL": _reference_row()})
+    source = DatabentoQuoteSource(feed, reference)
+
+    assert source.fetch(["AAPL"], "regular", now=ts_recv + 20.0) != []
+    assert source.fetch(["AAPL"], "regular", now=ts_recv + 40.0) == []  # would pass the 90s default, fails the 30s override

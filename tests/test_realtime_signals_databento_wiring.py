@@ -23,6 +23,7 @@ and are a no-op under the FMP default.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import open_prep.quote_reference as quote_reference_module
@@ -129,9 +130,15 @@ def _install_fake_databento_plumbing(monkeypatch, feed: _FakeDatabentoQuoteFeed)
 
 
 def _bar(symbol: str = "AAPL") -> BarState:
+    # ts_event/ts_recv anchored to real wall-clock time (not a fixed
+    # historical epoch): these tests exercise the real, un-clocked
+    # `engine._fetch_realtime_quotes()` -> `DatabentoQuoteSource.fetch()`
+    # path, which defaults its bounded-age staleness guard (see
+    # quote_source.py) to `time.time()`, not an injectable test clock.
+    now = time.time()
     return BarState(
         symbol=symbol, open=99.0, high=101.0, low=98.5, close=100.5,
-        volume=12_345, ts_event=1_784_900_000.0, ts_recv=1_784_900_000.2,
+        volume=12_345, ts_event=now - 1.0, ts_recv=now - 0.5,
     )
 
 
