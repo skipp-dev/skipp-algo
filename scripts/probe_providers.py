@@ -948,7 +948,7 @@ PROBES: list[Probe] = [
     Probe("Finnhub /quote", probe_finnhub_quote, critical=True),
     Probe("Finnhub /stock/social-sentiment", probe_finnhub_social, critical=False),
     # TradingView
-    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=True),
+    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=False),  # 2026-07-25: retired upstream (PR #3777, flags fail-closed); demote like NewsAPI.ai so a WARN/Cloudflare-block can't false-block preflight. Row kept for visibility.
     Probe("TradingView TA library", probe_tradingview_ta, critical=True),
     # Misc
     Probe("NasdaqTrader symbol directory", probe_nasdaq_trader, critical=True),
