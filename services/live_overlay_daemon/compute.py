@@ -496,7 +496,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
             fetched = _fetch_signals_service(
                 service_base, config.signals_internal_token()
             )
-            if fetched is not None:
+            if fetched is not None and _signals_snapshot_is_fresh(fetched):
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -508,7 +508,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
         url = config.signals_snapshot_url()
         if url:
             fetched = _fetch_signals_url(url, config.signals_snapshot_url_token())
-            if fetched is not None:
+            if fetched is not None and _signals_snapshot_is_fresh(fetched):
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -1395,6 +1395,8 @@ def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
     ``_age_unknown`` contract (metrics._trading_signals_snapshot) so the
     overlay payload and the alerting layer agree on what "stale" means.
     """
+    if not isinstance(snap.get("signals"), list):
+        return False
     updated = snap.get("updated_epoch")
     if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):
         return False

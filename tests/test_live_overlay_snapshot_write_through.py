@@ -9,6 +9,7 @@ back to the stale Docker-baked seed when the URL is momentarily unreachable.
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -81,7 +82,7 @@ def test_news_no_write_through_when_payload_exceeds_size_limit(tmp_path, monkeyp
 
 def test_signals_write_through(tmp_path, monkeypatch) -> None:
     dest = tmp_path / "signals.json"
-    payload = {"symbols": {"AAPL": {"bias": "long"}}}
+    payload = {"updated_epoch": time.time(), "signals": []}
     monkeypatch.setattr(compute.config, "signals_snapshot_url", lambda: "https://example.test/signals")
     monkeypatch.setattr(compute.config, "signals_snapshot_url_token", lambda: "")
     monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
@@ -248,7 +249,11 @@ def test_signals_service_fetch_takes_precedence_and_writes_through(
 ) -> None:
     """When SIGNALS_SERVICE_URL is set, the producer is consulted first."""
     dest = tmp_path / "signals.json"
-    payload = {"signals": [{"symbol": "AAPL", "level": "A1"}], "signal_count": 1}
+    payload = {
+        "updated_epoch": time.time(),
+        "signals": [{"symbol": "AAPL", "level": "A1"}],
+        "signal_count": 1,
+    }
 
     captured: list[tuple[str, str]] = []
 
@@ -277,7 +282,11 @@ def test_signals_service_fetch_takes_precedence_and_writes_through(
 def test_signals_service_fetch_falls_back_to_url(tmp_path, monkeypatch) -> None:
     """A failing producer fetch falls back to SIGNALS_SNAPSHOT_URL."""
     dest = tmp_path / "signals.json"
-    payload = {"signals": [{"symbol": "TSLA", "level": "A0"}], "signal_count": 1}
+    payload = {
+        "updated_epoch": time.time(),
+        "signals": [{"symbol": "TSLA", "level": "A0"}],
+        "signal_count": 1,
+    }
 
     monkeypatch.setattr(compute.config, "signals_service_url", lambda: "smc-signals-producer.railway.internal")
     monkeypatch.setattr(compute.config, "signals_internal_token", lambda: "")
@@ -295,7 +304,11 @@ def test_signals_service_fetch_falls_back_to_url(tmp_path, monkeypatch) -> None:
 def test_signals_service_fetch_falls_back_to_path(tmp_path, monkeypatch) -> None:
     """A failing producer fetch with no URL falls back to the local path."""
     dest = tmp_path / "signals.json"
-    payload = {"signals": [{"symbol": "NVDA", "level": "A1"}], "signal_count": 1}
+    payload = {
+        "updated_epoch": time.time(),
+        "signals": [{"symbol": "NVDA", "level": "A1"}],
+        "signal_count": 1,
+    }
     dest.write_text(json.dumps(payload), encoding="utf-8")
 
     monkeypatch.setattr(compute.config, "signals_service_url", lambda: "smc-signals-producer.railway.internal")
@@ -307,6 +320,47 @@ def test_signals_service_fetch_falls_back_to_path(tmp_path, monkeypatch) -> None
     result = compute._load_signals_snapshot()
 
     assert result == payload
+
+
+@pytest.mark.parametrize(
+    "invalid_payload",
+    [
+        {"error": "non-finite value in signals payload"},
+        {
+            "signals": [{"symbol": "NVDA", "level": "A1"}],
+            "signal_count": 1,
+            "status": "cold_start",
+        },
+    ],
+)
+def test_invalid_signals_service_payload_preserves_last_good_path(
+    tmp_path, monkeypatch, invalid_payload
+) -> None:
+    dest = tmp_path / "signals.json"
+    last_good = {
+        "updated_epoch": time.time(),
+        "signals": [{"symbol": "NVDA", "level": "A1"}],
+        "signal_count": 1,
+    }
+    dest.write_text(json.dumps(last_good), encoding="utf-8")
+    monkeypatch.setattr(
+        compute.config,
+        "signals_service_url",
+        lambda: "smc-signals-producer.railway.internal",
+    )
+    monkeypatch.setattr(compute.config, "signals_internal_token", lambda: "")
+    monkeypatch.setattr(compute.config, "signals_snapshot_url", lambda: "")
+    monkeypatch.setattr(compute.config, "signals_snapshot_path", lambda: dest)
+    monkeypatch.setattr(
+        compute,
+        "_fetch_signals_service",
+        lambda base, token, **kw: dict(invalid_payload),
+    )
+
+    result = compute._load_signals_snapshot()
+
+    assert result == last_good
+    assert json.loads(dest.read_text(encoding="utf-8")) == last_good
 
 
 def test_signals_service_url_to_full_with_host_and_url() -> None:
