@@ -7,6 +7,7 @@ payload shapes in sync.
 """
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import pytest
 
 from services.live_overlay_daemon import compute
+from services.live_overlay_daemon import main as main_mod
 
 _REPO = Path(__file__).resolve().parents[1]
 
@@ -157,3 +159,50 @@ def test_build_payload_and_stale_response_share_the_signal_keys(monkeypatch: pyt
     assert stale_keys, "could not locate the minimal stale-response dict in main.py"
     missing = payload_keys - stale_keys
     assert not missing, f"minimal stale response missing keys: {sorted(missing)}"
+
+
+def test_default_5m_endpoint_refreshes_signal_fields_from_live_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cached 5m technical payload must not freeze realtime signals.
+
+    Full technical recomputation runs every 30 minutes, while a signal remains
+    active for only eight. The request path therefore has to overlay the latest
+    signal snapshot instead of returning the signal fields frozen in the
+    technical cache.
+    """
+    cached = {
+        "schema": "smc-live-overlay/1",
+        "symbol": "NVDA",
+        "stale": False,
+        **compute._NO_SIGNAL_FIELDS,
+    }
+    current = {
+        "signal_level": "A0",
+        "signal_direction": "LONG",
+        "trade_entry": 196.93,
+        "trade_stop": 192.01,
+        "trade_target": 206.78,
+        "trade_r": 2.0,
+    }
+    monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "test-token")
+    monkeypatch.setattr(main_mod.cache, "get_overlay", lambda _symbol: dict(cached))
+    monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 0.0)
+    monkeypatch.setattr(
+        main_mod.cache,
+        "get_bars_snapshot",
+        lambda _symbol: [{"ts_event": int((time.time() - 60) * 1_000_000_000)}],
+    )
+    monkeypatch.setattr(
+        main_mod.library_context_bridge, "context_for_symbol", lambda _symbol: {}
+    )
+    monkeypatch.setattr(main_mod.compute, "_get_signal_fields", lambda _symbol: dict(current))
+
+    response = main_mod.smc_live(
+        token="test-token",
+        symbol="NVDA",
+        tf="5m",
+    )
+    payload = json.loads(response.body)
+
+    assert {key: payload[key] for key in current} == current
