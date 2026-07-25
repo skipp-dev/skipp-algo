@@ -770,7 +770,7 @@ def _session_context_light_for_event(
         score += 2
     elif normalized_bias == "NEUTRAL" and expected_direction != "NEUTRAL":
         score += 1
-    if family in {"BOS", "OB", "FVG"}:
+    if family in {"BOS", "OB", "FVG", "SWEEP"}:  # 2026-07-25: SWEEP was omitted (all 4 _FAMILIES score uniformly)
         score += 1
 
     compression_regime = {
