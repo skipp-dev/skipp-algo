@@ -309,10 +309,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     if stop.is_set():
                         break
 
-                    # A completed subscribe call alone is not proof that the
-                    # feed recovered: iterator failures happen only after it.
-                    consecutive_failures = 0
-
                     rec_type = type(record).__name__
                     _rec_count += 1
                     if _rec_count % 2000 == 0:
@@ -374,6 +370,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
                     try:
                         ingest_queue.put_nowait((sym, bar, time.monotonic()))
+                        # Only a validated, enqueued bar proves that the data
+                        # feed recovered; metadata records alone are not
+                        # sufficient evidence of a usable data session.
+                        consecutive_failures = 0
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                         if not stop.is_set() and not _feed_ready.is_set():
