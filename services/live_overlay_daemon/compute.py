@@ -1069,11 +1069,38 @@ def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
     return aligned_minute * ns_per_minute
 
 
+def _rth_bar_minute_bucket(ts_event: int, minutes: int) -> int | None:
+    """Return a New York regular-session bucket end for 1H/4H bars.
+
+    TradingView's US-equity regular-session candles start at 09:30 in the
+    exchange timezone. IANA timezone conversion is intentional here: US DST
+    transitions do not match Europe's transition dates.
+    """
+    from zoneinfo import ZoneInfo
+
+    market_tz = ZoneInfo("America/New_York")
+    bar_open = datetime.datetime.fromtimestamp(ts_event / 1_000_000_000, market_tz)
+    session_open = bar_open.replace(hour=9, minute=30, second=0, microsecond=0)
+    session_close = bar_open.replace(hour=16, minute=0, second=0, microsecond=0)
+    if bar_open.weekday() >= 5 or not session_open <= bar_open < session_close:
+        return None
+
+    elapsed_close_minutes = int((bar_open - session_open).total_seconds() // 60) + 1
+    bucket_number = (elapsed_close_minutes + minutes - 1) // minutes
+    bucket_end = min(
+        session_open + datetime.timedelta(minutes=bucket_number * minutes),
+        session_close,
+    )
+    return int(bucket_end.timestamp() * 1_000_000_000)
+
+
 def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
     """Aggregate 1-minute bars into higher intraday timeframes.
 
     The input cache stores 1-minute bars, so all supported intraday
-    timeframes (including 5m) are bucketed and aggregated.
+    timeframes (including 5m) are bucketed and aggregated. US-equity 1H and
+    4H bars follow the 09:30-16:00 America/New_York regular session so their
+    boundaries remain stable across US DST.
     """
     if tf not in _TF_TO_MINUTES:
         raise ValueError(f"unsupported timeframe: {tf}")
@@ -1094,7 +1121,13 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
     buckets: dict[int, dict[str, Any]] = {}
     for bar in ordered_bars:
         ts_event = int(bar["ts_event"])
-        bucket_ts = _bar_minute_bucket(ts_event, minutes)
+        bucket_ts = (
+            _rth_bar_minute_bucket(ts_event, minutes)
+            if minutes in {60, 240}
+            else _bar_minute_bucket(ts_event, minutes)
+        )
+        if bucket_ts is None:
+            continue
         bucket = buckets.get(bucket_ts)
         if bucket is None:
             bucket = {
