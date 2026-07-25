@@ -273,6 +273,11 @@ def _trading_signals_snapshot() -> dict[str, object]:
         return 0.0
 
     normalized.sort(key=_score_key, reverse=True)
+    if stale:
+        # ``loaded`` and the age/stale gauges retain the diagnostic evidence,
+        # but expired values must not render as currently actionable signals.
+        counts.update(active=0, a0=0, a1=0, a2=0)
+        normalized = []
 
     return {
         "loaded": loaded,
