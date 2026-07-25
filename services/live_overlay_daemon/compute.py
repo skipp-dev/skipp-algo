@@ -1404,8 +1404,8 @@ def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
         return False
     if not math.isfinite(epoch) or epoch <= 0:
         return False
-    age_seconds = max(0.0, time.time() - epoch)
-    return age_seconds <= float(config.signals_max_age_secs())
+    age_seconds = time.time() - epoch
+    return 0.0 <= age_seconds <= float(config.signals_max_age_secs())
 
 
 def _get_signal_fields(symbol: str) -> dict[str, Any]:
@@ -1444,6 +1444,7 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
         if (
             not math.isfinite(fired)
             or fired <= 0.0
+            or fired > now_epoch
             or now_epoch - fired > max_signal_age
         ):
             continue

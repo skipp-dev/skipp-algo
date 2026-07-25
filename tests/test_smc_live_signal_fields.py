@@ -69,6 +69,16 @@ def test_snapshot_without_updated_epoch_yields_all_null(
     assert compute._get_signal_fields("NVDA")["signal_level"] is None
 
 
+def test_future_snapshot_timestamp_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0")], updated_epoch=time.time() + 1)
+    assert compute._get_signal_fields("NVDA") == compute._NO_SIGNAL_FIELDS
+
+
+def test_future_signal_timestamp_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", fired=time.time() + 1)])
+    assert compute._get_signal_fields("NVDA") == compute._NO_SIGNAL_FIELDS
+
+
 def test_fresh_snapshot_serves_signals(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_snapshot(monkeypatch, [_row("NVDA", "A0")])
     assert compute._get_signal_fields("NVDA")["signal_level"] == "A0"
