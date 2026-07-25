@@ -124,7 +124,7 @@ def compute_risk_penalty(
 
     # Spread penalty
     if spread_pct > 0:
-        total += min(spread_pct * 10.0, 0.02)
+        total += min(spread_pct * 0.1, 0.02)  # 2026-07-25: caller sends pct-points (×100); was *10.0 (fraction-era) → saturated cap
 
     return max(0.05, min(total, 0.20))
 
