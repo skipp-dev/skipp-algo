@@ -479,6 +479,52 @@ class TestVolumeTypeDriftRobustness:
         assert payload["flow_rel_vol"] == pytest.approx(140.0 / 115.0, rel=1e-4)
         assert payload["flow_delta_proxy_pct"] is None
 
+    def test_flow_patch_cycle_clears_stale_ats_when_current_volume_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        cache_mod.set_overlay(
+            {
+                "AAPL": {
+                    "ats_state": "accumulation",
+                    "volume_accumulation_distribution_state": "accumulation",
+                    "ats_zscore": 2.5,
+                    "volume_current_bar_zscore": 2.5,
+                }
+            }
+        )
+        bars = [
+            {
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 100.0 + index,
+            }
+            for index in range(20)
+        ]
+        bars[-1]["volume"] = None
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {"AAPL": bars},
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        for key in (
+            "ats_state",
+            "volume_accumulation_distribution_state",
+            "ats_zscore",
+            "volume_current_bar_zscore",
+        ):
+            assert payload[key] is None
+
 
 class TestNewsSnapshotRuntimeUrlFetch:
     """Task B: the daemon serves the most-current producer output via NEWS_SNAPSHOT_URL."""
