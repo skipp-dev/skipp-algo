@@ -78,7 +78,7 @@ def _iso_age_seconds(iso_ts: str | None) -> float | None:
         epoch = parsed.timestamp()
     except Exception:
         return None
-    return max(0.0, time.time() - epoch)
+    return age if (age := time.time() - epoch) >= 0.0 else None
 
 
 def _duration_seconds(started_at: str | None, updated_at: str | None) -> float | None:

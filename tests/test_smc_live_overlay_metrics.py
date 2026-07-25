@@ -1531,6 +1531,103 @@ def test_future_trading_signals_snapshot_is_unknown_and_stale(
     assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
 
 
+def test_future_operator_snapshot_timestamps_are_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every producer clock ahead of the daemon must fail closed, not age to zero."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    now = 1_783_000_000.0
+    future = now + 86_400.0
+    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_credential_health_snapshot",
+        lambda: {
+            "generated_at": "2099-01-01T00:00:00Z",
+            "overall_severity": "ok",
+            "probes": [],
+        },
+    )
+    credential = metrics_mod._credential_health_snapshot()
+    assert credential["snapshot_age_known"] == 0.0
+    assert credential["snapshot_age_seconds"] == 0.0
+
+    assert metrics_mod._experiment_run_age("2099-01-01") == (0.0, 0.0)
+    assert metrics_mod._bridge_last_success_age(
+        future, enabled=True, configured=True, startup_epoch=now - 60.0
+    ) == 60.0
+
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_news_snapshot",
+        lambda: {
+            "fetched_at_unix": future,
+            "last_ingest_success_at": future,
+            "providers": {},
+        },
+    )
+    provider = metrics_mod._provider_health_snapshot()
+    assert provider["news_snapshot_age_known"] == 0.0
+    assert provider["news_snapshot_age_seconds"] == 0.0
+    assert provider["news_last_ingest_age_known"] == 0.0
+    assert provider["news_last_ingest_age_seconds"] == 0.0
+
+
+def test_future_rendered_snapshot_timestamps_are_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    now = 1_783_000_000.0
+    future = now + 86_400.0
+    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
+    monkeypatch.setattr(
+        metrics_mod.pine_library_version_bridge,
+        "snapshot",
+        lambda: {
+            "loaded": 1.0,
+            "generated_at_unix": future,
+            "libraries": [
+                {
+                    "name": "Skipp",
+                    "data_asof_known": 1.0,
+                    "data_asof_unix": future,
+                    "consumers": [],
+                }
+            ],
+        },
+    )
+    pine = "\n".join(metrics_mod._render_pine_library_version_metrics())
+    assert "live_overlay_pine_library_snapshot_age_known 0.0" in pine
+    assert 'live_overlay_pine_library_data_age_known{library="Skipp"} 0.0' in pine
+
+    monkeypatch.setattr(
+        metrics_mod.tradingview_binding_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    binding = "\n".join(metrics_mod._render_tradingview_binding_metrics())
+    assert "live_overlay_tv_binding_snapshot_age_known 0.0" in binding
+
+    monkeypatch.setattr(
+        metrics_mod.evidence_freshness_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    evidence = "\n".join(metrics_mod._render_evidence_freshness_metrics())
+    assert "live_overlay_evidence_freshness_snapshot_age_known 0.0" in evidence
+
+    monkeypatch.setattr(
+        metrics_mod.sweep_trap_shadow_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    sweep = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_snapshot_age_known 0.0" in sweep
+    assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in sweep
+
+
 def test_stale_trading_signals_snapshot_exports_no_active_signals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
