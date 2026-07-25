@@ -1402,9 +1402,10 @@ def test_render_metrics_includes_trading_signals_snapshot(
         overlay_symbols=5,
         overlay_age=60.0,
     )
+    snapshot_now = _time.time()
     snapshot = {
         "updated_at": "2026-06-23T14:30:00+00:00",
-        "updated_epoch": _time.time() - 30.0,
+        "updated_epoch": snapshot_now - 30.0,
         "poll_interval": 5,
         "poll_duration": 0.4,
         "watched_symbols": ["AAPL", "TSLA", "NVDA"],
@@ -1421,6 +1422,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "HIGH",
                 "score": 7.5,
                 "freshness": 0.9,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.82,
                 "change_pct": 1.23,
                 "technical_signal": "STRONG_BUY",
@@ -1435,6 +1437,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "MEDIUM",
                 "score": 4.0,
                 "freshness": 0.5,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.31,
                 "change_pct": -2.0,
                 "technical_signal": "SELL",
@@ -1449,6 +1452,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "LOW",
                 "score": 2.5,
                 "freshness": 0.95,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.20,
                 "change_pct": 0.8,
                 "technical_signal": "HOLD",
@@ -1561,6 +1565,85 @@ def test_stale_trading_signals_snapshot_exports_no_active_signals(
     assert "live_overlay_trading_signals_active 0.0" in body
     assert "live_overlay_trading_signals_a0 0.0" in body
     assert "live_overlay_trading_signal_score{" not in body
+
+
+def test_unknown_age_trading_signals_snapshot_exports_no_active_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A loaded snapshot without a valid age is diagnostic data, not active data."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "signal_count": 1,
+            "a0_count": 1,
+            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signal_score{" not in body
+
+
+def test_expired_signal_rows_are_not_exported_as_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh envelope cannot revive rows the application already rejects."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    now = _time.time()
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "updated_epoch": now,
+            "signal_count": 2,
+            "a0_count": 1,
+            "a1_count": 1,
+            "signals": [
+                {
+                    "symbol": "AAPL", "level": "A0", "score": 9.0,
+                    "fired_epoch": now - metrics_mod.config.signals_max_age_secs() - 1,
+                },
+                {
+                    "symbol": "MSFT", "level": "A1", "score": 7.0,
+                    "fired_epoch": now - 30,
+                },
+            ],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_active 1.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signals_a1 1.0" in body
+    assert 'live_overlay_trading_signal_score{symbol="AAPL"' not in body
+    assert 'live_overlay_trading_signal_score{symbol="MSFT"' in body
 
 
 def test_render_metrics_includes_tradingview_credential(
