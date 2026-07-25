@@ -64,17 +64,29 @@ class PreA0Runtime:
         self.telemetry = telemetry
         self._history: dict[str, deque[PreA0Observation]] = {}
         self._machines: dict[str, PreA0Machine] = {}
+        self._session_dates: dict[str, str] = {}
 
     def reset(self, symbol: str) -> None:
         normalized = symbol.strip().upper()
         self._history.pop(normalized, None)
         self._machines.pop(normalized, None)
+        self._session_dates.pop(normalized, None)
 
     def process(self, snapshot: A0StreamFeatureSnapshot) -> PreA0RuntimeResult:
         if snapshot.gap_state is not GapState.COMPLETE:
             self.reset(snapshot.market.symbol)
             raise ValueError("PRE-A0 requires complete stream state")
         symbol = snapshot.market.symbol
+        session_date = snapshot.market.session_date
+        if self._session_dates.get(symbol) != session_date:
+            # New trading session: drop the prior session's hysteresis + history
+            # so PreA0Machine._last never carries a stale estimate across the
+            # session boundary. The worker only resets on bootstrap/gap, which a
+            # clean COMPLETE session-open (replay coverage, or first bar near
+            # 09:30) does not trigger. regime.py had the same class of
+            # cross-session hysteresis bug — fixed in #3991.
+            self.reset(symbol)
+            self._session_dates[symbol] = session_date
         history = self._history.setdefault(symbol, deque())
         observation = PreA0Observation(
             snapshot.market,
