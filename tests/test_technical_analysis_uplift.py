@@ -505,6 +505,34 @@ def test_calculate_support_resistance_targets_handles_zero_in_bars() -> None:
     assert out["atr"] is not None  # still computes
 
 
+def test_fib_levels_above_price_feed_resistance() -> None:
+    """A Fibonacci retracement level sitting ABOVE current price must surface as
+    resistance, symmetric to how it surfaces as support when below.
+
+    Regression: the levels were only appended to the support candidate list, so a
+    Fib level above price was computed then silently discarded from resistance_1/2/3
+    (which feed long-side targets). Construction: recent_high=110, recent_low=90 ->
+    fib_618=97.64, fib_500=100.0, fib_382=102.36; price=97.0 sits just below all three.
+    Flat 94-region bars + a single 110 spike + a single 90 dip keep every other
+    candidate (swings/pivots/EMAs) below price, so the three Fib levels are the three
+    closest resistances above it.
+    """
+    bars: list[dict[str, Any]] = [
+        {"open": 94.0, "high": 94.5, "low": 93.5, "close": 94.0, "volume": 1_000_000.0}
+        for _ in range(50)
+    ]
+    bars[5]["high"] = 110.0   # range top (a lone swing high well above the Fib zone)
+    bars[10]["low"] = 90.0    # range bottom; both extremes kept out of the last 20 bars
+    out = calculate_support_resistance_targets(bars, current_price=97.0, direction="long")
+
+    resistances = [out["resistance_1"], out["resistance_2"], out["resistance_3"]]
+    fib_618, fib_500, fib_382 = 97.64, 100.0, 102.36
+    for fib in (fib_618, fib_500, fib_382):
+        assert any(r is not None and abs(r - fib) < 0.01 for r in resistances), (
+            f"Fib level {fib} above price missing from resistance {resistances}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # compute_entry_probability
 # ---------------------------------------------------------------------------
