@@ -156,6 +156,12 @@ Returns **404** on wrong token (does not leak route existence).
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
 | `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
 | `stale` | bool | | For `5m`, true when overlay age or the symbol's newest source-bar age exceeds `max_stale_secs`; other timeframe caches use their compute age. |
+| `universe_member` | bool \| null | | Membership in the loaded generated-library universe; null when the universe is unavailable |
+| `universe_size` | int \| null | ≥ 0 | Size of the loaded generated-library universe |
+| `library_asof_date` | str \| null | | Generator-declared library date |
+| `library_asof_time` | str \| null | | Generator-declared library timestamp |
+| `provider_trust_status` | str \| null | `ok` \| `degraded` \| `unavailable` | Trust derived from library provider evidence |
+| `provider_stale_list` | str \| null | | Comma-separated stale providers declared by the library |
 | `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
 | `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
