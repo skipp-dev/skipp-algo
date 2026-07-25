@@ -903,7 +903,7 @@ def calculate_support_resistance_targets(
     # --- Combine & sort ---
     try:
         res_candidates = [v for v in [r1, r2, r3] if v is not None] + swing_highs + [
-            v for v in (ema_20, ema_50, ema_200) if v is not None
+            v for v in (ema_20, ema_50, ema_200, fib_382, fib_500, fib_618) if v is not None
         ]
         res_candidates = sorted(v for v in res_candidates if v > current_price * 1.001)
 
