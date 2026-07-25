@@ -19,6 +19,7 @@ from open_prep.pre_a0_telemetry import PreA0Telemetry
 from services.a0_fast_detector.pre_a0_runtime import PreA0Runtime, build_pre_a0_runtime
 
 _OPEN = datetime(2026, 7, 20, 9, 30, tzinfo=ZoneInfo("America/New_York"))
+_NEXT_OPEN = datetime(2026, 7, 21, 9, 30, tzinfo=ZoneInfo("America/New_York"))
 _THRESHOLDS = A0ThresholdContext(3.0, 1.0, 0.6, 2.0, 1.0, 0.5)
 
 
@@ -46,8 +47,8 @@ def _artifact(path, *, horizons=(30, 60, 180), offline_evaluated=True) -> None:
     path.write_text(json.dumps(artifact.to_dict()), encoding="utf-8")
 
 
-def _snapshot(second: int, progress: float) -> A0StreamFeatureSnapshot:
-    event = (_OPEN + timedelta(seconds=second)).timestamp()
+def _snapshot(second: int, progress: float, open_dt: datetime = _OPEN) -> A0StreamFeatureSnapshot:
+    event = (open_dt + timedelta(seconds=second)).timestamp()
     change = 2.0 * progress
     pace = 3.0 * progress
     market = build_market_snapshot(
@@ -151,6 +152,38 @@ def test_state_none_snapshots_record_without_scoring(tmp_path) -> None:
     assert snapshot["feature_out_of_range"] == 0
     assert snapshot["states"]["none"] == 11
     assert runtime.flush() > 0
+
+
+def test_session_change_resets_pre_a0_hysteresis(tmp_path) -> None:
+    # A clean COMPLETE session-open does not trigger the worker's bootstrap/gap
+    # reset, so the runtime must itself drop the prior session's hysteresis when
+    # the snapshot's session_date advances — otherwise PreA0Machine._last (and
+    # _history) leak across the boundary (the regime.py #3991 class of bug).
+    model_path = tmp_path / "model.json"
+    _artifact(model_path)
+    runtime = build_pre_a0_runtime(
+        {
+            "RT_A0_FAST_MODE": "shadow",
+            "RT_PRE_A0_MODE": "shadow",
+            "RT_PRE_A0_MODEL_PATH": str(model_path),
+            "RT_PRE_A0_SNAPSHOT_DIR": str(tmp_path / "snapshots"),
+            "RT_PRE_A0_SNAPSHOT_FLUSH_ROWS": "100",
+            "RT_PRE_A0_CODE_REVISION": "test",
+        },
+        thresholds=_THRESHOLDS,
+        telemetry=PreA0Telemetry(),
+    )
+    assert runtime is not None
+
+    runtime.process(_snapshot(0, 0.45))  # session 2026-07-20
+    machine_day1 = runtime._machines["NVDA"]
+
+    # First bar of the next session (COMPLETE gap state — no bootstrap/gap).
+    runtime.process(_snapshot(0, 0.45, _NEXT_OPEN))  # session 2026-07-21
+    # A fresh machine object proves the reset fired; without it the day-1
+    # machine (and its _last hysteresis) would persist into the new session.
+    assert runtime._machines["NVDA"] is not machine_day1
+    assert len(runtime._history["NVDA"]) == 1  # only the new session's observation
 
 
 def test_missing_model_disables_only_pre_a0(tmp_path) -> None:
