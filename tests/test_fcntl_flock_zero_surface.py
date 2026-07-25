@@ -189,8 +189,8 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # Realtime-signals daemon PID-file singleton lock.
     # 2026-07-15 (reconcile): 294/321 -> 310/337. Pure drift -- the file still holds
     # exactly 2 flock legs and the EX/UN pairing is intact; #3584/#3587 edited above.
-    ("open_prep/realtime_signals.py", 311, "LOCK_EX|LOCK_NB"),  # 2026-07-16 market-session import: 310->311
-    ("open_prep/realtime_signals.py", 338, "LOCK_UN"),  # 2026-07-16 market-session import: 337->338
+    ("open_prep/realtime_signals.py", 312, "LOCK_EX|LOCK_NB"),  # 2026-07-25 (databento-signal-migration): 311->312
+    ("open_prep/realtime_signals.py", 339, "LOCK_UN"),  # 2026-07-25 (databento-signal-migration): 338->339
     # Watchlist read/write critical section.
     ("open_prep/watchlist.py", 41, "LOCK_EX"),
     ("open_prep/watchlist.py", 44, "LOCK_UN"),

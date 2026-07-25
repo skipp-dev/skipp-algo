@@ -83,7 +83,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     # 2026-06-25: shifted 1250 -> 1331 by AsyncNewsstackPoller telemetry additions.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics / _extract_snapshot_epoch.
-    "open_prep/realtime_signals.py": {"md5": frozenset({1839})},  # 2026-07-22 client-disabled visibility shifted site: 1822->1839
+    "open_prep/realtime_signals.py": {"md5": frozenset({1886})},  # 2026-07-25 (databento-signal-migration): 1839->1886
 
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.

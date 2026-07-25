@@ -36,6 +36,7 @@ shutdown so no data is silently dropped.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import queue
 import threading
@@ -427,10 +428,8 @@ class DatabentoQuoteFeed:
                     client.stop()
                 except Exception:
                     logger.debug("client.stop() error during shutdown", exc_info=True)
-            try:
+            with contextlib.suppress(queue.Full):
                 self._queue.put_nowait(_STOP_SENTINEL)
-            except queue.Full:
-                pass
             if self._feed_thread is not None and self._feed_thread.is_alive():
                 self._feed_thread.join(timeout=5)
             if self._ingest_thread is not None and self._ingest_thread.is_alive():
@@ -606,13 +605,11 @@ class DatabentoQuoteFeed:
             self.telemetry.record_queue_drop()
 
     def _enqueue_barrier(self) -> None:
-        try:
+        # Best-effort: a dropped barrier only delays visibility of the
+        # in-flight batch until the next barrier or the final shutdown
+        # flush — _pending is keyed by symbol, so no data is lost.
+        with contextlib.suppress(queue.Full):
             self._queue.put_nowait(_BARRIER_SENTINEL)
-        except queue.Full:
-            # Best-effort: a dropped barrier only delays visibility of the
-            # in-flight batch until the next barrier or the final shutdown
-            # flush — _pending is keyed by symbol, so no data is lost.
-            pass
 
     # -- ingest thread: drain queue, flush pending on barrier -------------
 

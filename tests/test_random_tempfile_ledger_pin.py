@@ -119,13 +119,13 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
     ("open_prep/outcomes.py", 844, "mkstemp"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 831->844
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
-    ("open_prep/realtime_signals.py", 121, "mkstemp"),  # 2026-07-16 market-session import shifted site: 120->121
+    ("open_prep/realtime_signals.py", 122, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 121->122
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3732, "mkstemp"),  # 2026-07-22 client-disabled visibility shifted site: 3715->3732
+    ("open_prep/realtime_signals.py", 3889, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 3732->3889
 
-    ("open_prep/realtime_signals.py", 3788, "mkstemp"),  # 2026-07-22 client-disabled visibility shifted site: 3771->3788
+    ("open_prep/realtime_signals.py", 3945, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 3788->3945
 
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),
