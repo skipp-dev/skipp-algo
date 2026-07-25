@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import open_prep.realtime_signals as rs
 from open_prep.postmarket_quotes import build_postmarket_quotes
-from open_prep.quote_source import FMPQuoteSource, _BATCH_QUOTE_CHUNK_SIZE
+from open_prep.quote_source import _BATCH_QUOTE_CHUNK_SIZE, FMPQuoteSource
 
 
 class _RegularOnlyClient:
