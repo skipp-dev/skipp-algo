@@ -294,7 +294,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
                 _feed_connected_at = time.monotonic()
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
-                consecutive_failures = 0
 
                 # Build symbology map from SymbolMappingMsg records
                 # yielded by the iterator (no private-attr access).
@@ -309,6 +308,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 for record in client:
                     if stop.is_set():
                         break
+
+                    # A completed subscribe call alone is not proof that the
+                    # feed recovered: iterator failures happen only after it.
+                    consecutive_failures = 0
 
                     rec_type = type(record).__name__
                     _rec_count += 1
