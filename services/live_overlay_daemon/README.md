@@ -198,7 +198,7 @@ missing symbol cache entry.
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
-| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
+| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Baseline 1-minute history per symbol (range 1–500). Authenticated requests expand up to 32 active symbols to the timeframe-specific requirement (up to 9,600 bars). |
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age **or** newest-bar age before `stale: true` (range 60–7200) |
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |

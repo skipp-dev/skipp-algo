@@ -421,6 +421,24 @@ def test_hotspot_panels_explain_empty_state_and_use_request_rate_units() -> None
         assert "Empty means no external client requests" in panel.get("description", "")
 
 
+def test_bar_cache_panel_and_alert_use_timeframe_specific_readiness() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        p
+        for p in _dashboard_panels(dashboard)
+        if p.get("title") == "Bar cache depth and cap churn"
+    )
+    expressions = "\n".join(target["expr"] for target in panel["targets"])
+    assert "live_overlay_requested_bar_history_readiness_ratio" in expressions
+    assert "live_overlay_requested_bars_per_symbol" in expressions
+    assert "live_overlay_requested_bar_symbols" in expressions
+
+    alert_expr = _alert_rule("lo-bar-cache-depth-low")["data"][0]["model"]["expr"]
+    assert "live_overlay_requested_bar_history_readiness_ratio" in alert_expr
+    assert "< bool 1" in alert_expr
+    assert "live_overlay_requested_bar_history_symbols" in alert_expr
+
+
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     """UptimeRobot monitor alerts must gate on the generic bridge contract."""
     count_rule = _alert_rule("lo-uptimerobot-monitor-count-mismatch")

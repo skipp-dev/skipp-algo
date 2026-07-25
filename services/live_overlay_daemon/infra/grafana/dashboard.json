@@ -8814,7 +8814,7 @@
     {
       "type": "stat",
       "title": "Bar cache depth and cap churn",
-      "description": "Whether the bar cache holds enough history per symbol for the rolling features to work at all. bars_per_symbol must stay at or above 20 — squeeze, relative volume and the ATS z-score all need that window, and below it they degrade silently rather than erroring. Requested-symbol evictions rising means live demand exceeds the symbol cap, which is the thrash #3903 fixed: one bar per symbol, every rolling metric unavailable, and not a single metric moving to say so.",
+      "description": "Whether requested symbols hold the timeframe-specific raw history required for 20 aggregated bars. Readiness must reach 100%; requested mean depth explains warmup progress, while the global mean remains diagnostic only under ALL_SYMBOLS churn. Requested-symbol evictions rising means live demand exceeds the symbol cap.",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -8836,9 +8836,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Bars per symbol"
+              "options": "Requested history ready"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
               {
                 "id": "thresholds",
                 "value": {
@@ -8850,7 +8854,7 @@
                     },
                     {
                       "color": "green",
-                      "value": 20
+                      "value": 1
                     }
                   ]
                 }
@@ -8904,7 +8908,7 @@
             "uid": "grafanacloud-prom"
           },
           "expr": "max(live_overlay_bars_per_symbol{job=\"live_overlay\"})",
-          "legendFormat": "Bars per symbol",
+          "legendFormat": "Global mean bars (diagnostic)",
           "instant": true,
           "refId": "A"
         },
@@ -8927,6 +8931,36 @@
           "legendFormat": "Symbols evicted (1h)",
           "instant": true,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_requested_bars_per_symbol{job=\"live_overlay\"})",
+          "legendFormat": "Requested mean bars",
+          "instant": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "min(live_overlay_requested_bar_history_readiness_ratio{job=\"live_overlay\"})",
+          "legendFormat": "Requested history ready",
+          "instant": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_requested_bar_symbols{job=\"live_overlay\"})",
+          "legendFormat": "Requested cached symbols",
+          "instant": true,
+          "refId": "F"
         }
       ]
     },
