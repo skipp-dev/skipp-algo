@@ -1499,6 +1499,34 @@ def test_render_metrics_includes_trading_signals_snapshot(
     )
 
 
+def test_future_trading_signals_snapshot_is_unknown_and_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A future producer clock must not look like a fresh signal snapshot."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {"updated_epoch": _time.time() + 60.0, "signals": []},
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
+
+
 def test_render_metrics_includes_tradingview_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

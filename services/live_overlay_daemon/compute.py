@@ -1404,8 +1404,8 @@ def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
         return False
     if not math.isfinite(epoch) or epoch <= 0:
         return False
-    age_seconds = max(0.0, time.time() - epoch)
-    return age_seconds <= float(config.signals_max_age_secs())
+    age_seconds = time.time() - epoch
+    return 0.0 <= age_seconds <= float(config.signals_max_age_secs())
 
 
 def _get_signal_fields(symbol: str) -> dict[str, Any]:
@@ -1429,6 +1429,8 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     sym = symbol.upper().strip()
     best: dict[str, Any] | None = None
     best_key = (-1, float("-inf"))
+    now_epoch = time.time()
+    max_signal_age = float(config.signals_max_age_secs())
     for row in rows:
         if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != sym:
             continue
@@ -1439,6 +1441,13 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             fired = float(row.get("fired_epoch") or 0.0)
         except (TypeError, ValueError):
             fired = 0.0
+        if (
+            not math.isfinite(fired)
+            or fired <= 0.0
+            or fired > now_epoch
+            or now_epoch - fired > max_signal_age
+        ):
+            continue
         if (rank, fired) > best_key:
             best_key = (rank, fired)
             best = row

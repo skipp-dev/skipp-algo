@@ -20,9 +20,14 @@ from services.live_overlay_daemon import main as main_mod
 _REPO = Path(__file__).resolve().parents[1]
 
 
-def _row(symbol: str, level: str, fired: float = 1000.0, **extra: Any) -> dict[str, Any]:
+def _row(
+    symbol: str, level: str, fired: float | None = None, **extra: Any
+) -> dict[str, Any]:
     base: dict[str, Any] = {
-        "symbol": symbol, "level": level, "direction": "LONG", "fired_epoch": fired,
+        "symbol": symbol,
+        "level": level,
+        "direction": "LONG",
+        "fired_epoch": time.time() - 10 if fired is None else fired,
         "trade_entry": 196.93, "trade_stop": 192.01, "trade_target": 206.78, "trade_r": 2.0,
     }
     base.update(extra)
@@ -66,9 +71,33 @@ def test_snapshot_without_updated_epoch_yields_all_null(
     assert compute._get_signal_fields("NVDA")["signal_level"] is None
 
 
+def test_future_snapshot_timestamp_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0")], updated_epoch=time.time() + 1)
+    assert compute._get_signal_fields("NVDA") == compute._NO_SIGNAL_FIELDS
+
+
+def test_future_signal_timestamp_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", fired=time.time() + 1)])
+    assert compute._get_signal_fields("NVDA") == compute._NO_SIGNAL_FIELDS
+
+
 def test_fresh_snapshot_serves_signals(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_snapshot(monkeypatch, [_row("NVDA", "A0")])
     assert compute._get_signal_fields("NVDA")["signal_level"] == "A0"
+
+
+def test_fresh_snapshot_does_not_revive_an_expired_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh file timestamp cannot make an old row active again.
+
+    The producer refreshes ``updated_epoch`` even when a quote poll returns no
+    data. Individual rows still expire under the same eight-minute contract.
+    """
+    expired = time.time() - compute.config.signals_max_age_secs() - 1
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", fired=expired)])
+
+    assert compute._get_signal_fields("NVDA") == compute._NO_SIGNAL_FIELDS
 
 
 def test_no_snapshot_or_no_match_yields_all_null(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,15 +131,16 @@ def test_non_finite_trade_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_strongest_then_freshest_wins(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = time.time()
     _patch_snapshot(monkeypatch, [
-        _row("NVDA", "A1", fired=2000.0),
-        _row("NVDA", "A0", fired=1000.0),   # weaker time, stronger level -> wins
-        _row("NVDA", "A2", fired=3000.0),
+        _row("NVDA", "A1", fired=now - 20),
+        _row("NVDA", "A0", fired=now - 30),   # weaker time, stronger level -> wins
+        _row("NVDA", "A2", fired=now - 10),
     ])
     assert compute._get_signal_fields("NVDA")["signal_level"] == "A0"
     _patch_snapshot(monkeypatch, [
-        _row("NVDA", "A1", fired=1000.0, direction="LONG"),
-        _row("NVDA", "A1", fired=2000.0, direction="SHORT"),  # same level, fresher -> wins
+        _row("NVDA", "A1", fired=now - 20, direction="LONG"),
+        _row("NVDA", "A1", fired=now - 10, direction="SHORT"),  # same level, fresher -> wins
     ])
     assert compute._get_signal_fields("NVDA")["signal_direction"] == "SHORT"
 
@@ -118,7 +148,12 @@ def test_strongest_then_freshest_wins(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_producer_without_trade_fields_yields_null_trade(monkeypatch: pytest.MonkeyPatch) -> None:
     # A pre-trade-context producer snapshot has no trade_* keys — the signal
     # itself must still surface, the bracket stays null (no fabricated levels).
-    row = {"symbol": "NVDA", "level": "A1", "direction": "LONG", "fired_epoch": 1.0}
+    row = {
+        "symbol": "NVDA",
+        "level": "A1",
+        "direction": "LONG",
+        "fired_epoch": time.time() - 10,
+    }
     _patch_snapshot(monkeypatch, [row])
     fields = compute._get_signal_fields("NVDA")
     assert fields["signal_level"] == "A1"
