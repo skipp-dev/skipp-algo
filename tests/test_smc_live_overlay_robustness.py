@@ -216,6 +216,27 @@ class TestBarCacheEviction:
         # FRESH should exist
         assert cache_mod.get_bars_snapshot("FRESH") != []
 
+    def test_periodic_eviction_keeps_fresh_symbols_below_capacity(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+        monkeypatch.setattr(cache_mod, "_rolling_bars_cap", 5)
+        monkeypatch.setattr(cache_mod, "_max_symbols", 10)
+        timestamps = iter([100.0, 101.0, 102.0, 103.0, 104.0, 161.0, 161.0])
+        monkeypatch.setattr(cache_mod.time, "monotonic", lambda: next(timestamps))
+
+        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 100}
+        for symbol in ("A", "B", "C", "D", "E"):
+            cache_mod.push_bar(symbol, bar)
+        cache_mod.push_bar("E", bar)
+
+        assert cache_mod.bar_symbol_count() == 5
+        assert cache_mod.get_bars_snapshot("A") != []
+
     def test_reinit_updates_existing_symbol_deque_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
 
