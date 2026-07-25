@@ -252,6 +252,12 @@
         "null"
       ],
       "exclusiveMinimum": 0
-    }
+    },
+    "universe_member": {"type": ["boolean", "null"]},
+    "universe_size": {"type": ["integer", "null"], "minimum": 0},
+    "library_asof_date": {"type": ["string", "null"]},
+    "library_asof_time": {"type": ["string", "null"]},
+    "provider_trust_status": {"type": ["string", "null"]},
+    "provider_stale_list": {"type": ["string", "null"]}
   }
 }
