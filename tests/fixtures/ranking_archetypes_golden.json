@@ -98,7 +98,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 120.5,
-      "score": 10.6407,
+      "score": 10.6527,
       "score_breakdown": {
         "analyst_catalyst_component": 0.2,
         "corporate_action_penalty": 0.0,
@@ -118,7 +118,7 @@
         "momentum_component": 0.6,
         "news_component": 2.3049,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1075,
+        "risk_penalty": 0.0955,
         "rvol_component": 0.387,
         "vwap_distance_component": 0.783
       },
@@ -335,7 +335,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 45.2,
-      "score": 9.367,
+      "score": 9.375,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
         "corporate_action_penalty": 0.0,
@@ -355,7 +355,7 @@
         "momentum_component": 0.75,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.14,
+        "risk_penalty": 0.132,
         "rvol_component": 0.6573,
         "vwap_distance_component": 1.1954
       },
@@ -452,7 +452,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 88.0,
-      "score": 7.3366,
+      "score": 7.3426,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
         "corporate_action_penalty": 0.0,
@@ -472,7 +472,7 @@
         "momentum_component": 0.9,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1105,
+        "risk_penalty": 0.1045,
         "rvol_component": 0.6573,
         "vwap_distance_component": 1.1905
       },
@@ -572,7 +572,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 55.0,
-      "score": 7.2133,
+      "score": 7.2193,
       "score_breakdown": {
         "analyst_catalyst_component": 0.075,
         "corporate_action_penalty": 0.0,
@@ -592,7 +592,7 @@
         "momentum_component": 0.5,
         "news_component": 1.6602,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1007,
+        "risk_penalty": 0.0947,
         "rvol_component": 0.4755,
         "vwap_distance_component": 0.8989
       },
@@ -691,7 +691,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 36.0,
-      "score": 5.8983,
+      "score": 5.9003,
       "score_breakdown": {
         "analyst_catalyst_component": 0.025,
         "corporate_action_penalty": 0.0,
@@ -711,7 +711,7 @@
         "momentum_component": 0.4,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1227,
+        "risk_penalty": 0.1207,
         "rvol_component": 0.5091,
         "vwap_distance_component": 1.1594
       },
@@ -810,7 +810,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 62.0,
-      "score": 5.6672,
+      "score": 5.6712,
       "score_breakdown": {
         "analyst_catalyst_component": 0.05,
         "corporate_action_penalty": 0.0,
@@ -830,7 +830,7 @@
         "momentum_component": 0.6,
         "news_component": 0.0,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.1044,
+        "risk_penalty": 0.1004,
         "rvol_component": 0.5175,
         "vwap_distance_component": 0.9333
       },
@@ -1119,7 +1119,7 @@
       "dividend_today": false,
       "earnings_bmo": false,
       "earnings_today": false,
-      "entry_probability": 0.5753,
+      "entry_probability": 0.5755,
       "estimate_revision_score": 0.0,
       "ext_hours_score": 0.1,
       "freshness_decay": 0.5,
@@ -1164,7 +1164,7 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 38.0,
-      "score": 1.2868,
+      "score": 1.2888,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
         "corporate_action_penalty": 0.0,
@@ -1184,7 +1184,7 @@
         "momentum_component": -0.1,
         "news_component": 0.2372,
         "risk_off_penalty": 0.0,
-        "risk_penalty": 0.122,
+        "risk_penalty": 0.12,
         "rvol_component": 0.3286,
         "vwap_distance_component": 0.074
       },
