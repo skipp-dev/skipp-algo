@@ -73,9 +73,9 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
         "md5": frozenset({159, 298}),
         "sha1": frozenset({379, 465, 503, 547}),
     },
-    # 2026-07-20: forward-looking earnings-preview patterns shifted the
-    # non-security cluster-key fingerprint; algorithm and use are unchanged.
-    "newsstack_fmp/scoring.py": {"sha1": frozenset({150})},
+    # 2026-07-25: narrowing the forward-looking "ahead of … earnings" preview
+    # pattern shifted the non-security cluster-key fingerprint; algo unchanged. 150->167
+    "newsstack_fmp/scoring.py": {"sha1": frozenset({167})},
     "newsstack_fmp/shared_fetch.py": {
         "md5": frozenset({114}),  # 2026-07-19 (provider telemetry helper shift): 117->114
         "sha1": frozenset({225}),  # 2026-07-19 (provider telemetry helper shift): 226->225
