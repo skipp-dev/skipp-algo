@@ -1,32 +1,67 @@
 """Bootstrap generator for the A0-Fast reference file (previous_close + ADV).
 
 Today's committed ``services/a0_fast_detector/bootstrap/a0-reference.json``
-covers only the ~58-symbol micro-cap shadow list (``A0_FAST_SYMBOLS``). This
-module extends the same source-pure Databento reference construction
-(:func:`open_prep.a0_reference.build_databento_reference`) to the FULL liquid
-open_prep production candidate universe -- the ~900 symbols the realtime
-signals producer monitors under ``DEFAULT_TOP_N=0`` (ALL) -- instead of the
+has ~900 rows but is scoped to the micro-cap symbol population the current
+bootstrap process targets, NOT the runtime-monitored ``A0_FAST_SYMBOLS``
+shadow subset (a much smaller explicit list -- see
+``services/a0_fast_detector/README.md``). This module extends reference
+construction to the FULL liquid open_prep production candidate universe (the
+~900 symbols ``DEFAULT_TOP_N=0`` (ALL) monitors) instead of the
 micro-cap-only symbol source.
 
-The heavy lifting (per-symbol Databento daily-bar fetch with batching,
-symbology, caching, and ``previous_close`` shift) is delegated to the
-existing, already-hardened :func:`databento_volatility_screener.load_daily_bars`.
-This module only:
+previous_close and average_daily_volume are sourced from FMP's adjusted
+end-of-day history (``FMPClient.get_historical_price_eod_full`` ->
+``/stable/historical-price-eod/full``), NOT from Databento daily bars.
+
+Rationale (2026-07-25 decision, "Option A"): a Databento ``ohlcv-1d`` bar on
+EQUS.MINI is RAW/UNADJUSTED for corporate actions, so the original
+Databento-sourced implementation of this module labeling it
+``corporate_action_adjusted=True`` was factually wrong. prev_close and ADV
+are daily values (not latency-critical -- only the live intraday bars are),
+and FMP's EOD history carries split/dividend-*adjusted* prices, so FMP is the
+correct, honestly-labeled source for these two fields. Only the live
+intraday bars remain Databento.
+
+FMP field verification (2026-07-25, no live network access in this
+sandbox): the FMP response row's adjustment-carrying field is ``close`` --
+NOT ``adjClose``. Evidence: every existing production call site reading
+``/stable/historical-price-eod/full`` rows in this repo
+(``open_prep/run_open_prep.py::_fetch_symbol_atr``,
+``open_prep/market_microstructure.py::_fetch_eod_closes``) reads ``close``
+(plus ``volume``, ``date``, ``high``, ``low``, ``vwap``); ``adjClose`` does
+not appear anywhere in this codebase's usage of this endpoint. This is
+codebase evidence, not a live-response capture -- the controller should
+confirm against a real response on the first live run (see Task 0.2 report,
+"FMP field verification").
+
+This module:
 
 1. Extracts the candidate symbol list from a ``latest_open_prep_run.json``
    payload (mirroring ``open_prep.realtime_signals._load_watchlist``'s
    ``DEFAULT_TOP_N=0`` merge of ``ranked_v2`` + ``below_top_n_cutoff``
-   overflow + ``enriched_quotes``).
-2. Reshapes a ``load_daily_bars()`` frame into per-symbol
-   :class:`open_prep.a0_reference.DatabentoDailyBar` lists.
-3. Calls :func:`open_prep.a0_reference.build_databento_reference` per symbol
-   and writes the resulting :class:`open_prep.a0_stream_state.StreamReference`
-   rows to the reference JSON file in the exact list-of-objects shape
-   ``services/a0_fast_detector/worker.py::_load_references`` consumes.
+   overflow + ``enriched_quotes``) -- UNCHANGED symbol-sourcing logic.
+2. Reshapes an ``FMPClient.get_historical_price_eod_full()`` response (per
+   symbol) into :class:`FmpAdjustedEodBar` rows.
+3. Builds a :class:`open_prep.a0_stream_state.StreamReference` per symbol
+   from FMP-sourced, source-pure, adjusted EOD history and writes the
+   reference JSON file in the exact list-of-objects shape
+   ``services/a0_fast_detector/worker.py::_load_references`` consumes --
+   UNCHANGED wire format.
 
 Symbols with insufficient or missing qualifying history are SKIPPED, never
-fabricated -- the worker's ``StreamReference.is_valid_for()`` requires an
-explicit, valid reference per symbol and fails closed (no A0) otherwise.
+fabricated.
+
+KNOWN OPEN CONFLICT (flagged, NOT resolved by this module -- see Task 0.2
+report "Concerns"): ``open_prep.a0_stream_state.StreamReference.is_valid_for()``
+hard-requires ``source.strip().lower().startswith("databento")``, and
+``services/a0_fast_detector/worker.py::_load_references`` calls it on EVERY
+row at load time, raising for the whole file if any row fails. An honestly
+FMP-labeled reference (``source="fmp:adjusted-eod"``) will therefore
+currently FAIL to load in the deployed A0-Fast worker as-is. This module
+does not touch ``a0_stream_state.py`` / ``worker.py`` -- both are outside
+this task's authorized scope, and resolving the Databento-only purity gate
+(vs. an FMP-daily + Databento-live split source model) is a controller
+decision, not something to silently paper over here.
 """
 
 from __future__ import annotations
@@ -36,27 +71,41 @@ import json
 import logging
 import os
 import sys
-from dataclasses import asdict
-from datetime import UTC, date, datetime
+from dataclasses import asdict, dataclass
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from open_prep.a0_reference import DatabentoDailyBar, build_databento_reference
 from open_prep.a0_stream_state import StreamReference
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOOKBACK_SESSIONS = 15
-DEFAULT_CORPORATE_ACTION_VERSION = "databento-adjusted-ohlcv-1d-v1"
-DEFAULT_DATASET = "EQUS.MINI"
-DEFAULT_REFERENCE_VERSION_PREFIX = "databento-bootstrap"
+DEFAULT_CORPORATE_ACTION_VERSION = "fmp-adjusted-eod-v1"
+DEFAULT_REFERENCE_VERSION_PREFIX = "fmp-bootstrap"
+FMP_EOD_SOURCE = "fmp:adjusted-eod"
+
+
+@dataclass(frozen=True, slots=True)
+class FmpAdjustedEodBar:
+    """One FMP-adjusted end-of-day session bar for a symbol.
+
+    ``close`` is FMP's split/dividend-adjusted close from
+    ``/stable/historical-price-eod/full`` (see module docstring, "FMP field
+    verification" -- codebase-evidence based, not a live-captured response).
+    """
+
+    symbol: str
+    session_date: str
+    close: float
+    volume: int
+    source: str = FMP_EOD_SOURCE
 
 
 def extract_candidate_symbols_from_open_prep_run(payload: dict[str, Any]) -> list[str]:
@@ -67,7 +116,7 @@ def extract_candidate_symbols_from_open_prep_run(payload: dict[str, Any]) -> lis
     rows from ``filtered_out_v2`` whose only exclusion reason is
     ``below_top_n_cutoff``, plus any symbol seen in ``enriched_quotes`` not
     already covered. This is the same ~900-symbol universe the realtime
-    producer monitors -- NOT the ~58-symbol micro-cap shadow list.
+    producer monitors -- NOT the smaller micro-cap shadow list.
     """
     seen: set[str] = set()
     symbols: list[str] = []
@@ -93,51 +142,122 @@ def extract_candidate_symbols_from_open_prep_run(payload: dict[str, Any]) -> lis
     return symbols
 
 
-def daily_bars_frame_to_bars_by_symbol(
-    frame: pd.DataFrame,
+def fmp_eod_response_to_bars(
+    symbol: str,
+    response: list[dict[str, Any]] | dict[str, Any],
     *,
-    corporate_action_adjusted: bool = True,
-    source: str = "databento:daily",
-) -> dict[str, list[DatabentoDailyBar]]:
-    """Reshape a ``load_daily_bars()``-shaped frame into per-symbol bar lists.
+    source: str = FMP_EOD_SOURCE,
+) -> list[FmpAdjustedEodBar]:
+    """Parse an ``FMPClient.get_historical_price_eod_full()`` response for one
+    symbol into :class:`FmpAdjustedEodBar` rows.
 
-    Expects columns ``trade_date``, ``symbol``, ``close``, ``volume`` (the
-    shape ``databento_volatility_screener.load_daily_bars`` returns).
+    Accepts both response shapes ``get_historical_price_eod_full`` can
+    return: a bare list of row dicts, or ``{"historical": [...]}`` -- the
+    same dict-unwrap every other call site in this repo applies (see
+    ``open_prep/run_open_prep.py::_fetch_symbol_atr``,
+    ``open_prep/market_microstructure.py``). Rows missing ``date``/``close``/
+    ``volume``, or with an unparseable date, are dropped rather than raising
+    -- callers see a shorter history and the reference builder fails closed
+    (insufficient-history) if too much is missing.
     """
-    bars_by_symbol: dict[str, list[DatabentoDailyBar]] = {}
-    if frame.empty:
-        return bars_by_symbol
-    required = {"trade_date", "symbol", "close", "volume"}
-    missing = required - set(frame.columns)
-    if missing:
-        raise ValueError(f"daily bars frame is missing required columns: {sorted(missing)}")
+    normalized_symbol = symbol.strip().upper()
+    if isinstance(response, dict):
+        rows = response.get("historical")
+        rows = rows if isinstance(rows, list) else []
+    elif isinstance(response, list):
+        rows = response
+    else:
+        rows = []
 
-    for row in frame.itertuples(index=False):
-        symbol = str(getattr(row, "symbol", "") or "").strip().upper()
-        if not symbol:
+    bars: list[FmpAdjustedEodBar] = []
+    for row in rows:
+        if not isinstance(row, dict):
             continue
-        trade_date_value = row.trade_date
-        session_date = trade_date_value.isoformat() if hasattr(trade_date_value, "isoformat") else str(trade_date_value)
-        close_value = getattr(row, "close", None)
-        volume_value = getattr(row, "volume", None)
-        if close_value is None or volume_value is None or pd.isna(close_value) or pd.isna(volume_value):
+        session_date = str(row.get("date") or "").strip()[:10]
+        if not session_date:
             continue
-        bars_by_symbol.setdefault(symbol, []).append(
-            DatabentoDailyBar(
-                symbol=symbol,
+        try:
+            date.fromisoformat(session_date)
+        except ValueError:
+            continue
+        close_raw = row.get("close")
+        volume_raw = row.get("volume")
+        if close_raw is None or volume_raw is None:
+            continue
+        try:
+            close = float(close_raw)
+            volume = int(float(volume_raw))
+        except (TypeError, ValueError):
+            continue
+        bars.append(
+            FmpAdjustedEodBar(
+                symbol=normalized_symbol,
                 session_date=session_date,
-                close=float(close_value),
-                volume=int(volume_value),
+                close=close,
+                volume=volume,
                 source=source,
-                corporate_action_adjusted=corporate_action_adjusted,
             )
         )
-    return bars_by_symbol
+    return bars
+
+
+def build_fmp_reference(
+    *,
+    symbol: str,
+    bars: list[FmpAdjustedEodBar],
+    as_of_session: str,
+    lookback_sessions: int,
+    reference_version: str,
+    corporate_action_version: str,
+) -> StreamReference:
+    """Build previous-close and ADV from FMP-adjusted EOD history.
+
+    Mirrors the validation shape of
+    ``open_prep.a0_reference.build_databento_reference`` (strictly-prior
+    sessions only, exact lookback window, source-purity + positive-close +
+    minimum-volume gates) but is source-pure FMP instead of Databento.
+    Deliberately a SEPARATE function from ``build_databento_reference``,
+    which asserts a Databento-only source and stays as-is for its own
+    (still Databento-sourced, still tested in ``tests/test_a0_reference.py``)
+    use elsewhere -- this module does not modify that function.
+    """
+    normalized_symbol = symbol.strip().upper()
+    as_of = date.fromisoformat(as_of_session)
+    eligible = sorted(
+        (
+            bar
+            for bar in bars
+            if bar.symbol.strip().upper() == normalized_symbol and date.fromisoformat(bar.session_date) < as_of
+        ),
+        key=lambda bar: bar.session_date,
+    )
+    if lookback_sessions <= 0:
+        raise ValueError("lookback_sessions must be positive")
+    if len(eligible) < lookback_sessions:
+        raise ValueError("insufficient FMP adjusted-EOD history")
+    selected = eligible[-lookback_sessions:]
+    if any(not bar.source.strip().lower().startswith("fmp") for bar in selected):
+        raise ValueError("reference history is not source-pure FMP")
+    if any(bar.close <= 0 or bar.volume < 1000 for bar in selected):
+        raise ValueError("reference history contains invalid close or volume")
+    if not reference_version or not corporate_action_version:
+        raise ValueError("reference and corporate-action versions are required")
+    average_volume = sum(bar.volume for bar in selected) / len(selected)
+    return StreamReference(
+        symbol=normalized_symbol,
+        previous_close=selected[-1].close,
+        average_daily_volume=average_volume,
+        source=FMP_EOD_SOURCE,
+        as_of_session=selected[-1].session_date,
+        lookback_sessions=lookback_sessions,
+        reference_version=reference_version,
+        corporate_action_version=corporate_action_version,
+    )
 
 
 def build_reference_for_universe(
     symbols: list[str],
-    bars_by_symbol: dict[str, list[DatabentoDailyBar]],
+    bars_by_symbol: dict[str, list[FmpAdjustedEodBar]],
     *,
     as_of_session: str,
     reference_version: str,
@@ -145,13 +265,11 @@ def build_reference_for_universe(
     corporate_action_version: str = DEFAULT_CORPORATE_ACTION_VERSION,
 ) -> tuple[list[StreamReference], list[str]]:
     """Build a :class:`StreamReference` for every symbol with sufficient,
-    source-pure, corporate-action-adjusted Databento daily history.
+    source-pure, adjusted FMP EOD history.
 
     Returns ``(references, skipped_symbols)``. Skipped symbols lack enough
     qualifying history and are OMITTED rather than fabricated with a
-    zero/garbage reference -- the worker's ``StreamReference.is_valid_for()``
-    requires an explicit valid reference and fails closed (no A0) for any
-    symbol missing from the reference file.
+    zero/garbage reference.
     """
     references: list[StreamReference] = []
     skipped: list[str] = []
@@ -159,7 +277,7 @@ def build_reference_for_universe(
         normalized = symbol.strip().upper()
         bars = bars_by_symbol.get(normalized, [])
         try:
-            reference = build_databento_reference(
+            reference = build_fmp_reference(
                 symbol=normalized,
                 bars=bars,
                 as_of_session=as_of_session,
@@ -194,7 +312,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Build the A0-Fast reference file (previous_close + ADV) for the full "
-            "open_prep production candidate universe from Databento daily bars."
+            "open_prep production candidate universe from FMP-adjusted EOD history."
         )
     )
     parser.add_argument(
@@ -202,7 +320,6 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to a latest_open_prep_run.json snapshot to source the candidate universe from.",
     )
-    parser.add_argument("--dataset", default=os.getenv("DATABENTO_EQUITY_DAILY_DATASET") or DEFAULT_DATASET)
     parser.add_argument(
         "--lookback-sessions",
         type=int,
@@ -214,29 +331,41 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="ISO session date the reference is built as-of (default: today, US/Eastern).",
     )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=10,
+        help="Parallel FMP fetch workers (FMP Ultimate: 3000 req/min; a daily 1x run over ~900 symbols is well within budget).",
+    )
     parser.add_argument("--output", required=True, help="Output path for the reference JSON file.")
     return parser
 
 
 def main() -> int:
     """Live orchestration entrypoint. NOT exercised by unit tests -- requires
-    DATABENTO_API_KEY and a live Databento historical fetch. See Task 0.2
-    controller-verification: generate + spot-check against FMP previousClose
-    for liquid names on a real trading day."""
+    FMP_API_KEY and live FMP calls. See Task 0.2 controller-verification:
+    generate + spot-check previous_close against FMP for liquid names on a
+    real trading day."""
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
     load_dotenv()
     args = _build_parser().parse_args()
 
-    databento_api_key = os.getenv("DATABENTO_API_KEY")
-    if not databento_api_key:
-        print(json.dumps({"error": "DATABENTO_API_KEY missing"}, indent=2, ensure_ascii=True))
+    fmp_api_key = os.getenv("FMP_API_KEY")
+    if not fmp_api_key:
+        print(json.dumps({"error": "FMP_API_KEY missing"}, indent=2, ensure_ascii=True))
         return 2
 
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from zoneinfo import ZoneInfo
 
-    from databento_volatility_screener import list_recent_trading_days, load_daily_bars
+    from open_prep.macro import FMPClient
 
     as_of_session = args.as_of_session or datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+    as_of = date.fromisoformat(as_of_session)
+    # Calendar-day buffer for `lookback_sessions` trading sessions, generous
+    # enough to absorb weekends/holidays (matches the x4 heuristic
+    # `databento_volatility_screener.list_recent_trading_days` uses).
+    date_from = as_of - timedelta(days=max(args.lookback_sessions * 4, 30))
 
     run_payload = json.loads(Path(args.open_prep_run).expanduser().read_text(encoding="utf-8"))
     symbols = extract_candidate_symbols_from_open_prep_run(run_payload)
@@ -244,19 +373,22 @@ def main() -> int:
         print(json.dumps({"error": "no candidate symbols extracted from open_prep run"}, indent=2))
         return 2
 
-    trading_days = list_recent_trading_days(
-        databento_api_key,
-        dataset=args.dataset,
-        lookback_days=args.lookback_sessions + 1,
-        end_date=date.fromisoformat(as_of_session),
-    )
-    daily_bars_frame = load_daily_bars(
-        databento_api_key,
-        dataset=args.dataset,
-        trading_days=trading_days,
-        universe_symbols=set(symbols),
-    )
-    bars_by_symbol = daily_bars_frame_to_bars_by_symbol(daily_bars_frame)
+    client = FMPClient.from_env()
+    bars_by_symbol: dict[str, list[FmpAdjustedEodBar]] = {}
+
+    def _fetch_one(symbol: str) -> tuple[str, list[FmpAdjustedEodBar]]:
+        try:
+            response = client.get_historical_price_eod_full(symbol, date_from, as_of)
+        except Exception as exc:  # fail-soft: this symbol is skipped downstream, not the whole run
+            logger.warning("FMP EOD fetch failed for %s: %s", symbol, exc)
+            return symbol, []
+        return symbol, fmp_eod_response_to_bars(symbol, response)
+
+    with ThreadPoolExecutor(max_workers=max(1, args.max_workers)) as pool:
+        futures = {pool.submit(_fetch_one, symbol): symbol for symbol in symbols}
+        for future in as_completed(futures):
+            symbol, bars = future.result()
+            bars_by_symbol[symbol] = bars
 
     references, skipped = build_reference_for_universe(
         symbols,
