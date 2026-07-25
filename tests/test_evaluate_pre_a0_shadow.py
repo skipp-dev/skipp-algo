@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -226,16 +226,61 @@ def test_load_snapshots_collapses_byte_identical_duplicate_records(tmp_path: Pat
     assert len(frame) == 2
 
 
-def test_load_snapshots_rejects_conflicting_duplicate_records(tmp_path: Path) -> None:
-    # Same record_id (identical identity fields) but DIFFERENT content is real
-    # corruption, not an idempotent re-emit, and must still fail closed.
+def test_load_snapshots_rejects_conflicting_feature_records(tmp_path: Path) -> None:
+    # Same record_id but a differing identity/FEATURE field is real corruption,
+    # not a benign hysteresis re-emit, and must still fail closed.
     snapshots = tmp_path / "snapshots"
     original = _row(1, 0, probability=0.9, artifact_id="art-1")
-    conflicting = _row(1, 0, probability=0.1, artifact_id="art-1")
+    conflicting = replace(original, price_progress=0.99)
     assert original.record_id == conflicting.record_id
-    assert asdict(original) != asdict(conflicting)
     write_snapshot_partition([original], snapshots, build_id="b1", code_revision="rev")
     write_snapshot_partition([conflicting], snapshots, build_id="b2", code_revision="rev")
 
     with pytest.raises(ValueError, match="conflicting duplicate record_id"):
         evaluate_pre_a0_shadow._load_snapshots(snapshots)
+
+
+def test_load_snapshots_drops_benign_hysteresis_only_conflicts(tmp_path: Path) -> None:
+    # Same record_id and identical FEATURES, but a different hysteresis-derived
+    # state (a replay rebuilds PreA0Machine state from session open and diverges
+    # from the live run at boundary bars, 2026-07-23/24). Unresolvable — the load
+    # DROPS the record instead of guessing its state, and does not fail closed.
+    snapshots = tmp_path / "snapshots"
+    live = _row(1, 0, probability=0.9, artifact_id="art-1")
+    other = _row(1, 10, probability=0.1, artifact_id="art-1", symbol="ABC")
+    replayed = replace(
+        live,
+        state="NONE",
+        selection_reason="base_5s",
+        sample_weight=5.0,
+        probability_60=None,
+        probability_180=None,
+        score_status_60=None,
+        score_status_180=None,
+    )
+    assert replayed.record_id == live.record_id
+    assert asdict(replayed) != asdict(live)  # differ only in decision fields
+    write_snapshot_partition([live, other], snapshots, build_id="b1", code_revision="rev")
+    write_snapshot_partition([replayed], snapshots, build_id="b2", code_revision="rev")
+
+    frame, _paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
+
+    assert live.record_id not in set(frame["record_id"])  # the ambiguous record is dropped
+    assert other.record_id in set(frame["record_id"])  # unaffected records survive
+    assert not frame["record_id"].duplicated().any()
+
+
+def test_load_snapshots_collapses_episode_id_only_conflicts(tmp_path: Path) -> None:
+    # Same record_id and identical features/state, differing ONLY in episode_id
+    # (a pre-#4023 re-emit relabel). That is a benign relabel, not an ambiguous
+    # state, so the copies COLLAPSE to one row rather than being dropped.
+    snapshots = tmp_path / "snapshots"
+    live = _row(1, 0, probability=0.9, artifact_id="art-1")
+    relabelled = replace(live, episode_id="episode-relabelled")
+    assert relabelled.record_id == live.record_id
+    write_snapshot_partition([live], snapshots, build_id="b1", code_revision="rev")
+    write_snapshot_partition([relabelled], snapshots, build_id="b2", code_revision="rev")
+
+    frame, _paths = evaluate_pre_a0_shadow._load_snapshots(snapshots)
+
+    assert list(frame["record_id"]) == [live.record_id]  # collapsed, not dropped
