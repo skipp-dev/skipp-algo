@@ -1611,7 +1611,7 @@ def run_full_compute_cycle(tf: str = "5m") -> int:
 
 def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
-    Fast refresh: recompute flow fields (and refresh vix_level) for all symbols.
+    Fast refresh: recompute current-bar flow/volume fields and refresh VIX.
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
@@ -1624,12 +1624,29 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                 continue
             aggregated = _bars_for_timeframe(bars, tf)
             updates = compute_flow_fields(aggregated)
+            ats = compute_ats_fields(aggregated)
+            updates.update(
+                {
+                    "ats_state": ats["ats_state"],
+                    "volume_accumulation_distribution_state": ats["ats_state"],
+                    "ats_zscore": ats["ats_zscore"],
+                    "volume_current_bar_zscore": ats["ats_zscore"],
+                }
+            )
             if (vix_value := _coerce_finite_float(vix)) is not None:
                 updates["vix_level"] = round(vix_value, 4)
             patched = cache.patch_overlay(
                 sym,
                 {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},
-                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct", "price_candle_body_return_pct"},
+                allow_none_keys={
+                    "flow_rel_vol",
+                    "flow_delta_proxy_pct",
+                    "price_candle_body_return_pct",
+                    "ats_state",
+                    "volume_accumulation_distribution_state",
+                    "ats_zscore",
+                    "volume_current_bar_zscore",
+                },
             )
             if patched:
                 count += 1
