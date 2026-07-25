@@ -165,10 +165,14 @@ def test_engine_uses_databento_source_when_flagged(monkeypatch) -> None:
     assert len(factory.calls) == 1
     assert factory.calls[0]["symbols"] == ["AAPL"]
     assert callable(factory.calls[0]["client_or_factory"])
-    # Constructing the feed must not itself touch db.Live() -- the factory
-    # lambda is only ever invoked by the feed's own reconnect thread on
-    # start(), which this test never calls.
-    assert fake_feed.start_calls == 0
+    # The self-heal must start the freshly-rebuilt feed itself (orphaned-feed
+    # fix) -- main() only calls start_quote_source() once, before the poll
+    # loop begins, so a self-healed feed left unstarted would never fill its
+    # cache. This does NOT itself touch db.Live(): the fake feed's start()
+    # just increments a counter, mirroring how the real feed's start() only
+    # spawns its reconnect thread -- the client_or_factory lambda is invoked
+    # later, by that thread, not by start() itself.
+    assert fake_feed.start_calls == 1
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +202,36 @@ def test_self_heal_rebuilds_databento_source_not_fmp_when_flagged(monkeypatch) -
 
     assert isinstance(rebuilt, DatabentoQuoteSource)
     assert not isinstance(rebuilt, FMPQuoteSource)
+
+
+def test_self_healed_feed_is_started_not_orphaned(monkeypatch) -> None:
+    """Covering test for the orphaned-feed bug: main() calls
+    start_quote_source() exactly once, before the poll loop begins -- so a
+    feed rebuilt later by the self-heal (e.g. cold start with an empty
+    watchlist, watchlist fills in on a later poll) must be started by the
+    self-heal itself, or its threads never run, the cache stays empty, and
+    DatabentoQuoteSource.fetch() fail-closed omits every symbol forever."""
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    monkeypatch.setenv("DATABENTO_API_KEY", "test-key-not-real")
+
+    fake_feed = _FakeDatabentoQuoteFeed()
+    fake_feed.set_symbol("AAPL", bar=_bar(), cumulative_volume=500_000, session_high=101.0, session_low=98.0)
+    _install_fake_databento_plumbing(monkeypatch, fake_feed)
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._client = _PoisonFMPClient()
+    engine._client_disabled_reason = None
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine._databento_feed = None
+    engine._quote_source = None  # forces the self-heal path in _fetch_realtime_quotes
+
+    engine._fetch_realtime_quotes()
+
+    assert engine._databento_feed is fake_feed
+    assert fake_feed.start_calls == 1, (
+        "self-healed feed was constructed but never started -- orphaned, "
+        "cache never fills, every symbol is fail-closed omitted forever"
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -2631,6 +2631,14 @@ class RealtimeEngine:
         if quote_source is None:
             quote_source = self._default_quote_source()
             self._quote_source = quote_source
+            # A self-healed DatabentoQuoteFeed is freshly constructed, not
+            # started -- main() only calls start_quote_source() once, before
+            # the poll loop begins, so a rebuild here would otherwise leave
+            # the feed's threads dead forever (cache stays empty -> every
+            # symbol is fail-closed omitted). start() is idempotent (guards
+            # on an already-alive thread), so this is always safe, including
+            # when quote_source is FMP (no-op: _databento_feed stays None).
+            self.start_quote_source()
 
         quotes: dict[str, dict[str, Any]] = {}
         for q in quote_source.fetch(symbols, "regular"):
@@ -2698,16 +2706,25 @@ class RealtimeEngine:
 
     def start_quote_source(self) -> None:
         """Start the Databento feed's background threads (call once, at
-        run-loop start -- see ``main()``). No-op for the FMP default: no
-        feed is constructed, so there is nothing to start."""
-        if self._databento_feed is not None:
-            self._databento_feed.start()
+        run-loop start -- see ``main()`` -- and again from the
+        ``_fetch_realtime_quotes`` self-heal after a rebuild, since that
+        rebuild produces a freshly-constructed, unstarted feed). No-op for
+        the FMP default: no feed is constructed, so there is nothing to
+        start. ``getattr`` (not ``self._databento_feed`` directly) so this
+        stays safe on engines built via ``RealtimeEngine.__new__()``
+        (bypassing ``__init__``, e.g. in some tests) that never set the
+        attribute at all."""
+        feed = getattr(self, "_databento_feed", None)
+        if feed is not None:
+            feed.start()
 
     def stop_quote_source(self) -> None:
         """Stop the Databento feed's background threads (call on shutdown
-        -- see ``main()``). No-op for the FMP default."""
-        if self._databento_feed is not None:
-            self._databento_feed.stop()
+        -- see ``main()``). No-op for the FMP default. Same ``getattr``
+        safety as ``start_quote_source()``."""
+        feed = getattr(self, "_databento_feed", None)
+        if feed is not None:
+            feed.stop()
 
     def _capture_regular_close_baseline(self, quotes: dict[str, dict[str, Any]]) -> None:
         """Retain the latest regular-session cumulative volume for postmarket."""
