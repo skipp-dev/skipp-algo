@@ -3226,6 +3226,44 @@ groups:
         pin drift is blind.
       runbook: Check PINE_LIBRARY_VERSIONS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
         bot/live-pine-library-versions exists; see services/live_overlay_daemon/pine_library_version_bridge.py.
+  - uid: lo-pine-library-no-probes
+    title: Pine-library snapshot contains no probed libraries
+    condition: C
+    # A syntactically valid snapshot can load with librariesProbed=0 and an
+    # empty libraries list. The bridge then reports loaded=1/facade_ok=1, while
+    # every label-pinned per-library alert has no series and noDataState=OK.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_snapshot_loaded{job="live_overlay"} * (live_overlay_pine_libraries_probed{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Pine-library snapshot loaded but contains zero probed libraries, so every
+        per-library version, freshness, and payload alert is blind.
+      runbook: Inspect librariesProbed and libraries in the latest pine_library_versions.json.
+        Run/inspect .github/workflows/pine-library-version-monitor.yml and verify that its
+        TradingView facade probe returned the expected library inventory before publishing.
   - uid: lo-pine-library-snapshot-stale
     title: Pine-library version snapshot stale
     condition: C
