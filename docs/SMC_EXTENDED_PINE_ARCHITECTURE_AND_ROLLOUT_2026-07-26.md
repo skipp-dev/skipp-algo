@@ -743,7 +743,7 @@ remain in place until their replacement is proven.
 
 #### Implementation status — 2026-07-26
 
-Implemented in the governance change:
+Merged in governance PR #4084 (`c2dbfe94849d72debd480303a252f2dab0124367`):
 
 - canonical schema-v3 registry and compatibility views;
 - exact eight-save-target and seven-binding-target gates;
@@ -755,7 +755,20 @@ Implemented in the governance change:
   Fast-CI gates; and
 - corrected lifecycle documentation.
 
-Still pending after the governance merge:
+Implemented in the follow-up evidence hardening, but not itself live evidence:
+
+- an explicit `--verify-only` execution plan that disables source save,
+  producer refresh, binding repair, and layout save before browser launch;
+- fail-fast rejection of writing flags in verify-only mode;
+- schema-v2 evidence with the repository commit, exact rollout-config hash,
+  product-manifest version, published-library state, repository source hashes,
+  expected bindings, observed source hashes and selections, runtime errors, and
+  explicit mutation counters;
+- a clean-input gate proving that the config, manifests, and Pine sources match
+  the reported repository commit; and
+- scheduled and manually selectable verify-only workflow coverage.
+
+Still pending after these repository changes:
 
 - a fresh read-only TradingView baseline tied to the exact merge commit;
 - verified repository-versus-TradingView source hashes;
@@ -763,10 +776,11 @@ Still pending after the governance merge:
 - active alert names; and
 - an explicit rollback-evidence artifact.
 
-Therefore R0 governance can merge without changing TradingView behavior, but
-Phase R0 is not complete until that post-merge baseline is captured. Older
-binding evidence must not be represented as current merely because its checks
-were green when it was created.
+Therefore the repository governance and evidence mechanism can merge without
+changing TradingView behavior, but Phase R0 is not complete until a
+post-merge verify-only run has captured the baseline. Passing local tests,
+merging the automation, or finding an older green binding snapshot is not
+deployment evidence and must never be reported as such.
 
 #### Changes
 

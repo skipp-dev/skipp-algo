@@ -6,9 +6,9 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
+import { normalizedPineSha256 } from "../automation/tradingview/lib/tv_consumer_rollout_evidence.js";
 import {
   assertNoVisibleCompileError,
   closeTradingViewSession,
@@ -42,7 +42,7 @@ export type VerifyConsumerSourceResult = {
 };
 
 export function pineSourceSha256(source: string): string {
-  return createHash("sha256").update(source.replace(/\r\n/g, "\n"), "utf-8").digest("hex");
+  return normalizedPineSha256(source);
 }
 
 function getFlag(name: string, fallback = ""): string {

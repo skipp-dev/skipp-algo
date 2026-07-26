@@ -55,6 +55,38 @@ def test_legacy_snapshot_marks_source_verification_unknown() -> None:
     assert out["source_drift"] == 0.0
 
 
+def test_schema_v2_provenance_is_additive_to_legacy_metrics_contract() -> None:
+    raw = _raw()
+    raw.update(
+        {
+            "schemaVersion": 2,
+            "executionMode": "verify-only",
+            "observedAt": "2026-07-26T16:30:00.000Z",
+            "repoCommitSha": "a" * 40,
+            "rolloutConfigSha256": "b" * 64,
+            "productManifestVersion": 3,
+            "libraryReleaseVersion": 170,
+            "inputsMatchCommit": True,
+            "repositoryExpected": {"libraryRelease": {"matches": True}},
+            "tradingViewObserved": {"sources": [], "bindings": []},
+            "mutations": {
+                "sourceSaveRequested": False,
+                "sourceSavesCompleted": 0,
+                "producerRefreshRequested": False,
+                "producerInstancesRemoved": 0,
+                "bindingRepairRequested": False,
+                "bindingsRepaired": 0,
+                "layoutSaveRequested": False,
+                "layoutSaved": False,
+            },
+        }
+    )
+    out = bridge._coerce(raw)
+    assert out["loaded"] == 1.0
+    assert out["checked_bindings"] == 64.0
+    assert out["source_checked"] == 2.0
+
+
 def test_load_local_snapshot_fail_soft(monkeypatch, tmp_path) -> None:
     snapshot = tmp_path / "bindings.json"
     snapshot.write_text(json.dumps(_raw()), encoding="utf-8")
