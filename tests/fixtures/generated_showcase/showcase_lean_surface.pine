@@ -32,6 +32,7 @@ export const float FVG_FILL_PCT = 0.0
 export const int FVG_MATURITY_LEVEL = 1
 export const bool FVG_FRESH = true
 export const bool FVG_INVALIDATED = false
+export const int FVG_NET_IMBALANCE = 3
 
 // ── structure_state_light ──
 export const string STRUCTURE_LAST_EVENT = "BOS_BULL"

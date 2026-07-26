@@ -80,7 +80,8 @@
     "FVG_FILL_PCT": 0.0,
     "FVG_MATURITY_LEVEL": 1,
     "FVG_FRESH": true,
-    "FVG_INVALIDATED": false
+    "FVG_INVALIDATED": false,
+    "FVG_NET_IMBALANCE": 3
   },
   "structure_state_light": {
     "STRUCTURE_LAST_EVENT": "BOS_BULL",
