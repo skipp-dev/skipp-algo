@@ -120,6 +120,26 @@ class OHLCV_1m:
     ts_event = 1
 
 
+def test_feed_thread_restart_preserves_requested_timeframe_history() -> None:
+    """A supervisor restart of only the feed thread must not reinitialise cache state."""
+
+    from services.live_overlay_daemon import cache
+
+    feed = _reload_feed_module()
+    cache.push_bar("AAPL", {"ts_event": 1})
+    cache.ensure_bar_capacity("AAPL", 2_880)
+    for index in range(1, 100):
+        cache.push_bar("AAPL", {"ts_event": index + 1})
+    before = cache.get_bars_snapshot("AAPL")
+
+    already_stopped = threading.Event()
+    already_stopped.set()
+    feed._run_feed_loop(already_stopped)
+
+    assert cache.get_bars_snapshot("AAPL") == before
+    assert cache.requested_bar_history_readiness()[0] == 1
+
+
 class TestFeedReconnectAndCircuitBreaker:
     """_run_feed_loop reconnects on BentoError and trips the circuit breaker."""
 
