@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_observability_private.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_observability_private"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_observability_private/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_observability_private/4"),
     alias: getFlag("--alias", "obv"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "4")),
     description: getFlag(
       "--description",
       "Private ready-edge and observability helpers consumed by SMC Core.",
