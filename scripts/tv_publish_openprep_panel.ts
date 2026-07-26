@@ -196,7 +196,10 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
-      await addCurrentScriptToChart(session.page, details.scriptName);
+      // This is an optimisation only. publishPrivateScript owns the hard
+      // "Script is not on the chart" gate and retries after adding the script;
+      // a stale TradingView chart must not abort before that recovery runs.
+      await addCurrentScriptToChart(session.page, details.scriptName, { tolerateFailure: true });
       await assertNoVisibleChartScriptError(session.page, details.scriptName);
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
