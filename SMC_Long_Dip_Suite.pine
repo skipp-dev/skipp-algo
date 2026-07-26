@@ -459,7 +459,7 @@ compute_lib_risk_context() =>
     bool   lib_erl_market_blocked  = mp.MARKET_EVENT_BLOCKED
     // SYMBOL_EVENT_BLOCKED is an aggregate producer flag: scope it back to
     // the current chart symbol using the accompanying exact-token list.
-    bool   lib_erl_symbol_blocked  = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, current_symbol_key, current_symbol_key_qualified)
+    bool   lib_erl_symbol_blocked  = mp.SYMBOL_EVENT_BLOCKED and (u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, current_symbol_key, current_symbol_key_qualified) or u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, current_symbol_key, current_symbol_key_qualified))
     string lib_erl_provider_status = mp.EVENT_PROVIDER_STATUS
     // [v5.5 PRIMARY] event risk gate — single lean-derived hard block
     bool   event_risk_gate_ok      = not (lib_erl_market_blocked or lib_erl_symbol_blocked)

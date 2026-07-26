@@ -204,7 +204,7 @@ V5_FIELD_INVENTORY: set[str] = {
 # Fields the Engine actually reads via ``mp.FIELD``
 ENGINE_CONSUMED_FIELDS: set[str] = {
     "ASOF_DATE", "ASOF_TIME", "BREAKING_NEWS_TICKERS",
-    "CLEAN_RECLAIM_TICKERS", "EARNINGS_TODAY_TICKERS",
+    "CLEAN_RECLAIM_TICKERS", "EARNINGS_SOON_TICKERS", "EARNINGS_TODAY_TICKERS",
     "EARNINGS_TOMORROW_TICKERS", "ENSEMBLE_QUALITY_SCORE",
     "ENSEMBLE_QUALITY_TIER", "EVENT_PROVIDER_STATUS", "EVENT_RISK_LEVEL",
     "EVENT_WINDOW_STATE", "FAST_DECAY_TICKERS", "FVG_FRESH",
@@ -767,10 +767,13 @@ class TestV55DriftGuard:
         ):
             assert fragment not in text, f'Legacy event-risk alias should stay removed: {fragment}'
         assert (
-            "mp.SYMBOL_EVENT_BLOCKED and "
             "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
             "current_symbol_key, current_symbol_key_qualified)"
         ) in text, "Aggregate symbol-event risk must be scoped to the exact chart symbol"
+        assert (
+            "u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, "
+            "current_symbol_key, current_symbol_key_qualified)"
+        ) in text, "Aggregate earnings risk must be scoped to the exact chart symbol"
 
     def test_lean_pack_a_carries_event_risk_light_fields(self):
         """LeanPackA must continue to transport the lean event-risk light inputs."""

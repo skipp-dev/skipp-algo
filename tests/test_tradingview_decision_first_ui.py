@@ -375,8 +375,9 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 def test_core_trust_resolution_defaults_to_insufficient() -> None:
     core = _read("SMC++/smc_engine_private.pine")
 
-    func_start = core.index("resolve_trust_tier(")
-    func_body = core[func_start:func_start + 600]
+    func_start = core.index("export resolve_trust_tier(")
+    func_end = core.index("\nexport ", func_start + 1)
+    func_body = core[func_start:func_end]
 
     assert "'Insufficient'" in func_body
     assert func_body.index("'Insufficient'") < func_body.index("'High'"), \
