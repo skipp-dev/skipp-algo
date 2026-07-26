@@ -1,13 +1,20 @@
 # SMC Context Semantics — Golden Oracle & Parity Contract
 
-Phase 2 of the context bus-v3 track (see [smc-bus-roadmap.md](smc-bus-roadmap.md)).
+Semantic contract for the Context BUS v3 track. The current implementation and
+rollout baseline is
+[SMC Extended Pine Architecture and Rollout Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
+See also [smc-bus-roadmap.md](smc-bus-roadmap.md) for the bus-v2 decision
+history.
 
 This document is the semantic source of truth for the live context library
-`SMC++/smc_context_engine_private.pine` (Phase 3, not yet written) and the
-`SMC_Context_Bus.pine` producer (Phase 5). It defines, per domain, what each
-field means, its warm-up / `na` / bar-close / age / persistence behaviour, and —
-critically — **which fields have an exact Python source of truth (scoring parity)
-and which are new Pine live-detection with no Python golden (spec only).**
+`SMC++/smc_context_engine_private.pine` and the planned
+`SMC_Context_Bus.pine` producer. The library currently implements Structure,
+Imbalance, and Zone frames; Sweep, Pool, Session, the aggregated Context Frame,
+and the visible producer remain rollout work. This document defines, per
+domain, what each field means, its warm-up / `na` / bar-close / age /
+persistence behaviour, and — critically — **which fields have an exact Python
+source of truth (scoring parity) and which are new Pine live-detection with no
+Python golden (spec only).**
 
 Getting this split right is the whole point: porting a Python *scoring rule* is a
 verifiable, golden-gated task; re-implementing *candidate detection* in Pine is
