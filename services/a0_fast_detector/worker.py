@@ -346,15 +346,19 @@ def main() -> None:
     run()
 
 
-def _live_replay_start():
-    """Return a bounded replay start that proves current-session coverage."""
+def _live_replay_start(now=None):
+    """Return an accepted replay start, preserving session coverage when available."""
     from datetime import UTC, datetime
     from zoneinfo import ZoneInfo
 
-    now = datetime.now(UTC)
+    now = datetime.now(UTC) if now is None else now.astimezone(UTC)
     now_et = now.astimezone(ZoneInfo("America/New_York"))
     session_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
-    return min(now, session_open.astimezone(UTC))
+    requested_start = min(now, session_open.astimezone(UTC))
+    # EQUS live replay rolls forward at UTC midnight.  After the US session
+    # closes, its 09:30 ET open can therefore precede the gateway's minimum.
+    replay_floor = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(replay_floor, requested_start)
 
 
 if __name__ == "__main__":
