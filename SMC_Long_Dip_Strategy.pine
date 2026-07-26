@@ -69,7 +69,7 @@ bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quali
 // Regime gate — mirrors the live product behavior
 bool regime_allows_entry = mp.TRADE_STATE != "BLOCKED"
 bool no_macro_event_block = not mp.HIGH_IMPACT_MACRO_TODAY or mp.MARKET_REGIME != "RISK_OFF"
-bool not_earnings_ticker = not str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+bool not_earnings_ticker = not u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid)
 // Snapshot-gates apply LIVE only: mp.* is a single-day snapshot that Pine
 // broadcasts as a constant onto ALL historical bars (look-ahead in backtest).
 bool snapshot_gates_live = barstate.isrealtime and not backtest_mode

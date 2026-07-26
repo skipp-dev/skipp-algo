@@ -43,7 +43,7 @@ EXPECTED_MP_FIELDS_IN_ORDER = (
     "EVENT_COOLDOWN_ACTIVE",
     "MARKET_EVENT_BLOCKED",
     "SYMBOL_EVENT_BLOCKED",
-    "EARNINGS_SOON_TICKERS",
+    "HIGH_RISK_EVENT_TICKERS",
     "ASOF_DATE", "ASOF_DATE", "ASOF_DATE",  # staleness check: year, month, day
 )
 ALLOWED_MP_FIELDS = {
@@ -53,7 +53,7 @@ ALLOWED_MP_FIELDS = {
     "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
     "EVENT_COOLDOWN_ACTIVE",
     "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-    "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS",
+    "HIGH_RISK_EVENT_TICKERS",
     "EVENT_PROVIDER_STATUS",
     "ASOF_DATE",  # Library freshness check (companion staleness pattern)
 }
@@ -86,6 +86,7 @@ class TestOverlayStructure:
     def test_imports_library(self):
         src = _read(OVERLAY_PATH)
         assert published_micro_profiles_import_line() in src
+        assert "import preuss_steffen/smc_utils/3 as u" in src
 
     def test_bus_lean_pack_a_input(self):
         src = _read(OVERLAY_PATH)

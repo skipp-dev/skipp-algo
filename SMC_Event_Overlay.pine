@@ -23,6 +23,7 @@
 indicator("SMC Event Overlay", overlay = true, max_labels_count = 50, max_lines_count = 50, max_boxes_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/170 as mp
+import preuss_steffen/smc_utils/3 as u
 
 // ── Inputs ──────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ int    ev_after_min   = mp.EVENT_RESTRICT_AFTER_MIN
 bool   ev_cooldown    = mp.EVENT_COOLDOWN_ACTIVE
 bool   ev_mkt_block   = mp.MARKET_EVENT_BLOCKED
 bool   ev_sym_block   = mp.SYMBOL_EVENT_BLOCKED
-string ev_earnings    = mp.EARNINGS_SOON_TICKERS
+string ev_risk_tickers = mp.HIGH_RISK_EVENT_TICKERS
 
 // Library freshness check (shared pattern across all companions)
 var label stale_badge = na
@@ -111,7 +112,7 @@ overlay_event_status_text(int lean_row_code) =>
 bool has_event       = ev_name != "" and ev_window != "CLEAR"
 bool is_high_impact  = ev_impact == "HIGH" or ev_impact == "MEDIUM" or ev_risk_level == "HIGH" or ev_risk_level == "ELEVATED"
 bool show_any        = has_event and (not high_impact_only or is_high_impact)
-bool is_symbol_event = str.contains(ev_earnings, syminfo.ticker)
+bool is_symbol_event = u.csv_has_symbol_token(ev_risk_tickers, syminfo.ticker, syminfo.tickerid)
 bool is_blocked      = ev_mkt_block or (ev_sym_block and is_symbol_event)
 
 // ── 1. Pre/Post event zone (bgcolor) ────────────────────────────
