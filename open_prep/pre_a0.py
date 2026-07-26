@@ -322,6 +322,7 @@ class PreA0Machine:
         if minimum >= 0.70 and eta_high is not None and features.direction_stability >= 0.75:
             state = PreA0State.BUILDING
             reasons.append(str(PreA0Reason.BOTH_AXES_PROGRESSING))
+        # IMMINENT is ETA-dominant and may skip BUILDING; stability qualifies sustained buildup.
         if minimum >= 0.75 and eta_high is not None and eta_high <= 180:
             state = PreA0State.IMMINENT
             reasons.append(str(PreA0Reason.ETA_WITHIN_HORIZON))
