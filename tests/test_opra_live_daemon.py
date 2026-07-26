@@ -75,6 +75,22 @@ def test_duplicate_and_out_of_order_records_are_counted() -> None:
     assert metrics["out_of_order"] == 1
 
 
+def test_out_of_order_trade_older_than_window_is_evicted() -> None:
+    # Regression: an out-of-order trade older than the rolling window must be
+    # dropped, not left lingering behind a newer trade. `_trades` is an
+    # append-order deque, so a late (older) print lands at the right and the
+    # left-prefix eviction — which stops at index 0 — used to retain it,
+    # emitting a stale trade as a "current" UOA candidate.
+    state = OpraShadowState(hotlist=("AAPL",), window_seconds=1, min_premium=25_000)
+    state.add_definition(_definition(), ts_ns=1_000_000_000)
+    assert state.add_trade(_trade(ts=10_000_000_000, sequence=1))  # t = 10s
+    assert state.add_trade(_trade(ts=2_000_000_000, sequence=2))   # out-of-order, 8s stale
+    metrics = state.build_snapshot()["metrics"]
+    assert metrics["out_of_order"] == 1
+    # The 8s-stale print is outside the 1s window and must be evicted, not retained.
+    assert metrics["records_in_window"] == 1
+
+
 def test_non_hotlist_definition_and_trade_never_emit() -> None:
     state = _state()
     other = _definition(instrument_id=2)

@@ -458,7 +458,7 @@ def probe_benzinga_news() -> tuple[str, str]:
         return ("OK", f"{len(rows)} items via massive, latest id={row.get('benzinga_id')} ({str(row.get('published') or '?')[:19]})")
     r = httpx.get(
         "https://api.benzinga.com/api/v2/news",
-        params={"token": key, "pageSize": 5, "displayOutput": "abstract"},
+        params={"token": os.getenv("BENZINGA_DIRECT_API_KEY") or key, "pageSize": 5, "displayOutput": "abstract"},  # direct mode: prefer dedicated direct key, matches BenzingaRestAdapter (ingest_benzinga.py)
         headers={"Accept": "application/json"},
         timeout=15.0,
     )
@@ -948,7 +948,7 @@ PROBES: list[Probe] = [
     Probe("Finnhub /quote", probe_finnhub_quote, critical=True),
     Probe("Finnhub /stock/social-sentiment", probe_finnhub_social, critical=False),
     # TradingView
-    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=True),
+    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=False),  # 2026-07-25: retired upstream (PR #3777, flags fail-closed); demote like NewsAPI.ai so a WARN/Cloudflare-block can't false-block preflight. Row kept for visibility.
     Probe("TradingView TA library", probe_tradingview_ta, critical=True),
     # Misc
     Probe("NasdaqTrader symbol directory", probe_nasdaq_trader, critical=True),

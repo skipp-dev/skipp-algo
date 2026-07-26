@@ -124,7 +124,7 @@ def compute_risk_penalty(
 
     # Spread penalty
     if spread_pct > 0:
-        total += min(spread_pct * 10.0, 0.02)
+        total += min(spread_pct * 0.1, 0.02)  # 2026-07-25: caller sends pct-points (×100); was *10.0 (fraction-era) → saturated cap
 
     return max(0.05, min(total, 0.20))
 
@@ -903,7 +903,7 @@ def calculate_support_resistance_targets(
     # --- Combine & sort ---
     try:
         res_candidates = [v for v in [r1, r2, r3] if v is not None] + swing_highs + [
-            v for v in (ema_20, ema_50, ema_200) if v is not None
+            v for v in (ema_20, ema_50, ema_200, fib_382, fib_500, fib_618) if v is not None
         ]
         res_candidates = sorted(v for v in res_candidates if v > current_price * 1.001)
 

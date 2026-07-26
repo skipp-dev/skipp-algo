@@ -1402,9 +1402,10 @@ def test_render_metrics_includes_trading_signals_snapshot(
         overlay_symbols=5,
         overlay_age=60.0,
     )
+    snapshot_now = _time.time()
     snapshot = {
         "updated_at": "2026-06-23T14:30:00+00:00",
-        "updated_epoch": _time.time() - 30.0,
+        "updated_epoch": snapshot_now - 30.0,
         "poll_interval": 5,
         "poll_duration": 0.4,
         "watched_symbols": ["AAPL", "TSLA", "NVDA"],
@@ -1421,6 +1422,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "HIGH",
                 "score": 7.5,
                 "freshness": 0.9,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.82,
                 "change_pct": 1.23,
                 "technical_signal": "STRONG_BUY",
@@ -1435,6 +1437,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "MEDIUM",
                 "score": 4.0,
                 "freshness": 0.5,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.31,
                 "change_pct": -2.0,
                 "technical_signal": "SELL",
@@ -1449,6 +1452,7 @@ def test_render_metrics_includes_trading_signals_snapshot(
                 "confidence_tier": "LOW",
                 "score": 2.5,
                 "freshness": 0.95,
+                "fired_epoch": snapshot_now - 30.0,
                 "technical_score": 0.20,
                 "change_pct": 0.8,
                 "technical_signal": "HOLD",
@@ -1497,6 +1501,246 @@ def test_render_metrics_includes_trading_signals_snapshot(
     assert body.index('live_overlay_trading_signal_score{symbol="AAPL"') < body.index(
         'live_overlay_trading_signal_score{symbol="TSLA"'
     )
+
+
+def test_future_trading_signals_snapshot_is_unknown_and_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A future producer clock must not look like a fresh signal snapshot."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {"updated_epoch": _time.time() + 60.0, "signals": []},
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
+
+
+def test_future_operator_snapshot_timestamps_are_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every producer clock ahead of the daemon must fail closed, not age to zero."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    now = 1_783_000_000.0
+    future = now + 86_400.0
+    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_credential_health_snapshot",
+        lambda: {
+            "generated_at": "2099-01-01T00:00:00Z",
+            "overall_severity": "ok",
+            "probes": [],
+        },
+    )
+    credential = metrics_mod._credential_health_snapshot()
+    assert credential["snapshot_age_known"] == 0.0
+    assert credential["snapshot_age_seconds"] == 0.0
+
+    assert metrics_mod._experiment_run_age("2099-01-01") == (0.0, 0.0)
+    assert metrics_mod._bridge_last_success_age(
+        future, enabled=True, configured=True, startup_epoch=now - 60.0
+    ) == 60.0
+
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_news_snapshot",
+        lambda: {
+            "fetched_at_unix": future,
+            "last_ingest_success_at": future,
+            "providers": {},
+        },
+    )
+    provider = metrics_mod._provider_health_snapshot()
+    assert provider["news_snapshot_age_known"] == 0.0
+    assert provider["news_snapshot_age_seconds"] == 0.0
+    assert provider["news_last_ingest_age_known"] == 0.0
+    assert provider["news_last_ingest_age_seconds"] == 0.0
+
+
+def test_future_rendered_snapshot_timestamps_are_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    now = 1_783_000_000.0
+    future = now + 86_400.0
+    monkeypatch.setattr(metrics_mod.time, "time", lambda: now)
+    monkeypatch.setattr(
+        metrics_mod.pine_library_version_bridge,
+        "snapshot",
+        lambda: {
+            "loaded": 1.0,
+            "generated_at_unix": future,
+            "libraries": [
+                {
+                    "name": "Skipp",
+                    "data_asof_known": 1.0,
+                    "data_asof_unix": future,
+                    "consumers": [],
+                }
+            ],
+        },
+    )
+    pine = "\n".join(metrics_mod._render_pine_library_version_metrics())
+    assert "live_overlay_pine_library_snapshot_age_known 0.0" in pine
+    assert 'live_overlay_pine_library_data_age_known{library="Skipp"} 0.0' in pine
+
+    monkeypatch.setattr(
+        metrics_mod.tradingview_binding_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    binding = "\n".join(metrics_mod._render_tradingview_binding_metrics())
+    assert "live_overlay_tv_binding_snapshot_age_known 0.0" in binding
+
+    monkeypatch.setattr(
+        metrics_mod.evidence_freshness_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    evidence = "\n".join(metrics_mod._render_evidence_freshness_metrics())
+    assert "live_overlay_evidence_freshness_snapshot_age_known 0.0" in evidence
+
+    monkeypatch.setattr(
+        metrics_mod.sweep_trap_shadow_bridge,
+        "snapshot",
+        lambda: {"loaded": 1.0, "generated_at_unix": future},
+    )
+    sweep = "\n".join(metrics_mod._render_sweep_trap_shadow_metrics())
+    assert "live_overlay_sweep_trap_shadow_snapshot_age_known 0.0" in sweep
+    assert "live_overlay_sweep_trap_shadow_snapshot_stale 0.0" in sweep
+
+
+def test_stale_trading_signals_snapshot_exports_no_active_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dashboards must not present an expired snapshot as an active signal."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "updated_epoch": _time.time() - (metrics_mod.config.signals_max_age_secs() + 1),
+            "watched_symbols": ["AAPL"],
+            "signal_count": 1,
+            "a0_count": 1,
+            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_stale 1.0" in body
+    assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signal_score{" not in body
+
+
+def test_unknown_age_trading_signals_snapshot_exports_no_active_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A loaded snapshot without a valid age is diagnostic data, not active data."""
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "signal_count": 1,
+            "a0_count": 1,
+            "signals": [{"symbol": "AAPL", "level": "A0", "score": 9.0}],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_snapshot_age_known 0.0" in body
+    assert "live_overlay_trading_signals_active 0.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signal_score{" not in body
+
+
+def test_expired_signal_rows_are_not_exported_as_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh envelope cannot revive rows the application already rejects."""
+    import time as _time
+
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    now = _time.time()
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_signals_snapshot",
+        lambda: {
+            "updated_epoch": now,
+            "signal_count": 2,
+            "a0_count": 1,
+            "a1_count": 1,
+            "signals": [
+                {
+                    "symbol": "AAPL", "level": "A0", "score": 9.0,
+                    "fired_epoch": now - metrics_mod.config.signals_max_age_secs() - 1,
+                },
+                {
+                    "symbol": "MSFT", "level": "A1", "score": 7.0,
+                    "fired_epoch": now - 30,
+                },
+            ],
+        },
+    )
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_trading_signals_active 1.0" in body
+    assert "live_overlay_trading_signals_a0 0.0" in body
+    assert "live_overlay_trading_signals_a1 1.0" in body
+    assert 'live_overlay_trading_signal_score{symbol="AAPL"' not in body
+    assert 'live_overlay_trading_signal_score{symbol="MSFT"' in body
 
 
 def test_render_metrics_includes_tradingview_credential(
@@ -1983,6 +2227,21 @@ def test_pine_library_data_stale_alert_uses_five_day_threshold() -> None:
     assert "live_overlay_pine_library_data_age_known" in expr
     assert "live_overlay_pine_library_data_age_seconds" in expr
     assert "> bool 432000" in expr
+    assert rule["labels"]["severity"] == "critical"
+
+
+def test_pine_library_empty_probe_alert_detects_loaded_but_empty_snapshot() -> None:
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    group = next(g for g in rules_doc["groups"] if g.get("name") == "evidence-and-workflow-freshness")
+    rule = next(r for r in group["rules"] if r.get("uid") == "lo-pine-library-no-probes")
+    expr = rule["data"][0]["model"]["expr"]
+    assert "live_overlay_pine_library_snapshot_loaded" in expr
+    assert "live_overlay_pine_libraries_probed" in expr
+    assert "== bool 0" in expr
     assert rule["labels"]["severity"] == "critical"
 
 

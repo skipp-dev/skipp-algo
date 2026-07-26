@@ -62,7 +62,7 @@ def test_core_engine_header_restores_import_prelude_and_blocks_stray_method_body
     following_nonempty = [line for line in lines[indicator_index + 1:] if line.strip()][:6]
     assert following_nonempty[:3] == [
         'import preuss_steffen/smc_core_types/5 as ct',
-        'import preuss_steffen/smc_utils/3 as u',
+        'import preuss_steffen/smc_utils/4 as u',
         'import preuss_steffen/smc_draw/3 as d',
     ]
     assert not following_nonempty[0].startswith((' ', '\t'))
@@ -279,7 +279,7 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
 def test_core_engine_tracks_c8_event_edge_and_debug_owners() -> None:
     source = _read_core_source()
     observability_source = _read_observability_private_source()
-    assert 'import preuss_steffen/smc_observability_private/3 as obv' in source
+    assert 'import preuss_steffen/smc_observability_private/4 as obv' in source
     assert 'export resolve_long_ready_signal_state(' in observability_source
     assert 'export emit_long_engine_debug_logs(' in observability_source
     assert '= obv.resolve_long_ready_signal_state(' in source

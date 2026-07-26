@@ -330,7 +330,7 @@ def build_signal_quality_v1(
     sweep_direction = str(ls.get("SWEEP_DIRECTION", "NONE"))
 
     if has_bull_sweep or has_bear_sweep:
-        sweep_contrib = min(MAX_LIQUIDITY, int(sweep_quality * MAX_LIQUIDITY / 10))
+        sweep_contrib = min(MAX_LIQUIDITY, int(sweep_quality * MAX_LIQUIDITY / 5))  # 2026-07-25: SWEEP_QUALITY_SCORE is 0-5 (was /10 stale-scale, capped at 7/15); matches v2
         score += sweep_contrib
     # No warning for missing sweep — it's optional support
 

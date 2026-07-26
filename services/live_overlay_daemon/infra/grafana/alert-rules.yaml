@@ -3226,6 +3226,44 @@ groups:
         pin drift is blind.
       runbook: Check PINE_LIBRARY_VERSIONS_SNAPSHOT_URL(_TOKEN) on the daemon and that the producer branch
         bot/live-pine-library-versions exists; see services/live_overlay_daemon/pine_library_version_bridge.py.
+  - uid: lo-pine-library-no-probes
+    title: Pine-library snapshot contains no probed libraries
+    condition: C
+    # A syntactically valid snapshot can load with librariesProbed=0 and an
+    # empty libraries list. The bridge then reports loaded=1/facade_ok=1, while
+    # every label-pinned per-library alert has no series and noDataState=OK.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_pine_library_snapshot_loaded{job="live_overlay"} * (live_overlay_pine_libraries_probed{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Pine-library snapshot loaded but contains zero probed libraries, so every
+        per-library version, freshness, and payload alert is blind.
+      runbook: Inspect librariesProbed and libraries in the latest pine_library_versions.json.
+        Run/inspect .github/workflows/pine-library-version-monitor.yml and verify that its
+        TradingView facade probe returned the expected library inventory before publishing.
   - uid: lo-pine-library-snapshot-stale
     title: Pine-library version snapshot stale
     condition: C
@@ -3387,10 +3425,11 @@ groups:
   - uid: lo-bar-cache-depth-low
     title: Bar cache too shallow for the rolling features
     condition: C
-    # Below ~20 bars per symbol the squeeze, relative-volume and ATS z-score
-    # features degrade SILENTLY — they do not error, they just stop being
-    # computable. Measured on REQUESTED symbols (`requested_bars_per_symbol`),
-    # NOT the global mean: under the ALL_SYMBOLS feed the cache pins at the cap
+    # Below the timeframe-specific raw-history requirement the squeeze,
+    # relative-volume and ATS z-score features degrade SILENTLY — they do not
+    # error, they just stop being computable. Measured on the minimum readiness
+    # ratio of REQUESTED symbols, NOT the global mean: under the ALL_SYMBOLS feed
+    # the cache pins at the cap
     # with the unrequested majority holding one bar, so `bars_per_symbol` sits
     # at ~1.0 by design (demand-aware retention, #3903) and firing on it flagged
     # a healthy system every market-open minute (2026-07-24). Gated on a cached
@@ -3404,8 +3443,8 @@ groups:
       model:
         expr: live_overlay_market_us_open{job="live_overlay"}
           * (live_overlay_uptime_seconds{job="live_overlay"} > bool 900)
-          * (live_overlay_requested_bar_symbols{job="live_overlay"} > bool 0)
-          * (live_overlay_requested_bars_per_symbol{job="live_overlay"} < bool 20)
+          * (live_overlay_requested_bar_history_symbols{job="live_overlay"} > bool 0)
+          * (live_overlay_requested_bar_history_readiness_ratio{job="live_overlay"} < bool 1)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3426,12 +3465,12 @@ groups:
       severity: critical
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: Fewer than 20 bars per REQUESTED symbol in the live cache while the US
-        session is open — squeeze, relative volume and the ATS z-score are silently
-        unavailable for the symbols a consumer is reading.
-      runbook: This measures live_overlay_requested_bars_per_symbol (depth of the symbols
-        a consumer actually reads), NOT the global bar_count/bar_symbols, which sits at
-        ~1.0 by design under the ALL_SYMBOLS feed (#3903) and is NOT a health signal.
+      summary: At least one requested symbol lacks the raw 1-minute history required
+        by its requested timeframe while the US session is open — rolling fields are
+        still warming or unavailable.
+      runbook: This measures live_overlay_requested_bar_history_readiness_ratio against
+        the timeframe-specific requirement, NOT the global bar_count/bar_symbols, which
+        sits at ~1.0 by design under the ALL_SYMBOLS feed (#3903) and is NOT a health signal.
         Firing means requested symbols are being evicted before they accumulate history —
         check live_overlay_bar_requested_symbols_evicted_total (its increase is the
         leading indicator, lo-bar-cache-protected-evictions). Raise the symbol cap
@@ -3605,8 +3644,13 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: At least one repo Pine import pin no longer matches the real published TradingView library
         version -- a consumer will hit CE10272 on modern symbols.
-      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift) and repin the
-        offending consumers to the published version (see #3599/#3603).
+      runbook: Inspect artifacts/monitoring/pine_library_versions.json (per-consumer drift). FIRST rule out
+        a stale snapshot from an intraday refresh - compare each offending consumer's pin on main against the
+        published version in artifacts/tradingview/library_release_manifest.json. If main ALREADY pins the
+        published version, a same-day publish reconciled the drift and this is just the once-daily snapshot
+        lagging - trigger pine-library-version-monitor.yml (workflow_dispatch) to refresh it, do NOT repin
+        (repinning to the snapshot's older number would CREATE real drift). Only when main genuinely lags the
+        published version, repin the offending consumers to it (see #3599/#3603).
   - uid: lo-pine-library-facade-probe-failing
     title: Pine-library TradingView facade probe failing
     condition: C

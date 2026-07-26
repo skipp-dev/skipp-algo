@@ -80,8 +80,10 @@ No authentication required. **Readiness/diagnostics** endpoint with worker and d
 }
 ```
 
-> `status` is market-aware and can be `"ok"`, `"starting"`, or
+> `status` is market-aware and can be `"ok"`, `"starting"`, `"degraded"`, or
 > `"idle_market_closed"` (outside US regular session while otherwise healthy).
+> `"degraded"` means the US session is open and an unhealthy dependency has
+> persisted for at least 15 minutes after process start.
 > The response also carries `market_open` (US regular-session gauge).
 > `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
 > `workers_healthy` is `false` if any of the five background threads
@@ -143,7 +145,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `1m`, `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. The `1m` view uses native Databento minute bars. Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `1m`, `5m`, `10m`, `15m`, `30m`, `1H`, `4H`. The `1m` view uses native Databento minute bars; `1H` and `4H` use the US-equity 09:30-16:00 `America/New_York` regular session (including US DST). Returns 400 for unknown values. |
 
 #### Response fields
 
@@ -153,7 +155,13 @@ Returns **404** on wrong token (does not leak route existence).
 | `symbol` | str | e.g. `"NVDA"` | Uppercased |
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
 | `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
-| `stale` | bool | | True when overlay_age > max_stale_secs |
+| `stale` | bool | | For `5m`, true when overlay age or the symbol's newest source-bar age exceeds `max_stale_secs`; other timeframe caches use their compute age. |
+| `universe_member` | bool \| null | | Membership in the loaded generated-library universe; null when the universe is unavailable |
+| `universe_size` | int \| null | ≥ 0 | Size of the loaded generated-library universe |
+| `library_asof_date` | str \| null | | Generator-declared library date |
+| `library_asof_time` | str \| null | | Generator-declared library timestamp |
+| `provider_trust_status` | str \| null | `ok` \| `degraded` \| `unavailable` | Trust derived from library provider evidence |
+| `provider_stale_list` | str \| null | | Comma-separated stale providers declared by the library |
 | `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
 | `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
@@ -179,7 +187,10 @@ Returns **404** on wrong token (does not leak route existence).
 
 (symbol not yet in cache — pre-market or feed not connected)
 
-All numeric fields are `null`, all bool fields are `false`, `stale: true`.
+Symbol-derived numeric, signal, news, and event fields are `null`, and
+`stale: true`. Event-block booleans remain `null` (unknown). Market-wide VIX
+and library context can remain populated because they do not depend on the
+missing symbol cache entry.
 
 ---
 
@@ -193,7 +204,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
-| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
+| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Baseline 1-minute history per symbol (range 1–500). Authenticated requests expand up to 32 active symbols to the timeframe-specific requirement (up to 9,600 bars). |
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age **or** newest-bar age before `stale: true` (range 60–7200) |
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
@@ -533,7 +544,8 @@ observability.py (structured log lines + in-process counters)
 > The exporter always emits the full default bucket set on every scrape, carrying
 > the previous bucket's cumulative count forward for missing buckets, so
 > `histogram_quantile()` results are stable. Derived `*_p95_ms` / `*_p99_ms`
-> gauges remain for backward compatibility but are deprecated. Age and staleness
+> gauges were removed; dashboards must derive percentiles from the histogram.
+> Age and staleness
 > panels/alerts gate on companion `*_age_known` gauges rather than treating an
 > absent or zero-valued age series as meaningful.
 | `live_overlay_railway_service_memory_limit_gb{service,service_id}` | gauge | metrics.py Railway per-service memory limit |

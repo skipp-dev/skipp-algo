@@ -100,9 +100,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_draw.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_draw"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_draw/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_draw/3"),
     alias: getFlag("--alias", "d"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
       "Private drawing and visualization helpers consumed by SMC Core.",

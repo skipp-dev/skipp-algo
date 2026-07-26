@@ -242,6 +242,27 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     assert "verifyConsumerBindings(session, target, forceRebind, forceRebind)" in batch
 
 
+def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
+    """A force-rebind that isn't saved to the layout reverts on reload.
+
+    2026-07-25: every force_rebind run read its own session back as bound
+    (mismatches:0), but a fresh read-only session saw all sources on "Close" —
+    the per-consumer settings "submit" mutates only the in-session instance and
+    never persisted. The rollout must save the chart layout after rebinding, and
+    a save failure must gate report.ok rather than reporting green.
+    """
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    assert "saveChangedChartLayout(session.page)" in batch
+    assert "if (forceRebind && report.bindings.failed.length === 0)" in batch
+    # A failed save lands in bindings.failed, which gates report.ok below.
+    assert '"chart-layout"' in batch
+
+    shared = (_REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts").read_text(encoding="utf-8")
+    assert "export async function saveChangedChartLayout(page: Page)" in shared
+    assert 'data-qa-id="header-toolbar-save-load"' in shared
+    assert "all changes saved" in shared
+
+
 def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:
     dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
     assert dispatch["refresh_producer"]["default"] is False

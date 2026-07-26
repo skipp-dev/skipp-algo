@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_lifecycle_private.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_lifecycle_private"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_lifecycle_private/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_lifecycle_private/3"),
     alias: getFlag("--alias", "ll"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
       "Private lifecycle, readiness, blocker, and risk-plan helpers consumed by SMC Core.",

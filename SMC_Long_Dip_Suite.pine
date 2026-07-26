@@ -8,15 +8,15 @@
 indicator("SMC Long-Dip Suite", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)
  
 import preuss_steffen/smc_core_types/5 as ct
-import preuss_steffen/smc_utils/3 as u
+import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_micro_profiles_generated/170 as mp
 import preuss_steffen/smc_lifecycle_private/3 as ll
 import preuss_steffen/smc_bus_private/3 as bp
-import preuss_steffen/smc_observability_private/3 as obv
-import preuss_steffen/smc_context_resolvers/2 as cr
-import preuss_steffen/smc_profile_engine/2 as pe
-import preuss_steffen/smc_engine_private/1 as eng
+import preuss_steffen/smc_observability_private/4 as obv
+import preuss_steffen/smc_context_resolvers/3 as cr
+import preuss_steffen/smc_profile_engine/3 as pe
+import preuss_steffen/smc_engine_private/2 as eng
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.
@@ -446,7 +446,7 @@ compute_lib_risk_context() =>
     bool lib_regime_blocked = mp.MARKET_REGIME == "RISK_OFF" or mp.TRADE_STATE == "BLOCKED"
     bool lib_regime_dimmed  = mp.MARKET_REGIME == "ROTATION" or mp.TRADE_STATE == "DISCOURAGED"
     // Earnings / Macro Shield
-    bool lib_has_earnings = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+    bool lib_has_earnings = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, current_symbol_key, current_symbol_key_qualified)
     // Universe Coverage — is this ticker covered by the enrichment scan?
     // Uses dedicated UNIVERSE_TICKERS field instead of heuristic across 7 lists (F7 fix).
     bool lib_universe_initialized = mp.UNIVERSE_TICKERS != ""
@@ -457,7 +457,9 @@ compute_lib_risk_context() =>
     string lib_erl_window_state    = mp.EVENT_WINDOW_STATE
     string lib_erl_level           = mp.EVENT_RISK_LEVEL
     bool   lib_erl_market_blocked  = mp.MARKET_EVENT_BLOCKED
-    bool   lib_erl_symbol_blocked  = mp.SYMBOL_EVENT_BLOCKED
+    // SYMBOL_EVENT_BLOCKED is an aggregate producer flag: scope it back to
+    // the current chart symbol using the accompanying exact-token list.
+    bool   lib_erl_symbol_blocked  = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, current_symbol_key, current_symbol_key_qualified)
     string lib_erl_provider_status = mp.EVENT_PROVIDER_STATUS
     // [v5.5 PRIMARY] event risk gate — single lean-derived hard block
     bool   event_risk_gate_ok      = not (lib_erl_market_blocked or lib_erl_symbol_blocked)
@@ -487,7 +489,11 @@ compute_lib_lean_context() =>
     string lib_sq_tier           = mp.SIGNAL_QUALITY_TIER
     string lib_sq_warnings       = mp.SIGNAL_WARNINGS
     string lib_sq_bias_alignment = mp.SIGNAL_BIAS_ALIGNMENT
-    string lib_sq_freshness      = mp.SIGNAL_FRESHNESS
+    // Published resolver majors predate the v2 edge labels. Normalize at the
+    // consumer boundary so very_fresh retains fresh trust and expired remains
+    // fail-closed even before the next hand-authored library publication.
+    string lib_sq_freshness_raw  = mp.SIGNAL_FRESHNESS
+    string lib_sq_freshness      = lib_sq_freshness_raw == "very_fresh" ? "fresh" : lib_sq_freshness_raw == "expired" ? "stale" : lib_sq_freshness_raw
     // Volatility + Ensemble (v5.5b direct consumer bridge)
     string lib_ensemble_quality_tier = mp.ENSEMBLE_QUALITY_TIER
     // Signal Quality: generator-computed composite replaces ad-hoc checks
@@ -1038,7 +1044,9 @@ if barstate.isfirst and enable_ltf_sampling and ltf_timeframe_valid and (not ltf
     log.warning(str.format('LTF sampling disabled: ratio chart/ltf = {0} exceeds configured limits. Chart TF={1}s, LTF={2}s, max_ratio={3}, max_samples={4}', ltf_ratio, chart_tf_sec, effective_ltf_tf_sec, max_ltf_ratio_eff, max_ltf_samples_per_bar_eff))
 
 [ltf_opens_raw, ltf_closes_raw, ltf_volumes_raw] = if ltf_sampling_active
-    request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, [open, close, volume], calc_bars_count = 1)
+    // Do not collapse the requested history to one LTF bar: Strict is the
+    // execution wrapper's default and must remain reconstructable in backtests.
+    request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, [open, close, volume])
 else
     [array.new<float>(0), array.new<float>(0), array.new<float>(0)]
 int ltf_open_count = ltf_opens_raw.size()
@@ -1255,7 +1263,14 @@ if use_accel_module
     if not accel_entry_strict_context_ok
         accel_strict_entry_gate_ok := false
 
-float sd_raw = u.sd_lr2_pct(close, sd_lr_len)
+// The second difference of three offsets on one fitted regression line is
+// identically zero. Measure the change of the fitted slope across chart bars
+// instead. Keep this local until the corrected utility major is published.
+float sd_lr_now = ta.linreg(close, sd_lr_len, 0)
+float sd_lr_offset = ta.linreg(close, sd_lr_len, 1)
+float sd_lr_slope = sd_lr_now - sd_lr_offset
+float sd_lr_denom = math.max(math.abs(close), syminfo.mintick)
+float sd_raw = not na(sd_lr_slope[1]) ? 100.0 * (sd_lr_slope - sd_lr_slope[1]) / sd_lr_denom : na
 float sd_value = ta.ema(sd_raw, sd_smooth_len)
 bool sd_above_zero = not na(sd_value) and sd_value > 0
 bool sd_below_zero = not na(sd_value) and sd_value < 0
@@ -2575,7 +2590,7 @@ render_core_hero_badge() =>
         string core_provider_state = cr.resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)
         string core_trade_threshold = cr.compose_trade_threshold_text(core_trust_tier, lib_sq_score)
         string core_why_now = cr.compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
-        bool   core_has_earnings_tomorrow = str.contains(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker)
+        bool   core_has_earnings_tomorrow = u.csv_has_symbol_token(mp.EARNINGS_TOMORROW_TICKERS, current_symbol_key, current_symbol_key_qualified)
         string core_main_risk = cr.compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
         string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (mp.MACRO_EVENT_NAME + ' ' + mp.MACRO_EVENT_TIME) : 'No event'
         string core_tone_text = mp.TONE + ' · Heat ' + str.tostring(mp.GLOBAL_HEAT, '#.##')
@@ -2656,6 +2671,7 @@ bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert
 // prefixed with its event title so the notification is self-identifying. All
 // fire only on confirmed bars, preserving the previous non-repainting semantics.
 bool _alert_new_day = ta.change(time('D')) != 0
+bool event_risk_alert_now = not event_risk_gate_ok and barstate.isrealtime and barstate.isconfirmed and (barstate.islastconfirmedhistory[1] or _alert_new_day)
 
 // Product state transitions
 if enable_dynamic_alerts and alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG' and barstate.isconfirmed
@@ -2690,7 +2706,7 @@ if enable_dynamic_alerts and alert_trust_degraded and barstate.isconfirmed
     alert('SMC: Trust Degraded | Trust tier dropped to degraded.', alert.freq_once_per_bar_close)
 if enable_dynamic_alerts and alert_trust_insufficient and barstate.isconfirmed
     alert('SMC: Trust Insufficient | Trust tier dropped to insufficient.', alert.freq_once_per_bar_close)
-if enable_dynamic_alerts and not event_risk_gate_ok and barstate.isconfirmed
+if enable_dynamic_alerts and event_risk_alert_now
     alert('SMC: Event Risk Active | High-impact macro event blocking trades.', alert.freq_once_per_bar_close)
 // Daily-context warnings were gated on barstate.islastconfirmedhistory, which
 // alert() (realtime-only) never reaches; fire once at the first confirmed bar of

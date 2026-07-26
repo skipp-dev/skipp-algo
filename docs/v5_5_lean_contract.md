@@ -100,7 +100,11 @@ See: [v5_5b_architecture.md § OB_MITIGATION_STATE](v5_5b_architecture.md#4-ob_m
 | SIGNAL_QUALITY_TIER | string | low / ok / good / high |
 | SIGNAL_WARNINGS | string | pipe-separated, max 3 |
 | SIGNAL_BIAS_ALIGNMENT | string | bull / bear / mixed / neutral |
-| SIGNAL_FRESHNESS | string | fresh / aging / stale |
+| SIGNAL_FRESHNESS | string | very_fresh / fresh / aging / stale / expired |
+
+Pine consumers normalize `very_fresh` to the normal fresh-trust path and
+`expired` to the stale/fail-closed path when they call a resolver published
+before the v2 freshness vocabulary.
 
 ## Keep / Deprecate / Remove Later
 

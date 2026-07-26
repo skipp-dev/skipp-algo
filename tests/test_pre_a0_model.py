@@ -75,6 +75,12 @@ def test_model_and_calibration_are_deterministic_and_bounded() -> None:
     )
 
 
+def test_average_precision_groups_equal_scores_without_label_bias() -> None:
+    assert average_precision([0.5, 0.5], [0, 1]) == pytest.approx(0.5)
+    assert average_precision([0.5, 0.5], [1, 0]) == pytest.approx(0.5)
+    assert average_precision([0.9, 0.5, 0.5], [0, 0, 1]) == pytest.approx(1 / 3)
+
+
 def test_monotone_stump_boost_never_decreases_with_progress() -> None:
     rows = _training_rows()
     labels = [int(index >= 20) for index in range(40)]

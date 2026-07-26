@@ -63,6 +63,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
+
 from .macro import FMPClient
 
 logger = logging.getLogger(__name__)
@@ -298,10 +300,8 @@ def write_quote_reference_file(rows: dict[str, QuoteReferenceRow], path: Path | 
     -- own path, own schema; never touches ``A0_FAST_REFERENCE_FILE``."""
     output_path = Path(path)
     payload = {symbol: asdict(row) for symbol, row in sorted(rows.items())}
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True), encoding="utf-8")
-    tmp_path.replace(output_path)
+    serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True)
+    atomic_write_text(serialized, output_path)
 
 
 # ---------------------------------------------------------------------------

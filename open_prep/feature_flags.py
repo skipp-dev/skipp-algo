@@ -81,8 +81,8 @@ def is_fmp_enabled() -> bool:
 
 
 def is_fmp_articles_enabled() -> bool:
-    """Return True iff ``ENABLE_FMP_ARTICLES`` is set to ``"1"`` (default ON)."""
-    return _bool_env("ENABLE_FMP_ARTICLES", "1")
+    """Return True iff ``ENABLE_FMP_ARTICLES`` is set to ``"1"`` (default OFF: 2026-07-25 fmp-articles = ~76% of FMP news volume, no proven edge — cost cut)."""
+    return _bool_env("ENABLE_FMP_ARTICLES", "0")
 
 
 def is_benzinga_rest_enabled() -> bool:

@@ -496,7 +496,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
             fetched = _fetch_signals_service(
                 service_base, config.signals_internal_token()
             )
-            if fetched is not None:
+            if fetched is not None and _signals_snapshot_is_fresh(fetched):
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -508,7 +508,7 @@ def _load_signals_snapshot() -> dict[str, Any]:
         url = config.signals_snapshot_url()
         if url:
             fetched = _fetch_signals_url(url, config.signals_snapshot_url_token())
-            if fetched is not None:
+            if fetched is not None and _signals_snapshot_is_fresh(fetched):
                 _signals_cache = fetched
                 _signals_loaded_at = now
                 _persist_snapshot(
@@ -1047,10 +1047,32 @@ _TF_TO_MINUTES: dict[str, int] = {
     "4H": 240,
 }
 
+# Raw 1-minute history required to make a 20-bar rolling window available.
+# The RTH-anchored hourly views retain enough liquid extended-session minutes
+# to span the required number of regular sessions instead of assuming that
+# every cached minute contributes to an RTH candle.
+_TF_RAW_BAR_REQUIREMENTS: dict[str, int] = {
+    "1m": 20,
+    "5m": 100,
+    "10m": 200,
+    "15m": 300,
+    "30m": 600,
+    "1H": 2_880,
+    "4H": 9_600,
+}
+
 
 def supported_timeframes() -> tuple[str, ...]:
     """Return supported intraday overlay timeframes in canonical order."""
     return tuple(_TF_TO_MINUTES.keys())
+
+
+def raw_bars_required(tf: str) -> int:
+    """Return retained 1-minute bars needed for rolling fields at ``tf``."""
+    try:
+        return _TF_RAW_BAR_REQUIREMENTS[tf]
+    except KeyError as exc:
+        raise ValueError(f"unsupported timeframe: {tf}") from exc
 
 
 def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
@@ -1069,11 +1091,45 @@ def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
     return aligned_minute * ns_per_minute
 
 
+def _rth_bar_minute_bucket(ts_event: int, minutes: int) -> int | None:
+    """Return a New York regular-session bucket end for 1H/4H bars.
+
+    TradingView's US-equity regular-session candles start at 09:30 in the
+    exchange timezone. IANA timezone conversion is intentional here: US DST
+    transitions do not match Europe's transition dates.
+    """
+    from zoneinfo import ZoneInfo
+
+    from . import market_hours
+
+    market_tz = ZoneInfo("America/New_York")
+    bar_open = datetime.datetime.fromtimestamp(ts_event / 1_000_000_000, market_tz)
+    session_open = bar_open.replace(hour=9, minute=30, second=0, microsecond=0)
+    session_end = market_hours.us_regular_session_end(bar_open.date())
+    if session_end is None:
+        return None
+    session_close = bar_open.replace(
+        hour=session_end.hour, minute=session_end.minute, second=0, microsecond=0
+    )
+    if not session_open <= bar_open < session_close:
+        return None
+
+    elapsed_close_minutes = int((bar_open - session_open).total_seconds() // 60) + 1
+    bucket_number = (elapsed_close_minutes + minutes - 1) // minutes
+    bucket_end = min(
+        session_open + datetime.timedelta(minutes=bucket_number * minutes),
+        session_close,
+    )
+    return int(bucket_end.timestamp() * 1_000_000_000)
+
+
 def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
     """Aggregate 1-minute bars into higher intraday timeframes.
 
     The input cache stores 1-minute bars, so all supported intraday
-    timeframes (including 5m) are bucketed and aggregated.
+    timeframes (including 5m) are bucketed and aggregated. US-equity 1H and
+    4H bars follow the 09:30-16:00 America/New_York regular session so their
+    boundaries remain stable across US DST.
     """
     if tf not in _TF_TO_MINUTES:
         raise ValueError(f"unsupported timeframe: {tf}")
@@ -1094,7 +1150,13 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
     buckets: dict[int, dict[str, Any]] = {}
     for bar in ordered_bars:
         ts_event = int(bar["ts_event"])
-        bucket_ts = _bar_minute_bucket(ts_event, minutes)
+        bucket_ts = (
+            _rth_bar_minute_bucket(ts_event, minutes)
+            if minutes in {60, 240}
+            else _bar_minute_bucket(ts_event, minutes)
+        )
+        if bucket_ts is None:
+            continue
         bucket = buckets.get(bucket_ts)
         if bucket is None:
             bucket = {
@@ -1209,7 +1271,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     Channel (Pine ``_sqOn``: ``bbLower > kcLower and bbUpper < kcUpper``).
 
     Faithful to the legacy USI-CHOCH Pine reference
-    (pine/legacy/USI-CHOCH.pine:281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
+    (pine/legacy/USI-CHOCH lines 281-291; sq_bbLen=sq_kcLen=20, sq_bbMult=2.0,
     sq_kcMult=1.5):
       BB: basis = ta.sma(close, 20); dev = ta.stdev(close, 20) × 2.0. Pine
           ta.stdev defaults to biased/POPULATION std (÷ n), not sample ÷ (n−1).
@@ -1395,6 +1457,8 @@ def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
     ``_age_unknown`` contract (metrics._trading_signals_snapshot) so the
     overlay payload and the alerting layer agree on what "stale" means.
     """
+    if not isinstance(snap.get("signals"), list):
+        return False
     updated = snap.get("updated_epoch")
     if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):
         return False
@@ -1404,8 +1468,8 @@ def _signals_snapshot_is_fresh(snap: dict[str, Any]) -> bool:
         return False
     if not math.isfinite(epoch) or epoch <= 0:
         return False
-    age_seconds = max(0.0, time.time() - epoch)
-    return age_seconds <= float(config.signals_max_age_secs())
+    age_seconds = time.time() - epoch
+    return 0.0 <= age_seconds <= float(config.signals_max_age_secs())
 
 
 def _get_signal_fields(symbol: str) -> dict[str, Any]:
@@ -1429,6 +1493,8 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
     sym = symbol.upper().strip()
     best: dict[str, Any] | None = None
     best_key = (-1, float("-inf"))
+    now_epoch = time.time()
+    max_signal_age = float(config.signals_max_age_secs())
     for row in rows:
         if not isinstance(row, dict) or str(row.get("symbol", "")).upper() != sym:
             continue
@@ -1439,6 +1505,13 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             fired = float(row.get("fired_epoch") or 0.0)
         except (TypeError, ValueError):
             fired = 0.0
+        if (
+            not math.isfinite(fired)
+            or fired <= 0.0
+            or fired > now_epoch
+            or now_epoch - fired > max_signal_age
+        ):
+            continue
         if (rank, fired) > best_key:
             best_key = (rank, fired)
             best = row
@@ -1447,15 +1520,20 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
         return dict(_NO_SIGNAL_FIELDS)
 
     def _pos_float(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
         try:
             number = float(value)
         except (TypeError, ValueError):
             return None
         return number if (number > 0.0 and math.isfinite(number)) else None  # inf > 0.0 is True
 
+    direction = best.get("direction")
     return {
         "signal_level": str(best.get("level")),
-        "signal_direction": str(best.get("direction") or "") or None,
+        "signal_direction": (
+            direction if isinstance(direction, str) and direction.strip() else None
+        ),
         "trade_entry": _pos_float(best.get("trade_entry")),
         "trade_stop": _pos_float(best.get("trade_stop")),
         "trade_target": _pos_float(best.get("trade_target")),
@@ -1562,7 +1640,7 @@ def run_full_compute_cycle(tf: str = "5m") -> int:
 
 def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
-    Fast refresh: recompute flow fields (and refresh vix_level) for all symbols.
+    Fast refresh: recompute current-bar flow/volume fields and refresh VIX.
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
@@ -1575,12 +1653,29 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                 continue
             aggregated = _bars_for_timeframe(bars, tf)
             updates = compute_flow_fields(aggregated)
+            ats = compute_ats_fields(aggregated)
+            updates.update(
+                {
+                    "ats_state": ats["ats_state"],
+                    "volume_accumulation_distribution_state": ats["ats_state"],
+                    "ats_zscore": ats["ats_zscore"],
+                    "volume_current_bar_zscore": ats["ats_zscore"],
+                }
+            )
             if (vix_value := _coerce_finite_float(vix)) is not None:
                 updates["vix_level"] = round(vix_value, 4)
             patched = cache.patch_overlay(
                 sym,
                 {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},
-                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct", "price_candle_body_return_pct"},
+                allow_none_keys={
+                    "flow_rel_vol",
+                    "flow_delta_proxy_pct",
+                    "price_candle_body_return_pct",
+                    "ats_state",
+                    "volume_accumulation_distribution_state",
+                    "ats_zscore",
+                    "volume_current_bar_zscore",
+                },
             )
             if patched:
                 count += 1

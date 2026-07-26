@@ -7,6 +7,11 @@ provides ≥ 90 days of real outcome data
 (`scripts/c9_threshold_replay.py::CALIBRATION_SOURCE` flips
 `"synthetic"` → `"live"` in that PR).
 
+**Target lock-in:** 2026-08-16 (extended from 2026-07-25 on 2026-07-25 —
+the C8 backfill had not yet accrued ≥ 90 days of live outcomes; the deadline
+was moved rather than recording a false `Status: locked`). Tracked by
+`tests/test_c9_threshold_lock_status.py`.
+
 ## What this is
 
 `scripts/c9_threshold_replay.py` replays a labelled episode bank

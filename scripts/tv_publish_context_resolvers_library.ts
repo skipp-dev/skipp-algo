@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_context_resolvers.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_context_resolvers"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_context_resolvers/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_context_resolvers/3"),
     alias: getFlag("--alias", "cr"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
       "Private context resolvers consumed by SMC Core.",

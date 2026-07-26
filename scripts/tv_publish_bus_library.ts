@@ -100,9 +100,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_bus_private.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_bus_private"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_bus_private/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_bus_private/3"),
     alias: getFlag("--alias", "bp"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
       "Private message-bus helpers consumed by SMC Core.",

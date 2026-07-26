@@ -56,6 +56,7 @@ def test_hybrid_profile_emits_auxiliary_and_diagnostics() -> None:
         "session_ranges",
         "session_pivots",
         "broken_fractal_signals",
+        "rejection_blocks",
     }
 
 

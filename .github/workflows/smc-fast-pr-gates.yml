@@ -424,6 +424,7 @@ jobs:
             tests/test_outcome_horizons.py \
             tests/test_path_text_io_encoding_ledger.py \
             tests/test_pine_alertcondition_and_declaration_pin.py \
+            tests/test_pine_decision_logic_deep_review_regressions.py \
             tests/test_pine_request_security_htf_pin.py \
             tests/test_pine_var_budget_pin.py \
             tests/test_prod_print_ledger.py \

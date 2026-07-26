@@ -324,8 +324,8 @@ def test_support_code_surface_stays_runtime_owned() -> None:
     micro_body = _extract_function_body(resolver_source, "resolve_bus_micro_profile_code")
 
     assert "import preuss_steffen/smc_bus_private/3 as bp" in core_source
-    assert "import preuss_steffen/smc_context_resolvers/2 as cr" in core_source
-    assert "import preuss_steffen/smc_engine_private/1 as eng" in core_source
+    assert "import preuss_steffen/smc_context_resolvers/3 as cr" in core_source
+    assert "import preuss_steffen/smc_engine_private/2 as eng" in core_source
     assert "bp.resolve_bus_ready_blocker_code(" not in core_source
     assert "bp.resolve_bus_strict_blocker_code(" not in core_source
     assert "cr.resolve_bus_ltf_delta_state(" in core_source
@@ -409,7 +409,7 @@ def test_ready_signal_contract_stays_explicit() -> None:
     core_source = _read(CORE_PATH)
     body = _extract_function_body(_read(OBSERVABILITY_PRIVATE_PATH), "resolve_long_ready_signal_state")
 
-    assert "import preuss_steffen/smc_observability_private/3 as obv" in core_source
+    assert "import preuss_steffen/smc_observability_private/4 as obv" in core_source
     assert "obv.resolve_long_ready_signal_state(" in core_source
 
     for snippet in [

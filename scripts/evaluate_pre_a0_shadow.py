@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import sys
 from dataclasses import MISSING, asdict, fields, replace
 from pathlib import Path
 from typing import Any
@@ -70,25 +71,86 @@ def _load_snapshots(root: Path) -> tuple[pd.DataFrame, list[Path]]:
         frames.append(frame)
     combined = pd.concat(frames, ignore_index=True)
     if combined["record_id"].duplicated().any():
-        # record_id is content-addressed and the store's in-memory de-dup set
-        # resets on restart, so a mid-session restart or a duplicate producer /
-        # replay re-emits byte-identical rows into a fresh part file (observed
-        # 2026-07-23). Collapse those idempotently; only record_ids whose
-        # CONTENT conflicts are real corruption and still fail closed.
-        seen: dict[str, str] = {}
-        keep: list[int] = []
-        for index, row in enumerate(_rows(combined)):
-            canonical = json.dumps(asdict(row), sort_keys=True, separators=(",", ":"))
-            previous = seen.get(row.record_id)
-            if previous is None:
-                seen[row.record_id] = canonical
-                keep.append(index)
-            elif previous != canonical:
-                raise ValueError(
-                    "snapshot dataset contains conflicting duplicate record_id values"
-                )
-        combined = combined.iloc[keep].reset_index(drop=True)
+        combined = _resolve_duplicate_records(combined)
     return combined, paths
+
+
+# episode_id is a pure grouping label (deterministic since #4023). A difference
+# there between re-emits is a benign relabel, so the copies still collapse to one.
+_LABEL_FIELDS = frozenset({"episode_id"})
+# state and everything downstream of it are a path-dependent function of the
+# PreA0Machine hysteresis state (self._last), not of the bar's features. A
+# restart/replay rebuilds that state from session open while the live run carried
+# pre-open state, so a re-emitted record can differ HERE with identical features.
+# The correct state is then unresolvable and the record is dropped, not guessed.
+_STATE_FAMILY_FIELDS = frozenset(
+    {
+        "state",
+        "selection_reason",
+        "sample_weight",
+        "model_artifact_id",
+        "probability_30",
+        "probability_60",
+        "probability_180",
+        "score_status_30",
+        "score_status_60",
+        "score_status_180",
+        "score_reason_30",
+        "score_reason_60",
+        "score_reason_180",
+    }
+)
+
+
+def _fingerprint(row: PreA0SnapshotRow, *, exclude: frozenset[str]) -> str:
+    return json.dumps(
+        {name: value for name, value in asdict(row).items() if name not in exclude},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _resolve_duplicate_records(combined: pd.DataFrame) -> pd.DataFrame:
+    """Reconcile re-emitted duplicate record_ids.
+
+    record_id is content-addressed and the store's in-memory de-dup set resets on
+    restart, so a mid-session restart or a duplicate producer/replay re-emits a
+    record. Cases, by what actually differs between the copies:
+
+    * identity/feature fingerprint -> real corruption, fail closed;
+    * hysteresis state family (identical features, different state — PreA0Machine
+      state is path-dependent, so a replay from session open diverges from the
+      live run at boundary bars) -> unresolvable, DROP rather than guess;
+    * only episode_id, or nothing -> collapse to one row.
+    """
+    rows = _rows(combined)
+    identity: dict[str, str] = {}
+    decision: dict[str, str] = {}
+    drop: set[str] = set()
+    for row in rows:
+        identity_fp = _fingerprint(row, exclude=_LABEL_FIELDS | _STATE_FAMILY_FIELDS)
+        decision_fp = _fingerprint(row, exclude=_LABEL_FIELDS)
+        if row.record_id not in identity:
+            identity[row.record_id] = identity_fp
+            decision[row.record_id] = decision_fp
+        elif identity[row.record_id] != identity_fp:
+            raise ValueError("snapshot dataset contains conflicting duplicate record_id values")
+        elif decision[row.record_id] != decision_fp:
+            drop.add(row.record_id)
+    seen: set[str] = set()
+    keep: list[int] = []
+    for index, row in enumerate(rows):
+        if row.record_id in drop or row.record_id in seen:
+            continue
+        seen.add(row.record_id)
+        keep.append(index)
+    if drop:
+        print(
+            f"pre-a0 snapshot load: dropped {len(drop)} record(s) with unresolvable "
+            f"hysteresis state re-emit conflicts: {sorted(drop)[:10]}",
+            file=sys.stderr,
+        )
+    return combined.iloc[keep].reset_index(drop=True)
 
 
 def _value(value: Any) -> Any:

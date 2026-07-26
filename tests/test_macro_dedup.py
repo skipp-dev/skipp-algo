@@ -408,5 +408,24 @@ class TestMacroDedup(unittest.TestCase):
         self.assertTrue(deduped[0].get("dedup", {}).get("was_deduped"))
         self.assertEqual(deduped[0]["dedup"]["duplicates_count"], 2)
 
+
+class TestSmcMacroBiasDedupParity(unittest.TestCase):
+    """The offline ``scripts.smc_macro_bias`` copy is a declared verbatim duplicate of
+    ``open_prep.macro`` (see test_macro_unemployment_orientation.py) and must apply the
+    same dedupe tie-break. #3987's ``_to_float(actual) is not None`` fix landed only in the
+    live copy; this pins the invariant for the offline copy too."""
+
+    def test_smc_dedupe_tie_break_prefers_parseable_actual_over_placeholder(self):
+        from scripts.smc_macro_bias import dedupe_events as smc_dedupe_events
+
+        events = [
+            {"country": "US", "date": "2026-02-20", "event": "Core PCE Price Index MoM (Dec)", "actual": "—", "consensus": 0.2, "impact": "High"},
+            {"country": "US", "date": "2026-02-20", "event": "Core PCE Price Index MoM (Dec)", "actual": 0.3, "consensus": 0.2, "impact": "High"},
+        ]
+        deduped = smc_dedupe_events(events)
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["actual"], 0.3)
+
+
 if __name__ == "__main__":
     unittest.main()

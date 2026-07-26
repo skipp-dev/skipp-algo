@@ -23,8 +23,9 @@
 
 indicator("SMC Long-Dip Alerts", overlay = true)
 
-import preuss_steffen/smc_engine_private/1 as eng
+import preuss_steffen/smc_engine_private/2 as eng
 import preuss_steffen/smc_micro_profiles_generated/170 as mp
+import preuss_steffen/smc_utils/4 as u
 
 // ── Inputs ───────────────────────────────────────────────────────────────────
 // Group labels are plain consts — `var` on them is redundant and would only
@@ -68,14 +69,17 @@ bool zone_invalidated_now = engine_bound and state_on(src_zone[1]) and not state
 [_trend, bull_bos_alert, bull_choch_alert, _tx, _ty, _tux, _tu, _hh, bear_bos_alert, bear_choch_alert, _bx, _by, _tdx, _td, _sl, _hx] = eng.detect_structure(swing_len)
 
 // ── Trust tier (recomputed from published mp.* consts, Suite's own resolver) ──
-string trust_tier = eng.resolve_trust_tier(mp.SIGNAL_QUALITY_TIER, mp.SIGNAL_FRESHNESS, mp.EVENT_PROVIDER_STATUS)
+string normalized_signal_freshness = mp.SIGNAL_FRESHNESS == 'very_fresh' ? 'fresh' : mp.SIGNAL_FRESHNESS == 'expired' ? 'stale' : mp.SIGNAL_FRESHNESS
+string trust_tier = eng.resolve_trust_tier(mp.SIGNAL_QUALITY_TIER, normalized_signal_freshness, mp.EVENT_PROVIDER_STATUS)
 bool trust_degraded = trust_tier == 'Degraded' and (na(trust_tier[1]) or trust_tier[1] != 'Degraded')
 bool trust_insufficient = trust_tier == 'Insufficient' and (na(trust_tier[1]) or trust_tier[1] != 'Insufficient')
 
 // ── Event / macro / earnings (from mp.* calendar consts) ─────────────────────
-bool event_risk_active = mp.MARKET_EVENT_BLOCKED or mp.SYMBOL_EVENT_BLOCKED
-bool has_earnings = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+bool symbol_event_risk_active = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid)
+bool event_risk_active = mp.MARKET_EVENT_BLOCKED or symbol_event_risk_active
+bool has_earnings = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid)
 bool _new_day = ta.change(time('D')) != 0
+bool event_risk_alert_now = barstate.isrealtime and event_risk_active and (barstate.islastconfirmedhistory[1] or _new_day)
 
 // ── Alerts (individually selectable; all bar-close gated) ────────────────────
 // Product state transitions
@@ -98,7 +102,7 @@ alertcondition(_alertGate and zone_invalidated_now, 'SMC: Zone Invalidated', 'Ac
 // Trust & risk alerts
 alertcondition(_alertGate and trust_degraded,     'SMC: Trust Degraded',          'Trust tier dropped to degraded')
 alertcondition(_alertGate and trust_insufficient, 'SMC: Trust Insufficient',      'Trust tier dropped to insufficient')
-alertcondition(_alertGate and event_risk_active,  'SMC: Event Risk Active',       'High-impact macro event blocking trades')
+alertcondition(_alertGate and event_risk_alert_now,  'SMC: Event Risk Active',       'High-impact macro event blocking trades')
 alertcondition(_alertGate and mp.HIGH_IMPACT_MACRO_TODAY and _new_day, 'SMC: High Impact Macro Today', 'High impact macro event today. Reduce position sizes.')
 alertcondition(_alertGate and has_earnings and _new_day,               'SMC: Earnings Today',          'This ticker has earnings today. Exercise caution.')
 

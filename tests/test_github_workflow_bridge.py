@@ -35,6 +35,16 @@ def test_iso_age_seconds_returns_none_on_invalid_timestamp() -> None:
     assert bridge._iso_age_seconds("not-a-timestamp") is None
 
 
+def test_iso_age_seconds_returns_none_for_future_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.github_workflow_bridge as bridge
+
+    monkeypatch.setattr(bridge.time, "time", lambda: 1_782_122_460.0)
+
+    assert bridge._iso_age_seconds("2099-01-01T00:00:00Z") is None
+
+
 def test_duration_seconds_parses_utc_z_timestamps() -> None:
     import services.live_overlay_daemon.github_workflow_bridge as bridge
 

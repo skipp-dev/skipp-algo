@@ -93,8 +93,8 @@ REQUIRED_PINNED_TESTS: tuple[str, ...] = (
 # drift guard" step in smc-fast-pr-gates.yml. This is an *independent*
 # source of truth: it deliberately duplicates the YAML so that removing
 # a test from the workflow (without also editing this tuple) is caught.
-# Snapshot taken 2026-06-02 from main after the EV#6/EV#7 edge-pipeline
-# merge (65 tests; +10 family/edge tripwires referenced by the drift guard).
+# Snapshot refreshed 2026-07-26; additions require a matching workflow edit so
+# the tuple and the merge-critical invocation remain a two-way audit trail.
 FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_assert_and_open_encoding_pin.py",
     "tests/test_assert_in_production_budget.py",
@@ -160,6 +160,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pickle_write_and_abs_pathjoin_zero_surface.py",
     "tests/test_pine_alert_bar_close_gate.py",
     "tests/test_pine_alertcondition_and_declaration_pin.py",
+    "tests/test_pine_decision_logic_deep_review_regressions.py",
     "tests/test_pine_context_library_contract.py",
     "tests/test_pine_engine_fill_boundary.py",
     "tests/test_pine_handlib_publisher_inventory.py",

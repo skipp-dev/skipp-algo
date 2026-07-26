@@ -10,6 +10,7 @@ import {
   newTradingViewSession,
   refreshChartScriptInstance,
   resolveProducerRefreshChartUrls,
+  saveChangedChartLayout,
 } from "../automation/tradingview/lib/tv_shared.js";
 import {
   saveConsumerSource,
@@ -198,6 +199,24 @@ async function main(): Promise<void> {
         }
         if (result) report.bindings.consumers.push(result);
         else report.bindings.failed.push({ target: target.scriptName, error: lastError });
+      }
+
+      // Persist the rebinds. The per-consumer settings "submit" only mutates the
+      // in-session indicator instance; without an explicit layout save the
+      // changes revert on reload, so the operator's chart (and the next
+      // read-only verify) still show the stale "Close" sources even though this
+      // run read them back as bound (2026-07-25 incident). Only writing runs
+      // save; a save failure must not report green, so it lands in
+      // bindings.failed and gates report.ok.
+      if (forceRebind && report.bindings.failed.length === 0) {
+        try {
+          await saveChangedChartLayout(session.page);
+        } catch (error) {
+          report.bindings.failed.push({
+            target: "chart-layout",
+            error: `layout save failed (rebinds not persisted): ${String((error as Error)?.message ?? error)}`,
+          });
+        }
       }
     }
   } finally {

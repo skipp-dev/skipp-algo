@@ -76,9 +76,9 @@ The manifest carries `library_field_version: "v5.2"`, and the `enrichment_blocks
 | `EVENT_RESTRICT_AFTER_MIN` | int | `0` | Minutes to restrict after event |
 | `EVENT_COOLDOWN_ACTIVE` | bool | `false` | Post-event cooldown period active |
 | `MARKET_EVENT_BLOCKED` | bool | `false` | Market-wide block active |
-| `SYMBOL_EVENT_BLOCKED` | bool | `false` | Symbol-level block active (earnings or recent identifier change) |
+| `SYMBOL_EVENT_BLOCKED` | bool | `false` | Aggregate flag: at least one symbol in the snapshot is blocked. A Pine consumer must exact-match its current symbol against `HIGH_RISK_EVENT_TICKERS` before applying the block. |
 | `EARNINGS_SOON_TICKERS` | string | `""` | CSV ticker list |
-| `HIGH_RISK_EVENT_TICKERS` | string | `""` | CSV ticker list |
+| `HIGH_RISK_EVENT_TICKERS` | string | `""` | Exact CSV tokens for the symbols covered by `SYMBOL_EVENT_BLOCKED` |
 | `EVENT_PROVIDER_STATUS` | string | `"ok"` | `ok` / `no_data` / `calendar_missing` / `news_missing` |
 
 ## What Is Guaranteed

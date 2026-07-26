@@ -209,6 +209,7 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "ENSEMBLE_QUALITY_TIER", "EVENT_PROVIDER_STATUS", "EVENT_RISK_LEVEL",
     "EVENT_WINDOW_STATE", "FAST_DECAY_TICKERS", "FVG_FRESH",
     "FVG_INVALIDATED", "GLOBAL_HEAT", "HIGH_IMPACT_MACRO_TODAY",
+    "HIGH_RISK_EVENT_TICKERS",
     "HIGH_IMPACT_NEWS_COUNT", "INSTITUTIONAL_ACCUMULATION_TICKERS",
     "INSTITUTIONAL_DISTRIBUTION_TICKERS", "IN_KILLZONE",
     "MACRO_BIAS_PE_ADJUSTMENT", "MACRO_BIAS_RAW", "MACRO_EVENT_NAME",
@@ -761,11 +762,15 @@ class TestV55DriftGuard:
             'string lib_next_event_time    = mp.NEXT_EVENT_TIME',
             'string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT',
             'bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED',
-            'bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)',
             'bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE',
             'bool   event_risk_light_hard_block = not event_risk_gate_ok',
         ):
             assert fragment not in text, f'Legacy event-risk alias should stay removed: {fragment}'
+        assert (
+            "mp.SYMBOL_EVENT_BLOCKED and "
+            "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
+            "current_symbol_key, current_symbol_key_qualified)"
+        ) in text, "Aggregate symbol-event risk must be scoped to the exact chart symbol"
 
     def test_lean_pack_a_carries_event_risk_light_fields(self):
         """LeanPackA must continue to transport the lean event-risk light inputs."""
@@ -1058,6 +1063,7 @@ class TestV80aContractSync:
         assert isinstance(fvg["PRIMARY_FVG_DISTANCE"], (int, float))
         assert 0.0 <= fvg["FVG_FILL_PCT"] <= 1.0
         assert fvg["FVG_MATURITY_LEVEL"] in (0, 1, 2, 3)
+        assert isinstance(fvg["FVG_NET_IMBALANCE"], int)
         assert isinstance(fvg["FVG_FRESH"], bool)
         assert isinstance(fvg["FVG_INVALIDATED"], bool)
 

@@ -6,7 +6,7 @@
 // No state, no drawing — all functions are parameter-in, value-out.
 library("smc_context_resolvers", overlay = false)
 
-import preuss_steffen/smc_utils/3 as u
+import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_bus_private/3 as bp
 
 // ── Ticker Heat Parser ──
@@ -314,7 +314,7 @@ export resolve_bus_signal_quality_row(int sq_score, string sq_tier) =>
         pack_bus_row(2, score_band)
 
 export resolve_bus_signal_freshness_row(string sq_freshness, string sq_bias) =>
-    int fresh_code = sq_freshness == "fresh" ? 5 : sq_freshness == "aging" ? 3 : 1
+    int fresh_code = sq_freshness == "very_fresh" or sq_freshness == "fresh" ? 5 : sq_freshness == "aging" ? 3 : sq_freshness == "expired" ? -1 : 1
     int bias_code = sq_bias == "bull" ? 1 : sq_bias == "bear" ? 2 : sq_bias == "mixed" ? 3 : 4
     pack_bus_row(fresh_code, bias_code)
 

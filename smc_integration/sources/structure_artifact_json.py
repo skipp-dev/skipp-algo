@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from smc_integration.structure_contract import (
+    AUXILIARY_KEYS,
     contract_to_dict,
     normalize_structure_contract,
     normalize_structure_contracts_with_diagnostics,
@@ -476,14 +477,7 @@ def discover_normalized_contract_summary(*, repo_state_only: bool = False) -> di
                 "fvg": False,
                 "liquidity_sweeps": False,
             },
-            "mapped_auxiliary_categories": {
-                "liquidity_lines": False,
-                "session_ranges": False,
-                "session_pivots": False,
-                "ipda_range": False,
-                "htf_fvg_bias": False,
-                "broken_fractal_signals": False,
-            },
+            "mapped_auxiliary_categories": {key: False for key in AUXILIARY_KEYS},
             "structure_profile_supported": False,
             "diagnostics_available": False,
             "auxiliary_available": False,

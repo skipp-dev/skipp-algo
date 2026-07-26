@@ -184,7 +184,7 @@ function runPublisher(lib: HandLib, repoRoot: string, tsxBin: string): PublishRe
     return { name: lib.name, ok: false, version: null, noPublisher: true };
   }
   const out = path.join(os.tmpdir(), `publish-${lib.name}-${process.pid}.json`);
-  const res = spawnSync(tsxBin, [path.join(repoRoot, lib.publisher), "--out", out], {
+  const res = spawnSync(tsxBin, [path.join(repoRoot, lib.publisher), "--out", out, "--no-allow-create"], {
     cwd: repoRoot,
     stdio: ["ignore", "inherit", "inherit"],
     encoding: "utf-8",

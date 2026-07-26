@@ -20,7 +20,7 @@ import time
 from collections import deque
 from typing import Any
 
-from . import request_hotspots
+from . import config, request_hotspots
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,8 @@ _bars: dict[str, deque[dict[str, Any]]] = {}
 _bar_last_update: dict[str, float] = {}  # symbol → monotonic timestamp of last push
 _rolling_bars_cap: int = 60  # set by feed.py on init
 _max_symbols: int = 2000  # configurable via init_bar_cache()
+_MAX_EXPANDED_BAR_SYMBOLS: int = 32
+_MAX_EXPANDED_BAR_CAP: int = 9_600
 _last_eviction_at: float = 0.0  # monotonic ts of last eviction pass (L5)
 _EVICT_INTERVAL_SECS: float = 60.0  # periodic eviction interval
 # Eviction-log throttle: cap-eviction fires once per new symbol while the cache
@@ -54,6 +56,32 @@ class _EvictSummary:
 
 _evict_summary = _EvictSummary()
 
+
+class _ExpandedBarRetention:
+    """Bounded per-symbol history requirements, mutated under ``_bar_lock``."""
+
+    __slots__ = ("caps", "seen", "tick")
+
+    def __init__(self) -> None:
+        self.caps: dict[str, int] = {}
+        self.seen: dict[str, int] = {}
+        self.tick = 0
+
+    def reset(self) -> None:
+        self.caps.clear()
+        self.seen.clear()
+        self.tick = 0
+
+    def remember(self, symbol: str, required_bars: int) -> int:
+        self.tick += 1
+        retained = max(required_bars, self.caps.get(symbol, 0))
+        self.caps[symbol] = retained
+        self.seen[symbol] = self.tick
+        return retained
+
+
+_expanded_retention = _ExpandedBarRetention()
+
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
 _overlay: dict[str, dict[str, Any]] = {}
@@ -77,7 +105,9 @@ _vix_level: float | None = None
 # Bar cache API
 # ---------------------------------------------------------------------------
 
-def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
+def init_bar_cache(
+    rolling_bars: int, *, max_symbols: int = 2000, preserve_expanded: bool = False
+) -> None:
     global _rolling_bars_cap, _max_symbols
     if rolling_bars < 1:
         raise ValueError(f"rolling_bars must be >= 1, got {rolling_bars}")
@@ -86,12 +116,17 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     with _bar_lock:
         _rolling_bars_cap = rolling_bars
         _max_symbols = max_symbols
+        if not preserve_expanded:
+            _expanded_retention.reset()
         # Apply updated rolling cap to existing symbol deques as well, so a
         # runtime reconfiguration is reflected immediately for already-tracked
         # symbols.
         if _bars:
             for sym, dq in list(_bars.items()):
-                _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
+                retained_cap = max(
+                    _rolling_bars_cap, _expanded_retention.caps.get(sym, 0)
+                )
+                _bars[sym] = deque(dq, maxlen=retained_cap)
             # Downscaling max_symbols must enforce the hard cap immediately.
             overshoot = len(_bars) - _max_symbols
             if overshoot > 0:
@@ -114,7 +149,8 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _evict_n_stale_symbols_locked(overshoot_plus_incoming)
             _last_eviction_at = now
         if symbol not in _bars:
-            _bars[symbol] = deque(maxlen=_rolling_bars_cap)
+            retained_cap = _expanded_retention.caps.get(symbol, _rolling_bars_cap)
+            _bars[symbol] = deque(maxlen=max(_rolling_bars_cap, retained_cap))
         _bars[symbol].append(bar)
         _bar_last_update[symbol] = now
         # L5: periodic eviction so stale symbols don't linger indefinitely
@@ -123,7 +159,7 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             and not need_cap_evict
             and (now - _last_eviction_at) >= _EVICT_INTERVAL_SECS
         ):
-            _evict_stale_symbols_locked()
+            _evict_stale_symbols_locked(now)
             _last_eviction_at = now
 
 
@@ -133,6 +169,42 @@ def get_bars_snapshot(symbol: str) -> list[dict[str, Any]]:
         if symbol not in _bars:
             return []
         return list(_bars[symbol])
+
+
+def ensure_bar_capacity(symbol: str, required_bars: int) -> int:
+    """Retain enough raw bars for one requested symbol, within a hard bound.
+
+    Only the most recently requested 32 symbols receive expanded history.
+    This keeps 1H/4H rolling fields attainable without allocating a 9,600-bar
+    window to every symbol in the ``ALL_SYMBOLS`` firehose.
+    """
+    sym = symbol.upper().strip()
+    if not sym:
+        raise ValueError("symbol must not be empty")
+    if isinstance(required_bars, bool) or required_bars < 1:
+        raise ValueError("required_bars must be a positive integer")
+    bounded_required = min(int(required_bars), _MAX_EXPANDED_BAR_CAP)
+    with _bar_lock:
+        if (
+            sym not in _expanded_retention.caps
+            and len(_expanded_retention.caps) >= _MAX_EXPANDED_BAR_SYMBOLS
+        ):
+            victim = min(
+                _expanded_retention.seen,
+                key=_expanded_retention.seen.__getitem__,
+            )
+            _expanded_retention.caps.pop(victim, None)
+            _expanded_retention.seen.pop(victim, None)
+            if victim in _bars:
+                _bars[victim] = deque(_bars[victim], maxlen=_rolling_bars_cap)
+
+        retained_cap = max(
+            _rolling_bars_cap,
+            _expanded_retention.remember(sym, bounded_required),
+        )
+        if sym in _bars and _bars[sym].maxlen != retained_cap:
+            _bars[sym] = deque(_bars[sym], maxlen=retained_cap)
+        return retained_cap
 
 
 def get_all_symbols_snapshot() -> dict[str, list[dict[str, Any]]]:
@@ -186,17 +258,40 @@ def requested_bar_depth() -> tuple[int, float]:
     return len(depths), sum(depths) / len(depths)
 
 
-def _evict_stale_symbols_locked() -> None:
-    """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
+def requested_bar_history_readiness() -> tuple[int, float]:
+    """Return ``(symbols, minimum readiness ratio)`` for expanded histories."""
+    with _bar_lock:
+        ratios = [
+            min(1.0, len(_bars[sym]) / required)
+            for sym, required in _expanded_retention.caps.items()
+            if sym in _bars
+        ]
+    if not ratios:
+        return 0, 0.0
+    return len(ratios), min(ratios)
+
+
+def _evict_stale_symbols_locked(now: float) -> None:
+    """Evict old, unrequested symbols periodically. Caller MUST hold _bar_lock."""
+    stale_before = now - config.max_stale_secs()
+    protected = request_hotspots.requested_symbols()
+    candidates = {
+        symbol
+        for symbol, updated_at in _bar_last_update.items()
+        if updated_at < stale_before and symbol not in protected
+    }
     n_evict = max(1, len(_bars) // 10)
-    _evict_n_stale_symbols_locked(n_evict)
+    _evict_n_stale_symbols_locked(n_evict, candidates=candidates)
 
 
-def _evict_n_stale_symbols_locked(n_evict: int) -> None:
+def _evict_n_stale_symbols_locked(
+    n_evict: int, *, candidates: set[str] | None = None
+) -> None:
     """Evict N least-recently-updated symbols. Caller MUST hold _bar_lock."""
-    if not _bar_last_update:
+    available = _bar_last_update.keys() if candidates is None else candidates
+    if not available:
         return
-    n_evict = max(0, min(n_evict, len(_bars)))
+    n_evict = max(0, min(n_evict, len(available)))
     if n_evict == 0:
         return
     # Demand-aware retention: with an ALL_SYMBOLS feed every tracked symbol
@@ -211,12 +306,14 @@ def _evict_n_stale_symbols_locked(n_evict: int) -> None:
     # the cap stays a hard limit.
     protected = request_hotspots.requested_symbols()
     victims = sorted(
-        _bar_last_update,
+        available,
         key=lambda s: (s in protected, _bar_last_update[s]),
     )[:n_evict]
     for sym in victims:
         _bars.pop(sym, None)
         _bar_last_update.pop(sym, None)
+        _expanded_retention.caps.pop(sym, None)
+        _expanded_retention.seen.pop(sym, None)
         _evict_counters["total"] += 1
         if sym in protected:
             _evict_counters["protected"] += 1

@@ -64,19 +64,29 @@ class PreA0Runtime:
         self.telemetry = telemetry
         self._history: dict[str, deque[PreA0Observation]] = {}
         self._machines: dict[str, PreA0Machine] = {}
-        self._episodes: dict[str, str] = {}
+        self._session_dates: dict[str, str] = {}
 
     def reset(self, symbol: str) -> None:
         normalized = symbol.strip().upper()
         self._history.pop(normalized, None)
         self._machines.pop(normalized, None)
-        self._episodes.pop(normalized, None)
+        self._session_dates.pop(normalized, None)
 
     def process(self, snapshot: A0StreamFeatureSnapshot) -> PreA0RuntimeResult:
         if snapshot.gap_state is not GapState.COMPLETE:
             self.reset(snapshot.market.symbol)
             raise ValueError("PRE-A0 requires complete stream state")
         symbol = snapshot.market.symbol
+        session_date = snapshot.market.session_date
+        if self._session_dates.get(symbol) != session_date:
+            # New trading session: drop the prior session's hysteresis + history
+            # so PreA0Machine._last never carries a stale estimate across the
+            # session boundary. The worker only resets on bootstrap/gap, which a
+            # clean COMPLETE session-open (replay coverage, or first bar near
+            # 09:30) does not trigger. regime.py had the same class of
+            # cross-session hysteresis bug — fixed in #3991.
+            self.reset(symbol)
+            self._session_dates[symbol] = session_date
         history = self._history.setdefault(symbol, deque())
         observation = PreA0Observation(
             snapshot.market,
@@ -130,21 +140,19 @@ class PreA0Runtime:
         self.telemetry.record_snapshot(recorded=False, flushed=flushed.rows)
         return flushed.rows
 
-    def _episode_id(self, estimate: PreA0Estimate) -> str | None:
-        symbol = estimate.features.symbol
+    @staticmethod
+    def _episode_id(estimate: PreA0Estimate) -> str | None:
         if estimate.state is PreA0State.NONE:
-            self._episodes.pop(symbol, None)
             return None
-        existing = self._episodes.get(symbol)
-        if existing is not None:
-            return existing
-        identity = (
-            f"{estimate.features.session_date}:{symbol}:{estimate.direction}:"
-            f"{estimate.features.observed_at:.6f}"
-        )
-        episode_id = hashlib.sha256(identity.encode()).hexdigest()[:24]
-        self._episodes[symbol] = episode_id
-        return episode_id
+        # Deterministic, restart-stable episode id. The previous seed hashed the
+        # observed_at of the first bar THIS PROCESS saw for the symbol, held only
+        # in memory, so a mid-session restart/replay re-derived a different id for
+        # the same record (2026-07-23: 12 such episode_id-only conflicts that
+        # blocked the whole session from loading). A pure function of the record's
+        # stable identity keeps every re-emit of a record byte-identical;
+        # session_date keeps an episode inside one by-day walk-forward split.
+        identity = f"{estimate.features.session_date}:{estimate.features.symbol}:{estimate.direction}"
+        return hashlib.sha256(identity.encode()).hexdigest()[:24]
 
     def _operator_payload(
         self,

@@ -48,7 +48,7 @@ def _age_seconds(updated_at: str, *, now: float | None = None) -> float | None:
         epoch = parsed.timestamp()
     except Exception:
         return None
-    return max(0.0, (time.time() if now is None else now) - epoch)
+    return age if (age := (time.time() if now is None else now) - epoch) >= 0.0 else None
 
 
 def _coerce(parsed: dict[str, Any]) -> dict[str, Any]:

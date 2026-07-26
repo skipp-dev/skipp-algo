@@ -120,6 +120,26 @@ class OHLCV_1m:
     ts_event = 1
 
 
+def test_feed_thread_restart_preserves_requested_timeframe_history() -> None:
+    """A supervisor restart of only the feed thread must not reinitialise cache state."""
+
+    from services.live_overlay_daemon import cache
+
+    feed = _reload_feed_module()
+    cache.push_bar("AAPL", {"ts_event": 1})
+    cache.ensure_bar_capacity("AAPL", 2_880)
+    for index in range(1, 100):
+        cache.push_bar("AAPL", {"ts_event": index + 1})
+    before = cache.get_bars_snapshot("AAPL")
+
+    already_stopped = threading.Event()
+    already_stopped.set()
+    feed._run_feed_loop(already_stopped)
+
+    assert cache.get_bars_snapshot("AAPL") == before
+    assert cache.requested_bar_history_readiness()[0] == 1
+
+
 class TestFeedReconnectAndCircuitBreaker:
     """_run_feed_loop reconnects on BentoError and trips the circuit breaker."""
 
@@ -167,6 +187,54 @@ class TestFeedReconnectAndCircuitBreaker:
         assert snapshot["circuit_breakers"] == 1
         assert snapshot["bento_errors"] >= 3
         assert not feed._feed_ready.is_set()
+
+    def test_iterator_failures_trip_circuit_breaker(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A successful subscribe is not a recovery until one record arrives."""
+        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
+        feed = _reload_feed_module()
+        _patch_reconnect_delays(feed)
+
+        failure = db.BentoError("stream disconnected")
+
+        def make_client(**_):
+            return FakeLive([failure])
+
+        with patch.object(db, "Live", side_effect=make_client):
+            _run_feed_loop_until(
+                feed,
+                until=lambda: feed.metrics_snapshot()["circuit_breakers"] >= 1,
+                max_runtime=2.0,
+            )
+
+        snapshot = feed.metrics_snapshot()
+        assert snapshot["circuit_breakers"] == 1
+        assert snapshot["bento_errors"] >= 3
+
+    def test_mapping_record_does_not_mask_failed_data_sessions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Metadata alone is not recovery when every session fails before a bar."""
+        monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
+        feed = _reload_feed_module()
+        _patch_reconnect_delays(feed)
+        failure = db.BentoError("stream disconnected before first bar")
+
+        with patch.object(
+            db,
+            "Live",
+            side_effect=lambda **_: FakeLive([SymbolMappingMsg(), failure]),
+        ):
+            _run_feed_loop_until(
+                feed,
+                until=lambda: feed.metrics_snapshot()["circuit_breakers"] >= 1,
+                max_runtime=2.0,
+            )
+
+        snapshot = feed.metrics_snapshot()
+        assert snapshot["circuit_breakers"] == 1
+        assert snapshot["bento_errors"] >= 3
 
     def test_unexpected_error_increments_unexpected_errors_metric(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")

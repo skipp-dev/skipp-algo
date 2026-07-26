@@ -1,6 +1,6 @@
 """Tracking-anchor test for the C9 threshold-lock-in milestone.
 
-The C9 sprint plan parks production-threshold tuning until ~2026-07-25
+The C9 sprint plan parks production-threshold tuning until ~2026-08-16
 (90 days of live outcomes accrued). This test is a no-op until that
 date so the milestone surfaces in CI rather than living only in a
 document. After the date, it asserts ``docs/c9_threshold_tuning.md``
@@ -15,7 +15,11 @@ from pathlib import Path
 
 import pytest
 
-LOCK_BY = _dt.date(2026, 7, 25)
+# Extended 2026-07-25 → 2026-08-16: the C8 live-incubation backfill has not yet
+# accrued ≥90d of real outcomes, so CALIBRATION_SOURCE is still "synthetic" and
+# an honest live-tuned lock is not possible. Deadline moved rather than faking a
+# "Status: locked" doc (which is exactly what this anchor guards against).
+LOCK_BY = _dt.date(2026, 8, 16)
 DOC = Path(__file__).resolve().parent.parent / "docs" / "c9_threshold_tuning.md"
 
 

@@ -111,6 +111,12 @@ def test_5m_stale_false_when_bars_fresh(serving) -> None:
     assert _get("5m")["stale"] is False
 
 
+def test_5m_stale_true_when_newest_bar_is_in_the_future(serving) -> None:
+    """A future-dated upstream bar is invalid recency evidence, never fresh."""
+    serving.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: _bars(-600.0))
+    assert _get("5m")["stale"] is True
+
+
 def test_5m_stale_true_when_compute_stale_even_with_fresh_bars(serving) -> None:
     """Existing overlay-age semantics are preserved: a wedged refresh thread
     still marks the payload stale even while bars keep flowing."""

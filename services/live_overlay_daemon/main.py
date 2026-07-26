@@ -315,7 +315,7 @@ def _latest_bar_age_secs(bars: list[dict[str, Any]]) -> float | None:
     if not valid_ts_events:
         return None
     newest_close = max(valid_ts_events) / 1_000_000_000 + _BAR_LEN_SECS
-    return max(0.0, time.time() - newest_close)
+    return max(0.0, now - newest_close) if (now := time.time()) >= newest_close - _BAR_LEN_SECS else None
 
 
 def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
@@ -325,6 +325,7 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     it in the overlay cache. For non-default timeframes we aggregate the cached
     1-minute bars on demand so callers still get timeframe-consistent fields.
     """
+    cache.ensure_bar_capacity(sym, compute.raw_bars_required(tf))
     if tf == "5m":
         return cache.get_overlay(sym)
 
@@ -380,8 +381,12 @@ def smc_live(
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
         record_latency = True
-        payload = _get_payload_for_timeframe(sym, tf)
+        # Protect and size the requested symbol before reading its bars. Under
+        # ALL_SYMBOLS cap churn, recording only after the read left a narrow
+        # race where the just-requested symbol could be evicted while its
+        # expanded timeframe history was being prepared.
         request_hotspots.record_request(sym, tf)
+        payload = _get_payload_for_timeframe(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
@@ -417,8 +422,8 @@ def smc_live(
                     "event_risk_level": None,
                     "next_event_name": None,
                     "next_event_time": None,
-                    "market_event_blocked": False,
-                    "symbol_event_blocked": False,
+                    "market_event_blocked": None,
+                    "symbol_event_blocked": None,
                     "event_provider_status": "unknown",
                     "signal_level": None,
                     "signal_direction": None,
@@ -430,10 +435,10 @@ def smc_live(
             )
 
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-        # SC-LIB-001 (issue #3872 aftermath): additive library-context fields —
-        # universe membership + provider trust parsed from the committed
-        # generated Pine library. Fail-soft: a static/missing library yields
-        # None fields; the sidecar renders them as "not measured".
+        # Overlay 8-minute signals at read time; the 5m technical cache lives 30 minutes.
+        if tf == "5m":
+            payload.update(compute._get_signal_fields(sym))
+        # SC-LIB-001: additive library context fails soft when its source is unavailable.
         payload.update(library_context_bridge.context_for_symbol(sym))
         if tf == "5m":
             # Re-evaluate stale for cached background snapshots. Overlay age

@@ -6,10 +6,10 @@
 library("smc_engine_private", overlay = true)
 
 import preuss_steffen/smc_core_types/5 as ct
-import preuss_steffen/smc_utils/3 as u
+import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_lifecycle_private/3 as ll
-import preuss_steffen/smc_profile_engine/2 as pe
+import preuss_steffen/smc_profile_engine/3 as pe
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -1473,9 +1473,11 @@ export resolve_core_product_state(int long_visual_state) =>
 
 export resolve_trust_tier(string signal_quality_tier, string signal_freshness, string provider_status) =>
     string trust_tier = 'Insufficient'
-    if provider_status != 'ok' or signal_freshness == 'stale'
+    bool freshness_expired = signal_freshness == 'stale' or signal_freshness == 'expired'
+    bool freshness_current = signal_freshness == 'fresh' or signal_freshness == 'very_fresh'
+    if provider_status != 'ok' or freshness_expired
         trust_tier := signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok' ? 'Degraded' : 'Insufficient'
-    else if signal_quality_tier == 'high' and signal_freshness == 'fresh'
+    else if signal_quality_tier == 'high' and freshness_current
         trust_tier := 'High'
     else if signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok'
         trust_tier := 'Guarded'

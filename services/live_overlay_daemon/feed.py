@@ -260,7 +260,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
         consecutive_failures = 0
         max_failures = config.max_feed_failures()
         rolling = config.rolling_bars()
-        cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
+        cache.init_bar_cache(
+            rolling, max_symbols=config.max_symbols(), preserve_expanded=True
+        )
 
         while not stop.is_set():
             client: db.Live | None = None
@@ -294,7 +296,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
                 _feed_connected_at = time.monotonic()
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
-                consecutive_failures = 0
 
                 # Build symbology map from SymbolMappingMsg records
                 # yielded by the iterator (no private-attr access).
@@ -371,6 +372,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
                     try:
                         ingest_queue.put_nowait((sym, bar, time.monotonic()))
+                        # Only a validated, enqueued bar proves that the data
+                        # feed recovered; metadata records alone are not
+                        # sufficient evidence of a usable data session.
+                        consecutive_failures = 0
                         _record_enqueue_backpressure()
                         _bars_pushed_count += 1
                         if not stop.is_set() and not _feed_ready.is_set():

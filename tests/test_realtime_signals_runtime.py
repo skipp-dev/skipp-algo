@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections import deque
 from pathlib import Path
 
@@ -408,6 +409,51 @@ def test_news_catalyst_upgrade_fires_on_aligned_polarity(monkeypatch) -> None:
 def test_news_catalyst_upgrade_neutral_polarity_does_not_escalate(monkeypatch) -> None:
     sig = _news_upgrade_poll(monkeypatch, polarity=0.0, direction="LONG")
     assert sig.level == "A1"
+
+
+def test_news_catalyst_a0_survives_requalification_with_full_quote(monkeypatch) -> None:
+    # Regression: a fresh news-catalyst A0 upgrade must survive the #6
+    # re-qualification pass in the SAME poll. The upgrade promotes an A1-band
+    # signal to A0 on news (not raw vol/change), so re-qualifying it against the
+    # current quote's raw numerics would strip it back to A1 before it ever
+    # reaches /smc_live. This uses a production-shaped quote (avgVolume +
+    # previousClose present); the other news tests pass only because their quote
+    # omits those and short-circuits re-qualification.
+    monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
+    monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
+    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
+
+    engine = rs.RealtimeEngine(fmp_client=None)
+    engine._watchlist = [{"symbol": "AAA", "avg_volume": 2_000_000}]
+
+    class _NewsStub:
+        def latest(self):
+            return {"AAA": {"news_score": 0.9, "polarity": 0.9,
+                            "category": "ma_deal", "headline": "h", "warn_flags": []}}
+
+    engine._async_newsstack = _NewsStub()
+
+    def _fresh_a1(*_a, **_k):
+        sig = _mk_a1("LONG")
+        sig.fired_epoch = time.time()  # fresh — isolate re-qual from time-decay
+        return sig
+
+    # Production-shaped quote: change 1.0%, normalized pace 1.0 — both A1-band, so
+    # the raw-threshold re-qualification would revert the news A0 without the fix.
+    monkeypatch.setattr(engine, "_fetch_realtime_quotes", lambda: {
+        "AAA": {"symbol": "AAA", "price": 101.0, "previousClose": 100.0,
+                "volume": 1_000_000, "avgVolume": 2_000_000,
+                "expected_volume_fraction": 0.5},
+    })
+    monkeypatch.setattr(engine, "_detect_signal", _fresh_a1)
+    monkeypatch.setattr(engine, "_save_signals", lambda *a, **k: None)
+
+    sig = engine.poll_once()[0]
+    assert sig.level == "A0", (
+        f"news-catalyst A0 stripped by re-qualification: {sig.details.get('reason_codes')}"
+    )
+    assert sig.details.get("a0_upgrade_reason") == "news_catalyst"
 
 
 def test_rt_engine_status_revalidates_stale_running_flag(monkeypatch, tmp_path: Path) -> None:

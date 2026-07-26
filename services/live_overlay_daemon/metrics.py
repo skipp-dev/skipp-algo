@@ -69,9 +69,23 @@ def _prom_numeric_value(raw: object) -> float:
     """Coerce metric value to a Prometheus-safe finite number (fallback: NaN)."""
     try:
         value = float(raw)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return float("nan")
     return value if math.isfinite(value) else float("nan")
+
+
+def _past_age_seconds(epoch: object, *, now: float | None = None) -> float | None:
+    """Return a finite age for a proven past epoch; future/invalid means unknown."""
+    if isinstance(epoch, bool):
+        return None
+    try:
+        timestamp = float(epoch)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    if not math.isfinite(timestamp) or timestamp <= 0.0:
+        return None
+    age = (time.time() if now is None else now) - timestamp
+    return age if math.isfinite(age) and age >= 0.0 else None
 
 
 def _parse_bucket_upper_bound(suffix: str) -> float | None:
@@ -245,12 +259,37 @@ def _trading_signals_snapshot() -> dict[str, object]:
             except (TypeError, ValueError):
                 epoch_float = 0.0
         if math.isfinite(epoch_float) and epoch_float > 0:
-            age_known = 1.0
-            age_seconds = max(0.0, time.time() - epoch_float)
-            stale = 1.0 if age_seconds > max_age_seconds else 0.0
+            raw_age_seconds = time.time() - epoch_float
+            if raw_age_seconds >= 0.0:
+                age_known = 1.0
+                age_seconds = raw_age_seconds
+                stale = 1.0 if age_seconds > max_age_seconds else 0.0
+            else:
+                # A producer clock ahead of this process cannot prove that a
+                # snapshot is current. Keep the age unknown and stale so the
+                # alerting contract matches compute._signals_snapshot_is_fresh.
+                stale = 1.0
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
+    now_epoch = time.time()
+
+    def _is_current_signal(sig: dict[str, object]) -> bool:
+        fired_value = sig.get("fired_epoch")
+        if isinstance(fired_value, bool) or not isinstance(
+            fired_value, (int, float, str)
+        ):
+            return False
+        try:
+            fired_epoch = float(fired_value)
+        except (TypeError, ValueError):
+            return False
+        return (
+            str(sig.get("level", "")) in {"A0", "A1", "A2"}
+            and math.isfinite(fired_epoch)
+            and 0.0 < fired_epoch <= now_epoch
+            and now_epoch - fired_epoch <= max_age_seconds
+        )
 
     def _score_key(sig: dict[str, object]) -> float:
         value = sig.get("score")
@@ -265,7 +304,17 @@ def _trading_signals_snapshot() -> dict[str, object]:
                 return 0.0
         return 0.0
 
+    if not age_known or stale:
+        normalized = []
+    else:
+        normalized = [sig for sig in normalized if _is_current_signal(sig)]
     normalized.sort(key=_score_key, reverse=True)
+    counts.update(
+        active=len(normalized),
+        a0=sum(str(sig.get("level", "")) == "A0" for sig in normalized),
+        a1=sum(str(sig.get("level", "")) == "A1" for sig in normalized),
+        a2=sum(str(sig.get("level", "")) == "A2" for sig in normalized),
+    )
 
     return {
         "loaded": loaded,
@@ -400,9 +449,10 @@ def _credential_health_snapshot() -> dict[str, object]:
         if parsed is not None:
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=datetime.UTC)
-            age = (datetime.datetime.now(datetime.UTC) - parsed).total_seconds()
-            snapshot["snapshot_age_known"] = 1.0
-            snapshot["snapshot_age_seconds"] = max(0.0, age)
+            age = _past_age_seconds(parsed.timestamp())
+            if age is not None:
+                snapshot["snapshot_age_known"] = 1.0
+                snapshot["snapshot_age_seconds"] = age
 
     probes = raw.get("probes")
     probe_rows: list[dict[str, object]] = []
@@ -545,8 +595,8 @@ def _experiment_run_age(run_date: str) -> tuple[float, float]:
         parsed = datetime.datetime.strptime(run_date, "%Y-%m-%d").replace(tzinfo=datetime.UTC)
     except ValueError:
         return 0.0, 0.0
-    age = time.time() - parsed.timestamp()
-    return 1.0, max(0.0, age)
+    age = _past_age_seconds(parsed.timestamp())
+    return (1.0, age) if age is not None else (0.0, 0.0)
 
 
 def _experiment_per_tf_rows(per_tf: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
@@ -766,9 +816,10 @@ def _provider_health_snapshot() -> dict[str, object]:
         # the age is unknown and flagged as such instead of reporting a
         # misleading 0 that masquerades as a fresh snapshot.
         snapshot_ts = _snapshot_timestamp(raw)
-        if snapshot_ts is not None:
+        snapshot_age = _past_age_seconds(snapshot_ts)
+        if snapshot_age is not None:
             snapshot_age_known = 1.0
-            snapshot_age_seconds = max(0.0, time.time() - snapshot_ts)
+            snapshot_age_seconds = snapshot_age
         # last_ingest_success_at advances only when new items were accepted
         # (WP-C1c); it is the correct key for a 'news not flowing' alert since
         # generated_at refreshes every producer tick regardless of ingest.
@@ -777,9 +828,10 @@ def _provider_health_snapshot() -> dict[str, object]:
             ingest_ts = float(ingest_raw) if ingest_raw is not None else 0.0
         except (TypeError, ValueError):
             ingest_ts = 0.0
-        if math.isfinite(ingest_ts) and ingest_ts > 0.0:
+        ingest_age = _past_age_seconds(ingest_ts)
+        if ingest_age is not None:
             ingest_age_known = 1.0
-            ingest_age_seconds = max(0.0, time.time() - ingest_ts)
+            ingest_age_seconds = ingest_age
 
     providers = providers_obj if isinstance(providers_obj, dict) else {}
 
@@ -1046,9 +1098,11 @@ def _bridge_last_success_age(
     Disabled/unconfigured bridges return None (series omitted, as before).
     """
     if math.isfinite(last_success_ts) and last_success_ts > 0:
-        return max(0.0, time.time() - last_success_ts)
+        age = _past_age_seconds(last_success_ts)
+        if age is not None:
+            return age
     if enabled and configured and startup_epoch > 0:
-        return max(0.0, time.time() - startup_epoch)
+        return _past_age_seconds(startup_epoch)
     return None
 
 
@@ -1329,6 +1383,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_requested_bar_symbols {req_bar_symbols}")
     lines.append("# TYPE live_overlay_requested_bars_per_symbol gauge")
     lines.append(f"live_overlay_requested_bars_per_symbol {req_bars_per_symbol}")
+    history_symbols, history_readiness = cache.requested_bar_history_readiness()
+    lines.append("# TYPE live_overlay_requested_bar_history_symbols gauge")
+    lines.append(f"live_overlay_requested_bar_history_symbols {history_symbols}")
+    lines.append("# TYPE live_overlay_requested_bar_history_readiness_ratio gauge")
+    lines.append(
+        f"live_overlay_requested_bar_history_readiness_ratio {history_readiness}"
+    )
     lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
     lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
     lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")
@@ -2068,7 +2129,9 @@ def _render_provider_usage_metrics() -> list[str]:
         f"live_overlay_provider_usage_snapshot_age_seconds {float(age) if age_known else 0.0:.1f}"
     )
 
-    providers = snap.get("providers") or {}
+    raw_providers = snap.get("providers")
+    providers = dict(raw_providers) if isinstance(raw_providers, dict) else {}
+    providers.setdefault("fmp", {})
     lines.append("# TYPE live_overlay_provider_usage_bytes gauge")
     lines.append("# TYPE live_overlay_provider_usage_calls gauge")
     lines.append("# TYPE live_overlay_provider_usage_records gauge")
@@ -2118,8 +2181,9 @@ def _render_pine_library_version_metrics() -> list[str]:
 
     # Age of the snapshot itself (producer heartbeat). Known only once loaded.
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    snap_age_known = 1.0 if generated_at > 0 else 0.0
-    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    snap_age_value = _past_age_seconds(generated_at)
+    snap_age_known = 1.0 if snap_age_value is not None else 0.0
+    snap_age = snap_age_value if snap_age_value is not None else 0.0
     lines.append("# TYPE live_overlay_pine_library_snapshot_age_known gauge")
     lines.append(f"live_overlay_pine_library_snapshot_age_known {snap_age_known}")
     lines.append("# TYPE live_overlay_pine_library_snapshot_age_seconds gauge")
@@ -2159,10 +2223,13 @@ def _render_pine_library_version_metrics() -> list[str]:
         tv_known = _prom_numeric_value(lib.get("tv_version_known", 0.0))
         lines.append(f'live_overlay_pine_library_tv_version_known{{library="{name}"}} {tv_known}')
         data_asof_unix = _prom_numeric_value(lib.get("data_asof_unix", 0.0))
-        data_age_known = 1.0 if (
-            _prom_numeric_value(lib.get("data_asof_known", 0.0)) >= 1.0 and data_asof_unix > 0
-        ) else 0.0
-        data_age = max(0.0, time.time() - data_asof_unix) if data_age_known >= 1.0 else 0.0
+        data_age_value = (
+            _past_age_seconds(data_asof_unix)
+            if _prom_numeric_value(lib.get("data_asof_known", 0.0)) >= 1.0
+            else None
+        )
+        data_age_known = 1.0 if data_age_value is not None else 0.0
+        data_age = data_age_value if data_age_value is not None else 0.0
         lines.append(f'live_overlay_pine_library_data_age_known{{library="{name}"}} {data_age_known}')
         lines.append(f'live_overlay_pine_library_data_age_seconds{{library="{name}"}} {data_age:.1f}')
         # Only emit the version number when it is actually known — an unreachable
@@ -2207,8 +2274,9 @@ def _render_tradingview_binding_metrics() -> list[str]:
     """Prometheus gauges for measured TradingView input.source dropdown drift."""
     snap = tradingview_binding_bridge.snapshot()
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    age_known = 1.0 if generated_at > 0 else 0.0
-    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    age_value = _past_age_seconds(generated_at)
+    age_known = 1.0 if age_value is not None else 0.0
+    age = age_value if age_value is not None else 0.0
     lines = [
         "# TYPE live_overlay_tv_binding_snapshot_loaded gauge",
         f"live_overlay_tv_binding_snapshot_loaded {_prom_numeric_value(snap.get('loaded', 0.0))}",
@@ -2271,8 +2339,9 @@ def _render_evidence_freshness_metrics() -> list[str]:
 
     # Age of the snapshot itself (producer heartbeat). Known only once loaded.
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    snap_age_known = 1.0 if generated_at > 0 else 0.0
-    snap_age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    snap_age_value = _past_age_seconds(generated_at)
+    snap_age_known = 1.0 if snap_age_value is not None else 0.0
+    snap_age = snap_age_value if snap_age_value is not None else 0.0
     lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_known gauge")
     lines.append(f"live_overlay_evidence_freshness_snapshot_age_known {snap_age_known}")
     lines.append("# TYPE live_overlay_evidence_freshness_snapshot_age_seconds gauge")
@@ -2396,8 +2465,9 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
     # `_stale` is a precomputed 0/1 gauge so the alert threshold isn't the
     # gt-0-inert trap (a bare comparison whose true-value is 0).
     generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
-    age_known = 1.0 if generated_at > 0 else 0.0
-    age = max(0.0, time.time() - generated_at) if generated_at > 0 else 0.0
+    age_value = _past_age_seconds(generated_at)
+    age_known = 1.0 if age_value is not None else 0.0
+    age = age_value if age_value is not None else 0.0
     stale = 1.0 if (age_known and age > config.sweep_trap_shadow_max_age_secs()) else 0.0
     lines.append("# TYPE live_overlay_sweep_trap_shadow_snapshot_age_known gauge")
     lines.append(f"live_overlay_sweep_trap_shadow_snapshot_age_known {age_known}")

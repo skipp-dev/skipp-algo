@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # daily read-only Railway drift check (cron 06:17 off-peak; permissions: contents:read, no writes)
 # Drift guard: the live_overlay_daemon Railway service must stay CI-only —
 # i.e. have NO native GitHub deploy trigger. A native trigger has no path
 # filter, so it redeploys the daemon on every push to main (2026-07-24:

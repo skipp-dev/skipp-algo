@@ -123,9 +123,10 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2768 -> 2849 and 2815 -> 2896.
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 3889, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 3732->3889
-
-    ("open_prep/realtime_signals.py", 3945, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 3788->3945
+    # 2026-07-26 (merge Databento source after re-qual fixes):
+    # combined branch additions shifted the two reviewed temp-file sites.
+    ("open_prep/realtime_signals.py", 3898, "mkstemp"),
+    ("open_prep/realtime_signals.py", 3954, "mkstemp"),
 
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/benchmark.py", 30, "mkstemp"),

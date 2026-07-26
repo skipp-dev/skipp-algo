@@ -46,7 +46,7 @@ previously distributed across multiple policy and contract documents.
 | Event Risk Light | 7 | Market/symbol event gating, blocked/caution/clear |
 | Session Context Light | 4+1 | Session, killzone, bias, score; optional volatility state |
 | OB Context Light | 5 | Nearest OB side, distance, freshness, age, mitigation lifecycle |
-| FVG Lifecycle Light | 6 | Nearest FVG side, fill %, maturity (fill-derived), freshness, invalidation |
+| FVG Lifecycle Light | 7 | Nearest FVG side, fill %, maturity (fill-derived), freshness, invalidation, net active count |
 | Structure State Light | 4 | Last structure event, age, freshness, trend strength |
 | Signal Quality | 5 | Composite score, tier, warnings, bias alignment, freshness |
 

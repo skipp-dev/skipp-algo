@@ -3128,9 +3128,9 @@ class RealtimeEngine:
             )
 
         # Boost: strong tech alignment can raise A1→A0 for high-conviction
-        if (level == "A1" and tech_score >= 0.75
-                and ((direction == "LONG" and tech_signal in ("STRONG_BUY", "BUY"))
-                     or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
+        if (level == "A1"
+                and ((direction == "LONG" and tech_score >= 0.75 and tech_signal in ("STRONG_BUY", "BUY"))
+                     or (direction == "SHORT" and tech_score <= 0.25 and tech_signal in ("STRONG_SELL", "SELL")))
                 and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
             level = "A0"
             reason_codes.append(A0ReasonCode.TECHNICAL_ALIGNMENT_UPGRADE)
@@ -3641,14 +3641,23 @@ class RealtimeEngine:
             self._active_signals.extend(new_signals)
 
         # ── #6  Signal re-qualification ──────────────────────────
-        # Re-validate ALL active signals against current quotes.  If a
-        # signal no longer meets even A1 criteria → expire it early.
+        # Re-validate active signals CARRIED OVER from prior polls against the
+        # current quotes.  If a carried-over signal no longer meets even A1
+        # criteria → expire it early.  Signals detected THIS poll are exempt:
+        # _detect_signal already validated them against this same quote (incl.
+        # the news/PDH/RSI/technical A1→A0 upgrades, whose raw vol/change sit in
+        # the A1 band by construction) — re-qualifying them here would strip
+        # every upgrade back to A1 before it reaches /smc_live.  2026-07-25.
         requalified: list[RealtimeSignal] = []
+        _fresh_ids = {id(s) for s in new_signals}
         from open_prep.a0_contract import A0ReasonCode, amend_decision_details
         with self._lock:
             signals_snapshot = list(self._active_signals)
         for sig in signals_snapshot:
             if sig.is_expired():
+                continue
+            if id(sig) in _fresh_ids:
+                requalified.append(sig)  # detected this poll — already current
                 continue
             q = quotes.get(sig.symbol)
             if q is None:

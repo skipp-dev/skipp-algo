@@ -421,6 +421,24 @@ def test_hotspot_panels_explain_empty_state_and_use_request_rate_units() -> None
         assert "Empty means no external client requests" in panel.get("description", "")
 
 
+def test_bar_cache_panel_and_alert_use_timeframe_specific_readiness() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panel = next(
+        p
+        for p in _dashboard_panels(dashboard)
+        if p.get("title") == "Bar cache depth and cap churn"
+    )
+    expressions = "\n".join(target["expr"] for target in panel["targets"])
+    assert "live_overlay_requested_bar_history_readiness_ratio" in expressions
+    assert "live_overlay_requested_bars_per_symbol" in expressions
+    assert "live_overlay_requested_bar_symbols" in expressions
+
+    alert_expr = _alert_rule("lo-bar-cache-depth-low")["data"][0]["model"]["expr"]
+    assert "live_overlay_requested_bar_history_readiness_ratio" in alert_expr
+    assert "< bool 1" in alert_expr
+    assert "live_overlay_requested_bar_history_symbols" in alert_expr
+
+
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:
     """UptimeRobot monitor alerts must gate on the generic bridge contract."""
     count_rule = _alert_rule("lo-uptimerobot-monitor-count-mismatch")
@@ -1663,6 +1681,56 @@ def test_dashboard_signal_readiness_panels_are_grouped() -> None:
     assert max(ys) - min(ys) <= max(p["gridPos"]["h"] for p in readiness), (
         f"readiness tiles are not grouped on one band: y={sorted(ys)}"
     )
+
+
+def test_main_dashboard_has_compact_linked_signal_summary() -> None:
+    """The operations board mirrors only the three decision-critical facts.
+
+    Full rankings and per-symbol details belong exclusively on the paired
+    Signals & Experiments dashboard.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    names = ("Active Signals", "Strongest Signal", "Signal Snapshot Age")
+
+    assert all(name in panels for name in names)
+    assert all(
+        _section_of(dashboard, name) == "Live Data Chain (Feed → Overlay → Pine)"
+        for name in names
+    )
+    assert {panels[name]["gridPos"]["y"] for name in names} == {46}
+    assert sorted(
+        (panels[name]["gridPos"]["x"], panels[name]["gridPos"]["w"])
+        for name in names
+    ) == [(0, 8), (8, 8), (16, 8)]
+
+    for name in names:
+        links = panels[name].get("links", [])
+        assert any("/d/smc-live-overlay-signals-v1" in link.get("url", "") for link in links)
+        assert all(link.get("targetBlank") for link in links)
+
+    active_expr = panels["Active Signals"]["targets"][0]["expr"]
+    assert "live_overlay_trading_signals_active" in active_expr
+    assert "live_overlay_trading_signals_snapshot_age_known" in active_expr
+
+    strongest = panels["Strongest Signal"]
+    assert strongest["targets"][0]["expr"].startswith(
+        'topk(1, live_overlay_trading_signal_score{job=~"$job"})'
+    )
+    assert "{{symbol}}" in strongest["targets"][0]["legendFormat"]
+    assert strongest["options"]["textMode"] == "value_and_name"
+
+    age_expr = panels["Signal Snapshot Age"]["targets"][0]["expr"]
+    assert "live_overlay_trading_signals_snapshot_age_seconds" in age_expr
+    assert "live_overlay_trading_signals_snapshot_age_known" in age_expr
+    assert panels["Signal Snapshot Age"]["fieldConfig"]["defaults"]["unit"] == "s"
+
+    for detail_title in (
+        "Signal Strength - Live Ranking (now)",
+        "Top Trading Signals — Latest Detail",
+        "Signal Score — Active Symbols",
+    ):
+        assert detail_title not in panels
 
 
 def test_alert_rules_include_signals_producer_readiness_group() -> None:
