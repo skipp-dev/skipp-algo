@@ -5,6 +5,7 @@ import vm from "node:vm";
 import {
   buildPineEditorModelPickerSource,
   pineDeclarationTitlePattern,
+  visiblePineSourceTransitionVerified,
   waitForVisiblePineDeclarationIdentity,
 } from "../lib/tv_shared.js";
 
@@ -13,6 +14,15 @@ const SUITE_PATTERN = pineDeclarationTitlePattern(SUITE_TITLE).source;
 const SUITE_SOURCE = `//@version=6\nindicator("${SUITE_TITLE}", overlay = true)\nplot(close)\n`;
 const CONSOLE_BUFFER = "console-ish scratch buffer";
 const MENTION_ONLY_SOURCE = `//@version=6\nindicator("SMC Long-Dip Dashboard")\ns = input.source(close, "${SUITE_TITLE}: BUS Armed")\n`;
+
+test("saved-document repair requires a non-empty visible source transition", () => {
+  const before = 'indicator("My script")';
+  const after = 'indicator("SMC Long-Dip Alerts")';
+  assert.equal(visiblePineSourceTransitionVerified(before, after), true);
+  assert.equal(visiblePineSourceTransitionVerified(before, before), false);
+  assert.equal(visiblePineSourceTransitionVerified(null, after), false);
+  assert.equal(visiblePineSourceTransitionVerified(before, "   "), false);
+});
 
 type PickerResult = { value: string | null; reason: string };
 

@@ -5864,6 +5864,7 @@ export async function openExistingScript(
   options: {
     forceSelection?: boolean;
     requireVisibleDeclarationIdentity?: boolean;
+    allowDeclarationDriftRepair?: boolean;
   } = {},
 ): Promise<boolean> {
   const timing = resolveOpenScriptTiming();
@@ -5892,6 +5893,16 @@ export async function openExistingScript(
         exactTitleOnly: true,
       };
       const { searchName, exactTitleOnly: exactTitleRetry } = selectionAttempt;
+      // A saved TradingView document can have the correct private-script
+      // title while its current Pine source declares another consumer. That
+      // is precisely the state this rollout must repair. Capture the visible
+      // source before opening the picker so repair authority can require an
+      // actual, stable Monaco-buffer transition in addition to the canonical
+      // document title and the closed picker. A repainted title alone remains
+      // insufficient.
+      const repairBaseline = options.allowDeclarationDriftRepair && searchName === scriptName
+        ? await readVisiblePineEditorSource(page)
+        : null;
       const openedDialog = await openScriptSelectionSurface(page);
       if (!openedDialog) {
         if (attempt === 0) {
@@ -5937,23 +5948,43 @@ export async function openExistingScript(
       }
 
       const identityVerified = await waitForAnyOpenScriptIdentity(page, identityNames);
+      const canonicalIdentityVerified = options.allowDeclarationDriftRepair && searchName === scriptName
+        ? await waitForAnyOpenScriptIdentity(page, [scriptName], 1_500)
+        : false;
       const declarationVerified = identityVerified
-        && (
-          !options.requireVisibleDeclarationIdentity
-          || await waitForVisiblePineDeclarationIdentity(
+        && options.requireVisibleDeclarationIdentity
+        && await waitForVisiblePineDeclarationIdentity(
+          page,
+          identityNames,
+          options.allowDeclarationDriftRepair ? 1_500 : timing.modelSettleTimeoutMs,
+        ).catch(() => false);
+      const sourceTransitionVerified = identityVerified
+        && canonicalIdentityVerified
+        && options.allowDeclarationDriftRepair
+        && repairBaseline !== null
+        && await waitForStableVisiblePineSourceTransition(
+          page,
+          repairBaseline,
+          timing.modelSettleTimeoutMs,
+        ).catch(() => false);
+      const modelIdentityVerified = !options.requireVisibleDeclarationIdentity
+        || declarationVerified
+        || sourceTransitionVerified;
+      if (identityVerified && modelIdentityVerified) {
+        if (sourceTransitionVerified && !declarationVerified) {
+          tracePageEvent(
             page,
-            identityNames,
-            timing.modelSettleTimeoutMs,
-          ).catch(() => false)
-        );
-      if (identityVerified && declarationVerified) {
+            "open-script-declaration-drift-repair",
+            `${scriptName}:search=${searchName}`,
+          );
+        }
         if (searchName !== scriptName) {
           tracePageEvent(page, "open-script-legacy-alias", `${scriptName}<=${searchName}`);
         }
         return true;
       }
 
-      if (identityVerified && !declarationVerified) {
+      if (identityVerified && !modelIdentityVerified) {
         tracePageEvent(
           page,
           "open-script-visible-declaration-retry",
@@ -6742,6 +6773,51 @@ export async function waitForVisiblePineDeclarationIdentity(
         tracePageEvent(page, "visible-pine-declaration-identity", String(picked.reason ?? "resolved"));
         return true;
       }
+    }
+    await page.waitForTimeout(250);
+  }
+
+  return false;
+}
+
+async function readVisiblePineEditorSource(page: Page): Promise<string | null> {
+  const picked = await page.evaluate(
+    buildPineEditorModelPickerSource("", true),
+  ).catch(() => null) as { value?: unknown } | null;
+  return typeof picked?.value === "string" && picked.value.trim()
+    ? picked.value
+    : null;
+}
+
+export function visiblePineSourceTransitionVerified(
+  baseline: string | null,
+  candidate: string | null,
+): boolean {
+  return typeof baseline === "string"
+    && Boolean(baseline.trim())
+    && typeof candidate === "string"
+    && Boolean(candidate.trim())
+    && candidate !== baseline;
+}
+
+async function waitForStableVisiblePineSourceTransition(
+  page: Page,
+  baseline: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let previousChangedSource: string | null = null;
+
+  while (Date.now() < deadline) {
+    const candidate = await readVisiblePineEditorSource(page);
+    if (visiblePineSourceTransitionVerified(baseline, candidate)) {
+      if (candidate === previousChangedSource) {
+        tracePageEvent(page, "visible-pine-source-transition", "stable");
+        return true;
+      }
+      previousChangedSource = candidate;
+    } else {
+      previousChangedSource = null;
     }
     await page.waitForTimeout(250);
   }

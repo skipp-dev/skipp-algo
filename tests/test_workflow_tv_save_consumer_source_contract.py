@@ -59,10 +59,10 @@ def test_runs_the_shared_session_batch_tool() -> None:
 
 
 def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> None:
-    """A requested UI title must never authorize writing another Monaco model."""
+    """Write authority needs title + model transition; saved output needs its declaration/hash."""
     saver = (_REPO_ROOT / "scripts" / "tv_save_consumer_source.ts").read_text(encoding="utf-8")
     open_index = saver.index("const opened = await openExistingScript")
-    pre_write_index = saver.index('assertConsumerEditorSource("pre-write identity"')
+    pre_write_index = saver.index("assertConsumerPreWriteSource(target, preWriteSource)")
     paste_index = saver.index("await setEditorContent(session.page, code")
     staged_index = saver.index('assertConsumerEditorSource("staged source"')
     save_index = saver.index("await saveScript(session.page")
@@ -71,6 +71,7 @@ def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> Non
     assert saver.count("expectedDeclarationTitle: target.scriptName") >= 3
     assert saver.count("requireVisibleEditor: true") == 4
     assert saver.count("requireVisibleDeclarationIdentity: true") == 2
+    assert "allowDeclarationDriftRepair: true" in saver
 
 
 def test_write_rollout_reloads_persisted_state_before_source_verification() -> None:
@@ -130,6 +131,8 @@ def test_transient_tradingview_save_failures_are_retried_once() -> None:
 def test_timed_out_save_never_retries_while_the_first_picker_can_still_settle() -> None:
     """A Promise.race timeout does not cancel its Playwright action."""
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    saver = (_REPO_ROOT / "scripts" / "tv_save_consumer_source.ts").read_text(encoding="utf-8")
+    assert "requireVisibleDeclarationIdentity: true,\n  }).catch" not in saver
     assert "saveSessionTimedOut = isTrackedStepTimeoutError(error) || session.page.isClosed()" in batch
     assert "if (saveSessionTimedOut) break" in batch
 

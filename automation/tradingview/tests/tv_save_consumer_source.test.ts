@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { pineDeclarationTitlePattern } from "../lib/tv_shared.js";
 import {
   assertConsumerEditorSource,
+  assertConsumerPreWriteSource,
   pineSourceSha256,
 } from "../../../scripts/tv_save_consumer_source.js";
 
@@ -39,15 +40,21 @@ test("pineDeclarationTitlePattern escapes regex metacharacters in titles", () =>
   assert.ok(!pattern.test('indicator("SMC (v2) x Dipz", overlay = true)'));
 });
 
-test("consumer write guard rejects a stale Monaco model before source mutation", () => {
+test("consumer write guard classifies declaration drift as a repairable saved-document state", () => {
   const target = {
     source: "SMC_Long_Dip_Suite.pine",
     scriptName: "SMC Long-Dip Suite",
   };
+  const correctSuiteModel = '//@version=6\nindicator("SMC Long-Dip Suite")\nplot(close)\n';
   const staleAlertsModel = '//@version=6\nindicator("SMC Long-Dip Alerts")\nplot(close)\n';
+  assert.equal(assertConsumerPreWriteSource(target, correctSuiteModel), "declaration");
+  assert.equal(
+    assertConsumerPreWriteSource(target, staleAlertsModel),
+    "document_title_model_transition",
+  );
   assert.throws(
-    () => assertConsumerEditorSource("pre-write identity", target, staleAlertsModel),
-    /active Pine model has a different declaration/,
+    () => assertConsumerPreWriteSource(target, "// no Pine declaration"),
+    /active Pine model has no declaration/,
   );
 });
 
