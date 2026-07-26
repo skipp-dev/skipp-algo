@@ -741,6 +741,33 @@ remain in place until their replacement is proven.
 
 ### Phase R0 — Baseline and governance
 
+#### Implementation status — 2026-07-26
+
+Implemented in the governance change:
+
+- canonical schema-v3 registry and compatibility views;
+- exact eight-save-target and seven-binding-target gates;
+- per-file classification of all physical root SMC surfaces and two planned
+  Context surfaces;
+- exact, non-growing debt contract for 81 unresolved micro-profile references
+  across seven replacement-pending snapshot consumers;
+- Pine declaration-name, Engine BUS, archive-isolation, manifest-parity, and
+  Fast-CI gates; and
+- corrected lifecycle documentation.
+
+Still pending after the governance merge:
+
+- a fresh read-only TradingView baseline tied to the exact merge commit;
+- verified repository-versus-TradingView source hashes;
+- layout and chart identifiers;
+- active alert names; and
+- an explicit rollback-evidence artifact.
+
+Therefore R0 governance can merge without changing TradingView behavior, but
+Phase R0 is not complete until that post-merge baseline is captured. Older
+binding evidence must not be represented as current merely because its checks
+were green when it was created.
+
 #### Changes
 
 - create one canonical Pine surface registry;
