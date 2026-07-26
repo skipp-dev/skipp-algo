@@ -101,6 +101,10 @@ WHILE_TRUE_LEDGER: dict[str, int] = {
     # 2026-06-21: live overlay feed thread uses one deliberate long-lived
     # loop with explicit break paths (stop event + fail-fast breaker).
     "services/live_overlay_daemon/feed.py": 1,
+    # 2026-07-25 (databento-signal-migration): _run_ingest_loop drains the
+    # bar queue on its own consumer thread; exits via explicit break when
+    # stop is set and the queue is empty (mirrors feed.py's pattern above).
+    "open_prep/databento_quote_feed.py": 1,
 }
 
 

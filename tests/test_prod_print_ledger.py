@@ -76,6 +76,11 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "governance/family_verdict.py": 1,
     # fmp_data_loader has a print-based main() demo block.
     "services/live_overlay_daemon/fmp_data_loader.py": 8,
+    # 2026-07-25 (databento-signal-migration): quote_reference CLI main() prints
+    # JSON output to stdout for the daily reference-build tool (error payloads +
+    # final summary), invoked as ``python -m open_prep.quote_reference`` — same
+    # documented-CLI-output pattern as the other tools in this ledger.
+    "open_prep/quote_reference.py": 3,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

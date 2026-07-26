@@ -36,6 +36,7 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
 
     captured_ports: list[int] = []
     shutdowns: list[bool] = []
+    quote_source_lifecycle: list[str] = []
 
     class _FakeServer:
         def shutdown(self) -> None:
@@ -57,6 +58,12 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
         def start_near_a0_repoller(self, poll_interval: float) -> None:
             pass
 
+        def start_quote_source(self) -> None:
+            quote_source_lifecycle.append("start")
+
+        def stop_quote_source(self) -> None:
+            quote_source_lifecycle.append("stop")
+
         def poll_once(self) -> None:
             raise KeyboardInterrupt
 
@@ -75,6 +82,7 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
 
     assert captured_ports == [8765]
     assert shutdowns == [True]
+    assert quote_source_lifecycle == ["start", "stop"]
 
 
 @pytest.mark.parametrize(

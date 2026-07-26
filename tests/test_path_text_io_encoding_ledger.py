@@ -60,7 +60,7 @@ _DIR_EXCLUDE = {
 #     added to all read_text/write_text sites); entry removed from _FROZEN_SITES.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     # 2026-06-28 (semantic monitoring): shifted +20 lines by readiness metrics.
-    "open_prep/realtime_signals.py": frozenset({208}),  # 2026-07-16 market-session import shifted site: 207->208
+    "open_prep/realtime_signals.py": frozenset({209}),  # 2026-07-25 (databento-signal-migration): 208->209
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/investigate_universe_delta.py": frozenset({28}),

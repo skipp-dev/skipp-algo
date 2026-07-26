@@ -115,12 +115,19 @@ NEW_EVENT_LOOP_ALLOWED: dict[str, int] = {
     # daemon thread (required to host the Databento asyncio websocket session
     # alongside FastAPI's uvicorn loop without conflicts).
     "services/live_overlay_daemon/feed.py": 1,
+    # 2026-07-25 (databento-signal-migration): the db.Live consumer thread in
+    # DatabentoQuoteFeed needs its own loop, ported verbatim from feed.py's
+    # db.Live consumer (same non-main-thread pattern above).
+    "open_prep/databento_quote_feed.py": 1,
 }
 
 SET_EVENT_LOOP_ALLOWED: dict[str, int] = {
     "newsstack_fmp/ingest_benzinga.py": 1,
     # Same daemon thread pattern as above.
     "services/live_overlay_daemon/feed.py": 1,
+    # 2026-07-25 (databento-signal-migration): paired with the
+    # new_event_loop() entry above, same db.Live consumer thread.
+    "open_prep/databento_quote_feed.py": 1,
 }
 
 
