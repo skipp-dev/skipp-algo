@@ -63,7 +63,7 @@ gAlert       = "Alerts (Edge-Detection)"
 
 // ── 2.  CONTEXT FROM MP SNAPSHOT (read-only) ─────────────────────────────────
 // Wir lesen NICHT pro Bar — mp.* ist Tagesstart-Snapshot. Defensiv.
-ctx_symbol_event_block = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid)
+ctx_symbol_event_block = mp.SYMBOL_EVENT_BLOCKED and (u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid) or u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, syminfo.ticker, syminfo.tickerid))
 ctx_event_block = mp.MARKET_EVENT_BLOCKED or ctx_symbol_event_block
 ctx_earnings    = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid) or
                   u.csv_has_symbol_token(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker, syminfo.tickerid)

@@ -18,19 +18,33 @@ def test_aggregate_symbol_event_flags_are_scoped_to_exact_csv_tokens() -> None:
     hold_manager = _read("SMC_Hold_Manager.pine")
 
     assert (
-        "mp.SYMBOL_EVENT_BLOCKED and "
         "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
         "current_symbol_key, current_symbol_key_qualified)"
     ) in suite
     assert (
-        "mp.SYMBOL_EVENT_BLOCKED and "
+        "u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, "
+        "current_symbol_key, current_symbol_key_qualified)"
+    ) in suite
+    assert (
         "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
         "syminfo.ticker, syminfo.tickerid)"
     ) in alerts
-    assert "ev_sym_block and is_symbol_event" in event_overlay
     assert (
-        "mp.SYMBOL_EVENT_BLOCKED and "
+        "u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, "
+        "syminfo.ticker, syminfo.tickerid)"
+    ) in alerts
+    assert "ev_sym_block and is_symbol_event" in event_overlay
+    assert "ev_earnings_tickers = mp.EARNINGS_SOON_TICKERS" in event_overlay
+    assert (
+        "u.csv_has_symbol_token(ev_earnings_tickers, "
+        "syminfo.ticker, syminfo.tickerid)"
+    ) in event_overlay
+    assert (
         "u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, "
+        "syminfo.ticker, syminfo.tickerid)"
+    ) in hold_manager
+    assert (
+        "u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, "
         "syminfo.ticker, syminfo.tickerid)"
     ) in hold_manager
 

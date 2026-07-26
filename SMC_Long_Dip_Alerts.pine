@@ -75,7 +75,7 @@ bool trust_degraded = trust_tier == 'Degraded' and (na(trust_tier[1]) or trust_t
 bool trust_insufficient = trust_tier == 'Insufficient' and (na(trust_tier[1]) or trust_tier[1] != 'Insufficient')
 
 // ── Event / macro / earnings (from mp.* calendar consts) ─────────────────────
-bool symbol_event_risk_active = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid)
+bool symbol_event_risk_active = mp.SYMBOL_EVENT_BLOCKED and (u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid) or u.csv_has_symbol_token(mp.EARNINGS_SOON_TICKERS, syminfo.ticker, syminfo.tickerid))
 bool event_risk_active = mp.MARKET_EVENT_BLOCKED or symbol_event_risk_active
 bool has_earnings = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid)
 bool _new_day = ta.change(time('D')) != 0
