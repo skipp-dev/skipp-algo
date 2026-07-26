@@ -67,23 +67,22 @@ The suite has only 10 visible settings (experts can reveal 300+ via "All inputs"
 
 ## Step 5: Setting up alerts (2 minutes)
 
-Right-click the SMC Long-Dip Suite v7 indicator → "Add Alert". You'll see 10 alert options:
+Right-click the SMC Long-Dip Suite v7 indicator → "Add Alert" and select
+**Any alert() function call**. This single TradingView alert carries 16
+self-identifying dynamic events: product-state transitions, BOS/CHoCH,
+zone lifecycle, trust degradation, and event-risk warnings.
 
-1. **Prepare Long** — Setup is forming
-2. **Ready Long** — Confirmed, watching for trigger
-3. **Enter Long** — Entry level hit (the main one!)
-4. **Setup Blocked** — Invalidation or regime issue
-5. **High Impact Macro Today** — CPI/FOMC/GDP day
-6. **Earnings Today** — This ticker has earnings
-7. **Earnings Tomorrow** — Heads-up for tomorrow
-8. **Regime Blocked** — Market switched to RISK_OFF
-9. **News Turned Bearish** — This ticker's sentiment flipped
+If you need individually selectable conditions, add the
+`SMC_Long_Dip_Alerts` companion. It exposes the same 16 event families as
+separate `alertcondition()` slots without consuming the Suite's full BUS plot
+budget.
 
 Library freshness is shown directly on the chart as a red **Library Nd alt** label once
 the embedded data watermark is older than two days. It is monitored centrally in
 Grafana; it is not a separate selectable TradingView alert condition.
 
-**Recommended minimum:** Enable "Enter Long" and "Setup Blocked".
+**Recommended minimum:** Enable the Suite's **Any alert() function call** alert,
+or select **Enter Long** and **Setup Blocked** in the alert companion.
 
 ## Step 6: Your first trade checklist
 

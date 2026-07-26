@@ -118,7 +118,11 @@ Lean support families such as Session Context Light, Order Block Context Light, 
 | SIGNAL_QUALITY_TIER | string | low / ok / good / high |
 | SIGNAL_WARNINGS | string | pipe-separated, max 3, priority-ordered |
 | SIGNAL_BIAS_ALIGNMENT | string | bull / bear / mixed / neutral |
-| SIGNAL_FRESHNESS | string | fresh / aging / stale |
+| SIGNAL_FRESHNESS | string | very_fresh / fresh / aging / stale / expired |
+
+At the Pine boundary, `very_fresh` has the same trust meaning as `fresh`, while
+`expired` must follow the stale/fail-closed path. Consumers of an older
+published resolver normalize those two v2 labels explicitly.
 
 ## Event Risk User Semantics
 

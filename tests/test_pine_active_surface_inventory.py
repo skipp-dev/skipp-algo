@@ -9,8 +9,8 @@ Pine surface consists of:
 * ~15 ``SMC_*.pine`` orchestrators at the repo root (entry-point scripts).
 * ``SMC_Confluence_Hub.pine`` at the root (umbrella confluence script).
 * ``test_div.pine`` at the root (compile-only smoke test).
-* 6 published library candidates under ``pine/`` (skipp_*.pine).
-* 8 private SMC libraries under ``SMC++/``.
+* 5 published library candidates under ``pine/`` (skipp_*.pine).
+* 10 private SMC libraries under ``SMC++/``.
 * Generated artifacts under ``pine/generated/``.
 
 This test pins those counts and the per-file inventory so that

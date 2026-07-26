@@ -21,6 +21,7 @@ indicator("SMC Hold Manager", overlay = true,
      max_labels_count = 200, max_lines_count = 200, max_boxes_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/170 as mp
+import preuss_steffen/smc_utils/3 as u
 import TradingView/ta/8 as ta_lib
 
 // ── 1.  INPUTS ───────────────────────────────────────────────────────────────
@@ -62,9 +63,10 @@ gAlert       = "Alerts (Edge-Detection)"
 
 // ── 2.  CONTEXT FROM MP SNAPSHOT (read-only) ─────────────────────────────────
 // Wir lesen NICHT pro Bar — mp.* ist Tagesstart-Snapshot. Defensiv.
-ctx_event_block = mp.MARKET_EVENT_BLOCKED or mp.SYMBOL_EVENT_BLOCKED
-ctx_earnings    = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker) or
-                  str.contains(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker)
+ctx_symbol_event_block = mp.SYMBOL_EVENT_BLOCKED and u.csv_has_symbol_token(mp.HIGH_RISK_EVENT_TICKERS, syminfo.ticker, syminfo.tickerid)
+ctx_event_block = mp.MARKET_EVENT_BLOCKED or ctx_symbol_event_block
+ctx_earnings    = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid) or
+                  u.csv_has_symbol_token(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker, syminfo.tickerid)
 ctx_action_tier = mp.ACTION_DEGRADATION_TIER  // "none"/"reduce"/"avoid"/"halt"
 
 // ── 3.  STATE MACHINE ────────────────────────────────────────────────────────
