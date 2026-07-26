@@ -87,7 +87,10 @@ export async function saveConsumerSource(
   const code = fs.readFileSync(sourcePath, "utf-8");
   const expectedSha256 = pineSourceSha256(code);
 
-  const opened = await openExistingScript(session.page, target.scriptName, { forceSelection: true }).catch(() => false);
+  const opened = await openExistingScript(session.page, target.scriptName, {
+    forceSelection: true,
+    requireVisibleDeclarationIdentity: true,
+  }).catch(() => false);
   if (!opened) throw new Error(`Could not open existing saved script: ${target.scriptName}`);
 
   // UI title/context evidence is not sufficient write authority. TradingView
@@ -149,7 +152,10 @@ export async function verifyConsumerSource(
   const sourcePath = path.resolve(target.source);
   if (!fs.existsSync(sourcePath)) throw new Error(`Missing source: ${sourcePath}`);
   const expected = fs.readFileSync(sourcePath, "utf-8");
-  const opened = await openExistingScript(session.page, target.scriptName, { forceSelection: true }).catch(() => false);
+  const opened = await openExistingScript(session.page, target.scriptName, {
+    forceSelection: true,
+    requireVisibleDeclarationIdentity: true,
+  }).catch(() => false);
   if (!opened) throw new Error(`Could not open existing saved script for source verification: ${target.scriptName}`);
   // The saved script name IS the Pine declaration title for every rollout
   // consumer (asserted by the tv:test declaration-title contract), so it pins
@@ -157,6 +163,7 @@ export async function verifyConsumerSource(
   const actual = await readEditorContent(session.page, {
     editorAlreadyOpen: true,
     expectedDeclarationTitle: target.scriptName,
+    requireVisibleEditor: true,
   });
   const expectedSha256 = pineSourceSha256(expected);
   const actualSha256 = pineSourceSha256(actual);

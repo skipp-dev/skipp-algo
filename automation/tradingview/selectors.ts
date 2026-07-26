@@ -236,6 +236,22 @@ export const tvSelectors = {
     ];
   },
 
+  openScriptExactTitle(page: Page, scriptName: string): Locator[] {
+    const [exact] = scriptNamePatterns(scriptName);
+    const indicatorsDialog = page.locator('[data-name="indicators-dialog"]');
+    const menuInner = page.locator('[data-name="menu-inner"]');
+    const dialog = page.locator('[role="dialog"]');
+
+    // Deliberately target the exact title text rather than an ancestor row.
+    // TradingView can accept a click on a broad matching container, repaint
+    // the editor title, and still leave the previous Monaco buffer visible.
+    return [
+      indicatorsDialog.getByText(exact),
+      menuInner.getByText(exact),
+      dialog.getByText(exact),
+    ];
+  },
+
   publishedVersionContext(page: Page, scriptName: string): Locator[] {
     const exactVersionContext = publishedVersionContextPattern(scriptName);
 

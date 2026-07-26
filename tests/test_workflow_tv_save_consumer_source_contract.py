@@ -69,7 +69,8 @@ def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> Non
     post_save_index = saver.index('assertConsumerEditorSource("post-save source"')
     assert open_index < pre_write_index < paste_index < staged_index < save_index < post_save_index
     assert saver.count("expectedDeclarationTitle: target.scriptName") >= 3
-    assert saver.count("requireVisibleEditor: true") == 3
+    assert saver.count("requireVisibleEditor: true") == 4
+    assert saver.count("requireVisibleDeclarationIdentity: true") == 2
 
 
 def test_write_rollout_reloads_persisted_state_before_source_verification() -> None:

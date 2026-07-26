@@ -22,6 +22,7 @@ import {
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   resolveOpenScriptSearchNames,
+  resolveOpenScriptSelectionAttempts,
   resolveTradingViewPageAuthState,
   openScriptSurfaceScopeLooksReady,
   openSettingsFromVisibleLegendText,
@@ -306,6 +307,15 @@ test("open script search names normalize whitespace and de-duplicate", () => {
     resolveOpenScriptSearchNames("  SMC   Long-Dip   Dashboard   v7  "),
     ["SMC Long-Dip Dashboard v7", "SMC Decision Board", "SMC Dashboard"],
   );
+});
+
+test("script selection retries the canonical exact title before legacy aliases", () => {
+  assert.deepEqual(resolveOpenScriptSelectionAttempts("SMC Long-Dip Suite"), [
+    { searchName: "SMC Long-Dip Suite", exactTitleOnly: false },
+    { searchName: "SMC Long-Dip Suite", exactTitleOnly: true },
+    { searchName: "SMC Core", exactTitleOnly: true },
+    { searchName: "SMC Core Engine", exactTitleOnly: true },
+  ]);
 });
 
 test("indicator private script matching requires a visible My scripts row", () => {
