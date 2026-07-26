@@ -13,6 +13,7 @@ Sibling skills — invoke them, don't reinvent: **verify-review-findings** (Step
 
 ### Step 1 — Orient (before any expensive run)
 - Invoke **verify-review-findings** first. `git fetch origin` and work against **fresh `origin/main`** — the local checkout usually LAGS. Read target code via `git show origin/main:<file>` or a worktree off `origin/main`; use the main-repo `.venv` (3.12) for empirical checks.
+- **Know which repo the target lives in — a LIVE-serve-path target can span TWO repos.** `services/live_overlay_daemon/` is in **skipp-algo**, but the hosted Layer-B serve stack (`cloud_worker/{read_api,app,main,licensing,read_auth,macro}.py`) lives at the **root of skipp-live-lab** (`~/Documents/skipp-live-lab`) — NOT under `services/`, NOT in skipp-algo. `git fetch origin main` and read the target from `origin/main` in **each** repo separately.
 - Read the memory note `skipp-open-prep-deep-review-sweep` and the refutation notes first, so you don't re-chase already-settled items.
 - Reconstruct the target's spec + **consumer map**: grep who consumes each output and whether it is WIRED to production vs shadow/dead. In skipp-algo, `a0_*`/`pre_a0_*` are shadow workers (mandatory `A0_FAST_MODE=shadow`), many modules are offline CLIs, and some are dead re-export shims — bugs there are not live. Confirm wired-ness before spending effort.
 - Report the plan (target, consumers, candidate areas) BEFORE the expensive runs.
@@ -42,7 +43,7 @@ Fighting a deliberate, tested design is the failure mode — surface it for the 
 - Rank the actionable ones first; state refutations with the code citation that kills them.
 
 ### Step 7 — Land ONLY real+reachable+unique+not-by-design fixes (one PR each)
-Hand each to **skipp-pr-flow**. Key mechanics that bite here:
+Hand each to **skipp-pr-flow** — but first check the repo: **skipp-pr-flow, the ledger-drift-guard and `pin_registry` are skipp-algo-ONLY.** A fix in **skipp-live-lab** uses a plain sibling-worktree + PR, because that repo's CI is the `Sidecar contract` workflow (`scripts/check_sidecar_requirements.py` + `python -m pytest -q`) — no ruff, no ledger guard. There, keep the 13 `SC-*` requirement IDs in `spec/sidecar-requirements-v1.json` EXACTLY (adding/removing one breaks CI), and test from the worktree with `PYTHONPATH=<worktree> ~/Documents/skipp-live-lab/.venv/bin/python -m pytest`. The skipp-algo mechanics that bite:
 - Sibling worktree off `origin/main`. **TDD red-first**; if the logic is duplicated (e.g. `open_prep/macro.py` ↔ `scripts/smc_macro_bias.py`), fix and test **both copies**.
 - Prefer **net-zero (1-for-1 line)** edits near line-pinned files (trailing comment, not an added line). If you add lines, reconcile the drifted ledger pins with a **dated comment**: global-statement budget, `time.sleep`/`urlopen`/http-post-egress ledgers.
 - Verify: `PYTEST_XDIST_AUTO_NUM_WORKERS=4 ./scripts/run_ledger_drift_guard.sh` must be **rc=0**. Do NOT use the default `-n auto` (12 workers on 16 GB → OOM/SIGKILL 137, truncated log with phantom `F`s); `PYTEST_ADDOPTS="-n N"` does NOT cap the workers. Run `ruff check` separately. Restore the `artifacts/monitoring/provider_usage.json` test side-effect before committing.
