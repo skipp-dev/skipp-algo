@@ -86,7 +86,7 @@ class TestOverlayStructure:
     def test_imports_library(self):
         src = _read(OVERLAY_PATH)
         assert published_micro_profiles_import_line() in src
-        assert "import preuss_steffen/smc_utils/3 as u" in src
+        assert "import preuss_steffen/smc_utils/4 as u" in src
 
     def test_bus_lean_pack_a_input(self):
         src = _read(OVERLAY_PATH)

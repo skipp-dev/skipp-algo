@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_engine_private.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_engine_private"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_engine_private/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_engine_private/2"),
     alias: getFlag("--alias", "eng"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "2")),
     description: getFlag(
       "--description",
       "SMC OB/FVG/structure engine (OrderBlock, FVG types + tracking/detection/drawing) consumed by SMC Core. Extracted to relieve the main-script token budget (CE10117).",

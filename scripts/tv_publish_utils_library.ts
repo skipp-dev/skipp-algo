@@ -98,9 +98,9 @@ function parseArgs(): CliArgs {
     library: path.resolve(getFlag("--library", "SMC++/smc_utils.pine")),
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     scriptName: getFlag("--script-name", "smc_utils"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_utils/1"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_utils/4"),
     alias: getFlag("--alias", "u"),
-    version: Number(getFlag("--version", "1")),
+    version: Number(getFlag("--version", "4")),
     description: getFlag(
       "--description",
       "Private utility functions consumed by SMC Core.",

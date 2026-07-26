@@ -8,15 +8,15 @@
 indicator("SMC Long-Dip Suite", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)
  
 import preuss_steffen/smc_core_types/5 as ct
-import preuss_steffen/smc_utils/3 as u
+import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_micro_profiles_generated/170 as mp
 import preuss_steffen/smc_lifecycle_private/3 as ll
 import preuss_steffen/smc_bus_private/3 as bp
-import preuss_steffen/smc_observability_private/3 as obv
-import preuss_steffen/smc_context_resolvers/2 as cr
-import preuss_steffen/smc_profile_engine/2 as pe
-import preuss_steffen/smc_engine_private/1 as eng
+import preuss_steffen/smc_observability_private/4 as obv
+import preuss_steffen/smc_context_resolvers/3 as cr
+import preuss_steffen/smc_profile_engine/3 as pe
+import preuss_steffen/smc_engine_private/2 as eng
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.

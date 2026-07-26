@@ -100,12 +100,9 @@ function parseArgs(): CliArgs {
     core: path.resolve(getFlag("--core", "SMC_Long_Dip_Suite.pine")),
     repoRoot: path.resolve(getFlag("--repo-root", ".")),
     scriptName: getFlag("--script-name", "smc_context_engine_private"),
-    importPath: getFlag("--import-path", "preuss_steffen/smc_context_engine_private/2"),
+    importPath: getFlag("--import-path", "preuss_steffen/smc_context_engine_private/3"),
     alias: getFlag("--alias", "cx"),
-    // 2, not 1: the library was first published manually on 2026-07-15, and the
-    // CE10132 fix (#3673) was published as an update, which TradingView bumped
-    // to /2. Must stay in step with importPath above.
-    version: Number(getFlag("--version", "2")),
+    version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
       "Private live context frames (structure / imbalance / zone) derived from the SMC engine primitives.",
