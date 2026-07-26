@@ -247,6 +247,15 @@ async function main(): Promise<void> {
     // skipped the load-bearing verification entirely (live runs 29929470730 and
     // 29946386778, 2026-07-22).
     if (report.save.failed.length === 0) {
+      if (executionPlan.saveSources && report.save.succeeded.length > 0) {
+        // Do not verify against the same in-memory Monaco buffers we just
+        // edited. Reload the chart first so source hashes are reconstructed
+        // from TradingView's persisted saved-script state. This catches a Save
+        // command that appears successful but does not survive navigation.
+        await gotoChart(session.page, config.primaryChartUrl);
+        await ensurePineEditor(session.page);
+      }
+
       for (const target of sourceVerificationTargets) {
         let result: VerifyConsumerSourceResult | null = null;
         let lastError = "unknown source verification failure";
