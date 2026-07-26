@@ -29,36 +29,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-_ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
-    "SMC_Long_Dip_Suite.pine",
-    "SMC_Long_Dip_Dashboard.pine",
-    "SMC_Event_Overlay.pine",
-    "SMC_HTF_Confluence.pine",
-    "SMC_Imbalance_Context.pine",
-    "SMC_Liquidity_Context.pine",
-    "SMC_Liquidity_Structure.pine",
-    "SMC_Long_Dip_Strategy.pine",
-    "SMC_Long_Dip_Mobile.pine",
-    "SMC_Orderflow_Overlay.pine",
-    "SMC_Profile_Context.pine",
-    "SMC_Session_Context.pine",
-    "SMC_Setup_Check.pine",
-    "SMC_Structure_Context.pine",
-    "SMC_Regime_and_News.pine",
-    "SMC_Confluence_Hub.pine",
-    "test_div.pine",
-    # 2026-04-30 (commit 68e1aac0): companion overlays + exit/hold-mgr surfaces.
-    # Inventory updated as part of v3 phase 1 pine-consumer-discipline fix.
-    "SMC_Breakout_Overlay.pine",
-    "SMC_Exit_Signal.pine",
-    "SMC_Hold_Manager.pine",
-    "SMC_Volume_Profile_Overlay.pine",
-    # Alert companion for the Suite: restores per-event selectable alertcondition()
-    # slots the Suite dropped when it moved to alert() for the 64-plot budget.
-    "SMC_Long_Dip_Alerts.pine",
-})
+# Root SMC ownership now lives in the canonical surface registry. Planned
+# entries may intentionally have no source yet; the dedicated registry test
+# validates that exception. ``test_div.pine`` remains a domain-specific
+# compile-only smoke source outside the SMC product registry.
+_ROOT_ORCHESTRATORS: frozenset[str] = frozenset(
+    surface.file
+    for surface in SURFACE_DEFINITIONS
+    if (REPO_ROOT / surface.file).is_file()
+) | frozenset({"test_div.pine"})
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({
     "skipp_calibration.pine",

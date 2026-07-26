@@ -20,6 +20,14 @@ class SurfaceDefinition:
     consumer_role: str
     validation_target: bool = False
     notes: tuple[str, ...] = ()
+    lifecycle: str = 'active'
+    deployment_mode: str = 'none'
+    rollout_state: str = 'not_deployed'
+    compile_expectation: str = 'required'
+    bus_dependencies: tuple[str, ...] = ()
+    archive_state: str = 'none'
+    chart_instance_name: str | None = None
+    known_missing_mp_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen = True)
@@ -80,7 +88,48 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'alert_companion',
 )
 
-PRODUCT_CUT_MANIFEST_VERSION = 2
+LIFECYCLE_VALUES: tuple[str, ...] = (
+    'active',
+    'planned',
+    'replacement_pending',
+    'retirement_pending',
+    'retired_tombstone',
+    'archived',
+)
+
+DEPLOYMENT_MODE_VALUES: tuple[str, ...] = (
+    'standard',
+    'optional',
+    'shadow',
+    'none',
+)
+
+ROLLOUT_STATE_VALUES: tuple[str, ...] = (
+    'deployed',
+    'planned',
+    'not_deployed',
+)
+
+COMPILE_EXPECTATION_VALUES: tuple[str, ...] = (
+    'required',
+    'deferred',
+    'known_broken',
+    'excluded',
+)
+
+BUS_DEPENDENCY_VALUES: tuple[str, ...] = (
+    'engine_v2',
+    'context_v3',
+)
+
+ARCHIVE_STATE_VALUES: tuple[str, ...] = (
+    'none',
+    'pending',
+    'replace_in_place_pending',
+    'archived',
+)
+
+PRODUCT_CUT_MANIFEST_VERSION = 3
 PRODUCT_CUT_ARTIFACT_RELATIVE_PATH = 'artifacts/tradingview/smc_product_cut_manifest.json'
 PRODUCT_CUT_SOURCE = 'scripts/smc_bus_manifest.py'
 VALIDATION_EVIDENCE_CAPTURE_MODE = 'rendered_chart_only'
@@ -95,6 +144,104 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'deprecatedGroups': [],
 }
 
+KNOWN_MISSING_MP_FIELDS_BY_FILE: dict[str, tuple[str, ...]] = {
+    'SMC_HTF_Confluence.pine': (
+        'CONFIRM_SCORE',
+        'FOLLOW_THROUGH_SCORE',
+        'FVG_CONFIRM_OK',
+        'HTF_BEARISH_DIVERGENCE',
+        'HTF_BEARISH_PATTERN',
+        'HTF_BULLISH_DIVERGENCE',
+        'HTF_BULLISH_PATTERN',
+        'HTF_STRUCTURE_OK',
+        'RETRACE_OK',
+        'REVERSAL_CONTEXT_ACTIVE',
+        'SETUP_SCORE',
+        'VWAP_HOLD_OK',
+    ),
+    'SMC_Imbalance_Context.pine': (
+        'BEAR_FVG_ACTIVE',
+        'BEAR_FVG_BOTTOM',
+        'BEAR_FVG_COUNT',
+        'BEAR_FVG_FULL_MITIGATION',
+        'BEAR_FVG_MITIGATION_PCT',
+        'BEAR_FVG_PARTIAL_MITIGATION',
+        'BEAR_FVG_TOP',
+        'BPR_ACTIVE',
+        'BPR_BOTTOM',
+        'BPR_TOP',
+        'BULL_FVG_ACTIVE',
+        'BULL_FVG_BOTTOM',
+        'BULL_FVG_COUNT',
+        'BULL_FVG_FULL_MITIGATION',
+        'BULL_FVG_MITIGATION_PCT',
+        'BULL_FVG_PARTIAL_MITIGATION',
+        'BULL_FVG_TOP',
+        'IMBALANCE_STATE',
+        'LIQ_VOID_BEAR_ACTIVE',
+        'LIQ_VOID_BOTTOM',
+        'LIQ_VOID_BULL_ACTIVE',
+        'LIQ_VOID_TOP',
+    ),
+    'SMC_Liquidity_Context.pine': (
+        'ACTIVE_RESISTANCE_COUNT',
+        'ACTIVE_SUPPORT_COUNT',
+        'ACTIVE_ZONE_COUNT',
+        'PRIMARY_RESISTANCE_LEVEL',
+        'PRIMARY_RESISTANCE_STRENGTH',
+        'PRIMARY_SUPPORT_LEVEL',
+        'PRIMARY_SUPPORT_STRENGTH',
+        'RESISTANCE_MITIGATION_PCT',
+        'RESISTANCE_SWEEP_COUNT',
+        'SUPPORT_MITIGATION_PCT',
+        'SUPPORT_SWEEP_COUNT',
+        'ZONE_CONTEXT_BIAS',
+        'ZONE_LIQUIDITY_IMBALANCE',
+    ),
+    'SMC_Liquidity_Structure.pine': (
+        'POOL_IMBALANCE',
+        'POOL_MAGNET_DIRECTION',
+        'POOL_QUALITY_SCORE',
+        'RECENT_BEAR_SWEEP',
+        'RECENT_BULL_SWEEP',
+        'SWEEP_QUALITY_SCORE',
+        'SWEEP_RECLAIM_ACTIVE',
+        'SWEEP_TYPE',
+    ),
+    'SMC_Profile_Context.pine': (
+        'PROFILE_AH_QUALITY',
+        'PROFILE_AVG_SPREAD_BPS',
+        'PROFILE_CLEAN_SCORE',
+        'PROFILE_CONTEXT_SCORE',
+        'PROFILE_MIDDAY_EFFICIENCY',
+        'PROFILE_PM_QUALITY',
+        'PROFILE_RTH_DOMINANCE_PCT',
+        'PROFILE_SESSION_BIAS',
+        'PROFILE_SPREAD_REGIME',
+        'PROFILE_TICKER_GRADE',
+        'PROFILE_VWAP_DISTANCE_PCT',
+        'PROFILE_VWAP_POSITION',
+        'PROFILE_WICKINESS',
+    ),
+    'SMC_Session_Context.pine': (
+        'SESSION_MSS_BEAR',
+        'SESSION_MSS_BULL',
+    ),
+    'SMC_Structure_Context.pine': (
+        'ACTIVE_RESISTANCE',
+        'ACTIVE_SUPPORT',
+        'BOS_BEAR',
+        'BOS_BULL',
+        'CHOCH_BEAR',
+        'CHOCH_BULL',
+        'RESISTANCE_ACTIVE',
+        'STRUCTURE_BEAR_ACTIVE',
+        'STRUCTURE_BULL_ACTIVE',
+        'STRUCTURE_STATE',
+        'SUPPORT_ACTIVE',
+    ),
+}
+
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     SurfaceDefinition(
         file = 'SMC_Long_Dip_Suite.pine',
@@ -102,6 +249,9 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'lite_primary',
         contract_tier = 'lite_and_pro',
         consumer_role = 'producer',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        chart_instance_name = 'SMC Long-Dip Suite',
         validation_target = True,
         notes = (
             'Primary Focus View surface for the Lite rollout.',
@@ -114,6 +264,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'dashboard_companion',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Decision Board',
         validation_target = True,
         notes = (
             'Primary linked decision companion surface.',
@@ -126,6 +280,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'pro_primary',
         contract_tier = 'execution',
         consumer_role = 'execution_wrapper',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Long-Dip Strategy',
         validation_target = True,
         notes = (
             'Primary execution surface on the frozen 8-channel executable contract.',
@@ -138,6 +296,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
+        lifecycle = 'planned',
+        deployment_mode = 'standard',
+        rollout_state = 'planned',
+        bus_dependencies = ('engine_v2',),
         notes = (
             'Pro-only event-risk companion.',
         ),
@@ -148,8 +310,11 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
+        lifecycle = 'retirement_pending',
+        compile_expectation = 'required',
+        archive_state = 'pending',
         notes = (
-            'Pro-only orderflow companion.',
+            'Static daily snapshot whose live-orderflow role moves to Railway/Databento.',
         ),
     ),
     SurfaceDefinition(
@@ -158,8 +323,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Liquidity_Context.pine'],
         notes = (
-            'Pro-only liquidity context companion.',
+            'Snapshot-era source awaiting replacement by Context BUS v3.',
         ),
     ),
     SurfaceDefinition(
@@ -168,8 +337,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_HTF_Confluence.pine'],
         notes = (
-            'Pro-only HTF context companion.',
+            'Snapshot-era source awaiting a confirmed true-HTF rebuild.',
         ),
     ),
     SurfaceDefinition(
@@ -178,8 +351,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Imbalance_Context.pine'],
         notes = (
-            'Pro-only imbalance context companion.',
+            'Snapshot-era source awaiting replacement by Context BUS v3.',
         ),
     ),
     SurfaceDefinition(
@@ -188,8 +365,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Structure_Context.pine'],
         notes = (
-            'Pro-only structure context companion.',
+            'Snapshot-era source awaiting replacement by Context BUS v3.',
         ),
     ),
     SurfaceDefinition(
@@ -198,8 +379,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Session_Context.pine'],
         notes = (
-            'Pro-only session context companion.',
+            'Snapshot-era source awaiting replacement by Context BUS v3.',
         ),
     ),
     SurfaceDefinition(
@@ -208,8 +393,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Profile_Context.pine'],
         notes = (
-            'Pro-only profile context companion.',
+            'Snapshot-era source awaiting replacement by the consolidated context architecture.',
         ),
     ),
     SurfaceDefinition(
@@ -218,8 +407,12 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
+        lifecycle = 'replacement_pending',
+        compile_expectation = 'known_broken',
+        archive_state = 'replace_in_place_pending',
+        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Liquidity_Structure.pine'],
         notes = (
-            'Pro-only liquidity-structure companion.',
+            'Snapshot-era source awaiting replacement by Context BUS v3.',
         ),
     ),
     SurfaceDefinition(
@@ -228,6 +421,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'setup_utility',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Setup Check',
         notes = (
             'BUS connection validator — guides new users through initial setup.',
             'Reads 6 critical BUS channels and shows connection status with next-step instructions.',
@@ -239,6 +436,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'mobile_companion',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Long-Dip Mobile',
         notes = (
             'Mobile-first dashboard — 4-row table, no overlays.',
             'Traffic light + levels + market context + quality score.',
@@ -250,6 +451,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'confluence_hub',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Confluence Hub',
         notes = (
             'Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).',
             'Produces 0-100 confluence score with traffic-light overlay.',
@@ -261,38 +466,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'internal',
         contract_tier = 'internal',
         consumer_role = 'bridge',
+        lifecycle = 'retired_tombstone',
+        compile_expectation = 'excluded',
         notes = (
             'Retired, network-inert compatibility notice; no live-overlay data ingress.',
-        ),
-    ),
-    SurfaceDefinition(
-        file = 'SMC++.pine',
-        script_name = 'SMC++',
-        surface_role = 'legacy',
-        contract_tier = 'legacy',
-        consumer_role = 'legacy_monolith',
-        notes = (
-            'Historical monolith kept for reference, not for the active product cut.',
-        ),
-    ),
-    SurfaceDefinition(
-        file = 'SMC_Core_Zones.pine',
-        script_name = 'SMC Core OLD',
-        surface_role = 'legacy',
-        contract_tier = 'legacy',
-        consumer_role = 'legacy_split',
-        notes = (
-            'Deprecated split prototype.',
-        ),
-    ),
-    SurfaceDefinition(
-        file = 'SMC Core + Zones.pine',
-        script_name = 'SMC Core OLD',
-        surface_role = 'legacy',
-        contract_tier = 'legacy',
-        consumer_role = 'legacy_split',
-        notes = (
-            'Deprecated split prototype.',
         ),
     ),
     # New companion surfaces shipped 2026-04-30 (commit 68e1aac0):
@@ -307,6 +484,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Breakout Overlay',
         notes = (
             'LonesomeTheBlue-style breakout/breakdown box renderer. Three-tier '
             'structure source: (1) imports smc_engine_private and runs the same '
@@ -325,6 +506,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
+        lifecycle = 'planned',
+        deployment_mode = 'standard',
+        rollout_state = 'planned',
+        bus_dependencies = ('engine_v2',),
         notes = (
             'Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE '
             'EXIT alerts driven by linked SMC Core BUS outputs. No '
@@ -333,10 +518,14 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Hold_Manager.pine',
-        script_name = 'SMC Hold-Manager v1',
+        script_name = 'SMC Hold Manager',
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
+        lifecycle = 'planned',
+        deployment_mode = 'standard',
+        rollout_state = 'planned',
+        bus_dependencies = ('engine_v2',),
         notes = (
             'Read-only hold-management overlay with ATR-Chandelier trail, '
             'BE-after-T1, optional Simple-Mode, and time-stop. Imports '
@@ -350,6 +539,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'alert_companion',
+        deployment_mode = 'standard',
+        rollout_state = 'deployed',
+        bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Long-Dip Alerts',
         notes = (
             'Alert companion for the Suite. Restores the 16 lifecycle / structure '
             '/ trust / risk events as individually-selectable alertcondition() '
@@ -365,9 +558,41 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
+        lifecycle = 'planned',
+        deployment_mode = 'optional',
+        rollout_state = 'planned',
         notes = (
             'Visible-Range Volume Profile companion: histogram + '
             'multi-POC + VAH/VAL. No library import — fully self-contained.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Context_Bus.pine',
+        script_name = 'SMC Context BUS',
+        surface_role = 'internal',
+        contract_tier = 'internal',
+        consumer_role = 'producer',
+        lifecycle = 'planned',
+        deployment_mode = 'shadow',
+        rollout_state = 'planned',
+        compile_expectation = 'deferred',
+        notes = (
+            'Planned Context BUS v3 producer; source is intentionally absent until its contract lands.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Context_Overlay.pine',
+        script_name = 'SMC Context Overlay',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'pro',
+        consumer_role = 'context_companion',
+        lifecycle = 'planned',
+        deployment_mode = 'shadow',
+        rollout_state = 'planned',
+        compile_expectation = 'deferred',
+        bus_dependencies = ('context_v3',),
+        notes = (
+            'Planned consolidated Context BUS v3 consumer; source is intentionally absent until its contract lands.',
         ),
     ),
 )
@@ -458,6 +683,8 @@ def validate_surface_definitions() -> list[str]:
     - surface_role values are from SURFACE_ROLE_VALUES
     - contract_tier values are from CONTRACT_TIER_VALUES
     - consumer_role values are from CONSUMER_ROLE_VALUES
+    - lifecycle, deployment, rollout, compile, BUS and archive values are valid
+    - deployed chart instances and known-broken snapshot declarations are coherent
     - No duplicate files
     - Mainline hierarchy: exactly 1 lite_primary, at least 1 pro_primary
     """
@@ -471,6 +698,51 @@ def validate_surface_definitions() -> list[str]:
             errors.append(f"{surface.file}: invalid contract_tier '{surface.contract_tier}'")
         if surface.consumer_role not in CONSUMER_ROLE_VALUES:
             errors.append(f"{surface.file}: invalid consumer_role '{surface.consumer_role}'")
+        if surface.lifecycle not in LIFECYCLE_VALUES:
+            errors.append(f"{surface.file}: invalid lifecycle '{surface.lifecycle}'")
+        if surface.deployment_mode not in DEPLOYMENT_MODE_VALUES:
+            errors.append(f"{surface.file}: invalid deployment_mode '{surface.deployment_mode}'")
+        if surface.rollout_state not in ROLLOUT_STATE_VALUES:
+            errors.append(f"{surface.file}: invalid rollout_state '{surface.rollout_state}'")
+        if surface.compile_expectation not in COMPILE_EXPECTATION_VALUES:
+            errors.append(
+                f"{surface.file}: invalid compile_expectation "
+                f"'{surface.compile_expectation}'"
+            )
+        invalid_bus_dependencies = sorted(
+            set(surface.bus_dependencies) - set(BUS_DEPENDENCY_VALUES)
+        )
+        if invalid_bus_dependencies:
+            errors.append(
+                f"{surface.file}: invalid bus_dependencies "
+                f"{invalid_bus_dependencies}"
+            )
+        if len(surface.bus_dependencies) != len(set(surface.bus_dependencies)):
+            errors.append(f"{surface.file}: duplicate bus_dependencies")
+        if surface.archive_state not in ARCHIVE_STATE_VALUES:
+            errors.append(f"{surface.file}: invalid archive_state '{surface.archive_state}'")
+        if surface.rollout_state == 'deployed' and not surface.chart_instance_name:
+            errors.append(f"{surface.file}: deployed surface requires chart_instance_name")
+        if surface.rollout_state != 'deployed' and surface.chart_instance_name:
+            errors.append(
+                f"{surface.file}: non-deployed surface cannot declare chart_instance_name"
+            )
+        if (
+            surface.compile_expectation == 'known_broken'
+            and not surface.known_missing_mp_fields
+        ):
+            errors.append(
+                f"{surface.file}: known_broken surface requires known_missing_mp_fields"
+            )
+        if (
+            surface.compile_expectation != 'known_broken'
+            and surface.known_missing_mp_fields
+        ):
+            errors.append(
+                f"{surface.file}: known_missing_mp_fields requires known_broken compile expectation"
+            )
+        if len(surface.known_missing_mp_fields) != len(set(surface.known_missing_mp_fields)):
+            errors.append(f"{surface.file}: duplicate known_missing_mp_fields")
         if surface.file in seen_files:
             errors.append(f"{surface.file}: duplicate entry")
         seen_files.add(surface.file)
@@ -554,7 +826,11 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
 
 def _surface_payload(surface: SurfaceDefinition) -> dict[str, Any]:
     payload = asdict(surface)
+    payload['bus_dependencies'] = list(surface.bus_dependencies)
+    payload['known_missing_mp_fields'] = list(surface.known_missing_mp_fields)
     payload['notes'] = list(surface.notes)
+    if surface.chart_instance_name is None:
+        payload.pop('chart_instance_name')
     return payload
 
 

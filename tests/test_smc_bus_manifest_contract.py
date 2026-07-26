@@ -252,7 +252,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     dashboard_target = payload['preflightScopes']['smcMainline'][1]
     strategy_target = payload['preflightScopes']['smcMainline'][2]
 
-    assert payload['manifestVersion'] == 2
+    assert payload['manifestVersion'] == 3
     assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
     assert payload['contracts']['strategyBindings'] == list(MANIFEST.STRATEGY_BUS_LABELS)
     assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')

@@ -42,7 +42,7 @@
     }
   ],
   "productCut": {
-    "manifestVersion": 2,
+    "manifestVersion": 3,
     "manifestPath": "artifacts/tradingview/smc_product_cut_manifest.json",
     "source": "scripts/smc_bus_manifest.py",
     "mainlineFiles": [
@@ -75,16 +75,14 @@
       "SMC_Exit_Signal.pine",
       "SMC_Hold_Manager.pine",
       "SMC_Long_Dip_Alerts.pine",
-      "SMC_Volume_Profile_Overlay.pine"
+      "SMC_Volume_Profile_Overlay.pine",
+      "SMC_Context_Overlay.pine"
     ],
     "internalFiles": [
-      "SMC_Regime_and_News.pine"
+      "SMC_Regime_and_News.pine",
+      "SMC_Context_Bus.pine"
     ],
-    "legacyFiles": [
-      "SMC++.pine",
-      "SMC_Core_Zones.pine",
-      "SMC Core + Zones.pine"
-    ],
+    "legacyFiles": [],
     "contracts": {
       "engine": [
         "BUS SchemaVersion",

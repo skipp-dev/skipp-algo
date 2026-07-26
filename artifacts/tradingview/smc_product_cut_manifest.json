@@ -1,5 +1,5 @@
 {
-  "manifestVersion": 2,
+  "manifestVersion": 3,
   "source": "scripts/smc_bus_manifest.py",
   "artifactPath": "artifacts/tradingview/smc_product_cut_manifest.json",
   "surfaceRoles": [
@@ -13,7 +13,15 @@
       "notes": [
         "Primary Focus View surface for the Lite rollout.",
         "Only active producer on the release mainline."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Long-Dip Suite",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Long_Dip_Dashboard.pine",
@@ -25,7 +33,17 @@
       "notes": [
         "Primary linked decision companion surface.",
         "BUS bindings remain operator-only even though the dashboard is part of the main product cut."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Decision Board",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Long_Dip_Strategy.pine",
@@ -37,7 +55,17 @@
       "notes": [
         "Primary execution surface on the frozen 8-channel executable contract.",
         "Visible setup controls are product surface; BUS bindings remain operator-only."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Long-Dip Strategy",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Event_Overlay.pine",
@@ -48,7 +76,16 @@
       "validation_target": false,
       "notes": [
         "Pro-only event-risk companion."
-      ]
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "standard",
+      "rollout_state": "planned",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Orderflow_Overlay.pine",
@@ -58,8 +95,15 @@
       "consumer_role": "overlay_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only orderflow companion."
-      ]
+        "Static daily snapshot whose live-orderflow role moves to Railway/Databento."
+      ],
+      "lifecycle": "retirement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [],
+      "archive_state": "pending",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Liquidity_Context.pine",
@@ -69,7 +113,28 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only liquidity context companion."
+        "Snapshot-era source awaiting replacement by Context BUS v3."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "ACTIVE_RESISTANCE_COUNT",
+        "ACTIVE_SUPPORT_COUNT",
+        "ACTIVE_ZONE_COUNT",
+        "PRIMARY_RESISTANCE_LEVEL",
+        "PRIMARY_RESISTANCE_STRENGTH",
+        "PRIMARY_SUPPORT_LEVEL",
+        "PRIMARY_SUPPORT_STRENGTH",
+        "RESISTANCE_MITIGATION_PCT",
+        "RESISTANCE_SWEEP_COUNT",
+        "SUPPORT_MITIGATION_PCT",
+        "SUPPORT_SWEEP_COUNT",
+        "ZONE_CONTEXT_BIAS",
+        "ZONE_LIQUIDITY_IMBALANCE"
       ]
     },
     {
@@ -80,7 +145,27 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only HTF context companion."
+        "Snapshot-era source awaiting a confirmed true-HTF rebuild."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "CONFIRM_SCORE",
+        "FOLLOW_THROUGH_SCORE",
+        "FVG_CONFIRM_OK",
+        "HTF_BEARISH_DIVERGENCE",
+        "HTF_BEARISH_PATTERN",
+        "HTF_BULLISH_DIVERGENCE",
+        "HTF_BULLISH_PATTERN",
+        "HTF_STRUCTURE_OK",
+        "RETRACE_OK",
+        "REVERSAL_CONTEXT_ACTIVE",
+        "SETUP_SCORE",
+        "VWAP_HOLD_OK"
       ]
     },
     {
@@ -91,7 +176,37 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only imbalance context companion."
+        "Snapshot-era source awaiting replacement by Context BUS v3."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "BEAR_FVG_ACTIVE",
+        "BEAR_FVG_BOTTOM",
+        "BEAR_FVG_COUNT",
+        "BEAR_FVG_FULL_MITIGATION",
+        "BEAR_FVG_MITIGATION_PCT",
+        "BEAR_FVG_PARTIAL_MITIGATION",
+        "BEAR_FVG_TOP",
+        "BPR_ACTIVE",
+        "BPR_BOTTOM",
+        "BPR_TOP",
+        "BULL_FVG_ACTIVE",
+        "BULL_FVG_BOTTOM",
+        "BULL_FVG_COUNT",
+        "BULL_FVG_FULL_MITIGATION",
+        "BULL_FVG_MITIGATION_PCT",
+        "BULL_FVG_PARTIAL_MITIGATION",
+        "BULL_FVG_TOP",
+        "IMBALANCE_STATE",
+        "LIQ_VOID_BEAR_ACTIVE",
+        "LIQ_VOID_BOTTOM",
+        "LIQ_VOID_BULL_ACTIVE",
+        "LIQ_VOID_TOP"
       ]
     },
     {
@@ -102,7 +217,26 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only structure context companion."
+        "Snapshot-era source awaiting replacement by Context BUS v3."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "ACTIVE_RESISTANCE",
+        "ACTIVE_SUPPORT",
+        "BOS_BEAR",
+        "BOS_BULL",
+        "CHOCH_BEAR",
+        "CHOCH_BULL",
+        "RESISTANCE_ACTIVE",
+        "STRUCTURE_BEAR_ACTIVE",
+        "STRUCTURE_BULL_ACTIVE",
+        "STRUCTURE_STATE",
+        "SUPPORT_ACTIVE"
       ]
     },
     {
@@ -113,7 +247,17 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only session context companion."
+        "Snapshot-era source awaiting replacement by Context BUS v3."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "SESSION_MSS_BEAR",
+        "SESSION_MSS_BULL"
       ]
     },
     {
@@ -124,7 +268,28 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only profile context companion."
+        "Snapshot-era source awaiting replacement by the consolidated context architecture."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "PROFILE_AH_QUALITY",
+        "PROFILE_AVG_SPREAD_BPS",
+        "PROFILE_CLEAN_SCORE",
+        "PROFILE_CONTEXT_SCORE",
+        "PROFILE_MIDDAY_EFFICIENCY",
+        "PROFILE_PM_QUALITY",
+        "PROFILE_RTH_DOMINANCE_PCT",
+        "PROFILE_SESSION_BIAS",
+        "PROFILE_SPREAD_REGIME",
+        "PROFILE_TICKER_GRADE",
+        "PROFILE_VWAP_DISTANCE_PCT",
+        "PROFILE_VWAP_POSITION",
+        "PROFILE_WICKINESS"
       ]
     },
     {
@@ -135,7 +300,23 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Pro-only liquidity-structure companion."
+        "Snapshot-era source awaiting replacement by Context BUS v3."
+      ],
+      "lifecycle": "replacement_pending",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "known_broken",
+      "bus_dependencies": [],
+      "archive_state": "replace_in_place_pending",
+      "known_missing_mp_fields": [
+        "POOL_IMBALANCE",
+        "POOL_MAGNET_DIRECTION",
+        "POOL_QUALITY_SCORE",
+        "RECENT_BEAR_SWEEP",
+        "RECENT_BULL_SWEEP",
+        "SWEEP_QUALITY_SCORE",
+        "SWEEP_RECLAIM_ACTIVE",
+        "SWEEP_TYPE"
       ]
     },
     {
@@ -146,9 +327,19 @@
       "consumer_role": "setup_utility",
       "validation_target": false,
       "notes": [
-        "BUS connection validator \u2014 guides new users through initial setup.",
+        "BUS connection validator — guides new users through initial setup.",
         "Reads 6 critical BUS channels and shows connection status with next-step instructions."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Setup Check",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Long_Dip_Mobile.pine",
@@ -158,9 +349,19 @@
       "consumer_role": "mobile_companion",
       "validation_target": false,
       "notes": [
-        "Mobile-first dashboard \u2014 4-row table, no overlays.",
+        "Mobile-first dashboard — 4-row table, no overlays.",
         "Traffic light + levels + market context + quality score."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Long-Dip Mobile",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Confluence_Hub.pine",
@@ -172,7 +373,17 @@
       "notes": [
         "Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).",
         "Produces 0-100 confluence score with traffic-light overlay."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Confluence Hub",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Regime_and_News.pine",
@@ -183,40 +394,14 @@
       "validation_target": false,
       "notes": [
         "Retired, network-inert compatibility notice; no live-overlay data ingress."
-      ]
-    },
-    {
-      "file": "SMC++.pine",
-      "script_name": "SMC++",
-      "surface_role": "legacy",
-      "contract_tier": "legacy",
-      "consumer_role": "legacy_monolith",
-      "validation_target": false,
-      "notes": [
-        "Historical monolith kept for reference, not for the active product cut."
-      ]
-    },
-    {
-      "file": "SMC_Core_Zones.pine",
-      "script_name": "SMC Core OLD",
-      "surface_role": "legacy",
-      "contract_tier": "legacy",
-      "consumer_role": "legacy_split",
-      "validation_target": false,
-      "notes": [
-        "Deprecated split prototype."
-      ]
-    },
-    {
-      "file": "SMC Core + Zones.pine",
-      "script_name": "SMC Core OLD",
-      "surface_role": "legacy",
-      "contract_tier": "legacy",
-      "consumer_role": "legacy_split",
-      "validation_target": false,
-      "notes": [
-        "Deprecated split prototype."
-      ]
+      ],
+      "lifecycle": "retired_tombstone",
+      "deployment_mode": "none",
+      "rollout_state": "not_deployed",
+      "compile_expectation": "excluded",
+      "bus_dependencies": [],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -227,7 +412,17 @@
       "validation_target": false,
       "notes": [
         "LonesomeTheBlue-style breakout/breakdown box renderer. Three-tier structure source: (1) imports smc_engine_private and runs the same order-block/structure detector as the engine, standalone; (2) optionally binds the SMC Core BUS (SchemaVersion/ZoneActive/Trigger/Invalidation, plus optional ZoneOb*/ZoneFvg*/StopLevel/Target1-2/QualityScore enrichments for real zone boxes, the real risk plan, and a quality filter) for the live gated setup; (3) local swing-pivot fallback. Does NOT import the micro-profiles snapshot (no per-bar structure there). Pure visual, no new detection."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Breakout Overlay",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Exit_Signal.pine",
@@ -237,19 +432,37 @@
       "consumer_role": "exit_companion",
       "validation_target": false,
       "notes": [
-        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import \u2014 fully BUS-driven."
-      ]
+        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import — fully BUS-driven."
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "standard",
+      "rollout_state": "planned",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Hold_Manager.pine",
-      "script_name": "SMC Hold-Manager v1",
+      "script_name": "SMC Hold Manager",
       "surface_role": "companion_operator_only",
       "contract_tier": "lite_and_pro",
       "consumer_role": "exit_companion",
       "validation_target": false,
       "notes": [
-        "Read-only hold-management overlay with ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, and time-stop. Imports skippALGO/smc_micro_profiles_generated (separate namespace from preuss_steffen \u2014 not auto-pinned by library refresh)."
-      ]
+        "Read-only hold-management overlay with ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, and time-stop. Imports skippALGO/smc_micro_profiles_generated (separate namespace from preuss_steffen — not auto-pinned by library refresh)."
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "standard",
+      "rollout_state": "planned",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Long_Dip_Alerts.pine",
@@ -260,7 +473,17 @@
       "validation_target": false,
       "notes": [
         "Alert companion for the Suite. Restores the 16 lifecycle / structure / trust / risk events as individually-selectable alertcondition() slots (the Suite moved to alert() for the 64-plot budget, RE10140). Product-state + zone from the BUS StateCode/Armed/ZoneActive inputs; structure recomputed via eng.detect_structure; trust via eng.resolve_trust_tier over mp.* consts; macro/earnings from mp.*."
-      ]
+      ],
+      "lifecycle": "active",
+      "deployment_mode": "standard",
+      "rollout_state": "deployed",
+      "compile_expectation": "required",
+      "bus_dependencies": [
+        "engine_v2"
+      ],
+      "archive_state": "none",
+      "chart_instance_name": "SMC Long-Dip Alerts",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Volume_Profile_Overlay.pine",
@@ -270,16 +493,61 @@
       "consumer_role": "overlay_companion",
       "validation_target": false,
       "notes": [
-        "Visible-Range Volume Profile companion: histogram + multi-POC + VAH/VAL. No library import \u2014 fully self-contained."
-      ]
+        "Visible-Range Volume Profile companion: histogram + multi-POC + VAH/VAL. No library import — fully self-contained."
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "optional",
+      "rollout_state": "planned",
+      "compile_expectation": "required",
+      "bus_dependencies": [],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
+    },
+    {
+      "file": "SMC_Context_Bus.pine",
+      "script_name": "SMC Context BUS",
+      "surface_role": "internal",
+      "contract_tier": "internal",
+      "consumer_role": "producer",
+      "validation_target": false,
+      "notes": [
+        "Planned Context BUS v3 producer; source is intentionally absent until its contract lands."
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "shadow",
+      "rollout_state": "planned",
+      "compile_expectation": "deferred",
+      "bus_dependencies": [],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
+    },
+    {
+      "file": "SMC_Context_Overlay.pine",
+      "script_name": "SMC Context Overlay",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Planned consolidated Context BUS v3 consumer; source is intentionally absent until its contract lands."
+      ],
+      "lifecycle": "planned",
+      "deployment_mode": "shadow",
+      "rollout_state": "planned",
+      "compile_expectation": "deferred",
+      "bus_dependencies": [
+        "context_v3"
+      ],
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     }
   ],
   "surfaceRoleCounts": {
     "lite_primary": 1,
     "pro_primary": 3,
-    "companion_operator_only": 16,
-    "internal": 1,
-    "legacy": 3
+    "companion_operator_only": 17,
+    "internal": 2,
+    "legacy": 0
   },
   "mainlineSurfaceFiles": [
     "SMC_Long_Dip_Suite.pine",
@@ -316,16 +584,14 @@
     "SMC_Exit_Signal.pine",
     "SMC_Hold_Manager.pine",
     "SMC_Long_Dip_Alerts.pine",
-    "SMC_Volume_Profile_Overlay.pine"
+    "SMC_Volume_Profile_Overlay.pine",
+    "SMC_Context_Overlay.pine"
   ],
   "internalFiles": [
-    "SMC_Regime_and_News.pine"
+    "SMC_Regime_and_News.pine",
+    "SMC_Context_Bus.pine"
   ],
-  "legacyFiles": [
-    "SMC++.pine",
-    "SMC_Core_Zones.pine",
-    "SMC Core + Zones.pine"
-  ],
+  "legacyFiles": [],
   "contracts": {
     "engine": [
       "BUS SchemaVersion",

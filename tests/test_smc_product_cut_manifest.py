@@ -27,6 +27,25 @@ def test_dashboard_is_explicitly_classified_in_main_product_cut() -> None:
     assert dashboard.validation_target is True
 
 
+def test_product_cut_manifest_exports_surface_governance_schema_v3() -> None:
+    payload = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')
+    surfaces = {
+        item['file']: item
+        for item in payload['surfaceRoles']
+    }
+
+    assert payload['manifestVersion'] == 3
+    assert surfaces['SMC_Long_Dip_Dashboard.pine']['rollout_state'] == 'deployed'
+    assert surfaces['SMC_Hold_Manager.pine']['lifecycle'] == 'planned'
+    assert surfaces['SMC_Hold_Manager.pine']['bus_dependencies'] == ['engine_v2']
+    assert surfaces['SMC_HTF_Confluence.pine']['compile_expectation'] == 'known_broken'
+    assert len(surfaces['SMC_HTF_Confluence.pine']['known_missing_mp_fields']) == 12
+    assert surfaces['SMC_Context_Overlay.pine']['bus_dependencies'] == ['context_v3']
+    assert 'SMC++.pine' not in surfaces
+    assert 'SMC_Core_Zones.pine' not in surfaces
+    assert 'SMC Core + Zones.pine' not in surfaces
+
+
 def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     assert _load_json('automation/tradingview/preflight-core-dashboard.json') == {
         'productCutScope': 'smcCoreDashboard',
@@ -111,9 +130,12 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['library']['productivityGate']['eventRiskSource'] == 'smc_event_risk_builder'
     assert payload['library']['productivityGate']['placeholderSymbols'] == ['CCC']
     assert payload['productCut']['mainlineFiles'] == product_cut['mainlineSurfaceFiles']
-    assert payload['productCut']['manifestVersion'] == 2
+    assert payload['productCut']['manifestVersion'] == 3
     assert payload['productCut']['litePrimaryFiles'] == product_cut['litePrimaryFiles']
     assert payload['productCut']['proPrimaryFiles'] == product_cut['proPrimaryFiles']
+    assert payload['productCut']['companionOperatorOnlyFiles'] == product_cut['companionOperatorOnlyFiles']
+    assert payload['productCut']['internalFiles'] == product_cut['internalFiles']
+    assert payload['productCut']['legacyFiles'] == product_cut['legacyFiles']
     assert payload['productCut']['contracts']['lite'] == product_cut['contracts']['lite']
     assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
