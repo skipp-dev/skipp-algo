@@ -131,6 +131,21 @@ def _bars_with_liq_void() -> pd.DataFrame:
     })
 
 
+def _bars_with_mixed_liq_voids(*, final_high: float) -> pd.DataFrame:
+    """Create active bull and bear void candidates around the final bar.
+
+    ``final_high=140`` leaves the newest bear void active.  Raising it to
+    ``150`` fully mitigates that bear void while at least one bull void stays
+    active, reproducing the former phantom bear-active flag.
+    """
+    return pd.DataFrame({
+        "open":  [97, 103, 112, 147, 122, 132, 130],
+        "high":  [100, 105, 115, 150, 125, 135, final_high],
+        "low":   [95, 101, 110, 145, 120, 130, 107],
+        "close": [98, 104, 113, 148, 123, 133, 130],
+    })
+
+
 def _flat_bars() -> pd.DataFrame:
     """Flat bars with no FVGs."""
     return pd.DataFrame({
@@ -244,6 +259,27 @@ class TestLiquidityVoid:
         assert result["LIQ_VOID_TOP"] > 0
         assert result["LIQ_VOID_BOTTOM"] > 0
         assert result["IMBALANCE_STATE"] == "LIQ_VOID"
+
+    def test_newest_active_void_supplies_shared_geometry_without_side_bias(self):
+        result = build_imbalance_lifecycle(
+            snapshot=_bars_with_mixed_liq_voids(final_high=140),
+        )
+
+        assert result["LIQ_VOID_BULL_ACTIVE"] is True
+        assert result["LIQ_VOID_BEAR_ACTIVE"] is True
+        assert result["LIQ_VOID_TOP"] == result["BEAR_FVG_TOP"] == 145
+        assert result["LIQ_VOID_BOTTOM"] == result["BEAR_FVG_BOTTOM"] == 135
+
+    def test_fully_mitigated_void_is_not_reported_active(self):
+        result = build_imbalance_lifecycle(
+            snapshot=_bars_with_mixed_liq_voids(final_high=150),
+        )
+
+        assert result["BEAR_FVG_FULL_MITIGATION"] is True
+        assert result["LIQ_VOID_BEAR_ACTIVE"] is False
+        assert result["LIQ_VOID_BULL_ACTIVE"] is True
+        assert result["LIQ_VOID_TOP"] == result["BULL_FVG_TOP"]
+        assert result["LIQ_VOID_BOTTOM"] == result["BULL_FVG_BOTTOM"]
 
 
 class TestFlatBars:

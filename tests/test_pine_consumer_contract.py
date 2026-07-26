@@ -1058,6 +1058,7 @@ class TestV80aContractSync:
         assert isinstance(fvg["PRIMARY_FVG_DISTANCE"], (int, float))
         assert 0.0 <= fvg["FVG_FILL_PCT"] <= 1.0
         assert fvg["FVG_MATURITY_LEVEL"] in (0, 1, 2, 3)
+        assert isinstance(fvg["FVG_NET_IMBALANCE"], int)
         assert isinstance(fvg["FVG_FRESH"], bool)
         assert isinstance(fvg["FVG_INVALIDATED"], bool)
 
