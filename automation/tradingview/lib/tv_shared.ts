@@ -6518,9 +6518,13 @@ export function pineDeclarationTitlePattern(title: string): RegExp {
  * instances, resolve by the anchored Pine declaration title when provided,
  * else accept only an unambiguous single buffer; never an arbitrary model.
  */
-export function buildPineEditorModelPickerSource(patternSource: string): string {
+export function buildPineEditorModelPickerSource(
+  patternSource: string,
+  requireVisibleEditor = false,
+): string {
   return `(() => {
   var patternSource = ${JSON.stringify(patternSource)};
+  var requireVisibleEditor = ${JSON.stringify(requireVisibleEditor)};
   function findMonaco(value, seen) {
     if (!value || (typeof value !== "object" && typeof value !== "function") || seen.has(value)) return null;
     seen.add(value);
@@ -6621,6 +6625,7 @@ export function buildPineEditorModelPickerSource(patternSource: string): string 
     var pattern = new RegExp(patternSource);
     var matchingEditorValues = distinct(editorValues.filter(function (entry) { return pattern.test(entry.value); }).map(function (entry) { return entry.value; }));
     if (matchingEditorValues.length === 1) return { value: matchingEditorValues[0], reason: "editor-declaration-match" };
+    if (requireVisibleEditor) return { value: null, reason: "visible-editor-declaration-unresolved:editors=" + matchingEditorValues.length + ":visibleEditors=" + editorValues.length + ":totalModels=" + modelValues.length };
     var matchingModelValues = distinct(modelValues.filter(function (value) { return pattern.test(value); }));
     if (matchingModelValues.length === 1) return { value: matchingModelValues[0], reason: "model-declaration-match" };
     return { value: null, reason: "declaration-title-unresolved:editors=" + matchingEditorValues.length + ":models=" + matchingModelValues.length + ":totalModels=" + modelValues.length };
@@ -6655,7 +6660,11 @@ export function buildPineEditorModelPickerSource(patternSource: string): string 
  */
 export async function readEditorContent(
   page: Page,
-  options: { editorAlreadyOpen?: boolean; expectedDeclarationTitle?: string } = {},
+  options: {
+    editorAlreadyOpen?: boolean;
+    expectedDeclarationTitle?: string;
+    requireVisibleEditor?: boolean;
+  } = {},
 ): Promise<string> {
   return runTrackedStep(page, "readEditorContent", async () => {
     await dismissCookieBanner(page);
@@ -6664,7 +6673,10 @@ export async function readEditorContent(
     const declarationPatternSource = options.expectedDeclarationTitle
       ? pineDeclarationTitlePattern(options.expectedDeclarationTitle).source
       : "";
-    const pickerSource = buildPineEditorModelPickerSource(declarationPatternSource);
+    const pickerSource = buildPineEditorModelPickerSource(
+      declarationPatternSource,
+      options.requireVisibleEditor === true,
+    );
 
     const readOnce = (): Promise<{ value: string | null; reason: string }> =>
       page

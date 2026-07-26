@@ -58,6 +58,30 @@ def test_runs_the_shared_session_batch_tool() -> None:
     assert "setEditorContent(session.page, code, { editorAlreadyOpen: true })" in saver
 
 
+def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> None:
+    """A requested UI title must never authorize writing another Monaco model."""
+    saver = (_REPO_ROOT / "scripts" / "tv_save_consumer_source.ts").read_text(encoding="utf-8")
+    open_index = saver.index("const opened = await openExistingScript")
+    pre_write_index = saver.index('assertConsumerEditorSource("pre-write identity"')
+    paste_index = saver.index("await setEditorContent(session.page, code")
+    staged_index = saver.index('assertConsumerEditorSource("staged source"')
+    save_index = saver.index("await saveScript(session.page")
+    post_save_index = saver.index('assertConsumerEditorSource("post-save source"')
+    assert open_index < pre_write_index < paste_index < staged_index < save_index < post_save_index
+    assert saver.count("expectedDeclarationTitle: target.scriptName") >= 3
+    assert saver.count("requireVisibleEditor: true") == 3
+
+
+def test_write_rollout_reloads_persisted_state_before_source_verification() -> None:
+    """In-memory editor state must not count as persisted TradingView evidence."""
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    verification_block = batch.split("if (report.save.failed.length === 0)", 1)[1]
+    reload_index = verification_block.index("await gotoChart(session.page, config.primaryChartUrl)")
+    verify_index = verification_block.index("result = await verifyConsumerSource(session, target)")
+    assert reload_index < verify_index
+    assert "executionPlan.saveSources && report.save.succeeded.length > 0" in verification_block
+
+
 def test_verifies_actual_consumer_source_selections_after_save() -> None:
     config = yaml.safe_load(
         (_REPO_ROOT / "automation/tradingview/config/consumer-rollout.json").read_text(encoding="utf-8")

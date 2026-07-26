@@ -63,10 +63,9 @@ test("consumer verification gates on save success alone, never on the cosmetic r
   );
   assert.doesNotMatch(source, /report\.save\.failed\.length === 0 && report\.producerRefresh\.ok/);
   // Saves still gate verification: verifying sources we failed to write is meaningless.
-  assert.match(
-    source,
-    /if \(report\.save\.failed\.length === 0\) \{\s*\n\s*for \(const target of sourceVerificationTargets\)/,
-  );
+  const saveGatedVerification = source.split("if (report.save.failed.length === 0)", 2)[1] ?? "";
+  assert.match(saveGatedVerification, /for \(const target of sourceVerificationTargets\)/);
+  assert.match(saveGatedVerification, /result = await verifyConsumerSource\(session, target\)/);
 });
 
 test("a failed producer refresh is non-fatal but stays visible as evidence", () => {

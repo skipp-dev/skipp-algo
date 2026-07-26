@@ -12,8 +12,12 @@ const MENTION_ONLY_SOURCE = `//@version=6\nindicator("SMC Long-Dip Dashboard")\n
 
 type PickerResult = { value: string | null; reason: string };
 
-function runPicker(patternSource: string, windowShim: Record<string, unknown>): PickerResult {
-  const source = buildPineEditorModelPickerSource(patternSource);
+function runPicker(
+  patternSource: string,
+  windowShim: Record<string, unknown>,
+  requireVisibleEditor = false,
+): PickerResult {
+  const source = buildPineEditorModelPickerSource(patternSource, requireVisibleEditor);
   // Re-wrap the vm-realm object so assertions compare same-realm prototypes.
   const raw = vm.runInNewContext(source, { window: windowShim }) as PickerResult;
   return { value: raw.value, reason: raw.reason };
@@ -74,6 +78,36 @@ test("picker prefers a visible declaration-matching editor instance", () => {
   const result = runPicker(SUITE_PATTERN, {
     monaco: monacoWithModels([CONSOLE_BUFFER, SUITE_SOURCE], [visibleEditor]),
   });
+  assert.equal(result.value, SUITE_SOURCE);
+  assert.equal(result.reason, "editor-declaration-match");
+});
+
+test("write-authority picker rejects a hidden matching model behind the wrong visible editor", () => {
+  const visibleAlerts = {
+    getModel: () => ({ getValue: () => MENTION_ONLY_SOURCE }),
+    getDomNode: () => ({ isConnected: true, getBoundingClientRect: () => ({ width: 800, height: 600 }) }),
+    hasTextFocus: () => true,
+  };
+  const result = runPicker(
+    SUITE_PATTERN,
+    { monaco: monacoWithModels([MENTION_ONLY_SOURCE, SUITE_SOURCE], [visibleAlerts]) },
+    true,
+  );
+  assert.equal(result.value, null);
+  assert.match(result.reason, /^visible-editor-declaration-unresolved:editors=0:visibleEditors=1/);
+});
+
+test("write-authority picker accepts the declaration only in the visible editor", () => {
+  const visibleSuite = {
+    getModel: () => ({ getValue: () => SUITE_SOURCE }),
+    getDomNode: () => ({ isConnected: true, getBoundingClientRect: () => ({ width: 800, height: 600 }) }),
+    hasTextFocus: () => true,
+  };
+  const result = runPicker(
+    SUITE_PATTERN,
+    { monaco: monacoWithModels([CONSOLE_BUFFER, SUITE_SOURCE], [visibleSuite]) },
+    true,
+  );
   assert.equal(result.value, SUITE_SOURCE);
   assert.equal(result.reason, "editor-declaration-match");
 });

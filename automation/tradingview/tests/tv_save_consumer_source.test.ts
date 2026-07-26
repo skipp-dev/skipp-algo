@@ -5,7 +5,10 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { pineDeclarationTitlePattern } from "../lib/tv_shared.js";
-import { pineSourceSha256 } from "../../../scripts/tv_save_consumer_source.js";
+import {
+  assertConsumerEditorSource,
+  pineSourceSha256,
+} from "../../../scripts/tv_save_consumer_source.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -34,6 +37,37 @@ test("pineDeclarationTitlePattern escapes regex metacharacters in titles", () =>
   const pattern = pineDeclarationTitlePattern("SMC (v2) + Dip?");
   assert.ok(pattern.test('indicator("SMC (v2) + Dip?", overlay = true)'));
   assert.ok(!pattern.test('indicator("SMC (v2) x Dipz", overlay = true)'));
+});
+
+test("consumer write guard rejects a stale Monaco model before source mutation", () => {
+  const target = {
+    source: "SMC_Long_Dip_Suite.pine",
+    scriptName: "SMC Long-Dip Suite",
+  };
+  const staleAlertsModel = '//@version=6\nindicator("SMC Long-Dip Alerts")\nplot(close)\n';
+  assert.throws(
+    () => assertConsumerEditorSource("pre-write identity", target, staleAlertsModel),
+    /active Pine model has a different declaration/,
+  );
+});
+
+test("consumer write guard requires staged and post-save hashes to match the repo", () => {
+  const target = {
+    source: "SMC_Long_Dip_Alerts.pine",
+    scriptName: "SMC Long-Dip Alerts",
+  };
+  const expected = '//@version=6\nindicator("SMC Long-Dip Alerts")\nplot(close)\n';
+  const stale = expected.replace("plot(close)", "plot(open)");
+  const expectedSha256 = pineSourceSha256(expected);
+
+  assert.equal(
+    assertConsumerEditorSource("staged source", target, expected, expectedSha256),
+    expectedSha256,
+  );
+  assert.throws(
+    () => assertConsumerEditorSource("post-save source", target, stale, expectedSha256),
+    /expected SHA-256 .* got /,
+  );
 });
 
 test("every rollout consumer's saved script name is its unique Pine declaration title", () => {
