@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -10,6 +11,8 @@ import {
 } from "../../../scripts/tv_publish_openprep_panel.js";
 
 const SCRIPT_NAME = "Open-Prep Daily Panel";
+const _dir = path.dirname(fileURLToPath(import.meta.url));
+const _publisherPath = path.resolve(_dir, "..", "..", "..", "scripts", "tv_publish_openprep_panel.ts");
 
 const VALID_PANEL_TEXT = [
   "//@version=6",
@@ -59,4 +62,21 @@ test("verifyPanelPublishContract rejects a library() header (must be an indicato
 test("verifyPanelPublishContract rejects a missing version directive", () => {
   const noVersion = VALID_PANEL_TEXT.replace("//@version=6\n", "");
   assert.throws(() => verifyPanelPublishContract(writeFixture(noVersion)), /@version=6/);
+});
+
+test("panel publisher tolerates a failed pre-publish add-to-chart probe", () => {
+  const source = fs.readFileSync(_publisherPath, "utf-8");
+  const addToChartCall = source.indexOf("await addCurrentScriptToChart(");
+  const publishCall = source.indexOf("await publishPrivateScript(", addToChartCall);
+
+  assert.ok(addToChartCall >= 0, "publisher no longer probes add-to-chart");
+  assert.ok(
+    publishCall > addToChartCall,
+    "publishPrivateScript must remain the hard publish gate after the optional probe",
+  );
+  assert.match(
+    source.slice(addToChartCall, publishCall),
+    /tolerateFailure:\s*true/,
+    "the optional add-to-chart probe must not abort before publishPrivateScript handles TradingView's chart gate",
+  );
 });
