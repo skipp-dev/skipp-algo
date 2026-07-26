@@ -2378,7 +2378,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 50,
         "w": 24,
         "h": 4
       },
@@ -2475,7 +2475,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 50,
+        "y": 54,
         "w": 12,
         "h": 8
       },
@@ -2552,7 +2552,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 50,
+        "y": 54,
         "w": 12,
         "h": 8
       },
@@ -2618,7 +2618,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 62,
         "w": 12,
         "h": 8
       },
@@ -2731,7 +2731,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 76
       },
       "id": 1003,
       "panels": []
@@ -2741,7 +2741,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 77,
         "w": 6,
         "h": 5
       },
@@ -2812,7 +2812,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 6,
-        "y": 73,
+        "y": 77,
         "w": 12,
         "h": 8
       },
@@ -2899,7 +2899,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 81,
+        "y": 85,
         "w": 12,
         "h": 8
       },
@@ -2993,7 +2993,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 81,
+        "y": 85,
         "w": 12,
         "h": 8
       },
@@ -3099,7 +3099,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 89,
+        "y": 93,
         "w": 12,
         "h": 8
       },
@@ -3177,7 +3177,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 89,
+        "y": 93,
         "w": 12,
         "h": 8
       },
@@ -3248,7 +3248,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 97,
+        "y": 101,
         "w": 12,
         "h": 8
       },
@@ -3319,7 +3319,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 105
+        "y": 109
       },
       "id": 1004,
       "panels": []
@@ -3329,7 +3329,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 106,
+        "y": 110,
         "w": 4,
         "h": 3
       },
@@ -3421,7 +3421,7 @@
       "type": "stat",
       "gridPos": {
         "x": 4,
-        "y": 106,
+        "y": 110,
         "w": 4,
         "h": 3
       },
@@ -3476,7 +3476,7 @@
       "description": "Daemon process resident memory as reported by the built-in Prometheus collector.",
       "gridPos": {
         "x": 8,
-        "y": 106,
+        "y": 110,
         "w": 4,
         "h": 3
       },
@@ -3544,7 +3544,7 @@
       "description": "Background thread liveness (1 = all alive, 0 = at least one dead).",
       "gridPos": {
         "x": 12,
-        "y": 106,
+        "y": 110,
         "w": 4,
         "h": 3
       },
@@ -3620,7 +3620,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 106,
+        "y": 110,
         "w": 6,
         "h": 6
       },
@@ -3693,7 +3693,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 112,
+        "y": 116,
         "w": 6,
         "h": 6
       },
@@ -3755,7 +3755,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 112,
+        "y": 116,
         "w": 6,
         "h": 6
       },
@@ -3826,7 +3826,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 12,
-        "y": 112,
+        "y": 116,
         "w": 12,
         "h": 6
       },
@@ -3931,7 +3931,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 122,
         "w": 12,
         "h": 8
       },
@@ -4028,7 +4028,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 118,
+        "y": 122,
         "w": 12,
         "h": 8
       },
@@ -4078,7 +4078,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 126,
+        "y": 130,
         "w": 12,
         "h": 8
       },
@@ -4165,7 +4165,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 126,
+        "y": 130,
         "w": 12,
         "h": 8
       },
@@ -4239,7 +4239,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 134,
+        "y": 138,
         "w": 12,
         "h": 8
       },
@@ -4289,7 +4289,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 142,
+        "y": 146,
         "w": 24,
         "h": 8
       },
@@ -4343,7 +4343,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 154
+        "y": 158
       },
       "id": 1005,
       "panels": []
@@ -4353,7 +4353,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 155,
+        "y": 159,
         "w": 6,
         "h": 4
       },
@@ -4425,7 +4425,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 155,
+        "y": 159,
         "w": 6,
         "h": 4
       },
@@ -4494,7 +4494,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 155,
+        "y": 159,
         "w": 6,
         "h": 4
       },
@@ -4573,7 +4573,7 @@
       "description": "Counts how many of the generic bridge contracts are absent. A non-zero value means the exporter or metrics path is broken, not that a bridge is disabled.",
       "gridPos": {
         "x": 18,
-        "y": 155,
+        "y": 159,
         "w": 6,
         "h": 5
       },
@@ -4656,7 +4656,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 160,
+        "y": 164,
         "w": 6,
         "h": 4
       },
@@ -4728,7 +4728,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 160,
+        "y": 164,
         "w": 6,
         "h": 4
       },
@@ -4797,7 +4797,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 160,
+        "y": 164,
         "w": 6,
         "h": 4
       },
@@ -4875,7 +4875,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 168,
         "w": 12,
         "h": 8
       },
@@ -4957,7 +4957,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 164,
+        "y": 168,
         "w": 12,
         "h": 8
       },
@@ -5060,7 +5060,7 @@
       "type": "table",
       "gridPos": {
         "x": 0,
-        "y": 172,
+        "y": 176,
         "w": 24,
         "h": 14
       },
@@ -5303,7 +5303,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 186,
+        "y": 190,
         "w": 12,
         "h": 8
       },
@@ -5387,7 +5387,7 @@
       "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
       "gridPos": {
         "x": 0,
-        "y": 194,
+        "y": 198,
         "w": 24,
         "h": 6
       },
@@ -5479,7 +5479,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 200,
+        "y": 204,
         "w": 18,
         "h": 25
       },
@@ -5705,7 +5705,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 225
+        "y": 229
       },
       "id": 1006,
       "panels": []
@@ -5723,7 +5723,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 234
+        "y": 238
       },
       "targets": [
         {
@@ -5787,7 +5787,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 234
+        "y": 238
       },
       "targets": [
         {
@@ -5843,7 +5843,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 234
+        "y": 238
       },
       "targets": [
         {
@@ -5916,7 +5916,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 234
+        "y": 238
       },
       "targets": [
         {
@@ -5990,7 +5990,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 239
+        "y": 243
       },
       "targets": [
         {
@@ -6063,7 +6063,7 @@
         "h": 7,
         "w": 12,
         "x": 6,
-        "y": 239
+        "y": 243
       },
       "targets": [
         {
@@ -6122,7 +6122,7 @@
       "description": "Whether the latest credential-health report considers the TradingView storage-state login valid (severity not error). 1 = valid (cached login still within the 72h TTL), 0 = expired/error → re-capture TV_STORAGE_STATE. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 18,
-        "y": 239,
+        "y": 243,
         "w": 6,
         "h": 5
       },
@@ -6197,7 +6197,7 @@
       "description": "Hours since the TradingView Playwright storage-state login (meta.authValidatedAt) was last validated, from the daily credential-health report (tv_storage_state_age probe). Policy TTL is 72h: green < 57.6h (80% warn band), yellow 57.6–72h, red once the cached login is older than 72h and must be re-captured. NOT LOADED means the credential-health report has not loaded yet.",
       "gridPos": {
         "x": 0,
-        "y": 246,
+        "y": 250,
         "w": 6,
         "h": 5
       },
@@ -6280,7 +6280,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 246
+        "y": 250
       },
       "targets": [
         {
@@ -6357,7 +6357,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 246
+        "y": 250
       },
       "targets": [
         {
@@ -6430,7 +6430,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 246
+        "y": 250
       },
       "targets": [
         {
@@ -6493,7 +6493,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 251
+        "y": 255
       },
       "targets": [
         {
@@ -6566,7 +6566,7 @@
         "h": 5,
         "w": 18,
         "x": 6,
-        "y": 251
+        "y": 255
       },
       "targets": [
         {
@@ -6607,7 +6607,7 @@
       "description": "Legend for News Provider panels directly below.",
       "gridPos": {
         "x": 0,
-        "y": 256,
+        "y": 260,
         "w": 24,
         "h": 2
       },
@@ -6626,7 +6626,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 258,
+        "y": 262,
         "w": 24,
         "h": 10
       },
@@ -6722,7 +6722,7 @@
       "type": "state-timeline",
       "gridPos": {
         "x": 0,
-        "y": 268,
+        "y": 272,
         "w": 12,
         "h": 8
       },
@@ -6817,7 +6817,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 268,
+        "y": 272,
         "w": 6,
         "h": 8
       },
@@ -6867,7 +6867,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 18,
-        "y": 268,
+        "y": 272,
         "w": 6,
         "h": 8
       },
@@ -6948,7 +6948,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 276,
+        "y": 280,
         "w": 12,
         "h": 8
       },
@@ -6999,7 +6999,7 @@
       "type": "table",
       "gridPos": {
         "x": 12,
-        "y": 276,
+        "y": 280,
         "w": 12,
         "h": 8
       },
@@ -7160,7 +7160,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 284
+        "y": 288
       },
       "id": 1007,
       "panels": []
@@ -7171,7 +7171,7 @@
       "description": "Whether the Railway metrics bridge is enabled and its last poll succeeded.",
       "gridPos": {
         "x": 0,
-        "y": 285,
+        "y": 289,
         "w": 4,
         "h": 3
       },
@@ -7321,7 +7321,7 @@
       "description": "Seconds since the last successful Railway metrics poll.",
       "gridPos": {
         "x": 4,
-        "y": 285,
+        "y": 289,
         "w": 4,
         "h": 3
       },
@@ -7385,7 +7385,7 @@
       "description": "Latest Railway metrics bridge error class. OK when healthy.",
       "gridPos": {
         "x": 8,
-        "y": 285,
+        "y": 289,
         "w": 4,
         "h": 3
       },
@@ -7460,7 +7460,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 285,
+        "y": 289,
         "w": 8,
         "h": 7
       },
@@ -7506,7 +7506,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 292,
+        "y": 296,
         "w": 8,
         "h": 7
       },
@@ -7578,7 +7578,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 292,
+        "y": 296,
         "w": 8,
         "h": 7
       },
@@ -7625,7 +7625,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 292,
+        "y": 296,
         "w": 8,
         "h": 7
       },
@@ -7673,7 +7673,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 299,
+        "y": 303,
         "w": 8,
         "h": 7
       },
@@ -7720,7 +7720,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 299,
+        "y": 303,
         "w": 8,
         "h": 7
       },
@@ -7765,7 +7765,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 306,
+        "y": 310,
         "w": 12,
         "h": 8
       },
@@ -7803,7 +7803,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 306,
+        "y": 310,
         "w": 12,
         "h": 8
       },
@@ -7839,7 +7839,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 314
+        "y": 318
       },
       "id": 1783960001,
       "panels": []
@@ -7856,7 +7856,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 315
+        "y": 319
       },
       "id": 1783960002,
       "fieldConfig": {
@@ -7934,7 +7934,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 315
+        "y": 319
       },
       "id": 1783960003,
       "fieldConfig": {
@@ -8045,7 +8045,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 323
+        "y": 327
       },
       "id": 1783960004,
       "fieldConfig": {
@@ -8160,7 +8160,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 329
+        "y": 333
       },
       "id": 1783960005,
       "fieldConfig": {
@@ -8288,7 +8288,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 335
+        "y": 339
       },
       "id": 1783960010,
       "panels": []
@@ -8305,7 +8305,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 336
+        "y": 340
       },
       "id": 1783960011,
       "fieldConfig": {
@@ -8766,7 +8766,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 342,
+        "y": 346,
         "w": 6,
         "h": 8
       },
@@ -8823,7 +8823,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 70
       },
       "id": 1784100001,
       "fieldConfig": {
@@ -8976,7 +8976,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 150
+        "y": 154
       },
       "id": 1784100002,
       "fieldConfig": {
@@ -9036,7 +9036,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 350
+        "y": 354
       },
       "id": 1784100003,
       "fieldConfig": {
@@ -9148,7 +9148,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 355
+        "y": 359
       },
       "id": 1784100004,
       "fieldConfig": {
@@ -9296,7 +9296,7 @@
         "h": 4,
         "w": 24,
         "x": 0,
-        "y": 226
+        "y": 230
       },
       "id": 1784100005,
       "fieldConfig": {
@@ -9347,6 +9347,231 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 2165782576,
+      "title": "Active Signals",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Compact mirror of the Signals & Experiments dashboard. Counts current A0, A1, and A2 signals only when snapshot age is known. Zero means a fresh, quiet snapshot; N/A means freshness cannot be established.",
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 8,
+        "h": 4
+      },
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "Open Signals & Experiments",
+          "type": "link",
+          "url": "/d/smc-live-overlay-signals-v1?orgId=1"
+        }
+      ],
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_active{job=~\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=~\"$job\"} == 1)",
+          "instant": true,
+          "legendFormat": "active signals",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "dark-green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2165782577,
+      "title": "Strongest Signal",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Highest current signal-ranking score. The label shows symbol, level, and direction. NO ACTIVE SIGNAL is a valid quiet state; use the adjacent snapshot-age tile to distinguish quiet from unavailable data.",
+      "gridPos": {
+        "x": 8,
+        "y": 46,
+        "w": 8,
+        "h": 4
+      },
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "Open Signals & Experiments",
+          "type": "link",
+          "url": "/d/smc-live-overlay-signals-v1?orgId=1"
+        }
+      ],
+      "targets": [
+        {
+          "expr": "topk(1, live_overlay_trading_signal_score{job=~\"$job\"})",
+          "instant": true,
+          "legendFormat": "{{symbol}} · {{level}} · {{direction}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "noValue": "NO ACTIVE SIGNAL",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "dark-blue",
+                "value": 1
+              },
+              {
+                "color": "dark-green",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 2165782578,
+      "title": "Signal Snapshot Age",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "description": "Seconds since the realtime engine wrote its signal snapshot. N/A means the timestamp is unknown. Yellow at 4 minutes and red at 8 minutes; open Signals & Experiments for the full signal detail.",
+      "gridPos": {
+        "x": 16,
+        "y": 46,
+        "w": 8,
+        "h": 4
+      },
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "Open Signals & Experiments",
+          "type": "link",
+          "url": "/d/smc-live-overlay-signals-v1?orgId=1"
+        }
+      ],
+      "targets": [
+        {
+          "expr": "live_overlay_trading_signals_snapshot_age_seconds{job=~\"$job\"} and on(job,instance) (live_overlay_trading_signals_snapshot_age_known{job=~\"$job\"} == 1)",
+          "instant": true,
+          "legendFormat": "snapshot age",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "N/A",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "dark-yellow",
+                "value": 240
+              },
+              {
+                "color": "dark-red",
+                "value": 480
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      }
     }
   ],
   "schemaVersion": 39,
@@ -9404,6 +9629,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 64,
+  "version": 65,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

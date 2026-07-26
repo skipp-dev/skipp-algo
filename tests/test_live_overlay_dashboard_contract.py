@@ -1683,6 +1683,56 @@ def test_dashboard_signal_readiness_panels_are_grouped() -> None:
     )
 
 
+def test_main_dashboard_has_compact_linked_signal_summary() -> None:
+    """The operations board mirrors only the three decision-critical facts.
+
+    Full rankings and per-symbol details belong exclusively on the paired
+    Signals & Experiments dashboard.
+    """
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
+    names = ("Active Signals", "Strongest Signal", "Signal Snapshot Age")
+
+    assert all(name in panels for name in names)
+    assert all(
+        _section_of(dashboard, name) == "Live Data Chain (Feed → Overlay → Pine)"
+        for name in names
+    )
+    assert {panels[name]["gridPos"]["y"] for name in names} == {46}
+    assert sorted(
+        (panels[name]["gridPos"]["x"], panels[name]["gridPos"]["w"])
+        for name in names
+    ) == [(0, 8), (8, 8), (16, 8)]
+
+    for name in names:
+        links = panels[name].get("links", [])
+        assert any("/d/smc-live-overlay-signals-v1" in link.get("url", "") for link in links)
+        assert all(link.get("targetBlank") for link in links)
+
+    active_expr = panels["Active Signals"]["targets"][0]["expr"]
+    assert "live_overlay_trading_signals_active" in active_expr
+    assert "live_overlay_trading_signals_snapshot_age_known" in active_expr
+
+    strongest = panels["Strongest Signal"]
+    assert strongest["targets"][0]["expr"].startswith(
+        'topk(1, live_overlay_trading_signal_score{job=~"$job"})'
+    )
+    assert "{{symbol}}" in strongest["targets"][0]["legendFormat"]
+    assert strongest["options"]["textMode"] == "value_and_name"
+
+    age_expr = panels["Signal Snapshot Age"]["targets"][0]["expr"]
+    assert "live_overlay_trading_signals_snapshot_age_seconds" in age_expr
+    assert "live_overlay_trading_signals_snapshot_age_known" in age_expr
+    assert panels["Signal Snapshot Age"]["fieldConfig"]["defaults"]["unit"] == "s"
+
+    for detail_title in (
+        "Signal Strength - Live Ranking (now)",
+        "Top Trading Signals — Latest Detail",
+        "Signal Score — Active Symbols",
+    ):
+        assert detail_title not in panels
+
+
 def test_alert_rules_include_signals_producer_readiness_group() -> None:
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
     group_names = [g.get("name") for g in rules_doc["groups"]]

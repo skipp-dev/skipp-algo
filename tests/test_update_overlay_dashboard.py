@@ -200,6 +200,28 @@ def test_update_script_is_idempotent(temp_dashboard: Path) -> None:
     assert first == second, "Re-running the updater changed dashboard.json body"
 
 
+def test_update_script_self_heals_compact_signal_summary_without_layout_drift(
+    temp_dashboard: Path,
+) -> None:
+    data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    summary_titles = {"Active Signals", "Strongest Signal", "Signal Snapshot Age"}
+    data["panels"] = [p for p in data["panels"] if p.get("title") not in summary_titles]
+    sessions_y_before = next(
+        p for p in data["panels"] if p.get("title") == "Global Market Sessions"
+    )["gridPos"]["y"]
+    temp_dashboard.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    _run_script(temp_dashboard)
+
+    updated = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    titles = {p.get("title") for p in updated["panels"]}
+    assert summary_titles <= titles
+    sessions_y_after = next(
+        p for p in updated["panels"] if p.get("title") == "Global Market Sessions"
+    )["gridPos"]["y"]
+    assert sessions_y_after == sessions_y_before
+
+
 def test_update_script_re_adds_missing_uptimerobot_panel_idempotently(tmp_path: Path) -> None:
     """_ensure_uptimerobot_panel re-adds a missing panel and bumps version."""
     repo_root = Path(__file__).resolve().parents[1]
