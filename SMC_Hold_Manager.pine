@@ -106,8 +106,9 @@ if can_act and state == 0 and arm_edge_now and i_entry > 0 and i_stop > 0 and i_
     float risk_R  = entry_price - initial_stop
     t1_price      := entry_price + risk_R * i_t1_R
     t2_price      := entry_price + risk_R * i_t2_R
-    entry_bar     := bar_index
-    entry_time_ms := time
+    // ARMED is only a waiting state; it must not consume the trade time budget.
+    entry_bar     := na
+    entry_time_ms := na
     t1_hit        := false
 
 if barstate.islast
@@ -116,7 +117,10 @@ if barstate.islast
 // Trigger-Touch erkennen — naive: Bar handelt durch Entry.
 bool entry_touch = state == 1 and low <= entry_price and high >= entry_price
 if can_act and entry_touch
-    state := 2
+    // Start trade age only when the entry transition is actually accepted.
+    state         := 2
+    entry_bar     := bar_index
+    entry_time_ms := time
 
 // ── 5.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
 float atr     = ta_lib.atr(i_atr_len)
@@ -135,7 +139,7 @@ if state == 2 and not t1_hit and high >= t1_price
 bool stop_hit = state == 2 and low <= active_stop
 
 // Time-Stop in Minuten — konvertiert zu ms, TF-agnostisch (Schwäche D).
-bool time_stop_hit = state == 2 and i_use_tstop and not i_simple_mode and
+bool time_stop_hit = state == 2 and i_use_tstop and not i_simple_mode and not na(entry_time_ms) and
      (time - entry_time_ms) >= (i_tstop_min * 60 * 1000)
 
 bool t2_hit = state == 2 and high >= t2_price

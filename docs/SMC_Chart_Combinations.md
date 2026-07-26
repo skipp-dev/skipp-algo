@@ -194,6 +194,9 @@ Minuten, Earnings-Pre-Defensive-Hinweis).
 - Alle 6 Alerts (`HM_ENTRY`, `HM_T1`, `HM_T2`, `HM_STOP`, `HM_TIMESTOP`,
   `HM_EXIT_ANY`) sind **edge-detected** — feuern genau einmal pro Event,
   kein Bar-Spam.
+- Die Time-Stop-Uhr beginnt erst mit dem tatsächlichen Entry-Touch
+  (`HM_ENTRY`). Wartezeit im Zustand `ARMED` wird nicht als Trade-Zeit
+  angerechnet.
 - v1 ist **Long-only**. Short-Pfad, family-aware ATR-Mult, Quality-Sizing
   und Webhook-State-Persistence kommen in v2/v3/v4 (siehe Plan-Doku,
   Phase-Gates an Sprint-C13 Phase-A/B-Sign-off gebunden).

@@ -185,7 +185,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 | A | `long_setup_expired` initial im Flag-Inventar gefehlt | Doku | **gefixt** — siehe 4-Tupel oben |
 | B | `_now` vs `_this_bar` Semantik unklar | Doku | **gefixt** — siehe Tabelle oben |
 | C | Pine `var`-State-Loss bei Recompile | v3+ | Reset-Hook + `barstate.isconfirmed`-Gate; v3: Webhook-gestützte State-Rekonstruktion |
-| D | Time-Stop in Bars ist TF-abhängig | v3 | Time-Stop in **Minuten**, nicht Bars (TF-agnostisch) |
+| D | Time-Stop in Bars ist TF-abhängig | v3 | Time-Stop in **Minuten**, nicht Bars; Uhrstart erst beim tatsächlichen Entry-Touch, nicht beim Arming |
 | E | `alertcondition()` feuert auf Level → Alert-Spam | v1 | **Alert-Edge-Framework von Tag 1**: alle Alerts auf rising-edge (`x and not x[1]`) |
 | F | Quality-Sizing-Schwellen (0.5/0.8) sind arbiträr | v4 | Aus `mp.ZONE_CAL_*` / neuen `mp.HOLD_SIZING_*` Konstanten ziehen |
 | G | ATR-Chandelier `mult=2.5` nicht family-aware | v2 | `mult_by_family` aus T4-Backtest-Slippage-Sample (Sprint C13) |
