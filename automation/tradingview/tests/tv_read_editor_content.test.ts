@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 
-import { buildPineEditorModelPickerSource, pineDeclarationTitlePattern } from "../lib/tv_shared.js";
+import {
+  buildPineEditorModelPickerSource,
+  pineDeclarationTitlePattern,
+  waitForVisiblePineDeclarationIdentity,
+} from "../lib/tv_shared.js";
 
 const SUITE_TITLE = "SMC Long-Dip Suite";
 const SUITE_PATTERN = pineDeclarationTitlePattern(SUITE_TITLE).source;
@@ -144,4 +148,23 @@ test("without a declaration title only an unambiguous single buffer is accepted"
   const ambiguous = runPicker("", { monaco: monacoWithModels([SUITE_SOURCE, CONSOLE_BUFFER]) });
   assert.equal(ambiguous.value, null);
   assert.match(ambiguous.reason, /^ambiguous-models:/);
+});
+
+test("visible declaration wait rejects a UI-only switch and accepts the loaded editor model", async () => {
+  let evaluations = 0;
+  const page = {
+    evaluate: async () => {
+      evaluations += 1;
+      return evaluations === 1
+        ? { value: null, reason: "visible-editor-declaration-unresolved" }
+        : { value: SUITE_SOURCE, reason: "editor-declaration-match" };
+    },
+    waitForTimeout: async () => undefined,
+  };
+
+  assert.equal(
+    await waitForVisiblePineDeclarationIdentity(page as never, [SUITE_TITLE], 1_000),
+    true,
+  );
+  assert.equal(evaluations, 2);
 });

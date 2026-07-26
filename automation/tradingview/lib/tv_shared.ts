@@ -1205,6 +1205,21 @@ export function resolveOpenScriptSearchNames(scriptName: string): string[] {
   return uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
 }
 
+export function resolveOpenScriptSelectionAttempts(scriptName: string): Array<{
+  searchName: string;
+  exactTitleOnly: boolean;
+}> {
+  const searchNames = resolveOpenScriptSearchNames(scriptName);
+  return searchNames.flatMap((searchName, index) =>
+    index === 0
+      ? [
+        { searchName, exactTitleOnly: false },
+        { searchName, exactTitleOnly: true },
+      ]
+      : [{ searchName, exactTitleOnly: true }]
+  );
+}
+
 function openScriptIdentityNames(scriptName: string): string[] {
   return resolveOpenScriptSearchNames(scriptName);
 }
@@ -5817,25 +5832,36 @@ export async function saveChangedChartLayout(page: Page): Promise<void> {
 export async function openExistingScript(
   page: Page,
   scriptName: string,
-  options: { forceSelection?: boolean } = {},
+  options: {
+    forceSelection?: boolean;
+    requireVisibleDeclarationIdentity?: boolean;
+  } = {},
 ): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
     const identityNames = openScriptIdentityNames(scriptName);
-    const searchNames = resolveOpenScriptSearchNames(scriptName);
-    const totalAttempts = Math.max(2, searchNames.length);
+    const selectionAttempts = resolveOpenScriptSelectionAttempts(scriptName);
     // The title is not sufficient proof that the corresponding Monaco model is
     // active. TradingView can retain a previous script buffer while repainting
     // the requested title after a publish/save transition.
-    const alreadyOpen = options.forceSelection
+    const uiAlreadyOpen = options.forceSelection
       ? false
       : await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
+    const alreadyOpen = uiAlreadyOpen
+      && (
+        !options.requireVisibleDeclarationIdentity
+        || await waitForVisiblePineDeclarationIdentity(page, identityNames, 1_500).catch(() => false)
+      );
     if (alreadyOpen) {
       tracePageEvent(page, "open-script-identity-current", scriptName);
       return true;
     }
 
-    for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
-      const searchName = searchNames[Math.min(attempt, searchNames.length - 1)] ?? scriptName;
+    for (let attempt = 0; attempt < selectionAttempts.length; attempt += 1) {
+      const selectionAttempt = selectionAttempts[attempt] ?? {
+        searchName: scriptName,
+        exactTitleOnly: true,
+      };
+      const { searchName, exactTitleOnly: exactTitleRetry } = selectionAttempt;
       const openedDialog = await openScriptSelectionSurface(page);
       if (!openedDialog) {
         if (attempt === 0) {
@@ -5849,10 +5875,13 @@ export async function openExistingScript(
       await activateOpenScriptMyScriptsSection(page);
       await fillOpenScriptSearch(page, searchName);
 
+      const rowCandidates = exactTitleRetry
+        ? tvSelectors.openScriptExactTitle(page, searchName)
+        : tvSelectors.openScriptRow(page, searchName);
       const clickedScript = await clickVisibleWithFallback(
         page,
-        tvSelectors.openScriptRow(page, searchName),
-        "open-script-row",
+        rowCandidates,
+        exactTitleRetry ? "open-script-exact-title" : "open-script-row",
         3_000,
         1_000,
       );
@@ -5861,7 +5890,13 @@ export async function openExistingScript(
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
       if (dialogStillVisible && clickedScript) {
-        await doubleClickVisible(page, tvSelectors.openScriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
+        await doubleClickVisible(
+          page,
+          rowCandidates,
+          exactTitleRetry ? "open-script-exact-title-confirm" : "open-script-row-confirm",
+          2_000,
+          1_000,
+        );
         dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
       }
 
@@ -5872,13 +5907,25 @@ export async function openExistingScript(
       }
 
       const identityVerified = await waitForAnyOpenScriptIdentity(page, identityNames);
-      if (identityVerified) {
+      const declarationVerified = identityVerified
+        && (
+          !options.requireVisibleDeclarationIdentity
+          || await waitForVisiblePineDeclarationIdentity(page, identityNames).catch(() => false)
+        );
+      if (identityVerified && declarationVerified) {
         if (searchName !== scriptName) {
           tracePageEvent(page, "open-script-legacy-alias", `${scriptName}<=${searchName}`);
         }
         return true;
       }
 
+      if (identityVerified && !declarationVerified) {
+        tracePageEvent(
+          page,
+          "open-script-visible-declaration-retry",
+          `${scriptName}:attempt=${attempt + 1}:search=${searchName}`,
+        );
+      }
       tracePageEvent(page, "open-script-identity-retry", `${scriptName}:attempt=${attempt + 1}:search=${searchName}`);
       await page.keyboard.press("Escape").catch(() => undefined);
       await ensurePineEditor(page).catch(() => undefined);
@@ -6639,6 +6686,33 @@ export function buildPineEditorModelPickerSource(
   if (distinctModelValues.length === 1) return { value: distinctModelValues[0], reason: "single-model" };
   return { value: null, reason: "ambiguous-models:editors=" + distinctEditorValues.length + ":models=" + distinctModelValues.length };
 })()`;
+}
+
+export async function waitForVisiblePineDeclarationIdentity(
+  page: Page,
+  scriptNames: string[],
+  timeoutMs = 4_000,
+): Promise<boolean> {
+  const pickerSources = uniqueNormalizedTexts(scriptNames).map((name) =>
+    buildPineEditorModelPickerSource(pineDeclarationTitlePattern(name).source, true)
+  );
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    for (const pickerSource of pickerSources) {
+      const picked = await page.evaluate(pickerSource).catch(() => null) as {
+        value?: unknown;
+        reason?: unknown;
+      } | null;
+      if (typeof picked?.value === "string" && picked.value.trim()) {
+        tracePageEvent(page, "visible-pine-declaration-identity", String(picked.reason ?? "resolved"));
+        return true;
+      }
+    }
+    await page.waitForTimeout(250);
+  }
+
+  return false;
 }
 
 /**

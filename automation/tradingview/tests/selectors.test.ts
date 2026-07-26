@@ -243,3 +243,25 @@ test("openScriptRow is exact and dialog scoped without requiring USER data ids",
     assert.equal(pattern.endsWith("$"), true);
   }
 });
+
+test("openScriptExactTitle exposes only exact title-text targets", () => {
+  const textCalls: string[] = [];
+  const scope = {
+    getByText: (pattern: RegExp) => {
+      textCalls.push(pattern.source);
+      return { kind: "text" };
+    },
+  };
+  const fakePage = {
+    locator: () => scope,
+  };
+
+  const locators = tvSelectors.openScriptExactTitle(fakePage as never, "SMC Long-Dip Suite");
+
+  assert.equal(locators.length, 3);
+  assert.equal(textCalls.length, 3);
+  for (const pattern of textCalls) {
+    assert.equal(pattern.startsWith("^SMC Long-Dip Suite"), true);
+    assert.equal(pattern.endsWith("$"), true);
+  }
+});
