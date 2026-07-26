@@ -260,7 +260,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
         consecutive_failures = 0
         max_failures = config.max_feed_failures()
         rolling = config.rolling_bars()
-        cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
+        cache.init_bar_cache(
+            rolling, max_symbols=config.max_symbols(), preserve_expanded=True
+        )
 
         while not stop.is_set():
             client: db.Live | None = None

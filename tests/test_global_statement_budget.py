@@ -200,10 +200,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifted cache.py globals 49/71/148/218 -> 70/92/185/255. The throttle
         # uses in-place attribute mutation, NOT a new `global`, so the inventory
         # count is unchanged.
-        ("services/live_overlay_daemon/cache.py", 109, ("_max_symbols", "_rolling_bars_cap")),  # 2026-07-25 bounded TF-history retention: 81->109
-        ("services/live_overlay_daemon/cache.py", 132, ("_last_eviction_at",)),  # 2026-07-25 bounded TF-history retention: 103->132
-        ("services/live_overlay_daemon/cache.py", 339, ("_overlay_computed_at",)),  # 2026-07-25 TF-history + age-gated eviction: 258->339
-        ("services/live_overlay_daemon/cache.py", 413, ("_vix_level",)),  # 2026-07-25 TF-history + age-gated eviction: 332->413
+        ("services/live_overlay_daemon/cache.py", 111, ("_max_symbols", "_rolling_bars_cap")),  # 2026-07-26 preserve TF history across feed restart: 109->111
+        ("services/live_overlay_daemon/cache.py", 138, ("_last_eviction_at",)),  # 2026-07-26 preserve TF history across feed restart: 132->138
+        ("services/live_overlay_daemon/cache.py", 345, ("_overlay_computed_at",)),  # 2026-07-26 preserve TF history across feed restart: 339->345
+        ("services/live_overlay_daemon/cache.py", 419, ("_vix_level",)),  # 2026-07-26 preserve TF history across feed restart: 413->419
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.
@@ -297,9 +297,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-25 (fix/live-overlay-feed-stream-circuit): the recovery
         # comment is deliberately local to the iterator success boundary,
         # shifting these existing singleton anchors by three lines.
-        ("services/live_overlay_daemon/feed.py", 511, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 674, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/feed.py", 773, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 513, ("_last_bar_at",)),  # 2026-07-26 preserve TF history across feed restart: 511->513
+        ("services/live_overlay_daemon/feed.py", 676, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 674->676
+        ("services/live_overlay_daemon/feed.py", 775, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 773->775
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

@@ -105,7 +105,9 @@ _vix_level: float | None = None
 # Bar cache API
 # ---------------------------------------------------------------------------
 
-def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
+def init_bar_cache(
+    rolling_bars: int, *, max_symbols: int = 2000, preserve_expanded: bool = False
+) -> None:
     global _rolling_bars_cap, _max_symbols
     if rolling_bars < 1:
         raise ValueError(f"rolling_bars must be >= 1, got {rolling_bars}")
@@ -114,13 +116,17 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     with _bar_lock:
         _rolling_bars_cap = rolling_bars
         _max_symbols = max_symbols
-        _expanded_retention.reset()
+        if not preserve_expanded:
+            _expanded_retention.reset()
         # Apply updated rolling cap to existing symbol deques as well, so a
         # runtime reconfiguration is reflected immediately for already-tracked
         # symbols.
         if _bars:
             for sym, dq in list(_bars.items()):
-                _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
+                retained_cap = max(
+                    _rolling_bars_cap, _expanded_retention.caps.get(sym, 0)
+                )
+                _bars[sym] = deque(dq, maxlen=retained_cap)
             # Downscaling max_symbols must enforce the hard cap immediately.
             overshoot = len(_bars) - _max_symbols
             if overshoot > 0:
