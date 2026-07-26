@@ -121,3 +121,14 @@ def test_worker_image_packages_pre_a0_atomic_parquet_runtime() -> None:
     assert "pyarrow==24.0.0" in requirements
     assert '"open_prep/pre_a0*.py"' in railway
     assert '"scripts/smc_atomic_write.py"' in railway
+
+
+def test_packaged_reference_excludes_unresolvable_live_symbols() -> None:
+    root = Path(worker.__file__).parents[2]
+    rows = json.loads(
+        (root / "services/a0_fast_detector/bootstrap/a0-reference.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    symbols = {str(row["symbol"]).strip().upper() for row in rows}
+    assert symbols.isdisjoint({"EEX", "QTEXW", "FGMC", "APM"})
