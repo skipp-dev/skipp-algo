@@ -9,6 +9,19 @@ def _read(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
+def _function_body(source: str, function_name: str) -> str:
+    start = source.find(f"{function_name}(")
+    assert start != -1, f"{function_name} not found"
+    body_start = source.index("\n", start) + 1
+    lines: list[str] = []
+    for line in source[body_start:].splitlines():
+        if not line.strip() or line.startswith("    "):
+            lines.append(line)
+        else:
+            break
+    return "\n".join(lines)
+
+
 def test_core_has_decision_first_hero_contract() -> None:
     source = _read("SMC_Long_Dip_Suite.pine")
 
@@ -375,8 +388,7 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 def test_core_trust_resolution_defaults_to_insufficient() -> None:
     core = _read("SMC++/smc_engine_private.pine")
 
-    func_start = core.index("resolve_trust_tier(")
-    func_body = core[func_start:func_start + 600]
+    func_body = _function_body(core, "resolve_trust_tier")
 
     assert "'Insufficient'" in func_body
     assert func_body.index("'Insufficient'") < func_body.index("'High'"), \
@@ -386,8 +398,7 @@ def test_core_trust_resolution_defaults_to_insufficient() -> None:
 def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
     dashboard = _read("SMC_Long_Dip_Dashboard.pine")
 
-    func_start = dashboard.index("resolve_dashboard_trust_tier(")
-    func_body = dashboard[func_start:func_start + 600]
+    func_body = _function_body(dashboard, "resolve_dashboard_trust_tier")
 
     assert '"insufficient"' in func_body
     assert func_body.index('"insufficient"') < func_body.index('"high"'), \
