@@ -511,7 +511,9 @@ jobs:
             tests/test_pytest_marker_bucket_discipline.py \
             tests/test_smc_bus_v2_freeze.py \
             tests/test_smc_context_golden.py \
+            tests/test_library_field_audit.py \
             tests/test_pine_context_library_contract.py \
+            tests/test_pine_surface_registry.py \
             tests/test_pine_engine_fill_boundary.py \
             tests/test_pine_handlib_publisher_inventory.py \
             tests/test_pine_library_import_permissions.py \
