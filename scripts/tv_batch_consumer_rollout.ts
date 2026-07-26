@@ -13,6 +13,7 @@ import {
   closeTradingViewSession,
   ensurePineEditor,
   gotoChart,
+  isTrackedStepTimeoutError,
   newTradingViewSession,
   refreshChartScriptInstance,
   resolveProducerRefreshChartUrls,
@@ -194,6 +195,7 @@ async function main(): Promise<void> {
     await ensurePineEditor(session.page);
 
     if (executionPlan.saveSources) {
+      let saveSessionTimedOut = false;
       for (const target of config.saveTargets) {
         let lastError = "unknown save failure";
         for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -204,6 +206,12 @@ async function main(): Promise<void> {
             break;
           } catch (error) {
             lastError = String((error as Error)?.message ?? error);
+            // Promise.race cannot cancel the timed-out Playwright action. A
+            // retry on the same page would overlap the still-settling script
+            // picker and can select a different Monaco model. Stop the write
+            // phase and let finally close the session instead.
+            saveSessionTimedOut = isTrackedStepTimeoutError(error) || session.page.isClosed();
+            if (saveSessionTimedOut) break;
             if (attempt < 2) {
               await gotoChart(session.page, config.primaryChartUrl).catch(() => undefined);
               await ensurePineEditor(session.page).catch(() => undefined);
@@ -211,6 +219,7 @@ async function main(): Promise<void> {
           }
         }
         if (lastError) report.save.failed.push({ target: target.scriptName, error: lastError });
+        if (saveSessionTimedOut) break;
       }
     }
 

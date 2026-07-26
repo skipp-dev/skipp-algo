@@ -730,6 +730,35 @@ export function stepTimeoutMs(): number {
   return numEnv("TV_STEP_TIMEOUT_MS", 45_000);
 }
 
+export function resolveOpenScriptTiming(env: NodeJS.ProcessEnv = process.env): {
+  stepTimeoutMs: number;
+  modelSettleTimeoutMs: number;
+} {
+  const parseMs = (name: string, fallback: number): number => {
+    const raw = env[name];
+    if (!raw) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+  const baseStepTimeoutMs = parseMs("TV_STEP_TIMEOUT_MS", 45_000);
+
+  return {
+    // Opening a 200+ KiB Pine consumer can require multiple selector attempts
+    // plus a delayed Monaco model swap. The generic 45s step timeout caused the
+    // first attempt to keep running while the batch started a second attempt.
+    stepTimeoutMs: parseMs(
+      "TV_OPEN_SCRIPT_TIMEOUT_MS",
+      Math.max(baseStepTimeoutMs, 180_000),
+    ),
+    modelSettleTimeoutMs: parseMs("TV_OPEN_SCRIPT_MODEL_SETTLE_TIMEOUT_MS", 30_000),
+  };
+}
+
+export function isTrackedStepTimeoutError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^Step timed out after \d+ms: /.test(message);
+}
+
 async function runTrackedStep<T>(
   page: Page,
   stepName: string,
@@ -5837,6 +5866,7 @@ export async function openExistingScript(
     requireVisibleDeclarationIdentity?: boolean;
   } = {},
 ): Promise<boolean> {
+  const timing = resolveOpenScriptTiming();
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
     const identityNames = openScriptIdentityNames(scriptName);
     const selectionAttempts = resolveOpenScriptSelectionAttempts(scriptName);
@@ -5910,7 +5940,11 @@ export async function openExistingScript(
       const declarationVerified = identityVerified
         && (
           !options.requireVisibleDeclarationIdentity
-          || await waitForVisiblePineDeclarationIdentity(page, identityNames).catch(() => false)
+          || await waitForVisiblePineDeclarationIdentity(
+            page,
+            identityNames,
+            timing.modelSettleTimeoutMs,
+          ).catch(() => false)
         );
       if (identityVerified && declarationVerified) {
         if (searchName !== scriptName) {
@@ -5933,7 +5967,7 @@ export async function openExistingScript(
     }
 
     return false;
-  });
+  }, timing.stepTimeoutMs);
 }
 
 export async function addExistingScriptToChartViaIndicators(

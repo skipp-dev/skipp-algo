@@ -23,6 +23,7 @@ import {
   resolveOpenScriptIdentityEvidence,
   resolveOpenScriptSearchNames,
   resolveOpenScriptSelectionAttempts,
+  resolveOpenScriptTiming,
   resolveTradingViewPageAuthState,
   openScriptSurfaceScopeLooksReady,
   openSettingsFromVisibleLegendText,
@@ -56,6 +57,7 @@ import {
   visibleLegendTextTargetKey,
   isIndicatorSettingsDialogSnapshot,
   parseFacadeSavedVersion,
+  isTrackedStepTimeoutError,
 } from "../lib/tv_shared.js";
 import { tvSelectors } from "../selectors.js";
 
@@ -316,6 +318,35 @@ test("script selection retries the canonical exact title before legacy aliases",
     { searchName: "SMC Core", exactTitleOnly: true },
     { searchName: "SMC Core Engine", exactTitleOnly: true },
   ]);
+});
+
+test("large saved scripts receive a dedicated model-settlement and step timeout", () => {
+  assert.deepEqual(resolveOpenScriptTiming({}), {
+    stepTimeoutMs: 180_000,
+    modelSettleTimeoutMs: 30_000,
+  });
+  assert.deepEqual(resolveOpenScriptTiming({
+    TV_STEP_TIMEOUT_MS: "240000",
+    TV_OPEN_SCRIPT_MODEL_SETTLE_TIMEOUT_MS: "45000",
+  }), {
+    stepTimeoutMs: 240_000,
+    modelSettleTimeoutMs: 45_000,
+  });
+  assert.deepEqual(resolveOpenScriptTiming({
+    TV_OPEN_SCRIPT_TIMEOUT_MS: "210000",
+    TV_OPEN_SCRIPT_MODEL_SETTLE_TIMEOUT_MS: "invalid",
+  }), {
+    stepTimeoutMs: 210_000,
+    modelSettleTimeoutMs: 30_000,
+  });
+});
+
+test("tracked step timeout detection is exact enough to suppress unsafe same-page retries", () => {
+  assert.equal(
+    isTrackedStepTimeoutError(new Error("Step timed out after 45000ms: openExistingScript:SMC Long-Dip Suite; lifecycle ok")),
+    true,
+  );
+  assert.equal(isTrackedStepTimeoutError(new Error("Could not open existing saved script")), false);
 });
 
 test("indicator private script matching requires a visible My scripts row", () => {

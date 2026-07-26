@@ -127,6 +127,13 @@ def test_transient_tradingview_save_failures_are_retried_once() -> None:
     assert "for (let attempt = 1; attempt <= 2; attempt += 1)" in batch
 
 
+def test_timed_out_save_never_retries_while_the_first_picker_can_still_settle() -> None:
+    """A Promise.race timeout does not cancel its Playwright action."""
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    assert "saveSessionTimedOut = isTrackedStepTimeoutError(error) || session.page.isClosed()" in batch
+    assert "if (saveSessionTimedOut) break" in batch
+
+
 def test_transient_binding_verification_failures_are_retried_once() -> None:
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert batch.count("for (let attempt = 1; attempt <= 2; attempt += 1)") == 3
