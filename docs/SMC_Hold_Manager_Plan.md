@@ -1,7 +1,14 @@
 # SMC Hold-Manager — Plan (Option C)
 
-Status: **Plan-Dokument** — v1 (reine Visualisierung) implementiert in
-`SMC_Hold_Manager.pine`. v2/v3/v4 noch ausstehend (siehe Phase-Gate-Section).
+> **Aktueller Standard-Rollout-Vertrag (2026-07-26):**
+> [SMC Extended Pine Architecture and Rollout Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
+> Dieses Dokument bewahrt die ursprüngliche Phasenplanung. Bei Widersprüchen
+> gelten die neueren Anforderungen zu BUS-Anbindung, Zustandsrekonstruktion,
+> Replay-Evidenz, Long-only-Scope und Rollback.
+
+Status: **Historischer Phasenplan mit implementierter v1-Basis.**
+`SMC_Hold_Manager.pine` wird nach bestandenem Readiness-Gate ein
+Standard-Companion; die weitergehenden v2/v3/v4-Funktionen bleiben gestuft.
 
 Letzte Aktualisierung: 2026-04-29
 
@@ -98,18 +105,18 @@ den Stop zu früh zu verkürzen.
 
 ## Quellen-Validierung (welche BUS-Outputs / Library-Symbole brauchen wir?)
 
-### Bestätigt verfügbar (validated 2026-04-29)
+### Bestätigt verfügbar (aktualisiert 2026-07-26)
 - `BUS Armed`, `BUS Confirmed`, `BUS Ready` (input.source) ✅
 - `BUS Trigger`, `BUS Invalidation` ✅
+- `BUS StopLevel`, `BUS Target1`, `BUS Target2` ✅
 - `BUS QualityScore`, `BUS StateCode`, `BUS SourceKind`, `BUS TrendPack` ✅
 - `BUS ZoneActive`, `BUS SchemaVersion` ✅
 
-### **NICHT verfügbar** — wichtige Korrektur
-- ❌ `BUS Target1`, `BUS Target2`, `BUS StopLevel` existieren **nicht** als
-  separate BUS-Outputs. Nur `BUS Invalidation` ist publiziert.
-- → Targets müssen **intern berechnet** werden als R-Multiple von
-  `(Trigger − Invalidation)`. Genau dieses Pattern nutzt
-  `SMC_Long_Dip_Strategy.pine` (Zeile 75–76, `take_profit_r` default 2.0).
+Die frühere Angabe, dass `BUS StopLevel`, `BUS Target1` und `BUS Target2`
+nicht publiziert seien, ist überholt. Sie sind Teil des eingefrorenen Engine
+BUS v2 und werden im Standard-Rollout zum primären Hold-Plan. Eine interne
+R-Multiple-Berechnung bleibt höchstens ein ausdrücklich gekennzeichneter
+Fallback, nicht der Standardpfad.
 
 ### Library `mp.*` — Lifecycle-Flags (KORREKTUR 2026-04-29)
 

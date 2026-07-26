@@ -1,6 +1,12 @@
 # SMC Pine Skripte — Abhängigkeiten & Chart-Kombinationen
 
-Letzte Aktualisierung: 2026-04-29
+Letzte Wahrheitskorrektur: 2026-07-26
+
+> **Verbindliche Zielarchitektur und Migration:**
+> [SMC Extended Pine Architecture and Rollout Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
+> Die Kombinationen mit alten Structure-, Imbalance-, Liquidity-, Profile-,
+> Session- oder HTF-Snapshot-Companions sind historische Entwürfe und keine
+> aktuelle Einsatzempfehlung.
 
 Diese Doku beantwortet zwei wiederkehrende Fragen:
 
@@ -9,42 +15,28 @@ Diese Doku beantwortet zwei wiederkehrende Fragen:
 
 ## Kernerkenntnis
 
-**Keines der Skripte muss „zusammen mit" einem anderen Skript auf dem Chart
-laufen.** Pine-Indikatoren in TradingView sind technisch isoliert — sie
-kommunizieren *nicht* untereinander auf dem Chart.
+Die aktiven SMC-Skripte sind **nicht allgemein standalone**. Dashboard,
+Strategy, Exit Signal, Hold Manager, Event Overlay und künftige Context-
+Consumer lesen `input.source()`-Kanäle von einem Producer auf demselben Chart.
+Sie benötigen den richtigen Producer, die passende Schema-Version und
+verifizierte Bindings.
 
-Was sie teilen, ist die **publizierte TradingView-Library**
-`skippALGO/smc_micro_profiles_generated/1` (im Code als `mp` importiert).
-Daten werden also vom TV-Server bezogen, nicht von einem Nachbar-Indikator.
-
-→ Du musst **nicht** `SMC_Core_Engine` zusätzlich laden, damit z. B. das
-`SMC_Dashboard` funktioniert. Jedes Skript ist eigenständig.
+Die Micro-Profile-Library liefert nur langsam veränderliche Snapshot- und
+Enrichment-Daten. Sie ersetzt keinen barweisen Producer.
 
 ## Dependency-Map
 
-| Skript | Library-Imports | Standalone? |
-|---|---|---|
-| `SMC_Core_Engine` | `smc_core_types`, `smc_utils`, `smc_draw` | ✅ ja (Quell-Engine) |
-| `SMC_Dashboard` | `mp` | ✅ |
-| `SMC_Mobile_Dashboard` | `mp` | ✅ |
-| `SMC_Structure_Context` | `mp` | ✅ |
-| `SMC_Liquidity_Context` | `mp` | ✅ |
-| `SMC_Liquidity_Structure` | `mp` | ✅ |
-| `SMC_Imbalance_Context` | `mp` | ✅ |
-| `SMC_Profile_Context` | `mp` | ✅ |
-| `SMC_Session_Context` | `mp` | ✅ |
-| `SMC_HTF_Confluence` | `mp` | ✅ |
-| `SMC_Orderflow_Overlay` | `mp` | ✅ |
-| `SMC_Event_Overlay` | `mp` | ✅ |
-| `SMC_Breakout_Overlay` | `mp` | ✅ |
-| `SMC_Long_Strategy` | `mp` | ✅ |
-| `SMC_Setup_Check` | keine | ✅ |
-| `SMC_TV_Bridge` | keine | ✅ |
-| `SMC_VRVP_Overlay` | keine | ✅ |
-| `SMC_Exit_Signal` *(NEU)* | keine (nur BUS-Inputs) | ✅ |
-| `SMC_Hold_Manager` *(NEU, v1)* | `mp` (read-only Snapshot) | ✅ |
+| Consumer-Typ | Erforderliche Quelle |
+|---|---|
+| Dashboard, Mobile, Strategy, Alerts, Breakout | Engine BUS v2 / Schema 7001 |
+| Event Overlay | Micro-Profile-Eventdaten plus Engine BUS v2 |
+| Exit Signal | Engine BUS v2 |
+| Hold Manager | Engine BUS v2; manueller Plan nur als gekennzeichneter Fallback |
+| Context Overlay | künftiger Context BUS v3 / Schema 8001 |
+| neue HTF Confluence | bestätigte 15m-/1h-/4h-Chartdaten über die Context-Library |
+| Volume Profile Overlay | eigenständig aus Chart-OHLCV |
 
-→ **Alle 19 Skripte sind technisch standalone.**
+Die alten Snapshot-basierten Context-Skripte werden ersetzt oder archiviert.
 
 ## Praktische TradingView-Limits
 
@@ -57,167 +49,59 @@ Daten werden also vom TV-Server bezogen, nicht von einem Nachbar-Indikator.
 Du kannst nicht alle gleichzeitig auflegen — wähle die Kombination
 passend zum Use-Case und Plan.
 
-## Sinnvolle Kombinationen
+## Aktueller Rollout
 
-### 0. Absolute Anfänger — „Nur BUY/SELL, kein Erklärbär" (3 Slots)
+Bis die Phasen im neuen Architektur- und Rollout-Plan abgeschlossen sind,
+bleibt der bestehende Acht-Skript-Rollout die operative Basis:
 
-Für Nutzer, die **keine Zonen, keine FVGs, keine Strukturkonzepte** verstehen
-wollen — nur klare Anweisungen per Phone-Alert.
+- SMC Long-Dip Suite
+- SMC Long-Dip Dashboard
+- SMC Long-Dip Mobile
+- SMC Long-Dip Strategy
+- SMC Long-Dip Alerts
+- SMC Setup Check
+- SMC Breakout Overlay
+- SMC Confluence Hub
 
-**Empfohlene Skripte:**
-- `SMC_Mobile_Dashboard` — die **Entry**-Ampel (Action-Zeile)
-- `SMC_Exit_Signal` — die **Exit**-Engine (alertconditions für Stop / TP1 / TP2 / Defensive)
-- `SMC_Event_Overlay` — News- / Earnings-Risiko-Filter
+Event Overlay, Exit Signal und Hold Manager werden erst nach ihren jeweiligen
+Compile-, Binding-, Replay- und Source-Hash-Gates als Standardkombinationen
+geführt. Die alten Snapshot-basierten Context-Skripte dürfen nicht als
+operative Chartkombination verwendet werden.
 
-> ✅ **Diese Combo deckt den vollen Trade-Lifecycle per TV-Alert ab.**
-> Keine Doku-Lektüre, kein Dashboard-Lesen nötig. Phone-Alerts genügen.
+Beim Hold Manager beginnt die Time-Stop-Uhr erst mit dem tatsächlichen
+Entry-Touch (`HM_ENTRY`). Wartezeit im Zustand `ARMED` zählt nicht als
+Trade-Zeit.
 
-**Quellen-Übersicht (Stand 2026-04-29):**
+## Ziel-Presets
 
-| Quelle | Was es liefert | Anfänger-tauglich? |
-|---|---|---|
-| `SMC_Mobile_Dashboard` | Entry-Action (`ENTER`/`READY`/`WAIT`/`BLOCKED`) + Trust | ✅ |
-| `SMC_Exit_Signal` *(NEU)* | `alertcondition()` für Stop, TP1 (½), TP2 (Rest), Defensive | ✅ |
-| `SMC_Event_Overlay` | Visueller News-/Earnings-Risk-Filter | ✅ |
-| `SMC_Dashboard` | Optionale Levels-Visualisierung (Stop, R, Quality) | ✅ (optional) |
-| `SMC_Long_Strategy` | Maschinelle Backtest-Referenz (TP @ 2R) | ✅ (für Validierung) |
+Nach dem stufenweisen Rollout gelten diese Presets:
 
-**Action-Zeile (Mobile_Dashboard) — Entry:**
-
-| Was sichtbar ist | Was zu tun ist |
+| Preset | Skripte |
 |---|---|
-| `Action: ENTER LONG` + `Trust: High` | Einstieg laut Plan |
-| `Action: READY LONG` | Auf Bestätigung warten |
-| `Action: WAIT` / `PREPARE LONG` | Nichts tun |
-| `Action: BLOCKED` | Hände weg / Position defensiv schließen |
+| Lite | Suite plus Mobile oder Dashboard plus Event Overlay |
+| Simple Management | Lite plus Exit Signal |
+| Advanced Management | Lite plus Hold Manager |
+| Pro Context | Suite plus Dashboard plus Context BUS plus Context Overlay |
+| Pro HTF | Pro Context plus neu gebaute HTF Confluence |
+| Research | Pro HTF plus optional Volume Profile oder Breakout Overlay |
 
-**Alerts (Exit_Signal) — Exit:**
+Exit Signal und Hold Manager sind alternative Management-Modi. Für denselben
+angenommenen Trade darf immer nur ein Satz handlungsrelevanter Exit-Alerts
+aktiv sein.
 
-| TV-Alert | Was zu tun ist |
-|---|---|
-| `ENTER LONG (trigger filled)` | Position OPEN — Bestätigung |
-| `EXIT — TP1 (take half)` | Halbe Position raus, Stop auf Entry |
-| `EXIT — TP2 (close rest)` | Rest schließen |
-| `EXIT — Stop hit` | **Sofort raus** (close < Invalidation) |
-| `EXIT — Defensive (setup invalidated)` | Defensiv raus (Setup-Stack zerfallen) |
+## Nicht mehr verwenden
 
-**Setup auf TradingView:**
+Bis zur dokumentierten Ablösung beziehungsweise Archivierung nicht in aktive
+Layouts aufnehmen:
 
-1. Beide Skripte aufs Chart legen.
-2. In `SMC_Exit_Signal` die BUS-Inputs auf die SMC-Core-Outputs binden
-   (Armed, Confirmed, Ready, Trigger, Invalidation) — gleiche Reihenfolge
-   wie auf `SMC_Long_Strategy`.
-3. Auf jede der 5 alertconditions einen TradingView-Alert mit Phone-Push
-   anlegen → fertig.
+- alte Structure Context
+- alte Imbalance Context
+- alte Liquidity Context
+- alte Liquidity Structure
+- alte Profile Context
+- alte Session Context
+- alte HTF Confluence
+- Orderflow Overlay als vermeintliche Live-Orderflow-Anzeige
 
-**Wichtige Einschränkungen — bitte ehrlich kommunizieren:**
-
-1. **Kein „BUY/SELL-Generator" im naiven Sinn.** System ist **Long-Dip-only**
-   (US-Aktien). Keine SELL-Signale für Shorts.
-2. **`Trust`-Spalte ist Pflichtlektüre.** Bei `Degraded` oder `Insufficient`
-   ist das Entry-Signal **nicht handelbar**.
-3. **Exit_Signal nutzt einen statischen Stop und feste TP-Level.** Kein
-   Trailing, kein dynamisches Stop-Nachziehen über TP1 hinaus.
-   → Für aktive Trade-Verwaltung siehe Combo 8 unten
-   (`SMC_Hold_Manager` v1 — Visualisierungs-Indikator) bzw. den Plan
-   [SMC_Hold_Manager_Plan.md](SMC_Hold_Manager_Plan.md) für v2/v3/v4.
-4. **Backtest-Validierung:** `SMC_Long_Strategy` parallel laufen lassen — sie
-   nutzt dieselben BUS-Signale und liefert die Performance-Statistik.
-
-**Lese-Empfehlung (optional, kein Muss):**
-[SMC_Dashboard_Long_Dip_Guide_DE.md](SMC_Dashboard_Long_Dip_Guide_DE.md) und
-[SMC_GETTING_STARTED.md](SMC_GETTING_STARTED.md).
-
-### 1. Daily Driver — „Standard-Trading-Layout" (5 Slots)
-Best-Bang-for-Buck Combo für aktive Sessions.
-- `SMC_Dashboard` — Übersicht / Score
-- `SMC_Structure_Context` — BOS/CHoCH-Linien aufs Chart
-- `SMC_Liquidity_Context` — Sweep / EQH / EQL als Linien
-- `SMC_Imbalance_Context` — FVG-Boxen
-- `SMC_Profile_Context` (Pane unten) — POCs
-
-### 2. Breakout-Hunter (4 Slots)
-Wenn du gezielt auf Range-Breaks tradest.
-- `SMC_Structure_Context` — Strukturkontext
-- `SMC_Breakout_Overlay` — Box + ▲▼ am Bruch + Win/Loss-Sim
-- `SMC_VRVP_Overlay` — POC / VAH / VAL als Confluence-Levels
-- `SMC_Liquidity_Context` — Liquidity-Pools über/unter dem Range
-
-### 3. HTF-Confluence-Setup (3 Slots)
-Multi-Timeframe-Bias-Workflow.
-- `SMC_HTF_Confluence` (Pane) — HTF-Trend-Score
-- `SMC_Structure_Context` — LTF-Struktur
-- `SMC_Setup_Check` — Pre-Trade-Checkliste
-
-### 4. Orderflow-Deep-Dive (4 Slots)
-- `SMC_Structure_Context`
-- `SMC_Liquidity_Structure` (Pane) — Sweep-Quantifizierung
-- `SMC_Orderflow_Overlay` (Pane) — Volumen / Delta
-- `SMC_VRVP_Overlay` — Visible-Range-Profile
-
-### 5. News-Aware Day-Trading (3 Slots)
-- `SMC_Dashboard`
-- `SMC_Event_Overlay` — News-Marker
-- `SMC_Session_Context` (Pane) — Session-Status
-
-### 6. Mobile (1 Slot)
-- `SMC_Mobile_Dashboard` — alleine, große Schrift, alle Stati in einer Tabelle.
-
-### 7. Backtest / Live-Strategy (1–2 Slots)
-- `SMC_Long_Strategy` — die ausführbare Strategy
-- optional `SMC_Dashboard` daneben für Operator-Visibility
-
-### 8. Aktive Trade-Verwaltung — Hold-Manager (3 Slots, Phase-A-safe)
-
-> **Naming-Klarstellung:** Es gibt bewusst keinen separaten
-> `SMC_Exit_Manager`. Hold-Manager subsumiert die Exit-Phase, weil ein
-> dynamischer Exit ohne Hold-Kontext (Entry-Bar, Trail-Höchststand,
-> T1-Hit-Status) keine sinnvollen Entscheidungen treffen kann. Statischer
-> Exit-Notifier für Anfänger ist `SMC_Exit_Signal` (Combo 0).
-
-Für Nutzer, die **bereits in einer Position sind** und während des Trades
-laufende Steuerung wollen (Stop-Trail, T1/T2-Visualisierung, Time-Stop in
-Minuten, Earnings-Pre-Defensive-Hinweis).
-
-- `SMC_Mobile_Dashboard` — Entry-Ampel (wie in Combo 0)
-- `SMC_Exit_Signal` — statische Exit-Engine (Backup-Alerts)
-- `SMC_Hold_Manager` — **aktive** Trade-Verwaltung mit ATR-Chandelier-Trail,
-  Breakeven-nach-T1, Time-Stop in Minuten, edge-detected Alerts (`HM_*`)
-
-**Wichtige Hinweise zu `SMC_Hold_Manager` v1:**
-
-- Reine **Visualisierung** (`indicator()`, kein `strategy.*` — keine
-  Auto-Orders).
-- Plan-Inputs (Entry, Initial-Stop, T1/T2-R) werden **manuell** gefüllt
-  oder per Webhook-Toggle aus dem Setup-Alert. BUS Target1/2/StopLevel
-  sind aktuell nicht publiziert (→ Phase B).
-- Alle 6 Alerts (`HM_ENTRY`, `HM_T1`, `HM_T2`, `HM_STOP`, `HM_TIMESTOP`,
-  `HM_EXIT_ANY`) sind **edge-detected** — feuern genau einmal pro Event,
-  kein Bar-Spam.
-- Die Time-Stop-Uhr beginnt erst mit dem tatsächlichen Entry-Touch
-  (`HM_ENTRY`). Wartezeit im Zustand `ARMED` wird nicht als Trade-Zeit
-  angerechnet.
-- v1 ist **Long-only**. Short-Pfad, family-aware ATR-Mult, Quality-Sizing
-  und Webhook-State-Persistence kommen in v2/v3/v4 (siehe Plan-Doku,
-  Phase-Gates an Sprint-C13 Phase-A/B-Sign-off gebunden).
-
-> ⚠️ **Nicht parallel zu `SMC_Long_Strategy` mit Live-Orders laufen lassen**,
-> solange v1 reine Visualisierung ist — sonst zwei konkurrierende Exit-
-> Logiken im selben Track-Record.
-
-## Kombinationen, die du vermeiden solltest
-
-- **Mehrere Pane-Skripte gleichzeitig** (`Liquidity_Structure` +
-  `Orderflow` + `Profile` + `Session` + `HTF_Confluence`) → frisst Platz
-  unter dem Chart, wird unleserlich.
-- **`Dashboard` + `Mobile_Dashboard` parallel** → redundant; einer reicht.
-- **`SMC_TV_Bridge` parallel zu `Dashboard` / `Structure_Context`** →
-  der Bridge ist „alles in einem", überlappt mit den Einzel-Contexts.
-
-## TL;DR
-
-- Alle Skripte laufen **einzeln**.
-- Empfohlene Default-Kombi für aktives Trading:
-  **Dashboard + Structure_Context + Liquidity_Context + Imbalance_Context + Profile_Context**
-  (5er-Slot-Premium-Plan).
-- Für gezielte Setups (Breakouts / HTF / News) tausche selektiv die Overlays.
+Die konkreten Ersatz- und Archivierungsbedingungen stehen im
+[Architektur- und Rollout-Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).
