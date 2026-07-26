@@ -20,6 +20,38 @@ def make_bars(rows: list[dict]) -> pd.DataFrame:
     return normalize_bars(pd.DataFrame(rows))
 
 
+def make_ohlc(rows: list[tuple[int, float, float, float, float]]) -> pd.DataFrame:
+    return make_bars(
+        [
+            {
+                "timestamp": timestamp,
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 100,
+            }
+            for timestamp, open_, high, low, close in rows
+        ]
+    )
+
+
+def mirror_prices(bars: pd.DataFrame, pivot: float = 200.0) -> pd.DataFrame:
+    mirrored = bars.copy()
+    mirrored["open"] = pivot - bars["open"]
+    mirrored["close"] = pivot - bars["close"]
+    mirrored["high"] = pivot - bars["low"]
+    mirrored["low"] = pivot - bars["high"]
+    return normalize_bars(mirrored)
+
+
+def broken_fractal_signature(bars: pd.DataFrame) -> list[tuple[int, str]]:
+    return [
+        (int(event["time"]), str(event["dir"]))
+        for event in detect_broken_fractal(bars, n=2, mode="confirmed")
+    ]
+
+
 def test_detect_structure_breaking_fvg_returns_list() -> None:
     df = make_bars(
         [
@@ -86,6 +118,49 @@ def test_detect_broken_fractal_provisional_and_confirmed() -> None:
     conf = detect_broken_fractal(df, n=2, mode="confirmed")
     assert isinstance(prov, list)
     assert isinstance(conf, list)
+
+
+def test_detect_broken_fractal_outside_bar_is_price_mirror_symmetric() -> None:
+    bars = make_ohlc(
+        [
+            (1, 99, 100, 98, 99),
+            (2, 99, 101, 97, 100),
+            (3, 100, 105, 93, 101),  # simultaneous high + low fractal
+            (4, 100, 103, 95, 101),
+            (5, 99, 102, 96, 100),
+            (6, 94, 94.5, 91.5, 92),  # first close below the low fractal
+            (7, 93, 95, 91, 92),
+            (8, 92, 96, 90, 91),
+            (9, 91, 97, 89, 90),
+            (10, 90, 98, 88, 89),
+        ]
+    )
+
+    assert broken_fractal_signature(bars) == [(6, "BEAR")]
+    assert broken_fractal_signature(mirror_prices(bars)) == [(6, "BULL")]
+
+
+def test_detect_broken_fractal_gap_cross_is_price_mirror_symmetric() -> None:
+    bars = make_ohlc(
+        [
+            (1, 100, 102, 98, 100),
+            (2, 100, 103, 97, 101),
+            (3, 96, 104, 94, 96),  # low fractal
+            (4, 100, 105, 96, 102),
+            (5, 101, 106, 95, 103),
+            (6, 105, 112, 97, 108),  # later high fractal
+            (7, 104, 108, 96, 105),
+            (8, 103, 107, 95, 104),
+            (9, 92, 93, 90, 91),  # gaps and closes below the low fractal
+            (10, 91, 94, 89, 90),
+            (11, 90, 95, 88, 89),
+            (12, 89, 96, 87, 88),
+            (13, 88, 97, 86, 87),
+        ]
+    )
+
+    assert broken_fractal_signature(bars) == [(9, "BEAR")]
+    assert broken_fractal_signature(mirror_prices(bars)) == [(9, "BULL")]
 
 
 def test_build_structure_qualifiers_shape() -> None:
