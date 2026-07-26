@@ -21,10 +21,11 @@ name: tv-save-consumer-source
 # imports (Core Engine pinned every lib at /1 → CE10271/CE10272). The repo is
 # SSOT; this recompiles the saved copies against the current library surface.
 #
-# Scheduled runs force an empty save mapping and therefore inspect saved-source
-# hashes and dropdown assignments without writing. Writing paths: manual
-# dispatch, and the workflow_run chain after a successful library refresh
-# (which also refreshes the applied producer chart instance).
+# Scheduled runs invoke the explicit --verify-only execution plan, which
+# structurally disables source saves, producer refresh, binding repair, and
+# layout save before the browser opens. Writing paths: manual dispatch, and the
+# workflow_run chain after a successful library refresh (which also refreshes
+# the applied producer chart instance).
 #
 # Safety:
 #   * Requires a real authenticated TV session — fails fast if TV_STORAGE_STATE
@@ -58,6 +59,11 @@ on:
         description: 'JSON array of {"source","scriptName"} pairs (empty = built-in default)'
         required: false
         default: ""
+      verify_only:
+        description: "Read sources and bindings without any TradingView mutation"
+        type: boolean
+        required: false
+        default: false
       repair_e2e:
         description: "Temporarily drift one Dashboard binding, repair it, and reverify"
         type: boolean
@@ -171,18 +177,24 @@ jobs:
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
-          # Cron is fail-safe read-only: [] skips every saved-script write.
-          TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event.inputs.mapping }}
+          TV_VERIFY_ONLY: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}
+          # [] remains a legacy-compatible belt-and-suspenders guard. The
+          # actual no-write contract is --verify-only below.
+          TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only == 'true' && '[]' || github.event.inputs.mapping }}
           # workflow_run (post-refresh chain) writes with producer refresh +
           # rebind; the rollout script hard-fails on refresh-without-rebind,
           # so both flags flip together here.
           TV_FORCE_REBIND: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
           TV_REFRESH_PRODUCER: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
         run: |
-          npx tsx scripts/tv_batch_consumer_rollout.ts
+          args=()
+          if [ "${TV_VERIFY_ONLY}" = "true" ]; then
+            args+=(--verify-only)
+          fi
+          npx tsx scripts/tv_batch_consumer_rollout.ts "${args[@]}"
 
       - name: Controlled repair E2E
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_e2e == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_e2e == 'true' && github.event.inputs.verify_only != 'true' }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: npx tsx scripts/tv_repair_binding_e2e.ts

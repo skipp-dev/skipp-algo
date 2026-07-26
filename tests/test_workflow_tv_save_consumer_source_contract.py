@@ -28,11 +28,16 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_schedule_is_daily_and_forces_read_only_mapping() -> None:
+def test_schedule_is_daily_and_invokes_explicit_verify_only_mode() -> None:
     on_block = _load().get("on") or _load().get(True)
     assert "workflow_dispatch" in on_block
     assert on_block["schedule"] == [{"cron": "17 5 * * *"}]
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+    verify_only = rollout["env"]["TV_VERIFY_ONLY"]
+    assert "github.event_name == 'schedule'" in verify_only
+    assert "&& 'true'" in verify_only
+    assert 'args+=(--verify-only)' in rollout["run"]
+    assert '"${args[@]}"' in rollout["run"]
     mapping = rollout["env"]["TV_CONSUMER_MAPPING_JSON"]
     assert "github.event_name == 'schedule'" in mapping
     assert "&& '[]'" in mapping
@@ -108,7 +113,11 @@ def test_scheduled_run_verifies_actual_saved_source_hashes_without_writing() -> 
     assert "sourceVerificationTargets = config.saveTargets" in batch
     assert "verifyConsumerSource(session, target)" in batch
     assert "report.sources.drifted === 0" in batch
-    assert 'createHash("sha256")' in saver
+    assert "normalizedPineSha256(source)" in saver
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert 'createHash("sha256")' in evidence
     assert "readEditorContent(session.page" in saver
 
 
@@ -194,8 +203,10 @@ def test_default_mapping_covers_every_binding_order_consumer() -> None:
 def test_repair_e2e_is_explicit_and_uses_visible_dashboard_test_instance() -> None:
     dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
     assert dispatch["repair_e2e"]["default"] is False
+    assert dispatch["verify_only"]["default"] is False
     repair = next(s for s in _steps() if s.get("name") == "Controlled repair E2E")
     assert "repair_e2e == 'true'" in repair["if"]
+    assert "verify_only != 'true'" in repair["if"]
     assert "scripts/tv_repair_binding_e2e.ts" in repair["run"]
     config = yaml.safe_load(
         (_REPO_ROOT / "automation/tradingview/config/consumer-rollout.json").read_text(encoding="utf-8")
@@ -238,8 +249,12 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     )
 
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
-    assert 'process.env.TV_FORCE_REBIND === "true"' in batch
-    assert "verifyConsumerBindings(session, target, forceRebind, forceRebind)" in batch
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert "env.TV_FORCE_REBIND" in evidence
+    assert "executionPlan.repairBindings" in batch
+    assert batch.count("executionPlan.repairBindings") >= 3
 
 
 def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
@@ -253,7 +268,7 @@ def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
     """
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert "saveChangedChartLayout(session.page)" in batch
-    assert "if (forceRebind && report.bindings.failed.length === 0)" in batch
+    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
     # A failed save lands in bindings.failed, which gates report.ok below.
     assert '"chart-layout"' in batch
 
@@ -269,9 +284,35 @@ def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
     assert "github.event.inputs.refresh_producer" in rollout["env"]["TV_REFRESH_PRODUCER"]
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
-    assert 'process.env.TV_REFRESH_PRODUCER === "true"' in batch
-    assert "refreshProducer && !forceRebind" in batch
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert "env.TV_REFRESH_PRODUCER" in evidence
+    assert "refreshProducer && !forceRebind" in evidence
     assert "refreshChartScriptInstance(session.page, config.producerName)" in batch
+
+
+def test_verify_only_mode_structurally_gates_every_mutation_and_records_provenance() -> None:
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert 'args.includes("--verify-only")' in evidence
+    assert 'mode: "verify-only"' in evidence
+    assert "saveSources: false" in evidence
+    assert "refreshProducer: false" in evidence
+    assert "repairBindings: false" in evidence
+    assert "saveLayout: false" in evidence
+    assert "if (executionPlan.saveSources)" in batch
+    assert "if (report.save.failed.length === 0 && executionPlan.refreshProducer)" in batch
+    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
+    assert "schemaVersion: 2" in batch
+    assert "repoCommitSha" in batch
+    assert "rolloutConfigSha256" in batch
+    assert "inputsMatchCommit" in batch
+    assert "repositoryExpected.libraryRelease.matches" in batch
+    assert "tradingViewObserved" in batch
+    assert "mutations" in batch
 
 
 def test_scheduled_run_cannot_execute_repair_e2e() -> None:

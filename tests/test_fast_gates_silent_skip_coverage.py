@@ -809,7 +809,7 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # fail fast with ERR_MODULE_NOT_FOUND 'playwright' locally and need a pinned
 # browser (the local `tv:test` lane, which hangs without it), so demanding they
 # run in this packaging workflow would break it. The hermetic source-scan /
-# pure-logic pins (no playwright import) all gate: 12 run, 13 exempt.
+# pure-logic pins (no playwright import) all gate: 13 run, 13 exempt.
 TV_ONBOARDING_WORKFLOW = ROOT / ".github" / "workflows" / "tv-onboarding-packages.yml"
 _TV_TEST_DIR = ROOT / "automation" / "tradingview" / "tests"
 
