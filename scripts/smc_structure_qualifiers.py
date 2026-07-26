@@ -123,13 +123,20 @@ def detect_broken_fractal(df: pd.DataFrame, n: int = 2, mode: str = "provisional
             down_fractal = bool((left["high"] < center["high"]).all())
             up_fractal = bool((left["low"] > center["low"]).all())
 
-        if down_fractal:
+        if down_fractal and up_fractal:
+            # An outside bar is both fractals at once. Keep both levels but let
+            # neither branch win by evaluation order; the next close-cross
+            # resolves the direction symmetrically.
+            high_at_down_fractal = float(bars.iloc[i]["high"])
+            low_at_up_fractal = float(bars.iloc[i]["low"])
+            fractal_counter = 0
+        elif down_fractal:
             if fractal_counter > 0:
                 fractal_counter = 0
             high_at_down_fractal = float(bars.iloc[i]["high"])
             fractal_counter -= 1
 
-        if up_fractal:
+        elif up_fractal:
             if fractal_counter < 0:
                 fractal_counter = 0
             low_at_up_fractal = float(bars.iloc[i]["low"])
@@ -137,14 +144,17 @@ def detect_broken_fractal(df: pd.DataFrame, n: int = 2, mode: str = "provisional
 
         row = bars.iloc[i]
         if low_at_up_fractal is not None and high_at_down_fractal is not None:
+            previous_close = float(bars.iloc[i - 1]["close"])
+            current_close = float(row["close"])
             sell_signal = (
-                fractal_counter < 0
-                and float(row["open"]) > low_at_up_fractal
-                and float(row["close"]) < low_at_up_fractal
+                fractal_counter <= 0
+                and previous_close >= low_at_up_fractal
+                and current_close < low_at_up_fractal
             )
             buy_signal = (
-                fractal_counter >= 1
-                and float(row["close"]) > high_at_down_fractal
+                fractal_counter >= 0
+                and previous_close <= high_at_down_fractal
+                and current_close > high_at_down_fractal
             )
 
             if sell_signal:
