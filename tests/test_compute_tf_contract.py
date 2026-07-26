@@ -153,6 +153,47 @@ def test_aggregate_four_hour_bars_anchor_to_rth_and_ignore_extended_hours() -> N
     ] == ["13:30", "16:00"]
 
 
+@pytest.mark.parametrize(
+    ("timeframe", "expected_volumes", "expected_closes"),
+    [
+        ("1H", [60.0, 60.0, 60.0, 30.0], ["10:30", "11:30", "12:30", "13:00"]),
+        ("4H", [210.0], ["13:00"]),
+    ],
+)
+def test_aggregate_intraday_bars_honours_nyse_early_close(
+    timeframe: str,
+    expected_volumes: list[float],
+    expected_closes: list[str],
+) -> None:
+    market_tz = ZoneInfo("America/New_York")
+    session_open = datetime.datetime(2026, 11, 27, 9, 30, tzinfo=market_tz)
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1.0,
+            "ts_event": int(
+                (session_open + datetime.timedelta(minutes=minute)).timestamp()
+                * 1_000_000_000
+            ),
+        }
+        for minute in range(390)
+    ]
+
+    aggregated = compute._aggregate_bars(bars, timeframe)
+
+    assert [bar["volume"] for bar in aggregated] == expected_volumes
+    assert [
+        datetime.datetime.fromtimestamp(
+            int(bar["ts_event"]) / 1_000_000_000,
+            market_tz,
+        ).strftime("%H:%M")
+        for bar in aggregated
+    ] == expected_closes
+
+
 def test_aggregate_higher_timeframe_changes_indicators() -> None:
     bars = [
         {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000.0, "ts_event": (240 + i) * 60_000_000_000}

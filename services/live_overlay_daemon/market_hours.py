@@ -115,6 +115,19 @@ def _is_us_early_close(local_date: datetime.date) -> bool:
     return not _is_holiday("NYSE", local_date)
 
 
+def us_regular_session_end(local_date: datetime.date) -> datetime.time | None:
+    """Return the NYSE regular-session close for a trading date.
+
+    ``None`` means the exchange is closed for the full date. Consumers that
+    aggregate exchange-session bars use this alongside the live-open probe so
+    holidays and half-days cannot diverge across serving paths.
+    """
+
+    if local_date.weekday() >= 5 or _is_holiday("NYSE", local_date):
+        return None
+    return _US_EARLY_CLOSE_LOCAL if _is_us_early_close(local_date) else datetime.time(16, 0)
+
+
 def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
     """Return True during regular US equities session (Mon-Fri 09:30-16:00 ET).
 

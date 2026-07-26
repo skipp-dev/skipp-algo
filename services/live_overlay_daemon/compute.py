@@ -1100,11 +1100,18 @@ def _rth_bar_minute_bucket(ts_event: int, minutes: int) -> int | None:
     """
     from zoneinfo import ZoneInfo
 
+    from . import market_hours
+
     market_tz = ZoneInfo("America/New_York")
     bar_open = datetime.datetime.fromtimestamp(ts_event / 1_000_000_000, market_tz)
     session_open = bar_open.replace(hour=9, minute=30, second=0, microsecond=0)
-    session_close = bar_open.replace(hour=16, minute=0, second=0, microsecond=0)
-    if bar_open.weekday() >= 5 or not session_open <= bar_open < session_close:
+    session_end = market_hours.us_regular_session_end(bar_open.date())
+    if session_end is None:
+        return None
+    session_close = bar_open.replace(
+        hour=session_end.hour, minute=session_end.minute, second=0, microsecond=0
+    )
+    if not session_open <= bar_open < session_close:
         return None
 
     elapsed_close_minutes = int((bar_open - session_open).total_seconds() // 60) + 1
