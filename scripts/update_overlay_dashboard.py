@@ -235,6 +235,179 @@ TRAFFIC_ALERT_ARMED_PANEL: dict[str, Any] = {
     },
 }
 
+_SIGNAL_SUMMARY_TITLES = (
+    "Active Signals",
+    "Strongest Signal",
+    "Signal Snapshot Age",
+)
+_SIGNAL_SUMMARY_Y = 46
+_SIGNAL_SUMMARY_H = 4
+_SIGNALS_DASHBOARD_URL = "/d/smc-live-overlay-signals-v1?orgId=1"
+_SIGNALS_DASHBOARD_LINK = {
+    "targetBlank": True,
+    "title": "Open Signals & Experiments",
+    "type": "link",
+    "url": _SIGNALS_DASHBOARD_URL,
+}
+
+SIGNAL_SUMMARY_PANELS: tuple[dict[str, Any], ...] = (
+    {
+        "id": 2165782576,
+        "title": "Active Signals",
+        "type": "stat",
+        "datasource": PROMETHEUS_DATASOURCE,
+        "description": (
+            "Compact mirror of the Signals & Experiments dashboard. Counts current "
+            "A0, A1, and A2 signals only when snapshot age is known. Zero means a "
+            "fresh, quiet snapshot; N/A means freshness cannot be established."
+        ),
+        "gridPos": {"x": 0, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
+        "links": [_SIGNALS_DASHBOARD_LINK],
+        "targets": [
+            {
+                "expr": (
+                    'live_overlay_trading_signals_active{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_trading_signals_snapshot_age_known{job=~"$job"} == 1)'
+                ),
+                "instant": True,
+                "legendFormat": "active signals",
+                "refId": "A",
+                "datasource": PROMETHEUS_DATASOURCE,
+            }
+        ],
+        "fieldConfig": {
+            "defaults": {
+                "color": {"mode": "thresholds"},
+                "noValue": "N/A",
+                "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                        {"color": COLOR_NEUTRAL, "value": None},
+                        {"color": COLOR_OK, "value": 1},
+                    ],
+                },
+                "unit": "short",
+            },
+            "overrides": [],
+        },
+        "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "reduceOptions": {
+                "calcs": ["lastNotNull"],
+                "fields": "",
+                "values": False,
+            },
+            "textMode": "auto",
+        },
+    },
+    {
+        "id": 2165782577,
+        "title": "Strongest Signal",
+        "type": "stat",
+        "datasource": PROMETHEUS_DATASOURCE,
+        "description": (
+            "Highest current signal-ranking score. The label shows symbol, level, "
+            "and direction. NO ACTIVE SIGNAL is a valid quiet state; use the adjacent "
+            "snapshot-age tile to distinguish quiet from unavailable data."
+        ),
+        "gridPos": {"x": 8, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
+        "links": [_SIGNALS_DASHBOARD_LINK],
+        "targets": [
+            {
+                "expr": 'topk(1, live_overlay_trading_signal_score{job=~"$job"})',
+                "instant": True,
+                "legendFormat": "{{symbol}} · {{level}} · {{direction}}",
+                "refId": "A",
+                "datasource": PROMETHEUS_DATASOURCE,
+            }
+        ],
+        "fieldConfig": {
+            "defaults": {
+                "color": {"mode": "thresholds"},
+                "decimals": 1,
+                "noValue": "NO ACTIVE SIGNAL",
+                "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                        {"color": COLOR_NEUTRAL, "value": None},
+                        {"color": "dark-blue", "value": 1},
+                        {"color": COLOR_OK, "value": 5},
+                    ],
+                },
+                "unit": "short",
+            },
+            "overrides": [],
+        },
+        "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "reduceOptions": {
+                "calcs": ["lastNotNull"],
+                "fields": "",
+                "values": False,
+            },
+            "textMode": "value_and_name",
+        },
+    },
+    {
+        "id": 2165782578,
+        "title": "Signal Snapshot Age",
+        "type": "stat",
+        "datasource": PROMETHEUS_DATASOURCE,
+        "description": (
+            "Seconds since the realtime engine wrote its signal snapshot. N/A means "
+            "the timestamp is unknown. Yellow at 4 minutes and red at 8 minutes; "
+            "open Signals & Experiments for the full signal detail."
+        ),
+        "gridPos": {"x": 16, "y": _SIGNAL_SUMMARY_Y, "w": 8, "h": _SIGNAL_SUMMARY_H},
+        "links": [_SIGNALS_DASHBOARD_LINK],
+        "targets": [
+            {
+                "expr": (
+                    'live_overlay_trading_signals_snapshot_age_seconds{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_trading_signals_snapshot_age_known{job=~"$job"} == 1)'
+                ),
+                "instant": True,
+                "legendFormat": "snapshot age",
+                "refId": "A",
+                "datasource": PROMETHEUS_DATASOURCE,
+            }
+        ],
+        "fieldConfig": {
+            "defaults": {
+                "color": {"mode": "thresholds"},
+                "noValue": "N/A",
+                "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                        {"color": COLOR_OK, "value": None},
+                        {"color": COLOR_WARN, "value": 240},
+                        {"color": COLOR_ERROR, "value": 480},
+                    ],
+                },
+                "unit": "s",
+            },
+            "overrides": [],
+        },
+        "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "reduceOptions": {
+                "calcs": ["lastNotNull"],
+                "fields": "",
+                "values": False,
+            },
+            "textMode": "auto",
+        },
+    },
+)
+
 
 def _resolve_dashboard_path(argv: list[str] | None = None) -> tuple[Path, bool]:
     parser = argparse.ArgumentParser(description="Update Grafana dashboard UX.")
@@ -1398,6 +1571,64 @@ def _ensure_signal_pipeline_links(data: dict[str, Any]) -> bool:
     return changed
 
 
+def _ensure_signal_summary_panels(data: dict[str, Any]) -> bool:
+    """Keep a compact signal summary on the main operations dashboard.
+
+    The detailed ranking and per-signal tables stay on Signals & Experiments.
+    This main-dashboard mirror deliberately contains only current count,
+    strongest signal, and snapshot age, with every tile linking to the detail
+    dashboard.
+    """
+    if data.get("uid") != "smc-live-overlay-v1":
+        return False
+
+    changed = False
+    panels = data.setdefault("panels", [])
+    existing = {panel.get("title"): panel for panel in panels}
+    missing = [title for title in _SIGNAL_SUMMARY_TITLES if title not in existing]
+
+    # On the pre-feature layout, Global Market Sessions occupied y=46..49.
+    # Shift that panel and every later section exactly once to reserve the
+    # summary band. If a summary tile is later deleted, the already-reserved
+    # band remains empty and self-healing re-adds it without shifting again.
+    if missing:
+        summary_titles = set(_SIGNAL_SUMMARY_TITLES)
+        band_bottom = _SIGNAL_SUMMARY_Y + _SIGNAL_SUMMARY_H
+        band_occupied = any(
+            panel.get("title") not in summary_titles
+            and isinstance(panel.get("gridPos"), dict)
+            and isinstance(panel["gridPos"].get("y"), int)
+            and isinstance(panel["gridPos"].get("h"), int)
+            and panel["gridPos"]["y"] < band_bottom
+            and panel["gridPos"]["y"] + panel["gridPos"]["h"] > _SIGNAL_SUMMARY_Y
+            for panel in panels
+        )
+        if band_occupied:
+            changed = (
+                _shift_v1_panels_at_or_after_y(
+                    data,
+                    _SIGNAL_SUMMARY_Y,
+                    _SIGNAL_SUMMARY_H,
+                    exclude_titles=summary_titles,
+                )
+                or changed
+            )
+
+    for desired in SIGNAL_SUMMARY_PANELS:
+        title = desired["title"]
+        panel = existing.get(title)
+        if panel is None:
+            panels.append(copy.deepcopy(desired))
+            changed = True
+            continue
+        if panel != desired:
+            panel.clear()
+            panel.update(copy.deepcopy(desired))
+            changed = True
+
+    return changed
+
+
 def _fix_triage_guide_signal_path(data: dict[str, Any]) -> bool:
     """Ensure the triage guide mentions the signals-producer readiness path."""
     changed = False
@@ -2299,6 +2530,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_v1_incident_drilldown_links(data) or changed
         changed = _ensure_v1_service_owner_row_descriptions(data) or changed
         changed = _ensure_signal_pipeline_links(data) or changed
+        changed = _ensure_signal_summary_panels(data) or changed
         changed = _fix_triage_guide_signal_path(data) or changed
         changed = _fix_market_traffic_health_description(data) or changed
         changed = _ensure_traffic_alert_armed_panel(data) or changed
