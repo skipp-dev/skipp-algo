@@ -11,9 +11,12 @@ name: ats-baseline-daily
 # from Databento trades microstructure and lands it via the standard
 # bot-branch auto-merge PR.
 #
-# Runtime note (ops, not CI): the Sidecar app bundles the artifact — a fresh
-# baseline reaches the running /smc_live server only after the app rebuild
-# (`launchctl kickstart -k` of sidecar-serve). The repo copy stays the SSOT.
+# Runtime note (ops, not CI, corrected 2026-07-28): the only reader is
+# smc_api::_get_flow_ats_fields, which re-reads reports/ats_baseline_20d.json
+# from its own checkout on EVERY call — a serving checkout needs only
+# `git pull`. No app rebuild is involved (the sidecar-serve bundle contains
+# no skipp-algo code), and smc_api itself has no scheduled production runner
+# yet (WP-K runtime wiring pending). The repo copy stays the SSOT.
 #
 # Schedule: 21:30 UTC weekdays — after the Databento same-day finalization
 # (the production-export workflow's own comments put finalized data after
