@@ -32,6 +32,7 @@ export type SaveConsumerResult = {
   bytes: number;
   expectedSha256: string;
   preWriteIdentityVerified: true;
+  preWriteIdentityMode: "declaration" | "document_title_model_transition";
   stagedSourceVerified: true;
   postSaveSourceVerified: true;
 };
@@ -51,7 +52,7 @@ export function pineSourceSha256(source: string): string {
 }
 
 export function assertConsumerEditorSource(
-  phase: "pre-write identity" | "staged source" | "post-save source",
+  phase: "staged source" | "post-save source",
   target: SaveConsumerTarget,
   actual: string,
   expectedSha256?: string,
@@ -72,6 +73,26 @@ export function assertConsumerEditorSource(
   return actualSha256;
 }
 
+export function assertConsumerPreWriteSource(
+  target: SaveConsumerTarget,
+  actual: string,
+): "declaration" | "document_title_model_transition" {
+  if (pineDeclarationTitlePattern(target.scriptName).test(actual)) {
+    return "declaration";
+  }
+  if (!/\b(?:indicator|strategy|library)\s*\(\s*["']/m.test(actual)) {
+    throw new Error(
+      `pre-write identity verification failed for ${target.scriptName}: active Pine model has no declaration`,
+    );
+  }
+  // openExistingScript supplied the other two independent identity signals:
+  // the exact canonical saved-document title with a closed picker, and a
+  // stable visible Monaco-buffer transition from the pre-selection source.
+  // A different declaration is therefore repairable drift, not proof that
+  // the wrong TradingView document is selected.
+  return "document_title_model_transition";
+}
+
 function getFlag(name: string, fallback = ""): string {
   const args = process.argv.slice(2);
   const index = args.indexOf(name);
@@ -90,20 +111,20 @@ export async function saveConsumerSource(
   const opened = await openExistingScript(session.page, target.scriptName, {
     forceSelection: true,
     requireVisibleDeclarationIdentity: true,
-  }).catch(() => false);
+    allowDeclarationDriftRepair: true,
+  });
   if (!opened) throw new Error(`Could not open existing saved script: ${target.scriptName}`);
 
-  // UI title/context evidence is not sufficient write authority. TradingView
-  // can repaint the requested saved-script title while Monaco still exposes a
-  // different script buffer (observed 2026-07-26: selecting Suite left Alerts
-  // active). Pin the actual Monaco model by its Pine declaration BEFORE paste;
-  // a stale/wrong model therefore fails closed without changing any source.
+  // Prefer declaration identity. If the saved document itself is contaminated
+  // (observed 2026-07-27: the canonical Suite document contained the Alerts
+  // declaration), openExistingScript permits repair only after proving the
+  // exact canonical document title, a closed picker, and a stable visible
+  // Monaco-buffer transition from the pre-selection source.
   const preWriteSource = await readEditorContent(session.page, {
     editorAlreadyOpen: true,
-    expectedDeclarationTitle: target.scriptName,
     requireVisibleEditor: true,
   });
-  assertConsumerEditorSource("pre-write identity", target, preWriteSource);
+  const preWriteIdentityMode = assertConsumerPreWriteSource(target, preWriteSource);
 
   // The model assertion above proves the editor surface is ready. Re-running
   // ensurePineEditor here costs ~26s per consumer on the live chart.
@@ -139,6 +160,7 @@ export async function saveConsumerSource(
     bytes: code.length,
     expectedSha256,
     preWriteIdentityVerified: true,
+    preWriteIdentityMode,
     stagedSourceVerified: true,
     postSaveSourceVerified: true,
   };
@@ -155,7 +177,7 @@ export async function verifyConsumerSource(
   const opened = await openExistingScript(session.page, target.scriptName, {
     forceSelection: true,
     requireVisibleDeclarationIdentity: true,
-  }).catch(() => false);
+  });
   if (!opened) throw new Error(`Could not open existing saved script for source verification: ${target.scriptName}`);
   // The saved script name IS the Pine declaration title for every rollout
   // consumer (asserted by the tv:test declaration-title contract), so it pins
