@@ -112,6 +112,23 @@ def test_live_r1_r2_claims_stay_open_while_surfaces_are_planned() -> None:
         assert surfaces[file].rollout_state == "planned"
 
 
+def test_r2_reconstruction_claim_is_pinned_to_runtime_contract() -> None:
+    trace = _trace()
+    requirements = {
+        requirement["id"]: requirement
+        for phase in trace["phases"]
+        for requirement in phase["requirements"]
+    }
+
+    reconstruction = requirements["R2-RECONSTRUCTION"]
+    assert reconstruction["status"] == "complete"
+    assert reconstruction["evidence"] == [
+        "SMC_Hold_Manager.pine",
+        "tests/test_smc_hold_manager.py",
+    ]
+    assert reconstruction["openGates"] == []
+
+
 def test_r4_cannot_start_while_context_sources_are_absent() -> None:
     trace = _trace()
     r4 = next(phase for phase in trace["phases"] if phase["id"] == "R4")

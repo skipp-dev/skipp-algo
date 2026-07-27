@@ -880,6 +880,14 @@ and existing consumers are unaffected.
 
 #### R2.2 Deterministic state reconstruction
 
+Repository implementation status: **complete**. The runtime in
+`SMC_Hold_Manager.pine` rebuilds only from confirmed historical BUS and OHLC
+series. It retains the accepted plan identity and generation, entry epoch,
+protected high, Target-1 state, monotonic active stop, and terminal exit. A
+timestamped recovery event is replayable after reload; a last-bar toggle is
+not the source of truth. TradingView replay evidence remains a separate R2.4
+gate.
+
 - remove last-bar toggle state as the only arming mechanism;
 - reconstruct plan and assumed trade state from historical BUS series and
   confirmed price events;

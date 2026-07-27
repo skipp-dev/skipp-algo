@@ -106,11 +106,12 @@
         {
           "id": "R2-RECONSTRUCTION",
           "description": "Entry epoch, protected high, target state, active stop, terminal exit, reload, and new-plan identity reconstruct deterministically.",
-          "status": "not_started",
-          "evidence": [],
-          "openGates": [
-            "Implement Phase R2.2 deterministic reconstruction before standard rollout."
-          ]
+          "status": "complete",
+          "evidence": [
+            "SMC_Hold_Manager.pine",
+            "tests/test_smc_hold_manager.py"
+          ],
+          "openGates": []
         },
         {
           "id": "R2-REPLAY",
