@@ -5781,7 +5781,16 @@ def generate_open_prep_result(
         row["consolidation"] = consol
         row["is_consolidating"] = consol.get("is_consolidating", False)
         row["consolidation_score"] = consol.get("score", 0.0)
+        # §15 SHADOW (2026-07-27): score_candidate never sees measured ADX/BB —
+        # quote["adx"]/["bb_width_pct"] are unpopulated, so it always resolves
+        # NEUTRAL and the symbol-layer weight tilt is inert. Keep the regime
+        # scoring actually used, then record what THIS one would have changed.
+        from .regime_shadow import compute_regime_weight_shadow
+        row["symbol_regime_at_scoring"] = row.get("symbol_regime")
         row["symbol_regime"] = sym_regime
+        row["regime_weight_shadow"] = compute_regime_weight_shadow(  # observe-only
+            row, sym_regime, base_weights=adjusted_weights,
+        )
         # Disclose whether consolidation/regime came from measured daily-bar
         # indicators, the ATR%-derived proxy, or no data (audit #2670 W2).
         row["regime_source"] = regime_source
