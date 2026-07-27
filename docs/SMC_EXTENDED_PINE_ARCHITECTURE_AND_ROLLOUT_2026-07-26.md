@@ -917,6 +917,17 @@ evidence. R2.4 becomes complete only when an operator executes the same pinned
 matrix in TradingView and retains matching hidden-diagnostic and alert-count
 evidence.
 
+TradingView preconditions were captured on 2026-07-27 for repository source
+hash `f9a9369100b7ea25cbd2db6cf38dea0e0b00f186eb6b382e5a94397e415efdb6`.
+The source compiled without diagnostics, was added to the isolated
+`SMC Hold R2.4 Validation` layout, and all thirteen Engine BUS v2 inputs
+remained bound to `SMC Long-Dip Suite` after reload. The bounded evidence is in
+`artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-27.json`.
+It deliberately leaves the source readback hash and all twenty replay cases
+pending. The next gate is a deterministic TradingView fixture that can drive
+the complete BUS and OHLC scenario matrix; ordinary live chart data cannot
+prove the pre-registered cases on demand.
+
 At minimum:
 
 1. arm without entry;

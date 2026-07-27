@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-27T19:25:45Z",
+  "scope": "TradingView preconditions only; not R2.4 replay-case evidence",
+  "source": {
+    "path": "SMC_Hold_Manager.pine",
+    "repositorySha256": "f9a9369100b7ea25cbd2db6cf38dea0e0b00f186eb6b382e5a94397e415efdb6",
+    "savedSourceReadbackStatus": "pending"
+  },
+  "tradingView": {
+    "layout": "SMC Hold R2.4 Validation",
+    "savedScript": "SMC Hold Manager R2.4 Validation",
+    "symbol": "NASDAQ:BKNG",
+    "timeframeMinutes": 5,
+    "compileStatus": "passed",
+    "compileDiagnostics": [],
+    "addToChartStatus": "passed",
+    "addToChartEvidence": [
+      "Undo insert SMC Hold Manager",
+      "Update on chart"
+    ],
+    "bindingStatus": "passed_after_reload",
+    "bindings": {
+      "BUS SchemaVersion": "SMC Long-Dip Suite: BUS SchemaVersion",
+      "BUS ZoneActive": "SMC Long-Dip Suite: BUS ZoneActive",
+      "BUS Armed": "SMC Long-Dip Suite: BUS Armed",
+      "BUS Confirmed": "SMC Long-Dip Suite: BUS Confirmed",
+      "BUS Ready": "SMC Long-Dip Suite: BUS Ready",
+      "BUS Trigger": "SMC Long-Dip Suite: BUS Trigger",
+      "BUS Invalidation": "SMC Long-Dip Suite: BUS Invalidation",
+      "BUS QualityScore": "SMC Long-Dip Suite: BUS QualityScore",
+      "BUS SourceKind": "SMC Long-Dip Suite: BUS SourceKind",
+      "BUS StateCode": "SMC Long-Dip Suite: BUS StateCode",
+      "BUS StopLevel": "SMC Long-Dip Suite: BUS StopLevel",
+      "BUS Target1": "SMC Long-Dip Suite: BUS Target1",
+      "BUS Target2": "SMC Long-Dip Suite: BUS Target2"
+    }
+  },
+  "replay": {
+    "status": "pending",
+    "completedCaseIds": [],
+    "pendingCaseIds": [
+      "R2.4-01",
+      "R2.4-02",
+      "R2.4-03",
+      "R2.4-04",
+      "R2.4-05",
+      "R2.4-06",
+      "R2.4-07",
+      "R2.4-08",
+      "R2.4-09",
+      "R2.4-10",
+      "R2.4-11",
+      "R2.4-12",
+      "R2.4-13",
+      "R2.4-14",
+      "R2.4-15",
+      "R2.4-16",
+      "R2.4-17",
+      "R2.4-18",
+      "R2.4-19",
+      "R2.4-20"
+    ],
+    "limitation": "No deterministic TradingView fixture currently drives the complete BUS and OHLC scenario matrix."
+  }
+}
