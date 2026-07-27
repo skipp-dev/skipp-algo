@@ -1,0 +1,127 @@
+# live-window: mutating-on-cron
+name: ats-baseline-daily
+
+# WP-J daily producer (wired 2026-07-27). scripts/build_ats_20d_baseline.py
+# has promised since PR #2613 that "the daily job overwrites it atomically" —
+# but no such job ever existed: reports/ats_baseline_20d.json stayed the
+# 1970-01-01 seed placeholder with symbols={}, so the WP-K live overlay
+# (smc_tv_bridge/smc_api.py::_get_flow_ats_fields) fail-closed and NEVER
+# emitted flow_delta_proxy_pct / ats_zscore / ats_state. This workflow is the
+# missing edge: it rebuilds the committed 20-day baseline every trading day
+# from Databento trades microstructure and lands it via the standard
+# bot-branch auto-merge PR.
+#
+# Runtime note (ops, not CI): the Sidecar app bundles the artifact — a fresh
+# baseline reaches the running /smc_live server only after the app rebuild
+# (`launchctl kickstart -k` of sidecar-serve). The repo copy stays the SSOT.
+#
+# Schedule: 21:30 UTC weekdays — after the Databento same-day finalization
+# (the production-export workflow's own comments put finalized data after
+# 20:00 UTC), so the trailing window includes today's completed session.
+
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  # Required for `gh pr create` / `gh pr merge --auto`: when GH_PAT is unset
+  # and GH_TOKEN falls back to github.token, the API call needs this scope.
+  pull-requests: write
+
+concurrency:
+  group: ats-baseline-daily
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-baseline:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6 (Node-24)
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build the 20-day ATS baseline
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          set -euo pipefail
+          # Same 20-symbol benchmark universe the databento export /
+          # measurement-benchmark workflows pin inline (see
+          # smc-measurement-benchmark-rolling.yml, f2-frozen-artifact-bootstrap.yml).
+          SYMBOLS="AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA,JPM,BAC,GS,MS,V,UNH,JNJ,HD,XOM,CVX,COP,OXY,CAT"
+          python -m scripts.build_ats_20d_baseline --symbols "$SYMBOLS"
+
+      - name: Refuse to publish an empty baseline
+        # Fail-closed: a run that produced zero symbols (Databento outage,
+        # auth failure absorbed upstream) must not replace a good baseline
+        # with an empty one — that would silently re-kill the WP-K fields
+        # this workflow exists to feed.
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, sys
+          payload = json.load(open("reports/ats_baseline_20d.json", encoding="utf-8"))
+          n = len(payload.get("symbols") or {})
+          if n == 0:
+              print("::error::ATS baseline came back with 0 symbols — refusing to publish.")
+              sys.exit(1)
+          print(f"ATS baseline OK: {n} symbols, asof={payload.get('asof')}")
+          PY
+
+      - name: Commit baseline via auto-merge PR
+        # Same GH_PAT discipline as run-open-prep-daily: GITHUB_TOKEN-created
+        # events would leave the required fast-gates check "expected" forever.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add reports/ats_baseline_20d.json
+          if git diff --staged --quiet; then
+            echo "Baseline unchanged — nothing to commit."
+            exit 0
+          fi
+          BRANCH="bot/ats-baseline-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(flow): refresh 20d ATS baseline ${GITHUB_RUN_ID}"
+          git push -u origin "$BRANCH"
+          if ! gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(flow): refresh 20d ATS baseline ${GITHUB_RUN_ID}" \
+            --body "Automated WP-J baseline rebuild from \`ats-baseline-daily\` (run ${GITHUB_RUN_ID}). Feeds the WP-K /smc_live flow/ATS fields; the sidecar picks it up on the next app rebuild."; then
+            echo "::error file=.github/workflows/ats-baseline-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection evaluation; the PR itself is already open.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
