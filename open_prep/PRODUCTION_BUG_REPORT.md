@@ -168,6 +168,23 @@
 
 ## 5. alerts.py
 
+### NOT REACHABLE (documented 2026-07-27) — the entire webhook alert subsystem has never been configured
+
+- **Finding (unwired-feature sweep, direction F):** `load_alert_config` reads
+  `artifacts/open_prep/alert_config.json` with a fail-open to
+  `DEFAULT_CONFIG` (`enabled: False`, `targets: []`) — and **no such file has
+  ever existed anywhere** (path is gitignored via `artifacts/open_prep/*.json`,
+  absent locally, never created on CI; the only writer `save_alert_config` is
+  a REPL utility with zero callers). `dispatch_alerts` /
+  `alert_regime_change` / `alert_weather_change` therefore return empty on
+  every production run and always have. The TradersPost/Slack/Discord webhook
+  code paths (including the previously-RESOLVED §5 payload fixes) are
+  effectively dead code behind an operator opt-in nobody ever exercised.
+- **Decision:** documented-off, not removed — the real alert path is
+  `rt_notify` (realtime_signals → Slack), which is live and separate. If
+  webhook alerts are ever wanted, create the config file; the code is
+  test-covered and ready.
+
 ### NOT REACHABLE (verified 2026-07-27) — In-memory throttle state resets on process restart
 
 - **Resolution:** Accurate as mechanism (`_last_sent` is still process-local, alerts.py:94), but the

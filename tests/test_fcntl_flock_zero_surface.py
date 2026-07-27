@@ -192,8 +192,8 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     ("open_prep/realtime_signals.py", 312, "LOCK_EX|LOCK_NB"),  # 2026-07-25 (databento-signal-migration): 311->312
     ("open_prep/realtime_signals.py", 339, "LOCK_UN"),  # 2026-07-25 (databento-signal-migration): 338->339
     # Watchlist read/write critical section.
-    ("open_prep/watchlist.py", 41, "LOCK_EX"),
-    ("open_prep/watchlist.py", 44, "LOCK_UN"),
+    ("open_prep/watchlist.py", 47, "LOCK_EX"),  # 2026-07-27 (docstring adoption/persistence note above): 41->47
+    ("open_prep/watchlist.py", 50, "LOCK_UN"),  # 2026-07-27 (docstring adoption/persistence note above): 44->50
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
     # 2026-07-15 (reconcile): 151/195/215/227 -> 175/219/239/251. Pure drift -- still
     # exactly 4 legs, still two EX/UN pairs in the same order.

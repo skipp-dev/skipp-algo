@@ -177,7 +177,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # block + row-loop fields shifted 5936 -> 5962.
     ("open_prep/run_open_prep.py", 6025, "unlink"),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 6010->6025
     ("open_prep/scorer.py", 156, "unlink"),
-    ("open_prep/watchlist.py", 74, "unlink"),
+    ("open_prep/watchlist.py", 80, "unlink"),  # 2026-07-27 (docstring persistence note above): 74->80
     ("smc_core/benchmark.py", 39, "unlink"),
     ("smc_core/ensemble_quality.py", 62, "unlink"),  # 2026-07-13 doc truth-fix comments shifted (58->62)
     ("smc_core/event_ledger.py", 198, "unlink"),  # 2026-07-13 schema-v1.1: label relocation shifted (163->180); schema-v1.2 rename+calibrated_prob (180->198)

@@ -132,7 +132,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 4007),  # 2026-07-27 (databento phase2.2 hardening): 3991->4007
 
         ("open_prep/scorer.py", 122),
-        ("open_prep/watchlist.py", 53),
+        ("open_prep/watchlist.py", 59),  # 2026-07-27 (docstring adoption/persistence note above): 53->59
         # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
         # local operator-supplied config file (path from CONFIG_ENV_VAR or an
         # explicit arg), validated via _as_plain_mapping + _validate_dataclass.

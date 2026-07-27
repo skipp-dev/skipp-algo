@@ -23,6 +23,10 @@ Out of scope:
   shows it's worth the extra moment-passes).
 
 Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c61
+
+Adoption status (2026-07-27, unwired-feature sweep): NO production
+importer — the opt-in extensions were never called outside tests. The
+canonical PSR in stats_helpers remains the consumed one.
 """
 from __future__ import annotations
 
