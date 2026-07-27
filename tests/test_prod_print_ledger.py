@@ -61,7 +61,7 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "pine_input_surface.py": 16,
     "test_usi_lint.py": 3,
     "smc_integration/provider_health.py": 1,
-    "open_prep/outcome_backfill.py": 4,
+    "open_prep/outcome_backfill.py": 5,  # 2026-07-27 (G3 ab-arm-labels summary print in main): 4->5
     "open_prep/candidate_weights.py": 4,
     "open_prep/feature_importance_report.py": 4,
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency check CLI tools

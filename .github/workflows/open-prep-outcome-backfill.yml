@@ -196,6 +196,12 @@ jobs:
           # without this the workflow silently went green even when no
           # outcomes were resolved, skipped or failed.
           ARGS+=(--require-progress)
+          # §G3 (2026-07-27): also resolve labels for BOTH A/B arm records
+          # into artifacts/open_prep/ab_arms/labels_<day>.json — the input
+          # the g3 bridge folds into docs/ab/g23_history.jsonl. Separate
+          # store by design: arm-B shadow rows must never contaminate
+          # outcomes_<day>.json (compute_hit_rates / FI ledger).
+          ARGS+=(--ab-arm-labels)
           "$SMC_PYTHON_BIN" -m open_prep.outcome_backfill "${ARGS[@]}"
 
       - name: Warn on persistent failed-status streak
@@ -289,6 +295,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ || true
+          # §G3 arm labels (labels_<day>.json) accumulate next to the arm
+          # records so the bridge can fold them on the next watchdog run.
+          git add artifacts/open_prep/ab_arms/ || true
           if git diff --staged --quiet; then
             echo "No changes to commit."
             exit 0
