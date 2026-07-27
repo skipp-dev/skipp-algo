@@ -185,15 +185,17 @@
 
 ## 7. run_open_prep.py
 
-### HIGH — `_save_atr_cache` / `_save_atr_cache`: `prev_close_map` key-case mismatch
+### RESOLVED — NOT REACHABLE (verified 2026-07-25) — `_save_atr_cache`: `prev_close_map` key-case mismatch
 
+- **Resolution:** Every symbol entering the ATR path is upper-cased at ingestion — the sole caller passes `atr_symbols` double-uppered (`run_open_prep.py:4569` list-comp `.strip().upper()` + `_normalize_symbols` which also `.strip().upper()`), and load/save key the cache with `str(k).upper()`. So `cached_atr.get(symbol)` / `prev_close_map.get(k)` always hit; the mixed-case trigger cannot occur on real inputs. Code-fragile but not reachable (re-confirmed 2026-07-25). Do not re-file.
 - **Location:** `_save_atr_cache()`, lines ~2060-2080, vs `_incremental_atr_from_eod_bulk()`, line ~2115
 - **Bug:** In `_save_atr_cache`, the `clean_prev_close_map` is keyed by `str(k).upper()` from `clean_atr_map` keys. But `prev_close_map` is populated from `cached_prev_close` (upper-cased) merged with `incremental_close` (which keys are whatever `eod_row` returned). If `eod_row` returns lowercase symbols, the `prev_close_map.get(k)` lookup uses the upper-cased `k` from `clean_atr_map`, which misses the lowercase key in `prev_close_map`, yielding `0.0`.
 - **Impact:** `prev_close` values silently become `0.0` in the cache when EOD bulk returns lowercase symbols. On next-day incremental ATR update, `prev_close <= 0.0` causes the symbol to be skipped in `_incremental_atr_from_eod_bulk()`, forcing an expensive per-symbol fallback fetch.
 - **Fix:** Normalise `incremental_close` keys to `.upper()` before merging into `prev_close_snapshot`.
 
-### HIGH — Race condition in ThreadPoolExecutor + circuit breaker during ATR fetch
+### RESOLVED (verified 2026-07-25) — Race condition in ThreadPoolExecutor + circuit breaker during ATR fetch
 
+- **Resolution:** This is (by the entry's own words) "the same circuit-breaker thread-safety issue as in macro.py" — and that `_CircuitBreaker` is now fully lock-guarded (`allow_request`/`on_success`/`on_failure` all `with self._lock`; see §4 RESOLVED). The ATR threads reach it through the shared `FMPClient._circuit_breaker`, so the same lock fixes this site. No unsynchronised counter remains.
 - **Location:** `_atr14_by_symbol()`, lines ~2170-2210 (ThreadPoolExecutor) + `_fetch_symbol_atr()` (line ~2140)
 - **Bug:** Multiple `_fetch_symbol_atr` threads call `client.get_historical_price_eod_full()`, which calls `_get()`, which calls `_circuit_breaker.record_success()/record_failure()` — all sharing the same unsynchronised `CircuitBreaker` instance. (This is the same circuit-breaker thread-safety issue as in macro.py but materialises here due to `parallel_workers=8`.)
 - **Impact:** Under burst API errors (e.g. FMP returns 5 consecutive 500s), the failure counter may under-count due to races, preventing the circuit from tripping. Conversely, a single slow 504 response during half-open could cause a spurious re-open while another thread succeeds.
@@ -296,8 +298,9 @@
 
 ## 10. playbook.py
 
-### MEDIUM — `classify_news_event` iterates all patterns without short-circuit on certainty
+### RESOLVED (verified 2026-07-25) — `classify_news_event` iterates all patterns without short-circuit on certainty
 
+- **Resolution:** The described mechanism is stale: there is no `NEWS_EVENT_PATTERNS` constant (patterns are three separate lists) and the worked example is false (`"FDA approval … regulatory review"` → label `fda`, materiality HIGH — verified). The one real residual — first-match ORDER can mask a co-occurring higher-materiality label — is now explicitly documented in code as a deliberate tradeoff (`playbook.py:116-119`: "this is match ORDER, not a materiality ranking … can be masked"). By-design, not a latent bug.
 - **Location:** `classify_news_event()`, lines ~200-400
 - **Bug:** The function iterates through all `NEWS_EVENT_PATTERNS` even after finding a high-confidence match. The first match wins (due to `break` after `if matched`), but the patterns are checked in list order, not by specificity or materiality.
 - **Impact:** If a more-specific pattern appears later in the list than a less-specific one, the less-specific match is used. For example, if "FDA approval" appears after "regulatory", an article about FDA approval is classified as generic "regulatory" rather than the more valuable "fda_approval".
@@ -357,15 +360,17 @@
 
 ## 13. trade_cards.py
 
-### MEDIUM — ATR trailing stop assumes long-only direction
+### RESOLVED (verified 2026-07-25) — ATR trailing stop assumes long-only direction
 
+- **Resolution:** `_compute_trailing_stop()` no longer exists. The current `_trail_stop_profiles_from_atr(row, direction)` has an explicit short branch (`stop = reference + dist`, trailing ABOVE entry) and `_card_direction` supplies `"short"` for a gap-up GAP_FADE; `direction` is threaded into both trailing-stop and key-levels. Empirically SHORT stops sit above entry. Fixed.
 - **Location:** `_compute_trailing_stop()`, lines ~140-160
 - **Bug:** The trailing stop is always calculated as `entry_price - (atr * atr_multiple)`. For a short/fade playbook (bearish), the stop should be `entry_price + (atr * atr_multiple)`. The playbook engine can assign `FADE` strategy, but the trade card always computes a long-side stop.
 - **Impact:** Trade cards for FADE/short-biased signals show a stop-loss below entry (wrong direction). A trader following these cards would have no upside protection.
 - **Fix:** Accept a `direction` parameter and invert the stop calculation for short signals.
 
-### LOW — S/R target levels may be `None` without fallback
+### RESOLVED (verified 2026-07-25) — S/R target levels may be `None` without fallback
 
+- **Resolution:** The named output fields `"target_1"`/`"target_2"` are no longer emitted by `build_trade_cards`. The card emits `key_levels.sr_targets` (nullable) AND always emits `trail_stop_atr` (ATR distances + stop_prices) — exactly the ATR-based fallback this entry asked for. Fixed.
 - **Location:** `build_trade_cards()`, lines ~200-248
 - **Bug:** When `calculate_support_resistance_targets()` returns `None` for levels (insufficient bar data), the trade card includes `"target_1": None, "target_2": None`. There's no fallback to ATR-based targets.
 - **Impact:** Trade cards with `None` targets provide incomplete guidance. Downstream UIs must handle `None` display.
@@ -445,8 +450,9 @@
 
 ## Cross-Cutting Issues
 
-### HIGH — No integration test coverage for the pipeline
+### RESOLVED (verified 2026-07-25) — No integration test coverage for the pipeline
 
+- **Resolution:** The premise is false. `tests/` holds dozens of open_prep suites — e.g. `test_open_prep.py`, `test_open_prep_contracts.py`, `test_open_prep_scorer_uplift.py`, `test_playbook_scoring_sizing.py`, `test_outcome_backfill.py`, `test_regime_*`, and — pointedly — `test_scorer_component_cap_convergence.py`, the exact regression this entry claimed unit tests would have caught. Mocked-FMP integration coverage exists. Fixed.
 - **Location:** All files
 - **Bug:** There are no test files in `open_prep/` (except `test_slim_parity.py` which tests a different module). The pipeline relies on live FMP API calls with no mock/stub layer. This makes it impossible to:
   - Verify score computation determinism
@@ -458,8 +464,9 @@
   - Unit tests for `signal_decay.adaptive_freshness_decay()` verifying actual half-life
   - Integration test for `generate_open_prep_result()` with a mocked `FMPClient`
 
-### MEDIUM — Atomic writes don't persist `fsync` before `os.replace`
+### RESOLVED (verified 2026-07-25) — Atomic writes don't persist `fsync` before `os.replace`
 
+- **Resolution:** The "none call `os.fsync`" premise is false. Every listed site now fsyncs before `os.replace`: `_save_atr_cache` (run_open_prep.py:3126), `_pm_cache_save` (:3526), `save_alert_config` (alerts.py:80), `_save_result_snapshot` (:5655), latest-run JSON (:5993), and `store_daily_outcomes` (outcomes.py:218/852). Fixed.
 - **Location:** `_save_atr_cache()`, `_pm_cache_save()`, `save_alert_config()`, `_save_result_snapshot()`, latest-run JSON write — all use `mkstemp + os.write + os.replace` pattern
 - **Bug:** None of the atomic-write sites call `os.fsync(fd)` before `os.close(fd)`. On crash/power-loss between `os.close()` and `os.replace()`, the file content may be lost or partially written (file system write-back cache hasn't flushed). On Linux with ext4 default mount options (`data=ordered`), this is usually safe but not guaranteed. On macOS (APFS), `os.replace` is atomic but the content may not be durable.
 - **Impact:** On unexpected system crash, cache files may be empty or corrupted. Pipeline gracefully recovers (cache miss → full re-fetch), but alert config or watchlist could be lost.
@@ -479,8 +486,13 @@
 
 ## Summary by Severity
 
-| Severity | Count | Key Items |
-|----------|-------|-----------|
-| **HIGH** | 5 | Half-life formula wrong; score cap invariant violated; circuit breaker not thread-safe (×2 locations); no test coverage |
-| **MEDIUM** | 18 | Throttle state lost on restart; TradersPost wrong price; article sort by string; momentum_z staleness; regime flicker; proxy ADX/BB; PMH/PML data loss on timeout; and others |
-| **LOW** | 14 | NaN propagation; EMA edge case; cache eviction micro-issues; BEA fragility; fsync omission; and others |
+> **Counts are OPEN items (not yet RESOLVED) as of 2026-07-25.** Of 46 catalogued entries, 23
+> carry an inline `RESOLVED` / `NOT REACHABLE` note (verified against current code) and 23 remain
+> open. Every originally-HIGH item is now resolved. The old counts (HIGH 5 / MEDIUM 18 / LOW 14)
+> were the authoring-time totals and overstated the open surface — they counted since-fixed items.
+
+| Severity | Open | Key open items |
+|----------|------|----------------|
+| **HIGH** | 0 | none — half-life, score cap, circuit-breaker (×2), prev_close key-case, and no-test-coverage all RESOLVED / NOT REACHABLE |
+| **MEDIUM** | 11 | macro_component positive-only; article sort by string; throttle lost on restart; detect_breakout min_bars; PMH/PML timeout loss; gap dict shapes; proxy ADX/BB; momentum_z staleness; v1/v2 scorer duality; fcntl Windows no-op; FMP key in URL |
+| **LOW** | 12 | future-dated articles; SSL rebuild per call; cache-evict local import; SPAC classify; screen `_to_float` zeros; playbook length; BEA fragility (×2); diff schema drift; sector_breadth 0.0; retry exc-chain; utils `to_float` convention |
