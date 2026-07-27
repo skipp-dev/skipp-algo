@@ -341,9 +341,10 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Weight-Change. Promotion entscheidet sich erst nach G3-Sample-
       Akkumulation und F1-Re-Kalibrierung; ASIA bleibt bis dahin
       stärkster Promotion-Kandidat (kohärenter Lift über alle 4 Familien).
-      **Hinweis 2026-07-27:** Gate (3) ist derzeit *nicht* erfüllbar — das
-      G3-A/B ist nicht verdrahtet, es akkumuliert kein Sample (siehe §G3
-      Korrektur). Gates (1) und (2) blockieren die Promotion unabhängig davon
+      **Hinweis 2026-07-27:** Gate (3) war bis dahin *nicht* erfüllbar — das
+      G3-A/B war nicht verdrahtet, es akkumulierte kein Sample. Seit dem
+      Arm-Routing (§G3) läuft das Sample an, Gate (3) ist damit erreichbar
+      geworden. Gates (1) und (2) blockieren die Promotion unabhängig davon
       und bleiben die belastbaren Gründe.
 
       **v4 corpus 2026-04-23 Re-Check (n=10 064, identisches 20×4 Universum):**
@@ -396,22 +397,21 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Ranking-Drift zwischen aufeinanderfolgenden `ok`-Runs als
       Advisory-Signal für G2.
 
-#### G2: Scorer Weight Auto-Tuning ✅ DONE (Producer) / ⚠ nicht geplant, nicht konsumiert
+#### G2: Scorer Weight Auto-Tuning ✅ DONE (Producer) — seit 2026-07-27 auch geplant
 
-> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die drei Haken unten sind
-> wörtlich korrekt — der Code existiert und ist getestet. Zwei Dinge, die man
-> aus „DONE" fälschlich schließen würde, gelten aber **nicht**:
+> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die drei Haken unten waren
+> wörtlich korrekt — der Code existierte und war getestet. Zwei Dinge, die man
+> aus „DONE" fälschlich geschlossen hätte, galten aber **nicht**:
 >
-> - Das CLI `open_prep/candidate_weights.py` läuft in **keinem** Workflow
->   (`.github/workflows/` enthält keinen Treffer). Es ist ein manuelles CLI —
->   ohne Aufruf entsteht nie ein `weights_candidate.json`.
-> - Das erzeugte Weight-Set wird **von keinem Lauf gelesen**. Live scort mit
->   `weight_label="_regime_adjusted"`, und dessen Basis ist
->   `load_weight_set()` → Label `"default"` → die `DEFAULT_WEIGHTS`-Konstante.
->   Gelernte Gewichte erreichen die Produktion also derzeit auf keinem Weg;
->   Live-Gewichte = hartkodierte Konstanten + Markt-Regime-Tilt.
+> - Das CLI `open_prep/candidate_weights.py` lief in **keinem** Workflow. Ohne
+>   Aufruf entsteht nie ein `weights_candidate.json`. **Behoben:** läuft jetzt
+>   als eigener Schritt in `run-open-prep-daily.yml`, vor dem Scoring.
+> - Das erzeugte Weight-Set wurde **von keinem Lauf gelesen**. **Teilweise
+>   behoben:** es speist jetzt Arm B des G3-Experiments (shadow, siehe unten).
 >
-> Das ist kein Defekt des G2-Codes, sondern der fehlende Anschluss (siehe G3).
+> **Unverändert gilt:** gelernte Gewichte erreichen die *ausgelieferte* Rangfolge
+> weiterhin auf keinem Weg — Live-Gewichte = `DEFAULT_WEIGHTS`-Konstante +
+> Markt-Regime-Tilt. Das ist Absicht: die Promotion entscheidet erst G3.
 
 - [x] Feature-Importance-Rankings → `scorer.py` Gewichtsanpassungen via
       `open_prep.outcomes.compute_weight_adjustments` +
@@ -422,38 +422,56 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `weights_candidate.json` versioniert; Statuswerte `ok` /
       `insufficient_data` / `drift_blocked`.
 
-#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ⚠ BAUSTEINE DA, NICHT VERDRAHTET
+#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ✅ VERDRAHTET (Sample läuft an)
 
-> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die Bausteine unten existieren
-> alle und sind getestet — aber sie sind **an keiner Stelle an die Pipeline
-> angeschlossen**. Der Blocker ist damit *nicht* „zu wenig Sample", wie unten
-> ursprünglich vermerkt: es kann **kein** Sample entstehen, weil kein
-> Produktionslauf die Arme je zuweist. Solange das so bleibt, wartet dieses
-> Gate auf Daten, die nie anfallen. Belegt gegen `origin/main`:
+> **Korrektur + Umsetzung 2026-07-27 (Verdrahtungs-Audit).** Der ursprünglich
+> hier vermerkte Blocker („G3-Decision-Gate blockiert auf ausreichendem Sample")
+> war **falsch**. Die Bausteine existierten und waren getestet, aber an keiner
+> Stelle an die Pipeline angeschlossen — es konnte **kein** Sample entstehen,
+> weil kein Produktionslauf die Arme je zuwies. Das Gate wartete auf Daten, die
+> nie anfallen konnten. Befund gegen `origin/main`:
 >
-> - `scripts/smc_ab_experiment.py` hat **null** Produktions-Importer —
->   `Experiment.resolve_weight_set()` (die Funktion, die einem Symbol ein
->   Weight-Set-Label zuweist) wird ausschließlich aus `tests/` aufgerufen; die
->   einzige weitere Erwähnung ist eine Docstring-Referenz in
->   `scripts/f2_experiment_spec.py`.
-> - Der Live-Pfad kann Arme ohnehin nicht abbilden: `rank_candidates_v2` nimmt
->   **ein** `weight_label` pro Lauf, `resolve_weight_set` liefert aber ein Label
->   **pro Symbol**. `run_open_prep.py` übergibt hart `"_regime_adjusted"`.
-> - Der Konfig-Knopf, der Arm A/B wählen würde, ist tot: `"weight_label"` stand
->   in `_CONFIG_SCHEMA`, aber `validate_config()` hat selbst **keinen**
->   Produktions-Aufrufer und nichts liest den Schlüssel (Eintrag 2026-07-27
->   entfernt, siehe `open_prep/config_validation.py`).
-> - Arm A verweist unten auf `weights.json` — **diese Datei existiert nicht**
->   und hat nie existiert. Die Konvention ist `weights_<label>.json`, und
->   ausgerechnet Label `"default"` liest gar keine Datei:
->   `load_weight_set("default")` gibt sofort die `DEFAULT_WEIGHTS`-Konstante
->   zurück. Ein datei-basiertes Promoten von Arm B ist damit konstruktiv
->   unmöglich.
+> - `scripts/smc_ab_experiment.py` hatte **null** Produktions-Importer;
+>   `Experiment.resolve_weight_set()` wurde ausschließlich aus `tests/`
+>   aufgerufen.
+> - `open_prep/candidate_weights.py` (Arm-B-Producer) lief in **keinem**
+>   Workflow — ohne Aufruf entsteht nie ein `weights_candidate.json`.
+> - Der Konfig-Knopf, der Arm A/B gewählt hätte, war tot: `"weight_label"` stand
+>   in `_CONFIG_SCHEMA`, aber `validate_config()` hat selbst keinen
+>   Produktions-Aufrufer und nichts las den Schlüssel (Eintrag entfernt).
+> - Arm A verwies auf `weights.json` — **diese Datei existiert nicht** und hat
+>   nie existiert. Die Konvention ist `weights_<label>.json`, und Label
+>   `"default"` liest gar keine Datei: `load_weight_set("default")` gibt sofort
+>   die `DEFAULT_WEIGHTS`-Konstante zurück.
 >
-> **Nächster Schritt** ist also Verdrahtung, nicht Warten: entweder
-> `rank_candidates_v2` auf ein Label **pro Symbol** erweitern, oder das
-> Experiment auf lauf-granulare Arme umstellen (ganzer Lauf = Arm A oder B).
-> Vorher ist der 30-Tage-Run nicht startbar.
+> **Umgesetzt: lauf-granulare, gepaarte Arme** (`open_prep/ab_arms.py`).
+> Bewusst *nicht* über `resolve_weight_set`: das weist ein Label **pro Symbol**
+> zu, und Symbole mit unterschiedlichen Gewichtsvektoren gegeneinander zu ranken
+> ist kein gültiges Experiment — der Composite-Score ist nur unter einem
+> *festen* Vektor vergleichbar, ein Per-Symbol-Split erzeugt also ein Top-N aus
+> zwei inkompatiblen Skalen (Ranking ist relativ, die Treatment-Gruppe
+> kontaminiert das Kontroll-Ergebnis).
+>
+> Stattdessen wird pro Lauf **das gesamte Universum zweimal gescort** und die
+> beiden Rankings verglichen. Beide Arme sehen denselben Tag, dasselbe Universum
+> und **denselben Regime-Tilt** — der einzige Unterschied sind die Basis-
+> Gewichte. Das ist ein *gepaarter* Vergleich und damit deutlich trennschärfer,
+> als ganze Tage zufällig in einen Arm zu losen.
+>
+> Arm B ist **shadow-only**: das ausgelieferte Ranking bleibt unberührt,
+> geschrieben wird nur der Vergleichs-Record nach `artifacts/open_prep/ab_arms/`
+> (Spearman-ρ, Top-N-Overlap, Rang-Deltas, Ein-/Austritte) — genau das Sample,
+> das `scripts/smc_sprt_stop_rule.py` konsumiert. Fehlt Arm B, wird ehrlich
+> `status="arm_b_unavailable"` protokolliert statt einer Null-Differenz-Zeile,
+> die das Sample verwässern würde.
+>
+> Der Producer läuft jetzt im selben Job **vor** dem Scoring
+> (`run-open-prep-daily.yml`), weil `weights_candidate.json` unter
+> `artifacts/open_prep/outcomes/` liegt und dort von `.gitignore` erfasst wird —
+> es kann also nicht zwischen Läufen persistieren. Sein Input (die
+> Feature-Importance-Samples) **ist** versioniert, das Set ist damit aus dem
+> Checkout reproduzierbar. Die Vergleichs-Records selbst werden committet und
+> akkumulieren.
 
 - [x] `scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper.
 - [x] Arm A: bisherige statische Scorer-Gewichte (`DEFAULT_WEIGHTS`-Konstante;
@@ -464,9 +482,12 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/run_ab_comparison.py`.
 - [x] Stop-Rule: `scripts/smc_sprt_stop_rule.py` (SPRT) +
       `scripts/f2_experiment_spec.py` Decision-Memo-Pfad.
-- ⚠ Folge-Lauf offen: tatsächlicher 30-Tage-Run auf Live-Telemetrie nicht
-      gestartet. **Ursache = fehlende Verdrahtung (siehe Korrektur oben), nicht
-      ein zu kleines Sample.**
+- [x] Arm-Routing verdrahtet: `open_prep/ab_arms.py`, lauf-granular + gepaart,
+      shadow-only; Records in `artifacts/open_prep/ab_arms/`.
+- ⏳ 30-Tage-Run läuft ab dem nächsten `run-open-prep-daily`-Lauf an. **Ab jetzt
+      ist „warten auf Sample" die zutreffende Beschreibung** — vorher war es das
+      nicht (siehe Korrektur oben). Fortschritt = Anzahl Records mit
+      `status="ok"`.
 
 ### Phase H — Pine Consumer Maturity (Wochen 6–9)
 
@@ -559,9 +580,9 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 **Lesart der Restlücken:** der Q3-A-Grade hängt jetzt nicht mehr an Sample-
 Größe oder TF-Coverage (beides ✅), sondern allein am ECE-Korridor — F2-Memo
 empfiehlt vor weiterer Bucket-Promotion eine F1-Re-Kalibrierung auf ECE ≤ 0.03
-und das 30-Tage-G3-A/B (siehe Q3 §G3 ⚠). **Stand 2026-07-27:** das G3-A/B ist
-nicht verdrahtet und daher nicht startbar — diese Restlücke ist eine
-Engineering-Aufgabe (Arm-Routing), keine Wartezeit auf Daten.
+und das 30-Tage-G3-A/B (siehe Q3 §G3). **Stand 2026-07-27:** das G3-A/B war
+nicht verdrahtet und daher nicht startbar — das Arm-Routing ist nachgezogen,
+das Sample läuft ab dem nächsten Daily-Lauf an.
 
 ---
 
