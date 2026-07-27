@@ -120,6 +120,16 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 - Tests: Coverage-Simulation auf bekannter Verteilung (BCa ≥ 0.93, percentile ~0.85); stationary erhält Autokorrelation der Order-1.
 - Gate-Kopplung: keine direkte; Konsumenten opt-in.
 
+> **STATUS 2026-07-28 (B-Sweep): gebaut, aber nie adoptiert — gleicher Zustand wie das
+> als REMOVED (stranded) markierte C4.1.** `bootstrap_ci`/`BootstrapConfig`
+> (`smc_core/inference/bootstrap.py`) haben null Produktions-Aufrufer; kein Konsument hat
+> je opt-in gemacht (`BootstrapConfig` hat nicht einmal Test-Referenzen). Der einzige
+> Nicht-Test-Import (`governance/family_significance.py`) umgeht die öffentliche API und
+> hat selbst keinen Produktions-Aufrufer. Die real verdrahtete Bootstrap-Statistik läuft
+> über `scripts/performance_inference.py` + `scripts/build_family_metrics.py` (ADR-0008
+> Promotion-Gate). Die C6-„Migration auf BCa" ist nie passiert. Wire-or-remove-Entscheidung
+> steht aus.
+
 **Trigger:** X1 gemerged (Method-Choice landet im Alpha-Ledger als Rationale).
 
 ---
@@ -187,6 +197,11 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 - Dateien: `smc_core/psr.py` (Erweiterung), `tests/test_psr_minIS_adjustment.py`, `tests/test_psr_robust_moments.py`
 - Tests: Slippage-adjustierter PSR ≤ Brutto-PSR; winsorized estimator stabil bei injizierten Outliern.
 - Gate-Kopplung: X2 PromotionGate verwendet MinIS, sobald C12-Slippage-Modell verfügbar (Feature-Flag `use_minIS_gate`).
+
+> **STATUS 2026-07-28 (B-Sweep):** das Feature-Flag `use_minIS_gate` existiert nirgends im
+> Repo (0 Treffer außerhalb dieser Zeile), und `open_prep/psr_robust.py`
+> (`probabilistic_sharpe_robust`/`compute_psr_minIS`) hat null Nicht-Test-Aufrufer — der
+> komplette `winsorized`-Pfad ist toter Code. Kein PromotionGate liest MinIS.
 
 **Trigger:** C12 Phase A live (existiert bereits in PR #312).
 
