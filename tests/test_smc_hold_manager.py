@@ -150,6 +150,14 @@ def test_bus_plan_is_primary_and_manual_values_are_explicit_fallback_only() -> N
     assert "BUS Target1/2/StopLevel sind aktuell NICHT published" not in source
 
 
+def test_default_bus_install_does_not_enter_manual_price_selection() -> None:
+    source = _read_source()
+
+    assert "confirm = true" not in source
+    assert 'input.price(0.0 , "Entry / Trigger"' in source
+    assert 'input.price(0.0 , "Initial Invalidation"' in source
+
+
 def test_bus_plan_generation_is_historical_and_identity_complete() -> None:
     source = _read_source()
 
@@ -160,7 +168,7 @@ def test_bus_plan_generation_is_historical_and_identity_complete() -> None:
     assert "barstate.islast and bus_plan_valid" not in source
 
     for identity_term in (
-        "hold.plan_symbol == syminfo.tickerid",
+        "hold.plan_symbol == ticker.standard(syminfo.tickerid)",
         "hold.plan_direction == 1",
         "hold.plan_schema",
         "hold.plan_source_kind",
@@ -169,6 +177,15 @@ def test_bus_plan_generation_is_historical_and_identity_complete() -> None:
         "hold.plan_generation",
     ):
         assert identity_term in source
+
+
+def test_tradingview_builtin_atr_and_standard_symbol_identity_are_used() -> None:
+    source = _read_source()
+
+    assert "import TradingView/ta/" not in source
+    assert "float atr = ta.atr(i_atr_len)" in source
+    assert "this.plan_symbol := ticker.standard(syminfo.tickerid)" in source
+    assert "hold.plan_symbol == ticker.standard(syminfo.tickerid)" in source
 
 
 def test_new_plan_is_rejected_while_assumed_trade_is_open() -> None:

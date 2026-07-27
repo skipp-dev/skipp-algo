@@ -23,7 +23,6 @@ indicator("SMC Hold Manager", overlay = true,
 
 import preuss_steffen/smc_micro_profiles_generated/175 as mp
 import preuss_steffen/smc_utils/4 as u
-import TradingView/ta/8 as ta_lib
 
 // ── 1.  INPUTS ───────────────────────────────────────────────────────────────
 gSource      = "Plan-Quelle"
@@ -52,9 +51,9 @@ src_target2      = input.source(close, "BUS Target2",       group = gBus, displa
 gIn          = "Manual fallback (nur bei expliziter Auswahl)"
 i_arm_long   = input.bool(false , "Arm Long (manueller Toggle)" , group = gIn)
 i_entry      = input.price(0.0 , "Entry / Trigger"            , group = gIn,
-     confirm = true, tooltip = "Nur im Manual-fallback-Modus aktiv.")
+     tooltip = "Nur im Manual-fallback-Modus aktiv.")
 i_stop       = input.price(0.0 , "Initial Invalidation"        , group = gIn,
-     confirm = true, tooltip = "Nur im Manual-fallback-Modus aktiv.")
+     tooltip = "Nur im Manual-fallback-Modus aktiv.")
 i_t1_R       = input.float(1.0 , "Target-1 (R)" , minval = 0.5, step = 0.1, group = gIn)
 i_t2_R       = input.float(2.0 , "Target-2 (R)" , minval = 1.0, step = 0.1, group = gIn)
 
@@ -194,7 +193,7 @@ method stage_plan(HoldRuntime this, float trigger, float stop_level,
     this.terminal_exit_code := EXIT_NONE
     this.terminal_exit_bar := na
     this.terminal_exit_time_ms := na
-    this.plan_symbol := syminfo.tickerid
+    this.plan_symbol := ticker.standard(syminfo.tickerid)
     this.plan_direction := 1
     this.plan_schema := schema
     this.plan_source_kind := source_kind
@@ -256,7 +255,8 @@ if can_act and bus_plan_event
 
 bool active_plan_matches_bus = bus_plan_valid and
      hold.phase >= PHASE_ARMED and
-     hold.plan_symbol == syminfo.tickerid and hold.plan_direction == 1 and
+     hold.plan_symbol == ticker.standard(syminfo.tickerid) and
+     hold.plan_direction == 1 and
      hold.plan_schema == int(math.round(src_schema)) and
      hold.plan_source_kind == int(math.round(src_source_kind)) and
      hold.plan_trigger == src_trigger and
@@ -329,7 +329,7 @@ if entry_event
     hold.enter_trade(bar_index, bar_epoch_ms, high)
 
 // ── 6.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
-float atr = ta_lib.atr(i_atr_len)
+float atr = ta.atr(i_atr_len)
 bool evaluate_trade = can_act and not recovery_now and
      hold.phase == PHASE_IN_TRADE
 

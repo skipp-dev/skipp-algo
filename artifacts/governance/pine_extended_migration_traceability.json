@@ -120,7 +120,8 @@
           "evidence": [
             "scripts/smc_hold_manager_replay.py",
             "tests/test_smc_hold_manager_replay.py",
-            "artifacts/governance/smc_hold_manager_replay_preflight.json"
+            "artifacts/governance/smc_hold_manager_replay_preflight.json",
+            "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-27.json"
           ],
           "openGates": [
             "Execute the pinned twenty-case matrix in TradingView and retain compile, diagnostic, reload, Bar Replay, and alert-count evidence."

@@ -18,6 +18,12 @@ TRACE_PATH = (
     / "governance"
     / "pine_extended_migration_traceability.json"
 )
+TRADINGVIEW_PRECONDITIONS_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_preconditions_2026-07-27.json"
+)
 
 EXPECTED_CASES = (
     ("R2.4-01", "arm without entry"),
@@ -102,6 +108,49 @@ def test_preflight_artifact_is_current_and_source_pinned() -> None:
     assert len(actual["source"]["sha256"]) == 64
 
 
+def test_tradingview_preconditions_are_bounded_and_source_pinned() -> None:
+    replay = build_replay_preflight()
+    evidence = json.loads(
+        TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
+    )
+
+    assert evidence["scope"] == (
+        "TradingView preconditions only; not R2.4 replay-case evidence"
+    )
+    assert (
+        evidence["source"]["repositorySha256"]
+        == replay["source"]["sha256"]
+    )
+    assert evidence["source"]["savedSourceReadbackStatus"] == "pending"
+    assert evidence["tradingView"]["compileStatus"] == "passed"
+    assert evidence["tradingView"]["compileDiagnostics"] == []
+    assert evidence["tradingView"]["addToChartStatus"] == "passed"
+    assert evidence["tradingView"]["bindingStatus"] == "passed_after_reload"
+    assert evidence["tradingView"]["bindings"] == {
+        f"BUS {name}": f"SMC Long-Dip Suite: BUS {name}"
+        for name in (
+            "SchemaVersion",
+            "ZoneActive",
+            "Armed",
+            "Confirmed",
+            "Ready",
+            "Trigger",
+            "Invalidation",
+            "QualityScore",
+            "SourceKind",
+            "StateCode",
+            "StopLevel",
+            "Target1",
+            "Target2",
+        )
+    }
+    assert evidence["replay"]["status"] == "pending"
+    assert evidence["replay"]["completedCaseIds"] == []
+    assert evidence["replay"]["pendingCaseIds"] == [
+        case_id for case_id, _name in EXPECTED_CASES
+    ]
+
+
 def test_traceability_marks_r2_replay_partial_not_complete() -> None:
     requirement = _trace_requirement()
 
@@ -110,6 +159,10 @@ def test_traceability_marks_r2_replay_partial_not_complete() -> None:
         "scripts/smc_hold_manager_replay.py",
         "tests/test_smc_hold_manager_replay.py",
         "artifacts/governance/smc_hold_manager_replay_preflight.json",
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_tradingview_preconditions_2026-07-27.json"
+        ),
     ]
     assert requirement["openGates"] == [
         (
