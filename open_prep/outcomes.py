@@ -640,6 +640,9 @@ def prepare_outcome_snapshot(
             # FI ledger confirmed 0 across all samples).
             "recent_eps_surprise_pct": row.get("recent_eps_surprise_pct"),
             "days_since_last_earnings": row.get("days_since_last_earnings"),
+            # Companions from the same premarket fetch (2026-07-27): observe-only.
+            "days_to_next_earnings": row.get("days_to_next_earnings"),
+            "revenue_surprise_pct": row.get("revenue_surprise_pct"),
             # Signed news score: mention intensity × avg sentiment
             # (observe-only; audit 2026-07-07 — the weighted `news`
             # component is direction-blind by contract until c10b ends;
@@ -720,6 +723,8 @@ FEATURE_KEYS: list[str] = [
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
+    "days_to_next_earnings",
+    "revenue_surprise_pct",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",
@@ -740,6 +745,8 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
+    "days_to_next_earnings",
+    "revenue_surprise_pct",
     "vix9d_vix_ratio",
     "market_efficiency_ratio",
     "intraday_efficiency_ratio",

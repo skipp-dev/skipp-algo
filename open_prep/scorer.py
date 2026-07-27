@@ -535,6 +535,15 @@ def filter_candidate(
             bb_width_pct=_to_float(quote.get("bb_width_pct"), default=3.0),
         ),
         # Pass-through display fields from FMP quote
+        # PEAD/earnings observe-only fields (eval C2b): plain .get — None must
+        # stay None ("not measured"), never coerce to 0. No weight; consumed by
+        # outcomes.prepare_outcome_snapshot for the FI ledger. These were
+        # stamped on the QUOTE by premarket enrichment but never carried to the
+        # ranked row, so the FI columns were structurally empty (2026-07-27).
+        "recent_eps_surprise_pct": quote.get("recent_eps_surprise_pct"),
+        "days_since_last_earnings": quote.get("days_since_last_earnings"),
+        "days_to_next_earnings": quote.get("days_to_next_earnings"),
+        "revenue_surprise_pct": quote.get("revenue_surprise_pct"),
         "name": quote.get("name") or quote.get("companyName") or "",
         "change": _to_float(quote.get("change"), default=0.0),
         "changesPercentage": _to_float(
@@ -850,6 +859,13 @@ def score_candidate(
         "data_quality_issues": f.get("data_quality_issues", []),
         "long_allowed": fr.long_allowed,
         "no_trade_reason": fr.filter_reasons,
+        # PEAD/earnings observe-only fields (eval C2b): forwarded verbatim from
+        # the features dict so outcomes.prepare_outcome_snapshot finds them on
+        # the ranked row. None stays None — "not measured", never 0.
+        "recent_eps_surprise_pct": f.get("recent_eps_surprise_pct"),
+        "days_since_last_earnings": f.get("days_since_last_earnings"),
+        "days_to_next_earnings": f.get("days_to_next_earnings"),
+        "revenue_surprise_pct": f.get("revenue_surprise_pct"),
         # Display-enrichment fields
         "name": f.get("name") or "",
         "change": round(f.get("change") or 0.0, 4),

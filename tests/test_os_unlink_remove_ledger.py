@@ -133,7 +133,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 856, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 843->856
+    ("open_prep/outcomes.py", 863, "unlink"),  # 2026-07-27 (PEAD C2b quote->row wiring: +2 snapshot fields, +4 FEATURE_KEYS/PASS_THROUGH entries): 856->863
     ("open_prep/realtime_signals.py", 130, "remove"),  # 2026-07-25 (databento-signal-migration): 129->130
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
