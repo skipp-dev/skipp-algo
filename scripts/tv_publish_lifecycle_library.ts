@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 
 import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
-  addCurrentScriptToChart,
   assertNoVisibleCompileError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
@@ -201,7 +200,6 @@ export async function runPublishLifecycleLibraryCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
-      await addCurrentScriptToChart(session.page, details.scriptName, { tolerateFailure: true });
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;

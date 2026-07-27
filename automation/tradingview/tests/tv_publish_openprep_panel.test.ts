@@ -64,19 +64,18 @@ test("verifyPanelPublishContract rejects a missing version directive", () => {
   assert.throws(() => verifyPanelPublishContract(writeFixture(noVersion)), /@version=6/);
 });
 
-test("panel publisher tolerates a failed pre-publish add-to-chart probe", () => {
+test("panel publisher delegates the chart gate to publishPrivateScript", () => {
   const source = fs.readFileSync(_publisherPath, "utf-8");
-  const addToChartCall = source.indexOf("await addCurrentScriptToChart(");
-  const publishCall = source.indexOf("await publishPrivateScript(", addToChartCall);
+  const compileGate = source.indexOf("await assertNoVisibleCompileError(");
+  const publishCall = source.indexOf("await publishPrivateScript(", compileGate);
 
-  assert.ok(addToChartCall >= 0, "publisher no longer probes add-to-chart");
   assert.ok(
-    publishCall > addToChartCall,
-    "publishPrivateScript must remain the hard publish gate after the optional probe",
+    compileGate >= 0 && publishCall > compileGate,
+    "the compile gate must remain before publishPrivateScript",
   );
-  assert.match(
-    source.slice(addToChartCall, publishCall),
-    /tolerateFailure:\s*true/,
-    "the optional add-to-chart probe must not abort before publishPrivateScript handles TradingView's chart gate",
+  assert.doesNotMatch(
+    source.slice(compileGate, publishCall),
+    /addCurrentScriptToChart\(/,
+    "the panel must not run a redundant chart probe before publishPrivateScript handles TradingView's hard chart gate",
   );
 });

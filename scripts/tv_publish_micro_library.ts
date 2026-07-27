@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 
 import { hasExpectedImportPathEvidence } from "./tv_publish_import_path_evidence.js";
 import {
-  addCurrentScriptToChart,
   assertNoVisibleCompileError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
@@ -842,7 +841,6 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       await saveScript(session.page, details.libraryName);
       await waitForPostSaveCompileSettlement(session.page, details.libraryName);
       await assertNoVisibleCompileError(session.page);
-      await addCurrentScriptToChart(session.page, details.libraryName, { tolerateFailure: true });
       await takeScreenshot(session.page, runId, `${details.libraryName}-compiled`, screenshots);
 
       publishAttempted = true;
