@@ -9,8 +9,11 @@
 Status: **Historischer Phasenplan mit implementierter v1-Basis.**
 `SMC_Hold_Manager.pine` wird nach bestandenem Readiness-Gate ein
 Standard-Companion; die weitergehenden v2/v3/v4-Funktionen bleiben gestuft.
+Die R2.2-Repository-Implementierung rekonstruiert den bestätigten BUS-Pfad
+deterministisch; der 20-Fälle-TradingView-Replay und der Shadow-Cutover aus
+R2.4/R2.5 bleiben offen.
 
-Letzte Aktualisierung: 2026-04-29
+Letzte Aktualisierung: 2026-07-27
 
 ## Naming — warum kein separater „Exit-Manager"?
 
@@ -191,7 +194,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 |---|---|---|---|
 | A | `long_setup_expired` initial im Flag-Inventar gefehlt | Doku | **gefixt** — siehe 4-Tupel oben |
 | B | `_now` vs `_this_bar` Semantik unklar | Doku | **gefixt** — siehe Tabelle oben |
-| C | Pine `var`-State-Loss bei Recompile | v3+ | Reset-Hook + `barstate.isconfirmed`-Gate; v3: Webhook-gestützte State-Rekonstruktion |
+| C | Pine `var`-State-Loss bei Recompile | R2.2 | **Repository-seitig gefixt:** bestätigte historische BUS-/OHLC-Rekonstruktion mit Plan-Generation, Entry-Epoch, Protected High, T1, aktivem Stop und terminalem Exit; TradingView-Reload-Replay bleibt R2.4-Evidenz |
 | D | Time-Stop in Bars ist TF-abhängig | v3 | Time-Stop in **Minuten**, nicht Bars; Uhrstart erst beim tatsächlichen Entry-Touch, nicht beim Arming |
 | E | `alertcondition()` feuert auf Level → Alert-Spam | v1 | **Alert-Edge-Framework von Tag 1**: alle Alerts auf rising-edge (`x and not x[1]`) |
 | F | Quality-Sizing-Schwellen (0.5/0.8) sind arbiträr | v4 | Aus `mp.ZONE_CAL_*` / neuen `mp.HOLD_SIZING_*` Konstanten ziehen |
@@ -234,9 +237,10 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
    `HM_STOP`, `HM_TIMESTOP`, `HM_EXIT_ANY`) feuert **genau einmal** pro
    Event über simulierten Multi-Bar-Hold. Pinned Test gegen
    Pine↔Python-Parity-Risiko aus Bug-Hunt v2 Phase 7.4.
-6. **State-Persistence-Test**: Nach simuliertem Recompile ist der Zustand
-   entweder wiederhergestellt oder explizit als `UNKNOWN` markiert (kein
-   silentes State=NONE).
+6. **State-Persistence-Test**: Nach Recompile wird der bestätigte BUS-Pfad
+   bytegleich bis zu Plan-Generation, Entry-Epoch, Protected High, T1,
+   aktivem Stop und terminalem Exit wiederhergestellt. Der timestamp-basierte
+   Recovery-Punkt muss auf derselben historischen Bar erneut wirken.
 7. **Outcomes-Schema-Integration**: Hold-Manager-Outputs landen im
    `cache/live/outcomes_*.jsonl` im **selben Schema** wie
    `SMC_Long_Strategy`-Outcomes. Notwendig für die Phase-A
@@ -254,6 +258,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
 2. Brauchen wir eine TV-Strategy-Variante (`SMC_Hold_Strategy.pine`) für
    Backtests? — Ja, in Phase v2/v3 sinnvoll.
 3. Sollten wir den State im Indikator persistent speichern (var) oder per
-   `request.security` aus einer höheren TF? — Var reicht; aber Watch-out:
-   wenn Pine-Skript neu kompiliert wird, geht der State verloren. Akzeptabel
-   für manuellen Trader (er sieht es im Chart sofort).
+   `request.security` aus einer höheren TF? — Entschieden: ein persistentes
+   Runtime-Objekt wird ausschließlich aus bestätigter BUS-/Preishistorie
+   rekonstruiert. Ein höherer TF wäre keine Zustandsquelle und würde die
+   Entry-Bar-Semantik verfälschen.

@@ -1,6 +1,6 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 539,
+  "total_inputs": 538,
   "total_hidden": 337,
   "files": [
     {
@@ -712,7 +712,7 @@
     },
     {
       "file": "SMC_Hold_Manager.pine",
-      "input_count": 27,
+      "input_count": 26,
       "hidden_count": 13,
       "inputs": [
         {
@@ -916,18 +916,10 @@
           "visibility": null
         },
         {
-          "varname": "i_reset_now",
-          "kind": "bool",
-          "label": "Force Reset (Trade beenden)",
+          "varname": "i_recovery_at",
+          "kind": "time",
+          "label": "Recovery-Zeitpunkt (UTC; 0 = aus)",
           "group": "gSafe",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "i_close_only",
-          "kind": "bool",
-          "label": "Trigger nur bei barstate.isconfirmed",
-          "group": null,
           "has_display_none": false,
           "visibility": null
         }

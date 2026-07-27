@@ -10,7 +10,7 @@
 //   • Engine BUS v2 ist der Standard-Plan; manuelle Eingabe nur expliziter Fallback
 //   • fehlende/inkohärente kritische BUS-Bindings verhindern neues Arming
 //   • Alert-Edges (rising-edge), nicht "level" Re-Fire
-//   • Pine var-State-Loss durch barstate.isconfirmed + Reset-Hook gehärtet
+//   • Zustand wird aus bestätigter BUS-/Preishistorie deterministisch rekonstruiert
 //   • Time-Stop in Minuten, nicht in Bars (TF-agnostisch)
 //   • Long-Pfad zuerst — Short-Path explizit als TODO markiert
 //
@@ -72,10 +72,8 @@ i_use_tstop  = input.bool(true , "Time-Stop aktiv"             , group = gMgmt)
 i_tstop_min  = input.int (90   , "Time-Stop (Minuten ab Entry)" , minval = 5, group = gMgmt)
 
 gSafe        = "Safety / Reset"
-i_reset_now  = input.bool(false, "Force Reset (Trade beenden)" , group = gSafe,
-     tooltip = "Notausschalter — setzt State auf NONE zurück.")
-i_close_only = input.bool(true , "Trigger nur bei barstate.isconfirmed",
-     group = gSafe, tooltip = "Adressiert Schwäche C: var-State auf bestätigten Bars.")
+i_recovery_at = input.time(0, "Recovery-Zeitpunkt (UTC; 0 = aus)", group = gSafe,
+     tooltip = "Deterministischer Reset: Der rekonstruierte Zustand wird auf der ersten bestätigten Bar ab diesem Zeitpunkt auf NONE gesetzt. Der Zeitpunkt bleibt auch nach Reload/Recompile wirksam.")
 
 gAlert       = "Alerts (Edge-Detection)"
 // NOTE: Alertconditions in this script are always edge-detected via `not foo[1]`
@@ -115,149 +113,356 @@ float effective_stop = use_bus_plan ? src_stop : i_stop
 float effective_t1 = use_bus_plan ? src_target1 : i_entry + manual_risk * i_t1_R
 float effective_t2 = use_bus_plan ? src_target2 : i_entry + manual_risk * i_t2_R
 
-// ── 4.  STATE MACHINE ────────────────────────────────────────────────────────
-// 4-Tupel parallel zur smc_lifecycle Semantik (long_setup_expired,
-// long_confirm_expired, long_broken_down, long_invalidated_now).
-// In v1 nutzen wir nur den Hold-Phase-Teil: ARMED → IN_TRADE → CLOSED.
-var int    state         = 0  // 0=NONE, 1=ARMED, 2=IN_TRADE, 3=CLOSED
-var float  entry_price   = na
-var float  initial_stop  = na
-var float  active_stop   = na
-var float  t1_price      = na
-var float  t2_price      = na
-var int    entry_bar     = na
-var int    entry_time_ms = na
-var bool   t1_hit        = false
+// ── 4.  DETERMINISTIC STATE MACHINE ─────────────────────────────────────────
+// Every field required to rebuild the assumed trade lives in one persistent
+// UDT. Pine recalculates this object from confirmed historical BUS and OHLC
+// series after reload/recompile; no last-bar-only latch owns the BUS path.
+int PHASE_NONE     = 0
+int PHASE_ARMED    = 1
+int PHASE_IN_TRADE = 2
+int PHASE_CLOSED   = 3
 
-// Reset-Hook (Schwäche C: explizite Re-Init bei recompile / force-reset)
-// Gate to last-bar so toggling input.bool TRUE resets exactly once instead of
-// re-firing on every historical bar (which would prevent state from forming).
-if i_reset_now and barstate.islast
-    state := 0, entry_price := na, initial_stop := na, active_stop := na
-    t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
-    t1_hit := false
+int EXIT_NONE      = 0
+int EXIT_STOP      = 1
+int EXIT_TARGET_2  = 2
+int EXIT_TIME_STOP = 3
 
-// ── 5.  ARMING & ENTRY ───────────────────────────────────────────────
-bool can_act = (not i_close_only) or barstate.isconfirmed
-// Detect the settings toggle via a var latch — the history operator cannot
-// see it because an input.bool is constant across the whole series. This path
-// is used only by the explicitly selected manual fallback.
+type HoldRuntime
+    int phase = 0
+    float entry_price = na
+    float initial_stop = na
+    float active_stop = na
+    float t1_price = na
+    float t2_price = na
+    int entry_bar = na
+    int entry_time_ms = na
+    float protected_high = na
+    bool t1_hit = false
+    int terminal_exit_code = 0
+    int terminal_exit_bar = na
+    int terminal_exit_time_ms = na
+    int bus_generation = 0
+    int bus_generation_epoch_ms = na
+    string plan_symbol = ""
+    int plan_direction = 0
+    int plan_schema = 0
+    int plan_source_kind = 0
+    float plan_trigger = na
+    float plan_invalidation = na
+    int plan_generation = 0
+    int plan_epoch_ms = na
+    int last_blocked_generation = 0
+    int last_blocked_time_ms = na
+
+method clear_trade(HoldRuntime this) =>
+    this.phase := PHASE_NONE
+    this.entry_price := na
+    this.initial_stop := na
+    this.active_stop := na
+    this.t1_price := na
+    this.t2_price := na
+    this.entry_bar := na
+    this.entry_time_ms := na
+    this.protected_high := na
+    this.t1_hit := false
+    this.terminal_exit_code := EXIT_NONE
+    this.terminal_exit_bar := na
+    this.terminal_exit_time_ms := na
+    this.plan_symbol := ""
+    this.plan_direction := 0
+    this.plan_schema := 0
+    this.plan_source_kind := 0
+    this.plan_trigger := na
+    this.plan_invalidation := na
+    this.plan_generation := 0
+    this.plan_epoch_ms := na
+    this
+
+method stage_plan(HoldRuntime this, float trigger, float stop_level,
+     float target_1, float target_2, float invalidation, int schema,
+     int source_kind, int generation, int plan_epoch) =>
+    this.phase := PHASE_ARMED
+    this.entry_price := trigger
+    this.initial_stop := stop_level
+    this.active_stop := stop_level
+    this.t1_price := target_1
+    this.t2_price := target_2
+    this.entry_bar := na
+    this.entry_time_ms := na
+    this.protected_high := na
+    this.t1_hit := false
+    this.terminal_exit_code := EXIT_NONE
+    this.terminal_exit_bar := na
+    this.terminal_exit_time_ms := na
+    this.plan_symbol := syminfo.tickerid
+    this.plan_direction := 1
+    this.plan_schema := schema
+    this.plan_source_kind := source_kind
+    this.plan_trigger := trigger
+    this.plan_invalidation := invalidation
+    this.plan_generation := generation
+    this.plan_epoch_ms := plan_epoch
+    this.last_blocked_generation := 0
+    this.last_blocked_time_ms := na
+    this
+
+method enter_trade(HoldRuntime this, int accepted_bar, int accepted_time,
+     float accepted_bar_high) =>
+    this.phase := PHASE_IN_TRADE
+    this.entry_bar := accepted_bar
+    this.entry_time_ms := accepted_time
+    this.protected_high := accepted_bar_high
+    this
+
+method close_trade(HoldRuntime this, int exit_code, int accepted_bar,
+     int accepted_time) =>
+    this.phase := PHASE_CLOSED
+    this.terminal_exit_code := exit_code
+    this.terminal_exit_bar := accepted_bar
+    this.terminal_exit_time_ms := accepted_time
+    this
+
+var HoldRuntime hold = HoldRuntime.new()
+
+// Historical transitions are confirmed-bar only. This is a release invariant,
+// not a user-selectable realtime mode, because an intrabar state cannot be
+// reproduced from historical OHLC after reload.
+bool can_act = barstate.isconfirmed
+int bar_epoch_ms = na(time_close) ? time : time_close
+
+// The reset is a timestamped historical event. Unlike a momentary last-bar
+// toggle, it survives reload and always resets on the same confirmed bar.
+bool recovery_now = can_act and i_recovery_at > 0 and
+     bar_epoch_ms >= i_recovery_at and nz(bar_epoch_ms[1], 0) < i_recovery_at
+if recovery_now
+    hold.clear_trade()
+    hold.last_blocked_generation := 0
+    hold.last_blocked_time_ms := na
+
+// A BUS generation begins whenever a valid plan appears or any identity field
+// changes while it remains valid. Plan updates are accepted only while ARMED.
+bool bus_identity_changed = bus_plan_valid and bus_plan_valid[1] and
+     (src_trigger != src_trigger[1] or
+      src_invalidation != src_invalidation[1] or
+      src_stop != src_stop[1] or
+      src_target1 != src_target1[1] or
+      src_target2 != src_target2[1] or
+      math.round(src_source_kind) != math.round(src_source_kind[1]) or
+      math.round(src_schema) != math.round(src_schema[1]))
+bool bus_plan_event = bus_plan_valid and (not bus_plan_valid[1] or bus_identity_changed)
+if can_act and bus_plan_event
+    hold.bus_generation += 1
+    hold.bus_generation_epoch_ms := bar_epoch_ms
+
+bool active_plan_matches_bus = bus_plan_valid and
+     hold.phase >= PHASE_ARMED and
+     hold.plan_symbol == syminfo.tickerid and hold.plan_direction == 1 and
+     hold.plan_schema == int(math.round(src_schema)) and
+     hold.plan_source_kind == int(math.round(src_source_kind)) and
+     hold.plan_trigger == src_trigger and
+     hold.plan_invalidation == src_invalidation and
+     hold.plan_generation == hold.bus_generation
+
+// A plan arriving during an assumed trade is recorded and rejected. It cannot
+// silently replace levels or become active after the trade closes; a later,
+// fresh BUS generation is required.
+bool new_plan_blocked = can_act and use_bus_plan and
+     hold.phase == PHASE_IN_TRADE and bus_plan_event and
+     not active_plan_matches_bus
+if new_plan_blocked
+    hold.last_blocked_generation := hold.bus_generation
+    hold.last_blocked_time_ms := bar_epoch_ms
+
+// ── 5.  ARMING & ENTRY ───────────────────────────────────────────────────────
+// Manual fallback deliberately remains a last-bar operator action. The
+// standard BUS path above is the reconstructable rollout path.
 var bool prev_arm = false
-bool manual_arm_edge = not use_bus_plan and manual_plan_valid and barstate.islast and i_arm_long and not prev_arm
-bool bus_arm_edge = use_bus_plan and bus_plan_valid and not bus_plan_valid[1]
-bool arm_now = use_bus_plan ? bus_arm_edge : manual_arm_edge
+bool manual_arm_edge = not use_bus_plan and manual_plan_valid and
+     barstate.islast and i_arm_long and not prev_arm
+bool arm_now = use_bus_plan ? bus_plan_event : manual_arm_edge
+bool may_accept_plan = hold.phase == PHASE_NONE or hold.phase == PHASE_CLOSED
 
-if can_act and state == 0 and arm_now
-    state         := 1
-    entry_price   := effective_entry
-    initial_stop  := effective_stop
-    active_stop   := effective_stop
-    t1_price      := effective_t1
-    t2_price      := effective_t2
-    // ARMED is only a waiting state; it must not consume the trade time budget.
-    entry_bar     := na
-    entry_time_ms := na
-    t1_hit        := false
+if can_act and not recovery_now and may_accept_plan and arm_now
+    int accepted_schema = use_bus_plan ? int(math.round(src_schema)) : 0
+    int accepted_source = use_bus_plan ? int(math.round(src_source_kind)) : -1
+    int accepted_generation = use_bus_plan ? hold.bus_generation : bar_index + 1
+    int accepted_epoch = use_bus_plan ? hold.bus_generation_epoch_ms : bar_epoch_ms
+    float accepted_invalidation = use_bus_plan ? src_invalidation : i_stop
+    hold.stage_plan(effective_entry, effective_stop, effective_t1, effective_t2,
+         accepted_invalidation, accepted_schema, accepted_source,
+         accepted_generation, accepted_epoch)
 
-// Before the assumed fill, follow producer plan changes. Missing or incoherent
-// critical BUS fields cancel ARMED rather than silently falling back to manual.
-if can_act and state == 1 and use_bus_plan and bus_plan_valid
-    entry_price  := effective_entry
-    initial_stop := effective_stop
-    active_stop  := effective_stop
-    t1_price     := effective_t1
-    t2_price     := effective_t2
+// Before the assumed fill, follow producer plan changes and update the captured
+// identity. Missing or incoherent critical BUS fields cancel ARMED rather than
+// silently falling back to manual values.
+if can_act and not recovery_now and hold.phase == PHASE_ARMED and
+     use_bus_plan and bus_plan_valid
+    hold.entry_price := effective_entry
+    hold.initial_stop := effective_stop
+    hold.active_stop := effective_stop
+    hold.t1_price := effective_t1
+    hold.t2_price := effective_t2
+    if bus_plan_event
+        hold.plan_schema := int(math.round(src_schema))
+        hold.plan_source_kind := int(math.round(src_source_kind))
+        hold.plan_trigger := src_trigger
+        hold.plan_invalidation := src_invalidation
+        hold.plan_generation := hold.bus_generation
+        hold.plan_epoch_ms := hold.bus_generation_epoch_ms
 
-if can_act and state == 1 and use_bus_plan and not bus_plan_valid
-    state := 0, entry_price := na, initial_stop := na, active_stop := na
-    t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
-    t1_hit := false
+if can_act and hold.phase == PHASE_ARMED and use_bus_plan and not bus_plan_valid
+    hold.clear_trade()
+
+if can_act and hold.phase == PHASE_ARMED and not use_bus_plan and
+     not manual_plan_valid
+    hold.clear_trade()
 
 if barstate.islast
     prev_arm := i_arm_long
 
-// Trigger-Touch erkennen — naive: Bar handelt durch Entry.
-bool entry_touch = state == 1 and low <= entry_price and high >= entry_price
-if can_act and entry_touch
-    // Start trade age only when the entry transition is actually accepted.
-    state         := 2
-    entry_bar     := bar_index
-    entry_time_ms := time
+// A bar that trades through the trigger, including an opening gap above it,
+// is accepted as an assumed chart fill. This is explicitly not a broker fill.
+bool entry_crossed = hold.phase == PHASE_ARMED and high >= hold.entry_price and
+     (low <= hold.entry_price or open > hold.entry_price)
+bool entry_event = can_act and not recovery_now and entry_crossed
+if entry_event
+    hold.enter_trade(bar_index, bar_epoch_ms, high)
 
 // ── 6.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
-float atr     = ta_lib.atr(i_atr_len)
-float chand   = high[1] - atr[1] * i_atr_mult
-// Chandelier-Trail nur erhöhen, nie senken — adressiert Long-Asymmetrie.
-if state == 2 and i_use_chand and not i_simple_mode and not na(chand)
-    active_stop := math.max(active_stop, chand)
+float atr = ta_lib.atr(i_atr_len)
+bool evaluate_trade = can_act and not recovery_now and
+     hold.phase == PHASE_IN_TRADE
 
-// Breakeven nach T1 (Schwäche F-light: Faktor fest, NICHT aus den ZONE_CAL_* Calibration-Feldern)
-if state == 2 and not t1_hit and high >= t1_price
-    t1_hit := true
-    if i_breakeven
-        active_stop := math.max(active_stop, entry_price)
+// Exit conditions are evaluated against the stop that existed before this
+// bar's BE/Chandelier updates. New protective levels apply to the next bar,
+// avoiding impossible same-bar ordering. Conservative precedence is:
+// STOP > TARGET_2 > TIME_STOP.
+float stop_before_management = hold.active_stop
+bool stop_hit = evaluate_trade and not na(stop_before_management) and
+     low <= stop_before_management
+bool t2_hit = evaluate_trade and not stop_hit and not na(hold.t2_price) and
+     high >= hold.t2_price
+bool time_stop_hit = evaluate_trade and not stop_hit and not t2_hit and
+     i_use_tstop and not i_simple_mode and not na(hold.entry_time_ms) and
+     (bar_epoch_ms - hold.entry_time_ms) >= (i_tstop_min * 60 * 1000)
+bool t1_event = evaluate_trade and not stop_hit and not t2_hit and
+     not hold.t1_hit and not na(hold.t1_price) and high >= hold.t1_price
 
-// long_broken_down äquivalent (smc_lifecycle:118)
-bool stop_hit = state == 2 and low <= active_stop
+int exit_reason = stop_hit ? EXIT_STOP :
+     t2_hit ? EXIT_TARGET_2 :
+     time_stop_hit ? EXIT_TIME_STOP : EXIT_NONE
+bool exit_now = exit_reason != EXIT_NONE
+// exit_now can only be true while the runtime is IN_TRADE; close_trade()
+// changes that phase on this bar, so the condition is intrinsically a pulse.
+// Avoid suppressing a legitimate next-trade exit merely because the previous
+// trade also exited on the immediately preceding bar.
+bool exit_edge = exit_now
 
-// Time-Stop in Minuten — konvertiert zu ms, TF-agnostisch (Schwäche D).
-bool time_stop_hit = state == 2 and i_use_tstop and not i_simple_mode and not na(entry_time_ms) and
-     (time - entry_time_ms) >= (i_tstop_min * 60 * 1000)
+if exit_edge
+    hold.close_trade(exit_reason, bar_index, bar_epoch_ms)
+else if evaluate_trade
+    if t1_event
+        hold.t1_hit := true
+        if i_breakeven
+            hold.active_stop := math.max(hold.active_stop, hold.entry_price)
 
-bool t2_hit = state == 2 and high >= t2_price
-
-// long_invalidated_now Pulse — pro Trade einmal (rising-edge).
-bool exit_now = stop_hit or t2_hit or time_stop_hit
-bool exit_edge = exit_now and (not exit_now[1])
-if can_act and exit_edge
-    state := 3
+    // Store the all-trade protected high explicitly. The stop is monotonic and
+    // is moved only after current-bar exit evaluation.
+    hold.protected_high := na(hold.protected_high) ?
+         high : math.max(hold.protected_high, high)
+    float chandelier_next = hold.protected_high - atr * i_atr_mult
+    if i_use_chand and not i_simple_mode and not na(chandelier_next)
+        hold.active_stop := math.max(hold.active_stop, chandelier_next)
 
 // ── 7.  PLOTS / VISUALS ──────────────────────────────────────────────────────
-plot(state >= 1 ? entry_price  : na, "Entry"   , color.new(color.aqua, 0)  , 1, plot.style_linebr)
-plot(state >= 2 ? active_stop  : na, "Stop"    , color.new(color.red , 0)  , 2, plot.style_linebr)
-plot(state >= 1 ? t1_price     : na, "T1"      , color.new(color.green, 30), 1, plot.style_linebr)
-plot(state >= 1 ? t2_price     : na, "T2"      , color.new(color.green, 0) , 1, plot.style_linebr)
+plot(hold.phase >= PHASE_ARMED ? hold.entry_price : na, "Entry",
+     color.new(color.aqua, 0), 1, plot.style_linebr)
+plot(hold.phase >= PHASE_IN_TRADE ? hold.active_stop : na, "Stop",
+     color.new(color.red, 0), 2, plot.style_linebr)
+plot(hold.phase >= PHASE_ARMED ? hold.t1_price : na, "T1",
+     color.new(color.green, 30), 1, plot.style_linebr)
+plot(hold.phase >= PHASE_ARMED ? hold.t2_price : na, "T2",
+     color.new(color.green, 0), 1, plot.style_linebr)
 
-plotshape(can_act and entry_touch , "Entry"     , shape.triangleup  , location.belowbar, color.aqua  , size = size.small)
-plotshape(can_act and t1_hit and not t1_hit[1], "T1 Hit", shape.diamond, location.abovebar, color.green, size = size.small)
-plotshape(can_act and exit_edge   , "Exit"      , shape.xcross      , location.abovebar, color.red   , size = size.small)
+// Hidden reconstruction diagnostics for replay/source evidence.
+plot(hold.phase, "HM StateCode", display = display.none)
+plot(hold.plan_generation, "HM PlanGeneration", display = display.none)
+plot(hold.plan_epoch_ms, "HM PlanEpochMs", display = display.none)
+plot(hold.entry_time_ms, "HM EntryEpochMs", display = display.none)
+plot(hold.protected_high, "HM ProtectedHigh", display = display.none)
+plot(hold.t1_hit ? 1 : 0, "HM Target1State", display = display.none)
+plot(hold.terminal_exit_code, "HM TerminalExitCode", display = display.none)
+plot(hold.terminal_exit_time_ms, "HM TerminalExitEpochMs", display = display.none)
+plot(new_plan_blocked ? 1 : 0, "HM NewPlanBlocked", display = display.none)
+
+plotshape(entry_event, "Entry", shape.triangleup, location.belowbar,
+     color.aqua, size = size.small)
+plotshape(t1_event, "T1 Hit", shape.diamond, location.abovebar,
+     color.green, size = size.small)
+plotshape(exit_edge, "Exit", shape.xcross, location.abovebar,
+     color.red, size = size.small)
 
 // Status-Label am letzten Bar (nur einmal — Schwäche E: kein Spam).
 var label statusLbl = na
 if barstate.islast
     label.delete(statusLbl)
-    string txt = "State: " + (state == 0 ? "NONE" : state == 1 ? "ARMED" : state == 2 ? "IN_TRADE" : "CLOSED") +
+    string txt = "State: " +
+         (hold.phase == PHASE_NONE ? "NONE" :
+          hold.phase == PHASE_ARMED ? "ARMED" :
+          hold.phase == PHASE_IN_TRADE ? "IN_TRADE" : "CLOSED") +
          "\nPlan: " + (use_bus_plan ? "Engine BUS v2" : "Manual fallback") +
-         (use_bus_plan ? "\nBUS: " + (bus_plan_valid ? "PLAN VALID" : "FAIL-CLOSED / WAITING") : "") +
-         "\nStop: " + str.tostring(active_stop, format.mintick) +
-         "\nT1/T2: " + str.tostring(t1_price, format.mintick) + " / " + str.tostring(t2_price, format.mintick) +
+         (use_bus_plan ? "\nBUS: " +
+          (bus_plan_valid ? "PLAN VALID" : "FAIL-CLOSED / WAITING") : "") +
+         "\nPlan ID: " + hold.plan_symbol + " · LONG · g" +
+         str.tostring(hold.plan_generation) +
+         "\nStop: " + str.tostring(hold.active_stop, format.mintick) +
+         "\nT1/T2: " + str.tostring(hold.t1_price, format.mintick) + " / " +
+         str.tostring(hold.t2_price, format.mintick) +
          "  (T1-Partial " + str.tostring(i_t1_partial, "#.#") + "%)" +
-         (state == 2 ? "\nFill: assumed from chart touch" : "") +
-         (state == 2 ? "\nElapsed: " + str.tostring(math.round((time - entry_time_ms) / 60000)) + "m" : "") +
+         (hold.phase == PHASE_IN_TRADE ?
+          "\nFill: assumed from confirmed chart bar" : "") +
+         (hold.phase == PHASE_IN_TRADE and not na(hold.entry_time_ms) ?
+          "\nElapsed: " +
+          str.tostring(math.round((bar_epoch_ms - hold.entry_time_ms) / 60000)) +
+          "m" : "") +
+         (hold.phase >= PHASE_IN_TRADE ?
+          "\nProtected high: " +
+          str.tostring(hold.protected_high, format.mintick) : "") +
+         (hold.phase == PHASE_CLOSED ?
+          "\nTerminal exit: " + str.tostring(hold.terminal_exit_code) : "") +
+         (hold.last_blocked_generation > 0 ?
+          "\n⚠ New plan g" + str.tostring(hold.last_blocked_generation) +
+          " rejected while in trade" : "") +
+         "\nRebuild: confirmed-history deterministic" +
          "\nAlerts: edge-only" +
          "  Tier: " + ctx_action_tier +
-         (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") + (ctx_earnings ? "\n⚠ EARNINGS" : "")
-    statusLbl := label.new(bar_index, high, txt, style = label.style_label_left,
-         color = state == 2 ? color.new(color.blue, 80) : color.new(color.gray, 80))
+         (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") +
+         (ctx_earnings ? "\n⚠ EARNINGS" : "")
+    statusLbl := label.new(bar_index, high, txt,
+         style = label.style_label_left,
+         color = hold.phase == PHASE_IN_TRADE ?
+              color.new(color.blue, 80) : color.new(color.gray, 80))
 
 // ── 8.  ALERTS — edge-detected, ein Pulse pro Event ──────────────────────────
-// Master-Pulse-Semantik: long_invalidated_now ist EDGE, nicht Level.
 // H-1 (system review 2026-04-24): bind alertcondition() to bar-close gate.
-// Reuses can_act as the single source of truth for the bar-close gate
-// (PR #1940 review). The literal _alertGate token is preserved because
+// The literal _alertGate token is preserved because
 // tests/test_pine_alert_bar_close_gate.py.
 _alertGate = can_act
-alertcondition(_alertGate and entry_touch                , "HM_ENTRY"     , "Hold-Manager: Entry touched")
-alertcondition(_alertGate and t1_hit and not t1_hit[1]   , "HM_T1"        , "Hold-Manager: T1 reached")
-alertcondition(_alertGate and t2_hit and not t2_hit[1]   , "HM_T2"        , "Hold-Manager: T2 reached — exit")
-alertcondition(_alertGate and stop_hit and not stop_hit[1], "HM_STOP"     , "Hold-Manager: Stop hit")
-alertcondition(_alertGate and time_stop_hit and not time_stop_hit[1], "HM_TIMESTOP", "Hold-Manager: Time-Stop hit")
-alertcondition(_alertGate and exit_edge                  , "HM_EXIT_ANY"  , "Hold-Manager: any exit (master)")
+alertcondition(_alertGate and entry_event, "HM_ENTRY",
+     "Hold-Manager: assumed entry accepted")
+alertcondition(_alertGate and t1_event, "HM_T1",
+     "Hold-Manager: T1 reached")
+alertcondition(_alertGate and t2_hit, "HM_T2",
+     "Hold-Manager: T2 reached — exit")
+alertcondition(_alertGate and stop_hit, "HM_STOP",
+     "Hold-Manager: Stop hit")
+alertcondition(_alertGate and time_stop_hit, "HM_TIMESTOP",
+     "Hold-Manager: Time-Stop hit")
+alertcondition(_alertGate and exit_edge, "HM_EXIT_ANY",
+     "Hold-Manager: any exit (master)")
 
-// ── 9.  TODO / Phase-Gates ───────────────────────────────────────────────────
-// v2 (post C13 sign-off ~26.05.): Short-Pfad spiegeln, gap-open earnings pre-defensive.
-// v3 (post Phase-B sign-off ~Ende Juli):
-//   • i_atr_mult per family aus den ZONE_CAL_OB / _FVG / _BOS / _SWEEP Feldern ableiten
-//   • Quality-Sizing aus dem HERO_QUALITY_TIER Feld + ZONE_HR_* Hit-Rates
-// R2.2 offen: vollständige deterministische Rekonstruktion von Entry-Epoch,
-// protected high, T1/Stop und terminalem Exit über Reload/Recompile.
+// ── 9.  REMAINING PHASE GATES ────────────────────────────────────────────────
+// R2.4 remains operational: execute and retain the full 20-case TradingView
+// replay matrix, including reload, gaps, same-bar precedence, and alert counts.
+// R2.5 remains operational: compile/save/hash/bind, shadow observation,
+// mutually-exclusive actionable exit mode, and rollback evidence.

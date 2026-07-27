@@ -530,7 +530,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
             'Read-only hold-management overlay with Engine BUS v2 as its '
             'fail-closed primary plan, explicit manual fallback, '
             'ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, '
-            'and time-stop.',
+            'time-stop, and confirmed-history state reconstruction.',
         ),
     ),
     SurfaceDefinition(

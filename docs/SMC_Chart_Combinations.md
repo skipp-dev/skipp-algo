@@ -69,8 +69,12 @@ geführt. Die alten Snapshot-basierten Context-Skripte dürfen nicht als
 operative Chartkombination verwendet werden.
 
 Beim Hold Manager beginnt die Time-Stop-Uhr erst mit dem tatsächlichen
-Entry-Touch (`HM_ENTRY`). Wartezeit im Zustand `ARMED` zählt nicht als
-Trade-Zeit.
+auf einer bestätigten Chart-Bar angenommenen Entry (`HM_ENTRY`). Wartezeit im
+Zustand `ARMED` zählt nicht als Trade-Zeit. Entry-Epoch, Protected High,
+Target-1-Status, aktiver Stop und terminaler Exit werden aus der bestätigten
+BUS-/Preishistorie rekonstruiert. Ein neuer BUS-Plan darf einen laufenden
+angenommenen Trade nicht überschreiben; Recovery erfolgt über einen
+persistenten Zeitstempel.
 
 ## Ziel-Presets
 
