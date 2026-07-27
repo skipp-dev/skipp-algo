@@ -30,6 +30,10 @@ def test_r0_baseline_is_self_consistent_and_rollback_ready() -> None:
 
     assert baseline["schemaVersion"] == 1
     assert baseline["baselineKind"] == "tradingview_phase_r0_rollback"
+    assert (
+        baseline["phaseR0Verdict"]
+        == "operational_baseline_complete_repository_recorded"
+    )
     assert COMMIT_RE.fullmatch(baseline["repository"]["commit"])
     assert baseline["repository"]["inputsMatchCommit"] is True
 

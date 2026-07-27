@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "baselineKind": "tradingview_phase_r0_rollback",
   "capturedAt": "2026-07-27T07:12:17Z",
-  "phaseR0Verdict": "operational_baseline_complete_repository_record_pending",
+  "phaseR0Verdict": "operational_baseline_complete_repository_recorded",
   "repository": {
     "commit": "8b0a3127c919ad85ea4864a113abb14f0e2025dc",
     "inputsMatchCommit": true
