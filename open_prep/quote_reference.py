@@ -320,6 +320,9 @@ class QuoteReference:
 
     def __init__(self, rows_by_symbol: dict[str, QuoteReferenceRow]) -> None:
         self._rows_by_symbol = rows_by_symbol
+        # Set by load() so reload() can re-read the same artifact after the
+        # out-of-band daily rebuild; None for a directly-constructed instance.
+        self._source_path: Path | None = None
 
     @classmethod
     def load(cls, path: Path | str = DEFAULT_OUTPUT_PATH) -> QuoteReference:
@@ -339,7 +342,20 @@ class QuoteReference:
                 as_of_session=str(row_raw.get("as_of_session") or ""),
                 source=str(row_raw.get("source") or ""),
             )
-        return cls(rows_by_symbol)
+        instance = cls(rows_by_symbol)
+        instance._source_path = Path(path)
+        return instance
+
+    def reload(self) -> QuoteReference:
+        """Re-read the artifact from the path this instance was loaded from,
+        returning a fresh :class:`QuoteReference` with the new session's
+        previous_close/ADV (rewritten out-of-band by
+        ``python -m open_prep.quote_reference``). Raises ``ValueError`` if this
+        instance was constructed directly rather than via :meth:`load` (no
+        path to reload from)."""
+        if self._source_path is None:
+            raise ValueError("QuoteReference has no source path to reload from")
+        return QuoteReference.load(self._source_path)
 
     def get(self, symbol: str) -> QuoteReferenceRow | None:
         return self._rows_by_symbol.get(symbol.strip().upper())

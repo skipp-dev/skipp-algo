@@ -28,9 +28,14 @@ access, no real API keys.
 
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from open_prep.quote_reference import (
     DEFAULT_OUTPUT_PATH,
     QuoteReference,
+    QuoteReferenceRow,
     build_quote_reference_for_universe,
     extract_candidate_symbols_from_open_prep_run,
     fmp_eod_response_to_bars,
@@ -196,3 +201,39 @@ def test_default_output_path_is_producer_owned_not_a0_fast() -> None:
     assert "a0_fast_detector" not in str(DEFAULT_OUTPUT_PATH)
     assert "a0-reference.json" not in str(DEFAULT_OUTPUT_PATH)
     assert str(DEFAULT_OUTPUT_PATH) == "artifacts/open_prep/latest/quote_reference.json"
+
+
+def test_reload_rereads_artifact_from_the_load_path(tmp_path) -> None:
+    """``reload()`` re-reads the same path ``load()`` used, so a new session's
+    out-of-band rewrite is picked up without knowing the path at the call
+    site."""
+    path = tmp_path / "quote_reference.json"
+    path.write_text(
+        json.dumps({"AAPL": {"previous_close": 100.0, "average_daily_volume": 2_000_000.0,
+                             "as_of_session": "2026-07-24", "source": "fmp:adjusted-eod"}}),
+        encoding="utf-8",
+    )
+    reference = QuoteReference.load(path)
+    assert reference.previous_close("AAPL") == 100.0
+
+    path.write_text(
+        json.dumps({"AAPL": {"previous_close": 105.0, "average_daily_volume": 2_500_000.0,
+                             "as_of_session": "2026-07-25", "source": "fmp:adjusted-eod"}}),
+        encoding="utf-8",
+    )
+    reloaded = reference.reload()
+    assert reloaded.previous_close("AAPL") == 105.0
+    assert reloaded.average_daily_volume("AAPL") == 2_500_000.0
+    # reload() returns a fresh instance; the original is left untouched.
+    assert reference.previous_close("AAPL") == 100.0
+
+
+def test_reload_without_source_path_raises() -> None:
+    """A directly-constructed reference (no ``load()``) has no path to reload
+    from -- raise rather than silently return an empty/garbage reference."""
+    reference = QuoteReference({"AAPL": QuoteReferenceRow(
+        previous_close=100.0, average_daily_volume=2_000_000.0,
+        as_of_session="2026-07-24", source="fmp:adjusted-eod",
+    )})
+    with pytest.raises(ValueError):
+        reference.reload()

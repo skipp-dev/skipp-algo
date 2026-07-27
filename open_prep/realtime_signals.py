@@ -2637,6 +2637,22 @@ class RealtimeEngine:
         # Clear technical indicator cache for removed symbols
         self._technical_scorer.clear()
 
+        # Databento feed lifecycle on watchlist rotation (no-op for the FMP
+        # default). Both calls are duck-typed and internally fail-soft, so they
+        # never touch the FMP path and never break the reload cycle:
+        #  (1) resubscribe the live feed to the new symbol set — otherwise the
+        #      feed keeps yesterday's subscription and never emits bars for
+        #      symbols added by the rotation (they'd fail-closed omit forever);
+        #  (2) reload the daily quote-reference so a new session's
+        #      previous_close/ADV replaces yesterday's (else changesPercentage
+        #      skews for the life of the process).
+        feed = getattr(self, "_databento_feed", None)
+        if feed is not None:
+            feed.update_symbols(sorted(wl_syms))
+        reload_reference = getattr(getattr(self, "_quote_source", None), "reload_reference", None)
+        if callable(reload_reference):
+            reload_reference()
+
     def start_async_newsstack(self, poll_interval: float = 15.0) -> None:
         """Start the background newsstack poller (call once at startup)."""
         self._async_newsstack = AsyncNewsstackPoller(poll_interval=poll_interval)
@@ -4002,9 +4018,20 @@ class RealtimeEngine:
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+def _raise_keyboard_interrupt_on_sigterm(_signum: int, _frame: Any) -> None:
+    """SIGTERM handler: translate the orchestrator stop signal (Railway/Docker
+    ``stop`` send SIGTERM, then SIGKILL after a grace period) into the same
+    ``KeyboardInterrupt`` the SIGINT path already handles, so ``main()``'s
+    graceful-shutdown block runs — stopping the Databento feed's ``db.Live``
+    socket + threads, the telemetry server and the pollers cleanly — instead
+    of the process being killed mid-connection."""
+    raise KeyboardInterrupt
+
+
 def main() -> None:
     """Run the realtime signal engine as a standalone polling loop."""
     import argparse
+    import signal
 
     # Auto-load .env so FMP_API_KEY is available without manual shell sourcing
     env_path = Path(__file__).resolve().parents[1] / ".env"
@@ -4055,6 +4082,15 @@ def main() -> None:
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    # Route SIGTERM (container/orchestrator stop) through the existing
+    # KeyboardInterrupt graceful-shutdown path. signal.signal only works on the
+    # main thread; the narrow ValueError guard keeps main() importable/callable
+    # off the main thread (e.g. under a test runner) without a handler.
+    try:
+        signal.signal(signal.SIGTERM, _raise_keyboard_interrupt_on_sigterm)
+    except ValueError:
+        logger.debug("SIGTERM handler not installed (main() not on main thread)")
 
     engine = RealtimeEngine(
         poll_interval=args.interval,

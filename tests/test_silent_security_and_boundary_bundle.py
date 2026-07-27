@@ -206,11 +206,11 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the reviewed CLI logging site to 4052.
-    ("open_prep/realtime_signals.py", 4052),
+    ("open_prep/realtime_signals.py", 4079),  # 2026-07-27 (databento phase2.2 hardening): 4052->4079
     # 2026-07-25 (databento-signal-migration): quote_reference CLI main() sets
     # up the root logger before its live orchestration run, same entry-point
     # pattern as the other CLI tools in this ledger.
-    ("open_prep/quote_reference.py", 417),
+    ("open_prep/quote_reference.py", 433),  # 2026-07-27 (databento phase2.2 hardening): reload() additions 417->433
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.

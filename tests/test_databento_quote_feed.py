@@ -607,3 +607,116 @@ class TestReplayBarrierNonDroppable:
         feed._enqueue_barrier(replay_active=False)
         assert feed._queue.qsize() == 1
         assert feed._queue.get_nowait() is filler
+
+
+class TestSupervisorRestart:
+    def test_circuit_breaker_rearms_via_supervisor_instead_of_dying(self) -> None:
+        """After the circuit breaker trips the feed must NOT die permanently
+        (the pre-hardening behavior). The supervisor cools down, re-arms, and
+        reconnects, so a transient multi-failure outage self-heals without a
+        process restart. A short cooldown makes repeated re-arms observable
+        in-test; the persistent connect-time failure (subscribe raises) is what
+        accumulates consecutive failures past the breaker (see
+        ``test_circuit_breaker_trips_after_max_consecutive_failures``)."""
+        failure = db.BentoError("persistent failure")
+
+        class _RefusingClient(_FakeClient):
+            def subscribe(self, **kwargs: Any) -> None:
+                super().subscribe(**kwargs)
+                raise failure
+
+        feed = DatabentoQuoteFeed(
+            ["NVDA"],
+            lambda: _RefusingClient([]),
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=0.01,
+            reconnect_backoff_secs=0.01,
+            max_reconnect_attempts=2,
+            max_consecutive_failures=2,
+            supervisor_cooldown_secs=0.02,
+        )
+        feed.start()
+        deadline = time.monotonic() + 3.0
+        while (
+            feed.telemetry.snapshot()["supervisor_restarts"] < 2
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.02)
+        # Sampled BEFORE stop(): the feed thread is still alive because the
+        # supervisor re-armed it, not because it never tripped.
+        alive_after_rearm = feed._feed_thread is not None and feed._feed_thread.is_alive()
+        feed.stop()
+
+        snap = feed.telemetry.snapshot()
+        assert snap["supervisor_restarts"] >= 2, "supervisor did not re-arm the feed after circuit-break"
+        assert snap["circuit_breakers"] >= 2, "breaker should keep tripping+re-arming, not die after one trip"
+        assert alive_after_rearm, "feed thread died instead of being supervised"
+
+    def test_supervisor_cooldown_is_interrupted_by_stop(self) -> None:
+        """A stop() during the (here long) supervisor cooldown must break out
+        promptly rather than block for the full cooldown — so shutdown stays
+        responsive even mid-cooldown."""
+        failure = db.BentoError("persistent failure")
+
+        class _RefusingClient(_FakeClient):
+            def subscribe(self, **kwargs: Any) -> None:
+                super().subscribe(**kwargs)
+                raise failure
+
+        feed = DatabentoQuoteFeed(
+            ["NVDA"],
+            lambda: _RefusingClient([]),
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=0.01,
+            reconnect_backoff_secs=0.01,
+            max_reconnect_attempts=2,
+            max_consecutive_failures=2,
+            supervisor_cooldown_secs=30.0,  # long: only stop() should end it
+        )
+        feed.start()
+        deadline = time.monotonic() + 3.0
+        while (
+            feed.telemetry.snapshot()["circuit_breakers"] < 1
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.02)
+        stop_started = time.monotonic()
+        feed.stop()
+        assert time.monotonic() - stop_started < 5.0, "stop() blocked on the supervisor cooldown"
+        # It tripped once and was cooling down (no re-arm) when stop() hit.
+        assert feed.telemetry.snapshot()["circuit_breakers"] == 1
+
+
+class TestUpdateSymbols:
+    def test_update_symbols_swaps_set_and_breaks_active_client(self) -> None:
+        """A changed watchlist rebinds the symbol set (normalized + deduped)
+        and stops the active client so the feed loop reconnects and
+        re-subscribes with the new list."""
+        feed, client = _make_feed([])  # constructed for ["NVDA"]
+        feed._active_client = client  # simulate a live connection
+
+        changed = feed.update_symbols(["AAPL", "msft", "AAPL"])
+
+        assert changed is True
+        assert feed._symbol_set == {"AAPL", "MSFT"}
+        assert feed._symbols == ["AAPL", "MSFT"]
+        assert client.stopped is True  # in-flight iteration broken -> reconnect
+
+    def test_update_symbols_is_noop_when_set_unchanged(self) -> None:
+        feed, client = _make_feed([])  # ["NVDA"]
+        feed._active_client = client
+
+        changed = feed.update_symbols(["nvda"])  # same set, different case
+
+        assert changed is False
+        assert feed._symbol_set == {"NVDA"}
+        assert client.stopped is False  # no needless reconnect
+
+    def test_update_symbols_ignores_empty_universe(self) -> None:
+        feed, client = _make_feed([])  # ["NVDA"]
+        feed._active_client = client
+
+        assert feed.update_symbols([]) is False
+        assert feed.update_symbols(["", "  "]) is False
+        assert feed._symbol_set == {"NVDA"}  # never dropped to empty
+        assert client.stopped is False

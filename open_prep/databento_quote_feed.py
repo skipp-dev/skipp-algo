@@ -115,6 +115,7 @@ class DatabentoFeedTelemetry:
         self._bento_errors = 0
         self._unexpected_errors = 0
         self._circuit_breakers = 0
+        self._supervisor_restarts = 0
         self._queue_dropped = 0
         self._replay_completions = 0
         self._last_data_age_ms: float | None = None
@@ -148,6 +149,10 @@ class DatabentoFeedTelemetry:
         with self._lock:
             self._circuit_breakers += 1
 
+    def record_supervisor_restart(self) -> None:
+        with self._lock:
+            self._supervisor_restarts += 1
+
     def record_queue_drop(self) -> None:
         with self._lock:
             self._queue_dropped += 1
@@ -174,6 +179,7 @@ class DatabentoFeedTelemetry:
                 "bento_errors": self._bento_errors,
                 "unexpected_errors": self._unexpected_errors,
                 "circuit_breakers": self._circuit_breakers,
+                "supervisor_restarts": self._supervisor_restarts,
                 "queue_dropped": self._queue_dropped,
                 "replay_completions": self._replay_completions,
                 "data_age_ms": self._last_data_age_ms,
@@ -189,6 +195,7 @@ class DatabentoFeedTelemetry:
             _counter("databento_quote_feed_bento_errors_total", snap["bento_errors"]),
             _counter("databento_quote_feed_unexpected_errors_total", snap["unexpected_errors"]),
             _counter("databento_quote_feed_circuit_breakers_total", snap["circuit_breakers"]),
+            _counter("databento_quote_feed_supervisor_restarts_total", snap["supervisor_restarts"]),
             _counter("databento_quote_feed_queue_dropped_total", snap["queue_dropped"]),
             _counter("databento_quote_feed_replay_completions_total", snap["replay_completions"]),
             _gauge(
@@ -284,6 +291,10 @@ def _parse_ohlcv_record(record: Any, *, symbol: str) -> BarState | None:
 
         ts_event = _epoch_seconds(raw_ts_event)
         raw_ts_recv = getattr(record, "ts_recv", None)
+        # ts_recv absent (record shapes that omit it — e.g. some test fixtures)
+        # falls back to ts_event so data_age_ms (max(0, ts_recv - ts_event) in
+        # record_bar_age) reads 0 rather than a bogus negative/huge age; it is
+        # never fabricated as "now". Mirrors a0_contract's receipt-time handling.
         ts_recv = _epoch_seconds(raw_ts_recv) if raw_ts_recv is not None else ts_event
 
         open_ = float(raw_open) * _PRICE_SCALE
@@ -359,6 +370,7 @@ class DatabentoQuoteFeed:
         reconnect_backoff_secs: float = 120.0,
         max_reconnect_attempts: int = 5,
         max_consecutive_failures: int = 10,
+        supervisor_cooldown_secs: float = 300.0,
     ) -> None:
         if not symbols:
             raise ValueError("symbols must not be empty")
@@ -373,6 +385,7 @@ class DatabentoQuoteFeed:
         self._reconnect_backoff_secs = float(reconnect_backoff_secs)
         self._max_reconnect_attempts = int(max_reconnect_attempts)
         self._max_consecutive_failures = int(max_consecutive_failures)
+        self._supervisor_cooldown_secs = max(0.0, float(supervisor_cooldown_secs))
 
         # Cache: written only under _cache_lock, from the ingest thread's
         # barrier flush. Read from any thread via latest_bar/cumulative_volume
@@ -435,6 +448,52 @@ class DatabentoQuoteFeed:
             if self._ingest_thread is not None and self._ingest_thread.is_alive():
                 self._ingest_thread.join(timeout=5)
             self.telemetry.set_connected(False)
+
+    def update_symbols(self, symbols: list[str]) -> bool:
+        """Replace the subscribed symbol set (e.g. on a daily watchlist
+        rotation) and force a reconnect so the new ``ohlcv-1s`` subscription
+        takes effect. No-op returning ``False`` if the set is unchanged.
+
+        Thread-safe: ``_symbols``/``_symbol_set`` are only ever *rebound* here
+        (never mutated in place), so the feed thread — which reads them
+        unlocked at subscribe time and in the symbol-membership check — sees
+        either the whole old set or the whole new one, never a torn view. The
+        swap and the active-client read are done under ``_active_client_lock``
+        so concurrent callers can't race the compare-and-swap.
+
+        The reconnect advances the effective replay start past the last
+        committed bar (``_next_replay_start``), so this backfills only the gap
+        rather than replaying the whole session again — which correctly avoids
+        double-counting the cumulative volume of symbols that were already
+        subscribed. A symbol newly ADDED intraday therefore backfills only
+        from that cursor, not from session open; in practice watchlist
+        rotations land pre-session (every symbol starts fresh at 09:30 ET),
+        where this is exact."""
+        normalized: list[str] = []
+        new_set: set[str] = set()
+        for raw in symbols:
+            if not raw or not raw.strip():
+                continue
+            sym = raw.strip().upper()
+            if sym not in new_set:  # dedupe, order-preserving
+                new_set.add(sym)
+                normalized.append(sym)
+        if not new_set:
+            return False  # never resubscribe to an empty universe
+        with self._active_client_lock:
+            if new_set == self._symbol_set:
+                return False
+            self._symbols = normalized
+            self._symbol_set = new_set
+            client = self._active_client
+        # Break the in-flight ``for record in client:`` so the feed loop falls
+        # through to its reconnect and re-subscribes with the new list. No-op
+        # if nothing is connected yet — the next connect already reads the new
+        # symbols.
+        if client is not None:
+            with contextlib.suppress(Exception):
+                client.stop()
+        return True
 
     # -- reads (thread-safe) --------------------------------------------
 
@@ -563,10 +622,24 @@ class DatabentoQuoteFeed:
                 if consecutive_failures >= self._max_consecutive_failures:
                     self.telemetry.record_circuit_breaker()
                     logger.critical(
-                        "Databento feed exceeded %d consecutive failures — circuit-breaker triggered.",
+                        "Databento feed exceeded %d consecutive failures — circuit-breaker "
+                        "tripped; supervisor cooling down %.0fs before re-arming.",
                         self._max_consecutive_failures,
+                        self._supervisor_cooldown_secs,
                     )
-                    break
+                    # Supervisor restart (was: permanent break). A dead feed
+                    # thread silently freezes the cache — the source-side
+                    # staleness gate (DatabentoQuoteSource.max_bar_age) then ages
+                    # every symbol out so no frozen price is served, but only a
+                    # re-arm restores live data without a full process restart.
+                    # Cool down long enough not to hammer Databento after a real
+                    # outage, then reset the failure counter and reconnect. Still
+                    # bounded by stop(): a shutdown during cooldown breaks out.
+                    if stop.wait(self._supervisor_cooldown_secs):
+                        break
+                    self.telemetry.record_supervisor_restart()
+                    consecutive_failures = 0
+                    continue
 
                 delay = (
                     self._reconnect_backoff_secs
