@@ -515,7 +515,7 @@ class DatabentoQuoteFeed:
                                 code_int=_SYSTEM_CODE_END_OF_INTERVAL,
                                 code_name="end_of_interval",
                             ):
-                                self._enqueue_barrier()
+                                self._enqueue_barrier(replay_active=replay_active)
                             continue
 
                         record_type_upper = record_type.upper()
@@ -604,10 +604,25 @@ class DatabentoQuoteFeed:
         except queue.Full:
             self.telemetry.record_queue_drop()
 
-    def _enqueue_barrier(self) -> None:
-        # Best-effort: a dropped barrier only delays visibility of the
-        # in-flight batch until the next barrier or the final shutdown
-        # flush — _pending is keyed by symbol, so no data is lost.
+    def _enqueue_barrier(self, *, replay_active: bool) -> None:
+        # During replay the queue is deliberately kept full by the blocking
+        # bar puts, so a put_nowait barrier would be dropped — and a dropped
+        # barrier lets multiple intervals' bars overwrite in _pending (keyed
+        # by symbol), silently undercounting cumulative volume at the
+        # session-open backfill (verified live 2026-07-27: queue=50 stress
+        # lost up to 2.2%). Block (bounded by stop) during replay so every
+        # interval flushes exactly once, at any queue size.
+        if replay_active:
+            while not self._stop_event.is_set():
+                try:
+                    self._queue.put(_BARRIER_SENTINEL, timeout=0.5)
+                    return
+                except queue.Full:
+                    continue
+            return
+        # Live: best-effort. A dropped live barrier only delays visibility of
+        # the in-flight batch by <=1s until the next barrier — negligible, and
+        # never blocks the feed thread on a wedged consumer.
         with contextlib.suppress(queue.Full):
             self._queue.put_nowait(_BARRIER_SENTINEL)
 
