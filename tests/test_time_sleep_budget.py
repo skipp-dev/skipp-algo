@@ -134,8 +134,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # poll-loop throttle and error-backoff sleeps by +23 lines.
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed loop sleeps.
-        ("open_prep/realtime_signals.py", 4206),
-        ("open_prep/realtime_signals.py", 4225),
+        ("open_prep/realtime_signals.py", 4242),  # 2026-07-27 (databento phase2.2 hardening): 4206->4242
+        ("open_prep/realtime_signals.py", 4261),  # 2026-07-27 (databento phase2.2 hardening): 4225->4261
 
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).

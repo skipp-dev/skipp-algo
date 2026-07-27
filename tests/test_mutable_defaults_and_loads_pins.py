@@ -129,7 +129,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
 
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed json.load site to 3991.
-        ("open_prep/realtime_signals.py", 3991),
+        ("open_prep/realtime_signals.py", 4007),  # 2026-07-27 (databento phase2.2 hardening): 3991->4007
 
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
@@ -207,7 +207,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed env-write site to 4031.
-        ("open_prep/realtime_signals.py", 4031),
+        ("open_prep/realtime_signals.py", 4058),  # 2026-07-27 (databento phase2.2 hardening): 4031->4058
 
         ("open_prep/streamlit_monitor.py", 80),  # 2026-07-18 local OPRA snapshot JSON import
         # 2026-07-17: the isolated A0-Fast entry point must fail closed when

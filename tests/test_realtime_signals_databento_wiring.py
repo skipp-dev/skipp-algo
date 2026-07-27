@@ -24,7 +24,10 @@ and are a no-op under the FMP default.
 from __future__ import annotations
 
 import time
+import types
 from typing import Any
+
+import pytest
 
 import open_prep.quote_reference as quote_reference_module
 import open_prep.realtime_signals as rs
@@ -345,3 +348,69 @@ def test_start_stop_quote_source_are_noop_under_fmp_default(monkeypatch) -> None
     # Must not raise even though there is no feed to start/stop.
     engine.start_quote_source()
     engine.stop_quote_source()
+
+
+# ---------------------------------------------------------------------------
+# Hardening: SIGTERM stop path + watchlist-rotation feed lifecycle (Phase 2.2
+# follow-up). SIGTERM must flow through the same graceful shutdown SIGINT does;
+# a watchlist reload must resubscribe the feed + reload the daily reference,
+# and stay a safe no-op under the FMP default.
+# ---------------------------------------------------------------------------
+
+
+def test_sigterm_handler_raises_keyboard_interrupt() -> None:
+    """The SIGTERM handler translates the signal into the KeyboardInterrupt
+    that ``main()``'s existing graceful-shutdown block already catches (which
+    stops the Databento feed's db.Live socket + threads)."""
+    with pytest.raises(KeyboardInterrupt):
+        rs._raise_keyboard_interrupt_on_sigterm(15, None)
+
+
+def _minimal_engine_for_reload(monkeypatch, watchlist, *, feed, quote_source):
+    """A ``RealtimeEngine`` skeleton with just the attributes
+    ``reload_watchlist`` touches, and ``_load_watchlist`` stubbed to a no-op
+    (its file/network work is out of scope here)."""
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._watchlist = watchlist
+    monkeypatch.setattr(engine, "_load_watchlist", lambda: None)
+    engine._last_prices = {}
+    engine._price_history = {}
+    engine._quote_hashes = {}
+    engine._vd_last_change_epoch = {}
+    engine._avg_vol_cache = {}
+    engine._delta_tracker = types.SimpleNamespace(_prev={}, _streaks={})
+    engine._hysteresis = types.SimpleNamespace(_state={})
+    engine._dynamic_cooldown = types.SimpleNamespace(prune_stale=lambda keep: None)
+    engine._technical_scorer = types.SimpleNamespace(clear=lambda: None)
+    engine._databento_feed = feed
+    engine._quote_source = quote_source
+    return engine
+
+
+def test_reload_watchlist_resubscribes_feed_and_reloads_reference(monkeypatch) -> None:
+    calls: dict[str, Any] = {}
+    feed = types.SimpleNamespace(
+        update_symbols=lambda syms: calls.__setitem__("symbols", syms),
+    )
+    quote_source = types.SimpleNamespace(
+        reload_reference=lambda: calls.__setitem__("reloaded", True),
+    )
+    engine = _minimal_engine_for_reload(
+        monkeypatch, [{"symbol": "AAPL"}, {"symbol": "msft"}],
+        feed=feed, quote_source=quote_source,
+    )
+
+    engine.reload_watchlist()
+
+    assert calls.get("symbols") == ["AAPL", "MSFT"]  # normalized + sorted
+    assert calls.get("reloaded") is True
+
+
+def test_reload_watchlist_is_noop_for_fmp_default(monkeypatch) -> None:
+    """FMP default: no databento feed, and an FMP source has no
+    ``reload_reference`` -- the rotation must not raise."""
+    engine = _minimal_engine_for_reload(
+        monkeypatch, [{"symbol": "AAPL"}],
+        feed=None, quote_source=types.SimpleNamespace(),  # no reload_reference attr
+    )
+    engine.reload_watchlist()  # must not raise

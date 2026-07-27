@@ -60,12 +60,19 @@ def _resolve_max_bar_age_secs(explicit: float | None) -> float:
     raw = os.environ.get(_MAX_BAR_AGE_ENV_VAR)
     if raw:
         try:
-            return float(raw)
+            parsed = float(raw)
         except ValueError:
-            logger.warning(
-                "Invalid %s=%r -- falling back to default %.1fs",
-                _MAX_BAR_AGE_ENV_VAR, raw, _DEFAULT_MAX_BAR_AGE_SECS,
-            )
+            parsed = None
+        # Must be a positive, finite number: a zero/negative override would age
+        # EVERY bar out on arrival (fail-closing the whole feed to empty), and a
+        # NaN/inf would disable the staleness guard entirely (frozen prices
+        # served forever). Reject both -- fall back to the safe default.
+        if parsed is not None and parsed > 0 and parsed != float("inf"):
+            return parsed
+        logger.warning(
+            "Invalid %s=%r (must be a positive finite number) -- falling back to default %.1fs",
+            _MAX_BAR_AGE_ENV_VAR, raw, _DEFAULT_MAX_BAR_AGE_SECS,
+        )
     return _DEFAULT_MAX_BAR_AGE_SECS
 
 
@@ -209,12 +216,13 @@ class DatabentoQuoteSource:
     with a fabricated or stale price, mirroring how the FMP path drops
     symbols FMP didn't return a quote for.
 
-    Bounded-age staleness guard (Finding 3): if the feed's background
-    reconnect loop dies (its circuit breaker trips after
-    ``max_consecutive_failures`` — see ``DatabentoQuoteFeed._run_feed_loop``)
-    nothing purges its cache, so ``latest_bar``/``cumulative_volume`` would
-    otherwise keep returning the LAST CACHED entry forever, and this source
-    would keep emitting a frozen price with no signal reaching the producer.
+    Bounded-age staleness guard (Finding 3): the feed's background reconnect
+    loop now re-arms itself after its circuit breaker trips (a supervisor
+    cooldown, ``DatabentoQuoteFeed._run_feed_loop``), but during that cooldown
+    — or if it never recovers — nothing purges the cache, so ``latest_bar``/
+    ``cumulative_volume`` would otherwise keep returning the LAST CACHED entry,
+    and this source would keep emitting a frozen price with no signal reaching
+    the producer.
     ``fetch`` instead treats a bar older than ``max_bar_age_secs`` (measured
     against ``bar.ts_recv``, the feed's capture time) exactly like "no bar":
     omit the symbol. Once every symbol has aged out, ``fetch`` returns an
@@ -223,8 +231,9 @@ class DatabentoQuoteSource:
     ``open_prep/realtime_signals.py``) and lets the existing
     ``signals_producer_data_stale`` gauge fire after ``DATA_STALL_SECONDS``
     (300s) — turning a silently-frozen feed into an observable, fail-closed
-    one. This is deliberately NOT a supervisor that restarts the dead feed
-    (a separate, deferred item) — only the source-side gate.
+    one. This source-side gate is complementary to (not a replacement for) the
+    feed's supervisor restart: the supervisor brings the feed back, the gate
+    keeps stale prices out of signals while it is down.
 
     This class is deliberately standalone: it is NOT wired into
     ``RealtimeEngine`` and does not touch the ``RT_QUOTE_SOURCE`` self-heal
@@ -245,6 +254,29 @@ class DatabentoQuoteSource:
         # None -> DATABENTO_QUOTE_MAX_BAR_AGE_SECS env override, else the
         # built-in default (see _resolve_max_bar_age_secs above).
         self._max_bar_age_secs = _resolve_max_bar_age_secs(max_bar_age_secs)
+
+    def reload_reference(self) -> bool:
+        """Swap in a freshly-loaded ``QuoteReference`` so a new session's
+        previous_close/ADV (rewritten out-of-band by
+        ``python -m open_prep.quote_reference``) is served without a producer
+        restart. Otherwise the source keeps yesterday's previous_close for the
+        life of the process, skewing ``changesPercentage`` after the daily
+        rebuild.
+
+        Fail-soft: a missing/corrupt artifact (or a directly-constructed
+        reference with no source path) leaves the current reference in place —
+        never cleared to empty, which would fail-close every symbol. Returns
+        True only when a reload was actually applied.
+        """
+        try:
+            self._reference = self._reference.reload()
+            return True
+        except (OSError, ValueError):
+            logger.warning(
+                "QuoteReference reload failed -- keeping the current reference",
+                exc_info=True,
+            )
+            return False
 
     def fetch(
         self,

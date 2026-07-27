@@ -13,9 +13,17 @@ coverage.
 
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from open_prep.databento_quote_feed import BarState
 from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
-from open_prep.quote_source import DatabentoQuoteSource
+from open_prep.quote_source import (
+    _DEFAULT_MAX_BAR_AGE_SECS,
+    DatabentoQuoteSource,
+    _resolve_max_bar_age_secs,
+)
 
 
 class _FakeDatabentoQuoteFeed:
@@ -306,3 +314,97 @@ def test_databento_source_max_bar_age_env_override(monkeypatch) -> None:
 
     assert source.fetch(["AAPL"], "regular", now=ts_recv + 20.0) != []
     assert source.fetch(["AAPL"], "regular", now=ts_recv + 40.0) == []  # would pass the 90s default, fails the 30s override
+
+
+# ---------------------------------------------------------------------------
+# Hardening: reject an invalid max-bar-age env override (a non-positive value
+# would age EVERY bar out on arrival -> fail-close the whole feed; a NaN/inf
+# would disable the staleness guard entirely -> frozen prices served forever).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", ["-5", "0", "-0.1", "abc", "nan", "inf", "-inf", ""])
+def test_resolve_max_bar_age_rejects_invalid_env(monkeypatch, bad) -> None:
+    monkeypatch.setenv("DATABENTO_QUOTE_MAX_BAR_AGE_SECS", bad)
+    assert _resolve_max_bar_age_secs(None) == _DEFAULT_MAX_BAR_AGE_SECS
+
+
+def test_resolve_max_bar_age_accepts_positive_env(monkeypatch) -> None:
+    monkeypatch.setenv("DATABENTO_QUOTE_MAX_BAR_AGE_SECS", "45.5")
+    assert _resolve_max_bar_age_secs(None) == 45.5
+
+
+def test_resolve_max_bar_age_explicit_value_bypasses_env(monkeypatch) -> None:
+    monkeypatch.setenv("DATABENTO_QUOTE_MAX_BAR_AGE_SECS", "45")
+    assert _resolve_max_bar_age_secs(120.0) == 120.0
+
+
+# ---------------------------------------------------------------------------
+# Hardening: daily reference reload -- pick up a rewritten artifact (a new
+# session's previous_close/ADV) without a producer restart, fail-soft.
+# ---------------------------------------------------------------------------
+
+
+def _write_reference_artifact(path, *, previous_close, average_daily_volume, as_of_session) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "AAPL": {
+                    "previous_close": previous_close,
+                    "average_daily_volume": average_daily_volume,
+                    "as_of_session": as_of_session,
+                    "source": "fmp:adjusted-eod",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_reload_reference_picks_up_rewritten_artifact(tmp_path) -> None:
+    path = tmp_path / "quote_reference.json"
+    _write_reference_artifact(path, previous_close=100.0, average_daily_volume=2_000_000.0, as_of_session="2026-07-24")
+    reference = QuoteReference.load(path)
+
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", close=110.0, ts_recv=ts_recv),
+        cumulative_volume=1_000, session_high=111.0, session_low=99.0,
+    )
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=1e9)
+
+    assert source.fetch(["AAPL"], "regular", now=ts_recv)[0]["previousClose"] == 100.0
+
+    # Out-of-band daily rebuild rewrites the artifact with the new session's row.
+    _write_reference_artifact(path, previous_close=105.0, average_daily_volume=2_500_000.0, as_of_session="2026-07-25")
+    assert source.reload_reference() is True
+
+    row = source.fetch(["AAPL"], "regular", now=ts_recv)[0]
+    assert row["previousClose"] == 105.0
+    assert row["avgVolume"] == 2_500_000.0
+
+
+def test_reload_reference_failsoft_keeps_current_on_missing_artifact(tmp_path) -> None:
+    path = tmp_path / "quote_reference.json"
+    _write_reference_artifact(path, previous_close=100.0, average_daily_volume=2_000_000.0, as_of_session="2026-07-24")
+    reference = QuoteReference.load(path)
+
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=ts_recv),
+        cumulative_volume=1_000, session_high=111.0, session_low=99.0,
+    )
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=1e9)
+
+    path.unlink()  # artifact removed between rebuilds
+    assert source.reload_reference() is False
+    # Old reference kept, NOT cleared to empty (which would fail-close AAPL).
+    assert source.fetch(["AAPL"], "regular", now=ts_recv)[0]["previousClose"] == 100.0
+
+
+def test_reload_reference_failsoft_on_directly_constructed_reference() -> None:
+    # _reference() builds QuoteReference(rows) directly -> no source path.
+    source = DatabentoQuoteSource(_FakeDatabentoQuoteFeed(), _reference({"AAPL": _reference_row()}))
+    assert source.reload_reference() is False
