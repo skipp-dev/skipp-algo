@@ -19,7 +19,7 @@ import databento as db
 import pytest
 from databento_dbn import OHLCVMsg, RType, SystemCode
 
-from open_prep.databento_quote_feed import DatabentoQuoteFeed
+from open_prep.databento_quote_feed import _BARRIER_SENTINEL, DatabentoQuoteFeed
 
 _ET = ZoneInfo("America/New_York")
 _REPLAY_START = datetime(2026, 7, 21, 13, 30, tzinfo=UTC)
@@ -569,3 +569,41 @@ class TestThreadSafety:
 
         assert not errors
         assert feed.cumulative_volume("NVDA") == 500
+
+
+class TestReplayBarrierNonDroppable:
+    """Blocker (4), verified live 2026-07-27: during intraday replay Databento
+    emits an END_OF_INTERVAL barrier per interval, but the queue is kept full by
+    the blocking bar puts. A ``put_nowait`` barrier is then silently dropped
+    (never counted), letting multiple intervals' bars overwrite in ``_pending``
+    and undercounting cumulative volume at the session-open backfill (queue=50
+    stress lost up to 2.2%). The fix blocks the barrier during replay so every
+    interval flushes exactly once, at any queue size."""
+
+    def test_replay_barrier_blocks_until_space_never_dropped(self) -> None:
+        feed, _ = _make_feed([], queue_max=1)
+        feed._queue.put_nowait(object())  # saturate the single slot
+        done = threading.Event()
+
+        def enqueue() -> None:
+            feed._enqueue_barrier(replay_active=True)
+            done.set()
+
+        t = threading.Thread(target=enqueue, daemon=True)
+        t.start()
+        # A full queue must make the replay barrier BLOCK, not drop-and-return.
+        assert not done.wait(0.4), "replay barrier returned while queue full (dropped)"
+        feed._queue.get_nowait()  # free a slot
+        assert done.wait(1.0), "replay barrier never enqueued after space freed"
+        t.join(timeout=1.0)
+        assert feed._queue.get_nowait() is _BARRIER_SENTINEL
+
+    def test_live_barrier_is_best_effort_dropped_when_full(self) -> None:
+        feed, _ = _make_feed([], queue_max=1)
+        filler = object()
+        feed._queue.put_nowait(filler)
+        # A live barrier must NOT block on a full queue (best-effort drop) —
+        # this returns immediately and leaves only the filler behind.
+        feed._enqueue_barrier(replay_active=False)
+        assert feed._queue.qsize() == 1
+        assert feed._queue.get_nowait() is filler
