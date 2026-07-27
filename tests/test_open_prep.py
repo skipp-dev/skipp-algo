@@ -2433,7 +2433,7 @@ class TestAtrRobustness(unittest.TestCase):
                 for i in range(1, 20)
             ]
         }
-        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, _rsi, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -2447,7 +2447,7 @@ class TestAtrRobustness(unittest.TestCase):
     def test_fetch_symbol_atr_reports_zero_as_error(self):
         client = MagicMock()
         client.get_historical_price_eod_full.return_value = {"historical": []}
-        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, _pdh, _pdl, _rsi, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -3535,7 +3535,7 @@ class TestMacroHelpers(unittest.TestCase):
         }
 
         with patch("open_prep.run_open_prep.apply_gap_mode_to_quotes", side_effect=lambda quotes, **kwargs: quotes), \
-             patch("open_prep.run_open_prep._atr14_by_symbol", return_value=({}, {}, {}, {}, {}, {}, {})), \
+             patch("open_prep.run_open_prep._atr14_by_symbol", return_value=({}, {}, {}, {}, {}, {}, {}, {})), \
              patch("open_prep.run_open_prep._enrich_quote_with_hvb"), \
              patch("open_prep.run_open_prep._add_pdh_pdl_context"):
             quotes, atr_map, mom_map, vwap_map, errors, diagnostics = run_open_prep._fetch_quotes_with_atr(

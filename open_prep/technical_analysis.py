@@ -1401,3 +1401,41 @@ def compute_trend_state_features(
                 out["trend_alignment"] = 0
 
     return out
+
+
+# ── RSI(14) producer (2026-07-27) ────────────────────────────────────
+#
+# Appended below every line-pinned site. Closes the rsi_extreme phantom-key
+# gap: scorer.filter_candidate and validate_data_quality have consumed
+# quote["rsi"]/["rsi14"] since their introduction, but no producer ever set
+# either key on the open_prep path — the warn-only gate could not fire.
+
+
+def rsi14_from_closes(closes: list[float], period: int = 14) -> float | None:
+    """Wilder-smoothed RSI over daily closes (oldest → newest).
+
+    Returns ``None`` — "not measured", never a fake-neutral 50 — when there
+    are fewer than ``period + 1`` closes or any close is non-finite. The
+    consumer contract treats a missing value as "no data": the scorer's
+    ``rsi_extreme`` check self-disables via its NaN fallback and
+    ``validate_data_quality`` falls back to its neutral default.
+
+    Matches Wilder's recursive smoothing (``avg = (prev*(n-1) + cur) / n``)
+    rather than a rolling simple mean — the two visibly diverge from the
+    second value on (pinned against Wilder's worked example in
+    ``tests/test_rsi14_producer.py``).
+    """
+    values = [float(c) for c in closes]
+    if len(values) < period + 1 or not all(math.isfinite(v) for v in values):
+        return None
+
+    deltas = [values[i] - values[i - 1] for i in range(1, len(values))]
+    avg_gain = sum(max(d, 0.0) for d in deltas[:period]) / period
+    avg_loss = sum(max(-d, 0.0) for d in deltas[:period]) / period
+    for delta in deltas[period:]:
+        avg_gain = (avg_gain * (period - 1) + max(delta, 0.0)) / period
+        avg_loss = (avg_loss * (period - 1) + max(-delta, 0.0)) / period
+
+    if avg_loss == 0.0:
+        return 100.0 if avg_gain > 0.0 else None  # flat series: no signal
+    return round(100.0 - 100.0 / (1.0 + avg_gain / avg_loss), 4)

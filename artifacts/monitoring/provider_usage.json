@@ -83,34 +83,34 @@
         "records": 0.0
       },
       "fmp|/stable/batch-quote|open_prep.fmp_client": {
-        "bytes": 20.0,
+        "bytes": 100.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 1.0,
+        "calls": 5.0,
         "errors": 0.0,
-        "latency_ms_total": 0.097541997092776,
+        "latency_ms_total": 0.38529194716829807,
         "rate_limit_hits": 0.0,
-        "records": 1.0
+        "records": 5.0
       },
       "fmp|/stable/economic-calendar|open_prep.fmp_client": {
-        "bytes": 2.0,
+        "bytes": 10.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 1.0,
+        "calls": 5.0,
         "errors": 0.0,
-        "latency_ms_total": 6.718959004501812,
+        "latency_ms_total": 25.092459996812977,
         "rate_limit_hits": 0.0,
         "records": 0.0
       },
       "fmp|/stable/eod-bulk|open_prep.fmp_client": {
-        "bytes": 234.0,
+        "bytes": 1474.0,
         "cache_hits": 0.0,
         "cache_misses": 0.0,
-        "calls": 2.0,
+        "calls": 18.0,
         "errors": 0.0,
-        "latency_ms_total": 10.650874995917547,
+        "latency_ms_total": 66.85662494419375,
         "rate_limit_hits": 0.0,
-        "records": 3.0
+        "records": 23.0
       },
       "fmp|/stable/fmp-articles|newsstack_fmp.ingest_fmp": {
         "bytes": 0.0,
@@ -131,6 +131,36 @@
         "latency_ms_total": 0.0,
         "rate_limit_hits": 0.0,
         "records": 0.0
+      },
+      "fmp|/stable/profile-bulk|open_prep.fmp_client": {
+        "bytes": 272.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 4.0,
+        "errors": 0.0,
+        "latency_ms_total": 16.10295899445191,
+        "rate_limit_hits": 0.0,
+        "records": 4.0
+      },
+      "fmp|/stable/some-path|open_prep.fmp_client": {
+        "bytes": 248.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 12.0,
+        "errors": 0.0,
+        "latency_ms_total": 40.19941700971685,
+        "rate_limit_hits": 0.0,
+        "records": 12.0
+      },
+      "fmp|/stable/x|open_prep.fmp_client": {
+        "bytes": 56.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 4.0,
+        "errors": 0.0,
+        "latency_ms_total": 13.177750020986423,
+        "rate_limit_hits": 0.0,
+        "records": 4.0
       }
     }
   },
@@ -155,10 +185,10 @@
         "records": 0
       },
       "fmp": {
-        "bytes": 268,
-        "calls": 16,
-        "rate_limit_hits": 14,
-        "records": 4
+        "bytes": 2172,
+        "calls": 60,
+        "rate_limit_hits": 22,
+        "records": 48
       },
       "fmp_general_latest": {
         "bytes": 0,
@@ -192,5 +222,5 @@
       }
     }
   },
-  "updated_at": "2026-07-25T10:53:47.453085+00:00"
+  "updated_at": "2026-07-27T21:24:21.575978+00:00"
 }
