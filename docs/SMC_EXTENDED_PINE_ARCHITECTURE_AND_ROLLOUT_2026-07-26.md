@@ -928,6 +928,27 @@ pending. The next gate is a deterministic TradingView fixture that can drive
 the complete BUS and OHLC scenario matrix; ordinary live chart data cannot
 prove the pre-registered cases on demand.
 
+The deterministic harness is generated from the canonical source by
+`scripts/generate_smc_hold_manager_tv_fixture.py`. Its checked-in Pine output
+under `tests/fixtures/pine/` rewires only the external BUS, OHLC, ATR, recovery,
+and context feeds, embeds the canonical source hash, exposes cumulative pulse
+counts, and remains outside every managed or publishable surface. The
+machine-readable execution contract is
+`artifacts/governance/smc_hold_manager_tradingview_fixture_manifest.json`.
+This closes the fixture-construction prerequisite, not the replay gate: the
+harness is not the canonical saved script, cumulative Pine counters do not
+prove TradingView server alert delivery, and every case remains pending until
+immutable TradingView evidence is retained.
+R2.4-17 has an additional canonical blocker: the product source currently
+shows event context but exposes no Micro-Profile staleness diagnostic. The
+harness can force that input to test non-interference, but the case cannot pass
+until staleness is implemented and live-verified in `SMC_Hold_Manager.pine`.
+The generated harness itself compiled and was added to the isolated validation
+layout on 2026-07-27 without diagnostics; the canonical chart state was then
+restored. That bounded compile evidence is retained in
+`artifacts/governance/smc_hold_manager_tradingview_fixture_compile_2026-07-27.json`
+and does not mark any replay case complete.
+
 At minimum:
 
 1. arm without entry;

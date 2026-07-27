@@ -114,6 +114,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 2026-07-09: +3 (P_ENTRY/P_STOP/P_TGT — official C13 levels from the
     # date-matched setups join).
     "pine/generated/openprep_daily_panel.pine": 23,
+    # 2026-07-27: generated, test-only Hold Manager R2.4 harness. Persistent
+    # state is the canonical runtime plus six cumulative pulse diagnostics.
+    "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine": 9,
     "test_div.pine": 2,
 }
 

@@ -157,8 +157,19 @@ def test_traceability_marks_r2_replay_partial_not_complete() -> None:
     assert requirement["status"] == "partial"
     assert requirement["evidence"] == [
         "scripts/smc_hold_manager_replay.py",
+        "scripts/generate_smc_hold_manager_tv_fixture.py",
         "tests/test_smc_hold_manager_replay.py",
+        "tests/test_smc_hold_manager_tradingview_fixture.py",
+        "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
         "artifacts/governance/smc_hold_manager_replay_preflight.json",
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_tradingview_fixture_manifest.json"
+        ),
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_tradingview_fixture_compile_2026-07-27.json"
+        ),
         (
             "artifacts/governance/"
             "smc_hold_manager_tradingview_preconditions_2026-07-27.json"
@@ -166,7 +177,9 @@ def test_traceability_marks_r2_replay_partial_not_complete() -> None:
     ]
     assert requirement["openGates"] == [
         (
-            "Execute the pinned twenty-case matrix in TradingView and retain "
-            "compile, diagnostic, reload, Bar Replay, and alert-count evidence."
+            "Execute the generated, source-pinned twenty-case harness in "
+            "TradingView and retain compile, diagnostic, reload, Bar Replay, "
+            "and pulse-count evidence; validate server alert delivery "
+            "separately before cutover."
         )
     ]
