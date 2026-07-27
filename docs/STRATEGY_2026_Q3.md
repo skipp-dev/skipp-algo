@@ -341,6 +341,10 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Weight-Change. Promotion entscheidet sich erst nach G3-Sample-
       Akkumulation und F1-Re-Kalibrierung; ASIA bleibt bis dahin
       stärkster Promotion-Kandidat (kohärenter Lift über alle 4 Familien).
+      **Hinweis 2026-07-27:** Gate (3) ist derzeit *nicht* erfüllbar — das
+      G3-A/B ist nicht verdrahtet, es akkumuliert kein Sample (siehe §G3
+      Korrektur). Gates (1) und (2) blockieren die Promotion unabhängig davon
+      und bleiben die belastbaren Gründe.
 
       **v4 corpus 2026-04-23 Re-Check (n=10 064, identisches 20×4 Universum):**
       Gate-Status unverändert — globale OB-Drift −0.3508 (vs −0.3534), F1 smECE
@@ -392,7 +396,22 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Ranking-Drift zwischen aufeinanderfolgenden `ok`-Runs als
       Advisory-Signal für G2.
 
-#### G2: Scorer Weight Auto-Tuning ✅ DONE
+#### G2: Scorer Weight Auto-Tuning ✅ DONE (Producer) / ⚠ nicht geplant, nicht konsumiert
+
+> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die drei Haken unten sind
+> wörtlich korrekt — der Code existiert und ist getestet. Zwei Dinge, die man
+> aus „DONE" fälschlich schließen würde, gelten aber **nicht**:
+>
+> - Das CLI `open_prep/candidate_weights.py` läuft in **keinem** Workflow
+>   (`.github/workflows/` enthält keinen Treffer). Es ist ein manuelles CLI —
+>   ohne Aufruf entsteht nie ein `weights_candidate.json`.
+> - Das erzeugte Weight-Set wird **von keinem Lauf gelesen**. Live scort mit
+>   `weight_label="_regime_adjusted"`, und dessen Basis ist
+>   `load_weight_set()` → Label `"default"` → die `DEFAULT_WEIGHTS`-Konstante.
+>   Gelernte Gewichte erreichen die Produktion also derzeit auf keinem Weg;
+>   Live-Gewichte = hartkodierte Konstanten + Markt-Regime-Tilt.
+>
+> Das ist kein Defekt des G2-Codes, sondern der fehlende Anschluss (siehe G3).
 
 - [x] Feature-Importance-Rankings → `scorer.py` Gewichtsanpassungen via
       `open_prep.outcomes.compute_weight_adjustments` +
@@ -403,19 +422,51 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `weights_candidate.json` versioniert; Statuswerte `ok` /
       `insufficient_data` / `drift_blocked`.
 
-#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ✅ DONE
+#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ⚠ BAUSTEINE DA, NICHT VERDRAHTET
+
+> **Korrektur 2026-07-27 (Verdrahtungs-Audit).** Die Bausteine unten existieren
+> alle und sind getestet — aber sie sind **an keiner Stelle an die Pipeline
+> angeschlossen**. Der Blocker ist damit *nicht* „zu wenig Sample", wie unten
+> ursprünglich vermerkt: es kann **kein** Sample entstehen, weil kein
+> Produktionslauf die Arme je zuweist. Solange das so bleibt, wartet dieses
+> Gate auf Daten, die nie anfallen. Belegt gegen `origin/main`:
+>
+> - `scripts/smc_ab_experiment.py` hat **null** Produktions-Importer —
+>   `Experiment.resolve_weight_set()` (die Funktion, die einem Symbol ein
+>   Weight-Set-Label zuweist) wird ausschließlich aus `tests/` aufgerufen; die
+>   einzige weitere Erwähnung ist eine Docstring-Referenz in
+>   `scripts/f2_experiment_spec.py`.
+> - Der Live-Pfad kann Arme ohnehin nicht abbilden: `rank_candidates_v2` nimmt
+>   **ein** `weight_label` pro Lauf, `resolve_weight_set` liefert aber ein Label
+>   **pro Symbol**. `run_open_prep.py` übergibt hart `"_regime_adjusted"`.
+> - Der Konfig-Knopf, der Arm A/B wählen würde, ist tot: `"weight_label"` stand
+>   in `_CONFIG_SCHEMA`, aber `validate_config()` hat selbst **keinen**
+>   Produktions-Aufrufer und nichts liest den Schlüssel (Eintrag 2026-07-27
+>   entfernt, siehe `open_prep/config_validation.py`).
+> - Arm A verweist unten auf `weights.json` — **diese Datei existiert nicht**
+>   und hat nie existiert. Die Konvention ist `weights_<label>.json`, und
+>   ausgerechnet Label `"default"` liest gar keine Datei:
+>   `load_weight_set("default")` gibt sofort die `DEFAULT_WEIGHTS`-Konstante
+>   zurück. Ein datei-basiertes Promoten von Arm B ist damit konstruktiv
+>   unmöglich.
+>
+> **Nächster Schritt** ist also Verdrahtung, nicht Warten: entweder
+> `rank_candidates_v2` auf ein Label **pro Symbol** erweitern, oder das
+> Experiment auf lauf-granulare Arme umstellen (ganzer Lauf = Arm A oder B).
+> Vorher ist der 30-Tage-Run nicht startbar.
 
 - [x] `scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper.
-- [x] Arm A: bisherige statische Scorer-Gewichte (`weights.json`).
+- [x] Arm A: bisherige statische Scorer-Gewichte (`DEFAULT_WEIGHTS`-Konstante;
+      das ursprünglich hier genannte `weights.json` existiert nicht).
 - [x] Arm B: Auto-tuned Scorer-Gewichte (`weights_candidate.json`).
 - [x] KPI-Vergleich + Recommendation in
       `tests/test_ab_comparison_recommendation.py` und
       `scripts/run_ab_comparison.py`.
 - [x] Stop-Rule: `scripts/smc_sprt_stop_rule.py` (SPRT) +
       `scripts/f2_experiment_spec.py` Decision-Memo-Pfad.
-- ⚠ Folge-Lauf offen: tatsächlicher 30-Tage-Run auf Live-Telemetrie
-      noch nicht abgeschlossen (G3-Decision-Gate blockiert auf
-      ausreichendem Sample).
+- ⚠ Folge-Lauf offen: tatsächlicher 30-Tage-Run auf Live-Telemetrie nicht
+      gestartet. **Ursache = fehlende Verdrahtung (siehe Korrektur oben), nicht
+      ein zu kleines Sample.**
 
 ### Phase H — Pine Consumer Maturity (Wochen 6–9)
 
@@ -508,7 +559,9 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 **Lesart der Restlücken:** der Q3-A-Grade hängt jetzt nicht mehr an Sample-
 Größe oder TF-Coverage (beides ✅), sondern allein am ECE-Korridor — F2-Memo
 empfiehlt vor weiterer Bucket-Promotion eine F1-Re-Kalibrierung auf ECE ≤ 0.03
-und das 30-Tage-G3-A/B (siehe Q3 §G3 ⚠).
+und das 30-Tage-G3-A/B (siehe Q3 §G3 ⚠). **Stand 2026-07-27:** das G3-A/B ist
+nicht verdrahtet und daher nicht startbar — diese Restlücke ist eine
+Engineering-Aufgabe (Arm-Routing), keine Wartezeit auf Daten.
 
 ---
 

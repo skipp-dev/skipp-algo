@@ -179,11 +179,15 @@ def validate_weights(
 # General config validation
 # ---------------------------------------------------------------------------
 
+# 2026-07-27 (wiring audit): ``"weight_label": (str,)`` removed. It advertised a
+# knob that could not be set — nothing anywhere read ``config["weight_label"]``,
+# and the live pipeline hardcodes ``weight_label="_regime_adjusted"`` at the
+# ``rank_candidates_v2`` call in ``run_open_prep``. Re-add it here only together
+# with a reader; a schema entry alone makes a dead knob look supported.
 _CONFIG_SCHEMA: dict[str, type | tuple[type, ...]] = {
     "top_n": (int,),
     "poll_interval": (int, float),
     "reload_interval": (int, float),
-    "weight_label": (str,),
 }
 
 
@@ -191,6 +195,12 @@ def validate_config(config: dict[str, Any]) -> list[str]:
     """Type-check pipeline configuration values.
 
     Returns list of warning messages (empty = all ok).
+
+    .. note::
+       This helper currently has **no production caller** — only tests invoke
+       it (verified 2026-07-27). ``validate_weights`` / ``compute_config_diff``
+       from this module *are* wired into ``run_open_prep``; this one is not.
+       Treat a passing ``validate_config`` as saying nothing about a live run.
     """
     issues: list[str] = []
     for key, expected_types in _CONFIG_SCHEMA.items():
