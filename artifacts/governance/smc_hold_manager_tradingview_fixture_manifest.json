@@ -1,0 +1,559 @@
+{
+  "canonicalSource": {
+    "path": "SMC_Hold_Manager.pine",
+    "sha256": "f9a9369100b7ea25cbd2db6cf38dea0e0b00f186eb6b382e5a94397e415efdb6"
+  },
+  "caseCount": 20,
+  "cases": [
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-01",
+      "expectedAlertCounts": {},
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "absent",
+        "newPlanBlocked": false,
+        "phase": "ARMED",
+        "planGeneration": 1,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "arm without entry",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-02",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "delayed entry after a long wait",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-03",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_TIMESTOP": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "TIME_STOP",
+        "terminalExitEpoch": "present"
+      },
+      "name": "time-stop starts only at entry",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-04",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 115.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "entry and Target 1 on one bar",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-05",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "STOP",
+        "terminalExitEpoch": "present"
+      },
+      "name": "entry and stop on one bar",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-06",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "gap across entry",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-07",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "STOP",
+        "terminalExitEpoch": "present"
+      },
+      "name": "gap across stop",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-08",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "break-even after Target 1",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-09",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 107.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "Chandelier stop never decreases",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-10",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_T2": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "TARGET_2",
+        "terminalExitEpoch": "present"
+      },
+      "name": "Target 2 full exit",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-11",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 2,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": null,
+        "entryEpoch": "absent",
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "reset during each state",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": [
+        "NONE",
+        "ARMED",
+        "IN_TRADE",
+        "CLOSED"
+      ]
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-12",
+      "expectedAlertCounts": {},
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "absent",
+        "newPlanBlocked": false,
+        "phase": "ARMED",
+        "planGeneration": 1,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "reload during Armed",
+      "operatorActions": [
+        "reload while the hidden state is ARMED",
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-13",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "reload during In Trade",
+      "operatorActions": [
+        "reload after entry and Target 1",
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-14",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": true,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "new plan while In Trade",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-15",
+      "expectedAlertCounts": {},
+      "expectedCheckpointDiagnostics": {
+        "activeStop": null,
+        "entryEpoch": "absent",
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "schema mismatch",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-16",
+      "expectedAlertCounts": {},
+      "expectedCheckpointDiagnostics": {
+        "activeStop": null,
+        "entryEpoch": "absent",
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "missing BUS input",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "blocked_missing_canonical_stale_context_diagnostic",
+      "caseId": "R2.4-17",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "stale Micro-Profile context",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-18",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpoch": "absent"
+      },
+      "name": "event warning without forced false exit",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-19",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1,
+        "HM_T1": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 113.0,
+        "target1Hit": true,
+        "terminalExit": "STOP",
+        "terminalExitEpoch": "present"
+      },
+      "name": "no duplicate edge alerts",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "5m",
+      "tradingViewStatus": "pending",
+      "variants": []
+    },
+    {
+      "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
+      "caseId": "R2.4-20",
+      "expectedAlertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_TIMESTOP": 1
+      },
+      "expectedCheckpointDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpoch": "present",
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "TIME_STOP",
+        "terminalExitEpoch": "present"
+      },
+      "name": "non-intraday timeframe behavior",
+      "operatorActions": [
+        "inspect hidden diagnostics and cumulative pulse counts"
+      ],
+      "requiredTimeframe": "1D",
+      "tradingViewStatus": "pending",
+      "variants": []
+    }
+  ],
+  "executionProtocol": [
+    "Use an isolated TradingView validation layout.",
+    "Load this generated fixture, never the managed product layout.",
+    "Use 5m for R2.4-01 through R2.4-19 and 1D for R2.4-20.",
+    "Start Bar Replay before the configured fixture anchor.",
+    "Use regular trading hours so the pinned 5m step schedule is stable.",
+    "Select one case, replay past its decisive bars, and inspect hidden diagnostics.",
+    "For R2.4-11 execute all four reset variants.",
+    "For R2.4-12 and R2.4-13 reload at the stated intermediate state.",
+    "Record compile diagnostics, diagnostic values, and pulse counts."
+  ],
+  "fixture": {
+    "defaultAnchor": "2026-07-20T13:30:00Z",
+    "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
+    "sha256": "dee67fbbf96cc0203d06be18601edeb5945cc7c83c5a4748613fa0b75f467fd2",
+    "surfaceClass": "test_only_not_managed_not_publishable"
+  },
+  "limitations": [
+    "The fixture rewires external BUS, OHLC, ATR, recovery, and context inputs in a generated test harness; it is not the canonical saved script.",
+    "The canonical compile and thirteen input.source bindings remain separate precondition evidence.",
+    "Cumulative Pine pulse counts prove runtime predicates, not TradingView server alert delivery.",
+    "R2.4-17 cannot pass until the canonical Hold Manager exposes Micro-Profile staleness; the current stale flag exists only in this harness.",
+    "No case becomes passed until immutable TradingView evidence is reviewed and retained."
+  ],
+  "openGates": [
+    "Compile and execute all fixture cases in an isolated TradingView layout.",
+    "Add and live-verify canonical stale Micro-Profile observability for R2.4-17.",
+    "Validate TradingView server alert delivery separately before shadow cutover."
+  ],
+  "requirementId": "R2-REPLAY",
+  "schemaVersion": 1,
+  "status": "fixture_ready_execution_pending"
+}
