@@ -1,0 +1,545 @@
+{
+  "caseCount": 20,
+  "cases": [
+    {
+      "alertCounts": {},
+      "assertions": [
+        "state remains ARMED",
+        "no entry alert"
+      ],
+      "caseId": "R2.4-01",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": null,
+        "newPlanBlocked": false,
+        "phase": "ARMED",
+        "planGeneration": 1,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "arm without entry",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1
+      },
+      "assertions": [
+        "late trigger enters trade",
+        "entry epoch is the accepted bar"
+      ],
+      "caseId": "R2.4-02",
+      "finalDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpochMs": 12300000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "delayed entry after a long wait",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_TIMESTOP": 1
+      },
+      "assertions": [
+        "89 minutes does not exit",
+        "90 minutes exits",
+        "one time-stop alert"
+      ],
+      "caseId": "R2.4-03",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 12300000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "TIME_STOP",
+        "terminalExitEpochMs": 17700000
+      },
+      "name": "time-stop starts only at entry",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "assertions": [
+        "trade remains open",
+        "Target 1 is retained",
+        "stop moves to break-even",
+        "one Target-1 alert"
+      ],
+      "caseId": "R2.4-04",
+      "finalDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 115.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "entry and Target 1 on one bar",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "assertions": [
+        "stop wins same-bar",
+        "one entry alert",
+        "one stop alert",
+        "one master exit"
+      ],
+      "caseId": "R2.4-05",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "STOP",
+        "terminalExitEpochMs": 60000
+      },
+      "name": "entry and stop on one bar",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1
+      },
+      "assertions": [
+        "opening gap enters trade",
+        "one entry alert"
+      ],
+      "caseId": "R2.4-06",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 120000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "gap across entry",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "assertions": [
+        "gap closes at stop reason",
+        "one stop alert"
+      ],
+      "caseId": "R2.4-07",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "STOP",
+        "terminalExitEpochMs": 120000
+      },
+      "name": "gap across stop",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "assertions": [
+        "Target 1 state is true",
+        "active stop is entry"
+      ],
+      "caseId": "R2.4-08",
+      "finalDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "break-even after Target 1",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "assertions": [
+        "active stop is monotonic",
+        "protected high is retained"
+      ],
+      "caseId": "R2.4-09",
+      "finalDiagnostics": {
+        "activeStop": 107.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "Chandelier stop never decreases",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_T2": 1
+      },
+      "assertions": [
+        "Target 2 closes trade",
+        "one Target-2 alert",
+        "one master exit"
+      ],
+      "caseId": "R2.4-10",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "TARGET_2",
+        "terminalExitEpochMs": 120000
+      },
+      "name": "Target 2 full exit",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 2,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1
+      },
+      "assertions": [
+        "NONE, ARMED, IN_TRADE, and CLOSED reset to NONE",
+        "terminal exit is cleared"
+      ],
+      "caseId": "R2.4-11",
+      "finalDiagnostics": {
+        "activeStop": null,
+        "entryEpochMs": null,
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "reset during each state",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 4,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {},
+      "assertions": [
+        "full confirmed replay is identical",
+        "reconstructed phase is ARMED"
+      ],
+      "caseId": "R2.4-12",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": null,
+        "newPlanBlocked": false,
+        "phase": "ARMED",
+        "planGeneration": 1,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "reload during Armed",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_T1": 1
+      },
+      "assertions": [
+        "full confirmed replay is identical",
+        "reconstructed phase is IN_TRADE",
+        "Target-1 state survives replay"
+      ],
+      "caseId": "R2.4-13",
+      "finalDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpochMs": 120000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 112.0,
+        "target1Hit": true,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "reload during In Trade",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1
+      },
+      "assertions": [
+        "new plan is reported blocked",
+        "active generation is unchanged",
+        "active trade remains open"
+      ],
+      "caseId": "R2.4-14",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": true,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "new plan while In Trade",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {},
+      "assertions": [
+        "schema mismatch fails closed",
+        "no alerts"
+      ],
+      "caseId": "R2.4-15",
+      "finalDiagnostics": {
+        "activeStop": null,
+        "entryEpochMs": null,
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "schema mismatch",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {},
+      "assertions": [
+        "missing level fails closed",
+        "no alerts"
+      ],
+      "caseId": "R2.4-16",
+      "finalDiagnostics": {
+        "activeStop": null,
+        "entryEpochMs": null,
+        "newPlanBlocked": false,
+        "phase": "NONE",
+        "planGeneration": 0,
+        "protectedHigh": null,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "missing BUS input",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1
+      },
+      "assertions": [
+        "context does not fake an exit",
+        "stale context remains observable",
+        "no exit alert"
+      ],
+      "caseId": "R2.4-17",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "stale Micro-Profile context",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1
+      },
+      "assertions": [
+        "warning does not close trade",
+        "event warning remains observable",
+        "no false exit"
+      ],
+      "caseId": "R2.4-18",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "IN_TRADE",
+        "planGeneration": 1,
+        "protectedHigh": 106.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "terminalExitEpochMs": null
+      },
+      "name": "event warning without forced false exit",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_STOP": 1,
+        "HM_T1": 1
+      },
+      "assertions": [
+        "entry pulses once",
+        "Target 1 pulses once",
+        "stop pulses once",
+        "master exit pulses once"
+      ],
+      "caseId": "R2.4-19",
+      "finalDiagnostics": {
+        "activeStop": 100.0,
+        "entryEpochMs": 60000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 113.0,
+        "target1Hit": true,
+        "terminalExit": "STOP",
+        "terminalExitEpochMs": 240000
+      },
+      "name": "no duplicate edge alerts",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    },
+    {
+      "alertCounts": {
+        "HM_ENTRY": 1,
+        "HM_EXIT_ANY": 1,
+        "HM_TIMESTOP": 1
+      },
+      "assertions": [
+        "daily elapsed time uses milliseconds",
+        "one time-stop alert"
+      ],
+      "caseId": "R2.4-20",
+      "finalDiagnostics": {
+        "activeStop": 94.0,
+        "entryEpochMs": 86400000,
+        "newPlanBlocked": false,
+        "phase": "CLOSED",
+        "planGeneration": 1,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "TIME_STOP",
+        "terminalExitEpochMs": 172800000
+      },
+      "name": "non-intraday timeframe behavior",
+      "repositoryPreflightStatus": "passed",
+      "runCount": 1,
+      "tradingViewStatus": "pending"
+    }
+  ],
+  "gateStatus": "partial",
+  "limitations": [
+    "This Python transition model is a repository preflight, not execution evidence from the Pine runtime.",
+    "No compile, binding, chart reload, Bar Replay, or alert-log claim is made by this artifact."
+  ],
+  "openGates": [
+    "Compile the pinned source in TradingView and retain the twenty-case diagnostic and alert evidence.",
+    "Match TradingView HM hidden diagnostics and alert counts against this repository preflight."
+  ],
+  "repositoryPreflightStatus": "passed",
+  "requirementId": "R2-REPLAY",
+  "schemaVersion": 1,
+  "source": {
+    "path": "SMC_Hold_Manager.pine",
+    "sha256": "f4b6d91de2b874c1b8c9721ce227682461f3de4a31607ef2bbfc694c0cdeaac3"
+  },
+  "tradingViewStatus": "pending"
+}

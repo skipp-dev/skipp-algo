@@ -906,6 +906,17 @@ gate.
 
 #### R2.4 Replay matrix
 
+Repository preflight status: **passed; gate remains partial**. The executable
+catalog in `scripts/smc_hold_manager_replay.py` runs all twenty cases against a
+confirmed-bar transition model, pins the Hold Manager source hash, compares
+reload traces, and records alert counts in
+`artifacts/governance/smc_hold_manager_replay_preflight.json`. This is an
+early drift and fixture gate only. It does not claim Pine compilation, chart
+binding, TradingView Bar Replay, reload behavior in TradingView, or alert-log
+evidence. R2.4 becomes complete only when an operator executes the same pinned
+matrix in TradingView and retains matching hidden-diagnostic and alert-count
+evidence.
+
 At minimum:
 
 1. arm without entry;
