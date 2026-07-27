@@ -10,8 +10,11 @@ Status: **Historischer Phasenplan mit implementierter v1-Basis.**
 `SMC_Hold_Manager.pine` wird nach bestandenem Readiness-Gate ein
 Standard-Companion; die weitergehenden v2/v3/v4-Funktionen bleiben gestuft.
 Die R2.2-Repository-Implementierung rekonstruiert den bestätigten BUS-Pfad
-deterministisch; der 20-Fälle-TradingView-Replay und der Shadow-Cutover aus
-R2.4/R2.5 bleiben offen.
+deterministisch. Der versionierte R2.4-Repository-Preflight führt inzwischen
+alle 20 Fälle aus, bindet das Ergebnis an den Pine-Source-Hash und zählt die
+Alert-Pulse. Er ist ausdrücklich keine TradingView-Laufzeitevidenz. R2.4
+bleibt daher partiell und R2.5 offen, bis die unabhängige TradingView-Replay-
+und Shadow-Evidenz vorliegt.
 
 Letzte Aktualisierung: 2026-07-27
 
