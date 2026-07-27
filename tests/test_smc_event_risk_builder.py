@@ -290,6 +290,11 @@ class TestHelpers:
         assert t is not None
         assert t.hour == 8 and t.minute == 30
 
+    def test_parse_event_time_collector_et_suffix(self):
+        t = _parse_event_time("14:00 ET")
+        assert t is not None
+        assert t.hour == 14 and t.minute == 0
+
     def test_parse_event_time_invalid(self):
         assert _parse_event_time("not-a-time") is None
         assert _parse_event_time("") is None
@@ -309,6 +314,27 @@ class TestHelpers:
     def test_compute_window_clear_after_cooldown(self):
         state = _compute_window_state("14:00", datetime(2026, 3, 28, 14, 20, tzinfo=UTC), 30, 15)
         assert state == "CLEAR"
+
+    def test_compute_window_uses_us_dst_during_europe_mismatch_week(self):
+        # On 2026-03-27 New York is already on EDT (UTC-4), while Europe has
+        # not switched yet. 14:00 ET is therefore 18:00 UTC, not 19:00 UTC.
+        state = _compute_window_state(
+            "14:00 ET",
+            datetime(2026, 3, 27, 17, 40, tzinfo=UTC),
+            30,
+            15,
+        )
+        assert state == "PRE_EVENT"
+
+    def test_compute_window_uses_us_standard_time_in_winter(self):
+        # 14:00 ET is 19:00 UTC while America/New_York is on EST.
+        state = _compute_window_state(
+            "14:00 ET",
+            datetime(2026, 1, 16, 18, 40, tzinfo=UTC),
+            30,
+            15,
+        )
+        assert state == "PRE_EVENT"
 
     def test_compute_window_unparseable_time_safe_default(self):
         state = _compute_window_state("TBD", datetime(2026, 3, 28, 12, 0, tzinfo=UTC), 30, 15)

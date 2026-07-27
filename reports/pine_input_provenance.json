@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 523,
-  "total_hidden": 315,
+  "total_inputs": 539,
+  "total_hidden": 337,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -441,7 +441,7 @@
         {
           "varname": "show_event_line",
           "kind": "bool",
-          "label": "Show event vertical line",
+          "label": "Show exact event-time line",
           "group": "g_ev",
           "has_display_none": false,
           "visibility": null
@@ -522,25 +522,9 @@
     },
     {
       "file": "SMC_Exit_Signal.pine",
-      "input_count": 14,
-      "hidden_count": 0,
+      "input_count": 16,
+      "hidden_count": 9,
       "inputs": [
-        {
-          "varname": "tp1_r",
-          "kind": "float",
-          "label": "TP1 (R-multiple)",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "tp2_r",
-          "kind": "float",
-          "label": "TP2 (R-multiple)",
-          "group": "g_plan",
-          "has_display_none": false,
-          "visibility": null
-        },
         {
           "varname": "move_be_after_tp1",
           "kind": "bool",
@@ -598,11 +582,19 @@
           "visibility": null
         },
         {
+          "varname": "src_schema",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus_state",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
           "varname": "src_armed",
           "kind": "source",
           "label": "BUS Armed",
           "group": "g_bus_state",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -610,7 +602,7 @@
           "kind": "source",
           "label": "BUS Confirmed",
           "group": "g_bus_state",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -618,7 +610,7 @@
           "kind": "source",
           "label": "BUS Ready",
           "group": "g_bus_state",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -626,7 +618,7 @@
           "kind": "source",
           "label": "BUS Trigger",
           "group": "g_bus_plan",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -634,7 +626,31 @@
           "kind": "source",
           "label": "BUS Invalidation",
           "group": "g_bus_plan",
-          "has_display_none": false,
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_stop",
+          "kind": "source",
+          "label": "BUS StopLevel",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target1",
+          "kind": "source",
+          "label": "BUS Target1",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target2",
+          "kind": "source",
+          "label": "BUS Target2",
+          "group": "g_bus_plan",
+          "has_display_none": true,
           "visibility": null
         }
       ]
@@ -696,13 +712,125 @@
     },
     {
       "file": "SMC_Hold_Manager.pine",
-      "input_count": 13,
-      "hidden_count": 0,
+      "input_count": 27,
+      "hidden_count": 13,
       "inputs": [
+        {
+          "varname": "i_plan_source",
+          "kind": "string",
+          "label": "Engine BUS v2",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "src_schema",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_zone_active",
+          "kind": "source",
+          "label": "BUS ZoneActive",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_quality",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_source_kind",
+          "kind": "source",
+          "label": "BUS SourceKind",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_state_code",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_stop",
+          "kind": "source",
+          "label": "BUS StopLevel",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target1",
+          "kind": "source",
+          "label": "BUS Target1",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_target2",
+          "kind": "source",
+          "label": "BUS Target2",
+          "group": "gBus",
+          "has_display_none": true,
+          "visibility": null
+        },
         {
           "varname": "i_arm_long",
           "kind": "bool",
-          "label": "Arm Long (Webhook-Toggle)",
+          "label": "Arm Long (manueller Toggle)",
           "group": "gIn",
           "has_display_none": false,
           "visibility": null

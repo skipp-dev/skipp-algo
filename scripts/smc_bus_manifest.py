@@ -527,10 +527,10 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         rollout_state = 'planned',
         bus_dependencies = ('engine_v2',),
         notes = (
-            'Read-only hold-management overlay with ATR-Chandelier trail, '
-            'BE-after-T1, optional Simple-Mode, and time-stop. Imports '
-            'skippALGO/smc_micro_profiles_generated (separate namespace '
-            'from preuss_steffen — not auto-pinned by library refresh).',
+            'Read-only hold-management overlay with Engine BUS v2 as its '
+            'fail-closed primary plan, explicit manual fallback, '
+            'ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, '
+            'and time-stop.',
         ),
     ),
     SurfaceDefinition(

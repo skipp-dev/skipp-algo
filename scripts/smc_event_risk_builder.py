@@ -23,8 +23,10 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+_ET = ZoneInfo("America/New_York")
 
 
 # ── Defaults ────────────────────────────────────────────────────────
@@ -239,8 +241,12 @@ def _compute_window_state(
         # Cannot parse → treat as PRE_EVENT (safe default: restrict)
         return "PRE_EVENT" if before_min > 0 else "CLEAR"
 
-    # Build event datetime using today's date
-    event_dt = datetime.combine(now.date(), event_time, tzinfo=UTC)
+    # The calendar collector emits "HH:MM ET". Bare times remain UTC for
+    # backwards-compatible fixtures and explicit operator overrides.
+    normalized = event_time_raw.strip().upper()
+    event_tz = _ET if normalized.endswith((" ET", " EST", " EDT")) else UTC
+    event_date = now.astimezone(event_tz).date()
+    event_dt = datetime.combine(event_date, event_time, tzinfo=event_tz)
 
     delta_minutes = (event_dt - now).total_seconds() / 60.0
 
@@ -255,9 +261,13 @@ def _compute_window_state(
 
 def _parse_event_time(raw: str) -> time | None:
     """Try common time formats.  Returns None on failure."""
+    normalized = raw.strip().upper()
+    for suffix in (" ET", " EST", " EDT"):
+        if normalized.endswith(suffix):
+            normalized = normalized.removesuffix(suffix).strip()
     for fmt in ("%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p"):
         try:
-            return datetime.strptime(raw.strip(), fmt).time()
+            return datetime.strptime(normalized, fmt).time()
         except ValueError:
             continue
     return None

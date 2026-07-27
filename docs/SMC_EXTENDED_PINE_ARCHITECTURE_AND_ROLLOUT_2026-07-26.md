@@ -2,12 +2,18 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted target architecture; implementation pending |
+| Status | Accepted target architecture; implementation in progress (R0 complete, R1–R3 partial) |
 | Decision date | 2026-07-26 |
 | Baseline | `origin/main@88914dedce0da3cb31cdcbd64b455011522b3acc` |
 | Decision owner | skipp-dev |
 | Scope | TradingView Pine product surfaces, Pine libraries, BUS contracts, companion lifecycle, rollout automation, and operator migration |
 | Related | [SMC Bus Roadmap](smc-bus-roadmap.md), [SMC Context Semantics](smc-context-semantics.md), [SMC Hold Manager Plan](SMC_Hold_Manager_Plan.md), [Pine Script Naming](PINE_SCRIPT_NAMING.md), [TradingView Runtime Validation](tradingview-runtime-validation.md), [Pine Legacy Index](../PINE_LEGACY.md) |
+
+The executable requirement status is maintained in
+[`pine_extended_migration_traceability.json`](../artifacts/governance/pine_extended_migration_traceability.json).
+That matrix is the claim source of truth for R0–R8: repository readiness and
+live TradingView evidence are separate requirements, open work has an explicit
+gate, and CI rejects phase-completion claims without repository evidence.
 
 ## 1. Purpose
 

@@ -7,7 +7,8 @@
 //
 //  Sicherheitsleitplanken:
 //   • indicator() statt strategy() — keine Order
-//   • liest mp.* (Tagesstart-Snapshot) und manuelle Inputs — published BUS only
+//   • Engine BUS v2 ist der Standard-Plan; manuelle Eingabe nur expliziter Fallback
+//   • fehlende/inkohärente kritische BUS-Bindings verhindern neues Arming
 //   • Alert-Edges (rising-edge), nicht "level" Re-Fire
 //   • Pine var-State-Loss durch barstate.isconfirmed + Reset-Hook gehärtet
 //   • Time-Stop in Minuten, nicht in Bars (TF-agnostisch)
@@ -25,14 +26,35 @@ import preuss_steffen/smc_utils/4 as u
 import TradingView/ta/8 as ta_lib
 
 // ── 1.  INPUTS ───────────────────────────────────────────────────────────────
-// Manuelle Plan-Eingabe — Werte werden via Webhook/Setup-Alert befüllt.
-// (BUS Target1/2/StopLevel sind aktuell NICHT published → Phase-B Aufgabe.)
-gIn          = "Plan-Inputs (manuell aus Setup-Alert)"
-i_arm_long   = input.bool(false , "Arm Long (Webhook-Toggle)" , group = gIn)
+gSource      = "Plan-Quelle"
+i_plan_source = input.string("Engine BUS v2", "Plan-Quelle",
+     options = ["Engine BUS v2", "Manual fallback"], group = gSource,
+     tooltip = "Engine BUS v2 ist der fail-closed Standard. Manual fallback muss bewusst gewählt werden und besitzt keine BUS-Validierung.")
+
+// Engine-owned lifecycle and plan fields in the producer's plot order.
+gBus         = "Engine BUS v2 (Expert Mapping)"
+src_schema       = input.source(close, "BUS SchemaVersion", group = gBus, display = display.none,
+     tooltip = "Alle Zeilen an die gleichnamigen Ausgaben der SMC Long-Dip Suite binden. SchemaVersion muss 7001 sein.")
+src_zone_active  = input.source(close, "BUS ZoneActive",    group = gBus, display = display.none)
+src_armed        = input.source(close, "BUS Armed",         group = gBus, display = display.none)
+src_confirmed    = input.source(close, "BUS Confirmed",     group = gBus, display = display.none)
+src_ready        = input.source(close, "BUS Ready",         group = gBus, display = display.none)
+src_trigger      = input.source(close, "BUS Trigger",       group = gBus, display = display.none)
+src_invalidation = input.source(close, "BUS Invalidation",  group = gBus, display = display.none)
+src_quality      = input.source(close, "BUS QualityScore",  group = gBus, display = display.none)
+src_source_kind  = input.source(close, "BUS SourceKind",    group = gBus, display = display.none)
+src_state_code   = input.source(close, "BUS StateCode",     group = gBus, display = display.none)
+src_stop         = input.source(close, "BUS StopLevel",     group = gBus, display = display.none)
+src_target1      = input.source(close, "BUS Target1",       group = gBus, display = display.none)
+src_target2      = input.source(close, "BUS Target2",       group = gBus, display = display.none)
+
+// Explicit fallback only — these values are ignored while Engine BUS v2 is selected.
+gIn          = "Manual fallback (nur bei expliziter Auswahl)"
+i_arm_long   = input.bool(false , "Arm Long (manueller Toggle)" , group = gIn)
 i_entry      = input.price(0.0 , "Entry / Trigger"            , group = gIn,
-     confirm = true, tooltip = "Plan-Trigger aus Setup-Alert")
+     confirm = true, tooltip = "Nur im Manual-fallback-Modus aktiv.")
 i_stop       = input.price(0.0 , "Initial Invalidation"        , group = gIn,
-     confirm = true, tooltip = "long_invalidation_level (siehe smc_lifecycle:118)")
+     confirm = true, tooltip = "Nur im Manual-fallback-Modus aktiv.")
 i_t1_R       = input.float(1.0 , "Target-1 (R)" , minval = 0.5, step = 0.1, group = gIn)
 i_t2_R       = input.float(2.0 , "Target-2 (R)" , minval = 1.0, step = 0.1, group = gIn)
 
@@ -69,7 +91,31 @@ ctx_earnings    = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.tick
                   u.csv_has_symbol_token(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker, syminfo.tickerid)
 ctx_action_tier = mp.ACTION_DEGRADATION_TIER  // "none"/"reduce"/"avoid"/"halt"
 
-// ── 3.  STATE MACHINE ────────────────────────────────────────────────────────
+// ── 3.  PLAN SOURCE / FAIL-CLOSED VALIDATION ─────────────────────────────────
+state_on(float value) =>
+    not na(value) and value > 0.5
+
+float EXPECTED_SCHEMA = 7001
+bool use_bus_plan = i_plan_source == "Engine BUS v2"
+bool bus_schema_ok = not na(src_schema) and math.round(src_schema) == EXPECTED_SCHEMA
+bool bus_lifecycle_active = state_on(src_zone_active) and
+     (state_on(src_armed) or state_on(src_confirmed) or state_on(src_ready))
+bool bus_metadata_ok = not na(src_quality) and not na(src_source_kind) and
+     not na(src_state_code) and src_state_code >= 1
+bool bus_levels_ok = not na(src_trigger) and not na(src_invalidation) and
+     not na(src_stop) and not na(src_target1) and not na(src_target2) and
+     src_stop <= src_invalidation and src_invalidation < src_trigger and
+     src_target1 > src_trigger and src_target2 > src_target1
+bool bus_plan_valid = bus_schema_ok and bus_lifecycle_active and bus_metadata_ok and bus_levels_ok
+bool manual_plan_valid = i_entry > 0 and i_stop > 0 and i_stop < i_entry
+
+float manual_risk = manual_plan_valid ? i_entry - i_stop : na
+float effective_entry = use_bus_plan ? src_trigger : i_entry
+float effective_stop = use_bus_plan ? src_stop : i_stop
+float effective_t1 = use_bus_plan ? src_target1 : i_entry + manual_risk * i_t1_R
+float effective_t2 = use_bus_plan ? src_target2 : i_entry + manual_risk * i_t2_R
+
+// ── 4.  STATE MACHINE ────────────────────────────────────────────────────────
 // 4-Tupel parallel zur smc_lifecycle Semantik (long_setup_expired,
 // long_confirm_expired, long_broken_down, long_invalidated_now).
 // In v1 nutzen wir nur den Hold-Phase-Teil: ARMED → IN_TRADE → CLOSED.
@@ -91,25 +137,41 @@ if i_reset_now and barstate.islast
     t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
     t1_hit := false
 
-// ── 4.  ARMING & ENTRY ───────────────────────────────────────────────
+// ── 5.  ARMING & ENTRY ───────────────────────────────────────────────
 bool can_act = (not i_close_only) or barstate.isconfirmed
 // Detect the settings toggle via a var latch — the history operator cannot
-// see it because an input.bool is constant across the whole series.
+// see it because an input.bool is constant across the whole series. This path
+// is used only by the explicitly selected manual fallback.
 var bool prev_arm = false
-bool arm_edge_now = barstate.islast and i_arm_long and not prev_arm
+bool manual_arm_edge = not use_bus_plan and manual_plan_valid and barstate.islast and i_arm_long and not prev_arm
+bool bus_arm_edge = use_bus_plan and bus_plan_valid and not bus_plan_valid[1]
+bool arm_now = use_bus_plan ? bus_arm_edge : manual_arm_edge
 
-if can_act and state == 0 and arm_edge_now and i_entry > 0 and i_stop > 0 and i_stop < i_entry
+if can_act and state == 0 and arm_now
     state         := 1
-    entry_price   := i_entry
-    initial_stop  := i_stop
-    active_stop   := i_stop
-    float risk_R  = entry_price - initial_stop
-    t1_price      := entry_price + risk_R * i_t1_R
-    t2_price      := entry_price + risk_R * i_t2_R
+    entry_price   := effective_entry
+    initial_stop  := effective_stop
+    active_stop   := effective_stop
+    t1_price      := effective_t1
+    t2_price      := effective_t2
     // ARMED is only a waiting state; it must not consume the trade time budget.
     entry_bar     := na
     entry_time_ms := na
     t1_hit        := false
+
+// Before the assumed fill, follow producer plan changes. Missing or incoherent
+// critical BUS fields cancel ARMED rather than silently falling back to manual.
+if can_act and state == 1 and use_bus_plan and bus_plan_valid
+    entry_price  := effective_entry
+    initial_stop := effective_stop
+    active_stop  := effective_stop
+    t1_price     := effective_t1
+    t2_price     := effective_t2
+
+if can_act and state == 1 and use_bus_plan and not bus_plan_valid
+    state := 0, entry_price := na, initial_stop := na, active_stop := na
+    t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
+    t1_hit := false
 
 if barstate.islast
     prev_arm := i_arm_long
@@ -122,7 +184,7 @@ if can_act and entry_touch
     entry_bar     := bar_index
     entry_time_ms := time
 
-// ── 5.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
+// ── 6.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
 float atr     = ta_lib.atr(i_atr_len)
 float chand   = high[1] - atr[1] * i_atr_mult
 // Chandelier-Trail nur erhöhen, nie senken — adressiert Long-Asymmetrie.
@@ -150,7 +212,7 @@ bool exit_edge = exit_now and (not exit_now[1])
 if can_act and exit_edge
     state := 3
 
-// ── 6.  PLOTS / VISUALS ──────────────────────────────────────────────────────
+// ── 7.  PLOTS / VISUALS ──────────────────────────────────────────────────────
 plot(state >= 1 ? entry_price  : na, "Entry"   , color.new(color.aqua, 0)  , 1, plot.style_linebr)
 plot(state >= 2 ? active_stop  : na, "Stop"    , color.new(color.red , 0)  , 2, plot.style_linebr)
 plot(state >= 1 ? t1_price     : na, "T1"      , color.new(color.green, 30), 1, plot.style_linebr)
@@ -165,9 +227,12 @@ var label statusLbl = na
 if barstate.islast
     label.delete(statusLbl)
     string txt = "State: " + (state == 0 ? "NONE" : state == 1 ? "ARMED" : state == 2 ? "IN_TRADE" : "CLOSED") +
+         "\nPlan: " + (use_bus_plan ? "Engine BUS v2" : "Manual fallback") +
+         (use_bus_plan ? "\nBUS: " + (bus_plan_valid ? "PLAN VALID" : "FAIL-CLOSED / WAITING") : "") +
          "\nStop: " + str.tostring(active_stop, format.mintick) +
          "\nT1/T2: " + str.tostring(t1_price, format.mintick) + " / " + str.tostring(t2_price, format.mintick) +
          "  (T1-Partial " + str.tostring(i_t1_partial, "#.#") + "%)" +
+         (state == 2 ? "\nFill: assumed from chart touch" : "") +
          (state == 2 ? "\nElapsed: " + str.tostring(math.round((time - entry_time_ms) / 60000)) + "m" : "") +
          "\nAlerts: edge-only" +
          "  Tier: " + ctx_action_tier +
@@ -175,7 +240,7 @@ if barstate.islast
     statusLbl := label.new(bar_index, high, txt, style = label.style_label_left,
          color = state == 2 ? color.new(color.blue, 80) : color.new(color.gray, 80))
 
-// ── 7.  ALERTS — edge-detected, ein Pulse pro Event ──────────────────────────
+// ── 8.  ALERTS — edge-detected, ein Pulse pro Event ──────────────────────────
 // Master-Pulse-Semantik: long_invalidated_now ist EDGE, nicht Level.
 // H-1 (system review 2026-04-24): bind alertcondition() to bar-close gate.
 // Reuses can_act as the single source of truth for the bar-close gate
@@ -189,9 +254,10 @@ alertcondition(_alertGate and stop_hit and not stop_hit[1], "HM_STOP"     , "Hol
 alertcondition(_alertGate and time_stop_hit and not time_stop_hit[1], "HM_TIMESTOP", "Hold-Manager: Time-Stop hit")
 alertcondition(_alertGate and exit_edge                  , "HM_EXIT_ANY"  , "Hold-Manager: any exit (master)")
 
-// ── 8.  TODO / Phase-Gates ───────────────────────────────────────────────────
+// ── 9.  TODO / Phase-Gates ───────────────────────────────────────────────────
 // v2 (post C13 sign-off ~26.05.): Short-Pfad spiegeln, gap-open earnings pre-defensive.
 // v3 (post Phase-B sign-off ~Ende Juli):
 //   • i_atr_mult per family aus den ZONE_CAL_OB / _FVG / _BOS / _SWEEP Feldern ableiten
 //   • Quality-Sizing aus dem HERO_QUALITY_TIER Feld + ZONE_HR_* Hit-Rates
-// v4: state-persistence via webhook reconstruction (kein var-Loss bei recompile).
+// R2.2 offen: vollständige deterministische Rekonstruktion von Entry-Epoch,
+// protected high, T1/Stop und terminalem Exit über Reload/Recompile.
