@@ -1,7 +1,7 @@
 """Generate the SMC context golden-vector file (Phase 2 of the context bus-v3 track).
 
-This is the cross-language semantic contract for the context library
-(`SMC++/smc_context_engine_private.pine`, not yet written). It pins the *exact
+This is the cross-language semantic contract for the implemented context library
+(`SMC++/smc_context_engine_private.pine`). It pins the *exact
 scoring / rule-layer parity* that the Pine port must reproduce, by running the
 authoritative Python reference builders over canonical fixtures and freezing
 their outputs to ``tests/fixtures/smc_context_golden.json``.

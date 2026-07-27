@@ -46,6 +46,7 @@ EXPECTED_MP_FIELDS_IN_ORDER = (
     "HIGH_RISK_EVENT_TICKERS",
     "EARNINGS_SOON_TICKERS",
     "ASOF_DATE", "ASOF_DATE", "ASOF_DATE",  # staleness check: year, month, day
+    "ASOF_DATE",  # exact event timestamp date anchor
 )
 ALLOWED_MP_FIELDS = {
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
@@ -242,6 +243,31 @@ class TestOverlayVisualElements:
     def test_has_alertcondition(self):
         src = _read(OVERLAY_PATH)
         assert "alertcondition(" in src
+
+    def test_exact_event_line_uses_dst_aware_absolute_timestamp(self):
+        src = _read(OVERLAY_PATH)
+        assert 'timestamp("America/New_York"' in src
+        assert "event_timestamp_et(mp.ASOF_DATE, ev_time)" in src
+        assert re.search(
+            r"line\.new\(event_ts, high, event_ts, low, xloc\.bar_time",
+            src,
+        )
+        assert "line.new(bar_index" not in src
+
+    def test_event_time_and_restriction_start_are_separate_semantics(self):
+        src = _read(OVERLAY_PATH)
+        assert "restriction_start_ts = event_time_valid ? event_ts -" in src
+        assert "restriction_just_started" in src
+        assert 'title = "Event Restriction Window Started"' in src
+        assert 'title = "Event Restriction Hard Block Started"' in src
+        assert "window_just_started" not in src
+
+    def test_static_snapshot_does_not_shade_all_historical_bars(self):
+        src = _read(OVERLAY_PATH)
+        assert "in_pre_restriction" in src
+        assert "in_post_restriction" in src
+        assert "fallback_restriction" in src
+        assert 'ev_window == "PRE_EVENT"  ? col_zone_pre' not in src
 
 
 # ═════════════════════════════════════════════════════════════════
