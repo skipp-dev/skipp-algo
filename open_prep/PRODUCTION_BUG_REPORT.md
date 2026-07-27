@@ -73,6 +73,9 @@
   gap/rvol/momentum weighting is regime-blind at the symbol level. Also a truth defect: the
   enrichment stage later **overwrites** `row["symbol_regime"]` with the measured value, making the
   emitted row look as though scoring used it.
+- **Evaluation path (2026-07-28):** `python -m scripts.report_regime_weight_shadow`
+  aggregates the shadow rows (non-NEUTRAL share, score-delta distribution, top movers)
+  from `artifacts/open_prep/runs/` — the input for the wire-or-not decision.
 - **Status:** shadow measurement landed first (`open_prep/regime_shadow.py` +
   `row["regime_weight_shadow"]` / `row["symbol_regime_at_scoring"]`) so the ranking impact can be
   quantified on real runs before the weights are wired up. Wiring requires hoisting the daily-bars
