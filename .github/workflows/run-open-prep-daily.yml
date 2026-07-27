@@ -188,6 +188,21 @@ jobs:
             exit 1
           fi
 
+      - name: Produce G3 arm-B candidate weight set
+        # STRATEGY_2026_Q3 §G2/§G3: Arm B of the scorer A/B. This must run in the
+        # SAME job and BEFORE the scoring step: `weights_candidate.json` lands in
+        # artifacts/open_prep/outcomes/, which .gitignore excludes (`outcomes/*.json`),
+        # so it cannot persist between runs. Its input — the feature-importance
+        # samples — IS tracked, so the set is reproducible from the checkout.
+        # Never fails the run: the CLI exits 0 for ok / insufficient_data /
+        # drift_blocked, and the `|| echo` below absorbs a genuine error — which
+        # only costs the arm-B observation, recorded as status=arm_b_unavailable.
+        # No `continue-on-error:` needed; the fallback already yields exit 0.
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" -m open_prep.candidate_weights || \
+            echo "::notice::arm-B candidate weights unavailable; run records status=arm_b_unavailable"
+
       - name: Run open-prep scoring
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
@@ -339,6 +354,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add artifacts/open_prep/outcomes/ || true
+          # G3 arm-B paired observations — this is the sample the §G3 decision
+          # gate consumes, so it has to accumulate in the repo rather than being
+          # discarded with the runner.
+          git add artifacts/open_prep/ab_arms/ || true
           if git diff --staged --quiet; then
             echo "No new outcomes to commit."
             exit 0

@@ -5605,6 +5605,21 @@ def generate_open_prep_result(
             vix_level=vix_level,  # activates the scorer's adaptive gating (was never threaded in prod)
         )
 
+    # G3 arm B (2026-07-27): score the same universe a second time with the
+    # LEARNED base weights and the same regime tilt, then record the paired
+    # comparison. Shadow-only — the served ranking above is untouched. This is
+    # what makes the §G3 decision gate's sample accumulate; before this the gate
+    # waited on data no run could produce. See docs/STRATEGY_2026_Q3.md §G3.
+    with _profiler.stage("G3 arm-B shadow"):
+        from .ab_arms import run_arm_b_shadow
+        run_arm_b_shadow(
+            quotes=quotes, bias=bias, top_n=max(config.top, 1),
+            news_scores=news_scores, news_metrics=news_metrics,
+            sector_changes=sector_changes_map, symbol_sectors=symbol_sectors,
+            vix_level=vix_level, apply_regime=apply_regime_adjustments,
+            regime_snapshot=regime_snapshot, arm_a_rows=ranked_v2, day=today,
+        )
+
     # Optional snapshot dump (opt-in via env var) — captures the inputs
     # actually passed to ``rank_candidates_v2`` in this code path plus
     # the resulting ranked/filtered outputs and extra diagnostic context

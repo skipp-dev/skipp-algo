@@ -56,7 +56,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6139),  # 2026-07-27 (§15 regime-weight shadow stamped in the daily-bars enrichment): 6130->6139
+    ("open_prep/run_open_prep.py", 6154),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 6139->6154
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     # 2026-07-15 (provenance v2): active_root_pine_scripts() + its docstring

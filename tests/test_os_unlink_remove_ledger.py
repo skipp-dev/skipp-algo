@@ -167,7 +167,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5663, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 5641->5663
+    ("open_prep/run_open_prep.py", 5678, "unlink"),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 5663->5678
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6010, "unlink"),  # 2026-07-27 (§15 regime-weight shadow stamped in the daily-bars enrichment): 6001->6010
+    ("open_prep/run_open_prep.py", 6025, "unlink"),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 6010->6025
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
