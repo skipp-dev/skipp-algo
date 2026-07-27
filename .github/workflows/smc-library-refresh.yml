@@ -1485,7 +1485,7 @@ jobs:
 
           BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
-          git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
+          git commit -m "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push -u origin "$BRANCH"
           # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
           # with `|| true`, which silently swallowed real PR-creation failures
@@ -1496,7 +1496,7 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --label automated \
-            --title "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
+            --title "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
             --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)."; then
             echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1

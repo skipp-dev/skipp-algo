@@ -15,6 +15,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "check_pr_title_concern.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-title-concern-lint.yml"
+LIBRARY_REFRESH_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
+)
 
 
 def _load_module():
@@ -103,3 +106,21 @@ def test_companion_workflow_exists() -> None:
     assert WORKFLOW_PATH.is_file(), (
         "pr-title-concern-lint.yml workflow must exist to enforce ADR-0013 in CI."
     )
+
+
+def test_library_refresh_generated_pr_title_satisfies_adr_0013() -> None:
+    """Keep the bot-generated library-refresh PR compatible with title lint."""
+    workflow = LIBRARY_REFRESH_WORKFLOW_PATH.read_text(encoding="utf-8")
+    marker = '--title "'
+    templates = [
+        line.split(marker, 1)[1].split('"', 1)[0]
+        for line in workflow.splitlines()
+        if marker in line
+    ]
+
+    assert templates, "smc-library-refresh.yml must declare its generated PR title"
+    for template in templates:
+        rendered = template.replace("${REFRESH_DATE}", "2026-07-27").replace(
+            "${{ github.run_number }}", "986"
+        )
+        assert mod.validate_pr_title(rendered) == [], rendered
