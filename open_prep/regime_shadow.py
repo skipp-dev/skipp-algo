@@ -14,6 +14,9 @@ that runs **after** scoring, so they cannot reach ``score_candidate``.
 This module records what the measured regime *would* have changed, so the
 decision to wire §15 up can be made on real runs instead of on a guess.  It is
 observation-only: nothing here feeds a gate, a rank, a weight or a score.
+Consumer (added 2026-07-28 after a sweep flagged the measurement as
+reader-less): ``python -m scripts.report_regime_weight_shadow`` aggregates
+the stamped rows from the run payloads into the decision summary.
 
 Exactness
 ---------
