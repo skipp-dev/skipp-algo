@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "baselineKind": "tradingview_phase_r0_rollback",
+  "capturedAt": "2026-07-27T07:12:17Z",
+  "phaseR0Verdict": "operational_baseline_complete_repository_recorded",
+  "repository": {
+    "commit": "8b0a3127c919ad85ea4864a113abb14f0e2025dc",
+    "inputsMatchCommit": true
+  },
+  "layout": {
+    "account": "preuss_steffen",
+    "id": "vWgAWyfC",
+    "name": "SMC Suite",
+    "url": "https://www.tradingview.com/chart/vWgAWyfC/",
+    "pageTitle": "BKNG 177.46 ▲ +2.68% SMC Suite",
+    "saveState": "all_changes_saved",
+    "visibleCharts": [
+      {
+        "symbol": "NASDAQ:BKNG",
+        "interval": "5m"
+      },
+      {
+        "symbol": "NASDAQ:BKNG",
+        "interval": "5m"
+      }
+    ]
+  },
+  "libraryRelease": {
+    "expectedVersion": 170,
+    "publishedVersion": 170,
+    "publishStatus": "published",
+    "matches": true
+  },
+  "sourceBaseline": {
+    "expected": 8,
+    "checked": 8,
+    "drifted": 0,
+    "sources": [
+      {
+        "scriptName": "SMC Long-Dip Suite",
+        "sha256": "5908419f97bf27a4811a29d9c57a9bdb37ff18e2b3909c5df5670fcffc10d82a"
+      },
+      {
+        "scriptName": "SMC Breakout Overlay",
+        "sha256": "b8ce0cd7cbd4782c3b63f38dfbd8a0ea0bf2de97b9a892c16dba1b6e32a35874"
+      },
+      {
+        "scriptName": "SMC Confluence Hub",
+        "sha256": "286353f1115dc1919552de3e932dd32fb6b2968b9d924088bc12edb386c54597"
+      },
+      {
+        "scriptName": "SMC Long-Dip Alerts",
+        "sha256": "5dcba7d51a13232e8f67bd7b1924174fa3727d7010ff8757d7e8dc3618d804b4"
+      },
+      {
+        "scriptName": "SMC Long-Dip Dashboard",
+        "sha256": "687f084851d3b79ed6ee23a7bd80263fbfded938b96cf3e71e61721814666413"
+      },
+      {
+        "scriptName": "SMC Long-Dip Mobile",
+        "sha256": "21c9ef60e3a4469a4214b5d95c91dad9e6a528ae9a3f3881bac5da8f2946b461"
+      },
+      {
+        "scriptName": "SMC Long-Dip Strategy",
+        "sha256": "c0bc1a01fe051a49ef4209e71955bc1ef77d7f102e866b6c78e3a3a04ff58e28"
+      },
+      {
+        "scriptName": "SMC Setup Check",
+        "sha256": "f7244a48bd9efc150f45fa33b20868711045687785a87533d487a2f02fdcd24c"
+      }
+    ]
+  },
+  "bindingBaseline": {
+    "expectedConsumers": 7,
+    "checkedConsumers": 7,
+    "checkedBindings": 108,
+    "mismatches": 0,
+    "runtimeErrors": 0,
+    "consumers": [
+      {
+        "scriptName": "SMC Decision Board",
+        "checkedBindings": 64
+      },
+      {
+        "scriptName": "SMC Long-Dip Strategy",
+        "checkedBindings": 8
+      },
+      {
+        "scriptName": "SMC Long-Dip Alerts",
+        "checkedBindings": 4
+      },
+      {
+        "scriptName": "SMC Setup Check",
+        "checkedBindings": 6
+      },
+      {
+        "scriptName": "SMC Breakout Overlay",
+        "checkedBindings": 12
+      },
+      {
+        "scriptName": "SMC Confluence Hub",
+        "checkedBindings": 6
+      },
+      {
+        "scriptName": "SMC Long-Dip Mobile",
+        "checkedBindings": 8
+      }
+    ]
+  },
+  "alertInventory": {
+    "activeAlertCount": 0,
+    "historicalAlertCount": 2,
+    "inventoryCompleteness": "complete_no_scroll_overflow",
+    "alerts": [
+      {
+        "name": "5 bearish reversal confirmed with footprint support 15",
+        "message": "{{ticker}} bearish reversal confirmed with footprint support on {{interval}}",
+        "scope": "stock, 5m",
+        "status": "stopped_manually",
+        "createdAtDisplayed": "Wed 18 Mar '26 17:30:00"
+      },
+      {
+        "name": "10 bullish reversal confirmed UND SMC++: structure trend is bullish 10",
+        "message": "{{ticker}} bullish reversal armed event triggered on {{interval}} UND SMC++: structure trend is bullish.",
+        "scope": "stock",
+        "status": "stopped_manually",
+        "createdAtDisplayed": "Wed 18 Mar '26 18:40:10"
+      }
+    ]
+  },
+  "rollbackTarget": {
+    "repositoryCommit": "8b0a3127c919ad85ea4864a113abb14f0e2025dc",
+    "libraryVersion": 170,
+    "producerName": "SMC Long-Dip Suite",
+    "producerInstanceCountToRestore": 1,
+    "bindingCountToRestore": 108,
+    "activeAlertCountToRestore": 0,
+    "layoutId": "vWgAWyfC"
+  },
+  "evidence": {
+    "activationReport": {
+      "operatorLocalPathAtCapture": "/private/tmp/tv-runtime-activate-8b0a3127.json",
+      "availability": "operator_local_not_repository_tracked",
+      "sha256": "7d8932e915fd76f153b1c939a9c9b237ab503493bc8fa137b861e8987073af05"
+    },
+    "freshReadOnlyVerification": {
+      "operatorLocalPathAtCapture": "/private/tmp/tv-post-activate-verify-8b0a3127.json",
+      "availability": "operator_local_not_repository_tracked",
+      "sha256": "5d8489d6585b9eda7ad55c358606efcaa31de28f6286bae55bf5fbbf6bc4cdc2",
+      "observedAt": "2026-07-27T07:01:26.469Z"
+    },
+    "alertInventoryObservedAt": "2026-07-27T07:11:22Z"
+  },
+  "inventorySessionMutations": {
+    "sourceSaves": 0,
+    "producerRefreshes": 0,
+    "bindingRepairs": 0,
+    "layoutSaves": 0,
+    "alertCreates": 0,
+    "alertEdits": 0,
+    "alertDeletes": 0,
+    "publishes": 0
+  }
+}

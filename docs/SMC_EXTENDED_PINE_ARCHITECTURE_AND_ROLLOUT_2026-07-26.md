@@ -768,7 +768,7 @@ Implemented in the follow-up evidence hardening, but not itself live evidence:
   the reported repository commit; and
 - scheduled and manually selectable verify-only workflow coverage.
 
-Still pending after these repository changes:
+Still pending immediately after these repository changes:
 
 - a fresh read-only TradingView baseline tied to the exact merge commit;
 - verified repository-versus-TradingView source hashes;
@@ -776,11 +776,30 @@ Still pending after these repository changes:
 - active alert names; and
 - an explicit rollback-evidence artifact.
 
-Therefore the repository governance and evidence mechanism can merge without
-changing TradingView behavior, but Phase R0 is not complete until a
-post-merge verify-only run has captured the baseline. Passing local tests,
-merging the automation, or finding an older green binding snapshot is not
-deployment evidence and must never be reported as such.
+Those items were closed on 2026-07-27 against
+`8b0a3127c919ad85ea4864a113abb14f0e2025dc`:
+
+- a write-mode producer refresh removed and re-added one Suite instance,
+  force-rebound 108 Engine BUS inputs across seven consumers, and persisted the
+  layout without saving any Pine source;
+- a separate fresh `--verify-only` session checked eight of eight sources and
+  108 of 108 bindings with zero source drift, binding mismatch, or runtime
+  error;
+- the published Micro-Profile Library remained at expected version 170;
+- layout `vWgAWyfC` was identified as `SMC Suite` with all changes saved; and
+- the complete, non-scrolling Alert Manager inventory contained zero active
+  alerts and two manually stopped historical alerts.
+
+The immutable source hashes, binding counts, layout identity, alert inventory,
+raw-evidence SHA-256 values, zero-mutation inventory declaration, and rollback
+target are recorded in
+[`tradingview_r0_rollback_baseline_2026-07-27.json`](../artifacts/monitoring/tradingview_r0_rollback_baseline_2026-07-27.json).
+The raw browser reports remain operator-local and are identified by hash rather
+than falsely presented as repository artifacts.
+
+Phase R0 is complete when that baseline artifact is part of `main`. Passing
+local tests, merging automation alone, or finding an older green binding
+snapshot is still not deployment evidence and must never be reported as such.
 
 #### Changes
 
