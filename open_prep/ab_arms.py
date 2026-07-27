@@ -20,8 +20,13 @@ day, the same universe and the same regime tilt, so the comparison is *paired* �
 methodologically sound and far more powerful than randomising whole days.
 
 Arm B is **shadow-only**: it never changes what the pipeline serves. Only the
-comparison record is written — the sample the SPRT stop-rule
-(`scripts/smc_sprt_stop_rule.py`) consumes.
+comparison record is written. Consumption chain (completed 2026-07-27; the
+first cut of this docstring overstated it as already wired):
+``open_prep.outcome_backfill --ab-arm-labels`` resolves 30-minute labels for
+both arms into ``labels_<day>.json`` next to the records, and
+``scripts/g3_bridge_ab_arms.py`` folds every labeled day into the cumulative
+``ab_comparison.json`` that ``scripts.g23_ab_watchdog --input`` appends to
+``docs/ab/g23_history.jsonl`` — where the §G2/§G3 SPRT gates actually read.
 
 Arm parity
 ----------

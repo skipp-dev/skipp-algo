@@ -460,10 +460,33 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 >
 > Arm B ist **shadow-only**: das ausgelieferte Ranking bleibt unberührt,
 > geschrieben wird nur der Vergleichs-Record nach `artifacts/open_prep/ab_arms/`
-> (Spearman-ρ, Top-N-Overlap, Rang-Deltas, Ein-/Austritte) — genau das Sample,
-> das `scripts/smc_sprt_stop_rule.py` konsumiert. Fehlt Arm B, wird ehrlich
-> `status="arm_b_unavailable"` protokolliert statt einer Null-Differenz-Zeile,
-> die das Sample verwässern würde.
+> (Spearman-ρ, Top-N-Overlap, Rang-Deltas, Ein-/Austritte). Fehlt Arm B, wird
+> ehrlich `status="arm_b_unavailable"` protokolliert statt einer
+> Null-Differenz-Zeile, die das Sample verwässern würde.
+>
+> **Konsum-Brücke (nachgezogen 2026-07-27, zweiter PR):** Die erste Fassung
+> dieses Abschnitts behauptete, die Records seien „das Sample, das die
+> SPRT-Stop-Rule konsumiert" — das war Stand damals **unverdrahtet** (die
+> `docs/ab/g23_history.jsonl` des Watchdogs war leer, der im Workflow-Header
+> genannte Feeder existierte nie, und Rank-Agreement allein trägt keine
+> Outcome-Information für ein SPRT). Die echte Kette seither:
+> `open-prep-outcome-backfill --ab-arm-labels` löst 30-Minuten-Labels für
+> BEIDE Arme nach `labels_<day>.json` auf (separater Store — Arm-B-Schatten-
+> zeilen dürfen `outcomes_<day>.json` nicht kontaminieren, das speist
+> `compute_hit_rates`/FI), und `scripts/g3_bridge_ab_arms.py` faltet alle
+> gelabelten Tage in EIN kumulatives `ab_comparison.json` (W3-2: das SPRT
+> liest den jüngsten History-Eintrag allein, Einträge tragen kumulative n/k),
+> das der Watchdog via `--input` an die History anhängt.
+>
+> **Anlauf-Caveat (Arm-B-Starvation):** `candidate_weights` verlangt
+> `min_samples=200` gelabelte Current-Era-FI-Samples; Stand 2026-07-24 sind
+> es 42 (`insufficient_labels`, ~1–2/Tag netto wegen Era-Gates). Bis das
+> 30-Tage-Fenster einwächst, liefern die Runs ehrlich `arm_b_unavailable`
+> und die Brücke schreibt nichts — der Watchdog bleibt korrekt auf
+> `awaiting_first_run`. Das ist der erwartete Anlauf, kein Defekt; jede
+> weitere Scorer-Formel-Änderung resettet die Era-Uhr. Ein Absenken der 200
+> wäre eine Statistik-Entscheidung (B3: n=30 → σ≈0.19 Noise-Fitting) und
+> wird nicht nebenbei getroffen.
 >
 > Der Producer läuft jetzt im selben Job **vor** dem Scoring
 > (`run-open-prep-daily.yml`), weil `weights_candidate.json` unter
@@ -484,10 +507,15 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/f2_experiment_spec.py` Decision-Memo-Pfad.
 - [x] Arm-Routing verdrahtet: `open_prep/ab_arms.py`, lauf-granular + gepaart,
       shadow-only; Records in `artifacts/open_prep/ab_arms/`.
-- ⏳ 30-Tage-Run läuft ab dem nächsten `run-open-prep-daily`-Lauf an. **Ab jetzt
-      ist „warten auf Sample" die zutreffende Beschreibung** — vorher war es das
-      nicht (siehe Korrektur oben). Fortschritt = Anzahl Records mit
-      `status="ok"`.
+- [x] Konsum-Brücke verdrahtet (2026-07-27, zweiter PR): Labels via
+      `outcome_backfill --ab-arm-labels`, Faltung via
+      `scripts/g3_bridge_ab_arms.py`, Anhang an `docs/ab/g23_history.jsonl`
+      im `g23-ab-watchdog`-Workflow.
+- ⏳ 30-Tage-Run: Sample akkumuliert, sobald Arm B verfügbar wird (siehe
+      Anlauf-Caveat oben — `candidate_weights` braucht 200 gelabelte
+      Current-Era-Samples, Stand 24.7.: 42). Fortschritt ablesbar an
+      `docs/ab/g23_status.md` („Window entries") und der Anzahl
+      `status="ok"`-Records in `artifacts/open_prep/ab_arms/`.
 
 ### Phase H — Pine Consumer Maturity (Wochen 6–9)
 

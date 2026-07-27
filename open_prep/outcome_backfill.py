@@ -912,6 +912,15 @@ def build_parser() -> argparse.ArgumentParser:
             "silently no-op (audit finding F-09)."
         ),
     )
+    parser.add_argument(
+        "--ab-arm-labels",
+        action="store_true",
+        help=(
+            "Also resolve 30m labels for the §G3 A/B arm records into "
+            "artifacts/open_prep/ab_arms/labels_<day>.json (separate store — "
+            "never into outcomes_<day>.json). See backfill_ab_arm_labels."
+        ),
+    )
     return parser
 
 
@@ -971,6 +980,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.feature_importance and summary["resolved"] > 0:
         fi_written = backfill_feature_importance(lookback_days=args.lookback)
         print(f"Feature importance: {fi_written} labeled samples written.")
+
+    if args.ab_arm_labels and not args.dry_run:
+        ab_summary = backfill_ab_arm_labels(
+            target_dates=target_dates, lookback_days=args.lookback,
+            dataset=args.dataset,
+        )
+        print(
+            f"AB-arm labels: {ab_summary['resolved']} resolved "
+            f"({ab_summary['from_outcomes']} from outcomes, "
+            f"{ab_summary['fetched']} fetched), {ab_summary['pending']} pending "
+            f"across {ab_summary['days_processed']} day(s)."
+        )
 
     # ── Persist run log (ENG-WS4-01 DoD: 'Ergebnisse sind persistiert
     # und nachvollziehbar'). One JSON file per run, atomically written.
@@ -1101,3 +1122,143 @@ if __name__ == "__main__":  # pragma: no cover
     except Exception:
         logger.critical("Fatal error in %s", __name__, exc_info=True)
         raise SystemExit(1) from None
+
+
+# ── §G3 arm-label backfill (2026-07-27) ──────────────────────────────
+#
+# Appended below every line-pinned site so the ledgers stay stable.
+
+AB_ARMS_DIR = Path("artifacts/open_prep/ab_arms")
+
+
+def backfill_ab_arm_labels(
+    *,
+    target_dates: list[date] | None = None,
+    lookback_days: int = 3,
+    provider: Any | None = None,
+    dataset: str = _DEFAULT_DATASET,
+) -> dict[str, Any]:
+    """Resolve 30-minute labels for BOTH §G3 arms into ``labels_<day>.json``.
+
+    The paired ``ab_arms_<day>.json`` records name the symbols each arm
+    ranked, but only Arm A's symbols receive labels through the regular
+    outcome backfill (it labels the served ranked snapshot). Arm-B-only
+    symbols would stay unlabeled, biasing the paired comparison toward the
+    intersection. This routine labels the union of both arms into a
+    SEPARATE store next to the records — deliberately NOT into
+    ``outcomes_<day>.json``, because arm-B shadow rows there would
+    contaminate ``compute_hit_rates`` and the FI ledger with rows no served
+    ranking produced (pinned by
+    ``tests/test_ab_arm_label_backfill.py::test_outcome_rows_never_gain_arm_b_shadow_entries``).
+
+    Labels already resolved in the day's outcome file are REUSED (same
+    30-minute mark-to-market semantics, no double fetch); only the
+    remainder is measured from provider bars, anchored at the 09:30 open
+    exactly like a pre-open capsule (``fired_at=None`` →
+    :func:`_resolve_anchor` fallback). Unresolvable symbols stay ``None``
+    ("pending"), never ``False`` — a re-run resolves them idempotently.
+
+    Consumed by ``scripts/g3_bridge_ab_arms.py``, which folds every labeled
+    day into the cumulative comparison the §G2/§G3 watchdog appends to
+    ``docs/ab/g23_history.jsonl``.
+    """
+    from open_prep.candidate_weights import _atomic_write_json
+
+    if target_dates is None:
+        dates: list[date] = []
+        for record_path in sorted(AB_ARMS_DIR.glob("ab_arms_*.json"))[-max(lookback_days, 1):]:
+            try:
+                dates.append(date.fromisoformat(record_path.stem.removeprefix("ab_arms_")))
+            except ValueError:
+                logger.warning("Unparseable ab_arms record name: %s", record_path.name)
+        target_dates = dates
+
+    summary = {
+        "days_processed": 0, "days_skipped": 0,
+        "resolved": 0, "pending": 0, "from_outcomes": 0, "fetched": 0,
+    }
+    lazy_provider = provider
+
+    for run_date in target_dates:
+        day = run_date.isoformat()
+        record_path = AB_ARMS_DIR / f"ab_arms_{day}.json"
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            summary["days_skipped"] += 1
+            continue
+        if not isinstance(record, dict) or record.get("status") != "ok":
+            summary["days_skipped"] += 1
+            continue
+
+        symbols: list[str] = []
+        for arm_key in ("arm_a_top", "arm_b_top"):
+            for symbol in record.get(arm_key) or []:
+                if isinstance(symbol, str) and symbol and symbol not in symbols:
+                    symbols.append(symbol)
+
+        labels_path = AB_ARMS_DIR / f"labels_{day}.json"
+        labels: dict[str, dict[str, Any]] = {}
+        try:
+            prior = json.loads(labels_path.read_text(encoding="utf-8"))
+            if isinstance(prior, dict) and isinstance(prior.get("labels"), dict):
+                labels = {
+                    s: entry for s, entry in prior["labels"].items()
+                    if isinstance(entry, dict) and entry.get("profitable_30m") is not None
+                }
+        except (OSError, ValueError):
+            pass
+
+        _path, outcome_rows = _load_outcome_file(run_date)
+        outcome_labels = {
+            str(row.get("symbol")): row for row in outcome_rows
+            if isinstance(row, dict) and row.get("profitable_30m") is not None
+        }
+        for symbol in symbols:
+            if symbol in labels:
+                continue
+            row = outcome_labels.get(symbol)
+            if row is not None:
+                labels[symbol] = {
+                    "profitable_30m": bool(row["profitable_30m"]),
+                    "pnl_30m_pct": row.get("pnl_30m_pct"),
+                    "source": "outcomes",
+                }
+                summary["from_outcomes"] += 1
+
+        missing = [s for s in symbols if s not in labels]
+        if missing:
+            if lazy_provider is None:
+                from databento_provider import DabentoProvider
+                lazy_provider = DabentoProvider()
+            bars_df = _fetch_bars(lazy_provider, missing, run_date, dataset=dataset)
+            if bars_df is None or bars_df is DATA_NOT_YET_PUBLISHED:
+                logger.info("ab-arm labels %s: bars unavailable for %s", day, missing)
+            else:
+                for symbol in missing:
+                    result = compute_pnl_from_bars(bars_df, symbol, run_date)
+                    if result is not None and result.get("profitable_30m") is not None:
+                        labels[symbol] = {
+                            "profitable_30m": bool(result["profitable_30m"]),
+                            "pnl_30m_pct": result.get("pnl_30m_pct"),
+                            "source": "ab_backfill",
+                        }
+                        summary["fetched"] += 1
+
+        pending = [s for s in symbols if s not in labels]
+        payload = {
+            "schema_version": 1,
+            "day": day,
+            "labels": {
+                **labels,
+                **{s: {"profitable_30m": None, "pnl_30m_pct": None, "source": "pending"}
+                   for s in pending},
+            },
+            "pending": pending,
+        }
+        _atomic_write_json(labels_path, payload)
+        summary["days_processed"] += 1
+        summary["resolved"] += len(labels)
+        summary["pending"] += len(pending)
+
+    return summary

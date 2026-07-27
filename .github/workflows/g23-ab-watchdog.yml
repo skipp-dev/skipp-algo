@@ -6,12 +6,19 @@ name: g23-ab-watchdog
 # publishes the resulting decision under docs/ab/ so reviewers can see the
 # current promotion / rollback posture at a glance.
 #
-# This workflow does NOT execute the comparison benchmark itself; it only
-# evaluates whatever history has accumulated. The comparison job (run by
-# the existing measurement-benchmark pipeline) feeds entries into the
-# history JSONL via `--input ab_comparison.json`. When called without
-# --input the watchdog re-evaluates the existing window and refreshes the
-# Markdown surface, which is what we want on a daily cadence.
+# This workflow does NOT execute the A/B itself; it folds the accumulated
+# arm records into the history and evaluates them. Corrected 2026-07-27:
+# the header used to claim "the measurement-benchmark pipeline feeds
+# entries via --input" — no such feeder ever existed and the history sat
+# empty ("awaiting_first_run") while paired arm records accumulated unread.
+# The real chain since 2026-07-27: run-open-prep-daily writes
+# artifacts/open_prep/ab_arms/ab_arms_<day>.json (paired arms, #4108),
+# open-prep-outcome-backfill resolves labels_<day>.json next to them, and
+# the bridge step below (scripts/g3_bridge_ab_arms.py) folds every labeled
+# day into ONE cumulative ab_comparison.json for `--input` (W3-2: SPRT
+# reads the latest entry alone, so entries must carry cumulative n/k).
+# With nothing to compare yet the bridge writes no file and the watchdog
+# runs without --input, truthfully reporting awaiting_first_run.
 
 on:
   schedule:
@@ -86,6 +93,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Bridge ab_arms records into the cumulative comparison
+        # §G3 (2026-07-27): fold every labeled arm-record day into one
+        # cumulative ab_comparison.json. No labeled treatment observation
+        # yet -> no file, and the watchdog below runs input-less (honest
+        # awaiting_first_run) instead of appending a zero row.
+        run: |
+          python -m scripts.g3_bridge_ab_arms --out /tmp/ab_comparison.json
+
       - name: Run G2/G3 watchdog
         id: watchdog
         env:
@@ -93,7 +108,11 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set +e
-          python -m scripts.g23_ab_watchdog \
+          INPUT_ARGS=()
+          if [ -f /tmp/ab_comparison.json ]; then
+            INPUT_ARGS=(--input /tmp/ab_comparison.json)
+          fi
+          python -m scripts.g23_ab_watchdog "${INPUT_ARGS[@]}" \
             --history docs/ab/g23_history.jsonl \
             --status-md docs/ab/g23_status.md
           rc=$?
