@@ -3226,9 +3226,10 @@ def _fetch_symbol_atr(
     """Fetch historical candles and compute ATR for one symbol.
 
     Returns: (symbol, atr_value, momentum_z, vwap_or_none, avg_volume_fallback,
-    pdh_or_none, pdl_or_none, error_message) — PDH/PDL are the previous
-    COMPLETED session's high/low (last candle dated strictly before as_of),
-    wiring the previously never-populated pdh/pdl quote context.
+    pdh_or_none, pdl_or_none, rsi14_or_none, error_message) — PDH/PDL are the
+    previous COMPLETED session's high/low (last candle dated strictly before
+    as_of), wiring the previously never-populated pdh/pdl quote context;
+    rsi14 (2026-07-27) wires the previously never-populated rsi_extreme input.
     """
     try:
         candles_raw = client.get_historical_price_eod_full(symbol, date_from, as_of)
@@ -3248,6 +3249,7 @@ def _fetch_symbol_atr(
         avg_volume_fallback: float = 0.0
         pdh: float | None = None
         pdl: float | None = None
+        rsi14: float | None = None  # 2026-07-27: closes the rsi_extreme phantom-key gap
         parsed_rows = []
         for c in candles:
             d_str = str(c.get("date") or "")
@@ -3276,11 +3278,20 @@ def _fetch_symbol_atr(
                 pdl_raw = _to_float(prev_rows[-1].get("low"), default=0.0)
                 pdh = pdh_raw if pdh_raw > 0.0 and math.isfinite(pdh_raw) else None
                 pdl = pdl_raw if pdl_raw > 0.0 and math.isfinite(pdl_raw) else None
+            # Wilder RSI(14) from the same chronologically sorted closes the
+            # momentum/vwap extraction already walks. Local import: keeps every
+            # line-pinned site above this function stable.
+            from .technical_analysis import rsi14_from_closes
+            closes = [
+                cv for c in sorted_candles
+                if (cv := _to_float(c.get("close"), default=0.0)) > 0.0 and math.isfinite(cv)
+            ]
+            rsi14 = rsi14_from_closes(closes)
         if atr_value <= 0.0:
-            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, "atr_zero_or_insufficient_bars"
-        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, None
+            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, "atr_zero_or_insufficient_bars"
+        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, None
     except (RuntimeError, KeyError, ZeroDivisionError, TypeError) as exc:
-        return symbol, 0.0, 0.0, None, 0.0, None, None, _APIKEY_RE.sub(r"\1=***", str(exc))
+        return symbol, 0.0, 0.0, None, 0.0, None, None, None, _APIKEY_RE.sub(r"\1=***", str(exc))
 
 
 def _atr14_by_symbol(
@@ -3290,13 +3301,14 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, float | None], dict[str, float | None], dict[str, str]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, float | None], dict[str, float | None], dict[str, float | None], dict[str, str]]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
     vwap_map: dict[str, float | None] = {}
     avg_volume_fallback_map: dict[str, float] = {}
     pdh_map: dict[str, float | None] = {}
     pdl_map: dict[str, float | None] = {}
+    rsi_map: dict[str, float | None] = {}  # 2026-07-27: not cached — like vwap, a full cache hit degrades to None
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
@@ -3318,7 +3330,8 @@ def _atr14_by_symbol(
                 avg_volume_fallback_map.setdefault(symbol, 0.0)
                 pdh_map.setdefault(symbol, None)  # like vwap: not cached — a full cache hit degrades to None
                 pdl_map.setdefault(symbol, None)
-            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, errors
+                rsi_map.setdefault(symbol, None)
+            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, errors
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
@@ -3351,13 +3364,14 @@ def _atr14_by_symbol(
                 for future in as_completed(future_map, timeout=atr_timeout):
                     symbol = future_map[future]
                     try:
-                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, pdh_v, pdl_v, err = future.result()
+                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, pdh_v, pdl_v, rsi_v, err = future.result()
                         atr_map[sym] = atr_value
                         momentum_z_map[sym] = momentum_z
                         vwap_map[sym] = vwap_value
                         avg_volume_fallback_map[sym] = max(_to_float(avg_vol_fb, default=0.0), 0.0)
                         pdh_map[sym] = pdh_v
                         pdl_map[sym] = pdl_v
+                        rsi_map[sym] = rsi_v
                         if err:
                             errors[sym] = err
                     except Exception as exc:  # pragma: no cover - defensive catch
@@ -3365,6 +3379,7 @@ def _atr14_by_symbol(
                         momentum_z_map[symbol] = 0.0
                         vwap_map[symbol] = None
                         avg_volume_fallback_map[symbol] = 0.0
+                        rsi_map[symbol] = None
                         errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
             except FuturesTimeoutError:
                 timed_out = True
@@ -3388,6 +3403,7 @@ def _atr14_by_symbol(
         avg_volume_fallback_map.setdefault(symbol, 0.0)
         pdh_map.setdefault(symbol, None)
         pdl_map.setdefault(symbol, None)
+        rsi_map.setdefault(symbol, None)
 
     # Save same-day cache to accelerate subsequent pre-open runs.
     prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
@@ -3411,7 +3427,7 @@ def _atr14_by_symbol(
         prev_close_map=prev_close_snapshot,
     )
 
-    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, errors
+    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, errors
 
 
 # ---------------------------------------------------------------------------
@@ -4566,7 +4582,7 @@ def _fetch_quotes_with_atr(
         ]
     )
 
-    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, pdh_by_symbol, pdl_by_symbol, atr_fetch_errors = _atr14_by_symbol(
+    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, pdh_by_symbol, pdl_by_symbol, rsi_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
         symbols=atr_symbols,
         as_of=as_of,
@@ -4592,6 +4608,7 @@ def _fetch_quotes_with_atr(
                 q["avg_volume"] = avg_vol
             q["atr"] = atr_by_symbol.get(sym, 0.0)
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
+            q["rsi14"] = rsi_by_symbol.get(sym)  # 2026-07-27: None stays None — scorer's rsi_extreme self-disables on missing data
             q["vwap"] = vwap_by_symbol.get(sym)
             # Wire the previous-session high/low derived from the same EOD
             # candles the ATR fetch already downloaded — before this, NO

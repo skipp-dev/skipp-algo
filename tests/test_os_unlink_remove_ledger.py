@@ -161,13 +161,13 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
     ("open_prep/run_open_prep.py", 3134, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 3132->3134
-    ("open_prep/run_open_prep.py", 3534, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 3532->3534
+    ("open_prep/run_open_prep.py", 3550, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 3534->3550
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5678, "unlink"),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 5663->5678
+    ("open_prep/run_open_prep.py", 5695, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 5678->5695
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6025, "unlink"),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 6010->6025
+    ("open_prep/run_open_prep.py", 6042, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 6025->6042
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

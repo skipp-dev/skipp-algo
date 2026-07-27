@@ -214,7 +214,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6168),  # 2026-07-27 (G3 arm-B shadow scoring wired after rank_candidates_v2): 6153->6168
+    ("open_prep/run_open_prep.py", 6185),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 6168->6185
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for
