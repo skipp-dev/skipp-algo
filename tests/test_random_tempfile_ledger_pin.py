@@ -40,7 +40,7 @@ _DIR_EXCLUDE = frozenset({
 # ---- Layer 1: random.* ledger -------------------------------------------------
 
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
-    ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
+    ("open_prep/error_taxonomy.py", 117),  # retry-jitter; non-security  # 2026-07-27 (adoption note above): 111->117
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
     ("services/opra_live_daemon/feed.py", 134),  # reconnect jitter; non-security
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
@@ -128,7 +128,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 3914, "mkstemp"),  # 2026-07-27 (databento phase2.2 hardening): 3898->3914
     ("open_prep/realtime_signals.py", 3970, "mkstemp"),  # 2026-07-27 (databento phase2.2 hardening): 3954->3970
 
-    ("open_prep/watchlist.py", 63, "mkstemp"),
+    ("open_prep/watchlist.py", 69, "mkstemp"),  # 2026-07-27 (persistence note above): 63->69
     ("smc_core/benchmark.py", 30, "mkstemp"),
     ("smc_core/ensemble_quality.py", 53, "mkstemp"),  # 2026-07-13 doc truth-fix comments shifted (49->53)
     ("smc_core/event_ledger.py", 178, "mkstemp"),  # 2026-07-13 schema-v1.2 rename+calibrated_prob (event_ledger mkstemp 143->178); null_cache.py removed upstream

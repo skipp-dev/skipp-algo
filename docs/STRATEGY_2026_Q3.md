@@ -266,7 +266,10 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Rolling 30-Tage-Benchmark mit täglichem Append statt Single-Run
 - [x] CI-Workflow anpassen: `smc-measurement-benchmark.yml` → Incremental Mode
 
-> Umgesetzt als `smc-measurement-benchmark-rolling.yml` (cron `30 7 * * *`).
+> Umgesetzt als `smc-measurement-benchmark-rolling.yml` (Stand 2026-07-27:
+> Trigger ist `workflow_run` nach dem Databento-Export (2×/Tag) plus
+> Safety-Net-Cron `30 16 * * 1-5` — nicht mehr `30 7 * * *`; TF-Set
+> inzwischen `5m,10m,15m,30m,1H,4H,1D`).
 > Pin-Test: `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`.
 
 #### E4: Outcome Backfill Pipeline — Produktionshärtung ✅ DONE (2026-04-22)
@@ -562,14 +565,27 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/generate_smc_micro_base_from_databento.py` füttert
       `family_stats` + `total_events` + `smooth_ece` (aus
       `zone_priority_per_bucket_calibration.json` größtes OK-Bucket).
-- ⚠ ~~Hinweis: Eine echte History-Quelle (`zone_priority_calibration_history`)
-      ist noch nicht produziert; bis dahin fällt der Trend deterministisch
-      auf `STABLE` zurück (per `DEFAULTS`).~~ ✅ CLOSED 2026-04-22 — rolling
-      JSONL via `scripts/smc_zone_priority_calibration.py::append_history_entry`
+- ⚠ **RE-OPENED 2026-07-27 (Verdrahtungs-Sweep)** — das „✅ CLOSED
+      2026-04-22" unten war zu früh: die MECHANIK existiert
+      (`append_history_entry`/`load_history_entries`), aber kein
+      Produktionspfad füllt je eine History ≥2 Einträge, die der Producer
+      liest. Die CI-Läufe schreiben in EPHEMERE Verzeichnisse
+      (`measurement_benchmark_rolling/<RUN_DATE>` startet täglich frisch;
+      weekly wird nicht committet), es gibt — anders als für
+      `plan_2_8_history.jsonl` — keinen Restore/Persist-Step, und die
+      committete `artifacts/reports/zone_priority_calibration_history.jsonl`
+      hat exakt 1 Eintrag (2026-04-23). `compute_calibration_trend`
+      (`_TREND_MIN_RUNS=3`) liefert damit konstant `STABLE`:
+      `ZONE_CAL_TREND` auf der Pine-Surface ist eine Konstante, kein
+      Signal. Da die Kalibrierung ohnehin bewusst frozen ist (PR #43),
+      ist das dokumentierter Ist-Zustand — ein History-Persist-Step wäre
+      erst bei einem Unfreeze sinnvoll.
+      ~~✅ CLOSED 2026-04-22 — rolling JSONL via
+      `scripts/smc_zone_priority_calibration.py::append_history_entry`
       (Retention 50). Producer (`generate_smc_micro_base_from_databento.py`)
       lädt die letzten 10 Einträge via `load_history_entries` in
       `enr["zone_priority_calibration_history"]`. CLI smoke v3:
-      `weighted_hit_rate=0.607`, `smooth_ece=0.137`.
+      `weighted_hit_rate=0.607`, `smooth_ece=0.137`.~~
 
 #### H4: FVG Health Warning ✅ DONE (2026-04-22)
 

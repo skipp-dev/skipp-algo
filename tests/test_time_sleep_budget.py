@@ -123,7 +123,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # above shifted the retry-backoff sleeps 546->595, 556->605.
         ("open_prep/alerts.py", 616),  # 2026-07-13 (drop dead last_exc tracking): 617->616
         ("open_prep/alerts.py", 625),  # 2026-07-13 (drop dead last_exc tracking): 627->625
-        ("open_prep/error_taxonomy.py", 117),
+        ("open_prep/error_taxonomy.py", 123),  # 2026-07-27 (docstring adoption/persistence note above): 117->123
         # 2026-06-28 (semantic monitoring): all realtime_signals sleep sites
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 323),   # 2026-07-25 (databento-signal-migration): 322->323

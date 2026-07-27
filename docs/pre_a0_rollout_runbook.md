@@ -29,7 +29,7 @@ symbol+direction cooldown and a hard hourly budget apply. Rollback: unset
 `RT_PRE_A0_PILOT` (or set `RT_PRE_A0_MODE=shadow`) and redeploy.
 
 The required controls are `RT_PRE_A0_MODE`, `RT_PRE_A0_MODEL_PATH`,
-`RT_PRE_A0_ALLOWED_HORIZONS` and `RT_PRE_A0_MAX_ALERTS_PER_HOUR`. Missing,
+`RT_PRE_A0_ALLOWED_HORIZONS` and `RT_PRE_A0_MAX_ALERTS_PER_HOUR`. Missing, ⚠ (2026-07-27: der ZAHLENWERT wird derzeit von keinem Konsumenten gelesen — `RolloutConfig.pre_a0_max_alerts_per_hour` hat null Leser; das reale Pilot-Budget speist sich aus `RT_PRE_A0_PILOT_MAX_ALERTS_PER_HOUR`. Nur UNGÜLTIGE Werte wirken (fail-closed → OFF). Bei Notify-Promotion verdrahten.)
 corrupt, incompatible or expired model state disables PRE-A0 only.
 
 ## Promotion checklist

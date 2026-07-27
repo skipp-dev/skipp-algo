@@ -33,7 +33,7 @@ ALERT_CONFIG_PATH = Path("artifacts/open_prep/alert_config.json")
 # ---------------------------------------------------------------------------
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "enabled": False,
+    "enabled": False,  # 2026-07-27: no alert_config.json has EVER existed (repo/CI/local) — the whole webhook subsystem is a documented no-op; rt_notify is the real alert path. See PRODUCTION_BUG_REPORT.
     "min_confidence_tier": "HIGH_CONVICTION",
     "targets": [],
     # Throttle: at most 1 successful delivery per symbol+target per N seconds
