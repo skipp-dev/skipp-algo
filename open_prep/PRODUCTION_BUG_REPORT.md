@@ -54,8 +54,40 @@
 - **Analyse & Regression-Guard:** `tests/test_scorer_component_cap_convergence.py`,
   Kommentar `#8 Score Component Cap` in `open_prep/scorer.py`.
 
-### MEDIUM — `macro_component` only rewards positive bias
+### MEDIUM (NEW 2026-07-27) — §15 SYMBOL-layer regime weights never fire
 
+- **Location:** `score_candidate()` feature build — `"symbol_regime": detect_symbol_regime(adx=..., bb_width_pct=...)`
+  (scorer.py:533-536) and its use at scorer.py:577-578.
+- **Bug:** The regime is derived from `quote.get("adx")` / `quote.get("bb_width_pct")`. **No producer
+  populates either key** on the premarket quote path, so the `_to_float` fallbacks (`15.0` / `3.0`)
+  always apply. `detect_symbol_regime(15.0, 3.0)` returns `"NEUTRAL"`, and `resolve_regime_weights`
+  applies no tilt for `NEUTRAL` — verified empirically: with the defaults **not one weight changes**,
+  while real inputs move five (`gap`, `gap_sector_relative`, `rvol`, `momentum_z`, `ext_hours`, e.g.
+  `adx=30 / bb=5 → TRENDING`). The comment at scorer.py:576 describes the adjustment as compounding
+  with the market tilt; in production it is a no-op.
+- **Why the data is missing:** the measured indicators *are* computed in the same run
+  (`compute_adx_from_bars` / `compute_bb_width_pct_from_bars`, run_open_prep.py:5762-5763) but from
+  `_daily_bars_cache`, which is only built at run_open_prep.py:5698 — **after** `rank_candidates_v2`
+  (run_open_prep.py:5596). The values exist too late to reach the scorer.
+- **Impact:** Trade-affecting. A documented weight-adaptation layer silently contributes nothing, so
+  gap/rvol/momentum weighting is regime-blind at the symbol level. Also a truth defect: the
+  enrichment stage later **overwrites** `row["symbol_regime"]` with the measured value, making the
+  emitted row look as though scoring used it.
+- **Status:** shadow measurement landed first (`open_prep/regime_shadow.py` +
+  `row["regime_weight_shadow"]` / `row["symbol_regime_at_scoring"]`) so the ranking impact can be
+  quantified on real runs before the weights are wired up. Wiring requires hoisting the daily-bars
+  fetch above the scoring stage — not a one-line change.
+
+### MEDIUM (IMPACT CORRECTED 2026-07-27) — `macro_component` only rewards positive bias
+
+- **Correction:** The *mechanism* below is accurate, but the stated **impact is inverted** — this
+  is by-design asymmetry, not under-penalisation. A negative bias is routed through
+  `risk_off_penalty = abs(min(bias, 0.0)) * w["risk_off_penalty_multiplier"]` (scorer.py, multiplier
+  `2.0`) and **subtracted**. Measured against `DEFAULT_WEIGHTS` (`macro = 0.7`): `bias = +0.8` nets
+  `+0.56`, `bias = -0.8` nets `-1.60` — risk-off is penalised ~2.9× harder than upside is rewarded,
+  so scores do **not** "cluster higher on risk-off days". Letting `macro_component` go negative (the
+  fix proposed below) would double-count the penalty and **weaken** the model. Do not "fix" this;
+  the remaining task is documentation only.
 - **Location:** `score_candidate()`, line ~442
 - **Bug:** `macro_component = w["macro"] * max(bias, 0.0)` — a negative macro bias is **not** passed to the score as a negative component. It's clamped to 0 before multiplication. The separate `risk_off_penalty` partially compensates but uses a different weight key, so the magnitude is decoupled from `w["macro"]`. A `bias = -0.80` and `bias = 0.0` produce identical `macro_component`.
 - **Impact:** Negative macro environments are under-penalised in the composite score vs. what the weight configuration intends. Scores cluster higher than they should on risk-off days.
@@ -73,8 +105,13 @@
 
 ## 3. news.py
 
-### MEDIUM — Article sort for "newest first" uses ISO string comparison, not datetime
+### RESOLVED (verified 2026-07-27) — Article sort for "newest first" uses ISO string comparison, not datetime
 
+- **Resolution:** The lexicographic sort is gone. `build_news_scores` now sorts on parsed datetimes —
+  `row["articles"].sort(key=lambda a: _parse_article_datetime(a.get("date")) or _EPOCH, ...)`
+  (news.py:374-376), with an in-code note that the key is `_parse_article_datetime` (returns
+  `datetime | None`). Mixed `+00:00`/`Z` forms and microsecond variants therefore order correctly.
+  This is exactly the fix proposed below ("apply the same approach as `latest_article_utc`").
 - **Location:** `build_news_scores()`, lines ~232-237
 - **Bug:** `row["articles"].sort(key=lambda a: a.get("date") or "", reverse=True)` sorts articles by their `date` field, which is an ISO 8601 string. ISO sort is generally correct for lexicographic ordering, but:
   - Articles with `None` date sort to the end (empty string is smallest), which is intentional.
@@ -131,8 +168,16 @@
 
 ## 5. alerts.py
 
-### MEDIUM — In-memory throttle state resets on process restart
+### NOT REACHABLE (verified 2026-07-27) — In-memory throttle state resets on process restart
 
+- **Resolution:** Accurate as mechanism (`_last_sent` is still process-local, alerts.py:94), but the
+  failure scenario cannot occur on the production path. `open_prep.alerts` has exactly one non-test
+  importer — `run_open_prep.py:22` — and that pipeline runs on `run-open-prep-daily.yml`
+  `cron: "0 13 * * 1-5"`, i.e. **once per trading day**. There is no second run inside the
+  `throttle_seconds: 600` window for a persisted state to suppress, and the Streamlit-reload /
+  container-restart scenario below belongs to a caller that does not exist. Within the run the
+  throttle works and is lock-guarded (`_throttle_lock`, alerts.py:95/111/118). Persisting it would
+  add a file dependency for no behavioural gain.
 - **Location:** `_last_sent` dict, line ~89
 - **Bug:** Throttle state is stored only in `_last_sent: dict[str, float] = {}`. When the process restarts (common in cron/Streamlit/container deployments), all throttle history is lost. The same alert fires again immediately.
 - **Impact:** Every restart window produces duplicate alerts. In a Streamlit auto-reload scenario, reloading the page can trigger a burst of alerts for the same symbols.
@@ -166,8 +211,16 @@
 - **Impact:** If S/R calculation silently fails, trade cards show `None` stop-loss/targets, and downstream consumers (realtime engine, alert formatting) cannot distinguish "no S/R data" from "calculation bug". Debugging production issues requires reproducing exact inputs.
 - **Fix:** Log the exception at WARNING/ERROR level inside the catch. Consider re-raising on non-data errors (e.g. `TypeError`, `AttributeError`).
 
-### MEDIUM — `detect_breakout` `min_bars` check is over-conservative
+### NOT A DEFECT — PREMISE FALSE (verified 2026-07-27) — `detect_breakout` `min_bars` check is over-conservative
 
+- **Correction:** The claim "50 bars would suffice for all array accesses" is **false**.
+  `detect_breakout` reads `prior_high_l = max(highs[-(long_n + 1):-1])` (and the matching
+  `prior_low_l`), which needs **`long_n + 1` = 61** bars for a complete window, not 50. Python
+  slicing does not raise on a short list — it silently returns a truncated window, so a 60-bar input
+  would quietly turn the documented "60-day prior high" into a 54-day one. `min_bars = max(short_n,
+  long_n) + 5 = 65` is therefore a guard against silent window truncation with **4** bars of
+  headroom over the strict requirement, not a ~20 % overcount. Applying the fix proposed below
+  (dropping the `+5`) would introduce exactly that silent truncation. Leave as-is.
 - **Location:** `detect_breakout()`, line ~273
 - **Bug:** `min_bars = max(short_n, long_n) + 5`. With default `short_n=30, long_n=60`, this requires 65 bars. But the function only accesses `closes[-short_n:]`, `closes[-long_n:]`, and `volumes[-50:]`. 50 bars would suffice for all array accesses. The `+5` padding and `max(short_n, long_n)` overcount by ~20 %.
 - **Impact:** Symbols with 50-64 daily bars are classified as `"insufficient_data"` and miss breakout detection, even though the data is sufficient. This is common for recently-IPO'd names (3-4 months of history).
@@ -218,8 +271,18 @@
 - **Impact:** Low risk now, but a future consumer doing `if row["overnight_gap_pct"]:` will get `KeyError` on gap-session rows.
 - **Fix:** Always include `overnight_gap_pct` and `overnight_gap_source` in the returned dict (set to `None` when not computed).
 
-### MEDIUM — Breakout/consolidation enrichment uses ATR% proxy, not real ADX/BB data
+### RESOLVED (verified 2026-07-27) — Breakout/consolidation enrichment uses ATR% proxy, not real ADX/BB data
 
+- **Resolution:** Both proposed fixes landed. The enrichment now **prefers measured indicators**
+  computed from the daily bars already fetched in the run — `real_adx = compute_adx_from_bars(bars)`
+  / `real_bbw = compute_bb_width_pct_from_bars(bars)` (run_open_prep.py:5762-5766, "eval-findings D7")
+  — and falls back to the ATR% proxy only when the bars are insufficient (< 2×14+1 for Wilder ADX,
+  < 20 for BB). That is fix (b). Fix (c) landed too: every row carries
+  `row["regime_source"] ∈ {"daily_bars", "atr_proxy", "no_data"}` so the provenance is disclosed
+  per candidate (audit #2670 W2). The proxy branch is explicitly commented "synthesized BB/ADX, NOT
+  measured indicators".
+- **Separate, still-open finding (2026-07-27):** the *scorer's* `symbol_regime` is unrelated to this
+  enrichment and is inert — see "§15 SYMBOL-layer regime weights never fire" in §2 (`scorer.py`).
 - **Location:** `generate_open_prep_result()`, lines ~3660-3700
 - **Bug:** `approx_bb_width = max(atr_pct * 2.5, 0.1)` and `approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)` are linear proxies of Bollinger Band width and ADX, derived solely from ATR%. These proxies have no empirical basis:
   - ATR% and ADX measure different things (volatility vs. trend strength)
@@ -228,8 +291,23 @@
 - **Impact:** The `symbol_regime`, `consolidation`, `is_consolidating`, and `consolidation_score` fields in `ranked_v2` are unreliable proxies. Playbooks that key off `is_consolidating` or `symbol_regime` may make systematic errors (e.g. classifying trending large-caps as "RANGING").
 - **Fix:** Either (a) fetch real ADX/BB data from FMP's technical indicators endpoint, (b) compute ADX from the daily bars already fetched in `_daily_bars_cache`, or (c) clearly label these as "proxy" fields in the output contract with a data-quality caveat.
 
-### MEDIUM — `_incremental_atr_from_eod_bulk` momentum_z carries stale prior-day value
+### NOT REACHABLE (verified 2026-07-27) — `_incremental_atr_from_eod_bulk` momentum_z carries stale prior-day value
 
+- **Resolution:** The carry-over line is real, but it does not execute on either production path.
+  `_incremental_atr_from_eod_bulk` only reaches it for symbols whose bulk EOD row is dated `as_of`
+  (`if row_date and row_date != as_of.isoformat(): continue`). Both producers run **pre-open** — the
+  GH-Actions job at `cron: "0 13 * * 1-5"` (09:00 ET) and the local driver with `--pre-open-only`
+  (`scripts/vd_open_prep.sh`) — and pre-open there is no completed EOD bar for `as_of`, so every
+  symbol is skipped, `momentum_map` stays empty, and all symbols fall through to `_fetch_symbol_atr`,
+  which recomputes `_momentum_z_score_from_eod(candles, period=50)` fresh. The function's own header
+  already states the incremental path "no-ops pre-open".
+- **Empirical proof:** four consecutive production cache files
+  (`artifacts/open_prep/cache/atr/2026-07-{22,23,24,27}_p14.json`) — every symbol's `momentum_z`
+  changes every day (AMD `1.5096 → 0.205 → −0.5812 → −0.7878`; likewise AMZN/GOOGL/META/MSFT).
+  Under an active carry-over consecutive days would be **identical**. They never are.
+- **Residual:** on a hypothetical post-close run with a warm prior-day cache the carry-over would
+  apply, and would then compound (`prev_day = _prev_trading_day(as_of)` chains across weekends), so
+  the in-code "may lag by ~1 session" would understate it. No such caller exists today.
 - **Location:** `_incremental_atr_from_eod_bulk()`, lines ~2123-2130
 - **Bug:** The code explicitly copies `momentum_z` from the prior-day cache: `momentum_map[sym] = round(_to_float(prev_momentum_map.get(sym), default=0.0), 4)`. This is documented as a known limitation ("may lag by ~1 session"). However, the full-refresh path in `_fetch_symbol_atr` computes fresh `momentum_z` via `_momentum_z_score_from_eod()`.
 - **Impact:** The staleness compounds: if the cache hits for many consecutive days (incremental path), `momentum_z` can be multiple days old. A stock transitioning from bearish to bullish momentum retains its old negative z-score.
@@ -251,8 +329,15 @@
 
 ## 8. screen.py
 
-### MEDIUM — `rank_candidates` duplicates scoring logic from `scorer.py`
+### BY DESIGN — VERIFIED (2026-07-27) — `rank_candidates` duplicates scoring logic from `scorer.py`
 
+- **Resolution:** The duality is intentional and the drift risk was checked directly (duplicated-logic
+  sweep, 2026-07-25, PRs #4045/#4046). `screen.rank_candidates` is the legacy **display** ranker;
+  `scorer.score_candidate` is the live **trade-rank** path — only the latter gates. The §8 hard-block
+  duality is complete and v2 is a **strict superset** of v1's hard-blocks (the safe direction: v2 can
+  only reject more, never less), the threshold literals currently equal the shared config, and the
+  gap-`None` footgun in v1 is unreachable. No fix had landed in one copy but not the other. The ask
+  below ("document the intentional duality") is satisfied by this note.
 - **Location:** `rank_candidates()` (entire function, lines ~300-514)
 - **Bug:** The legacy ranker implements its own scoring formula (gap × weight + rvol × weight + …) that is structurally similar to but numerically different from `scorer.py`'s `score_candidate()`. Both are called in `generate_open_prep_result()` — legacy for `ranked`, v2 for `ranked_v2`. The two scoring functions assign different weights, apply different caps, and handle edge cases differently.
 - **Impact:** `ranked` and `ranked_v2` can disagree significantly on symbol ordering. Consumers reading `ranked_candidates` vs `ranked_v2` get inconsistent views. If the legacy path is retained for backward compatibility, this is by design, but any bug fix in one scorer must be manually replicated in the other.
@@ -340,8 +425,14 @@
 
 ## 12. watchlist.py
 
-### MEDIUM — `fcntl`-based file locking is POSIX-only; no-op on Windows
+### NOT REACHABLE (verified 2026-07-27) — `fcntl`-based file locking is POSIX-only; no-op on Windows
 
+- **Resolution:** Accurate, already documented in code, and unreachable in production. watchlist.py:18
+  guards `import fcntl  # POSIX only` and watchlist.py:33 states the fallback ("Falls back to a no-op
+  on platforms without fcntl (Windows)") — i.e. the report's own "Fix: document the limitation" is
+  already satisfied. Production runs on `ubuntu-latest` (`run-open-prep-daily.yml`) and macOS locally,
+  both of which take the `fcntl.flock` path (watchlist.py:41/44). The entry's own impact line concedes
+  "On POSIX (Linux/macOS production): no issue".
 - **Location:** `_lock_file()` / `_unlock_file()`, lines ~30-50
 - **Bug:** The code correctly tries `import fcntl` and falls back to a no-op on `ImportError` (Windows). However, the no-op fallback means concurrent processes on Windows can corrupt the watchlist JSON file.
 - **Impact:** On POSIX (Linux/macOS production): no issue. On Windows dev environments: potential data loss if two processes write simultaneously.
@@ -486,13 +577,22 @@
 
 ## Summary by Severity
 
-> **Counts are OPEN items (not yet RESOLVED) as of 2026-07-25.** Of 46 catalogued entries, 23
-> carry an inline `RESOLVED` / `NOT REACHABLE` note (verified against current code) and 23 remain
-> open. Every originally-HIGH item is now resolved. The old counts (HIGH 5 / MEDIUM 18 / LOW 14)
-> were the authoring-time totals and overstated the open surface — they counted since-fixed items.
+> **Counts are OPEN items (not yet RESOLVED) as of 2026-07-27.** Of 47 catalogued entries, 31
+> carry an inline `RESOLVED` / `NOT REACHABLE` / `BY DESIGN` / premise-correction note (verified
+> against current code) and 16 remain open. Every originally-HIGH item is resolved.
+>
+> **2026-07-27 — all 11 then-open MEDIUM entries were re-verified individually.** None turned out to
+> be an actionable live bug: 2 were already fixed (article sort, proxy ADX/BB), 3 are unreachable on
+> the production paths (momentum_z staleness, alert throttle, fcntl), 2 had a **false premise** and
+> would have made things worse if "fixed" (`macro_component` — risk-off is penalised ~2.9× harder,
+> not under-penalised; `detect_breakout min_bars` — 61 bars are required, not 50), 1 is verified
+> by-design (v1/v2 duality), and 3 are accurate but low-impact and self-mitigating (PMH/PML timeout,
+> gap dict shapes, FMP key in URL). One **new** MEDIUM was found in the process: §15 SYMBOL-layer
+> regime weights never fire. Treat any surviving entry's *impact* line as unverified until re-checked
+> — several overstated or inverted the consequence while describing the mechanism correctly.
 
 | Severity | Open | Key open items |
 |----------|------|----------------|
 | **HIGH** | 0 | none — half-life, score cap, circuit-breaker (×2), prev_close key-case, and no-test-coverage all RESOLVED / NOT REACHABLE |
-| **MEDIUM** | 11 | macro_component positive-only; article sort by string; throttle lost on restart; detect_breakout min_bars; PMH/PML timeout loss; gap dict shapes; proxy ADX/BB; momentum_z staleness; v1/v2 scorer duality; fcntl Windows no-op; FMP key in URL |
+| **MEDIUM** | 4 | §15 regime weights never fire (NEW); PMH/PML timeout loss; gap dict shapes; FMP key in URL |
 | **LOW** | 12 | future-dated articles; SSL rebuild per call; cache-evict local import; SPAC classify; screen `_to_float` zeros; playbook length; BEA fragility (×2); diff schema drift; sector_breadth 0.0; retry exc-chain; utils `to_float` convention |
