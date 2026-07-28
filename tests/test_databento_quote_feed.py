@@ -21,6 +21,7 @@ from databento_dbn import OHLCVMsg, RType, SystemCode
 
 from open_prep.databento_quote_feed import (
     _BARRIER_SENTINEL,
+    BarState,
     DatabentoQuoteFeed,
     resolve_current_symbol_support,
 )
@@ -756,6 +757,28 @@ class TestReplayBarrierNonDroppable:
         feed._enqueue_barrier(replay_active=False)
         assert feed._queue.qsize() == 1
         assert feed._queue.get_nowait() is filler
+
+    def test_only_live_bar_queue_pressure_counts_as_a_drop(self) -> None:
+        feed, _ = _make_feed([], queue_max=1)
+        feed._queue.put_nowait(object())
+        bar = BarState("AAPL", 100.0, 101.0, 99.0, 100.5, 100, 1.0, 1.0)
+
+        feed._enqueue_bar("AAPL", bar, replay_active=False)
+        assert feed.telemetry.snapshot()["queue_dropped"] == 1
+
+        replay_done = threading.Event()
+
+        def enqueue_replay() -> None:
+            feed._enqueue_bar("AAPL", bar, replay_active=True)
+            replay_done.set()
+
+        thread = threading.Thread(target=enqueue_replay, daemon=True)
+        thread.start()
+        assert not replay_done.wait(0.4)
+        assert feed.telemetry.snapshot()["queue_dropped"] == 1
+        feed._queue.get_nowait()
+        assert replay_done.wait(1.0)
+        thread.join(timeout=1.0)
 
 
 class TestSupervisorRestart:

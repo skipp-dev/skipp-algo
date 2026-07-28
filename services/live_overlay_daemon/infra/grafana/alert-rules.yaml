@@ -2382,12 +2382,12 @@ groups:
       summary: smc-signals-producer is running without an FMP client — it can never fetch quotes and publishes empty signals every cycle. /readyz reports 503 "client disabled (<reason>)".
       runbook: Check signals_producer_client_disabled_info{reason=...} for the failure class, verify FMP_API_KEY is set on the smc-signals-producer Railway service, then redeploy/restart — the client is only constructed at boot.
   - uid: sp-data-stale
-    title: Signals Producer data stale (market-hours FMP outage)
+    title: Signals Producer market data stale
     condition: C
     # signals_producer_data_stale is a 0/1 gauge the producer self-computes:
-    # market-open AND no non-empty FMP fetch for > DATA_STALL_SECONDS. It catches
+    # market-open AND no non-empty quote update for > DATA_STALL_SECONDS. It catches
     # a market-hours data outage that last_poll_age / readyz miss — those mark
-    # loop-liveness and stay green even when every fetch returns empty. The
+    # loop-liveness and stay green even when the selected feed returns no data. The
     # producer being down is covered by sp-scrape-down, so NoData here is OK.
     noDataState: OK
     data:
@@ -2415,8 +2415,73 @@ groups:
       severity: warning
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET) — likely an FMP outage (poll loop alive, every fetch empty). Pages ~15 min after onset (5-min stall + 10-min for:).
-      runbook: Check signals_producer_fmp_request_errors_total and the FMP status page. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
+      summary: smc-signals-producer got no market data for 5+ min during US extended-hours (04:00-20:00 ET), while the poll loop stayed alive. Pages ~15 min after onset (5-min stall + 10-min for:).
+      runbook: Check the selected RT_QUOTE_SOURCE, Databento connected/records/error counters, and FMP request errors when FMP fallback is active. last_poll_age stays ~0 because the loop runs; signals are frozen until non-empty quotes return.
+  - uid: sp-databento-live-queue-drops
+    title: Signals Producer Databento live queue dropped records
+    condition: C
+    # Replay enqueue blocks until capacity is available. This counter increments
+    # only when the non-replay live queue is full, so startup replay backpressure
+    # cannot trigger this alert.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(databento_quote_feed_queue_dropped_total{job="signals_producer"}[10m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 0s
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Databento feed dropped one or more live records because the producer queue remained full. Initial replay backpressure does not increment this counter.
+      runbook: Check producer CPU/memory, databento_quote_feed_records_received_total rate, data age, reconnect/error counters, and downstream poll duration. Restart only after identifying whether the consumer is stalled or persistently slower than the live feed.
+  - uid: sp-databento-feed-recovery-loop
+    title: Signals Producer Databento feed repeatedly reconnecting
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(databento_quote_feed_reconnect_attempts_total{job="signals_producer"}[15m])) + sum(increase(databento_quote_feed_bento_errors_total{job="signals_producer"}[15m])) + sum(increase(databento_quote_feed_unexpected_errors_total{job="signals_producer"}[15m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 2
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Databento recorded at least three reconnect/error events in 15 minutes and remained above the threshold for five minutes.
+      runbook: Correlate reconnect attempts with Bento/unexpected errors, connected state, records_received rate, and data age. Check Databento status and Railway networking before restarting the producer.
   - uid: sp-fmp-profile-bulk-used
     title: Signals Producer unexpectedly used FMP profile-bulk
     condition: C

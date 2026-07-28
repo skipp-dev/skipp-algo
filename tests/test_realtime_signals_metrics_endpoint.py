@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import open_prep.realtime_signals as rs
+from open_prep.databento_quote_feed import DatabentoFeedTelemetry
 from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
 from open_prep.quote_source import DatabentoQuoteSource
 
@@ -297,6 +298,50 @@ def test_collect_process_metrics_exposes_postmarket_adapter_state() -> None:
         'signals_producer_postmarket_adapter_rejections{reason="missing_baseline"} 1'
         in body
     )
+
+
+def test_collect_process_metrics_exposes_databento_feed_telemetry() -> None:
+    telemetry = DatabentoFeedTelemetry()
+    telemetry.set_connected(True)
+    telemetry.record_received()
+    telemetry.record_reconnect_attempt()
+    telemetry.record_bento_error()
+    telemetry.record_queue_drop()
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=time.time(),
+        last_poll_duration_seconds=0.0,
+        _databento_feed=SimpleNamespace(telemetry=telemetry),
+    )
+
+    body = rs._collect_process_metrics(engine)
+
+    assert "databento_quote_feed_connected 1" in body
+    assert "databento_quote_feed_records_received_total 1" in body
+    assert "databento_quote_feed_reconnect_attempts_total 1" in body
+    assert "databento_quote_feed_bento_errors_total 1" in body
+    assert "databento_quote_feed_queue_dropped_total 1" in body
+
+
+def test_collect_process_metrics_survives_databento_telemetry_failure() -> None:
+    telemetry = SimpleNamespace(
+        render_prometheus=MagicMock(side_effect=RuntimeError("broken telemetry")),
+    )
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=time.time(),
+        last_poll_duration_seconds=0.0,
+        _databento_feed=SimpleNamespace(telemetry=telemetry),
+    )
+
+    body = rs._collect_process_metrics(engine)
+
+    assert "signals_producer_process_uptime_seconds" in body
+    telemetry.render_prometheus.assert_called_once_with()
 
 
 def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> None:
