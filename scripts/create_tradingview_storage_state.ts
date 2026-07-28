@@ -12,8 +12,11 @@ import {
   launchTradingViewPersistentContext,
   resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
+  isOtpEntryComplete,
+  planOtpEntry,
   revealEmailLoginField,
   TV_LOGIN_IDENTIFIER_SELECTOR,
+  TV_OTP_FIELD_SELECTOR,
 } from "../automation/tradingview/lib/tv_shared.js";
 
 /**
@@ -87,26 +90,61 @@ async function assistTwoFactorSubmission(
     return;
   }
 
-  const codeField = page.locator(
-    'input[autocomplete="one-time-code"], input[inputmode="numeric"], input[name*="code" i], input[placeholder*="code" i], input[type="tel"], input[type="text"]',
-  ).first();
+  const codeFields = page.locator(TV_OTP_FIELD_SELECTOR);
+  const fieldCount = await codeFields.count().catch(() => 0);
+  const codeField = codeFields.first();
 
-  const fieldVisible = (await codeField.count().catch(() => 0)) > 0 && (await codeField.isVisible().catch(() => false));
+  const fieldVisible = fieldCount > 0 && (await codeField.isVisible().catch(() => false));
 
-  // If we have a TOTP secret, generate the current 6-digit code and fill it.
+  const readEnteredCode = async (): Promise<string> => {
+    if (!fieldVisible) {
+      return "";
+    }
+    const values = await codeFields.evaluateAll(
+      (nodes) => nodes.map((node) => (node as HTMLInputElement).value || ""),
+    ).catch(() => [] as string[]);
+    return values.join("").trim();
+  };
+
+  // If we have a TOTP secret, generate the current 6-digit code and enter it.
   if (totpSecret && fieldVisible) {
     try {
       const token = authenticator.generate(totpSecret);
-      console.log("TOTP code generated — filling 2FA field automatically.");
-      await codeField.fill(token);
+      const shapes = await codeFields.evaluateAll(
+        (nodes) => nodes.map((node) => ({ maxLength: (node as HTMLInputElement).maxLength })),
+      ).catch(() => [] as { maxLength: number }[]);
+      const plan = planOtpEntry(shapes, token.length);
+
+      // Type instead of fill(): a per-digit layout auto-advances on keystrokes,
+      // and framework-backed single fields ignore a value written straight to
+      // the DOM. fill() wrote all six digits into box one — the bug this fixes.
+      await codeField.click({ timeout: 2_000 }).catch(() => undefined);
+      if (plan.perBox) {
+        await page.keyboard.type(token, { delay: 60 });
+      } else {
+        await codeField.fill("").catch(() => undefined);
+        await codeField.pressSequentially(token, { delay: 40 }).catch(() => undefined);
+      }
       await page.waitForTimeout(500);
+
+      const entered = await readEnteredCode();
+      console.log(
+        `TOTP code entered — fields=${fieldCount} plan=${plan.reason} `
+        + `complete=${isOtpEntryComplete(entered, token)} digits=${entered.length}/${token.length}`,
+      );
     } catch (err) {
       console.warn(`TOTP generation failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without filling.`);
     }
   }
 
-  const currentValue = fieldVisible ? await codeField.inputValue().catch(() => "") : "";
-  const hasLikelyCode = currentValue.trim().length >= 6;
+  const currentValue = await readEnteredCode();
+  const hasLikelyCode = currentValue.length >= 6;
+  if (fieldVisible && !hasLikelyCode) {
+    console.warn(
+      `2FA code incomplete (${currentValue.length}/6 digits across ${fieldCount} field(s)) — `
+      + "not submitting; the next poll retries with a fresh code.",
+    );
+  }
 
   const submitCandidates = [
     page.getByRole("button", { name: /continue/i }),
@@ -143,9 +181,26 @@ async function assistTwoFactorSubmission(
       continue;
     }
 
+    const label = (await button.innerText().catch(() => "")).trim().split("\n")[0];
+    console.log(`2FA submit clicked ("${label || "unlabelled"}").`);
     await button.click({ timeout: 2_000 }).catch(() => undefined);
     await page.waitForTimeout(750);
     return;
+  }
+
+  if (hasLikelyCode || !fieldVisible) {
+    const labels = await page
+      .locator("button, [role=\"button\"]")
+      .evaluateAll((nodes) =>
+        nodes
+          .map((node) => (node.textContent || "").trim().split("\n")[0])
+          .filter(Boolean)
+          .slice(0, 12),
+      )
+      .catch(() => [] as string[]);
+    console.warn(
+      `2FA code is entered but no submit control matched — buttons on page: ${JSON.stringify(labels)}`,
+    );
   }
 
   if (hasLikelyCode && fieldVisible) {
