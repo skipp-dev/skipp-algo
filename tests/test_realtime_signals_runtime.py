@@ -153,6 +153,40 @@ def test_volume_regime_warns_when_all_avg_volumes_missing(monkeypatch, caplog) -
     assert "avgvolume unavailable" in caplog.text.lower()
 
 
+def test_volume_regime_databento_row_does_not_use_fmp_watchlist_adv(monkeypatch) -> None:
+    detector = rs.VolumeRegimeDetector()
+    detector._wl_avg_volumes = {"AAA": 2_750_000.0}
+    quotes = {
+        "AAA": {
+            "symbol": "AAA",
+            "source": "databento",
+            "volume": 96_300,
+            "avgVolume": 0.0,
+        },
+    }
+    monkeypatch.setattr(rs, "_expected_cumulative_volume_fraction", lambda: 0.20)
+
+    assert detector.update(quotes) == "NORMAL"
+    assert detector.thin_fraction == 0.0
+
+
+def test_volume_regime_fmp_row_retains_watchlist_adv_fallback(monkeypatch) -> None:
+    detector = rs.VolumeRegimeDetector()
+    detector._wl_avg_volumes = {"AAA": 2_750_000.0}
+    quotes = {
+        "AAA": {
+            "symbol": "AAA",
+            "source": "fmp",
+            "volume": 96_300,
+            "avgVolume": 0.0,
+        },
+    }
+    monkeypatch.setattr(rs, "_expected_cumulative_volume_fraction", lambda: 0.20)
+
+    assert detector.update(quotes) == "HOLIDAY_SUSPECT"
+    assert detector.thin_fraction == 1.0
+
+
 def test_volume_regime_uses_intraday_volume_pace(monkeypatch) -> None:
     detector = rs.VolumeRegimeDetector()
     # 22% of daily avg at 10:00 ET should not be considered thin when

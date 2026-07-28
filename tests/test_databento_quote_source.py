@@ -203,6 +203,34 @@ def test_databento_source_omits_reference_with_consolidated_adv(
     assert "fmp:adjusted-eod" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "bad_adv",
+    [0.0, 999.0, -1.0, float("nan"), float("inf")],
+    ids=["zero", "below-minimum", "negative", "nan", "infinite"],
+)
+def test_databento_source_omits_reference_with_unusable_adv(
+    bad_adv: float,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unusable venue ADV must fail closed before downstream code can
+    replace it with a consolidated FMP watchlist denominator."""
+    feed = _FakeDatabentoQuoteFeed()
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL"), cumulative_volume=96_300,
+        session_high=102.0, session_low=99.0,
+    )
+    reference = _reference({
+        "AAPL": _reference_row(average_daily_volume=bad_adv),
+    })
+
+    source = DatabentoQuoteSource(feed, reference)
+    assert source.fetch(["AAPL"], "regular", now=1_784_642_405.0) == []
+    source.fetch(["AAPL"], "regular", now=1_784_642_406.0)
+
+    assert caplog.text.count("rejected unusable ADV") == 1
+    assert "AAPL=" in caplog.text
+
+
 def test_databento_source_mixed_universe_only_emits_complete_rows() -> None:
     """One symbol has both bar+reference, one is missing a bar, one is
     missing a reference row -- only the complete one survives."""
