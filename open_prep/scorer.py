@@ -290,7 +290,11 @@ def filter_candidate(
     raw_atr = _to_float(quote.get("atr"), default=0.0)
     from .atr_quality import atr_pct_from_price_units
     safe_atr_pct = atr_pct_from_price_units(raw_atr, price)
-    atr_rejected = raw_atr > 0.0 and price > 0.0 and safe_atr_pct is None
+    source_atr_quality = str(quote.get("atr_data_quality") or "")
+    atr_rejected = (
+        source_atr_quality.startswith("rejected_")
+        or (raw_atr > 0.0 and price > 0.0 and safe_atr_pct is None)
+    )
     atr = raw_atr if safe_atr_pct is not None else 0.0
     momentum_z = _to_float(quote.get("momentum_z_score"), default=0.0)
     rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
@@ -391,6 +395,7 @@ def filter_candidate(
         "split_today",
         "ipo_window",
         "zero_volume",
+        "atr_implausible_or_split",
     }
     long_allowed = not any(r in hard_blocks for r in filter_reasons)
     passed = long_allowed  # Must pass hard-blocks to enter scoring
@@ -499,7 +504,7 @@ def filter_candidate(
         "warn_flags": quote.get("warn_flags", ""),
         "atr_pct": round(atr_pct_val, 4) if atr_pct_val > 0.0 else None,
         "atr_data_quality": (
-            "rejected_implausible_or_split"
+            source_atr_quality or "rejected_implausible_or_split"
             if atr_rejected
             else quote.get("atr_data_quality", "ok" if atr_pct_val > 0.0 else "missing")
         ),

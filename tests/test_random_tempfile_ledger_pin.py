@@ -103,7 +103,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 1102, "mkstemp"),  # 2026-07-28 (ATR barrier guard import/fallback): 1100->1102
+    ("open_prep/outcome_backfill.py", 1107, "mkstemp"),  # 2026-07-28 (invalid ATR quarantine): 1102->1107
     ("open_prep/outcomes.py", 213, "mkstemp"),  # 2026-07-23 (A1 horizons: module docstring above): 209->213
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -125,8 +125,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the two reviewed temp-file sites.
-    ("open_prep/realtime_signals.py", 3967, "mkstemp"),  # 2026-07-28 (Databento default/fallback): 3943->3967
-    ("open_prep/realtime_signals.py", 4023, "mkstemp"),  # 2026-07-28 (Databento default/fallback): 3999->4023
+    ("open_prep/realtime_signals.py", 3971, "mkstemp"),  # 2026-07-28 (ATR restore/live guards): 3967->3971
+    ("open_prep/realtime_signals.py", 4027, "mkstemp"),  # 2026-07-28 (ATR restore/live guards): 4023->4027
 
     ("open_prep/watchlist.py", 69, "mkstemp"),  # 2026-07-27 (persistence note above): 63->69
     ("smc_core/benchmark.py", 30, "mkstemp"),

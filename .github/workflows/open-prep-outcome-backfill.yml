@@ -212,7 +212,9 @@ jobs:
           set -euo pipefail
           SESSION_DATE="${INPUT_DATE:-$(date -u +%F)}"
           SOURCE="artifacts/open_prep/outcomes/outcomes_${SESSION_DATE}.json"
-          if [ ! -s "$SOURCE" ]; then
+          if [ "$SESSION_DATE" != "$(date -u +%F)" ]; then
+            echo "::warning::FMP quote.volume is current-only; historical dispatch ${SESSION_DATE} cannot produce a same-session basis measurement"
+          elif [ ! -s "$SOURCE" ]; then
             echo "::warning::No outcome snapshot for ${SESSION_DATE}; FMP volume-basis measurement skipped"
           else
             "$SMC_PYTHON_BIN" scripts/measure_fmp_volume_basis.py \

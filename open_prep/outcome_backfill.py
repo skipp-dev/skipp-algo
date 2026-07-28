@@ -289,10 +289,11 @@ def compute_pnl_from_bars(
     Triple-barrier label (eval-findings B2) stays tied to the PRIMARY (30 m)
     horizon: entry at the anchor bar; profit target at ``entry ± 1×ATR%``,
     stop at ``entry ∓ 0.5×ATR%`` (signs flipped for shorts), time barrier at
-    the 30 m mark. Falls back to fixed 1.0%/0.5% barriers when *atr_pct* is
-    unusable (``tb_barrier_source`` discloses which was used). Stop wins ties
-    when both barriers are touched inside the same 1-min bar (conservative).
-    When the 30 m window itself is unresolved, ``label_tb`` is ``None`` too.
+    the 30 m mark. A missing *atr_pct* falls back to fixed 1.0%/0.5%
+    barriers; a supplied but invalid value is quarantined with no barrier
+    label (``tb_barrier_source="atr_invalid"``). Stop wins ties when both
+    barriers are touched inside the same 1-min bar (conservative). When the
+    30 m window itself is unresolved, ``label_tb`` is ``None`` too.
 
     P&L is a cost-free mark-to-market move — no exit signal, no fees, no
     spread, no slippage. See the module docstring.
@@ -418,40 +419,44 @@ def compute_pnl_from_bars(
     if primary_exit_mask is not None:
         from .atr_quality import actionable_atr_pct
         safe_atr_pct = actionable_atr_pct(atr_pct)
-        if safe_atr_pct is not None:
+        supplied_atr_is_invalid = atr_pct is not None and safe_atr_pct is None
+        if supplied_atr_is_invalid:
+            tb_barrier_source = "atr_invalid"
+        elif safe_atr_pct is not None:
             target_pct, stop_pct = safe_atr_pct, 0.5 * safe_atr_pct
             tb_barrier_source = "atr"
         else:
             target_pct, stop_pct = 1.0, 0.5
             tb_barrier_source = "default"
-        if sign > 0:
-            target_level = entry_price * (1 + target_pct / 100.0)
-            stop_level = entry_price * (1 - stop_pct / 100.0)
-        else:
-            target_level = entry_price * (1 - target_pct / 100.0)
-            stop_level = entry_price * (1 + stop_pct / 100.0)
-
-        window = sym_df.loc[open_mask & primary_exit_mask].sort_values("_et")
-        for _, bar in window.iterrows():
-            bar_high = float(bar["high"])
-            bar_low = float(bar["low"])
+        if not supplied_atr_is_invalid:
             if sign > 0:
-                if bar_low <= stop_level:
-                    label_tb = "stop"
-                    break
-                if bar_high >= target_level:
-                    label_tb = "target"
-                    break
+                target_level = entry_price * (1 + target_pct / 100.0)
+                stop_level = entry_price * (1 - stop_pct / 100.0)
             else:
-                if bar_high >= stop_level:
-                    label_tb = "stop"
-                    break
-                if bar_low <= target_level:
-                    label_tb = "target"
-                    break
-        if label_tb is None:
-            primary_signed = result[horizon_fields(DEFAULT_HORIZON)["pnl_signed"]]
-            label_tb = "timeout_win" if primary_signed > 0 else "timeout_loss"
+                target_level = entry_price * (1 - target_pct / 100.0)
+                stop_level = entry_price * (1 + stop_pct / 100.0)
+
+            window = sym_df.loc[open_mask & primary_exit_mask].sort_values("_et")
+            for _, bar in window.iterrows():
+                bar_high = float(bar["high"])
+                bar_low = float(bar["low"])
+                if sign > 0:
+                    if bar_low <= stop_level:
+                        label_tb = "stop"
+                        break
+                    if bar_high >= target_level:
+                        label_tb = "target"
+                        break
+                else:
+                    if bar_high >= stop_level:
+                        label_tb = "stop"
+                        break
+                    if bar_low <= target_level:
+                        label_tb = "target"
+                        break
+            if label_tb is None:
+                primary_signed = result[horizon_fields(DEFAULT_HORIZON)["pnl_signed"]]
+                label_tb = "timeout_win" if primary_signed > 0 else "timeout_loss"
 
     result["label_tb"] = label_tb
     result["profitable_tb"] = (

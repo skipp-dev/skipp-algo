@@ -146,6 +146,7 @@ class TestIncrementalAtrNonFinite:
                     {
                         "as_of": "2024-01-12",
                         "atr_period": 14,
+                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": 2.5},
                         "momentum_z_by_symbol": {"AAPL": 0.5},
                         "prev_close_by_symbol": {"AAPL": float("inf")},
@@ -186,6 +187,7 @@ class TestIncrementalAtrNonFinite:
                     {
                         "as_of": "2024-01-12",
                         "atr_period": 14,
+                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": float("inf")},
                         "momentum_z_by_symbol": {"AAPL": 0.5},
                         "prev_close_by_symbol": {"AAPL": 150.0},
@@ -230,6 +232,7 @@ class TestLoadAtrCacheFiltersNonFinite:
                     {
                         "as_of": "2024-01-15",
                         "atr_period": 14,
+                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {
                             "AAPL": float("inf"),
                             "MSFT": -2.5,
@@ -270,6 +273,7 @@ class TestLoadAtrCacheFiltersNonFinite:
                     {
                         "as_of": "2024-01-15",
                         "atr_period": 14,
+                        "algorithm_version": run_open_prep.ATR_CACHE_ALGORITHM_VERSION,
                         "atr14_by_symbol": {"AAPL": 2.5},
                         "momentum_z_by_symbol": {"AAPL": 0.3},
                         "prev_close_by_symbol": {"AAPL": float("inf")},

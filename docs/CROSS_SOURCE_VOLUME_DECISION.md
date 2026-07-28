@@ -80,5 +80,8 @@ F3 minimum and the corresponding source-equivalence reports are available:
    transport fix; it requires threshold recalibration, at least 20 shadow
    sessions and a new explicit promotion approval.
 
-Current default while evidence accumulates: keep FMP active, keep Databento in
-shadow, and do not weaken the source-equivalence gate.
+Current runtime contract while evidence accumulates: Databento remains the
+primary/default quote source. FMP remains an explicit rollback and visible
+runtime fallback, but its decisions are not declared source-equivalent. The
+separate source-equivalence report measures that operational risk; it must not
+silently relabel a successful engine replay as provider equivalence.
