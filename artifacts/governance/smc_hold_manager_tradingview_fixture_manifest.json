@@ -538,7 +538,7 @@
   "fixture": {
     "defaultAnchor": "2026-07-20T13:30:00Z",
     "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
-    "sha256": "dee67fbbf96cc0203d06be18601edeb5945cc7c83c5a4748613fa0b75f467fd2",
+    "sha256": "481c8eb38047d7c7a998a411c649e9f0f8960c224b918c7e1aeb495d02c6d9ac",
     "surfaceClass": "test_only_not_managed_not_publishable"
   },
   "limitations": [

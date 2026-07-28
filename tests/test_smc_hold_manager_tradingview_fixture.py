@@ -57,6 +57,50 @@ def test_fixture_is_source_pinned_and_explicitly_non_product() -> None:
     }
 
 
+def test_generated_harness_exposes_its_diagnostics_in_the_data_window() -> None:
+    """The twenty-case gate has to be readable to be executable.
+
+    TradingView renders a ``display.none`` plot nowhere — "the script calculates
+    the plot values, but does not display them in the script pane, status line,
+    or Data Window" (Pine v6 reference). Inherited verbatim from the canonical,
+    that made every checkpoint value in the R2.4 protocol unobservable: not by
+    an operator, not by an automated driver. The harness is test-only, so it
+    exposes them; hiding them again would silently re-close the gate.
+    """
+
+    fixture, _manifest = _fixture_and_manifest()
+
+    assert "display.none" not in fixture, (
+        "a harness diagnostic is hidden again — TradingView shows display.none "
+        "plots nowhere, so the twenty-case gate cannot be read"
+    )
+    for series in (
+        "HM StateCode",
+        "HM PlanGeneration",
+        "HM EntryEpochMs",
+        "HM ProtectedHigh",
+        "HM TerminalExitCode",
+        "HM TerminalExitEpochMs",
+        "HM NewPlanBlocked",
+        "Fixture HM_ENTRY Count",
+        "Fixture HM_EXIT_ANY Count",
+    ):
+        assert f'"{series}", display = display.data_window' in fixture, series
+
+
+def test_canonical_keeps_its_diagnostics_hidden() -> None:
+    """Only the test harness is made observable — the product surface is not."""
+
+    source = SOURCE.read_text(encoding="utf-8")
+
+    assert "display = display.none" in source
+    assert "display.data_window" not in source, (
+        "the canonical indicator is a product surface; exposing its internals "
+        "in the Data Window is a deliberate decision, not a side effect of "
+        "regenerating the test harness"
+    )
+
+
 def test_generated_harness_reads_no_micro_profile_field() -> None:
     """Premise of the frozen library pin.
 
@@ -161,6 +205,37 @@ def test_manifest_does_not_claim_unexecuted_tradingview_evidence() -> None:
     )
 
 
+def _assert_compile_evidence_matches_or_declares_supersession(
+    evidence: dict, manifest: dict
+) -> None:
+    """The compile evidence may lag the harness — but never silently.
+
+    Regenerating the harness (2026-07-28: diagnostics moved to the Data Window
+    so the gate is readable at all) invalidates a recorded TradingView compile.
+    Re-hashing the evidence would claim a compile that never happened, so the
+    artifact instead keeps the hash it really covers and names its successor.
+    """
+
+    fixture_sha = manifest["fixture"]["sha256"]
+    recorded = evidence["fixture"]["sha256"]
+    if recorded == fixture_sha:
+        assert "supersededBySha256" not in evidence["fixture"], (
+            "evidence matches the current harness but still declares a successor"
+        )
+        return
+
+    assert evidence["fixture"].get("supersededBySha256") == fixture_sha, (
+        "The compile evidence no longer covers the committed harness. Record "
+        "the successor hash under fixture.supersededBySha256 (and re-capture "
+        "the compile) instead of silently re-hashing what was never compiled: "
+        f"evidence={recorded[:12]} harness={fixture_sha[:12]}"
+    )
+    assert evidence["fixture"].get("recaptureRequired") is True
+    assert any(
+        "re-capture" in limitation.lower() for limitation in evidence["limitations"]
+    ), "a superseded compile must say so in its limitations"
+
+
 def test_tradingview_compile_evidence_is_bounded_and_hash_pinned() -> None:
     _fixture, manifest = _fixture_and_manifest()
     evidence = json.loads(COMPILE_EVIDENCE.read_text(encoding="utf-8"))
@@ -173,7 +248,7 @@ def test_tradingview_compile_evidence_is_bounded_and_hash_pinned() -> None:
         evidence["canonicalSource"]["sha256"]
         == manifest["canonicalSource"]["sha256"]
     )
-    assert evidence["fixture"]["sha256"] == manifest["fixture"]["sha256"]
+    _assert_compile_evidence_matches_or_declares_supersession(evidence, manifest)
     assert evidence["fixture"]["savedStatus"] == "not_saved_test_only"
     assert evidence["tradingView"]["compileStatus"] == "passed"
     assert evidence["tradingView"]["compileDiagnostics"] == []

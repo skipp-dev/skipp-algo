@@ -324,6 +324,35 @@ def _replace_once(source: str, old: str, new: str) -> str:
     return source.replace(old, new, 1)
 
 
+#: Diagnostics the R2.4 protocol asks the operator to read. The canonical
+#: indicator hides them (``display.none``) because they are not a product
+#: surface — but TradingView renders a ``display.none`` plot NOWHERE: "the
+#: script calculates the plot values, but does not display them in the script
+#: pane, status line, or Data Window" (Pine v6 reference). Inherited verbatim,
+#: that made the twenty-case gate unexecutable: neither an operator nor an
+#: automated driver can read a value TradingView never shows. The harness is
+#: test-only and never published, so it exposes them in the Data Window; the
+#: canonical is untouched and stays hidden.
+_HIDDEN_DISPLAY: Final = "display = display.none"
+_OBSERVABLE_DISPLAY: Final = "display = display.data_window"
+#: Guard against a silent partial rewrite: the harness carries the canonical's
+#: BUS/HM diagnostics plus the fixture's own feed and pulse counters.
+_MIN_OBSERVABLE_DIAGNOSTICS: Final = 30
+
+
+def expose_diagnostics_in_data_window(fixture: str) -> str:
+    """Make every hidden diagnostic readable in TradingView's Data Window."""
+
+    exposed = fixture.count(_HIDDEN_DISPLAY)
+    if exposed < _MIN_OBSERVABLE_DIAGNOSTICS:
+        raise RuntimeError(
+            f"expected at least {_MIN_OBSERVABLE_DIAGNOSTICS} hidden diagnostics "
+            f"to expose, found {exposed} — the harness lost its instrumentation "
+            "or the canonical changed how it hides plots"
+        )
+    return fixture.replace(_HIDDEN_DISPLAY, _OBSERVABLE_DISPLAY)
+
+
 def build_fixture(source: str) -> str:
     """Return a deterministic test harness derived from canonical Pine."""
 
@@ -433,7 +462,7 @@ plot(fixture_stop_count, "Fixture HM_STOP Count", display = display.none)
 plot(fixture_timestop_count, "Fixture HM_TIMESTOP Count", display = display.none)
 plot(fixture_exit_count, "Fixture HM_EXIT_ANY Count", display = display.none)
 """
-    return source
+    return expose_diagnostics_in_data_window(source)
 
 
 def build_manifest(source: str, fixture: str) -> dict[str, object]:

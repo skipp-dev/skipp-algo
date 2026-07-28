@@ -9,7 +9,11 @@
   "fixture": {
     "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
     "sha256": "dee67fbbf96cc0203d06be18601edeb5945cc7c83c5a4748613fa0b75f467fd2",
-    "savedStatus": "not_saved_test_only"
+    "savedStatus": "not_saved_test_only",
+    "supersededBySha256": "481c8eb38047d7c7a998a411c649e9f0f8960c224b918c7e1aeb495d02c6d9ac",
+    "supersededOn": "2026-07-28",
+    "supersededReason": "Harness diagnostics moved from display.none to display.data_window so the twenty-case gate can be read at all; nothing else changed.",
+    "recaptureRequired": true
   },
   "tradingView": {
     "layout": "SMC Hold R2.4 Validation",
@@ -52,6 +56,7 @@
   "limitations": [
     "The compile used an unsaved test-only editor buffer and did not publish or save a second product script.",
     "The fixture rewires external feeds in a source-derived harness and is not the canonical saved script.",
-    "No replay case or TradingView server alert delivery is claimed by this artifact."
+    "No replay case or TradingView server alert delivery is claimed by this artifact.",
+    "This compile applies to the superseded fixture dee67fbb only. The current harness has NOT been compiled in TradingView; re-capture before the R2.4 gate closes."
   ]
 }
