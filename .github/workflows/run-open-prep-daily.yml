@@ -298,6 +298,12 @@ jobs:
           # ADV; without the key it exits {"error":"FMP_API_KEY missing"} and the
           # fail-soft branch publishes the watchlist WITHOUT quote_reference.json.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          # --adv-source databento (below) replaces the FMP consolidated ADV with
+          # the EQUS.MINI ohlcv-1d subset ADV. Live-verified 2026-07-28: EQUS.MINI
+          # carries only 5-12% of consolidated volume, so a consolidated ADV
+          # denominator suppresses every databento-path volume gate ~10x
+          # (permanent HOLIDAY_SUSPECT, dead A0 pace gates).
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           set -euo pipefail
           SNAPSHOT="artifacts/open_prep/latest/latest_open_prep_run.json"
@@ -344,7 +350,8 @@ jobs:
           # (published via --copy-if-present, and the producer keeps last-good).
           QUOTE_REF="artifacts/open_prep/latest/quote_reference.json"
           if "$SMC_PYTHON_BIN" -m open_prep.quote_reference \
-               --open-prep-run "$SNAPSHOT" --output "$QUOTE_REF"; then
+               --open-prep-run "$SNAPSHOT" --output "$QUOTE_REF" \
+               --adv-source databento; then
             echo "quote_reference built OK -> ${QUOTE_REF}"
           else
             echo "::warning::quote_reference build failed; publishing watchlist without it"

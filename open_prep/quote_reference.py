@@ -58,7 +58,7 @@ import argparse
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -71,6 +71,14 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LOOKBACK_SESSIONS = 15
 FMP_EOD_SOURCE = "fmp:adjusted-eod"
+# ADV provenance for the venue-consistent volume denominator (see
+# "Databento-native ADV" section below). Matches the live feed's dataset
+# (EQUS.MINI) so cumulative-volume/ADV ratios are subset/subset.
+DATABENTO_ADV_SOURCE = "databento:equs-mini-ohlcv-1d"
+# _volume_semantics (open_prep/realtime_signals.py) zeroes every ratio when
+# avgVolume < 1000 -- a reference row under that floor is unusable, so the
+# ADV builder omits such symbols fail-closed instead of emitting dead rows.
+MIN_USABLE_ADV_SHARES = 1000.0
 DEFAULT_OUTPUT_PATH = Path("artifacts/open_prep/latest") / "quote_reference.json"
 
 
@@ -305,6 +313,156 @@ def write_quote_reference_file(rows: dict[str, QuoteReferenceRow], path: Path | 
 
 
 # ---------------------------------------------------------------------------
+# Databento-native ADV (venue-consistent volume denominator)
+#
+# Live-verified 2026-07-28: EQUS.MINI is a venue SUBSET -- its cumulative
+# session volume is only 5-12% of FMP's consolidated volume (same-moment
+# comparison: T 1.94M vs 21.9M = 8.9%, MSFT 5.1%, WMT 5.9%). With the FMP
+# consolidated ADV as denominator, every databento-path volume_ratio
+# ((volume/avgVolume)/expected_fraction) is depressed ~10x: the volume
+# regime reads >=80% of symbols as thin (HOLIDAY_SUSPECT -> all signals
+# suspended) and the A0/A1/A2 volume-pace gates never fire. The fix is a
+# venue-consistent denominator: average_daily_volume from EQUS.MINI
+# ohlcv-1d history (subset/subset), while previous_close STAYS FMP's
+# split/dividend-adjusted close (Databento daily bars are unadjusted --
+# the very reason FMP was chosen for the price side, see module docstring).
+# Known limitation: a split inside the lookback window skews the subset ADV
+# for the affected sessions (raw volumes, no adjustment) -- bounded (~2x for
+# a handful of symbol-days) versus the structural ~10x mismatch this fixes.
+# ---------------------------------------------------------------------------
+
+
+def databento_daily_df_to_volume_rows(frame: Any) -> list[dict[str, Any]]:
+    """Convert ``Historical.timeseries.get_range(...).to_df()`` output into
+    ``{symbol, session_date, volume}`` rows.
+
+    Layout verified live 2026-07-28: the frame is indexed by ``ts_event`` =
+    00:00:00 UTC of the session date itself (weekend/holiday rows simply
+    absent), with ``symbol`` and raw (unscaled) ``volume`` columns. Duck-typed
+    iteration -- no pandas import needed here; malformed/negative rows are
+    dropped rather than raising."""
+    rows: list[dict[str, Any]] = []
+    for ts_event, symbol_raw, volume_raw in zip(
+        frame.index, frame["symbol"], frame["volume"], strict=True
+    ):
+        symbol = str(symbol_raw or "").strip().upper()
+        if not symbol:
+            continue
+        try:
+            volume = int(volume_raw)
+        except (TypeError, ValueError):
+            continue
+        if volume < 0:
+            continue
+        session_date = str(ts_event.date().isoformat())
+        rows.append({"symbol": symbol, "session_date": session_date, "volume": volume})
+    return rows
+
+
+def compute_databento_adv(
+    volume_rows: list[dict[str, Any]],
+    *,
+    as_of_session: str,
+    lookback_sessions: int = DEFAULT_LOOKBACK_SESSIONS,
+) -> dict[str, float]:
+    """Mean EQUS.MINI daily volume over the trailing ``lookback_sessions``
+    sessions STRICTLY before ``as_of_session`` -- the same windowing contract
+    as :func:`build_quote_reference_row`, so the two ADV sources are drop-in
+    interchangeable. Symbols with insufficient history or a subset ADV below
+    ``MIN_USABLE_ADV_SHARES`` are omitted (fail-closed, never fabricated)."""
+    if lookback_sessions <= 0:
+        raise ValueError("lookback_sessions must be positive")
+    as_of = date.fromisoformat(as_of_session)
+    volumes_by_symbol: dict[str, list[tuple[str, int]]] = {}
+    for row in volume_rows:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        session_date = str(row.get("session_date") or "")
+        if not symbol or not session_date:
+            continue
+        try:
+            if date.fromisoformat(session_date) >= as_of:
+                continue
+            volume = int(row.get("volume", -1))
+        except (TypeError, ValueError):
+            continue
+        if volume < 0:
+            continue
+        volumes_by_symbol.setdefault(symbol, []).append((session_date, volume))
+
+    adv_by_symbol: dict[str, float] = {}
+    for symbol, dated_volumes in volumes_by_symbol.items():
+        if len(dated_volumes) < lookback_sessions:
+            continue
+        selected = sorted(dated_volumes)[-lookback_sessions:]
+        adv = sum(volume for _, volume in selected) / len(selected)
+        if adv < MIN_USABLE_ADV_SHARES:
+            continue
+        adv_by_symbol[symbol] = adv
+    return adv_by_symbol
+
+
+def apply_databento_adv(
+    rows_by_symbol: dict[str, QuoteReferenceRow],
+    adv_by_symbol: dict[str, float],
+) -> tuple[dict[str, QuoteReferenceRow], list[str]]:
+    """Replace each FMP-built row's ``average_daily_volume`` with the
+    databento subset ADV, recording both provenances in ``source``.
+
+    Symbols without a databento ADV are DROPPED (returned as skipped), never
+    left carrying the consolidated-ADV row -- a silent consolidated fallback
+    would re-break the volume gates ~10x for exactly those symbols."""
+    merged: dict[str, QuoteReferenceRow] = {}
+    skipped: list[str] = []
+    for symbol, row in rows_by_symbol.items():
+        adv = adv_by_symbol.get(symbol)
+        if adv is None:
+            skipped.append(symbol)
+            continue
+        merged[symbol] = replace(
+            row,
+            average_daily_volume=float(adv),
+            source=f"{row.source}+adv={DATABENTO_ADV_SOURCE}",
+        )
+    return merged, sorted(skipped)
+
+
+def fetch_databento_daily_volume_rows(
+    symbols: list[str],
+    *,
+    as_of_session: str,
+    lookback_sessions: int = DEFAULT_LOOKBACK_SESSIONS,
+    api_key: str | None = None,
+    client: Any = None,
+) -> list[dict[str, Any]]:
+    """Fetch EQUS.MINI ``ohlcv-1d`` history for ``symbols`` and return
+    ``{symbol, session_date, volume}`` rows.
+
+    ``client`` is injectable for tests; production passes ``api_key`` and a
+    ``databento.Historical`` client is constructed locally (local import so
+    the FMP-only path and non-databento consumers never need the SDK).
+    The calendar window mirrors ``main()``'s FMP ``date_from`` arithmetic:
+    ``lookback_sessions * 4`` days (>= 30) absorbs weekends/holidays; the
+    strictly-before-``as_of`` cut happens in :func:`compute_databento_adv`.
+    Cost: verified 2026-07-28 -- ~900 symbols x ~40 days of 1d bars priced
+    at $0.00 via ``metadata.get_cost``."""
+    if client is None:
+        import databento as db  # deferred: only the databento ADV path needs the SDK
+
+        client = db.Historical(api_key)
+    as_of = date.fromisoformat(as_of_session)
+    start = as_of - timedelta(days=max(lookback_sessions * 4, 30))
+    store = client.timeseries.get_range(
+        dataset="EQUS.MINI",
+        schema="ohlcv-1d",
+        symbols=list(symbols),
+        stype_in="raw_symbol",
+        start=start.isoformat(),
+        end=as_of_session,
+    )
+    return databento_daily_df_to_volume_rows(store.to_df())
+
+
+# ---------------------------------------------------------------------------
 # Loader / serving interface -- what Task 1.3's DatabentoQuoteSource consumes
 # ---------------------------------------------------------------------------
 
@@ -422,6 +580,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output", default=str(DEFAULT_OUTPUT_PATH), help="Output path for the quote-reference JSON artifact."
     )
+    parser.add_argument(
+        "--adv-source",
+        choices=("fmp", "databento"),
+        default="fmp",
+        help=(
+            "ADV denominator source. 'databento' replaces the FMP consolidated ADV with the "
+            "EQUS.MINI ohlcv-1d subset ADV (venue-consistent with the live feed's cumulative "
+            "volume -- see the Databento-native ADV section); requires DATABENTO_API_KEY. "
+            "previous_close stays FMP-adjusted either way."
+        ),
+    )
     return parser
 
 
@@ -437,6 +606,12 @@ def main() -> int:
     fmp_api_key = os.getenv("FMP_API_KEY")
     if not fmp_api_key:
         print(json.dumps({"error": "FMP_API_KEY missing"}, indent=2, ensure_ascii=True))
+        return 2
+    databento_api_key = os.getenv("DATABENTO_API_KEY")
+    if args.adv_source == "databento" and not databento_api_key:
+        # Fail loud, not soft: silently keeping the FMP consolidated ADV would
+        # re-break the databento volume gates ~10x (see DATABENTO_ADV_SOURCE).
+        print(json.dumps({"error": "DATABENTO_API_KEY missing (required for --adv-source databento)"}, indent=2))
         return 2
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -476,15 +651,34 @@ def main() -> int:
         as_of_session=as_of_session,
         lookback_sessions=args.lookback_sessions,
     )
+
+    skipped_adv: list[str] = []
+    if args.adv_source == "databento":
+        # Any fetch failure propagates and fails the build (exit != 0): the
+        # workflow's fail-soft branch then keeps the LAST-GOOD artifact on the
+        # bot branch rather than publishing a consolidated-ADV reference.
+        volume_rows = fetch_databento_daily_volume_rows(
+            list(rows_by_symbol.keys()),
+            as_of_session=as_of_session,
+            lookback_sessions=args.lookback_sessions,
+            api_key=databento_api_key,
+        )
+        adv_by_symbol = compute_databento_adv(
+            volume_rows, as_of_session=as_of_session, lookback_sessions=args.lookback_sessions
+        )
+        rows_by_symbol, skipped_adv = apply_databento_adv(rows_by_symbol, adv_by_symbol)
+
     write_quote_reference_file(rows_by_symbol, args.output)
 
     print(
         json.dumps(
             {
                 "as_of_session": as_of_session,
+                "adv_source": args.adv_source,
                 "candidate_symbols": len(symbols),
                 "references_written": len(rows_by_symbol),
                 "skipped_symbols": len(skipped),
+                "skipped_adv_symbols": len(skipped_adv),
                 "output": str(Path(args.output).expanduser()),
                 "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             },

@@ -273,6 +273,25 @@ def test_snapshot_publish_passes_fmp_key_to_quote_reference_builder() -> None:
     )
 
 
+def test_snapshot_publish_builds_databento_native_adv() -> None:
+    """The quote_reference ADV denominator must stay venue-consistent with the
+    live feed. EQUS.MINI carries only 5-12% of consolidated volume (verified
+    2026-07-28: T 1.94M vs FMP 21.9M same-moment); building the reference with
+    FMP's consolidated ADV suppresses every databento-path volume gate ~10x
+    (permanent HOLIDAY_SUSPECT + dead A0/A1/A2 pace gates)."""
+    step = _snapshot_publish_step()
+    run = str(step["run"])
+    assert "--adv-source databento" in run, (
+        "quote_reference build must pass --adv-source databento (subset/subset "
+        "volume ratio); dropping it silently re-breaks the databento quote path"
+    )
+    env = step.get("env") or {}
+    assert env.get("DATABENTO_API_KEY") == "${{ secrets.DATABENTO_API_KEY }}", (
+        "--adv-source databento needs the step-local DATABENTO_API_KEY secret; "
+        "without it the builder exits 2 and the fail-soft branch keeps last-good"
+    )
+
+
 def test_local_open_prep_launchers_use_pre_open_only() -> None:
     """Local helper launchers must pass --pre-open-only to run_open_prep.
 

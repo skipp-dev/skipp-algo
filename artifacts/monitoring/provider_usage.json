@@ -122,6 +122,16 @@
         "rate_limit_hits": 0.0,
         "records": 0.0
       },
+      "fmp|/stable/historical-price-eod/full|open_prep.fmp_client": {
+        "bytes": 7693251.0,
+        "cache_hits": 0.0,
+        "cache_misses": 0.0,
+        "calls": 917.0,
+        "errors": 0.0,
+        "latency_ms_total": 433533.24909415096,
+        "rate_limit_hits": 0.0,
+        "records": 34164.0
+      },
       "fmp|/stable/news/stock-latest|newsstack_fmp.ingest_fmp": {
         "bytes": 0.0,
         "cache_hits": 0.0,
@@ -185,10 +195,10 @@
         "records": 0
       },
       "fmp": {
-        "bytes": 2172,
-        "calls": 60,
+        "bytes": 7695423,
+        "calls": 977,
         "rate_limit_hits": 22,
-        "records": 48
+        "records": 34212
       },
       "fmp_general_latest": {
         "bytes": 0,
@@ -222,5 +232,5 @@
       }
     }
   },
-  "updated_at": "2026-07-27T21:24:21.575978+00:00"
+  "updated_at": "2026-07-28T15:51:43.811533+00:00"
 }
