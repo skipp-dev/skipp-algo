@@ -40,8 +40,17 @@ watchPatterns = [
 # reliably shell-expand them.
 startCommand = "python -m open_prep.realtime_signals"
 healthcheckPath = "/readyz"
-healthcheckTimeout = 60
-restartPolicyType = "ON_FAILURE"
+# 60s raced the engine's first successful poll (watchlist + snapshot fetch +
+# first FMP/databento poll); a spurious healthcheck FAIL on a routine main-push
+# deploy is what triggered the 2026-07-28 16:23-16:44 UTC prod outage. 300s
+# gives /readyz the same budget as the data-stall gauge (DATA_STALL_SECONDS).
+healthcheckTimeout = 300
+# ON_FAILURE left prod dead on 2026-07-28: Railway rotated the old container
+# out (SIGTERM), the engine's SIGTERM handler exits CLEANLY (code 0), and
+# ON_FAILURE does not restart clean exits -> nothing was running. A long-lived
+# producer must come back after ANY exit; deliberate stops go through
+# `railway down`, which removes the deployment and is unaffected by policy.
+restartPolicyType = "ALWAYS"
 restartPolicyMaxRetries = 3
 
 [[services]]
