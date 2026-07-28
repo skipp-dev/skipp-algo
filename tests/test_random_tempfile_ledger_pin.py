@@ -134,7 +134,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_core/event_ledger.py", 178, "mkstemp"),  # 2026-07-13 schema-v1.2 rename+calibrated_prob (event_ledger mkstemp 143->178); null_cache.py removed upstream
     ("smc_core/scoring.py", 1267, "mkstemp"),  # 2026-07-13: 1216->1258 (normalize_sweep_side + calibration-honesty docstrings); 1258->1267 (frame_integrity extras in export_scoring_artifact)
     ("smc_integration/batch.py", 26, "mkstemp"),
-    ("smc_integration/provider_health.py", 60, "mkstemp"),
+    ("smc_integration/provider_health.py", 71, "mkstemp"),  # 2026-07-28 (ws5 observe-only): +11 from _resolve_structure_artifact_preference helper
     ("smc_integration/structure_batch.py", 34, "mkstemp"),  # 2026-07-13 (manifest generator provenance imports): 30->34
     ("streamlit_terminal.py", 2312, "mkstemp"),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2298->2312
     ("terminal_export.py", 177, "mkstemp"),
