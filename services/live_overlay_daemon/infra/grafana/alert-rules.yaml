@@ -4519,6 +4519,87 @@ groups:
         the "Sweep-Trap Promotion Evidence" dashboard row, then decide whether to grant the detector
         score-budget weight (confluence currently reads the coarse SWEEP_QUALITY_SCORE, not
         SWEEP_TRAP_QUALITY_SCORE). Not an incident — an action prompt.
+  - uid: lo-reaction-zone-shadow-stale
+    title: Reaction-zone shadow snapshot stale
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Precomputed 0/1 staleness gauge (age > OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS,
+        # default 96h, tolerates one skipped weekday run). Alerting on the precomputed
+        # gauge instead of a bare age comparison keeps the gt-0 threshold live (the
+        # gt-0-inert class). See services/live_overlay_daemon/reaction_zone_shadow_bridge.py.
+        expr: max(live_overlay_reaction_zone_shadow_snapshot_stale{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The reaction-zone shadow eval has not published a fresh snapshot within its max-age budget
+      runbook: The daily sweep-trap-shadow-daily workflow has not refreshed
+        artifacts/monitoring/reaction_zone_shadow.json within OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS.
+        The reaction-zone snapshot is published to the static bot/live-sweep-trap-shadow branch
+        beside sweep_trap_shadow.json, but only when the eval produced samples (exit 0); a run with
+        no reaction samples (exit 5) writes nothing. Observe-only — no score impact; a stale snapshot
+        only means the reaction-zone follow-through evidence stopped accruing.
+  - uid: lo-reaction-zone-shadow-age-unknown
+    title: Reaction-zone shadow snapshot age unknown (no real data loaded)
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Complement of the stale rule: a MISSING/UNREADABLE/undated snapshot yields
+        # age_known=0 AND stale=0, so the gt-0 stale rule stays green with zero data —
+        # the gt-0-inert class. `== bool 0` (not `== 0`) is mandatory: a bare match
+        # returns 0 and the gt-0 threshold reads 0>0=false (inert).
+        expr: max(live_overlay_reaction_zone_shadow_snapshot_age_known{job="live_overlay"}) == bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # Rides out daemon restarts/deploy churn and transient fetch failures; a
+    # genuinely absent feed holds age_known=0 far longer than 2h. A missing
+    # SERIES (daemon down) is lo-scrape-missing's job, not this rule's.
+    for: 2h
+    noDataState: OK
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The reaction-zone shadow bridge has never loaded a real snapshot (missing/unreadable/undated)
+      runbook: live_overlay_reaction_zone_shadow_snapshot_age_known is 0 — the daemon cannot
+        fetch/read the snapshot at REACTION_ZONE_SHADOW_SNAPSHOT_URL, or it loaded but carries no
+        parseable updated_at. The reaction snapshot only appears on bot/live-sweep-trap-shadow once
+        the daily eval produces samples (exit 0; needs GH_PAT — the publish step only warns when it
+        is missing). The stale alert cannot cover this state — stale is only computed once an age is KNOWN.
 - orgId: 1
   name: credential-health
   folder: SMC Live Overlay

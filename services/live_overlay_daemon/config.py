@@ -424,6 +424,61 @@ def sweep_trap_shadow_max_age_secs() -> int:
     return _clamped_int("OVERLAY_SWEEP_TRAP_SHADOW_MAX_AGE_SECS", 345600, 3600, 1209600)
 
 
+def reaction_zone_shadow_snapshot_path() -> Path:
+    """Local path to the reaction-zone shadow snapshot JSON.
+
+    Produced by ``scripts/eval_reaction_zone_shadow.py`` (the observe-only
+    reaction-zone follow-through study) so its per-direction lift + promotion
+    accrual is served as Prometheus gauges. Off-host daemons should set
+    :func:`reaction_zone_shadow_snapshot_url` to the published branch instead.
+    """
+    raw = _optional_str(
+        "REACTION_ZONE_SHADOW_SNAPSHOT_PATH",
+        str(_REPO_ROOT / "artifacts" / "monitoring" / "reaction_zone_shadow.json"),
+    )
+    return Path(raw)
+
+
+def reaction_zone_shadow_snapshot_url() -> str:
+    """Optional https URL the daemon fetches the reaction-zone shadow snapshot from.
+
+    When set it takes precedence over :func:`reaction_zone_shadow_snapshot_path`;
+    on any fetch failure the daemon falls back to the local path. Defaults to the
+    same rolling ``bot/live-sweep-trap-shadow`` branch the sweep-trap-shadow-daily
+    workflow publishes ``reaction_zone_shadow.json`` to (git add -f into
+    ``artifacts/monitoring/latest/``, alongside ``sweep_trap_shadow.json``).
+    """
+    return _snapshot_url(
+        "REACTION_ZONE_SHADOW_SNAPSHOT_URL",
+        path="artifacts/monitoring/latest/reaction_zone_shadow.json",
+        ref="bot/live-sweep-trap-shadow",
+    )
+
+
+def reaction_zone_shadow_snapshot_url_token() -> str:
+    """Optional bearer token for :func:`reaction_zone_shadow_snapshot_url`."""
+    return _snapshot_url_token(
+        "REACTION_ZONE_SHADOW_SNAPSHOT_URL_TOKEN",
+        reaction_zone_shadow_snapshot_url(),
+    )
+
+
+def reaction_zone_shadow_cache_ttl_secs() -> int:
+    """How long the daemon caches the reaction-zone shadow snapshot before reload."""
+    return _clamped_int("OVERLAY_REACTION_ZONE_SHADOW_CACHE_TTL_SECS", 900, 60, 7200)
+
+
+def reaction_zone_shadow_max_age_secs() -> int:
+    """Age (s) beyond which the reaction-zone shadow snapshot is treated as stale.
+
+    Default 96h — same weekday-cadence sizing as the sweep-trap shadow snapshot it
+    is published beside: the daily eval runs Mon-Fri, so Friday's snapshot is
+    legitimately ~89.5h old when Monday's arrives, and 96h tolerates one skipped
+    weekday run.
+    """
+    return _clamped_int("OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS", 345600, 3600, 1209600)
+
+
 def provider_usage_snapshot_path() -> Path:
     """Local path to the provider API-usage snapshot JSON.
 

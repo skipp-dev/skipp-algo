@@ -131,6 +131,9 @@
 # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow snapshot
 # fetcher, https-only with explicit timeout= (mirrors the evidence-freshness bridge).
 "services/live_overlay_daemon/sweep_trap_shadow_bridge.py" = [105]  # 2026-07-13 (F7 docstring fix): 96->98; 2026-07-16 (ruff format): 98->105
+# 2026-07-28 (feat/reaction-zone-shadow-bridge): reaction-zone shadow snapshot
+# fetcher, https-only with explicit timeout= (mirrors the sweep-trap shadow bridge).
+"services/live_overlay_daemon/reaction_zone_shadow_bridge.py" = [157]
 # 2026-06-23: live-overlay runtime snapshot fetchers in compute.py remain
 # https-only with explicit timeout=. 2026-06-23 (audit follow-up F2/F3):
 # NEWS/SIGNALS/TRADINGVIEW JSON loaders delegate into one shared

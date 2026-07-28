@@ -799,6 +799,7 @@ def _hermetic_daemon_render(monkeypatch: pytest.MonkeyPatch) -> str:
         "PROVIDER_USAGE_SNAPSHOT_URL",
         "PINE_LIBRARY_VERSIONS_SNAPSHOT_URL",
         "SWEEP_TRAP_SHADOW_SNAPSHOT_URL",
+        "REACTION_ZONE_SHADOW_SNAPSHOT_URL",
         "UPTIMEROBOT_API_KEY",
         "GITHUB_WORKFLOW_MONITOR_TOKEN",
         "RAILWAY_API_TOKEN",
