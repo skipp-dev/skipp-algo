@@ -275,9 +275,9 @@ def test_snapshot_publish_passes_fmp_key_to_quote_reference_builder() -> None:
 
 def test_snapshot_publish_builds_databento_native_adv() -> None:
     """The quote_reference ADV denominator must stay venue-consistent with the
-    live feed. EQUS.MINI carries only 5-12% of consolidated volume (verified
-    2026-07-28: T 1.94M vs FMP 21.9M same-moment); building the reference with
-    FMP's consolidated ADV suppresses every databento-path volume gate ~10x
+    live feed. Across 29 common sessions for eight liquid symbols, EQUS.MINI
+    carries only 2.6-4.9% of consolidated volume; building the reference with
+    FMP's consolidated ADV suppresses every databento-path volume gate 20-38x
     (permanent HOLIDAY_SUSPECT + dead A0/A1/A2 pace gates)."""
     step = _snapshot_publish_step()
     run = str(step["run"])

@@ -369,7 +369,7 @@ def test_databento_vs_fmp_same_core_decision() -> None:
             previous_close=prev_close,
             average_daily_volume=avg_volume,
             as_of_session="2026-07-24",
-            source="fmp:adjusted-eod",
+            source="fmp:adjusted-eod+adv=databento:equs-mini-ohlcv-1d",
         )
     })
     databento_rows = DatabentoQuoteSource(feed, reference).fetch(

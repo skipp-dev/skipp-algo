@@ -256,7 +256,8 @@ def test_repoller_fetches_via_engine_databento_source_under_flag(monkeypatch: py
         classmethod(lambda cls, path=quote_reference_module.DEFAULT_OUTPUT_PATH: QuoteReference({
             "NVDA": QuoteReferenceRow(
                 previous_close=240.0, average_daily_volume=2_000_000.0,
-                as_of_session="2026-07-24", source="fmp:adjusted-eod",
+                as_of_session="2026-07-24",
+                source="fmp:adjusted-eod+adv=databento:equs-mini-ohlcv-1d",
             ),
         })),
     )

@@ -315,11 +315,11 @@ def write_quote_reference_file(rows: dict[str, QuoteReferenceRow], path: Path | 
 # ---------------------------------------------------------------------------
 # Databento-native ADV (venue-consistent volume denominator)
 #
-# Live-verified 2026-07-28: EQUS.MINI is a venue SUBSET -- its cumulative
-# session volume is only 5-12% of FMP's consolidated volume (same-moment
-# comparison: T 1.94M vs 21.9M = 8.9%, MSFT 5.1%, WMT 5.9%). With the FMP
-# consolidated ADV as denominator, every databento-path volume_ratio
-# ((volume/avgVolume)/expected_fraction) is depressed ~10x: the volume
+# Live-verified 2026-07-28: EQUS.MINI is a venue SUBSET -- over 29 common
+# sessions across eight liquid symbols its daily volume was only 2.6-4.9%
+# of FMP's consolidated volume. With the FMP consolidated ADV as denominator,
+# every databento-path volume_ratio ((volume/avgVolume)/expected_fraction) is
+# depressed by roughly 20-38x: the volume
 # regime reads >=80% of symbols as thin (HOLIDAY_SUSPECT -> all signals
 # suspended) and the A0/A1/A2 volume-pace gates never fire. The fix is a
 # venue-consistent denominator: average_daily_volume from EQUS.MINI
@@ -328,7 +328,7 @@ def write_quote_reference_file(rows: dict[str, QuoteReferenceRow], path: Path | 
 # the very reason FMP was chosen for the price side, see module docstring).
 # Known limitation: a split inside the lookback window skews the subset ADV
 # for the affected sessions (raw volumes, no adjustment) -- bounded (~2x for
-# a handful of symbol-days) versus the structural ~10x mismatch this fixes.
+# a handful of symbol-days) versus the structural 20-38x mismatch this fixes.
 # ---------------------------------------------------------------------------
 
 
@@ -410,7 +410,7 @@ def apply_databento_adv(
 
     Symbols without a databento ADV are DROPPED (returned as skipped), never
     left carrying the consolidated-ADV row -- a silent consolidated fallback
-    would re-break the volume gates ~10x for exactly those symbols."""
+    would re-break the volume gates by roughly 20-38x for those symbols."""
     merged: dict[str, QuoteReferenceRow] = {}
     skipped: list[str] = []
     for symbol, row in rows_by_symbol.items():
@@ -618,7 +618,7 @@ def main() -> int:
     databento_api_key = os.getenv("DATABENTO_API_KEY")
     if args.adv_source == "databento" and not databento_api_key:
         # Fail loud, not soft: silently keeping the FMP consolidated ADV would
-        # re-break the databento volume gates ~10x (see DATABENTO_ADV_SOURCE).
+        # re-break the databento volume gates 20-38x (see DATABENTO_ADV_SOURCE).
         print(json.dumps({"error": "DATABENTO_API_KEY missing (required for --adv-source databento)"}, indent=2))
         return 2
 

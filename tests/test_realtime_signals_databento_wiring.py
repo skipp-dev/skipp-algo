@@ -112,7 +112,7 @@ def _fake_reference(symbol: str = "AAPL") -> QuoteReference:
             previous_close=95.0,
             average_daily_volume=1_000_000.0,
             as_of_session="2026-07-23",
-            source="fmp:adjusted-eod",
+            source="fmp:adjusted-eod+adv=databento:equs-mini-ohlcv-1d",
         ),
     })
 

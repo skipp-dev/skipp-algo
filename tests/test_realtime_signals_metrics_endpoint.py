@@ -395,7 +395,7 @@ def _databento_ready_engine(*, connected: bool, records_received: int) -> Simple
             previous_close=100.0,
             average_daily_volume=1_000_000.0,
             as_of_session="2026-07-27",
-            source="fmp:adjusted-eod",
+            source="fmp:adjusted-eod+adv=databento:equs-mini-ohlcv-1d",
         ),
     })
     source = DatabentoQuoteSource(feed, reference)
