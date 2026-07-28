@@ -607,6 +607,57 @@ export function isOtpEntryComplete(
   return observed.replace(/\s+/g, "") === expected;
 }
 
+/** Raw shape collected from the DOM for one potentially-actionable node. */
+export type ActionableNode = {
+  tag: string;
+  type?: string;
+  role?: string;
+  className?: string;
+  text?: string;
+  visible: boolean;
+};
+
+/**
+ * Compact, log-safe inventory of what could submit a form.
+ *
+ * Run 30343856471 reported `buttons on page: []` on TradingView's 2FA step:
+ * neither `button` nor `[role="button"]` existed, so the submit-candidate list
+ * could not match by construction. Naming the actual control needs a wider net
+ * than "button", and a bounded one — this runs inside a 180 s poll loop.
+ */
+export function summariseActionableNodes(
+  nodes: ActionableNode[],
+  limit = 15,
+): string[] {
+  return nodes
+    .filter((node) => node.visible)
+    .map((node) => {
+      const parts = [node.tag.toLowerCase()];
+      if (node.type) parts.push(`type=${node.type}`);
+      if (node.role) parts.push(`role=${node.role}`);
+      const cls = (node.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+      if (cls) parts.push(`.${cls}`);
+      const text = (node.text || "").replace(/\s+/g, " ").trim().slice(0, 30);
+      if (text) parts.push(`"${text}"`);
+      return parts.join(" ");
+    })
+    .slice(0, limit);
+}
+
+/** Visible lines that read like a rejection, so a failing run says WHY. */
+export function extractErrorLines(bodyText: string, limit = 5): string[] {
+  return bodyText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0
+        && line.length <= 200
+        && /invalid|incorrect|wrong|expired|failed|error|try again|too many|locked|blocked/i.test(line),
+    )
+    .slice(0, limit);
+}
+
 export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvidence): TradingViewPageAuthState {
   const htmlClass = normalizeUiText(evidence.htmlClass).toLowerCase();
   const bodyText = normalizeUiText(evidence.bodyText).toLowerCase();

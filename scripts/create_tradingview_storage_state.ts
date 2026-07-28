@@ -12,9 +12,11 @@ import {
   launchTradingViewPersistentContext,
   resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
+  extractErrorLines,
   isOtpEntryComplete,
   planOtpEntry,
   revealEmailLoginField,
+  summariseActionableNodes,
   TV_LOGIN_IDENTIFIER_SELECTOR,
   TV_OTP_FIELD_SELECTOR,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -79,6 +81,63 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
     authReason: pageAuthState?.reason ?? "auth_state_probe_failed",
     authProbeStatuses: pageAuthState?.evidence.accountProbeStatuses ?? [],
   };
+}
+
+// The inventory is verbose and the caller polls every ~6s for 180s — dump it
+// once, on the first poll that cannot submit, and stay quiet afterwards.
+let twoFactorInventoryLogged = false;
+
+/**
+ * Describe the 2FA page well enough to NAME the submit control next time.
+ *
+ * `buttons on page: []` (run 30343856471) says what is absent, not what is
+ * there. This casts a wider net — any visibly actionable node, every frame, and
+ * whatever reads like a rejection — so the follow-up stops being guesswork.
+ */
+async function logTwoFactorPageInventory(page: import("playwright").Page): Promise<void> {
+  const nodes = await page
+    .locator(
+      'button, [role="button"], input[type="submit"], input[type="button"], a[href], '
+      + '[class*="button" i], [class*="submit" i], [tabindex]:not([tabindex="-1"])',
+    )
+    .evaluateAll((elements) =>
+      elements.slice(0, 60).map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          type: (element as HTMLInputElement).type || undefined,
+          role: element.getAttribute("role") || undefined,
+          className: typeof element.className === "string" ? element.className : undefined,
+          text: (element.textContent || "").trim() || undefined,
+          visible: rect.width > 0 && rect.height > 0,
+        };
+      }),
+    )
+    .catch(() => [] as Parameters<typeof summariseActionableNodes>[0]);
+
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const frames = page.frames().map((frame) => frame.url()).filter((url) => url && url !== "about:blank");
+  const formInfo = await page
+    .locator(TV_OTP_FIELD_SELECTOR)
+    .first()
+    .evaluate((element) => {
+      const form = element.closest("form");
+      return {
+        insideForm: form !== null,
+        formAction: form?.getAttribute("action") || undefined,
+        name: element.getAttribute("name") || undefined,
+        autocomplete: element.getAttribute("autocomplete") || undefined,
+      };
+    })
+    .catch(() => ({ insideForm: false }) as { insideForm: boolean });
+
+  console.warn(
+    "[tv-2fa] page inventory — actionable="
+    + JSON.stringify(summariseActionableNodes(nodes))
+    + " codeField=" + JSON.stringify(formInfo)
+    + " frames=" + JSON.stringify(frames.slice(0, 6))
+    + " errors=" + JSON.stringify(extractErrorLines(bodyText)),
+  );
 }
 
 async function assistTwoFactorSubmission(
@@ -188,19 +247,23 @@ async function assistTwoFactorSubmission(
     return;
   }
 
-  if (hasLikelyCode || !fieldVisible) {
-    const labels = await page
-      .locator("button, [role=\"button\"]")
-      .evaluateAll((nodes) =>
-        nodes
-          .map((node) => (node.textContent || "").trim().split("\n")[0])
-          .filter(Boolean)
-          .slice(0, 12),
-      )
-      .catch(() => [] as string[]);
-    console.warn(
-      `2FA code is entered but no submit control matched — buttons on page: ${JSON.stringify(labels)}`,
-    );
+  if (!hasLikelyCode && fieldVisible) {
+    return;
+  }
+
+  // No button matched. A single OTP field inside a form normally submits on
+  // Enter, so try that before giving up — run 30343856471 proved there is no
+  // `button`/`[role=button]` element on this page at all, so the candidate loop
+  // above can never fire here.
+  if (fieldVisible) {
+    console.log("2FA: no submit control matched — pressing Enter on the code field.");
+    await codeField.press("Enter").catch(() => undefined);
+    await page.waitForTimeout(1_500);
+  }
+
+  if (!twoFactorInventoryLogged) {
+    twoFactorInventoryLogged = true;
+    await logTwoFactorPageInventory(page);
   }
 
   if (hasLikelyCode && fieldVisible) {
