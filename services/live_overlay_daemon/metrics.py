@@ -28,6 +28,7 @@ from . import (
     pine_library_version_bridge,
     provider_usage_bridge,
     railway_metrics,
+    reaction_zone_shadow_bridge,
     request_hotspots,
     sweep_trap_shadow_bridge,
     tradingview_binding_bridge,
@@ -2095,6 +2096,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     # liveness visible instead of buried in a committed JSONL ledger.
     lines.extend(_render_sweep_trap_shadow_metrics())
 
+    # Reaction-zone shadow study: per-direction best follow-through lift + the
+    # promotion-candidate verdict, from reaction_zone_shadow_bridge. Published
+    # beside the sweep-trap snapshot on the same daily workflow; observe-only (no
+    # score weight), so these gauges make the evidence + producer liveness visible
+    # instead of buried in a committed JSON snapshot with zero consumers.
+    lines.extend(_render_reaction_zone_shadow_metrics())
+
     # Provider API data-VOLUME (bytes) consumed this month, per REST provider,
     # from the ingest-side usage snapshot. Makes the FMP bandwidth quota (the
     # "90% used" blind spot) visible + alertable; the limit gauge lets the
@@ -2569,5 +2577,119 @@ def _render_sweep_trap_shadow_metrics() -> list[str]:
             f'assessment="{_escape_label_value(assessment)}"'
         )
         lines.append(f"live_overlay_sweep_trap_shadow_evidence_info{{{labels}}} 1")
+
+    return lines
+
+
+def _render_reaction_zone_shadow_metrics() -> list[str]:
+    """Prometheus gauges for the reaction-zone shadow follow-through study.
+
+    Mirrors ``_render_sweep_trap_shadow_metrics``: a loaded flag, the producer
+    heartbeat (age/known/stale on the same OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS
+    budget), sample accrual, per-direction best follow-through lift, the overall
+    promotion verdict, and a presentation-only evidence table. Observe-only — these
+    gauges never feed a score/trade path.
+    """
+    snap = reaction_zone_shadow_bridge.snapshot()
+    lines: list[str] = []
+
+    loaded = _prom_numeric_value(snap.get("loaded", 0.0))
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_loaded gauge")
+    lines.append(f"live_overlay_reaction_zone_shadow_loaded {loaded}")
+
+    # Producer heartbeat: age of the snapshot itself, known only once loaded (the
+    # ISO updated_at parsed to a real epoch). `_stale` is a precomputed 0/1 gauge so
+    # the alert threshold isn't the gt-0-inert trap.
+    generated_at = _prom_numeric_value(snap.get("generated_at_unix", 0.0))
+    age_value = _past_age_seconds(generated_at)
+    age_known = 1.0 if age_value is not None else 0.0
+    age = age_value if age_value is not None else 0.0
+    stale = 1.0 if (age_known and age > config.reaction_zone_shadow_max_age_secs()) else 0.0
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_age_known gauge")
+    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_age_known {age_known}")
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_age_seconds gauge")
+    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_age_seconds {age:.1f}")
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_snapshot_stale gauge")
+    lines.append(f"live_overlay_reaction_zone_shadow_snapshot_stale {stale}")
+
+    # Evidence: sample accrual, per-direction best follow-through lift, and the
+    # overall promotion verdict (strongest cell across both directions).
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_sample_count gauge")
+    lines.append(
+        f"live_overlay_reaction_zone_shadow_sample_count "
+        f"{_prom_numeric_value(snap.get('n_samples', 0.0))}"
+    )
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_best_lift gauge")
+    for direction in ("bull", "bear"):
+        lift = _prom_numeric_value(snap.get(f"{direction}_best_lift", 0.0))
+        lines.append(
+            f'live_overlay_reaction_zone_shadow_best_lift{{direction="{direction}"}} {lift}'
+        )
+    verdict = _escape_label_value(str(snap.get("verdict", "") or "unknown"))
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_verdict_code gauge")
+    lines.append(
+        f'live_overlay_reaction_zone_shadow_verdict_code{{verdict="{verdict}"}} '
+        f"{_prom_numeric_value(snap.get('verdict_code', 0.0))}"
+    )
+
+    # Presentation-only info metric powering the latest-evidence table (same
+    # low-value/label-payload shape as the sweep-trap table). Numeric gauges above
+    # stay the source for any future alerting.
+    date = _escape_label_value(str(snap.get("date", "") or "unknown"))
+    n_samples = _prom_numeric_value(snap.get("n_samples", 0.0))
+    min_samples = float(snap.get("min_samples", 0.0) or 0.0)
+    verdict_name = str(snap.get("verdict", "") or "INCONCLUSIVE")
+
+    na = "—"
+    have_snapshot = loaded == 1.0
+    samples_known = math.isfinite(n_samples)
+    samples_assessment = (
+        (
+            "Sample floor met"
+            if min_samples > 0 and n_samples >= min_samples
+            else "Sample floor not met"
+        )
+        if have_snapshot and samples_known
+        else na
+    )
+    verdict_assessment = (
+        {
+            "PROMOTABLE": "promotion candidate",
+            "SHADOW": "not promotable",
+            "INCONCLUSIVE": "no decision possible",
+        }.get(verdict_name, "no decision possible")
+        if have_snapshot
+        else na
+    )
+
+    def _lift_cells(direction: str) -> tuple[str, str]:
+        variant = str(snap.get(f"{direction}_best_variant", "") or "")
+        if not (have_snapshot and variant):
+            return na, na
+        lift_value = float(snap.get(f"{direction}_best_lift", 0.0) or 0.0)
+        return f"{variant} ({lift_value:+.3f})", ("positive" if lift_value > 0 else "not positive")
+
+    bull_value, bull_assessment = _lift_cells("bull")
+    bear_value, bear_assessment = _lift_cells("bear")
+
+    rows = (
+        (
+            0,
+            "Valid samples",
+            _format_int_grouped(int(n_samples)) if have_snapshot and samples_known else na,
+            samples_assessment,
+        ),
+        (1, "Bull best variant", bull_value, bull_assessment),
+        (2, "Bear best variant", bear_value, bear_assessment),
+        (3, "Verdict", verdict_name if have_snapshot else na, verdict_assessment),
+    )
+    lines.append("# TYPE live_overlay_reaction_zone_shadow_evidence_info gauge")
+    for idx, metric_name, value, assessment in rows:
+        labels = (
+            f'date="{date}",idx="{idx:02d}",metric="{_escape_label_value(metric_name)}",'
+            f'metric_value="{_escape_label_value(value)}",'
+            f'assessment="{_escape_label_value(assessment)}"'
+        )
+        lines.append(f"live_overlay_reaction_zone_shadow_evidence_info{{{labels}}} 1")
 
     return lines

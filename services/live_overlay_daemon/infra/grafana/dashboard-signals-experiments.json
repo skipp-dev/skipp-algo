@@ -2038,6 +2038,432 @@
         "uid": "grafanacloud-prom"
       },
       "id": 3006
+    },
+    {
+      "type": "row",
+      "title": "Reaction-Zone Shadow Evidence",
+      "collapsed": false,
+      "description": "Observe-only reaction-zone follow-through study. The daily workflow tests whether a level reclaim predicts later follow-through better than the old rejection band, split by direction, and publishes one snapshot beside the sweep-trap evidence. Nothing here activates a detector or changes a score.",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 99
+      },
+      "id": 3100,
+      "panels": []
+    },
+    {
+      "title": "Reaction-Zone Shadow Verdict",
+      "type": "stat",
+      "description": "Strongest promotion state across both directions. INCONCLUSIVE means fewer than the required pooled reaction samples. SHADOW means the floor is met but no variant clears the lift gate. PROMOTABLE means a variant beats its base rate with positive lift; it is a candidate for a powered follow-up, not out-of-sample validation or automatic activation.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 0,
+        "y": 100
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_verdict_code{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "INCONCLUSIVE",
+                  "color": "dark-orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "SHADOW",
+                  "color": "dark-yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "PROMOTABLE",
+                  "color": "dark-green",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3101
+    },
+    {
+      "title": "Best Follow-Through Lift by Direction",
+      "type": "stat",
+      "description": "Highest-lift confirmation variant per direction: P(follow-through | confirmed) - P(follow-through | not), for bull and bear. Positive = the reaction confirmation discriminates later follow-through; 0 or negative = no edge in that direction. Computed only when both confusion cells have enough samples.",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 5,
+        "y": 100
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_best_lift{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "gray",
+                "value": 0
+              },
+              {
+                "color": "dark-green",
+                "value": 0.05
+              }
+            ]
+          },
+          "decimals": 3,
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3102
+    },
+    {
+      "title": "Reaction Samples in Latest Evaluation",
+      "type": "stat",
+      "description": "Gradeable reaction-tagged sweep samples in the latest rolling evaluation corpus. This number can rise or fall as the corpus changes. A verdict stays INCONCLUSIVE until the pooled sample floor is met.",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 11,
+        "y": 100
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_sample_count{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red",
+                "value": null
+              },
+              {
+                "color": "dark-yellow",
+                "value": 20
+              },
+              {
+                "color": "dark-green",
+                "value": 40
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3103
+    },
+    {
+      "title": "Reaction-Zone Snapshot Age",
+      "type": "stat",
+      "description": "Age of the latest reaction-zone snapshot. The workflow runs Mon-Fri; green < 72h, yellow < 96h, red beyond 96h (the OVERLAY_REACTION_ZONE_SHADOW_MAX_AGE_SECS budget where lo-reaction-zone-shadow-stale fires). N/A when the age is unknown (no snapshot loaded yet).",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 15,
+        "y": 100
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_reaction_zone_shadow_snapshot_age_known{job=~\"$job\"} == 1)",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-green",
+                "value": null
+              },
+              {
+                "color": "dark-yellow",
+                "value": 259200
+              },
+              {
+                "color": "dark-red",
+                "value": 345600
+              }
+            ]
+          },
+          "unit": "s",
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3104
+    },
+    {
+      "title": "Reaction-Zone Snapshot Loaded",
+      "type": "stat",
+      "description": "Whether the daemon is currently serving a parsed reaction-zone snapshot. No data = the bridge cannot fetch/read it (fail-soft: the daemon never crashes, the evidence gauges simply drop to zero).",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 100
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_loaded{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "No data",
+                  "color": "dark-orange",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Loaded",
+                  "color": "dark-green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "N/A"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3105
+    },
+    {
+      "title": "Latest Reaction-Zone Evidence",
+      "type": "table",
+      "description": "Decision table for the newest rolling-corpus reaction evaluation. Date is the snapshot's updated_at, not the dashboard refresh time. Each direction shows its highest-lift confirmation variant. This table is informational and does not activate the detector.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 105
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_reaction_zone_shadow_evidence_info{job=~\"$job\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "idx"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "idx": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "date": 0,
+              "metric": 1,
+              "metric_value": 2,
+              "assessment": 3
+            },
+            "renameByName": {
+              "date": "Date",
+              "metric": "Metric",
+              "metric_value": "Value",
+              "assessment": "Assessment"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 3106
     }
   ],
   "refresh": "1m",
@@ -2093,6 +2519,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon — Signals & Experiments",
   "uid": "smc-live-overlay-signals-v1",
-  "version": 12,
+  "version": 13,
   "weekStart": ""
 }
