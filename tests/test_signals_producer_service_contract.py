@@ -160,6 +160,32 @@ def test_railway_healthcheck_path_is_flag_aware_readyz() -> None:
     assert config["deploy"]["healthcheckPath"] == "/readyz"
 
 
+def test_railway_deploy_survives_failed_rotation() -> None:
+    """Regression pin for the 2026-07-28 16:23-16:44 UTC prod outage.
+
+    A routine main-push deploy FAILED its 60s /readyz healthcheck, Railway
+    rotated the old container out (SIGTERM), the engine's SIGTERM handler
+    exits cleanly (code 0), and ``ON_FAILURE`` does not restart clean exits —
+    leaving NOTHING running mid-RTH. Two railway.toml settings close that:
+
+    - ``healthcheckTimeout >= 300``: the first successful poll (watchlist +
+      snapshot + quote fetch) must fit the readiness window even on a slow
+      cold start, so routine deploys stop failing spuriously.
+    - ``restartPolicyType == "ALWAYS"``: a long-lived producer must come back
+      after ANY exit, clean or not. Deliberate stops go through
+      ``railway down`` (removes the deployment; unaffected by policy).
+    """
+    config = _load_railway_config()
+    assert config["deploy"]["healthcheckTimeout"] >= 300, (
+        "healthcheckTimeout below 300s races the engine's first poll and "
+        "fails routine deploys (2026-07-28 outage trigger)"
+    )
+    assert config["deploy"]["restartPolicyType"] == "ALWAYS", (
+        "ON_FAILURE leaves the producer dead after a clean-exit SIGTERM "
+        "during deploy rotation (2026-07-28 outage mechanism)"
+    )
+
+
 def test_railway_declares_signals_producer_service() -> None:
     config = _load_railway_config()
     names = [svc["name"] for svc in config["services"]]
