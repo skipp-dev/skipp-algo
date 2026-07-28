@@ -26,6 +26,7 @@ on:
       - "automation/tradingview/tests/tv_auth_capture_safety.test.ts"
       - "automation/tradingview/tests/tv_otp_entry_plan.test.ts"
       - "automation/tradingview/tests/tv_signin_email_chooser.test.ts"
+      - "automation/tradingview/tests/tv_storage_state_wait.test.ts"
       - "automation/tradingview/tests/tv_two_factor_inventory.test.ts"
       - "automation/tradingview/tests/tv_validation_model.test.ts"
       - "docs/tradingview-onboarding/**"
@@ -60,6 +61,7 @@ on:
       - "automation/tradingview/tests/tv_auth_capture_safety.test.ts"
       - "automation/tradingview/tests/tv_otp_entry_plan.test.ts"
       - "automation/tradingview/tests/tv_signin_email_chooser.test.ts"
+      - "automation/tradingview/tests/tv_storage_state_wait.test.ts"
       - "automation/tradingview/tests/tv_two_factor_inventory.test.ts"
       - "automation/tradingview/tests/tv_validation_model.test.ts"
       - "docs/tradingview-onboarding/**"
@@ -153,7 +155,7 @@ jobs:
         # Source-scan / pure-logic pins (no playwright import, verified green
         # in <2s each). They ran in no CI job before; the exempt set in
         # test_fast_gates_silent_skip_coverage.py shrank by exactly these.
-        run: npx tsx --test automation/tradingview/tests/hand_authored_publisher_facade_authority.test.ts automation/tradingview/tests/pine_library_version_snapshot.test.ts automation/tradingview/tests/selectors.test.ts automation/tradingview/tests/tv_auth_capture_safety.test.ts automation/tradingview/tests/tv_consumer_rollout_evidence.test.ts automation/tradingview/tests/tv_library_publisher_add_to_chart.test.ts automation/tradingview/tests/tv_publish_continue_label.test.ts automation/tradingview/tests/tv_publish_hand_authored_libraries.test.ts automation/tradingview/tests/tv_publish_import_path_evidence.test.ts automation/tradingview/tests/tv_runtime_errors.test.ts automation/tradingview/tests/tv_selectors_strict_mode.test.ts automation/tradingview/tests/tv_otp_entry_plan.test.ts automation/tradingview/tests/tv_signin_email_chooser.test.ts automation/tradingview/tests/tv_two_factor_inventory.test.ts automation/tradingview/tests/tv_validation_model.test.ts
+        run: npx tsx --test automation/tradingview/tests/hand_authored_publisher_facade_authority.test.ts automation/tradingview/tests/pine_library_version_snapshot.test.ts automation/tradingview/tests/selectors.test.ts automation/tradingview/tests/tv_auth_capture_safety.test.ts automation/tradingview/tests/tv_consumer_rollout_evidence.test.ts automation/tradingview/tests/tv_library_publisher_add_to_chart.test.ts automation/tradingview/tests/tv_publish_continue_label.test.ts automation/tradingview/tests/tv_publish_hand_authored_libraries.test.ts automation/tradingview/tests/tv_publish_import_path_evidence.test.ts automation/tradingview/tests/tv_runtime_errors.test.ts automation/tradingview/tests/tv_selectors_strict_mode.test.ts automation/tradingview/tests/tv_otp_entry_plan.test.ts automation/tradingview/tests/tv_signin_email_chooser.test.ts automation/tradingview/tests/tv_storage_state_wait.test.ts automation/tradingview/tests/tv_two_factor_inventory.test.ts automation/tradingview/tests/tv_validation_model.test.ts
 
       - name: Build portable package
         run: npm run tv:onboarding:package -- --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH" --out-dir dist/tv-onboarding
