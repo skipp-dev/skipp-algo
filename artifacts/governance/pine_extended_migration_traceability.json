@@ -144,6 +144,7 @@
             "artifacts/governance/smc_hold_manager_shadow_evidence.json",
             "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
             "artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json",
             "artifacts/governance/smc_hold_manager_shadow_alert_templates.json",
             "automation/tradingview/preflight-hold-manager-shadow.json",
             "automation/tradingview/lib/tv_validation_model.ts",
@@ -153,13 +154,15 @@
             "scripts/smc_bus_manifest.py",
             "artifacts/tradingview/smc_product_cut_manifest.json",
             "scripts/evaluate_smc_hold_manager_shadow.py",
+            "scripts/reconcile_smc_hold_manager_shadow_deliveries.py",
             "tests/test_hold_manager_shadow_receiver.py",
             "tests/test_evaluate_smc_hold_manager_shadow.py",
+            "tests/test_reconcile_smc_hold_manager_shadow_deliveries.py",
             "tests/test_smc_bus_manifest_contract.py",
             "tests/test_smc_product_cut_manifest.py"
           ],
           "openGates": [
-            "The private managed saved-script refresh and isolated 13-binding preflight passed on 2026-07-28. The fail-closed receiver is deployed and configured in live_overlay_daemon with accepting=false, a persistent writable ledger destination, and an authenticated zero-event state; no alerts exist. Obtain exact authorization for creating and verifying the six Hold alert conditions while the receiver remains non-accepting, then separately authorize activation at an agreed observation boundary. Record the first five complete XNYS sessions without cherry-picking and pass server-delivery, comparison, exclusivity, and rollback gates; no external TradingView publication is required."
+            "The private managed saved-script refresh and isolated 13-binding preflight passed on 2026-07-28. The fail-closed receiver is deployed and configured in live_overlay_daemon with accepting=false, a persistent writable ledger destination, and an authenticated zero-event state. The six private Hold alert conditions were created in the authorized controlled session of 2026-07-28 while the receiver remained non-accepting and were operator-confirmed on 2026-07-29 (redacted attestation: artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json). Separately authorize activation at an agreed observation boundary. Record the first five complete XNYS sessions without cherry-picking; delivered server-alert counts are reconciled from the receiver ledger via scripts/reconcile_smc_hold_manager_shadow_deliveries.py, and the comparison, exclusivity, and rollback gates must pass; no external TradingView publication is required."
           ]
         }
       ]

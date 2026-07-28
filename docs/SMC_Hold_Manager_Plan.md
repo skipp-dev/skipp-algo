@@ -84,11 +84,31 @@ Der Receiver wurde am 2026-07-28 fail-closed deployt und konfiguriert. Sein
 authentifizierte Zustand bestätigte `accepting=false` sowie null Events,
 Zustellversuche und Duplikate. Der redigierte Nachweis liegt in
 `artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
-Es existiert weiterhin kein TradingView-Alert und die Shadow-Beobachtung wurde
-nicht gestartet. Deshalb bleibt `R2-SHADOW-CUTOVER` ausdrücklich
-`not_started`.
+Am 2026-07-28 wurden — nach Token-Rotation und Redeploy — die sechs privaten
+TradingView-Alerts `R2 SHADOW · HM_ENTRY/HM_T1/HM_T2/HM_STOP/HM_TIMESTOP/`
+`HM_EXIT_ANY` im autorisierten, kontrollierten Browser-Lauf erstellt (Konto
+`preuss_steffen`, Saved Script `SMC Hold Manager R2.4 Validation`, Layout
+`SMC Hold R2.4 Validation`, Chart `NASDAQ:BKNG` 5m); der Operator hat die sechs
+korrekt konfigurierten Alerts am 2026-07-29 bestätigt. Die redigierte
+Attestation liegt in
+`artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json` —
+TradingView-Alert-Zustand ist aus dem Repo nicht maschinell nachprüfbar,
+deshalb Operator-Attestation statt automatisiertem Readback. Der Receiver
+bleibt `accepting=false` und die Shadow-Beobachtung wurde nicht gestartet;
+`R2-SHADOW-CUTOVER` bleibt deshalb ausdrücklich `not_started`, offen sind nur
+noch die separate Aktivierungs-Autorisierung und der Rollback-Drill.
 
-Letzte Aktualisierung: 2026-07-28
+Für die Beobachtung selbst ist die Zustellungs-Seite jetzt verdrahtet: `/state`
+liefert zusätzlich einen `sessions`-Breakdown pro US-Marktsitzungstag
+(Kalender der Contract-`marketTimezone`), und
+`scripts/reconcile_smc_hold_manager_shadow_deliveries.py` füllt daraus
+fail-closed `sessions[*].deliveredServerAlerts` in
+`smc_hold_manager_shadow_observations.json` — manuell erfasste Werte werden nie
+überschrieben (Konflikt = Blocker), unerfasste Receiver-Sitzungen blockieren.
+Die erwartete Seite (Pine-Kanten, Exit-Signal-/Strategie-Vergleich, Bindings)
+bleibt gemäß vorregistriertem Protokoll Operator-Aufzeichnung.
+
+Letzte Aktualisierung: 2026-07-29
 
 ## Naming — warum kein separater „Exit-Manager"?
 
