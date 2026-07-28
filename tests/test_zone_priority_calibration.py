@@ -211,6 +211,31 @@ def test_render_report_has_all_sections(tmp_path: Path) -> None:
     assert "Per-Family Detail" in md
     assert "Rank Thresholds" in md
     assert "OB" in md
+    # Shadow section is opt-in: absent when no shadow is supplied.
+    assert "Family Score-Combination Shadow" not in md
+
+
+def test_render_calibration_report_includes_shadow_section() -> None:
+    from scripts.smc_zone_priority import compute_family_combination_shadow
+
+    cal = CalibrationResult(
+        family_weights={"OB": 0.83, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.70},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={},
+        total_events=0,
+        total_pairs=0,
+        source_dir="x",
+    )
+    # Weights chosen to force at least one additive/multiplicative divergence.
+    shadow = compute_family_combination_shadow(
+        calibrated_family_weights=cal.family_weights,
+    )
+    md = render_calibration_report(cal, family_combination_shadow=shadow)
+    assert "## Family Score-Combination Shadow (A/B)" in md
+    assert "stays `additive`" in md
+    # The divergent weights produce at least one disagreement -> table header.
+    assert shadow["n_disagree"] >= 1
+    assert "| Additive | Multiplicative |" in md
 
 
 def test_to_json_roundtrip(tmp_path: Path) -> None:
@@ -1027,6 +1052,31 @@ def test_cli_status_default_is_shadow(tmp_path: Path) -> None:
     ])
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["frozen_provenance"]["status"] == "shadow"
+
+
+def test_cli_emits_family_combination_shadow(tmp_path: Path) -> None:
+    """The calibration CLI must record the additive-vs-multiplicative shadow
+    A/B into both the JSON payload and the Markdown report.
+    """
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "zone_priority_calibration.json"
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+    ])
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert "family_combination_shadow" in payload, list(payload.keys())
+    shadow = payload["family_combination_shadow"]
+    assert shadow["combination_production"] == "additive"
+    assert shadow["combination_shadow"] == "multiplicative"
+    assert shadow["n_contexts"] == shadow["n_agree"] + shadow["n_disagree"]
+    assert isinstance(shadow["records"], list) and shadow["records"]
+
+    md = out.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## Family Score-Combination Shadow (A/B)" in md
 
 
 def test_cli_contextual_output_path_override(tmp_path: Path) -> None:
