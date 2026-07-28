@@ -317,7 +317,7 @@ def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
         open_prep_snapshot_loaded=1.0,
@@ -590,7 +590,7 @@ def test_readyz_returns_503_when_client_disabled(monkeypatch: pytest.MonkeyPatch
     fail closed even though the poll loop keeps marking loop-liveness success
     on every disabled cycle ("UIs stay green" empty-snapshot path)."""
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
         open_prep_snapshot_loaded=1.0,

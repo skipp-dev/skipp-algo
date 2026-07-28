@@ -289,15 +289,15 @@ def test_repoller_fetches_via_engine_databento_source_under_flag(monkeypatch: py
     assert r.metrics()["a0_pushed"] == 1  # NVDA's escalation still reached rt_notify
 
 
-def test_repoller_fmp_default_produces_same_row_shape_as_before(monkeypatch: pytest.MonkeyPatch) -> None:
-    """(b) FMP default (RT_QUOTE_SOURCE unset): the re-poller's fetch still
+def test_repoller_explicit_fmp_produces_same_row_shape_as_before(monkeypatch: pytest.MonkeyPatch) -> None:
+    """(b) Explicit FMP rollback: the re-poller's fetch still
     produces the exact same {symbol: row} shape the pre-fix
     self._client_or_init() -> client.get_stable_batch_quotes() -> per-row
     upper-case-keyed dict used to build -- because the engine's
     FMPQuoteSource._fetch_regular wraps the identical
     get_stable_batch_quotes call, verbatim (see quote_source.py's docstring:
     'a 1:1 extraction of the pre-Task-1.1 inline fetch logic')."""
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
 
     class _Client:
         def __init__(self) -> None:

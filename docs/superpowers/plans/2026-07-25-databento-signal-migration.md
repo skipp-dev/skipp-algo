@@ -12,7 +12,7 @@
 
 - **Snapshot-Schema unverändert:** `latest_realtime_signals.json` behält `{"signals":[RealtimeSignal.to_dict()…], "signal_count","a0_count","a1_count","a2_count","updated_epoch","signal_schema_version":2}`. Kein Consumer (`live_overlay_daemon/compute.py::_get_signal_fields`, Zeile ~1413) darf angefasst werden müssen.
 - **Fail-closed Frische:** `updated_epoch` muss bei jedem Poll gesetzt werden; ein toter Feed darf keinen frischen Snapshot vortäuschen (siehe `_signals_snapshot_is_fresh`, compute.py).
-- **Datenquellen-Feature-Flag:** Umschaltung ausschließlich über eine env-Var (`RT_QUOTE_SOURCE=fmp|databento`, default `fmp`), damit Rollback ein reiner Redeploy ist. Kein Code-Pfad wird gelöscht, bis das Cutover-Gate erfüllt ist.
+- **Datenquellen-Feature-Flag:** Umschaltung ausschließlich über eine env-Var (`RT_QUOTE_SOURCE=fmp|databento`). Unset und `databento` wählen Databento, weil FMP bandbreiten-gedeckelt/-bepreist und Databento für diesen Feed flat-rate ist. `fmp` bleibt ausschließlich der explizite Rollback beziehungsweise der sichtbare Laufzeit-Fallback, wenn Databento nicht aufgebaut werden kann. Kein Code-Pfad wird gelöscht, bis mindestens eine volle saubere Abrechnungsperiode nach Cutover bestanden ist.
 - **`decide_core_level` bleibt Single-Source-of-Truth:** derselbe Core wie heute (`open_prep/a0_contract.py`), den FMP-Producer und a0_fast_detector bereits teilen. Keine parallele Signal-Mathematik.
 - **Ledger-/Guard-Pflicht:** produktive `.py`-Änderungen laufen durch `pre-push-guard` (ruff + line-pinned ledger tests). Neue `subprocess`/`open`/`global`-Sites im selben Commit im Ledger reconcilen.
 - **Nicht-Ziel (bleibt zwingend FMP):** News/Sentiment (`newsstack_fmp`), Fundamentals/Earnings/Insider/13F/Analyst (`open_prep/macro.py` Ultimate-Pfade), Macro/Economic-Calendar/Treasury/Sector, und `^VIX` (nicht auf EQUS.MINI). Diese Migration fasst NUR den Preis/Quote-Strom an.
@@ -98,7 +98,7 @@
 - [ ] **Step 1: Failing test.** `test_fmp_quote_source_matches_legacy_fetch` — mit gemocktem FMPClient liefert `FMPQuoteSource.fetch(...)` exakt dieselben Rows wie der heutige `_fetch`-Codepfad.
 - [ ] **Step 2:** Test → FAIL (Klasse existiert nicht).
 - [ ] **Step 3:** `FMPQuoteSource` implementieren = 1:1 Extraktion der 3 `self.client.get_stable_*`-Aufrufe + postmarket-Adaption (`build_postmarket_quotes`) aus `_fetch`.
-- [ ] **Step 4:** `_fetch` so umbauen, dass es `self._quote_source.fetch(...)` aufruft; `RealtimeEngine.__init__` konstruiert `FMPQuoteSource` wenn `RT_QUOTE_SOURCE != "databento"`.
+- [x] **Step 4:** `_fetch` ruft `self._quote_source.fetch(...)` auf; `RealtimeEngine.__init__` konstruiert standardmäßig Databento und verwendet `FMPQuoteSource` nur für `RT_QUOTE_SOURCE=fmp` oder als Laufzeit-Fallback, falls der Databento-Aufbau scheitert.
 - [ ] **Step 5:** Test → PASS; zusätzlich die bestehende realtime_signals-Testsuite grün (`pytest tests/ -k realtime_signals -n 4`).
 - [ ] **Step 6:** Commit (`refactor:` — reine Kapselung, kein Verhaltenswechsel), via skipp-pr-flow.
 
@@ -153,7 +153,7 @@
 - Modify: `open_prep/realtime_signals.py` (`RealtimeEngine.__init__`, Feed-Lifecycle), `services/signals_producer/` (Startup)
 
 **Interfaces:**
-- Consumes: `RT_QUOTE_SOURCE` (`fmp` default | `databento`). Bei `databento`: `DatabentoQuoteFeed.start()` beim Engine-Start, Symbolliste = Producer-Universum, Referenz täglich geladen.
+- Consumes: `RT_QUOTE_SOURCE` (`databento` default | `fmp` rollback). Bei `databento`: `DatabentoQuoteFeed.start()` beim Engine-Start, Symbolliste = Producer-Universum, Referenz täglich geladen.
 
 - [ ] **Step 1: Failing test.** `test_engine_uses_databento_source_when_flagged` — mit `RT_QUOTE_SOURCE=databento` (+ gemocktem Feed) zieht der Poll-Zyklus Rows aus der Databento-Quelle, nicht vom FMP-Client.
 - [ ] **Step 2:** Test → FAIL.
@@ -161,7 +161,7 @@
 - [ ] **Step 4:** Test → PASS; volle realtime_signals-Suite grün.
 - [ ] **Step 5:** Commit (`feat:`), via skipp-pr-flow.
 
-**Verifikation:** Ein env-Flag schaltet die Quelle um; FMP-Pfad bleibt Default und unangetastet.
+**Verifikation:** Databento ist der produktive Code-Default; `RT_QUOTE_SOURCE=fmp` schaltet auf den unangetasteten Rollback-Pfad.
 
 ### Task 2.2 — Shadow-Deploy: Databento-Producer parallel, Snapshot getrennt
 
@@ -183,7 +183,7 @@
 ### Task 3.1 — Produktiven Snapshot auf Databento umstellen
 
 - [ ] **Step 1: Cutover-Gate** (analog Cloud-Worker-Runbook): ≥3 saubere Handelstage Shadow, Parity ohne unerklärte Divergenz, Feed-Reconnect real beobachtet, `data_age_ms` p99 < 2 s.
-- [ ] **Step 2:** Produktiven `smc-signals-producer` auf `RT_QUOTE_SOURCE=databento` setzen (Redeploy). Snapshot-Pfad = produktiv.
+- [ ] **Step 2:** Diese Version auf den produktiven `smc-signals-producer` deployen; unset oder `RT_QUOTE_SOURCE=databento` nutzt Databento. Snapshot-Pfad = produktiv.
 - [ ] **Step 3:** `/smc_live` end-to-end verifizieren: `signal_level`/`trade_*` erscheinen, `updated_epoch` frisch, Sidecar-Panel zeigt Signale. FMP-Quote-Poll ist jetzt aus.
 - [ ] **Step 4:** 1 Handelstag beobachten; Rollback = Flag zurück auf `fmp` + Redeploy (Codepfad noch vorhanden).
 

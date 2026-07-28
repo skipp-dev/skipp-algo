@@ -3,8 +3,8 @@
 Builds a process-internal ``db.Live`` consumer for ``EQUS.MINI`` /
 ``ohlcv-1s`` against an explicit symbol list, filling a thread-safe
 per-symbol bar cache. This module is deliberately narrow — cache-filling
-only, no compute/refresh threads — so a later task (1.3) can turn the cache
-into FMP-compatible quote rows without touching signal-detection logic.
+only, no compute/refresh threads — and ``DatabentoQuoteSource`` turns the
+cache into provider-neutral quote rows without touching signal math.
 
 Ported patterns (see task-1.2-report.md for the full mapping):
 
@@ -42,8 +42,9 @@ import queue
 import threading
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -66,6 +67,8 @@ _SYSTEM_CODE_REPLAY_COMPLETED = 3
 
 _STOP_SENTINEL = object()
 _BARRIER_SENTINEL = object()
+
+SymbolSupportResolver = Callable[[list[str]], dict[str, str]]
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +123,11 @@ class DatabentoFeedTelemetry:
         self._replay_completions = 0
         self._last_data_age_ms: float | None = None
         self._max_data_age_ms = 0.0
+        self._symbols_requested = 0
+        self._symbols_subscribed = 0
+        self._symbol_aliases = 0
+        self._symbols_filtered: Counter[str] = Counter()
+        self._symbol_preflight_success = True
 
     def set_connected(self, connected: bool) -> None:
         with self._lock:
@@ -169,6 +177,23 @@ class DatabentoFeedTelemetry:
             self._last_data_age_ms = age_ms
             self._max_data_age_ms = max(self._max_data_age_ms, age_ms)
 
+    def set_symbol_routes(
+        self,
+        *,
+        requested: int,
+        subscribed: int,
+        aliases: int,
+        filtered: Counter[str],
+        preflight_success: bool,
+    ) -> None:
+        """Expose the current provider-routing result, not cumulative events."""
+        with self._lock:
+            self._symbols_requested = requested
+            self._symbols_subscribed = subscribed
+            self._symbol_aliases = aliases
+            self._symbols_filtered = Counter(filtered)
+            self._symbol_preflight_success = preflight_success
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
@@ -184,6 +209,11 @@ class DatabentoFeedTelemetry:
                 "replay_completions": self._replay_completions,
                 "data_age_ms": self._last_data_age_ms,
                 "data_age_ms_max": self._max_data_age_ms,
+                "symbols_requested": self._symbols_requested,
+                "symbols_subscribed": self._symbols_subscribed,
+                "symbol_aliases": self._symbol_aliases,
+                "symbols_filtered": dict(self._symbols_filtered),
+                "symbol_preflight_success": self._symbol_preflight_success,
             }
 
     def render_prometheus(self) -> str:
@@ -203,10 +233,20 @@ class DatabentoFeedTelemetry:
                 snap["data_age_ms"] if snap["data_age_ms"] is not None else 0.0,
             ),
             _gauge("databento_quote_feed_data_age_ms_max", snap["data_age_ms_max"]),
+            _gauge("databento_quote_feed_symbols_requested", snap["symbols_requested"]),
+            _gauge("databento_quote_feed_symbols_subscribed", snap["symbols_subscribed"]),
+            _gauge("databento_quote_feed_symbol_aliases", snap["symbol_aliases"]),
+            _gauge(
+                "databento_quote_feed_symbol_preflight_success",
+                int(snap["symbol_preflight_success"]),
+            ),
         ]
         lines.append("# TYPE databento_quote_feed_records_rejected_total counter\n")
         for reason, count in sorted(snap["record_rejections"].items()):
             lines.append(f'databento_quote_feed_records_rejected_total{{reason="{reason}"}} {count}\n')
+        lines.append("# TYPE databento_quote_feed_symbols_filtered gauge\n")
+        for reason, count in sorted(snap["symbols_filtered"].items()):
+            lines.append(f'databento_quote_feed_symbols_filtered{{reason="{reason}"}} {count}\n')
         return "".join(lines)
 
 
@@ -334,6 +374,144 @@ def _system_code_matches(record: Any, *, code_int: int, code_name: str) -> bool:
     return str(value).strip().lower() == code_name
 
 
+def _build_symbol_routes(
+    symbols: list[str],
+    support_resolver: SymbolSupportResolver | None = None,
+) -> tuple[list[str], list[str], dict[str, str], Counter[str], bool]:
+    """Build canonical→Databento routes and reject known-invalid inputs.
+
+    The public feed/cache contract stays on the producer's canonical symbols
+    (for example ``BRK-B``), while only provider-form symbols (``BRK.B``) are
+    sent to ``db.Live``. The reverse map restores canonical symbols before a
+    bar enters the cache.
+    """
+    from databento_utils import normalize_symbol_for_databento
+
+    canonical_symbols: list[str] = []
+    provider_symbols: list[str] = []
+    provider_to_canonical: dict[str, str] = {}
+    filtered: Counter[str] = Counter()
+    seen_canonical: set[str] = set()
+    for raw in symbols:
+        canonical = str(raw).strip().upper()
+        if not canonical:
+            filtered["empty_symbol"] += 1
+            continue
+        if canonical in seen_canonical:
+            filtered["duplicate_symbol"] += 1
+            continue
+        seen_canonical.add(canonical)
+        provider = normalize_symbol_for_databento(canonical)
+        if not provider:
+            filtered["unsupported_symbol"] += 1
+            continue
+        if provider in provider_to_canonical:
+            filtered["provider_alias_collision"] += 1
+            continue
+        canonical_symbols.append(canonical)
+        provider_symbols.append(provider)
+        provider_to_canonical[provider] = canonical
+    preflight_success = True
+    if support_resolver is not None and provider_symbols:
+        try:
+            exclusions = support_resolver(list(provider_symbols))
+        except Exception:
+            logger.warning(
+                "Databento symbol-support preflight failed; subscribing to "
+                "the statically valid routes and exposing a failed metric",
+                exc_info=True,
+            )
+            preflight_success = False
+        else:
+            kept_canonical: list[str] = []
+            kept_provider: list[str] = []
+            for canonical, provider in zip(
+                canonical_symbols,
+                provider_symbols,
+                strict=True,
+            ):
+                reason = exclusions.get(provider)
+                if reason:
+                    filtered[str(reason)] += 1
+                else:
+                    kept_canonical.append(canonical)
+                    kept_provider.append(provider)
+            canonical_symbols = kept_canonical
+            provider_symbols = kept_provider
+            provider_to_canonical = {
+                provider: canonical
+                for canonical, provider in zip(
+                    canonical_symbols,
+                    provider_symbols,
+                    strict=True,
+                )
+            }
+    return (
+        canonical_symbols,
+        provider_symbols,
+        provider_to_canonical,
+        filtered,
+        preflight_success,
+    )
+
+
+def resolve_current_symbol_support(
+    api_key: str,
+    symbols: list[str],
+    *,
+    session_date: date,
+    dataset: str = "EQUS.MINI",
+    client: Any = None,
+) -> dict[str, str]:
+    """Return provider symbols that cannot fully resolve for one session.
+
+    Databento documents ``symbology.resolve`` as a free endpoint. It avoids
+    spending a live subscription command on known ``not_found`` or partial
+    symbols and does not consume historical market-data bandwidth.
+    """
+    normalized = list(
+        dict.fromkeys(
+            normalized
+            for symbol in symbols
+            if (normalized := str(symbol).strip().upper())
+        )
+    )
+    if not normalized:
+        return {}
+    historical = client if client is not None else db.Historical(key=api_key)
+    response = historical.symbology.resolve(
+        dataset=dataset,
+        symbols=normalized,
+        stype_in="raw_symbol",
+        stype_out="instrument_id",
+        start_date=session_date.isoformat(),
+        end_date=(session_date + timedelta(days=1)).isoformat(),
+    )
+    if not isinstance(response, dict) or not isinstance(response.get("result"), dict):
+        raise ValueError("Databento symbology response is malformed")
+    result = {
+        str(symbol).strip().upper(): mappings
+        for symbol, mappings in response["result"].items()
+    }
+    not_found = {
+        str(symbol).strip().upper()
+        for symbol in (response.get("not_found") or [])
+    }
+    partial = {
+        str(symbol).strip().upper()
+        for symbol in (response.get("partial") or [])
+    }
+    unresolved: dict[str, str] = {}
+    for symbol in normalized:
+        if symbol in not_found or (symbol in result and not result[symbol]):
+            unresolved[symbol] = "symbol_resolution_failed"
+        elif symbol in partial:
+            unresolved[symbol] = "symbol_resolution_partial"
+        elif symbol not in result:
+            raise ValueError(f"Databento symbology response omitted {symbol}")
+    return unresolved
+
+
 # ---------------------------------------------------------------------------
 # Feed
 # ---------------------------------------------------------------------------
@@ -365,6 +543,7 @@ class DatabentoQuoteFeed:
         *,
         replay_start: datetime,
         telemetry: DatabentoFeedTelemetry | None = None,
+        symbol_support_resolver: SymbolSupportResolver | None = None,
         queue_max: int = 2000,
         reconnect_delay_secs: float = 10.0,
         reconnect_backoff_secs: float = 120.0,
@@ -374,11 +553,37 @@ class DatabentoQuoteFeed:
     ) -> None:
         if not symbols:
             raise ValueError("symbols must not be empty")
-        self._symbols = [s.strip().upper() for s in symbols]
+        self.telemetry = telemetry or DatabentoFeedTelemetry()
+        self._symbol_support_resolver = symbol_support_resolver
+        (
+            canonical_symbols,
+            provider_symbols,
+            provider_to_canonical,
+            filtered,
+            preflight_success,
+        ) = _build_symbol_routes(
+            symbols,
+            symbol_support_resolver,
+        )
+        if not provider_symbols:
+            raise ValueError("symbols contain no Databento-supported entries")
+        self._canonical_symbols = canonical_symbols
+        self._canonical_symbol_set = set(canonical_symbols)
+        self._symbols = provider_symbols
         self._symbol_set = set(self._symbols)
+        self._provider_to_canonical = provider_to_canonical
+        self.telemetry.set_symbol_routes(
+            requested=len(symbols),
+            subscribed=len(provider_symbols),
+            aliases=sum(
+                canonical != provider
+                for canonical, provider in zip(canonical_symbols, provider_symbols, strict=True)
+            ),
+            filtered=filtered,
+            preflight_success=preflight_success,
+        )
         self._client_or_factory = client_or_factory
         self._replay_start = replay_start
-        self.telemetry = telemetry or DatabentoFeedTelemetry()
 
         self._queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, int(queue_max)))
         self._reconnect_delay_secs = float(reconnect_delay_secs)
@@ -469,23 +674,41 @@ class DatabentoQuoteFeed:
         from that cursor, not from session open; in practice watchlist
         rotations land pre-session (every symbol starts fresh at 09:30 ET),
         where this is exact."""
-        normalized: list[str] = []
-        new_set: set[str] = set()
-        for raw in symbols:
-            if not raw or not raw.strip():
-                continue
-            sym = raw.strip().upper()
-            if sym not in new_set:  # dedupe, order-preserving
-                new_set.add(sym)
-                normalized.append(sym)
-        if not new_set:
+        (
+            canonical,
+            provider,
+            provider_to_canonical,
+            filtered,
+            preflight_success,
+        ) = _build_symbol_routes(symbols, self._symbol_support_resolver)
+        new_canonical_set = set(canonical)
+        if not new_canonical_set:
             return False  # never resubscribe to an empty universe
         with self._active_client_lock:
-            if new_set == self._symbol_set:
-                return False
-            self._symbols = normalized
-            self._symbol_set = new_set
+            unchanged = (
+                new_canonical_set == self._canonical_symbol_set
+                and set(provider) == self._symbol_set
+                and provider_to_canonical == self._provider_to_canonical
+            )
+            if not unchanged:
+                self._canonical_symbols = canonical
+                self._canonical_symbol_set = new_canonical_set
+                self._symbols = provider
+                self._symbol_set = set(provider)
+                self._provider_to_canonical = provider_to_canonical
             client = self._active_client
+        self.telemetry.set_symbol_routes(
+            requested=len(symbols),
+            subscribed=len(provider),
+            aliases=sum(
+                canonical_symbol != provider_symbol
+                for canonical_symbol, provider_symbol in zip(canonical, provider, strict=True)
+            ),
+            filtered=filtered,
+            preflight_success=preflight_success,
+        )
+        if unchanged:
+            return False
         # Break the in-flight ``for record in client:`` so the feed loop falls
         # through to its reconnect and re-subscribes with the new list. No-op
         # if nothing is connected yet — the next connect already reads the new
@@ -535,10 +758,13 @@ class DatabentoQuoteFeed:
                     )
                     with self._active_client_lock:
                         self._active_client = client
+                        subscribed_symbols = list(self._symbols)
+                        provider_to_canonical = dict(self._provider_to_canonical)
+                        canonical_symbol_set = set(self._canonical_symbol_set)
                     client.subscribe(
                         dataset="EQUS.MINI",
                         schema="ohlcv-1s",
-                        symbols=self._symbols,
+                        symbols=subscribed_symbols,
                         stype_in="raw_symbol",
                         start=self._next_replay_start(),
                     )
@@ -558,7 +784,10 @@ class DatabentoQuoteFeed:
                                 record, "raw_symbol", None
                             )
                             if iid is not None and raw:
-                                symbol_map[int(iid)] = str(raw).strip().upper()
+                                provider_symbol = str(raw).strip().upper()
+                                canonical_symbol = provider_to_canonical.get(provider_symbol)
+                                if canonical_symbol is not None:
+                                    symbol_map[int(iid)] = canonical_symbol
                             continue
 
                         if record_type == "SystemMsg":
@@ -583,7 +812,9 @@ class DatabentoQuoteFeed:
 
                         self.telemetry.record_received()
                         symbol = _symbol_from_record(record, symbol_map)
-                        if symbol is None or symbol not in self._symbol_set:
+                        if symbol is not None:
+                            symbol = provider_to_canonical.get(symbol, symbol)
+                        if symbol is None or symbol not in canonical_symbol_set:
                             self.telemetry.record_rejected("unmapped_symbol")
                             continue
 

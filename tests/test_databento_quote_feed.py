@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -19,7 +19,11 @@ import databento as db
 import pytest
 from databento_dbn import OHLCVMsg, RType, SystemCode
 
-from open_prep.databento_quote_feed import _BARRIER_SENTINEL, DatabentoQuoteFeed
+from open_prep.databento_quote_feed import (
+    _BARRIER_SENTINEL,
+    DatabentoQuoteFeed,
+    resolve_current_symbol_support,
+)
 
 _ET = ZoneInfo("America/New_York")
 _REPLAY_START = datetime(2026, 7, 21, 13, 30, tzinfo=UTC)
@@ -200,6 +204,151 @@ class TestBasicIngestion:
         assert feed.latest_bar("AAPL") is None
         assert feed.cumulative_volume("AAPL") == 0
         assert feed.session_high_low("AAPL") == (None, None)
+
+    @pytest.mark.parametrize(
+        ("canonical", "provider"),
+        [("BF-B", "BF.B"), ("BRK-A", "BRK.A"), ("BRK-B", "BRK.B")],
+    )
+    def test_share_class_symbols_use_provider_alias_but_cache_canonical_symbol(
+        self,
+        canonical: str,
+        provider: str,
+    ) -> None:
+        records = [
+            _symbol_mapping(1, provider),
+            _ohlcv(close=100.5, volume=100),
+            _system_msg(_END_OF_INTERVAL),
+        ]
+        client = _FakeClient(records)
+        feed = DatabentoQuoteFeed(
+            [canonical],
+            client,
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=30.0,
+        )
+
+        _start_and_join(feed)
+
+        assert client.subscription["symbols"] == [provider]
+        assert feed.latest_bar(canonical) is not None
+        assert feed.latest_bar(canonical).symbol == canonical
+        assert feed.cumulative_volume(canonical) == 100
+
+    def test_known_unsupported_symbols_are_filtered_before_subscription(self) -> None:
+        client = _FakeClient([])
+        feed = DatabentoQuoteFeed(
+            ["AAPL", "CTA-PA"],
+            client,
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=30.0,
+        )
+
+        _start_and_join(feed)
+
+        assert client.subscription["symbols"] == ["AAPL"]
+        snap = feed.telemetry.snapshot()
+        assert snap["symbols_requested"] == 2
+        assert snap["symbols_subscribed"] == 1
+        assert snap["symbols_filtered"] == {"unsupported_symbol": 1}
+        assert (
+            'databento_quote_feed_symbols_filtered{reason="unsupported_symbol"} 1'
+            in feed.telemetry.render_prometheus()
+        )
+
+
+class TestSymbolSupportPreflight:
+    def test_resolve_current_symbol_support_classifies_failed_and_partial(self) -> None:
+        class _Symbology:
+            def __init__(self) -> None:
+                self.kwargs: dict[str, Any] = {}
+
+            def resolve(self, **kwargs: Any) -> dict[str, Any]:
+                self.kwargs = kwargs
+                return {
+                    "result": {
+                        "AAPL": [{"s": "AAPL", "d0": "2026-07-21", "d1": "2026-07-22"}],
+                        "BRK.B": [],
+                        "HALF": [{"s": "HALF", "d0": "2026-07-21", "d1": "2026-07-21"}],
+                    },
+                    "not_found": ["BRK.B"],
+                    "partial": ["HALF"],
+                }
+
+        symbology = _Symbology()
+        client = type("_Historical", (), {"symbology": symbology})()
+
+        unresolved = resolve_current_symbol_support(
+            "unused",
+            [" aapl ", "BRK.B", "HALF", "AAPL", ""],
+            session_date=date(2026, 7, 21),
+            client=client,
+        )
+
+        assert unresolved == {
+            "BRK.B": "symbol_resolution_failed",
+            "HALF": "symbol_resolution_partial",
+        }
+        assert symbology.kwargs == {
+            "dataset": "EQUS.MINI",
+            "symbols": ["AAPL", "BRK.B", "HALF"],
+            "stype_in": "raw_symbol",
+            "stype_out": "instrument_id",
+            "start_date": "2026-07-21",
+            "end_date": "2026-07-22",
+        }
+
+    def test_live_resolution_exclusions_never_reach_subscription(self) -> None:
+        client = _FakeClient([])
+        feed = DatabentoQuoteFeed(
+            ["AAPL", "BRK-B", "NOPE"],
+            client,
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=30.0,
+            symbol_support_resolver=lambda symbols: {
+                symbol: "symbol_resolution_failed"
+                for symbol in symbols
+                if symbol == "NOPE"
+            },
+        )
+
+        _start_and_join(feed)
+
+        assert client.subscription["symbols"] == ["AAPL", "BRK.B"]
+        assert feed.telemetry.snapshot()["symbols_filtered"] == {
+            "symbol_resolution_failed": 1,
+        }
+
+    def test_preflight_outage_fails_open_with_visible_metric(self) -> None:
+        def _raise(_symbols: list[str]) -> dict[str, str]:
+            raise RuntimeError("synthetic resolver outage")
+
+        client = _FakeClient([])
+        feed = DatabentoQuoteFeed(
+            ["AAPL"],
+            client,
+            replay_start=_REPLAY_START,
+            reconnect_delay_secs=30.0,
+            symbol_support_resolver=_raise,
+        )
+
+        _start_and_join(feed)
+
+        assert client.subscription["symbols"] == ["AAPL"]
+        assert feed.telemetry.snapshot()["symbol_preflight_success"] is False
+        assert "databento_quote_feed_symbol_preflight_success 0" in (
+            feed.telemetry.render_prometheus()
+        )
+
+    def test_all_symbols_rejected_by_preflight_aborts_source_build(self) -> None:
+        with pytest.raises(ValueError, match="no Databento-supported entries"):
+            DatabentoQuoteFeed(
+                ["NOPE"],
+                _FakeClient([]),
+                replay_start=_REPLAY_START,
+                symbol_support_resolver=lambda symbols: {
+                    symbol: "symbol_resolution_failed" for symbol in symbols
+                },
+            )
 
 
 class TestEndOfIntervalBarrier:
@@ -720,3 +869,20 @@ class TestUpdateSymbols:
         assert feed.update_symbols(["", "  "]) is False
         assert feed._symbol_set == {"NVDA"}  # never dropped to empty
         assert client.stopped is False
+
+    def test_update_symbols_routes_share_classes_and_filters_unsupported(self) -> None:
+        feed, client = _make_feed([])  # constructed for ["NVDA"]
+        feed._active_client = client
+
+        changed = feed.update_symbols(["BRK-B", "BF-B", "CTA-PA"])
+
+        assert changed is True
+        assert feed._canonical_symbol_set == {"BRK-B", "BF-B"}
+        assert feed._symbols == ["BRK.B", "BF.B"]
+        assert feed._provider_to_canonical == {
+            "BRK.B": "BRK-B",
+            "BF.B": "BF-B",
+        }
+        assert feed.telemetry.snapshot()["symbols_filtered"] == {
+            "unsupported_symbol": 1,
+        }

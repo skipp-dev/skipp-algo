@@ -1,7 +1,7 @@
-"""Realtime signal engine — FMP-polling breakout detector with A0/A1/A2 alerting.
+"""Realtime signal engine — source-pluggable breakout detector with A0/A1/A2 alerting.
 
-Monitors top-N ranked candidates from the latest open_prep run, polls FMP
-at a configurable interval (default 20 s), and detects breakout signals.
+Monitors top-N ranked candidates from the latest open_prep run and detects
+breakout signals every 20 s. Databento is the default; FMP is fallback/rollback.
 
 Signal Levels
 -------------
@@ -2215,7 +2215,7 @@ class RealtimeSignal:
 
 
 class RealtimeEngine:
-    """FMP-polling breakout detection engine."""
+    """Source-pluggable realtime breakout detection engine."""
 
     def __init__(
         self,
@@ -2353,7 +2353,7 @@ class RealtimeEngine:
                 "Failed to build quote source (RT_QUOTE_SOURCE=%s): %s -- "
                 "will retry via the _fetch_realtime_quotes self-heal once "
                 "the watchlist is non-empty.",
-                os.environ.get("RT_QUOTE_SOURCE", "fmp"), exc, exc_info=True,
+                os.environ.get("RT_QUOTE_SOURCE", "databento"), exc, exc_info=True,
             )
             self._quote_source = None
         self._restore_signals_from_disk()
@@ -2463,7 +2463,7 @@ class RealtimeEngine:
                 return
         try:
             # -- Build full universe: ranked + overflow -------------------
-            ranked_v2 = data.get("ranked_v2") or []
+            ranked_v2 = _active_snapshot_rows(data, "ranked_v2")
             seen: set[str] = set()
             full: list[dict[str, Any]] = []
             for r in ranked_v2:
@@ -2473,7 +2473,7 @@ class RealtimeEngine:
                     full.append(r)
 
             # Recover scored-but-below-cutoff entries from filtered_out_v2
-            for r in (data.get("filtered_out_v2") or []):
+            for r in _active_snapshot_rows(data, "filtered_out_v2"):
                 reasons = r.get("filter_reasons") or []
                 if "below_top_n_cutoff" not in reasons:
                     continue  # truly filtered out — skip
@@ -2483,7 +2483,7 @@ class RealtimeEngine:
                     full.append(r)
 
             # Also include any symbols from enriched_quotes not yet covered
-            for q in (data.get("enriched_quotes") or []):
+            for q in _active_snapshot_rows(data, "enriched_quotes"):
                 sym = str(q.get("symbol", "")).strip().upper()
                 if sym and sym not in seen:
                     seen.add(sym)
@@ -2680,6 +2680,11 @@ class RealtimeEngine:
         reload_reference = getattr(getattr(self, "_quote_source", None), "reload_reference", None)
         if callable(reload_reference):
             reload_reference()
+        elif isinstance(self._quote_source, FMPQuoteSource) and _selected_quote_source() == "databento":
+            recovered_source = self._default_quote_source()
+            if isinstance(recovered_source, DatabentoQuoteSource):
+                self._quote_source = recovered_source
+                self.start_quote_source()
 
     def start_async_newsstack(self, poll_interval: float = 15.0) -> None:
         """Start the background newsstack poller (call once at startup)."""
@@ -2695,11 +2700,11 @@ class RealtimeEngine:
     # Fetch current quotes for watched symbols
     # ------------------------------------------------------------------
     def _fetch_realtime_quotes(self) -> dict[str, dict[str, Any]]:
-        """Fetch current quotes for all watched symbols via FMP stable batch quote.
+        """Fetch current quotes for all watched symbols via the active source.
 
-        For large watchlists, symbols are processed in URL-safe chunks of
-        ``_BATCH_QUOTE_CHUNK_SIZE``.  The production 200-symbol watchlist uses
-        one provider request per poll.
+        Databento is primary. Its source reads the live cache; explicit or
+        fallback FMP mode retains URL-safe batch chunking internally.
+        The returned quote-row contract remains provider-neutral.
         """
         if _client_disabled_for_selected_quote_source(self):
             return {}
@@ -2743,14 +2748,26 @@ class RealtimeEngine:
     def _default_quote_source(self) -> QuoteSource:
         """Build the engine's quote source per ``RT_QUOTE_SOURCE``.
 
-        Single factory shared by ``__init__`` and the
-        ``_fetch_realtime_quotes`` self-heal above so the two always agree
-        -- this is what makes ``RT_QUOTE_SOURCE=databento`` actually take
-        effect (Task 1.1 left the self-heal always rebuilding FMP,
-        regardless of the flag; this factory is the fix).
+        Databento is the default; FMP is only an explicit rollback or an
+        observable fallback when Databento cannot be constructed. This single
+        factory is shared by ``__init__`` and the ``_fetch_realtime_quotes``
+        self-heal so both paths make the same source decision.
         """
-        if os.environ.get("RT_QUOTE_SOURCE") == "databento":
-            return self._build_databento_quote_source()
+        if _selected_quote_source() == "databento":
+            try:
+                source = self._build_databento_quote_source()
+            except Exception as exc:
+                logger.warning(
+                    "Databento quote source unavailable; falling back to FMP (%s)",
+                    type(exc).__name__,
+                    exc_info=True,
+                )
+                self._databento_feed = None
+                self._quote_source_fallback_reason = type(exc).__name__
+                return FMPQuoteSource(lambda: self.client)
+            self._quote_source_fallback_reason = ""
+            return source
+        self._quote_source_fallback_reason = "explicit_fmp"
         return FMPQuoteSource(lambda: self.client)
 
     def _build_databento_quote_source(self) -> DatabentoQuoteSource:
@@ -2760,12 +2777,12 @@ class RealtimeEngine:
         ``QuoteReference`` (Task 0.2) for ``previousClose``/``avgVolume``.
 
         Local imports (``databento``, ``DatabentoQuoteFeed``,
-        ``QuoteReference``) keep the FMP default path free of any Databento
-        import cost -- they only execute when this branch is actually taken.
+        ``QuoteReference``) keep explicit FMP rollback and Databento-startup
+        fallback paths independent from the live-feed implementation.
         """
         import databento as db
 
-        from .databento_quote_feed import DatabentoQuoteFeed
+        from .databento_quote_feed import DatabentoQuoteFeed, resolve_current_symbol_support
         from .quote_reference import QuoteReference
 
         symbols = [
@@ -2789,9 +2806,16 @@ class RealtimeEngine:
             symbols,
             lambda: db.Live(key=api_key),
             replay_start=replay_start,
+            symbol_support_resolver=lambda provider_symbols: resolve_current_symbol_support(
+                api_key,
+                provider_symbols,
+                session_date=now_et.date(),
+            ),
         )
         _refresh_quote_reference_from_url()  # fetch today's reference (no-op if URL unset / on error -> last-good)
         reference = QuoteReference.load()
+        if len(reference) == 0:
+            raise RuntimeError("Databento quote reference is empty")
         self._databento_feed = feed
         return DatabentoQuoteSource(feed, reference)
 
@@ -2800,7 +2824,7 @@ class RealtimeEngine:
         run-loop start -- see ``main()`` -- and again from the
         ``_fetch_realtime_quotes`` self-heal after a rebuild, since that
         rebuild produces a freshly-constructed, unstarted feed). No-op for
-        the FMP default: no feed is constructed, so there is nothing to
+        explicit FMP mode: no feed is constructed, so there is nothing to
         start. ``getattr`` (not ``self._databento_feed`` directly) so this
         stays safe on engines built via ``RealtimeEngine.__new__()``
         (bypassing ``__init__``, e.g. in some tests) that never set the
@@ -2811,7 +2835,7 @@ class RealtimeEngine:
 
     def stop_quote_source(self) -> None:
         """Stop the Databento feed's background threads (call on shutdown
-        -- see ``main()``). No-op for the FMP default. Same ``getattr``
+        -- see ``main()``). No-op for explicit FMP mode. Same ``getattr``
         safety as ``start_quote_source()``."""
         feed = getattr(self, "_databento_feed", None)
         if feed is not None:
@@ -4129,7 +4153,7 @@ def main() -> None:
     )
 
     # Start the Databento feed's background threads now that the run loop is
-    # actually beginning (Task 2.1). No-op for the FMP default -- no feed was
+    # actually beginning (Task 2.1). No-op for explicit/fallback FMP -- no feed was
     # constructed, so there is nothing to start.
     engine.start_quote_source()
 
@@ -4176,8 +4200,9 @@ def main() -> None:
     if a0_parity_dir:
         try:
             from open_prep.a0_parity_store import A0ParityJournal, parity_source_from_env
-            a0_parity_journal = A0ParityJournal(a0_parity_dir, source=parity_source_from_env())
-            logger.info("A0 parity journal enabled (RT_A0_PARITY_LOG_DIR, source=%s)", parity_source_from_env())
+            parity_source = "fmp" if isinstance(engine._quote_source, FMPQuoteSource) else parity_source_from_env()
+            a0_parity_journal = A0ParityJournal(a0_parity_dir, source=parity_source)
+            logger.info("A0 parity journal enabled (RT_A0_PARITY_LOG_DIR, source=%s)", parity_source)
         except Exception:
             logger.warning("FMP A0 parity journal init failed", exc_info=True)
 
@@ -4279,7 +4304,7 @@ def main() -> None:
             if engine._near_a0_repoller is not None:
                 engine._near_a0_repoller.stop()
             # Stop the Databento feed's background threads gracefully
-            # (no-op for the FMP default)
+            # (no-op for explicit/fallback FMP)
             engine.stop_quote_source()
             # Shutdown telemetry HTTP server
             if telemetry_server is not None:
@@ -4622,16 +4647,20 @@ def _quote_reference_snapshot_url() -> str:
 
 def _client_disabled_for_selected_quote_source(engine: Any) -> bool:
     """Only the FMP quote source is disabled by an unavailable FMP client."""
-    return bool(getattr(engine, "_client_disabled_reason", None)) and os.getenv(
-        "RT_QUOTE_SOURCE",
-    ) != "databento"
+    source = getattr(engine, "_quote_source", None)
+    fmp_active = isinstance(source, FMPQuoteSource) or (
+        source is None and _selected_quote_source() == "fmp"
+    )
+    return bool(getattr(engine, "_client_disabled_reason", None)) and fmp_active
 
 
 def _quote_source_readiness_reason(engine: Any) -> str:
     """Return why the selected Databento source is not runtime-ready."""
-    if engine is None or os.getenv("RT_QUOTE_SOURCE") != "databento":
+    if engine is None:
         return ""
     source = getattr(engine, "_quote_source", None)
+    if isinstance(source, FMPQuoteSource) or _selected_quote_source() == "fmp":
+        return ""
     if not isinstance(source, DatabentoQuoteSource):
         return "databento quote source not initialised"
     reference = getattr(source, "_reference", None)
@@ -4647,6 +4676,55 @@ def _quote_source_readiness_reason(engine: Any) -> str:
     if _market_session() == "regular" and int(feed_state.get("records_received") or 0) < 1:
         return "databento feed has no regular-session records"
     return ""
+
+
+def _selected_quote_source() -> str:
+    """Resolve the desired source: Databento by default, FMP by opt-in."""
+    configured = os.getenv("RT_QUOTE_SOURCE", "databento").strip().lower()
+    if configured == "fmp":
+        return "fmp"
+    if configured not in {"", "databento"}:
+        logger.warning(
+            "Unsupported RT_QUOTE_SOURCE=%r; using the Databento default",
+            configured,
+        )
+    return "databento"
+
+
+def _active_snapshot_rows(
+    data: dict[str, Any],
+    key: str,
+    *,
+    max_stale_age_seconds: float = 7 * 24 * 60 * 60,
+) -> list[dict[str, Any]]:
+    """Keep inactive/stale quote evidence out of the realtime watchlist.
+
+    The producer now removes these rows before publishing, but the consumer
+    repeats the guard so a rollout cannot revive ``DAY`` from an older
+    already-published snapshot.
+    """
+    snapshot_epoch = _extract_snapshot_epoch(data) or time.time()
+    excluded: set[str] = set()
+    for quote in data.get("enriched_quotes") or []:
+        symbol = str(quote.get("symbol") or "").strip().upper()
+        quote_epoch = _safe_float(quote.get("timestamp"), 0.0)
+        if quote_epoch >= 1_000_000_000_000:
+            quote_epoch /= 1000.0
+        explicitly_inactive = quote.get("isActivelyTrading") is False
+        severely_stale = (
+            str(quote.get("gap_reason") or "") == "stale_prior_session_quote"
+            and quote_epoch > 0
+            and snapshot_epoch - quote_epoch >= max_stale_age_seconds
+        )
+        if symbol and (explicitly_inactive or severely_stale):
+            excluded.add(symbol)
+    if excluded and key == "ranked_v2":
+        logger.warning("Excluded inactive realtime-watchlist symbols: %s", sorted(excluded))
+    return [
+        row
+        for row in (data.get(key) or [])
+        if str(row.get("symbol") or "").strip().upper() not in excluded
+    ]
 
 
 if __name__ == "__main__":

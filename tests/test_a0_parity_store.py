@@ -204,19 +204,18 @@ def test_loader_fails_closed_on_truncated_jsonl(tmp_path: Path) -> None:
         load_shadow_decisions([path])
 
 
-def test_parity_source_defaults_to_fmp(monkeypatch):
+def test_parity_source_defaults_to_databento(monkeypatch):
     monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
-    assert parity_source_from_env() == "fmp"
+    assert parity_source_from_env() == "databento"
 
 
-def test_parity_source_is_databento_only_when_flagged(monkeypatch):
+def test_parity_source_uses_fmp_only_when_explicitly_selected(monkeypatch):
     monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
     assert parity_source_from_env() == "databento"
-    # any other value (incl. the FMP default) stays "fmp"
     monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
     assert parity_source_from_env() == "fmp"
     monkeypatch.setenv("RT_QUOTE_SOURCE", "something-else")
-    assert parity_source_from_env() == "fmp"
+    assert parity_source_from_env() == "databento"
 
 
 def test_parity_source_labels_journal_that_report_a0_parity_accepts(tmp_path, monkeypatch):

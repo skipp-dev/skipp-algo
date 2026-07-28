@@ -547,6 +547,38 @@ def test_load_watchlist_fresh_boot_empty_snapshot_stays_empty(monkeypatch, tmp_p
     assert engine.watchlist_load_success == 0.0
 
 
+def test_load_watchlist_excludes_long_delisted_dayforce_snapshot(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    engine = _isolated_engine(monkeypatch, tmp_path)
+    snapshot = {
+        "ranked_v2": [{"symbol": "DAY"}, {"symbol": "AAPL"}],
+        "filtered_out_v2": [],
+        "enriched_quotes": [
+            {
+                "symbol": "DAY",
+                "timestamp": 1_770_152_402,
+                "gap_reason": "stale_prior_session_quote",
+                "premarket_stale": True,
+            },
+            {
+                "symbol": "AAPL",
+                "timestamp": 1_785_247_200,
+                "gap_reason": "ok",
+            },
+        ],
+        "run_datetime_utc": "2026-07-28T14:30:00+00:00",
+        "diff": {},
+    }
+    monkeypatch.setenv("OPEN_PREP_SNAPSHOT_URL", "https://example.test/snapshot.json")
+    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: snapshot)
+
+    engine._load_watchlist()
+
+    assert [row["symbol"] for row in engine._watchlist] == ["AAPL"]
+
+
 def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
     """Snapshots never carry a top-level ``generated_at`` (only the diff
     sub-object does); without the ``run_datetime_utc`` fallback the age

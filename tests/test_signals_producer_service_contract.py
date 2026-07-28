@@ -261,10 +261,10 @@ def test_signals_producer_httpx_pin_matches_root_requirements() -> None:
 
 
 def test_signals_producer_databento_pin_matches_root_requirements() -> None:
-    # The producer must ship the databento SDK so RT_QUOTE_SOURCE=databento
-    # (the shadow/cutover quote path) can import it; it was latent-missing until
-    # the shadow deploy surfaced ModuleNotFoundError. Keep the pin aligned with
-    # root so the shadow and root builds resolve the same version.
+    # The producer must ship the Databento SDK for its default quote path.
+    # A prior shadow deploy exposed the missing image dependency as
+    # ModuleNotFoundError. Keep the service and root pins aligned so both
+    # builds resolve the same version.
     root_requirements = _REPO_ROOT / "requirements.txt"
     service_requirements = _SERVICE_DIR / "requirements.txt"
 

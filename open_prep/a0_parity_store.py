@@ -26,7 +26,7 @@ def parity_source_from_env() -> str:
     ``expected_source="databento"``). A hardcoded ``fmp`` made a databento
     producer mislabel its journal and collide with the real FMP one.
     """
-    return "databento" if os.environ.get("RT_QUOTE_SOURCE") == "databento" else "fmp"
+    return "fmp" if os.environ.get("RT_QUOTE_SOURCE", "").strip().lower() == "fmp" else "databento"
 
 
 def shadow_decision_row(
