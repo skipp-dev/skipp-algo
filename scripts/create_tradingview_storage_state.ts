@@ -12,6 +12,8 @@ import {
   launchTradingViewPersistentContext,
   resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
+  revealEmailLoginField,
+  TV_LOGIN_IDENTIFIER_SELECTOR,
 } from "../automation/tradingview/lib/tv_shared.js";
 
 /**
@@ -255,10 +257,17 @@ async function attemptAutomatedLogin(
   console.log("Attempting automated login with TV_USERNAME / TV_PASSWORD ...");
   try {
     // ── email / username field ───────────────────────────────────────
-    const emailField = page.locator(
-      'input[name="id_username"], input[name="username"], input[type="email"], ' +
-      'input[placeholder*="email" i], input[placeholder*="username" i]',
-    ).first();
+    // TradingView creates this input only after the "Email" chooser is clicked,
+    // so reveal it FIRST. Waiting on it up front (as this did until 2026-07-28)
+    // always burns the timeout and drops the run into the interactive branch.
+    if (!(await revealEmailLoginField(page))) {
+      console.warn(
+        "Sign-in page exposed no e-mail/username field (chooser missing or "
+        + "social-only login) — automated login cannot proceed.",
+      );
+      return;
+    }
+    const emailField = page.locator(TV_LOGIN_IDENTIFIER_SELECTOR).first();
     await emailField.waitFor({ state: "visible", timeout: 10_000 });
     await emailField.fill(cli.username);
 

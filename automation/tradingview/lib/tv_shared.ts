@@ -461,6 +461,61 @@ export function isLegendTruncatedMatch(legendText: string, scriptName: string): 
   return true;
 }
 
+// TradingView's sign-in page renders social buttons + an "Email" chooser and
+// creates the identifier input only once that chooser is clicked. Probed live
+// 2026-07-28: 0 matching inputs on load, buttons ["Show more options", "Email"],
+// input visible immediately after the click.
+export const TV_LOGIN_IDENTIFIER_SELECTOR =
+  'input[name="id_username"], input[name="username"], input[type="email"], '
+  + 'input[placeholder*="email" i], input[placeholder*="username" i]';
+
+const TV_LOGIN_EMAIL_CHOOSER_SELECTOR =
+  'button:has-text("Email"), span[role="button"]:has-text("Email"), '
+  + 'div[role="button"]:has-text("Email")';
+
+/**
+ * Make the e-mail/username field available for an automated login.
+ *
+ * Returns true when the identifier input is visible afterwards. Callers must
+ * NOT wait on the input first: until 2026-07-28 the headless-login fallback did
+ * exactly that, burned its 10 s timeout on an element TradingView had not
+ * created yet, and fell through to the interactive branch — which on CI can
+ * only time out. Reveal first, then fill.
+ */
+export async function revealEmailLoginField(
+  page: Page,
+  revealTimeoutMs = 5_000,
+): Promise<boolean> {
+  const identifier = page.locator(TV_LOGIN_IDENTIFIER_SELECTOR).first();
+  if (await identifier.isVisible().catch(() => false)) {
+    return true;
+  }
+
+  const chooser = page.locator(TV_LOGIN_EMAIL_CHOOSER_SELECTOR).first();
+  if (await chooser.isVisible().catch(() => false)) {
+    await chooser.click({ timeout: revealTimeoutMs }).catch(() => undefined);
+    try {
+      await identifier.waitFor({ state: "visible", timeout: revealTimeoutMs });
+      return true;
+    } catch {
+      // fall through to the "more options" retry below
+    }
+  }
+
+  // Some layouts hide the e-mail chooser behind "Show more options".
+  const moreOptions = page
+    .locator('button:has-text("Show more options"), button:has-text("More options")')
+    .first();
+  if (await moreOptions.isVisible().catch(() => false)) {
+    await moreOptions.click({ timeout: revealTimeoutMs }).catch(() => undefined);
+    if (await chooser.isVisible().catch(() => false)) {
+      await chooser.click({ timeout: revealTimeoutMs }).catch(() => undefined);
+    }
+  }
+
+  return await identifier.isVisible().catch(() => false);
+}
+
 export function validateTradingViewStorageState(storageStatePath: string): void {
   if (boolEnv("TV_SKIP_AUTH_STATE_VALIDATION", false)) {
     console.error("[tv-auth] WARNING: TV_SKIP_AUTH_STATE_VALIDATION=1 is set. Storage state validation is bypassed.");
