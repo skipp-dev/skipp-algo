@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -25,6 +26,17 @@ from scripts.smc_atomic_write import atomic_write_text
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 HOLD_MANAGER_SOURCE: Final = ROOT / "SMC_Hold_Manager.pine"
+# Frozen micro-profiles pin for every R2.4 source hash in this repo.  The
+# canonical's import is rewritten by ``smc-library-refresh`` three times per
+# trading day, while none of the R2.4 artifacts (repository preflight,
+# generated harness, TradingView evidence) depends on the library's contents.
+# Hashing the pin-frozen source keeps those artifacts stable across
+# republishes; every real canonical edit still fails closed.  175 is the
+# version the recorded TradingView evidence was captured against.
+HARNESS_LIBRARY_PIN: Final = 175
+_LIBRARY_PIN_RE: Final = re.compile(
+    r"(import preuss_steffen/smc_micro_profiles_generated/)\d+"
+)
 DEFAULT_OUTPUT: Final = (
     ROOT
     / "artifacts"
@@ -1129,10 +1141,22 @@ CASE_BUILDERS: Final[tuple[Callable[[], CaseResult], ...]] = (
 )
 
 
+def freeze_library_pin(source: str) -> str:
+    """Return ``source`` with the micro-profiles import at the frozen pin.
+
+    See ``HARNESS_LIBRARY_PIN``: automated library republishes must not churn
+    the R2.4 evidence chain, because none of it reads a library field.
+    """
+
+    return _LIBRARY_PIN_RE.sub(rf"\g<1>{HARNESS_LIBRARY_PIN}", source)
+
+
 def build_replay_preflight() -> dict[str, object]:
     """Return the stable, fail-closed R2.4 repository evidence payload."""
 
-    source_bytes = HOLD_MANAGER_SOURCE.read_bytes()
+    source_bytes = freeze_library_pin(
+        HOLD_MANAGER_SOURCE.read_text(encoding="utf-8")
+    ).encode()
     cases = []
     for builder in CASE_BUILDERS:
         result = asdict(builder())

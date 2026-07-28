@@ -26,7 +26,7 @@ The four newly-added files (commit 68e1aac0) are:
   micro-profiles library is a per-symbol snapshot, not the per-bar structure
   series the renderer needs, so the old ``mp.BOS_BULL`` / ``mp.ACTIVE_RESISTANCE``
   fields never existed and never compiled.
-- SMC_Hold_Manager.pine      — imports ``skippALGO/smc_micro_profiles_generated/1`` (different namespace, not auto-pinned).
+- SMC_Hold_Manager.pine      — 2026-07-28: no longer the old ``skippALGO`` namespace; it imports ``preuss_steffen/smc_micro_profiles_generated`` and IS auto-pinned + in EXPECTED_CONSUMERS.
 - SMC_Exit_Signal.pine       — pure BUS consumer, no library import.
 - SMC_Volume_Profile_Overlay.pine      — visual-only, no library import.
 

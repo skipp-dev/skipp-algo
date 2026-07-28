@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from pathlib import Path
 
+import scripts.smc_hold_manager_replay as replay_module
 from scripts.smc_hold_manager_replay import (
     CASE_BUILDERS,
     DEFAULT_OUTPUT,
+    HARNESS_LIBRARY_PIN,
     build_replay_preflight,
+    freeze_library_pin,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +111,61 @@ def test_preflight_artifact_is_current_and_source_pinned() -> None:
     assert actual == expected
     assert actual["source"]["path"] == "SMC_Hold_Manager.pine"
     assert len(actual["source"]["sha256"]) == 64
+
+
+def test_library_republish_does_not_move_the_preflight_source_hash() -> None:
+    """A refresh-only pin bump must not restate the pinned repository evidence.
+
+    ``smc-library-refresh`` rewrites the canonical micro-profiles import three
+    times per trading day and cannot regenerate these governance artifacts.
+    Since none of the R2.4 evidence depends on the library's contents, the pin
+    is frozen before hashing — anything else in the canonical still fails
+    closed via ``test_preflight_artifact_is_current_and_source_pinned``.
+    """
+
+    baseline = build_replay_preflight()["source"]["sha256"]
+    source = replay_module.HOLD_MANAGER_SOURCE.read_text(encoding="utf-8")
+    canonical_pin = re.search(
+        r"import preuss_steffen/smc_micro_profiles_generated/(\d+)", source
+    )
+    assert canonical_pin is not None, (
+        "Canonical no longer imports the generated micro-profiles library — "
+        "the decoupling premise changed, re-read HARNESS_LIBRARY_PIN."
+    )
+    republished = source.replace(
+        f"smc_micro_profiles_generated/{canonical_pin.group(1)}",
+        f"smc_micro_profiles_generated/{int(canonical_pin.group(1)) + 99}",
+    )
+    assert republished != source
+
+    assert (
+        hashlib.sha256(freeze_library_pin(republished).encode()).hexdigest()
+        == baseline
+    )
+    assert (
+        hashlib.sha256(freeze_library_pin(source).encode()).hexdigest()
+        == baseline
+    )
+
+
+def test_freeze_library_pin_touches_only_the_micro_profiles_import() -> None:
+    source = replay_module.HOLD_MANAGER_SOURCE.read_text(encoding="utf-8")
+    frozen = freeze_library_pin(source)
+
+    assert (
+        f"import preuss_steffen/smc_micro_profiles_generated/"
+        f"{HARNESS_LIBRARY_PIN} as mp" in frozen
+    )
+    assert len(frozen.splitlines()) == len(source.splitlines())
+    assert [
+        line
+        for line in frozen.splitlines()
+        if "smc_micro_profiles_generated" not in line
+    ] == [
+        line
+        for line in source.splitlines()
+        if "smc_micro_profiles_generated" not in line
+    ]
 
 
 def test_tradingview_preconditions_are_bounded_and_source_pinned() -> None:
