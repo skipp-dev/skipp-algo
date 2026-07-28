@@ -364,6 +364,28 @@ def test_validate_data_quality_overbought_rsi_flagged() -> None:
     assert "rsi_extreme" in res.issues
 
 
+def test_validate_data_quality_rsi14_production_key_flagged() -> None:
+    # PRODUCTION shape: the open_prep quote carries "rsi14" (RSI(14) producer),
+    # NOT bare "rsi". Before 2026-07-28 this read only bare "rsi" and defaulted
+    # to 50.0, so the rsi_extreme gate was dead on every real quote. It must now
+    # fire off rsi14 too (mirrors scorer.filter_candidate).
+    for extreme in (0.05, 99.95):
+        res = validate_data_quality({
+            "price": 100.0, "volume": 1_000_000.0, "avg_volume": 1_000_000.0,
+            "rsi14": extreme,  # no bare "rsi" key at all
+        })
+        assert "rsi_extreme" in res.issues, f"rsi14={extreme} should flag rsi_extreme"
+
+
+def test_validate_data_quality_rsi14_normal_not_flagged() -> None:
+    # A healthy rsi14 must not over-fire the gate.
+    res = validate_data_quality({
+        "price": 100.0, "volume": 1_000_000.0, "avg_volume": 1_000_000.0,
+        "atr": 1.5, "rsi14": 55.0,
+    })
+    assert "rsi_extreme" not in res.issues
+
+
 def test_validate_data_quality_zero_avg_volume_not_masked_by_alias() -> None:
     # Falsy-`or` regression: a legitimate avg_volume of 0.0 must still flag
     # avg_volume_zero even when a nonzero `avgVolume` alias key is present.

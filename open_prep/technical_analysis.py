@@ -578,7 +578,7 @@ def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
     price = _safe_float(candidate.get("price"))
     volume = _safe_float(candidate.get("volume"))
     avg_volume = _safe_float(_coalesce(candidate.get("avg_volume"), candidate.get("avgVolume")))
-    rsi = _safe_float(candidate.get("rsi"), default=50.0)
+    rsi = _safe_float(_coalesce(candidate.get("rsi"), candidate.get("rsi14")), default=50.0)  # 2026-07-28: read rsi14 too (producer sets rsi14, not bare rsi) — mirrors scorer.filter_candidate
     momentum_z = _safe_float(_coalesce(candidate.get("momentum_z_score"), candidate.get("momentum_z")))
     rel_vol = _safe_float(_coalesce(candidate.get("volume_ratio"), candidate.get("rel_vol")))
 
@@ -1414,6 +1414,11 @@ def compute_trend_state_features(
 # gap: scorer.filter_candidate and validate_data_quality have consumed
 # quote["rsi"]/["rsi14"] since their introduction, but no producer ever set
 # either key on the open_prep path — the warn-only gate could not fire.
+#
+# 2026-07-28: this coverage claim was incomplete. The producer + scorer.
+# filter_candidate were wired, but validate_data_quality still read bare
+# "rsi" only (never rsi14), so its own rsi_extreme gate stayed dead. Now
+# reads rsi14 too (mirrors scorer.filter_candidate) — see line ~581.
 
 
 def rsi14_from_closes(closes: list[float], period: int = 14) -> float | None:
