@@ -118,7 +118,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 1108, "unlink"),  # 2026-07-27 (G3 ab-arm-labels: --ab-arm-labels flag + main block above): 1087->1108
+    ("open_prep/outcome_backfill.py", 1110, "unlink"),  # 2026-07-28 (ATR barrier guard import/fallback): 1108->1110
     ("open_prep/outcomes.py", 222, "unlink"),  # 2026-07-23 (A1 horizons: module docstring above): 218->222
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -160,14 +160,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3134, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 3132->3134
-    ("open_prep/run_open_prep.py", 3550, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 3534->3550
+    ("open_prep/run_open_prep.py", 3161, "unlink"),  # 2026-07-28 (split-aware ATR fetch): 3134->3161
+    ("open_prep/run_open_prep.py", 3601, "unlink"),  # 2026-07-28 (split-aware ATR fetch/quality): 3550->3601
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5695, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 5678->5695
+    ("open_prep/run_open_prep.py", 5753, "unlink"),  # 2026-07-28 (split-aware ATR fetch/quality): 5695->5753
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6042, "unlink"),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 6025->6042
+    ("open_prep/run_open_prep.py", 6100, "unlink"),  # 2026-07-28 (split-aware ATR fetch/quality): 6042->6100
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 80, "unlink"),  # 2026-07-27 (docstring persistence note above): 74->80
     ("smc_core/benchmark.py", 39, "unlink"),

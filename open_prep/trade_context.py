@@ -43,7 +43,9 @@ def trade_context(
     ``atr_pct`` is a percentage (2.5 == 2.5%), the scale the realtime engine
     carries on its signals. Values are rounded to cents for display.
     """
-    if not (price > 0.0 and atr_pct > 0.0):
+    from .atr_quality import actionable_atr_pct
+    safe_atr_pct = actionable_atr_pct(atr_pct)
+    if not (price > 0.0 and safe_atr_pct is not None):
         return None
     direction_key = str(direction or "").upper()
     if direction_key in _BULLISH:
@@ -54,7 +56,7 @@ def trade_context(
         return None
     stop_mult = _env_mult("RT_TRADE_STOP_ATR_MULT", _DEFAULT_STOP_ATR_MULT)
     target_mult = _env_mult("RT_TRADE_TARGET_ATR_MULT", _DEFAULT_TARGET_ATR_MULT)
-    atr_abs = price * (atr_pct / 100.0)
+    atr_abs = price * (safe_atr_pct / 100.0)
     return {
         "trade_entry": round(price, 2),
         "trade_stop": round(price - sign * stop_mult * atr_abs, 2),

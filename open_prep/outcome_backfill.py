@@ -416,8 +416,10 @@ def compute_pnl_from_bars(
     label_tb = None
     tb_barrier_source = None
     if primary_exit_mask is not None:
-        if atr_pct is not None and math.isfinite(atr_pct) and atr_pct > 0:
-            target_pct, stop_pct = atr_pct, 0.5 * atr_pct
+        from .atr_quality import actionable_atr_pct
+        safe_atr_pct = actionable_atr_pct(atr_pct)
+        if safe_atr_pct is not None:
+            target_pct, stop_pct = safe_atr_pct, 0.5 * safe_atr_pct
             tb_barrier_source = "atr"
         else:
             target_pct, stop_pct = 1.0, 0.5

@@ -295,8 +295,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           # quote_reference (below) fetches FMP adjusted-EOD for previous_close +
-          # ADV; without the key it exits {"error":"FMP_API_KEY missing"} and the
-          # fail-soft branch publishes the watchlist WITHOUT quote_reference.json.
+          # ADV. Without it the step refuses to publish a new snapshot, preserving
+          # the last-good explicit 15-session denominator.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           # --adv-source databento (below) replaces the FMP consolidated ADV with
           # the EQUS.MINI ohlcv-1d subset ADV. Live-verified 2026-07-28: EQUS.MINI
@@ -346,21 +346,30 @@ jobs:
           # RT_QUOTE_SOURCE=databento quote path has the two fields FMP's
           # batch-quote omits. Rides the SAME bot branch as the watchlist so a
           # fresh producer container fetches it via QUOTE_REFERENCE_SNAPSHOT_URL.
-          # Fail-soft: a build failure must NOT block the watchlist publish
-          # (published via --copy-if-present, and the producer keeps last-good).
+          # The Databento overlay stays fail-soft (last-good artifact), but the
+          # FMP 15-session reference is mandatory: publishing a new watchlist
+          # without it would silently reactivate opaque profile averageVolume.
           QUOTE_REF="artifacts/open_prep/latest/quote_reference.json"
+          FMP_QUOTE_REF="artifacts/open_prep/latest/quote_reference_fmp.json"
           if "$SMC_PYTHON_BIN" -m open_prep.quote_reference \
                --open-prep-run "$SNAPSHOT" --output "$QUOTE_REF" \
-               --adv-source databento; then
+               --fmp-output "$FMP_QUOTE_REF" --adv-source databento; then
             echo "quote_reference built OK -> ${QUOTE_REF}"
           else
-            echo "::warning::quote_reference build failed; publishing watchlist without it"
+            echo "::warning::Databento quote_reference build failed; keeping its last-good artifact"
           fi
+          if [ ! -s "$FMP_QUOTE_REF" ]; then
+            echo "::error::FMP 15-session ADV reference missing; refusing an opaque profile-ADV snapshot"
+            exit 1
+          fi
+          "$SMC_PYTHON_BIN" scripts/apply_fmp_adv_reference.py \
+            --snapshot "$SNAPSHOT" --reference "$FMP_QUOTE_REF"
           "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
             --branch bot/live-open-prep-snapshot \
             --copy "${SNAPSHOT}=${SNAPSHOT}" \
             --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}" \
-            --copy-if-present "${QUOTE_REF}=${QUOTE_REF}"
+            --copy-if-present "${QUOTE_REF}=${QUOTE_REF}" \
+            --copy-if-present "${FMP_QUOTE_REF}=${FMP_QUOTE_REF}"
 
       - name: Commit fresh outcomes via auto-merge PR
         # The repo's `main-governance` ruleset targets only ~DEFAULT_BRANCH,

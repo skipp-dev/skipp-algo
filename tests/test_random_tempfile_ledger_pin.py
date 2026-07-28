@@ -103,7 +103,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 709→708.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard in compute_pnl_from_bars → 716→721.
-    ("open_prep/outcome_backfill.py", 1100, "mkstemp"),  # 2026-07-27 (G3 ab-arm-labels: --ab-arm-labels flag + main block above): 1079->1100
+    ("open_prep/outcome_backfill.py", 1102, "mkstemp"),  # 2026-07-28 (ATR barrier guard import/fallback): 1100->1102
     ("open_prep/outcomes.py", 213, "mkstemp"),  # 2026-07-23 (A1 horizons: module docstring above): 209->213
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

@@ -128,7 +128,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 323),   # 2026-07-25 (databento-signal-migration): 322->323
         ("open_prep/realtime_signals.py", 398),   # 2026-07-25 (databento-signal-migration): 397->398
-        ("open_prep/realtime_signals.py", 2601),  # 2026-07-28 (quote_reference production): 2574->2601
+        ("open_prep/realtime_signals.py", 2602),  # 2026-07-28 (ATR sanitization import): 2601->2602
 
         # 2026-07-17: opt-in FMP A0 parity persistence shifted the unchanged
         # poll-loop throttle and error-backoff sleeps by +23 lines.

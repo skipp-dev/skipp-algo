@@ -199,7 +199,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 946),  # 2026-07-27 (G3 --ab-arm-labels flag in build_parser above): 937->946
+    ("open_prep/outcome_backfill.py", 948),  # 2026-07-28 (ATR barrier guard import/fallback): 946->948
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
@@ -210,11 +210,11 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-25 (databento-signal-migration): quote_reference CLI main() sets
     # up the root logger before its live orchestration run, same entry-point
     # pattern as the other CLI tools in this ledger.
-    ("open_prep/quote_reference.py", 602),  # 2026-07-28 (databento-native ADV): fetch/compute/apply + CLI additions 433->602
+    ("open_prep/quote_reference.py", 610),  # 2026-07-28 (FMP 15-session output CLI): 602->610
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6185),  # 2026-07-27 (rsi14 producer threaded through the ATR fetch above): 6168->6185
+    ("open_prep/run_open_prep.py", 6243),  # 2026-07-28 (split-aware ATR fetch/quality): 6185->6243
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

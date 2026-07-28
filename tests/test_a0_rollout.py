@@ -47,11 +47,11 @@ def test_shadow_and_observe_are_independent_and_budget_is_hard() -> None:
 
 
 def test_promotion_requires_every_evidence_gate_and_explicit_approval() -> None:
-    evidence = PromotionEvidence(20, 0.999, 0, 0, True, True, True, True, True)
+    evidence = PromotionEvidence(20, 1.0, 0.999, 0, 0, True, True, True, True, True)
     report = evaluate_promotion(evidence)
     assert report["passed"] is True
     assert report["requires_explicit_deployment_approval"] is True
-    failed = evaluate_promotion(PromotionEvidence(19, 1, 0, 0, True, True, True, True, True))
+    failed = evaluate_promotion(PromotionEvidence(19, 1.0, 1.0, 0, 0, True, True, True, True, True))
     assert failed["passed"] is False
 
 
