@@ -79,9 +79,9 @@ async def _lifespan(app: FastAPI):
     # 1,1,1,… — no decrease, therefore no reset detected, therefore increase()
     # and rate() were structurally 0. Measured 2026-07-23: the series read 1
     # while changes(live_overlay_process_start_time_seconds[24h]) read 51.
-    # Both facts are served truthfully elsewhere: restart COUNT by
-    # changes(process_start_time_seconds), restart CAUSE by the labeled
-    # live_overlay_daemon_start_time_seconds{cause=...} gauge below.
+    # The restart COUNT is served truthfully by changes(process_start_time_
+    # seconds). (2026-07-28: the cause-labeled start-time gauge was removed too
+    # — its env was never set and could not distinguish deploy from crash.)
 
     # Validate required env vars fail-fast at startup
     with observability.trace_span("live_overlay.daemon_lifespan"):

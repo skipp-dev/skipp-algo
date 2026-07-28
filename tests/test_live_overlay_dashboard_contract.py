@@ -720,27 +720,27 @@ def test_dashboard_success_rate_panel_description_matches_http_requests() -> Non
     assert "compute cycle" not in description.lower()
 
 
-def test_dashboard_restart_causes_panel_is_unique_and_groups_by_cause() -> None:
-    """There must be exactly one restart-cause panel and it must count restarts
-    per cause via changes() of the start-time-valued gauge.
+def test_dashboard_has_no_restart_cause_panel_or_series() -> None:
+    """The restart-cause dimension is gone (2026-07-28, B-sweep).
 
-    The old expr used increase() over the live_overlay_daemon_restart_cause_*_total
-    counters, which are reset to 1 each process and therefore never registered an
-    increase (always ~0). The fix counts start-time changes labeled by cause.
+    LIVE_OVERLAY_RESTART_CAUSE was never set in any deploy surface, so the
+    cause-labeled live_overlay_daemon_start_time_seconds gauge was the constant
+    cause="unknown" — the "Restart Causes (24h)" panel was single-valued by
+    construction (and a static env can never distinguish deploy from crash).
+    Panel, gauge, and env are removed; restart COUNTING stays on the
+    "Daemon Restarts (24h)" panel via changes() of the process start-time gauge.
     """
-    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    dashboard_text = _DASHBOARD_JSON.read_text(encoding="utf-8")
+    dashboard = json.loads(dashboard_text)
     panels = _dashboard_panels(dashboard)
-    restart_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
-    matches = [(p.get("title"), p.get("id")) for p in restart_panels]
-    assert len(restart_panels) == 1, f"expected exactly one restart-cause panel, got {matches}"
-    panel = restart_panels[0]
-    expr = panel["targets"][0]["expr"]
-    assert "sum by (cause)" in expr, expr
-    assert "changes(live_overlay_daemon_start_time_seconds" in expr, expr
-    # The inert per-cause counter must no longer drive this panel.
-    assert "restart_cause" not in expr, expr
-    assert "increase(" not in expr, expr
-    assert panel["targets"][0].get("legendFormat") == "{{cause}}"
+    restart_cause_panels = [p for p in panels if "Restart Cause" in p.get("title", "")]
+    assert not restart_cause_panels, [p.get("title") for p in restart_cause_panels]
+    assert "live_overlay_daemon_start_time_seconds" not in dashboard_text
+    # The count panel survives the removal.
+    count_panels = [p for p in panels if p.get("title") == "Daemon Restarts (24h)"]
+    assert len(count_panels) == 1
+    expr = count_panels[0]["targets"][0]["expr"]
+    assert "changes(live_overlay_process_start_time_seconds" in expr, expr
 
 
 def test_dashboard_rows_are_either_expanded_or_contain_children() -> None:

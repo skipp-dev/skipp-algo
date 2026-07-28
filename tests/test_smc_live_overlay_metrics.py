@@ -2741,10 +2741,10 @@ def test_inert_restart_counters_are_no_longer_emitted(
     structurally 0. Measured in production 2026-07-23: the series read 1 while
     changes(live_overlay_process_start_time_seconds[24h]) read 51.
 
-    Both facts are served truthfully elsewhere (restart count via
-    changes(process_start_time_seconds), cause via the labeled start-time gauge
-    pinned in the next test), so these two are removed rather than documented
-    around for a third time.
+    The restart count is served truthfully via
+    changes(process_start_time_seconds), so these two are removed rather than
+    documented around for a third time. (2026-07-28: the cause-labeled
+    start-time gauge is gone as well — see the next test.)
     """
     import services.live_overlay_daemon.main as main_mod
     import services.live_overlay_daemon.metrics as metrics_mod
@@ -2764,19 +2764,19 @@ def test_inert_restart_counters_are_no_longer_emitted(
     body = metrics_mod.render_metrics(startup_ts=100.0)
     assert "live_overlay_daemon_restarts_total" not in body
     assert "live_overlay_daemon_restart_cause_" not in body
-    # The working replacement must still be there — removing the inert pair
-    # must not take the cause attribution with it.
-    assert "live_overlay_daemon_start_time_seconds{" in body
 
 
-def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
+def test_render_metrics_emits_no_cause_labeled_start_time_gauge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Restart-cause attribution is a start-time-VALUED gauge LABELED by cause.
+    """The cause-labeled start-time gauge is gone (2026-07-28, B-sweep).
 
-    ``changes(live_overlay_daemon_start_time_seconds[window])`` grouped by cause
-    counts real restarts per cause; the old per-cause ``*_total`` counters were
-    reset to 1 each process, so ``increase()`` over them was always 0.
+    ``LIVE_OVERLAY_RESTART_CAUSE`` was never set in any deploy surface, so the
+    ``cause`` label was the constant ``unknown`` — and a statically-set env var
+    can never distinguish deploy from crash, so the documented semantics were
+    unreachable by construction. Restart counting stays truthful via
+    ``changes()`` of the unlabeled process start-time gauge, which must keep
+    being emitted.
     """
     import services.live_overlay_daemon.metrics as metrics_mod
 
@@ -2788,13 +2788,15 @@ def test_render_metrics_emits_restart_cause_as_labeled_start_time_gauge(
         overlay_symbols=5,
         overlay_age=60.0,
     )
-    monkeypatch.setattr(metrics_mod.config, "restart_cause", lambda: "deploy")
 
     body = metrics_mod.render_metrics(startup_ts=100.0, startup_epoch=1700000000.0)
-    assert "# TYPE live_overlay_daemon_start_time_seconds gauge" in body
-    assert (
-        'live_overlay_daemon_start_time_seconds{cause="deploy"} 1700000000.000' in body
-    )
+    assert "live_overlay_daemon_start_time_seconds" not in body
+    assert 'cause="' not in body
+    # The unlabeled process gauge the crash-loop alert queries stays.
+    assert "# TYPE live_overlay_process_start_time_seconds gauge" in body
+    assert "live_overlay_process_start_time_seconds 1700000000.000" in body
+    # The accessor itself is gone from config — not just unused.
+    assert not hasattr(metrics_mod.config, "restart_cause")
 
 
 def test_dashboard_all_panels_have_datasource() -> None:

@@ -1042,16 +1042,13 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
     # Start time and uptime
     lines.append(f"# TYPE {prefix}_start_time_seconds gauge")
     lines.append(f"{prefix}_start_time_seconds {startup_epoch:.3f}")
-    # Restart-cause attribution as a start-time-VALUED gauge LABELED by cause:
-    # restarts-per-cause = changes() of this series over the window. The old
-    # live_overlay_daemon_restart_cause_*_total counters were set to 1 once per
-    # process and stayed constant (Prometheus saw 1,1,1,… so increase() was
-    # always 0); start_time jumps on every restart, so changes() actually counts.
-    lines.append("# TYPE live_overlay_daemon_start_time_seconds gauge")
-    lines.append(
-        f'live_overlay_daemon_start_time_seconds{{cause="{_escape_label_value(config.restart_cause())}"}} '
-        f"{startup_epoch:.3f}"
-    )
+    # 2026-07-28 (B-sweep): the cause-labeled daemon start-time gauge was
+    # removed (name spelled out in OPS.md, not here — the metric-coverage guard
+    # regex-scans this file's source and would count a commented name as
+    # emitted). LIVE_OVERLAY_RESTART_CAUSE was never set in any deploy config,
+    # so the label was the constant "unknown" — and a statically-set env var
+    # can never distinguish deploy from crash. Restart COUNTING stays truthful
+    # via changes() of the process start-time gauge (crash-loop alert uses it).
     uptime = time.monotonic() - startup_ts if startup_ts > 0 else 0
     lines.append(f"# TYPE {prefix}_uptime_seconds gauge")
     lines.append(f"{prefix}_uptime_seconds {uptime:.1f}")
