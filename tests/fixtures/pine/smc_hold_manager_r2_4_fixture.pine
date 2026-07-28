@@ -1,5 +1,5 @@
 //@version=6
-// GENERATED FROM SMC_Hold_Manager.pine SHA256 f9a9369100b7ea25cbd2db6cf38dea0e0b00f186eb6b382e5a94397e415efdb6
+// GENERATED FROM SMC_Hold_Manager.pine SHA256 1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813
 // TEST ONLY — DO NOT PUBLISH OR USE FOR TRADING
 // ============================================================================
 //  SMC Hold-Manager v1 — pure visualization (no strategy.*, no auto-trade)
@@ -62,8 +62,8 @@ float fixture_quality = 0.8
 float fixture_source_kind = 1.0
 float fixture_state_code = 1.0
 
-bool fixture_trade_case = fixture_case == "R2.4-02" or fixture_case == "R2.4-04" or
-     fixture_case == "R2.4-06" or fixture_case == "R2.4-08" or fixture_case == "R2.4-09" or
+bool fixture_trade_case = fixture_case == "R2.4-04" or fixture_case == "R2.4-06" or
+     fixture_case == "R2.4-08" or fixture_case == "R2.4-09" or
      fixture_case == "R2.4-13" or fixture_case == "R2.4-14" or fixture_case == "R2.4-17" or
      fixture_case == "R2.4-18"
 if fixture_trade_case and fixture_step > 0
@@ -72,7 +72,21 @@ if fixture_trade_case and fixture_step > 0
     fixture_low := 101.0
     fixture_close := 104.0
 
-if fixture_case == "R2.4-02" or fixture_case == "R2.4-03"
+// R2.4-02 must remain ARMED for the complete wait window. Trigger on fixture
+// step 204 (the replay readback's confirmed step 204), then keep the following
+// bar above the Chandelier stop without raising the protected high.
+if fixture_case == "R2.4-02"
+    if fixture_step == 204
+        fixture_open := 102.0
+        fixture_high := 105.0
+        fixture_low := 99.0
+        fixture_close := 103.0
+    else if fixture_step > 204
+        fixture_open := 104.0
+        fixture_high := 105.0
+        fixture_low := 101.0
+        fixture_close := 104.0
+else if fixture_case == "R2.4-03"
     if fixture_step >= 205
         fixture_open := 102.0
         fixture_high := 105.0
@@ -287,6 +301,12 @@ plot(fixture_high, "Fixture High", display = display.none)
 plot(fixture_low, "Fixture Low", display = display.none)
 plot(fixture_close, "Fixture Close", display = display.none)
 plot(fixture_step, "Fixture Step", display = display.none)
+// TradingView keeps the newest Bar Replay bar unconfirmed. Runtime state on
+// that bar therefore represents the preceding, last-confirmed fixture step.
+// Expose both coordinates so operators never compare an unconfirmed raw step
+// with a confirmed-state expectation.
+plot(barstate.isconfirmed ? fixture_step : fixture_step - 1,
+     "Fixture Confirmed Step", display = display.none)
 plot(ctx_profile_stale ? 1 : 0, "Fixture ContextStale", display = display.none)
 plot(ctx_event_block ? 1 : 0, "Fixture EventWarning", display = display.none)
 bgcolor(fixture_started ? color.new(color.orange, 88) : na,
@@ -589,7 +609,6 @@ plot(hold.phase >= PHASE_ARMED ? hold.t2_price : na, "T2",
      color.new(color.green, 0), 1, plot.style_linebr)
 
 // Hidden reconstruction diagnostics for replay/source evidence.
-plot(ctx_profile_stale ? 1 : 0, "HM ContextStale", display = display.none)
 plot(ctx_event_block ? 1 : 0, "HM EventWarning", display = display.none)
 plot(hold.phase, "HM StateCode", display = display.none)
 plot(hold.plan_generation, "HM PlanGeneration", display = display.none)
@@ -600,6 +619,7 @@ plot(hold.t1_hit ? 1 : 0, "HM Target1State", display = display.none)
 plot(hold.terminal_exit_code, "HM TerminalExitCode", display = display.none)
 plot(hold.terminal_exit_time_ms, "HM TerminalExitEpochMs", display = display.none)
 plot(new_plan_blocked ? 1 : 0, "HM NewPlanBlocked", display = display.none)
+plot(ctx_profile_stale ? 1 : 0, "HM ContextStale", display = display.none)
 
 plotshape(entry_event, "Entry", shape.triangleup, location.belowbar,
      color.aqua, size = size.small)
@@ -642,7 +662,8 @@ if barstate.islast
          "\nRebuild: confirmed-history deterministic" +
          "\nAlerts: edge-only" +
          "  Tier: " + ctx_action_tier +
-         (ctx_profile_stale ? "\n⚠ STALE_CONTEXT" : "") +
+         (ctx_profile_stale ?
+          "\n⚠ STALE_CONTEXT — Indikator neu hinzufügen" : "") +
          (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") +
          (ctx_earnings ? "\n⚠ EARNINGS" : "")
     statusLbl := label.new(bar_index, fixture_high, txt,
@@ -701,3 +722,59 @@ plot(fixture_t2_count, "Fixture HM_T2 Count", display = display.none)
 plot(fixture_stop_count, "Fixture HM_STOP Count", display = display.none)
 plot(fixture_timestop_count, "Fixture HM_TIMESTOP Count", display = display.none)
 plot(fixture_exit_count, "Fixture HM_EXIT_ANY Count", display = display.none)
+
+// Visible fixture-only evidence interface. Hidden plots remain available for
+// machine inspection; this table makes the exact replay checkpoint readable
+// in a bounded screenshot without changing the canonical product surface.
+int fixture_confirmed_step = barstate.isconfirmed ?
+     fixture_step : fixture_step - 1
+bool fixture_readback_new_plan_blocked = barstate.isconfirmed ?
+     new_plan_blocked : new_plan_blocked[1]
+bool fixture_readback_context_stale = barstate.isconfirmed ?
+     ctx_profile_stale : ctx_profile_stale[1]
+bool fixture_readback_event_warning = barstate.isconfirmed ?
+     ctx_event_block : ctx_event_block[1]
+var table fixture_readback = table.new(
+     position.top_right, 1, 7, border_width = 1)
+if barstate.islast
+    color fixture_bg = color.new(color.black, 12)
+    table.cell(fixture_readback, 0, 0, "TEST ONLY — R2.4 READBACK (1.6)",
+         text_color = color.orange, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 1,
+         "case=" + fixture_case + " | variant=" + fixture_reset_variant +
+         " | raw_step=" + str.tostring(fixture_step) +
+         " | confirmed_step=" + str.tostring(fixture_confirmed_step) +
+         " | tf_ok=" + str.tostring(fixture_timeframe_ok),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 2,
+         "state=" + str.tostring(hold.phase) +
+         " | plan_gen=" + str.tostring(hold.plan_generation) +
+         " | plan_epoch=" + str.tostring(hold.plan_epoch_ms) +
+         " | entry_epoch=" + str.tostring(hold.entry_time_ms),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 3,
+         "stop=" + str.tostring(hold.active_stop, format.mintick) +
+         " | protected_high=" +
+         str.tostring(hold.protected_high, format.mintick) +
+         " | t1=" + str.tostring(hold.t1_hit),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 4,
+         "terminal=" + str.tostring(hold.terminal_exit_code) +
+         " | terminal_epoch=" +
+         str.tostring(hold.terminal_exit_time_ms) +
+         " | new_plan_blocked=" +
+         str.tostring(fixture_readback_new_plan_blocked),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 5,
+         "context_stale=" + str.tostring(fixture_readback_context_stale) +
+         " | event_warning=" +
+         str.tostring(fixture_readback_event_warning),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 6,
+         "ENTRY=" + str.tostring(fixture_entry_count) +
+         " | T1=" + str.tostring(fixture_t1_count) +
+         " | T2=" + str.tostring(fixture_t2_count) +
+         " | STOP=" + str.tostring(fixture_stop_count) +
+         " | TIMESTOP=" + str.tostring(fixture_timestop_count) +
+         " | EXIT=" + str.tostring(fixture_exit_count),
+         text_color = color.white, bgcolor = fixture_bg)

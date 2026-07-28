@@ -200,6 +200,12 @@ missing symbol cache entry.
 |----------|----------|---------|-------|
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Path auth for `/smc_live`; also legacy metrics auth |
+| `HOLD_MANAGER_SHADOW_ACCEPTING` | ❌ | `0` | Fail-closed kill switch for the private Hold Manager shadow receiver; leave `0` through deploy and receiver verification |
+| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | ❌ | *(unset)* | Dedicated random token, minimum 32 characters. TradingView sends it as `authToken` in the JSON body; never place it in the URL or tracked templates |
+| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | ❌ | *(unset)* | SQLite delivery ledger. Production must point to persistent storage, for example `/data/smc-hold-manager-shadow.sqlite3`; an unset path rejects requests |
+| `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | ❌ | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
+| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | ❌ | `900` | Maximum accepted TradingView bar age in seconds (range 60–86400) |
+| `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | ❌ | `120` | Maximum accepted future clock skew in seconds (range 0–3600) |
 | `PORT` | ✅ (production) | `8000` (code default), production pin `8080` | Pin explicitly in Railway for stable private host:port contracts |
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
 | `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
@@ -408,6 +414,30 @@ curl "http://localhost:8000/mysecret/metrics"
 # Overlay (replace TOKEN and symbol)
 curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 ```
+
+### Controlled Hold Manager shadow receiver
+
+The daemon contains a dedicated, source-pinned receiver for
+`R2-SHADOW-CUTOVER`:
+
+- `POST /tradingview/hold-manager-shadow` accepts only the six registered Hold
+  Manager channels and only when `HOLD_MANAGER_SHADOW_ACCEPTING=1`.
+- `GET /tradingview/hold-manager-shadow/state` returns aggregate unique,
+  attempted, and duplicate delivery counts. It requires
+  `X-Hold-Manager-Shadow-Token`.
+- The webhook token travels as `authToken` in the JSON body, not in the URL, so
+  normal access logs do not capture it. It is excluded from the SQLite row and
+  audit fields.
+- The receiver also rejects weak/unconfigured tokens, missing persistent
+  storage, stale/future timestamps, unknown fields, and any source, script,
+  layout, producer, schema, mode, or channel mismatch.
+
+The checked-in messages in
+`artifacts/governance/smc_hold_manager_shadow_alert_templates.json` contain a
+literal `<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>` placeholder. Substitute the
+secret only inside the private TradingView alert UI; do not write a rendered
+message to the repository or logs. Merely deploying this code does not start
+the shadow: the default switch is off and no alerts are created by the daemon.
 
 ---
 
@@ -771,6 +801,7 @@ Railway/UptimeRobot.
 | File | Purpose |
 |------|---------|
 | `main.py` | FastAPI app, lifespan, `/health`, `/{token}/smc_live` |
+| `hold_manager_shadow_receiver.py` | Fail-closed, source-pinned TradingView webhook receiver and persistent delivery ledger |
 | `feed.py` | `db.Live()` consumer background thread with reconnect loop |
 | `cache.py` | Thread-safe bar + overlay cache (`threading.Lock`) |
 | `compute.py` | Overlay field computation (16 fields, news/flow/squeeze/ATS/events) |

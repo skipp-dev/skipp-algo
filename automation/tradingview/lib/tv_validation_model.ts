@@ -53,6 +53,7 @@ export type LibraryReleaseConsumerRole =
   | "producer"
   | "dashboard_companion"
   | "execution_wrapper"
+  | "exit_companion"
   | "companion_operator_only"
   | "internal"
   | "legacy";
@@ -65,9 +66,13 @@ export type ProductCutContracts = {
   proOnly: string[];
   dashboardBindings: string[];
   strategyBindings: string[];
+  holdManagerBindings: string[];
 };
 
-export type ProductCutBindingContractKey = "dashboardBindings" | "strategyBindings";
+export type ProductCutBindingContractKey =
+  | "dashboardBindings"
+  | "strategyBindings"
+  | "holdManagerBindings";
 
 export type ProductCutBindingLabelGroup = {
   label: string;
@@ -605,6 +610,7 @@ export function getRequiredLibraryReleaseManifestFields(
         "proOnly",
         "dashboardBindings",
         "strategyBindings",
+        "holdManagerBindings",
       ] as const;
       for (const contract of requiredContracts) {
         if (!Array.isArray(manifest.productCut.contracts[contract])) {
@@ -615,7 +621,12 @@ export function getRequiredLibraryReleaseManifestFields(
     if (!manifest.productCut.preflightScopes || typeof manifest.productCut.preflightScopes !== "object") {
       missing.push("productCut.preflightScopes");
     } else {
-      for (const scope of ["smcCoreDashboard", "smcMainline", "smcDecisionFirst"] as const) {
+      for (const scope of [
+        "smcCoreDashboard",
+        "smcMainline",
+        "smcDecisionFirst",
+        "smcHoldManagerShadow",
+      ] as const) {
         if (!Array.isArray(manifest.productCut.preflightScopes[scope])) {
           missing.push(`productCut.preflightScopes.${scope}`);
         }

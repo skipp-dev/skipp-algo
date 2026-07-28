@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "status": "not_started",
+  "readinessStatus": "receiver_implemented_local_inactive",
+  "source": {
+    "path": "SMC_Hold_Manager.pine",
+    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813",
+    "hashMode": "micro_profile_library_pin_frozen",
+    "frozenMicroProfileLibraryPin": 175
+  },
+  "preconditions": {
+    "canonicalCompileAndBindings": "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",
+    "replayEvidence": "artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json"
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "validationLayout": "SMC Hold R2.4 Validation",
+    "savedScript": "SMC Hold Manager R2.4 Validation",
+    "producer": "SMC Long-Dip Suite",
+    "busSchema": 7001,
+    "marketTimezone": "America/New_York"
+  },
+  "receiver": {
+    "status": "implemented_local_inactive",
+    "service": "live_overlay_daemon",
+    "productionHost": "https://liveoverlaydaemon-production.up.railway.app",
+    "webhookPath": "/tradingview/hold-manager-shadow",
+    "statePath": "/tradingview/hold-manager-shadow/state",
+    "webhookAuthTransport": "json_body_authToken",
+    "stateAuthTransport": "X-Hold-Manager-Shadow-Token header",
+    "alertTemplates": "artifacts/governance/smc_hold_manager_shadow_alert_templates.json",
+    "requiresPersistentLedger": true,
+    "acceptingDefault": false,
+    "deployed": false,
+    "configured": false
+  },
+  "activationRequirements": {
+    "requiresSeparateAuthorization": true,
+    "managedSavedScriptRefresh": {
+      "required": true,
+      "savedScriptVisibility": "private",
+      "externalPublicationRequired": false,
+      "externalPublicationAllowed": false
+    },
+    "holdAlertChannels": [
+      "HM_ENTRY",
+      "HM_T1",
+      "HM_T2",
+      "HM_STOP",
+      "HM_TIMESTOP",
+      "HM_EXIT_ANY"
+    ],
+    "actionableExitMode": "hold_manager",
+    "exitSignalActionableAlertsActive": 0,
+    "strategyActionableExitAlertsActive": 0
+  },
+  "observationWindow": {
+    "selectionRule": "Record every US equity session in activation order and evaluate the first five complete XNYS sessions after activation; do not cherry-pick sessions.",
+    "minimumCompleteSessions": 5,
+    "maximumSessionsWithoutRequiredEdges": 10,
+    "requiredAggregateExpectedEdges": {
+      "HM_ENTRY": 1,
+      "HM_EXIT_ANY": 1
+    },
+    "requiredAggregateTerminalExitEdges": 1,
+    "terminalExitChannels": [
+      "HM_T2",
+      "HM_STOP",
+      "HM_TIMESTOP"
+    ]
+  },
+  "perSessionRequirements": {
+    "sourceHashMustMatch": true,
+    "layoutMustMatch": true,
+    "producerMustMatch": true,
+    "busSchemaMustMatch": true,
+    "bindingsMustPass": true,
+    "runtimeErrorCount": 0,
+    "falseExitAlertCount": 0,
+    "duplicateActionableExitAlertCount": 0,
+    "unclassifiedTransitionDifferenceCount": 0,
+    "serverDeliveryMustEqualExpectedByChannel": true,
+    "exitSignalComparisonRequired": true,
+    "strategyComparisonRequired": true,
+    "activeActionableExitModes": [
+      "hold_manager"
+    ]
+  },
+  "rollbackRequirements": {
+    "result": "passed",
+    "holdAlertsDisabledBeforeRemoval": true,
+    "exitSignalReenabledBeforeHoldDisabled": true,
+    "suiteUnchanged": true,
+    "busSchemaUnchanged": true,
+    "restoredLayoutSaved": true,
+    "restoredBindingStatus": "passed_after_reload"
+  },
+  "promotionRule": "Pass only when activation, the pre-registered observation window, server-alert delivery, transition comparison, actionable-mode exclusivity, and rollback drill all pass with no blocker.",
+  "currentState": {
+    "activation": "not_started",
+    "managedSavedScriptRefreshPerformed": true,
+    "isolatedPreflightStatus": "passed_visible_browser_fallback",
+    "isolatedPreflightEvidence": "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
+    "receiverImplemented": true,
+    "receiverDeployed": false,
+    "receiverConfigured": false,
+    "externalPublicationPerformed": false,
+    "alertsCreated": false,
+    "shadowObservationStarted": false
+  }
+}

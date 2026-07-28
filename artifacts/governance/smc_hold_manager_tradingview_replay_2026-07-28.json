@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-28T02:28:59Z",
+  "scope": "Private TradingView compile and twenty-three-run R2.4 fixture execution; not publication or TradingView server-alert delivery evidence",
+  "canonicalSource": {
+    "path": "SMC_Hold_Manager.pine",
+    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
+  },
+  "fixture": {
+    "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
+    "sha256": "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d",
+    "savedScript": "SMC Hold Manager R2.4 Fixture TEST ONLY",
+    "visibility": "private",
+    "publicationStatus": "not_published",
+    "compileStatus": "passed",
+    "compileDiagnostics": []
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Hold R2.4 Validation",
+    "symbol": "NASDAQ:BKNG",
+    "timeframesUsed": [
+      "5m",
+      "1D"
+    ],
+    "physicalRunsExecuted": 23,
+    "logicalCasesExecuted": 20,
+    "canonicalChartStateRestored": true,
+    "canonicalStateAfterRestore": {
+      "symbol": "NASDAQ:BKNG",
+      "timeframe": "5m",
+      "replayActive": false,
+      "fixtureOnChart": false,
+      "canonicalLegendObserved": "SMC Hold Manager",
+      "layoutSaved": true
+    }
+  },
+  "results": {
+    "status": "passed",
+    "passedLogicalCases": 20,
+    "failedLogicalCases": 0,
+    "passedCaseIds": [
+      "R2.4-01",
+      "R2.4-02",
+      "R2.4-03",
+      "R2.4-04",
+      "R2.4-05",
+      "R2.4-06",
+      "R2.4-07",
+      "R2.4-08",
+      "R2.4-09",
+      "R2.4-10",
+      "R2.4-11",
+      "R2.4-12",
+      "R2.4-13",
+      "R2.4-14",
+      "R2.4-15",
+      "R2.4-16",
+      "R2.4-17",
+      "R2.4-18",
+      "R2.4-19",
+      "R2.4-20"
+    ],
+    "delayedEntryCheck": {
+      "caseId": "R2.4-02",
+      "confirmedStepsChecked": [
+        204,
+        205
+      ],
+      "status": "passed",
+      "observedAtBothCheckpoints": {
+        "phase": "IN_TRADE",
+        "activeStop": 100.0,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "NONE",
+        "alertCounts": {
+          "HM_ENTRY": 1
+        }
+      }
+    },
+    "resetVariants": {
+      "caseId": "R2.4-11",
+      "variantsExecuted": [
+        "NONE",
+        "ARMED",
+        "IN_TRADE",
+        "CLOSED"
+      ],
+      "status": "passed"
+    },
+    "reloadChecks": [
+      {
+        "caseId": "R2.4-12",
+        "confirmedStep": 1,
+        "status": "passed",
+        "result": "visible state and cumulative pulse counts persisted across reload"
+      },
+      {
+        "caseId": "R2.4-13",
+        "confirmedStep": 2,
+        "status": "passed",
+        "result": "visible state and cumulative pulse counts persisted across reload"
+      }
+    ],
+    "dailyCheck": {
+      "caseId": "R2.4-20",
+      "timeframe": "1D",
+      "confirmedStep": 1,
+      "status": "passed",
+      "observed": {
+        "phase": "CLOSED",
+        "activeStop": 94.0,
+        "protectedHigh": 105.0,
+        "target1Hit": false,
+        "terminalExit": "TIME_STOP",
+        "alertCounts": {
+          "HM_ENTRY": 1,
+          "HM_TIMESTOP": 1,
+          "HM_EXIT": 1
+        }
+      }
+    },
+    "failures": []
+  },
+  "serverAlertDelivery": {
+    "status": "pending",
+    "reason": "Cumulative fixture counters prove Pine edge generation but do not prove TradingView server-side alert delivery."
+  },
+  "limitations": [
+    "The private test script is a source-derived fixture and is not the canonical product script.",
+    "Cumulative fixture counters prove Pine edge generation but not TradingView server-side alert delivery.",
+    "No script was published."
+  ]
+}

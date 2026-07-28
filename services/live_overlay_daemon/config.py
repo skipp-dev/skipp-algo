@@ -17,6 +17,9 @@ Optional vars:
   NEWS_SNAPSHOT_URL_TOKEN     — optional bearer token for NEWS_SNAPSHOT_URL (e.g. a
                                 GitHub token for the private contents API raw endpoint)
   OVERLAY_MAX_FEED_FAILURES   — circuit-breaker threshold for feed failures, default 50
+  HOLD_MANAGER_SHADOW_ACCEPTING — explicit shadow-receiver switch, default 0
+  HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN — dedicated JSON-body token, minimum 32 chars
+  HOLD_MANAGER_SHADOW_LEDGER_PATH — persistent SQLite delivery-ledger path
   PORT                        — HTTP port, default 8000
   LOG_LEVEL                   — uvicorn log level, default info
 """
@@ -892,6 +895,56 @@ def expect_market_traffic() -> bool:
     deployments do not page.
     """
     return _optional_str("LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC", "0") == "1"
+
+
+def hold_manager_shadow_webhook_token() -> str:
+    """Secret embedded in the controlled TradingView webhook URL."""
+    return _optional_str("HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN", "")
+
+
+def hold_manager_shadow_accepting() -> bool:
+    """Whether the pre-registered Hold Manager shadow receiver accepts POSTs."""
+    return _optional_str("HOLD_MANAGER_SHADOW_ACCEPTING", "0") == "1"
+
+
+def hold_manager_shadow_ledger_path() -> Path | None:
+    """Persistent SQLite ledger path, or None when deliberately unconfigured."""
+    raw = _optional_str("HOLD_MANAGER_SHADOW_LEDGER_PATH", "")
+    return Path(raw).expanduser() if raw else None
+
+
+def hold_manager_shadow_contract_path() -> Path:
+    """Path to the pre-registered R2 shadow contract."""
+    raw = _optional_str(
+        "HOLD_MANAGER_SHADOW_CONTRACT_PATH",
+        str(
+            _REPO_ROOT
+            / "artifacts"
+            / "governance"
+            / "smc_hold_manager_shadow_contract.json"
+        ),
+    )
+    return Path(raw).expanduser()
+
+
+def hold_manager_shadow_max_event_age_secs() -> int:
+    """Maximum accepted age of a TradingView bar timestamp."""
+    return _clamped_int(
+        "HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS",
+        900,
+        60,
+        86_400,
+    )
+
+
+def hold_manager_shadow_max_future_skew_secs() -> int:
+    """Maximum accepted positive clock skew of a TradingView bar timestamp."""
+    return _clamped_int(
+        "HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS",
+        120,
+        0,
+        3_600,
+    )
 
 
 # ---------------------------------------------------------------------------

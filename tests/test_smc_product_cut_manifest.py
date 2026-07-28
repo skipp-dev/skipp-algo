@@ -80,6 +80,11 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     assert _load_json('automation/tradingview/preflight-decision-first.json') == {
         'productCutScope': 'smcDecisionFirst',
     }
+    assert _load_json(
+        'automation/tradingview/preflight-hold-manager-shadow.json'
+    ) == {
+        'productCutScope': 'smcHoldManagerShadow',
+    }
 
 
 def test_product_cut_manifest_exports_validation_evidence_policy() -> None:
@@ -99,6 +104,7 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     payload = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')
     dashboard_target = payload['preflightScopes']['smcMainline'][1]
     strategy_target = payload['preflightScopes']['smcMainline'][2]
+    hold_target = payload['preflightScopes']['smcHoldManagerShadow'][1]
 
     assert dashboard_target['bindingContractKey'] == 'dashboardBindings'
     assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
@@ -110,6 +116,13 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     assert strategy_target['bindingConsumerRole'] == 'execution_wrapper'
     assert strategy_target['bindingLabelGroups'][0]['groupTitle'] == 'Entry States'
     assert strategy_target['bindingLabelGroups'][-1]['groupTitle'] == 'Trade Plan'
+    assert hold_target['bindingContractKey'] == 'holdManagerBindings'
+    assert hold_target['bindingContractName'] == 'Hold Manager BUS bindings'
+    assert hold_target['bindingConsumerRole'] == 'exit_companion'
+    assert len(hold_target['bindingContractLabels']) == 13
+    assert {
+        group['groupTitle'] for group in hold_target['bindingLabelGroups']
+    } == {'Engine BUS v2 (Expert Mapping)'}
 
 
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
@@ -137,12 +150,18 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['productCut']['internalFiles'] == product_cut['internalFiles']
     assert payload['productCut']['legacyFiles'] == product_cut['legacyFiles']
     assert payload['productCut']['contracts']['lite'] == product_cut['contracts']['lite']
-    assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
+    assert set(payload['productCut']['preflightScopes'].keys()) == {
+        'smcCoreDashboard',
+        'smcMainline',
+        'smcDecisionFirst',
+        'smcHoldManagerShadow',
+    }
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['bindingContractKey'] == 'dashboardBindings'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['bindingContractKey'] == 'strategyBindings'
+    assert payload['productCut']['preflightScopes']['smcHoldManagerShadow'][1]['bindingContractKey'] == 'holdManagerBindings'
     assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['productCut']['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert {

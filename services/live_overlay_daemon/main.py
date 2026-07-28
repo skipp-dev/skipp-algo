@@ -506,6 +506,20 @@ def _ct_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a_digest, b_digest)
 
 
+# Controlled TradingView Hold Manager shadow receiver. The route exists in the
+# daemon image but remains fail-closed until HOLD_MANAGER_SHADOW_ACCEPTING=1,
+# a strong JSON-body token, and a persistent ledger path are configured.
+try:
+    from . import hold_manager_shadow_receiver
+
+    app.include_router(hold_manager_shadow_receiver.build_router(_ct_eq))
+except ImportError as _hold_shadow_exc:  # pragma: no cover - defensive
+    logger.warning(
+        "hold_manager_shadow_receiver not mounted: %s",
+        _hold_shadow_exc,
+    )
+
+
 # Grafana alert webhook -> Composio fan-out (use case #3). Mounted here at the
 # end of the module (after every route + the pinned _ct_eq site) so it never
 # shifts an existing line anchor. Inert (HTTP 503) until GRAFANA_WEBHOOK_TOKEN

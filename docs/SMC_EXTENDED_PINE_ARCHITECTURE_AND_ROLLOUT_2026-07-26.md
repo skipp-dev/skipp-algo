@@ -932,22 +932,90 @@ The deterministic harness is generated from the canonical source by
 `scripts/generate_smc_hold_manager_tv_fixture.py`. Its checked-in Pine output
 under `tests/fixtures/pine/` rewires only the external BUS, OHLC, ATR, recovery,
 and context feeds, embeds the canonical source hash, exposes cumulative pulse
-counts, and remains outside every managed or publishable surface. The
-machine-readable execution contract is
+counts plus a visible test-only readback table, and remains outside every
+managed or publishable surface. The machine-readable execution contract is
 `artifacts/governance/smc_hold_manager_tradingview_fixture_manifest.json`.
-This closes the fixture-construction prerequisite, not the replay gate: the
-harness is not the canonical saved script, cumulative Pine counters do not
-prove TradingView server alert delivery, and every case remains pending until
-immutable TradingView evidence is retained.
-R2.4-17 has an additional canonical blocker: the product source currently
-shows event context but exposes no Micro-Profile staleness diagnostic. The
-harness can force that input to test non-interference, but the case cannot pass
-until staleness is implemented and live-verified in `SMC_Hold_Manager.pine`.
+This closes the fixture-construction prerequisite. The later private
+twenty-three-run execution closes the replay gate, but the harness is not the
+canonical saved script and cumulative Pine counters do not prove TradingView
+server alert delivery.
+The canonical Hold Manager now derives Micro-Profile age from `mp.ASOF_DATE`,
+uses the same greater-than-five-day T-1 threshold as the suite and monitoring,
+and exposes both hidden `HM ContextStale` evidence and a visible remediation.
+That flag is observability-only: it is absent from plan validity, entry,
+management, exit, and alert predicates. The harness forces the flag only to
+prove R2.4-17 non-interference deterministically.
 The generated harness itself compiled and was added to the isolated validation
 layout on 2026-07-27 without diagnostics; the canonical chart state was then
 restored. That bounded compile evidence is retained in
 `artifacts/governance/smc_hold_manager_tradingview_fixture_compile_2026-07-27.json`
-and does not mark any replay case complete.
+and does not mark any replay case complete. Because the canonical source and
+fixture hashes changed with the freshness diagnostic and readback table, both
+preconditions had to be recaptured before replay execution. The current
+fixture compile is retained separately in
+`artifacts/governance/smc_hold_manager_tradingview_fixture_compile_2026-07-28.json`;
+the older compile artifact remains immutable historical evidence. The
+canonical compile-and-binding precondition still pins the prior source hash
+and remains an open pre-cutover gate.
+
+The twenty logical cases require twenty-three physical executions: sixteen
+ordinary 5-minute runs, four independent R2.4-11 reset variants, two
+same-cursor reload comparisons, and one daily run. The manifest pins every
+logical checkpoint step. TradingView keeps the newest Bar Replay bar
+unconfirmed, while the Hold runtime is intentionally confirmed-bar only.
+Therefore the harness exposes both `raw_step` and `confirmed_step`: the
+operator advances to the manifest's `replayStopSteps` value (logical checkpoint
++ 1) and must observe the exact logical checkpoint in `confirmed_step`.
+Comparing expectations directly to `raw_step`, or inspecting a later
+`confirmed_step`, is invalid because protected levels and edge pulses can
+change after the decisive bar.
+
+The first private matrix was executed on 2026-07-28 with canonical source hash
+`1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813`
+and fixture hash
+`fd663a8e925b9491b831bb1e71bc4410fa811a914607187f9e9dec4f23090416`.
+All twenty-three physical runs completed. Nineteen logical cases passed,
+including all four R2.4-11 reset variants, both reload comparisons, and the
+R2.4-20 daily case. R2.4-02 failed at both registered checkpoints: the
+fixture had already entered and stopped near the beginning of the 204-bar
+wait, so the visible state was `CLOSED` with `ENTRY=1`, `STOP=1`, and
+`EXIT=1` instead of the expected delayed `IN_TRADE` state. This is a fixture
+sequencing defect, not a product pass. The exact observations and restored
+canonical chart state are recorded in
+`artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json`.
+That failure is retained as historical context; it is not evidence for the
+corrected fixture.
+
+The R2.4-02 sequencing repair excludes that case from the generic
+early-trade feed, keeps it `ARMED` through the wait window, triggers only at
+fixture step 204, and holds the next bar above the unchanged Chandelier stop.
+The regenerated fixture has SHA-256
+`2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d`.
+After exact-hash approval, it was transferred only to the private
+`SMC Hold Manager R2.4 Fixture TEST ONLY` script, compiled without diagnostics,
+and executed in the isolated `SMC Hold R2.4 Validation` layout. All 23 physical
+runs and all 20 logical cases passed. R2.4-02 was `IN_TRADE` with stop 100 and
+one entry pulse at confirmed steps 204 and 205; the reload checks reconstructed
+`ARMED` and post-Target-1 `IN_TRADE` state; the 1D case emitted exactly one
+entry, time-stop, and exit pulse. The fixture was not published, and the
+canonical two-chart, 5-minute, non-replay state was restored and saved.
+The exact observations are in
+`artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json`.
+R2-REPLAY is therefore complete. The 2026-07-27 canonical binding precondition
+artifact remains immutable historical evidence. The canonical precondition was
+recaptured on 2026-07-28 for source hash
+`1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813`:
+the private saved script compiled, the Hold Manager and `SMC Long-Dip Suite`
+were co-located on Chart #2, and all thirteen Engine BUS v2 bindings survived
+layout save and page reload. TradingView's accessible Monaco surface did not
+permit a complete saved-source export, so the source readback is explicitly
+bounded to the visible first and last regions plus the no-unsaved-change state,
+not misrepresented as an independently verified hash. The evidence is retained
+in
+`artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json`.
+No publication, alert creation, shadow observation, or cutover occurred.
+TradingView server-alert delivery remains a separate
+`R2-SHADOW-CUTOVER` gate.
 
 At minimum:
 
@@ -974,7 +1042,8 @@ At minimum:
 
 #### R2.5 Shadow and standard cutover
 
-- publish as managed script;
+- add Hold Manager to managed save/compile/hash coverage and refresh its
+  private saved script; this is not external TradingView publication;
 - bind it in a non-default validation layout;
 - run replay evidence;
 - observe at least five complete US market sessions or an equivalent
@@ -983,6 +1052,79 @@ At minimum:
 - enable Hold Manager as the Advanced standard mode;
 - keep Exit Signal as the Simple standard mode; and
 - ensure only the chosen mode has actionable exit alerts.
+
+The executable, pre-registered shadow contract is
+`artifacts/governance/smc_hold_manager_shadow_contract.json`; the checked-in
+observation state is
+`artifacts/governance/smc_hold_manager_shadow_observations.json`. The evaluator
+`scripts/evaluate_smc_hold_manager_shadow.py` is fail-closed and does not treat
+the absence of observations as success. Before activation it returns
+`not_started` and writes the canonical verdict to
+`artifacts/governance/smc_hold_manager_shadow_evidence.json`. The canonical
+product-cut manifest now exposes the isolated
+`smcHoldManagerShadow` preflight scope through
+`automation/tradingview/preflight-hold-manager-shadow.json`. That scope checks
+the private validation saved script and all thirteen Hold Manager BUS
+bindings without adding the still-planned surface to production rollout
+targets.
+
+The private managed saved-script refresh and isolated binding preflight were
+completed on 2026-07-28. The authenticated headless runner failed closed before
+editor mutation because its Pine Editor surface was not visible. A visible
+Chrome fallback against the same private account, saved script, layout, source
+hash, and `smcHoldManagerShadow` contract then passed after chart reload with
+no visible compile error and all thirteen `SMC Long-Dip Suite` BUS bindings in
+the exact registered order. This did not create alerts, publish a script, or
+start shadow observation. Evidence:
+`artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json`.
+
+The controlled receiver is now implemented locally in
+`services/live_overlay_daemon/hold_manager_shadow_receiver.py`, with six
+source-pinned message templates in
+`artifacts/governance/smc_hold_manager_shadow_alert_templates.json`. It is
+fail-closed unless a dedicated body token, persistent SQLite ledger, and the
+explicit acceptance switch are configured. The fixed webhook URL contains no
+secret; the token is excluded from persistence and audit fields. Contract,
+timestamp, payload-size, duplicate-delivery, and per-channel tests are in
+`tests/test_hold_manager_shadow_receiver.py`.
+The source hash uses the R2.4 replay contract's narrow pin normalization:
+only the automated `smc_micro_profiles_generated` import version is frozen to
+the evidenced version 175; every other source change still moves the hash.
+
+This implementation is not operational evidence. It has not been published,
+deployed, configured, or enabled, and no TradingView alert exists. Accordingly
+`R2-SHADOW-CUTOVER` remains `not_started`. Repository publication plus an
+inactive Railway deploy/configuration require exact authorization and receiver
+verification. Creating the six private TradingView alerts and opening the
+observation window require a second exact authorization.
+
+Shadow activation requires separate authorization for controlled TradingView
+alert creation. Under the
+managed-script definition in section 2.1, neither public nor invite-only
+TradingView publication is required or permitted by this contract. Once
+activated, the ledger must contain every US-equity session in activation order
+and evaluate the first five complete XNYS sessions; sessions may not be
+cherry-picked. If at least one `HM_ENTRY`, one `HM_EXIT_ANY`, and one terminal
+exit edge (`HM_T2`, `HM_STOP`, or `HM_TIMESTOP`) have not occurred, observation
+continues for no more than ten sessions and promotion remains blocked.
+
+For every recorded session:
+
+- the source hash, validation layout, Suite producer, schema 7001, and bindings
+  must match;
+- expected Pine edges must equal delivered TradingView server alerts for all
+  six Hold channels;
+- runtime errors, false exits, duplicate actionable exits, and unclassified
+  transition differences must all be zero;
+- Hold transitions must be compared with both Exit Signal and Strategy; and
+- `hold_manager` must be the only actionable exit-alert mode.
+
+Promotion additionally requires the registered rollback drill: disable Hold
+alerts before removing Hold, re-enable Exit Signal before disabling Hold,
+leave Suite and BUS schema unchanged, save the restored layout, and reverify
+bindings after reload. The current checked-in state remains `not_started`;
+no publication, alert creation, shadow observation, or rollback drill has been
+performed.
 
 #### Exit criteria
 

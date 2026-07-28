@@ -9,8 +9,10 @@ from pathlib import Path
 
 from scripts.generate_smc_hold_manager_tv_fixture import (
     CASE_IDS,
+    CHECKPOINT_STEPS,
     FIXTURE,
     MANIFEST,
+    RESET_VARIANT_EXPECTATIONS,
     SOURCE,
     build_fixture,
     build_manifest,
@@ -23,7 +25,13 @@ COMPILE_EVIDENCE = (
     ROOT
     / "artifacts"
     / "governance"
-    / "smc_hold_manager_tradingview_fixture_compile_2026-07-27.json"
+    / "smc_hold_manager_tradingview_fixture_compile_2026-07-28.json"
+)
+REPLAY_EVIDENCE = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_replay_2026-07-28.json"
 )
 
 
@@ -118,8 +126,21 @@ def test_fixture_covers_the_exact_twenty_case_contract() -> None:
     )["variants"] == ["NONE", "ARMED", "IN_TRADE", "CLOSED"]
     stale_case = next(case for case in cases if case["caseId"] == "R2.4-17")
     assert stale_case["canonicalCoverage"] == (
-        "blocked_missing_canonical_stale_context_diagnostic"
+        "canonical_stale_context_observability_plus_source_derived_harness"
     )
+    assert stale_case["expectedContextDiagnostics"]["contextStale"] == 1
+    assert manifest["physicalExecutionCount"] == 23
+    assert {
+        case["caseId"]: case["checkpointSteps"] for case in cases
+    } == CHECKPOINT_STEPS
+    assert {
+        case["caseId"]: case["replayStopSteps"] for case in cases
+    } == {
+        case_id: [step + 1 for step in steps]
+        for case_id, steps in CHECKPOINT_STEPS.items()
+    }
+    reset_case = next(case for case in cases if case["caseId"] == "R2.4-11")
+    assert reset_case["variantExpectations"] == RESET_VARIANT_EXPECTATIONS
     for case_id in CASE_IDS:
         assert f'"{case_id}"' in fixture
 
@@ -134,6 +155,14 @@ def test_fixture_rewires_every_external_runtime_feed() -> None:
     assert 'plot(ctx_profile_stale ? 1 : 0, "HM ContextStale"' in fixture
     assert 'plot(ctx_event_block ? 1 : 0, "HM EventWarning"' in fixture
     assert 'plot(fixture_exit_count, "Fixture HM_EXIT_ANY Count"' in fixture
+    assert '"Fixture Confirmed Step", display = display.none' in fixture
+    assert "TEST ONLY — R2.4 READBACK (1.6)" in fixture
+    assert '" | confirmed_step=" +' in fixture
+    assert "str.tostring(fixture_confirmed_step)" in fixture
+    assert "fixture_readback_new_plan_blocked" in fixture
+    assert "fixture_readback_context_stale" in fixture
+    assert "fixture_readback_event_warning" in fixture
+    assert '"ENTRY=" + str.tostring(fixture_entry_count)' in fixture
     assert any(
         "not the canonical saved script" in limitation
         for limitation in manifest["limitations"]
@@ -142,9 +171,50 @@ def test_fixture_rewires_every_external_runtime_feed() -> None:
         "not TradingView server alert delivery" in limitation
         for limitation in manifest["limitations"]
     )
-    assert any(
-        "canonical stale Micro-Profile observability" in gate
+    assert not any(
+        "stale Micro-Profile observability" in gate
         for gate in manifest["openGates"]
+    )
+    assert any(
+        "twenty-three physical runs" in gate
+        for gate in manifest["openGates"]
+    )
+    assert any(
+        "explicit approval" in gate.lower()
+        and "exact generated fixture SHA-256" in gate
+        for gate in manifest["openGates"]
+    )
+    assert any(
+        "newest replay bar unconfirmed" in limitation
+        for limitation in manifest["limitations"]
+    )
+
+
+def test_delayed_entry_fixture_does_not_trigger_before_checkpoint() -> None:
+    fixture, _manifest = _fixture_and_manifest()
+    trade_case_block = fixture.split(
+        "bool fixture_trade_case = ", maxsplit=1
+    )[1].split("if fixture_trade_case", maxsplit=1)[0]
+
+    assert '"R2.4-02"' not in trade_case_block
+    assert 'if fixture_case == "R2.4-02"' in fixture
+    assert "if fixture_step == 204" in fixture
+    assert "else if fixture_step > 204" in fixture
+    assert (
+        """if fixture_step == 204
+        fixture_open := 102.0
+        fixture_high := 105.0
+        fixture_low := 99.0
+        fixture_close := 103.0"""
+        in fixture
+    )
+    assert (
+        """else if fixture_step > 204
+        fixture_open := 104.0
+        fixture_high := 105.0
+        fixture_low := 101.0
+        fixture_close := 104.0"""
+        in fixture
     )
 
 
@@ -161,9 +231,10 @@ def test_manifest_does_not_claim_unexecuted_tradingview_evidence() -> None:
     )
 
 
-def test_tradingview_compile_evidence_is_bounded_and_hash_pinned() -> None:
+def test_current_tradingview_compile_evidence_is_hash_pinned() -> None:
     _fixture, manifest = _fixture_and_manifest()
     evidence = json.loads(COMPILE_EVIDENCE.read_text(encoding="utf-8"))
+    replay_evidence = json.loads(REPLAY_EVIDENCE.read_text(encoding="utf-8"))
 
     assert evidence["scope"] == (
         "Generated R2.4 fixture compile only; not replay-case or "
@@ -171,14 +242,20 @@ def test_tradingview_compile_evidence_is_bounded_and_hash_pinned() -> None:
     )
     assert (
         evidence["canonicalSource"]["sha256"]
-        == manifest["canonicalSource"]["sha256"]
+        == replay_evidence["canonicalSource"]["sha256"]
+    )
+    assert (
+        evidence["fixture"]["sha256"]
+        == replay_evidence["fixture"]["sha256"]
     )
     assert evidence["fixture"]["sha256"] == manifest["fixture"]["sha256"]
-    assert evidence["fixture"]["savedStatus"] == "not_saved_test_only"
+    assert evidence["fixture"]["savedStatus"] == "saved_private_test_only"
+    assert evidence["fixture"]["publicationStatus"] == "not_published"
     assert evidence["tradingView"]["compileStatus"] == "passed"
     assert evidence["tradingView"]["compileDiagnostics"] == []
     assert evidence["tradingView"]["addToChartStatus"] == "passed"
     assert evidence["tradingView"]["canonicalChartStateRestored"] is True
-    assert evidence["replay"]["status"] == "pending"
-    assert evidence["replay"]["completedCaseIds"] == []
-    assert evidence["replay"]["pendingCaseIds"] == list(CASE_IDS)
+    assert evidence["replay"]["status"] == "recorded_separately"
+    assert evidence["replay"]["evidence"].endswith(
+        "smc_hold_manager_tradingview_replay_2026-07-28.json"
+    )

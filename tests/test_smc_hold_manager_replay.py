@@ -29,6 +29,18 @@ TRADINGVIEW_PRECONDITIONS_PATH = (
     / "governance"
     / "smc_hold_manager_tradingview_preconditions_2026-07-27.json"
 )
+CURRENT_TRADINGVIEW_PRECONDITIONS_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
+)
+TRADINGVIEW_REPLAY_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_replay_2026-07-28.json"
+)
 
 EXPECTED_CASES = (
     ("R2.4-01", "arm without entry"),
@@ -168,8 +180,7 @@ def test_freeze_library_pin_touches_only_the_micro_profiles_import() -> None:
     ]
 
 
-def test_tradingview_preconditions_are_bounded_and_source_pinned() -> None:
-    replay = build_replay_preflight()
+def test_historical_tradingview_preconditions_remain_bounded() -> None:
     evidence = json.loads(
         TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
     )
@@ -177,10 +188,7 @@ def test_tradingview_preconditions_are_bounded_and_source_pinned() -> None:
     assert evidence["scope"] == (
         "TradingView preconditions only; not R2.4 replay-case evidence"
     )
-    assert (
-        evidence["source"]["repositorySha256"]
-        == replay["source"]["sha256"]
-    )
+    assert len(evidence["source"]["repositorySha256"]) == 64
     assert evidence["source"]["savedSourceReadbackStatus"] == "pending"
     assert evidence["tradingView"]["compileStatus"] == "passed"
     assert evidence["tradingView"]["compileDiagnostics"] == []
@@ -211,10 +219,100 @@ def test_tradingview_preconditions_are_bounded_and_source_pinned() -> None:
     ]
 
 
-def test_traceability_marks_r2_replay_partial_not_complete() -> None:
+def test_current_tradingview_preconditions_match_the_canonical_source() -> None:
+    replay = build_replay_preflight()
+    evidence = json.loads(
+        CURRENT_TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
+    )
+
+    assert evidence["source"]["repositorySha256"] == replay["source"]["sha256"]
+    assert evidence["source"]["transferredSourceSha256"] == (
+        replay["source"]["sha256"]
+    )
+    assert evidence["source"]["savedSourceReadbackStatus"] == (
+        "bounded_visible_match_after_reload"
+    )
+    assert evidence["source"]["savedSourceReadbackSha256"] is None
+    assert evidence["tradingView"]["account"] == "preuss_steffen"
+    assert evidence["tradingView"]["visibility"] == "private"
+    assert evidence["tradingView"]["publicationStatus"] == "not_published"
+    assert evidence["tradingView"]["compileStatus"] == "passed"
+    assert evidence["tradingView"]["compileDiagnostics"] == []
+    assert evidence["tradingView"]["addToChartStatus"] == "passed"
+    assert evidence["tradingView"]["coLocationStatus"] == (
+        "passed_after_reload"
+    )
+    assert evidence["tradingView"]["consumerChart"] == "Chart #2"
+    assert evidence["tradingView"]["producerLegend"] == "SMC Long-Dip Suite"
+    assert evidence["tradingView"]["consumerLegend"] == "SMC Hold Manager"
+    assert evidence["tradingView"]["orphanConsumerOnChart1"] is False
+    assert evidence["tradingView"]["bindingStatus"] == "passed_after_reload"
+    assert evidence["tradingView"]["planSource"] == "Engine BUS v2"
+    assert evidence["tradingView"]["bindings"] == {
+        f"BUS {name}": f"SMC Long-Dip Suite: BUS {name}"
+        for name in (
+            "SchemaVersion",
+            "ZoneActive",
+            "Armed",
+            "Confirmed",
+            "Ready",
+            "Trigger",
+            "Invalidation",
+            "QualityScore",
+            "SourceKind",
+            "StateCode",
+            "StopLevel",
+            "Target1",
+            "Target2",
+        )
+    }
+    assert evidence["tradingView"]["layoutStateAfterReload"] == {
+        "chartCount": 2,
+        "timeframeMinutes": 5,
+        "replayActive": False,
+        "layoutSaved": True,
+        "pineEditorClosed": True,
+    }
+    assert evidence["replay"]["status"] == "complete"
+    assert evidence["shadowCutover"] == {
+        "status": "not_started",
+        "publicationPerformed": False,
+        "alertsCreated": False,
+        "serverAlertDeliveryStatus": "pending",
+    }
+
+
+def test_tradingview_replay_evidence_is_current_and_reports_success() -> None:
+    replay = build_replay_preflight()
+    evidence = json.loads(TRADINGVIEW_REPLAY_PATH.read_text(encoding="utf-8"))
+
+    assert evidence["canonicalSource"]["sha256"] == replay["source"]["sha256"]
+    assert evidence["fixture"]["sha256"] == (
+        "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d"
+    )
+    assert evidence["fixture"]["visibility"] == "private"
+    assert evidence["fixture"]["publicationStatus"] == "not_published"
+    assert evidence["fixture"]["compileStatus"] == "passed"
+    assert evidence["tradingView"]["physicalRunsExecuted"] == 23
+    assert evidence["tradingView"]["logicalCasesExecuted"] == 20
+    assert evidence["tradingView"]["canonicalChartStateRestored"] is True
+    assert evidence["results"]["status"] == "passed"
+    assert evidence["results"]["passedLogicalCases"] == 20
+    assert evidence["results"]["failedLogicalCases"] == 0
+    assert evidence["results"]["passedCaseIds"] == [
+        case_id for case_id, _name in EXPECTED_CASES
+    ]
+    assert evidence["results"]["failures"] == []
+    assert evidence["results"]["delayedEntryCheck"][
+        "observedAtBothCheckpoints"
+    ]["phase"] == "IN_TRADE"
+    assert evidence["serverAlertDelivery"]["status"] == "pending"
+
+
+def test_traceability_marks_r2_replay_complete() -> None:
     requirement = _trace_requirement()
 
-    assert requirement["status"] == "partial"
+    assert requirement["status"] == "complete"
     assert requirement["evidence"] == [
         "scripts/smc_hold_manager_replay.py",
         "scripts/generate_smc_hold_manager_tv_fixture.py",
@@ -232,14 +330,19 @@ def test_traceability_marks_r2_replay_partial_not_complete() -> None:
         ),
         (
             "artifacts/governance/"
+            "smc_hold_manager_tradingview_fixture_compile_2026-07-28.json"
+        ),
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_tradingview_replay_2026-07-28.json"
+        ),
+        (
+            "artifacts/governance/"
             "smc_hold_manager_tradingview_preconditions_2026-07-27.json"
         ),
-    ]
-    assert requirement["openGates"] == [
         (
-            "Execute the generated, source-pinned twenty-case harness in "
-            "TradingView and retain compile, diagnostic, reload, Bar Replay, "
-            "and pulse-count evidence; validate server alert delivery "
-            "separately before cutover."
-        )
+            "artifacts/governance/"
+            "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
+        ),
     ]
+    assert requirement["openGates"] == []

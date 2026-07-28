@@ -64,6 +64,7 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       proOnly: ["BUS MetaPack"],
       dashboardBindings: ["BUS ZoneActive"],
       strategyBindings: ["BUS Armed"],
+      holdManagerBindings: ["BUS SchemaVersion"],
     },
     preflightScopes: {
       smcCoreDashboard: [{ file: "SMC_Long_Dip_Suite.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
@@ -100,6 +101,23 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
           { label: "BUS Trigger", group: "g_bus_plan", groupTitle: "Trade Plan" },
           { label: "BUS Invalidation", group: "g_bus_plan", groupTitle: "Trade Plan" },
         ],
+      }],
+      smcHoldManagerShadow: [{
+        file: "SMC_Hold_Manager.pine",
+        scriptName: "SMC Hold Manager",
+        savedScriptName: "SMC Hold Manager R2.4 Validation",
+        checkInputs: true,
+        addToChart: true,
+        minInputs: 13,
+        bindingContractKey: "holdManagerBindings",
+        bindingContractName: "Hold Manager BUS bindings",
+        bindingConsumerRole: "exit_companion",
+        bindingContractLabels: ["BUS SchemaVersion"],
+        bindingLabelGroups: [{
+          label: "BUS SchemaVersion",
+          group: "gBus",
+          groupTitle: "Engine BUS v2 (Expert Mapping)",
+        }],
       }],
     },
     deprecatedFieldPolicy: {

@@ -46,6 +46,54 @@ MANIFEST: Final = (
 
 CASE_IDS: Final = tuple(f"R2.4-{number:02d}" for number in range(1, 21))
 CASE_OPTIONS: Final = ", ".join(f'"{case_id}"' for case_id in CASE_IDS)
+CHECKPOINT_STEPS: Final = {
+    "R2.4-01": [0],
+    "R2.4-02": [204, 205],
+    "R2.4-03": [222, 223],
+    "R2.4-04": [0],
+    "R2.4-05": [0],
+    "R2.4-06": [1],
+    "R2.4-07": [1],
+    "R2.4-08": [1],
+    "R2.4-09": [0, 1, 2],
+    "R2.4-10": [1],
+    "R2.4-11": [0, 1],
+    "R2.4-12": [1],
+    "R2.4-13": [2],
+    "R2.4-14": [1],
+    "R2.4-15": [0],
+    "R2.4-16": [0],
+    "R2.4-17": [0],
+    "R2.4-18": [1],
+    "R2.4-19": [3],
+    "R2.4-20": [1],
+}
+RESET_VARIANT_EXPECTATIONS: Final = {
+    "NONE": {
+        "preResetPhase": "NONE",
+        "postResetPhase": "NONE",
+        "expectedAlertCounts": {},
+    },
+    "ARMED": {
+        "preResetPhase": "ARMED",
+        "postResetPhase": "NONE",
+        "expectedAlertCounts": {},
+    },
+    "IN_TRADE": {
+        "preResetPhase": "IN_TRADE",
+        "postResetPhase": "NONE",
+        "expectedAlertCounts": {"HM_ENTRY": 1},
+    },
+    "CLOSED": {
+        "preResetPhase": "CLOSED",
+        "postResetPhase": "NONE",
+        "expectedAlertCounts": {
+            "HM_ENTRY": 1,
+            "HM_EXIT_ANY": 1,
+            "HM_STOP": 1,
+        },
+    },
+}
 
 FIXTURE_SECTION: Final = f"""// ── TEST-ONLY R2.4 FIXTURE INPUTS ─────────────────────────────────────────────
 // GENERATED FILE. DO NOT PUBLISH. This harness rewires external inputs only;
@@ -83,8 +131,8 @@ float fixture_quality = 0.8
 float fixture_source_kind = 1.0
 float fixture_state_code = 1.0
 
-bool fixture_trade_case = fixture_case == "R2.4-02" or fixture_case == "R2.4-04" or
-     fixture_case == "R2.4-06" or fixture_case == "R2.4-08" or fixture_case == "R2.4-09" or
+bool fixture_trade_case = fixture_case == "R2.4-04" or fixture_case == "R2.4-06" or
+     fixture_case == "R2.4-08" or fixture_case == "R2.4-09" or
      fixture_case == "R2.4-13" or fixture_case == "R2.4-14" or fixture_case == "R2.4-17" or
      fixture_case == "R2.4-18"
 if fixture_trade_case and fixture_step > 0
@@ -93,7 +141,21 @@ if fixture_trade_case and fixture_step > 0
     fixture_low := 101.0
     fixture_close := 104.0
 
-if fixture_case == "R2.4-02" or fixture_case == "R2.4-03"
+// R2.4-02 must remain ARMED for the complete wait window. Trigger on fixture
+// step 204 (the replay readback's confirmed step 204), then keep the following
+// bar above the Chandelier stop without raising the protected high.
+if fixture_case == "R2.4-02"
+    if fixture_step == 204
+        fixture_open := 102.0
+        fixture_high := 105.0
+        fixture_low := 99.0
+        fixture_close := 103.0
+    else if fixture_step > 204
+        fixture_open := 104.0
+        fixture_high := 105.0
+        fixture_low := 101.0
+        fixture_close := 104.0
+else if fixture_case == "R2.4-03"
     if fixture_step >= 205
         fixture_open := 102.0
         fixture_high := 105.0
@@ -308,6 +370,12 @@ plot(fixture_high, "Fixture High", display = display.none)
 plot(fixture_low, "Fixture Low", display = display.none)
 plot(fixture_close, "Fixture Close", display = display.none)
 plot(fixture_step, "Fixture Step", display = display.none)
+// TradingView keeps the newest Bar Replay bar unconfirmed. Runtime state on
+// that bar therefore represents the preceding, last-confirmed fixture step.
+// Expose both coordinates so operators never compare an unconfirmed raw step
+// with a confirmed-state expectation.
+plot(barstate.isconfirmed ? fixture_step : fixture_step - 1,
+     "Fixture Confirmed Step", display = display.none)
 plot(ctx_profile_stale ? 1 : 0, "Fixture ContextStale", display = display.none)
 plot(ctx_event_block ? 1 : 0, "Fixture EventWarning", display = display.none)
 bgcolor(fixture_started ? color.new(color.orange, 88) : na,
@@ -385,8 +453,6 @@ def build_fixture(source: str) -> str:
         "// Hidden reconstruction diagnostics for replay/source evidence.\n",
         (
             "// Hidden reconstruction diagnostics for replay/source evidence.\n"
-            'plot(ctx_profile_stale ? 1 : 0, "HM ContextStale", '
-            "display = display.none)\n"
             'plot(ctx_event_block ? 1 : 0, "HM EventWarning", '
             "display = display.none)\n"
         ),
@@ -395,14 +461,6 @@ def build_fixture(source: str) -> str:
         source,
         "statusLbl := label.new(bar_index, high, txt,",
         "statusLbl := label.new(bar_index, fixture_high, txt,",
-    )
-    source = _replace_once(
-        source,
-        '         (ctx_event_block ? "\\n⚠ EVENT_BLOCK" : "") +',
-        (
-            '         (ctx_profile_stale ? "\\n⚠ STALE_CONTEXT" : "") +\n'
-            '         (ctx_event_block ? "\\n⚠ EVENT_BLOCK" : "") +'
-        ),
     )
     source += """
 
@@ -432,6 +490,62 @@ plot(fixture_t2_count, "Fixture HM_T2 Count", display = display.none)
 plot(fixture_stop_count, "Fixture HM_STOP Count", display = display.none)
 plot(fixture_timestop_count, "Fixture HM_TIMESTOP Count", display = display.none)
 plot(fixture_exit_count, "Fixture HM_EXIT_ANY Count", display = display.none)
+
+// Visible fixture-only evidence interface. Hidden plots remain available for
+// machine inspection; this table makes the exact replay checkpoint readable
+// in a bounded screenshot without changing the canonical product surface.
+int fixture_confirmed_step = barstate.isconfirmed ?
+     fixture_step : fixture_step - 1
+bool fixture_readback_new_plan_blocked = barstate.isconfirmed ?
+     new_plan_blocked : new_plan_blocked[1]
+bool fixture_readback_context_stale = barstate.isconfirmed ?
+     ctx_profile_stale : ctx_profile_stale[1]
+bool fixture_readback_event_warning = barstate.isconfirmed ?
+     ctx_event_block : ctx_event_block[1]
+var table fixture_readback = table.new(
+     position.top_right, 1, 7, border_width = 1)
+if barstate.islast
+    color fixture_bg = color.new(color.black, 12)
+    table.cell(fixture_readback, 0, 0, "TEST ONLY — R2.4 READBACK (1.6)",
+         text_color = color.orange, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 1,
+         "case=" + fixture_case + " | variant=" + fixture_reset_variant +
+         " | raw_step=" + str.tostring(fixture_step) +
+         " | confirmed_step=" + str.tostring(fixture_confirmed_step) +
+         " | tf_ok=" + str.tostring(fixture_timeframe_ok),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 2,
+         "state=" + str.tostring(hold.phase) +
+         " | plan_gen=" + str.tostring(hold.plan_generation) +
+         " | plan_epoch=" + str.tostring(hold.plan_epoch_ms) +
+         " | entry_epoch=" + str.tostring(hold.entry_time_ms),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 3,
+         "stop=" + str.tostring(hold.active_stop, format.mintick) +
+         " | protected_high=" +
+         str.tostring(hold.protected_high, format.mintick) +
+         " | t1=" + str.tostring(hold.t1_hit),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 4,
+         "terminal=" + str.tostring(hold.terminal_exit_code) +
+         " | terminal_epoch=" +
+         str.tostring(hold.terminal_exit_time_ms) +
+         " | new_plan_blocked=" +
+         str.tostring(fixture_readback_new_plan_blocked),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 5,
+         "context_stale=" + str.tostring(fixture_readback_context_stale) +
+         " | event_warning=" +
+         str.tostring(fixture_readback_event_warning),
+         text_color = color.white, bgcolor = fixture_bg)
+    table.cell(fixture_readback, 0, 6,
+         "ENTRY=" + str.tostring(fixture_entry_count) +
+         " | T1=" + str.tostring(fixture_t1_count) +
+         " | T2=" + str.tostring(fixture_t2_count) +
+         " | STOP=" + str.tostring(fixture_stop_count) +
+         " | TIMESTOP=" + str.tostring(fixture_timestop_count) +
+         " | EXIT=" + str.tostring(fixture_exit_count),
+         text_color = color.white, bgcolor = fixture_bg)
 """
     return source
 
@@ -463,6 +577,13 @@ def build_manifest(source: str, fixture: str) -> dict[str, object]:
                     if case_id == "R2.4-11"
                     else []
                 ),
+                "checkpointSteps": CHECKPOINT_STEPS[case_id],
+                "replayStopSteps": [
+                    step + 1 for step in CHECKPOINT_STEPS[case_id]
+                ],
+                "variantExpectations": (
+                    RESET_VARIANT_EXPECTATIONS if case_id == "R2.4-11" else {}
+                ),
                 "operatorActions": [
                     *(
                         ["reload while the hidden state is ARMED"]
@@ -474,12 +595,16 @@ def build_manifest(source: str, fixture: str) -> dict[str, object]:
                         if case_id == "R2.4-13"
                         else []
                     ),
-                    "inspect hidden diagnostics and cumulative pulse counts",
+                    "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts",
                 ],
                 "expectedAlertCounts": case["alertCounts"],
                 "expectedCheckpointDiagnostics": diagnostics,
+                "expectedContextDiagnostics": {
+                    "contextStale": 1 if case_id == "R2.4-17" else 0,
+                    "eventWarning": 1 if case_id == "R2.4-18" else 0,
+                },
                 "canonicalCoverage": (
-                    "blocked_missing_canonical_stale_context_diagnostic"
+                    "canonical_stale_context_observability_plus_source_derived_harness"
                     if case_id == "R2.4-17"
                     else "canonical_preconditions_plus_source_derived_harness"
                 ),
@@ -487,7 +612,7 @@ def build_manifest(source: str, fixture: str) -> dict[str, object]:
             }
         )
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "requirementId": "R2-REPLAY",
         "status": "fixture_ready_execution_pending",
         "canonicalSource": {
@@ -501,6 +626,7 @@ def build_manifest(source: str, fixture: str) -> dict[str, object]:
             "defaultAnchor": "2026-07-20T13:30:00Z",
         },
         "caseCount": len(cases),
+        "physicalExecutionCount": 23,
         "cases": cases,
         "executionProtocol": [
             "Use an isolated TradingView validation layout.",
@@ -508,21 +634,26 @@ def build_manifest(source: str, fixture: str) -> dict[str, object]:
             "Use 5m for R2.4-01 through R2.4-19 and 1D for R2.4-20.",
             "Start Bar Replay before the configured fixture anchor.",
             "Use regular trading hours so the pinned 5m step schedule is stable.",
-            "Select one case, replay past its decisive bars, and inspect hidden diagnostics.",
-            "For R2.4-11 execute all four reset variants.",
-            "For R2.4-12 and R2.4-13 reload at the stated intermediate state.",
-            "Record compile diagnostics, diagnostic values, and pulse counts.",
+            "Restart Bar Replay before the anchor after every case or input change.",
+            "TradingView leaves the newest replay bar unconfirmed; advance to each replayStopSteps value and require the visible confirmed_step to equal the corresponding checkpointSteps value.",
+            "Do not compare expectations to raw_step: runtime transitions are confirmed-bar only.",
+            "For R2.4-11 execute all four reset variants at confirmed steps 0 and 1.",
+            "For R2.4-12 reload at confirmed step 1 and compare the same readback before and after reload.",
+            "For R2.4-13 reload at confirmed step 2 and compare the same readback before and after reload.",
+            "Record compile diagnostics, the visible readback table, hidden diagnostic values, and pulse counts.",
         ],
         "limitations": [
             "The fixture rewires external BUS, OHLC, ATR, recovery, and context inputs in a generated test harness; it is not the canonical saved script.",
             "The canonical compile and thirteen input.source bindings remain separate precondition evidence.",
             "Cumulative Pine pulse counts prove runtime predicates, not TradingView server alert delivery.",
-            "R2.4-17 cannot pass until the canonical Hold Manager exposes Micro-Profile staleness; the current stale flag exists only in this harness.",
+            "The readback table is fixture-only evidence UI and is not part of the canonical product surface.",
+            "Each replayStopSteps value is one greater than its logical checkpoint because TradingView keeps the newest replay bar unconfirmed.",
             "No case becomes passed until immutable TradingView evidence is reviewed and retained.",
         ],
         "openGates": [
-            "Compile and execute all fixture cases in an isolated TradingView layout.",
-            "Add and live-verify canonical stale Micro-Profile observability for R2.4-17.",
+            "Obtain explicit approval for private transfer of the exact generated fixture SHA-256 before TradingView use.",
+            "Recompile the changed canonical source and regenerated fixture in an isolated TradingView layout.",
+            "Execute all twenty logical cases as twenty-three physical runs and retain exact-checkpoint evidence.",
             "Validate TradingView server alert delivery separately before shadow cutover.",
         ],
     }

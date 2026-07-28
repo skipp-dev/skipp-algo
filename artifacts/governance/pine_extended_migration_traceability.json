@@ -116,7 +116,7 @@
         {
           "id": "R2-REPLAY",
           "description": "All twenty plan replay cases pass with no false or duplicate exit alert.",
-          "status": "partial",
+          "status": "complete",
           "evidence": [
             "scripts/smc_hold_manager_replay.py",
             "scripts/generate_smc_hold_manager_tv_fixture.py",
@@ -126,19 +126,39 @@
             "artifacts/governance/smc_hold_manager_replay_preflight.json",
             "artifacts/governance/smc_hold_manager_tradingview_fixture_manifest.json",
             "artifacts/governance/smc_hold_manager_tradingview_fixture_compile_2026-07-27.json",
-            "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-27.json"
+            "artifacts/governance/smc_hold_manager_tradingview_fixture_compile_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-27.json",
+            "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json"
           ],
-          "openGates": [
-            "Execute the generated, source-pinned twenty-case harness in TradingView and retain compile, diagnostic, reload, Bar Replay, and pulse-count evidence; validate server alert delivery separately before cutover."
-          ]
+          "openGates": []
         },
         {
           "id": "R2-SHADOW-CUTOVER",
           "description": "Hold Manager completes shadow observation and becomes Advanced standard without duplicate actionable Exit Signal alerts.",
           "status": "not_started",
-          "evidence": [],
+          "evidence": [
+            "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_shadow_contract.json",
+            "artifacts/governance/smc_hold_manager_shadow_observations.json",
+            "artifacts/governance/smc_hold_manager_shadow_evidence.json",
+            "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_shadow_alert_templates.json",
+            "automation/tradingview/preflight-hold-manager-shadow.json",
+            "automation/tradingview/lib/tv_validation_model.ts",
+            "services/live_overlay_daemon/hold_manager_shadow_receiver.py",
+            "services/live_overlay_daemon/README.md",
+            "services/live_overlay_daemon/OPS.md",
+            "scripts/smc_bus_manifest.py",
+            "artifacts/tradingview/smc_product_cut_manifest.json",
+            "scripts/evaluate_smc_hold_manager_shadow.py",
+            "tests/test_hold_manager_shadow_receiver.py",
+            "tests/test_evaluate_smc_hold_manager_shadow.py",
+            "tests/test_smc_bus_manifest_contract.py",
+            "tests/test_smc_product_cut_manifest.py"
+          ],
           "openGates": [
-            "Compile, publish, bind, observe, compare, and capture rollback evidence."
+            "The private managed saved-script refresh and isolated 13-binding preflight passed on 2026-07-28. The fail-closed receiver and six source-pinned alert templates exist locally, but the receiver is not deployed or configured and no alerts exist. Obtain exact authorization for repository publication and the inactive Railway deployment/configuration, verify the empty persistent ledger, then obtain exact authorization for creating the six Hold alert conditions. Record the first five complete XNYS sessions without cherry-picking and pass server-delivery, comparison, exclusivity, and rollback gates; no external TradingView publication is required."
           ]
         }
       ]

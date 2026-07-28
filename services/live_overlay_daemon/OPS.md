@@ -223,6 +223,12 @@ those secrets are added to the repo.
 |----------|----------|---------|---------|
 | `DATABENTO_API_KEY` | yes | — | Databento live feed API key |
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
+| `HOLD_MANAGER_SHADOW_ACCEPTING` | no | `0` | Hold Manager receiver kill switch. Keep `0` during deploy, configuration, and empty-ledger verification |
+| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | no | — | Dedicated random token of at least 32 characters; sent in the private TradingView JSON body, never in the URL |
+| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production target is `/data/smc-hold-manager-shadow.sqlite3` |
+| `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | no | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
+| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` | Maximum accepted bar age in seconds |
+| `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | no | `120` | Maximum accepted future clock skew in seconds |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
@@ -1389,6 +1395,49 @@ are GitHub-workflow-specific detail series.
 | Daemon | GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` | Outbound | Workflow run status |
 | Railway healthcheck | Daemon `/health` | HTTP | none | Inbound | 200 OK liveness |
 | UptimeRobot probe | Daemon `/health` | HTTP/HTTPS | none | Inbound | HEAD/GET probe |
+| Private TradingView alerts | Daemon `/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated body token | Inbound | Six source-pinned Hold Manager edge events |
+
+### Hold Manager R2 controlled receiver activation
+
+This is a staged, two-authorization operation. Repository publication,
+production deployment/configuration, and TradingView alert creation are
+external mutations; do not infer any of them from a request to continue local
+implementation.
+
+1. Publish and deploy the receiver code to `live_overlay_daemon` while
+   `HOLD_MANAGER_SHADOW_ACCEPTING=0`.
+2. Attach persistent Railway storage and set
+   `HOLD_MANAGER_SHADOW_LEDGER_PATH=/data/smc-hold-manager-shadow.sqlite3`.
+   Generate a dedicated random `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` with at
+   least 32 characters. Do not display it in tickets, PR text, logs, commands
+   captured as evidence, or URL paths.
+3. With the switch still off, verify normal `/health` and `/ready`, then query:
+
+   ```bash
+   curl -s \
+     -H "X-Hold-Manager-Shadow-Token: ${HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN}" \
+     https://liveoverlaydaemon-production.up.railway.app/tradingview/hold-manager-shadow/state \
+     | jq .
+   ```
+
+   Expected state is `accepting=false`, zero unique events, zero attempts, zero
+   duplicates, and `lastReceivedAt=null`.
+4. Obtain a separate, exact authorization for six private TradingView alert
+   creations. Render the messages from
+   `artifacts/governance/smc_hold_manager_shadow_alert_templates.json` only in
+   the private alert UI by replacing
+   `<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>`. The webhook URL contains no secret:
+   `https://liveoverlaydaemon-production.up.railway.app/tradingview/hold-manager-shadow`.
+5. Verify the six alert definitions while the receiver still rejects
+   deliveries. Immediately before the agreed observation boundary, set
+   `HOLD_MANAGER_SHADOW_ACCEPTING=1`, record the activation object and ordered
+   session ledger, and start the first complete XNYS observation session.
+
+Rollback is fail-closed: set `HOLD_MANAGER_SHADOW_ACCEPTING=0` first, disable
+all six Hold alerts, and retain the SQLite ledger as evidence. The requirement
+remains `not_started` until alerts have actually been created and activation
+has been recorded; local implementation or an inactive deploy alone is not
+shadow evidence.
 
 ### `/smc_live` synthetic canary plan
 
@@ -1430,6 +1479,7 @@ Future safe options, in order of preference:
 |----------|----------------|
 | `DATABENTO_API_KEY` | 1. Create new key in Databento portal.<br>2. Update Railway variable.<br>3. Redeploy daemon.<br>4. Revoke old key after health OK. |
 | `OVERLAY_SECRET_TOKEN` | 1. Generate new random secret.<br>2. Update in Railway for both daemon and Alloy services.<br>3. Redeploy both services.<br>4. Update any authenticated server-side `/smc_live` clients. |
+| `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | 1. Set `HOLD_MANAGER_SHADOW_ACCEPTING=0`.<br>2. Generate and set a new dedicated token in Railway.<br>3. Replace `authToken` in all six private TradingView alert messages.<br>4. Verify the empty/inactive state endpoint with the new header token.<br>5. Re-enable acceptance only at a documented observation boundary.<br>6. Revoke the old token by confirming no alert retains it. |
 | `UPTIMEROBOT_API_KEY` | 1. Regenerate in UptimeRobot dashboard.<br>2. Update Railway variable.<br>3. Redeploy. |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | 1. Create new GitHub PAT with `repo` + `actions:read`.<br>2. Update Railway variable.<br>3. Redeploy.<br>4. Delete old PAT. |
 | `GRAFANA_CLOUD_API_KEY` | 1. Create new MetricsPublisher/API key in Grafana Cloud.<br>2. Update Railway Alloy service variable.<br>3. Redeploy Alloy.<br>4. Revoke old key. |

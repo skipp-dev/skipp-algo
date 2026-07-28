@@ -311,6 +311,21 @@
         "BUS Trigger",
         "BUS Invalidation",
         "BUS QualityScore"
+      ],
+      "holdManagerBindings": [
+        "BUS SchemaVersion",
+        "BUS ZoneActive",
+        "BUS Armed",
+        "BUS Confirmed",
+        "BUS Ready",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS QualityScore",
+        "BUS SourceKind",
+        "BUS StateCode",
+        "BUS StopLevel",
+        "BUS Target1",
+        "BUS Target2"
       ]
     },
     "preflightScopes": {
@@ -1865,6 +1880,120 @@
               "group": "g_bus_plan",
               "groupTitle": "Trade Plan",
               "tier": "diagnostic"
+            }
+          ]
+        }
+      ],
+      "smcHoldManagerShadow": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "scriptName": "SMC Long-Dip Suite",
+          "checkInputs": false,
+          "addToChart": false
+        },
+        {
+          "file": "SMC_Hold_Manager.pine",
+          "scriptName": "SMC Hold Manager",
+          "checkInputs": true,
+          "addToChart": true,
+          "minInputs": 13,
+          "savedScriptName": "SMC Hold Manager R2.4 Validation",
+          "bindingContractKey": "holdManagerBindings",
+          "bindingContractName": "Hold Manager BUS bindings",
+          "bindingConsumerRole": "exit_companion",
+          "bindingContractLabels": [
+            "BUS SchemaVersion",
+            "BUS ZoneActive",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS SourceKind",
+            "BUS StateCode",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2"
+          ],
+          "bindingLabelGroups": [
+            {
+              "label": "BUS SchemaVersion",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS ZoneActive",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Armed",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Confirmed",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Ready",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Trigger",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Invalidation",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS QualityScore",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS SourceKind",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS StateCode",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS StopLevel",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Target1",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Target2",
+              "group": "gBus",
+              "groupTitle": "Engine BUS v2 (Expert Mapping)",
+              "tier": "critical"
             }
           ]
         }
