@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from scripts.generate_smc_hold_manager_tv_fixture import (
@@ -13,6 +14,7 @@ from scripts.generate_smc_hold_manager_tv_fixture import (
     SOURCE,
     build_fixture,
     build_manifest,
+    freeze_library_pin,
 )
 from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
 
@@ -41,7 +43,7 @@ def test_generated_fixture_and_manifest_are_current() -> None:
 def test_fixture_is_source_pinned_and_explicitly_non_product() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     fixture, manifest = _fixture_and_manifest()
-    source_hash = hashlib.sha256(source.encode()).hexdigest()
+    source_hash = hashlib.sha256(freeze_library_pin(source).encode()).hexdigest()
 
     assert f"SHA256 {source_hash}" in fixture
     assert "TEST ONLY — DO NOT PUBLISH OR USE FOR TRADING" in fixture
@@ -53,6 +55,54 @@ def test_fixture_is_source_pinned_and_explicitly_non_product() -> None:
     assert FIXTURE.name not in {
         definition.file for definition in SURFACE_DEFINITIONS
     }
+
+
+def test_generated_harness_reads_no_micro_profile_field() -> None:
+    """Premise of the frozen library pin.
+
+    ``freeze_library_pin`` may only hold the harness steady across automated
+    library republishes because the harness rewires every micro-profile input
+    to a deterministic fixture series.  The moment a generated harness reads
+    ``mp.`` again, the frozen pin would silently serve it stale library data —
+    so fail here instead.
+    """
+
+    fixture, _manifest = _fixture_and_manifest()
+
+    assert "mp." not in fixture, (
+        "The generated R2.4 harness now reads a micro-profile field. Drop the "
+        "frozen HARNESS_LIBRARY_PIN and let the pin track the canonical again "
+        "(and re-capture the TradingView compile evidence)."
+    )
+
+
+def test_library_republish_does_not_churn_the_harness() -> None:
+    """A refresh-only pin bump must leave fixture and manifest untouched.
+
+    ``smc-library-refresh`` rewrites the canonical import three times per
+    trading day and cannot regenerate this harness (its pin loop excludes
+    ``tests/``).  Without this decoupling every refresh would strand the
+    committed fixture, manifest and compile evidence on a stale source hash.
+    """
+
+    source = SOURCE.read_text(encoding="utf-8")
+    canonical_pin = re.search(
+        r"import preuss_steffen/smc_micro_profiles_generated/(\d+)", source
+    )
+    assert canonical_pin is not None, (
+        "Canonical no longer imports the generated micro-profiles library — "
+        "the decoupling premise changed, re-read HARNESS_LIBRARY_PIN."
+    )
+    republished = source.replace(
+        f"smc_micro_profiles_generated/{canonical_pin.group(1)}",
+        f"smc_micro_profiles_generated/{int(canonical_pin.group(1)) + 99}",
+    )
+    assert republished != source
+
+    assert build_fixture(republished) == build_fixture(source)
+    assert build_manifest(
+        republished, build_fixture(republished)
+    ) == build_manifest(source, build_fixture(source))
 
 
 def test_fixture_covers_the_exact_twenty_case_contract() -> None:

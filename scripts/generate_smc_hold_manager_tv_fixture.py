@@ -8,6 +8,15 @@ OHLC, ATR, recovery, and context inputs to deterministic fixture series.
 The generated Pine is not a product surface and must never be published or
 added to the managed rollout.  Its embedded canonical source hash and strict
 anchor replacements make source drift fail closed.
+
+The one canonical edit that must NOT fail closed is the automated
+``smc-library-refresh`` pin bump: it rewrites the canonical's
+``smc_micro_profiles_generated/<N>`` import three times per trading day while
+the harness itself reads no ``mp.*`` field at all (rewired to fixture series;
+pinned by ``test_generated_harness_reads_no_micro_profile_field``).  Hashing and
+emitting that import at a frozen version therefore keeps the harness — and the
+TradingView compile evidence pinned to it — stable across library republishes
+without weakening drift detection for any real source change.
 """
 
 from __future__ import annotations
@@ -18,7 +27,10 @@ from pathlib import Path
 from typing import Final
 
 from scripts.smc_atomic_write import atomic_write_text
-from scripts.smc_hold_manager_replay import build_replay_preflight
+from scripts.smc_hold_manager_replay import (  # single source of the frozen pin
+    build_replay_preflight,
+    freeze_library_pin,
+)
 
 ROOT: Final = Path(__file__).resolve().parents[1]
 SOURCE: Final = ROOT / "SMC_Hold_Manager.pine"
@@ -315,6 +327,7 @@ def _replace_once(source: str, old: str, new: str) -> str:
 def build_fixture(source: str) -> str:
     """Return a deterministic test harness derived from canonical Pine."""
 
+    source = freeze_library_pin(source)
     source_hash = hashlib.sha256(source.encode()).hexdigest()
     source = _replace_once(
         source,
@@ -426,6 +439,7 @@ plot(fixture_exit_count, "Fixture HM_EXIT_ANY Count", display = display.none)
 def build_manifest(source: str, fixture: str) -> dict[str, object]:
     """Build the operator contract without claiming runtime execution."""
 
+    source = freeze_library_pin(source)
     preflight = build_replay_preflight()
     cases = []
     for case in preflight["cases"]:
