@@ -1105,13 +1105,23 @@ confirmed the six correctly configured alerts on 2026-07-29 (redacted
 attestation:
 `artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json`;
 TradingView alert state is not machine-verifiable from the repository, so the
-evidence is an operator attestation, not an automated readback). The receiver
-remains non-accepting and observation has not started, so
-`R2-SHADOW-CUTOVER` remains `not_started`; only opening the observation window
-still requires exact authorization. The delivered-alert half of the
-observation chain is wired: `/state` exposes a per-session breakdown and
+evidence is an operator attestation, not an automated readback). The
+delivered-alert half of the observation chain is wired: `/state` exposes a
+per-session breakdown and
 `scripts/reconcile_smc_hold_manager_shadow_deliveries.py` fills
 `deliveredServerAlerts` from the receiver ledger fail-closed.
+
+With the separately granted operator authorization the shadow was activated
+on 2026-07-28 at 22:41 UTC — after the XNYS close, i.e. exactly at the agreed
+observation boundary: `HOLD_MANAGER_SHADOW_ACCEPTING=1` (deployment
+`059b2883-3e5e-44ad-a781-d3f12c46fb51`), state readback `accepting=true` with
+an empty ledger (evidence:
+`artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json`).
+`R2-SHADOW-CUTOVER` is now `in_progress` (traceability `partial`): the
+evaluator reports `blocked` by design until the five complete XNYS sessions
+(first evaluable: 2026-07-29), the required edges, and the rollback drill
+exist. The rollback drill is operator-pre-authorized and executes only after
+the observation criteria pass.
 
 Shadow activation requires separate authorization for controlled TradingView
 alert creation. Under the

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "requirementId": "R2-SHADOW-CUTOVER",
-  "status": "not_started",
-  "readinessStatus": "alerts_created_receiver_inactive",
+  "status": "in_progress",
+  "readinessStatus": "shadow_active_observation_window_open",
   "source": {
     "path": "SMC_Hold_Manager.pine",
     "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813",
@@ -22,7 +22,7 @@
     "marketTimezone": "America/New_York"
   },
   "receiver": {
-    "status": "deployed_configured_inactive",
+    "status": "deployed_configured_accepting",
     "service": "live_overlay_daemon",
     "productionHost": "https://liveoverlaydaemon-production.up.railway.app",
     "webhookPath": "/tradingview/hold-manager-shadow",
@@ -33,10 +33,11 @@
     "deploymentEvidence": "artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json",
     "requiresPersistentLedger": true,
     "acceptingDefault": false,
-    "accepting": false,
+    "accepting": true,
     "ledgerPath": "/app/data/smc-hold-manager-shadow.sqlite3",
     "deployed": true,
-    "configured": true
+    "configured": true,
+    "activationEvidence": "artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json"
   },
   "activationRequirements": {
     "requiresSeparateAuthorization": true,
@@ -101,7 +102,7 @@
   },
   "promotionRule": "Pass only when activation, the pre-registered observation window, server-alert delivery, transition comparison, actionable-mode exclusivity, and rollback drill all pass with no blocker.",
   "currentState": {
-    "activation": "not_started",
+    "activation": "active",
     "managedSavedScriptRefreshPerformed": true,
     "isolatedPreflightStatus": "passed_visible_browser_fallback",
     "isolatedPreflightEvidence": "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
@@ -112,6 +113,7 @@
     "externalPublicationPerformed": false,
     "alertsCreated": true,
     "alertsCreatedEvidence": "artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json",
-    "shadowObservationStarted": false
+    "shadowObservationStarted": true,
+    "shadowObservationStartedEvidence": "artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json"
   }
 }

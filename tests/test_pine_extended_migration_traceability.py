@@ -103,7 +103,10 @@ def test_live_r1_r2_claims_stay_open_while_surfaces_are_planned() -> None:
     surfaces = {surface.file: surface for surface in SURFACE_DEFINITIONS}
 
     assert requirements["R1-LIVE-ROLLOUT"]["status"] == "not_started"
-    assert requirements["R2-SHADOW-CUTOVER"]["status"] == "not_started"
+    # 2026-07-28 22:41Z: R2 shadow observation window opened (partial) — the
+    # surface itself stays a planned rollout until the window and rollback
+    # drill pass; "partial" must never silently become "complete" here.
+    assert requirements["R2-SHADOW-CUTOVER"]["status"] == "partial"
     for file in (
         "SMC_Event_Overlay.pine",
         "SMC_Exit_Signal.pine",

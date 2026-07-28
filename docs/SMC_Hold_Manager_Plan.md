@@ -93,10 +93,22 @@ korrekt konfigurierten Alerts am 2026-07-29 bestätigt. Die redigierte
 Attestation liegt in
 `artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json` —
 TradingView-Alert-Zustand ist aus dem Repo nicht maschinell nachprüfbar,
-deshalb Operator-Attestation statt automatisiertem Readback. Der Receiver
-bleibt `accepting=false` und die Shadow-Beobachtung wurde nicht gestartet;
-`R2-SHADOW-CUTOVER` bleibt deshalb ausdrücklich `not_started`, offen sind nur
-noch die separate Aktivierungs-Autorisierung und der Rollback-Drill.
+deshalb Operator-Attestation statt automatisiertem Readback.
+
+Mit separater Operator-Autorisierung wurde der Shadow am 2026-07-28 um
+22:41 UTC — nach XNYS-Handelsschluss, also exakt an der Beobachtungsgrenze —
+aktiviert: `HOLD_MANAGER_SHADOW_ACCEPTING=1` (Deployment
+`059b2883-3e5e-44ad-a781-d3f12c46fb51`), Readback bestätigte
+`accepting=true` bei leerem Ledger und `/health`/`/ready` 200. Nachweis:
+`artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json`.
+Die erste vollständig evaluierbare XNYS-Session ist der 2026-07-29; ein
+etwaiges Event mit `bar_time` vom 2026-07-28 (späte Extended Hours) muss als
+ausgeschlossene Teilsession erfasst werden. `R2-SHADOW-CUTOVER` steht damit
+auf `in_progress`/`partial`: Der Evaluator meldet erwartungsgemäß `blocked`,
+bis fünf vollständige Sessions in Aktivierungsreihenfolge, die Pflicht-Kanten
+und der Rollback-Drill vorliegen. Der Rollback-Drill ist vom Operator bereits
+vorab autorisiert, wird aber protokollgemäß erst nach Bestehen der
+Beobachtungskriterien ausgeführt.
 
 Für die Beobachtung selbst ist die Zustellungs-Seite jetzt verdrahtet: `/state`
 liefert zusätzlich einen `sessions`-Breakdown pro US-Marktsitzungstag

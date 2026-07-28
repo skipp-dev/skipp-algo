@@ -1441,11 +1441,26 @@ implementation.
    `HOLD_MANAGER_SHADOW_ACCEPTING=1`, record the activation object and ordered
    session ledger, and start the first complete XNYS observation session.
 
+   Executed 2026-07-28T22:41Z at the post-close boundary under the separate
+   operator authorization: deployment `059b2883-3e5e-44ad-a781-d3f12c46fb51`,
+   state readback `accepting=true` with an empty ledger, `/health` and
+   `/ready` HTTP 200. Evidence:
+   `artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json`;
+   the activation object is recorded in
+   `artifacts/governance/smc_hold_manager_shadow_observations.json`. First
+   evaluable XNYS session: 2026-07-29. Delivered counts per session are
+   reconciled with
+   `scripts/reconcile_smc_hold_manager_shadow_deliveries.py`; the rollback
+   drill is operator-pre-authorized and runs only after the observation
+   criteria pass.
+
 Rollback is fail-closed: set `HOLD_MANAGER_SHADOW_ACCEPTING=0` first, disable
-all six Hold alerts, and retain the SQLite ledger as evidence. The requirement
-remains `not_started` until alerts have actually been created and activation
-has been recorded; local implementation or an inactive deploy alone is not
-shadow evidence.
+all six Hold alerts, and retain the SQLite ledger as evidence. Alerts were
+created (2026-07-28, operator-attested) and activation was recorded
+(2026-07-28T22:41Z), so the requirement is `in_progress`; it passes only when
+five complete sessions, the required edges, and the rollback drill are
+evidenced — local implementation or an inactive deploy alone is not shadow
+evidence.
 
 ### `/smc_live` synthetic canary plan
 
