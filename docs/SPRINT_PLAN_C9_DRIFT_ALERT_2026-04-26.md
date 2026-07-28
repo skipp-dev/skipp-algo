@@ -56,6 +56,9 @@ Ohne C9 wird Decay erst zu spät bemerkt — typische Erfahrung: "AI-Modell-Akku
 - ✅ Aus C8: `cache/live/incubation_<date>.jsonl` mit per-Trade-Outcome-Stream
 - ✅ Aus C1: `cache/calibration/outcomes_<date>.jsonl`
 - ✅ Aus C5: `cache/calibration/regime_stratified_<date>.json` (Backtest-Referenz pro Regime)
+  — **Stand 2026-07-29 (Verdrahtungs-Sweep): wird von nichts produziert.**
+  Das C5-Inferenz-Modul ist gebaut+getestet, aber unverdrahtet; siehe
+  Wiring-Status-Note in `docs/SPRINT_PLAN_C5_REGIME_STRATIFICATION_2026-04-26.md` §T7.
 
 ## Methoden-Foundation (4 komplementäre Detektoren)
 

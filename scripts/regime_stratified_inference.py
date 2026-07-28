@@ -18,6 +18,19 @@ shuffles. ``regime_stratified_permutation`` wraps it with a
 within-bucket shuffle so any aggregate p-value still respects the
 regime concentration test from
 ``scripts.regime_stratification.detect_regime_concentration``.
+
+Wiring status (2026-07-29, Verdrahtungs-Sweep)
+----------------------------------------------
+Shadow/unwired: no production code imports this module (tests only), and
+the C5 artifact it was built to feed
+(``cache/calibration/regime_stratified_<date>.json``, per plan consumed by
+``emit_public_calibration_report`` and the C9 drift watchdog) is produced
+by nothing. Wiring is blocked on the same owner decision as the C6/C7
+track-record gate (see ``scripts/build_track_record_gate.py``): no
+persisted per-trade returns corpus with regime tags exists to stratify,
+and choosing that returns/trade definition is a methodology decision, not
+plumbing. Until that lands, this stays a tested, importable library —
+read SPRINT_PLAN_C5 §T4/§T7 ✅ as "built", not "wired".
 """
 
 from __future__ import annotations

@@ -132,6 +132,17 @@ Konsequenz: Die **Regime-Detection** ist solide etabliert, was fehlt ist die **S
 
 ### T7 — Integration in Calibration-Report (0.5–1 Werktag)
 
+> **Wiring-Status 2026-07-29 (Verdrahtungs-Sweep):** Die ✅ unten heißen
+> „gebaut + getestet", **nicht** „verdrahtet". `emit_public_calibration_report`
+> akzeptiert `regime_stratified` als additiven Schema-Block (1.2.0), aber
+> `main()` übergibt den Parameter nie, kein Producer schreibt
+> `cache/calibration/regime_stratified_<date>.json`, und
+> `scripts/regime_stratified_inference.py` hat null Produktions-Importer
+> (nur Tests). Verdrahtung ist owner-blocked auf derselben Entscheidung wie
+> das C6/C7-Track-Record-Gate: es existiert kein persistierter
+> Per-Trade-Returns-Korpus mit Regime-Tags, und die Returns-/Trade-Definition
+> ist eine Methodik-Entscheidung (siehe `scripts/build_track_record_gate.py`).
+
 **Akzeptanzkriterien:**
 - ✅ Schema-Erweiterung in ✅ `scripts/emit_public_calibration_report.py` mit Feldern pro Setup × Regime:
   - `regime_stratified.<regime_label>.sharpe`

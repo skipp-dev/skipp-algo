@@ -297,6 +297,15 @@ def build_public_report(
     :mod:`scripts.regime_stratification` are surfaced under the
     ``regime_stratified`` key (one block per regime label plus the
     aggregate freq-weighted Sharpe and BH-FDR rejection summary).
+    Wiring status (2026-07-29, Verdrahtungs-Sweep): ``main()`` never passes
+    this parameter, and nothing produces the C5 input artifact
+    (``cache/calibration/regime_stratified_<date>.json``) —
+    :mod:`scripts.regime_stratified_inference` has no production caller.
+    Like ``track_record_gate`` above, wiring is blocked on the C6/C7 owner
+    decision documented in ``scripts/build_track_record_gate.py``: there is
+    no persisted per-trade returns corpus to stratify, and choosing that
+    returns/trade definition is a methodology decision, not plumbing. So a
+    public report without this key is the expected state today, not a bug.
 
     ``families`` (additive in schema 1.3.0; Deep-Review 2026-04-27 MAJOR
     finding): per-family Phase-B incubation telemetry consumed by
