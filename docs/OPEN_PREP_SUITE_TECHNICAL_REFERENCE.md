@@ -333,7 +333,7 @@ Datei: `open_prep/realtime_signals.py`
 
 ### 9.1 Kernobjekte
 
-- `RealtimeEngine` — FMP-polling breakout detection engine
+- `RealtimeEngine` — source-pluggable breakout engine; Databento default, FMP fallback/rollback
 - `RealtimeSignal` — single breakout signal dataclass
 - `TechnicalScorer` — cached TradingView + FMP technical indicator wrapper
 - `QuoteDeltaTracker` — per-symbol Δ columns for VisiData

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
+from datetime import datetime
 from typing import Any
 
 from .utils import MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
 from .utils import to_float as _to_float
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Gap-GO / Gap-WATCH classifier defaults
@@ -14,6 +18,44 @@ GO_MIN_EXT_VOL_RATIO = 0.06
 WATCH_MIN_GAP_PCT = 0.5
 DQ_MAX_SPREAD_BPS = 60.0
 MACRO_SHORT_BIAS_THRESHOLD = -0.35
+MAX_ACTIVE_QUOTE_AGE_SECONDS = 7 * 24 * 60 * 60
+
+
+def filter_active_quotes(
+    quotes: list[dict[str, Any]],
+    *,
+    run_dt_utc: datetime,
+    max_stale_age_seconds: float = MAX_ACTIVE_QUOTE_AGE_SECONDS,
+) -> list[dict[str, Any]]:
+    """Remove explicitly inactive or severely stale symbols from live scope.
+
+    A one-session stale quote remains eligible because a provider can lag
+    transiently before the open. A quote that is still pinned to an old
+    session after seven days is not a live instrument candidate and must not
+    leak into the realtime watchlist (the Dayforce ``DAY`` delisting exposed
+    this gap).
+    """
+    active: list[dict[str, Any]] = []
+    excluded_by_reason: dict[str, list[str]] = {}
+    run_epoch = run_dt_utc.timestamp()
+    for quote in quotes:
+        symbol = str(quote.get("symbol") or "").strip().upper()
+        reason = ""
+        if quote.get("isActivelyTrading") is False:
+            reason = "provider_marked_inactive"
+        elif str(quote.get("gap_reason") or "") == "stale_prior_session_quote":
+            quote_epoch = _to_float(quote.get("timestamp"), default=0.0)
+            if quote_epoch >= 1_000_000_000_000:
+                quote_epoch /= 1000.0
+            if quote_epoch > 0 and run_epoch - quote_epoch >= max_stale_age_seconds:
+                reason = "stale_quote_over_7d"
+        if reason:
+            excluded_by_reason.setdefault(reason, []).append(symbol or "<unknown>")
+        else:
+            active.append(quote)
+    if excluded_by_reason:
+        logger.warning("Excluded inactive live-universe symbols: %s", excluded_by_reason)
+    return active
 
 
 def _push_reason(reasons: list[str], code: str) -> None:

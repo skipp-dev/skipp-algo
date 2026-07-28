@@ -1,8 +1,8 @@
 """Quote-source abstraction for the realtime-signals producer (Task 1.1).
 
-Introduces the seam between ``RealtimeEngine`` and its price-feed provider so
-a later task (1.3 of the Databento signal-migration plan) can inject a
-Databento-backed ``QuoteSource`` without touching signal-detection logic.
+Defines the seam between ``RealtimeEngine`` and its price-feed provider.
+The engine selects Databento by default and retains ``FMPQuoteSource`` as
+its explicit rollback and startup fallback.
 
 ``FMPQuoteSource`` is a 1:1 extraction of the pre-Task-1.1 inline fetch logic:
 
@@ -235,9 +235,9 @@ class DatabentoQuoteSource:
     feed's supervisor restart: the supervisor brings the feed back, the gate
     keeps stale prices out of signals while it is down.
 
-    This class is deliberately standalone: it is NOT wired into
-    ``RealtimeEngine`` and does not touch the ``RT_QUOTE_SOURCE`` self-heal
-    (Task 2.1's job).
+    ``RealtimeEngine`` wires this source as its default. The adapter remains
+    standalone from signal math: it only satisfies the shared quote-row
+    contract behind the ``RT_QUOTE_SOURCE`` seam.
     """
 
     def __init__(

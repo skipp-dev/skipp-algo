@@ -22,7 +22,7 @@ Databento-source-pure -- that is an intentional design contract (see
 muss Previous Close und ADV aus Databento enthalten"*), so that its shadow
 decisions stay uncontaminated by FMP for the FMP-vs-Databento parity
 comparison. This module has a different consumer (the realtime signals
-*producer*, via the future ``DatabentoQuoteSource``) and a different
+*producer*, via ``DatabentoQuoteSource``) and a different
 constraint: ``previous_close``/``average_daily_volume`` are daily values
 (not latency-critical -- only the live intraday bars are), and a Databento
 ``ohlcv-1d`` bar on ``EQUS.MINI`` is RAW/UNADJUSTED for corporate actions,

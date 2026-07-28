@@ -57,7 +57,7 @@ from .regime import apply_regime_adjustments, classify_regime, seed_regime_hyste
 
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
-from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
+from .screen import classify_long_gap, compute_gap_warn_flags, filter_active_quotes, rank_candidates
 from .sentiment_fng import fetch_cnn_equity_fear_greed
 from .technical_analysis import (
     compute_adx_from_bars,
@@ -4568,7 +4568,7 @@ def _fetch_quotes_with_atr(
             logger.debug("Dropped non-US exchange quote: %s (exchange=%s)", sym, exchange)
     quotes = filtered_quotes
 
-    quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode, gap_scope=gap_scope)
+    quotes = filter_active_quotes(apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode, gap_scope=gap_scope), run_dt_utc=run_dt_utc)
 
     # ATR should only be computed for symbols that actually produced a quote.
     # The blended universe can contain stale/delisted movers which do not

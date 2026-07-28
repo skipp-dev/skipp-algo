@@ -17,8 +17,8 @@ certifi==2026.4.22     # CA bundle used by terminal_tradingview_news SSL context
 # gates); keep aligned with root requirements.txt to avoid runtime drift.
 tradingview-ta==3.3.0
 
-# Databento SDK — required when RT_QUOTE_SOURCE=databento (the shadow/cutover
-# quote path: open_prep.realtime_signals._build_databento_quote_source imports
-# `databento`). The default FMP path never imports it, so this was latent until
-# the shadow deploy. Keep aligned with root requirements.txt to avoid drift.
+# Databento SDK — required by the default quote path:
+# open_prep.realtime_signals._build_databento_quote_source imports `databento`.
+# Explicit/fallback FMP mode does not import it. Keep aligned with root
+# requirements.txt to avoid drift.
 databento==0.79.0

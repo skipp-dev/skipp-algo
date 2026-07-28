@@ -12,13 +12,12 @@ network, no real ``DATABENTO_API_KEY``):
 (b) The self-heal (``_quote_source is None``) now respects the flag: it
     rebuilds a ``DatabentoQuoteSource`` under the flag instead of always
     falling back to FMP.
-(c) The FMP default path (flag unset) is unchanged: still an FMPQuoteSource
-    wired to ``engine.client``, and the Databento branch is never even
-    imported.
+(c) Databento is the default when the flag is unset; FMP is only selected
+    explicitly or as an observable construction-time fallback.
 
 A fifth test proves the feed lifecycle: ``start_quote_source()`` /
 ``stop_quote_source()`` start/stop the constructed feed exactly once each,
-and are a no-op under the FMP default.
+and are a no-op under explicit/fallback FMP mode.
 """
 
 from __future__ import annotations
@@ -283,40 +282,32 @@ def test_self_healed_feed_is_started_not_orphaned(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# (c) FMP default path is unchanged when the flag is unset
+# (c) Databento default + explicit/automatic FMP fallback
 # ---------------------------------------------------------------------------
 
 
-def test_default_quote_source_is_fmp_when_flag_unset(monkeypatch) -> None:
+def test_default_quote_source_is_databento_when_flag_unset(monkeypatch) -> None:
     monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.setenv("DATABENTO_API_KEY", "test-key-not-real")
 
-    databento_module_touched = {"value": False}
-
-    class _PoisonDatabentoQuoteFeed:
-        def __call__(self, *args, **kwargs):
-            databento_module_touched["value"] = True
-            raise AssertionError("DatabentoQuoteFeed must not be constructed under the FMP default")
-
-    monkeypatch.setattr(
-        "open_prep.databento_quote_feed.DatabentoQuoteFeed", _PoisonDatabentoQuoteFeed(),
-    )
+    fake_feed = _FakeDatabentoQuoteFeed()
+    _install_fake_databento_plumbing(monkeypatch, fake_feed)
 
     engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
-    engine._client = "sentinel-client"
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine._databento_feed = None
 
     source = engine._default_quote_source()
 
-    assert isinstance(source, FMPQuoteSource)
-    assert source._resolve_client() == "sentinel-client"
-    assert databento_module_touched["value"] is False
+    assert isinstance(source, DatabentoQuoteSource)
+    assert engine._quote_source_fallback_reason == ""
 
 
-def test_fmp_default_end_to_end_fetch_unchanged(monkeypatch) -> None:
-    """Same end-to-end shape as the pre-existing
+def test_explicit_fmp_end_to_end_fetch_unchanged(monkeypatch) -> None:
+    """Explicit rollback preserves the same end-to-end shape as the pre-existing
     test_fmp_quote_source_matches_current_engine_fetch_realtime_quotes in
-    test_quote_source_parity.py -- re-asserted here under this task's flag
-    handling to prove the FMP path is bit-identical post-wiring."""
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    test_quote_source_parity.py."""
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
 
     class _Client:
         def __init__(self) -> None:
@@ -339,6 +330,48 @@ def test_fmp_default_end_to_end_fetch_unchanged(monkeypatch) -> None:
     assert client.calls == [["AAPL", "MSFT"]]
     assert sorted(quotes) == ["AAPL", "MSFT"]
     assert isinstance(engine._quote_source, FMPQuoteSource)
+
+
+def test_databento_construction_failure_falls_back_to_fmp(monkeypatch) -> None:
+    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._client = "sentinel-client"
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine._databento_feed = None
+
+    source = engine._default_quote_source()
+
+    assert isinstance(source, FMPQuoteSource)
+    assert source._resolve_client() == "sentinel-client"
+    assert engine._quote_source_fallback_reason == "RuntimeError"
+
+
+def test_empty_databento_reference_falls_back_to_fmp(monkeypatch) -> None:
+    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    monkeypatch.setenv("DATABENTO_API_KEY", "test-key-not-real")
+
+    fake_feed = _FakeDatabentoQuoteFeed()
+    _install_fake_databento_plumbing(monkeypatch, fake_feed)
+    monkeypatch.setattr(
+        quote_reference_module.QuoteReference,
+        "load",
+        classmethod(
+            lambda cls, path=quote_reference_module.DEFAULT_OUTPUT_PATH: QuoteReference({})
+        ),
+    )
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._client = "sentinel-client"
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine._databento_feed = None
+
+    source = engine._default_quote_source()
+
+    assert isinstance(source, FMPQuoteSource)
+    assert engine._databento_feed is None
+    assert engine._quote_source_fallback_reason == "RuntimeError"
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +405,8 @@ def test_start_stop_quote_source_drive_the_databento_feed(monkeypatch) -> None:
     assert fake_feed.stop_calls == 1
 
 
-def test_start_stop_quote_source_are_noop_under_fmp_default(monkeypatch) -> None:
-    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+def test_start_stop_quote_source_are_noop_under_explicit_fmp_rollback(monkeypatch) -> None:
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
 
     engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
     engine._client = "sentinel-client"
@@ -392,7 +425,7 @@ def test_start_stop_quote_source_are_noop_under_fmp_default(monkeypatch) -> None
 # Hardening: SIGTERM stop path + watchlist-rotation feed lifecycle (Phase 2.2
 # follow-up). SIGTERM must flow through the same graceful shutdown SIGINT does;
 # a watchlist reload must resubscribe the feed + reload the daily reference,
-# and stay a safe no-op under the FMP default.
+# and stay a safe no-op under explicit FMP rollback.
 # ---------------------------------------------------------------------------
 
 
@@ -444,11 +477,35 @@ def test_reload_watchlist_resubscribes_feed_and_reloads_reference(monkeypatch) -
     assert calls.get("reloaded") is True
 
 
-def test_reload_watchlist_is_noop_for_fmp_default(monkeypatch) -> None:
-    """FMP default: no databento feed, and an FMP source has no
+def test_reload_watchlist_is_noop_for_explicit_fmp_rollback(monkeypatch) -> None:
+    """Explicit FMP rollback: no Databento feed, and an FMP source has no
     ``reload_reference`` -- the rotation must not raise."""
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "fmp")
     engine = _minimal_engine_for_reload(
         monkeypatch, [{"symbol": "AAPL"}],
-        feed=None, quote_source=types.SimpleNamespace(),  # no reload_reference attr
+        feed=None,
+        quote_source=FMPQuoteSource(lambda: object()),
     )
     engine.reload_watchlist()  # must not raise
+
+
+def test_reload_watchlist_retries_databento_after_runtime_fallback(monkeypatch) -> None:
+    """An automatic FMP fallback is not sticky forever: the daily watchlist
+    reload retries Databento and starts the recovered feed."""
+    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
+    recovered_feed = _FakeDatabentoQuoteFeed()
+    recovered = DatabentoQuoteSource(recovered_feed, _fake_reference())
+    engine = _minimal_engine_for_reload(
+        monkeypatch,
+        [{"symbol": "AAPL"}],
+        feed=None,
+        quote_source=FMPQuoteSource(lambda: object()),
+    )
+    monkeypatch.setattr(engine, "_default_quote_source", lambda: recovered)
+    starts: list[bool] = []
+    monkeypatch.setattr(engine, "start_quote_source", lambda: starts.append(True))
+
+    engine.reload_watchlist()
+
+    assert engine._quote_source is recovered
+    assert starts == [True]
