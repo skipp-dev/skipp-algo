@@ -260,6 +260,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'smcMainline',
         'smcDecisionFirst',
         'smcHoldManagerShadow',
+        'smcR1Companions',
     )
     # Canonical unique TV script identities (no third-party substring collision).
     # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.
@@ -326,6 +327,13 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
             for label in MANIFEST.HOLD_MANAGER_BUS_LABELS
         ],
     }
+    event_target = payload['preflightScopes']['smcR1Companions'][1]
+    exit_target = payload['preflightScopes']['smcR1Companions'][2]
+    assert event_target['bindingContractLabels'] == ['BUS LeanPackA']
+    assert event_target['allowFreshDraftOnMissingExisting'] is True
+    assert exit_target['bindingContractLabels'] == list(MANIFEST.EXIT_SIGNAL_BUS_LABELS)
+    assert len(exit_target['bindingContractLabels']) == 9
+    assert exit_target['allowFreshDraftOnMissingExisting'] is True
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v8.0a'

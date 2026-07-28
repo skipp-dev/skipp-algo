@@ -71,19 +71,32 @@
           "description": "Deterministic TradingView replay proves single alert edges, same-bar precedence, gap behavior, and no duplicate actionable exit mode.",
           "status": "partial",
           "evidence": [
-            "tests/test_smc_exit_signal.py"
+            "tests/test_smc_exit_signal.py",
+            "scripts/smc_exit_signal_replay.py",
+            "scripts/generate_smc_exit_signal_tv_fixture.py",
+            "tests/test_smc_exit_signal_replay.py",
+            "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine",
+            "artifacts/governance/smc_exit_signal_replay_preflight.json",
+            "artifacts/governance/smc_exit_signal_tradingview_fixture_manifest.json"
           ],
           "openGates": [
-            "Capture TradingView replay evidence for gap, same-bar, and alert-edge cases."
+            "The deterministic repository model and private test-only fixture cover gap, same-bar, precedence, fail-closed, and single-edge cases. Obtain exact authorization, then compile the fixture and capture redacted TradingView evidence for all eleven runtime cases; verify Exit Signal is the only actionable exit mode in the Simple Management layout."
           ]
         },
         {
           "id": "R1-LIVE-ROLLOUT",
           "description": "Event Overlay and Exit Signal compile, save, bind, hash-verify, and enter the intended managed layout.",
           "status": "not_started",
-          "evidence": [],
+          "evidence": [
+            "automation/tradingview/preflight-r1-companions.json",
+            "scripts/smc_r1_rollout_contract.py",
+            "tests/test_smc_r1_rollout_contract.py",
+            "artifacts/governance/smc_r1_live_rollout_contract.json",
+            "scripts/smc_bus_manifest.py",
+            "artifacts/tradingview/smc_product_cut_manifest.json"
+          ],
           "openGates": [
-            "Add only after compile, source-hash, binding, alert, and layout evidence is captured."
+            "The fail-closed private preflight scope and exact evidence contract are ready. Obtain exact authorization and capture compile, persisted source-hash, one Event Overlay plus nine Exit Signal bindings, alert inventory, Simple Management layout exclusivity, and rollback evidence before changing rollout_state to deployed or adding either surface to consumer-rollout.json."
           ]
         }
       ]
@@ -187,10 +200,20 @@
         {
           "id": "R3-REMAINING-FRAMES",
           "description": "Sweep, Pool, Session, and aggregate Context frames are implemented with parity evidence.",
-          "status": "not_started",
-          "evidence": [],
+          "status": "partial",
+          "evidence": [
+            "SMC++/smc_context_engine_private.pine",
+            "docs/smc-context-semantics.md",
+            "scripts/gen_smc_context_golden.py",
+            "scripts/smc_context_detection_replay.py",
+            "tests/test_smc_context_golden.py",
+            "tests/test_pine_context_library_contract.py",
+            "tests/test_smc_context_detection_replay.py",
+            "tests/fixtures/smc_context_golden.json",
+            "tests/fixtures/smc_context_detection_replay.json"
+          ],
           "openGates": [
-            "Implement all four missing frames and extend the golden/replay contract."
+            "All four repository frames, Python-golden rule parity, Pine-only detection semantics, and deterministic replay vectors are implemented. TradingView compile and redacted Pine runtime replay remain required before this gate can be complete."
           ]
         },
         {

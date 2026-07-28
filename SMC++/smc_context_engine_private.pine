@@ -11,9 +11,11 @@
 // (mitigation %, BPR overlap, void %, zone-bias count delta, state precedence)
 // mirrors the golden parity contract in tests/fixtures/smc_context_golden.json;
 // structure and zone are spec-only (Column B) — see docs/smc-context-semantics.md.
-// Sweep/Pool frames and the aggregated build_context_frame() follow in later
-// slices: sweeps and pools do have a Python golden for their *scoring*, but their
-// live candidate detection has no engine primitive and is genuinely new Pine work.
+// Sweep/Pool scoring mirrors the Python golden while their live candidate
+// detection is Pine-only and explicitly specified in docs/smc-context-semantics.md.
+// Session classification uses independent IANA zones (Tokyo, London, New York),
+// and build_context_frame() composes all six domains without running a second
+// structure detector for the dependent ZoneFrame.
 library("smc_context_engine_private", overlay = true)
 
 // Pine requires every library referenced by a *used* type's fields to be imported
@@ -53,6 +55,13 @@ const float FULL_MIT_PCT          = 1.0   // gap fully closed  -> no longer acti
                                           // target, which is what makes
                                           // eng.FVG.filled mean "fully mitigated".
 const float LIQ_VOID_MIN_SIZE_PCT = 2.0   // gap >= 2% of mid  -> liquidity void
+const float SWEEP_DEPTH_MIN_PCT = 0.1
+const float SWEEP_DEPTH_STOP_HUNT_PCT = 0.3
+const int   SWEEP_RECLAIM_MAX_BARS = 5
+const float SWEEP_VOLUME_RATIO_MIN = 1.2
+const float IMBALANCE_SIG_THRESHOLD = 0.3
+const float PROXIMITY_NEAR_PCT = 1.0
+const int   CLUSTER_STRONG_COUNT = 3
 
 // --- Pine-only (Column B spec, no Python golden) ---
 const int   ZONE_BIAS_COUNT_DELTA = 2     // |bull-bear count| >= 2 -> directional bias
@@ -64,6 +73,15 @@ const int   ATR_LEN_MAIN          = 50    // u.smc_lib_atr length. NOT 200 — t
                                           // an unrelated engine-internal impulse ATR.
 const float OB_FILTER_MIN_MULT    = 0.5   // min block size = atr * 0.5
 const float OB_FILTER_MAX_MULT    = 2.5   // max block size = atr * 2.5
+const int   SWEEP_TYPE_STOP_HUNT  = 1
+const int   SWEEP_TYPE_GRAB       = 2
+const int   SWEEP_TYPE_INDUCEMENT = 3
+const int   SESSION_ASIA          = 1
+const int   SESSION_LONDON        = 2
+const int   SESSION_NY_AM         = 3
+const int   SESSION_NY_PM         = 4
+const int   CONTEXT_BIAS_MIN_VOTES = 2
+const int   OPENING_RANGE_MINUTES = 30
 
 // ── Frame types ──────────────────────────────────────────────────────────────
 
@@ -136,6 +154,77 @@ export type ZoneFrame
     int    ob_bias           // +1 bull, -1 bear, 0 neutral (OB count-delta rule)
     int    state             // composite code, see above
 
+// Recent confirmed liquidity sweep. Direction is +1 bullish (sell-side
+// liquidity taken), -1 bearish (buy-side taken), 0 none/ambiguous. Sweep type:
+// 0 NONE, 1 STOP_HUNT, 2 LIQUIDITY_GRAB, 3 INDUCEMENT.
+export type SweepFrame
+    bool   recent_bull_sweep
+    bool   recent_bear_sweep
+    int    sweep_type
+    int    direction
+    float  zone_top
+    float  zone_bottom
+    bool   reclaim_active
+    int    liquidity_taken_direction // +1 buy-side, -1 sell-side, 0 none/both
+    float  depth_pct
+    float  volume_ratio
+    int    quality_score
+    int    bars_since_event
+    bool   fresh
+
+// Confirmed pivot-cluster liquidity pools. Buy-side levels sit above price,
+// sell-side levels below it. Magnet direction: +1 UP, -1 DOWN, 0 NONE.
+export type PoolFrame
+    float  buy_side_level
+    float  sell_side_level
+    int    buy_side_strength
+    int    sell_side_strength
+    float  proximity_pct
+    int    cluster_density
+    int    untested_buy_pools
+    int    untested_sell_pools
+    float  imbalance
+    int    magnet_direction
+    int    quality_score
+
+// Session state evaluated in each market's own IANA timezone. Session code:
+// 0 NONE, 1 ASIA, 2 LONDON, 3 NY_AM, 4 NY_PM. NY wins the London overlap,
+// matching the Python session-context precedence.
+export type SessionFrame
+    int    session_code
+    bool   in_killzone
+    bool   mss_bull
+    bool   mss_bear
+    int    structure_state
+    bool   fvg_bull_active
+    bool   fvg_bear_active
+    bool   bpr_active
+    float  range_top
+    float  range_bottom
+    float  mean
+    float  vwap
+    float  target_bull
+    float  target_bear
+    bool   opening_range_active
+    float  opening_range_top
+    float  opening_range_bottom
+    int    direction_bias
+    int    context_score
+
+// One confirmed-bar aggregate. Nested frames retain domain provenance; the
+// aggregate adds only an explicit six-domain vote and availability summary.
+export type ContextFrame
+    StructureFrame structure
+    ImbalanceFrame imbalance
+    ZoneFrame zone
+    SweepFrame sweep
+    PoolFrame pool
+    SessionFrame session
+    int    bias
+    int    directional_score
+    int    available_domains
+    int    quality_score
+
 // ── Private helpers (defined before the exported builders) ───────────────────
 
 // Newest active FVG in a buffer, by id. Returns [found, top, bottom, mit_pct].
@@ -194,8 +283,8 @@ _newest_active_ob(array<eng.OrderBlock> arr) =>
 // Project the engine's OB lifecycle onto a ZoneFrame. Takes the structure tuple
 // rather than calling eng.detect_structure itself: track_obs must be fed the SAME
 // structure instance a caller already has, and this seam lets the aggregated
-// build_context_frame() (a later slice) detect structure ONCE instead of spinning
-// up a second detector per frame.
+// build_context_frame() detect structure ONCE instead of spinning up a second
+// detector per frame.
 _build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool bull_choch, bool bear_bos, bool bear_choch, simple int atr_len, float min_mult, float max_mult) =>
     float atr       = u.smc_lib_atr(atr_len)
     float min_block = atr * min_mult   // OB_FILTER_MIN_MULT
@@ -224,7 +313,11 @@ _build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool
     // Composite precedence: OB_BOTH > OB_BULL > OB_BEAR > NONE.
     int state = has_bull and has_bear ? 3 : has_bull ? 1 : has_bear ? 2 : 0
 
-    ZoneFrame.new(has_bull, has_bear, has_bull ? bull_id : na, has_bear ? bear_id : na, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, bull_count, bear_count, bull_new, bear_new, bull_brk, bear_brk, ob_bias, state)
+    ZoneFrame current = ZoneFrame.new(has_bull, has_bear, has_bull ? bull_id : na, has_bear ? bear_id : na, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, bull_count, bear_count, bull_new, bear_new, bull_brk, bear_brk, ob_bias, state)
+    var ZoneFrame published = ZoneFrame.new(false, false, na, na, na, na, na, na, 0, 0, false, false, false, false, 0, 0)
+    if barstate.isconfirmed
+        published := current
+    published
 
 // ── Exported builders ────────────────────────────────────────────────────────
 
@@ -346,13 +439,17 @@ export build_imbalance_frame(float size_threshold = 0.0) =>
     // Composite precedence: BPR > VOID > FVG_BULL > FVG_BEAR > NONE.
     int state = bpr_active ? 3 : void_active ? 4 : has_bull ? 1 : has_bear ? 2 : 0
 
-    ImbalanceFrame.new(has_bull, has_bear, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, has_bull ? bull_mit : na, has_bear ? bear_mit : na, bull_partial, bear_partial, bull_count, bear_count, bpr_active, bpr_dir, bpr_top, bpr_bottom, void_active, void_top, void_bottom, zone_bias, state)
+    ImbalanceFrame current = ImbalanceFrame.new(has_bull, has_bear, has_bull ? bull_top : na, has_bull ? bull_bottom : na, has_bear ? bear_top : na, has_bear ? bear_bottom : na, has_bull ? bull_mit : na, has_bear ? bear_mit : na, bull_partial, bear_partial, bull_count, bear_count, bpr_active, bpr_dir, bpr_top, bpr_bottom, void_active, void_top, void_bottom, zone_bias, state)
+    var ImbalanceFrame published = ImbalanceFrame.new(false, false, na, na, na, na, na, na, false, false, 0, 0, false, 0, na, na, false, na, na, 0, 0)
+    if barstate.isconfirmed
+        published := current
+    published
 
 // Build the zone frame (order-block lifecycle) from the engine's OB tracker.
 // Standalone convenience facade: it detects structure once and feeds that same
 // instance into track_obs, exactly as SMC_Long_Dip_Suite does (line 1740).
 //
-// NOTE for the aggregated build_context_frame() slice: do NOT call this next to
+// NOTE for the aggregated build_context_frame(): do NOT call this next to
 // build_structure_frame() — each public builder runs its own eng.detect_structure,
 // so calling both spins up two independent structure state machines. The aggregator
 // must detect once and call the private _build_zone seam directly.
@@ -367,3 +464,327 @@ export build_imbalance_frame(float size_threshold = 0.0) =>
 export build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
     [_trend, bull_bos, bull_choch, _top_x, _top_y, _trail_up_x, _trail_up, hh, bear_bos, bear_choch, _btm_x, _btm_y, _trail_dn_x, _trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
     _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, min_mult, max_mult)
+
+// Add or reinforce one confirmed pivot cluster. Equal levels are compared by
+// percentage so the tolerance is stable across instruments with different
+// price scales. Arrays are bounded; oldest weak candidates fall off first.
+_pool_add(array<float> levels, array<int> strengths, float candidate, float tolerance_pct, int max_levels) =>
+    int match_idx = na
+    float best_distance = na
+    int size = array.size(levels)
+    if size > 0
+        for i = 0 to size - 1
+            float existing = array.get(levels, i)
+            float denominator = math.max(math.abs(existing), syminfo.mintick)
+            float distance_pct = math.abs(candidate - existing) / denominator * 100.0
+            if distance_pct <= tolerance_pct and (na(best_distance) or distance_pct < best_distance)
+                match_idx := i
+                best_distance := distance_pct
+    if not na(match_idx)
+        int old_strength = array.get(strengths, match_idx)
+        int new_strength = math.min(5, old_strength + 1)
+        float old_level = array.get(levels, match_idx)
+        float merged_level = (old_level * old_strength + candidate) / (old_strength + 1)
+        array.set(levels, match_idx, merged_level)
+        array.set(strengths, match_idx, new_strength)
+    else
+        array.unshift(levels, candidate)
+        array.unshift(strengths, 1)
+        if array.size(levels) > max_levels
+            array.pop(levels)
+            array.pop(strengths)
+    true
+
+// A pool stops being "untested" after price trades through it. Removal happens
+// before newly confirmed pivots are added, so a pivot is not consumed by the
+// same confirmation bar that makes it observable.
+_pool_remove_taken(array<float> levels, array<int> strengths, bool buy_side) =>
+    int i = array.size(levels) - 1
+    while i >= 0
+        float level = array.get(levels, i)
+        bool taken = buy_side ? high >= level : low <= level
+        if taken
+            array.remove(levels, i)
+            array.remove(strengths, i)
+        i -= 1
+    true
+
+_nearest_pool(array<float> levels, array<int> strengths, float price, bool buy_side) =>
+    float selected_level = na
+    int selected_strength = 0
+    float selected_distance = na
+    int size = array.size(levels)
+    if size > 0
+        for i = 0 to size - 1
+            float level = array.get(levels, i)
+            bool correct_side = buy_side ? level > price : level < price
+            float distance = math.abs(level - price)
+            if correct_side and (na(selected_distance) or distance < selected_distance)
+                selected_level := level
+                selected_strength := array.get(strengths, i)
+                selected_distance := distance
+    [selected_level, selected_strength]
+
+// Detect and score recent sweep events from confirmed pivots and chart OHLCV.
+// The scoring ladder is golden-parity; pivot/depth/reclaim detection is the
+// explicitly documented Pine-only Column-B rule.
+export build_sweep_frame(simple int pivot_len = 5, simple int volume_len = 20, simple int fresh_max_bars = 20) =>
+    float pivot_high = ta.pivothigh(high, pivot_len, pivot_len)
+    float pivot_low = ta.pivotlow(low, pivot_len, pivot_len)
+    float average_volume = ta.sma(volume, volume_len)
+
+    var float reference_high = na
+    var float reference_low = na
+    var bool event_bull = false
+    var bool event_bear = false
+    var int event_type = 0
+    var int event_direction = 0
+    var int event_taken_direction = 0
+    var float event_zone_top = na
+    var float event_zone_bottom = na
+    var float event_depth_pct = 0.0
+    var float event_volume_ratio = 0.0
+    var float event_reference_high = na
+    var float event_reference_low = na
+    var bool event_reclaimed = false
+    var int event_age = na
+    var SweepFrame published = SweepFrame.new(false, false, 0, 0, na, na, false, 0, 0.0, 0.0, 0, na, false)
+
+    if barstate.isconfirmed
+        bool bull_taken = not na(reference_low) and low < reference_low and (na(low[1]) or low[1] >= reference_low)
+        bool bear_taken = not na(reference_high) and high > reference_high and (na(high[1]) or high[1] <= reference_high)
+
+        if bull_taken or bear_taken
+            float bull_depth = bull_taken and reference_low != 0.0 ? (reference_low - low) / math.abs(reference_low) * 100.0 : 0.0
+            float bear_depth = bear_taken and reference_high != 0.0 ? (high - reference_high) / math.abs(reference_high) * 100.0 : 0.0
+            float depth = math.max(bull_depth, bear_depth)
+            float volume_ratio = not na(average_volume) and average_volume > 0 and not na(volume) ? volume / average_volume : 0.0
+            int sweep_type = depth >= SWEEP_DEPTH_STOP_HUNT_PCT and volume_ratio >= SWEEP_VOLUME_RATIO_MIN ? SWEEP_TYPE_STOP_HUNT :
+                 volume_ratio >= SWEEP_VOLUME_RATIO_MIN ? SWEEP_TYPE_GRAB : SWEEP_TYPE_INDUCEMENT
+
+            event_bull := bull_taken
+            event_bear := bear_taken
+            event_type := sweep_type
+            event_direction := bull_taken and not bear_taken ? 1 : bear_taken and not bull_taken ? -1 : 0
+            event_taken_direction := bull_taken and not bear_taken ? -1 : bear_taken and not bull_taken ? 1 : 0
+            event_zone_top := bear_taken ? high : reference_low
+            event_zone_bottom := bull_taken ? low : reference_high
+            event_depth_pct := depth
+            event_volume_ratio := volume_ratio
+            event_reference_high := reference_high
+            event_reference_low := reference_low
+            event_age := 0
+            event_reclaimed := (not bull_taken or close > reference_low) and (not bear_taken or close < reference_high)
+        else if not na(event_age)
+            event_age += 1
+            if not event_reclaimed and event_age <= SWEEP_RECLAIM_MAX_BARS
+                event_reclaimed := (not event_bull or close > event_reference_low) and (not event_bear or close < event_reference_high)
+
+        bool fresh = not na(event_age) and event_age <= fresh_max_bars
+        int quality = 0
+        if fresh
+            quality += event_bull or event_bear ? 1 : 0
+            quality += event_type == SWEEP_TYPE_STOP_HUNT or event_type == SWEEP_TYPE_GRAB ? 1 : 0
+            quality += event_reclaimed ? 1 : 0
+            quality += event_depth_pct >= SWEEP_DEPTH_MIN_PCT ? 1 : 0
+            quality += event_volume_ratio >= SWEEP_VOLUME_RATIO_MIN ? 1 : 0
+
+        published := fresh ?
+             SweepFrame.new(event_bull, event_bear, event_type, event_direction, event_zone_top, event_zone_bottom, event_reclaimed, event_taken_direction, event_depth_pct, event_volume_ratio, math.min(quality, 5), event_age, true) :
+             SweepFrame.new(false, false, 0, 0, na, na, false, 0, 0.0, 0.0, 0, event_age, false)
+
+        // Install newly confirmed pivots only after testing the current bar
+        // against the prior reference.
+        if not na(pivot_high)
+            reference_high := pivot_high
+        if not na(pivot_low)
+            reference_low := pivot_low
+
+    published
+
+// Detect equal-pivot clusters and project the exact golden pool rule layer.
+export build_pool_frame(simple int pivot_len = 5, float tolerance_pct = 0.1, simple int max_levels = 20) =>
+    float pivot_high = ta.pivothigh(high, pivot_len, pivot_len)
+    float pivot_low = ta.pivotlow(low, pivot_len, pivot_len)
+
+    var array<float> buy_levels = array.new<float>()
+    var array<int> buy_strengths = array.new<int>()
+    var array<float> sell_levels = array.new<float>()
+    var array<int> sell_strengths = array.new<int>()
+    var PoolFrame published = PoolFrame.new(na, na, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0)
+
+    if barstate.isconfirmed
+        _pool_remove_taken(buy_levels, buy_strengths, true)
+        _pool_remove_taken(sell_levels, sell_strengths, false)
+
+        if not na(pivot_high) and pivot_high > close
+            _pool_add(buy_levels, buy_strengths, pivot_high, tolerance_pct, max_levels)
+        if not na(pivot_low) and pivot_low < close
+            _pool_add(sell_levels, sell_strengths, pivot_low, tolerance_pct, max_levels)
+
+        [buy_level, buy_strength] = _nearest_pool(buy_levels, buy_strengths, close, true)
+        [sell_level, sell_strength] = _nearest_pool(sell_levels, sell_strengths, close, false)
+        int untested_buy = array.size(buy_levels)
+        int untested_sell = array.size(sell_levels)
+        int total_buy = buy_strength + untested_buy
+        int total_sell = sell_strength + untested_sell
+        int total = total_buy + total_sell
+        float raw_imbalance = total > 0 ? float(total_buy - total_sell) / total : 0.0
+        float pool_imbalance = math.round(raw_imbalance * 10000.0) / 10000.0
+        int magnet = pool_imbalance >= IMBALANCE_SIG_THRESHOLD ? 1 : pool_imbalance <= -IMBALANCE_SIG_THRESHOLD ? -1 : 0
+
+        float buy_proximity = not na(buy_level) and close != 0.0 ? math.abs(buy_level - close) / math.abs(close) * 100.0 : na
+        float sell_proximity = not na(sell_level) and close != 0.0 ? math.abs(sell_level - close) / math.abs(close) * 100.0 : na
+        float proximity = na(buy_proximity) ? nz(sell_proximity, 0.0) : na(sell_proximity) ? buy_proximity : math.min(buy_proximity, sell_proximity)
+        proximity := math.round(proximity * 10000.0) / 10000.0
+        int cluster_density = math.min(5, math.max(buy_strength, sell_strength))
+
+        int quality = 0
+        quality += not na(buy_level) or not na(sell_level) ? 1 : 0
+        quality += buy_strength >= CLUSTER_STRONG_COUNT or sell_strength >= CLUSTER_STRONG_COUNT ? 1 : 0
+        quality += proximity > 0 and proximity <= PROXIMITY_NEAR_PCT ? 1 : 0
+        quality += cluster_density >= CLUSTER_STRONG_COUNT ? 1 : 0
+        quality += math.abs(pool_imbalance) >= IMBALANCE_SIG_THRESHOLD ? 1 : 0
+
+        published := PoolFrame.new(buy_level, sell_level, buy_strength, sell_strength, proximity, cluster_density, untested_buy, untested_sell, pool_imbalance, magnet, math.min(quality, 5))
+
+    published
+
+// Compose session-local ranges and the Python-golden scoring layer. Trading
+// windows are evaluated in their own zones; US and European DST are therefore
+// independent by construction.
+export build_session_frame(StructureFrame structure, ImbalanceFrame imbalance) =>
+    bool intraday = timeframe.isintraday
+    bool asia_active = intraday and not na(time(timeframe.period, "0900-1700:1234567", "Asia/Tokyo"))
+    bool london_active = intraday and not na(time(timeframe.period, "0800-1630:1234567", "Europe/London"))
+    bool ny_am_active = intraday and not na(time(timeframe.period, "0930-1300:1234567", "America/New_York"))
+    bool ny_pm_active = intraday and not na(time(timeframe.period, "1300-1600:1234567", "America/New_York"))
+    int session_code = ny_pm_active ? SESSION_NY_PM : ny_am_active ? SESSION_NY_AM : london_active ? SESSION_LONDON : asia_active ? SESSION_ASIA : 0
+
+    bool asia_kz = intraday and not na(time(timeframe.period, "0900-1300:1234567", "Asia/Tokyo"))
+    bool london_kz = intraday and not na(time(timeframe.period, "0800-1100:1234567", "Europe/London"))
+    bool ny_kz = intraday and not na(time(timeframe.period, "0930-1200:1234567", "America/New_York"))
+    bool in_killzone = asia_kz or london_kz or ny_kz
+
+    var int active_session = 0
+    var int session_started_at = na
+    var float session_top = na
+    var float session_bottom = na
+    var float opening_top = na
+    var float opening_bottom = na
+    var float cumulative_pv = 0.0
+    var float cumulative_volume = 0.0
+    var SessionFrame published = SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0)
+
+    if barstate.isconfirmed
+        bool session_changed = session_code != active_session
+        if session_code == 0
+            active_session := 0
+            session_started_at := na
+            session_top := na
+            session_bottom := na
+            opening_top := na
+            opening_bottom := na
+            cumulative_pv := 0.0
+            cumulative_volume := 0.0
+            published := SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0)
+        else
+            if session_changed
+                active_session := session_code
+                session_started_at := time
+                session_top := high
+                session_bottom := low
+                opening_top := high
+                opening_bottom := low
+                cumulative_pv := 0.0
+                cumulative_volume := 0.0
+            else
+                session_top := math.max(session_top, high)
+                session_bottom := math.min(session_bottom, low)
+
+            bool opening_active = not na(session_started_at) and time - session_started_at < OPENING_RANGE_MINUTES * 60000
+            if opening_active
+                opening_top := math.max(opening_top, high)
+                opening_bottom := math.min(opening_bottom, low)
+
+            if not na(volume) and volume > 0
+                cumulative_pv += hlc3 * volume
+                cumulative_volume += volume
+
+            bool mss_bull = (structure.bos or structure.choch) and structure.dir_event == 1
+            bool mss_bear = (structure.bos or structure.choch) and structure.dir_event == -1
+            int bull_score = (mss_bull ? 2 : 0) + (imbalance.bull_fvg_active ? 1 : 0) + (not na(session_top) ? 1 : 0)
+            int bear_score = (mss_bear ? 2 : 0) + (imbalance.bear_fvg_active ? 1 : 0) + (not na(session_bottom) ? 1 : 0)
+            int direction_bias = bull_score > bear_score ? 1 : bear_score > bull_score ? -1 : 0
+
+            int context_score = 1
+            context_score += in_killzone ? 1 : 0
+            context_score += mss_bull or mss_bear ? 1 : 0
+            context_score += imbalance.bull_fvg_active or imbalance.bear_fvg_active ? 1 : 0
+            context_score += direction_bias != 0 ? 1 : 0
+            context_score += structure.trend != 0 ? 1 : 0
+            context_score += imbalance.bpr_active ? 1 : 0
+
+            float session_mean = (session_top + session_bottom) / 2.0
+            float session_vwap = cumulative_volume > 0 ? cumulative_pv / cumulative_volume : na
+            published := SessionFrame.new(session_code, in_killzone, mss_bull, mss_bear, structure.trend, imbalance.bull_fvg_active, imbalance.bear_fvg_active, imbalance.bpr_active, session_top, session_bottom, session_mean, session_vwap, session_top, session_bottom, opening_active, opening_top, opening_bottom, direction_bias, math.min(context_score, 7))
+
+    published
+
+// Complete confirmed-bar aggregate. detect_structure runs exactly once here and
+// the same tuple feeds both StructureFrame and ZoneFrame.
+export build_context_frame(simple int swing_len = 50, simple int fresh_max_bars = 20, float fvg_size_threshold = 0.0, simple int atr_len = 50, float ob_min_mult = 0.5, float ob_max_mult = 2.5, simple int sweep_pivot_len = 5, simple int sweep_volume_len = 20, simple int pool_pivot_len = 5, float pool_tolerance_pct = 0.1, simple int pool_max_levels = 20) =>
+    [trend, bull_bos, bull_choch, top_x, _top_y, _trail_up_x, trail_up, hh, bear_bos, bear_choch, btm_x, _btm_y, _trail_dn_x, trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
+
+    var bool have_up_pivot = false
+    var bool have_dn_pivot = false
+    var int bars_since = na
+    var StructureFrame structure = StructureFrame.new(0, false, false, 0, na, na, na, na, na, false)
+
+    if barstate.isconfirmed
+        if not na(hh)
+            have_up_pivot := true
+        if not na(swing_low)
+            have_dn_pivot := true
+        bool bos_now = bull_bos or bear_bos
+        bool choch_now = bull_choch or bear_choch
+        bool event_now = bos_now or choch_now
+        int dir_event = (bull_bos or bull_choch) ? 1 : (bear_bos or bear_choch) ? -1 : 0
+        if event_now
+            bars_since := 0
+        else if not na(bars_since)
+            bars_since += 1
+        bool fresh = not na(bars_since) and bars_since <= fresh_max_bars
+        structure := StructureFrame.new(not na(bars_since) ? trend : 0, bos_now, choch_now, dir_event, have_up_pivot ? trail_up : na, have_dn_pivot ? trail_dn : na, have_up_pivot ? top_x : na, have_dn_pivot ? btm_x : na, bars_since, fresh)
+
+    ZoneFrame zone = _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, ob_min_mult, ob_max_mult)
+    ImbalanceFrame imbalance = build_imbalance_frame(fvg_size_threshold)
+    SweepFrame sweep = build_sweep_frame(sweep_pivot_len, sweep_volume_len, fresh_max_bars)
+    PoolFrame pool = build_pool_frame(pool_pivot_len, pool_tolerance_pct, pool_max_levels)
+    SessionFrame session = build_session_frame(structure, imbalance)
+
+    int structure_vote = structure.trend
+    int imbalance_vote = imbalance.zone_bias
+    int zone_vote = zone.ob_bias
+    int sweep_vote = sweep.fresh ? sweep.direction : 0
+    int pool_vote = pool.magnet_direction
+    int session_vote = session.direction_bias
+    int directional_score = structure_vote + imbalance_vote + zone_vote + sweep_vote + pool_vote + session_vote
+    int bias = directional_score >= CONTEXT_BIAS_MIN_VOTES ? 1 : directional_score <= -CONTEXT_BIAS_MIN_VOTES ? -1 : 0
+
+    bool structure_available = structure.trend != 0 or not na(structure.support) or not na(structure.resistance)
+    bool imbalance_available = imbalance.state != 0
+    bool zone_available = zone.state != 0
+    bool sweep_available = sweep.fresh
+    bool pool_available = not na(pool.buy_side_level) or not na(pool.sell_side_level)
+    bool session_available = session.session_code != 0
+    int available_domains = (structure_available ? 1 : 0) + (imbalance_available ? 1 : 0) + (zone_available ? 1 : 0) + (sweep_available ? 1 : 0) + (pool_available ? 1 : 0) + (session_available ? 1 : 0)
+
+    float quality_sum = (structure_available ? (structure.fresh ? 100.0 : 50.0) : 0.0) +
+         (imbalance_available ? 100.0 : 0.0) + (zone_available ? 100.0 : 0.0) +
+         (sweep_available ? sweep.quality_score * 20.0 : 0.0) +
+         (pool_available ? pool.quality_score * 20.0 : 0.0) +
+         (session_available ? session.context_score / 7.0 * 100.0 : 0.0)
+    int quality_score = available_domains > 0 ? int(math.round(quality_sum / available_domains)) : 0
+
+    ContextFrame.new(structure, imbalance, zone, sweep, pool, session, bias, directional_score, available_domains, quality_score)

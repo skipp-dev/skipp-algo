@@ -104,7 +104,7 @@ function parseArgs(): CliArgs {
     version: Number(getFlag("--version", "3")),
     description: getFlag(
       "--description",
-      "Private live context frames (structure / imbalance / zone) derived from the SMC engine primitives.",
+      "Private confirmed-bar context frames for structure, imbalance, zones, sweeps, liquidity pools, sessions, and aggregate context.",
     ),
     out: path.resolve(
       getFlag(
@@ -181,8 +181,8 @@ function verifyContextEnginePublishContract(cli: CliArgs): ContractDetails {
   // The siblings each hard-require SMC_Long_Dip_Suite to pin their library.
   // Two reasons that shape is wrong here:
   //
-  //   1. Nothing pins this library yet (bus-v3 3.2 — the aggregated
-  //      build_context_frame() and its consumers are a later slice). Requiring a
+  //   1. Nothing pins this library yet (bus-v3 R3 — build_context_frame() now
+  //      exists, but its first consumer is a later R4 slice). Requiring a
   //      pin inverts the order: a library must be published before any consumer
   //      can pin a real version. Unconditional, the check would make this
   //      publisher permanently unusable and force the manual paste it replaces.

@@ -85,6 +85,9 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     ) == {
         'productCutScope': 'smcHoldManagerShadow',
     }
+    assert _load_json('automation/tradingview/preflight-r1-companions.json') == {
+        'productCutScope': 'smcR1Companions',
+    }
 
 
 def test_product_cut_manifest_exports_validation_evidence_policy() -> None:
@@ -105,6 +108,8 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     dashboard_target = payload['preflightScopes']['smcMainline'][1]
     strategy_target = payload['preflightScopes']['smcMainline'][2]
     hold_target = payload['preflightScopes']['smcHoldManagerShadow'][1]
+    event_target = payload['preflightScopes']['smcR1Companions'][1]
+    exit_target = payload['preflightScopes']['smcR1Companions'][2]
 
     assert dashboard_target['bindingContractKey'] == 'dashboardBindings'
     assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
@@ -123,6 +128,10 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     assert {
         group['groupTitle'] for group in hold_target['bindingLabelGroups']
     } == {'Engine BUS v2 (Expert Mapping)'}
+    assert event_target['bindingContractKey'] == 'eventOverlayBindings'
+    assert event_target['bindingContractLabels'] == ['BUS LeanPackA']
+    assert exit_target['bindingContractKey'] == 'exitSignalBindings'
+    assert len(exit_target['bindingContractLabels']) == 9
 
 
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
@@ -155,6 +164,7 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'smcMainline',
         'smcDecisionFirst',
         'smcHoldManagerShadow',
+        'smcR1Companions',
     }
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'

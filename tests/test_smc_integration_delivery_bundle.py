@@ -79,6 +79,7 @@ def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
         "smcMainline",
         "smcDecisionFirst",
         "smcHoldManagerShadow",
+        "smcR1Companions",
     }
     assert bundle["product_cut"]["contracts"]["lite"][0] == "BUS ZoneActive"
     assert bundle["snapshot"]["meta"]["volume"]["value"] == {

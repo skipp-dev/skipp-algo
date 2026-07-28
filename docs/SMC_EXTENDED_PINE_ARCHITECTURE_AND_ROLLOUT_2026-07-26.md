@@ -142,23 +142,33 @@ Context BUS and Context Overlay.
 
 ### 3.3 Existing Context BUS building blocks
 
-`SMC++/smc_context_engine_private.pine` already provides:
+`SMC++/smc_context_engine_private.pine` provides:
 
 - `StructureFrame`;
 - `ImbalanceFrame`;
 - `ZoneFrame`;
+- `SweepFrame`;
+- `PoolFrame`;
+- `SessionFrame`;
+- `ContextFrame`;
 - `build_structure_frame`;
 - `build_imbalance_frame`; and
-- `build_zone_frame`.
+- `build_zone_frame`;
+- `build_sweep_frame`;
+- `build_pool_frame`;
+- `build_session_frame`; and
+- `build_context_frame`.
 
 These frames derive confirmed per-bar context from `smc_engine_private`; they
 do not use the removed per-symbol snapshot fields.
 
-The following are not yet complete:
+Repository implementation of the four R3 frames, golden rule parity, explicit
+Pine-only detection semantics, and deterministic repository replay vectors was
+completed on 2026-07-28. The operational R3 gate remains open until TradingView
+compiles and replays the complete private library.
 
-- Sweep Frame;
-- Pool Frame;
-- aggregated Context Frame;
+The following later surfaces are not yet complete:
+
 - `SMC_Context_Bus.pine`;
 - the schema `8001` channel contract;
 - a consolidated Context Overlay;
@@ -834,6 +844,13 @@ Revert governance-only changes. No TradingView behavior changes in R0.
 
 ### Phase R1 — Event Overlay and Exit Signal
 
+Repository implementation status on 2026-07-28: deterministic Exit Signal
+replay, a canonically derived private TradingView fixture, exact Event/Exit BUS
+binding contracts, and a fail-closed private rollout preflight are implemented.
+R1 remains `in_progress` until separately authorized TradingView runs supply the
+required compile, replay, saved-hash, binding, alert, layout, and rollback
+evidence.
+
 #### Event Overlay
 
 - add to managed save targets;
@@ -1166,6 +1183,13 @@ Disable Hold alerts and remove Hold from the active layout. Re-enable Exit
 Signal Simple mode without changing Suite or Engine BUS v2.
 
 ### Phase R3 — Complete Context Engine Library
+
+Repository implementation status on 2026-07-28: the complete seven-frame
+library, golden scoring parity, Pine-only detection specification, and
+deterministic repository replay vectors are implemented. The phase remains
+`in_progress`: TradingView compile/runtime replay and immutable private-library
+publication evidence are still open and may not be inferred from repository
+tests.
 
 #### Changes
 

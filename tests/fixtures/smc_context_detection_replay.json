@@ -1,0 +1,166 @@
+{
+  "aggregateCases": {
+    "bearishAgreement": {
+      "availableDomains": 3,
+      "bias": -1,
+      "directionalScore": -3,
+      "qualityScore": 100
+    },
+    "bullishAgreement": {
+      "availableDomains": 3,
+      "bias": 1,
+      "directionalScore": 3,
+      "qualityScore": 93
+    },
+    "conflictedNeutral": {
+      "availableDomains": 2,
+      "bias": 0,
+      "directionalScore": 0,
+      "qualityScore": 75
+    }
+  },
+  "gate": "R3-REMAINING-FRAMES",
+  "gateStatus": "partial",
+  "limitations": [
+    "Pivot confirmations are explicit fixture inputs; TradingView remains authoritative for ta.pivothigh/ta.pivotlow execution.",
+    "Repository replay and source contracts do not prove the private Pine library compiles or executes in TradingView."
+  ],
+  "openGates": [
+    "Compile the complete private context library in TradingView.",
+    "Run redacted Pine replay vectors for sweep, pool, session, and aggregate outputs after publication."
+  ],
+  "poolCases": {
+    "clusterSteps": [
+      {
+        "buyLevel": 100.0,
+        "buyStrength": 1,
+        "clusterDensity": 1,
+        "imbalance": 0.0,
+        "magnet": 0,
+        "proximityPct": 5.2632,
+        "quality": 1,
+        "sellLevel": 90.0,
+        "sellStrength": 1,
+        "untestedBuy": 1,
+        "untestedSell": 1
+      },
+      {
+        "buyLevel": 100.025,
+        "buyStrength": 2,
+        "clusterDensity": 2,
+        "imbalance": 0.2,
+        "magnet": 0,
+        "proximityPct": 5.2632,
+        "quality": 1,
+        "sellLevel": 90.0,
+        "sellStrength": 1,
+        "untestedBuy": 1,
+        "untestedSell": 1
+      },
+      {
+        "buyLevel": 100.01,
+        "buyStrength": 3,
+        "clusterDensity": 3,
+        "imbalance": 0.3333,
+        "magnet": 1,
+        "proximityPct": 5.2632,
+        "quality": 4,
+        "sellLevel": 90.0,
+        "sellStrength": 1,
+        "untestedBuy": 1,
+        "untestedSell": 1
+      },
+      {
+        "buyLevel": 100.01,
+        "buyStrength": 3,
+        "clusterDensity": 3,
+        "imbalance": 0.3333,
+        "magnet": 1,
+        "proximityPct": 0.5126,
+        "quality": 5,
+        "sellLevel": 90.0,
+        "sellStrength": 1,
+        "untestedBuy": 1,
+        "untestedSell": 1
+      }
+    ],
+    "takenPoolRemoved": {
+      "buyLevel": null,
+      "buyStrength": 0,
+      "clusterDensity": 1,
+      "imbalance": -1.0,
+      "magnet": -1,
+      "proximityPct": 9.5477,
+      "quality": 2,
+      "sellLevel": 90.0,
+      "sellStrength": 1,
+      "untestedBuy": 0,
+      "untestedSell": 1
+    }
+  },
+  "repositoryReplayStatus": "passed",
+  "schemaVersion": 1,
+  "sweepCases": {
+    "delayedReclaimAfter": {
+      "age": 1,
+      "bear": false,
+      "bull": true,
+      "direction": 1,
+      "fresh": true,
+      "quality": 3,
+      "reclaimed": true,
+      "type": 3
+    },
+    "delayedReclaimBefore": {
+      "age": 0,
+      "bear": false,
+      "bull": true,
+      "direction": 1,
+      "fresh": true,
+      "quality": 2,
+      "reclaimed": false,
+      "type": 3
+    },
+    "immediateStopHuntReclaim": {
+      "age": 0,
+      "bear": false,
+      "bull": true,
+      "direction": 1,
+      "fresh": true,
+      "quality": 5,
+      "reclaimed": true,
+      "type": 1
+    },
+    "noDuplicateWhileLevelRemainsPierced": {
+      "age": 1,
+      "bear": false,
+      "bull": true,
+      "direction": 1,
+      "fresh": true,
+      "quality": 5,
+      "reclaimed": true,
+      "type": 1
+    },
+    "staleAfterFreshWindow": {
+      "age": 21,
+      "bear": false,
+      "bull": false,
+      "direction": 0,
+      "fresh": false,
+      "quality": 0,
+      "reclaimed": false,
+      "type": 0
+    },
+    "twoSidedAmbiguous": {
+      "age": 0,
+      "bear": true,
+      "bull": true,
+      "direction": 0,
+      "fresh": true,
+      "quality": 5,
+      "reclaimed": true,
+      "type": 1
+    }
+  },
+  "tradingViewStatus": "pending"
+}
