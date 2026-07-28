@@ -20,6 +20,11 @@ read and write auth configs and explicitly pinned connected accounts.
 * `configs/composio_tools.json` is the executable allow-list. Every tool pins
   the live version, access class and required arguments.
 * `configs/composio_auth_policy.json` defines least-privilege OAuth scopes.
+  It is an **operator-authored reference** for configuring auth configs in the
+  Composio dashboard — it has **no runtime reader** (unlike the code-read
+  `composio_tools.json` → `scripts/composio_ops.py`); the audit/contract-check
+  scripts validate against the live Composio API, not this file. So its being
+  reader-less is by design, not a dead config key.
 * Calls without an environment-specific key/user and access-specific `ca_…`
   account ID skip fail-closed. Implicit "first account" selection is forbidden.
 * `composio-canary.yml` validates live schemas and runs non-mutating identity
