@@ -33,6 +33,9 @@ def test_live_pipeline_still_hardcodes_the_scoring_weight_label() -> None:
 
     If this ever fails because the call became configurable, that is the moment
     to put ``weight_label`` back into ``_CONFIG_SCHEMA``.
+
+    2026-07-29: #4174 added a second call site (exact §15 shadow replay next to
+    the baseline ranking); both remain hardcoded to the same label.
     """
     source = (_OPEN_PREP / "run_open_prep.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -49,7 +52,7 @@ def test_live_pipeline_still_hardcodes_the_scoring_weight_label() -> None:
             if kw.arg == "weight_label" and isinstance(kw.value, ast.Constant):
                 literals.append(str(kw.value.value))
 
-    assert literals == ["_regime_adjusted"], (
-        f"expected exactly one hardcoded weight_label at the rank_candidates_v2 call, "
-        f"got {literals!r}"
+    assert literals == ["_regime_adjusted", "_regime_adjusted"], (
+        f"expected the baseline and §15-shadow rank_candidates_v2 calls to both "
+        f"hardcode the weight_label, got {literals!r}"
     )
