@@ -548,3 +548,31 @@ def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
 
     assert rs._extract_snapshot_epoch(None) == 0.0
     assert rs._extract_snapshot_epoch({}) == 0.0
+
+
+def test_refresh_quote_reference_noop_when_url_unset(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("QUOTE_REFERENCE_SNAPSHOT_URL", raising=False)
+    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
+    assert rs._refresh_quote_reference_from_url() is False
+    assert not (tmp_path / "quote_reference.json").exists()
+
+
+def test_refresh_quote_reference_writes_local_on_success(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "https://example.test/quote_reference.json")
+    payload = {"AAPL": {"previous_close": 100.0, "average_daily_volume": 2_000_000.0,
+                        "as_of_session": "2026-07-27", "source": "fmp:adjusted-eod"}}
+    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: payload)
+    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
+    assert rs._refresh_quote_reference_from_url() is True
+    assert json.loads((tmp_path / "quote_reference.json").read_text(encoding="utf-8")) == payload
+
+
+def test_refresh_quote_reference_failsoft_keeps_last_good_on_fetch_error(monkeypatch, tmp_path) -> None:
+    # A fetch failure must NOT blank the last-good local reference.
+    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "https://example.test/quote_reference.json")
+    monkeypatch.setattr(rs, "_fetch_json_url", lambda url, timeout=15.0: None)
+    monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
+    (tmp_path / "quote_reference.json").write_text('{"AAPL": {"previous_close": 99.0}}', encoding="utf-8")
+    assert rs._refresh_quote_reference_from_url() is False
+    kept = json.loads((tmp_path / "quote_reference.json").read_text(encoding="utf-8"))
+    assert kept["AAPL"]["previous_close"] == 99.0

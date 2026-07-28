@@ -206,7 +206,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-28 (semantic monitoring): shifted +80 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the reviewed CLI logging site to 4052.
-    ("open_prep/realtime_signals.py", 4079),  # 2026-07-27 (databento phase2.2 hardening): 4052->4079
+    ("open_prep/realtime_signals.py", 4108),  # 2026-07-28 (quote_reference production): 4079->4108
     # 2026-07-25 (databento-signal-migration): quote_reference CLI main() sets
     # up the root logger before its live orchestration run, same entry-point
     # pattern as the other CLI tools in this ledger.
@@ -293,7 +293,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 1302 -> 1381.
     # 2026-06-28 (semantic monitoring): shifted +53 lines by readiness metrics.
-    ("open_prep/realtime_signals.py", 1938, "insert"),  # 2026-07-25 (databento-signal-migration): 1891->1938
+    ("open_prep/realtime_signals.py", 1965, "insert"),  # 2026-07-28 (quote_reference production): 1938->1965
 
     ("open_prep/streamlit_monitor.py", 35, "insert"),  # 2026-07-18: dataset-usage import shifted +1
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.

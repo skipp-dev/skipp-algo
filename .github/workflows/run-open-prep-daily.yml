@@ -331,10 +331,25 @@ jobs:
           # The shared publisher isolates git state in a temporary tree and
           # preserves every remote file not explicitly replaced here.
           USAGE_SNAPSHOT="artifacts/monitoring/provider_usage.json"
+          # Build the daily quote-reference (previous_close + ADV for the
+          # ~900-symbol producer universe) from the just-validated run, so the
+          # RT_QUOTE_SOURCE=databento quote path has the two fields FMP's
+          # batch-quote omits. Rides the SAME bot branch as the watchlist so a
+          # fresh producer container fetches it via QUOTE_REFERENCE_SNAPSHOT_URL.
+          # Fail-soft: a build failure must NOT block the watchlist publish
+          # (published via --copy-if-present, and the producer keeps last-good).
+          QUOTE_REF="artifacts/open_prep/latest/quote_reference.json"
+          if "$SMC_PYTHON_BIN" -m open_prep.quote_reference \
+               --open-prep-run "$SNAPSHOT" --output "$QUOTE_REF"; then
+            echo "quote_reference built OK -> ${QUOTE_REF}"
+          else
+            echo "::warning::quote_reference build failed; publishing watchlist without it"
+          fi
           "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
             --branch bot/live-open-prep-snapshot \
             --copy "${SNAPSHOT}=${SNAPSHOT}" \
-            --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}"
+            --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}" \
+            --copy-if-present "${QUOTE_REF}=${QUOTE_REF}"
 
       - name: Commit fresh outcomes via auto-merge PR
         # The repo's `main-governance` ruleset targets only ~DEFAULT_BRANCH,
