@@ -24,8 +24,10 @@ We treat this as a one-sided two-arm A/B test:
 | Baseline   | 4H · 1D · 1W (current)     |
 | Candidate  | 2H · 4H · 1D · 1W (4-layer)|
 
-Both arms run on the same event corpus; arm assignment is symbol-deterministic
-via `scripts/smc_ab_experiment.py`.
+Both arms run on the same event corpus; arm assignment is specified as
+symbol-deterministic SHA-256 bucketing (formerly `scripts/smc_ab_experiment.py`;
+removed 2026-07-29 — this experiment was never wired into production, so a
+future implementation must re-introduce an assigner).
 
 ## B.3 Statistical design
 

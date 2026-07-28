@@ -42,7 +42,8 @@
 "tests/test_plan_2_8_weekly_summary_metrics.py" = 2
 "tests/test_ranking_golden.py" = 1
 "tests/test_schema_version_manifest_alignment.py" = 1
-"tests/test_scorer_tuning.py" = 1
+# 2026-07-29: "tests/test_scorer_tuning.py" = 1 removed — its only skip sat in
+# the G3 Experiment-spec test deleted with scripts/smc_ab_experiment.py.
 "tests/test_six_zero_tripwires_bundle.py" = 1
 "tests/test_smc_schema_version_enforcement.py" = 1
 "tests/test_smc_trust_badges_dashboard.py" = 1

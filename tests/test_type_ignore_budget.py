@@ -100,7 +100,8 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "rl/agents/sac_sizer.py": 2,
     "rl/simulator/execution_env.py": 5,
     "rl/simulator/sb3_execution_env.py": 5,
-    "smc_adapters/regime_bridge.py": 2,
+    # 2026-07-29: "smc_adapters/regime_bridge.py": 2 removed — module deleted
+    # (never wired; ingest._build_market_regime is the production path).
     "smc_core/layering.py": 1,
     "smc_core/resilient.py": 2,
     "streamlit_terminal.py": 7,
