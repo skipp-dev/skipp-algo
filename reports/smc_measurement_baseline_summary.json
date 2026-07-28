@@ -1,11 +1,11 @@
 {
-  "report_kind": "measurement_baseline_summary",
-  "seeded_at_iso": "2026-07-28T00:00:00+00:00",
-  "note": "Seed committed with the 2026-07-28 wiring PR (B-sweep). The scheduled smc-deeper-integration-gates run rolls real cross-run history into this file via scripts/update_measurement_baseline_summary.py + bot auto-merge PR; gate invocations read it back through --measurement-baseline-summary. Until >= 2 rows exist per pair, the shadow baseline stays available=false by design.",
+  "generated_at_iso": "2026-07-28T04:24:18.000200+00:00",
   "max_rows_per_pair": 30,
-  "pairs": [],
-  "rows_total": 0,
   "measurement_history": {
     "history_by_pair": {}
-  }
+  },
+  "pairs": [],
+  "report_kind": "measurement_baseline_summary",
+  "rows_total": 0,
+  "updated_from": "artifacts/ci/smc_deeper_evidence_summary.json"
 }
