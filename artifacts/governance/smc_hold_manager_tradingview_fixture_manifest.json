@@ -1,13 +1,16 @@
 {
   "canonicalSource": {
     "path": "SMC_Hold_Manager.pine",
-    "sha256": "f9a9369100b7ea25cbd2db6cf38dea0e0b00f186eb6b382e5a94397e415efdb6"
+    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
   },
   "caseCount": 20,
   "cases": [
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-01",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {},
       "expectedCheckpointDiagnostics": {
         "activeStop": 94.0,
@@ -20,17 +23,29 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "arm without entry",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-02",
+      "checkpointSteps": [
+        204,
+        205
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1
       },
@@ -45,17 +60,30 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "delayed entry after a long wait",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        205,
+        206
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-03",
+      "checkpointSteps": [
+        222,
+        223
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -72,17 +100,29 @@
         "terminalExit": "TIME_STOP",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "time-stop starts only at entry",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        223,
+        224
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-04",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_T1": 1
@@ -98,17 +138,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "entry and Target 1 on one bar",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-05",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -125,17 +176,28 @@
         "terminalExit": "STOP",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "entry and stop on one bar",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-06",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1
       },
@@ -150,17 +212,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "gap across entry",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-07",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -177,17 +250,28 @@
         "terminalExit": "STOP",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "gap across stop",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-08",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_T1": 1
@@ -203,17 +287,30 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "break-even after Target 1",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-09",
+      "checkpointSteps": [
+        0,
+        1,
+        2
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_T1": 1
@@ -229,17 +326,30 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "Chandelier stop never decreases",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1,
+        2,
+        3
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-10",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -256,17 +366,29 @@
         "terminalExit": "TARGET_2",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "Target 2 full exit",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-11",
+      "checkpointSteps": [
+        0,
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 2,
         "HM_EXIT_ANY": 1,
@@ -283,12 +405,48 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "reset during each state",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1,
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {
+        "ARMED": {
+          "expectedAlertCounts": {},
+          "postResetPhase": "NONE",
+          "preResetPhase": "ARMED"
+        },
+        "CLOSED": {
+          "expectedAlertCounts": {
+            "HM_ENTRY": 1,
+            "HM_EXIT_ANY": 1,
+            "HM_STOP": 1
+          },
+          "postResetPhase": "NONE",
+          "preResetPhase": "CLOSED"
+        },
+        "IN_TRADE": {
+          "expectedAlertCounts": {
+            "HM_ENTRY": 1
+          },
+          "postResetPhase": "NONE",
+          "preResetPhase": "IN_TRADE"
+        },
+        "NONE": {
+          "expectedAlertCounts": {},
+          "postResetPhase": "NONE",
+          "preResetPhase": "NONE"
+        }
+      },
       "variants": [
         "NONE",
         "ARMED",
@@ -299,6 +457,9 @@
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-12",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {},
       "expectedCheckpointDiagnostics": {
         "activeStop": 94.0,
@@ -311,18 +472,29 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "reload during Armed",
       "operatorActions": [
         "reload while the hidden state is ARMED",
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-13",
+      "checkpointSteps": [
+        2
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_T1": 1
@@ -338,18 +510,29 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "reload during In Trade",
       "operatorActions": [
         "reload after entry and Target 1",
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        3
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-14",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1
       },
@@ -364,17 +547,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "new plan while In Trade",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-15",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {},
       "expectedCheckpointDiagnostics": {
         "activeStop": null,
@@ -387,17 +581,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "schema mismatch",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-16",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {},
       "expectedCheckpointDiagnostics": {
         "activeStop": null,
@@ -410,17 +615,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "missing BUS input",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
-      "canonicalCoverage": "blocked_missing_canonical_stale_context_diagnostic",
+      "canonicalCoverage": "canonical_stale_context_observability_plus_source_derived_harness",
       "caseId": "R2.4-17",
+      "checkpointSteps": [
+        0
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1
       },
@@ -435,17 +651,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 1,
+        "eventWarning": 0
+      },
       "name": "stale Micro-Profile context",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        1
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-18",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1
       },
@@ -460,17 +687,28 @@
         "terminalExit": "NONE",
         "terminalExitEpoch": "absent"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 1
+      },
       "name": "event warning without forced false exit",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-19",
+      "checkpointSteps": [
+        3
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -488,17 +726,28 @@
         "terminalExit": "STOP",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "no duplicate edge alerts",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        4
       ],
       "requiredTimeframe": "5m",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     },
     {
       "canonicalCoverage": "canonical_preconditions_plus_source_derived_harness",
       "caseId": "R2.4-20",
+      "checkpointSteps": [
+        1
+      ],
       "expectedAlertCounts": {
         "HM_ENTRY": 1,
         "HM_EXIT_ANY": 1,
@@ -515,12 +764,20 @@
         "terminalExit": "TIME_STOP",
         "terminalExitEpoch": "present"
       },
+      "expectedContextDiagnostics": {
+        "contextStale": 0,
+        "eventWarning": 0
+      },
       "name": "non-intraday timeframe behavior",
       "operatorActions": [
-        "inspect hidden diagnostics and cumulative pulse counts"
+        "inspect the visible readback table, hidden diagnostics, and cumulative pulse counts"
+      ],
+      "replayStopSteps": [
+        2
       ],
       "requiredTimeframe": "1D",
       "tradingViewStatus": "pending",
+      "variantExpectations": {},
       "variants": []
     }
   ],
@@ -530,30 +787,36 @@
     "Use 5m for R2.4-01 through R2.4-19 and 1D for R2.4-20.",
     "Start Bar Replay before the configured fixture anchor.",
     "Use regular trading hours so the pinned 5m step schedule is stable.",
-    "Select one case, replay past its decisive bars, and inspect hidden diagnostics.",
-    "For R2.4-11 execute all four reset variants.",
-    "For R2.4-12 and R2.4-13 reload at the stated intermediate state.",
-    "Record compile diagnostics, diagnostic values, and pulse counts."
+    "Restart Bar Replay before the anchor after every case or input change.",
+    "TradingView leaves the newest replay bar unconfirmed; advance to each replayStopSteps value and require the visible confirmed_step to equal the corresponding checkpointSteps value.",
+    "Do not compare expectations to raw_step: runtime transitions are confirmed-bar only.",
+    "For R2.4-11 execute all four reset variants at confirmed steps 0 and 1.",
+    "For R2.4-12 reload at confirmed step 1 and compare the same readback before and after reload.",
+    "For R2.4-13 reload at confirmed step 2 and compare the same readback before and after reload.",
+    "Record compile diagnostics, the visible readback table, hidden diagnostic values, and pulse counts."
   ],
   "fixture": {
     "defaultAnchor": "2026-07-20T13:30:00Z",
     "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
-    "sha256": "dee67fbbf96cc0203d06be18601edeb5945cc7c83c5a4748613fa0b75f467fd2",
+    "sha256": "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d",
     "surfaceClass": "test_only_not_managed_not_publishable"
   },
   "limitations": [
     "The fixture rewires external BUS, OHLC, ATR, recovery, and context inputs in a generated test harness; it is not the canonical saved script.",
     "The canonical compile and thirteen input.source bindings remain separate precondition evidence.",
     "Cumulative Pine pulse counts prove runtime predicates, not TradingView server alert delivery.",
-    "R2.4-17 cannot pass until the canonical Hold Manager exposes Micro-Profile staleness; the current stale flag exists only in this harness.",
+    "The readback table is fixture-only evidence UI and is not part of the canonical product surface.",
+    "Each replayStopSteps value is one greater than its logical checkpoint because TradingView keeps the newest replay bar unconfirmed.",
     "No case becomes passed until immutable TradingView evidence is reviewed and retained."
   ],
   "openGates": [
-    "Compile and execute all fixture cases in an isolated TradingView layout.",
-    "Add and live-verify canonical stale Micro-Profile observability for R2.4-17.",
+    "Obtain explicit approval for private transfer of the exact generated fixture SHA-256 before TradingView use.",
+    "Recompile the changed canonical source and regenerated fixture in an isolated TradingView layout.",
+    "Execute all twenty logical cases as twenty-three physical runs and retain exact-checkpoint evidence.",
     "Validate TradingView server alert delivery separately before shadow cutover."
   ],
+  "physicalExecutionCount": 23,
   "requirementId": "R2-REPLAY",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "fixture_ready_execution_pending"
 }

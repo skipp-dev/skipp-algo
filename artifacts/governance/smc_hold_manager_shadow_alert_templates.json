@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "receiver": {
+    "service": "live_overlay_daemon",
+    "host": "https://liveoverlaydaemon-production.up.railway.app",
+    "path": "/tradingview/hold-manager-shadow",
+    "authTransport": "JSON body field authToken",
+    "statePath": "/tradingview/hold-manager-shadow/state",
+    "stateAuthHeader": "X-Hold-Manager-Shadow-Token",
+    "method": "POST",
+    "contentType": "application/json",
+    "activationRequired": "HOLD_MANAGER_SHADOW_ACCEPTING=1"
+  },
+  "source": {
+    "savedScript": "SMC Hold Manager R2.4 Validation",
+    "layout": "SMC Hold R2.4 Validation",
+    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813",
+    "hashMode": "micro_profile_library_pin_frozen",
+    "frozenMicroProfileLibraryPin": 175,
+    "producer": "SMC Long-Dip Suite",
+    "busSchema": 7001
+  },
+  "alerts": [
+    {
+      "condition": "HM_ENTRY",
+      "name": "R2 SHADOW · HM_ENTRY",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_ENTRY\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    },
+    {
+      "condition": "HM_T1",
+      "name": "R2 SHADOW · HM_T1",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_T1\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    },
+    {
+      "condition": "HM_T2",
+      "name": "R2 SHADOW · HM_T2",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_T2\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    },
+    {
+      "condition": "HM_STOP",
+      "name": "R2 SHADOW · HM_STOP",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_STOP\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    },
+    {
+      "condition": "HM_TIMESTOP",
+      "name": "R2 SHADOW · HM_TIMESTOP",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_TIMESTOP\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    },
+    {
+      "condition": "HM_EXIT_ANY",
+      "name": "R2 SHADOW · HM_EXIT_ANY",
+      "message": "{\"authToken\":\"<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>\",\"schemaVersion\":1,\"requirementId\":\"R2-SHADOW-CUTOVER\",\"channel\":\"HM_EXIT_ANY\",\"mode\":\"hold_manager\",\"sourceSha256\":\"1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813\",\"scriptName\":\"SMC Hold Manager R2.4 Validation\",\"layout\":\"SMC Hold R2.4 Validation\",\"producer\":\"SMC Long-Dip Suite\",\"busSchema\":7001,\"symbol\":\"{{exchange}}:{{ticker}}\",\"timeframe\":\"{{interval}}\",\"barTime\":\"{{time}}\",\"price\":\"{{close}}\"}"
+    }
+  ],
+  "safety": {
+    "externalPublicationRequired": false,
+    "exitSignalActionableAlertsActive": 0,
+    "strategyActionableExitAlertsActive": 0,
+    "receiverDefaultsToDisabled": true,
+    "receiverTokenMinimumLength": 32,
+    "ledgerMustBePersistent": true
+  }
+}

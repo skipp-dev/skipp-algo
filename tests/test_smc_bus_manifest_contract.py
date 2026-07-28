@@ -255,7 +255,12 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['manifestVersion'] == 3
     assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
     assert payload['contracts']['strategyBindings'] == list(MANIFEST.STRATEGY_BUS_LABELS)
-    assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')
+    assert tuple(payload['preflightScopes'].keys()) == (
+        'smcCoreDashboard',
+        'smcMainline',
+        'smcDecisionFirst',
+        'smcHoldManagerShadow',
+    )
     # Canonical unique TV script identities (no third-party substring collision).
     # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.
     assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Long-Dip Dashboard'
@@ -298,6 +303,28 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'group': 'g_bus_plan',
         'groupTitle': 'Trade Plan',
         'tier': 'diagnostic',
+    }
+    hold_target = payload['preflightScopes']['smcHoldManagerShadow'][1]
+    assert hold_target == {
+        'file': 'SMC_Hold_Manager.pine',
+        'scriptName': 'SMC Hold Manager',
+        'checkInputs': True,
+        'addToChart': True,
+        'minInputs': 13,
+        'savedScriptName': 'SMC Hold Manager R2.4 Validation',
+        'bindingContractKey': 'holdManagerBindings',
+        'bindingContractName': 'Hold Manager BUS bindings',
+        'bindingConsumerRole': 'exit_companion',
+        'bindingContractLabels': list(MANIFEST.HOLD_MANAGER_BUS_LABELS),
+        'bindingLabelGroups': [
+            {
+                'label': label,
+                'group': 'gBus',
+                'groupTitle': 'Engine BUS v2 (Expert Mapping)',
+                'tier': 'critical',
+            }
+            for label in MANIFEST.HOLD_MANAGER_BUS_LABELS
+        ],
     }
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'

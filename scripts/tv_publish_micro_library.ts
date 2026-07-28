@@ -439,6 +439,7 @@ export function readProductCutSummary(): ProductCutSummary {
       proOnly: [],
       dashboardBindings: [],
       strategyBindings: [],
+      holdManagerBindings: [],
     },
     preflightScopes: payload.preflightScopes ?? {},
     deprecatedFieldPolicy: payload.deprecatedFieldPolicy ?? {
@@ -463,6 +464,7 @@ export function readProductCutSummary(): ProductCutSummary {
     || !Array.isArray(summary.preflightScopes.smcCoreDashboard)
     || !Array.isArray(summary.preflightScopes.smcMainline)
     || !Array.isArray(summary.preflightScopes.smcDecisionFirst)
+    || !Array.isArray(summary.preflightScopes.smcHoldManagerShadow)
     || summary.deprecatedFieldPolicy.mode !== "compatibility_only"
     || summary.deprecatedFieldPolicy.preferredFieldVersion.length === 0
     || summary.deprecatedFieldPolicy.extensionAllowed !== false

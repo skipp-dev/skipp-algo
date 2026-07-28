@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "activation": null,
+  "sessions": [],
+  "rollbackDrill": null
+}

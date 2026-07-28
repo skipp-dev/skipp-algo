@@ -13,10 +13,77 @@ Die R2.2-Repository-Implementierung rekonstruiert den bestätigten BUS-Pfad
 deterministisch. Der versionierte R2.4-Repository-Preflight führt inzwischen
 alle 20 Fälle aus, bindet das Ergebnis an den Pine-Source-Hash und zählt die
 Alert-Pulse. Er ist ausdrücklich keine TradingView-Laufzeitevidenz. R2.4
-bleibt daher partiell und R2.5 offen, bis die unabhängige TradingView-Replay-
-und Shadow-Evidenz vorliegt.
+ist durch die unabhängige TradingView-Replay-Evidenz abgeschlossen; R2.5
+bleibt offen, bis Shadow- und Server-Alert-Evidenz vorliegen.
+Der TradingView-Harness unterscheidet dabei bewusst `raw_step` von
+`confirmed_step`: Der neueste Replay-Bar bleibt unbestätigt, während die
+Produktlogik ausschließlich bestätigte Bars verarbeitet. Jeder manifestierte
+`replayStopSteps`-Wert liegt deshalb genau einen Bar nach dem zu prüfenden
+logischen Checkpoint; maßgeblich ist ausschließlich der sichtbare
+`confirmed_step`.
+Die private Wiederholung vom 2026-07-28 absolvierte mit dem korrigierten
+Fixture alle 23 physischen Läufe. Alle 20 logischen Fälle bestanden,
+einschließlich R2.4-02 an den bestätigten Schritten 204 und 205, aller vier
+Reset-Varianten, beider Reload-Prüfungen und des 1D-Zeitstopps. Das validierte
+Fixture trägt SHA-256
+`2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d`.
+Es wurde ausschließlich privat gespeichert und kompiliert, nicht
+veröffentlicht. Pine-Pulse-Zähler belegen weiterhin keine serverseitige
+TradingView-Alert-Auslieferung; diese bleibt ein separates Cutover-Gate.
+Die kanonische Precondition wurde anschließend für denselben aktuellen
+Source-Hash erneut erfasst: Das private Skript
+`SMC Hold Manager R2.4 Validation` kompiliert, liegt zusammen mit
+`SMC Long-Dip Suite` auf Chart #2 und behielt alle 13 Engine-BUS-v2-Bindings
+nach Layout-Speicherung und Seiten-Reload. Der vollständige gespeicherte
+Quelltext konnte über TradingViews zugängliche Monaco-Sicht nicht unabhängig
+exportiert und gehasht werden; deshalb ist der Readback ehrlich als begrenzter
+sichtbarer Match dokumentiert. Es erfolgten weder Veröffentlichung noch
+Alert-Erstellung oder Shadow-Cutover. Der Nachweis liegt in
+`artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json`.
+Der nachfolgende Shadow-Schritt ist nun vorregistriert und ausführbar:
+`artifacts/governance/smc_hold_manager_shadow_contract.json` definiert
+Session-Auswahl, sechs Server-Alert-Kanäle, Vergleichs- und
+Exklusivitätsregeln sowie den Rollback-Drill;
+`scripts/evaluate_smc_hold_manager_shadow.py` bewertet diese Regeln
+fail-closed und materialisiert den kanonischen Status in
+`artifacts/governance/smc_hold_manager_shadow_evidence.json`. Der eingecheckte
+Beobachtungsstand ist weiterhin ausdrücklich `not_started`. Für den privaten
+Managed-Saved-Script-Refresh und die
+kontrollierte Alert-Erstellung ist eine separate Freigabe erforderlich.
+Eine öffentliche oder Invite-only-TradingView-Veröffentlichung gehört nicht
+zu diesem Gate. Der isolierte Preflight
+`automation/tradingview/preflight-hold-manager-shadow.json` prüft dafür das
+private Validierungsskript und alle 13 BUS-Bindings, ohne den geplanten
+Companion in produktive Rollout-Targets aufzunehmen.
 
-Letzte Aktualisierung: 2026-07-27
+Am 2026-07-28 wurde dieser private Schritt ausgeführt. Der authentifizierte
+Headless-Runner brach fail-closed ab, weil der Pine-Editor in seiner
+Browseroberfläche nicht sichtbar wurde; er erreichte weder Editor-Mutation
+noch Compile oder Binding-Prüfung. Der anschließend im sichtbaren
+Chrome-Chart ausgeführte Fallback bestätigte nach Reload das private Saved
+Script, fehlende sichtbare Compile-Fehler, `Engine BUS v2` und exakt alle 13
+Zuordnungen zur `SMC Long-Dip Suite`. Es erfolgten weder Veröffentlichung noch
+Alert-Erstellung oder Shadow-Aktivierung. Der vollständige Nachweis liegt in
+`artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json`.
+
+Der kontrollierte Empfänger ist nun lokal und standardmäßig inaktiv im
+`live_overlay_daemon` implementiert. Er akzeptiert ausschließlich die sechs
+vorregistrierten Kanäle, den exakten Source-Hash, das private Skript/Layout,
+Producer und BUS-Schema 7001; ein persistentes SQLite-Ledger zählt eindeutige
+und doppelte Zustellungen. Das Webhook-Secret liegt im JSON-Body und wird weder
+in URL-Access-Logs noch im Ledger gespeichert. Die sechs Nachrichtenvorlagen
+liegen in
+`artifacts/governance/smc_hold_manager_shadow_alert_templates.json`.
+Der Source-Hash verwendet dieselbe eng begrenzte Pin-Normalisierung wie der
+R2.4-Replay-Vertrag: Ausschließlich die automatisch aktualisierte
+`smc_micro_profiles_generated`-Importversion wird auf den evidierten Pin 175
+normalisiert; jede andere Quelltextänderung verändert den Hash weiterhin.
+Implementierung und Tests sind keine Aktivierung: Der Receiver ist nicht
+publiziert, nicht deployt oder konfiguriert, sein Default-Schalter ist aus und
+es existiert weiterhin kein TradingView-Alert. Deshalb bleibt
+`R2-SHADOW-CUTOVER` ausdrücklich `not_started`.
+
+Letzte Aktualisierung: 2026-07-28
 
 ## Naming — warum kein separater „Exit-Manager"?
 

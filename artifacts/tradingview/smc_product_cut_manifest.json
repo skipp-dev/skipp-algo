@@ -327,7 +327,7 @@
       "consumer_role": "setup_utility",
       "validation_target": false,
       "notes": [
-        "BUS connection validator — guides new users through initial setup.",
+        "BUS connection validator \u2014 guides new users through initial setup.",
         "Reads 6 critical BUS channels and shows connection status with next-step instructions."
       ],
       "lifecycle": "active",
@@ -349,7 +349,7 @@
       "consumer_role": "mobile_companion",
       "validation_target": false,
       "notes": [
-        "Mobile-first dashboard — 4-row table, no overlays.",
+        "Mobile-first dashboard \u2014 4-row table, no overlays.",
         "Traffic light + levels + market context + quality score."
       ],
       "lifecycle": "active",
@@ -432,7 +432,7 @@
       "consumer_role": "exit_companion",
       "validation_target": false,
       "notes": [
-        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import — fully BUS-driven."
+        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import \u2014 fully BUS-driven."
       ],
       "lifecycle": "planned",
       "deployment_mode": "standard",
@@ -493,7 +493,7 @@
       "consumer_role": "overlay_companion",
       "validation_target": false,
       "notes": [
-        "Visible-Range Volume Profile companion: histogram + multi-POC + VAH/VAL. No library import — fully self-contained."
+        "Visible-Range Volume Profile companion: histogram + multi-POC + VAH/VAL. No library import \u2014 fully self-contained."
       ],
       "lifecycle": "planned",
       "deployment_mode": "optional",
@@ -820,6 +820,21 @@
       "BUS Trigger",
       "BUS Invalidation",
       "BUS QualityScore"
+    ],
+    "holdManagerBindings": [
+      "BUS SchemaVersion",
+      "BUS ZoneActive",
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS SourceKind",
+      "BUS StateCode",
+      "BUS StopLevel",
+      "BUS Target1",
+      "BUS Target2"
     ]
   },
   "preflightScopes": {
@@ -2374,6 +2389,120 @@
             "group": "g_bus_plan",
             "groupTitle": "Trade Plan",
             "tier": "diagnostic"
+          }
+        ]
+      }
+    ],
+    "smcHoldManagerShadow": [
+      {
+        "file": "SMC_Long_Dip_Suite.pine",
+        "scriptName": "SMC Long-Dip Suite",
+        "checkInputs": false,
+        "addToChart": false
+      },
+      {
+        "file": "SMC_Hold_Manager.pine",
+        "scriptName": "SMC Hold Manager",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 13,
+        "savedScriptName": "SMC Hold Manager R2.4 Validation",
+        "bindingContractKey": "holdManagerBindings",
+        "bindingContractName": "Hold Manager BUS bindings",
+        "bindingConsumerRole": "exit_companion",
+        "bindingContractLabels": [
+          "BUS SchemaVersion",
+          "BUS ZoneActive",
+          "BUS Armed",
+          "BUS Confirmed",
+          "BUS Ready",
+          "BUS Trigger",
+          "BUS Invalidation",
+          "BUS QualityScore",
+          "BUS SourceKind",
+          "BUS StateCode",
+          "BUS StopLevel",
+          "BUS Target1",
+          "BUS Target2"
+        ],
+        "bindingLabelGroups": [
+          {
+            "label": "BUS SchemaVersion",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS ZoneActive",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Armed",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Confirmed",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Ready",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Trigger",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Invalidation",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS QualityScore",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS SourceKind",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS StateCode",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS StopLevel",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Target1",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
+          },
+          {
+            "label": "BUS Target2",
+            "group": "gBus",
+            "groupTitle": "Engine BUS v2 (Expert Mapping)",
+            "tier": "critical"
           }
         ]
       }

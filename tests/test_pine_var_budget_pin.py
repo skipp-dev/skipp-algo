@@ -115,8 +115,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     # date-matched setups join).
     "pine/generated/openprep_daily_panel.pine": 23,
     # 2026-07-27: generated, test-only Hold Manager R2.4 harness. Persistent
-    # state is the canonical runtime plus six cumulative pulse diagnostics.
-    "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine": 9,
+    # state is the canonical runtime plus six cumulative pulse diagnostics and
+    # one test-only readback table for immutable replay screenshots.
+    "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine": 10,
     "test_div.pine": 2,
 }
 

@@ -87,6 +87,15 @@ ctx_event_block = mp.MARKET_EVENT_BLOCKED or ctx_symbol_event_block
 ctx_earnings    = u.csv_has_symbol_token(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker, syminfo.tickerid) or
                   u.csv_has_symbol_token(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker, syminfo.tickerid)
 ctx_action_tier = mp.ACTION_DEGRADATION_TIER  // "none"/"reduce"/"avoid"/"halt"
+float ctx_asof_year = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
+float ctx_asof_month = str.tonumber(str.substring(mp.ASOF_DATE, 5, 7))
+float ctx_asof_day = str.tonumber(str.substring(mp.ASOF_DATE, 8, 10))
+int ctx_asof_ts = timestamp(
+     int(ctx_asof_year), int(ctx_asof_month), int(ctx_asof_day), 0, 0, 0)
+int ctx_profile_days_old = math.floor((timenow - ctx_asof_ts) / 86400000)
+// Match the suite/monitoring T-1 cadence. Weekend and Monday-holiday data can
+// legitimately reach floor 5; only older snapshots are stale.
+bool ctx_profile_stale = ctx_profile_days_old > 5
 
 // ── 3.  PLAN SOURCE / FAIL-CLOSED VALIDATION ─────────────────────────────────
 state_on(float value) =>
@@ -394,6 +403,7 @@ plot(hold.t1_hit ? 1 : 0, "HM Target1State", display = display.none)
 plot(hold.terminal_exit_code, "HM TerminalExitCode", display = display.none)
 plot(hold.terminal_exit_time_ms, "HM TerminalExitEpochMs", display = display.none)
 plot(new_plan_blocked ? 1 : 0, "HM NewPlanBlocked", display = display.none)
+plot(ctx_profile_stale ? 1 : 0, "HM ContextStale", display = display.none)
 
 plotshape(entry_event, "Entry", shape.triangleup, location.belowbar,
      color.aqua, size = size.small)
@@ -436,6 +446,8 @@ if barstate.islast
          "\nRebuild: confirmed-history deterministic" +
          "\nAlerts: edge-only" +
          "  Tier: " + ctx_action_tier +
+         (ctx_profile_stale ?
+          "\n⚠ STALE_CONTEXT — Indikator neu hinzufügen" : "") +
          (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") +
          (ctx_earnings ? "\n⚠ EARNINGS" : "")
     statusLbl := label.new(bar_index, high, txt,

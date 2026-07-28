@@ -74,7 +74,12 @@ def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
     assert dashboard["trust_summary"] == pine["trust_summary"]
     assert bundle["product_cut"]["manifestVersion"] == 3
     assert bundle["product_cut"]["deprecatedFieldPolicy"]["mode"] == "compatibility_only"
-    assert set(bundle["product_cut"]["preflightScopes"].keys()) == {"smcCoreDashboard", "smcMainline", "smcDecisionFirst"}
+    assert set(bundle["product_cut"]["preflightScopes"].keys()) == {
+        "smcCoreDashboard",
+        "smcMainline",
+        "smcDecisionFirst",
+        "smcHoldManagerShadow",
+    }
     assert bundle["product_cut"]["contracts"]["lite"][0] == "BUS ZoneActive"
     assert bundle["snapshot"]["meta"]["volume"]["value"] == {
         "regime": bundle["snapshot"]["meta"]["volume"]["value"]["regime"],

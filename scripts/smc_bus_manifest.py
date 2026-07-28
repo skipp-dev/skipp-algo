@@ -776,6 +776,24 @@ PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
 
+PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
+    PreflightTarget(
+        'SMC_Long_Dip_Suite.pine',
+        'SMC Long-Dip Suite',
+        False,
+        False,
+    ),
+    PreflightTarget(
+        'SMC_Hold_Manager.pine',
+        'SMC Hold Manager',
+        True,
+        True,
+        13,
+        'SMC Hold Manager R2.4 Validation',
+        'holdManagerBindings',
+    ),
+)
+
 VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'core_first_run',
@@ -1070,6 +1088,10 @@ STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_plan': 'Trade Plan',
 }
 
+HOLD_MANAGER_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'gBus': 'Engine BUS v2 (Expert Mapping)',
+}
+
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS SchemaVersion', 'g_bus_lifecycle', 'critical'),
@@ -1149,9 +1171,28 @@ STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS QualityScore', 'g_bus_plan'),
 )
 
+HOLD_MANAGER_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'gBus', 'critical'),
+    BusBinding('BUS ZoneActive', 'gBus', 'critical'),
+    BusBinding('BUS Armed', 'gBus', 'critical'),
+    BusBinding('BUS Confirmed', 'gBus', 'critical'),
+    BusBinding('BUS Ready', 'gBus', 'critical'),
+    BusBinding('BUS Trigger', 'gBus', 'critical'),
+    BusBinding('BUS Invalidation', 'gBus', 'critical'),
+    BusBinding('BUS QualityScore', 'gBus', 'critical'),
+    BusBinding('BUS SourceKind', 'gBus', 'critical'),
+    BusBinding('BUS StateCode', 'gBus', 'critical'),
+    BusBinding('BUS StopLevel', 'gBus', 'critical'),
+    BusBinding('BUS Target1', 'gBus', 'critical'),
+    BusBinding('BUS Target2', 'gBus', 'critical'),
+)
+
 
 DASHBOARD_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in DASHBOARD_BUS_BINDINGS)
 STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATEGY_BUS_BINDINGS)
+HOLD_MANAGER_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in HOLD_MANAGER_BUS_BINDINGS
+)
 
 DASHBOARD_CRITICAL_BINDINGS: tuple[BusBinding, ...] = tuple(
     b for b in DASHBOARD_BUS_BINDINGS if b.tier == 'critical'
@@ -1162,25 +1203,32 @@ DASHBOARD_DIAGNOSTIC_BINDINGS: tuple[BusBinding, ...] = tuple(
 
 DASHBOARD_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in DASHBOARD_BUS_LABELS)
 STRATEGY_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in STRATEGY_BUS_LABELS)
+HOLD_MANAGER_BUS_CHANNELS: tuple[str, ...] = tuple(
+    label.removeprefix('BUS ') for label in HOLD_MANAGER_BUS_LABELS
+)
 
 BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
     'dashboardBindings': DASHBOARD_BUS_BINDINGS,
     'strategyBindings': STRATEGY_BUS_BINDINGS,
+    'holdManagerBindings': HOLD_MANAGER_BUS_BINDINGS,
 }
 
 BINDING_CONTRACT_NAMES: dict[str, str] = {
     'dashboardBindings': 'dashboard companion BUS bindings',
     'strategyBindings': 'execution wrapper BUS bindings',
+    'holdManagerBindings': 'Hold Manager BUS bindings',
 }
 
 BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
     'dashboardBindings': 'dashboard_companion',
     'strategyBindings': 'execution_wrapper',
+    'holdManagerBindings': 'exit_companion',
 }
 
 BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
     'dashboardBindings': DASHBOARD_GROUP_TITLES_BY_KEY,
     'strategyBindings': STRATEGY_GROUP_TITLES_BY_KEY,
+    'holdManagerBindings': HOLD_MANAGER_GROUP_TITLES_BY_KEY,
 }
 
 
@@ -1226,11 +1274,13 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'proOnly': list(PRO_ONLY_BUS_LABELS),
             'dashboardBindings': list(DASHBOARD_BUS_LABELS),
             'strategyBindings': list(STRATEGY_BUS_LABELS),
+            'holdManagerBindings': list(HOLD_MANAGER_BUS_LABELS),
         },
         'preflightScopes': {
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],
             'smcMainline': [_preflight_target_payload(target) for target in PREFLIGHT_MAINLINE_TARGETS],
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
+            'smcHoldManagerShadow': [_preflight_target_payload(target) for target in PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS],
         },
         'validationEvidence': {
             'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,

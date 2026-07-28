@@ -263,6 +263,7 @@ def test_reconstruction_diagnostics_cover_reload_evidence_fields() -> None:
         "HM TerminalExitCode": "hold.terminal_exit_code",
         "HM TerminalExitEpochMs": "hold.terminal_exit_time_ms",
         "HM NewPlanBlocked": "new_plan_blocked ? 1 : 0",
+        "HM ContextStale": "ctx_profile_stale ? 1 : 0",
     }
     for title, expression in expected_hidden_plots.items():
         assert re.search(
@@ -270,3 +271,27 @@ def test_reconstruction_diagnostics_cover_reload_evidence_fields() -> None:
             r"display = display\.none\)",
             source,
         )
+
+
+def test_micro_profile_staleness_is_observable_but_not_trade_gating() -> None:
+    source = _read_source()
+
+    assert "str.substring(mp.ASOF_DATE, 0, 4)" in source
+    assert "str.substring(mp.ASOF_DATE, 5, 7)" in source
+    assert "str.substring(mp.ASOF_DATE, 8, 10)" in source
+    assert (
+        "math.floor((timenow - ctx_asof_ts) / 86400000)"
+        in source
+    )
+    assert "ctx_profile_days_old > 5" in source
+    assert "ctx_profile_days_old > 2" not in source
+    assert "⚠ STALE_CONTEXT — Indikator neu hinzufügen" in source
+
+    plan_section = source.index("// ── 3.  PLAN SOURCE")
+    diagnostic_section = source.index(
+        "// Hidden reconstruction diagnostics for replay/source evidence."
+    )
+    alert_section = source.index("// ── 8.  ALERTS")
+    assert "ctx_profile_stale" not in source[plan_section:diagnostic_section]
+    assert "ctx_profile_stale" not in source[alert_section:]
+    assert source.count("ctx_profile_stale") == 3

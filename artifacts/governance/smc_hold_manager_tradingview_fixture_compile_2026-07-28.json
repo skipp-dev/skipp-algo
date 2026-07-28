@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-28T02:28:59Z",
+  "scope": "Generated R2.4 fixture compile only; not replay-case or server-alert evidence",
+  "canonicalSource": {
+    "path": "SMC_Hold_Manager.pine",
+    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
+  },
+  "fixture": {
+    "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
+    "sha256": "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d",
+    "savedStatus": "saved_private_test_only",
+    "savedScript": "SMC Hold Manager R2.4 Fixture TEST ONLY",
+    "publicationStatus": "not_published"
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Hold R2.4 Validation",
+    "symbol": "NASDAQ:BKNG",
+    "timeframeMinutes": 5,
+    "declaredTitle": "SMC Hold Manager R2.4 Fixture",
+    "compileStatus": "passed",
+    "compileDiagnostics": [],
+    "addToChartStatus": "passed",
+    "legendObserved": "SMC Hold Manager R2.4 Fixture",
+    "canonicalChartStateRestored": true,
+    "canonicalLegendObservedAfterRestore": "SMC Hold Manager"
+  },
+  "replay": {
+    "status": "recorded_separately",
+    "evidence": "artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json"
+  },
+  "limitations": [
+    "The compile used a private test-only saved script and did not publish a second product script.",
+    "The fixture rewires external feeds in a source-derived harness and is not the canonical saved script.",
+    "Replay-case results and TradingView server-alert delivery are outside this compile-only artifact."
+  ]
+}
