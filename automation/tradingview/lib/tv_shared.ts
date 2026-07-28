@@ -535,6 +535,78 @@ export function validateTradingViewStorageState(storageStatePath: string): void 
   );
 }
 
+// ── TradingView 2FA (one-time code) entry ──────────────────────────────────
+//
+// The headless fallback reached the 2FA step for the first time on 2026-07-28
+// (run 30341257192, after #4140 unblocked the login form) and then looped:
+// "TOTP code generated — filling 2FA field automatically." 32 times in 180 s
+// with no submit and no error. `fill(token)` wrote the whole 6-digit code into
+// the FIRST matching input; a per-digit OTP layout caps each box at one char,
+// so the read-back never reached 6 and the caller's `hasLikelyCode` guard
+// skipped every submit candidate — filling forever, submitting never.
+
+/** Inputs that plausibly hold a one-time code, most specific first. */
+export const TV_OTP_FIELD_SELECTOR =
+  'input[autocomplete="one-time-code"], input[inputmode="numeric"], '
+  + 'input[name*="code" i], input[placeholder*="code" i], input[type="tel"]';
+
+export type OtpEntryPlan = {
+  /** Digits go into separate single-character boxes. */
+  perBox: boolean;
+  /** The layout can hold the whole code at all. */
+  usable: boolean;
+  reason: string;
+};
+
+/**
+ * Decide how a code of `codeLength` digits has to be entered.
+ *
+ * Pure so the decision is pinned by a browserless test — the DOM interaction
+ * around it is thin on purpose.
+ */
+export function planOtpEntry(
+  fields: { maxLength: number }[],
+  codeLength: number,
+): OtpEntryPlan {
+  if (fields.length === 0) {
+    return { perBox: false, usable: false, reason: "no_code_field" };
+  }
+
+  // maxLength is -1 / 524288 when unset, so only a genuinely small cap counts.
+  const singleCharBoxes = fields.filter(
+    (field) => field.maxLength === 1,
+  ).length;
+  if (singleCharBoxes >= codeLength) {
+    return { perBox: true, usable: true, reason: "per_box_inputs" };
+  }
+  if (singleCharBoxes > 0) {
+    return {
+      perBox: true,
+      usable: false,
+      reason: `per_box_inputs_short:${singleCharBoxes}/${codeLength}`,
+    };
+  }
+
+  const first = fields[0];
+  const capacity = first.maxLength > 0 ? first.maxLength : Number.MAX_SAFE_INTEGER;
+  if (capacity < codeLength) {
+    return {
+      perBox: false,
+      usable: false,
+      reason: `single_field_too_small:${capacity}/${codeLength}`,
+    };
+  }
+  return { perBox: false, usable: true, reason: "single_field" };
+}
+
+/** A code counts as entered only when every digit landed somewhere. */
+export function isOtpEntryComplete(
+  observed: string,
+  expected: string,
+): boolean {
+  return observed.replace(/\s+/g, "") === expected;
+}
+
 export function resolveTradingViewPageAuthState(evidence: TradingViewPageAuthEvidence): TradingViewPageAuthState {
   const htmlClass = normalizeUiText(evidence.htmlClass).toLowerCase();
   const bodyText = normalizeUiText(evidence.bodyText).toLowerCase();
