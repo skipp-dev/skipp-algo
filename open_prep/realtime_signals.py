@@ -4146,9 +4146,9 @@ def main() -> None:
     a0_parity_dir = os.environ.get("RT_A0_PARITY_LOG_DIR", "").strip()
     if a0_parity_dir:
         try:
-            from open_prep.a0_parity_store import A0ParityJournal
-            a0_parity_journal = A0ParityJournal(a0_parity_dir, source="fmp")
-            logger.info("FMP A0 parity journal enabled (RT_A0_PARITY_LOG_DIR)")
+            from open_prep.a0_parity_store import A0ParityJournal, parity_source_from_env
+            a0_parity_journal = A0ParityJournal(a0_parity_dir, source=parity_source_from_env())
+            logger.info("A0 parity journal enabled (RT_A0_PARITY_LOG_DIR, source=%s)", parity_source_from_env())
         except Exception:
             logger.warning("FMP A0 parity journal init failed", exc_info=True)
 
