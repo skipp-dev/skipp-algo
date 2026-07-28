@@ -159,7 +159,8 @@ _ALLOWLISTED_SYMBOLS: frozenset[str] = frozenset(
         # change to either file.
         "path.parts",
         "scripts.run_ab_comparison",       # script not importable as module (no __init__.py)
-        "scripts.emit_fvg_context_pine",   # script not importable as module (no __init__.py)
+        # 2026-07-28: scripts.emit_fvg_context_pine entry dropped — file
+        # removed with the stranded FVG-context chain.
         # Pine Script (TradingView) qualified identifiers, not Python.
         "syminfo.period",
         "timeframe.period",
@@ -283,7 +284,7 @@ def test_r2_pin_test_symbol_citations_resolve(pin_test_file: str) -> None:
         }:
             continue
         # Try progressively shorter module prefixes. Start at ``len(parts)`` so a
-        # bare module citation (e.g. ``smc_core.fvg_pine_emit``) resolves via
+        # bare module citation (e.g. ``smc_core.vol_regime``) resolves via
         # ``import_module`` on the full dotted path with an empty attr chain,
         # instead of depending on the parent package already exposing the
         # submodule as an attribute (which is import-order dependent and made the
