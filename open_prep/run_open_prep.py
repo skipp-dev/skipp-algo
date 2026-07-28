@@ -2986,15 +2986,21 @@ def apply_gap_mode_to_quotes(
     return out
 
 
-def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
-    """Calculate ATR(period) from EOD OHLC using Wilder's Smoothing (RMA).
+def _calculate_atr14_from_eod(
+    candles: list[dict],
+    period: int = 14,
+    *,
+    split_dates: set[date] | None = None,
+) -> float:
+    """Calculate a current-price ATR from relative TR using Wilder's RMA.
 
     Expects each candle to expose high, low, close.
-    Standard ATR calculation:
-    1. TR = Max(H-L, |H-Cp|, |L-Cp|)
-    2. First ATR = SMA(TR, period)
-    3. Subsequent ATR = ((Prior ATR * (period-1)) + Current TR) / period
+    The smoothing state is dimensionless so an old price level cannot dominate
+    today's ``atr_pct``. The final value is converted back to price units at the
+    latest close for existing dollar-ATR consumers.
     """
+    from .atr_quality import homogeneous_price_history
+    candles, _ = homogeneous_price_history(candles, split_dates=split_dates)
     period_eff = max(int(period), 1)
     parsed: list[tuple[date, float, float, float]] = []
     for c in candles:
@@ -3016,28 +3022,30 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         return 0.0
 
     parsed.sort(key=lambda row: row[0])
-    tr_values: list[float] = []
+    relative_tr_values: list[float] = []
     prev_close: float | None = None
 
     for _, high, low, close in parsed:
-        # First bar TR is H-L (no prior close).
-        # Standard practice often skips first bar or treats as H-L.
-        tr = (
-            high - low
-            if prev_close is None
-            else max(high - low, abs(high - prev_close), abs(low - prev_close))
-        )
-        tr_values.append(max(tr, 0.0))
+        if prev_close is None:
+            relative_tr = (high - low) / close
+        else:
+            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+            relative_tr = tr / prev_close
+        relative_tr_values.append(max(relative_tr, 0.0))
         prev_close = close
 
-    # Wilder's Smoothing Initialization: first `period` TRs -> Simple Average
-    current_atr = sum(tr_values[:period_eff]) / float(period_eff)
+    current_relative_atr = sum(relative_tr_values[:period_eff]) / float(period_eff)
 
-    # Smooth the rest
-    for tr in tr_values[period_eff:]:
-        current_atr = (current_atr * float(period_eff - 1) + tr) / float(period_eff)
+    for relative_tr in relative_tr_values[period_eff:]:
+        current_relative_atr = (
+            current_relative_atr * float(period_eff - 1) + relative_tr
+        ) / float(period_eff)
 
-    return round(current_atr, 4)
+    latest_close = parsed[-1][3]
+    return round(current_relative_atr * latest_close, 4)
+
+
+ATR_CACHE_ALGORITHM_VERSION = 3
 
 
 def _atr_cache_file(as_of: date, period: int) -> Path:
@@ -3050,6 +3058,8 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         return {}, {}, {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("algorithm_version") != ATR_CACHE_ALGORITHM_VERSION:
+            return {}, {}, {}
         atr_map = {
             str(k).upper(): val
             for k, v in dict(payload.get("atr14_by_symbol", {})).items()
@@ -3220,6 +3230,7 @@ def _save_atr_cache(
         }
 
         payload = {
+            "algorithm_version": ATR_CACHE_ALGORITHM_VERSION,
             "as_of": as_of.isoformat(),
             "atr_period": int(period),
             "atr14_by_symbol": clean_atr_map,
@@ -3315,7 +3326,12 @@ def _incremental_atr_from_eod_bulk(
             continue
 
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
-        atr = ((prev_atr * float(n - 1)) + max(tr, 0.0)) / float(n)
+        previous_relative_atr = prev_atr / prev_close
+        relative_tr = max(tr, 0.0) / prev_close
+        current_relative_atr = (
+            previous_relative_atr * float(n - 1) + relative_tr
+        ) / float(n)
+        atr = current_relative_atr * close
         atr_map[sym] = round(atr, 4)
         # NOTE: momentum_z carries over from prior-day cache (not re-calculated
         # intra-day).  This is acceptable for ranking but may lag by ~1 session.
@@ -3331,6 +3347,7 @@ def _fetch_symbol_atr(
     date_from: date,
     as_of: date,
     atr_period: int,
+    split_dates: set[date] | None = None,
 ) -> tuple[
     str, float, float, float | None, float, float | None, float | None,
     float | None, dict[str, Any], str | None,
@@ -3355,6 +3372,11 @@ def _fetch_symbol_atr(
         else:
             candles = []
 
+        from .atr_quality import homogeneous_price_history
+        candles, history_boundary = homogeneous_price_history(
+            candles,
+            split_dates=split_dates,
+        )
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
         if not math.isfinite(momentum_z):
@@ -3404,7 +3426,12 @@ def _fetch_symbol_atr(
             ]
             rsi14 = rsi14_from_closes(closes)
         if atr_value <= 0.0:
-            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, technical_features, "atr_zero_or_insufficient_bars"
+            error = (
+                "atr_corporate_action_history_insufficient"
+                if history_boundary is not None
+                else "atr_zero_or_insufficient_bars"
+            )
+            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, technical_features, error
         return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, technical_features, None
     except (RuntimeError, KeyError, ZeroDivisionError, TypeError) as exc:
         return symbol, 0.0, 0.0, None, 0.0, None, None, None, _technical_features_from_eod([]), _APIKEY_RE.sub(r"\1=***", str(exc))
@@ -3433,6 +3460,22 @@ def _atr14_by_symbol(
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
+    split_dates_by_symbol: dict[str, set[date]] = {}
+    get_splits = getattr(client, "get_splits_calendar", None)
+    if callable(get_splits):
+        try:
+            wanted = set(symbols)
+            for split_row in get_splits(date_from, as_of):
+                split_symbol = _extract_symbol_from_row(split_row)
+                split_date = _parse_calendar_date(split_row.get("date"))
+                if split_symbol in wanted and split_date is not None:
+                    split_dates_by_symbol.setdefault(split_symbol, set()).add(split_date)
+        except Exception as exc:
+            logger.warning(
+                "ATR split-calendar lookup failed; extreme scale-break guard remains active: %s",
+                exc,
+            )
+
     cached_atr, cached_momentum, cached_prev_close = _load_atr_cache(as_of, atr_period)
     cached_technical = _load_atr_technical_cache(as_of, atr_period)
     if cached_atr:
@@ -3440,6 +3483,8 @@ def _atr14_by_symbol(
         # Do NOT set 0.0 for uncached symbols — that would prevent the
         # per-symbol fallback from recognising them as missing.
         for symbol in symbols:
+            if split_dates_by_symbol.get(symbol):
+                continue
             cached_val = cached_atr.get(symbol)
             if cached_val is not None and cached_val > 0.0:
                 atr_map[symbol] = round(cached_val, 4)
@@ -3460,7 +3505,7 @@ def _atr14_by_symbol(
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
-        symbols=symbols,
+        symbols=[symbol for symbol in symbols if not split_dates_by_symbol.get(symbol)],
         as_of=as_of,
         atr_period=atr_period,
     )
@@ -3482,6 +3527,7 @@ def _atr14_by_symbol(
                     date_from,
                     as_of,
                     int(atr_period),
+                    split_dates_by_symbol.get(symbol),
                 ): symbol
                 for symbol in missing_symbols
             }
@@ -4736,6 +4782,8 @@ def _fetch_quotes_with_atr(
                 q["avgVolume"] = avg_vol
                 q["avg_volume"] = avg_vol
             q["atr"] = atr_by_symbol.get(sym, 0.0)
+            if atr_fetch_errors.get(sym) == "atr_corporate_action_history_insufficient":
+                q["atr_data_quality"] = "rejected_corporate_action_history"
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
             q["rsi14"] = rsi_by_symbol.get(sym)  # 2026-07-27: None stays None — scorer's rsi_extreme self-disables on missing data
             q["vwap"] = vwap_by_symbol.get(sym)
@@ -5503,7 +5551,18 @@ def generate_open_prep_result(
         # ATR% normalisation
         atr_val = _to_float(q.get("atr"), default=0.0)
         prev_c = _to_float(q.get("previousClose"), default=0.0)
-        q["atr_pct"] = round((atr_val / prev_c) * 100.0, 4) if atr_val > 0 and prev_c > 0 else None
+        from .atr_quality import atr_pct_from_price_units
+        atr_pct = atr_pct_from_price_units(atr_val, prev_c)
+        q["atr_pct"] = round(atr_pct, 4) if atr_pct is not None else None
+        prior_atr_quality = str(q.get("atr_data_quality") or "")
+        if prior_atr_quality.startswith("rejected_"):
+            q["atr_data_quality"] = prior_atr_quality
+        else:
+            q["atr_data_quality"] = (
+                "ok"
+                if atr_pct is not None
+                else ("rejected_implausible_or_split" if atr_val > 0 and prev_c > 0 else "missing")
+            )
 
     # --- GAP-GO / GAP-WATCH classification (long only) ---
     _progress(15, TOTAL_STAGES, "Ranking + Gap-Klassifizierung …")
@@ -5910,12 +5969,29 @@ def generate_open_prep_result(
     # --- Breakout & Consolidation enrichment (#6, #7) ---
     # Fetch daily bars for top-N v2 candidates and run detection.
     # 320 calendar days ≈ 220 trading days so the EMA-200 underlying the
-    # trend_alignment feature has enough bars (breakout/consolidation
-    # detection slices its own shorter windows and is unaffected).
+    # trend_alignment feature has enough bars. Every consumer below receives
+    # the same corporate-action-homogeneous segment; a split-scale break is
+    # not valid input for breakout, EMA, ADX or Bollinger calculations either.
     _daily_bars_cache: dict[str, list[dict[str, Any]]] = {}
     if ranked_v2 and data_client is not None:
         lookback_from = today - timedelta(days=320)
         v2_symbols = [str(r.get("symbol", "")).strip().upper() for r in ranked_v2 if r.get("symbol")]
+        feature_split_dates: dict[str, set[date]] = {}
+        get_splits = getattr(data_client, "get_splits_calendar", None)
+        if callable(get_splits):
+            try:
+                wanted_symbols = set(v2_symbols)
+                for split_row in get_splits(lookback_from, today):
+                    split_symbol = _extract_symbol_from_row(split_row)
+                    split_date = _parse_calendar_date(split_row.get("date"))
+                    if split_symbol in wanted_symbols and split_date is not None:
+                        feature_split_dates.setdefault(split_symbol, set()).add(split_date)
+            except Exception as exc:
+                logger.warning(
+                    "Historical-feature split-calendar lookup failed; "
+                    "close-scale guard remains active: %s",
+                    exc,
+                )
 
         def _fetch_daily_bars(sym: str) -> tuple[str, list[dict[str, Any]]]:
             try:
@@ -5923,14 +5999,21 @@ def generate_open_prep_result(
                 if isinstance(bars_raw, dict):
                     maybe_hist = bars_raw.get("historical")
                     bars_raw = maybe_hist if isinstance(maybe_hist, list) else []
-                if isinstance(bars_raw, list) and len(bars_raw) >= 10:
-                    bars_sorted = sorted(
+                if isinstance(bars_raw, list):
+                    from .atr_quality import homogeneous_price_history
+                    bars_sorted, boundary = homogeneous_price_history(
                         bars_raw,
-                        key=lambda b: _calendar_date_sort_key(
-                            b.get("date") if b.get("date") is not None else b.get("datetime"),
-                        ),
+                        split_dates=feature_split_dates.get(sym),
                     )
-                    return sym, bars_sorted
+                    if len(bars_sorted) >= 10:
+                        return sym, bars_sorted
+                    if boundary is not None:
+                        logger.info(
+                            "Historical features unavailable for %s: only %d "
+                            "post-boundary bars",
+                            sym,
+                            len(bars_sorted),
+                        )
             except Exception as exc:
                 logger.debug("Breakout enrichment: failed to fetch bars for %s: %s", sym, exc)
             return sym, []

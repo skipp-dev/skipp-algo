@@ -581,6 +581,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", default=str(DEFAULT_OUTPUT_PATH), help="Output path for the quote-reference JSON artifact."
     )
     parser.add_argument(
+        "--fmp-output",
+        help=(
+            "Optional second artifact containing the unmodified FMP 15-session ADV. "
+            "Written before a Databento ADV overlay so the active FMP producer can "
+            "use an explicit same-source denominator without a second API fetch."
+        ),
+    )
+    parser.add_argument(
         "--adv-source",
         choices=("fmp", "databento"),
         default="fmp",
@@ -652,6 +660,9 @@ def main() -> int:
         lookback_sessions=args.lookback_sessions,
     )
 
+    if args.fmp_output:
+        write_quote_reference_file(rows_by_symbol, args.fmp_output)
+
     skipped_adv: list[str] = []
     if args.adv_source == "databento":
         # Any fetch failure propagates and fails the build (exit != 0): the
@@ -680,6 +691,7 @@ def main() -> int:
                 "skipped_symbols": len(skipped),
                 "skipped_adv_symbols": len(skipped_adv),
                 "output": str(Path(args.output).expanduser()),
+                "fmp_output": str(Path(args.fmp_output).expanduser()) if args.fmp_output else None,
                 "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             },
             indent=2,

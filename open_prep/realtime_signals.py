@@ -2375,6 +2375,7 @@ class RealtimeEngine:
                 }
                 self._postmarket_baseline_date = baseline_date
                 self._postmarket_close_volume = restored_baseline
+            from .atr_quality import actionable_atr_pct
             now_epoch = time.time()
             for raw in data.get("signals", []):
                 fired_epoch = _safe_float(raw.get("fired_epoch", 0), 0.0)
@@ -2391,7 +2392,7 @@ class RealtimeEngine:
                     volume_ratio=_safe_float(raw.get("volume_ratio", 0), 0.0),
                     score=_safe_float(raw.get("score", 0), 0.0),
                     confidence_tier=str(raw.get("confidence_tier", "STANDARD")),
-                    atr_pct=_safe_float(raw.get("atr_pct", 0), 0.0),
+                    atr_pct=actionable_atr_pct(raw.get("atr_pct")) or 0.0,
                     freshness=_safe_float(raw.get("freshness", 0), 0.0),
                     fired_at=str(raw.get("fired_at", "")),
                     fired_epoch=fired_epoch,
@@ -2953,7 +2954,7 @@ class RealtimeEngine:
         raw_volume_value = quote.get("volume")
         volume = _safe_float(raw_volume_value, 0.0)
         avg_volume = _safe_float(
-            quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 0.0
+            quote.get("avgVolume") or _watchlist_average_volume(watchlist_entry), 0.0
         )
         if raw_volume_value is not None:
             try:
@@ -2997,7 +2998,10 @@ class RealtimeEngine:
             else quote.get("expected_volume_fraction"),
         )
 
-        atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
+        from .atr_quality import actionable_atr_pct
+        atr_pct = actionable_atr_pct(
+            watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct")
+        ) or 0.0
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
         v2_score = _safe_float(watchlist_entry.get("score"), 0.0)
         symbol_regime = str(watchlist_entry.get("symbol_regime", "NEUTRAL"))
@@ -3574,7 +3578,7 @@ class RealtimeEngine:
             prev_close = _safe_float(quote.get("previousClose"), 0.0)
             chg_pct = ((price / prev_close) - 1) * 100 if prev_close > 0 else 0.0
             _avg_vol = _safe_float(
-                quote.get("avgVolume") or wl_entry.get("avg_volume"), 0.0
+                quote.get("avgVolume") or _watchlist_average_volume(wl_entry), 0.0
             )
             vol_ratio, expected_vol_frac, normalized_volume_pace = _volume_semantics(
                 q_volume,
@@ -3742,7 +3746,7 @@ class RealtimeEngine:
             wl_avg = 0.0
             wl_entry = wl_map.get(str(sig.symbol).strip().upper())
             if wl_entry is not None:
-                wl_avg = _safe_float(wl_entry.get("avg_volume"), 0.0)
+                wl_avg = _watchlist_average_volume(wl_entry)
             cur_avg_vol = _safe_float(q.get("avgVolume") or wl_avg, 0.0)
             if cur_avg_vol < 1000:
                 requalified.append(sig)  # can't verify — keep
@@ -4412,6 +4416,18 @@ def _collect_a0_latency_metrics(engine: Any, now: float, prefix: str) -> list[st
             f"{prefix}_a0_near_repoll_a0_pushed_total {int(near.get('a0_pushed', 0))}",
         ])
     return lines
+
+
+def _watchlist_average_volume(entry: dict[str, Any]) -> float:
+    """Prefer the explicit 15-session FMP ADV once the snapshot carries it.
+
+    Presence is authoritative: an explicit null means insufficient same-basis
+    history and must fail closed rather than fall back to profile averageVolume.
+    Older snapshots retain the legacy fallback during the rollout window.
+    """
+    if "avg_volume_15_session" in entry:
+        return _safe_float(entry.get("avg_volume_15_session"), 0.0)
+    return _safe_float(entry.get("avg_volume"), 0.0)
 
 
 def _volume_semantics(

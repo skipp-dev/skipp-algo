@@ -204,6 +204,26 @@ jobs:
           ARGS+=(--ab-arm-labels)
           "$SMC_PYTHON_BIN" -m open_prep.outcome_backfill "${ARGS[@]}"
 
+      - name: Measure FMP volume basis
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          INPUT_DATE: ${{ github.event.inputs.date }}
+        run: |
+          set -euo pipefail
+          SESSION_DATE="${INPUT_DATE:-$(date -u +%F)}"
+          SOURCE="artifacts/open_prep/outcomes/outcomes_${SESSION_DATE}.json"
+          if [ "$SESSION_DATE" != "$(date -u +%F)" ]; then
+            echo "::warning::FMP quote.volume is current-only; historical dispatch ${SESSION_DATE} cannot produce a same-session basis measurement"
+          elif [ ! -s "$SOURCE" ]; then
+            echo "::warning::No outcome snapshot for ${SESSION_DATE}; FMP volume-basis measurement skipped"
+          else
+            "$SMC_PYTHON_BIN" scripts/measure_fmp_volume_basis.py \
+              --session-date "$SESSION_DATE" \
+              --symbols-from "$SOURCE" \
+              --output-dir artifacts/open_prep/volume_source_audit \
+              --max-symbols 20 --minimum-sessions 5
+          fi
+
       - name: Warn on persistent failed-status streak
         # Audit D-3 (2026-06-12): every run log 2026-04-30..2026-06-11
         # carried status="failed" (the same ~3 legacy symbols fail daily)
@@ -275,6 +295,7 @@ jobs:
           path: |
             artifacts/open_prep/outcome_backfill/
             artifacts/open_prep/feature_importance/
+            artifacts/open_prep/volume_source_audit/
           if-no-files-found: warn
 
       - name: Commit refreshed outcomes via PR
@@ -294,7 +315,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ || true
+          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ artifacts/open_prep/volume_source_audit/ || true
           # §G3 arm labels (labels_<day>.json) accumulate next to the arm
           # records so the bridge can fold them on the next watchdog run.
           git add artifacts/open_prep/ab_arms/ || true
