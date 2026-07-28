@@ -734,6 +734,50 @@ export function isOtpEntryComplete(
   return observed.replace(/\s+/g, "") === expected;
 }
 
+export type TotpTelemetryResolution = {
+  entered: boolean;
+  submitted: boolean;
+  inferredFromAuthenticatedSession: boolean;
+};
+
+export const TOTP_AUTH_INFERENCE_MAX_LAG_MS = 15_000;
+
+/**
+ * Reconcile TOTP telemetry when the provider auto-submits and clears its code
+ * field before Playwright can read it back.
+ *
+ * Dispatch alone is not proof of success. Only authentication observed shortly
+ * after that dispatch can promote an unobservable entry to entered+submitted;
+ * the time bound prevents a later manual login from claiming an older attempt.
+ */
+export function resolveTotpTelemetry(input: {
+  inputDispatchedAtMs?: number;
+  entryObserved: boolean;
+  submitDispatched: boolean;
+  authenticated: boolean;
+  authenticatedAtMs?: number;
+  maxInferenceLagMs?: number;
+}): TotpTelemetryResolution {
+  const maxInferenceLagMs =
+    input.maxInferenceLagMs ?? TOTP_AUTH_INFERENCE_MAX_LAG_MS;
+  const inferenceLagMs =
+    input.inputDispatchedAtMs !== undefined
+    && input.authenticatedAtMs !== undefined
+      ? input.authenticatedAtMs - input.inputDispatchedAtMs
+      : undefined;
+  const authenticatedAfterDispatch =
+    input.authenticated
+    && inferenceLagMs !== undefined
+    && inferenceLagMs >= 0
+    && inferenceLagMs <= maxInferenceLagMs;
+  return {
+    entered: input.entryObserved || authenticatedAfterDispatch,
+    submitted: input.submitDispatched || authenticatedAfterDispatch,
+    inferredFromAuthenticatedSession:
+      authenticatedAfterDispatch && (!input.entryObserved || !input.submitDispatched),
+  };
+}
+
 /** Return the TOTP time-step number for deterministic retry de-duplication. */
 export function totpTimeStep(nowMs: number, periodSeconds = 30): number {
   if (!Number.isFinite(nowMs) || !Number.isFinite(periodSeconds) || periodSeconds <= 0) {

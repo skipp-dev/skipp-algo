@@ -103,7 +103,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted unlink 259 → 279 (pure shift; the
     #   atomic-write cleanup call site itself is unchanged).
-    ("open_prep/feature_importance_report.py", 279, "unlink"),
+    ("open_prep/feature_importance_report.py", 326, "unlink"),  # 2026-07-28 (dedicated EWMA recalibration status): 279->326
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
@@ -133,7 +133,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-07-02 (WP6 formula-era gate): cutoff constant block +8 → 595.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 → 632.
-    ("open_prep/outcomes.py", 863, "unlink"),  # 2026-07-27 (PEAD C2b quote->row wiring: +2 snapshot fields, +4 FEATURE_KEYS/PASS_THROUGH entries): 856->863
+    ("open_prep/outcomes.py", 868, "unlink"),  # 2026-07-28 (EWMA shadow outcome/FI field): 863->868
     ("open_prep/realtime_signals.py", 130, "remove"),  # 2026-07-25 (databento-signal-migration): 129->130
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2783 -> 2862 and 2828 -> 2907.
@@ -153,21 +153,21 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # extended; multiple insertion points produced non-uniform shifts.
     # 2026-06-25: feature-flag helper additions shifted 2308 -> 2312.
     # 2026-07-04 (market-microstructure observe-only): import +1 → 2313.
-    ("open_prep/run_open_prep.py", 2284, "unlink"),  # 2026-07-23 (get_symbol_hit_rate total==0 guard + all-horizon production caller): 2282->2284
+    ("open_prep/run_open_prep.py", 2287, "unlink"),  # 2026-07-28 (technical-analysis imports above): 2284->2287
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     # 2026-06-25: feature-flag helper additions shifted
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3145, "unlink"),  # 2026-07-28 (relative-TR split-safe cache): 3147->3145
-    ("open_prep/run_open_prep.py", 3596, "unlink"),  # 2026-07-28 (relative-TR feature state): 3593->3596
+    ("open_prep/run_open_prep.py", 3254, "unlink"),  # 2026-07-28 (merge split-safe ATR + shared technical cache): 3243->3254
+    ("open_prep/run_open_prep.py", 3725, "unlink"),  # 2026-07-28 (merge split calendar + technical cache threading): 3679->3725
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5754, "unlink"),  # 2026-07-28 (relative-TR feature state): 5751->5754
+    ("open_prep/run_open_prep.py", 5939, "unlink"),  # 2026-07-28 (merge split-safe features + exact §15 replay): 5880->5939
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6125, "unlink"),  # 2026-07-28 (relative-TR feature state): 6122->6125
+    ("open_prep/run_open_prep.py", 6313, "unlink"),  # 2026-07-28 (merge split-safe enrichment + exact §15 evidence): 6230->6313
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 80, "unlink"),  # 2026-07-27 (docstring persistence note above): 74->80
     ("smc_core/benchmark.py", 39, "unlink"),

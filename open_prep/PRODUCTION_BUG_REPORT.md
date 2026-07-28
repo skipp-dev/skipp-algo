@@ -54,7 +54,7 @@
 - **Analyse & Regression-Guard:** `tests/test_scorer_component_cap_convergence.py`,
   Kommentar `#8 Score Component Cap` in `open_prep/scorer.py`.
 
-### MEDIUM (NEW 2026-07-27) — §15 SYMBOL-layer regime weights never fire
+### MEDIUM — §15 live activation remains pending exact shadow evidence
 
 - **Location:** `score_candidate()` feature build — `"symbol_regime": detect_symbol_regime(adx=..., bb_width_pct=...)`
   (scorer.py:533-536) and its use at scorer.py:577-578.
@@ -65,21 +65,13 @@
   while real inputs move five (`gap`, `gap_sector_relative`, `rvol`, `momentum_z`, `ext_hours`, e.g.
   `adx=30 / bb=5 → TRENDING`). The comment at scorer.py:576 describes the adjustment as compounding
   with the market tilt; in production it is a no-op.
-- **Why the data is missing:** the measured indicators *are* computed in the same run
-  (`compute_adx_from_bars` / `compute_bb_width_pct_from_bars`, run_open_prep.py:5762-5763) but from
-  `_daily_bars_cache`, which is only built at run_open_prep.py:5698 — **after** `rank_candidates_v2`
-  (run_open_prep.py:5596). The values exist too late to reach the scorer.
+- **Exact shadow remediation (2026-07-28):** ADX and BB width are now computed together with EWMA from the chronological EOD candles already loaded for ATR and persisted in the ATR cache. A second complete `rank_candidates_v2` execution receives the measured ADX/BB pair. The live pass remains unchanged.
 - **Impact:** Trade-affecting. A documented weight-adaptation layer silently contributes nothing, so
   gap/rvol/momentum weighting is regime-blind at the symbol level. Also a truth defect: the
   enrichment stage later **overwrites** `row["symbol_regime"]` with the measured value, making the
   emitted row look as though scoring used it.
-- **Evaluation path (2026-07-28):** `python -m scripts.report_regime_weight_shadow`
-  aggregates the shadow rows (non-NEUTRAL share, score-delta distribution, top movers)
-  from `artifacts/open_prep/runs/` — the input for the wire-or-not decision.
-- **Status:** shadow measurement landed first (`open_prep/regime_shadow.py` +
-  `row["regime_weight_shadow"]` / `row["symbol_regime_at_scoring"]`) so the ranking impact can be
-  quantified on real runs before the weights are wired up. Wiring requires hoisting the daily-bars
-  fetch above the scoring stage — not a one-line change.
+- **Evaluation path (2026-07-28):** `python -m scripts.report_regime_weight_shadow` consumes schema-v2 comparisons from the complete scoring universe. Only `exact_second_scorer_pass=true` rows count; the report includes score and rank movement.
+- **Status:** exact observation-only replay implemented; §15 is deliberately still not live. Activation requires multiple completed production sessions and a separate versioned decision. The ATR proxy is display-only. EWMA has its own measured-sample/FDR gate and no live weight mapping.
 
 ### MEDIUM (IMPACT CORRECTED 2026-07-27) — `macro_component` only rewards positive bias
 
@@ -293,16 +285,7 @@
 
 ### RESOLVED (verified 2026-07-27) — Breakout/consolidation enrichment uses ATR% proxy, not real ADX/BB data
 
-- **Resolution:** Both proposed fixes landed. The enrichment now **prefers measured indicators**
-  computed from the daily bars already fetched in the run — `real_adx = compute_adx_from_bars(bars)`
-  / `real_bbw = compute_bb_width_pct_from_bars(bars)` (run_open_prep.py:5762-5766, "eval-findings D7")
-  — and falls back to the ATR% proxy only when the bars are insufficient (< 2×14+1 for Wilder ADX,
-  < 20 for BB). That is fix (b). Fix (c) landed too: every row carries
-  `row["regime_source"] ∈ {"daily_bars", "atr_proxy", "no_data"}` so the provenance is disclosed
-  per candidate (audit #2670 W2). The proxy branch is explicitly commented "synthesized BB/ADX, NOT
-  measured indicators".
-- **Separate, still-open finding (2026-07-27):** the *scorer's* `symbol_regime` is unrelated to this
-  enrichment and is inert — see "§15 SYMBOL-layer regime weights never fire" in §2 (`scorer.py`).
+- **Resolution (updated 2026-07-28):** Measured ADX/BB now come from the shared ATR-candle cache and drive both the exact §15 shadow and later consolidation enrichment. ATR%-derived values remain only a disclosed `atr_proxy_display_only` fallback and never enter scorer replay or promotion evidence. The live scorer remains NEUTRAL until a separate §15 activation decision.
 - **Location:** `generate_open_prep_result()`, lines ~3660-3700
 - **Bug:** `approx_bb_width = max(atr_pct * 2.5, 0.1)` and `approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)` are linear proxies of Bollinger Band width and ADX, derived solely from ATR%. These proxies have no empirical basis:
   - ATR% and ADX measure different things (volatility vs. trend strength)

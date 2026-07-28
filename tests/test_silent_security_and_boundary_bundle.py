@@ -188,7 +188,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted basicConfig 307 → 327 (pure shift;
     #   still the CLI entry point's own root-logger setup).
-    ("open_prep/feature_importance_report.py", 327),
+    ("open_prep/feature_importance_report.py", 374),  # 2026-07-28 (§15 exact shadow/EWMA report): 327->374
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.
@@ -214,7 +214,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
-    ("open_prep/run_open_prep.py", 6268),  # 2026-07-28 (relative-TR feature state): 6265->6268
+    ("open_prep/run_open_prep.py", 6456),  # 2026-07-28 (merge split-safe features + §15 exact shadow): 6373->6456
     # 2026-06-16 (feat/live-overlay-daemon): entry-point main.py configures
     # root logger at startup (Railway container, no other logger setup).
     # 2026-06-19 (fix/live-overlay-post-merge-bugs): import additions for

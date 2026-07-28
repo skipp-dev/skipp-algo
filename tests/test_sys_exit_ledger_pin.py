@@ -48,7 +48,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted the CLI exit 360 → 380 (pure shift;
     #   still the `if __name__ == "__main__": sys.exit(main())` entry point).
-    ("open_prep/feature_importance_report.py", 380),
+    ("open_prep/feature_importance_report.py", 427),  # 2026-07-28 (dedicated EWMA recalibration status): 380->427
     # 2026-06-12 (backlog-resilience): main() exits non-zero when
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.
@@ -56,7 +56,7 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-25: feature-flag helper addition shifted 6045 -> 6049.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6065 -> 6091.
-    ("open_prep/run_open_prep.py", 6254),  # 2026-07-28 (relative-TR feature state): 6251->6254
+    ("open_prep/run_open_prep.py", 6442),  # 2026-07-28 (merge split-safe features + exact §15 replay): 6359->6442
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     # 2026-07-15 (provenance v2): active_root_pine_scripts() + its docstring

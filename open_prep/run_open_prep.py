@@ -60,6 +60,9 @@ from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
 from .screen import classify_long_gap, compute_gap_warn_flags, filter_active_quotes, rank_candidates
 from .sentiment_fng import fetch_cnn_equity_fear_greed
 from .technical_analysis import (
+    calculate_ewma,
+    calculate_ewma_metrics,
+    calculate_ewma_score,
     compute_adx_from_bars,
     compute_bb_width_pct_from_bars,
     compute_gap_range_position,
@@ -3081,6 +3084,103 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         return {}, {}, {}
 
 
+def _sanitize_technical_feature(raw: Any) -> dict[str, Any] | None:
+    """Validate one persisted ATR-candle technical snapshot."""
+    if not isinstance(raw, dict):
+        return None
+
+    def optional_finite(key: str, *, minimum: float = 0.0) -> float | None:
+        value = raw.get(key)
+        if value is None or isinstance(value, bool):
+            return None
+        parsed = _to_float(value, default=float("nan"))
+        return parsed if math.isfinite(parsed) and parsed >= minimum else None
+
+    ewma_raw = raw.get("ewma_data")
+    ewma_data: dict[str, Any] | None = None
+    if isinstance(ewma_raw, dict):
+        ewma = _optional_finite_from_mapping(ewma_raw, "ewma", minimum=0.0)
+        highest = _optional_finite_from_mapping(ewma_raw, "highest", minimum=0.0)
+        lowest = _optional_finite_from_mapping(ewma_raw, "lowest", minimum=0.0)
+        bars_used = int(_to_float(ewma_raw.get("bars_used"), default=0.0))
+        if ewma is not None and highest is not None and lowest is not None and bars_used > 0:
+            ewma_data = {
+                "ewma": ewma,
+                "highest": highest,
+                "lowest": lowest,
+                "bars_used": bars_used,
+            }
+    return {
+        "schema_version": 1,
+        "source": str(raw.get("source") or "atr_eod_candles"),
+        "bars_through": str(raw.get("bars_through") or "") or None,
+        "adx": optional_finite("adx"),
+        "bb_width_pct": optional_finite("bb_width_pct"),
+        "ewma_data": ewma_data,
+    }
+
+
+def _optional_finite_from_mapping(
+    values: dict[str, Any],
+    key: str,
+    *,
+    minimum: float,
+) -> float | None:
+    value = values.get(key)
+    if value is None or isinstance(value, bool):
+        return None
+    parsed = _to_float(value, default=float("nan"))
+    return parsed if math.isfinite(parsed) and parsed >= minimum else None
+
+
+def _load_atr_technical_cache(
+    as_of: date,
+    period: int,
+) -> dict[str, dict[str, Any]]:
+    """Load measured ADX/BB/EWMA snapshots from the ATR cache payload."""
+    path = _atr_cache_file(as_of, period)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("ATR technical cache payload parse failed: %s", exc, exc_info=True)
+        return {}
+    raw_map = payload.get("technical_features_by_symbol")
+    if not isinstance(raw_map, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for symbol, raw in raw_map.items():
+        sanitized = _sanitize_technical_feature(raw)
+        if sanitized is not None:
+            out[str(symbol).strip().upper()] = sanitized
+    return out
+
+
+def _technical_features_from_eod(candles: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute ADX, BB width and EWMA once from chronological ATR candles."""
+    adx = compute_adx_from_bars(candles)
+    bb_width = compute_bb_width_pct_from_bars(candles)
+    ewma_data = calculate_ewma(candles, length=50)
+    bars_through = None
+    for candle in reversed(candles):
+        raw_date = candle.get("date")
+        if raw_date is None:
+            raw_date = candle.get("datetime")
+        parsed = _parse_calendar_date(raw_date)
+        if parsed is not None:
+            bars_through = parsed.isoformat()
+            break
+    return {
+        "schema_version": 1,
+        "source": "atr_eod_candles",
+        "bars_through": bars_through,
+        "adx": adx,
+        "bb_width_pct": bb_width,
+        "ewma_data": ewma_data,
+    }
+
+
 def _evict_stale_cache_files(cache_dir: Path, *, max_age_days: int = 7) -> None:
     """Remove cache files older than *max_age_days* to prevent unbounded disk growth."""
     import time as _time_mod
@@ -3104,6 +3204,7 @@ def _save_atr_cache(
     atr_map: dict[str, float],
     momentum_map: dict[str, float],
     prev_close_map: dict[str, float],
+    technical_features_by_symbol: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     try:
         ATR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -3120,6 +3221,13 @@ def _save_atr_cache(
             str(k).upper(): _to_float(prev_close_map.get(k), default=0.0)
             for k in clean_atr_map
         }
+        clean_technical_map = {
+            symbol: sanitized
+            for symbol in clean_atr_map
+            if (sanitized := _sanitize_technical_feature(
+                (technical_features_by_symbol or {}).get(symbol)
+            )) is not None
+        }
 
         payload = {
             "algorithm_version": ATR_CACHE_ALGORITHM_VERSION,
@@ -3128,6 +3236,7 @@ def _save_atr_cache(
             "atr14_by_symbol": clean_atr_map,
             "momentum_z_by_symbol": clean_momentum_map,
             "prev_close_by_symbol": clean_prev_close_map,
+            "technical_features_by_symbol": clean_technical_map,
         }
         target = _atr_cache_file(as_of, period)
         import tempfile as _tempfile
@@ -3239,14 +3348,19 @@ def _fetch_symbol_atr(
     as_of: date,
     atr_period: int,
     split_dates: set[date] | None = None,
-) -> tuple[str, float, float, float | None, float, float | None, float | None, str | None]:
+) -> tuple[
+    str, float, float, float | None, float, float | None, float | None,
+    float | None, dict[str, Any], str | None,
+]:
     """Fetch historical candles and compute ATR for one symbol.
 
     Returns: (symbol, atr_value, momentum_z, vwap_or_none, avg_volume_fallback,
-    pdh_or_none, pdl_or_none, rsi14_or_none, error_message) — PDH/PDL are the
+    pdh_or_none, pdl_or_none, rsi14_or_none, technical_snapshot, error_message) — PDH/PDL are the
     previous COMPLETED session's high/low (last candle dated strictly before
     as_of), wiring the previously never-populated pdh/pdl quote context;
     rsi14 (2026-07-27) wires the previously never-populated rsi_extreme input.
+    The technical snapshot contains measured ADX, BB width and EWMA data from
+    the same chronological candles and is persisted with the ATR cache.
     """
     try:
         candles_raw = client.get_historical_price_eod_full(symbol, date_from, as_of)
@@ -3272,6 +3386,7 @@ def _fetch_symbol_atr(
         pdh: float | None = None
         pdl: float | None = None
         rsi14: float | None = None  # 2026-07-27: closes the rsi_extreme phantom-key gap
+        technical_features: dict[str, Any] = _technical_features_from_eod([])
         parsed_rows = []
         for c in candles:
             d_str = str(c.get("date") or "")
@@ -3282,6 +3397,7 @@ def _fetch_symbol_atr(
         if parsed_rows:
             parsed_rows.sort(key=lambda x: x[0])
             sorted_candles = [x[1] for x in parsed_rows]
+            technical_features = _technical_features_from_eod(sorted_candles)
             vwap_raw = _to_float(sorted_candles[-1].get("vwap"), default=0.0)
             latest_vwap = vwap_raw if vwap_raw > 0.0 and math.isfinite(vwap_raw) else None
             last_n = sorted_candles[-20:]
@@ -3315,10 +3431,10 @@ def _fetch_symbol_atr(
                 if history_boundary is not None
                 else "atr_zero_or_insufficient_bars"
             )
-            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, error
-        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, None
+            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, technical_features, error
+        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, pdh, pdl, rsi14, technical_features, None
     except (RuntimeError, KeyError, ZeroDivisionError, TypeError) as exc:
-        return symbol, 0.0, 0.0, None, 0.0, None, None, None, _APIKEY_RE.sub(r"\1=***", str(exc))
+        return symbol, 0.0, 0.0, None, 0.0, None, None, None, _technical_features_from_eod([]), _APIKEY_RE.sub(r"\1=***", str(exc))
 
 
 def _atr14_by_symbol(
@@ -3328,7 +3444,11 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, float | None], dict[str, float | None], dict[str, float | None], dict[str, str]]:
+) -> tuple[
+    dict[str, float], dict[str, float], dict[str, float | None],
+    dict[str, float], dict[str, float | None], dict[str, float | None],
+    dict[str, float | None], dict[str, dict[str, Any]], dict[str, str],
+]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
     vwap_map: dict[str, float | None] = {}
@@ -3336,6 +3456,7 @@ def _atr14_by_symbol(
     pdh_map: dict[str, float | None] = {}
     pdl_map: dict[str, float | None] = {}
     rsi_map: dict[str, float | None] = {}  # 2026-07-27: not cached — like vwap, a full cache hit degrades to None
+    technical_features_map: dict[str, dict[str, Any]] = {}
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
@@ -3356,6 +3477,7 @@ def _atr14_by_symbol(
             )
 
     cached_atr, cached_momentum, cached_prev_close = _load_atr_cache(as_of, atr_period)
+    cached_technical = _load_atr_technical_cache(as_of, atr_period)
     if cached_atr:
         # Only populate symbols that actually have a positive cached ATR.
         # Do NOT set 0.0 for uncached symbols — that would prevent the
@@ -3369,14 +3491,17 @@ def _atr14_by_symbol(
                 momentum_z_map[symbol] = round(
                     _to_float(cached_momentum.get(symbol), default=0.0), 4,
                 )
-        if all(sym in atr_map for sym in symbols):
+                if symbol in cached_technical:
+                    technical_features_map[symbol] = cached_technical[symbol]
+        if all(sym in atr_map and sym in technical_features_map for sym in symbols):
             for symbol in symbols:
                 vwap_map.setdefault(symbol, None)
                 avg_volume_fallback_map.setdefault(symbol, 0.0)
                 pdh_map.setdefault(symbol, None)  # like vwap: not cached — a full cache hit degrades to None
                 pdl_map.setdefault(symbol, None)
                 rsi_map.setdefault(symbol, None)
-            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, errors
+                technical_features_map.setdefault(symbol, _technical_features_from_eod([]))
+            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, technical_features_map, errors
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
@@ -3387,7 +3512,7 @@ def _atr14_by_symbol(
     atr_map.update(incremental_atr)
     momentum_z_map.update(incremental_momentum)
 
-    missing_symbols = [sym for sym in symbols if sym not in atr_map]
+    missing_symbols = [sym for sym in symbols if sym not in atr_map or sym not in technical_features_map]
     if missing_symbols:
         workers = max(1, min(int(parallel_workers), max(1, len(missing_symbols))))
         atr_timeout = max(_to_float(os.environ.get("OPEN_PREP_ATR_FETCH_TIMEOUT_SECONDS"), default=30.0), 0.0)
@@ -3410,7 +3535,7 @@ def _atr14_by_symbol(
                 for future in as_completed(future_map, timeout=atr_timeout):
                     symbol = future_map[future]
                     try:
-                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, pdh_v, pdl_v, rsi_v, err = future.result()
+                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, pdh_v, pdl_v, rsi_v, technical_v, err = future.result()
                         atr_map[sym] = atr_value
                         momentum_z_map[sym] = momentum_z
                         vwap_map[sym] = vwap_value
@@ -3418,6 +3543,7 @@ def _atr14_by_symbol(
                         pdh_map[sym] = pdh_v
                         pdl_map[sym] = pdl_v
                         rsi_map[sym] = rsi_v
+                        technical_features_map[sym] = technical_v
                         if err:
                             errors[sym] = err
                     except Exception as exc:  # pragma: no cover - defensive catch
@@ -3426,6 +3552,7 @@ def _atr14_by_symbol(
                         vwap_map[symbol] = None
                         avg_volume_fallback_map[symbol] = 0.0
                         rsi_map[symbol] = None
+                        technical_features_map[symbol] = _technical_features_from_eod([])
                         errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
             except FuturesTimeoutError:
                 timed_out = True
@@ -3450,6 +3577,7 @@ def _atr14_by_symbol(
         pdh_map.setdefault(symbol, None)
         pdl_map.setdefault(symbol, None)
         rsi_map.setdefault(symbol, None)
+        technical_features_map.setdefault(symbol, _technical_features_from_eod([]))
 
     # Save same-day cache to accelerate subsequent pre-open runs.
     prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
@@ -3471,9 +3599,10 @@ def _atr14_by_symbol(
         atr_map=atr_map,
         momentum_map=momentum_z_map,
         prev_close_map=prev_close_snapshot,
+        technical_features_by_symbol=technical_features_map,
     )
 
-    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, errors
+    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, pdh_map, pdl_map, rsi_map, technical_features_map, errors
 
 
 # ---------------------------------------------------------------------------
@@ -4628,7 +4757,7 @@ def _fetch_quotes_with_atr(
         ]
     )
 
-    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, pdh_by_symbol, pdl_by_symbol, rsi_by_symbol, atr_fetch_errors = _atr14_by_symbol(
+    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, pdh_by_symbol, pdl_by_symbol, rsi_by_symbol, technical_features_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
         symbols=atr_symbols,
         as_of=as_of,
@@ -4658,6 +4787,25 @@ def _fetch_quotes_with_atr(
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
             q["rsi14"] = rsi_by_symbol.get(sym)  # 2026-07-27: None stays None — scorer's rsi_extreme self-disables on missing data
             q["vwap"] = vwap_by_symbol.get(sym)
+            technical = technical_features_by_symbol.get(sym, {})
+            q["_shadow_adx"] = technical.get("adx")
+            q["_shadow_bb_width_pct"] = technical.get("bb_width_pct")
+            q["_shadow_technical_source"] = technical.get("source", "unavailable")
+            q["_shadow_technical_bars_through"] = technical.get("bars_through")
+            current_price = _to_float(q.get("price"), default=0.0)
+            ewma_metrics = (
+                calculate_ewma_metrics(
+                    current_price,
+                    technical.get("ewma_data")
+                    if isinstance(technical.get("ewma_data"), dict)
+                    else None,
+                )
+                if current_price > 0.0
+                else None
+            )
+            q["ewma_score_shadow"] = (
+                calculate_ewma_score(ewma_metrics) if ewma_metrics is not None else None
+            )
             # Wire the previous-session high/low derived from the same EOD
             # candles the ATR fetch already downloaded — before this, NO
             # producer wrote these keys, so pdh/pdl were always None and the
@@ -4779,6 +4927,7 @@ def _build_result_payload(
     vix_level: float | None = None,
     data_capabilities: dict[str, dict[str, Any]] | None = None,
     data_capabilities_summary: dict[str, Any] | None = None,
+    regime_shadow_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     macro_analysis = macro_context["macro_analysis"]
     bias = float(macro_context["macro_bias"])
@@ -4894,6 +5043,7 @@ def _build_result_payload(
         "historical_hit_rates_by_horizon": hit_rates_by_horizon or {},
         "data_capabilities": data_capabilities or {},
         "data_capabilities_summary": data_capabilities_summary or {},
+        "regime_weight_shadow_summary": regime_shadow_summary or {},
     }
 
 
@@ -5667,19 +5817,54 @@ def generate_open_prep_result(
     hit_rates_by_horizon = {h: compute_hit_rates(lookback_days=20, horizon=h) for h in HORIZON_KEYS}
     hit_rates = hit_rates_by_horizon[DEFAULT_HORIZON]
 
-    # Run v2 two-stage pipeline (filter → score → tier)
+    # Score the live path across the full passed universe, then slice to the
+    # configured served limit. This preserves the live top-N while giving the
+    # §15 replay a like-for-like baseline rank for every candidate.
+    served_top_n = max(config.top, 1)
+    scorer_universe_limit = max(len(quotes), served_top_n)
     with _profiler.stage("Score + Rank (v2)"):
-        ranked_v2, filtered_out_v2 = rank_candidates_v2(
+        baseline_ranked_all, filtered_out_v2 = rank_candidates_v2(
             quotes=quotes,
             bias=bias,
-            top_n=max(config.top, 1),
+            top_n=scorer_universe_limit,
             news_scores=news_scores,
             news_metrics=news_metrics,
             sector_changes=sector_changes_map,
             symbol_sectors=symbol_sectors,
             weight_label="_regime_adjusted",
-            vix_level=vix_level,  # activates the scorer's adaptive gating (was never threaded in prod)
+            vix_level=vix_level,
         )
+
+    # §15 stays observation-only. A second COMPLETE scorer execution receives
+    # measured ADX/BB inputs from the ATR-candle cache. Re-running is required:
+    # the former component-ratio reconstruction skipped the component cap,
+    # penalties and multiplicative haircuts and could invert the delta.
+    with _profiler.stage("§15 exact regime shadow"):
+        from .regime_shadow import (
+            attach_exact_regime_shadow,
+            build_exact_shadow_quotes,
+        )
+
+        shadow_quotes, shadow_technical = build_exact_shadow_quotes(quotes)
+        shadow_ranked_all, _shadow_filtered = rank_candidates_v2(
+            quotes=shadow_quotes,
+            bias=bias,
+            top_n=scorer_universe_limit,
+            news_scores=news_scores,
+            news_metrics=news_metrics,
+            sector_changes=sector_changes_map,
+            symbol_sectors=symbol_sectors,
+            weight_label="_regime_adjusted",
+            vix_level=vix_level,
+        )
+        regime_shadow_summary = attach_exact_regime_shadow(
+            baseline_ranked_all,
+            shadow_ranked_all,
+            shadow_technical,
+        )
+
+    # Serving remains on the baseline scorer; shadow cannot gate or reorder.
+    ranked_v2 = baseline_ranked_all[:served_top_n]
 
     # G3 arm B (2026-07-27): score the same universe a second time with the
     # LEARNED base weights and the same regime tilt, then record the paired
@@ -5869,53 +6054,55 @@ def generate_open_prep_result(
         row["dist_to_ema20_pct"] = ts.get("dist_to_ema20_pct")
         row["ema50_slope_pct"] = ts.get("ema50_slope_pct")
 
-        # Consolidation detection — prefer REAL ADX/BB-width computed from
-        # the daily bars already fetched above (eval-findings D7,
-        # 2026-06-11); fall back to the disclosed ATR%-proxy only when bars
-        # are insufficient (< 2×14+1 for Wilder ADX / < 20 for BB).
+        # Prefer the same measured ADX/BB pair that drove the exact §15 shadow.
+        # The later 320-day fetch remains for breakout/EMA features and is only
+        # a fallback for legacy cache rows.
         atr_pct = _to_float(row.get("atr_pct_computed") or row.get("atr_pct"), default=0.0)
-        real_adx = compute_adx_from_bars(bars) if bars else None
-        real_bbw = compute_bb_width_pct_from_bars(bars) if bars else None
+        exact_shadow = row.get("regime_weight_shadow")
+        exact_shadow = exact_shadow if isinstance(exact_shadow, dict) else {}
+        cached_adx = _to_float(exact_shadow.get("measured_adx"), default=float("nan"))
+        cached_bbw = _to_float(
+            exact_shadow.get("measured_bb_width_pct"),
+            default=float("nan"),
+        )
+        real_adx = cached_adx if math.isfinite(cached_adx) else (compute_adx_from_bars(bars) if bars else None)
+        real_bbw = cached_bbw if math.isfinite(cached_bbw) else (compute_bb_width_pct_from_bars(bars) if bars else None)
         if real_adx is not None and real_bbw is not None:
             consol = detect_consolidation(bb_width_pct=real_bbw, adx=real_adx)
             sym_regime = detect_symbol_regime(adx=real_adx, bb_width_pct=real_bbw)
-            regime_source = "daily_bars"  # measured Wilder ADX + BB width
+            regime_source = str(exact_shadow.get("technical_source") or "daily_bars_late_fallback")
         elif atr_pct > 0:
-            # Without live ADX/BB data, use ATR%-based approximation:
-            # Low ATR% ≈ tight bands ≈ possible consolidation
-            approx_bb_width = max(atr_pct * 2.5, 0.1)  # rough proxy
-            approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
+            # Display/playbook fallback only. It never enters the exact scorer
+            # replay and cannot be used as §15 promotion evidence.
+            approx_bb_width = max(atr_pct * 2.5, 0.1)
+            approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)
             consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
             sym_regime = detect_symbol_regime(adx=approx_adx, bb_width_pct=approx_bb_width)
-            regime_source = "atr_proxy"  # synthesized BB/ADX, NOT measured indicators
+            regime_source = "atr_proxy_display_only"
         else:
-            consol = {"is_consolidating": False, "score": 0.0, "bb_squeeze": False,
-                      "adx_weak": False, "atr_contracted": False}
-            sym_regime = "NEUTRAL"  # no ATR data → uncertain → no weight adjustments
+            consol = {
+                "is_consolidating": False,
+                "score": 0.0,
+                "bb_squeeze": False,
+                "adx_weak": False,
+                "atr_contracted": False,
+            }
+            sym_regime = "NEUTRAL"
             regime_source = "no_data"
         row["consolidation"] = consol
         row["is_consolidating"] = consol.get("is_consolidating", False)
         row["consolidation_score"] = consol.get("score", 0.0)
-        # §15 SHADOW (2026-07-27): score_candidate never sees measured ADX/BB —
-        # quote["adx"]/["bb_width_pct"] are unpopulated, so it always resolves
-        # NEUTRAL and the symbol-layer weight tilt is inert. Keep the regime
-        # scoring actually used, then record what THIS one would have changed.
-        from .regime_shadow import compute_regime_weight_shadow
-        row["symbol_regime_at_scoring"] = row.get("symbol_regime")
-        row["symbol_regime"] = sym_regime
-        row["regime_weight_shadow"] = compute_regime_weight_shadow(  # observe-only
-            row, sym_regime, base_weights=adjusted_weights,
+        row["symbol_regime_at_scoring"] = exact_shadow.get(
+            "regime_at_scoring",
+            row.get("symbol_regime"),
         )
-        # Disclose whether consolidation/regime came from measured daily-bar
-        # indicators, the ATR%-derived proxy, or no data (audit #2670 W2).
+        row["symbol_regime"] = sym_regime
         row["regime_source"] = regime_source
 
         # Gap position relative to the prior day's H/L range (observe-only;
         # eval-findings C4). > 1 = gapping above prior high, < 0 = below low.
         price_now = _to_float(row.get("price"), default=0.0)
-        row["gap_range_pos"] = (
-            compute_gap_range_position(bars, price_now) if bars else None
-        )
+        row["gap_range_pos"] = compute_gap_range_position(bars, price_now) if bars else None
 
         # VIX term-structure ratio (observe-only; eval-findings D5).
         # Market-wide — identical for every candidate in this run.
@@ -6096,6 +6283,7 @@ def generate_open_prep_result(
         vix_level=vix_level,
         data_capabilities=data_capabilities,
         data_capabilities_summary=data_capabilities_summary,
+        regime_shadow_summary=regime_shadow_summary,
     )
     result["stage_timings"] = _stage_timings
     # Additive key: None on success; otherwise "ExcType: message" — translated

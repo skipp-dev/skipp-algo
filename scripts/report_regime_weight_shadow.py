@@ -1,15 +1,7 @@
-"""Aggregate the §15 regime-weight shadow so the wire-or-not decision has data.
+"""Aggregate exact §15 scorer replays for the wire-or-not decision.
 
-`open_prep/regime_shadow.py` (#4106) stamps ``regime_weight_shadow`` /
-``symbol_regime_at_scoring`` onto every ranked row — but until this reader no
-process ever consumed them (verified 2026-07-28): the measurement existed with
-no operating lever. This CLI folds any number of run payloads into the summary
-the decision needs: how often the measured regime is non-NEUTRAL, and how much
-score would have moved had §15 been live.
-
-Read-only; consumes ``artifacts/open_prep/runs/run_*.json`` and/or
-``artifacts/open_prep/latest/latest_open_prep_run.json`` (both carry
-``ranked_v2`` rows). Exit 0 always — it is a report, not a gate.
+Read-only; consumes open-prep run payloads. Exit 0 always because this is a
+report, never an activation gate.
 """
 from __future__ import annotations
 
@@ -29,10 +21,23 @@ DEFAULT_GLOBS = (
 def _rows_from_payload(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
         return []
+    summary = payload.get("regime_weight_shadow_summary")
+    if isinstance(summary, dict) and isinstance(summary.get("comparisons"), list):
+        return [
+            {
+                "symbol": comparison.get("symbol"),
+                "regime_weight_shadow": comparison,
+            }
+            for comparison in summary["comparisons"]
+            if isinstance(comparison, dict)
+        ]
     rows = payload.get("ranked_v2")
     if not isinstance(rows, list):
         rows = payload.get("ranked") if isinstance(payload.get("ranked"), list) else []
-    return [r for r in rows if isinstance(r, dict) and isinstance(r.get("regime_weight_shadow"), dict)]
+    return [
+        row for row in rows
+        if isinstance(row, dict) and isinstance(row.get("regime_weight_shadow"), dict)
+    ]
 
 
 def summarize(paths: list[Path]) -> dict[str, Any]:
@@ -41,6 +46,9 @@ def summarize(paths: list[Path]) -> dict[str, Any]:
     movers: list[tuple[float, str, str]] = []
     files_with_rows = 0
     total_rows = 0
+    exact_rows = 0
+    unresolved_rows = 0
+    rank_changed_rows = 0
     for path in paths:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -53,6 +61,13 @@ def summarize(paths: list[Path]) -> dict[str, Any]:
         for row in rows:
             shadow = row["regime_weight_shadow"]
             total_rows += 1
+            if shadow.get("exact_second_scorer_pass") is not True:
+                unresolved_rows += 1
+                continue
+            exact_rows += 1
+            rank_delta = shadow.get("rank_delta")
+            if isinstance(rank_delta, int) and rank_delta != 0:
+                rank_changed_rows += 1
             regime = str(shadow.get("measured_regime") or "?")
             regimes[regime] = regimes.get(regime, 0) + 1
             delta = shadow.get("score_delta")
@@ -61,23 +76,28 @@ def summarize(paths: list[Path]) -> dict[str, Any]:
                 if delta:
                     movers.append((abs(float(delta)), str(row.get("symbol") or "?"), regime))
     movers.sort(reverse=True)
-    non_neutral = total_rows - regimes.get("NEUTRAL", 0)
+    non_neutral = exact_rows - regimes.get("NEUTRAL", 0)
     return {
         "files_scanned": len(paths),
         "files_with_shadow_rows": files_with_rows,
         "rows": total_rows,
+        "exact_rows": exact_rows,
+        "unresolved_rows": unresolved_rows,
+        "rank_changed_rows": rank_changed_rows,
         "measured_regime_counts": dict(sorted(regimes.items())),
-        "non_neutral_share": round(non_neutral / total_rows, 4) if total_rows else None,
+        "non_neutral_share": round(non_neutral / exact_rows, 4) if exact_rows else None,
         "would_change_share": (
-            round(sum(1 for d in deltas if d) / total_rows, 4) if total_rows else None
+            round(sum(1 for delta in deltas if delta) / exact_rows, 4)
+            if exact_rows else None
         ),
         "mean_abs_score_delta": (
-            round(sum(abs(d) for d in deltas) / len(deltas), 4) if deltas else None
+            round(sum(abs(delta) for delta in deltas) / len(deltas), 4)
+            if deltas else None
         ),
-        "max_abs_score_delta": round(max((abs(d) for d in deltas), default=0.0), 4),
+        "max_abs_score_delta": round(max((abs(delta) for delta in deltas), default=0.0), 4),
         "top_movers": [
-            {"symbol": s, "regime": r, "abs_score_delta": round(a, 4)}
-            for a, s, r in movers[:10]
+            {"symbol": symbol, "regime": regime, "abs_score_delta": round(delta, 4)}
+            for delta, symbol, regime in movers[:10]
         ],
     }
 
@@ -90,15 +110,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     patterns = args.paths or list(DEFAULT_GLOBS)
-    files = sorted({Path(p) for pat in patterns for p in glob.glob(pat)})
+    files = sorted({Path(path) for pattern in patterns for path in glob.glob(pattern)})
     summary = summarize(files)
-    json.dump(summary, sys.stdout, indent=2)  # ATOMIC-WRITE-EXEMPT: stdout-only report, no file involved
+    json.dump(summary, sys.stdout, indent=2)  # ATOMIC-WRITE-EXEMPT: stdout report
     print()
     if summary["rows"] == 0:
-        print(
-            "No shadow rows found — either no run payloads at the given paths, "
-            "or they predate the #4106 shadow fields.", file=sys.stderr,
-        )
+        print("No exact shadow rows found.", file=sys.stderr)
     return 0
 
 
