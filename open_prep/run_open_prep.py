@@ -2986,7 +2986,12 @@ def apply_gap_mode_to_quotes(
     return out
 
 
-def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
+def _calculate_atr14_from_eod(
+    candles: list[dict],
+    period: int = 14,
+    *,
+    split_dates: set[date] | None = None,
+) -> float:
     """Calculate ATR(period) from EOD OHLC using Wilder's Smoothing (RMA).
 
     Expects each candle to expose high, low, close.
@@ -3016,6 +3021,28 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         return 0.0
 
     parsed.sort(key=lambda row: row[0])
+    known_splits = split_dates or set()
+    if known_splits:
+        latest_split = max((day for day in known_splits if day <= parsed[-1][0]), default=None)
+        if latest_split is not None:
+            parsed = [row for row in parsed if row[0] >= latest_split]
+
+    # Last-resort protection when the provider's split calendar is missing:
+    # a >=8x close-scale discontinuity is not a usable continuous ATR series.
+    # Reset at the most recent discontinuity; with fewer than ``period`` bars
+    # afterwards the function returns 0.0 and downstream consumers fail closed.
+    latest_scale_break: int | None = None
+    for index in range(1, len(parsed)):
+        prior_close = parsed[index - 1][3]
+        close = parsed[index][3]
+        ratio = close / prior_close
+        if ratio >= 8.0 or ratio <= 0.125:
+            latest_scale_break = index
+    if latest_scale_break is not None:
+        parsed = parsed[latest_scale_break:]
+
+    if len(parsed) < period_eff:
+        return 0.0
     tr_values: list[float] = []
     prev_close: float | None = None
 
@@ -3331,6 +3358,7 @@ def _fetch_symbol_atr(
     date_from: date,
     as_of: date,
     atr_period: int,
+    split_dates: set[date] | None = None,
 ) -> tuple[
     str, float, float, float | None, float, float | None, float | None,
     float | None, dict[str, Any], str | None,
@@ -3355,7 +3383,11 @@ def _fetch_symbol_atr(
         else:
             candles = []
 
-        atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
+        atr_value = _calculate_atr14_from_eod(
+            candles,
+            period=atr_period,
+            split_dates=split_dates,
+        )
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
         if not math.isfinite(momentum_z):
             momentum_z = 0.0
@@ -3433,6 +3465,22 @@ def _atr14_by_symbol(
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
+    split_dates_by_symbol: dict[str, set[date]] = {}
+    get_splits = getattr(client, "get_splits_calendar", None)
+    if callable(get_splits):
+        try:
+            wanted = set(symbols)
+            for split_row in get_splits(date_from, as_of):
+                split_symbol = _extract_symbol_from_row(split_row)
+                split_date = _parse_calendar_date(split_row.get("date"))
+                if split_symbol in wanted and split_date is not None:
+                    split_dates_by_symbol.setdefault(split_symbol, set()).add(split_date)
+        except Exception as exc:
+            logger.warning(
+                "ATR split-calendar lookup failed; extreme scale-break guard remains active: %s",
+                exc,
+            )
+
     cached_atr, cached_momentum, cached_prev_close = _load_atr_cache(as_of, atr_period)
     cached_technical = _load_atr_technical_cache(as_of, atr_period)
     if cached_atr:
@@ -3440,6 +3488,8 @@ def _atr14_by_symbol(
         # Do NOT set 0.0 for uncached symbols — that would prevent the
         # per-symbol fallback from recognising them as missing.
         for symbol in symbols:
+            if split_dates_by_symbol.get(symbol):
+                continue
             cached_val = cached_atr.get(symbol)
             if cached_val is not None and cached_val > 0.0:
                 atr_map[symbol] = round(cached_val, 4)
@@ -3460,7 +3510,7 @@ def _atr14_by_symbol(
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
-        symbols=symbols,
+        symbols=[symbol for symbol in symbols if not split_dates_by_symbol.get(symbol)],
         as_of=as_of,
         atr_period=atr_period,
     )
@@ -3482,6 +3532,7 @@ def _atr14_by_symbol(
                     date_from,
                     as_of,
                     int(atr_period),
+                    split_dates_by_symbol.get(symbol),
                 ): symbol
                 for symbol in missing_symbols
             }
@@ -5503,7 +5554,14 @@ def generate_open_prep_result(
         # ATR% normalisation
         atr_val = _to_float(q.get("atr"), default=0.0)
         prev_c = _to_float(q.get("previousClose"), default=0.0)
-        q["atr_pct"] = round((atr_val / prev_c) * 100.0, 4) if atr_val > 0 and prev_c > 0 else None
+        from .atr_quality import atr_pct_from_price_units
+        atr_pct = atr_pct_from_price_units(atr_val, prev_c)
+        q["atr_pct"] = round(atr_pct, 4) if atr_pct is not None else None
+        q["atr_data_quality"] = (
+            "ok"
+            if atr_pct is not None
+            else ("rejected_implausible_or_split" if atr_val > 0 and prev_c > 0 else "missing")
+        )
 
     # --- GAP-GO / GAP-WATCH classification (long only) ---
     _progress(15, TOTAL_STAGES, "Ranking + Gap-Klassifizierung …")

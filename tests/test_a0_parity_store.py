@@ -157,9 +157,13 @@ def test_daily_report_is_reproducible_and_contains_both_snapshots(
         matching_window_seconds=30,
     )
     assert first == second
-    assert first["status_counts"] == {"same_decision_fast_first": 1}
-    assert first["median_fast_lead_seconds"] == 7.0
-    match = first["matches"][0]
+    assert first["schema_version"] == 2
+    assert first["engine_parity"]["parity_rate"] == 1.0
+    source = first["source_equivalence"]
+    assert source["status_counts"] == {"same_decision_fast_first": 1}
+    assert source["median_fast_lead_seconds"] == 7.0
+    assert source["source_delta_reason_counts"] == {}
+    match = source["matches"][0]
     assert match["fast_snapshot"]["cumulative_regular_volume"] == 800_000
     assert match["fmp_snapshot"]["price"] == 103.1
 

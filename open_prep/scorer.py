@@ -287,7 +287,11 @@ def filter_candidate(
         default=0.0,
     )
     avg_volume_baseline_missing = avg_volume <= 0.0
-    atr = _to_float(quote.get("atr"), default=0.0)
+    raw_atr = _to_float(quote.get("atr"), default=0.0)
+    from .atr_quality import atr_pct_from_price_units
+    safe_atr_pct = atr_pct_from_price_units(raw_atr, price)
+    atr_rejected = raw_atr > 0.0 and price > 0.0 and safe_atr_pct is None
+    atr = raw_atr if safe_atr_pct is not None else 0.0
     momentum_z = _to_float(quote.get("momentum_z_score"), default=0.0)
     rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
     if rel_vol <= 0.0:
@@ -365,7 +369,7 @@ def filter_candidate(
     if avg_volume_baseline_missing:
         filter_reasons.append("missing_avg_volume_baseline")
     if atr <= 0.0:
-        filter_reasons.append("atr_missing")
+        filter_reasons.append("atr_implausible_or_split" if atr_rejected else "atr_missing")
     if earnings_risk_window:
         filter_reasons.append("earnings_risk_window")
 
@@ -413,7 +417,7 @@ def filter_candidate(
                 gate_tracker.reject(symbol, reason, {"price": price, "gap_pct": gap_pct})
 
     # --- Instrument classification (#5) ---
-    atr_pct_val = (atr / price * 100.0) if price > 0 and atr > 0 else 0.0
+    atr_pct_val = safe_atr_pct or 0.0
     instrument_class = classify_instrument(price, atr_pct_val)
 
     # --- Sector-relative gap ---
@@ -493,7 +497,12 @@ def filter_candidate(
         "gap_bucket": quote.get("gap_bucket"),
         "gap_grade": quote.get("gap_grade"),
         "warn_flags": quote.get("warn_flags", ""),
-        "atr_pct": quote.get("atr_pct"),
+        "atr_pct": round(atr_pct_val, 4) if atr_pct_val > 0.0 else None,
+        "atr_data_quality": (
+            "rejected_implausible_or_split"
+            if atr_rejected
+            else quote.get("atr_data_quality", "ok" if atr_pct_val > 0.0 else "missing")
+        ),
         "pdh": quote.get("pdh"),
         "pdl": quote.get("pdl"),
         "pdh_source": quote.get("pdh_source"),

@@ -234,9 +234,109 @@ def _decision_snapshot(decision: ShadowDecision) -> dict[str, Any]:
     }
 
 
+def build_engine_parity_report(decisions: list[ShadowDecision]) -> dict[str, Any]:
+    """Replay the provider-neutral A0 threshold contract per source snapshot.
+
+    This answers whether each producer applied the shared decision engine to
+    its own canonical snapshot correctly. It deliberately does not compare
+    provider values; that separate question belongs to source equivalence.
+    """
+    rows: list[dict[str, Any]] = []
+    per_source: dict[str, Counter[str]] = {}
+    for decision in decisions:
+        required = {
+            "normalized_volume_pace": decision.normalized_volume_pace,
+            "change_pct": decision.change_pct,
+            "effective_a0_volume_threshold": decision.effective_a0_volume_threshold,
+            "effective_a0_price_threshold": decision.effective_a0_price_threshold,
+        }
+        missing = sorted(key for key, value in required.items() if value is None)
+        source_counts = per_source.setdefault(decision.source, Counter())
+        if missing:
+            status = "unverifiable_missing_snapshot_fields"
+            replay_core_level = None
+        else:
+            replay_core_level = (
+                "A0"
+                if float(decision.normalized_volume_pace)
+                >= float(decision.effective_a0_volume_threshold)
+                and abs(float(decision.change_pct))
+                >= float(decision.effective_a0_price_threshold)
+                else None
+            )
+            recorded_core_level = decision.core_level or decision.level
+            status = "match" if replay_core_level == recorded_core_level else "mismatch"
+        source_counts[status] += 1
+        rows.append({
+            "decision_id": decision.decision_id,
+            "source": decision.source,
+            "symbol": decision.symbol,
+            "recorded_core_level": decision.core_level or decision.level,
+            "replayed_core_level": replay_core_level,
+            "status": status,
+            "missing_fields": missing,
+        })
+
+    verified = sum(1 for row in rows if not row["missing_fields"])
+    matches = sum(1 for row in rows if row["status"] == "match")
+    return {
+        "definition": "shared A0 threshold replay on each recorded canonical snapshot",
+        "total_snapshots": len(rows),
+        "verified_snapshots": verified,
+        "matching_snapshots": matches,
+        "mismatching_snapshots": sum(1 for row in rows if row["status"] == "mismatch"),
+        "unverifiable_snapshots": len(rows) - verified,
+        "parity_rate": round(matches / verified, 6) if verified else None,
+        "per_source": {
+            source: dict(sorted(counts.items()))
+            for source, counts in sorted(per_source.items())
+        },
+        "records": rows,
+    }
+
+
+def _relative_delta(left: Any, right: Any) -> float | None:
+    if left is None or right is None:
+        return None
+    left_value = float(left)
+    right_value = float(right)
+    scale = max(abs(left_value), abs(right_value), 1e-12)
+    return abs(left_value - right_value) / scale
+
+
+def _source_delta_reasons(match: ParityMatch) -> list[str]:
+    fast = match.fast_snapshot or {}
+    fmp = match.fmp_snapshot or {}
+    reasons: list[str] = []
+    if (_relative_delta(fast.get("price"), fmp.get("price")) or 0.0) > 0.001:
+        reasons.append("price")
+    if (_relative_delta(fast.get("previous_close"), fmp.get("previous_close")) or 0.0) > 0.001:
+        reasons.append("previous_close")
+    if (_relative_delta(fast.get("change_pct"), fmp.get("change_pct")) or 0.0) > 0.05:
+        reasons.append("change_pct")
+    if (
+        _relative_delta(
+            fast.get("normalized_volume_pace"),
+            fmp.get("normalized_volume_pace"),
+        )
+        or 0.0
+    ) > 0.10:
+        reasons.append("normalized_volume_pace")
+    if (_relative_delta(fast.get("expected_volume_fraction"), fmp.get("expected_volume_fraction")) or 0.0) > 0.05:
+        reasons.append("expected_volume_fraction")
+    if match.lead_seconds is not None and abs(match.lead_seconds) > 30.0:
+        reasons.append("observation_timing")
+    return reasons
+
+
 def build_parity_report(matches: list[ParityMatch]) -> dict[str, Any]:
     """Produce a deterministic aggregate without hiding cause classes."""
     counts = Counter(str(match.status) for match in matches)
+    delta_reason_counts = Counter(
+        reason
+        for match in matches
+        for reason in _source_delta_reasons(match)
+    )
     leads = [
         match.lead_seconds
         for match in matches
@@ -254,6 +354,7 @@ def build_parity_report(matches: list[ParityMatch]) -> dict[str, Any]:
             )
         ),
         "median_fast_lead_seconds": round(median(leads), 6) if leads else None,
+        "source_delta_reason_counts": dict(sorted(delta_reason_counts.items())),
         "matches": [
             {
                 "status": str(match.status),
@@ -268,6 +369,7 @@ def build_parity_report(matches: list[ParityMatch]) -> dict[str, Any]:
                 "fmp_reason_codes": list(match.fmp_reason_codes),
                 "fast_snapshot": match.fast_snapshot,
                 "fmp_snapshot": match.fmp_snapshot,
+                "source_delta_reasons": _source_delta_reasons(match),
             }
             for match in matches
         ],

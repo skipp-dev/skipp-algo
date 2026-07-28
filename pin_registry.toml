@@ -637,7 +637,7 @@ frozen_major = "v7"
 # (0 / "") correctly falls through to the alternative and both branches yield
 # 0.0, so there is no masked legitimate value → budget bumped, not refactored.
 # 12 → 13.
-"open_prep/realtime_signals.py" = 12  # 2026-07-16 removed duplicate profile-bulk avg-volume fallback chain: 13->12
+"open_prep/realtime_signals.py" = 10  # 2026-07-28 explicit 15-session ADV helper removed two avgVolume->avg_volume chains: 12->10
 # 2026-07-05 (bug-hunt round 7 follow-up): 2 falsy-`or` chains that masked a
 # legitimate 0.0 replaced with nested dict.get (is-present coalesce) — the
 # sector-lookup gate (gap_pct vs raw change) and the derived sector-average
@@ -746,7 +746,7 @@ frozen_major = "v7"
 "open_prep/news.py" = [["link", "url"], ["source", "site"]]
 "open_prep/outcomes.py" = [["atr_pct_computed", "atr_pct"]]
 "open_prep/playbook.py" = [["avg_volume", "avgVolume"]]
-"open_prep/realtime_signals.py" = [["atr_pct_computed", "atr_pct"], ["averageVolume", "volAvg"], ["avgVolume", "avg_volume"], ["avgVolume", "avg_volume"], ["avgVolume", "volAvg"], ["generated_at", "run_datetime_utc"], ["news_url", "url"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["time", "releaseTime"]]
+"open_prep/realtime_signals.py" = [["atr_pct_computed", "atr_pct"], ["averageVolume", "volAvg"], ["avgVolume", "volAvg"], ["generated_at", "run_datetime_utc"], ["news_url", "url"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["price", "lastPrice"], ["time", "releaseTime"]]
 "open_prep/run_open_prep.py" = [["action", "newGrade"], ["atr_pct_computed", "atr_pct"], ["avgVolume", "averageVolume", "avgVolume3Month", "avgVolume50", "avg_volume"], ["changesPercentage", "changePercentage"], ["date", "datetime"], ["earnings_today", "earnings_risk_window"], ["event", "name"], ["event", "name"], ["event", "title", "name"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["exchange", "exchangeShortName"], ["gradingCompany", "company"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["impact", "importance", "priority"], ["investorName", "holderName"], ["investorName", "holderName"], ["lastQuarterAvgPriceTarget", "lastYearAvgPriceTarget"], ["lastQuarterCount", "lastYearCount", "allTimeCount"], ["news_event_class", "event_class"], ["news_event_class", "event_class"], ["news_materiality", "materiality"], ["news_materiality", "materiality"], ["news_recency_bucket", "recency_bucket"], ["news_recency_bucket", "recency_bucket"], ["news_source_tier", "source_tier"], ["news_source_tier", "source_tier"], ["patternname", "pattern_name", "name"], ["publishedDate", "date"], ["publishedDate", "date"], ["symbol", "ticker"], ["symbol", "ticker"], ["time", "releaseTime"], ["time", "releaseTime"], ["transactionDate", "disclosureDate", "publishedDate", "date"], ["type", "transactionType"], ["url", "link"], ["url", "link"]]
 "open_prep/scorer.py" = [["avgVolume", "avg_volume", "averageVolume", "avgVolume3Month", "avgVolume50"], ["name", "companyName"], ["rsi", "rsi14"]]
 "open_prep/screen.py" = [["name", "companyName"]]

@@ -195,7 +195,11 @@ Report verbindet diese Datei mit dem Fast-Journal reproduzierbar:
   --output /volume/a0_parity_2026-07-17.json
 ```
 
-Der Report enthält nicht nur die Gesamtzahlen, sondern jeden Matchstatus, beide
-Decision-IDs, Lead-Zeit, Reason Codes sowie die Preis-, Volumen- und
-Schwellen-Snapshots für den Drill-down. Der Output wird atomar und mit `fsync`
-geschrieben.
+Der Report trennt ab Schema 2 zwei Verträge: `engine_parity` replayt die
+gemeinsame A0-Schwellenlogik je kanonischem Snapshot; `source_equivalence`
+vergleicht die tatsächlich unterschiedlichen Provider-Snapshots und nennt
+Preis-, Previous-Close-, Volume-Pace- und Timing-Ursachen. Jeder Matchstatus,
+beide Decision-IDs, Lead-Zeit, Reason Codes sowie die Roh-Snapshots bleiben für
+den Drill-down erhalten. Der Output wird atomar und mit `fsync` geschrieben.
+Der vollständige Cutover-Vertrag steht in
+`docs/CROSS_SOURCE_VOLUME_DECISION.md`.

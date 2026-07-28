@@ -125,7 +125,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8 below the market-hours gate.
-        ("open_prep/realtime_signals.py", 2460),  # 2026-07-28 (quote_reference production): 2433->2460
+        ("open_prep/realtime_signals.py", 2461),  # 2026-07-28 (ATR sanitization import): 2460->2461
 
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed json.load site to 3991.
