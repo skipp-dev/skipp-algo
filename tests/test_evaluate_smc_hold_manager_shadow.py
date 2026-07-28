@@ -125,7 +125,12 @@ def _passing_observations(contract: dict) -> dict:
     }
 
 
-def test_checked_in_shadow_state_is_explicitly_not_started() -> None:
+def test_checked_in_shadow_state_is_active_observation_window() -> None:
+    """2026-07-28 22:41 UTC: the shadow was activated at the post-close
+    session boundary (see smc_hold_manager_shadow_activation_2026-07-28.json).
+    The checked-in state is now the honest during-window verdict: active and
+    blocked until five complete sessions, the required edges, and the
+    (pre-authorized) rollback drill exist."""
     contract = _contract()
     observations = json.loads(
         OBSERVATIONS_PATH.read_text(encoding="utf-8")
@@ -133,16 +138,18 @@ def test_checked_in_shadow_state_is_explicitly_not_started() -> None:
 
     result = evaluate_shadow(contract, observations)
 
-    assert result["verdict"] == "not_started"
-    assert result["activationStatus"] == "not_started"
+    assert result["verdict"] == "blocked"
+    assert result["activationStatus"] == "active"
     assert result["completeSessionCount"] == 0
-    assert result["blockers"] == []
-    # 2026-07-29: the six alerts exist (operator-attested, see
-    # smc_hold_manager_shadow_alerts_2026-07-28.json), so the alert-creation
-    # gate is closed; activation + rollback remain the only open gates.
+    assert result["blockers"] == [
+        "complete sessions: need 5, observed 0",
+        "aggregate HM_ENTRY: need at least 1 expected edge(s), observed 0",
+        "aggregate HM_EXIT_ANY: need at least 1 expected edge(s), observed 0",
+        "aggregate terminal exits: need at least 1, observed 0",
+        "rollbackDrill: missing",
+    ]
     assert result["openGates"] == [
-        "Activate the pre-registered shadow and record every session in order.",
-        "Complete the rollback drill after the observation criteria pass.",
+        "Resolve every blocker without changing the pre-registered contract."
     ]
 
 
@@ -155,9 +162,9 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
     )
     actual_hash = hashlib.sha256(normalized_source.encode()).hexdigest()
 
-    assert contract["status"] == "not_started"
+    assert contract["status"] == "in_progress"  # 2026-07-28 22:41Z: activated
     assert contract["readinessStatus"] == (
-        "alerts_created_receiver_inactive"  # 2026-07-29: six alerts attested
+        "shadow_active_observation_window_open"
     )
     assert contract["source"]["sha256"] == actual_hash
     assert contract["source"]["hashMode"] == (
@@ -184,7 +191,13 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
     assert contract["currentState"]["alertsCreatedEvidence"] == (
         "artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json"
     )
-    assert contract["currentState"]["shadowObservationStarted"] is False
+    # 2026-07-28 22:41Z: shadow activated at the post-close boundary.
+    assert contract["currentState"]["activation"] == "active"
+    assert contract["currentState"]["shadowObservationStarted"] is True
+    assert contract["currentState"]["shadowObservationStartedEvidence"] == (
+        "artifacts/governance/"
+        "smc_hold_manager_shadow_activation_2026-07-28.json"
+    )
     assert contract["currentState"]["isolatedPreflightStatus"] == (
         "passed_visible_browser_fallback"
     )
@@ -346,7 +359,7 @@ def test_invalid_session_date_blocks_promotion() -> None:
     )
 
 
-def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None:
+def test_traceability_tracks_active_shadow_observation_window() -> None:
     trace = json.loads(TRACE_PATH.read_text(encoding="utf-8"))
     requirement = next(
         requirement
@@ -355,7 +368,9 @@ def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None
         if requirement["id"] == "R2-SHADOW-CUTOVER"
     )
 
-    assert requirement["status"] == "not_started"
+    # 2026-07-28 22:41Z: observation window open -> partial until the five
+    # complete sessions and the rollback drill pass.
+    assert requirement["status"] == "partial"
     assert requirement["evidence"] == [
         (
             "artifacts/governance/"
@@ -384,6 +399,10 @@ def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None
         (
             "artifacts/governance/"
             "smc_hold_manager_shadow_alerts_2026-07-28.json"
+        ),
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_shadow_activation_2026-07-28.json"
         ),
         (
             "artifacts/governance/"

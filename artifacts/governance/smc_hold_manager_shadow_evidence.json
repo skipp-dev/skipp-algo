@@ -1,16 +1,34 @@
 {
-  "activationStatus": "not_started",
-  "aggregateDeliveredAlerts": {},
-  "aggregateExpectedAlerts": {},
-  "blockers": [],
+  "activationStatus": "active",
+  "aggregateDeliveredAlerts": {
+    "HM_ENTRY": 0,
+    "HM_EXIT_ANY": 0,
+    "HM_STOP": 0,
+    "HM_T1": 0,
+    "HM_T2": 0,
+    "HM_TIMESTOP": 0
+  },
+  "aggregateExpectedAlerts": {
+    "HM_ENTRY": 0,
+    "HM_EXIT_ANY": 0,
+    "HM_STOP": 0,
+    "HM_T1": 0,
+    "HM_T2": 0,
+    "HM_TIMESTOP": 0
+  },
+  "blockers": [
+    "complete sessions: need 5, observed 0",
+    "aggregate HM_ENTRY: need at least 1 expected edge(s), observed 0",
+    "aggregate HM_EXIT_ANY: need at least 1 expected edge(s), observed 0",
+    "aggregate terminal exits: need at least 1, observed 0",
+    "rollbackDrill: missing"
+  ],
   "completeSessionCount": 0,
   "observedSessionCount": 0,
   "openGates": [
-    "Obtain separate authorization for controlled alert creation.",
-    "Activate the pre-registered shadow and record every session in order.",
-    "Complete the rollback drill after the observation criteria pass."
+    "Resolve every blocker without changing the pre-registered contract."
   ],
   "requirementId": "R2-SHADOW-CUTOVER",
   "schemaVersion": 1,
-  "verdict": "not_started"
+  "verdict": "blocked"
 }
