@@ -1,16 +1,18 @@
-"""Tests for calendar risk, enriched news, and regime bridge integration.
+"""Tests for calendar risk, enriched news, and regime context integration.
 
 Covers:
   Slice A — EventRisk type + event-risk layering overlay
   Slice B — EnrichedNews type + enriched news heat in normalization
-  Slice C — MarketRegimeContext + regime bridge adapter + regime reason codes
+  Slice C — MarketRegimeContext + regime reason codes (the standalone
+            ``smc_adapters.regime_bridge`` adapter was removed 2026-07-29,
+            never wired; the ingest path builds the context via
+            ``smc_adapters.ingest._build_market_regime``)
 """
 from __future__ import annotations
 
 import pytest
 
 from smc_adapters.ingest import build_meta_from_raw
-from smc_adapters.regime_bridge import regime_snapshot_to_context
 from smc_core.layering import (
     apply_layering,
     derive_base_signals,
@@ -273,35 +275,6 @@ class TestMarketRegimeContextType:
         ctx = MarketRegimeContext(regime="RISK_OFF", vix_level=30.5, sector_breadth=0.2)
         assert ctx.regime == "RISK_OFF"
         assert ctx.vix_level == 30.5
-
-
-class TestRegimeBridgeAdapter:
-    def test_none_returns_none(self) -> None:
-        assert regime_snapshot_to_context(None) is None
-
-    def test_dict_risk_on(self) -> None:
-        ctx = regime_snapshot_to_context({"regime": "RISK_ON", "vix_level": 14.0, "sector_breadth": 0.8})
-        assert ctx is not None
-        assert ctx.regime == "RISK_ON"
-        assert ctx.vix_level == 14.0
-
-    def test_dict_invalid_regime(self) -> None:
-        assert regime_snapshot_to_context({"regime": "UNKNOWN_THING"}) is None
-
-    def test_object_form(self) -> None:
-        class _Snap:
-            regime = "RISK_OFF"
-            vix_level = 28.0
-            sector_breadth = 0.3
-        ctx = regime_snapshot_to_context(_Snap())
-        assert ctx is not None
-        assert ctx.regime == "RISK_OFF"
-        assert ctx.sector_breadth == 0.3
-
-    def test_object_missing_regime(self) -> None:
-        class _Snap:
-            pass
-        assert regime_snapshot_to_context(_Snap()) is None
 
 
 class TestRegimeReasonCodes:

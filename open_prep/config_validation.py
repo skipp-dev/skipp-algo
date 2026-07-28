@@ -4,8 +4,15 @@ Ported from IB_MON's config_validation.py — prevents silent misconfiguration.
 
 Provides:
   validate_weights()     — sanity-checks scoring weight dicts
-  validate_config()      — type-checks pipeline configuration values
   compute_config_diff()  — detect changes between two config snapshots
+
+A third helper, ``validate_config()`` (+ its ``_CONFIG_SCHEMA``), was removed
+2026-07-29 (Verdrahtungs-Sweep): it had ZERO callers repo-wide — not even
+tests — and its schema (``top_n`` / ``poll_interval`` / ``reload_interval``)
+type-checked a pipeline-config dict that no code ever builds or reads.
+Re-introduce it only together with a production caller AND a real config
+source; a validator without either is a dead knob that makes unsupported
+configuration look supported.
 """
 
 from __future__ import annotations
@@ -178,51 +185,14 @@ def validate_weights(
 
 
 # ---------------------------------------------------------------------------
-# General config validation
-# ---------------------------------------------------------------------------
-
-# 2026-07-27 (wiring audit): ``"weight_label": (str,)`` removed. It advertised a
-# knob that could not be set — nothing anywhere read ``config["weight_label"]``,
-# and the live pipeline hardcodes ``weight_label="_regime_adjusted"`` at the
-# ``rank_candidates_v2`` call in ``run_open_prep``. Re-add it here only together
-# with a reader; a schema entry alone makes a dead knob look supported.
-_CONFIG_SCHEMA: dict[str, type | tuple[type, ...]] = {
-    "top_n": (int,),
-    "poll_interval": (int, float),
-    "reload_interval": (int, float),
-}
-
-
-def validate_config(config: dict[str, Any]) -> list[str]:
-    """Type-check pipeline configuration values.
-
-    Returns list of warning messages (empty = all ok).
-
-    .. note::
-       This helper currently has **no production caller** — only tests invoke
-       it (verified 2026-07-27). ``validate_weights`` / ``compute_config_diff``
-       from this module *are* wired into ``run_open_prep``; this one is not.
-       Treat a passing ``validate_config`` as saying nothing about a live run.
-    """
-    issues: list[str] = []
-    for key, expected_types in _CONFIG_SCHEMA.items():
-        if key not in config:
-            continue
-        val = config[key]
-        if not isinstance(val, expected_types):
-            issues.append(
-                f"Config '{key}' should be {expected_types} but got {type(val).__name__}: {val!r}"
-            )
-
-    for msg in issues:
-        logger.warning("Config validation: %s", msg)
-
-    return issues
-
-
-# ---------------------------------------------------------------------------
 # Config diff
 # ---------------------------------------------------------------------------
+# 2026-07-27 (wiring audit): ``"weight_label": (str,)`` was removed from the
+# then-existing ``_CONFIG_SCHEMA`` — nothing read ``config["weight_label"]``,
+# and the live pipeline hardcodes ``weight_label="_regime_adjusted"`` at the
+# ``rank_candidates_v2`` calls in ``run_open_prep``.
+# 2026-07-29 (Verdrahtungs-Sweep): ``validate_config`` + ``_CONFIG_SCHEMA``
+# removed entirely — zero callers repo-wide (see module docstring).
 
 def compute_config_diff(
     old: dict[str, Any],

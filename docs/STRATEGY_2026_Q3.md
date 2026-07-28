@@ -441,7 +441,9 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 >   Workflow — ohne Aufruf entsteht nie ein `weights_candidate.json`.
 > - Der Konfig-Knopf, der Arm A/B gewählt hätte, war tot: `"weight_label"` stand
 >   in `_CONFIG_SCHEMA`, aber `validate_config()` hat selbst keinen
->   Produktions-Aufrufer und nichts las den Schlüssel (Eintrag entfernt).
+>   Produktions-Aufrufer und nichts las den Schlüssel (Eintrag entfernt;
+>   2026-07-29 wurden `validate_config` + `_CONFIG_SCHEMA` komplett entfernt —
+>   null Caller repo-weit, auch keine Tests mehr).
 > - Arm A verwies auf `weights.json` — **diese Datei existiert nicht** und hat
 >   nie existiert. Die Konvention ist `weights_<label>.json`, und Label
 >   `"default"` liest gar keine Datei: `load_weight_set("default")` gibt sofort
@@ -504,7 +506,12 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > Checkout reproduzierbar. Die Vergleichs-Records selbst werden committet und
 > akkumulieren.
 
-- [x] `scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper.
+- [x] ~~`scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper~~ —
+      **2026-07-29 entfernt** (Verdrahtungs-Sweep): blieb nach dem
+      Verdrahtungs-Audit vom 2026-07-27 weiterhin ohne jeden
+      Produktions-Importer; das Per-Symbol-Design ist für Ranking-Vergleiche
+      methodisch ungültig (siehe Korrektur oben), G3 läuft lauf-granular über
+      `open_prep/ab_arms.py`.
 - [x] Arm A: bisherige statische Scorer-Gewichte (`DEFAULT_WEIGHTS`-Konstante;
       das ursprünglich hier genannte `weights.json` existiert nicht).
 - [x] Arm B: Auto-tuned Scorer-Gewichte (`weights_candidate.json`).
@@ -698,7 +705,7 @@ können sofort starten.
 | Feature Importance | ✅ Pipeline gebaut | → G1/G2: Baseline + Auto-Tuning |
 | Calibration Script | ✅ + Drift Gate | → D1-D4: FVG-spezifische Analyse |
 | Pine Consumer | ✅ ZONE_CAL_* Exports | → H1-H4: Confidence + Win Rates |
-| A/B Framework (OV7) | ✅ Gebaut | → G3: Erster produktiver A/B Test |
+| A/B Framework (OV7) | ❌ Entfernt 2026-07-29 (nie verdrahtet) | → G3 läuft lauf-granular über `open_prep/ab_arms.py` |
 | Performance Report | ✅ Grade B | → Ziel: Grade A |
 
 ---

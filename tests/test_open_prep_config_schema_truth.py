@@ -1,38 +1,28 @@
-"""`_CONFIG_SCHEMA` must not advertise knobs that nothing reads.
+"""The scoring weight label must not look configurable while it is hardcoded.
 
-A schema entry is a promise: it tells an operator "this key is supported".
-``weight_label`` sat in the schema for a knob that could not be set — no code
+History: ``open_prep.config_validation`` used to carry a ``_CONFIG_SCHEMA``
+whose ``weight_label`` entry advertised a knob that could not be set — no code
 anywhere read ``config["weight_label"]``, and the live pipeline hardcodes
-``weight_label="_regime_adjusted"`` at its ``rank_candidates_v2`` call. The
+``weight_label="_regime_adjusted"`` at its ``rank_candidates_v2`` calls. The
 dead knob is what made the G3 A/B experiment in ``docs/STRATEGY_2026_Q3.md``
-look reachable when its arms were never wired up.
+look reachable when its arms were never wired up. The entry was removed
+2026-07-27; ``validate_config`` + ``_CONFIG_SCHEMA`` themselves were removed
+2026-07-29 (zero callers repo-wide, Verdrahtungs-Sweep).
 
-Re-adding it is fine — but only together with a reader.
+This anchor test remains: if the call sites ever become configurable, that is
+the moment to re-introduce a validated config schema — together with a reader.
 """
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-from open_prep.config_validation import _CONFIG_SCHEMA
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _OPEN_PREP = _REPO_ROOT / "open_prep"
 
 
-def test_weight_label_is_not_advertised_without_a_reader() -> None:
-    assert "weight_label" not in _CONFIG_SCHEMA, (
-        "weight_label was removed from _CONFIG_SCHEMA on 2026-07-27 because nothing "
-        "read config['weight_label']. If you are re-adding it, wire a reader in the "
-        "same change — see docs/STRATEGY_2026_Q3.md §G3."
-    )
-
-
 def test_live_pipeline_still_hardcodes_the_scoring_weight_label() -> None:
-    """Anchors *why* the schema entry was dead, so the two can't drift apart.
-
-    If this ever fails because the call became configurable, that is the moment
-    to put ``weight_label`` back into ``_CONFIG_SCHEMA``.
+    """Anchors *why* the removed schema entry was dead, so docs can't drift.
 
     2026-07-29: #4174 added a second call site (exact §15 shadow replay next to
     the baseline ranking); both remain hardcoded to the same label.

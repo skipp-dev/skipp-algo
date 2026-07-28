@@ -7,10 +7,10 @@ Plan reference: ``smc_improvement_plan_q3_q4_2026-04-20.md`` §2.3 F2 +
 The F2 experiment switches the *zone-priority scorer config* between
 the in-production global weights (control) and the contextual weights
 plus FVG quality score (treatment). It is **not** a symbol-level
-enrichment-flag override — that's what
-:class:`scripts.smc_ab_experiment.Experiment` is for. Both arms ingest
-the same events; only the calibration artifact loaded by the scorer
-differs.
+enrichment-flag override — that was the scope of the OV7 framework
+(``scripts/smc_ab_experiment.py``, removed 2026-07-29 as never wired).
+Both arms ingest the same events; only the calibration artifact loaded
+by the scorer differs.
 
 This module loads the spec JSON, validates the schema-pinned fields,
 and exposes helpers to:

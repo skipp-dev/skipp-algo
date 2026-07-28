@@ -6,9 +6,10 @@
 connected to the pipeline, so the decision gate waited on a sample that could
 not accumulate.
 
-Why not ``smc_ab_experiment.Experiment.resolve_weight_set``
-----------------------------------------------------------
-That helper assigns a weight-set label **per symbol**. Scoring symbols with
+Why not per-symbol arm assignment (the removed OV7 framework)
+-------------------------------------------------------------
+``scripts/smc_ab_experiment.py`` (removed 2026-07-29, never wired) assigned a
+weight-set label **per symbol** via ``Experiment.resolve_weight_set``. Scoring symbols with
 different weight vectors and then ranking them against each other is not a
 valid experiment: the composite score is only comparable under a *fixed* weight
 vector, so a per-symbol split yields a top-N blended from two incomparable
