@@ -18,7 +18,7 @@ import json
 import pytest
 
 from open_prep.databento_quote_feed import BarState
-from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
+from open_prep.quote_reference import DATABENTO_ADV_SOURCE, QuoteReference, QuoteReferenceRow
 from open_prep.quote_source import (
     _DEFAULT_MAX_BAR_AGE_SECS,
     DatabentoQuoteSource,
@@ -91,12 +91,13 @@ def _reference_row(
     previous_close: float = 100.0,
     average_daily_volume: float = 2_000_000.0,
     as_of_session: str = "2026-07-24",
+    source: str = f"fmp:adjusted-eod+adv={DATABENTO_ADV_SOURCE}",
 ) -> QuoteReferenceRow:
     return QuoteReferenceRow(
         previous_close=previous_close,
         average_daily_volume=average_daily_volume,
         as_of_session=as_of_session,
-        source="fmp:adjusted-eod",
+        source=source,
     )
 
 
@@ -168,6 +169,38 @@ def test_databento_source_omits_symbol_with_no_reference_entry() -> None:
     rows = source.fetch(["AAPL"], "regular", now=1_784_642_405.0)  # fresh -- omission is reference-driven, not staleness-driven
 
     assert rows == []
+
+
+def test_databento_source_omits_reference_with_consolidated_adv(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """EQUS.MINI cumulative volume must never be divided by an FMP
+    consolidated ADV. A mismatched row is omitted while a venue-consistent
+    sibling in the same fetch remains available."""
+    feed = _FakeDatabentoQuoteFeed()
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL"), cumulative_volume=96_300,
+        session_high=102.0, session_low=99.0,
+    )
+    feed.set_symbol(
+        "MSFT", bar=_bar("MSFT"), cumulative_volume=110_000,
+        session_high=102.0, session_low=99.0,
+    )
+    reference = _reference({
+        "AAPL": _reference_row(
+            average_daily_volume=2_750_000.0,
+            source="fmp:adjusted-eod",
+        ),
+        "MSFT": _reference_row(average_daily_volume=110_000.0),
+    })
+
+    source = DatabentoQuoteSource(feed, reference)
+    rows = source.fetch(["AAPL", "MSFT"], "regular", now=1_784_642_405.0)
+    source.fetch(["AAPL", "MSFT"], "regular", now=1_784_642_406.0)
+
+    assert [row["symbol"] for row in rows] == ["MSFT"]
+    assert caplog.text.count("rejected incompatible ADV provenance") == 1
+    assert "fmp:adjusted-eod" in caplog.text
 
 
 def test_databento_source_mixed_universe_only_emits_complete_rows() -> None:
@@ -345,7 +378,14 @@ def test_resolve_max_bar_age_explicit_value_bypasses_env(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _write_reference_artifact(path, *, previous_close, average_daily_volume, as_of_session) -> None:
+def _write_reference_artifact(
+    path,
+    *,
+    previous_close,
+    average_daily_volume,
+    as_of_session,
+    source=f"fmp:adjusted-eod+adv={DATABENTO_ADV_SOURCE}",
+) -> None:
     path.write_text(
         json.dumps(
             {
@@ -353,7 +393,7 @@ def _write_reference_artifact(path, *, previous_close, average_daily_volume, as_
                     "previous_close": previous_close,
                     "average_daily_volume": average_daily_volume,
                     "as_of_session": as_of_session,
-                    "source": "fmp:adjusted-eod",
+                    "source": source,
                 }
             }
         ),
@@ -408,3 +448,32 @@ def test_reload_reference_failsoft_on_directly_constructed_reference() -> None:
     # _reference() builds QuoteReference(rows) directly -> no source path.
     source = DatabentoQuoteSource(_FakeDatabentoQuoteFeed(), _reference({"AAPL": _reference_row()}))
     assert source.reload_reference() is False
+
+
+def test_reload_to_consolidated_adv_reference_fails_closed(tmp_path) -> None:
+    path = tmp_path / "quote_reference.json"
+    _write_reference_artifact(
+        path,
+        previous_close=100.0,
+        average_daily_volume=100_000.0,
+        as_of_session="2026-07-24",
+    )
+    reference = QuoteReference.load(path)
+    feed = _FakeDatabentoQuoteFeed()
+    ts_recv = 1_784_642_400.25
+    feed.set_symbol(
+        "AAPL", bar=_bar("AAPL", ts_recv=ts_recv),
+        cumulative_volume=100_000, session_high=111.0, session_low=99.0,
+    )
+    source = DatabentoQuoteSource(feed, reference, max_bar_age_secs=1e9)
+    assert source.fetch(["AAPL"], "regular", now=ts_recv)
+
+    _write_reference_artifact(
+        path,
+        previous_close=101.0,
+        average_daily_volume=2_750_000.0,
+        as_of_session="2026-07-25",
+        source="fmp:adjusted-eod",
+    )
+    assert source.reload_reference() is True
+    assert source.fetch(["AAPL"], "regular", now=ts_recv) == []

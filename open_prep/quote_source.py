@@ -76,6 +76,14 @@ def _resolve_max_bar_age_secs(explicit: float | None) -> float:
     return _DEFAULT_MAX_BAR_AGE_SECS
 
 
+def _has_databento_adv_provenance(source: str) -> bool:
+    """Return whether a reference row carries the live feed's ADV basis."""
+    from .quote_reference import DATABENTO_ADV_SOURCE
+
+    expected = f"adv={DATABENTO_ADV_SOURCE}".lower()
+    return expected in {part.strip().lower() for part in str(source).split("+")}
+
+
 class QuoteSource(Protocol):
     """Symbol list + session -> quote rows in the Task 0.1 row contract."""
 
@@ -212,9 +220,10 @@ class DatabentoQuoteSource:
 
     Fail-closed: a symbol with no cached bar yet, with a bar older than
     ``max_bar_age_secs`` (final-review Finding 3 — see below), or with no
-    reference entry, is OMITTED from the result entirely — never emitted
-    with a fabricated or stale price, mirroring how the FMP path drops
-    symbols FMP didn't return a quote for.
+    reference entry, or whose reference ADV provenance does not match the
+    live feed's EQUS.MINI basis, is OMITTED from the result entirely — never
+    emitted with a fabricated, stale, or consolidated-volume denominator,
+    mirroring how the FMP path drops symbols FMP didn't return a quote for.
 
     Bounded-age staleness guard (Finding 3): the feed's background reconnect
     loop now re-arms itself after its circuit breaker trips (a supervisor
@@ -251,6 +260,7 @@ class DatabentoQuoteSource:
         self._feed = feed
         self._reference = reference
         self._source_label = source_label
+        self._rejected_reference_sources: set[str] = set()
         # None -> DATABENTO_QUOTE_MAX_BAR_AGE_SECS env override, else the
         # built-in default (see _resolve_max_bar_age_secs above).
         self._max_bar_age_secs = _resolve_max_bar_age_secs(max_bar_age_secs)
@@ -298,6 +308,7 @@ class DatabentoQuoteSource:
         """
         resolved_now = now if now is not None else time.time()
         rows: list[dict[str, Any]] = []
+        rejected_reference_sources: set[str] = set()
         for symbol_raw in symbols:
             symbol = str(symbol_raw).strip().upper()
             if not symbol:
@@ -313,6 +324,9 @@ class DatabentoQuoteSource:
             reference_row = self._reference.get(symbol)
             if reference_row is None:
                 continue  # fail-closed: no daily reference -- omit
+            if not _has_databento_adv_provenance(reference_row.source):
+                rejected_reference_sources.add(reference_row.source or "<missing>")
+                continue  # fail-closed: subset volume cannot use consolidated ADV
 
             day_high, day_low = self._feed.session_high_low(symbol)
             if day_high is None or day_low is None:
@@ -339,4 +353,11 @@ class DatabentoQuoteSource:
                 "changesPercentage": change_pct,
                 "source": self._source_label,
             })
+        new_rejected_sources = rejected_reference_sources - self._rejected_reference_sources
+        if new_rejected_sources:
+            logger.error(
+                "Databento quote reference rejected incompatible ADV provenance: %s",
+                ", ".join(sorted(new_rejected_sources)),
+            )
+            self._rejected_reference_sources.update(new_rejected_sources)
         return rows

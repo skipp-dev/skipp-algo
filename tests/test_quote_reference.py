@@ -242,10 +242,10 @@ def test_reload_without_source_path_raises() -> None:
 # ---------------------------------------------------------------------------
 # Databento-native ADV (venue-consistent volume denominator)
 #
-# Live-verified 2026-07-28: EQUS.MINI delivers only 5-12% of FMP's
-# consolidated session volume (same-moment comparison, e.g. T 1.94M vs
-# 21.9M = 8.9%). An FMP-consolidated ADV denominator therefore depresses
-# every databento-path volume_ratio ~10x -- the volume regime reads >=80%
+# Live-verified 2026-07-28: over 29 common sessions across eight liquid
+# symbols, EQUS.MINI delivered only 2.6-4.9% of FMP's consolidated volume.
+# An FMP-consolidated ADV denominator therefore depresses every
+# databento-path volume_ratio roughly 20-38x -- the volume regime reads >=80%
 # thin (HOLIDAY_SUSPECT, all signals suspended) and the A0/A1/A2 pace gates
 # never fire. Fix: source average_daily_volume from EQUS.MINI ohlcv-1d
 # history so ratio = subset/subset. previous_close stays FMP-adjusted.
