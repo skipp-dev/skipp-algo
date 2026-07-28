@@ -79,10 +79,10 @@ Konsequenz: Die **Regime-Detection** ist solide etabliert, was fehlt ist die **S
 
 **Ziel:** Historische `regime_at_entry`-Labels für alle bestehenden Outcome-Records nachtragen.
 
-**Akzeptanzkriterien:**
-- ✅ Skript `scripts/backfill_regime_labels.py` lädt historische VIX (CBOE FRED-Datenquelle) und SPX-Breadth, ruft ✅ `classify_regime()` aus `open_prep/regime.py` auf, schreibt Labels in jedes Outcome-File zurück
-- ✅ Idempotent: zweimaliges Ausführen ändert keine Daten
-- ✅ Fail-Safe: bei fehlenden Eingangsdaten wird das Trade-Label auf `UNKNOWN` gesetzt, nicht auf Default-Regime — sonst Bias
+**Akzeptanzkriterien:** (2026-07-28: T2 wurde übersprungen — `scripts/backfill_regime_labels.py` existiert nicht; `regime_at_entry` wird forward-live gepflegt via `open_prep/outcomes.py`, siehe ⚠ unten. `classify_regime()` in `open_prep/regime.py` existiert.)
+- ❌ Skript `scripts/backfill_regime_labels.py` lädt historische VIX (CBOE FRED-Datenquelle) und SPX-Breadth, ruft `classify_regime()` aus `open_prep/regime.py` auf, schreibt Labels in jedes Outcome-File zurück (Skript nicht angelegt)
+- ⬜ Idempotent: zweimaliges Ausführen ändert keine Daten (N/A — kein Skript)
+- ⬜ Fail-Safe: bei fehlenden Eingangsdaten wird das Trade-Label auf `UNKNOWN` gesetzt, nicht auf Default-Regime — sonst Bias (N/A — kein Skript)
 - 🧪 Test: Backfill-Skript für 3 bekannte Tage (z. B. 2020-03-12 RISK_OFF, 2021-06-15 RISK_ON, 2022-09-20 RISK_OFF) erzeugt korrekte Labels
 
 ⚠ T2 ist nur nötig wenn T1 Lücken zeigt. Wenn `regime_at_entry` schon konsistent gepflegt ist, T2 überspringen.
