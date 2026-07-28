@@ -48,7 +48,23 @@ on:
     # 03:00 UTC on odd days-of-month (1,3,…,31) — ~every 48 h, worst-case
     # gap 48 h. The TTL is 72 h, so this keeps a >=24 h safety margin.
     - cron: "0 3 */2 * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_fresh_login:
+        description: Ignore TV_STORAGE_STATE and exercise username/password/TOTP login
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: Validate the capture without updating TV_STORAGE_STATE
+        required: false
+        type: boolean
+        default: true
+      confirm_session_disconnect:
+        description: Acknowledge that a fresh login can disconnect the active TradingView session
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -68,6 +84,10 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  TV_FORCE_FRESH_LOGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.force_fresh_login == true && 'true' || 'false' }}
+  TV_REFRESH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && 'true' || 'false' }}
+  TV_CONFIRM_SESSION_DISCONNECT: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_session_disconnect == true && 'true' || 'false' }}
+  TV_STORAGE_SESSION_OWNER: github-actions:${{ github.actor }}:${{ github.run_id }}
 
 jobs:
   refresh:
@@ -79,7 +99,32 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Preflight refresh mode
+        env:
+          TV_USERNAME: ${{ secrets.TV_USERNAME }}
+          TV_PASSWORD: ${{ secrets.TV_PASSWORD }}
+          TV_TOTP_SECRET: ${{ secrets.TV_TOTP_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "Refresh mode: force_fresh_login=${TV_FORCE_FRESH_LOGIN} dry_run=${TV_REFRESH_DRY_RUN}"
+          echo "Session owner: ${TV_STORAGE_SESSION_OWNER}"
+          if [ "${TV_FORCE_FRESH_LOGIN}" != "true" ]; then
+            exit 0
+          fi
+          if [ "${TV_CONFIRM_SESSION_DISCONNECT}" != "true" ]; then
+            echo "::error::force_fresh_login requires confirm_session_disconnect=true because TradingView may disconnect another active session."
+            exit 1
+          fi
+          for variable_name in TV_USERNAME TV_PASSWORD TV_TOTP_SECRET; do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "::error::${variable_name} is required for force_fresh_login."
+              exit 1
+            fi
+          done
+          echo "Fresh-login prerequisites are configured; secret values remain masked."
+
       - name: Preflight GitHub secret write token
+        if: env.TV_REFRESH_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
         run: |
@@ -119,6 +164,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Prepare current storage state bootstrap
+        if: env.TV_FORCE_FRESH_LOGIN != 'true'
         env:
           TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
@@ -169,15 +215,20 @@ jobs:
           # safety net for headed debug runs.
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_SESSION_LOCK_FILE: ${{ runner.temp }}/tradingview-storage-refresh.lock
           # Tight timeout: if automated login doesn't complete in 3 min
           # something is wrong (CAPTCHA / layout change) — fail fast.
           TV_STORAGE_WAIT_TIMEOUT_MS: "180000"
         run: |
           set -euo pipefail
-          npx tsx scripts/create_tradingview_storage_state.ts \
-            --headless \
-            --input-storage-state automation/tradingview/auth/bootstrap-storage-state.json \
-            --out automation/tradingview/auth/storage-state.json
+          capture_args=(--headless)
+          if [ "${TV_FORCE_FRESH_LOGIN}" = "true" ]; then
+            capture_args+=(--force-fresh-login)
+          else
+            capture_args+=(--input-storage-state automation/tradingview/auth/bootstrap-storage-state.json)
+          fi
+          capture_args+=(--out automation/tradingview/auth/storage-state.json)
+          npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"
 
       - name: Validate captured storage state
         run: |
@@ -221,6 +272,7 @@ jobs:
           EOF
 
       - name: Write refreshed secret back to GitHub
+        if: env.TV_REFRESH_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.TV_STORAGE_STATE_WRITE_TOKEN }}
         run: |
@@ -245,15 +297,28 @@ jobs:
 
       - name: Report success
         run: |
-          echo "### TradingView storage state refreshed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Cookie captured headlessly with TOTP and written back to \`TV_STORAGE_STATE\`." >> "$GITHUB_STEP_SUMMARY"
-          echo "Next automatic refresh scheduled in ~48 h." >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          AUTH_MODE=$(jq -r '.meta.authMode // "unknown"' automation/tradingview/auth/storage-state.json)
+          TOTP_ENTERED=$(jq -r '.meta.totpEntered // false' automation/tradingview/auth/storage-state.json)
+          TOTP_SUBMITTED=$(jq -r '.meta.totpSubmitted // false' automation/tradingview/auth/storage-state.json)
+          {
+            echo "### TradingView storage state validated"
+            echo ""
+            echo "- Authentication path: \`${AUTH_MODE}\`"
+            echo "- TOTP entered/submitted: \`${TOTP_ENTERED}/${TOTP_SUBMITTED}\`"
+            echo "- Session owner: \`${TV_STORAGE_SESSION_OWNER}\`"
+            if [ "${TV_REFRESH_DRY_RUN}" = "true" ]; then
+              echo "- Secret update: skipped (dry run); existing \`TV_STORAGE_STATE\` is unchanged"
+            else
+              echo "- Secret update: completed after validation"
+              echo "- Next automatic refresh scheduled in ~48 h"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # On failure: open an issue so the operator knows the automated
       # refresh broke (CAPTCHA / layout change / IP block).
       - name: File failure issue
-        if: failure()
+        if: failure() && env.TV_REFRESH_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
