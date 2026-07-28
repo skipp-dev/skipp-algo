@@ -1523,6 +1523,33 @@ def _fetch_json_url(url: str, timeout: float = 15.0) -> dict[str, Any] | None:
     return payload
 
 
+def _refresh_quote_reference_from_url() -> bool:
+    """Fetch the daily quote-reference snapshot (previous_close/ADV for the
+    producer universe) from ``QUOTE_REFERENCE_SNAPSHOT_URL`` and write it to the
+    local path ``QuoteReference.load()`` reads — mirroring the watchlist's
+    ``OPEN_PREP_SNAPSHOT_URL`` fetch. It rides the SAME bot branch, so the same
+    ``OPEN_PREP_SNAPSHOT_URL_TOKEN`` authorizes it (``_fetch_json_url`` reuse,
+    no new HTTP site). Fail-soft: on a missing URL or fetch/write error the
+    last-good local file is kept (never blanked). Returns True only when a
+    fresh reference was written."""
+    url = os.getenv("QUOTE_REFERENCE_SNAPSHOT_URL", "").strip()
+    if not url:
+        return False
+    payload = _fetch_json_url(url)
+    if not payload:
+        logger.warning("QUOTE_REFERENCE_SNAPSHOT_URL fetch failed — keeping last-good local quote_reference")
+        return False
+    dest = _ARTIFACTS_LATEST / "quote_reference.json"
+    try:
+        from scripts.smc_atomic_write import atomic_write_text
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(json.dumps(payload, ensure_ascii=True), dest)
+        return True
+    except (OSError, TypeError):
+        logger.warning("Failed to write fetched quote_reference locally", exc_info=True)
+        return False
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Dynamic Cooldown (Oscillation-Based) — enables high-frequency VisiData
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2649,6 +2676,7 @@ class RealtimeEngine:
         feed = getattr(self, "_databento_feed", None)
         if feed is not None:
             feed.update_symbols(sorted(wl_syms))
+            _refresh_quote_reference_from_url()  # pull today's prev_close/ADV before reload_reference
         reload_reference = getattr(getattr(self, "_quote_source", None), "reload_reference", None)
         if callable(reload_reference):
             reload_reference()
@@ -2762,6 +2790,7 @@ class RealtimeEngine:
             lambda: db.Live(key=api_key),
             replay_start=replay_start,
         )
+        _refresh_quote_reference_from_url()  # fetch today's reference (no-op if URL unset / on error -> last-good)
         reference = QuoteReference.load()
         self._databento_feed = feed
         return DatabentoQuoteSource(feed, reference)
