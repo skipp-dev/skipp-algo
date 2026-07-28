@@ -598,7 +598,14 @@ metrics and small HTTP probes:
 - `GET /healthz` — always returns `200 OK`
 - `GET /readyz` — returns `200 ready` only when the watchlist is loaded,
   the Open-Prep snapshot is present, and the last successful poll is younger
-  than 5 minutes; otherwise returns `503 not_ready`
+  than 5 minutes. With `RT_QUOTE_SOURCE=databento`, it additionally requires
+  a non-empty quote reference, a connected Databento feed, and at least one
+  received bar during regular market hours; otherwise it returns `503`.
+
+Railway uses `/readyz` as the producer healthcheck. Both
+`smc-signals-producer` and `smc-signals-producer-databento-shadow` must point
+at `services/signals_producer/railway.toml`; otherwise the shadow silently
+loses the readiness check and the scoped auto-deploy watch patterns.
 
 Key readiness gauges (all prefixed `signals_producer_`):
 

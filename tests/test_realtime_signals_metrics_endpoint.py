@@ -19,6 +19,8 @@ from unittest.mock import MagicMock
 import pytest
 
 import open_prep.realtime_signals as rs
+from open_prep.quote_reference import QuoteReference, QuoteReferenceRow
+from open_prep.quote_source import DatabentoQuoteSource
 
 # ---------------------------------------------------------------------------
 # _collect_process_metrics() unit tests
@@ -315,6 +317,7 @@ def test_readyz_returns_503_when_not_ready(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
         open_prep_snapshot_loaded=1.0,
@@ -330,6 +333,91 @@ def test_readyz_returns_200_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
         status, body = _get(f"http://127.0.0.1:{port}/readyz")
         assert status == 200
         assert body.strip() == "ready"
+    finally:
+        server.shutdown()
+
+
+def _databento_ready_engine(*, connected: bool, records_received: int) -> SimpleNamespace:
+    telemetry = SimpleNamespace(
+        snapshot=lambda: {
+            "connected": connected,
+            "records_received": records_received,
+        },
+    )
+    feed = SimpleNamespace(telemetry=telemetry)
+    reference = QuoteReference({
+        "AAPL": QuoteReferenceRow(
+            previous_close=100.0,
+            average_daily_volume=1_000_000.0,
+            as_of_session="2026-07-27",
+            source="fmp:adjusted-eod",
+        ),
+    })
+    source = DatabentoQuoteSource(feed, reference)
+    return SimpleNamespace(
+        _watchlist=[{"symbol": "AAPL"}],
+        open_prep_snapshot_loaded=1.0,
+        last_poll_success_epoch=time.time(),
+        _client_disabled_reason="RuntimeError",
+        _databento_feed=feed,
+        _quote_source=source,
+    )
+
+
+def test_readyz_requires_selected_databento_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    engine = _databento_ready_engine(connected=True, records_received=1)
+    engine._quote_source = None
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
+    if server is None:
+        return
+    try:
+        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
+        assert status == 503
+        assert "databento quote source not initialised" in body
+    finally:
+        server.shutdown()
+
+
+def test_readyz_accepts_connected_databento_with_regular_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
+    engine = _databento_ready_engine(connected=True, records_received=1)
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
+    if server is None:
+        return
+    try:
+        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
+        assert status == 200
+        assert body.strip() == "ready"
+    finally:
+        server.shutdown()
+
+
+def test_readyz_rejects_databento_without_regular_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    monkeypatch.setattr(rs, "_market_session", lambda: "regular")
+    engine = _databento_ready_engine(connected=True, records_received=0)
+    telemetry = MagicMock()
+    telemetry.snapshot.return_value = {}
+    server = rs._start_telemetry_server(telemetry, port=0, host="127.0.0.1", engine=engine)
+    if server is None:
+        return
+    try:
+        status, body = _get(f"http://127.0.0.1:{server.server_port}/readyz")
+        assert status == 503
+        assert "no regular-session records" in body
     finally:
         server.shutdown()
 
@@ -502,6 +590,7 @@ def test_readyz_returns_503_when_client_disabled(monkeypatch: pytest.MonkeyPatch
     fail closed even though the poll loop keeps marking loop-liveness success
     on every disabled cycle ("UIs stay green" empty-snapshot path)."""
     monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+    monkeypatch.delenv("RT_QUOTE_SOURCE", raising=False)
     engine = SimpleNamespace(
         _watchlist=[{"symbol": "AAPL"}],
         open_prep_snapshot_loaded=1.0,

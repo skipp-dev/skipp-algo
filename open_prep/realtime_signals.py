@@ -1335,12 +1335,12 @@ def _start_telemetry_server(
             elif self.path == "/readyz":
                 ready = False
                 reason = "engine not initialised"
+                source_reason = _quote_source_readiness_reason(engine)
                 if engine is None:
                     pass
-                elif getattr(engine, "_client_disabled_reason", None):
-                    # A producer that could not build its FMP client can never
-                    # fetch data; only a restart (fresh env) cures it. Loop
-                    # "success" on disabled cycles must not mask that here.
+                elif source_reason:
+                    reason = source_reason
+                elif _client_disabled_for_selected_quote_source(engine):
                     reason = f"client disabled ({engine._client_disabled_reason})"
                 elif len(getattr(engine, "_watchlist", [])) == 0:
                     reason = "watchlist not loaded"
@@ -1532,7 +1532,7 @@ def _refresh_quote_reference_from_url() -> bool:
     no new HTTP site). Fail-soft: on a missing URL or fetch/write error the
     last-good local file is kept (never blanked). Returns True only when a
     fresh reference was written."""
-    url = os.getenv("QUOTE_REFERENCE_SNAPSHOT_URL", "").strip()
+    url = _quote_reference_snapshot_url()
     if not url:
         return False
     payload = _fetch_json_url(url)
@@ -2701,7 +2701,7 @@ class RealtimeEngine:
         ``_BATCH_QUOTE_CHUNK_SIZE``.  The production 200-symbol watchlist uses
         one provider request per poll.
         """
-        if self._client_disabled_reason:
+        if _client_disabled_for_selected_quote_source(self):
             return {}
         if not self._watchlist:
             return {}
@@ -2773,11 +2773,11 @@ class RealtimeEngine:
             for r in self._watchlist if r.get("symbol")
         ]
         api_key = os.environ.get("DATABENTO_API_KEY", "")
+        if not api_key.strip():
+            raise RuntimeError("DATABENTO_API_KEY is required when RT_QUOTE_SOURCE=databento")
 
-        # Today's regular-session open (09:30 ET) as a UTC datetime, bounded
-        # to now -- mirrors services/a0_fast_detector/worker.py's
-        # _live_replay_start(): a fresh boot backfills the session-so-far
-        # instead of starting silent, without ever requesting a future start.
+        # Today's 09:30 ET open in UTC, bounded to now; fresh boots replay the
+        # session so far without ever requesting a future start.
         from zoneinfo import ZoneInfo
 
         now = datetime.now(UTC)
@@ -3360,7 +3360,7 @@ class RealtimeEngine:
             # available on the first in-session poll cycle.
             self.reload_watchlist()
 
-        if self._client_disabled_reason:
+        if _client_disabled_for_selected_quote_source(self):
             # Persist empty signals with disabled reason so UIs stay green
             with self._lock:
                 self._active_signals.clear()
@@ -4608,6 +4608,45 @@ def _serve_ai_insights(handler: Any) -> None:
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(body)
+
+
+def _quote_reference_snapshot_url() -> str:
+    """Return the explicit URL or the canonical rolling quote reference."""
+    return os.getenv(
+        "QUOTE_REFERENCE_SNAPSHOT_URL",
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/open_prep/latest/quote_reference.json"
+        "?ref=bot/live-open-prep-snapshot",
+    ).strip()
+
+
+def _client_disabled_for_selected_quote_source(engine: Any) -> bool:
+    """Only the FMP quote source is disabled by an unavailable FMP client."""
+    return bool(getattr(engine, "_client_disabled_reason", None)) and os.getenv(
+        "RT_QUOTE_SOURCE",
+    ) != "databento"
+
+
+def _quote_source_readiness_reason(engine: Any) -> str:
+    """Return why the selected Databento source is not runtime-ready."""
+    if engine is None or os.getenv("RT_QUOTE_SOURCE") != "databento":
+        return ""
+    source = getattr(engine, "_quote_source", None)
+    if not isinstance(source, DatabentoQuoteSource):
+        return "databento quote source not initialised"
+    reference = getattr(source, "_reference", None)
+    if reference is None or len(reference) == 0:
+        return "databento quote reference empty"
+    feed = getattr(engine, "_databento_feed", None)
+    try:
+        feed_state = feed.telemetry.snapshot()
+    except (AttributeError, TypeError):
+        return "databento feed telemetry unavailable"
+    if not feed_state.get("connected"):
+        return "databento feed not connected"
+    if _market_session() == "regular" and int(feed_state.get("records_received") or 0) < 1:
+        return "databento feed has no regular-session records"
+    return ""
 
 
 if __name__ == "__main__":

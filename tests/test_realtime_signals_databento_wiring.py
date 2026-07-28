@@ -185,6 +185,44 @@ def test_engine_uses_databento_source_when_flagged(monkeypatch) -> None:
     assert fake_feed.start_calls == 1
 
 
+def test_databento_source_requires_api_key_at_build_time(monkeypatch) -> None:
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._watchlist = [{"symbol": "AAPL"}]
+
+    with pytest.raises(RuntimeError, match="DATABENTO_API_KEY is required"):
+        engine._build_databento_quote_source()
+
+
+def test_disabled_fmp_client_does_not_block_databento_fetch(monkeypatch) -> None:
+    monkeypatch.setenv("RT_QUOTE_SOURCE", "databento")
+    monkeypatch.setenv("DATABENTO_API_KEY", "test-key-not-real")
+
+    fake_feed = _FakeDatabentoQuoteFeed()
+    fake_feed.set_symbol(
+        "AAPL",
+        bar=_bar(),
+        cumulative_volume=500_000,
+        session_high=101.0,
+        session_low=98.0,
+    )
+    _install_fake_databento_plumbing(monkeypatch, fake_feed)
+
+    engine = rs.RealtimeEngine.__new__(rs.RealtimeEngine)
+    engine._client = None
+    engine._client_disabled_reason = "RuntimeError"
+    engine._watchlist = [{"symbol": "AAPL"}]
+    engine._databento_feed = None
+    engine._quote_source = None
+
+    quotes = engine._fetch_realtime_quotes()
+
+    assert quotes["AAPL"]["source"] == "databento"
+    assert isinstance(engine._quote_source, DatabentoQuoteSource)
+
+
 # ---------------------------------------------------------------------------
 # (b) Self-heal respects the flag: None _quote_source rebuilds Databento
 # ---------------------------------------------------------------------------
