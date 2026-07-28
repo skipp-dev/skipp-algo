@@ -1098,10 +1098,20 @@ persistent destination is
 `accepting=false` with zero events, attempts, and duplicates. Both `/health`
 and `/ready` returned HTTP 200. Redacted evidence is retained in
 `artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
-No TradingView alert exists and observation has not started, so
-`R2-SHADOW-CUTOVER` remains `not_started`. Creating the six private TradingView
-alerts and later opening the observation window each require exact
-authorization.
+The six private TradingView alerts (`R2 SHADOW · HM_ENTRY/HM_T1/HM_T2/`
+`HM_STOP/HM_TIMESTOP/HM_EXIT_ANY`) were created on 2026-07-28 in the
+authorized controlled browser session after a token rotation, and the operator
+confirmed the six correctly configured alerts on 2026-07-29 (redacted
+attestation:
+`artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json`;
+TradingView alert state is not machine-verifiable from the repository, so the
+evidence is an operator attestation, not an automated readback). The receiver
+remains non-accepting and observation has not started, so
+`R2-SHADOW-CUTOVER` remains `not_started`; only opening the observation window
+still requires exact authorization. The delivered-alert half of the
+observation chain is wired: `/state` exposes a per-session breakdown and
+`scripts/reconcile_smc_hold_manager_shadow_deliveries.py` fills
+`deliveredServerAlerts` from the receiver ledger fail-closed.
 
 Shadow activation requires separate authorization for controlled TradingView
 alert creation. Under the

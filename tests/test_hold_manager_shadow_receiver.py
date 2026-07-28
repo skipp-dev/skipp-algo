@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import secrets
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from services.live_overlay_daemon.hold_manager_shadow_receiver import (
     _CHANNELS,
+    _session_breakdown,
     build_router,
 )
 
@@ -289,3 +291,62 @@ def test_all_six_templates_match_the_receiver_contract(
     assert state["uniqueEvents"] == 6
     assert state["duplicateDeliveries"] == 0
     assert state["uniqueByChannel"] == dict.fromkeys(_CHANNELS, 1)
+
+
+def test_state_exposes_per_session_delivery_breakdown(
+    client: TestClient,
+) -> None:
+    """The observation chain's delivered-alert half: /state must break the
+    ledger down per US-market session date so the reconciliation script can
+    fill sessions[*].deliveredServerAlerts from receiver truth instead of a
+    manual claim."""
+    bar_time = dt.datetime.now(dt.UTC)
+    entry = client.post(_post_url(), json=_payload(bar_time=bar_time))
+    duplicate = client.post(_post_url(), json=_payload(bar_time=bar_time))
+    assert entry.status_code == 200
+    assert duplicate.json()["status"] == "duplicate"
+
+    state = client.get(_state_url(), headers=_state_headers()).json()
+
+    assert state["marketTimezone"] == "America/New_York"
+    expected_date = (
+        bar_time.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    )
+    assert state["sessions"] == [
+        {
+            "sessionDate": expected_date,
+            "uniqueByChannel": {**dict.fromkeys(_CHANNELS, 0), "HM_ENTRY": 1},
+            "duplicatesByChannel": {
+                **dict.fromkeys(_CHANNELS, 0),
+                "HM_ENTRY": 1,
+            },
+        }
+    ]
+
+
+def test_session_breakdown_groups_by_market_timezone_date() -> None:
+    """A late-RTH bar after UTC midnight still belongs to the prior New York
+    session date; a next-morning bar starts a new session entry."""
+    rows = [
+        # 2026-07-28 19:55 ET == 2026-07-28 23:55 UTC (same UTC date).
+        {"channel": "HM_ENTRY", "bar_time": "2026-07-28T23:55:00Z", "delivery_count": 1},
+        # 2026-07-28 20:05 ET == 2026-07-29 00:05 UTC — crosses UTC midnight
+        # but is STILL the 2026-07-28 New York session.
+        {"channel": "HM_EXIT_ANY", "bar_time": "2026-07-29T00:05:00Z", "delivery_count": 2},
+        # 2026-07-29 09:35 ET — the next session.
+        {"channel": "HM_ENTRY", "bar_time": "2026-07-29T13:35:00Z", "delivery_count": 1},
+    ]
+
+    sessions = _session_breakdown(rows, "America/New_York")
+
+    assert [row["sessionDate"] for row in sessions] == [
+        "2026-07-28",
+        "2026-07-29",
+    ]
+    assert sessions[0]["uniqueByChannel"]["HM_ENTRY"] == 1
+    assert sessions[0]["uniqueByChannel"]["HM_EXIT_ANY"] == 1
+    assert sessions[0]["duplicatesByChannel"]["HM_EXIT_ANY"] == 1
+    assert sessions[1]["uniqueByChannel"] == {
+        **dict.fromkeys(_CHANNELS, 0),
+        "HM_ENTRY": 1,
+    }

@@ -137,8 +137,10 @@ def test_checked_in_shadow_state_is_explicitly_not_started() -> None:
     assert result["activationStatus"] == "not_started"
     assert result["completeSessionCount"] == 0
     assert result["blockers"] == []
+    # 2026-07-29: the six alerts exist (operator-attested, see
+    # smc_hold_manager_shadow_alerts_2026-07-28.json), so the alert-creation
+    # gate is closed; activation + rollback remain the only open gates.
     assert result["openGates"] == [
-        "Obtain separate authorization for controlled alert creation.",
         "Activate the pre-registered shadow and record every session in order.",
         "Complete the rollback drill after the observation criteria pass.",
     ]
@@ -155,7 +157,7 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
 
     assert contract["status"] == "not_started"
     assert contract["readinessStatus"] == (
-        "receiver_deployed_configured_inactive"
+        "alerts_created_receiver_inactive"  # 2026-07-29: six alerts attested
     )
     assert contract["source"]["sha256"] == actual_hash
     assert contract["source"]["hashMode"] == (
@@ -176,7 +178,13 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
     assert contract["currentState"]["receiverImplemented"] is True
     assert contract["currentState"]["receiverDeployed"] is True
     assert contract["currentState"]["receiverConfigured"] is True
-    assert contract["currentState"]["alertsCreated"] is False
+    # 2026-07-29: flipped to True — six alerts operator-attested, see
+    # smc_hold_manager_shadow_alerts_2026-07-28.json.
+    assert contract["currentState"]["alertsCreated"] is True
+    assert contract["currentState"]["alertsCreatedEvidence"] == (
+        "artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json"
+    )
+    assert contract["currentState"]["shadowObservationStarted"] is False
     assert contract["currentState"]["isolatedPreflightStatus"] == (
         "passed_visible_browser_fallback"
     )
@@ -375,6 +383,10 @@ def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None
         ),
         (
             "artifacts/governance/"
+            "smc_hold_manager_shadow_alerts_2026-07-28.json"
+        ),
+        (
+            "artifacts/governance/"
             "smc_hold_manager_shadow_alert_templates.json"
         ),
         "automation/tradingview/preflight-hold-manager-shadow.json",
@@ -385,8 +397,10 @@ def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None
         "scripts/smc_bus_manifest.py",
         "artifacts/tradingview/smc_product_cut_manifest.json",
         "scripts/evaluate_smc_hold_manager_shadow.py",
+        "scripts/reconcile_smc_hold_manager_shadow_deliveries.py",
         "tests/test_hold_manager_shadow_receiver.py",
         "tests/test_evaluate_smc_hold_manager_shadow.py",
+        "tests/test_reconcile_smc_hold_manager_shadow_deliveries.py",
         "tests/test_smc_bus_manifest_contract.py",
         "tests/test_smc_product_cut_manifest.py",
     ]

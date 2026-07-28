@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import (
@@ -105,6 +106,7 @@ class _Contract:
     producer: str
     bus_schema: int
     channels: tuple[str, ...]
+    market_timezone: str
 
 
 def _load_contract(path: Path) -> _Contract:
@@ -127,8 +129,17 @@ def _load_contract(path: Path) -> _Contract:
             producer=trading_view["producer"],
             bus_schema=trading_view["busSchema"],
             channels=channels,
+            market_timezone=trading_view["marketTimezone"],
         )
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        ZoneInfo(contract.market_timezone)
+    except (
+        OSError,
+        KeyError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        ZoneInfoNotFoundError,
+    ) as exc:
         raise RuntimeError("Hold Manager shadow contract is unavailable") from exc
 
     if (
@@ -361,11 +372,48 @@ def _empty_channel_counts() -> dict[str, int]:
     return dict.fromkeys(_CHANNELS, 0)
 
 
-def _state(path: Path) -> dict[str, Any]:
+def _session_breakdown(
+    event_rows: list[Any],  # sqlite3.Row or any mapping with the same keys
+    market_timezone: str,
+) -> list[dict[str, Any]]:
+    """Group the per-event ledger rows into US-market session dates.
+
+    A session date is the calendar date of the event's ``bar_time`` in the
+    contract's market timezone — the same calendar the evaluator's
+    ``sessions[*].sessionDate`` rows use, so the reconciliation script can
+    match receiver deliveries to recorded sessions 1:1.
+    """
+    zone = ZoneInfo(market_timezone)
+    by_date: dict[str, dict[str, dict[str, int]]] = {}
+    for row in event_rows:
+        channel = str(row["channel"])
+        if channel not in _CHANNELS:
+            continue
+        bar_time = dt.datetime.fromisoformat(
+            str(row["bar_time"]).replace("Z", "+00:00")
+        )
+        session_date = bar_time.astimezone(zone).date().isoformat()
+        session = by_date.setdefault(
+            session_date,
+            {
+                "uniqueByChannel": _empty_channel_counts(),
+                "duplicatesByChannel": _empty_channel_counts(),
+            },
+        )
+        session["uniqueByChannel"][channel] += 1
+        session["duplicatesByChannel"][channel] += int(row["delivery_count"]) - 1
+    return [
+        {"sessionDate": session_date, **counts}
+        for session_date, counts in sorted(by_date.items())
+    ]
+
+
+def _state(path: Path, market_timezone: str) -> dict[str, Any]:
     unique_by_channel = _empty_channel_counts()
     attempts_by_channel = _empty_channel_counts()
     duplicates_by_channel = _empty_channel_counts()
     last_received_at: str | None = None
+    sessions: list[dict[str, Any]] = []
     if path.exists():
         connection = _connect(path)
         try:
@@ -381,8 +429,15 @@ def _state(path: Path) -> dict[str, Any]:
                 GROUP BY channel
                 """
             ).fetchall()
+            event_rows = connection.execute(
+                """
+                SELECT channel, bar_time, delivery_count
+                FROM hold_manager_shadow_events
+                """
+            ).fetchall()
         finally:
             connection.close()
+        sessions = _session_breakdown(event_rows, market_timezone)
         for row in rows:
             channel = str(row["channel"])
             if channel not in unique_by_channel:
@@ -407,6 +462,8 @@ def _state(path: Path) -> dict[str, Any]:
         "attemptsByChannel": attempts_by_channel,
         "duplicatesByChannel": duplicates_by_channel,
         "lastReceivedAt": last_received_at,
+        "marketTimezone": market_timezone,
+        "sessions": sessions,
     }
 
 
@@ -535,7 +592,13 @@ def build_router(compare_token: TokenCompare) -> APIRouter:
         _authenticate(token, compare_token)
         path = _ledger_path()
         try:
-            return _state(path)
+            contract = _load_contract(
+                config.hold_manager_shadow_contract_path()
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            return _state(path, contract.market_timezone)
         except (OSError, sqlite3.Error):
             raise HTTPException(
                 status_code=503,
