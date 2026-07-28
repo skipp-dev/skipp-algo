@@ -66,7 +66,7 @@ Zuordnungen zur `SMC Long-Dip Suite`. Es erfolgten weder Veröffentlichung noch
 Alert-Erstellung oder Shadow-Aktivierung. Der vollständige Nachweis liegt in
 `artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json`.
 
-Der kontrollierte Empfänger ist nun lokal und standardmäßig inaktiv im
+Der kontrollierte Empfänger ist standardmäßig inaktiv im
 `live_overlay_daemon` implementiert. Er akzeptiert ausschließlich die sechs
 vorregistrierten Kanäle, den exakten Source-Hash, das private Skript/Layout,
 Producer und BUS-Schema 7001; ein persistentes SQLite-Ledger zählt eindeutige
@@ -78,10 +78,15 @@ Der Source-Hash verwendet dieselbe eng begrenzte Pin-Normalisierung wie der
 R2.4-Replay-Vertrag: Ausschließlich die automatisch aktualisierte
 `smc_micro_profiles_generated`-Importversion wird auf den evidierten Pin 175
 normalisiert; jede andere Quelltextänderung verändert den Hash weiterhin.
-Implementierung und Tests sind keine Aktivierung: Der Receiver ist nicht
-publiziert, nicht deployt oder konfiguriert, sein Default-Schalter ist aus und
-es existiert weiterhin kein TradingView-Alert. Deshalb bleibt
-`R2-SHADOW-CUTOVER` ausdrücklich `not_started`.
+Der Receiver wurde am 2026-07-28 fail-closed deployt und konfiguriert. Sein
+64-stelliges Secret wurde nicht als Evidenz gespeichert; der persistente Pfad
+`/app/data/smc-hold-manager-shadow.sqlite3` ist beschreibbar. Der
+authentifizierte Zustand bestätigte `accepting=false` sowie null Events,
+Zustellversuche und Duplikate. Der redigierte Nachweis liegt in
+`artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
+Es existiert weiterhin kein TradingView-Alert und die Shadow-Beobachtung wurde
+nicht gestartet. Deshalb bleibt `R2-SHADOW-CUTOVER` ausdrücklich
+`not_started`.
 
 Letzte Aktualisierung: 2026-07-28
 

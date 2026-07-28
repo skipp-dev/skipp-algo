@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "evidenceType": "railway_receiver_deployed_configured_inactive",
+  "observedAt": "2026-07-28T12:44:08Z",
+  "authorization": {
+    "scope": "inactive Railway deployment/configuration and empty-state verification",
+    "tradingViewAlertCreationAllowed": false,
+    "receiverActivationAllowed": false,
+    "externalTradingViewPublicationAllowed": false
+  },
+  "railway": {
+    "projectId": "0616a3b7-7b7f-41d1-8fac-a0b8922c94ca",
+    "environmentId": "470fbd0f-894d-46cd-8722-6b072d255d99",
+    "serviceId": "705582c5-ba8b-4c6e-848c-33bffe0a61b0",
+    "serviceName": "live_overlay_daemon",
+    "deployment": {
+      "id": "fb998ea6-4773-460b-bd66-8bdbfe977eef",
+      "createdAt": "2026-07-28T12:41:02.964Z",
+      "reason": "redeploy",
+      "status": "SUCCESS"
+    }
+  },
+  "configuration": {
+    "accepting": false,
+    "webhookToken": {
+      "configured": true,
+      "length": 64,
+      "valueRecorded": false,
+      "transport": "json_body_authToken"
+    },
+    "ledger": {
+      "path": "/app/data/smc-hold-manager-shadow.sqlite3",
+      "volumeId": "148e93df-88b9-4955-b977-a440f001f003",
+      "volumeName": "live_overlay_daemon-volume",
+      "mountPath": "/app/data",
+      "volumeSizeMb": 5000,
+      "volumeStatus": "Ready",
+      "parentExists": true,
+      "parentWritable": true,
+      "fileExists": false,
+      "initialization": "lazy_on_first_accepted_event"
+    }
+  },
+  "verification": {
+    "health": {
+      "observedAt": "2026-07-28T12:44:03.963195Z",
+      "httpStatus": 200,
+      "status": "alive",
+      "service": "smc-live-overlay"
+    },
+    "ready": {
+      "observedAt": "2026-07-28T12:44:07.974369Z",
+      "httpStatus": 200,
+      "status": "ok",
+      "feedHealthy": true,
+      "workersHealthy": true,
+      "overlayFresh": true
+    },
+    "state": {
+      "schemaVersion": 1,
+      "requirementId": "R2-SHADOW-CUTOVER",
+      "authenticatedFromRailwayContainer": true,
+      "accepting": false,
+      "uniqueEvents": 0,
+      "deliveryAttempts": 0,
+      "duplicateDeliveries": 0,
+      "uniqueByChannel": {
+        "HM_ENTRY": 0,
+        "HM_T1": 0,
+        "HM_T2": 0,
+        "HM_STOP": 0,
+        "HM_TIMESTOP": 0,
+        "HM_EXIT_ANY": 0
+      },
+      "attemptsByChannel": {
+        "HM_ENTRY": 0,
+        "HM_T1": 0,
+        "HM_T2": 0,
+        "HM_STOP": 0,
+        "HM_TIMESTOP": 0,
+        "HM_EXIT_ANY": 0
+      },
+      "duplicatesByChannel": {
+        "HM_ENTRY": 0,
+        "HM_T1": 0,
+        "HM_T2": 0,
+        "HM_STOP": 0,
+        "HM_TIMESTOP": 0,
+        "HM_EXIT_ANY": 0
+      },
+      "lastReceivedAt": null
+    }
+  },
+  "safety": {
+    "secretValueRecorded": false,
+    "receiverAcceptingEnabled": false,
+    "alertsCreated": false,
+    "shadowObservationStarted": false,
+    "externalTradingViewPublicationPerformed": false,
+    "existingVolumeRemountedOrWiped": false
+  },
+  "result": "passed_inactive_receiver_ready",
+  "nextGate": "Obtain separate exact authorization to create and verify the six private Hold Manager alerts while the receiver remains non-accepting; activation remains a later, separately authorized observation-boundary action."
+}

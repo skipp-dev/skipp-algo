@@ -143,6 +143,7 @@
             "artifacts/governance/smc_hold_manager_shadow_observations.json",
             "artifacts/governance/smc_hold_manager_shadow_evidence.json",
             "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
+            "artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json",
             "artifacts/governance/smc_hold_manager_shadow_alert_templates.json",
             "automation/tradingview/preflight-hold-manager-shadow.json",
             "automation/tradingview/lib/tv_validation_model.ts",
@@ -158,7 +159,7 @@
             "tests/test_smc_product_cut_manifest.py"
           ],
           "openGates": [
-            "The private managed saved-script refresh and isolated 13-binding preflight passed on 2026-07-28. The fail-closed receiver and six source-pinned alert templates exist locally, but the receiver is not deployed or configured and no alerts exist. Obtain exact authorization for repository publication and the inactive Railway deployment/configuration, verify the empty persistent ledger, then obtain exact authorization for creating the six Hold alert conditions. Record the first five complete XNYS sessions without cherry-picking and pass server-delivery, comparison, exclusivity, and rollback gates; no external TradingView publication is required."
+            "The private managed saved-script refresh and isolated 13-binding preflight passed on 2026-07-28. The fail-closed receiver is deployed and configured in live_overlay_daemon with accepting=false, a persistent writable ledger destination, and an authenticated zero-event state; no alerts exist. Obtain exact authorization for creating and verifying the six Hold alert conditions while the receiver remains non-accepting, then separately authorize activation at an agreed observation boundary. Record the first five complete XNYS sessions without cherry-picking and pass server-delivery, comparison, exclusivity, and rollback gates; no external TradingView publication is required."
           ]
         }
       ]
