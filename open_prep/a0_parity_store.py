@@ -15,6 +15,20 @@ from .a0_parity import ShadowDecision
 _SCHEMA_VERSION = 1
 
 
+def parity_source_from_env() -> str:
+    """Resolve the A0-parity journal source label from ``RT_QUOTE_SOURCE``.
+
+    The realtime-signals producer names its shadow-decision journal by this
+    label (``a0_shadow_<source>_<date>.jsonl``), and it MUST track the active
+    quote source: the FMP producer writes ``fmp`` and a shadow producer run
+    with ``RT_QUOTE_SOURCE=databento`` writes ``databento`` — exactly the two
+    sides ``scripts/report_a0_parity`` compares (``--fmp`` vs ``--fast``,
+    ``expected_source="databento"``). A hardcoded ``fmp`` made a databento
+    producer mislabel its journal and collide with the real FMP one.
+    """
+    return "databento" if os.environ.get("RT_QUOTE_SOURCE") == "databento" else "fmp"
+
+
 def shadow_decision_row(
     decision: A0Decision,
     thresholds: A0ThresholdContext,
