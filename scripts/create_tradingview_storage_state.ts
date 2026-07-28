@@ -19,6 +19,7 @@ import {
   planOtpEntry,
   revealEmailLoginField,
   resolveTradingViewStorageCaptureWaitAction,
+  resolveTotpTelemetry,
   shouldAttemptTotp,
   summariseActionableNodes,
   TV_LOGIN_IDENTIFIER_SELECTOR,
@@ -54,6 +55,7 @@ type CliArgs = {
 
 type TwoFactorAttemptState = {
   lastAttemptedStep?: number;
+  lastTotpInputDispatchedAtMs?: number;
   totpEntered: boolean;
   totpSubmitted: boolean;
 };
@@ -198,8 +200,6 @@ async function assistTwoFactorSubmission(
     // Reserve this time-step before any asynchronous DOM work so a transient
     // error cannot make the polling loop submit the same code repeatedly.
     state.lastAttemptedStep = retry.step;
-    state.totpEntered = false;
-    state.totpSubmitted = false;
     try {
       const token = authenticator.generate(totpSecret);
       const shapes = await codeFields.evaluateAll(
@@ -211,20 +211,30 @@ async function assistTwoFactorSubmission(
       // and framework-backed single fields ignore a value written straight to
       // the DOM. fill() wrote all six digits into box one — the bug this fixes.
       await codeField.click({ timeout: 2_000 }).catch(() => undefined);
+      let inputDispatched = false;
       if (plan.perBox) {
-        await page.keyboard.type(token, { delay: 60 });
+        inputDispatched = await page.keyboard.type(token, { delay: 60 })
+          .then(() => true)
+          .catch(() => false);
       } else {
         await codeField.fill("").catch(() => undefined);
-        await codeField.pressSequentially(token, { delay: 40 }).catch(() => undefined);
+        inputDispatched = await codeField.pressSequentially(token, { delay: 40 })
+          .then(() => true)
+          .catch(() => false);
+      }
+      if (inputDispatched) {
+        state.lastTotpInputDispatchedAtMs = Date.now();
       }
       await page.waitForTimeout(500);
 
       const entered = await readEnteredCode();
+      const entryComplete = isOtpEntryComplete(entered, token);
       console.log(
-        `TOTP code entered — fields=${fieldCount} plan=${plan.reason} `
-        + `complete=${isOtpEntryComplete(entered, token)} digits=${entered.length}/${token.length}`,
+        `TOTP input dispatched — fields=${fieldCount} plan=${plan.reason} `
+        + `dispatched=${inputDispatched} readbackComplete=${entryComplete} `
+        + `digits=${entered.length}/${token.length}`,
       );
-      state.totpEntered = isOtpEntryComplete(entered, token);
+      state.totpEntered = state.totpEntered || entryComplete;
     } catch (err) {
       console.warn(`TOTP generation failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without filling.`);
     }
@@ -233,10 +243,17 @@ async function assistTwoFactorSubmission(
   const currentValue = await readEnteredCode();
   const hasLikelyCode = currentValue.length >= 6;
   if (fieldVisible && !hasLikelyCode) {
-    console.warn(
-      `2FA code incomplete (${currentValue.length}/6 digits across ${fieldCount} field(s)) — `
-      + "not submitting; the next poll retries with a fresh code.",
-    );
+    if (state.lastTotpInputDispatchedAtMs !== undefined) {
+      console.log(
+        `2FA readback incomplete after code dispatch (${currentValue.length}/6 digits) — `
+        + "awaiting the auth probe because TradingView may have auto-submitted and cleared the field.",
+      );
+    } else {
+      console.warn(
+        `2FA code incomplete (${currentValue.length}/6 digits across ${fieldCount} field(s)) — `
+        + "not submitting; the next poll retries with a fresh code.",
+      );
+    }
   }
 
   const submitCandidates = [
@@ -279,7 +296,7 @@ async function assistTwoFactorSubmission(
     const clicked = await button.click({ timeout: 2_000 })
       .then(() => true)
       .catch(() => false);
-    state.totpSubmitted = clicked && state.totpEntered;
+    state.totpSubmitted = state.totpSubmitted || (clicked && state.totpEntered);
     await page.waitForTimeout(750);
     return;
   }
@@ -297,7 +314,7 @@ async function assistTwoFactorSubmission(
     const pressed = await codeField.press("Enter")
       .then(() => true)
       .catch(() => false);
-    state.totpSubmitted = pressed && state.totpEntered;
+    state.totpSubmitted = state.totpSubmitted || (pressed && state.totpEntered);
     await page.waitForTimeout(1_500);
   }
 
@@ -419,6 +436,24 @@ async function waitForUserOrAuthenticatedChart(
           persistentProfile: Boolean(cli.persistentProfileDir),
         })
       : "wait";
+
+    if (waitAction !== "wait") {
+      const totpTelemetry = resolveTotpTelemetry({
+        inputDispatchedAtMs: twoFactorState.lastTotpInputDispatchedAtMs,
+        entryObserved: twoFactorState.totpEntered,
+        submitDispatched: twoFactorState.totpSubmitted,
+        authenticated: authDiagnostics?.authenticated === true,
+        authenticatedAtMs: Date.now(),
+      });
+      twoFactorState.totpEntered = totpTelemetry.entered;
+      twoFactorState.totpSubmitted = totpTelemetry.submitted;
+      if (totpTelemetry.inferredFromAuthenticatedSession) {
+        console.log(
+          "TOTP telemetry reconciled from successful authentication after code dispatch "
+          + "(TradingView auto-submit/readback race).",
+        );
+      }
+    }
 
     if (waitAction === "complete") {
       console.log("Authenticated TradingView chart session detected.");

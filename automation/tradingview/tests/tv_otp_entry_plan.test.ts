@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   isOtpEntryComplete,
   planOtpEntry,
+  resolveTotpTelemetry,
   shouldAttemptTotp,
   totpTimeStep,
 } from "../lib/tv_shared.js";
@@ -71,6 +72,90 @@ test("completeness compares the whole code, not just its length", () => {
   assert.equal(isOtpEntryComplete("1", "123456"), false, "the exact regression: one digit landed");
   assert.equal(isOtpEntryComplete("123457", "123456"), false, "same length, wrong code");
   assert.equal(isOtpEntryComplete("", "123456"), false);
+});
+
+test("authenticated auto-submit reconciles a cleared TOTP field", () => {
+  assert.deepEqual(
+    resolveTotpTelemetry({
+      inputDispatchedAtMs: 1_000,
+      entryObserved: false,
+      submitDispatched: false,
+      authenticated: true,
+      authenticatedAtMs: 2_500,
+    }),
+    {
+      entered: true,
+      submitted: true,
+      inferredFromAuthenticatedSession: true,
+    },
+  );
+});
+
+test("dispatch without authentication is not reported as TOTP success", () => {
+  assert.deepEqual(
+    resolveTotpTelemetry({
+      inputDispatchedAtMs: 1_000,
+      entryObserved: false,
+      submitDispatched: false,
+      authenticated: false,
+      authenticatedAtMs: 2_500,
+    }),
+    {
+      entered: false,
+      submitted: false,
+      inferredFromAuthenticatedSession: false,
+    },
+  );
+});
+
+test("authentication without TOTP input does not fabricate TOTP telemetry", () => {
+  assert.deepEqual(
+    resolveTotpTelemetry({
+      entryObserved: false,
+      submitDispatched: false,
+      authenticated: true,
+      authenticatedAtMs: 2_500,
+    }),
+    {
+      entered: false,
+      submitted: false,
+      inferredFromAuthenticatedSession: false,
+    },
+  );
+});
+
+test("later authentication does not claim a stale TOTP dispatch", () => {
+  assert.deepEqual(
+    resolveTotpTelemetry({
+      inputDispatchedAtMs: 1_000,
+      entryObserved: false,
+      submitDispatched: false,
+      authenticated: true,
+      authenticatedAtMs: 20_000,
+      maxInferenceLagMs: 5_000,
+    }),
+    {
+      entered: false,
+      submitted: false,
+      inferredFromAuthenticatedSession: false,
+    },
+  );
+});
+
+test("observed TOTP entry and explicit submission remain authoritative", () => {
+  assert.deepEqual(
+    resolveTotpTelemetry({
+      inputDispatchedAtMs: 1_000,
+      entryObserved: true,
+      submitDispatched: true,
+      authenticated: false,
+    }),
+    {
+      entered: true,
+      submitted: true,
+      inferredFromAuthenticatedSession: false,
+    },
+  );
 });
 
 test("the same TOTP time-step is attempted only once", () => {
