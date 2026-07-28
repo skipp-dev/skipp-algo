@@ -45,6 +45,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -98,6 +100,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 120.5,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 10.6527,
       "score_breakdown": {
         "analyst_catalyst_component": 0.2,
@@ -165,6 +169,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -218,6 +224,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 12.4,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 9.6881,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
@@ -285,6 +293,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -335,6 +345,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 45.2,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 9.375,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
@@ -402,6 +414,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -452,6 +466,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 88.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 7.3426,
       "score_breakdown": {
         "analyst_catalyst_component": 0.1,
@@ -519,6 +535,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -572,6 +590,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 55.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 7.2193,
       "score_breakdown": {
         "analyst_catalyst_component": 0.075,
@@ -639,6 +659,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -691,6 +713,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 36.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 5.9003,
       "score_breakdown": {
         "analyst_catalyst_component": 0.025,
@@ -758,6 +782,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -810,6 +836,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 62.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 5.6712,
       "score_breakdown": {
         "analyst_catalyst_component": 0.05,
@@ -877,6 +905,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -927,6 +957,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 28.75,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 5.3116,
       "score_breakdown": {
         "analyst_catalyst_component": 0.05,
@@ -994,6 +1026,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -1047,6 +1081,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 42.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 2.5921,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
@@ -1114,6 +1150,8 @@
         "low": false,
         "rel_volume_missing": false
       },
+      "days_since_last_earnings": null,
+      "days_to_next_earnings": null,
       "dist_to_pdh_atr": null,
       "dist_to_pdl_atr": null,
       "dividend_today": false,
@@ -1164,6 +1202,8 @@
       "premarket_high": null,
       "premarket_low": null,
       "price": 38.0,
+      "recent_eps_surprise_pct": null,
+      "revenue_surprise_pct": null,
       "score": 1.2888,
       "score_breakdown": {
         "analyst_catalyst_component": 0.0,
