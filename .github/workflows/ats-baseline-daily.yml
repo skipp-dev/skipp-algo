@@ -120,7 +120,7 @@ jobs:
             --head "$BRANCH" \
             --label automated \
             --title "chore(flow): refresh 20d ATS baseline ${GITHUB_RUN_ID}" \
-            --body "Automated WP-J baseline rebuild from \`ats-baseline-daily\` (run ${GITHUB_RUN_ID}). Feeds the WP-K /smc_live flow/ATS fields; the sidecar picks it up on the next app rebuild."; then
+            --body "Automated WP-J baseline rebuild from \`ats-baseline-daily\` (run ${GITHUB_RUN_ID}). Keeps the WP-K SSOT artifact fresh; smc_api re-reads it per call from its checkout (no runtime consumer is scheduled yet — WP-K wiring pending)."; then
             echo "::error file=.github/workflows/ats-baseline-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1
           fi
