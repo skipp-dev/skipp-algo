@@ -1693,11 +1693,12 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: More than 3 daemon restarts within 15 min (crash-loop; routine deploys spread over a day no
         longer trip this).
-      runbook: Check Railway deployment/restart logs for the crash loop, and the
-        "Restart Causes (24h)" dashboard panel (changes() of
-        live_overlay_daemon_start_time_seconds by cause) for the cause breakdown.
-        The live_overlay_daemon_restart_cause_*_total counters no longer exist -- they
-        reset to 1 each process and carried no cross-restart history.
+      runbook: Check Railway deployment/restart logs for the crash loop, plus the
+        "Daemon Restarts (24h)" dashboard panel. The cause dimension no longer
+        exists (2026-07-28 -- LIVE_OVERLAY_RESTART_CAUSE was never set and a
+        static env cannot distinguish deploy from crash); Railway logs are the
+        cause source. The *_restart_cause_*_total counters were removed earlier
+        (reset to 1 each process, no cross-restart history).
   - uid: lo-feed-supervisor-heals-recurring
     title: Feed supervisor healing repeatedly (1h)
     condition: C

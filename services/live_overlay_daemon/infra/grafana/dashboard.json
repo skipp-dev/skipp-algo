@@ -3314,7 +3314,7 @@
       "type": "row",
       "title": "Daemon Operations",
       "collapsed": false,
-      "description": "Process health of the overlay daemon: restarts and their causes, worker liveness, memory, ingest-queue backpressure and hotspots. Service-owner detail.",
+      "description": "Process health of the overlay daemon: restarts, worker liveness, memory, ingest-queue backpressure and hotspots. Service-owner detail.",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -3811,15 +3811,7 @@
         "type": "prometheus",
         "uid": "grafanacloud-prom"
       },
-      "id": 302168320,
-      "links": [
-        {
-          "title": "Restart Causes",
-          "type": "link",
-          "url": "/d/smc-live-overlay-v1?orgId=1&viewPanel=1148615869",
-          "targetBlank": true
-        }
-      ]
+      "id": 302168320
     },
     {
       "title": "Worker Liveness",
@@ -4022,56 +4014,6 @@
         "uid": "grafanacloud-prom"
       },
       "id": 1580287418
-    },
-    {
-      "title": "Restart Causes (24h)",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 122,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "grafanacloud-prom"
-          },
-          "expr": "sum by (cause) (\n  changes(live_overlay_daemon_start_time_seconds{job=~\"$job\"}[24h])\n)",
-          "refId": "A",
-          "legendFormat": "{{cause}}"
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "lastNotNull"
-          ]
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 8
-          }
-        }
-      },
-      "description": "Restart cause distribution over the last 24 hours, counted as start-time changes of live_overlay_daemon_start_time_seconds per cause (the per-cause _total counters are reset to 1 each process, so increase() over them was always 0).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "grafanacloud-prom"
-      },
-      "id": 1148615869
     },
     {
       "title": "Ingest Queue Backpressure",

@@ -226,7 +226,6 @@ those secrets are added to the repo.
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | no | 20000 | Max queued bars before drop (clamped 1000–200000) |
-| `LIVE_OVERLAY_RESTART_CAUSE` | no | — | `cause` label on `live_overlay_daemon_start_time_seconds` |
 | `LOG_LEVEL` | no | `INFO` | Python log level |
 | `OVERLAY_FLOW_REFRESH_SECS` | no | — | Flow refresh interval |
 | `OVERLAY_MAX_FEED_FAILURES` | no | — | Circuit breaker threshold |
@@ -1225,9 +1224,7 @@ changes(live_overlay_process_start_time_seconds{job=~"$job"}[1m]) > 0
 Restart-cause breakdown (per-cause counts over a window):
 
 ```promql
-sum by (cause) (
-  changes(live_overlay_daemon_start_time_seconds{job=~"$job"}[24h])
-)
+sum(changes(live_overlay_process_start_time_seconds{job=~"$job"}[24h]))
 ```
 
 > The `live_overlay_daemon_restart_cause_*_total` and
@@ -1235,8 +1232,12 @@ sum by (cause) (
 > to `1` on every process start and stayed constant, so Prometheus saw `1,1,…`,
 > detected no reset, and `increase()` was always `0` — measured 2026-07-23, the
 > series read `1` against 51 real restarts in the same 24h.
-> `live_overlay_daemon_start_time_seconds{cause}` carries the start epoch as its
-> value, so `changes()` counts real restarts per cause.
+> 2026-07-28 (B-sweep): the cause-labeled
+> `live_overlay_daemon_start_time_seconds{cause}` gauge was removed as well —
+> `LIVE_OVERLAY_RESTART_CAUSE` was never set anywhere, so the label was the
+> constant `unknown`, and a statically-set env cannot distinguish deploy from
+> crash. Restart counting stays on `changes()` of the process start-time gauge;
+> Railway deployment/restart logs are the cause source.
 
 **F-1 drill evidence (2026-07-23, one-night practice test, PR #3875/#3884/#3892):**
 the `lo-restart-data-loss-closed` firing path was exercised against production —

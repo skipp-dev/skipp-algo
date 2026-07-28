@@ -258,7 +258,6 @@ missing symbol cache entry.
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `100` | Number of workflow runs fetched per API poll (range 1–100). 100 is GitHub's page ceiling and the value is clamped to it, so this can only *lower* coverage; a sparse flow buried past one page needs pagination in the bridge, not a larger value. |
-| `LIVE_OVERLAY_RESTART_CAUSE` | ❌ | `unknown` | Restart cause label (`deploy`, `crash`, `manual`, …) for restart observability |
 | `LIVE_OVERLAY_INGEST_QUEUE_MAX` | ❌ | `20000` | Max pending bars in feed ingest queue before drops (range 1000–200000) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
@@ -458,7 +457,6 @@ observability.py (structured log lines + in-process counters)
 | `live_overlay_market_us_open` | gauge | market_hours.py |
 | `live_overlay_market_europe_open` | gauge | market_hours.py |
 | `live_overlay_market_asia_open` | gauge | market_hours.py |
-| `live_overlay_daemon_start_time_seconds{cause}` | gauge | metrics.py/config.py |
 | `live_overlay_hotspot_symbols_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_timeframes_tracked` | gauge | request_hotspots.py |
 | `live_overlay_hotspot_symbol_<symbol>_requests_total` | counter | request_hotspots.py |

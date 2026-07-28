@@ -818,16 +818,11 @@ def github_workflow_branch() -> str:
     return _optional_str("GITHUB_WORKFLOW_MONITOR_BRANCH", "main").strip()
 
 
-def restart_cause() -> str:
-    """Deployment/runtime restart cause label for observability dashboards.
-
-    Examples: deploy, crash, manual, autoscale, unknown.
-    """
-    raw = _optional_str("LIVE_OVERLAY_RESTART_CAUSE", "unknown").lower()
-    normalized = re.sub(r"[^a-z0-9_]+", "_", raw).strip("_")
-    return normalized or "unknown"
-
-
+# 2026-07-28 (B-sweep): restart_cause() / LIVE_OVERLAY_RESTART_CAUSE removed.
+# The env was never set in any deploy surface (railway.toml, Dockerfile,
+# workflow), so the label was the constant "unknown" — and a statically-set
+# env var can never distinguish deploy from crash, so the documented
+# semantics ("deploy, crash, manual, …") were unreachable by construction.
 def ingest_queue_max() -> int:
     """Maximum number of pending bars in feed ingest queue."""
     return _clamped_int("LIVE_OVERLAY_INGEST_QUEUE_MAX", 20000, 1000, 200000)
