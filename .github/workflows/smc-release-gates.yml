@@ -152,6 +152,7 @@ jobs:
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --ci-mode \
+            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_release_gates_report.json
 
       - name: Classify release gate results (F-09)

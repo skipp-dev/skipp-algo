@@ -1,0 +1,59 @@
+"""Contract pins for the measurement-baseline feed (wired 2026-07-28, B-sweep).
+
+Before this wiring, ``--measurement-baseline-summary`` had NO feeder anywhere
+and evidence summaries lived only as per-run workflow artifacts, so the
+regression half of the measurement-shadow governance could never fire. These
+pins keep every edge of the new feed present:
+
+  producer  smc-deeper-integration-gates (scheduled) -> merge script -> bot PR
+  storage   reports/smc_measurement_baseline_summary.json (committed)
+  consumers all four run_smc_release_gates invocations pass the flag
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from scripts.run_smc_release_gates import _load_measurement_history_rows
+
+REPO = Path(__file__).resolve().parents[1]
+BASELINE = "reports/smc_measurement_baseline_summary.json"
+FLAG_LINE = f"--measurement-baseline-summary {BASELINE}"
+
+
+def _workflow(name: str) -> str:
+    return (REPO / ".github" / "workflows" / name).read_text(encoding="utf-8")
+
+
+def test_all_four_gate_invocations_pass_the_baseline_flag() -> None:
+    deeper = _workflow("smc-deeper-integration-gates.yml")
+    refresh = _workflow("smc-library-refresh.yml")
+    release = _workflow("smc-release-gates.yml")
+    assert deeper.count(FLAG_LINE) == 1, "deeper measurement lane export must pass the baseline"
+    assert refresh.count(FLAG_LINE) == 2, "pre- AND post-release gates must pass the baseline"
+    assert release.count(FLAG_LINE) == 1, "strict release gates must pass the baseline"
+
+
+def test_scheduled_commit_job_feeds_the_baseline() -> None:
+    deeper = _workflow("smc-deeper-integration-gates.yml")
+    assert "measurement-baseline-commit:" in deeper
+    # Schedule-only commit: push-triggered runs must never commit (loop guard).
+    assert "if: github.event_name == 'schedule'" in deeper
+    # The job merges THIS run's evidence summary into the committed baseline.
+    assert "scripts/update_measurement_baseline_summary.py" in deeper
+    assert f"--baseline {BASELINE}" in deeper
+    assert f"--out {BASELINE}" in deeper
+    assert "name: smc-deeper-gate-evidence" in deeper  # artifact round-trip
+    # GH_PAT discipline (GITHUB_TOKEN-created PRs strand the required check).
+    assert "secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN" in deeper
+    assert f"git add {BASELINE}" in deeper
+    assert "--auto --squash --delete-branch" in deeper
+
+
+def test_committed_seed_is_loader_compatible() -> None:
+    payload = json.loads((REPO / BASELINE).read_text(encoding="utf-8"))
+    assert payload["report_kind"] == "measurement_baseline_summary"
+    assert isinstance(payload["measurement_history"]["history_by_pair"], dict)
+    rows, note = _load_measurement_history_rows(str(REPO / BASELINE), symbol="SPY", timeframe="1D")
+    assert note is None, f"seed must parse cleanly for the loader, got note: {note}"
+    assert rows == []

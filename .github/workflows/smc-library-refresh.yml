@@ -963,6 +963,7 @@ jobs:
             --max-age-seconds 86400 \
             --output artifacts/ci/structure_artifact_availability.json
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
+            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_pre_release_gates_report.json
 
       # ── Dated snapshot archival ─────────────────────────────────
@@ -1236,6 +1237,7 @@ jobs:
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
+            --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
             --output artifacts/ci/smc_post_release_gates_report.json
 
       - name: Refresh gate evidence summary after post-release validation

@@ -162,14 +162,27 @@ single merged bias + confidence level.
   measurement gate, while evidence summaries compute historical comparisons for
   `measurement_history.shadow_degradations_detected` and
   `measurement_degradations_detected`.
-- **History-tightened calibrated ceilings**: once enough history exists, the
-  calibrated absolute warn ceilings are tightened automatically from the
+- **History-tightened calibrated ceilings**: once >= 2 history rows exist for
+  a pair, the calibrated absolute warn ceilings are tightened from the
   historical median plus regression slack and surfaced as
-  `measurement_shadow_effective_thresholds` in the release report.
-- **Optional promotion path**: `scripts/run_smc_release_gates.py` accepts
-  `--measurement-baseline-summary <path>` to compare the current run against a
-  prior evidence summary and `--strict-measurement-shadow` to promote those
-  shadow degradations from warn-only to blocking failures.
+  `measurement_shadow_effective_thresholds` in the release report. Truth note
+  2026-07-28 (B-sweep): from the shadow-governance sprint until this date the
+  feed did NOT exist — no invocation passed `--measurement-baseline-summary`
+  and evidence summaries lived only as per-run workflow artifacts, so this
+  paragraph's earlier "automatically" claim was constructively false.
+- **Baseline feed (wired 2026-07-28)**: the scheduled
+  `smc-deeper-integration-gates` run rolls its evidence summary into the
+  committed `reports/smc_measurement_baseline_summary.json` via
+  `scripts/update_measurement_baseline_summary.py` (per-pair rolling history,
+  newest-first, capped, bot auto-merge PR; schedule-only so push runs cannot
+  start a commit loop). All four `run_smc_release_gates` invocations (deeper
+  export, pre-/post-release refresh gates, strict release gates) read it back
+  through `--measurement-baseline-summary`; the loader is fail-soft, so a
+  missing/seed baseline degrades to the absolute thresholds with a note.
+  Contract-pinned by `tests/test_measurement_baseline_wiring_contract.py`.
+- **Optional strictness**: `--strict-measurement-shadow` promotes shadow
+  degradations from warn-only to blocking failures. It remains DELIBERATELY
+  unwired (pinned by `tests/test_smc_library_refresh_workflow.py`).
 - **Benchmark harness**: `scripts/run_smc_measurement_benchmark.py` provides a
   reproducible one-command operator path for R5. It writes pair-scoped JSON and
   CSV summaries, `benchmark_run_summary.csv`, `benchmark_run_manifest.json`,
