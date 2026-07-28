@@ -115,6 +115,16 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # pointer artifacts/open_prep/outcome_backfill/latest.json; the R1
         # regex captures the open_prep/... suffix which is not a repo path.
         "open_prep/outcome_backfill/latest.json",
+        # Same mechanism for the daily quote-reference artifacts built by the
+        # snapshot-publish step of run-open-prep-daily.yml (#4154 introduced
+        # QUOTE_REF, #4173 added FMP_QUOTE_REF). Both are written at runtime to
+        # artifacts/open_prep/latest/ and pushed to bot/live-open-prep-snapshot;
+        # the R1 regex captures only the open_prep/... suffix, which is not and
+        # never will be a repo path. Un-reds main's full-suite CI, which has been
+        # failing on this test since #4154 (ci.yml is not a required check on PRs,
+        # so both citations landed green and broke the main push run).
+        "open_prep/latest/quote_reference.json",
+        "open_prep/latest/quote_reference_fmp.json",
         # Workflow-generated history JSONs (committed by automation, may not
         # exist in a fresh clone or before first run).
         "docs/calibration/calibration_report_public_history.json",
