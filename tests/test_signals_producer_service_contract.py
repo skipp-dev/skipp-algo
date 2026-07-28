@@ -233,6 +233,24 @@ def test_signals_producer_httpx_pin_matches_root_requirements() -> None:
     )
 
 
+def test_signals_producer_databento_pin_matches_root_requirements() -> None:
+    # The producer must ship the databento SDK so RT_QUOTE_SOURCE=databento
+    # (the shadow/cutover quote path) can import it; it was latent-missing until
+    # the shadow deploy surfaced ModuleNotFoundError. Keep the pin aligned with
+    # root so the shadow and root builds resolve the same version.
+    root_requirements = _REPO_ROOT / "requirements.txt"
+    service_requirements = _SERVICE_DIR / "requirements.txt"
+
+    root_databento = _extract_exact_pin(root_requirements, "databento")
+    service_databento = _extract_exact_pin(service_requirements, "databento")
+
+    assert root_databento is not None, "Root requirements.txt must pin databento with =="
+    assert service_databento is not None, "signals_producer requirements.txt must pin databento with =="
+    assert service_databento == root_databento, (
+        "signals_producer databento pin drifted from root requirements.txt; keep both pins aligned"
+    )
+
+
 def test_signals_producer_ai_defense_pin_matches_root_requirements() -> None:
     root_requirements = _REPO_ROOT / "requirements.txt"
     service_requirements = _SERVICE_DIR / "requirements.txt"
