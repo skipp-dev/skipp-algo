@@ -39,6 +39,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
+
 logger = logging.getLogger("scripts.g3_bridge_ab_arms")
 
 DEFAULT_AB_DIR = Path("artifacts/open_prep/ab_arms")
@@ -162,10 +164,9 @@ def main(argv: list[str] | None = None) -> int:
         comparison = build_cumulative_comparison(ab_dir=args.ab_dir)
         if comparison is None:
             return 0
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(
+        atomic_write_text(  # tempfile+os.replace; also mkdirs the parent
             json.dumps(comparison, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+            args.out,
         )
         sprt = comparison["sprt"]
         logger.info(
