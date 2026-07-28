@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     patterns = args.paths or list(DEFAULT_GLOBS)
     files = sorted({Path(p) for pat in patterns for p in glob.glob(pat)})
     summary = summarize(files)
-    json.dump(summary, sys.stdout, indent=2)
+    json.dump(summary, sys.stdout, indent=2)  # ATOMIC-WRITE-EXEMPT: stdout-only report, no file involved
     print()
     if summary["rows"] == 0:
         print(

@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 from typing import Final
 
+from scripts.smc_atomic_write import atomic_write_text
 from scripts.smc_hold_manager_replay import build_replay_preflight
 
 ROOT: Final = Path(__file__).resolve().parents[1]
@@ -519,11 +520,10 @@ def main() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     fixture = build_fixture(source)
     manifest = build_manifest(source, fixture)
-    FIXTURE.parent.mkdir(parents=True, exist_ok=True)
-    FIXTURE.write_text(fixture, encoding="utf-8")
-    MANIFEST.write_text(
+    atomic_write_text(fixture, FIXTURE)  # tempfile+os.replace; mkdirs parent
+    atomic_write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+        MANIFEST,
     )
 
 

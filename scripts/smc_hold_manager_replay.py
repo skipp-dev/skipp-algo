@@ -21,6 +21,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Final
 
+from scripts.smc_atomic_write import atomic_write_text
+
 ROOT: Final = Path(__file__).resolve().parents[1]
 HOLD_MANAGER_SOURCE: Final = ROOT / "SMC_Hold_Manager.pine"
 DEFAULT_OUTPUT: Final = (
@@ -1186,10 +1188,9 @@ def build_replay_preflight() -> dict[str, object]:
 def write_replay_preflight(path: Path = DEFAULT_OUTPUT) -> None:
     """Write the deterministic preflight payload with stable formatting."""
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    atomic_write_text(  # tempfile+os.replace; also mkdirs the parent
         json.dumps(build_replay_preflight(), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+        path,
     )
 
 
@@ -1223,8 +1224,7 @@ def main() -> int:
                 f"stale replay preflight: regenerate {args.output}"
             )
         return 0
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(expected, encoding="utf-8")
+    atomic_write_text(expected, args.output)  # tempfile+os.replace; mkdirs parent
     return 0
 
 
