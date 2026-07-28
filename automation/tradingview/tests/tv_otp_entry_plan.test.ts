@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   isOtpEntryComplete,
   planOtpEntry,
+  shouldAttemptTotp,
+  totpTimeStep,
 } from "../lib/tv_shared.js";
 
 // 2026-07-28: the headless fallback reached TradingView's 2FA step for the first
@@ -69,4 +71,17 @@ test("completeness compares the whole code, not just its length", () => {
   assert.equal(isOtpEntryComplete("1", "123456"), false, "the exact regression: one digit landed");
   assert.equal(isOtpEntryComplete("123457", "123456"), false, "same length, wrong code");
   assert.equal(isOtpEntryComplete("", "123456"), false);
+});
+
+test("the same TOTP time-step is attempted only once", () => {
+  const nowMs = Date.UTC(2026, 6, 28, 16, 0, 5);
+  const first = shouldAttemptTotp(undefined, nowMs);
+
+  assert.equal(first.attempt, true);
+  assert.equal(shouldAttemptTotp(first.step, nowMs + 20_000).attempt, false);
+  assert.equal(shouldAttemptTotp(first.step, nowMs + 30_000).attempt, true);
+});
+
+test("TOTP time-step rejects invalid periods", () => {
+  assert.throws(() => totpTimeStep(Date.now(), 0), /periodSeconds must be positive/);
 });

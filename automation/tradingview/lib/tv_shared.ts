@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -389,6 +390,110 @@ export function writeJson(filePath: string, payload: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + "\n", "utf-8");
 }
 
+/**
+ * Atomically replace a credential-bearing JSON file with owner-only
+ * permissions. The temporary file lives beside the destination so rename()
+ * cannot cross filesystems.
+ */
+export function writePrivateJsonAtomic(filePath: string, payload: unknown): void {
+  const parent = path.dirname(filePath);
+  fs.mkdirSync(parent, { recursive: true });
+  const temporaryPath = path.join(parent, `.${path.basename(filePath)}.${randomUUID()}.tmp`);
+  try {
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify(payload, null, 2) + "\n",
+      { encoding: "utf-8", flag: "wx", mode: 0o600 },
+    );
+    fs.chmodSync(temporaryPath, 0o600);
+    fs.renameSync(temporaryPath, filePath);
+    fs.chmodSync(filePath, 0o600);
+  } finally {
+    fs.rmSync(temporaryPath, { force: true });
+  }
+}
+
+export type ExclusiveFileLock = {
+  owner: string;
+  path: string;
+  release: () => void;
+};
+
+/**
+ * Acquire a fail-closed, owner-labelled lock for a local TradingView capture.
+ *
+ * The lock is deliberately not auto-stolen: after a crash, an operator must
+ * first establish that no capture still owns the account session and then
+ * remove the stale lock. A random token prevents an old process from deleting
+ * a newer lock if somebody manually removes/replaces the file.
+ */
+export function acquireExclusiveFileLock(
+  lockPath: string,
+  owner: string,
+): ExclusiveFileLock {
+  const resolvedPath = path.resolve(lockPath);
+  const parent = path.dirname(resolvedPath);
+  fs.mkdirSync(parent, { recursive: true });
+  const token = randomUUID();
+  const payload = {
+    owner,
+    pid: process.pid,
+    acquiredAt: new Date().toISOString(),
+    token,
+  };
+
+  try {
+    fs.writeFileSync(
+      resolvedPath,
+      JSON.stringify(payload, null, 2) + "\n",
+      { encoding: "utf-8", flag: "wx", mode: 0o600 },
+    );
+    fs.chmodSync(resolvedPath, 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      throw error;
+    }
+    let currentOwner = "unknown";
+    try {
+      const current = JSON.parse(fs.readFileSync(resolvedPath, "utf-8")) as { owner?: unknown };
+      if (typeof current.owner === "string" && current.owner.trim()) {
+        currentOwner = current.owner.trim();
+      }
+    } catch {
+      // The existence of an unreadable lock is still a lock; fail closed.
+    }
+    throw new Error(
+      `TradingView capture lock is already held by ${currentOwner}: ${resolvedPath}. `
+      + "If the previous capture crashed, verify that no capture process is running before removing the stale lock.",
+    );
+  }
+
+  let released = false;
+  return {
+    owner,
+    path: resolvedPath,
+    release: () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      try {
+        const current = JSON.parse(fs.readFileSync(resolvedPath, "utf-8")) as { token?: unknown };
+        if (current.token === token) {
+          fs.rmSync(resolvedPath);
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          console.warn(
+            `[tv-auth] Could not release capture lock ${resolvedPath}: `
+            + `${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+    },
+  };
+}
+
 function normalizeUiText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -605,6 +710,24 @@ export function isOtpEntryComplete(
   expected: string,
 ): boolean {
   return observed.replace(/\s+/g, "") === expected;
+}
+
+/** Return the TOTP time-step number for deterministic retry de-duplication. */
+export function totpTimeStep(nowMs: number, periodSeconds = 30): number {
+  if (!Number.isFinite(nowMs) || !Number.isFinite(periodSeconds) || periodSeconds <= 0) {
+    throw new Error("TOTP time-step inputs must be finite and periodSeconds must be positive");
+  }
+  return Math.floor(nowMs / (periodSeconds * 1_000));
+}
+
+/** A TOTP may be entered/submitted at most once in a given time-step. */
+export function shouldAttemptTotp(
+  lastAttemptedStep: number | undefined,
+  nowMs: number,
+  periodSeconds = 30,
+): { attempt: boolean; step: number } {
+  const step = totpTimeStep(nowMs, periodSeconds);
+  return { attempt: lastAttemptedStep !== step, step };
 }
 
 /** Raw shape collected from the DOM for one potentially-actionable node. */
