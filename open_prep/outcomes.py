@@ -629,6 +629,9 @@ def prepare_outcome_snapshot(
             "trend_alignment": row.get("trend_alignment"),
             "dist_to_ema20_pct": row.get("dist_to_ema20_pct"),
             "ema50_slope_pct": row.get("ema50_slope_pct"),
+            # Energy-weighted MA remains observe-only until a new labeled
+            # calibration cohort supports a versioned weight contract.
+            "ewma_score_shadow": row.get("ewma_score_shadow"),
             # Gap position vs prior-day H/L range (observe-only; eval C4).
             "gap_range_pos": row.get("gap_range_pos"),
             # Earnings-surprise magnitude for PEAD (observe-only; eval C2b — the
@@ -720,6 +723,7 @@ FEATURE_KEYS: list[str] = [
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
+    "ewma_score_shadow",
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
@@ -742,6 +746,7 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
+    "ewma_score_shadow",
     "gap_range_pos",
     "recent_eps_surprise_pct",
     "days_since_last_earnings",
@@ -1109,6 +1114,7 @@ def _compute_feature_statistics(
             p_value = 1.0
 
         stats[key] = {
+            "measured_samples": int(vals.size),
             "pearson_r": round(float(pearson), 4),
             "mean_separation": round(float(separation), 4),
             "mean_win": round(float(mean_win), 4),

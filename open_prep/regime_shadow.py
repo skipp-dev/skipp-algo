@@ -1,140 +1,161 @@
-"""Shadow measurement for the scorer's §15 SYMBOL-layer regime weights.
+"""Exact observation-only replay for §15 symbol-regime weights.
 
-``score_candidate`` resolves ``symbol_regime`` from ``quote["adx"]`` and
-``quote["bb_width_pct"]``.  No producer populates either key on the premarket
-quote path, so the scorer always falls back to its defaults (15.0 / 3.0),
-which classify as ``NEUTRAL`` — and ``resolve_regime_weights`` applies no tilt
-for ``NEUTRAL``.  The §15 symbol-layer adjustment is therefore inert in
-production even though the comment at its call site describes it as active.
-
-The measured indicators *do* exist in the same run: ``run_open_prep`` computes
-Wilder ADX and BB width from the daily bars, but only in the enrichment stage
-that runs **after** scoring, so they cannot reach ``score_candidate``.
-
-This module records what the measured regime *would* have changed, so the
-decision to wire §15 up can be made on real runs instead of on a guess.  It is
-observation-only: nothing here feeds a gate, a rank, a weight or a score.
-Consumer (added 2026-07-28 after a sweep flagged the measurement as
-reader-less): ``python -m scripts.report_regime_weight_shadow`` aggregates
-the stamped rows from the run payloads into the decision summary.
-
-Exactness
----------
-The composite score is linear in the weights for the affected components:
-``component_k = w_k * f_k``.  Under a different weight ``w'_k`` the component
-becomes ``component_k * w'_k / w_k``, so the delta is reconstructible from the
-emitted ``score_breakdown`` alone — no re-scoring, no feature reconstruction.
-
-The baseline is ``resolve_regime_weights(base, "NEUTRAL")`` rather than the raw
-base, because the scorer runs that call too: ``NEUTRAL`` applies no tilt but
-still runs the iterative component cap.
+The live scorer intentionally remains on its current inputs. A second full
+scorer pass receives measured ADX and Bollinger-band width from the ATR candle
+cache. Comparing completed scorer outputs captures component caps, penalties,
+haircuts, tiering and rank movement that cannot be reconstructed from a
+post-cap score breakdown.
 """
 from __future__ import annotations
 
 import math
 from typing import Any, Final
 
-from open_prep.technical_analysis import resolve_regime_weights
-
-#: The regime ``score_candidate`` always resolves in production (see above).
 SCORING_REGIME: Final[str] = "NEUTRAL"
-
-#: Weight key -> the ``score_breakdown`` component that weight scales.
-#: Exactly the five weights ``resolve_regime_weights`` tilts.
-SHADOW_COMPONENTS: Final[dict[str, str]] = {
-    "gap": "gap_component",
-    "gap_sector_relative": "gap_sector_rel_component",
-    "rvol": "rvol_component",
-    "momentum_z": "momentum_component",
-    "ext_hours": "ext_hours_component",
-}
 
 
 def _finite(value: Any) -> float | None:
-    """Return *value* as a float, or ``None`` if it is not a finite number."""
     if isinstance(value, bool):
         return None
-    if not isinstance(value, (int, float)):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
         return None
-    out = float(value)
-    if not math.isfinite(out):
-        return None
-    return out
+    return parsed if math.isfinite(parsed) else None
 
 
-def compute_regime_weight_shadow(
-    row: dict[str, Any],
-    measured_regime: Any,
-    *,
-    base_weights: dict[str, float],
-) -> dict[str, Any]:
-    """Return what *measured_regime* would have changed for *row*.
+def build_exact_shadow_quotes(
+    quotes: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Copy quotes and expose measured regime inputs only to the shadow pass.
 
-    Parameters
-    ----------
-    row:
-        A ranked candidate carrying the scorer's ``score_breakdown``.  It is
-        read, never mutated.
-    measured_regime:
-        The regime derived from measured ADX / BB width in the enrichment
-        stage.  Non-string / empty values are treated as ``NEUTRAL``.
-    base_weights:
-        The weight set the scorer actually used for this run, so the delta
-        reflects production rather than the module defaults.
-
-    Returns
-    -------
-    dict
-        ``score_delta`` is the additive change to the composite score.  The
-        multiplicative haircuts (counter-trend, low-tier-news) scale the
-        baseline and the shadow identically, so they are omitted.
-        ``unresolved`` lists every component that could not be reconstructed —
-        those are never silently counted as zero change.
+    EWMA remains absent from ``daily_bars`` and therefore neutral in both
+    scorer passes. Its independently measured score is returned as metadata
+    for a new calibration cohort, never as a live score input.
     """
-    regime = measured_regime if isinstance(measured_regime, str) else ""
-    regime = regime.strip().upper()
-    if not regime:
-        regime = SCORING_REGIME
+    shadow_quotes: list[dict[str, Any]] = []
+    technical_by_symbol: dict[str, dict[str, Any]] = {}
+    for quote in quotes:
+        copied = dict(quote)
+        symbol = str(quote.get("symbol") or "").strip().upper()
+        adx = _finite(quote.get("_shadow_adx"))
+        bb_width = _finite(quote.get("_shadow_bb_width_pct"))
+        ewma_score = _finite(quote.get("ewma_score_shadow"))
+        source = str(quote.get("_shadow_technical_source") or "unavailable")
+        complete = adx is not None and bb_width is not None
+        if complete:
+            copied["adx"] = adx
+            copied["bb_width_pct"] = bb_width
+        else:
+            copied.pop("adx", None)
+            copied.pop("bb_width_pct", None)
+        # A future producer must not accidentally activate uncalibrated EWMA
+        # in this §15-only replay.
+        copied.pop("daily_bars", None)
+        shadow_quotes.append(copied)
+        if symbol:
+            technical_by_symbol[symbol] = {
+                "adx": adx,
+                "bb_width_pct": bb_width,
+                "ewma_score_shadow": ewma_score,
+                "technical_source": source,
+                "technical_complete": complete,
+            }
+    return shadow_quotes, technical_by_symbol
 
-    baseline = resolve_regime_weights(dict(base_weights), SCORING_REGIME)
-    measured = resolve_regime_weights(dict(base_weights), regime)
 
-    raw_breakdown = row.get("score_breakdown")
-    breakdown: dict[str, Any] = raw_breakdown if isinstance(raw_breakdown, dict) else {}
+def attach_exact_regime_shadow(
+    baseline_rows: list[dict[str, Any]],
+    shadow_rows: list[dict[str, Any]],
+    technical_by_symbol: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Attach exact score/rank comparisons to baseline rows in place.
 
-    component_delta: dict[str, float] = {}
-    weight_delta: dict[str, float] = {}
-    unresolved: list[str] = []
-    score_delta = 0.0
-
-    for weight_key, component_key in SHADOW_COMPONENTS.items():
-        w_base = _finite(baseline.get(weight_key))
-        w_measured = _finite(measured.get(weight_key))
-        if w_base is None or w_measured is None:
-            unresolved.append(weight_key)
+    ``comparisons`` covers the complete scoring universe, not only served
+    top-N rows, avoiding selection bias in the later wire-or-not report.
+    """
+    shadow_by_symbol = {
+        str(row.get("symbol") or "").strip().upper(): (rank, row)
+        for rank, row in enumerate(shadow_rows, start=1)
+        if str(row.get("symbol") or "").strip()
+    }
+    exact = 0
+    unresolved = 0
+    rank_changes = 0
+    for baseline_rank, baseline in enumerate(baseline_rows, start=1):
+        symbol = str(baseline.get("symbol") or "").strip().upper()
+        technical = technical_by_symbol.get(symbol, {})
+        paired = shadow_by_symbol.get(symbol)
+        baseline_score = _finite(baseline.get("score"))
+        if paired is None or baseline_score is None:
+            unresolved += 1
+            baseline["regime_weight_shadow"] = {
+                "schema_version": 2,
+                "symbol": symbol,
+                "exact_second_scorer_pass": False,
+                "regime_at_scoring": str(baseline.get("symbol_regime") or SCORING_REGIME),
+                "measured_regime": None,
+                "baseline_score": baseline_score,
+                "shadow_score": None,
+                "score_delta": None,
+                "baseline_rank": baseline_rank,
+                "shadow_rank": None,
+                "rank_delta": None,
+                "would_change_score": None,
+                "technical_source": technical.get("technical_source", "unavailable"),
+                "measured_adx": technical.get("adx"),
+                "measured_bb_width_pct": technical.get("bb_width_pct"),
+                "unresolved": ["shadow_pair_or_finite_score_missing"],
+            }
+            baseline["ewma_score_shadow"] = technical.get("ewma_score_shadow")
             continue
-        weight_delta[weight_key] = round(w_measured - w_base, 6)
 
-        component = _finite(breakdown.get(component_key))
-        if component is None:
-            unresolved.append(component_key)
-            continue
-        if w_base == 0.0:
-            # component is 0 by construction, so the feature value — and with
-            # it the shadow contribution — is unrecoverable from the row.
-            unresolved.append(component_key)
-            continue
-
-        delta = component * (w_measured / w_base) - component
-        component_delta[component_key] = round(delta, 6)
-        score_delta += delta
+        shadow_rank, shadow = paired
+        shadow_score = _finite(shadow.get("score"))
+        is_exact = shadow_score is not None and bool(technical.get("technical_complete"))
+        if is_exact:
+            exact += 1
+            score_delta = round(shadow_score - baseline_score, 6)
+            rank_delta = baseline_rank - shadow_rank
+            rank_changes += int(rank_delta != 0)
+            unresolved_fields: list[str] = []
+        else:
+            unresolved += 1
+            score_delta = None
+            rank_delta = None
+            unresolved_fields = ["measured_adx_or_bb_width_missing"]
+        baseline["regime_weight_shadow"] = {
+            "schema_version": 2,
+            "symbol": symbol,
+            "exact_second_scorer_pass": is_exact,
+            "regime_at_scoring": str(baseline.get("symbol_regime") or SCORING_REGIME),
+            "measured_regime": str(shadow.get("symbol_regime") or SCORING_REGIME),
+            "baseline_score": baseline_score,
+            "shadow_score": shadow_score if is_exact else None,
+            "score_delta": score_delta,
+            "baseline_rank": baseline_rank,
+            "shadow_rank": shadow_rank if is_exact else None,
+            "rank_delta": rank_delta,
+            "would_change_score": score_delta != 0.0 if score_delta is not None else None,
+            "technical_source": technical.get("technical_source", "unavailable"),
+            "measured_adx": technical.get("adx"),
+            "measured_bb_width_pct": technical.get("bb_width_pct"),
+            "unresolved": unresolved_fields,
+        }
+        baseline["ewma_score_shadow"] = technical.get("ewma_score_shadow")
 
     return {
-        "regime_at_scoring": SCORING_REGIME,
-        "measured_regime": regime,
-        "would_change_score": bool(component_delta) and score_delta != 0.0,
-        "score_delta": round(score_delta, 6),
-        "component_delta": component_delta,
-        "weight_delta": weight_delta,
-        "unresolved": unresolved,
+        "schema_version": 2,
+        "baseline_rows": len(baseline_rows),
+        "shadow_rows": len(shadow_rows),
+        "exact_rows": exact,
+        "unresolved_rows": unresolved,
+        "rank_changed_rows": rank_changes,
+        "comparisons": [
+            dict(row["regime_weight_shadow"])
+            for row in baseline_rows
+            if isinstance(row.get("regime_weight_shadow"), dict)
+        ],
+        "live_ranking_changed": False,
+        "ewma_live_weight_enabled": False,
     }

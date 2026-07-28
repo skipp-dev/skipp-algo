@@ -89,7 +89,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
     #   counter copy in generate_report shifted mkstemp 251 → 271 (pure shift).
-    ("open_prep/feature_importance_report.py", 271, "mkstemp"),
+    ("open_prep/feature_importance_report.py", 318, "mkstemp"),  # 2026-07-28 (dedicated EWMA recalibration status): 271->318
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     # 2026-06-17 (F1 lint fix): remove unused import sys → 116→115.
     # 2026-07-05 (bug-hunt round 7): import math → 115→116.
@@ -117,7 +117,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 sample_dates helper): +1 -> 604.
     # 2026-07-04 (market-microstructure observe-only): snapshot fields +
     # FEATURE_KEYS/PASS_THROUGH entries +16 -> 620.
-    ("open_prep/outcomes.py", 851, "mkstemp"),  # 2026-07-27 (PEAD C2b quote->row wiring: +2 snapshot fields, +4 FEATURE_KEYS/PASS_THROUGH entries): 844->851
+    ("open_prep/outcomes.py", 856, "mkstemp"),  # 2026-07-28 (EWMA shadow outcome/FI field): 851->856
     # 2026-07-03 (WP-4 holiday gate): +2 (import) then +8 below the gate.
     ("open_prep/realtime_signals.py", 122, "mkstemp"),  # 2026-07-25 (databento-signal-migration): 121->122
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted

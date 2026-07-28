@@ -79,7 +79,8 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     #   repo (neither static estimates nor revisions are ever computed).
     # Both still appear as c10b feature columns: interpret a 0 importance as
     # "data was never there", NOT as "no edge in this signal". Keys are kept
-    # for the schema/feature contract; wire-or-remove is an open decision.
+    # for the schema/feature contract. A3/A4 are retained unchanged until
+    # the next versioned feature/weight contract with an explicit migration.
     "institutional_quality": (0.0, 3.0),
     "estimate_revision": (0.0, 3.0),
     # "liquidity_penalty" is a price<$5 proxy that is UNREACHABLE for tradable
@@ -90,8 +91,9 @@ _WEIGHT_BOUNDS: dict[str, tuple[float, float]] = {
     "risk_off_penalty_multiplier": (0.0, 5.0),
     # "ewma" = ENERGY-weighted (volume × true-range) moving-average zone score,
     # not the industry-standard exponentially-weighted MA. Currently a constant
-    # 0.5 for every symbol because quote["daily_bars"] is never populated in
-    # open_prep — ranking-neutral offset; also absent from outcomes.FEATURE_KEYS.
+    # 0.5 in live scoring because quote["daily_bars"] is never populated. The
+    # ATR candles emit ewma_score_shadow into a separate outcome/FI cohort; it
+    # has no live weight mapping until its own versioned recalibration decision.
     "ewma": (0.0, 3.0),
 }
 

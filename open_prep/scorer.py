@@ -64,9 +64,9 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "analyst_catalyst": 0.5,  # misnomer: coverage BREADTH (count/10, cap 2.0), not a rating action — see config_validation.py
     "vwap_distance": 0.4,  # PRIOR-DAY daily VWAP vs prior close (positive = weak close), no premarket data — see compute_vwap_distance_pct
     "freshness_decay": 0.3,
-    "institutional_quality": 0.3,  # DEAD in production: not passed at the rank_candidates_v2 callsite → constant 0 — see config_validation.py
-    "estimate_revision": 0.4,  # DEAD: no producer exists anywhere → constant 0 — see config_validation.py
-    "ewma": 0.4,  # ENERGY-weighted MA (vol×range), not exponential; constant 0.5 (daily_bars never set) — see config_validation.py
+    "institutional_quality": 0.3,  # A3 retained until the next versioned feature/weight contract — see config_validation.py
+    "estimate_revision": 0.4,  # A4 retained until the next versioned feature/weight contract — see config_validation.py
+    "ewma": 0.4,  # live-neutral; ewma_score_shadow builds a separate recalibration cohort — see config_validation.py
     # Penalties (applied as subtractions)
     "liquidity_penalty": 1.5,  # price<$5 proxy, UNREACHABLE for tradable rows (price_below_5 hard-blocks first); no volume-based malus exists
     "corporate_action_penalty": 1.0,
