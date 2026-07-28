@@ -327,6 +327,49 @@ def resolve_artifact_mode(symbol: str, timeframe: str) -> str:
     return "none"
 
 
+def discover_artifact_candidates(symbol: str, timeframe: str) -> list[dict[str, str]]:
+    """Enumerate the on-disk structure-artifact candidates for symbol/timeframe.
+
+    Returns one entry per candidate that currently exists on disk, in loader
+    preference order. Each entry carries:
+
+    - ``path``  — the resolved artifact (or manifest-backed artifact) path,
+      posix form.
+    - ``kind``  — ``"manifest"`` for a manifest-backed artifact, ``"scratch"``
+      for a local file with no manifest backing (the deterministic
+      per-symbol file or the deprecated legacy single-file artifact).
+    - ``label`` — the resolution-mode name (matches
+      :func:`resolve_artifact_mode`).
+
+    This exposes the raw candidate set so callers (e.g. ``provider_health``,
+    ``structure_audit``) can apply the shared manifest > scratch preference
+    (:mod:`smc_integration.manifest_preference`) as one auditable rule instead
+    of each re-deriving path knowledge. It is a read-only observation helper
+    and never changes which artifact the loader actually resolves.
+    """
+    candidates: list[dict[str, str]] = []
+    try:
+        from_manifest = _resolve_from_manifest(symbol, timeframe)
+    except (OSError, ValueError):
+        # A broken/unparsable manifest is not a manifest-backed candidate;
+        # the loader-facing resolution surfaces that error separately.
+        from_manifest = None
+    if from_manifest is not None:
+        candidates.append(
+            {"path": str(from_manifest.as_posix()), "kind": "manifest", "label": "manifest"}
+        )
+    deterministic = _artifact_path_for_symbol_timeframe(symbol, timeframe)
+    if deterministic.exists():
+        candidates.append(
+            {"path": str(deterministic.as_posix()), "kind": "scratch", "label": "deterministic"}
+        )
+    if STRUCTURE_ARTIFACT_JSON.exists() and _legacy_artifact_has_symbol(symbol):
+        candidates.append(
+            {"path": str(STRUCTURE_ARTIFACT_JSON.as_posix()), "kind": "scratch", "label": "legacy_single"}
+        )
+    return candidates
+
+
 def has_any_structure_artifact() -> bool:
     if STRUCTURE_ARTIFACT_JSON.exists():
         return True

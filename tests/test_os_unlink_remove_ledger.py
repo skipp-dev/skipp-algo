@@ -183,7 +183,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_core/event_ledger.py", 198, "unlink"),  # 2026-07-13 schema-v1.1: label relocation shifted (163->180); schema-v1.2 rename+calibrated_prob (180->198)
     ("smc_core/scoring.py", 1276, "unlink"),  # 2026-07-13: 1225->1267 (normalize_sweep_side + calibration-honesty docstrings); 1267->1276 (frame_integrity extras in export_scoring_artifact)
     ("smc_integration/batch.py", 35, "unlink"),
-    ("smc_integration/provider_health.py", 69, "unlink"),
+    ("smc_integration/provider_health.py", 80, "unlink"),  # 2026-07-28 (ws5 observe-only): +11 from _resolve_structure_artifact_preference helper
     ("smc_integration/structure_batch.py", 43, "unlink"),  # 2026-07-13 (manifest generator provenance imports): 39->43
     ("streamlit_terminal.py", 2321, "unlink"),  # 2026-07-23 (News Ingest label + sidebar source lines above): 2307->2321
     ("terminal_export.py", 186, "unlink"),

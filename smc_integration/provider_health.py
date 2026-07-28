@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .manifest_preference import ArtifactCandidate, ArtifactSource, resolve_preferred
 from .provider_matrix import discover_provider_matrix
 from .repo_sources import (
     discover_composite_source_plan,
@@ -20,6 +21,16 @@ from .repo_sources import (
 )
 from .service import build_snapshot_bundle_for_symbol_timeframe
 from .sources import structure_artifact_json
+
+# ENG-WS5-01: map the structure-artifact candidate "kind" strings emitted by
+# ``structure_artifact_json.discover_artifact_candidates`` onto the shared
+# manifest-preference taxonomy. A local file with no manifest backing is
+# "scratch" and must never out-rank a manifest-backed artifact.
+_ARTIFACT_SOURCE_BY_KIND: dict[str, ArtifactSource] = {
+    "manifest": ArtifactSource.MANIFEST,
+    "shadow": ArtifactSource.SHADOW,
+    "scratch": ArtifactSource.SCRATCH,
+}
 
 CANONICAL_STRUCTURE_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
 _ALL_VISIBILITY_DOMAINS = ("structure", "volume", "technical", "news")
@@ -1189,6 +1200,56 @@ def _promote_release_strict_failures(
     return promoted_warnings, promoted_failures, promoted_degradations
 
 
+def _resolve_structure_artifact_preference(symbol: str, timeframe: str) -> dict[str, Any] | None:
+    """OBSERVE-ONLY manifest-preference audit for the reference structure artifact.
+
+    Applies the shared manifest > scratch policy
+    (:mod:`smc_integration.manifest_preference`) to the on-disk candidates the
+    loader could pick for ``symbol``/``timeframe``, and returns the verdict
+    alongside the loader's *actual* resolution mode for shadow comparison.
+
+    This is strictly observe-only: the returned dict is emitted into the
+    provider-health report but never influences which structure source the
+    discovery/loader actually selects, nor the report's pass/warn/fail
+    decision. Returns ``None`` when there is nothing to observe (no candidate)
+    or when the audit cannot be computed — a preference-compute error must
+    never break the host report.
+
+    Enforce after the shadow window: once the policy is confirmed to track
+    the loader, promote a manifest-vs-scratch disagreement to a provider-
+    health degradation/failure instead of a passive report field.
+    """
+    try:
+        raw_candidates = structure_artifact_json.discover_artifact_candidates(symbol, timeframe)
+        candidates = [
+            ArtifactCandidate(
+                path=Path(str(entry.get("path", ""))),
+                source=_ARTIFACT_SOURCE_BY_KIND.get(str(entry.get("kind", "")), ArtifactSource.SCRATCH),
+                label=str(entry.get("label", "")),
+            )
+            for entry in raw_candidates
+        ]
+        if not candidates:
+            return None
+        result = resolve_preferred(candidates)
+        loader_mode = structure_artifact_json.resolve_artifact_mode(symbol, timeframe)
+        out = result.as_dict()
+        out["reference_symbol"] = symbol
+        out["reference_timeframe"] = timeframe
+        out["loader_actual_mode"] = loader_mode
+        # Shadow signal: does the manifest-preference winner match what the
+        # loader would actually load today? (Observe-only; not acted on.)
+        chosen_label = result.chosen.label if result.chosen is not None else None
+        out["agrees_with_loader"] = bool(chosen_label == loader_mode)
+        out["observe_only"] = True
+        return out
+    except Exception:
+        # Observe-only: any preference-compute error is swallowed so it can
+        # never break the provider-health report. (Body is not a bare
+        # pass/continue, so this is not a silent-swallow tripwire site.)
+        return None
+
+
 def run_provider_health_check(
     *,
     symbols: list[str] | None = None,
@@ -1208,6 +1269,14 @@ def run_provider_health_check(
         source="auto",
         symbol=resolved_symbols[0],
         timeframe=resolved_timeframes[0],
+    )
+
+    # ENG-WS5-01 (OBSERVE-ONLY): audit whether the reference structure artifact
+    # would be resolved from a manifest-backed source in preference to local
+    # scratch. Emitted for a shadow window only; it does NOT change source
+    # selection or the health decision below. Enforce after the shadow window.
+    structure_artifact_preference = _resolve_structure_artifact_preference(
+        resolved_symbols[0], resolved_timeframes[0]
     )
 
     artifact_health = _collect_artifact_health(
@@ -1272,6 +1341,8 @@ def run_provider_health_check(
         "strict_release_policy": bool(strict_release_policy),
         "provider_domain_results": provider_results,
         "structure_source_status": structure_status,
+        # ENG-WS5-01 observe-only manifest-preference verdict (may be None).
+        "structure_artifact_preference": structure_artifact_preference,
         "artifact_health": artifact_health,
         "missing_artifacts": list(artifact_health.get("missing_artifacts", [])),
         "stale_artifacts": list(artifact_health.get("stale_artifacts", [])),
