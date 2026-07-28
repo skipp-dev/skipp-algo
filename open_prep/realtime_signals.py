@@ -1288,7 +1288,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"{_prefix}_avg_volume_missing_symbols {_missing_avg}")
         lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
         lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
-        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix))
+        lines.extend(_collect_a0_latency_metrics(engine, now, _prefix) + _collect_databento_feed_metrics(engine))
 
     return "\n".join(lines) + "\n"
 
@@ -4725,6 +4725,23 @@ def _active_snapshot_rows(
         for row in (data.get(key) or [])
         if str(row.get("symbol") or "").strip().upper() not in excluded
     ]
+
+
+def _collect_databento_feed_metrics(engine: Any) -> list[str]:
+    """Render optional feed telemetry without risking the central endpoint."""
+    feed_telemetry = getattr(
+        getattr(engine, "_databento_feed", None),
+        "telemetry",
+        None,
+    )
+    render_feed_metrics = getattr(feed_telemetry, "render_prometheus", None)
+    if not callable(render_feed_metrics):
+        return []
+    try:
+        return render_feed_metrics().splitlines()
+    except Exception:  # pragma: no cover - metrics must remain available
+        logger.exception("Failed to render Databento feed metrics")
+        return []
 
 
 if __name__ == "__main__":

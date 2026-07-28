@@ -772,3 +772,27 @@ def test_signals_producer_fmp_hotpath_alerts_present() -> None:
     assert "signals_producer_extended_shadow_enabled" in baseline_missing
     assert 'session="postmarket"' in baseline_missing
     assert "signals_producer_postmarket_baseline_symbols" in baseline_missing
+
+
+def test_signals_producer_databento_feed_alerts_present() -> None:
+    rules = _rules_by_uid()
+
+    drops = rules["sp-databento-live-queue-drops"]
+    drops_expr = _rule_expr(drops)
+    assert "databento_quote_feed_queue_dropped_total" in drops_expr
+    assert "[10m]" in drops_expr
+    assert drops["noDataState"] == "OK"
+    assert drops["for"] == "0s"
+    assert drops["labels"]["severity"] == "critical"
+    assert "Initial replay backpressure does not increment" in drops["annotations"]["summary"]
+
+    recovery = rules["sp-databento-feed-recovery-loop"]
+    recovery_expr = _rule_expr(recovery)
+    assert "databento_quote_feed_reconnect_attempts_total" in recovery_expr
+    assert "databento_quote_feed_bento_errors_total" in recovery_expr
+    assert "databento_quote_feed_unexpected_errors_total" in recovery_expr
+    assert "[15m]" in recovery_expr
+    assert recovery["noDataState"] == "OK"
+    assert recovery["for"] == "5m"
+    assert recovery["labels"]["severity"] == "warning"
+    assert recovery["data"][1]["model"]["conditions"][0]["evaluator"]["params"] == [2]
