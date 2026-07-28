@@ -174,7 +174,8 @@ _FROZEN_SITES: dict[str, int] = {
     # (``sys = _bootstrap_sys_mod`` rebinding + the immediately
     # following ``from scripts._logging_init import init_cli_logging``).
     "scripts/check_pine_legacy_drift.py": 2,
-    "scripts/emit_fvg_context_pine.py": 2,
+    # 2026-07-28: scripts/emit_fvg_context_pine.py entry dropped — file removed
+    # with the stranded FVG-context chain (see smc_core/benchmark.py tombstone).
     "scripts/fvg_quality_quartile_gate.py": 2,
     "scripts/g23_ab_watchdog.py": 2,
     # A9b.3 reduce-step: 1× `noqa: E402` for the

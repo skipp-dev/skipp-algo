@@ -64,8 +64,9 @@ When the SLO is breached for 3 consecutive measurement runs:
    functional bugs.
 
 4. **Operator playbook.** Investigate in the order:
-   * symbol-level smECE drift (which symbol moved? — check the
-     stratified report from `smc_core.benchmark.stratified_fvg_report`),
+   * symbol-level smECE drift (which symbol moved? — the tri-axis
+     stratified-FVG report was removed 2026-07-28 with its stranded chain;
+     use the per-family benchmark KPIs instead),
    * sample size collapse (did upstream data ingest break?),
    * weight-drift gate state (did the calibrated weights freeze?),
    * if none above, escalate to a recalibration run.

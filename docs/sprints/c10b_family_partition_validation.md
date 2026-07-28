@@ -177,7 +177,7 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 
 - **Producer (im Prozess):** `smc_integration/measurement_evidence.py::build_measurement_evidence()` baut `events_by_family: dict[EventFamily, list[dict]]` mit `EventFamily ∈ {"BOS","OB","FVG","SWEEP"}`. Familien-Tag steht **direkt im Record** (`events_by_family["BOS"].append(evaluated)` Z. 1279, OB Z. 1327, FVG Z. 1381, SWEEP Z. 1466).
 - **Producer (auf Disk):** `smc_core/event_ledger.py::write_event_ledger()` schreibt JSONL mit Schema `EventLedgerRecord(schema_version, event_id, symbol, timeframe, family, timestamp, predicted_prob, outcome, context, raw_score, raw_score_name, features, outcome_extras)`.
-- **Pfad:** `ledger_path_for_pair(pair_dir, symbol, timeframe) → pair_dir / f"events_{symbol}_{timeframe}.jsonl"`. Glob `events_*_*.jsonl` (siehe `scripts/emit_fvg_context_pine.py:83`).
+- **Pfad:** `ledger_path_for_pair(pair_dir, symbol, timeframe) → pair_dir / f"events_{symbol}_{timeframe}.jsonl"`. Glob `events_*_*.jsonl` (der frühere Beispiel-Leser emit_fvg_context_pine wurde 2026-07-28 mit der gestrandeten FVG-Context-Kette entfernt).
 - **Aufrufer:** `scripts/run_smc_measurement_benchmark.py:381` (Wochen-Cron `smc-measurement-benchmark.yml`, Sa 08:00 UTC).
 - **Konsumenten dieses Ledgers:** `scripts/fvg_quality_quartile_gate.py`, `scripts/fvg_quality_d4_audit.py`, `scripts/fvg_quality_recalibration.py`, `scripts/fvg_session_artifact_diagnosis.py`, `scripts/fvg_label_audit.py` lesen alle `record["family"] == "FVG"`.
 

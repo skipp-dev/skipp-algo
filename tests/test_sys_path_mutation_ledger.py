@@ -84,7 +84,8 @@ _FROZEN_SITES: dict[str, int] = {
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
     "scripts/e2e_smoke_ci.py": 2,
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
-    "scripts/emit_fvg_context_pine.py": 2,
+    # 2026-07-28: scripts/emit_fvg_context_pine.py entry dropped — file removed
+    # with the stranded FVG-context chain.
     # 2026-07-04 (plan B1): repo-root bootstrap so the Open-Prep Pine panel
     # generator works under both `python -m scripts.X` and `python scripts/X.py`.
     "scripts/generate_openprep_pine_panel.py": 1,
