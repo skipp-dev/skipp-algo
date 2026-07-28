@@ -237,3 +237,165 @@ def test_reload_without_source_path_raises() -> None:
     )})
     with pytest.raises(ValueError):
         reference.reload()
+
+
+# ---------------------------------------------------------------------------
+# Databento-native ADV (venue-consistent volume denominator)
+#
+# Live-verified 2026-07-28: EQUS.MINI delivers only 5-12% of FMP's
+# consolidated session volume (same-moment comparison, e.g. T 1.94M vs
+# 21.9M = 8.9%). An FMP-consolidated ADV denominator therefore depresses
+# every databento-path volume_ratio ~10x -- the volume regime reads >=80%
+# thin (HOLIDAY_SUSPECT, all signals suspended) and the A0/A1/A2 pace gates
+# never fire. Fix: source average_daily_volume from EQUS.MINI ohlcv-1d
+# history so ratio = subset/subset. previous_close stays FMP-adjusted.
+# ---------------------------------------------------------------------------
+
+
+def _fixture_databento_volume_rows(symbol: str, *, base_volume: int, sessions: int = 16) -> list[dict]:
+    session_dates = [f"2026-07-{day:02d}" for day in range(1, sessions + 1)]
+    return [
+        {"symbol": symbol, "session_date": session_date, "volume": base_volume + index * 100}
+        for index, session_date in enumerate(session_dates)
+    ]
+
+
+def test_compute_databento_adv_windows_strictly_before_as_of() -> None:
+    """ADV = mean EQUS.MINI daily volume over the trailing lookback sessions
+    STRICTLY before as_of -- same windowing contract as the FMP builder, so
+    the two ADV sources are drop-in interchangeable."""
+    from open_prep.quote_reference import compute_databento_adv
+
+    rows = _fixture_databento_volume_rows("AAPL", base_volume=500_000)
+    # A session ON as_of must be excluded from the window.
+    rows.append({"symbol": "AAPL", "session_date": _AS_OF_SESSION, "volume": 99_999_999})
+
+    adv_by_symbol = compute_databento_adv(
+        rows, as_of_session=_AS_OF_SESSION, lookback_sessions=_LOOKBACK_SESSIONS
+    )
+
+    # trailing 15 of the 16 prior sessions: indices 1..15 -> volumes 500_100..501_500
+    expected = sum(500_000 + i * 100 for i in range(1, 16)) / 15
+    assert adv_by_symbol == {"AAPL": expected}
+
+
+def test_compute_databento_adv_omits_insufficient_history_and_dust() -> None:
+    """Symbols with fewer than lookback sessions, or a subset-ADV below the
+    1000-share usability floor (_volume_semantics zeroes ratios under that
+    average), are OMITTED -- the reference builder then drops them
+    fail-closed instead of emitting an unusable row."""
+    from open_prep.quote_reference import compute_databento_adv
+
+    rows = [
+        *_fixture_databento_volume_rows("LIQUID", base_volume=500_000),
+        # only 3 prior sessions -- insufficient
+        *_fixture_databento_volume_rows("SPARSE", base_volume=500_000, sessions=3),
+        # enough sessions, but trailing-15 subset ADV = 900 shares -> under
+        # the 1000-share usability floor
+        *_fixture_databento_volume_rows("DUST", base_volume=100),
+    ]
+
+    adv_by_symbol = compute_databento_adv(
+        rows, as_of_session=_AS_OF_SESSION, lookback_sessions=_LOOKBACK_SESSIONS
+    )
+
+    assert set(adv_by_symbol.keys()) == {"LIQUID"}
+
+
+def test_apply_databento_adv_overrides_volume_and_documents_provenance() -> None:
+    """The FMP-built rows keep previous_close/as_of_session untouched;
+    average_daily_volume is replaced by the databento subset ADV and the
+    row's source records BOTH provenances. Symbols without a databento ADV
+    are dropped fail-closed (never left with the consolidated-ADV row, which
+    would silently re-break the volume gates)."""
+    from open_prep.quote_reference import DATABENTO_ADV_SOURCE, apply_databento_adv
+
+    bars_by_symbol = _fixture_bars_by_symbol()
+    fmp_rows, _ = build_quote_reference_for_universe(
+        _PRODUCER_UNIVERSE_SYMBOLS,
+        bars_by_symbol,
+        as_of_session=_AS_OF_SESSION,
+        lookback_sessions=_LOOKBACK_SESSIONS,
+    )
+    adv_by_symbol = {symbol: 123_456.0 for symbol in _PRODUCER_UNIVERSE_SYMBOLS if symbol != "TSLA"}
+
+    merged, skipped = apply_databento_adv(fmp_rows, adv_by_symbol)
+
+    assert skipped == ["TSLA"]
+    assert set(merged.keys()) == set(_PRODUCER_UNIVERSE_SYMBOLS) - {"TSLA"}
+    for symbol, row in merged.items():
+        assert row.average_daily_volume == 123_456.0
+        assert row.previous_close == fmp_rows[symbol].previous_close
+        assert row.as_of_session == fmp_rows[symbol].as_of_session
+        assert row.source == f"fmp:adjusted-eod+adv={DATABENTO_ADV_SOURCE}"
+
+
+def test_databento_daily_df_to_volume_rows_parses_get_range_frame() -> None:
+    """Converter for ``Historical.timeseries.get_range(...).to_df()`` output.
+    Layout verified live 2026-07-28: ts_event index = 00:00:00 UTC of the
+    session date itself, ``symbol``/``volume`` columns present, volume raw
+    (unscaled). NaN/negative-volume rows are dropped."""
+    pandas = pytest.importorskip("pandas")
+    from open_prep.quote_reference import databento_daily_df_to_volume_rows
+
+    frame = pandas.DataFrame(
+        {
+            "symbol": ["T", "MSFT", "T", "BAD"],
+            "volume": [3_993_401, 1_366_730, 4_453_711, -5],
+        },
+        index=pandas.to_datetime(
+            ["2026-07-20", "2026-07-20", "2026-07-21", "2026-07-21"], utc=True
+        ),
+    )
+
+    rows = databento_daily_df_to_volume_rows(frame)
+
+    assert rows == [
+        {"symbol": "T", "session_date": "2026-07-20", "volume": 3_993_401},
+        {"symbol": "MSFT", "session_date": "2026-07-20", "volume": 1_366_730},
+        {"symbol": "T", "session_date": "2026-07-21", "volume": 4_453_711},
+    ]
+
+
+def test_fetch_databento_daily_volume_rows_queries_equs_mini_1d() -> None:
+    """The fetch helper must query EQUS.MINI / ohlcv-1d / raw_symbol over a
+    calendar window generous enough for the lookback, via an injectable
+    client factory (no live network in tests)."""
+    pandas = pytest.importorskip("pandas")
+    from open_prep.quote_reference import fetch_databento_daily_volume_rows
+
+    captured: dict = {}
+
+    class _FakeStore:
+        def to_df(self):
+            return pandas.DataFrame(
+                {"symbol": ["T"], "volume": [3_993_401]},
+                index=pandas.to_datetime(["2026-07-20"], utc=True),
+            )
+
+    class _FakeTimeseries:
+        def get_range(self, **kwargs):
+            captured.update(kwargs)
+            return _FakeStore()
+
+    class _FakeHistorical:
+        timeseries = _FakeTimeseries()
+
+    rows = fetch_databento_daily_volume_rows(
+        ["T", "MSFT"],
+        as_of_session=_AS_OF_SESSION,
+        lookback_sessions=_LOOKBACK_SESSIONS,
+        client=_FakeHistorical(),
+    )
+
+    assert captured["dataset"] == "EQUS.MINI"
+    assert captured["schema"] == "ohlcv-1d"
+    assert captured["stype_in"] == "raw_symbol"
+    assert captured["symbols"] == ["T", "MSFT"]
+    assert captured["end"] == _AS_OF_SESSION
+    # >= lookback*4 calendar days back (weekend/holiday buffer, mirrors the
+    # FMP fetch's date_from arithmetic in main()).
+    from datetime import date, timedelta
+    start = date.fromisoformat(captured["start"])
+    assert date.fromisoformat(_AS_OF_SESSION) - start >= timedelta(days=_LOOKBACK_SESSIONS * 4)
+    assert rows == [{"symbol": "T", "session_date": "2026-07-20", "volume": 3_993_401}]

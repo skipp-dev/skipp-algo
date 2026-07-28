@@ -80,7 +80,7 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     # JSON output to stdout for the daily reference-build tool (error payloads +
     # final summary), invoked as ``python -m open_prep.quote_reference`` — same
     # documented-CLI-output pattern as the other tools in this ledger.
-    "open_prep/quote_reference.py": 3,
+    "open_prep/quote_reference.py": 4,  # 2026-07-28 (databento-native ADV): +1 DATABENTO_API_KEY-missing error payload, 3->4
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 
