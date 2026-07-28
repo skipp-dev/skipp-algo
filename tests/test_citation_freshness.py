@@ -115,6 +115,12 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # pointer artifacts/open_prep/outcome_backfill/latest.json; the R1
         # regex captures the open_prep/... suffix which is not a repo path.
         "open_prep/outcome_backfill/latest.json",
+        # 2026-07-29: run-open-prep-daily.yml (#4173) builds the runtime
+        # artifacts artifacts/open_prep/latest/quote_reference{,_fmp}.json;
+        # the R1 regex captures the open_prep/... suffix which is not a
+        # repo path.
+        "open_prep/latest/quote_reference.json",
+        "open_prep/latest/quote_reference_fmp.json",
         # Workflow-generated history JSONs (committed by automation, may not
         # exist in a fresh clone or before first run).
         "docs/calibration/calibration_report_public_history.json",

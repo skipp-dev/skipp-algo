@@ -110,7 +110,7 @@ def test_w2_regime_source_written_alongside_symbol_regime() -> None:
     """Every row that gets symbol_regime must also get regime_source."""
     src = Path("open_prep/run_open_prep.py").read_text(encoding="utf-8")
     assert 'row["regime_source"] = regime_source' in src
-    assert 'regime_source = "atr_proxy"' in src
+    assert 'regime_source = "atr_proxy_display_only"' in src  # renamed in #4174
     assert 'regime_source = "no_data"' in src
     # The disclosure must sit in the same block as the regime assignment.
     sym_idx = src.index('row["symbol_regime"] = sym_regime')
