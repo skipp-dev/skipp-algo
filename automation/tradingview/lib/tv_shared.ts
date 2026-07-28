@@ -43,6 +43,28 @@ export type TradingViewPageAuthState = {
   evidence: TradingViewPageAuthEvidence;
 };
 
+export type TradingViewStorageCaptureWaitAction =
+  | "wait"
+  | "navigate_to_chart"
+  | "complete";
+
+export function resolveTradingViewStorageCaptureWaitAction(input: {
+  url: string;
+  signInSignals: boolean;
+  authenticated: boolean;
+  storageLooksAuthenticated: boolean;
+  persistentProfile: boolean;
+}): TradingViewStorageCaptureWaitAction {
+  const authenticatedSession =
+    !input.signInSignals
+    && input.authenticated
+    && (input.storageLooksAuthenticated || input.persistentProfile);
+  if (!authenticatedSession) {
+    return "wait";
+  }
+  return input.url.includes("/chart") ? "complete" : "navigate_to_chart";
+}
+
 export type VisibleCount = {
   total: number;
   visible: number;

@@ -18,6 +18,7 @@ import {
   isOtpEntryComplete,
   planOtpEntry,
   revealEmailLoginField,
+  resolveTradingViewStorageCaptureWaitAction,
   shouldAttemptTotp,
   summariseActionableNodes,
   TV_LOGIN_IDENTIFIER_SELECTOR,
@@ -81,7 +82,10 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
       url: location.href,
       title: document.title,
       bodyPreview: bodyText.slice(0, 240),
-      signInSignals: /sign in|log in|email|password|continue with google/i.test(bodyText),
+      signInSignals:
+        /sign in|log in|email|password|continue with google|two-factor authentication|verification code|backup code|code from your app/i.test(
+          bodyText,
+        ),
     };
   }).catch((error) => {
     // Clone of the auth-state probe evaluate in tv_shared: a crashed execution
@@ -406,15 +410,24 @@ async function waitForUserOrAuthenticatedChart(
     const authDiagnostics = await collectPageAuthDiagnostics(page).catch(() => undefined);
     const storageState = await context.storageState({ indexedDB: true }).catch(() => undefined);
     const inspection = storageState ? inspectTradingViewStorageState(storageState) : undefined;
+    const waitAction = authDiagnostics
+      ? resolveTradingViewStorageCaptureWaitAction({
+          url: authDiagnostics.url,
+          signInSignals: authDiagnostics.signInSignals,
+          authenticated: authDiagnostics.authenticated,
+          storageLooksAuthenticated: inspection?.looksAuthenticated === true,
+          persistentProfile: Boolean(cli.persistentProfileDir),
+        })
+      : "wait";
 
-    if (
-      authDiagnostics?.url.includes("/chart") &&
-      !authDiagnostics.signInSignals &&
-      authDiagnostics.authenticated &&
-      (inspection?.looksAuthenticated || Boolean(cli.persistentProfileDir))
-    ) {
+    if (waitAction === "complete") {
       console.log("Authenticated TradingView chart session detected.");
       return;
+    }
+    if (waitAction === "navigate_to_chart") {
+      console.log("Authenticated TradingView session detected outside the chart; navigating to chart URL...");
+      await page.goto(cli.chartUrl, { waitUntil: "domcontentloaded" });
+      continue;
     }
 
     await sleep(cli.pollIntervalMs);
