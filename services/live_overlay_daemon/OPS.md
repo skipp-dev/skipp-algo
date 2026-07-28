@@ -1454,6 +1454,17 @@ implementation.
    drill is operator-pre-authorized and runs only after the observation
    criteria pass.
 
+   Daily cadence during the window (mechanical half automated): the local
+   LaunchAgent `com.skippalgo.hold-manager-shadow-daily` (16:15 ET Mon-Fri,
+   `automation/launchd/run-hold-manager-shadow-daily.sh`) snapshots the
+   authenticated receiver state, runs the reconciliation in `--check` mode
+   against the checked-in observations, and posts a reminder notification.
+   The operator then scaffolds the session row with
+   `scripts/scaffold_smc_hold_manager_shadow_session.py --date <ET date>`,
+   fills the TradingView-side fields, runs the reconcile without `--check`,
+   re-runs the evaluator, and moves the pinned checked-in-state test
+   expectations in the same PR.
+
 Rollback is fail-closed: set `HOLD_MANAGER_SHADOW_ACCEPTING=0` first, disable
 all six Hold alerts, and retain the SQLite ledger as evidence. Alerts were
 created (2026-07-28, operator-attested) and activation was recorded

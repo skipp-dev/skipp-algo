@@ -1,10 +1,12 @@
 # C13 Phase-A — local IBKR launchd jobs
 
-These LaunchAgents (eight plists, see table) drive the local jobs that **cannot** run on
-the GitHub-hosted cron because they require a live TWS / IB Gateway
-session. The unattended GH cron (`.github/workflows/c13-daily-cron.yml`)
-consumes whatever artefacts the local jobs commit + push into
-`cache/imbalance/` and `cache/wsh/`; absence is treated as a soft skip.
+These LaunchAgents (nine plists, see table) drive the local jobs that **cannot** run on
+the GitHub-hosted cron: the C13 jobs require a live TWS / IB Gateway
+session, and the Hold-Manager shadow capture needs the receiver token from
+the local login Keychain. The unattended GH cron
+(`.github/workflows/c13-daily-cron.yml`) consumes whatever artefacts the
+local jobs commit + push into `cache/imbalance/` and `cache/wsh/`; absence
+is treated as a soft skip.
 
 ## Jobs
 
@@ -18,6 +20,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
 | `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
+| `com.skippalgo.hold-manager-shadow-daily.plist` | 16:15 ET (Mon-Fri) | `run-hold-manager-shadow-daily.sh` (curl + Keychain token `skipp.hold-manager-shadow`, no TWS) | dated receiver-state snapshot under `~/Library/Application Support/skipp-algo/hold-manager-shadow/` + `reconcile --check` verdict + macOS notification reminding the operator to record the day's R2 session row |
 
 `collect-imbalance`, `wsh-earnings` and the smoke use the rotating
 clientId allocator (`scripts.ib_client_id`) so they never collide with
@@ -102,6 +105,20 @@ done
 #    true end-to-end check, kickstart within the window or run the driver with
 #    C13_SKIP_ET_GATE=1 manually.
 launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
+```
+
+The Hold-Manager shadow capture uses its own label (not `c13.*`) and needs
+the receiver token in the login Keychain once (`security add-generic-password
+-U -a operator -s skipp.hold-manager-shadow -w '<token>'` — never store the
+token in the repo or shell history; fetch it from the Railway service vars):
+
+```bash
+REPO="$(pwd)"
+sed -e "s|__REPO_PATH__|${REPO}|g" -e "s|__HOME__|${HOME}|g" \
+    "automation/launchd/com.skippalgo.hold-manager-shadow-daily.plist" \
+    > "${HOME}/Library/LaunchAgents/com.skippalgo.hold-manager-shadow-daily.plist"
+launchctl bootstrap "gui/$(id -u)" \
+    "${HOME}/Library/LaunchAgents/com.skippalgo.hold-manager-shadow-daily.plist"
 ```
 
 ## Uninstall
