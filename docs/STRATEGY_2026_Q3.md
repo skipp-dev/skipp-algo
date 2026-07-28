@@ -481,15 +481,20 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > liest den jüngsten History-Eintrag allein, Einträge tragen kumulative n/k),
 > das der Watchdog via `--input` an die History anhängt.
 >
-> **Anlauf-Caveat (Arm-B-Starvation):** `candidate_weights` verlangt
-> `min_samples=200` gelabelte Current-Era-FI-Samples; Stand 2026-07-24 sind
-> es 42 (`insufficient_labels`, ~1–2/Tag netto wegen Era-Gates). Bis das
-> 30-Tage-Fenster einwächst, liefern die Runs ehrlich `arm_b_unavailable`
-> und die Brücke schreibt nichts — der Watchdog bleibt korrekt auf
-> `awaiting_first_run`. Das ist der erwartete Anlauf, kein Defekt; jede
-> weitere Scorer-Formel-Änderung resettet die Era-Uhr. Ein Absenken der 200
-> wäre eine Statistik-Entscheidung (B3: n=30 → σ≈0.19 Noise-Fitting) und
-> wird nicht nebenbei getroffen.
+> **Anlauf-Caveat (Arm-B-Starvation, korrigiert 2026-07-28):**
+> `candidate_weights` verlangt weiterhin `min_samples=200` gelabelte
+> Current-Era-FI-**Trainingssamples** plus ein zeitlich späteres 20-%-Holdout.
+> Der frühere 30-Sample-Tage-Default machte dieses Gate bei der dokumentierten
+> Nettorate unerreichbar und teilte
+> außerdem die rohen Dateitage vor den Era-Gates; dadurch landeten am 28.7. alle
+> 42 kompatiblen Samples im Holdout und der Workflow meldete fälschlich
+> `labeled=0`. Behoben: Train/Holdout werden nur noch aus den vom FI-Reader
+> bestätigten Current-Era-Tagen gebildet, und das Sammelfenster umfasst bis zu
+> 250 Sample-Tage. Die 200er Statistikschwelle wurde **nicht** abgesenkt.
+> Der korrigierte Lauf sieht aktuell 32 Trainings- und 10 Holdout-Samples.
+> Bis 200 Trainingssamples erreicht sind, liefern die Runs weiterhin ehrlich
+> `arm_b_unavailable`; jede weitere Scorer-Formel-Änderung resettet die
+> Era-Uhr.
 >
 > Der Producer läuft jetzt im selben Job **vor** dem Scoring
 > (`run-open-prep-daily.yml`), weil `weights_candidate.json` unter
@@ -514,9 +519,9 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `outcome_backfill --ab-arm-labels`, Faltung via
       `scripts/g3_bridge_ab_arms.py`, Anhang an `docs/ab/g23_history.jsonl`
       im `g23-ab-watchdog`-Workflow.
-- ⏳ 30-Tage-Run: Sample akkumuliert, sobald Arm B verfügbar wird (siehe
+- ⏳ Current-Era-Run: Sample akkumuliert, sobald Arm B verfügbar wird (siehe
       Anlauf-Caveat oben — `candidate_weights` braucht 200 gelabelte
-      Current-Era-Samples, Stand 24.7.: 42). Fortschritt ablesbar an
+      Trainingssamples plus zeitlich späteres Holdout). Fortschritt ablesbar an
       `docs/ab/g23_status.md` („Window entries") und der Anzahl
       `status="ok"`-Records in `artifacts/open_prep/ab_arms/`.
 
