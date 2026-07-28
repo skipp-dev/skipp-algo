@@ -53,6 +53,20 @@ def test_open_prep_snapshot_url_explicit_empty_disables_remote(monkeypatch) -> N
     assert rs._open_prep_snapshot_url() == ""
 
 
+def test_quote_reference_snapshot_url_defaults_to_rolling_branch(monkeypatch) -> None:
+    monkeypatch.delenv("QUOTE_REFERENCE_SNAPSHOT_URL", raising=False)
+    assert rs._quote_reference_snapshot_url() == (
+        "https://api.github.com/repos/skipp-dev/skipp-algo/contents/"
+        "artifacts/open_prep/latest/quote_reference.json"
+        "?ref=bot/live-open-prep-snapshot"
+    )
+
+
+def test_quote_reference_snapshot_url_explicit_empty_disables_remote(monkeypatch) -> None:
+    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "")
+    assert rs._quote_reference_snapshot_url() == ""
+
+
 def test_fetch_json_url_sends_optional_bearer_token(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
@@ -550,8 +564,8 @@ def test_extract_snapshot_epoch_falls_back_to_run_datetime_utc() -> None:
     assert rs._extract_snapshot_epoch({}) == 0.0
 
 
-def test_refresh_quote_reference_noop_when_url_unset(monkeypatch, tmp_path) -> None:
-    monkeypatch.delenv("QUOTE_REFERENCE_SNAPSHOT_URL", raising=False)
+def test_refresh_quote_reference_noop_when_url_explicitly_empty(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("QUOTE_REFERENCE_SNAPSHOT_URL", "")
     monkeypatch.setattr(rs, "_ARTIFACTS_LATEST", tmp_path)
     assert rs._refresh_quote_reference_from_url() is False
     assert not (tmp_path / "quote_reference.json").exists()

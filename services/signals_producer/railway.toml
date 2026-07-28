@@ -34,15 +34,18 @@ watchPatterns = [
 # Long-running worker: the realtime signal engine polls FMP forever and serves
 # the latest signals over /signals (consumed by sibling services on the
 # private network).  The engine must bind its telemetry HTTP server to the
-# Railway-provided port so /healthz is reachable by Railway's healthcheck.
+# Railway-provided port so /readyz can verify the selected quote source.
 # The Python entrypoint reads PORT as its telemetry default; keep the command
 # free of literal "$PORT" arguments because Railway startCommand does not
 # reliably shell-expand them.
 startCommand = "python -m open_prep.realtime_signals"
-healthcheckPath = "/healthz"
+healthcheckPath = "/readyz"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
 [[services]]
 name = "smc-signals-producer"
+
+[[services]]
+name = "smc-signals-producer-databento-shadow"

@@ -264,6 +264,15 @@ def test_snapshot_publish_uses_gh_pat_token() -> None:
     )
 
 
+def test_snapshot_publish_passes_fmp_key_to_quote_reference_builder() -> None:
+    step = _snapshot_publish_step()
+    env = step.get("env") or {}
+    assert env.get("FMP_API_KEY") == "${{ secrets.FMP_API_KEY }}", (
+        "quote_reference needs FMP adjusted-EOD data; without this step-local "
+        "secret the workflow stays green while omitting quote_reference.json"
+    )
+
+
 def test_local_open_prep_launchers_use_pre_open_only() -> None:
     """Local helper launchers must pass --pre-open-only to run_open_prep.
 

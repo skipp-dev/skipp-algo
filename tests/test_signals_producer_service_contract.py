@@ -155,15 +155,16 @@ def test_poll_budget_env_is_not_clamped_to_the_tcp_port_range(monkeypatch) -> No
     assert rs._env_int("PORT", 8099) == 8099
 
 
-def test_railway_healthcheck_path_is_healthz() -> None:
+def test_railway_healthcheck_path_is_flag_aware_readyz() -> None:
     config = _load_railway_config()
-    assert config["deploy"]["healthcheckPath"] == "/healthz"
+    assert config["deploy"]["healthcheckPath"] == "/readyz"
 
 
 def test_railway_declares_signals_producer_service() -> None:
     config = _load_railway_config()
     names = [svc["name"] for svc in config["services"]]
     assert "smc-signals-producer" in names
+    assert "smc-signals-producer-databento-shadow" in names
 
 
 def test_dockerfile_copies_open_prep_and_runs_engine() -> None:
