@@ -25,6 +25,7 @@ watchPatterns = [
     "databento_utils.py",
     "smc_core/**",
     "scripts/smc_newsapi_ai.py",
+    "scripts/smc_atomic_write.py",
     "requirements.txt",
     "services/signals_producer/**",
 ]

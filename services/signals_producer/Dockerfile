@@ -40,6 +40,10 @@ COPY databento_utils.py /app/databento_utils.py
 #   module is needed; copying the whole scripts/ dir keeps the image lean and
 #   avoids pulling in Streamlit/heavy dashboard deps from other scripts.
 COPY scripts/smc_newsapi_ai.py /app/scripts/smc_newsapi_ai.py
+# atomic_write_text — used by open_prep.quote_reference (the RT_QUOTE_SOURCE=
+# databento path); self-contained (stdlib only). Missing until the shadow
+# deploy surfaced ModuleNotFoundError: No module named 'scripts.smc_atomic_write'.
+COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py
 RUN touch /app/scripts/__init__.py
 
 # Run as a non-root user for security (D1).
