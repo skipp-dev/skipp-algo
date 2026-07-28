@@ -276,6 +276,7 @@ class TestBackendSelection:
         assert report["labeled_samples"] == 12
         assert report["total_samples"] == 12
         assert report["sample_dates_filter"] == ["2026-07-03"]
+        assert report["labeled_sample_dates"] == ["2026-07-03"]
 
 
 # ── Ranking drift detection (E4) ─────────────────────────────────────

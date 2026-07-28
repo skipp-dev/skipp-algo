@@ -83,7 +83,10 @@ class TestGenerationStates:
 
         def _fake_fi(**kw):
             calls.append(kw)
-            return _make_fi_report(labeled=250)
+            return {
+                **_make_fi_report(labeled=250),
+                "labeled_sample_dates": ["2026-07-01", "2026-07-02", "2026-07-03"],
+            }
 
         monkeypatch.setattr(cw, "compute_feature_importance", _fake_fi)
         monkeypatch.setattr(
@@ -119,7 +122,8 @@ class TestGenerationStates:
 
         assert rec["status"] == "ok"
         assert calls
-        assert calls[0].get("sample_dates") == ["2026-07-01", "2026-07-02"]
+        assert calls[0].get("sample_dates") == ["2026-07-01", "2026-07-02", "2026-07-03"]
+        assert calls[1].get("sample_dates") == ["2026-07-01", "2026-07-02"]
         assert rec["train_dates"] == ["2026-07-01", "2026-07-02"]
         assert rec["holdout_dates"] == ["2026-07-03"]
         assert rec["holdout"]["default"]["labeled_samples"] == 2
@@ -127,7 +131,14 @@ class TestGenerationStates:
         assert rec["holdout"]["hit_rate_delta"] is not None
 
     def test_generate_candidate_without_holdout_dates_keeps_holdout_empty(self, monkeypatch) -> None:
-        monkeypatch.setattr(cw, "compute_feature_importance", lambda **kw: _make_fi_report(labeled=250))
+        monkeypatch.setattr(
+            cw,
+            "compute_feature_importance",
+            lambda **kw: {
+                **_make_fi_report(labeled=250),
+                "labeled_sample_dates": ["2026-07-03"],
+            },
+        )
         monkeypatch.setattr(cw, "_collect_fi_sample_dates", lambda **kw: ["2026-07-03"])
         monkeypatch.setattr(cw, "_load_fi_holdout_samples", lambda sample_dates: [])
 
@@ -139,6 +150,61 @@ class TestGenerationStates:
         assert rec["holdout"]["default"]["hit_rate"] is None
         assert rec["holdout"]["candidate"]["hit_rate"] is None
         assert rec["holdout"]["hit_rate_delta"] is None
+
+    def test_generate_candidate_splits_only_current_era_sample_dates(self, monkeypatch) -> None:
+        calls: list[dict] = []
+
+        def _fake_fi(**kw):
+            calls.append(kw)
+            if len(calls) == 1:
+                return {
+                    **_make_fi_report(labeled=42),
+                    "labeled_sample_dates": [
+                        "2026-07-14",
+                        "2026-07-16",
+                        "2026-07-17",
+                        "2026-07-20",
+                        "2026-07-24",
+                        "2026-07-27",
+                    ],
+                }
+            return _make_fi_report(labeled=35)
+
+        monkeypatch.setattr(cw, "compute_feature_importance", _fake_fi)
+        monkeypatch.setattr(
+            cw,
+            "_collect_fi_sample_dates",
+            lambda **kw: [
+                "2026-05-21",
+                "2026-06-15",
+                "2026-07-14",
+                "2026-07-16",
+                "2026-07-17",
+                "2026-07-20",
+                "2026-07-24",
+                "2026-07-27",
+            ],
+        )
+
+        rec = cw.generate_candidate()
+
+        assert rec["status"] == "insufficient_data"
+        assert rec["labeled_samples"] == 35
+        assert rec["train_dates"] == [
+            "2026-07-14",
+            "2026-07-16",
+            "2026-07-17",
+            "2026-07-20",
+            "2026-07-24",
+        ]
+        assert rec["holdout_dates"] == ["2026-07-27"]
+        assert calls[1]["sample_dates"] == rec["train_dates"]
+
+    def test_default_window_can_reach_training_floor_with_one_label_per_day(self) -> None:
+        parser = cw.build_parser()
+        assert parser.parse_args([]).lookback == 250
+        assert cw.DEFAULT_LOOKBACK_DAYS == 250
+        assert cw.generate_candidate.__kwdefaults__["lookback_days"] == cw.DEFAULT_LOOKBACK_DAYS
 
 
 # ── Persistence + drift-gate enforcement ─────────────────────────────

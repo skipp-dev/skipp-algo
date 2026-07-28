@@ -1321,12 +1321,22 @@ def compute_feature_importance(
             len(labeled),
         )
     labeled = directional_era
+    labeled_sample_dates: set[str] = set()
+    for sample in labeled:
+        raw_d = sample.get("date")
+        if not raw_d:
+            continue
+        try:
+            labeled_sample_dates.add(date.fromisoformat(str(raw_d)[:10]).isoformat())
+        except ValueError:
+            continue
 
     if len(labeled) < 10:
         return {
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
+            "labeled_sample_dates": sorted(labeled_sample_dates),
             "duplicate_samples_dropped": duplicate_samples_dropped,
             "era_gated_samples_dropped": era_gated_samples_dropped,
             "formula_era_samples_dropped": formula_era_samples_dropped,
@@ -1340,6 +1350,7 @@ def compute_feature_importance(
     report: dict[str, Any] = {
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
+        "labeled_sample_dates": sorted(labeled_sample_dates),
         "duplicate_samples_dropped": duplicate_samples_dropped,
         "era_gated_samples_dropped": era_gated_samples_dropped,
         "formula_era_samples_dropped": formula_era_samples_dropped,

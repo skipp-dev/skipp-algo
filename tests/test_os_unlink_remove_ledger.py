@@ -96,7 +96,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 84, "unlink"),  # 2026-07-13 (throttle-comment truth-fix +1): 83->84
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted
     # unlink cleanup from 158 -> 480.
-    ("open_prep/candidate_weights.py", 487, "unlink"),  # 2026-07-10: eps_surprise_pct→recent_eps_surprise_pct reconstruction swap +1 (487->488)
+    ("open_prep/candidate_weights.py", 494, "unlink"),  # 2026-07-28 (Arm-B eligible-date split): 487->494
     ("open_prep/diff.py", 71, "unlink"),
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted unlink from 257 → 258.
