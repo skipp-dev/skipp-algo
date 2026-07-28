@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 
+from open_prep import run_open_prep
 from open_prep.a0_parity import ShadowDecision, build_engine_parity_report
-from open_prep.atr_quality import actionable_atr_pct, atr_pct_from_price_units
+from open_prep.atr_quality import (
+    actionable_atr_pct,
+    atr_pct_from_price_units,
+    homogeneous_price_history,
+)
 from open_prep.outcome_backfill import compute_pnl_from_bars
 from open_prep.realtime_signals import _watchlist_average_volume
 from open_prep.run_open_prep import _calculate_atr14_from_eod
+from open_prep.scorer import filter_candidate
 from open_prep.trade_context import trade_context
 from open_prep.volume_source_audit import (
     build_multi_session_summary,
@@ -53,6 +60,42 @@ def test_extreme_unmapped_scale_break_fails_closed_until_history_rebuilds() -> N
     assert _calculate_atr14_from_eod(rows, period=14) == 0.0
 
 
+def test_every_historical_feature_receives_only_the_post_split_segment() -> None:
+    rows, split_day = _split_history(post_split_bars=16, post_split_price=50.0)
+    segment, reason = homogeneous_price_history(rows, split_dates={split_day})
+    assert reason == "corporate_action"
+    assert len(segment) == 16
+    assert {float(row["close"]) for row in segment} == {50.0}
+
+
+def test_relative_wilder_state_does_not_preserve_an_old_price_level() -> None:
+    rows = []
+    for index in range(40):
+        close = 100.0 * (0.98 ** index)
+        rows.append({
+            "date": (date(2026, 5, 1) + timedelta(days=index)).isoformat(),
+            "high": close * 1.01,
+            "low": close * 0.99,
+            "close": close,
+        })
+    latest_close = float(rows[-1]["close"])
+    atr_pct = _calculate_atr14_from_eod(rows, period=14) / latest_close * 100.0
+    assert 2.0 < atr_pct < 4.0
+
+
+def test_pre_hardening_atr_cache_is_rejected(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(run_open_prep, "ATR_CACHE_DIR", tmp_path)
+    cache = tmp_path / "2026-07-28_p14.json"
+    cache.write_text(json.dumps({
+        "as_of": "2026-07-28",
+        "atr_period": 14,
+        "atr14_by_symbol": {"INLF": 33.409},
+        "momentum_z_by_symbol": {"INLF": 0.0},
+        "prev_close_by_symbol": {"INLF": 5.0},
+    }), encoding="utf-8")
+    assert run_open_prep._load_atr_cache(date(2026, 7, 28), 14) == ({}, {}, {})
+
+
 def test_implausible_atr_is_not_actionable_anywhere() -> None:
     assert actionable_atr_pct(668.18) is None
     assert atr_pct_from_price_units(33.409, 5.0) is None
@@ -80,7 +123,26 @@ def test_outcome_barrier_falls_back_when_atr_is_implausible() -> None:
         atr_pct=668.18,
     )
     assert result is not None
-    assert result["tb_barrier_source"] == "default"
+    assert result["tb_barrier_source"] == "atr_invalid"
+    assert result["label_tb"] is None
+    assert result["profitable_tb"] is None
+
+
+def test_rejected_corporate_action_atr_hard_blocks_scoring() -> None:
+    result = filter_candidate({
+        "symbol": "INLF",
+        "price": 5.0,
+        "previousClose": 5.0,
+        "gap_pct": 3.0,
+        "gap_available": True,
+        "volume": 1_000_000,
+        "avgVolume": 500_000,
+        "atr": 0.0,
+        "atr_data_quality": "rejected_corporate_action_history",
+        "rsi": 50.0,
+    }, bias=0.0)
+    assert result.passed is False
+    assert "atr_implausible_or_split" in result.filter_reasons
 
 
 def _decision(source: str) -> ShadowDecision:

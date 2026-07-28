@@ -26,6 +26,8 @@ def test_post_close_workflow_collects_five_session_fmp_basis_evidence() -> None:
     assert "scripts/measure_fmp_volume_basis.py" in run
     assert "--minimum-sessions 5" in run
     assert "artifacts/open_prep/volume_source_audit" in run
+    assert 'SESSION_DATE" != "$(date -u +%F)' in run
+    assert "quote.volume is current-only" in run
 
 
 def test_measurement_artifacts_are_uploaded_and_committed() -> None:

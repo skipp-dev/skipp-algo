@@ -118,7 +118,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 1110, "unlink"),  # 2026-07-28 (ATR barrier guard import/fallback): 1108->1110
+    ("open_prep/outcome_backfill.py", 1115, "unlink"),  # 2026-07-28 (invalid ATR quarantine): 1110->1115
     ("open_prep/outcomes.py", 222, "unlink"),  # 2026-07-23 (A1 horizons: module docstring above): 218->222
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -140,8 +140,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the two reviewed cleanup sites.
-    ("open_prep/realtime_signals.py", 3982, "unlink"),  # 2026-07-28 (Databento default/fallback): 3958->3982
-    ("open_prep/realtime_signals.py", 4036, "unlink"),  # 2026-07-28 (Databento default/fallback): 4012->4036
+    ("open_prep/realtime_signals.py", 3986, "unlink"),  # 2026-07-28 (ATR restore/live guards): 3982->3986
+    ("open_prep/realtime_signals.py", 4040, "unlink"),  # 2026-07-28 (ATR restore/live guards): 4036->4040
 
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
@@ -160,14 +160,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 3131 -> 3135 and 3483 -> 3487.
     # 2026-07-04 (market-microstructure observe-only): import +1 →
     # 3136/3504.
-    ("open_prep/run_open_prep.py", 3243, "unlink"),  # 2026-07-28 (shared ADX/BB/EWMA cache helpers): 3134->3243
-    ("open_prep/run_open_prep.py", 3679, "unlink"),  # 2026-07-28 (shared ATR technical cache threading): 3550->3679
+    ("open_prep/run_open_prep.py", 3254, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 3243->3254
+    ("open_prep/run_open_prep.py", 3725, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 3679->3725
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
     # 2026-06-25: feature-flag helper additions shifted 5621 -> 5625.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block shifted 5641 -> 5658.
-    ("open_prep/run_open_prep.py", 5880, "unlink"),  # 2026-07-28 (exact §15 scorer replay): 5695->5880
+    ("open_prep/run_open_prep.py", 5939, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 5880->5939
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
@@ -175,7 +175,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-25: feature-flag helper additions shifted 5916 -> 5920.
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 5936 -> 5962.
-    ("open_prep/run_open_prep.py", 6230, "unlink"),  # 2026-07-28 (exact §15 evidence enrichment): 6042->6230
+    ("open_prep/run_open_prep.py", 6313, "unlink"),  # 2026-07-28 (§15 + split-safe integration): 6230->6313
     ("open_prep/scorer.py", 156, "unlink"),
     ("open_prep/watchlist.py", 80, "unlink"),  # 2026-07-27 (docstring persistence note above): 74->80
     ("smc_core/benchmark.py", 39, "unlink"),
