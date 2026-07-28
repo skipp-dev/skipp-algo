@@ -75,9 +75,9 @@ logger = logging.getLogger(__name__)
 
 # OCC contract multiplier — every equity option represents 100 shares of the
 # underlying. Notional premium = size * price * 100. This is invariant across
-# all OPRA-listed instruments; if a non-standard contract size ever appears
-# (mini-options, 1099 ETF flexes) the definition record carries the actual
-# ``contract_size`` field which callers can override via ``contract_size_for``.
+# all OPRA-listed instruments; a non-standard size (mini-options, ETF flexes)
+# can only be set via the function-wide ``contract_size`` kwarg — the per-
+# instrument ``contract_size_for`` hook once promised here was never built (2026-07-28).
 _OCC_CONTRACT_MULTIPLIER = 100
 
 # Default sweep window: 500 ms is the conventional retail-UOA bucket because
@@ -251,8 +251,8 @@ def detect_unusual_options_activity(
         Minimum distinct ``publisher_id`` values inside a bucket to flag the
         cluster as a sweep. Default 3.
     contract_size
-        OCC contract multiplier. Default 100. Override per-instrument via
-        the ``definition.contract_size`` field if non-standard.
+        OCC contract multiplier. Default 100. Applies to EVERY row — a
+        per-instrument override does not exist (no such definition field).
     tickers
         Optional whitelist of underlying tickers to keep. If provided, any
         trade resolving to an underlying outside this set is dropped before

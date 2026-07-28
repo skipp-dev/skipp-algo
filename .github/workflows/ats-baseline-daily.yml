@@ -11,9 +11,12 @@ name: ats-baseline-daily
 # from Databento trades microstructure and lands it via the standard
 # bot-branch auto-merge PR.
 #
-# Runtime note (ops, not CI): the Sidecar app bundles the artifact — a fresh
-# baseline reaches the running /smc_live server only after the app rebuild
-# (`launchctl kickstart -k` of sidecar-serve). The repo copy stays the SSOT.
+# Runtime note (ops, not CI, corrected 2026-07-28): the only reader is
+# smc_api::_get_flow_ats_fields, which re-reads reports/ats_baseline_20d.json
+# from its own checkout on EVERY call — a serving checkout needs only
+# `git pull`. No app rebuild is involved (the sidecar-serve bundle contains
+# no skipp-algo code), and smc_api itself has no scheduled production runner
+# yet (WP-K runtime wiring pending). The repo copy stays the SSOT.
 #
 # Schedule: 21:30 UTC weekdays — after the Databento same-day finalization
 # (the production-export workflow's own comments put finalized data after
@@ -117,7 +120,7 @@ jobs:
             --head "$BRANCH" \
             --label automated \
             --title "chore(flow): refresh 20d ATS baseline ${GITHUB_RUN_ID}" \
-            --body "Automated WP-J baseline rebuild from \`ats-baseline-daily\` (run ${GITHUB_RUN_ID}). Feeds the WP-K /smc_live flow/ATS fields; the sidecar picks it up on the next app rebuild."; then
+            --body "Automated WP-J baseline rebuild from \`ats-baseline-daily\` (run ${GITHUB_RUN_ID}). Keeps the WP-K SSOT artifact fresh; smc_api re-reads it per call from its checkout (no runtime consumer is scheduled yet — WP-K wiring pending)."; then
             echo "::error file=.github/workflows/ats-baseline-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1
           fi

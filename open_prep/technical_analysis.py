@@ -1253,8 +1253,8 @@ def resolve_regime_weights(
     Regimes:
       - ``TRENDING`` → boost momentum & ext-hours, dampen gap
       - ``RANGING``  → boost gap & rvol, dampen momentum
-      - ``NEUTRAL``  → no regime tilt (but the cap below still runs, so a
-        base weight already over-cap would be trimmed)
+      - ``NEUTRAL``  → no regime tilt (the cap below still runs, but see the
+        component_cap note: in production it can never bind)
 
     After adjustment an iterative cap (bounded to 5 passes) trims any single
     weight toward *component_cap* × sum-of-positive-weights. Because trimming
@@ -1268,7 +1268,12 @@ def resolve_regime_weights(
     regime : str
         One of ``"TRENDING"``, ``"RANGING"``, ``"NEUTRAL"``.
     component_cap : float
-        Maximum fraction any single weight may occupy (default 0.45).
+        Maximum fraction any single weight may occupy (default 0.45). Truth
+        note 2026-07-28 (B-sweep): no production caller overrides it, and
+        under DEFAULT_WEIGHTS + the 0.50 candidate drift gate no admissible
+        weight set can reach 0.45 (max ~0.34) — the trim branch is defensive
+        only. Also NOT wired to config ``score_component_cap_fraction``:
+        that key caps score *components* in scorer.py, not weights here.
 
     Returns
     -------

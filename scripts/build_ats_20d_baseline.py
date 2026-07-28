@@ -12,8 +12,9 @@ a fast, network-free baseline to compare today's ATS against when deriving the
 overwrites it atomically each trading day. (Wired 2026-07-27 — from PR #2613
 until then NO such job existed: the committed artifact stayed the 1970 seed
 with ``symbols={}``, so WP-K fail-closed and never emitted the flow/ATS
-fields. Ops note: the sidecar bundles the artifact — a fresh baseline reaches
-the running /smc_live server only after the app rebuild.)
+fields. Ops note, corrected 2026-07-28: the reader re-reads the repo artifact
+on every call — a checkout serving smc_api needs only ``git pull``; no app
+rebuild is involved, and smc_api has no scheduled production runner yet.)
 The output key names (``avg_trade_size_20d_mean`` / ``avg_trade_size_20d_std``)
 deliberately match the per-row inputs read by
 :func:`scripts.smc_flow_qualifier.build_flow_qualifier`.
