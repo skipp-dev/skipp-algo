@@ -127,8 +127,12 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 > Nicht-Test-Import (`governance/family_significance.py`) umgeht die öffentliche API und
 > hat selbst keinen Produktions-Aufrufer. Die real verdrahtete Bootstrap-Statistik läuft
 > über `scripts/performance_inference.py` + `scripts/build_family_metrics.py` (ADR-0008
-> Promotion-Gate). Die C6-„Migration auf BCa" ist nie passiert. Wire-or-remove-Entscheidung
-> steht aus.
+> Promotion-Gate). Die C6-„Migration auf BCa" ist nie passiert.
+> **ENTSCHIEDEN 2026-07-28: REMOVED.** Die öffentliche API (bootstrap_ci, BootstrapConfig,
+> percentile/basic/BCa, Jackknife) wurde entfernt (PR #4125); erhalten blieben nur die zwei
+> Resampling-Primitiven, die `governance/family_significance.py` real importiert. NICHT
+> blind aus diesem Abschnitt neu aufbauen — erst klären, warum ein zweiter Bootstrap-Stack
+> neben dem verdrahteten existieren sollte.
 
 **Trigger:** X1 gemerged (Method-Choice landet im Alpha-Ledger als Rationale).
 
