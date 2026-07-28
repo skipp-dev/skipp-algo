@@ -6,8 +6,6 @@
   "completeSessionCount": 0,
   "observedSessionCount": 0,
   "openGates": [
-    "Obtain separate authorization to publish and deploy the inactive controlled shadow receiver.",
-    "Configure and verify its secret and persistent empty ledger under separate authorization.",
     "Obtain separate authorization for controlled alert creation.",
     "Activate the pre-registered shadow and record every session in order.",
     "Complete the rollback drill after the observation criteria pass."

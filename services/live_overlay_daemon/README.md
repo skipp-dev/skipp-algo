@@ -202,7 +202,7 @@ missing symbol cache entry.
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Path auth for `/smc_live`; also legacy metrics auth |
 | `HOLD_MANAGER_SHADOW_ACCEPTING` | ❌ | `0` | Fail-closed kill switch for the private Hold Manager shadow receiver; leave `0` through deploy and receiver verification |
 | `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | ❌ | *(unset)* | Dedicated random token, minimum 32 characters. TradingView sends it as `authToken` in the JSON body; never place it in the URL or tracked templates |
-| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | ❌ | *(unset)* | SQLite delivery ledger. Production must point to persistent storage, for example `/data/smc-hold-manager-shadow.sqlite3`; an unset path rejects requests |
+| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | ❌ | *(unset)* | SQLite delivery ledger. Production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the service's existing persistent volume; an unset path rejects requests |
 | `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | ❌ | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
 | `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | ❌ | `900` | Maximum accepted TradingView bar age in seconds (range 60–86400) |
 | `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | ❌ | `120` | Maximum accepted future clock skew in seconds (range 0–3600) |

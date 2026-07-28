@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "requirementId": "R2-SHADOW-CUTOVER",
   "status": "not_started",
-  "readinessStatus": "receiver_implemented_local_inactive",
+  "readinessStatus": "receiver_deployed_configured_inactive",
   "source": {
     "path": "SMC_Hold_Manager.pine",
     "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813",
@@ -22,7 +22,7 @@
     "marketTimezone": "America/New_York"
   },
   "receiver": {
-    "status": "implemented_local_inactive",
+    "status": "deployed_configured_inactive",
     "service": "live_overlay_daemon",
     "productionHost": "https://liveoverlaydaemon-production.up.railway.app",
     "webhookPath": "/tradingview/hold-manager-shadow",
@@ -30,10 +30,13 @@
     "webhookAuthTransport": "json_body_authToken",
     "stateAuthTransport": "X-Hold-Manager-Shadow-Token header",
     "alertTemplates": "artifacts/governance/smc_hold_manager_shadow_alert_templates.json",
+    "deploymentEvidence": "artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json",
     "requiresPersistentLedger": true,
     "acceptingDefault": false,
-    "deployed": false,
-    "configured": false
+    "accepting": false,
+    "ledgerPath": "/app/data/smc-hold-manager-shadow.sqlite3",
+    "deployed": true,
+    "configured": true
   },
   "activationRequirements": {
     "requiresSeparateAuthorization": true,
@@ -103,8 +106,9 @@
     "isolatedPreflightStatus": "passed_visible_browser_fallback",
     "isolatedPreflightEvidence": "artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json",
     "receiverImplemented": true,
-    "receiverDeployed": false,
-    "receiverConfigured": false,
+    "receiverDeployed": true,
+    "receiverConfigured": true,
+    "receiverDeploymentEvidence": "artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json",
     "externalPublicationPerformed": false,
     "alertsCreated": false,
     "shadowObservationStarted": false

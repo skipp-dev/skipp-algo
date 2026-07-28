@@ -225,7 +225,7 @@ those secrets are added to the repo.
 | `OVERLAY_SECRET_TOKEN` | yes | — | HMAC + `/metrics` basic-auth secret |
 | `HOLD_MANAGER_SHADOW_ACCEPTING` | no | `0` | Hold Manager receiver kill switch. Keep `0` during deploy, configuration, and empty-ledger verification |
 | `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | no | — | Dedicated random token of at least 32 characters; sent in the private TradingView JSON body, never in the URL |
-| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production target is `/data/smc-hold-manager-shadow.sqlite3` |
+| `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the existing service volume |
 | `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | no | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
 | `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` | Maximum accepted bar age in seconds |
 | `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | no | `120` | Maximum accepted future clock skew in seconds |
@@ -1406,8 +1406,9 @@ implementation.
 
 1. Publish and deploy the receiver code to `live_overlay_daemon` while
    `HOLD_MANAGER_SHADOW_ACCEPTING=0`.
-2. Attach persistent Railway storage and set
-   `HOLD_MANAGER_SHADOW_LEDGER_PATH=/data/smc-hold-manager-shadow.sqlite3`.
+2. Reuse the existing `live_overlay_daemon` Railway volume mounted at
+   `/app/data`; do not remount or wipe it. Set
+   `HOLD_MANAGER_SHADOW_LEDGER_PATH=/app/data/smc-hold-manager-shadow.sqlite3`.
    Generate a dedicated random `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` with at
    least 32 characters. Do not display it in tickets, PR text, logs, commands
    captured as evidence, or URL paths.
@@ -1422,6 +1423,13 @@ implementation.
 
    Expected state is `accepting=false`, zero unique events, zero attempts, zero
    duplicates, and `lastReceivedAt=null`.
+
+   The inactive production verification passed on 2026-07-28 under deployment
+   `fb998ea6-4773-460b-bd66-8bdbfe977eef`. The authenticated state was empty,
+   `/health` and `/ready` returned HTTP 200, and the persistent parent was
+   writable. The SQLite file is created lazily on the first accepted event.
+   Redacted evidence is retained in
+   `artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
 4. Obtain a separate, exact authorization for six private TradingView alert
    creations. Render the messages from
    `artifacts/governance/smc_hold_manager_shadow_alert_templates.json` only in

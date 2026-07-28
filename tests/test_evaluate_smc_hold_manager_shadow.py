@@ -27,6 +27,12 @@ OBSERVATIONS_PATH = (
     / "governance"
     / "smc_hold_manager_shadow_observations.json"
 )
+RECEIVER_EVIDENCE_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_shadow_receiver_railway_2026-07-28.json"
+)
 TRACE_PATH = (
     ROOT
     / "artifacts"
@@ -131,16 +137,10 @@ def test_checked_in_shadow_state_is_explicitly_not_started() -> None:
     assert result["activationStatus"] == "not_started"
     assert result["completeSessionCount"] == 0
     assert result["blockers"] == []
-    assert result["openGates"][:3] == [
-        (
-            "Obtain separate authorization to publish and deploy the inactive "
-            "controlled shadow receiver."
-        ),
-        (
-            "Configure and verify its secret and persistent empty ledger "
-            "under separate authorization."
-        ),
+    assert result["openGates"] == [
         "Obtain separate authorization for controlled alert creation.",
+        "Activate the pre-registered shadow and record every session in order.",
+        "Complete the rollback drill after the observation criteria pass.",
     ]
 
 
@@ -154,7 +154,9 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
     actual_hash = hashlib.sha256(normalized_source.encode()).hexdigest()
 
     assert contract["status"] == "not_started"
-    assert contract["readinessStatus"] == "receiver_implemented_local_inactive"
+    assert contract["readinessStatus"] == (
+        "receiver_deployed_configured_inactive"
+    )
     assert contract["source"]["sha256"] == actual_hash
     assert contract["source"]["hashMode"] == (
         "micro_profile_library_pin_frozen"
@@ -172,8 +174,8 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
         "managedSavedScriptRefreshPerformed"
     ] is True
     assert contract["currentState"]["receiverImplemented"] is True
-    assert contract["currentState"]["receiverDeployed"] is False
-    assert contract["currentState"]["receiverConfigured"] is False
+    assert contract["currentState"]["receiverDeployed"] is True
+    assert contract["currentState"]["receiverConfigured"] is True
     assert contract["currentState"]["alertsCreated"] is False
     assert contract["currentState"]["isolatedPreflightStatus"] == (
         "passed_visible_browser_fallback"
@@ -184,6 +186,35 @@ def test_contract_is_source_pinned_private_and_pre_registered() -> None:
     assert contract["perSessionRequirements"][
         "activeActionableExitModes"
     ] == ["hold_manager"]
+
+
+def test_inactive_receiver_evidence_is_redacted_persistent_and_empty() -> None:
+    evidence = json.loads(RECEIVER_EVIDENCE_PATH.read_text(encoding="utf-8"))
+    token = evidence["configuration"]["webhookToken"]
+    ledger = evidence["configuration"]["ledger"]
+    state = evidence["verification"]["state"]
+
+    assert evidence["result"] == "passed_inactive_receiver_ready"
+    assert token == {
+        "configured": True,
+        "length": 64,
+        "valueRecorded": False,
+        "transport": "json_body_authToken",
+    }
+    assert ledger["path"] == "/app/data/smc-hold-manager-shadow.sqlite3"
+    assert ledger["parentExists"] is True
+    assert ledger["parentWritable"] is True
+    assert ledger["fileExists"] is False
+    assert ledger["initialization"] == "lazy_on_first_accepted_event"
+    assert state["accepting"] is False
+    assert state["uniqueEvents"] == 0
+    assert state["deliveryAttempts"] == 0
+    assert state["duplicateDeliveries"] == 0
+    assert set(state["uniqueByChannel"]) == set(CHANNELS)
+    assert set(state["uniqueByChannel"].values()) == {0}
+    assert state["lastReceivedAt"] is None
+    assert evidence["safety"]["alertsCreated"] is False
+    assert evidence["safety"]["shadowObservationStarted"] is False
 
 
 def test_five_complete_sessions_with_delivery_and_rollback_pass() -> None:
@@ -307,7 +338,7 @@ def test_invalid_session_date_blocks_promotion() -> None:
     )
 
 
-def test_traceability_keeps_shadow_not_started_with_local_readiness_evidence() -> None:
+def test_traceability_keeps_shadow_not_started_with_readiness_evidence() -> None:
     trace = json.loads(TRACE_PATH.read_text(encoding="utf-8"))
     requirement = next(
         requirement
@@ -337,6 +368,10 @@ def test_traceability_keeps_shadow_not_started_with_local_readiness_evidence() -
         (
             "artifacts/governance/"
             "smc_hold_manager_shadow_preflight_2026-07-28.json"
+        ),
+        (
+            "artifacts/governance/"
+            "smc_hold_manager_shadow_receiver_railway_2026-07-28.json"
         ),
         (
             "artifacts/governance/"

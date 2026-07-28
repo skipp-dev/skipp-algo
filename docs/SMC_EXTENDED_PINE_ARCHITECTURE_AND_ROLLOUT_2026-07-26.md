@@ -1078,7 +1078,7 @@ the exact registered order. This did not create alerts, publish a script, or
 start shadow observation. Evidence:
 `artifacts/governance/smc_hold_manager_shadow_preflight_2026-07-28.json`.
 
-The controlled receiver is now implemented locally in
+The controlled receiver is implemented in
 `services/live_overlay_daemon/hold_manager_shadow_receiver.py`, with six
 source-pinned message templates in
 `artifacts/governance/smc_hold_manager_shadow_alert_templates.json`. It is
@@ -1091,12 +1091,17 @@ The source hash uses the R2.4 replay contract's narrow pin normalization:
 only the automated `smc_micro_profiles_generated` import version is frozen to
 the evidenced version 175; every other source change still moves the hash.
 
-This implementation is not operational evidence. It has not been published,
-deployed, configured, or enabled, and no TradingView alert exists. Accordingly
-`R2-SHADOW-CUTOVER` remains `not_started`. Repository publication plus an
-inactive Railway deploy/configuration require exact authorization and receiver
-verification. Creating the six private TradingView alerts and opening the
-observation window require a second exact authorization.
+The receiver was deployed and configured fail-closed in `live_overlay_daemon`
+on 2026-07-28. Its dedicated 64-character token was not recorded, its
+persistent destination is
+`/app/data/smc-hold-manager-shadow.sqlite3`, and the authenticated state showed
+`accepting=false` with zero events, attempts, and duplicates. Both `/health`
+and `/ready` returned HTTP 200. Redacted evidence is retained in
+`artifacts/governance/smc_hold_manager_shadow_receiver_railway_2026-07-28.json`.
+No TradingView alert exists and observation has not started, so
+`R2-SHADOW-CUTOVER` remains `not_started`. Creating the six private TradingView
+alerts and later opening the observation window each require exact
+authorization.
 
 Shadow activation requires separate authorization for controlled TradingView
 alert creation. Under the
@@ -1122,9 +1127,9 @@ For every recorded session:
 Promotion additionally requires the registered rollback drill: disable Hold
 alerts before removing Hold, re-enable Exit Signal before disabling Hold,
 leave Suite and BUS schema unchanged, save the restored layout, and reverify
-bindings after reload. The current checked-in state remains `not_started`;
-no publication, alert creation, shadow observation, or rollback drill has been
-performed.
+bindings after reload. The current checked-in state remains `not_started`; no
+TradingView publication, alert creation, shadow observation, or rollback drill
+has been performed.
 
 #### Exit criteria
 
