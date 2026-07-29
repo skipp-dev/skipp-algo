@@ -28,11 +28,11 @@ Score composition (0-100):
 - Event risk penalty  (-15 to 0) — from Event Risk Light
 - Compression regime  (0-15)  — squeeze/ATR-based expansion potential
 
-Tier mapping:
-- 0-25:  low
-- 26-50: ok
-- 51-75: good
-- 76-100: high
+Tier mapping (inclusive label caps; Pine gates use inclusive lower edges):
+- 0-25:  low  (Pine Ready gate opens at 25)
+- 26-50: ok   (Pine Best gate opens at 50)
+- 51-75: good (Pine Strict gate opens at 75)
+- 76-100: high (top label; no higher Pine gate)
 
 All fields safe-default to neutral when inputs are unavailable.
 
@@ -118,7 +118,7 @@ def _prefer_lean_value(primary: dict[str, Any], fallback: dict[str, Any], key: s
     return fallback.get(key, default)
 
 
-def _score_tier(score: int) -> str:
+def _score_tier(score: int) -> str:  # Inclusive label caps; Pine gates use inclusive lower edges.
     if score <= TIER_LOW:
         return "low"
     if score <= TIER_OK:
