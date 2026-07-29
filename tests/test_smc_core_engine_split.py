@@ -165,6 +165,26 @@ def test_core_engine_uses_signal_quality_as_primary_gate() -> None:
     assert 'bool combined_quality_gate_ok' not in source
     assert 'signal_bias_bullish' not in source
 
+
+def test_signal_quality_labels_and_pine_gates_share_complementary_edges() -> None:
+    """Boundary scores keep the lower label while opening the next Pine gate."""
+    from scripts.smc_signal_quality import _score_tier
+
+    source = _read_core_source()
+    boundaries = (
+        (25, "low", "bool signal_quality_ok   = lib_sq_score >= 25"),
+        (50, "ok", "bool signal_quality_good = lib_sq_score >= 50"),
+        (75, "good", "bool signal_quality_high = lib_sq_score >= 75"),
+    )
+
+    for score, expected_label, pine_gate in boundaries:
+        assert _score_tier(score) == expected_label
+        assert pine_gate in source
+
+    assert "Tier labels use inclusive upper bands (25 remains low, 50 ok, 75 good)" in source
+    assert "gates deliberately open at those same scores" in source
+
+
 def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
     source = _read_core_source()
 
