@@ -6,10 +6,18 @@ already-generated main ``.pine`` artifact), this script re-runs the 4 fast
 enrichment modules (regime, news, calendar, layering) against live API
 data and renders their results directly into the overlay Pine library.
 
-This enables a fast-cadence publish loop that does NOT depend on a full
-Databento scan or the slow micro-profiles pipeline: the overlay values
-can be refreshed intraday on a cron schedule and immediately published
-to TradingView via the overlay publisher workflow.
+This enables a fast-cadence refresh that does NOT depend on a full
+Databento scan or the slow micro-profiles pipeline.
+
+Scheduling status (2026-07-29, Verdrahtungs-Sweep): NO scheduler invokes
+this script — there is no cron, workflow, or launchd entry anywhere; it is
+a manually-run operator tool. The earlier claim that overlay values "can be
+refreshed intraday on a cron schedule and immediately published" described
+an aspiration, not the repo: the overlay publisher workflow
+(``smc-overlay-library-publish.yml``) is deliberately workflow_dispatch-only
+("a human deliberately triggers each publish"), so an automatic intraday
+publish chain would contradict that design. Add a scheduler only together
+with an explicit decision to change the publish policy.
 
 Enrichment modules
 ------------------
