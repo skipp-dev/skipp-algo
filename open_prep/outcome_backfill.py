@@ -436,7 +436,7 @@ def compute_pnl_from_bars(
                 target_level = entry_price * (1 - target_pct / 100.0)
                 stop_level = entry_price * (1 + stop_pct / 100.0)
 
-            window = sym_df.loc[open_mask & primary_exit_mask].sort_values("_et")
+            window = sym_df.loc[open_mask & ((sym_df["_et"] == open_bar["_et"]) | primary_exit_mask)].sort_values("_et")
             for _, bar in window.iterrows():
                 bar_high = float(bar["high"])
                 bar_low = float(bar["low"])

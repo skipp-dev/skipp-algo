@@ -106,6 +106,7 @@ def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
 def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
     core_source = _read(CORE_PATH)
     lifecycle_body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_strict_reason_code")
+    engine_body = _extract_function_body(_read(ENGINE_PRIVATE_PATH), "resolve_bus_strict_blocker_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_strict_gate_text")
 
     assert "eng.resolve_bus_strict_blocker_code(" in core_source
@@ -113,6 +114,8 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
 
     for reason_code in range(2, 11):
         assert f"reason_code := {reason_code}" in lifecycle_body
+    assert "trust_allows_entry" in engine_body
+    assert ": 11" in engine_body
 
     for label in [
         "Need Ready",
@@ -124,6 +127,7 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
         "Vol blocked",
         "Stretch blocked",
         "DDVI blocked",
+        "Trust Insufficient",
     ]:
         assert f'label_text := "{label}"' in dashboard_body
 
@@ -349,6 +353,8 @@ def test_support_code_surface_stays_runtime_owned() -> None:
 
     for snippet in [
         "resolve_long_strict_reason_code",
+        "trust_allows_entry",
+        ": 11",
     ]:
         assert snippet in strict_body
 
@@ -380,6 +386,7 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text)" in source
     assert "resolve_bus_ready_blocker_code(long_ready_state" in source
     assert "resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
+    assert "ddvi_entry_strict_ok_safe, trust_allows_entry)" in source
     assert "cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)" in source
     assert "cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)" in source
     assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source
@@ -397,7 +404,7 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "plot(cr.resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
     assert "plot(cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
     assert "plot(eng.resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)" in source
-    assert "plot(eng.resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)" in source
+    assert "plot(eng.resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe, trust_allows_entry), 'BUS StrictBlockerCode', display = display.none)" in source
     assert "plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
     assert "plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
 

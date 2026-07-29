@@ -66,8 +66,8 @@ Trust is resolved from three inputs:
    entry lifecycle. Now gates entry best/strict at `Insufficient`.
 
 4. **Dashboard/Core casing difference** — Dashboard: lowercase (`high`, `guarded`). Core: Title
-   Case (`High`, `Guarded`). Semantically equivalent, separate resolvers. Not a functional bug;
-   documented for awareness.
+   Case (`High`, `Guarded`). Both resolvers consume the generated library's canonical
+   `EVENT_PROVIDER_STATUS`; only their output casing differs.
 
 ## Design Principles
 
