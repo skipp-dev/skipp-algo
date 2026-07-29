@@ -175,6 +175,11 @@ jobs:
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated
           workflow_conclusion: success
+          # 2026-07-29: search back for the newest run that carries the pool
+          # (the newest rolling-bench run alone may predate today's upload or
+          # sit in a chain gap) — otherwise Tier-1 direction metrics and the
+          # ADR-0031 gate/regime artifacts silently degrade to "not measured".
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Build FamilyMetrics bundle

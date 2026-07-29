@@ -143,6 +143,10 @@ jobs:
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated
           workflow_conclusion: success
+          # 2026-07-29: search back for the newest run that carries the pool
+          # (see promotion-gate-daily.yml — one chain gap otherwise starves
+          # this consumer silently via its daily-artifact fallback).
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Resolve events file

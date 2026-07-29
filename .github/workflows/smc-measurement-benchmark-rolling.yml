@@ -708,6 +708,14 @@ jobs:
           name: scored-family-events-accumulated
           path: artifacts/ci/scored_family_events_accumulated_prev
           workflow_conclusion: success
+          # 2026-07-29: without search_artifacts the action checks ONLY the
+          # newest completed run — one run without the artifact broke the
+          # accumulate chain SELF-PERPETUATINGLY (publishable=false => no
+          # upload => next run finds nothing either; zero uploads in the
+          # last 45+ success runs until the reseed dispatch). Walk back to
+          # the most recent run that actually carries it (within 32d
+          # retention). Same idiom as smc-library-refresh.yml.
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Accumulate family events across rolling window (ADR-0023 Option B)
