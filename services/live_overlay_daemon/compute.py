@@ -15,7 +15,7 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   flow_rel_vol         — volume(current bar) / mean volume(prior bars in window)
   flow_delta_proxy_pct — legacy compatibility name for candle-body return
   price_candle_body_return_pct — canonical name for the same candle-body return
-  squeeze_on           — int 0/1 on the JSON wire (1 = BB width < KC width; null when unknown)
+  squeeze_on           — int 0/1 on the JSON wire (1 = BB fully inside KC; null when unknown)
   ats_state            — legacy compatibility name for accumulation/distribution
   volume_accumulation_distribution_state — canonical state name
   ats_zscore            — legacy compatibility name for current-bar volume z-score
