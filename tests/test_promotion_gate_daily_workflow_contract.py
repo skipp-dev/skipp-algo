@@ -29,10 +29,13 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_live_window_marker_off_hours() -> None:
+def test_live_window_marker_mutating_on_cron() -> None:
+    """2026-07-29 (ADR-0031): posture raised from off-hours-only — the
+    workflow now commits gate/regime artifacts via a bot auto-merge PR."""
     head = _WF_PATH.read_text(encoding="utf-8").splitlines()[0]
-    assert "live-window: off-hours-only" in head, (
-        "first-line live-window marker required by F-V6-F2.1"
+    assert "live-window: mutating-on-cron" in head, (
+        "first-line live-window marker required by F-V6-F2.1; "
+        "mutating-on-cron since ADR-0031 (write permissions + commit-back)"
     )
 
 
@@ -58,11 +61,22 @@ def test_concurrency_does_not_cancel() -> None:
     assert concurrency["cancel-in-progress"] is False
 
 
-def test_permissions_minimal_read_plus_actions_read() -> None:
+def test_permissions_minimal_for_download_plus_adr0031_commit_back() -> None:
+    """Pin the exact permission set; every entry has a named consumer.
+
+    2026-07-29 (ADR-0031): widened from read-only. ``contents: write`` +
+    ``pull-requests: write`` are consumed by the "Commit gate + regime
+    artifacts via auto-merge PR" step (push ``bot/promotion-gates-*`` +
+    ``gh pr create``), mirroring ``run-open-prep-daily``. ``actions: read``
+    remains required for ``gh run download`` against the rolling bench.
+    Any further widening needs a consumer named here.
+    """
     perms = _load()["permissions"]
-    assert perms == {"contents": "read", "actions": "read"}, (
-        "permissions drifted; ``actions:read`` is required for `gh run download`"
-    )
+    assert perms == {
+        "contents": "write",
+        "pull-requests": "write",
+        "actions": "read",
+    }, "permissions drifted from the ADR-0031 set — name the consumer before widening"
 
 
 def test_single_promotion_gate_job() -> None:

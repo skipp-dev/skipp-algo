@@ -7,26 +7,27 @@ and :func:`scripts.build_dashboard_payload._per_variant_gate_status`.
 Without this file the dashboard renders ``gate_status="unknown"`` on
 every row.
 
-Wiring status (2026-07-28, dead-dataflow sweep): this producer is
-scheduled by NOTHING and cannot currently be wired end-to-end — the whole
-C6/C7 dashboard-cache feed is unwired, blocked on two owner decisions:
+Wiring status (2026-07-29, ADR-0031 — supersedes the 2026-07-28
+"scheduled by NOTHING" note): both former owner-blockers are resolved.
 
-1. **No persisted returns source.** No file exists in the ``{"returns": ...}``
-   / ``{"returns_by_variant": ...}`` shape this reads. ``walk_forward_runner``
-   computes per-trade OOS returns in memory only (no CLI/writer/workflow);
-   the sole committed raw corpus (``scored_family_events``) would need
-   ``governance.family_returns.extract_family_returns``, whose trade
-   definition is itself a pending-review "LOAD-BEARING ASSUMPTION". Choosing
-   the returns/trade definition is a methodology decision, not wiring.
-2. **No persist channel to the consumer.** The consumer is NOT the deployed
-   ``skipp-terminal-ai`` (``streamlit_terminal.py`` does not read
-   ``build_dashboard_payload``) but a separate ``streamlit_dashboard.py``
-   image (``Dockerfile.dashboard``) that mounts ``cache/`` read-only from an
-   out-of-band host dir NO in-repo manifest populates. The payload also
-   short-circuits before the gate cell because its date anchor
-   ``walk_forward_<date>.json`` is never produced either (the gate file is 1
-   of 6 missing artifacts). So ``gate_status="unknown"`` is not a
-   proven-live regression today.
+1. **Persisted returns source:** ``scripts/build_returns_series.py``
+   writes ``docs/calibration/gates/returns_series_<date>.json`` in exactly
+   the ``{"returns_by_variant": ...}`` shape this reads — the Variant-A
+   series (``governance.family_returns.extract_family_returns``) over the
+   plane-filtered accumulated FamilyEvent pool; the trade definition was
+   blessed for gate use by ADR-0031 (same rule the promotion gate grades).
+2. **Persist channel:** ``promotion-gate-daily.yml`` runs this producer
+   daily and commits ``docs/calibration/gates/track_record_gate_<date>.json``
+   via a bot auto-merge PR; ``emit_public_calibration_report`` embeds the
+   newest verdict into the public report (additive 1.1.0 key). The old
+   ``cache/calibration``/Docker-mount dashboard channel remains unwired by
+   decision (see ADR-0031) — ``build_dashboard_payload`` stays inert
+   because ``walk_forward_<date>.json`` is still never produced.
+
+Honest-state note: with today's sample the verdict is expected to be
+``red`` (insufficient evidence), and on empty-pool days no gate file is
+written at all (this module refuses zero-trade/zero-variance series as a
+broken-feed tripwire) — the public report then omits the key.
 
 Pure stdlib + numpy.
 """

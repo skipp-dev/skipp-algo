@@ -687,3 +687,78 @@ def test_history_never_records_an_empty_ok_entry(tmp_path: Path) -> None:
                 "n_events": None, "weighted_hit_rate": None, "metrics": {}}
     history = append_public_history(out, empty_ok)
     assert history.read_text(encoding="utf-8").strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# ADR-0031: gates-dir loader (track_record_gate / regime_stratified wiring)
+# ---------------------------------------------------------------------------
+
+
+def test_load_latest_gate_artifact_missing_dir_is_none(tmp_path: Path) -> None:
+    from scripts.emit_public_calibration_report import _load_latest_gate_artifact
+
+    assert _load_latest_gate_artifact(tmp_path / "gates", "track_record_gate", None) is None
+
+
+def test_load_latest_gate_artifact_picks_newest_by_date_not_mtime(tmp_path: Path) -> None:
+    from scripts.emit_public_calibration_report import _load_latest_gate_artifact
+
+    older = tmp_path / "regime_stratified_2026-07-01.json"
+    newer = tmp_path / "regime_stratified_2026-07-29.json"
+    newer.write_text(json.dumps({"date": "2026-07-29"}), encoding="utf-8")
+    older.write_text(json.dumps({"date": "2026-07-01"}), encoding="utf-8")
+    # older file has the NEWER mtime — the date in the name must still win
+    payload = _load_latest_gate_artifact(tmp_path, "regime_stratified", None)
+    assert payload == {"date": "2026-07-29"}
+
+
+def test_load_latest_gate_artifact_malformed_is_failsoft_none(tmp_path: Path) -> None:
+    from scripts.emit_public_calibration_report import _load_latest_gate_artifact
+
+    bad = tmp_path / "track_record_gate_2026-07-29.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert _load_latest_gate_artifact(tmp_path, "track_record_gate", None) is None
+
+
+def test_main_embeds_gate_and_regime_artifacts(tmp_path: Path) -> None:
+    """End-to-end: main() finds the gates dir and embeds both additive keys."""
+    from scripts.emit_public_calibration_report import main
+
+    gates = tmp_path / "gates"
+    gates.mkdir()
+    (gates / "track_record_gate_2026-07-29.json").write_text(
+        json.dumps({"status": "red", "n_trades": 100}), encoding="utf-8"
+    )
+    (gates / "regime_stratified_2026-07-29.json").write_text(
+        json.dumps({"status": "insufficient_data", "n_trades_with_regime": 39}),
+        encoding="utf-8",
+    )
+    out = tmp_path / "public.json"
+    rc = main(
+        [
+            "--search-dir", str(tmp_path / "no-cal-artifacts"),
+            "--gates-dir", str(gates),
+            "--output", str(out),
+        ]
+    )
+    assert rc == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["track_record_gate"]["status"] == "red"
+    assert report["regime_stratified"]["n_trades_with_regime"] == 39
+
+
+def test_main_without_gates_dir_omits_keys(tmp_path: Path) -> None:
+    from scripts.emit_public_calibration_report import main
+
+    out = tmp_path / "public.json"
+    rc = main(
+        [
+            "--search-dir", str(tmp_path / "no-cal-artifacts"),
+            "--gates-dir", str(tmp_path / "no-gates"),
+            "--output", str(out),
+        ]
+    )
+    assert rc == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert "track_record_gate" not in report
+    assert "regime_stratified" not in report

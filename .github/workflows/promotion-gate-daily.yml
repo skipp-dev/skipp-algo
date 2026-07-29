@@ -1,4 +1,4 @@
-# live-window: off-hours-only  # 14:00 UTC Mon-Fri — typically after smc-measurement-benchmark-rolling (workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri); fail-soft on missing artifact
+# live-window: mutating-on-cron  # 14:00 UTC Mon-Fri — typically after smc-measurement-benchmark-rolling (workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri); fail-soft on missing artifact. ADR-0031 (2026-07-29): commits gate/regime artifacts to docs/calibration/gates/ via bot auto-merge PR → contents/pull-requests write, posture raised from off-hours-only
 name: promotion-gate-daily
 
 # Sprint W1.b — daily PromotionGate evaluation.
@@ -59,7 +59,8 @@ on:
         default: "false"
 
 permissions:
-  contents: read
+  contents: write  # ADR-0031: push bot/promotion-gates-* branches (gate + regime artifacts)
+  pull-requests: write  # ADR-0031: open the auto-merge PR for those artifacts
   actions: read  # gh run list/download against the rolling-bench workflow
 
 concurrency:
@@ -278,6 +279,93 @@ jobs:
               print(f"| {d.get('family')} | {d.get('promoted')} | {d.get('posture')} | {len(blockers)} |")
           PY
 
+      # ADR-0031: persist the Variant-A per-trade returns series and derive
+      # the C6/C7 track-record-gate verdict + the C5 regime-stratified
+      # report from it. This is the "persisted returns source" edge the
+      # gate was blocked on — same trade definition the bundle above
+      # already grades (extract_family_returns, plane 1D), now written
+      # down instead of discarded with the runner.
+      - name: Build returns series + track-record gate + regime report (ADR-0031)
+        if: steps.download.outputs.status == 'ready'
+        id: gates
+        run: |
+          set -euo pipefail
+          DATE="${{ steps.date.outputs.value }}"
+          GATES_DIR="docs/calibration/gates"
+          mkdir -p "${GATES_DIR}"
+          SERIES="${GATES_DIR}/returns_series_${DATE}.json"
+          EVENTS_POOL=""
+          if [ -d artifacts/ci/scored_family_events_accumulated ]; then
+            EVENTS_POOL="$(find artifacts/ci/scored_family_events_accumulated -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
+          if [ -z "${EVENTS_POOL}" ]; then
+            echo "::warning title=promotion-gate-daily::no accumulated events pool — skipping ADR-0031 gate/regime artifacts for ${DATE}"
+            echo "produced=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -m scripts.build_returns_series \
+            --events "${EVENTS_POOL}" \
+            --plane 1D \
+            --date "${DATE}" \
+            --output "${SERIES}"
+          N_TRADES="$(python -c "import json; print(json.load(open('${SERIES}'))['n_trades'])")"
+          if [ "${N_TRADES}" -gt 0 ]; then
+            python -m scripts.build_track_record_gate \
+              --returns "${SERIES}" \
+              --output "${GATES_DIR}/track_record_gate_${DATE}.json"
+          else
+            # The gate refuses zero-trade/zero-variance series by design
+            # (broken-feed tripwire) — no verdict file is the honest state.
+            echo "::warning title=promotion-gate-daily::returns series empty (n_trades=0) — no track_record_gate_${DATE}.json emitted"
+          fi
+          python -m scripts.build_regime_stratified_report \
+            --series "${SERIES}" \
+            --date "${DATE}" \
+            --output "${GATES_DIR}/regime_stratified_${DATE}.json"
+          # Retention: keep the newest 90 of each artifact family so the
+          # committed drop-zone stays bounded (mirrors HISTORY_RETENTION).
+          for prefix in returns_series track_record_gate regime_stratified; do
+            ls -1 "${GATES_DIR}/${prefix}_"*.json 2>/dev/null | sort | head -n -90 | while read -r old; do
+              rm -f "${old}"
+              echo "pruned ${old} (retention 90)"
+            done
+          done
+          echo "produced=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit gate + regime artifacts via auto-merge PR
+        if: steps.download.outputs.status == 'ready' && steps.gates.outputs.produced == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add docs/calibration/gates/ || true
+          if git diff --staged --quiet; then
+            echo "No new gate artifacts to commit."
+            exit 0
+          fi
+          BRANCH="bot/promotion-gates-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(governance): track-record gate + regime stratification ${{ steps.date.outputs.value }}"
+          git push -u origin "$BRANCH"
+          if ! gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(governance): gate + regime artifacts ${{ steps.date.outputs.value }}" \
+            --body "Automated ADR-0031 artifacts from \`promotion-gate-daily\` (run ${GITHUB_RUN_ID}): Variant-A returns series, C6/C7 track-record-gate verdict and C5 regime-stratified report. The 04:30 UTC public-calibration-dashboard run embeds the newest of these into the public report."; then
+            echo "::error file=.github/workflows/promotion-gate-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection / required-status-check evaluation; the PR itself
+          # is already open and reviewable, so we surface as warning rather
+          # than failing the job.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
+
       - name: Upload promotion-gate artifacts
         if: steps.download.outputs.status == 'ready' && always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -287,5 +375,8 @@ jobs:
             artifacts/promotion_decisions.json
             artifacts/reports/promotion_gate_${{ steps.date.outputs.value }}.json
             artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/returns_series_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/track_record_gate_${{ steps.date.outputs.value }}.json
+            docs/calibration/gates/regime_stratified_${{ steps.date.outputs.value }}.json
           retention-days: 45
           if-no-files-found: warn
