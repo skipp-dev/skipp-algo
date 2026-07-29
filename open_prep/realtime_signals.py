@@ -1854,10 +1854,10 @@ class VolumeRegimeDetector:
         vol_frac = max(_expected_cumulative_volume_fraction(), 0.02)
         for _sym, q in quotes.items():
             vol = _safe_float(q.get("volume"), 0.0)
-            # FMP batch-quote omits avgVolume — try watchlist_avg_volumes
-            # fallback dict (populated from bulk profile enrichment).
+            # Only non-Databento rows may use the consolidated watchlist fallback.
             avg_vol = _safe_float(q.get("avgVolume"), 0.0)
-            if avg_vol <= 0 and hasattr(self, "_wl_avg_volumes"):
+            is_databento = str(q.get("source") or "").strip().lower().startswith("databento")
+            if avg_vol <= 0 and not is_databento:
                 avg_vol = self._wl_avg_volumes.get(_sym, 0.0)
             if avg_vol <= 0:
                 continue   # unknown volume — exclude from both counts

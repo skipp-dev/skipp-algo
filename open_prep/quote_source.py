@@ -26,6 +26,7 @@ Row shape: see ``docs/databento_quote_row_contract.md`` (Task 0.1).
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 from datetime import datetime
@@ -82,6 +83,13 @@ def _has_databento_adv_provenance(source: str) -> bool:
 
     expected = f"adv={DATABENTO_ADV_SOURCE}".lower()
     return expected in {part.strip().lower() for part in str(source).split("+")}
+
+
+def _has_usable_databento_adv(value: float) -> bool:
+    """Return whether an ADV can safely serve as the live volume basis."""
+    from .quote_reference import MIN_USABLE_ADV_SHARES
+
+    return math.isfinite(value) and value >= MIN_USABLE_ADV_SHARES
 
 
 class QuoteSource(Protocol):
@@ -221,9 +229,10 @@ class DatabentoQuoteSource:
     Fail-closed: a symbol with no cached bar yet, with a bar older than
     ``max_bar_age_secs`` (final-review Finding 3 — see below), or with no
     reference entry, or whose reference ADV provenance does not match the
-    live feed's EQUS.MINI basis, is OMITTED from the result entirely — never
-    emitted with a fabricated, stale, or consolidated-volume denominator,
-    mirroring how the FMP path drops symbols FMP didn't return a quote for.
+    live feed's EQUS.MINI basis or whose ADV value is unusable, is OMITTED
+    from the result entirely — never emitted with a fabricated, stale, or
+    consolidated-volume denominator, mirroring how the FMP path drops symbols
+    FMP didn't return a quote for.
 
     Bounded-age staleness guard (Finding 3): the feed's background reconnect
     loop now re-arms itself after its circuit breaker trips (a supervisor
@@ -261,6 +270,7 @@ class DatabentoQuoteSource:
         self._reference = reference
         self._source_label = source_label
         self._rejected_reference_sources: set[str] = set()
+        self._rejected_reference_advs: set[str] = set()
         # None -> DATABENTO_QUOTE_MAX_BAR_AGE_SECS env override, else the
         # built-in default (see _resolve_max_bar_age_secs above).
         self._max_bar_age_secs = _resolve_max_bar_age_secs(max_bar_age_secs)
@@ -309,6 +319,7 @@ class DatabentoQuoteSource:
         resolved_now = now if now is not None else time.time()
         rows: list[dict[str, Any]] = []
         rejected_reference_sources: set[str] = set()
+        rejected_reference_advs: set[str] = set()
         for symbol_raw in symbols:
             symbol = str(symbol_raw).strip().upper()
             if not symbol:
@@ -327,6 +338,11 @@ class DatabentoQuoteSource:
             if not _has_databento_adv_provenance(reference_row.source):
                 rejected_reference_sources.add(reference_row.source or "<missing>")
                 continue  # fail-closed: subset volume cannot use consolidated ADV
+            if not _has_usable_databento_adv(reference_row.average_daily_volume):
+                rejected_reference_advs.add(
+                    f"{symbol}={reference_row.average_daily_volume!r}"
+                )
+                continue  # fail-closed: never trigger a cross-provider fallback
 
             day_high, day_low = self._feed.session_high_low(symbol)
             if day_high is None or day_low is None:
@@ -360,4 +376,11 @@ class DatabentoQuoteSource:
                 ", ".join(sorted(new_rejected_sources)),
             )
             self._rejected_reference_sources.update(new_rejected_sources)
+        new_rejected_advs = rejected_reference_advs - self._rejected_reference_advs
+        if new_rejected_advs:
+            logger.error(
+                "Databento quote reference rejected unusable ADV: %s",
+                ", ".join(sorted(new_rejected_advs)),
+            )
+            self._rejected_reference_advs.update(new_rejected_advs)
         return rows
