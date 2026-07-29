@@ -2477,6 +2477,18 @@ class TestAtrRobustness(unittest.TestCase):
 
 
 class TestOpenPrepRegressions(unittest.TestCase):
+    def setUp(self) -> None:
+        # generate_open_prep_result runs the G3 arm-B shadow, which calls
+        # write_ab_record without out_dir and therefore falls back to the
+        # RELATIVE open_prep.ab_arms.AB_ARMS_DIR — rewriting the tracked
+        # artifacts/open_prep/ab_arms/latest.json in the working tree on every
+        # run. Redirect it for the whole class so the pipeline still executes.
+        ab_arms_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(ab_arms_dir.cleanup)
+        patcher = patch("open_prep.ab_arms.AB_ARMS_DIR", Path(ab_arms_dir.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_generate_result_mirrors_pmh_into_premarket_context(self):
         with (
             patch("open_prep.run_open_prep._fetch_todays_events", return_value=([], [])),

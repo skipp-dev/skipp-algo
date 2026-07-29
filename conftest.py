@@ -45,6 +45,34 @@ collect_ignore = (
 )
 
 
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Drop provider-usage counters so the atexit flush cannot write the repo.
+
+    ``newsstack_fmp.provider_usage`` registers an ``atexit`` hook that merges
+    this process's counters into the RELATIVE
+    ``artifacts/monitoring/provider_usage.json`` — a tracked repo artifact. Any
+    test reaching a real ``record()`` call therefore rewrote it; five classes in
+    tests/test_open_prep.py plus tests/test_provider_429_telemetry_coverage.py
+    did. Not merely untidy: guards such as
+    tests/test_smc_integration_extended_structure_discovery.py glob the live repo
+    tree while the suite runs, so writes into it are a flake source.
+
+    Clearing the counters (public API) makes the flush a no-op, because
+    ``ProviderUsage.flush`` returns early when there is nothing to merge. The
+    alternatives all fight an existing pin: redirecting via
+    ``PROVIDER_USAGE_SNAPSHOT_PATH`` needs an ``os.environ`` mutation site, a
+    scratch dir needs a ``tempfile`` ledger entry, and unregistering the hook
+    needs a second ``atexit`` surface. ``guard_against_canonical_repo_write_under_pytest``
+    cannot be reused either: it keys on ``PYTEST_CURRENT_TEST``, which pytest has
+    already removed by the time an atexit hook runs.
+
+    Only touches a module the session actually imported.
+    """
+    provider_usage = sys.modules.get("newsstack_fmp.provider_usage")
+    if provider_usage is not None:
+        provider_usage.reset()
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
