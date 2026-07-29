@@ -617,6 +617,8 @@ decode_strict_gate_text(int row_code) =>
         label_text := "Stretch blocked"
     else if reason_code == 10
         label_text := "DDVI blocked"
+    else if reason_code == 11
+        label_text := "Trust Insufficient"
     label_text
 
 dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code, int ready_blocker_code, int strict_blocker_code) =>
@@ -711,11 +713,9 @@ dashboard_compact_data_quality_text(int volume_data_row_code, int micro_fresh_ro
         quality_text := "thin"
     quality_text
 
-dashboard_provider_state_text(int volume_data_row_code, int micro_fresh_row_code) =>
-    int reason_code = row_reason(volume_data_row_code)
-    int micro_state = row_status(micro_fresh_row_code)
+dashboard_provider_state_text(string event_provider_status) =>
     string provider_text = "degraded"
-    if reason_code == 1 and (micro_state == 0 or micro_state >= 3)
+    if event_provider_status == "ok"
         provider_text := "ok"
     provider_text
 
@@ -783,19 +783,19 @@ dashboard_compact_main_blocker_text(int event_risk_row_code, int ready_blocker_c
         blocker_text := volume_text
     blocker_text
 
-dashboard_compact_trust_text(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code, int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, string ensemble_tier) =>
+dashboard_compact_trust_text(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, string ensemble_tier) =>
     string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
     string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
-    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string provider_state = dashboard_provider_state_text(mp.EVENT_PROVIDER_STATUS)
     string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
     string main_blocker = dashboard_compact_main_blocker_text(event_risk_row_code, ready_blocker_code, strict_blocker_code, volume_data_row_code)
     string ens_suffix = ensemble_tier != "" and ensemble_tier != "n/a" ? " | ens:" + ensemble_tier : ""
     trust_tier + ens_suffix + " | blocker: " + main_blocker + " | provider: " + provider_state
 
-dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code) =>
+dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code) =>
     string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
     string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
-    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string provider_state = dashboard_provider_state_text(mp.EVENT_PROVIDER_STATUS)
     string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
     int state_code = -1
     if trust_tier == "high"
@@ -1711,10 +1711,10 @@ if show_table and barstate.islast
         // Audit View. The legacy operator-grade trust text stays as the
         // prefix; the badge is suffixed and the row state is clamped to the
         // worse of the legacy state and the product trust state.
-        int _compact_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _compact_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code)
         int _compact_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
         int _compact_trust_state = _compact_legacy_trust_state < _compact_product_trust_state ? _compact_legacy_trust_state : _compact_product_trust_state
-        string _compact_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+        string _compact_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
         dashboard_row_tt(smc_dashboard, 0, "SMC Compact", "Decision Brief | " + dashboard_universe_badge, header_bg, txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
@@ -1758,10 +1758,10 @@ if show_table and barstate.islast
         // Compact view (see comment above). Decision Brief is also a
         // default surface, so a degraded data lage must be visible here
         // without switching to Audit View.
-        int _brief_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _brief_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code)
         int _brief_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
         int _brief_trust_state = _brief_legacy_trust_state < _brief_product_trust_state ? _brief_legacy_trust_state : _brief_product_trust_state
-        string _brief_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+        string _brief_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
         dashboard_row_tt(smc_dashboard, 6, "Trust / Data", _brief_trust_text + " | " + dashboard_universe_badge, status_bg(_brief_trust_state < dashboard_universe_state ? _brief_trust_state : dashboard_universe_state), txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
@@ -1871,9 +1871,9 @@ if show_table and barstate.islast
         // ── Trust & Provider surface (v5.5b) — read-only visibility, no signal model change ──
         string _audit_sq_tier = decode_lean_sq_text(lean_sq_row_code)
         string _audit_sq_fresh = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
-        string _audit_prov = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+        string _audit_prov = dashboard_provider_state_text(mp.EVENT_PROVIDER_STATUS)
         string _audit_trust = resolve_dashboard_trust_tier(_audit_sq_tier, _audit_sq_fresh, _audit_prov)
-        int _audit_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _audit_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code)
         int _audit_prov_state = _audit_prov == "ok" ? 5 : -1
         bool _audit_degraded = _audit_trust == "degraded" or _audit_trust == "insufficient"
         string _audit_warn_raw = mp.SIGNAL_WARNINGS

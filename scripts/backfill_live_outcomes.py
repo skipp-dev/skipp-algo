@@ -98,55 +98,54 @@ def _atomic_write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
         raise
 
 
+OUTCOME_SCHEMA_KEY = "outcome_schema_version"
+OUTCOME_SCHEMA_VERSION = 2  # v2 anchors realised outcomes at fill_price, not the submitted limit.
+
+
 def compute_trade_outcome(
     *,
-    entry_price: float,
+    fill_price: float,
     stop_loss: float,
     close_price: float,
     size_usd: float,
 ) -> tuple[float, float]:
     """Return ``(pnl_usd, r_multiple)`` for a long-only Phase-B trade.
 
-    The R-multiple is ``(close - entry) / (entry - stop)``. A close at
-    the entry yields ``0R``, a close at the take-profit yields ``+1R``
-    if the TP was placed at ``entry + (entry - stop)``, and a stop-out
-    yields ``-1R``. The PnL in USD is the R-multiple scaled by the
-    notional risk per trade (``size_usd / leverage`` is *not* applied —
-    the live runner already records the realised dollar exposure).
+    The R-multiple is ``(close - fill) / (fill - stop)``. PnL uses the
+    same realised fill and the realised notional stamped by the fill
+    reconciler. The submitted limit remains available as ``entry_price``
+    for slippage analysis, but is not an execution outcome anchor.
 
     Raises
     ------
     ValueError
-        If ``entry_price == stop_loss`` (zero-risk trade — this should
-        have been blocked by ``smc_to_ibkr_adapter`` already; defence
-        in depth), or if any price is non-finite / ``entry_price <= 0``
-        (corrupt ledger data — a zero entry would otherwise divide by
-        zero below).
+        If ``fill_price <= stop_loss`` (non-positive realised risk), or
+        if any input is non-finite / ``fill_price <= 0``.
     """
-    if not all(math.isfinite(v) for v in (entry_price, stop_loss, close_price, size_usd)):
-        raise ValueError("entry_price, stop_loss, close_price and size_usd must be finite")
-    if entry_price <= 0:
-        raise ValueError("entry_price must be positive; corrupt ledger record")
-    risk_per_share = entry_price - stop_loss
-    if risk_per_share == 0:
+    if not all(math.isfinite(v) for v in (fill_price, stop_loss, close_price, size_usd)):
+        raise ValueError("fill_price, stop_loss, close_price and size_usd must be finite")
+    if fill_price <= 0:
+        raise ValueError("fill_price must be positive; corrupt ledger record")
+    risk_per_share = fill_price - stop_loss
+    if risk_per_share <= 0:
         raise ValueError(
-            "entry_price must differ from stop_loss; zero-risk trade has no R-multiple"
+            "fill_price must exceed stop_loss; non-positive-risk trade has no R-multiple"
         )
-    pnl_per_dollar = (close_price - entry_price) / entry_price
+    pnl_per_dollar = (close_price - fill_price) / fill_price
     pnl_usd = pnl_per_dollar * size_usd
-    r_multiple = (close_price - entry_price) / risk_per_share
+    r_multiple = (close_price - fill_price) / risk_per_share
     return pnl_usd, r_multiple
 
 
 def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of ``record`` with outcome fields populated if possible."""
-    if PNL_KEY in record and record[PNL_KEY] is not None:
+    if record.get(PNL_KEY) is not None and record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION:
         return dict(record)  # already backfilled, idempotent.
     action = record.get("action")
     if action not in _CLOSED_ACTIONS:
         return dict(record)  # trade not yet closed.
     try:
-        entry_price = float(record["entry_price"])
+        fill_price = float(record["fill_price"])
         stop_loss = float(record["stop_loss"])
         size_usd = float(record["size_usd"])
         close_price = float(record["close_price"])
@@ -158,7 +157,7 @@ def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
         return dict(record)
 
     pnl_usd, r_multiple = compute_trade_outcome(
-        entry_price=entry_price,
+        fill_price=fill_price,
         stop_loss=stop_loss,
         close_price=close_price,
         size_usd=size_usd,
@@ -166,6 +165,7 @@ def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
     out = dict(record)
     out[PNL_KEY] = pnl_usd
     out[R_MULTIPLE_KEY] = r_multiple
+    out[OUTCOME_SCHEMA_KEY] = OUTCOME_SCHEMA_VERSION
     return out
 
 
@@ -203,7 +203,7 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
     }
     out: list[dict[str, Any]] = []
     for record in records:
-        already = record.get(PNL_KEY) is not None
+        already = record.get(PNL_KEY) is not None and record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION
         action = record.get("action")
         if already:
             summary["records_already_resolved"] += 1
@@ -216,7 +216,7 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
             out.append(record)
             continue
         new_record = _backfill_record(record)
-        if new_record.get(PNL_KEY) is not None:
+        if new_record.get(PNL_KEY) is not None and new_record.get(OUTCOME_SCHEMA_KEY) == OUTCOME_SCHEMA_VERSION:
             summary["records_backfilled"] += 1
         out.append(new_record)
 

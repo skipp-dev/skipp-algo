@@ -75,10 +75,19 @@ def _model_long_ready_states(
     vol_entry_strict_context_ok_safe: bool,
     stretch_entry_strict_context_ok: bool,
     ddvi_entry_strict_ok_safe: bool,
+    *,
+    use_scoring_over_blocking: bool = False,
+    best_signal_quality_gate_ok: bool = True,
+    strict_signal_quality_gate_ok: bool = True,
+    trust_allows_entry: bool = True,
 ) -> tuple[bool, bool, bool]:
-    long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
-    long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-    long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    scoring_ready_gates = all((accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)) or use_scoring_over_blocking
+    long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and scoring_ready_gates
+    long_entry_best_state = long_ready_state and best_signal_quality_gate_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+    long_entry_strict_state = long_ready_state and strict_signal_quality_gate_ok and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    if not trust_allows_entry:
+        long_entry_best_state = False
+        long_entry_strict_state = False
     return long_ready_state, long_entry_best_state, long_entry_strict_state
 
 
@@ -332,6 +341,27 @@ def test_model_long_ready_state_contract() -> None:
     assert ready is True
     assert entry_best is True
     assert entry_strict is False
+
+    scoring_override_args = [True] * 22
+    scoring_override_args[5] = False
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        *scoring_override_args,
+        use_scoring_over_blocking=True,
+    )
+    assert (ready, entry_best, entry_strict) == (True, True, True)
+
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        *([True] * 22),
+        best_signal_quality_gate_ok=False,
+        strict_signal_quality_gate_ok=False,
+    )
+    assert (ready, entry_best, entry_strict) == (True, False, False)
+
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        *([True] * 22),
+        trust_allows_entry=False,
+    )
+    assert (ready, entry_best, entry_strict) == (True, False, False)
 
 
 def test_model_long_setup_text_uses_latest_state_precedence() -> None:

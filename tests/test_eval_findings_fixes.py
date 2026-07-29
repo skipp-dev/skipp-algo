@@ -292,6 +292,22 @@ class TestComputePnlDirectional:
         assert result["label_tb"] == "stop"
         assert result["profitable_tb"] is False
 
+    def test_tb_entry_bar_stop_is_not_dropped_from_barrier_window(self) -> None:
+        closes = [100.0 + i * 0.01 for i in range(26)]
+        lows = [99.99] * 26
+        lows[0] = 98.0  # Entry-bar stop must beat the later positive timeout.
+        df = _bars_df("XYZ", _D, closes, lows=lows)
+        result = compute_pnl_from_bars(
+            df,
+            "XYZ",
+            _D,
+            direction="long",
+            atr_pct=2.0,
+        )
+        assert result is not None
+        assert result["label_tb"] == "stop"
+        assert result["profitable_tb"] is False
+
     def test_tb_stop_wins_tie_in_same_bar(self) -> None:
         # Bar 2 touches BOTH barriers → conservative: stop.
         closes = [100.0] * 26

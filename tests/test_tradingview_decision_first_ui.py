@@ -361,6 +361,8 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
 
     assert "export resolve_trust_tier(" in core
     assert "resolve_dashboard_trust_tier(" in dashboard
+    assert "dashboard_provider_state_text(mp.EVENT_PROVIDER_STATUS)" in dashboard
+    assert "dashboard_provider_state_text(int volume_data_row_code" not in dashboard
 
     resolvers = _read("SMC++/smc_context_resolvers.pine")
 
