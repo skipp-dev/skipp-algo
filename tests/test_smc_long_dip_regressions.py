@@ -708,3 +708,63 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
         body = _body(SUITE_PATH, function_name)
         assert body.strip()
     assert suite.find("compute_long_overhead_context(") < suite.find("var g_mode")
+
+
+def test_overhead_membership_is_decided_by_the_far_edge() -> None:
+    """A bear zone is overhead while any part of it sits above the entry.
+
+    The scan previously answered two questions with one number: "is this zone
+    overhead at all?" and "how far is the entry from the reaction it produces?".
+    Both used the reaction level (OB ``break_price`` -- POC-aligned when
+    profiles are on -- resp. FVG ``fill_target_level``), so a zone whose
+    reaction level sat below the entry dropped out of the scan entirely.
+
+    Membership is now decided by the far edge (``left_top.price``); the reaction
+    level stays the distance reference, which is the deliberate design recorded
+    in #4200.
+    """
+    overhead_body = _body(SUITE_PATH, "compute_long_overhead_context")
+
+    assert "resolve_ob_overhead_level(" in overhead_body
+    assert "resolve_fvg_overhead_level(" in overhead_body
+    assert "resolve_ob_alert_level(" not in overhead_body
+    assert "resolve_fvg_alert_level(" not in overhead_body
+
+    ob_body = _body(SUITE_PATH, "resolve_ob_overhead_level")
+    fvg_body = _body(SUITE_PATH, "resolve_fvg_overhead_level")
+
+    for body in (ob_body, fvg_body):
+        assert "left_top.price" in body
+
+    # The reaction level remains the distance reference on both arms.
+    assert "break_price" in ob_body
+    assert "fill_target_level" in fvg_body
+
+
+def test_overhead_distance_is_clamped_at_the_entry() -> None:
+    """An entry inside a still-live zone must report zero headroom, not none.
+
+    ``long_trigger`` is frozen at arm time and derived from wicks
+    (``math.max(high, ta.highest(high, long_confirm_lookback)[1])``), while a
+    zone only counts as consumed once price CLOSES through its reaction level in
+    the default CONFIRMED_ONLY mode. The two can disagree, so the distance is
+    clamped at the scan reference instead of letting the zone vanish.
+    """
+    for function_name in ("resolve_ob_overhead_level", "resolve_fvg_overhead_level"):
+        body = _body(SUITE_PATH, function_name)
+        assert "scan_ref" in body
+        assert "level := scan_ref" in body
+
+
+def test_shared_alert_level_resolvers_stay_untouched_for_the_alert_paths() -> None:
+    """The overhead split must not change the bull alert levels.
+
+    ``resolve_ob_alert_level`` / ``resolve_fvg_alert_level`` also serve the
+    alert and zone-scan paths, where the reaction level is the correct and
+    only reference.
+    """
+    suite = _read(SUITE_PATH)
+    assert "break_price" in _body(SUITE_PATH, "resolve_ob_alert_level")
+    assert "fill_target_level" in _body(SUITE_PATH, "resolve_fvg_alert_level")
+    assert suite.count("resolve_ob_alert_level(") >= 4
+    assert suite.count("resolve_fvg_alert_level(") >= 4
