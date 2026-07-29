@@ -123,6 +123,46 @@ resolve_fvg_alert_level(eng.FVG gap) =>
         level := gap.fill_target_level
     level
 
+// Overhead membership and overhead distance are two different questions and the
+// scan used to answer both with one number. A bear zone is OVERHEAD while any
+// part of it sits above the entry, i.e. while its far edge (`left_top.price`)
+// is above the scan reference. How far the entry is from the reaction that zone
+// produces is a separate quantity: the reaction level, deliberately the
+// POC-aligned `break_price` resp. `fill_target_level` (see #4200).
+// Those two can disagree. `long_trigger` is frozen at arm time and derived from
+// wicks (`math.max(high, ta.highest(high, long_confirm_lookback)[1])`), while a
+// zone only counts as consumed once price CLOSES through its reaction level in
+// the default CONFIRMED_ONLY mode. A wick can therefore lift the entry above
+// the reaction level of a zone that is still live, and such a zone used to drop
+// out of the scan and block nothing. Membership now follows the far edge and
+// the distance is clamped at the entry, so the zone reports zero clear headroom
+// instead of vanishing. Zones entirely at or below the entry stay excluded
+// exactly as before.
+// Deliberately separate from `resolve_ob_alert_level` / `resolve_fvg_alert_level`:
+// those also serve the alert and zone-scan paths, where the reaction level is
+// the correct and only reference.
+resolve_ob_overhead_level(eng.OrderBlock block, float scan_ref) =>
+    float level = na
+    if not na(block) and not na(block.left_top) and not na(scan_ref)
+        float far_edge = block.left_top.price
+        if not na(far_edge) and far_edge > scan_ref
+            level := scan_ref
+            float reaction = block.break_price
+            if not na(reaction) and reaction > scan_ref
+                level := reaction
+    level
+
+resolve_fvg_overhead_level(eng.FVG gap, float scan_ref) =>
+    float level = na
+    if not na(gap) and not na(gap.left_top) and not na(scan_ref)
+        float far_edge = gap.left_top.price
+        if not na(far_edge) and far_edge > scan_ref
+            level := scan_ref
+            float reaction = gap.fill_target_level
+            if not na(reaction) and reaction > scan_ref
+                level := reaction
+    level
+
 
 compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, eng.OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, eng.FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>
     float helper_planned_stop_level = na
@@ -135,14 +175,14 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
     if array.size(ob_blocks_bear_param) > 0
         for i = array.size(ob_blocks_bear_param) - 1 to bear_ob_scan_start
             helper_blocker = array.get(ob_blocks_bear_param, i)
-            float helper_blocker_level = resolve_ob_alert_level(helper_blocker)
+            float helper_blocker_level = resolve_ob_overhead_level(helper_blocker, helper_scan_ref)
             if not na(helper_blocker_level) and helper_blocker_level >= helper_scan_ref and (na(helper_bear_ob_lvl) or helper_blocker_level < helper_bear_ob_lvl)
                 helper_bear_ob_lvl := helper_blocker_level
     float helper_bear_fvg_lvl = na
     if array.size(fvgs_bear_param) > 0
         for i = array.size(fvgs_bear_param) - 1 to bear_fvg_scan_start
             helper_fblocker = array.get(fvgs_bear_param, i)
-            float helper_fblocker_level = resolve_fvg_alert_level(helper_fblocker)
+            float helper_fblocker_level = resolve_fvg_overhead_level(helper_fblocker, helper_scan_ref)
             if not na(helper_fblocker_level) and helper_fblocker_level >= helper_scan_ref and (na(helper_bear_fvg_lvl) or helper_fblocker_level < helper_bear_fvg_lvl)
                 helper_bear_fvg_lvl := helper_fblocker_level
     float helper_overhead_level = na

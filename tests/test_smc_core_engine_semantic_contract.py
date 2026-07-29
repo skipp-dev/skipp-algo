@@ -221,9 +221,16 @@ def test_overhead_context_contract_stays_explicit() -> None:
         "if long_plan_active and not na(long_trigger)",
         "helper_scan_ref := long_trigger",
         "if array.size(ob_blocks_bear_param) > 0",
-        "resolve_ob_alert_level",
+        # 2026-07-29 (owner decision, follow-up to #4197/#4199/#4200): the
+        # overhead scan moved to dedicated resolvers. The reaction level stays
+        # the distance reference — that part is the deliberate design #4200
+        # records — but zone MEMBERSHIP now follows the far edge, so an entry
+        # inside a still-live zone reports zero headroom instead of dropping the
+        # zone. The shared alert resolvers keep serving the alert paths and are
+        # pinned in tests/test_smc_long_dip_regressions.py.
+        "resolve_ob_overhead_level",
         "if array.size(fvgs_bear_param) > 0",
-        "resolve_fvg_alert_level",
+        "resolve_fvg_overhead_level",
         "if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)",
         "helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r",
     ]:
