@@ -57,7 +57,10 @@ def test_refactored_helpers_preserve_dependency_order() -> None:
     _assert_order(
         source,
         "compute_long_overhead_context(",
-        "[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context(",
+        # 2026-07-29 (OVH baseline phase): destructure gained the two
+        # observe-only far-edge shadow slots; the activation follow-up swaps
+        # the served/shadow slots again.
+        "[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok, headroom_to_overhead_far_edge_shadow, overhead_zone_ok_far_edge_shadow] = compute_long_overhead_context(",
     )
     _assert_order(source, "scan_live_bull_events() =>", "] = scan_live_bull_events()")
     _assert_order(source, "compute_context_quality() =>", "] = compute_context_quality()")
@@ -719,16 +722,55 @@ def test_overhead_membership_is_decided_by_the_far_edge() -> None:
     profiles are on -- resp. FVG ``fill_target_level``), so a zone whose
     reaction level sat below the entry dropped out of the scan entirely.
 
-    Membership is now decided by the far edge (``left_top.price``); the reaction
+    Membership is decided by the far edge (``left_top.price``); the reaction
     level stays the distance reference, which is the deliberate design recorded
     in #4200.
+
+    2026-07-29 BASELINE PHASE (owner decision on #4205): before the far-edge
+    gate goes live on TradingView, its effect is measured same-bar. The scan
+    computes BOTH gates -- the pre-#4205 reaction-level gate is SERVED, the
+    far-edge gate runs as an observe-only shadow with per-session counters.
+    The activation follow-up swaps the served/shadow slots and drops the
+    counters; this pin then flips back to asserting the far-edge gate is
+    served alone.
     """
     overhead_body = _body(SUITE_PATH, "compute_long_overhead_context")
 
+    # Both gates are computed in the one choke point...
     assert "resolve_ob_overhead_level(" in overhead_body
     assert "resolve_fvg_overhead_level(" in overhead_body
-    assert "resolve_ob_alert_level(" not in overhead_body
-    assert "resolve_fvg_alert_level(" not in overhead_body
+    assert "resolve_ob_alert_level(" in overhead_body
+    assert "resolve_fvg_alert_level(" in overhead_body
+
+    # ...and the far-edge result leaves the helper as an explicitly named
+    # shadow, while the served slot keeps the reaction-level (pre-#4205) gate.
+    assert "helper_overhead_zone_ok_far_edge_shadow" in overhead_body
+    assert (
+        "[helper_planned_stop_level, helper_planned_risk, helper_headroom_to_overhead,"
+        " helper_overhead_zone_ok, helper_headroom_to_overhead_far_edge_shadow,"
+        " helper_overhead_zone_ok_far_edge_shadow]" in overhead_body
+    )
+
+    suite = _read(SUITE_PATH)
+    # Every downstream consumer keeps reading `overhead_zone_ok`, which the
+    # call site binds to the SERVED (reaction-level) slot during the baseline.
+    assert (
+        "[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok,"
+        " headroom_to_overhead_far_edge_shadow, overhead_zone_ok_far_edge_shadow]"
+        " = compute_long_overhead_context(" in suite
+    )
+    # The shadow must stay observe-only: nothing but the baseline counters may
+    # read it -- in particular no gate, tier, or BUS consumer.
+    for consumer in (
+        "ll.compute_long_environment_context(",
+        "ll.resolve_long_execution_blocker_state(",
+        "eng.resolve_bus_ready_blocker_code(",
+        "ll.resolve_long_clean_tier(",
+    ):
+        call_start = suite.index(consumer)
+        call_line = suite[call_start : suite.index("\n", call_start)]
+        assert "overhead_zone_ok_far_edge_shadow" not in call_line
+        assert "overhead_zone_ok" in call_line or "trade_hard_gate_ok" in call_line
 
     ob_body = _body(SUITE_PATH, "resolve_ob_overhead_level")
     fvg_body = _body(SUITE_PATH, "resolve_fvg_overhead_level")
@@ -739,6 +781,35 @@ def test_overhead_membership_is_decided_by_the_far_edge() -> None:
     # The reaction level remains the distance reference on both arms.
     assert "break_price" in ob_body
     assert "fill_target_level" in fvg_body
+
+
+def test_overhead_baseline_counters_are_logged_per_session() -> None:
+    """The baseline shadow must be readable without a BUS channel.
+
+    The engine BUS is byte-frozen at TradingView's 64-plot cap
+    (tests/test_smc_bus_v2_freeze.py), so the flip measurement cannot be a
+    plot. It is exposed through Pine logs instead: one line per flip bar and
+    one summary per completed session day, plus a directional tripwire -- the
+    reaction-level gate can only be LESS strict than the far-edge gate
+    (old-blocks => new-blocks), so an old-blocks-only flip is itself a bug
+    signal and gets its own counter that is expected to stay 0.
+    """
+    suite = _read(SUITE_PATH)
+
+    for counter in (
+        "ovh_baseline_bars_evaluated",
+        "ovh_baseline_served_blocked",
+        "ovh_baseline_shadow_blocked",
+        "ovh_baseline_flip_new_only",
+        "ovh_baseline_flip_old_only",
+    ):
+        assert f"var int {counter}" in suite
+
+    assert "OVH-BASELINE flip" in suite
+    assert "OVH-BASELINE session summary" in suite
+    # Session boundary: day change, deliberately the same '1D' granularity the
+    # rest of the suite uses.
+    assert "timeframe.change('1D')" in suite
 
 
 def test_overhead_distance_is_clamped_at_the_entry() -> None:
