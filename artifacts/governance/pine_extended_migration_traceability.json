@@ -209,11 +209,15 @@
             "tests/test_smc_context_golden.py",
             "tests/test_pine_context_library_contract.py",
             "tests/test_smc_context_detection_replay.py",
+            "scripts/generate_smc_context_engine_tv_fixture.py",
+            "tests/test_smc_context_engine_tradingview_fixture.py",
             "tests/fixtures/smc_context_golden.json",
-            "tests/fixtures/smc_context_detection_replay.json"
+            "tests/fixtures/smc_context_detection_replay.json",
+            "tests/fixtures/pine/smc_context_engine_r3_fixture.pine",
+            "artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json"
           ],
           "openGates": [
-            "All four repository frames, Python-golden rule parity, Pine-only detection semantics, and deterministic replay vectors are implemented. TradingView compile and redacted Pine runtime replay remain required before this gate can be complete."
+            "All four repository frames, Python-golden rule parity, Pine-only detection semantics, deterministic replay vectors, and the source-derived fifteen-case private Pine runtime fixture are implemented. TradingView compile and redacted Pine runtime replay remain required before this gate can be complete."
           ]
         },
         {

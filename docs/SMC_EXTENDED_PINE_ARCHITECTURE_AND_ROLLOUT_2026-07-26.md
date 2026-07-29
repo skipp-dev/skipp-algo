@@ -1215,6 +1215,17 @@ deterministic repository replay vectors are implemented. The phase remains
 publication evidence are still open and may not be inferred from repository
 tests.
 
+On 2026-07-29 the runtime gate received a generated, source-derived Pine
+fixture. It converts the complete canonical library source into a test-only
+indicator and drives private injected-input seams shared by the live Sweep,
+Pool, Session, and aggregate Context builders. Its fifteen cases and exact
+checkpoints are pinned in
+`artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json`.
+The fixture is not a managed surface, must never be published, and does not
+close the gate until its exact source hash compiles and the redacted cases run
+in TradingView. Cross-DST runtime behavior remains owned by the later R5
+HTF/session spike.
+
 #### Changes
 
 - finish Sweep Frame;
