@@ -847,9 +847,33 @@ Revert governance-only changes. No TradingView behavior changes in R0.
 Repository implementation status on 2026-07-28: deterministic Exit Signal
 replay, a canonically derived private TradingView fixture, exact Event/Exit BUS
 binding contracts, and a fail-closed private rollout preflight are implemented.
-R1 remains `in_progress` until separately authorized TradingView runs supply the
-required compile, replay, saved-hash, binding, alert, layout, and rollback
-evidence.
+The separately authorized private TradingView fixture run on 2026-07-29
+compiled source SHA-256
+`84219393d70b3860ece56233ae5022592d6f8de655dfa6f3c75b5f8967e55c48`
+and passed all eleven historical replay cases on `NASDAQ:AAPL` at 5 minutes.
+The fixture was removed, replay was exited, and the private validation layout
+was saved in its canonical empty state. The redacted evidence is
+`artifacts/governance/smc_exit_signal_tradingview_replay_2026-07-29.json`.
+The source-only unconfirmed-update case remains a canonical-code contract
+because historical TradingView replay bars are confirmed.
+
+R1 completed its separately authorized private product-layout rollout on
+2026-07-29. `SMC Event Overlay` and `SMC Exit Signal` compiled from persisted
+saved sources whose SHA-256 values match the repository, all ten BUS inputs
+were bound to `SMC Long-Dip Suite`, and the alert-condition inventory matched
+the declared two Event and six Exit conditions without creating or changing
+an alert. The saved `SMC Simple Management R1` layout contains exactly one
+Suite, one Exit Signal, and one Event Overlay; no Hold Manager or legacy
+consumer remains in that layout.
+
+The rollback drill removed both companions, explicitly saved the Suite-only
+layout, and verified that state after reload. Both saved companions were then
+re-added, all ten bindings were restored, the layout was explicitly saved
+again, and a final reload passed with no compile diagnostic. Redacted evidence
+is
+[`smc_r1_live_rollout_evidence_2026-07-29.json`](../artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json).
+No script was published, no TradingView alert was mutated, and Railway was not
+changed.
 
 #### Event Overlay
 

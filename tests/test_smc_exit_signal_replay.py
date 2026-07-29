@@ -23,6 +23,18 @@ from scripts.smc_exit_signal_replay import (
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACE = ROOT / "artifacts" / "governance" / "pine_extended_migration_traceability.json"
+TRADINGVIEW_REPLAY = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_exit_signal_tradingview_replay_2026-07-29.json"
+)
+LIVE_ROLLOUT_EVIDENCE = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_r1_live_rollout_evidence_2026-07-29.json"
+)
 ROLLOUT = ROOT / "automation" / "tradingview" / "config" / "consumer-rollout.json"
 
 
@@ -88,7 +100,26 @@ def test_fixture_is_not_a_managed_or_publishable_surface() -> None:
     assert all(case["tradingViewStatus"] == "pending" for case in manifest["cases"])
 
 
-def test_traceability_records_repository_evidence_without_claiming_tv_completion() -> None:
+def test_tradingview_replay_evidence_is_complete_without_claiming_rollout() -> None:
+    evidence = json.loads(TRADINGVIEW_REPLAY.read_text(encoding="utf-8"))
+
+    assert evidence["fixture"]["sha256"] == build_manifest(build_fixture())["fixture"][
+        "sha256"
+    ]
+    assert evidence["fixture"]["sourceReadbackSha256"] == evidence["fixture"]["sha256"]
+    assert evidence["fixture"]["compileStatus"] == "passed"
+    assert evidence["results"]["status"] == "passed"
+    assert evidence["results"]["passedLogicalCases"] == 11
+    assert evidence["results"]["failedLogicalCases"] == 0
+    assert {case["caseId"] for case in evidence["results"]["cases"]} == {
+        f"R1-{case_number:02d}" for case_number in range(1, 12)
+    }
+    assert all(case["status"] == "passed" for case in evidence["results"]["cases"])
+    assert evidence["tradingView"]["canonicalChartStateRestored"] is True
+    assert evidence["productLayoutExclusivity"]["status"] == "pending"
+
+
+def test_traceability_records_completed_tv_replay_and_live_rollout() -> None:
     replay = _trace_requirement("R1-REPLAY")
     rollout = _trace_requirement("R1-LIVE-ROLLOUT")
 
@@ -98,8 +129,12 @@ def test_traceability_records_repository_evidence_without_claiming_tv_completion
         "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine",
         "artifacts/governance/smc_exit_signal_replay_preflight.json",
         "artifacts/governance/smc_exit_signal_tradingview_fixture_manifest.json",
+        "artifacts/governance/smc_exit_signal_tradingview_replay_2026-07-29.json",
+        "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
     ):
         assert path in replay["evidence"]
-    assert replay["status"] == "partial"
-    assert replay["openGates"]
-    assert rollout["status"] != "complete"
+    assert replay["status"] == "complete"
+    assert replay["openGates"] == []
+    assert rollout["status"] == "complete"
+    assert rollout["openGates"] == []
+    assert LIVE_ROLLOUT_EVIDENCE.relative_to(ROOT).as_posix() in rollout["evidence"]

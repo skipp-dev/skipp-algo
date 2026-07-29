@@ -53,6 +53,7 @@ export type LibraryReleaseConsumerRole =
   | "producer"
   | "dashboard_companion"
   | "execution_wrapper"
+  | "overlay_companion"
   | "exit_companion"
   | "companion_operator_only"
   | "internal"

@@ -75,50 +75,50 @@ if barstate.islast
 // ── BUS decode helpers ──────────────────────────────────────────
 
 pack_slot(float packed_value, int slot) =>
-     int packed = int(math.round(nz(packed_value, 0.0)))
-     if slot == 0
-          int(math.floor(packed / 1000000000.0))
-     else if slot == 1
-          int(math.floor(packed / 1000000.0)) % 1000
-     else if slot == 2
-          int(math.floor(packed / 1000.0)) % 1000
-     else
-          packed % 1000
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    if slot == 0
+        int(math.floor(packed / 1000000000.0))
+    else if slot == 1
+        int(math.floor(packed / 1000000.0)) % 1000
+    else if slot == 2
+        int(math.floor(packed / 1000.0)) % 1000
+    else
+        packed % 1000
 
 row_status(int row_code) =>
-     int(math.floor(row_code / 100)) - 1
+    int(math.floor(row_code / 100)) - 1
 
 row_reason(int row_code) =>
-     row_code % 100
+    row_code % 100
 
 lean_erl_row_code() =>
-     pack_slot(src_lean_pack_a, 2)
+    pack_slot(src_lean_pack_a, 2)
 
 overlay_event_status_text(int lean_row_code) =>
-     int lean_state = row_status(lean_row_code)
-     int lean_reason = row_reason(lean_row_code)
-     if lean_state == -1 and lean_reason == 1
-          "🚫 Mkt Block"
-     else if lean_state == -1 and lean_reason == 6
-          "🚫 Earn Block"
-     else if lean_state == 2 and lean_reason == 3
-          "⏳ Incoming"
-     else if lean_state == 3 and lean_reason == 4
-          "❄ Cooldown"
-     else
-          "✓ Clear"
+    int lean_state = row_status(lean_row_code)
+    int lean_reason = row_reason(lean_row_code)
+    if lean_state == -1 and lean_reason == 1
+        "🚫 Mkt Block"
+    else if lean_state == -1 and lean_reason == 6
+        "🚫 Earn Block"
+    else if lean_state == 2 and lean_reason == 3
+        "⏳ Incoming"
+    else if lean_state == 3 and lean_reason == 4
+        "❄ Cooldown"
+    else
+        "✓ Clear"
 
 event_timestamp_et(string asof_date, string event_time) =>
-     float event_year = str.tonumber(str.substring(asof_date, 0, 4))
-     float event_month = str.tonumber(str.substring(asof_date, 5, 7))
-     float event_day = str.tonumber(str.substring(asof_date, 8, 10))
-     float event_hour = str.tonumber(str.substring(event_time, 0, 2))
-     float event_minute = str.tonumber(str.substring(event_time, 3, 5))
-     bool valid_parts = not na(event_year) and not na(event_month) and not na(event_day) and
-          not na(event_hour) and not na(event_minute) and str.length(event_time) >= 5 and
-          str.substring(event_time, 2, 3) == ":" and event_hour >= 0 and event_hour <= 23 and
-          event_minute >= 0 and event_minute <= 59
-     valid_parts ? timestamp("America/New_York", int(event_year), int(event_month), int(event_day), int(event_hour), int(event_minute)) : na
+    float event_year = str.tonumber(str.substring(asof_date, 0, 4))
+    float event_month = str.tonumber(str.substring(asof_date, 5, 7))
+    float event_day = str.tonumber(str.substring(asof_date, 8, 10))
+    float event_hour = str.tonumber(str.substring(event_time, 0, 2))
+    float event_minute = str.tonumber(str.substring(event_time, 3, 5))
+    bool valid_parts = not na(event_year) and not na(event_month) and not na(event_day) and
+         not na(event_hour) and not na(event_minute) and str.length(event_time) >= 5 and
+         str.substring(event_time, 2, 3) == ":" and event_hour >= 0 and event_hour <= 23 and
+         event_minute >= 0 and event_minute <= 59
+    valid_parts ? timestamp("America/New_York", int(event_year), int(event_month), int(event_day), int(event_hour), int(event_minute)) : na
 
 // ── Visibility gate ─────────────────────────────────────────────
 
@@ -171,11 +171,24 @@ if barstate.islastconfirmedhistory and show_event_label and show_any and event_t
          size    = size.small)
 
 // ── Status bar (bottom-right compact) ───────────────────────────
-// Minimal real-time status from BUS — no table, just a plotchar
+// Minimal real-time status from BUS — one static plot per possible state.
+// Pine requires plotchar.char to be an input string, so a dynamic series string
+// cannot be passed into a single plotchar call.
 
-string rt_status = overlay_event_status_text(lean_erl_row_code())
+int rt_lean_row_code = lean_erl_row_code()
+int rt_lean_state = row_status(rt_lean_row_code)
+int rt_lean_reason = row_reason(rt_lean_row_code)
+bool rt_market_block = rt_lean_state == -1 and rt_lean_reason == 1
+bool rt_earnings_block = rt_lean_state == -1 and rt_lean_reason == 6
+bool rt_incoming = rt_lean_state == 2 and rt_lean_reason == 3
+bool rt_cooldown = rt_lean_state == 3 and rt_lean_reason == 4
+bool rt_clear = not rt_market_block and not rt_earnings_block and not rt_incoming and not rt_cooldown
 
-plotchar(show_any ? 0 : na, "Event Status", "•", location.bottom, size = size.tiny, display = display.status_line, char = rt_status)
+plotchar(show_any and rt_market_block ? 0 : na, "Event Status · Market Block", "M", location.bottom, size = size.tiny, display = display.status_line)
+plotchar(show_any and rt_earnings_block ? 0 : na, "Event Status · Earnings Block", "E", location.bottom, size = size.tiny, display = display.status_line)
+plotchar(show_any and rt_incoming ? 0 : na, "Event Status · Incoming", "I", location.bottom, size = size.tiny, display = display.status_line)
+plotchar(show_any and rt_cooldown ? 0 : na, "Event Status · Cooldown", "C", location.bottom, size = size.tiny, display = display.status_line)
+plotchar(show_any and rt_clear ? 0 : na, "Event Status · Clear", "✓", location.bottom, size = size.tiny, display = display.status_line)
 
 // ── Alerts ──────────────────────────────────────────────────────
 _alertGate = barCloseOnly ? barstate.isconfirmed : true

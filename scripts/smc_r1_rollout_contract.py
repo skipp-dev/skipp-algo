@@ -1,8 +1,8 @@
 """Build the fail-closed operational contract for the R1 companion rollout.
 
-The artifact prepares the exact private TradingView preflight but never records
-it as executed.  Live compile/save/binding/layout evidence is intentionally
-absent until a separately authorized run supplies immutable results.
+The generated contract stays separate from the immutable private TradingView
+evidence.  It may report the rollout complete only while the checked-in
+evidence path is registered and the canonical source hashes remain current.
 """
 
 from __future__ import annotations
@@ -25,6 +25,12 @@ EVENT_SOURCE: Final = ROOT / "SMC_Event_Overlay.pine"
 EXIT_SOURCE: Final = ROOT / "SMC_Exit_Signal.pine"
 CONFIG: Final = ROOT / "automation" / "tradingview" / "preflight-r1-companions.json"
 DEFAULT_OUTPUT: Final = ROOT / "artifacts" / "governance" / "smc_r1_live_rollout_contract.json"
+EXECUTION_EVIDENCE: Final = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_r1_live_rollout_evidence_2026-07-29.json"
+)
 
 
 def _source(path: Path) -> dict:
@@ -53,8 +59,9 @@ def build_rollout_contract() -> dict:
     return {
         "schemaVersion": 1,
         "gate": "R1-LIVE-ROLLOUT",
-        "status": "ready_for_authorized_execution",
-        "executionPerformed": False,
+        "status": "authorized_execution_completed",
+        "executionPerformed": True,
+        "executionEvidence": EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
         "preflight": {
             "config": CONFIG.relative_to(ROOT).as_posix(),
             "scope": "smcR1Companions",
@@ -109,13 +116,10 @@ def build_rollout_contract() -> dict:
             "rollback drill removing both companions without changing the Suite or existing consumers",
         ],
         "claimPolicy": [
-            "This contract and its repository tests do not prove any live TradingView state.",
-            "Do not add these targets to consumer-rollout.json or mark them deployed before every required evidence item passes.",
+            "This contract and its repository tests do not independently prove live TradingView state; the registered immutable execution evidence does.",
+            "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid.",
         ],
-        "openGates": [
-            "Obtain exact authorization for the private mutating TradingView preflight.",
-            "Capture and check in redacted immutable compile, source-hash, binding, alert, layout, and rollback evidence.",
-        ],
+        "openGates": [],
     }
 
 

@@ -297,12 +297,13 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        lifecycle = 'planned',
         deployment_mode = 'standard',
-        rollout_state = 'planned',
+        rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Event Overlay',
+        validation_target = True,
         notes = (
-            'Pro-only event-risk companion.',
+            'Pro-only event-risk companion deployed in the private Simple Management layout.',
         ),
     ),
     SurfaceDefinition(
@@ -507,14 +508,16 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
-        lifecycle = 'planned',
         deployment_mode = 'standard',
-        rollout_state = 'planned',
+        rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Exit Signal',
+        validation_target = True,
         notes = (
             'Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE '
             'EXIT alerts driven by linked SMC Core BUS outputs. No '
-            'library import — fully BUS-driven.',
+            'library import — fully BUS-driven. Deployed as the sole '
+            'actionable exit mode in the private Simple Management layout.',
         ),
     ),
     SurfaceDefinition(

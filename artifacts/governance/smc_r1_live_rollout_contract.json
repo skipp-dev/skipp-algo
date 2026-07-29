@@ -1,9 +1,10 @@
 {
   "claimPolicy": [
-    "This contract and its repository tests do not prove any live TradingView state.",
-    "Do not add these targets to consumer-rollout.json or mark them deployed before every required evidence item passes."
+    "This contract and its repository tests do not independently prove live TradingView state; the registered immutable execution evidence does.",
+    "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid."
   ],
-  "executionPerformed": false,
+  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
+  "executionPerformed": true,
   "gate": "R1-LIVE-ROLLOUT",
   "layoutContract": {
     "actionableExitMode": "exit_signal",
@@ -15,10 +16,7 @@
       "SMC Exit Signal"
     ]
   },
-  "openGates": [
-    "Obtain exact authorization for the private mutating TradingView preflight.",
-    "Capture and check in redacted immutable compile, source-hash, binding, alert, layout, and rollback evidence."
-  ],
+  "openGates": [],
   "preflight": {
     "command": "npx tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-r1-companions.json --execution-mode mutating",
     "config": "automation/tradingview/preflight-r1-companions.json",
@@ -34,7 +32,7 @@
     "rollback drill removing both companions without changing the Suite or existing consumers"
   ],
   "schemaVersion": 1,
-  "status": "ready_for_authorized_execution",
+  "status": "authorized_execution_completed",
   "targets": [
     {
       "bindingLabels": [
@@ -50,7 +48,7 @@
         "Event Restriction Window Started"
       ],
       "scriptName": "SMC Event Overlay",
-      "sha256": "1225bb87e9b5d0c19ff7d947dd8550cabe84f974f578ce41531ccc0e9e8f845b"
+      "sha256": "12c2d18e238bb775de794ac496286cc619c6770d9a9191a4d05cc5aaf9df3048"
     },
     {
       "bindingLabels": [
