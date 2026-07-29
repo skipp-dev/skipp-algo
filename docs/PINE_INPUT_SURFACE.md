@@ -31,6 +31,10 @@ The active split-core producer now follows the same surface-governance policy as
 
 The operator-facing anchors of that surface are `long_user_preset` plus `compact_mode`. Future surface work should collapse behavior into those two controls before adding new visible toggles.
 
+#### Overhead-zone blocker levels are fill-target coupled (by design)
+
+"Block Overhead Zone" (`use_overhead_zone_filter`) measures headroom to the nearest bearish OB **break level** and bearish FVG **fill-target level** — deliberately not the raw gap edge. The FVG side is therefore parameterized by `fvg_fill_target_pct` ("Filled at %"): changing that display-labeled input also moves the overhead blocker level and thereby tightens/loosens the gate. This coupling has been in place since the feature's introduction (`6ba934404`, 2026-03-20), survived the array-scan rewrite (`88b8b36ee`), and is pinned by `tests/test_smc_core_engine_semantic_contract.py` (`resolve_fvg_alert_level` inside the overhead body). Switching the gate to the raw gap edge is a trade-affecting product change, not a fix (a PR attempting it was closed with evidence: #4199).
+
 #### VWAP filter semantics (owner decision #4194, 2026-07-29)
 
 `use_vwap_filter` is a **quality-context control, not an entry gate**: it feeds the context-quality score (`compute_context_quality`) and the long clean tier (BUS QualityCleanRow / VwapRow / SessionVwap — operator-facing dashboard rows), and deliberately does **not** enter `resolve_long_ready_projection_state` / `resolve_long_entry_projection_state`. The underlying VWAP is the Pine-default daily-anchored session VWAP (`ta.vwap`'s default anchor is `timeframe.change("1D")`). Wiring VWAP into the entry path is a measured product change: it requires a positive shadow/replay result and a **new** operator input — `use_vwap_filter` must never be silently repurposed into a hard gate. Semantics pinned by `tests/test_pine_decision_logic_deep_review_regressions.py`.
