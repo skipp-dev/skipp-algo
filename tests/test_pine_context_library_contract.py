@@ -42,30 +42,7 @@ GOLDEN_PATH = REPO_ROOT / "tests" / "fixtures" / "smc_context_golden.json"
 # An entry here is a *decision on record*, not a gap: the parity test below fails
 # on any frozen threshold that is neither implemented in Pine nor listed here, so
 # a newly added threshold cannot slip past unnoticed.
-_NOT_IN_PINE: dict[str, str] = {
-    # FULL_MIT_PCT used to sit here as "delegated to the engine: eng.FVG.filled is
-    # the full-mitigation SSOT". Sound in principle, false in fact — the builder
-    # handed the engine fill_target_ratio = 0.5, so `filled` fired at the gap
-    # MIDPOINT and meant "half filled". The entry made that read as a decision on
-    # record rather than a bug, which is worse than a silent gap. The library now
-    # passes FULL_MIT_PCT itself, which is what makes the delegation true, so the
-    # threshold is golden-checked like its siblings and is no longer deferred.
-    # --- sweeps: not ported yet (phase 3.2b-1) --------------------------------
-    # NOTE when porting: SWEEP_DEPTH_STOP_HUNT_PCT is its own constant (0.3) and
-    # must be ported as one. Do NOT re-derive it as ``SWEEP_DEPTH_MIN_PCT * 3`` —
-    # deriving it is what made 0.30000000000000004 the real gate and pushed a
-    # depth of exactly 0.3 into LIQUIDITY_GRAB. Removed as a deliberate behaviour
-    # change; see test_stop_hunt_depth_gate_is_an_inclusive_clean_three_tenths in
-    # tests/test_smc_context_golden.py.
-    "SWEEP_DEPTH_MIN_PCT": "sweep frame not ported yet (phase 3.2b-1)",
-    "SWEEP_DEPTH_STOP_HUNT_PCT": "sweep frame not ported yet (phase 3.2b-1)",
-    "SWEEP_RECLAIM_MAX_BARS": "sweep frame not ported yet (phase 3.2b-1)",
-    "SWEEP_VOLUME_RATIO_MIN": "sweep frame not ported yet (phase 3.2b-1)",
-    # --- pools: not ported yet (phase 3.2b-1) ---------------------------------
-    "IMBALANCE_SIG_THRESHOLD": "pool frame not ported yet (phase 3.2b-1)",
-    "PROXIMITY_NEAR_PCT": "pool frame not ported yet (phase 3.2b-1)",
-    "CLUSTER_STRONG_COUNT": "pool frame not ported yet (phase 3.2b-1)",
-}
+_NOT_IN_PINE: dict[str, str] = {}
 
 _PINE_CONST_RE = re.compile(
     r"^const\s+(?:float|int)\s+(?P<name>\w+)\s*=\s*(?P<value>-?[0-9]+(?:\.[0-9]+)?)\s*(?://.*)?$",
@@ -273,7 +250,15 @@ def test_zone_builder_keeps_profile_features_off() -> None:
 
 def test_public_builders_are_exported() -> None:
     src = _source()
-    for builder in ("build_structure_frame", "build_imbalance_frame", "build_zone_frame"):
+    for builder in (
+        "build_structure_frame",
+        "build_imbalance_frame",
+        "build_zone_frame",
+        "build_sweep_frame",
+        "build_pool_frame",
+        "build_session_frame",
+        "build_context_frame",
+    ):
         assert re.search(rf"^export {builder}\(", src, re.MULTILINE), (
             f"{builder} is not exported"
         )
@@ -807,3 +792,210 @@ def test_imbalance_fields_read_one_active_population() -> None:
             "one (the destructuring). The rule layer must read only the active "
             "buffers — full-mitigation events are F5, not this frame."
         )
+
+
+def test_imbalance_engine_runs_every_tick_but_publishes_only_confirmed() -> None:
+    before, inside = _confirmed_sections("build_imbalance_frame")
+
+    assert "eng.fvgs_objects(" in before
+    assert "eng.fvgs_objects(" not in inside
+    assert "published := current" in inside
+
+
+def test_zone_engine_runs_every_tick_but_private_projection_publishes_confirmed() -> None:
+    source = _source()
+    helper = source.split("_build_zone(", 1)[1].split(
+        "// ── Exported builders", 1
+    )[0]
+    gate = helper.index("if barstate.isconfirmed")
+
+    assert "eng.track_obs(" in helper[:gate]
+    assert "published := current" in helper[gate:]
+
+
+def _type_fields(name: str) -> set[str]:
+    block = re.search(
+        rf"^export type {name}\n((?:    .*\n)+)",
+        _source(),
+        re.MULTILINE,
+    )
+    assert block, f"export type {name} not found"
+    return {
+        match.group(1)
+        for match in re.finditer(
+            r"^    \w+\s+(\w+)",
+            block.group(1),
+            re.MULTILINE,
+        )
+    }
+
+
+def test_remaining_frame_types_are_complete_and_explicit() -> None:
+    assert _type_fields("SweepFrame") == {
+        "recent_bull_sweep",
+        "recent_bear_sweep",
+        "sweep_type",
+        "direction",
+        "zone_top",
+        "zone_bottom",
+        "reclaim_active",
+        "liquidity_taken_direction",
+        "depth_pct",
+        "volume_ratio",
+        "quality_score",
+        "bars_since_event",
+        "fresh",
+    }
+    assert _type_fields("PoolFrame") == {
+        "buy_side_level",
+        "sell_side_level",
+        "buy_side_strength",
+        "sell_side_strength",
+        "proximity_pct",
+        "cluster_density",
+        "untested_buy_pools",
+        "untested_sell_pools",
+        "imbalance",
+        "magnet_direction",
+        "quality_score",
+    }
+    assert _type_fields("SessionFrame") == {
+        "session_code",
+        "in_killzone",
+        "mss_bull",
+        "mss_bear",
+        "structure_state",
+        "fvg_bull_active",
+        "fvg_bear_active",
+        "bpr_active",
+        "range_top",
+        "range_bottom",
+        "mean",
+        "vwap",
+        "target_bull",
+        "target_bear",
+        "opening_range_active",
+        "opening_range_top",
+        "opening_range_bottom",
+        "direction_bias",
+        "context_score",
+    }
+    assert _type_fields("ContextFrame") == {
+        "structure",
+        "imbalance",
+        "zone",
+        "sweep",
+        "pool",
+        "session",
+        "bias",
+        "directional_score",
+        "available_domains",
+        "quality_score",
+    }
+
+
+def test_sweep_builder_ports_the_golden_scoring_ladder() -> None:
+    body = _builder_code("build_sweep_frame")
+
+    assert "depth >= SWEEP_DEPTH_STOP_HUNT_PCT" in body
+    assert body.count("event_volume_ratio >= SWEEP_VOLUME_RATIO_MIN") == 1
+    assert "event_depth_pct >= SWEEP_DEPTH_MIN_PCT" in body
+    assert "event_age <= SWEEP_RECLAIM_MAX_BARS" in body
+    assert "math.min(quality, 5)" in body
+    assert "SWEEP_DEPTH_MIN_PCT * 3" not in body
+
+
+def test_sweep_detection_runs_stateful_series_before_confirmed_publish() -> None:
+    before, inside = _confirmed_sections("build_sweep_frame")
+
+    for call in ("ta.pivothigh(", "ta.pivotlow(", "ta.sma("):
+        assert call in before
+        assert call not in inside
+    assert "published :=" in inside
+    assert "reference_high := pivot_high" in inside
+    assert "reference_low := pivot_low" in inside
+
+
+def test_pool_builder_ports_imbalance_magnet_and_quality_rules() -> None:
+    body = _builder_code("build_pool_frame")
+
+    assert "float(total_buy - total_sell) / total" in body
+    assert "math.round(raw_imbalance * 10000.0) / 10000.0" in body
+    assert "pool_imbalance >= IMBALANCE_SIG_THRESHOLD ? 1" in body
+    assert "pool_imbalance <= -IMBALANCE_SIG_THRESHOLD ? -1" in body
+    assert "proximity <= PROXIMITY_NEAR_PCT" in body
+    assert body.count("CLUSTER_STRONG_COUNT") >= 2
+    assert "math.min(quality, 5)" in body
+
+
+def test_pool_detection_is_bounded_and_retires_taken_levels_before_insert() -> None:
+    body = _builder_code("build_pool_frame")
+    remove_buy = body.index(
+        "_pool_remove_taken(buy_levels, buy_strengths, true)"
+    )
+    add_buy = body.index(
+        "_pool_add(buy_levels, buy_strengths, pivot_high"
+    )
+
+    assert remove_buy < add_buy
+    assert "_pool_add(buy_levels, buy_strengths, pivot_high, tolerance_pct, max_levels)" in body
+    assert "_pool_add(sell_levels, sell_strengths, pivot_low, tolerance_pct, max_levels)" in body
+    helper = _source().split("_pool_add(", 1)[1].split("_pool_remove_taken(", 1)[0]
+    assert "array.size(levels) > max_levels" in helper
+
+
+def test_session_clocks_use_independent_iana_timezones_and_precedence() -> None:
+    body = _builder_code("build_session_frame")
+
+    assert '"Asia/Tokyo"' in body
+    assert '"Europe/London"' in body
+    assert '"America/New_York"' in body
+    precedence = re.search(
+        r"int session_code = (?P<expr>.+)$",
+        body,
+        re.MULTILINE,
+    )
+    assert precedence
+    expr = precedence.group("expr")
+    assert expr.index("ny_pm_active") < expr.index("ny_am_active")
+    assert expr.index("ny_am_active") < expr.index("london_active")
+    assert expr.index("london_active") < expr.index("asia_active")
+    assert "time - session_started_at < OPENING_RANGE_MINUTES * 60000" in body
+
+
+def test_session_frame_is_fail_closed_off_session_and_confirmed_only() -> None:
+    before, inside = _confirmed_sections("build_session_frame")
+
+    assert "published :=" not in before
+    assert "published := SessionFrame.new(0" in inside
+    assert "na, na, na, na, na, na" in inside
+    assert "cumulative_pv += hlc3 * volume" in inside
+    assert "cumulative_volume > 0 ? cumulative_pv / cumulative_volume : na" in inside
+
+
+def test_aggregate_reuses_one_structure_detector_for_structure_and_zone() -> None:
+    body = _builder_code("build_context_frame")
+
+    assert body.count("eng.detect_structure(") == 1
+    assert "build_structure_frame(" not in body
+    assert "build_zone_frame(" not in body
+    assert body.count("_build_zone(") == 1
+    assert "StructureFrame.new(" in body
+    assert "ContextFrame.new(" in body
+
+
+def test_aggregate_vote_and_quality_are_bounded_and_provenanced() -> None:
+    body = _builder_code("build_context_frame")
+
+    for vote in (
+        "structure_vote",
+        "imbalance_vote",
+        "zone_vote",
+        "sweep_vote",
+        "pool_vote",
+        "session_vote",
+    ):
+        assert vote in body
+    assert "directional_score >= CONTEXT_BIAS_MIN_VOTES ? 1" in body
+    assert "directional_score <= -CONTEXT_BIAS_MIN_VOTES ? -1" in body
+    assert "available_domains > 0 ? int(math.round(quality_sum / available_domains)) : 0" in body

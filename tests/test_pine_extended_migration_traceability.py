@@ -93,7 +93,7 @@ def test_open_requirements_name_their_remaining_gate() -> None:
             )
 
 
-def test_live_r1_r2_claims_stay_open_while_surfaces_are_planned() -> None:
+def test_live_claims_follow_the_surface_rollout_state() -> None:
     trace = _trace()
     requirements = {
         requirement["id"]: requirement
@@ -102,17 +102,14 @@ def test_live_r1_r2_claims_stay_open_while_surfaces_are_planned() -> None:
     }
     surfaces = {surface.file: surface for surface in SURFACE_DEFINITIONS}
 
-    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "not_started"
+    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "complete"
     # 2026-07-28 22:41Z: R2 shadow observation window opened (partial) — the
     # surface itself stays a planned rollout until the window and rollback
     # drill pass; "partial" must never silently become "complete" here.
     assert requirements["R2-SHADOW-CUTOVER"]["status"] == "partial"
-    for file in (
-        "SMC_Event_Overlay.pine",
-        "SMC_Exit_Signal.pine",
-        "SMC_Hold_Manager.pine",
-    ):
-        assert surfaces[file].rollout_state == "planned"
+    for file in ("SMC_Event_Overlay.pine", "SMC_Exit_Signal.pine"):
+        assert surfaces[file].rollout_state == "deployed"
+    assert surfaces["SMC_Hold_Manager.pine"].rollout_state == "planned"
 
 
 def test_r2_reconstruction_claim_is_pinned_to_runtime_contract() -> None:

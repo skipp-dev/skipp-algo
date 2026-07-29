@@ -1,0 +1,78 @@
+{
+  "claimPolicy": [
+    "This contract and its repository tests do not independently prove live TradingView state; the registered immutable execution evidence does.",
+    "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid."
+  ],
+  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
+  "executionPerformed": true,
+  "gate": "R1-LIVE-ROLLOUT",
+  "layoutContract": {
+    "actionableExitMode": "exit_signal",
+    "forbiddenConcurrentActionableExitMode": "hold_manager",
+    "preset": "Simple Management",
+    "requiredScripts": [
+      "SMC Long-Dip Suite",
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ]
+  },
+  "openGates": [],
+  "preflight": {
+    "command": "npx tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-r1-companions.json --execution-mode mutating",
+    "config": "automation/tradingview/preflight-r1-companions.json",
+    "scope": "smcR1Companions"
+  },
+  "requiredEvidence": [
+    "authenticated private TradingView account and intended layout identity",
+    "post-save compile success for both canonical sources",
+    "persisted saved-source SHA-256 equality after chart reload",
+    "one Event Overlay and nine Exit Signal BUS bindings to SMC Long-Dip Suite",
+    "alert-condition inventory and single-edge replay evidence",
+    "saved Simple Management layout with Hold Manager actionable alerts disabled",
+    "rollback drill removing both companions without changing the Suite or existing consumers"
+  ],
+  "schemaVersion": 1,
+  "status": "authorized_execution_completed",
+  "targets": [
+    {
+      "bindingLabels": [
+        "BUS LeanPackA"
+      ],
+      "libraryPin": {
+        "importPath": "preuss_steffen/smc_micro_profiles_generated",
+        "version": 179
+      },
+      "path": "SMC_Event_Overlay.pine",
+      "requiredAlerts": [
+        "Event Restriction Hard Block Started",
+        "Event Restriction Window Started"
+      ],
+      "scriptName": "SMC Event Overlay",
+      "sha256": "12c2d18e238bb775de794ac496286cc619c6770d9a9191a4d05cc5aaf9df3048"
+    },
+    {
+      "bindingLabels": [
+        "BUS SchemaVersion",
+        "BUS Armed",
+        "BUS Confirmed",
+        "BUS Ready",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS StopLevel",
+        "BUS Target1",
+        "BUS Target2"
+      ],
+      "path": "SMC_Exit_Signal.pine",
+      "requiredAlerts": [
+        "ENTER LONG (trigger filled)",
+        "EXIT \u2014 Stop hit",
+        "EXIT \u2014 TP1 (take half)",
+        "EXIT \u2014 TP2 (close rest)",
+        "EXIT \u2014 Defensive (setup invalidated)",
+        "EXIT (any full close)"
+      ],
+      "scriptName": "SMC Exit Signal",
+      "sha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "canonicalSource": {
+    "path": "SMC_Exit_Signal.pine",
+    "sha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c"
+  },
+  "caseCount": 11,
+  "cases": [
+    {
+      "caseId": "R1-01",
+      "expectedAlertCounts": {},
+      "expectedFinalState": 1,
+      "name": "arm without entry",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-02",
+      "expectedAlertCounts": {
+        "EXIT_ENTER": 1
+      },
+      "expectedFinalState": 2,
+      "name": "gap across entry fires once",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-03",
+      "expectedAlertCounts": {
+        "EXIT_ANY": 1,
+        "EXIT_ENTER": 1,
+        "EXIT_STOP": 1
+      },
+      "expectedFinalState": 0,
+      "name": "entry and stop on the same bar",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-04",
+      "expectedAlertCounts": {
+        "EXIT_ENTER": 1,
+        "EXIT_TP1": 1
+      },
+      "expectedFinalState": 2,
+      "name": "entry and Target 1 on the same bar",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-05",
+      "expectedAlertCounts": {
+        "EXIT_ANY": 1,
+        "EXIT_ENTER": 1,
+        "EXIT_TP1": 1,
+        "EXIT_TP2": 1
+      },
+      "expectedFinalState": 0,
+      "name": "entry and Target 2 on the same bar",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-06",
+      "expectedAlertCounts": {
+        "EXIT_ANY": 1,
+        "EXIT_ENTER": 1,
+        "EXIT_STOP": 1
+      },
+      "expectedFinalState": 0,
+      "name": "stop wins over targets on the same bar",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-07",
+      "expectedAlertCounts": {
+        "EXIT_ENTER": 1,
+        "EXIT_TP1": 1
+      },
+      "expectedFinalState": 2,
+      "name": "Target 1 is a one-shot edge",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-08",
+      "expectedAlertCounts": {
+        "EXIT_ANY": 1,
+        "EXIT_ENTER": 1,
+        "EXIT_STOP": 1,
+        "EXIT_TP1": 1
+      },
+      "expectedFinalState": 0,
+      "name": "break-even stop follows Target 1",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-09",
+      "expectedAlertCounts": {
+        "EXIT_ANY": 1,
+        "EXIT_DEFENSIVE": 1,
+        "EXIT_ENTER": 1
+      },
+      "expectedFinalState": 0,
+      "name": "defensive exit respects the exact grace window",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-10",
+      "expectedAlertCounts": {},
+      "expectedFinalState": 0,
+      "name": "schema mismatch fails closed before entry",
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R1-11",
+      "expectedAlertCounts": {},
+      "expectedFinalState": 0,
+      "name": "incoherent risk plan fails closed before entry",
+      "tradingViewStatus": "pending"
+    }
+  ],
+  "fixture": {
+    "path": "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine",
+    "scriptName": "SMC Exit Signal R1 Fixture TEST ONLY",
+    "sha256": "84219393d70b3860ece56233ae5022592d6f8de655dfa6f3c75b5f8967e55c48"
+  },
+  "gate": "R1-REPLAY",
+  "gateStatus": "partial",
+  "openGates": [
+    "Private TradingView compile and eleven-case replay evidence is pending."
+  ],
+  "operatorRules": [
+    "Load this generated fixture, never a managed product script or product layout.",
+    "Do not publish the fixture.",
+    "Run each case from before the fixture anchor and record only redacted pulse counts.",
+    "Restore the canonical chart state after the private replay."
+  ],
+  "requiredChart": {
+    "layoutName": "SMC Exit Signal R1 Validation",
+    "symbol": "NASDAQ:AAPL",
+    "timeframe": "5"
+  },
+  "schemaVersion": 1,
+  "sourceOnlyCase": {
+    "caseId": "R1-12",
+    "name": "unconfirmed update produces no edge",
+    "reason": "Historical TradingView replay bars are confirmed; intrabar gating remains a canonical source contract."
+  },
+  "surfaceClass": "test_only_not_managed_not_publishable"
+}

@@ -130,3 +130,14 @@ def test_golden_covers_every_rule_branch() -> None:
     for v in g["liquidity_pools"].values():
         assert -1.0 <= v["expected"]["POOL_IMBALANCE"] <= 1.0
         assert 0 <= v["expected"]["POOL_QUALITY_SCORE"] <= 5
+
+    sessions = g["session_context"]
+    assert sessions["none"]["expected"]["SESSION_CONTEXT"] == "NONE"
+    assert sessions["asia_killzone"]["expected"]["SESSION_CONTEXT"] == "ASIA"
+    assert sessions["london_killzone_during_us_dst"]["expected"]["SESSION_CONTEXT"] == "LONDON"
+    assert sessions["ny_am_killzone_during_eu_overlap"]["expected"]["SESSION_CONTEXT"] == "NY_AM"
+    assert sessions["ny_am_killzone_during_eu_overlap"]["expected"]["SESSION_DIRECTION_BIAS"] == "BULLISH"
+    assert sessions["ny_pm_bearish"]["expected"]["SESSION_CONTEXT"] == "NY_PM"
+    assert sessions["ny_pm_bearish"]["expected"]["SESSION_DIRECTION_BIAS"] == "BEARISH"
+    for fixture in sessions.values():
+        assert 0 <= fixture["expected"]["SESSION_CONTEXT_SCORE"] <= 7

@@ -107,6 +107,18 @@ class TestOverlayStructure:
         assert 'pack_slot(src_lean_pack_a, 2)' in src
         assert 'overlay_event_status_text' in src
 
+    def test_event_status_plotchars_use_compile_time_chars(self):
+        src = _read(OVERLAY_PATH)
+        assert "char = rt_status" not in src
+        for title, char in (
+            ("Event Status · Market Block", "M"),
+            ("Event Status · Earnings Block", "E"),
+            ("Event Status · Incoming", "I"),
+            ("Event Status · Cooldown", "C"),
+            ("Event Status · Clear", "✓"),
+        ):
+            assert f'"{title}", "{char}"' in src
+
     def test_overlay_uses_only_lean_slot_2_for_runtime_state(self):
         src = _read(OVERLAY_PATH)
         assert tuple(_LEAN_SLOT_RE.findall(src)) == ("2",)

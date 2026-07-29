@@ -326,6 +326,20 @@
         "BUS StopLevel",
         "BUS Target1",
         "BUS Target2"
+      ],
+      "eventOverlayBindings": [
+        "BUS LeanPackA"
+      ],
+      "exitSignalBindings": [
+        "BUS SchemaVersion",
+        "BUS Armed",
+        "BUS Confirmed",
+        "BUS Ready",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS StopLevel",
+        "BUS Target1",
+        "BUS Target2"
       ]
     },
     "preflightScopes": {
@@ -1996,6 +2010,116 @@
               "tier": "critical"
             }
           ]
+        }
+      ],
+      "smcR1Companions": [
+        {
+          "file": "SMC_Long_Dip_Suite.pine",
+          "scriptName": "SMC Long-Dip Suite",
+          "checkInputs": false,
+          "addToChart": false
+        },
+        {
+          "file": "SMC_Event_Overlay.pine",
+          "scriptName": "SMC Event Overlay",
+          "checkInputs": true,
+          "addToChart": true,
+          "minInputs": 1,
+          "savedScriptName": "SMC Event Overlay",
+          "bindingContractKey": "eventOverlayBindings",
+          "bindingContractName": "Event Overlay BUS bindings",
+          "bindingConsumerRole": "overlay_companion",
+          "bindingContractLabels": [
+            "BUS LeanPackA"
+          ],
+          "bindingLabelGroups": [
+            {
+              "label": "BUS LeanPackA",
+              "group": "g_ev",
+              "groupTitle": "Event Overlay",
+              "tier": "critical"
+            }
+          ],
+          "allowFreshDraftOnMissingExisting": true
+        },
+        {
+          "file": "SMC_Exit_Signal.pine",
+          "scriptName": "SMC Exit Signal",
+          "checkInputs": true,
+          "addToChart": true,
+          "minInputs": 9,
+          "savedScriptName": "SMC Exit Signal",
+          "bindingContractKey": "exitSignalBindings",
+          "bindingContractName": "Exit Signal BUS bindings",
+          "bindingConsumerRole": "exit_companion",
+          "bindingContractLabels": [
+            "BUS SchemaVersion",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2"
+          ],
+          "bindingLabelGroups": [
+            {
+              "label": "BUS SchemaVersion",
+              "group": "g_bus_state",
+              "groupTitle": "Expert Mapping - Entry States",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Armed",
+              "group": "g_bus_state",
+              "groupTitle": "Expert Mapping - Entry States",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Confirmed",
+              "group": "g_bus_state",
+              "groupTitle": "Expert Mapping - Entry States",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Ready",
+              "group": "g_bus_state",
+              "groupTitle": "Expert Mapping - Entry States",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Trigger",
+              "group": "g_bus_plan",
+              "groupTitle": "Expert Mapping - Trade Plan",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Invalidation",
+              "group": "g_bus_plan",
+              "groupTitle": "Expert Mapping - Trade Plan",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS StopLevel",
+              "group": "g_bus_plan",
+              "groupTitle": "Expert Mapping - Trade Plan",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Target1",
+              "group": "g_bus_plan",
+              "groupTitle": "Expert Mapping - Trade Plan",
+              "tier": "critical"
+            },
+            {
+              "label": "BUS Target2",
+              "group": "g_bus_plan",
+              "groupTitle": "Expert Mapping - Trade Plan",
+              "tier": "critical"
+            }
+          ],
+          "allowFreshDraftOnMissingExisting": true
         }
       ]
     },

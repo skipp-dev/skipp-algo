@@ -142,23 +142,33 @@ Context BUS and Context Overlay.
 
 ### 3.3 Existing Context BUS building blocks
 
-`SMC++/smc_context_engine_private.pine` already provides:
+`SMC++/smc_context_engine_private.pine` provides:
 
 - `StructureFrame`;
 - `ImbalanceFrame`;
 - `ZoneFrame`;
+- `SweepFrame`;
+- `PoolFrame`;
+- `SessionFrame`;
+- `ContextFrame`;
 - `build_structure_frame`;
 - `build_imbalance_frame`; and
-- `build_zone_frame`.
+- `build_zone_frame`;
+- `build_sweep_frame`;
+- `build_pool_frame`;
+- `build_session_frame`; and
+- `build_context_frame`.
 
 These frames derive confirmed per-bar context from `smc_engine_private`; they
 do not use the removed per-symbol snapshot fields.
 
-The following are not yet complete:
+Repository implementation of the four R3 frames, golden rule parity, explicit
+Pine-only detection semantics, and deterministic repository replay vectors was
+completed on 2026-07-28. The operational R3 gate remains open until TradingView
+compiles and replays the complete private library.
 
-- Sweep Frame;
-- Pool Frame;
-- aggregated Context Frame;
+The following later surfaces are not yet complete:
+
 - `SMC_Context_Bus.pine`;
 - the schema `8001` channel contract;
 - a consolidated Context Overlay;
@@ -834,6 +844,37 @@ Revert governance-only changes. No TradingView behavior changes in R0.
 
 ### Phase R1 — Event Overlay and Exit Signal
 
+Repository implementation status on 2026-07-28: deterministic Exit Signal
+replay, a canonically derived private TradingView fixture, exact Event/Exit BUS
+binding contracts, and a fail-closed private rollout preflight are implemented.
+The separately authorized private TradingView fixture run on 2026-07-29
+compiled source SHA-256
+`84219393d70b3860ece56233ae5022592d6f8de655dfa6f3c75b5f8967e55c48`
+and passed all eleven historical replay cases on `NASDAQ:AAPL` at 5 minutes.
+The fixture was removed, replay was exited, and the private validation layout
+was saved in its canonical empty state. The redacted evidence is
+`artifacts/governance/smc_exit_signal_tradingview_replay_2026-07-29.json`.
+The source-only unconfirmed-update case remains a canonical-code contract
+because historical TradingView replay bars are confirmed.
+
+R1 completed its separately authorized private product-layout rollout on
+2026-07-29. `SMC Event Overlay` and `SMC Exit Signal` compiled from persisted
+saved sources whose SHA-256 values match the repository, all ten BUS inputs
+were bound to `SMC Long-Dip Suite`, and the alert-condition inventory matched
+the declared two Event and six Exit conditions without creating or changing
+an alert. The saved `SMC Simple Management R1` layout contains exactly one
+Suite, one Exit Signal, and one Event Overlay; no Hold Manager or legacy
+consumer remains in that layout.
+
+The rollback drill removed both companions, explicitly saved the Suite-only
+layout, and verified that state after reload. Both saved companions were then
+re-added, all ten bindings were restored, the layout was explicitly saved
+again, and a final reload passed with no compile diagnostic. Redacted evidence
+is
+[`smc_r1_live_rollout_evidence_2026-07-29.json`](../artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json).
+No script was published, no TradingView alert was mutated, and Railway was not
+changed.
+
 #### Event Overlay
 
 - add to managed save targets;
@@ -1166,6 +1207,13 @@ Disable Hold alerts and remove Hold from the active layout. Re-enable Exit
 Signal Simple mode without changing Suite or Engine BUS v2.
 
 ### Phase R3 — Complete Context Engine Library
+
+Repository implementation status on 2026-07-28: the complete seven-frame
+library, golden scoring parity, Pine-only detection specification, and
+deterministic repository replay vectors are implemented. The phase remains
+`in_progress`: TradingView compile/runtime replay and immutable private-library
+publication evidence are still open and may not be inferred from repository
+tests.
 
 #### Changes
 

@@ -251,11 +251,22 @@ Rules:
 - **Quality (0–5, additive):** +1 any sweep, +1 type∈{STOP_HUNT,LIQUIDITY_GRAB},
   +1 reclaim active, +1 `depth ≥ 0.1`, +1 `vol_ratio ≥ 1.2`.
 
-**Detection (Column B):** computing `sweep_depth_pct`, `sweep_volume_ratio`,
-`sweep_reclaim_active` live from bars is new Pine work; the Python builder only
-*scores* pre-computed rows. Reclaim within `SWEEP_RECLAIM_MAX_BARS` is a live
-Pine detection detail with no Python golden. (This mirrors the sweep-trap shadow
-work: producers reclaim inside the sweep bar itself — see the sweep-trap ledger.)
+**Detection (Column B):** `build_sweep_frame` uses the last confirmed
+`ta.pivothigh`/`ta.pivotlow` as the buy-/sell-side reference. A bullish sweep
+takes the prior low; a bearish sweep takes the prior high. The crossing must be
+new on that bar, so a level that remains pierced cannot emit a second event.
+Depth is the maximum percentage excursion beyond the swept reference. Volume
+ratio is current volume divided by the confirmed `ta.sma(volume, volume_len)`,
+or `0` when volume is unavailable.
+
+Reclaim is immediate when the sweep bar closes back across every side it took;
+otherwise it may become active on one of the next
+`SWEEP_RECLAIM_MAX_BARS = 5` confirmed bars. A two-sided sweep requires both
+references to be reclaimed and remains directionally ambiguous. Event metadata
+persists only through `fresh_max_bars`; afterward levels become `na`, enum and
+score fields return to zero, and the event age remains available as stale
+provenance. Newly confirmed pivots are installed only after the current bar has
+been tested against the prior references.
 
 ---
 
@@ -279,8 +290,85 @@ Rules:
 - **Quality (0–5, additive):** +1 any pool level, +1 strength ≥ 3 either side,
   +1 proximity in `(0, 1.0]`, +1 cluster density ≥ 3, +1 `|imbalance| ≥ 0.3`.
 
-**Detection (Column B):** deriving pool levels, strengths, untested counts,
-proximity and cluster density from live bars/volume is new Pine work.
+**Detection (Column B):** `build_pool_frame` clusters confirmed pivot highs
+above price as buy-side liquidity and pivot lows below price as sell-side
+liquidity. Candidate equality is percentage-based (`tolerance_pct`, default
+`0.1%`). A matching pivot increments strength, capped at `5`, and moves the
+cluster level to its strength-weighted mean. Candidate arrays are bounded by
+`max_levels` (default `20`).
+
+A buy-side pool stops being untested when `high >= level`; a sell-side pool when
+`low <= level`. Existing levels are retired before the newly confirmed pivot is
+inserted, preventing its confirmation bar from consuming it retroactively. The
+published level on each side is the nearest untested level on the correct side
+of close. `POOL_PROXIMITY_PCT` is the smaller distance, and cluster density is
+the larger published-side strength. The golden imbalance, magnet, and quality
+rules above are then applied without modification.
+
+---
+
+## Session frame — Column A scoring plus Column B clocks/ranges
+
+Source of truth for classification and scoring:
+`scripts/smc_session_context_block.py::build_session_context_block`.
+
+Session codes are `NONE=0`, `ASIA=1`, `LONDON=2`, `NY_AM=3`, `NY_PM=4`.
+Every clock is expressed in its own IANA zone:
+
+| Session | Local zone | Window | Killzone |
+|---|---|---|---|
+| Asia | `Asia/Tokyo` | 09:00–17:00 | 09:00–13:00 |
+| London | `Europe/London` | 08:00–16:30 | 08:00–11:00 |
+| New York AM | `America/New_York` | 09:30–13:00 | 09:30–12:00 |
+| New York PM | `America/New_York` | 13:00–16:00 | — |
+
+This is a hard DST requirement: US and European transitions are not assumed to
+occur together. During overlap, precedence is `NY_PM > NY_AM > LONDON > ASIA`,
+matching the Python builder.
+
+The Pine-only range layer resets whenever that precedence-selected session code
+changes. It tracks high, low, mean, volume-weighted typical price, and a
+30-minute opening range on confirmed intraday bars. Missing volume yields
+`vwap = na`, never a fabricated value. Session targets are the active range
+extremes.
+
+Scoring mirrors Python:
+
+- MSS contributes two directional points;
+- active same-direction FVG contributes one;
+- each available directional target contributes one;
+- bias is the greater side, or neutral on a tie;
+- context quality adds one each for active session, killzone, any MSS, any FVG,
+  non-neutral direction, non-neutral structure, and BPR, capped at `7`.
+
+No active session means code/flags/scores are zero and all price fields are
+`na`.
+
+---
+
+## Aggregated Context frame — Column B
+
+`build_context_frame` returns all six domain frames together. It calls
+`eng.detect_structure` exactly once; that same tuple builds both
+`StructureFrame` and the dependent `ZoneFrame`. This avoids the two independent
+state machines that would result from calling the standalone structure and zone
+builders side by side.
+
+The compact directional vote is additive across:
+
+1. structure trend;
+2. FVG count-delta bias;
+3. order-block count-delta bias;
+4. fresh sweep direction;
+5. pool magnet direction; and
+6. session direction.
+
+Each vote is `-1`, `0`, or `+1`. Aggregate bias is bullish at a score of `+2`
+or greater, bearish at `-2` or less, otherwise neutral. `available_domains`
+counts domains with real current evidence. `quality_score` is the rounded mean
+of their normalized evidence quality: fresh/stale structure `100/50`, active
+imbalance and zone `100`, sweep and pool score scaled from `0..5`, and session
+score scaled from `0..7`. With no available domain it is `0`.
 
 ---
 

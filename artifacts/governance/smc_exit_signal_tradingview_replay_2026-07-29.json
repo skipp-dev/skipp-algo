@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-29T04:52:04Z",
+  "scope": "Private TradingView compile and eleven-case R1 Exit Signal fixture replay; not publication, product-layout rollout, or TradingView server-alert delivery evidence",
+  "canonicalSource": {
+    "path": "SMC_Exit_Signal.pine",
+    "sha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c"
+  },
+  "fixture": {
+    "path": "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine",
+    "sha256": "84219393d70b3860ece56233ae5022592d6f8de655dfa6f3c75b5f8967e55c48",
+    "savedScript": "SMC Exit Signal R1 Fixture TEST ONLY",
+    "visibility": "private",
+    "publicationStatus": "not_published",
+    "compileStatus": "passed",
+    "compileDiagnostics": [],
+    "sourceReadbackSha256": "84219393d70b3860ece56233ae5022592d6f8de655dfa6f3c75b5f8967e55c48"
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Exit Signal R1 Validation",
+    "symbol": "NASDAQ:AAPL",
+    "timeframe": "5m",
+    "replayStartedBeforeFixtureAnchor": true,
+    "physicalRunsExecuted": 11,
+    "logicalCasesExecuted": 11,
+    "canonicalChartStateRestored": true,
+    "canonicalStateAfterRestore": {
+      "symbol": "NASDAQ:AAPL",
+      "timeframe": "5m",
+      "replayActive": false,
+      "fixtureOnChart": false,
+      "layoutSaved": true
+    }
+  },
+  "results": {
+    "status": "passed",
+    "passedLogicalCases": 11,
+    "failedLogicalCases": 0,
+    "cases": [
+      {
+        "caseId": "R1-01",
+        "status": "passed",
+        "observedAlertCounts": {},
+        "observedFinalState": 1
+      },
+      {
+        "caseId": "R1-02",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1
+        },
+        "observedFinalState": 2
+      },
+      {
+        "caseId": "R1-03",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_STOP": 1,
+          "EXIT_ANY": 1
+        },
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-04",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_TP1": 1
+        },
+        "observedFinalState": 2
+      },
+      {
+        "caseId": "R1-05",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_TP1": 1,
+          "EXIT_TP2": 1,
+          "EXIT_ANY": 1
+        },
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-06",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_STOP": 1,
+          "EXIT_ANY": 1
+        },
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-07",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_TP1": 1
+        },
+        "observedFinalState": 2
+      },
+      {
+        "caseId": "R1-08",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_TP1": 1,
+          "EXIT_STOP": 1,
+          "EXIT_ANY": 1
+        },
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-09",
+        "status": "passed",
+        "observedAlertCounts": {
+          "EXIT_ENTER": 1,
+          "EXIT_DEFENSIVE": 1,
+          "EXIT_ANY": 1
+        },
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-10",
+        "status": "passed",
+        "observedAlertCounts": {},
+        "observedFinalState": 0
+      },
+      {
+        "caseId": "R1-11",
+        "status": "passed",
+        "observedAlertCounts": {},
+        "observedFinalState": 0
+      }
+    ],
+    "failures": []
+  },
+  "sourceOnlyCase": {
+    "caseId": "R1-12",
+    "status": "not_applicable_to_historical_bar_replay",
+    "reason": "Historical TradingView replay bars are confirmed; the canonical source contract separately gates unconfirmed updates."
+  },
+  "productLayoutExclusivity": {
+    "status": "pending",
+    "reason": "The Simple Management product layout is verified under R1-LIVE-ROLLOUT, not by this isolated fixture run."
+  },
+  "serverAlertDelivery": {
+    "status": "not_in_scope",
+    "reason": "Fixture counters prove Pine alert-edge generation but not TradingView server-side alert delivery."
+  },
+  "limitations": [
+    "The private test script is a source-derived fixture and is not the canonical product script.",
+    "No script was published and no alert was created.",
+    "The Simple Management product layout was not changed by this replay run."
+  ]
+}

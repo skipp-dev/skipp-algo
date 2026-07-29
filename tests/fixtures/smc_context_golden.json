@@ -5,7 +5,8 @@
     "sources": [
       "scripts/smc_imbalance_lifecycle.py",
       "scripts/smc_liquidity_sweeps.py",
-      "scripts/smc_liquidity_pools.py"
+      "scripts/smc_liquidity_pools.py",
+      "scripts/smc_session_context_block.py"
     ],
     "thresholds": {
       "imbalance": {
@@ -504,6 +505,139 @@
         "sweep_zone_bottom": 100.0,
         "sweep_zone_top": 101.0
       }
+    }
+  },
+  "session_context": {
+    "asia_killzone": {
+      "expected": {
+        "IN_KILLZONE": true,
+        "SESSION_BPR_ACTIVE": false,
+        "SESSION_CONTEXT": "ASIA",
+        "SESSION_CONTEXT_SCORE": 2,
+        "SESSION_DIRECTION_BIAS": "NEUTRAL",
+        "SESSION_FVG_BEAR_ACTIVE": false,
+        "SESSION_FVG_BULL_ACTIVE": false,
+        "SESSION_MEAN": 0.0,
+        "SESSION_MSS_BEAR": false,
+        "SESSION_MSS_BULL": false,
+        "SESSION_RANGE_BOTTOM": 0.0,
+        "SESSION_RANGE_TOP": 0.0,
+        "SESSION_STRUCTURE_STATE": "NEUTRAL",
+        "SESSION_TARGET_BEAR": 0.0,
+        "SESSION_TARGET_BULL": 0.0,
+        "SESSION_VWAP": 0.0
+      },
+      "row": {},
+      "timestamp": "2026-07-20T01:00:00+00:00"
+    },
+    "london_killzone_during_us_dst": {
+      "expected": {
+        "IN_KILLZONE": true,
+        "SESSION_BPR_ACTIVE": false,
+        "SESSION_CONTEXT": "LONDON",
+        "SESSION_CONTEXT_SCORE": 2,
+        "SESSION_DIRECTION_BIAS": "NEUTRAL",
+        "SESSION_FVG_BEAR_ACTIVE": false,
+        "SESSION_FVG_BULL_ACTIVE": false,
+        "SESSION_MEAN": 0.0,
+        "SESSION_MSS_BEAR": false,
+        "SESSION_MSS_BULL": false,
+        "SESSION_RANGE_BOTTOM": 0.0,
+        "SESSION_RANGE_TOP": 0.0,
+        "SESSION_STRUCTURE_STATE": "NEUTRAL",
+        "SESSION_TARGET_BEAR": 0.0,
+        "SESSION_TARGET_BULL": 0.0,
+        "SESSION_VWAP": 0.0
+      },
+      "row": {},
+      "timestamp": "2026-07-20T07:30:00+00:00"
+    },
+    "none": {
+      "expected": {
+        "IN_KILLZONE": false,
+        "SESSION_BPR_ACTIVE": false,
+        "SESSION_CONTEXT": "NONE",
+        "SESSION_CONTEXT_SCORE": 0,
+        "SESSION_DIRECTION_BIAS": "NEUTRAL",
+        "SESSION_FVG_BEAR_ACTIVE": false,
+        "SESSION_FVG_BULL_ACTIVE": false,
+        "SESSION_MEAN": 0.0,
+        "SESSION_MSS_BEAR": false,
+        "SESSION_MSS_BULL": false,
+        "SESSION_RANGE_BOTTOM": 0.0,
+        "SESSION_RANGE_TOP": 0.0,
+        "SESSION_STRUCTURE_STATE": "NEUTRAL",
+        "SESSION_TARGET_BEAR": 0.0,
+        "SESSION_TARGET_BULL": 0.0,
+        "SESSION_VWAP": 0.0
+      },
+      "row": {},
+      "timestamp": "2026-07-20T23:30:00+00:00"
+    },
+    "ny_am_killzone_during_eu_overlap": {
+      "expected": {
+        "IN_KILLZONE": true,
+        "SESSION_BPR_ACTIVE": false,
+        "SESSION_CONTEXT": "NY_AM",
+        "SESSION_CONTEXT_SCORE": 6,
+        "SESSION_DIRECTION_BIAS": "BULLISH",
+        "SESSION_FVG_BEAR_ACTIVE": false,
+        "SESSION_FVG_BULL_ACTIVE": true,
+        "SESSION_MEAN": 100.0,
+        "SESSION_MSS_BEAR": false,
+        "SESSION_MSS_BULL": true,
+        "SESSION_RANGE_BOTTOM": 95.0,
+        "SESSION_RANGE_TOP": 105.0,
+        "SESSION_STRUCTURE_STATE": "BULLISH",
+        "SESSION_TARGET_BEAR": 95.0,
+        "SESSION_TARGET_BULL": 105.0,
+        "SESSION_VWAP": 101.0
+      },
+      "row": {
+        "session_fvg_bull_active": true,
+        "session_mean": 100.0,
+        "session_mss_bull": true,
+        "session_range_bottom": 95.0,
+        "session_range_top": 105.0,
+        "session_structure_state": "BULLISH",
+        "session_target_bear": 95.0,
+        "session_target_bull": 105.0,
+        "session_vwap": 101.0
+      },
+      "timestamp": "2026-07-20T14:00:00+00:00"
+    },
+    "ny_pm_bearish": {
+      "expected": {
+        "IN_KILLZONE": false,
+        "SESSION_BPR_ACTIVE": true,
+        "SESSION_CONTEXT": "NY_PM",
+        "SESSION_CONTEXT_SCORE": 6,
+        "SESSION_DIRECTION_BIAS": "BEARISH",
+        "SESSION_FVG_BEAR_ACTIVE": true,
+        "SESSION_FVG_BULL_ACTIVE": false,
+        "SESSION_MEAN": 100.0,
+        "SESSION_MSS_BEAR": true,
+        "SESSION_MSS_BULL": false,
+        "SESSION_RANGE_BOTTOM": 95.0,
+        "SESSION_RANGE_TOP": 105.0,
+        "SESSION_STRUCTURE_STATE": "BEARISH",
+        "SESSION_TARGET_BEAR": 95.0,
+        "SESSION_TARGET_BULL": 105.0,
+        "SESSION_VWAP": 99.0
+      },
+      "row": {
+        "session_bpr_active": true,
+        "session_fvg_bear_active": true,
+        "session_mean": 100.0,
+        "session_mss_bear": true,
+        "session_range_bottom": 95.0,
+        "session_range_top": 105.0,
+        "session_structure_state": "BEARISH",
+        "session_target_bear": 95.0,
+        "session_target_bull": 105.0,
+        "session_vwap": 99.0
+      },
+      "timestamp": "2026-07-20T18:00:00+00:00"
     }
   }
 }

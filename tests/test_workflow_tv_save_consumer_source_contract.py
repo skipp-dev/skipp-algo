@@ -98,6 +98,8 @@ def test_verifies_actual_consumer_source_selections_after_save() -> None:
         "SMC Breakout Overlay",
         "SMC Confluence Hub",
         "SMC Long-Dip Mobile",
+        "SMC Event Overlay",
+        "SMC Exit Signal",
     }
     # 2026-07-24: the dedicated Mobile layout (YcGLVHXR) no longer opens; the
     # Mobile consumer now lives on the primary chart alongside the others. With
@@ -106,6 +108,13 @@ def test_verifies_actual_consumer_source_selections_after_save() -> None:
     mobile = next(target for target in config["verifyTargets"] if target["scriptName"] == "SMC Long-Dip Mobile")
     assert "chartUrl" not in mobile
     assert mobile.get("chartUrl", config["primaryChartUrl"]) == "https://www.tradingview.com/chart/vWgAWyfC/"
+    for script_name in ("SMC Event Overlay", "SMC Exit Signal"):
+        companion = next(
+            target
+            for target in config["verifyTargets"]
+            if target["scriptName"] == script_name
+        )
+        assert companion["chartUrl"] == "https://www.tradingview.com/chart/hKHTmKhu/"
 
 
 def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
@@ -224,6 +233,8 @@ def test_default_mapping_covers_every_binding_order_consumer() -> None:
     expected = {
         "SMC_Breakout_Overlay.pine": "SMC Breakout Overlay",
         "SMC_Confluence_Hub.pine": "SMC Confluence Hub",
+        "SMC_Event_Overlay.pine": "SMC Event Overlay",
+        "SMC_Exit_Signal.pine": "SMC Exit Signal",
         "SMC_Long_Dip_Alerts.pine": "SMC Long-Dip Alerts",
         "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
         "SMC_Long_Dip_Mobile.pine": "SMC Long-Dip Mobile",

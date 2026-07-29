@@ -39,6 +39,7 @@ class PreflightTarget:
     min_inputs: int | None = None
     saved_script_name: str | None = None
     binding_contract_key: str | None = None
+    allow_fresh_draft_on_missing_existing: bool = False
 
 
 @dataclass(frozen = True)
@@ -296,12 +297,13 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'overlay_companion',
-        lifecycle = 'planned',
         deployment_mode = 'standard',
-        rollout_state = 'planned',
+        rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Event Overlay',
+        validation_target = True,
         notes = (
-            'Pro-only event-risk companion.',
+            'Pro-only event-risk companion deployed in the private Simple Management layout.',
         ),
     ),
     SurfaceDefinition(
@@ -506,14 +508,16 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'lite_and_pro',
         consumer_role = 'exit_companion',
-        lifecycle = 'planned',
         deployment_mode = 'standard',
-        rollout_state = 'planned',
+        rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        chart_instance_name = 'SMC Exit Signal',
+        validation_target = True,
         notes = (
             'Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE '
             'EXIT alerts driven by linked SMC Core BUS outputs. No '
-            'library import — fully BUS-driven.',
+            'library import — fully BUS-driven. Deployed as the sole '
+            'actionable exit mode in the private Simple Management layout.',
         ),
     ),
     SurfaceDefinition(
@@ -794,6 +798,35 @@ PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
     ),
 )
 
+PREFLIGHT_R1_COMPANION_TARGETS: tuple[PreflightTarget, ...] = (
+    PreflightTarget(
+        'SMC_Long_Dip_Suite.pine',
+        'SMC Long-Dip Suite',
+        False,
+        False,
+    ),
+    PreflightTarget(
+        'SMC_Event_Overlay.pine',
+        'SMC Event Overlay',
+        True,
+        True,
+        1,
+        'SMC Event Overlay',
+        'eventOverlayBindings',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+    PreflightTarget(
+        'SMC_Exit_Signal.pine',
+        'SMC Exit Signal',
+        True,
+        True,
+        9,
+        'SMC Exit Signal',
+        'exitSignalBindings',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+)
+
 VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ValidationEvidenceCapture(
         key = 'core_first_run',
@@ -869,6 +902,8 @@ def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
         payload['bindingConsumerRole'] = BINDING_CONTRACT_CONSUMER_ROLES[target.binding_contract_key]
         payload['bindingContractLabels'] = [binding.label for binding in BINDING_CONTRACT_BINDINGS[target.binding_contract_key]]
         payload['bindingLabelGroups'] = _binding_label_group_payload(target.binding_contract_key)
+    if target.allow_fresh_draft_on_missing_existing:
+        payload['allowFreshDraftOnMissingExisting'] = True
     return payload
 
 
@@ -1092,6 +1127,15 @@ HOLD_MANAGER_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'gBus': 'Engine BUS v2 (Expert Mapping)',
 }
 
+EVENT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_ev': 'Event Overlay',
+}
+
+EXIT_SIGNAL_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus_state': 'Expert Mapping - Entry States',
+    'g_bus_plan': 'Expert Mapping - Trade Plan',
+}
+
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS SchemaVersion', 'g_bus_lifecycle', 'critical'),
@@ -1187,11 +1231,33 @@ HOLD_MANAGER_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS Target2', 'gBus', 'critical'),
 )
 
+EVENT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS LeanPackA', 'g_ev', 'critical'),
+)
+
+EXIT_SIGNAL_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus_state', 'critical'),
+    BusBinding('BUS Armed', 'g_bus_state', 'critical'),
+    BusBinding('BUS Confirmed', 'g_bus_state', 'critical'),
+    BusBinding('BUS Ready', 'g_bus_state', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus_plan', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus_plan', 'critical'),
+    BusBinding('BUS StopLevel', 'g_bus_plan', 'critical'),
+    BusBinding('BUS Target1', 'g_bus_plan', 'critical'),
+    BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
+)
+
 
 DASHBOARD_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in DASHBOARD_BUS_BINDINGS)
 STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATEGY_BUS_BINDINGS)
 HOLD_MANAGER_BUS_LABELS: tuple[str, ...] = tuple(
     binding.label for binding in HOLD_MANAGER_BUS_BINDINGS
+)
+EVENT_OVERLAY_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in EVENT_OVERLAY_BUS_BINDINGS
+)
+EXIT_SIGNAL_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in EXIT_SIGNAL_BUS_BINDINGS
 )
 
 DASHBOARD_CRITICAL_BINDINGS: tuple[BusBinding, ...] = tuple(
@@ -1211,24 +1277,32 @@ BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
     'dashboardBindings': DASHBOARD_BUS_BINDINGS,
     'strategyBindings': STRATEGY_BUS_BINDINGS,
     'holdManagerBindings': HOLD_MANAGER_BUS_BINDINGS,
+    'eventOverlayBindings': EVENT_OVERLAY_BUS_BINDINGS,
+    'exitSignalBindings': EXIT_SIGNAL_BUS_BINDINGS,
 }
 
 BINDING_CONTRACT_NAMES: dict[str, str] = {
     'dashboardBindings': 'dashboard companion BUS bindings',
     'strategyBindings': 'execution wrapper BUS bindings',
     'holdManagerBindings': 'Hold Manager BUS bindings',
+    'eventOverlayBindings': 'Event Overlay BUS bindings',
+    'exitSignalBindings': 'Exit Signal BUS bindings',
 }
 
 BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
     'dashboardBindings': 'dashboard_companion',
     'strategyBindings': 'execution_wrapper',
     'holdManagerBindings': 'exit_companion',
+    'eventOverlayBindings': 'overlay_companion',
+    'exitSignalBindings': 'exit_companion',
 }
 
 BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
     'dashboardBindings': DASHBOARD_GROUP_TITLES_BY_KEY,
     'strategyBindings': STRATEGY_GROUP_TITLES_BY_KEY,
     'holdManagerBindings': HOLD_MANAGER_GROUP_TITLES_BY_KEY,
+    'eventOverlayBindings': EVENT_OVERLAY_GROUP_TITLES_BY_KEY,
+    'exitSignalBindings': EXIT_SIGNAL_GROUP_TITLES_BY_KEY,
 }
 
 
@@ -1275,12 +1349,15 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'dashboardBindings': list(DASHBOARD_BUS_LABELS),
             'strategyBindings': list(STRATEGY_BUS_LABELS),
             'holdManagerBindings': list(HOLD_MANAGER_BUS_LABELS),
+            'eventOverlayBindings': list(EVENT_OVERLAY_BUS_LABELS),
+            'exitSignalBindings': list(EXIT_SIGNAL_BUS_LABELS),
         },
         'preflightScopes': {
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],
             'smcMainline': [_preflight_target_payload(target) for target in PREFLIGHT_MAINLINE_TARGETS],
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
             'smcHoldManagerShadow': [_preflight_target_payload(target) for target in PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS],
+            'smcR1Companions': [_preflight_target_payload(target) for target in PREFLIGHT_R1_COMPANION_TARGETS],
         },
         'validationEvidence': {
             'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,

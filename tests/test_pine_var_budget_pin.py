@@ -118,10 +118,14 @@ _FROZEN_LEDGER: dict[str, int] = {
     # state is the canonical runtime plus six cumulative pulse diagnostics and
     # one test-only readback table for immutable replay screenshots.
     "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine": 10,
+    # 2026-07-29: generated, test-only Exit Signal R1 replay harness. It keeps
+    # the canonical 13 persistent declarations plus six cumulative alert-edge
+    # counters used by the immutable 11-case TradingView replay evidence.
+    "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine": 19,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1008  # 2026-07-16: retired HTTP consumer; bridge reduced to tombstone (-6 total).
+_TOTAL_BUDGET = 1027  # 2026-07-29: +19 test-only Exit Signal R1 replay fixture.
 
 
 def _iter_pine() -> list[Path]:

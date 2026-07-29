@@ -100,7 +100,7 @@ def test_only_planned_surface_sources_may_be_absent() -> None:
     )
 
 
-def test_rollout_save_targets_are_exactly_the_eight_deployed_surfaces() -> None:
+def test_rollout_save_targets_are_exactly_the_ten_deployed_surfaces() -> None:
     rollout = _rollout()
     save_targets = rollout["saveTargets"]
     deployed = {
@@ -109,8 +109,8 @@ def test_rollout_save_targets_are_exactly_the_eight_deployed_surfaces() -> None:
         if surface.rollout_state == "deployed"
     }
 
-    assert len(save_targets) == 8
-    assert len({target["source"] for target in save_targets}) == 8
+    assert len(save_targets) == 10
+    assert len({target["source"] for target in save_targets}) == 10
     assert {target["source"] for target in save_targets} == set(deployed)
     assert {
         target["source"]: target["scriptName"]
@@ -121,7 +121,7 @@ def test_rollout_save_targets_are_exactly_the_eight_deployed_surfaces() -> None:
     }
 
 
-def test_rollout_verify_targets_are_exactly_the_seven_deployed_bus_consumers() -> None:
+def test_rollout_verify_targets_are_exactly_the_nine_deployed_bus_consumers() -> None:
     rollout = _rollout()
     verify_targets = rollout["verifyTargets"]
     deployed_consumers = {
@@ -132,8 +132,8 @@ def test_rollout_verify_targets_are_exactly_the_seven_deployed_bus_consumers() -
         and surface.consumer_role != "producer"
     }
 
-    assert len(verify_targets) == 7
-    assert len({target["source"] for target in verify_targets}) == 7
+    assert len(verify_targets) == 9
+    assert len({target["source"] for target in verify_targets}) == 9
     assert {target["source"] for target in verify_targets} == set(deployed_consumers)
     assert {
         target["source"]: target["scriptName"]

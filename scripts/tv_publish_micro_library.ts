@@ -440,6 +440,8 @@ export function readProductCutSummary(): ProductCutSummary {
       dashboardBindings: [],
       strategyBindings: [],
       holdManagerBindings: [],
+      eventOverlayBindings: [],
+      exitSignalBindings: [],
     },
     preflightScopes: payload.preflightScopes ?? {},
     deprecatedFieldPolicy: payload.deprecatedFieldPolicy ?? {
@@ -465,6 +467,7 @@ export function readProductCutSummary(): ProductCutSummary {
     || !Array.isArray(summary.preflightScopes.smcMainline)
     || !Array.isArray(summary.preflightScopes.smcDecisionFirst)
     || !Array.isArray(summary.preflightScopes.smcHoldManagerShadow)
+    || !Array.isArray(summary.preflightScopes.smcR1Companions)
     || summary.deprecatedFieldPolicy.mode !== "compatibility_only"
     || summary.deprecatedFieldPolicy.preferredFieldVersion.length === 0
     || summary.deprecatedFieldPolicy.extensionAllowed !== false

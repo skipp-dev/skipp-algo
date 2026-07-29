@@ -133,6 +133,7 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
         "smcMainline",
         "smcDecisionFirst",
         "smcHoldManagerShadow",
+        "smcR1Companions",
     }
     assert set(snapshot["structure"].keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert "structure_qualifiers" not in snapshot["structure"]
