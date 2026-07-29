@@ -10,8 +10,8 @@ forward bars into a realized per-event return, grouped by family, in the
 exact spec shape :func:`scripts.build_family_metrics.build_bundle`
 consumes.
 
-LOAD-BEARING ASSUMPTION — the trade definition (chosen autonomously,
-pending review). Variant **A** (``touch_then_horizon_close``):
+LOAD-BEARING ASSUMPTION — the trade definition (chosen autonomously;
+reviewed & blessed for gate use per ADR-0031). Variant **A** (``touch_then_horizon_close``):
 
 1. Entry at the zone midpoint on the first forward bar that *touches*
    the zone (long zones: a forward low enters ``[zone_low, zone_high]``;

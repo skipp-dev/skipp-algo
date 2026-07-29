@@ -81,6 +81,11 @@ HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
 DEFAULT_SEARCH_DIR = Path("artifacts/reports")
+# ADR-0031: committed drop-zone of the promotion-gate-daily producers
+# (track_record_gate_<date>.json / regime_stratified_<date>.json). The
+# newest file by the date embedded in the name wins; fail-soft when the
+# directory is empty (pre-first-run state).
+DEFAULT_GATES_DIR = Path("docs/calibration/gates")
 # Ordered by SCHEMA PREFERENCE, not freshness. This module extracts the flat
 # schema (family_weights / family_stats / testable_calibration); the contextual
 # artifact is a different VIEW of the same run (global_weights / bucket_stats /
@@ -296,16 +301,17 @@ def build_public_report(
     per-regime metrics produced by
     :mod:`scripts.regime_stratification` are surfaced under the
     ``regime_stratified`` key (one block per regime label plus the
-    aggregate freq-weighted Sharpe and BH-FDR rejection summary).
-    Wiring status (2026-07-29, Verdrahtungs-Sweep): ``main()`` never passes
-    this parameter, and nothing produces the C5 input artifact
-    (``cache/calibration/regime_stratified_<date>.json``) —
-    :mod:`scripts.regime_stratified_inference` has no production caller.
-    Like ``track_record_gate`` above, wiring is blocked on the C6/C7 owner
-    decision documented in ``scripts/build_track_record_gate.py``: there is
-    no persisted per-trade returns corpus to stratify, and choosing that
-    returns/trade definition is a methodology decision, not plumbing. So a
-    public report without this key is the expected state today, not a bug.
+    aggregate freq-weighted metric and concentration summary).
+    Wired since ADR-0031 (2026-07-29): ``main()`` loads the newest
+    ``regime_stratified_<date>.json`` from ``--gates-dir``
+    (default ``docs/calibration/gates/``, produced daily by
+    :mod:`scripts.build_regime_stratified_report` in
+    ``promotion-gate-daily``) and passes it here; same for
+    ``track_record_gate`` via ``track_record_gate_<date>.json``
+    (:mod:`scripts.build_track_record_gate`). Both loads are fail-soft —
+    a missing artifact omits the key, the honest pre-first-run state.
+    The returns basis is the Variant-A series (see ADR-0031): net
+    returns *given a triggered setup*, NOT portfolio P&L.
 
     ``families`` (additive in schema 1.3.0; Deep-Review 2026-04-27 MAJOR
     finding): per-family Phase-B incubation telemetry consumed by
@@ -437,6 +443,36 @@ def write_report(report: dict[str, Any], output_path: Path) -> None:
     tmp_path.replace(output_path)
 
 
+def _load_latest_gate_artifact(
+    gates_dir: Path, prefix: str, explicit: Path | None
+) -> dict[str, Any] | None:
+    """Load ``<prefix>_<date>.json`` — explicit path, else newest in dir.
+
+    Fail-soft by design (ADR-0031): a missing/empty dir or unreadable file
+    returns ``None`` so the public report simply omits the additive key —
+    the honest pre-first-run state. "Newest" is resolved by the date
+    embedded in the filename (lexicographic on ISO dates), NOT mtime, so a
+    checkout does not reorder history.
+    """
+    path = explicit
+    if path is None:
+        if not gates_dir.is_dir():
+            return None
+        candidates = sorted(gates_dir.glob(f"{prefix}_*.json"))
+        if not candidates:
+            return None
+        path = candidates[-1]
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("skipping %s artifact %s: %s", prefix, path, exc)
+        return None
+    if not isinstance(payload, dict):
+        logger.warning("skipping %s artifact %s: not a JSON object", prefix, path)
+        return None
+    return payload
+
+
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Emit the public calibration report (Q3/Q4 §3.1.1).",
@@ -481,6 +517,28 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
             "families[] block is embedded into the public report so the "
             "C12 trigger can evaluate per-family Phase-B promotion."
         ),
+    )
+    parser.add_argument(
+        "--gates-dir",
+        type=Path,
+        default=DEFAULT_GATES_DIR,
+        help=(
+            "Directory scanned for the newest track_record_gate_<date>.json / "
+            f"regime_stratified_<date>.json (default: {DEFAULT_GATES_DIR}; "
+            "ADR-0031). Missing dir/files → the keys are omitted."
+        ),
+    )
+    parser.add_argument(
+        "--track-record-gate",
+        type=Path,
+        default=None,
+        help="Explicit gate-verdict JSON; overrides the --gates-dir scan.",
+    )
+    parser.add_argument(
+        "--regime-stratified",
+        type=Path,
+        default=None,
+        help="Explicit regime-stratified JSON; overrides the --gates-dir scan.",
     )
     return parser.parse_args(argv)
 
@@ -530,12 +588,21 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         families = fam_payload["families"]
 
+    track_record_gate = _load_latest_gate_artifact(
+        args.gates_dir, "track_record_gate", args.track_record_gate
+    )
+    regime_stratified = _load_latest_gate_artifact(
+        args.gates_dir, "regime_stratified", args.regime_stratified
+    )
+
     try:
         report = build_public_report(
             cal_payload,
             source_path=cal_path,
             source_commit_sha=args.commit_sha,
             source_workflow_run=args.workflow_run,
+            track_record_gate=track_record_gate,
+            regime_stratified=regime_stratified,
             families=families,
         )
     except (TypeError, ValueError) as exc:

@@ -132,16 +132,17 @@ Konsequenz: Die **Regime-Detection** ist solide etabliert, was fehlt ist die **S
 
 ### T7 — Integration in Calibration-Report (0.5–1 Werktag)
 
-> **Wiring-Status 2026-07-29 (Verdrahtungs-Sweep):** Die ✅ unten heißen
-> „gebaut + getestet", **nicht** „verdrahtet". `emit_public_calibration_report`
-> akzeptiert `regime_stratified` als additiven Schema-Block (1.2.0), aber
-> `main()` übergibt den Parameter nie, kein Producer schreibt
-> `cache/calibration/regime_stratified_<date>.json`, und
-> `scripts/regime_stratified_inference.py` hat null Produktions-Importer
-> (nur Tests). Verdrahtung ist owner-blocked auf derselben Entscheidung wie
-> das C6/C7-Track-Record-Gate: es existiert kein persistierter
-> Per-Trade-Returns-Korpus mit Regime-Tags, und die Returns-/Trade-Definition
-> ist eine Methodik-Entscheidung (siehe `scripts/build_track_record_gate.py`).
+> **Wiring-Status 2026-07-29 (ADR-0031, ersetzt die Sweep-Note vom selben Tag):**
+> Jetzt verdrahtet — mit einer bewussten Abweichung vom Plan: der Producer ist
+> `scripts/build_regime_stratified_report.py` (täglich in `promotion-gate-daily`),
+> das Artefakt heißt `docs/calibration/gates/regime_stratified_<date>.json`
+> (committed; NICHT das geplante `cache/calibration/…` — der Docker-Mount-Kanal
+> blieb per ADR-0031 unverdrahtet), und die Datenbasis ist die Variante-A-Serie
+> (Returns *given triggered setup*, Regime-Taxonomie TRENDING/RANGING/NEUTRAL
+> aus dem Event-Tag, nicht RISK_ON/OFF). `emit_public_calibration_report`
+> bettet den jeweils neuesten Report als additiven 1.2.0-Block ein. Solange
+> die per-Regime-Floors (30) nicht erreicht sind, meldet der Report ehrlich
+> `insufficient_data`.
 
 **Akzeptanzkriterien:**
 - ✅ Schema-Erweiterung in ✅ `scripts/emit_public_calibration_report.py` mit Feldern pro Setup × Regime:
