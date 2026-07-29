@@ -73,18 +73,19 @@
       "surface_role": "companion_operator_only",
       "contract_tier": "pro",
       "consumer_role": "overlay_companion",
-      "validation_target": false,
+      "validation_target": true,
       "notes": [
-        "Pro-only event-risk companion."
+        "Pro-only event-risk companion deployed in the private Simple Management layout."
       ],
-      "lifecycle": "planned",
+      "lifecycle": "active",
       "deployment_mode": "standard",
-      "rollout_state": "planned",
+      "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [
         "engine_v2"
       ],
       "archive_state": "none",
+      "chart_instance_name": "SMC Event Overlay",
       "known_missing_mp_fields": []
     },
     {
@@ -430,18 +431,19 @@
       "surface_role": "companion_operator_only",
       "contract_tier": "lite_and_pro",
       "consumer_role": "exit_companion",
-      "validation_target": false,
+      "validation_target": true,
       "notes": [
-        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import \u2014 fully BUS-driven."
+        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import \u2014 fully BUS-driven. Deployed as the sole actionable exit mode in the private Simple Management layout."
       ],
-      "lifecycle": "planned",
+      "lifecycle": "active",
       "deployment_mode": "standard",
-      "rollout_state": "planned",
+      "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [
         "engine_v2"
       ],
       "archive_state": "none",
+      "chart_instance_name": "SMC Exit Signal",
       "known_missing_mp_fields": []
     },
     {
@@ -558,7 +560,9 @@
   "activeValidationFiles": [
     "SMC_Long_Dip_Suite.pine",
     "SMC_Long_Dip_Dashboard.pine",
-    "SMC_Long_Dip_Strategy.pine"
+    "SMC_Long_Dip_Strategy.pine",
+    "SMC_Event_Overlay.pine",
+    "SMC_Exit_Signal.pine"
   ],
   "litePrimaryFiles": [
     "SMC_Long_Dip_Suite.pine"
