@@ -123,6 +123,28 @@ resolve_fvg_alert_level(eng.FVG gap) =>
         level := gap.fill_target_level
     level
 
+// Overhead resistance level of a bearish FVG. Deliberately NOT
+// `resolve_fvg_alert_level`: `fill_target_level` sits `fvg_fill_target_ratio`
+// into the gap and is driven by the "Filled at %" display input, so measuring
+// headroom against it overstated the clear run by that fraction of the gap and
+// tied a trade hard gate to a rendering knob. A rising price meets supply at
+// the gap's lower edge, so that is the reference.
+// The caller only keeps levels at or above its scan reference. A gap the
+// reference already sits inside would therefore drop out of the scan and leave
+// the gate at its permissive default, so clamp to the reference: zero clear
+// headroom, which is what "already inside the zone" means.
+resolve_fvg_overhead_level(eng.FVG gap, float scan_ref) =>
+    float level = na
+    if not na(gap) and not na(gap.right_bottom)
+        float near_edge = gap.right_bottom.price
+        if not na(near_edge)
+            level := near_edge
+            if not na(scan_ref) and near_edge < scan_ref and not na(gap.left_top)
+                float far_edge = gap.left_top.price
+                if not na(far_edge) and far_edge > scan_ref
+                    level := scan_ref
+    level
+
 
 compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, eng.OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, eng.FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>
     float helper_planned_stop_level = na
@@ -142,7 +164,7 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
     if array.size(fvgs_bear_param) > 0
         for i = array.size(fvgs_bear_param) - 1 to bear_fvg_scan_start
             helper_fblocker = array.get(fvgs_bear_param, i)
-            float helper_fblocker_level = resolve_fvg_alert_level(helper_fblocker)
+            float helper_fblocker_level = resolve_fvg_overhead_level(helper_fblocker, helper_scan_ref)
             if not na(helper_fblocker_level) and helper_fblocker_level >= helper_scan_ref and (na(helper_bear_fvg_lvl) or helper_fblocker_level < helper_bear_fvg_lvl)
                 helper_bear_fvg_lvl := helper_fblocker_level
     float helper_overhead_level = na

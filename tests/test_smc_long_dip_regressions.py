@@ -708,3 +708,52 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
         body = _body(SUITE_PATH, function_name)
         assert body.strip()
     assert suite.find("compute_long_overhead_context(") < suite.find("var g_mode")
+
+
+def test_overhead_gate_measures_to_the_zone_edge_not_the_fill_target() -> None:
+    """The overhead hard gate must not depend on the FVG fill-target ratio.
+
+    ``overhead_zone_ok`` feeds ``trade_hard_gate_ok`` (smc_lifecycle_private
+    ``compute_long_environment_context``), so the level it measures against is
+    trade-affecting. For a bearish FVG the first supply a rising price meets is
+    the gap's lower edge (``right_bottom.price``, set from ``high[0]`` in
+    ``_detect_fvg_object``); ``fill_target_level`` sits ``fvg_fill_target_ratio``
+    into the gap and is driven by the "Filled at %" display input. Measuring
+    headroom to the fill target overstated it by that fraction of the gap and
+    coupled a trade gate to a rendering knob.
+
+    ``resolve_fvg_alert_level`` keeps the fill-target semantics — it also serves
+    the bull alert levels, where the fill target is the correct reference.
+    """
+    suite = _read(SUITE_PATH)
+    overhead_body = _body(SUITE_PATH, "compute_long_overhead_context")
+
+    assert "resolve_fvg_overhead_level(" in overhead_body
+    assert "resolve_fvg_alert_level(" not in overhead_body
+
+    resolver_body = _body(SUITE_PATH, "resolve_fvg_overhead_level")
+    assert "right_bottom.price" in resolver_body
+    assert "fill_target_level" not in resolver_body
+
+    # The bull alert path keeps the fill-target resolver.
+    assert "resolve_fvg_alert_level(" in suite
+    assert "fill_target_level" in _body(SUITE_PATH, "resolve_fvg_alert_level")
+
+
+def test_overhead_gate_reports_no_headroom_when_the_trigger_sits_inside_the_zone() -> None:
+    """A trigger already inside a bear FVG must not silently pass the gate.
+
+    The scan only considers levels at or above the reference
+    (``helper_fblocker_level >= helper_scan_ref``). Returning the raw lower edge
+    would drop a zone the trigger is already inside out of the scan entirely,
+    leaving ``overhead_zone_ok`` at its ``true`` default — the opposite of the
+    gate's intent. The resolver therefore clamps to the reference in that case,
+    so the headroom is 0 and the gate fails through the existing arithmetic
+    (and the operator-facing headroom figure stays truthful).
+    """
+    resolver_body = _body(SUITE_PATH, "resolve_fvg_overhead_level")
+
+    # Needs the far edge to detect "reference is inside the zone".
+    assert "left_top.price" in resolver_body
+    # ...and must clamp to the scan reference rather than return the far edge.
+    assert "scan_ref" in resolver_body

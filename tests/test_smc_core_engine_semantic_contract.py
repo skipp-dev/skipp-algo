@@ -223,7 +223,10 @@ def test_overhead_context_contract_stays_explicit() -> None:
         "if array.size(ob_blocks_bear_param) > 0",
         "resolve_ob_alert_level",
         "if array.size(fvgs_bear_param) > 0",
-        "resolve_fvg_alert_level",
+        # 2026-07-29 (#4197): resolve_fvg_alert_level -> resolve_fvg_overhead_level.
+        # The overhead gate must measure to the gap's lower edge, not to
+        # fill_target_level, which rides the "Filled at %" display input.
+        "resolve_fvg_overhead_level",
         "if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)",
         "helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r",
     ]:
