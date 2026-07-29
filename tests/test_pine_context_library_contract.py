@@ -366,6 +366,16 @@ def _builder_body(name: str) -> str:
     return rest[: nxt.start()] if nxt else rest
 
 
+def _private_helper_body(name: str) -> str:
+    """Source of one private top-level helper, up to the next function."""
+    src = _source()
+    start = re.search(rf"^{re.escape(name)}\(", src, re.MULTILINE)
+    assert start, f"{name} not found"
+    rest = src[start.end() :]
+    nxt = re.search(r"^(?:export )?[A-Za-z_]\w*\(", rest, re.MULTILINE)
+    return rest[: nxt.start()] if nxt else rest
+
+
 def _builder_signature(name: str) -> str:
     m = re.search(rf"^export {name}\((?P<args>[^)]*)\)", _source(), re.MULTILINE)
     assert m, f"{name} signature not found"
@@ -530,6 +540,18 @@ def _builder_code(name: str) -> str:
     return "\n".join(out)
 
 
+def _private_helper_code(name: str) -> str:
+    """A private helper body with Pine comments stripped."""
+    out: list[str] = []
+    for raw in _private_helper_body(name).splitlines():
+        if raw.strip().startswith("//"):
+            continue
+        code = raw.split("//", 1)[0]
+        if code.strip():
+            out.append(code)
+    return "\n".join(out)
+
+
 def _confirmed_sections(name: str) -> tuple[str, str]:
     """(before, inside) of a builder, split around its confirmed-bar gate.
 
@@ -542,6 +564,23 @@ def _confirmed_sections(name: str) -> tuple[str, str]:
         f"{name} has no `if barstate.isconfirmed` gate — the frame must be "
         "rebuilt on confirmed bars only."
     )
+    gate_indent = len(gate.group("indent"))
+    before = code[: gate.start()]
+    inside: list[str] = []
+    for line in code[gate.end() :].splitlines():
+        if not line.strip():
+            continue
+        if len(line) - len(line.lstrip(" ")) <= gate_indent:
+            break
+        inside.append(line)
+    return before, "\n".join(inside)
+
+
+def _injected_confirmed_sections(name: str) -> tuple[str, str]:
+    """(before, inside) of a private seam's injected confirmation gate."""
+    code = _private_helper_code(name)
+    gate = re.search(r"^(?P<indent>[ ]*)if confirmed[ ]*$", code, re.MULTILINE)
+    assert gate, f"{name} has no injected `if confirmed` gate"
     gate_indent = len(gate.group("indent"))
     before = code[: gate.start()]
     inside: list[str] = []
@@ -895,7 +934,7 @@ def test_remaining_frame_types_are_complete_and_explicit() -> None:
 
 
 def test_sweep_builder_ports_the_golden_scoring_ladder() -> None:
-    body = _builder_code("build_sweep_frame")
+    body = _private_helper_code("_build_sweep_from_inputs")
 
     assert "depth >= SWEEP_DEPTH_STOP_HUNT_PCT" in body
     assert body.count("event_volume_ratio >= SWEEP_VOLUME_RATIO_MIN") == 1
@@ -906,18 +945,21 @@ def test_sweep_builder_ports_the_golden_scoring_ladder() -> None:
 
 
 def test_sweep_detection_runs_stateful_series_before_confirmed_publish() -> None:
-    before, inside = _confirmed_sections("build_sweep_frame")
+    wrapper = _builder_code("build_sweep_frame")
+    _, inside = _injected_confirmed_sections("_build_sweep_from_inputs")
 
     for call in ("ta.pivothigh(", "ta.pivotlow(", "ta.sma("):
-        assert call in before
+        assert call in wrapper
         assert call not in inside
+    assert "barstate.isconfirmed" in wrapper
+    assert "_build_sweep_from_inputs(" in wrapper
     assert "published :=" in inside
     assert "reference_high := pivot_high" in inside
     assert "reference_low := pivot_low" in inside
 
 
 def test_pool_builder_ports_imbalance_magnet_and_quality_rules() -> None:
-    body = _builder_code("build_pool_frame")
+    body = _private_helper_code("_build_pool_from_inputs")
 
     assert "float(total_buy - total_sell) / total" in body
     assert "math.round(raw_imbalance * 10000.0) / 10000.0" in body
@@ -929,9 +971,9 @@ def test_pool_builder_ports_imbalance_magnet_and_quality_rules() -> None:
 
 
 def test_pool_detection_is_bounded_and_retires_taken_levels_before_insert() -> None:
-    body = _builder_code("build_pool_frame")
+    body = _private_helper_code("_build_pool_from_inputs")
     remove_buy = body.index(
-        "_pool_remove_taken(buy_levels, buy_strengths, true)"
+        "_pool_remove_taken(buy_levels, buy_strengths, true, bar_high, bar_low)"
     )
     add_buy = body.index(
         "_pool_add(buy_levels, buy_strengths, pivot_high"
@@ -946,6 +988,7 @@ def test_pool_detection_is_bounded_and_retires_taken_levels_before_insert() -> N
 
 def test_session_clocks_use_independent_iana_timezones_and_precedence() -> None:
     body = _builder_code("build_session_frame")
+    helper = _private_helper_code("_build_session_from_inputs")
 
     assert '"Asia/Tokyo"' in body
     assert '"Europe/London"' in body
@@ -960,32 +1003,41 @@ def test_session_clocks_use_independent_iana_timezones_and_precedence() -> None:
     assert expr.index("ny_pm_active") < expr.index("ny_am_active")
     assert expr.index("ny_am_active") < expr.index("london_active")
     assert expr.index("london_active") < expr.index("asia_active")
-    assert "time - session_started_at < OPENING_RANGE_MINUTES * 60000" in body
+    assert (
+        "bar_time - session_started_at < OPENING_RANGE_MINUTES * 60000"
+        in helper
+    )
+    assert '"Europe/London"' in body and '"America/New_York"' in body
 
 
 def test_session_frame_is_fail_closed_off_session_and_confirmed_only() -> None:
-    before, inside = _confirmed_sections("build_session_frame")
+    wrapper = _builder_code("build_session_frame")
+    before, inside = _injected_confirmed_sections("_build_session_from_inputs")
 
     assert "published :=" not in before
     assert "published := SessionFrame.new(0" in inside
     assert "na, na, na, na, na, na" in inside
-    assert "cumulative_pv += hlc3 * volume" in inside
+    assert "cumulative_pv += bar_hlc3 * bar_volume" in inside
     assert "cumulative_volume > 0 ? cumulative_pv / cumulative_volume : na" in inside
+    assert "barstate.isconfirmed" in wrapper
+    assert "_build_session_from_inputs(" in wrapper
 
 
 def test_aggregate_reuses_one_structure_detector_for_structure_and_zone() -> None:
     body = _builder_code("build_context_frame")
+    aggregate = _private_helper_code("_aggregate_context")
 
     assert body.count("eng.detect_structure(") == 1
     assert "build_structure_frame(" not in body
     assert "build_zone_frame(" not in body
     assert body.count("_build_zone(") == 1
     assert "StructureFrame.new(" in body
-    assert "ContextFrame.new(" in body
+    assert "_aggregate_context(" in body
+    assert "ContextFrame.new(" in aggregate
 
 
 def test_aggregate_vote_and_quality_are_bounded_and_provenanced() -> None:
-    body = _builder_code("build_context_frame")
+    body = _private_helper_code("_aggregate_context")
 
     for vote in (
         "structure_vote",

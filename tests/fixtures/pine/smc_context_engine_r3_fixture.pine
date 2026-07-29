@@ -16,7 +16,8 @@
 // Session classification uses independent IANA zones (Tokyo, London, New York),
 // and build_context_frame() composes all six domains without running a second
 // structure detector for the dependent ZoneFrame.
-library("smc_context_engine_private", overlay = true)
+indicator("SMC Context Engine R3 Fixture TEST ONLY", overlay = false)
+// Canonical source SHA-256: b42ffbd99e60b2f5055ec980899ef38f3ca7338974ce5932c034af7f89eaebb9
 
 // Pine requires every library referenced by a *used* type's fields to be imported
 // (CE10293), and those libraries must come before the engine that pulls them into
@@ -92,7 +93,7 @@ const int   OPENING_RANGE_MINUTES = 30
 // between ticks, so every field describes the last CLOSED bar. The engine's
 // BOS/CHoCH alerts fire intrabar and can vanish before the close, which is why
 // the Suite gates the same alerts through resolve_confirmed_signal.
-export type StructureFrame
+type StructureFrame
     int    trend             // +1 bullish, -1 bearish, 0 unknown (no confirmed event yet)
     bool   bos               // a BOS fired on this confirmed bar (either side)
     bool   choch             // a CHoCH fired on this confirmed bar (either side)
@@ -107,7 +108,7 @@ export type StructureFrame
 // Per-bar imbalance state (FVG lifecycle + BPR + liquidity void). Prices `na`
 // when inactive; counts default 0. `state`: 0 NONE, 1 FVG_BULL, 2 FVG_BEAR,
 // 3 BPR, 4 LIQ_VOID (precedence BPR > VOID > FVG_BULL > FVG_BEAR > NONE).
-export type ImbalanceFrame
+type ImbalanceFrame
     bool   bull_fvg_active
     bool   bear_fvg_active
     float  bull_fvg_top
@@ -136,7 +137,7 @@ export type ImbalanceFrame
 // `state`: 0 NONE, 1 OB_BULL, 2 OB_BEAR, 3 OB_BOTH (precedence BOTH > BULL >
 // BEAR > NONE). `*_new` / `*_broken` are edges — true only on the event bar.
 // `ob_bias` is the OB count delta and is NOT ImbalanceFrame.zone_bias (FVGs).
-export type ZoneFrame
+type ZoneFrame
     bool   bull_ob_active
     bool   bear_ob_active
     int    bull_ob_id        // newest active bull OB (engine id)
@@ -157,7 +158,7 @@ export type ZoneFrame
 // Recent confirmed liquidity sweep. Direction is +1 bullish (sell-side
 // liquidity taken), -1 bearish (buy-side taken), 0 none/ambiguous. Sweep type:
 // 0 NONE, 1 STOP_HUNT, 2 LIQUIDITY_GRAB, 3 INDUCEMENT.
-export type SweepFrame
+type SweepFrame
     bool   recent_bull_sweep
     bool   recent_bear_sweep
     int    sweep_type
@@ -174,7 +175,7 @@ export type SweepFrame
 
 // Confirmed pivot-cluster liquidity pools. Buy-side levels sit above price,
 // sell-side levels below it. Magnet direction: +1 UP, -1 DOWN, 0 NONE.
-export type PoolFrame
+type PoolFrame
     float  buy_side_level
     float  sell_side_level
     int    buy_side_strength
@@ -190,7 +191,7 @@ export type PoolFrame
 // Session state evaluated in each market's own IANA timezone. Session code:
 // 0 NONE, 1 ASIA, 2 LONDON, 3 NY_AM, 4 NY_PM. NY wins the London overlap,
 // matching the Python session-context precedence.
-export type SessionFrame
+type SessionFrame
     int    session_code
     bool   in_killzone
     bool   mss_bull
@@ -213,7 +214,7 @@ export type SessionFrame
 
 // One confirmed-bar aggregate. Nested frames retain domain provenance; the
 // aggregate adds only an explicit six-domain vote and availability summary.
-export type ContextFrame
+type ContextFrame
     StructureFrame structure
     ImbalanceFrame imbalance
     ZoneFrame zone
@@ -324,7 +325,7 @@ _build_zone(simple int swing_len, float hh, float swing_low, bool bull_bos, bool
 // Build the structure frame from the engine's per-bar structure detector.
 // `swing_len` is the engine pivot length; `fresh_max_bars` bounds the freshness
 // window (bars since the last BOS/CHoCH that still count as "fresh").
-export build_structure_frame(simple int swing_len = 50, simple int fresh_max_bars = 20) =>
+build_structure_frame(simple int swing_len = 50, simple int fresh_max_bars = 20) =>
     // detect_structure carries `var` and `ta.*` state, so it must run on EVERY
     // tick. Never move this call inside the barstate guard below: a conditional
     // call desyncs the engine's internal swing/pivot history.
@@ -381,7 +382,7 @@ export build_structure_frame(simple int swing_len = 50, simple int fresh_max_bar
 // Build the imbalance frame (FVG lifecycle + BPR + liquidity void) from the
 // engine's object-based FVG tracker. Detection is the engine's; the rule layer
 // (mitigation/BPR/void/zone-bias/state) matches the golden parity contract.
-export build_imbalance_frame(float size_threshold = 0.0) =>
+build_imbalance_frame(float size_threshold = 0.0) =>
     // The engine is asked for TERMINAL, WICK-measured fills. Both arguments are
     // the parity contract, not preferences:
     //
@@ -461,7 +462,7 @@ export build_imbalance_frame(float size_threshold = 0.0) =>
 // calculation" (CE10132) — so naming them here does not compile. The consts stay
 // the documented source of these numbers; test_export_defaults_are_literals and
 // test_zone_filter_defaults_match_their_consts keep the two in lockstep.
-export build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
+build_zone_frame(simple int swing_len = 50, simple int atr_len = 50, float min_mult = 0.5, float max_mult = 2.5) =>
     [_trend, bull_bos, bull_choch, _top_x, _top_y, _trail_up_x, _trail_up, hh, bear_bos, bear_choch, _btm_x, _btm_y, _trail_dn_x, _trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
     _build_zone(swing_len, hh, swing_low, bull_bos, bull_choch, bear_bos, bear_choch, atr_len, min_mult, max_mult)
 
@@ -601,7 +602,7 @@ _build_sweep_from_inputs(float bar_high, float bar_low, float bar_close, float b
 // Detect and score recent sweep events from confirmed pivots and chart OHLCV.
 // The scoring ladder is golden-parity; pivot/depth/reclaim detection is the
 // explicitly documented Pine-only Column-B rule.
-export build_sweep_frame(simple int pivot_len = 5, simple int volume_len = 20, simple int fresh_max_bars = 20) =>
+build_sweep_frame(simple int pivot_len = 5, simple int volume_len = 20, simple int fresh_max_bars = 20) =>
     float pivot_high = ta.pivothigh(high, pivot_len, pivot_len)
     float pivot_low = ta.pivotlow(low, pivot_len, pivot_len)
     float average_volume = ta.sma(volume, volume_len)
@@ -654,7 +655,7 @@ _build_pool_from_inputs(float bar_high, float bar_low, float bar_close, float pi
     published
 
 // Detect equal-pivot clusters and project the exact golden pool rule layer.
-export build_pool_frame(simple int pivot_len = 5, float tolerance_pct = 0.1, simple int max_levels = 20) =>
+build_pool_frame(simple int pivot_len = 5, float tolerance_pct = 0.1, simple int max_levels = 20) =>
     float pivot_high = ta.pivothigh(high, pivot_len, pivot_len)
     float pivot_low = ta.pivotlow(low, pivot_len, pivot_len)
     _build_pool_from_inputs(high, low, close, pivot_high, pivot_low, barstate.isconfirmed, tolerance_pct, max_levels)
@@ -731,7 +732,7 @@ _build_session_from_inputs(StructureFrame structure, ImbalanceFrame imbalance, i
 // Compose session-local ranges and the Python-golden scoring layer. Trading
 // windows are evaluated in their own zones; US and European DST are therefore
 // independent by construction.
-export build_session_frame(StructureFrame structure, ImbalanceFrame imbalance) =>
+build_session_frame(StructureFrame structure, ImbalanceFrame imbalance) =>
     bool intraday = timeframe.isintraday
     bool asia_active = intraday and not na(time(timeframe.period, "0900-1700:1234567", "Asia/Tokyo"))
     bool london_active = intraday and not na(time(timeframe.period, "0800-1630:1234567", "Europe/London"))
@@ -776,7 +777,7 @@ _aggregate_context(StructureFrame structure, ImbalanceFrame imbalance, ZoneFrame
 
 // Complete confirmed-bar aggregate. detect_structure runs exactly once here and
 // the same tuple feeds both StructureFrame and ZoneFrame.
-export build_context_frame(simple int swing_len = 50, simple int fresh_max_bars = 20, float fvg_size_threshold = 0.0, simple int atr_len = 50, float ob_min_mult = 0.5, float ob_max_mult = 2.5, simple int sweep_pivot_len = 5, simple int sweep_volume_len = 20, simple int pool_pivot_len = 5, float pool_tolerance_pct = 0.1, simple int pool_max_levels = 20) =>
+build_context_frame(simple int swing_len = 50, simple int fresh_max_bars = 20, float fvg_size_threshold = 0.0, simple int atr_len = 50, float ob_min_mult = 0.5, float ob_max_mult = 2.5, simple int sweep_pivot_len = 5, simple int sweep_volume_len = 20, simple int pool_pivot_len = 5, float pool_tolerance_pct = 0.1, simple int pool_max_levels = 20) =>
     [trend, bull_bos, bull_choch, top_x, _top_y, _trail_up_x, trail_up, hh, bear_bos, bear_choch, btm_x, _btm_y, _trail_dn_x, trail_dn, swing_low, _hhll_x] = eng.detect_structure(swing_len)
 
     var bool have_up_pivot = false
@@ -807,3 +808,227 @@ export build_context_frame(simple int swing_len = 50, simple int fresh_max_bars 
     SessionFrame session = build_session_frame(structure, imbalance)
 
     _aggregate_context(structure, imbalance, zone, sweep, pool, session)
+
+// ── TEST-ONLY R3 RUNTIME FIXTURE ────────────────────────────────────────────
+// GENERATED FILE. DO NOT PUBLISH OR ADD TO A MANAGED PRODUCT LAYOUT.
+g_fixture = "R3 deterministic fixture — TEST ONLY"
+string fixture_case = input.string("R3-SWEEP-01", "Case", options = ["R3-SWEEP-01", "R3-SWEEP-02", "R3-SWEEP-03", "R3-SWEEP-04", "R3-SWEEP-05", "R3-POOL-01", "R3-POOL-02", "R3-SESSION-01", "R3-SESSION-02", "R3-SESSION-03", "R3-SESSION-04", "R3-SESSION-05", "R3-CONTEXT-01", "R3-CONTEXT-02", "R3-CONTEXT-03"], group = g_fixture)
+int fixture_anchor = input.time(timestamp("20 Jul 2026 13:30 +0000"),
+     "Fixture anchor (start Bar Replay before this bar)", group = g_fixture)
+
+_fixture_empty_structure() =>
+    StructureFrame.new(0, false, false, 0, na, na, na, na, na, false)
+
+_fixture_structure(int direction, bool fresh) =>
+    StructureFrame.new(direction, true, false, direction, na, na, na, na, 0, fresh)
+
+_fixture_empty_imbalance() =>
+    ImbalanceFrame.new(false, false, na, na, na, na, na, na, false, false,
+         0, 0, false, 0, na, na, false, na, na, 0, 0)
+
+_fixture_imbalance(int direction, bool bpr) =>
+    ImbalanceFrame.new(direction == 1, direction == -1,
+         direction == 1 ? 101.0 : na, direction == 1 ? 100.0 : na,
+         direction == -1 ? 100.0 : na, direction == -1 ? 99.0 : na,
+         0.0, 0.0, false, false, direction == 1 ? 2 : 0,
+         direction == -1 ? 2 : 0, bpr, direction, na, na, false, na, na,
+         direction, bpr ? 3 : direction == 1 ? 1 : 2)
+
+_fixture_empty_zone() =>
+    ZoneFrame.new(false, false, na, na, na, na, na, na, 0, 0,
+         false, false, false, false, 0, 0)
+
+_fixture_zone(int direction) =>
+    ZoneFrame.new(direction == 1, direction == -1, na, na, na, na, na, na,
+         direction == 1 ? 2 : 0, direction == -1 ? 2 : 0,
+         false, false, false, false, direction, direction == 1 ? 1 : 2)
+
+_fixture_empty_sweep() =>
+    SweepFrame.new(false, false, 0, 0, na, na, false, 0, 0.0, 0.0, 0, na, false)
+
+_fixture_sweep(int direction, int quality) =>
+    SweepFrame.new(direction == 1, direction == -1, 1, direction, na, na,
+         true, -direction, 0.4, 1.3, quality, 0, true)
+
+_fixture_empty_pool() =>
+    PoolFrame.new(na, na, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0)
+
+_fixture_empty_session() =>
+    SessionFrame.new(0, false, false, false, 0, false, false, false,
+         na, na, na, na, na, na, false, na, na, 0, 0)
+
+_fixture_checkpoint(simple string selected_case) =>
+    selected_case == "R3-SWEEP-02" or selected_case == "R3-SWEEP-03" ? 2 :
+     selected_case == "R3-SWEEP-04" ? 22 :
+     selected_case == "R3-POOL-01" ? 3 :
+     selected_case == "R3-POOL-02" ? 4 :
+     str.startswith(selected_case, "R3-SWEEP-") ? 1 : 0
+
+_run_fixture(simple string selected_case, int fixture_step, bool fixture_started) =>
+    int fixture_kind = 0
+    float value_1 = na
+    float value_2 = na
+    float value_3 = na
+    float value_4 = na
+    float value_5 = na
+    bool passed = false
+
+    bool sweep_case = str.startswith(selected_case, "R3-SWEEP-")
+    bool pool_case = str.startswith(selected_case, "R3-POOL-")
+    bool session_case = str.startswith(selected_case, "R3-SESSION-")
+    bool context_case = str.startswith(selected_case, "R3-CONTEXT-")
+
+    if sweep_case
+        fixture_kind := 1
+        bool delayed = selected_case == "R3-SWEEP-03" or selected_case == "R3-SWEEP-04"
+        bool ambiguous = selected_case == "R3-SWEEP-05"
+        float bar_high = fixture_step == 0 ? 95.0 : ambiguous ? 100.4 : 96.0
+        float bar_low = fixture_step == 0 ? 92.0 :
+             ambiguous ? 89.6 :
+             delayed and fixture_step == 1 ? 89.8 :
+             delayed ? fixture_step == 2 ? 90.0 : 91.0 :
+             fixture_step == 1 ? 89.5 : 89.6
+        float bar_close = fixture_step == 0 ? 94.0 :
+             ambiguous ? 95.0 :
+             delayed and fixture_step == 1 ? 89.9 :
+             delayed and fixture_step == 2 ? 90.1 :
+             delayed ? 92.0 :
+             fixture_step == 1 ? 90.5 : 91.0
+        float bar_volume = ambiguous ? 130.0 : delayed ? 100.0 : 150.0
+        float pivot_high = fixture_step == 0 ? 100.0 : na
+        float pivot_low = fixture_step == 0 ? 90.0 : na
+        bool confirmed = fixture_started and fixture_step <= _fixture_checkpoint(selected_case)
+        SweepFrame result = _build_sweep_from_inputs(
+             bar_high, bar_low, bar_close, bar_volume, 100.0,
+             pivot_high, pivot_low, confirmed, 20)
+        value_1 := result.direction
+        value_2 := result.sweep_type
+        value_3 := result.reclaim_active ? 1 : 0
+        value_4 := result.bars_since_event
+        value_5 := result.quality_score
+        passed := selected_case == "R3-SWEEP-01" ?
+             result.direction == 1 and result.sweep_type == 1 and result.reclaim_active and result.bars_since_event == 0 and result.quality_score == 5 :
+             selected_case == "R3-SWEEP-02" ?
+             result.direction == 1 and result.sweep_type == 1 and result.reclaim_active and result.bars_since_event == 1 and result.quality_score == 5 :
+             selected_case == "R3-SWEEP-03" ?
+             result.direction == 1 and result.sweep_type == 3 and result.reclaim_active and result.bars_since_event == 1 and result.quality_score == 3 :
+             selected_case == "R3-SWEEP-04" ?
+             result.direction == 0 and result.sweep_type == 0 and not result.fresh and result.bars_since_event == 21 and result.quality_score == 0 :
+             result.direction == 0 and result.sweep_type == 1 and result.recent_bull_sweep and result.recent_bear_sweep and result.quality_score == 5
+    else if pool_case
+        fixture_kind := 2
+        float bar_high = fixture_step <= 2 ? 99.0 : fixture_step == 3 ? 99.8 : 100.1
+        float bar_low = fixture_step <= 2 ? 94.0 : 99.0
+        float bar_close = fixture_step <= 2 ? 95.0 : 99.5
+        float pivot_high = fixture_step == 0 ? 100.0 :
+             fixture_step == 1 ? 100.05 :
+             fixture_step == 2 ? 99.98 : na
+        float pivot_low = fixture_step == 0 ? 90.0 : na
+        bool confirmed = fixture_started and fixture_step <= _fixture_checkpoint(selected_case)
+        PoolFrame result = _build_pool_from_inputs(
+             bar_high, bar_low, bar_close, pivot_high, pivot_low,
+             confirmed, 0.1, 20)
+        value_1 := result.buy_side_strength
+        value_2 := result.cluster_density
+        value_3 := result.untested_buy_pools
+        value_4 := result.magnet_direction
+        value_5 := result.quality_score
+        passed := selected_case == "R3-POOL-01" ?
+             result.buy_side_strength == 3 and result.cluster_density == 3 and
+             result.untested_buy_pools == 1 and result.magnet_direction == 1 and
+             result.quality_score == 5 :
+             na(result.buy_side_level) and result.buy_side_strength == 0 and
+             result.untested_buy_pools == 0 and result.magnet_direction == -1 and
+             result.quality_score == 2
+    else if session_case
+        fixture_kind := 3
+        int session_code = selected_case == "R3-SESSION-01" ? SESSION_ASIA :
+             selected_case == "R3-SESSION-02" ? SESSION_LONDON :
+             selected_case == "R3-SESSION-03" ? SESSION_NY_AM :
+             selected_case == "R3-SESSION-04" ? SESSION_NY_PM : 0
+        bool killzone = session_code == SESSION_ASIA or session_code == SESSION_LONDON or session_code == SESSION_NY_AM
+        int direction = selected_case == "R3-SESSION-03" ? 1 :
+             selected_case == "R3-SESSION-04" ? -1 : 0
+        StructureFrame structure = direction == 0 ? _fixture_empty_structure() : _fixture_structure(direction, true)
+        ImbalanceFrame imbalance = direction == 0 ? _fixture_empty_imbalance() :
+             _fixture_imbalance(direction, selected_case == "R3-SESSION-04")
+        float fixture_vwap = direction == 1 ? 101.0 : direction == -1 ? 99.0 : 100.0
+        SessionFrame result = _build_session_from_inputs(
+             structure, imbalance, fixture_anchor + fixture_step * 300000,
+             105.0, 95.0, fixture_vwap, 100.0, session_code, killzone,
+             fixture_started and fixture_step == 0)
+        value_1 := result.session_code
+        value_2 := result.in_killzone ? 1 : 0
+        value_3 := result.direction_bias
+        value_4 := result.context_score
+        value_5 := result.mss_bull ? 1 : result.mss_bear ? -1 : 0
+        passed := selected_case == "R3-SESSION-01" or selected_case == "R3-SESSION-02" ?
+             result.session_code == session_code and result.in_killzone and
+             result.direction_bias == 0 and result.context_score == 2 :
+             selected_case == "R3-SESSION-03" ?
+             result.session_code == SESSION_NY_AM and result.in_killzone and
+             result.mss_bull and result.direction_bias == 1 and
+             result.context_score == 6 and result.range_top == 105.0 and
+             result.range_bottom == 95.0 and result.vwap == 101.0 :
+             selected_case == "R3-SESSION-04" ?
+             result.session_code == SESSION_NY_PM and not result.in_killzone and
+             result.mss_bear and result.direction_bias == -1 and
+             result.context_score == 6 and result.range_top == 105.0 and
+             result.range_bottom == 95.0 and result.vwap == 99.0 :
+             result.session_code == 0 and not result.in_killzone and
+             result.direction_bias == 0 and result.context_score == 0
+    else if context_case
+        fixture_kind := 4
+        StructureFrame structure = selected_case == "R3-CONTEXT-01" ?
+             _fixture_structure(1, true) :
+             selected_case == "R3-CONTEXT-02" ?
+             _fixture_structure(1, false) : _fixture_structure(-1, true)
+        ImbalanceFrame imbalance = selected_case == "R3-CONTEXT-01" ?
+             _fixture_imbalance(1, false) : _fixture_imbalance(-1, false)
+        ZoneFrame zone = selected_case == "R3-CONTEXT-03" ?
+             _fixture_zone(-1) : _fixture_empty_zone()
+        SweepFrame sweep = selected_case == "R3-CONTEXT-01" ?
+             _fixture_sweep(1, 4) : _fixture_empty_sweep()
+        ContextFrame result = _aggregate_context(
+             structure, imbalance, zone, sweep, _fixture_empty_pool(),
+             _fixture_empty_session())
+        value_1 := result.bias
+        value_2 := result.directional_score
+        value_3 := result.available_domains
+        value_4 := result.quality_score
+        passed := selected_case == "R3-CONTEXT-01" ?
+             result.bias == 1 and result.directional_score == 3 and
+             result.available_domains == 3 and result.quality_score == 93 :
+             selected_case == "R3-CONTEXT-02" ?
+             result.bias == 0 and result.directional_score == 0 and
+             result.available_domains == 2 and result.quality_score == 75 :
+             result.bias == -1 and result.directional_score == -3 and
+             result.available_domains == 3 and result.quality_score == 100
+
+    [fixture_kind, value_1, value_2, value_3, value_4, value_5, passed]
+
+bool fixture_anchor_now = time >= fixture_anchor and nz(time[1], 0) < fixture_anchor
+int fixture_anchor_bar = ta.valuewhen(fixture_anchor_now, bar_index, 0)
+int fixture_step = na(fixture_anchor_bar) ? -1 : bar_index - fixture_anchor_bar
+bool fixture_started = fixture_step >= 0
+bool fixture_timeframe_ok = timeframe.isminutes and timeframe.multiplier == 5
+int fixture_checkpoint = _fixture_checkpoint(fixture_case)
+
+[fixture_kind, fixture_value_1, fixture_value_2, fixture_value_3,
+ fixture_value_4, fixture_value_5, fixture_result] =
+     _run_fixture(fixture_case, fixture_step, fixture_started)
+
+bool fixture_done = fixture_started and fixture_step == fixture_checkpoint
+bool fixture_pass = fixture_done and fixture_timeframe_ok and fixture_result
+
+plot(fixture_kind, "FIXTURE KIND", display = display.data_window)
+plot(fixture_value_1, "FIXTURE VALUE 1", display = display.data_window)
+plot(fixture_value_2, "FIXTURE VALUE 2", display = display.data_window)
+plot(fixture_value_3, "FIXTURE VALUE 3", display = display.data_window)
+plot(fixture_value_4, "FIXTURE VALUE 4", display = display.data_window)
+plot(fixture_value_5, "FIXTURE VALUE 5", display = display.data_window)
+plot(fixture_checkpoint, "FIXTURE CHECKPOINT STEP", display = display.data_window)
+plot(fixture_pass ? 1 : 0, "FIXTURE PASS", display = display.data_window)
+
+if barstate.islast and fixture_started and fixture_step >= fixture_checkpoint and not fixture_pass
+    runtime.error("R3 fixture mismatch or replay cursor passed checkpoint: " + fixture_case)

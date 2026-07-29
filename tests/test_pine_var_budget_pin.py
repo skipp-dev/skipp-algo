@@ -122,10 +122,14 @@ _FROZEN_LEDGER: dict[str, int] = {
     # the canonical 13 persistent declarations plus six cumulative alert-edge
     # counters used by the immutable 11-case TradingView replay evidence.
     "tests/fixtures/pine/smc_exit_signal_r1_fixture.pine": 19,
+    # 2026-07-29: generated, test-only R3 runtime harness. These are the
+    # canonical context library's 40 persistent declarations, source-derived
+    # without adding a second detector implementation.
+    "tests/fixtures/pine/smc_context_engine_r3_fixture.pine": 40,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1027  # 2026-07-29: +19 test-only Exit Signal R1 replay fixture.
+_TOTAL_BUDGET = 1067  # 2026-07-29: +40 source-derived R3 runtime fixture.
 
 
 def _iter_pine() -> list[Path]:
