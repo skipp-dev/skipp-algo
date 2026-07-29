@@ -11,6 +11,25 @@ def _read(relative_path: str) -> str:
     return (ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def test_session_vwap_resets_each_session_day_not_chart_start() -> None:
+    """The "Session VWAP" must re-anchor daily, not accumulate from chart start.
+
+    Pine v6: ``ta.vwap(source)`` with no anchor resets only on
+    ``barstate.isfirst`` — i.e. it is a chart-start anchored VWAP, so on
+    24/7 symbols or day 2+ it keeps accumulating across sessions. The
+    operator-facing name/group ("Session VWAP", group "13. Session / VWAP")
+    promises a session VWAP. The native session anchor is the day change
+    (same semantics as TradingView's built-in VWAP, which anchors on
+    ``timeframe.change("1D")``).
+    """
+    suite = _read("SMC_Long_Dip_Suite.pine")
+
+    # Must pass an explicit daily-change anchor (the session reset).
+    assert "ta.vwap(hlc3, ta.change(time('D')) != 0)" in suite
+    # The bare chart-start anchored form is the bug — it must not remain.
+    assert "ta.vwap(hlc3)" not in suite
+
+
 def test_aggregate_symbol_event_flags_are_scoped_to_exact_csv_tokens() -> None:
     suite = _read("SMC_Long_Dip_Suite.pine")
     alerts = _read("SMC_Long_Dip_Alerts.pine")

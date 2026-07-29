@@ -1104,7 +1104,7 @@ render_strict_ltf_warning()
 
 ema_fast = ta.ema(close, ema_fast_len)
 ema_slow = ta.ema(close, ema_slow_len)
-float session_vwap_raw = ta.vwap(hlc3)
+float session_vwap_raw = ta.vwap(hlc3, ta.change(time('D')) != 0)
 float session_vwap = (intraday_time_chart) ? (session_vwap_raw) : (float(na))
 bool vwap_session_active = intraday_time_chart and not na(time(timeframe.period, vwap_session))
 bool trade_entry_session_active = intraday_time_chart and not na(time(timeframe.period, trade_entry_session))
