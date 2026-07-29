@@ -171,20 +171,34 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
     float helper_scan_ref = close_price
     if long_plan_active and not na(long_trigger)
         helper_scan_ref := long_trigger
+    // BASELINE PHASE (2026-07-29, owner decision on #4205): both gates are
+    // computed in one pass. The SERVED gate is the pre-#4205 reaction-level
+    // scan (`resolve_*_alert_level`); the far-edge membership scan
+    // (`resolve_*_overhead_level`) runs as an observe-only shadow so its flip
+    // rate can be measured same-bar before it goes live. The activation
+    // follow-up swaps the served/shadow tuple slots and drops the old scan.
     float helper_bear_ob_lvl = na
+    float helper_bear_ob_lvl_fe = na
     if array.size(ob_blocks_bear_param) > 0
         for i = array.size(ob_blocks_bear_param) - 1 to bear_ob_scan_start
             helper_blocker = array.get(ob_blocks_bear_param, i)
-            float helper_blocker_level = resolve_ob_overhead_level(helper_blocker, helper_scan_ref)
+            float helper_blocker_level = resolve_ob_alert_level(helper_blocker)
             if not na(helper_blocker_level) and helper_blocker_level >= helper_scan_ref and (na(helper_bear_ob_lvl) or helper_blocker_level < helper_bear_ob_lvl)
                 helper_bear_ob_lvl := helper_blocker_level
+            float helper_blocker_level_fe = resolve_ob_overhead_level(helper_blocker, helper_scan_ref)
+            if not na(helper_blocker_level_fe) and helper_blocker_level_fe >= helper_scan_ref and (na(helper_bear_ob_lvl_fe) or helper_blocker_level_fe < helper_bear_ob_lvl_fe)
+                helper_bear_ob_lvl_fe := helper_blocker_level_fe
     float helper_bear_fvg_lvl = na
+    float helper_bear_fvg_lvl_fe = na
     if array.size(fvgs_bear_param) > 0
         for i = array.size(fvgs_bear_param) - 1 to bear_fvg_scan_start
             helper_fblocker = array.get(fvgs_bear_param, i)
-            float helper_fblocker_level = resolve_fvg_overhead_level(helper_fblocker, helper_scan_ref)
+            float helper_fblocker_level = resolve_fvg_alert_level(helper_fblocker)
             if not na(helper_fblocker_level) and helper_fblocker_level >= helper_scan_ref and (na(helper_bear_fvg_lvl) or helper_fblocker_level < helper_bear_fvg_lvl)
                 helper_bear_fvg_lvl := helper_fblocker_level
+            float helper_fblocker_level_fe = resolve_fvg_overhead_level(helper_fblocker, helper_scan_ref)
+            if not na(helper_fblocker_level_fe) and helper_fblocker_level_fe >= helper_scan_ref and (na(helper_bear_fvg_lvl_fe) or helper_fblocker_level_fe < helper_bear_fvg_lvl_fe)
+                helper_bear_fvg_lvl_fe := helper_fblocker_level_fe
     float helper_overhead_level = na
     if not na(helper_bear_ob_lvl) and not na(helper_bear_fvg_lvl)
         helper_overhead_level := math.min(helper_bear_ob_lvl, helper_bear_fvg_lvl)
@@ -192,6 +206,13 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
         helper_overhead_level := helper_bear_fvg_lvl
         if not na(helper_bear_ob_lvl)
             helper_overhead_level := helper_bear_ob_lvl
+    float helper_overhead_level_fe = na
+    if not na(helper_bear_ob_lvl_fe) and not na(helper_bear_fvg_lvl_fe)
+        helper_overhead_level_fe := math.min(helper_bear_ob_lvl_fe, helper_bear_fvg_lvl_fe)
+    else
+        helper_overhead_level_fe := helper_bear_fvg_lvl_fe
+        if not na(helper_bear_ob_lvl_fe)
+            helper_overhead_level_fe := helper_bear_ob_lvl_fe
     float helper_planned_risk = na
     if long_plan_active and not na(helper_planned_stop_level)
         helper_planned_risk := math.max(long_trigger - helper_planned_stop_level, syminfo.mintick)
@@ -201,7 +222,13 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
     bool helper_overhead_zone_ok = true
     if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)
         helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r
-    [helper_planned_stop_level, helper_planned_risk, helper_headroom_to_overhead, helper_overhead_zone_ok]
+    float helper_headroom_to_overhead_far_edge_shadow = na
+    if long_plan_active and not na(helper_overhead_level_fe)
+        helper_headroom_to_overhead_far_edge_shadow := helper_overhead_level_fe - long_trigger
+    bool helper_overhead_zone_ok_far_edge_shadow = true
+    if use_overhead_zone_filter and not na(helper_headroom_to_overhead_far_edge_shadow) and not na(helper_planned_risk)
+        helper_overhead_zone_ok_far_edge_shadow := helper_headroom_to_overhead_far_edge_shadow >= helper_planned_risk * min_headroom_r
+    [helper_planned_stop_level, helper_planned_risk, helper_headroom_to_overhead, helper_overhead_zone_ok, helper_headroom_to_overhead_far_edge_shadow, helper_overhead_zone_ok_far_edge_shadow]
 
 
 
@@ -2441,7 +2468,45 @@ if long_should_arm
 
 // 5) Ready state + visuals
 long_plan_active := ll.compute_long_plan_state(long_state.armed, long_state.confirmed, long_state.trigger, long_state.invalidation_level)
-[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context(long_plan_active, close, long_state.trigger, long_state.invalidation_level, ob_threshold_atr, stop_buffer_atr_mult, ob_blocks_bear, bear_ob_scan_start, fvgs_bear, bear_fvg_scan_start, use_overhead_zone_filter_eff, min_headroom_r)
+[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok, headroom_to_overhead_far_edge_shadow, overhead_zone_ok_far_edge_shadow] = compute_long_overhead_context(long_plan_active, close, long_state.trigger, long_state.invalidation_level, ob_threshold_atr, stop_buffer_atr_mult, ob_blocks_bear, bear_ob_scan_start, fvgs_bear, bear_fvg_scan_start, use_overhead_zone_filter_eff, min_headroom_r)
+
+// ── OVH-BASELINE (2026-07-29, owner decision on #4205) ─────────────────────
+// Same-bar measurement of the far-edge overhead gate before it goes live.
+// `overhead_zone_ok` (served, reaction-level) keeps feeding every consumer;
+// the far-edge shadow is read ONLY by these counters. Readout is Pine logs —
+// the engine BUS is byte-frozen at the 64-plot cap, so no plot channel exists.
+// Directional tripwire: the far-edge gate is a strict tightening (served
+// blocks ⇒ shadow blocks), so `flip_old_only` must stay 0; a nonzero value is
+// itself a bug signal. Counters reset on the day change; the summary line for
+// a session is emitted on the first bar of the NEXT session day.
+bool ovh_baseline_eval_bar = barstate.isconfirmed and use_overhead_zone_filter_eff and long_plan_active and not na(planned_risk)
+bool ovh_baseline_served_blocked_bar = ovh_baseline_eval_bar and not overhead_zone_ok
+bool ovh_baseline_shadow_blocked_bar = ovh_baseline_eval_bar and not overhead_zone_ok_far_edge_shadow
+var int ovh_baseline_bars_evaluated = 0
+var int ovh_baseline_served_blocked = 0
+var int ovh_baseline_shadow_blocked = 0
+var int ovh_baseline_flip_new_only = 0
+var int ovh_baseline_flip_old_only = 0
+if timeframe.change('1D')
+    if ovh_baseline_bars_evaluated > 0
+        log.info(str.format('OVH-BASELINE session summary: evaluated={0} served_blocked={1} shadow_blocked={2} flips_new_only={3} flips_old_only={4}', ovh_baseline_bars_evaluated, ovh_baseline_served_blocked, ovh_baseline_shadow_blocked, ovh_baseline_flip_new_only, ovh_baseline_flip_old_only))
+    ovh_baseline_bars_evaluated := 0
+    ovh_baseline_served_blocked := 0
+    ovh_baseline_shadow_blocked := 0
+    ovh_baseline_flip_new_only := 0
+    ovh_baseline_flip_old_only := 0
+if ovh_baseline_eval_bar
+    ovh_baseline_bars_evaluated += 1
+    if ovh_baseline_served_blocked_bar
+        ovh_baseline_served_blocked += 1
+    if ovh_baseline_shadow_blocked_bar
+        ovh_baseline_shadow_blocked += 1
+    if ovh_baseline_shadow_blocked_bar and not ovh_baseline_served_blocked_bar
+        ovh_baseline_flip_new_only += 1
+        log.info(str.format('OVH-BASELINE flip (far-edge would block): headroom_served={0} headroom_shadow={1} planned_risk={2}', headroom_to_overhead, headroom_to_overhead_far_edge_shadow, planned_risk))
+    if ovh_baseline_served_blocked_bar and not ovh_baseline_shadow_blocked_bar
+        ovh_baseline_flip_old_only += 1
+        log.warning('OVH-BASELINE flip_old_only — should be impossible (far-edge is a strict tightening); investigate before activation')
 [context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()
 // [v5.5b] Signal Quality is the primary quality surface; local context quality stays diagnostic only.
 // [v5.5b] Lean Context Gates: optional consensus layer on top of the primary Signal Quality gate.
