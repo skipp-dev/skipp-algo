@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -151,3 +152,32 @@ def test_freshness_v2_labels_have_explicit_trust_semantics() -> None:
     assert 'sq_freshness == "expired" ? -1' in resolvers
     assert "signal_freshness == 'stale' or signal_freshness == 'expired'" in engine
     assert "signal_freshness == 'fresh' or signal_freshness == 'very_fresh'" in engine
+
+
+def test_vwap_filter_stays_quality_only_not_an_entry_gate() -> None:
+    """Owner decision #4194 (2026-07-29): the VWAP filter feeds the
+    context-quality score and the long clean tier (BUS Quality/Vwap rows) and
+    is deliberately NOT wired into the ready/entry projections. Wiring it in
+    is a measured product change: it needs a shadow/replay result and a NEW
+    operator input — `use_vwap_filter` must never be silently repurposed into
+    a hard gate. (The VWAP itself is the Pine-default daily-anchored session
+    VWAP: `ta.vwap`'s default anchor is `timeframe.change("1D")` — see the
+    refuted chart-anchor finding, PR #4192.)"""
+    suite = _read("SMC_Long_Dip_Suite.pine")
+
+    ready_call = re.search(
+        r"ll\.resolve_long_ready_projection_state\(([^\n]*)\)", suite
+    )
+    entry_call = re.search(
+        r"ll\.resolve_long_entry_projection_state\(([^\n]*)\)", suite
+    )
+    assert ready_call is not None and entry_call is not None
+    assert "vwap" not in ready_call.group(1).lower()
+    assert "vwap" not in entry_call.group(1).lower()
+
+    # The context-quality gate (which carries the VWAP weight) feeds exactly
+    # two sites: its computation and the BUS ContextQualityRow plot.
+    assert suite.count("context_quality_gate_ok") == 2
+
+    doc = _read("docs/PINE_INPUT_SURFACE.md")
+    assert "quality-context control, not an entry gate" in doc

@@ -31,6 +31,10 @@ The active split-core producer now follows the same surface-governance policy as
 
 The operator-facing anchors of that surface are `long_user_preset` plus `compact_mode`. Future surface work should collapse behavior into those two controls before adding new visible toggles.
 
+#### VWAP filter semantics (owner decision #4194, 2026-07-29)
+
+`use_vwap_filter` is a **quality-context control, not an entry gate**: it feeds the context-quality score (`compute_context_quality`) and the long clean tier (BUS QualityCleanRow / VwapRow / SessionVwap — operator-facing dashboard rows), and deliberately does **not** enter `resolve_long_ready_projection_state` / `resolve_long_entry_projection_state`. The underlying VWAP is the Pine-default daily-anchored session VWAP (`ta.vwap`'s default anchor is `timeframe.change("1D")`). Wiring VWAP into the entry path is a measured product change: it requires a positive shadow/replay result and a **new** operator input — `use_vwap_filter` must never be silently repurposed into a hard gate. Semantics pinned by `tests/test_pine_decision_logic_deep_review_regressions.py`.
+
 Core visible: `signal_mode`, `long_user_preset`, `compact_mode`, `enable_ltf_sampling`, `use_ltf_for_strict_entry`, `ltf_timeframe`, `mtf_trend_tf1-3`, `show_dashboard`, `enable_dynamic_alerts`, `dynamic_long_alert_mode`, `performance_mode`, `stop_buffer_atr_mult`, `target1_r`, `target2_r`, `use_vwap_filter`, `use_trade_session_gate`, `use_opening_range_gate`, `opening_range_minutes`, `use_microstructure_profiles`, `use_index_gate`, `long_signal_window`, `long_setup_expiry_bars`, `long_confirm_expiry_bars`, `max_bars_arm_to_confirm`, `max_bars_confirm_to_ready`, `max_zone_touches_for_entry`, `use_overhead_zone_filter`, `use_strict_sequence`, `use_strict_sweep_for_zone_reclaim`, `use_strict_confirm_guard`, `use_lean_signal_quality_gate`, `use_accel_module`, `use_sd_confluence`, `use_volatility_regime`, `use_stretch_context`, `use_ddvi_context`, `show_Structure`, `show_ob`, `show_fvg`, `show_htf_fvg`, `fvg_htf`.
 
 ### SkippALGO.pine (359 inputs)
