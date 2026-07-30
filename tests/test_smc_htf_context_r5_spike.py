@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from scripts.smc_htf_context_r5_spike_manifest import (
     CASES,
     DEFAULT_OUTPUT,
     FIXTURE,
     build_manifest,
+)
+from scripts.smc_htf_context_r5_temporal_closeout_manifest import (
+    DEFAULT_OUTPUT as TEMPORAL_CLOSEOUT,
+)
+from scripts.smc_htf_context_r5_temporal_closeout_manifest import (
+    build_manifest as build_temporal_closeout_manifest,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +54,51 @@ def _requirement(requirement_id: str) -> dict:
 
 def test_generated_manifest_is_current() -> None:
     assert json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8")) == build_manifest()
+
+
+def test_temporal_closeout_manifest_is_current_and_closes_only_open_cases() -> None:
+    manifest = build_temporal_closeout_manifest()
+    cases = manifest["cases"]
+
+    assert json.loads(TEMPORAL_CLOSEOUT.read_text(encoding="utf-8")) == manifest
+    assert manifest["caseCount"] == len(cases) == 3
+    assert {case["closesCaseId"] for case in cases} == {
+        "R5-HTF-08",
+        "R5-DST-04",
+        "R5-DST-05",
+    }
+    assert all(case["tradingViewStatus"] == "pending" for case in cases)
+    assert all(
+        checkpoint["gateBlocking"] is False
+        for checkpoint in manifest["futureRevalidation"]
+    )
+
+
+def test_historical_autumn_checkpoints_match_the_registered_zone_offsets() -> None:
+    manifest = build_temporal_closeout_manifest()
+    cases = {case["closesCaseId"]: case for case in manifest["cases"]}
+    new_york = ZoneInfo("America/New_York")
+    berlin = ZoneInfo("Europe/Berlin")
+
+    europe_only_gap = datetime.fromisoformat(
+        cases["R5-DST-04"]["checkpointUtc"].replace("Z", "+00:00")
+    )
+    after_us_fall = datetime.fromisoformat(
+        cases["R5-DST-05"]["checkpointUtc"].replace("Z", "+00:00")
+    )
+
+    assert europe_only_gap.astimezone(new_york).isoformat() == (
+        "2025-10-27T09:45:00-04:00"
+    )
+    assert europe_only_gap.astimezone(berlin).isoformat() == (
+        "2025-10-27T14:45:00+01:00"
+    )
+    assert after_us_fall.astimezone(new_york).isoformat() == (
+        "2025-11-03T09:45:00-05:00"
+    )
+    assert after_us_fall.astimezone(berlin).isoformat() == (
+        "2025-11-03T15:45:00+01:00"
+    )
 
 
 def test_fixture_runs_the_stateless_fallback_inside_requests() -> None:
@@ -177,6 +230,10 @@ def test_matrix_covers_timeframes_realtime_dst_sessions_and_performance() -> Non
         "Per-case tradingViewStatus values preserve the preregistered baseline."
     )
     assert manifest["resultEvidence"] == EVIDENCE.relative_to(ROOT).as_posix()
+    assert (
+        manifest["temporalCloseoutManifest"]
+        == TEMPORAL_CLOSEOUT.relative_to(ROOT).as_posix()
+    )
     assert tradingview == {
         "layoutName": "SMC HTF Context R5 Validation",
         "symbol": "NASDAQ:AAPL",
@@ -256,20 +313,20 @@ def test_partial_private_runtime_evidence_is_truthfully_scoped() -> None:
     assert restored["layoutSaved"] is True
 
 
-def test_r5_traceability_remains_partial_for_only_three_temporal_cases() -> None:
+def test_r5_traceability_points_to_the_executable_temporal_closeout() -> None:
     requirement = _requirement("R5-HTF-SPIKE")
 
     assert requirement["status"] == "partial"
     assert requirement["openGates"] == [
-        "Observe confirmed-versus-raw behavior during a live open NASDAQ regular-session 15-minute bar.",
-        "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in TradingView history.",
-        "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in TradingView history.",
+        "Execute the three cases in smc_htf_context_r5_temporal_closeout_manifest.json: the live regular-session repaint observation and the two historical autumn DST equivalents.",
     ]
     for path in (
         FIXTURE.relative_to(ROOT).as_posix(),
         DEFAULT_OUTPUT.relative_to(ROOT).as_posix(),
         EVIDENCE.relative_to(ROOT).as_posix(),
+        TEMPORAL_CLOSEOUT.relative_to(ROOT).as_posix(),
         "scripts/smc_htf_context_r5_spike_manifest.py",
+        "scripts/smc_htf_context_r5_temporal_closeout_manifest.py",
         "tests/test_smc_htf_context_r5_spike.py",
         RUNBOOK.relative_to(ROOT).as_posix(),
     ):
