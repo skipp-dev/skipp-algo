@@ -41,6 +41,15 @@ def test_product_cut_manifest_exports_surface_governance_schema_v3() -> None:
     assert surfaces['SMC_HTF_Confluence.pine']['compile_expectation'] == 'known_broken'
     assert len(surfaces['SMC_HTF_Confluence.pine']['known_missing_mp_fields']) == 12
     assert surfaces['SMC_Context_Overlay.pine']['bus_dependencies'] == ['context_v3']
+    assert payload['contracts']['contextOverlayBindings'][0] == 'CTX SchemaVersion'
+    assert len(payload['contracts']['contextOverlayBindings']) == 60
+    r4_targets = payload['preflightScopes']['smcR4ContextShadow']
+    assert [target['file'] for target in r4_targets] == [
+        'SMC_Context_Bus.pine',
+        'SMC_Context_Overlay.pine',
+    ]
+    assert r4_targets[1]['bindingContractKey'] == 'contextOverlayBindings'
+    assert len(r4_targets[1]['bindingContractLabels']) == 60
     assert 'SMC++.pine' not in surfaces
     assert 'SMC_Core_Zones.pine' not in surfaces
     assert 'SMC Core + Zones.pine' not in surfaces
@@ -52,6 +61,9 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     }
     assert _load_json('automation/tradingview/preflight-smc-mainline.json') == {
         'productCutScope': 'smcMainline',
+    }
+    assert _load_json('automation/tradingview/preflight-r4-context-shadow.json') == {
+        'productCutScope': 'smcR4ContextShadow',
     }
     assert _load_json('automation/tradingview/preflight-smc-mainline-open-only.json') == {
         'targets': [

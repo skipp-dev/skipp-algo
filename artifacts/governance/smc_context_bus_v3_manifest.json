@@ -1,0 +1,494 @@
+{
+  "manifestVersion": 1,
+  "producer": "SMC_Context_Bus.pine",
+  "consumer": "SMC_Context_Overlay.pine",
+  "schemaVersion": 8001,
+  "channelPrefix": "CTX ",
+  "channelCount": 60,
+  "plotLimit": 64,
+  "reservedChannels": 4,
+  "maxChannels": 60,
+  "minReservedChannels": 4,
+  "channels": [
+    {
+      "index": 1,
+      "label": "CTX SchemaVersion",
+      "name": "SchemaVersion",
+      "group": "meta",
+      "value_type": "int",
+      "required": true
+    },
+    {
+      "index": 2,
+      "label": "CTX Ready",
+      "name": "Ready",
+      "group": "meta",
+      "value_type": "bool",
+      "required": true
+    },
+    {
+      "index": 3,
+      "label": "CTX AvailabilityMask",
+      "name": "AvailabilityMask",
+      "group": "meta",
+      "value_type": "int",
+      "required": true
+    },
+    {
+      "index": 4,
+      "label": "CTX ConfirmedEpoch",
+      "name": "ConfirmedEpoch",
+      "group": "meta",
+      "value_type": "unix_seconds",
+      "required": true
+    },
+    {
+      "index": 5,
+      "label": "CTX Bias",
+      "name": "Bias",
+      "group": "aggregate",
+      "value_type": "direction",
+      "required": true
+    },
+    {
+      "index": 6,
+      "label": "CTX AvailableDomains",
+      "name": "AvailableDomains",
+      "group": "aggregate",
+      "value_type": "int",
+      "required": true
+    },
+    {
+      "index": 7,
+      "label": "CTX QualityScore",
+      "name": "QualityScore",
+      "group": "aggregate",
+      "value_type": "percent",
+      "required": true
+    },
+    {
+      "index": 8,
+      "label": "CTX StructureTrend",
+      "name": "StructureTrend",
+      "group": "structure",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 9,
+      "label": "CTX StructureBos",
+      "name": "StructureBos",
+      "group": "structure",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 10,
+      "label": "CTX StructureChoch",
+      "name": "StructureChoch",
+      "group": "structure",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 11,
+      "label": "CTX StructureEventDirection",
+      "name": "StructureEventDirection",
+      "group": "structure",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 12,
+      "label": "CTX StructureResistance",
+      "name": "StructureResistance",
+      "group": "structure",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 13,
+      "label": "CTX StructureSupport",
+      "name": "StructureSupport",
+      "group": "structure",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 14,
+      "label": "CTX StructureEventAgeBars",
+      "name": "StructureEventAgeBars",
+      "group": "structure",
+      "value_type": "int",
+      "required": false
+    },
+    {
+      "index": 15,
+      "label": "CTX ImbalanceState",
+      "name": "ImbalanceState",
+      "group": "imbalance",
+      "value_type": "enum",
+      "required": false
+    },
+    {
+      "index": 16,
+      "label": "CTX FvgBias",
+      "name": "FvgBias",
+      "group": "imbalance",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 17,
+      "label": "CTX BullFvgActive",
+      "name": "BullFvgActive",
+      "group": "imbalance",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 18,
+      "label": "CTX BearFvgActive",
+      "name": "BearFvgActive",
+      "group": "imbalance",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 19,
+      "label": "CTX BullFvgTop",
+      "name": "BullFvgTop",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 20,
+      "label": "CTX BullFvgBottom",
+      "name": "BullFvgBottom",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 21,
+      "label": "CTX BearFvgTop",
+      "name": "BearFvgTop",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 22,
+      "label": "CTX BearFvgBottom",
+      "name": "BearFvgBottom",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 23,
+      "label": "CTX BprActive",
+      "name": "BprActive",
+      "group": "imbalance",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 24,
+      "label": "CTX BprDirection",
+      "name": "BprDirection",
+      "group": "imbalance",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 25,
+      "label": "CTX BprTop",
+      "name": "BprTop",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 26,
+      "label": "CTX BprBottom",
+      "name": "BprBottom",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 27,
+      "label": "CTX LiquidityVoidActive",
+      "name": "LiquidityVoidActive",
+      "group": "imbalance",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 28,
+      "label": "CTX LiquidityVoidTop",
+      "name": "LiquidityVoidTop",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 29,
+      "label": "CTX LiquidityVoidBottom",
+      "name": "LiquidityVoidBottom",
+      "group": "imbalance",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 30,
+      "label": "CTX ZoneState",
+      "name": "ZoneState",
+      "group": "zone",
+      "value_type": "enum",
+      "required": false
+    },
+    {
+      "index": 31,
+      "label": "CTX ObBias",
+      "name": "ObBias",
+      "group": "zone",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 32,
+      "label": "CTX BullObTop",
+      "name": "BullObTop",
+      "group": "zone",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 33,
+      "label": "CTX BullObBottom",
+      "name": "BullObBottom",
+      "group": "zone",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 34,
+      "label": "CTX BearObTop",
+      "name": "BearObTop",
+      "group": "zone",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 35,
+      "label": "CTX BearObBottom",
+      "name": "BearObBottom",
+      "group": "zone",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 36,
+      "label": "CTX BullObNew",
+      "name": "BullObNew",
+      "group": "zone",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 37,
+      "label": "CTX BearObNew",
+      "name": "BearObNew",
+      "group": "zone",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 38,
+      "label": "CTX BullObBroken",
+      "name": "BullObBroken",
+      "group": "zone",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 39,
+      "label": "CTX BearObBroken",
+      "name": "BearObBroken",
+      "group": "zone",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 40,
+      "label": "CTX SweepDirection",
+      "name": "SweepDirection",
+      "group": "sweep",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 41,
+      "label": "CTX SweepType",
+      "name": "SweepType",
+      "group": "sweep",
+      "value_type": "enum",
+      "required": false
+    },
+    {
+      "index": 42,
+      "label": "CTX SweepZoneTop",
+      "name": "SweepZoneTop",
+      "group": "sweep",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 43,
+      "label": "CTX SweepZoneBottom",
+      "name": "SweepZoneBottom",
+      "group": "sweep",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 44,
+      "label": "CTX SweepReclaimActive",
+      "name": "SweepReclaimActive",
+      "group": "sweep",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 45,
+      "label": "CTX SweepQualityScore",
+      "name": "SweepQualityScore",
+      "group": "sweep",
+      "value_type": "score_0_5",
+      "required": false
+    },
+    {
+      "index": 46,
+      "label": "CTX SweepEventAgeBars",
+      "name": "SweepEventAgeBars",
+      "group": "sweep",
+      "value_type": "int",
+      "required": false
+    },
+    {
+      "index": 47,
+      "label": "CTX BuyPoolLevel",
+      "name": "BuyPoolLevel",
+      "group": "pool",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 48,
+      "label": "CTX SellPoolLevel",
+      "name": "SellPoolLevel",
+      "group": "pool",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 49,
+      "label": "CTX BuyPoolStrength",
+      "name": "BuyPoolStrength",
+      "group": "pool",
+      "value_type": "score_0_5",
+      "required": false
+    },
+    {
+      "index": 50,
+      "label": "CTX SellPoolStrength",
+      "name": "SellPoolStrength",
+      "group": "pool",
+      "value_type": "score_0_5",
+      "required": false
+    },
+    {
+      "index": 51,
+      "label": "CTX PoolMagnetDirection",
+      "name": "PoolMagnetDirection",
+      "group": "pool",
+      "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 52,
+      "label": "CTX PoolImbalance",
+      "name": "PoolImbalance",
+      "group": "pool",
+      "value_type": "ratio_minus1_plus1",
+      "required": false
+    },
+    {
+      "index": 53,
+      "label": "CTX SessionCode",
+      "name": "SessionCode",
+      "group": "session",
+      "value_type": "enum",
+      "required": false
+    },
+    {
+      "index": 54,
+      "label": "CTX SessionKillzone",
+      "name": "SessionKillzone",
+      "group": "session",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 55,
+      "label": "CTX SessionRangeTop",
+      "name": "SessionRangeTop",
+      "group": "session",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 56,
+      "label": "CTX SessionRangeBottom",
+      "name": "SessionRangeBottom",
+      "group": "session",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 57,
+      "label": "CTX OpeningRangeActive",
+      "name": "OpeningRangeActive",
+      "group": "session",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 58,
+      "label": "CTX OpeningRangeTop",
+      "name": "OpeningRangeTop",
+      "group": "session",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 59,
+      "label": "CTX OpeningRangeBottom",
+      "name": "OpeningRangeBottom",
+      "group": "session",
+      "value_type": "price",
+      "required": false
+    },
+    {
+      "index": 60,
+      "label": "CTX SessionDirection",
+      "name": "SessionDirection",
+      "group": "session",
+      "value_type": "direction",
+      "required": false
+    }
+  ]
+}

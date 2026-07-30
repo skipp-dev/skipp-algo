@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from scripts.smc_context_bus_manifest import CONTEXT_BUS_CHANNELS
+
 
 @dataclass(frozen = True)
 class BusBinding:
@@ -572,16 +574,19 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     ),
     SurfaceDefinition(
         file = 'SMC_Context_Bus.pine',
-        script_name = 'SMC Context BUS',
+        script_name = 'SMC Context Bus',
         surface_role = 'internal',
         contract_tier = 'internal',
         consumer_role = 'producer',
-        lifecycle = 'planned',
+        lifecycle = 'active',
         deployment_mode = 'shadow',
-        rollout_state = 'planned',
-        compile_expectation = 'deferred',
+        rollout_state = 'not_deployed',
+        compile_expectation = 'required',
         notes = (
-            'Planned Context BUS v3 producer; source is intentionally absent until its contract lands.',
+            'Context BUS v3 producer; schema 8001 exposes 60 direct domain '
+            'channels with four TradingView plot slots reserved. Source exists '
+            'locally but remains non-deployed until private compile, publish, '
+            'binding and shadow evidence pass.',
         ),
     ),
     SurfaceDefinition(
@@ -590,13 +595,15 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'planned',
+        lifecycle = 'active',
         deployment_mode = 'shadow',
-        rollout_state = 'planned',
-        compile_expectation = 'deferred',
+        rollout_state = 'not_deployed',
+        compile_expectation = 'required',
         bus_dependencies = ('context_v3',),
         notes = (
-            'Planned consolidated Context BUS v3 consumer; source is intentionally absent until its contract lands.',
+            'Consolidated fail-closed Context BUS v3 consumer. Source exists '
+            'locally but remains shadow-only and non-gating until private '
+            'compile, all-source binding, performance and parity evidence pass.',
         ),
     ),
 )
@@ -823,6 +830,27 @@ PREFLIGHT_R1_COMPANION_TARGETS: tuple[PreflightTarget, ...] = (
         9,
         'SMC Exit Signal',
         'exitSignalBindings',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+)
+
+PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
+    PreflightTarget(
+        'SMC_Context_Bus.pine',
+        'SMC Context Bus',
+        False,
+        True,
+        saved_script_name = 'SMC Context Bus',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+    PreflightTarget(
+        'SMC_Context_Overlay.pine',
+        'SMC Context Overlay',
+        True,
+        True,
+        60,
+        'SMC Context Overlay',
+        'contextOverlayBindings',
         allow_fresh_draft_on_missing_existing = True,
     ),
 )
@@ -1136,6 +1164,16 @@ EXIT_SIGNAL_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_plan': 'Expert Mapping - Trade Plan',
 }
 
+CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_meta': 'Context BUS · Meta',
+    'g_structure': 'Context BUS · Structure',
+    'g_imbalance': 'Context BUS · Imbalance',
+    'g_zone': 'Context BUS · Zones',
+    'g_sweep': 'Context BUS · Sweeps',
+    'g_pool': 'Context BUS · Pools',
+    'g_session': 'Context BUS · Session',
+}
+
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS SchemaVersion', 'g_bus_lifecycle', 'critical'),
@@ -1247,6 +1285,26 @@ EXIT_SIGNAL_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
 )
 
+_CONTEXT_GROUP_KEYS: dict[str, str] = {
+    'meta': 'g_meta',
+    'aggregate': 'g_meta',
+    'structure': 'g_structure',
+    'imbalance': 'g_imbalance',
+    'zone': 'g_zone',
+    'sweep': 'g_sweep',
+    'pool': 'g_pool',
+    'session': 'g_session',
+}
+
+CONTEXT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = tuple(
+    BusBinding(
+        channel.label,
+        _CONTEXT_GROUP_KEYS[channel.group],
+        'critical' if channel.required else 'diagnostic',
+    )
+    for channel in CONTEXT_BUS_CHANNELS
+)
+
 
 DASHBOARD_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in DASHBOARD_BUS_BINDINGS)
 STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATEGY_BUS_BINDINGS)
@@ -1279,6 +1337,7 @@ BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
     'holdManagerBindings': HOLD_MANAGER_BUS_BINDINGS,
     'eventOverlayBindings': EVENT_OVERLAY_BUS_BINDINGS,
     'exitSignalBindings': EXIT_SIGNAL_BUS_BINDINGS,
+    'contextOverlayBindings': CONTEXT_OVERLAY_BUS_BINDINGS,
 }
 
 BINDING_CONTRACT_NAMES: dict[str, str] = {
@@ -1287,6 +1346,7 @@ BINDING_CONTRACT_NAMES: dict[str, str] = {
     'holdManagerBindings': 'Hold Manager BUS bindings',
     'eventOverlayBindings': 'Event Overlay BUS bindings',
     'exitSignalBindings': 'Exit Signal BUS bindings',
+    'contextOverlayBindings': 'Context Overlay schema-8001 bindings',
 }
 
 BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
@@ -1295,6 +1355,7 @@ BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
     'holdManagerBindings': 'exit_companion',
     'eventOverlayBindings': 'overlay_companion',
     'exitSignalBindings': 'exit_companion',
+    'contextOverlayBindings': 'context_companion',
 }
 
 BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
@@ -1303,6 +1364,7 @@ BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
     'holdManagerBindings': HOLD_MANAGER_GROUP_TITLES_BY_KEY,
     'eventOverlayBindings': EVENT_OVERLAY_GROUP_TITLES_BY_KEY,
     'exitSignalBindings': EXIT_SIGNAL_GROUP_TITLES_BY_KEY,
+    'contextOverlayBindings': CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY,
 }
 
 
@@ -1351,6 +1413,9 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'holdManagerBindings': list(HOLD_MANAGER_BUS_LABELS),
             'eventOverlayBindings': list(EVENT_OVERLAY_BUS_LABELS),
             'exitSignalBindings': list(EXIT_SIGNAL_BUS_LABELS),
+            'contextOverlayBindings': [
+                binding.label for binding in CONTEXT_OVERLAY_BUS_BINDINGS
+            ],
         },
         'preflightScopes': {
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],
@@ -1358,6 +1423,7 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
             'smcHoldManagerShadow': [_preflight_target_payload(target) for target in PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS],
             'smcR1Companions': [_preflight_target_payload(target) for target in PREFLIGHT_R1_COMPANION_TARGETS],
+            'smcR4ContextShadow': [_preflight_target_payload(target) for target in PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS],
         },
         'validationEvidence': {
             'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,

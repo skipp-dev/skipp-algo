@@ -90,10 +90,7 @@ def test_only_planned_surface_sources_may_be_absent() -> None:
         if not (ROOT / surface.file).is_file()
     ]
 
-    assert {surface.file for surface in missing} == {
-        "SMC_Context_Bus.pine",
-        "SMC_Context_Overlay.pine",
-    }
+    assert missing == []
     assert all(surface.lifecycle == "planned" for surface in missing), (
         "only lifecycle=planned surfaces may omit their source: "
         f"{[(surface.file, surface.lifecycle) for surface in missing]}"

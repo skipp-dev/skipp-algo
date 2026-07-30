@@ -189,13 +189,11 @@ function verifyContextEnginePublishContract(cli: CliArgs): ContractDetails {
   // The siblings each hard-require SMC_Long_Dip_Suite to pin their library.
   // Two reasons that shape is wrong here:
   //
-  //   1. Nothing pins this library yet (bus-v3 R3 — build_context_frame() now
-  //      exists, but its first consumer is a later R4 slice). Requiring a
-  //      pin inverts the order: a library must be published before any consumer
-  //      can pin a real version. Unconditional, the check would make this
-  //      publisher permanently unusable and force the manual paste it replaces.
+  //   1. During the R3 bootstrap nothing pinned this library. The R4 Context
+  //      Bus now does; keeping zero pins legal still preserves the ordered
+  //      bootstrap path for a newly introduced private library version.
   //
-  //   2. The planned consumer is SMC_Context_Bus.pine (docs/smc-bus-roadmap.md),
+  //   2. The consumer is SMC_Context_Bus.pine (docs/smc-bus-roadmap.md),
   //      NOT the Suite. A core-only check would stay blind exactly when the
   //      library IS wired — the Suite would still not pin it, so a Context-Bus
   //      pin at the wrong version would sail through. That is the opposite of

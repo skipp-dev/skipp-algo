@@ -234,24 +234,39 @@
     {
       "id": "R4",
       "name": "Context BUS and Context Overlay shadow",
-      "status": "not_started",
+      "status": "in_progress",
       "requirements": [
         {
           "id": "R4-BUS",
           "description": "Context BUS schema 8001 is implemented with at most 60 channels and at least four reserves.",
-          "status": "not_started",
-          "evidence": [],
+          "status": "partial",
+          "evidence": [
+            "SMC_Context_Bus.pine",
+            "scripts/smc_context_bus_manifest.py",
+            "artifacts/governance/smc_context_bus_v3_manifest.json",
+            "automation/tradingview/preflight-r4-context-shadow.json",
+            "docs/SMC_CONTEXT_BUS_R4_RUNBOOK.md",
+            "tests/test_smc_context_bus_v3_contract.py"
+          ],
           "openGates": [
-            "SMC_Context_Bus.pine is intentionally absent."
+            "Compile and privately publish the producer after its source hash and facade version are verified.",
+            "Verify the generated 60-source consumer binding contract on TradingView."
           ]
         },
         {
           "id": "R4-OVERLAY",
           "description": "Context Overlay is implemented, bound, performance-gated, and compared in a shadow layout.",
-          "status": "not_started",
-          "evidence": [],
+          "status": "partial",
+          "evidence": [
+            "SMC_Context_Overlay.pine",
+            "automation/tradingview/preflight-r4-context-shadow.json",
+            "docs/SMC_CONTEXT_BUS_R4_RUNBOOK.md",
+            "tests/test_smc_context_bus_v3_contract.py"
+          ],
           "openGates": [
-            "SMC_Context_Overlay.pine is intentionally absent."
+            "Compile and bind the overlay to all 60 producer outputs in a private shadow layout.",
+            "Measure TradingView execution and object budgets.",
+            "Compare structure and zone output with Suite and Breakout evidence, explain discrepancies, and run rollback."
           ]
         }
       ]

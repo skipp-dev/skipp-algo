@@ -89,6 +89,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # Alert companion: only the persistent status table needs `var` — the group
     # labels are plain consts, so the budget stays at 1.
     "SMC_Long_Dip_Alerts.pine": 1,
+    # R4 Context BUS: one input-group label plus confirmed-epoch transport
+    # state. The overlay holds seven group labels and one fixed summary table.
+    "SMC_Context_Bus.pine": 2,
+    "SMC_Context_Overlay.pine": 8,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
     "pine/legacy/Breakout_Finder_Intelligent.pine": 6,

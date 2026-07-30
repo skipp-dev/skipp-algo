@@ -184,6 +184,8 @@ _FROZEN_DECL_KIND: dict[str, str] = {
     "SMC_Volume_Profile_Overlay.pine": "indicator",
     "SMC_Confluence_Hub.pine": "indicator",
     "SMC_Long_Dip_Alerts.pine": "indicator",
+    "SMC_Context_Bus.pine": "indicator",
+    "SMC_Context_Overlay.pine": "indicator",
     "test_div.pine": "indicator",
 }
 
