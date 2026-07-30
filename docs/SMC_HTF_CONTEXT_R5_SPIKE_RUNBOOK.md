@@ -119,17 +119,21 @@ TradingView exposed relative execution-share percentages rather than an
 independent absolute total runtime; the evidence records that limitation
 instead of inventing an absolute value.
 
-These cases remain open:
+The remaining three cases passed in the private temporal closeout:
 
-- `R5-HTF-08`: observe the diagnostic raw arm during a live open NASDAQ
-  regular-session 15-minute bar;
-- `R5-DST-04`: replay the historical equivalent at
-  `2025-10-27T13:45:00Z`; and
-- `R5-DST-05`: replay the historical equivalent at
-  `2025-11-03T14:45:00Z`.
+- `R5-HTF-08`: the confirmed 15-minute source close stayed stable during the
+  open source bar while the diagnostic raw arm differed;
+- `R5-DST-04`: the historical equivalent at
+  `2025-10-27T13:45:00Z` published the confirmed 13:30–13:45 UTC source bar
+  with NY-AM session code 3; and
+- `R5-DST-05`: the historical equivalent at
+  `2025-11-03T14:45:00Z` published the confirmed 14:30–14:45 UTC source bar
+  with NY-AM session code 3.
 
 The executable closeout matrix is
 `artifacts/governance/smc_htf_context_r5_temporal_closeout_manifest.json`.
+The redacted private runtime result is
+`artifacts/governance/smc_htf_context_r5_temporal_closeout_tradingview_2026-07-30.json`.
 The historical equivalents use the same `America/New_York` and
 `Europe/Berlin` offset relationships as the registered future checkpoints.
 The original 2026 checkpoints remain scheduled as non-blocking revalidation;
@@ -140,9 +144,10 @@ profiler off, fixture removed, panels closed, and `All changes saved`.
 
 ## Completion and rollback
 
-The gate remains `partial` until immutable private runtime evidence records all
-15 outcomes and the implementation decision. No result from source inspection
-or Python tests can claim Pine compilation.
+The gate is `complete`: immutable private runtime evidence records all 15
+outcomes and the implementation decision. No result from source inspection or
+Python tests substitutes for the recorded Pine compile and TradingView runtime
+evidence.
 
 After the run, remove the fixture, restore the prior symbol, timeframe,
 indicators, side panels, replay state, and saved script, then save the private
