@@ -32,7 +32,7 @@ Enrichment-Daten. Sie ersetzt keinen barweisen Producer.
 | Event Overlay | Micro-Profile-Eventdaten plus Engine BUS v2 |
 | Exit Signal | Engine BUS v2 |
 | Hold Manager | Engine BUS v2; manueller Plan nur als gekennzeichneter Fallback |
-| Context Overlay | künftiger Context BUS v3 / Schema 8001 |
+| Context Overlay | Context BUS v3 / Schema 8001; lokal implementiert, Shadow-Rollout noch offen |
 | neue HTF Confluence | bestätigte 15m-/1h-/4h-Chartdaten über die Context-Library |
 | Volume Profile Overlay | eigenständig aus Chart-OHLCV |
 

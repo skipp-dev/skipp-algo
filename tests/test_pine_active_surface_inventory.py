@@ -107,6 +107,6 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # 2026-07-16: 38 -> 37 after retiring the uncompilable HTTP consumer. The
-    # old root bridge remains only as an explicit, network-inert tombstone.
-    assert expected == 37, f"inventory frozensets drifted: total={expected}"
+    # 2026-07-30: 37 -> 39 when the separately governed Context BUS producer
+    # and its non-gating shadow overlay became physical R4 sources.
+    assert expected == 39, f"inventory frozensets drifted: total={expected}"

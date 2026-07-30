@@ -54,6 +54,7 @@ export type LibraryReleaseConsumerRole =
   | "dashboard_companion"
   | "execution_wrapper"
   | "overlay_companion"
+  | "context_companion"
   | "exit_companion"
   | "companion_operator_only"
   | "internal"
@@ -70,6 +71,7 @@ export type ProductCutContracts = {
   holdManagerBindings: string[];
   eventOverlayBindings: string[];
   exitSignalBindings: string[];
+  contextOverlayBindings: string[];
 };
 
 export type ProductCutBindingContractKey =
@@ -77,7 +79,8 @@ export type ProductCutBindingContractKey =
   | "strategyBindings"
   | "holdManagerBindings"
   | "eventOverlayBindings"
-  | "exitSignalBindings";
+  | "exitSignalBindings"
+  | "contextOverlayBindings";
 
 export type ProductCutBindingLabelGroup = {
   label: string;
@@ -98,6 +101,7 @@ export type ProductCutPreflightTarget = {
   bindingConsumerRole?: LibraryReleaseConsumerRole;
   bindingContractLabels?: string[];
   bindingLabelGroups?: ProductCutBindingLabelGroup[];
+  allowFreshDraftOnMissingExisting?: boolean;
 };
 
 export type ProductCutDeprecatedFieldPolicy = {
@@ -618,6 +622,7 @@ export function getRequiredLibraryReleaseManifestFields(
         "holdManagerBindings",
         "eventOverlayBindings",
         "exitSignalBindings",
+        "contextOverlayBindings",
       ] as const;
       for (const contract of requiredContracts) {
         if (!Array.isArray(manifest.productCut.contracts[contract])) {
@@ -634,6 +639,7 @@ export function getRequiredLibraryReleaseManifestFields(
         "smcDecisionFirst",
         "smcHoldManagerShadow",
         "smcR1Companions",
+        "smcR4ContextShadow",
       ] as const) {
         if (!Array.isArray(manifest.productCut.preflightScopes[scope])) {
           missing.push(`productCut.preflightScopes.${scope}`);

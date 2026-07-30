@@ -129,10 +129,15 @@ def test_r2_reconstruction_claim_is_pinned_to_runtime_contract() -> None:
     assert reconstruction["openGates"] == []
 
 
-def test_r4_cannot_start_while_context_sources_are_absent() -> None:
+def test_r4_tracks_local_sources_without_claiming_shadow_completion() -> None:
     trace = _trace()
     r4 = next(phase for phase in trace["phases"] if phase["id"] == "R4")
 
-    assert r4["status"] == "not_started"
-    assert not (ROOT / "SMC_Context_Bus.pine").exists()
-    assert not (ROOT / "SMC_Context_Overlay.pine").exists()
+    assert r4["status"] == "in_progress"
+    assert (ROOT / "SMC_Context_Bus.pine").exists()
+    assert (ROOT / "SMC_Context_Overlay.pine").exists()
+    requirements = {item["id"]: item for item in r4["requirements"]}
+    assert requirements["R4-BUS"]["status"] == "partial"
+    assert requirements["R4-OVERLAY"]["status"] == "partial"
+    assert requirements["R4-BUS"]["openGates"]
+    assert requirements["R4-OVERLAY"]["openGates"]

@@ -1242,7 +1242,7 @@ function extractLikelyInputLabelsFromDialogText(dialogText: string): string[] {
 
   const labels = new Set<string>();
 
-  for (const match of normalizedDialogText.matchAll(/\bBUS\s+[A-Za-z][A-Za-z0-9/]*\b/g)) {
+  for (const match of normalizedDialogText.matchAll(/\b(?:BUS|CTX)\s+[A-Za-z][A-Za-z0-9/]*\b/g)) {
     const label = normalizeUiText(match[0]);
     if (label) {
       labels.add(label);

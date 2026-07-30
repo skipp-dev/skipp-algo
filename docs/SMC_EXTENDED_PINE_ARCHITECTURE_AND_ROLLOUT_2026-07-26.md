@@ -136,9 +136,11 @@ contains these managed save targets:
 The corresponding binding verification covers seven consumers and excludes the
 Suite producer.
 
-The current automation does not cover Event Overlay, Exit Signal, Hold
-Manager, Volume Profile Overlay, the stale context companions, or the future
-Context BUS and Context Overlay.
+The default mainline automation does not cover Event Overlay, Exit Signal,
+Hold Manager, Volume Profile Overlay, or the stale context companions.
+Dedicated scopes now cover R1 companions, Hold Manager shadow, and the local
+R4 Context Bus/Overlay sources; those dedicated scopes are not evidence that a
+private compile, binding, or layout rollout has already occurred.
 
 ### 3.3 Existing Context BUS building blocks
 
@@ -168,13 +170,16 @@ completed on 2026-07-28. The operational R3 gate completed on 2026-07-29 after
 the private library compiled, version `/4` was privately published, and all
 fifteen registered TradingView replay cases passed at their exact checkpoints.
 
-The following later surfaces are not yet complete:
+R4 now has local, non-deployed implementations for:
 
 - `SMC_Context_Bus.pine`;
-- the schema `8001` channel contract;
-- a consolidated Context Overlay;
-- Context BUS source binding automation; and
-- operational compile, hash, and layout evidence.
+- the frozen schema `8001` manifest with 60 channels and four reserves;
+- `SMC_Context_Overlay.pine`; and
+- a dedicated source-save/preflight and 60-binding contract.
+
+Operational compile, producer publication, source-hash, binding, performance,
+parity, layout, and rollback evidence remain open. The traceability matrix
+therefore keeps R4 `in_progress`.
 
 ### 3.4 Companion orphan condition
 
@@ -509,7 +514,7 @@ only the start of the pre-event window.
 
 ### 6.8 Context BUS v3
 
-`SMC_Context_Bus.pine` is a new hidden producer.
+`SMC_Context_Bus.pine` is a hidden producer.
 
 Contract requirements:
 
@@ -527,16 +532,19 @@ The initial channel groups are:
 
 | Group | Example domain data |
 | --- | --- |
-| Meta | schema, ready, availability mask, confirmed epoch, age |
+| Meta | schema, ready, availability mask, confirmed epoch |
+| Aggregate | bias, available-domain count, quality score |
 | Structure | trend, BOS, CHoCH, direction, support, resistance, event age |
-| Imbalance | active bull/bear FVG, bounds, mitigation, BPR, void, bias |
-| Zones | active bull/bear OB, bounds, counts, new/broken edges, bias |
+| Imbalance | active bull/bear FVG, bounds, BPR, void, bias, state |
+| Zones | bull/bear OB bounds, new/broken edges, bias, state |
 | Sweeps | direction, level, reclaim, quality, event age |
 | Pools | buy/sell level, strength, magnet direction, imbalance |
-| Session | session code, killzone, opening-range state, directional context |
+| Session | code, killzone, range, opening range, directional context |
 
-Exact channel names and encodings must be frozen only after a consumer-driven
-budget review. The table above reserves domains, not final plot names.
+The consumer-driven budget review froze the exact order and encodings in
+`artifacts/governance/smc_context_bus_v3_manifest.json`: 60 direct channels,
+four reserved slots, and no packed UI-row transport. Any change to that
+artifact, producer order, or consumer binding order fails the R4 freeze tests.
 
 ### 6.9 Consolidated Context Overlay
 

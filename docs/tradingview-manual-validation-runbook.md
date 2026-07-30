@@ -17,6 +17,8 @@ Geprüft werden:
 1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
 2. Dashboard-Consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
 3. Strategy-Consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
+4. Event-Overlay: [../SMC_Event_Overlay.pine](../SMC_Event_Overlay.pine)
+5. Exit-Signal: [../SMC_Exit_Signal.pine](../SMC_Exit_Signal.pine)
 
 Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in TradingView, ohne Änderungen an Produktionslogik.
 

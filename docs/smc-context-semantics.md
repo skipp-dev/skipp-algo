@@ -7,14 +7,16 @@ See also [smc-bus-roadmap.md](smc-bus-roadmap.md) for the bus-v2 decision
 history.
 
 This document is the semantic source of truth for the live context library
-`SMC++/smc_context_engine_private.pine` and the planned
-`SMC_Context_Bus.pine` producer. The library currently implements Structure,
-Imbalance, and Zone frames; Sweep, Pool, Session, the aggregated Context Frame,
-and the visible producer remain rollout work. This document defines, per
-domain, what each field means, its warm-up / `na` / bar-close / age /
-persistence behaviour, and — critically — **which fields have an exact Python
-source of truth (scoring parity) and which are new Pine live-detection with no
-Python golden (spec only).**
+`SMC++/smc_context_engine_private.pine`, the schema-8001
+`SMC_Context_Bus.pine` producer, and its shadow-only
+`SMC_Context_Overlay.pine` consumer. The library implements Structure,
+Imbalance, Zone, Sweep, Pool, Session, and the aggregated Context Frame. The
+producer and consumer now exist locally, but are not deployed until the
+remaining private compile, publish, binding, performance, parity, and rollback
+gates pass. This document defines, per domain, what each field means, its
+warm-up / `na` / bar-close / age / persistence behaviour, and — critically —
+**which fields have an exact Python source of truth (scoring parity) and which
+are new Pine live-detection with no Python golden (spec only).**
 
 Getting this split right is the whole point: porting a Python *scoring rule* is a
 verifiable, golden-gated task; re-implementing *candidate detection* in Pine is

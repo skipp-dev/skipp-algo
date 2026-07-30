@@ -442,6 +442,7 @@ export function readProductCutSummary(): ProductCutSummary {
       holdManagerBindings: [],
       eventOverlayBindings: [],
       exitSignalBindings: [],
+      contextOverlayBindings: [],
     },
     preflightScopes: payload.preflightScopes ?? {},
     deprecatedFieldPolicy: payload.deprecatedFieldPolicy ?? {
