@@ -188,6 +188,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_six_zero_tripwires_bundle.py",
     "tests/test_smc_bus_v2_freeze.py",
     "tests/test_smc_context_golden.py",
+    "tests/test_smc_htf_context_r5_spike.py",
     "tests/test_smc_fast_pr_gates_workflow.py",
     "tests/test_smc_library_refresh_workflow.py",
     "tests/test_smc_live_overlay_metrics.py",

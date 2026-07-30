@@ -204,6 +204,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # and CI ran neither. Source-parsing only, <2s total.
     "test_smc_bus_v2_freeze.py",
     "test_smc_context_golden.py",
+    "test_smc_htf_context_r5_spike.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
     "test_manifest_preference.py",

@@ -581,12 +581,18 @@ context for:
 Defaults are fixed 15m, 1h, and 4h so the product meaning is stable. Advanced
 users may override them, but the displayed timeframe must always be explicit.
 
-All `request.security` calls use:
+All product `request.security` calls use TradingView's documented
+non-repainting HTF pair:
 
-- `lookahead_off`;
-- confirmed higher-timeframe values;
-- explicit handling of unavailable or partial bars; and
-- no same-bar future leakage.
+- every transported value is offset by one requested-context bar;
+- `barmerge.lookahead_on` publishes that already-closed HTF value at the start
+  of the next HTF interval;
+- unavailable, equal-timeframe, lower-timeframe, and partial data fail closed;
+  and
+- no same-bar future leakage is accepted.
+
+`lookahead_off` remains in the spike only as a diagnostic comparison for the
+unoffset, still-open HTF bar. It is not a confirmed-value product path.
 
 Before the channel contract is frozen, a Pine technical spike must verify that
 stateful Context Frame builders behave safely inside `request.security`.
@@ -1299,6 +1305,21 @@ current consumers remain untouched.
 
 ### Phase R5 — Rebuild HTF Confluence and Session
 
+Repository implementation status on 2026-07-30: the first private TradingView
+compile rejected the published Context Engine `/4` inside `request.security`
+with `CE10061` because its collection-backed builders have side effects. This
+is the pre-registered condition for choosing the dedicated compact stateless
+HTF calculation layer. The fallback test-only source, generated 15-case
+manifest, DST matrix, and operator runbook test 15m, 1h, 4h, lower/equal
+timeframe rejection, regular and extended data, the independent US/European
+DST transition gaps, realtime repaint behavior, and profiler budgets.
+The fallback compiled privately and passed 12 of 15 cases with profiler,
+request-site, drawing-object, memory, and runtime-error evidence recorded in
+`smc_htf_context_r5_spike_tradingview_2026-07-30.json`. `R5-HTF-SPIKE`
+remains partial only for the live regular-session repaint observation and the
+two future autumn DST checkpoints on 2026-10-26 and 2026-11-02. The
+known-broken snapshot consumers remain unchanged.
+
 #### HTF technical spike
 
 - test stateful Context Frame calls under `request.security`;
@@ -1306,7 +1327,10 @@ current consumers remain untouched.
 - test lower-chart and higher-chart timeframe combinations;
 - test regular and extended session data;
 - verify DST behavior;
-- verify `lookahead_off`;
+- verify the one requested-context bar offset plus
+  `barmerge.lookahead_on` non-repainting pair;
+- compare an unoffset `lookahead_off` diagnostic arm during an open realtime
+  HTF bar;
 - verify confirmed HTF-bar publication; and
 - measure request and execution budgets.
 
