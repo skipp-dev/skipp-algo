@@ -7,6 +7,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/pine/smc_htf_context_r5_spike.pine"
 BASE_EVIDENCE = (
@@ -147,8 +149,7 @@ def main() -> int:
             raise SystemExit(f"R5 temporal closeout manifest drift: {args.output}")
         return 0
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(rendered, encoding="utf-8")
+    atomic_write_text(rendered, args.output)
     return 0
 
 
