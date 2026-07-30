@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 TRACE = ROOT / "artifacts/governance/pine_extended_migration_traceability.json"
 PLAN = ROOT / "docs/SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md"
 RUNBOOK = ROOT / "docs/SMC_HTF_CONTEXT_R5_SPIKE_RUNBOOK.md"
+EVIDENCE = (
+    ROOT
+    / "artifacts/governance/smc_htf_context_r5_spike_tradingview_2026-07-30.json"
+)
 
 
 def _source() -> str:
@@ -44,34 +48,39 @@ def test_generated_manifest_is_current() -> None:
     assert json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8")) == build_manifest()
 
 
-def test_fixture_runs_the_stateful_context_builder_inside_requests() -> None:
+def test_fixture_runs_the_stateless_fallback_inside_requests() -> None:
     source = _source()
     code = _code(source)
 
-    assert "preuss_steffen/smc_context_engine_private/4 as ctx" in source
-    assert code.count("ctx.build_context_frame()") == 2
-    assert "_confirmed_snapshot()" in source
-    assert "_current_snapshot()" in source
-    assert code.count("request.security(") == 2
+    assert "smc_context_engine_private" not in code
+    assert "ctx.build_context_frame()" not in code
+    assert "_stateless_metrics()" in source
+    assert "ta.ema(close, FAST_LEN)" in source
+    assert "ta.rsi(close, RSI_LEN)" in source
+    assert "ta.atr(ATR_LEN)" in source
+    assert "_confirmed_tuple()" in source
+    assert "_current_tuple()" in source
+    assert "type HtfSnapshot" not in code
+    assert code.count("request.security(") == 4
     assert "calc_bars_count = CALC_BARS" in source
     assert "const int CALC_BARS = 1000" in source
 
 
 def test_confirmed_arm_uses_the_documented_non_repainting_pair() -> None:
     source = _code(_source())
-    confirmed = source[source.index("_confirmed_snapshot() =>") :]
+    confirmed = source[source.index("_confirmed_tuple() =>") :]
     confirmed = confirmed[: confirmed.index("_strictly_higher(")]
-    request = source[source.index("_request_confirmed(") :]
-    request = request[: request.index("_request_raw_15m(")]
+    request = source[source.index("[c15_available_raw") :]
+    request = request[: request.index("[r15_available_raw")]
 
     for primitive in (
         "time[1]",
         "time_close[1]",
-        "frame.structure.trend[1]",
-        "frame.bias[1]",
-        "frame.available_domains[1]",
-        "frame.quality_score[1]",
-        "frame.session.session_code[1]",
+        "structure_trend[1]",
+        "context_bias[1]",
+        "available_domains[1]",
+        "quality_score[1]",
+        "session_code[1]",
         "barstate.isconfirmed[1]",
     ):
         assert primitive in confirmed
@@ -84,25 +93,47 @@ def test_unoffset_lookahead_off_arm_is_diagnostic_only_and_default_off() -> None
 
     assert 'bool show_raw_probe = input.bool(\n     false,' in source
     assert "Diagnostic only" in source
-    raw = source[source.index("_request_raw_15m(") :]
-    raw = raw[: raw.index("HtfSnapshot confirmed_15m")]
-    assert "if enabled and _strictly_higher(TF_15M)" in raw
-    assert "_current_snapshot()" in raw
+    raw = source[source.index("[r15_available_raw") :]
+    raw = raw[: raw.index("bool relation_15m")]
+    assert "_current_tuple()" in raw
     assert "lookahead = barmerge.lookahead_off" in raw
     assert "lookahead_on" not in raw
+    assert "bool raw_available = show_raw_probe and relation_15m" in source
 
 
-def test_lower_and_equal_timeframes_fail_closed_before_requesting() -> None:
+def test_lower_and_equal_timeframes_fail_closed_after_fixed_requests() -> None:
     source = _source()
 
     assert (
         "timeframe.in_seconds(requested_tf) > timeframe.in_seconds()" in source
     )
-    assert "if _strictly_higher(requested_tf)" in source
-    assert "if enabled and _strictly_higher(TF_15M)" in source
-    assert source.count("_request_confirmed(TF_15M)") == 1
-    assert source.count("_request_confirmed(TF_1H)") == 1
-    assert source.count("_request_confirmed(TF_4H)") == 1
+    assert "bool inspected_available = inspected_relation and selected_available_raw" in source
+    assert "int inspected_open_ms = inspected_available ? selected_open_ms_raw : na" in source
+    assert "bool raw_available = show_raw_probe and relation_15m" in source
+    assert source.count("bool relation_15m = _strictly_higher(TF_15M)") == 1
+    assert source.count("bool relation_1h = _strictly_higher(TF_1H)") == 1
+    assert source.count("bool relation_4h = _strictly_higher(TF_4H)") == 1
+
+
+def test_request_expressions_are_fixed_primitive_tuples() -> None:
+    source = _source()
+
+    assert "if _strictly_higher" not in source
+    assert "if enabled and _strictly_higher" not in source
+    assert source.count("_confirmed_tuple(),") == 3
+    assert source.count("_current_tuple(),") == 1
+    assert "Primitive tuples avoid the object-memory failure mode" in source
+
+
+def test_tuple_helpers_close_with_square_brackets() -> None:
+    source = _code(_source())
+    current = source[source.index("_current_tuple() =>") :]
+    current = current[: current.index("_confirmed_tuple() =>")]
+    confirmed = source[source.index("_confirmed_tuple() =>") :]
+    confirmed = confirmed[: confirmed.index("_strictly_higher(")]
+
+    assert current.rstrip().endswith("]")
+    assert confirmed.rstrip().endswith("]")
 
 
 def test_spike_has_no_product_or_drawing_side_effects() -> None:
@@ -142,6 +173,10 @@ def test_matrix_covers_timeframes_realtime_dst_sessions_and_performance() -> Non
     }
     assert all(case["tradingViewStatus"] == "pending" for case in cases)
     assert all(case["expected_diagnostics"] for case in cases)
+    assert manifest["statusSemantics"].startswith(
+        "Per-case tradingViewStatus values preserve the preregistered baseline."
+    )
+    assert manifest["resultEvidence"] == EVIDENCE.relative_to(ROOT).as_posix()
     assert tradingview == {
         "layoutName": "SMC HTF Context R5 Validation",
         "symbol": "NASDAQ:AAPL",
@@ -173,14 +208,67 @@ def test_dst_matrix_proves_us_and_europe_switch_on_different_dates() -> None:
     )
 
 
-def test_r5_traceability_is_partial_until_private_runtime_evidence_exists() -> None:
+def test_partial_private_runtime_evidence_is_truthfully_scoped() -> None:
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    cases = evidence["results"]["cases"]
+    by_id = {case["caseId"]: case for case in cases}
+
+    assert evidence["fixture"]["sha256"] == build_manifest()["fixture"]["sha256"]
+    assert (
+        evidence["fixture"]["sourceReadbackSha256"]
+        == evidence["fixture"]["sha256"]
+    )
+    assert evidence["fixture"]["compileStatus"] == "passed"
+    assert evidence["fixture"]["publicationStatus"] == "not_published"
+    assert evidence["implementationDecision"]["rejectedReason"].startswith(
+        "CE10061"
+    )
+    assert evidence["results"]["status"] == "partial"
+    assert evidence["results"]["passedLogicalCases"] == 12
+    assert evidence["results"]["pendingLogicalCases"] == 3
+    assert evidence["results"]["failedLogicalCases"] == 0
+    assert {case["caseId"] for case in cases} == {
+        runtime_case.case_id for runtime_case in CASES
+    }
+    assert evidence["results"]["pendingCases"] == [
+        "R5-HTF-08",
+        "R5-DST-04",
+        "R5-DST-05",
+    ]
+    assert by_id["R5-HTF-08"]["status"] == "pending_live_market_condition"
+    assert by_id["R5-DST-04"]["status"] == "pending_future_checkpoint"
+    assert by_id["R5-DST-05"]["status"] == "pending_future_checkpoint"
+    assert by_id["R5-PERF-01"]["status"] == "passed"
+    profiler = by_id["R5-PERF-01"]["observed"]
+    assert profiler["uniqueRequestSites"] == 4
+    assert profiler["drawingObjects"] == 0
+    assert profiler["memoryError"] == profiler["runtimeError"] == 0
+    assert profiler["profilerModeCaptured"] is True
+    assert profiler["absoluteRuntimeExposedByEditor"] is False
+    assert profiler["visibleLineRuntimeShares"]
+    assert evidence["tradingView"]["canonicalChartStateRestored"] is True
+    restored = evidence["tradingView"]["canonicalStateAfterRestore"]
+    assert restored["session"] == "regular"
+    assert restored["timezone"] == "Europe/Berlin"
+    assert restored["replayActive"] is False
+    assert restored["fixtureOnChart"] is False
+    assert restored["profilerMode"] is False
+    assert restored["layoutSaved"] is True
+
+
+def test_r5_traceability_remains_partial_for_only_three_temporal_cases() -> None:
     requirement = _requirement("R5-HTF-SPIKE")
 
     assert requirement["status"] == "partial"
-    assert requirement["openGates"]
+    assert requirement["openGates"] == [
+        "Observe confirmed-versus-raw behavior during a live open NASDAQ regular-session 15-minute bar.",
+        "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in TradingView history.",
+        "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in TradingView history.",
+    ]
     for path in (
         FIXTURE.relative_to(ROOT).as_posix(),
         DEFAULT_OUTPUT.relative_to(ROOT).as_posix(),
+        EVIDENCE.relative_to(ROOT).as_posix(),
         "scripts/smc_htf_context_r5_spike_manifest.py",
         "tests/test_smc_htf_context_r5_spike.py",
         RUNBOOK.relative_to(ROOT).as_posix(),

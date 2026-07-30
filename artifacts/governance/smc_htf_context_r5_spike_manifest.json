@@ -3,11 +3,15 @@
   "gate": "R5-HTF-SPIKE",
   "gateStatus": "partial",
   "surfaceClass": "test_only_not_managed_not_publishable",
+  "statusSemantics": "Per-case tradingViewStatus values preserve the preregistered baseline. Actual private runtime outcomes are recorded in resultEvidence.",
+  "resultEvidence": "artifacts/governance/smc_htf_context_r5_spike_tradingview_2026-07-30.json",
   "fixture": {
     "path": "tests/fixtures/pine/smc_htf_context_r5_spike.pine",
     "scriptName": "SMC HTF Context R5 Spike TEST ONLY",
-    "sha256": "c506a7bb75d3cf781eae7fd1d40acf91606368cc2b1753434de0a60881fa45e9",
-    "publishedContextLibrary": "preuss_steffen/smc_context_engine_private/4"
+    "sha256": "404c5380d1a8a58d80d36a282d6eb0e7da458810c1a33778d0a0e03849267b87",
+    "implementation": "compact_stateless_htf_tuple_fallback",
+    "rejectedDirectLibrary": "preuss_steffen/smc_context_engine_private/4",
+    "directCompileFailure": "CE10061"
   },
   "semantics": {
     "acceptedConfirmedPattern": "one-requested-bar expression offset plus barmerge.lookahead_on",
@@ -24,7 +28,7 @@
   "cases": [
     {
       "case_id": "R5-HTF-01",
-      "name": "private fixture compiles with ContextFrame builder in request.security",
+      "name": "private fixture compiles with stateless HTF fallback in request.security",
       "category": "compile",
       "chart_timeframe": "5",
       "inspect_timeframe": "15",
@@ -294,10 +298,9 @@
     "Restore the previous chart state after the spike."
   ],
   "openGates": [
-    "Private TradingView compile is pending.",
-    "Fifteen-case replay/live-observation matrix is pending.",
-    "Pine Profiler and memory/runtime evidence is pending.",
-    "The direct-stateful versus dedicated-stateless implementation decision is pending."
+    "Observe confirmed-versus-raw behavior during a live open NASDAQ regular-session 15-minute bar.",
+    "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in TradingView history.",
+    "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in TradingView history."
   ],
   "references": [
     "https://www.tradingview.com/pine-script-docs/concepts/repainting/",

@@ -4,19 +4,23 @@
 //@version=6
 
 // R5 technical spike only. This script is not a managed product surface and
-// must never be published. It tests the private ContextFrame builder inside
-// request.security() before SMC_HTF_Confluence.pine is rebuilt.
+// must never be published. The direct ContextFrame request path was rejected
+// by TradingView with CE10061 because its collection-backed builders have side
+// effects. This fallback tests a compact stateless HTF calculation layer.
 indicator(
      "SMC HTF Context R5 Spike TEST ONLY",
      overlay = false,
      dynamic_requests = true)
 
-import preuss_steffen/smc_context_engine_private/4 as ctx
-
 const string TF_15M = "15"
 const string TF_1H = "60"
 const string TF_4H = "240"
 const int CALC_BARS = 1000
+const int FAST_LEN = 21
+const int SLOW_LEN = 55
+const int RSI_LEN = 14
+const int ATR_LEN = 14
+const int ATR_BASELINE_LEN = 50
 
 var g_spike = "R5 HTF spike — TEST ONLY"
 string inspect_tf = input.string(
@@ -30,112 +34,157 @@ bool show_raw_probe = input.bool(
      group = g_spike,
      tooltip = "Diagnostic only. The lookahead_off arm may change during an open HTF bar and must never become a product input.")
 
-// A compact primitive projection is transported instead of the complete nested
-// ContextFrame object. The stateful canonical builder still executes inside the
-// requested context, while the request copies only the fields R5 needs to prove.
-// This keeps the spike honest about both semantics and memory risk.
-type HtfSnapshot
-    bool available
-    int source_open_ms
-    int source_close_ms
-    int structure_trend
-    int context_bias
-    int available_domains
-    int quality_score
-    int session_code
-    bool source_confirmed
+// A compact primitive tuple is transported instead of the complete nested
+// ContextFrame object. All calculations below are stateless series expressions,
+// so request.security can evaluate them without collection or object transport.
+_stateless_metrics() =>
+    float fast = ta.ema(close, FAST_LEN)
+    float slow = ta.ema(close, SLOW_LEN)
+    float rsi = ta.rsi(close, RSI_LEN)
+    float atr = ta.atr(ATR_LEN)
+    float atr_baseline = ta.sma(atr, ATR_BASELINE_LEN)
 
-_empty_snapshot() =>
-    HtfSnapshot.new(false, na, na, 0, 0, 0, 0, 0, false)
+    int structure_trend = not na(slow) ? fast > slow ? 1 : fast < slow ? -1 : 0 : 0
+    int momentum_vote = not na(rsi) ? rsi > 55 ? 1 : rsi < 45 ? -1 : 0 : 0
+    int directional_score = structure_trend + momentum_vote
+    int context_bias = directional_score > 0 ? 1 : directional_score < 0 ? -1 : 0
 
-_current_snapshot() =>
-    ctx.ContextFrame frame = ctx.build_context_frame()
-    HtfSnapshot.new(
-         not na(time_close),
+    bool intraday = timeframe.isintraday
+    bool asia_active = intraday and not na(time(timeframe.period, "0900-1700:1234567", "Asia/Tokyo"))
+    bool london_active = intraday and not na(time(timeframe.period, "0800-1630:1234567", "Europe/London"))
+    bool ny_am_active = intraday and not na(time(timeframe.period, "0930-1300:1234567", "America/New_York"))
+    bool ny_pm_active = intraday and not na(time(timeframe.period, "1300-1600:1234567", "America/New_York"))
+    int session_code = ny_pm_active ? 4 : ny_am_active ? 3 : london_active ? 2 : asia_active ? 1 : 0
+
+    bool structure_available = not na(slow)
+    bool momentum_available = not na(rsi)
+    bool volatility_available = not na(atr_baseline)
+    bool session_available = session_code != 0
+    int available_domains = (structure_available ? 1 : 0) +
+         (momentum_available ? 1 : 0) +
+         (volatility_available ? 1 : 0) +
+         (session_available ? 1 : 0)
+    int quality_score = int(math.round(available_domains / 4.0 * 100.0))
+    [structure_trend, context_bias, available_domains, quality_score, session_code]
+
+_current_tuple() =>
+    [structure_trend, context_bias, available_domains, quality_score, session_code] = _stateless_metrics()
+    [
+         not na(time_close) and available_domains >= 3,
          time,
          time_close,
-         frame.structure.trend,
-         frame.bias,
-         frame.available_domains,
-         frame.quality_score,
-         frame.session.session_code,
-         barstate.isconfirmed)
+         structure_trend,
+         context_bias,
+         available_domains,
+         quality_score,
+         session_code,
+         barstate.isconfirmed]
 
 // TradingView's documented non-repainting HTF pattern is an expression offset
 // by one requested-context bar combined with lookahead_on. Offsetting each
-// primitive here avoids transporting the large nested ContextFrame object and
-// publishes only a closed HTF bar at the start of the following HTF interval.
-_confirmed_snapshot() =>
-    ctx.ContextFrame frame = ctx.build_context_frame()
-    HtfSnapshot.new(
-         not na(time_close[1]),
+// primitive publishes only a closed HTF bar at the start of the following HTF
+// interval.
+_confirmed_tuple() =>
+    [structure_trend, context_bias, available_domains, quality_score, session_code] = _stateless_metrics()
+    [
+         not na(time_close[1]) and available_domains[1] >= 3,
          time[1],
          time_close[1],
-         frame.structure.trend[1],
-         frame.bias[1],
-         frame.available_domains[1],
-         frame.quality_score[1],
-         frame.session.session_code[1],
-         barstate.isconfirmed[1])
+         structure_trend[1],
+         context_bias[1],
+         available_domains[1],
+         quality_score[1],
+         session_code[1],
+         barstate.isconfirmed[1]]
 
 _strictly_higher(string requested_tf) =>
     timeframe.in_seconds(requested_tf) > timeframe.in_seconds()
 
-_request_confirmed(string requested_tf) =>
-    HtfSnapshot result = _empty_snapshot()
-    if _strictly_higher(requested_tf)
-        result := request.security(
-             syminfo.tickerid,
-             requested_tf,
-             _confirmed_snapshot(),
-             gaps = barmerge.gaps_off,
-             lookahead = barmerge.lookahead_on,
-             calc_bars_count = CALC_BARS)
-    result
+// Fixed request sites execute on every bar. Equal and lower requested frames
+// are masked below, so no transported value can become an available product
+// input. Primitive tuples avoid the object-memory failure mode under test.
+[c15_available_raw, c15_open_ms_raw, c15_close_ms_raw, c15_structure_raw, c15_bias_raw, c15_domains_raw, c15_quality_raw, c15_session_raw, c15_confirmed_raw] = request.security(
+     syminfo.tickerid,
+     TF_15M,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = CALC_BARS)
+[c1h_available_raw, c1h_open_ms_raw, c1h_close_ms_raw, c1h_structure_raw, c1h_bias_raw, c1h_domains_raw, c1h_quality_raw, c1h_session_raw, c1h_confirmed_raw] = request.security(
+     syminfo.tickerid,
+     TF_1H,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = CALC_BARS)
+[c4h_available_raw, c4h_open_ms_raw, c4h_close_ms_raw, c4h_structure_raw, c4h_bias_raw, c4h_domains_raw, c4h_quality_raw, c4h_session_raw, c4h_confirmed_raw] = request.security(
+     syminfo.tickerid,
+     TF_4H,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = CALC_BARS)
 
-// This arm exists only to expose the realtime difference. lookahead_off without
-// an offset can return the open HTF bar's changing state. It is intentionally
-// limited to 15m and disabled by default.
-_request_raw_15m(bool enabled) =>
-    HtfSnapshot result = _empty_snapshot()
-    if enabled and _strictly_higher(TF_15M)
-        result := request.security(
-             syminfo.tickerid,
-             TF_15M,
-             _current_snapshot(),
-             gaps = barmerge.gaps_off,
-             lookahead = barmerge.lookahead_off,
-             calc_bars_count = CALC_BARS)
-    result
+// Diagnostic only: an unoffset lookahead_off request can expose the open 15m
+// bar's changing state. The request remains fixed, but its output is disabled
+// unless the explicit input is enabled on a strictly lower chart timeframe.
+[r15_available_raw, r15_open_ms_raw, r15_close_ms_raw, r15_structure_raw, r15_bias_raw, r15_domains_raw, r15_quality_raw, r15_session_raw, r15_confirmed_raw] = request.security(
+     syminfo.tickerid,
+     TF_15M,
+     _current_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_off,
+     calc_bars_count = CALC_BARS)
 
-HtfSnapshot confirmed_15m = _request_confirmed(TF_15M)
-HtfSnapshot confirmed_1h = _request_confirmed(TF_1H)
-HtfSnapshot confirmed_4h = _request_confirmed(TF_4H)
-HtfSnapshot raw_15m = _request_raw_15m(show_raw_probe)
+bool relation_15m = _strictly_higher(TF_15M)
+bool relation_1h = _strictly_higher(TF_1H)
+bool relation_4h = _strictly_higher(TF_4H)
+bool inspect_15m = inspect_tf == TF_15M
+bool inspect_1h = inspect_tf == TF_1H
+bool inspected_relation = inspect_15m ? relation_15m : inspect_1h ? relation_1h : relation_4h
 
-HtfSnapshot inspected = inspect_tf == TF_15M ? confirmed_15m :
-     inspect_tf == TF_1H ? confirmed_1h : confirmed_4h
+bool selected_available_raw = inspect_15m ? c15_available_raw : inspect_1h ? c1h_available_raw : c4h_available_raw
+int selected_open_ms_raw = inspect_15m ? c15_open_ms_raw : inspect_1h ? c1h_open_ms_raw : c4h_open_ms_raw
+int selected_close_ms_raw = inspect_15m ? c15_close_ms_raw : inspect_1h ? c1h_close_ms_raw : c4h_close_ms_raw
+int selected_structure_raw = inspect_15m ? c15_structure_raw : inspect_1h ? c1h_structure_raw : c4h_structure_raw
+int selected_bias_raw = inspect_15m ? c15_bias_raw : inspect_1h ? c1h_bias_raw : c4h_bias_raw
+int selected_domains_raw = inspect_15m ? c15_domains_raw : inspect_1h ? c1h_domains_raw : c4h_domains_raw
+int selected_quality_raw = inspect_15m ? c15_quality_raw : inspect_1h ? c1h_quality_raw : c4h_quality_raw
+int selected_session_raw = inspect_15m ? c15_session_raw : inspect_1h ? c1h_session_raw : c4h_session_raw
+bool selected_confirmed_raw = inspect_15m ? c15_confirmed_raw : inspect_1h ? c1h_confirmed_raw : c4h_confirmed_raw
 
-bool publish_edge = inspected.available and ta.change(inspected.source_close_ms) != 0
-bool raw_differs = raw_15m.available and confirmed_15m.available and (
-     raw_15m.source_close_ms != confirmed_15m.source_close_ms or
-     raw_15m.structure_trend != confirmed_15m.structure_trend or
-     raw_15m.context_bias != confirmed_15m.context_bias or
-     raw_15m.session_code != confirmed_15m.session_code)
+bool inspected_available = inspected_relation and selected_available_raw
+int inspected_open_ms = inspected_available ? selected_open_ms_raw : na
+int inspected_close_ms = inspected_available ? selected_close_ms_raw : na
+int inspected_structure = inspected_available ? selected_structure_raw : 0
+int inspected_bias = inspected_available ? selected_bias_raw : 0
+int inspected_domains = inspected_available ? selected_domains_raw : 0
+int inspected_quality = inspected_available ? selected_quality_raw : 0
+int inspected_session = inspected_available ? selected_session_raw : 0
+bool inspected_confirmed = inspected_available and selected_confirmed_raw
+
+int inspected_close_change = ta.change(inspected_close_ms)
+bool publish_edge = inspected_available and not na(inspected_close_change) and inspected_close_change != 0
+bool raw_available = show_raw_probe and relation_15m and r15_available_raw
+bool raw_differs = raw_available and c15_available_raw and (
+     r15_close_ms_raw != c15_close_ms_raw or
+     r15_structure_raw != c15_structure_raw or
+     r15_bias_raw != c15_bias_raw or
+     r15_session_raw != c15_session_raw)
 
 // Data-window diagnostics. No labels, lines, boxes, alerts, or strategy effects.
-plot(inspected.available ? 1 : 0, "R5 Available", display = display.data_window)
+plot(inspected_available ? 1 : 0, "R5 Available", display = display.data_window)
 plot(publish_edge ? 1 : 0, "R5 Confirmed Publish Edge", display = display.data_window)
-plot(inspected.source_confirmed ? 1 : 0, "R5 Source Confirmed", display = display.data_window)
-plot(inspected.source_open_ms / 1000, "R5 Source Open Epoch", display = display.data_window)
-plot(inspected.source_close_ms / 1000, "R5 Source Close Epoch", display = display.data_window)
-plot(inspected.structure_trend, "R5 Structure Trend", display = display.data_window)
-plot(inspected.context_bias, "R5 Context Bias", display = display.data_window)
-plot(inspected.available_domains, "R5 Available Domains", display = display.data_window)
-plot(inspected.quality_score, "R5 Quality Score", display = display.data_window)
-plot(inspected.session_code, "R5 Session Code", display = display.data_window)
-plot(_strictly_higher(TF_15M) ? 1 : 0, "R5 15m Relation Valid", display = display.data_window)
-plot(_strictly_higher(TF_1H) ? 1 : 0, "R5 1h Relation Valid", display = display.data_window)
-plot(_strictly_higher(TF_4H) ? 1 : 0, "R5 4h Relation Valid", display = display.data_window)
-plot(raw_15m.available ? 1 : 0, "R5 Raw Probe Enabled", display = display.data_window)
+plot(inspected_confirmed ? 1 : 0, "R5 Source Confirmed", display = display.data_window)
+plot(inspected_open_ms / 1000, "R5 Source Open Epoch", display = display.data_window)
+plot(inspected_close_ms / 1000, "R5 Source Close Epoch", display = display.data_window)
+plot(inspected_structure, "R5 Structure Trend", display = display.data_window)
+plot(inspected_bias, "R5 Context Bias", display = display.data_window)
+plot(inspected_domains, "R5 Available Domains", display = display.data_window)
+plot(inspected_quality, "R5 Quality Score", display = display.data_window)
+plot(inspected_session, "R5 Session Code", display = display.data_window)
+plot(relation_15m ? 1 : 0, "R5 15m Relation Valid", display = display.data_window)
+plot(relation_1h ? 1 : 0, "R5 1h Relation Valid", display = display.data_window)
+plot(relation_4h ? 1 : 0, "R5 4h Relation Valid", display = display.data_window)
+plot(raw_available ? 1 : 0, "R5 Raw Probe Enabled", display = display.data_window)
 plot(raw_differs ? 1 : 0, "R5 Raw Differs From Confirmed", display = display.data_window)

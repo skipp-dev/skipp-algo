@@ -31,7 +31,7 @@ class SpikeCase:
 CASES: tuple[SpikeCase, ...] = (
     SpikeCase(
         "R5-HTF-01",
-        "private fixture compiles with ContextFrame builder in request.security",
+        "private fixture compiles with stateless HTF fallback in request.security",
         "compile",
         "5",
         "15",
@@ -241,13 +241,24 @@ def build_manifest() -> dict[str, object]:
         "gate": "R5-HTF-SPIKE",
         "gateStatus": "partial",
         "surfaceClass": "test_only_not_managed_not_publishable",
+        "statusSemantics": (
+            "Per-case tradingViewStatus values preserve the preregistered "
+            "baseline. Actual private runtime outcomes are recorded in "
+            "resultEvidence."
+        ),
+        "resultEvidence": (
+            "artifacts/governance/"
+            "smc_htf_context_r5_spike_tradingview_2026-07-30.json"
+        ),
         "fixture": {
             "path": FIXTURE.relative_to(ROOT).as_posix(),
             "scriptName": "SMC HTF Context R5 Spike TEST ONLY",
             "sha256": _sha256(FIXTURE),
-            "publishedContextLibrary": (
+            "implementation": "compact_stateless_htf_tuple_fallback",
+            "rejectedDirectLibrary": (
                 "preuss_steffen/smc_context_engine_private/4"
             ),
+            "directCompileFailure": "CE10061",
         },
         "semantics": {
             "acceptedConfirmedPattern": (
@@ -294,10 +305,18 @@ def build_manifest() -> dict[str, object]:
             "Restore the previous chart state after the spike.",
         ],
         "openGates": [
-            "Private TradingView compile is pending.",
-            "Fifteen-case replay/live-observation matrix is pending.",
-            "Pine Profiler and memory/runtime evidence is pending.",
-            "The direct-stateful versus dedicated-stateless implementation decision is pending.",
+            (
+                "Observe confirmed-versus-raw behavior during a live open "
+                "NASDAQ regular-session 15-minute bar."
+            ),
+            (
+                "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in "
+                "TradingView history."
+            ),
+            (
+                "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in "
+                "TradingView history."
+            ),
         ],
         "references": [
             "https://www.tradingview.com/pine-script-docs/concepts/repainting/",

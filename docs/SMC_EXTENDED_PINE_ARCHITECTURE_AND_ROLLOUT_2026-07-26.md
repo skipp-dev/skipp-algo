@@ -1305,16 +1305,20 @@ current consumers remain untouched.
 
 ### Phase R5 — Rebuild HTF Confluence and Session
 
-Repository implementation status on 2026-07-30: the test-only technical-spike
-source, generated 15-case manifest, DST matrix, and operator runbook exist.
-The spike executes the published private Context Engine `/4` inside requested
-contexts but transports only a compact primitive projection. It tests 15m, 1h,
-4h, lower/equal timeframe rejection, regular and extended data, the independent
-US/European DST transition gaps, realtime repaint behavior, and profiler
-budgets. No Pine compilation or runtime result is claimed by the repository
-tests. `R5-HTF-SPIKE` remains partial until the private TradingView compile,
-15-case execution, profiler capture, and implementation decision are recorded.
-The known-broken snapshot consumers remain unchanged.
+Repository implementation status on 2026-07-30: the first private TradingView
+compile rejected the published Context Engine `/4` inside `request.security`
+with `CE10061` because its collection-backed builders have side effects. This
+is the pre-registered condition for choosing the dedicated compact stateless
+HTF calculation layer. The fallback test-only source, generated 15-case
+manifest, DST matrix, and operator runbook test 15m, 1h, 4h, lower/equal
+timeframe rejection, regular and extended data, the independent US/European
+DST transition gaps, realtime repaint behavior, and profiler budgets.
+The fallback compiled privately and passed 12 of 15 cases with profiler,
+request-site, drawing-object, memory, and runtime-error evidence recorded in
+`smc_htf_context_r5_spike_tradingview_2026-07-30.json`. `R5-HTF-SPIKE`
+remains partial only for the live regular-session repaint observation and the
+two future autumn DST checkpoints on 2026-10-26 and 2026-11-02. The
+known-broken snapshot consumers remain unchanged.
 
 #### HTF technical spike
 

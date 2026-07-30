@@ -268,12 +268,15 @@
           "evidence": [
             "tests/fixtures/pine/smc_htf_context_r5_spike.pine",
             "artifacts/governance/smc_htf_context_r5_spike_manifest.json",
+            "artifacts/governance/smc_htf_context_r5_spike_tradingview_2026-07-30.json",
             "scripts/smc_htf_context_r5_spike_manifest.py",
             "tests/test_smc_htf_context_r5_spike.py",
             "docs/SMC_HTF_CONTEXT_R5_SPIKE_RUNBOOK.md"
           ],
           "openGates": [
-            "Compile the private R5 fixture, execute the fifteen-case matrix, capture profiler/runtime evidence, and record the direct-stateful versus dedicated-stateless implementation decision before replacing the snapshot implementation."
+            "Observe confirmed-versus-raw behavior during a live open NASDAQ regular-session 15-minute bar.",
+            "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in TradingView history.",
+            "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in TradingView history."
           ]
         },
         {
