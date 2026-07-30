@@ -164,8 +164,9 @@ do not use the removed per-symbol snapshot fields.
 
 Repository implementation of the four R3 frames, golden rule parity, explicit
 Pine-only detection semantics, and deterministic repository replay vectors was
-completed on 2026-07-28. The operational R3 gate remains open until TradingView
-compiles and replays the complete private library.
+completed on 2026-07-28. The operational R3 gate completed on 2026-07-29 after
+the private library compiled, version `/4` was privately published, and all
+fifteen registered TradingView replay cases passed at their exact checkpoints.
 
 The following later surfaces are not yet complete:
 
@@ -1208,12 +1209,10 @@ Signal Simple mode without changing Suite or Engine BUS v2.
 
 ### Phase R3 — Complete Context Engine Library
 
-Repository implementation status on 2026-07-28: the complete seven-frame
-library, golden scoring parity, Pine-only detection specification, and
-deterministic repository replay vectors are implemented. The phase remains
-`in_progress`: TradingView compile/runtime replay and immutable private-library
-publication evidence are still open and may not be inferred from repository
-tests.
+Repository implementation status on 2026-07-29: the complete seven-frame
+library, golden scoring parity, Pine-only detection specification,
+deterministic repository replay vectors, private TradingView compile, private
+library publication, and runtime replay are complete.
 
 On 2026-07-29 the runtime gate received a generated, source-derived Pine
 fixture. It converts the complete canonical library source into a test-only
@@ -1221,10 +1220,23 @@ indicator and drives private injected-input seams shared by the live Sweep,
 Pool, Session, and aggregate Context builders. Its fifteen cases and exact
 checkpoints are pinned in
 `artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json`.
-The fixture is not a managed surface, must never be published, and does not
-close the gate until its exact source hash compiles and the redacted cases run
-in TradingView. Cross-DST runtime behavior remains owned by the later R5
-HTF/session spike.
+The fixture is not a managed surface and must never be published. The private
+library source hash
+`16d0fc5ae7255d9970c4b9b50a85debb82168121426140a50a6a1c6e7f55b210`
+compiled and was published only as `preuss_steffen/smc_context_engine_private/4`.
+The subsequent update dialog offered `v5`, independently confirming that `/4`
+is the current published predecessor. The non-publishable fixture hash
+`2ff1811ff43c3bc92de91982a095d9d3628bd45d2d1a60c8d3fb7ee643d3fec2`
+then compiled in `SMC Context Engine R3 Validation` on `NASDAQ:AAPL` 5m. All
+fifteen cases returned `FIXTURE PASS = 1` at their registered checkpoints,
+including the step-22 freshness expiry. Replay was exited, the fixture was
+removed, the private library was restored in the editor and chart, the
+Watchlist panel was restored, and the layout was saved. Redacted evidence is
+retained in
+`artifacts/governance/smc_context_engine_tradingview_replay_2026-07-29.json`.
+No public publication, alert, Railway mutation, or managed-layout rollout
+occurred. R3-REMAINING-FRAMES and R3-PUBLISH are complete; R5 still owns
+cross-DST runtime replay.
 
 #### Changes
 

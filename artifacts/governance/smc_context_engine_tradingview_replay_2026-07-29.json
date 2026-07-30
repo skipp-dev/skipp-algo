@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-07-29T21:59:55Z",
+  "scope": "Authorized private TradingView compile, smc_context_engine_private /4 publication, and fifteen-case R3 runtime replay; no public publication, alerts, Railway changes, or managed-layout rollout",
+  "canonicalLibrary": {
+    "path": "SMC++/smc_context_engine_private.pine",
+    "sha256": "16d0fc5ae7255d9970c4b9b50a85debb82168121426140a50a6a1c6e7f55b210",
+    "savedScript": "smc_context_engine_private",
+    "visibility": "private",
+    "compileStatus": "passed",
+    "compileDiagnostics": [],
+    "predecessorVersion": 3,
+    "publishedVersion": 4,
+    "postPublishNextOfferedVersion": 5,
+    "description": "Private confirmed-bar context frames for structure, imbalance, zones, sweeps, liquidity pools, sessions, and aggregate context.",
+    "sourceHashEvidence": "Pinned local source, saved TradingView editor revision, successful compile, private v4 publish, and subsequent v5 offer. TradingView did not expose a full independent saved-source readback."
+  },
+  "fixture": {
+    "path": "tests/fixtures/pine/smc_context_engine_r3_fixture.pine",
+    "sha256": "2ff1811ff43c3bc92de91982a095d9d3628bd45d2d1a60c8d3fb7ee643d3fec2",
+    "savedScript": "SMC Context Engine R3 Fixture TEST ONLY",
+    "visibility": "private",
+    "publicationStatus": "not_published",
+    "compileStatus": "passed",
+    "compileDiagnostics": [],
+    "sourceTransferSha256": "2ff1811ff43c3bc92de91982a095d9d3628bd45d2d1a60c8d3fb7ee643d3fec2",
+    "sourceReadbackStatus": "not_independently_verified"
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Context Engine R3 Validation",
+    "symbol": "NASDAQ:AAPL",
+    "timeframe": "5m",
+    "fixtureAnchorUtc": "2026-07-20T13:30:00Z",
+    "replayStartedBeforeFixtureAnchor": true,
+    "logicalCasesExecuted": 15,
+    "canonicalChartStateRestored": true,
+    "canonicalStateAfterRestore": {
+      "symbol": "NASDAQ:AAPL",
+      "timeframe": "5m",
+      "replayActive": false,
+      "fixtureOnChart": false,
+      "canonicalLibraryOnChart": true,
+      "editorSavedScript": "smc_context_engine_private",
+      "rightPanel": "Watchlist, details, and news",
+      "layoutSaved": true
+    }
+  },
+  "results": {
+    "status": "passed",
+    "passedLogicalCases": 15,
+    "failedLogicalCases": 0,
+    "cases": [
+      {
+        "caseId": "R3-SWEEP-01",
+        "checkpointStep": 1,
+        "chartTimeLocal": "2026-07-20T15:35:00+02:00",
+        "observedValues": [1, 1, 1, 0, 5],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SWEEP-02",
+        "checkpointStep": 2,
+        "chartTimeLocal": "2026-07-20T15:40:00+02:00",
+        "observedValues": [1, 1, 1, 1, 5],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SWEEP-03",
+        "checkpointStep": 2,
+        "chartTimeLocal": "2026-07-20T15:40:00+02:00",
+        "observedValues": [1, 3, 1, 1, 3],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SWEEP-04",
+        "checkpointStep": 22,
+        "chartTimeLocal": "2026-07-20T17:20:00+02:00",
+        "observedValues": [0, 0, 0, 21, 0],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SWEEP-05",
+        "checkpointStep": 1,
+        "chartTimeLocal": "2026-07-20T15:35:00+02:00",
+        "observedValues": [0, 1, 1, 0, 5],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-POOL-01",
+        "checkpointStep": 3,
+        "chartTimeLocal": "2026-07-20T15:45:00+02:00",
+        "observedValues": [3, 3, 1, 1, 5],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-POOL-02",
+        "checkpointStep": 4,
+        "chartTimeLocal": "2026-07-20T15:50:00+02:00",
+        "observedValues": [0, 1, 0, -1, 2],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SESSION-01",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [1, 1, 0, 2, 0],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SESSION-02",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [2, 1, 0, 2, 0],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SESSION-03",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [3, 1, 1, 6, 1],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SESSION-04",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [4, 0, -1, 6, -1],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-SESSION-05",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [0, 0, 0, 0, 0],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-CONTEXT-01",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [1, 3, 3, 93, null],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-CONTEXT-02",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [0, 0, 2, 75, null],
+        "fixturePass": 1,
+        "status": "passed"
+      },
+      {
+        "caseId": "R3-CONTEXT-03",
+        "checkpointStep": 0,
+        "chartTimeLocal": "2026-07-20T15:30:00+02:00",
+        "observedValues": [-1, -3, 3, 100, null],
+        "fixturePass": 1,
+        "status": "passed"
+      }
+    ],
+    "failures": []
+  },
+  "diagnosticValueOrder": {
+    "sweep": ["direction", "sweepType", "reclaimActive", "barsSinceEvent", "qualityScore"],
+    "pool": ["buySideStrength", "clusterDensity", "untestedBuyPools", "magnetDirection", "qualityScore"],
+    "session": ["sessionCode", "inKillzone", "directionBias", "contextScore", "mssDirection"],
+    "context": ["bias", "directionalScore", "availableDomains", "qualityScore", "unused"]
+  },
+  "limitations": [
+    "The private test script is a source-derived fixture and is not a published library consumer.",
+    "The fixture proves the registered Pine detector/scorer seams at exact replay checkpoints; it does not prove a future Context BUS consumer.",
+    "IANA cross-DST runtime replay remains owned by the separate R5 HTF/session gate."
+  ]
+}

@@ -10,6 +10,7 @@ import {
   discoverLibraryDataAsOf,
   discoverConsumerPins,
   parseLibraryDataAsOf,
+  parseLibraryDeclaration,
   parseLibraryPayloadVolume,
   parseImportPins,
   type ConsumerPin,
@@ -43,6 +44,14 @@ test("parseImportPins ignores non-preuss imports and lines without a pin", () =>
     "plot(close)",
   ].join("\n");
   assert.deepEqual(parseImportPins(src, "f.pine"), []);
+});
+
+test("parseLibraryDeclaration extracts a repo-owned library without requiring a consumer", () => {
+  assert.equal(
+    parseLibraryDeclaration('//@version=6\nlibrary("smc_context_engine_private", overlay = false)\n'),
+    "smc_context_engine_private",
+  );
+  assert.equal(parseLibraryDeclaration('indicator("not a library")\n'), null);
 });
 
 test("parseLibraryDataAsOf accepts only a valid exported ISO date", () => {
@@ -118,15 +127,24 @@ test("discoverConsumerPins walks .pine files and skips excluded dirs", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pinever-"));
   try {
     fs.writeFileSync(path.join(root, "Consumer.pine"), "import preuss_steffen/smc_utils/1 as u\n");
+    fs.writeFileSync(
+      path.join(root, "OrphanLibrary.pine"),
+      'library("smc_context_engine_private", overlay = false)\n',
+    );
     fs.mkdirSync(path.join(root, "tests"));
     fs.writeFileSync(path.join(root, "tests", "Fixture.pine"), "import preuss_steffen/smc_utils/99 as u\n");
     fs.mkdirSync(path.join(root, "pine", "generated"), { recursive: true });
     fs.writeFileSync(path.join(root, "pine", "generated", "Gen.pine"), "import preuss_steffen/smc_utils/42 as u\n");
 
     const byLib = discoverConsumerPins(root);
-    assert.deepEqual([...byLib.keys()], ["smc_utils"]);
+    assert.deepEqual([...byLib.keys()].sort(), ["smc_context_engine_private", "smc_utils"]);
     // Only the root consumer counts — tests/ and pine/ are excluded.
     assert.deepEqual(byLib.get("smc_utils")!.map((p) => [p.file, p.pinnedVersion]), [["Consumer.pine", 1]]);
+    assert.deepEqual(
+      byLib.get("smc_context_engine_private"),
+      [],
+      "a declared library with no consumer must still be monitored",
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

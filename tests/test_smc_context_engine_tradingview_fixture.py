@@ -17,6 +17,12 @@ from scripts.generate_smc_context_engine_tv_fixture import (
 ROOT = Path(__file__).resolve().parents[1]
 ROLLOUT = ROOT / "automation" / "tradingview" / "config" / "consumer-rollout.json"
 TRACE = ROOT / "artifacts" / "governance" / "pine_extended_migration_traceability.json"
+EVIDENCE = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_context_engine_tradingview_replay_2026-07-29.json"
+)
 
 
 def _trace_requirement(requirement_id: str) -> dict:
@@ -62,7 +68,7 @@ def test_live_builders_and_fixture_share_the_private_runtime_seams() -> None:
     assert "_build_sweep_from_inputs(high, low, close, volume" in source
     assert "_build_pool_from_inputs(high, low, close, pivot_high, pivot_low" in source
     assert "_build_session_from_inputs(structure, imbalance, time, high, low" in source
-    assert "_aggregate_context(structure, imbalance, zone, sweep, pool, session)" in source
+    assert "_aggregate_context(structure, imbalance, zone, sweep, pool, session_frame)" in source
 
 
 def test_manifest_covers_all_required_runtime_domains() -> None:
@@ -92,15 +98,38 @@ def test_fixture_is_not_a_managed_or_publishable_surface() -> None:
     assert "DO NOT PUBLISH" in fixture
 
 
-def test_traceability_registers_fixture_without_closing_tv_gate() -> None:
+def test_private_tradingview_evidence_closes_the_r3_gate() -> None:
+    evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
+    cases = evidence["results"]["cases"]
+
+    assert evidence["canonicalLibrary"]["publishedVersion"] == 4
+    assert evidence["canonicalLibrary"]["postPublishNextOfferedVersion"] == 5
+    assert evidence["canonicalLibrary"]["compileStatus"] == "passed"
+    assert evidence["fixture"]["publicationStatus"] == "not_published"
+    assert evidence["fixture"]["compileStatus"] == "passed"
+    assert evidence["results"]["status"] == "passed"
+    assert evidence["results"]["passedLogicalCases"] == len(cases) == 15
+    assert evidence["results"]["failedLogicalCases"] == 0
+    assert {case["caseId"] for case in cases} == {
+        runtime_case.case_id for runtime_case in CASES
+    }
+    assert all(case["status"] == "passed" for case in cases)
+    assert all(case["fixturePass"] == 1 for case in cases)
+    assert evidence["tradingView"]["canonicalChartStateRestored"] is True
+
     requirement = _trace_requirement("R3-REMAINING-FRAMES")
+    publish = _trace_requirement("R3-PUBLISH")
 
     for path in (
         "scripts/generate_smc_context_engine_tv_fixture.py",
         "tests/fixtures/pine/smc_context_engine_r3_fixture.pine",
         "artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json",
+        EVIDENCE.relative_to(ROOT).as_posix(),
         "tests/test_smc_context_engine_tradingview_fixture.py",
     ):
         assert path in requirement["evidence"]
-    assert requirement["status"] == "partial"
-    assert requirement["openGates"]
+    assert requirement["status"] == "complete"
+    assert requirement["openGates"] == []
+    assert publish["status"] == "complete"
+    assert publish["openGates"] == []
+    assert EVIDENCE.relative_to(ROOT).as_posix() in publish["evidence"]
