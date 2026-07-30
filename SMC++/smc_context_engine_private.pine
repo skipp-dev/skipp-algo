@@ -804,6 +804,6 @@ export build_context_frame(simple int swing_len = 50, simple int fresh_max_bars 
     ImbalanceFrame imbalance = build_imbalance_frame(fvg_size_threshold)
     SweepFrame sweep = build_sweep_frame(sweep_pivot_len, sweep_volume_len, fresh_max_bars)
     PoolFrame pool = build_pool_frame(pool_pivot_len, pool_tolerance_pct, pool_max_levels)
-    SessionFrame session = build_session_frame(structure, imbalance)
+    SessionFrame session_frame = build_session_frame(structure, imbalance)
 
-    _aggregate_context(structure, imbalance, zone, sweep, pool, session)
+    _aggregate_context(structure, imbalance, zone, sweep, pool, session_frame)

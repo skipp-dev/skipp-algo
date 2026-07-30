@@ -23,6 +23,7 @@ const HAND_AUTHORED_PUBLISHERS = [
   "observability",
   "context_resolvers",
   "profile_engine",
+  "context_engine",
 ];
 
 for (const name of HAND_AUTHORED_PUBLISHERS) {

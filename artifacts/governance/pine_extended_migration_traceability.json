@@ -184,7 +184,7 @@
     {
       "id": "R3",
       "name": "Complete Context Engine Library",
-      "status": "in_progress",
+      "status": "complete",
       "requirements": [
         {
           "id": "R3-BASE-FRAMES",
@@ -200,7 +200,7 @@
         {
           "id": "R3-REMAINING-FRAMES",
           "description": "Sweep, Pool, Session, and aggregate Context frames are implemented with parity evidence.",
-          "status": "partial",
+          "status": "complete",
           "evidence": [
             "SMC++/smc_context_engine_private.pine",
             "docs/smc-context-semantics.md",
@@ -214,22 +214,20 @@
             "tests/fixtures/smc_context_golden.json",
             "tests/fixtures/smc_context_detection_replay.json",
             "tests/fixtures/pine/smc_context_engine_r3_fixture.pine",
-            "artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json"
+            "artifacts/governance/smc_context_engine_tradingview_fixture_manifest.json",
+            "artifacts/governance/smc_context_engine_tradingview_replay_2026-07-29.json"
           ],
-          "openGates": [
-            "All four repository frames, Python-golden rule parity, Pine-only detection semantics, deterministic replay vectors, and the source-derived fifteen-case private Pine runtime fixture are implemented. TradingView compile and redacted Pine runtime replay remain required before this gate can be complete."
-          ]
+          "openGates": []
         },
         {
           "id": "R3-PUBLISH",
           "description": "The complete library compiles, is published in dependency order, and has immutable version/facade evidence.",
-          "status": "partial",
+          "status": "complete",
           "evidence": [
-            "scripts/tv_publish_context_engine_library.ts"
+            "scripts/tv_publish_context_engine_library.ts",
+            "artifacts/governance/smc_context_engine_tradingview_replay_2026-07-29.json"
           ],
-          "openGates": [
-            "Current repository contains a publisher but no immutable evidence for a complete R3 library."
-          ]
+          "openGates": []
         }
       ]
     },

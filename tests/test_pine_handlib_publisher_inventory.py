@@ -208,6 +208,29 @@ def test_engine_publisher_requires_exact_facade_version() -> None:
     assert "exactVersionVerified = true;" not in text
 
 
+def test_context_engine_publisher_preflights_and_verifies_exact_versions() -> None:
+    """An intended /3 publish must abort before mutation when TV is already /3."""
+    publisher = (
+        REPO_ROOT / "scripts" / "tv_publish_context_engine_library.ts"
+    ).read_text(encoding="utf-8")
+
+    assert 'getFlag("--expected-current-version", "2")' in publisher
+    auth_probe = publisher.index(
+        "const pageAuthState = await collectTradingViewPageAuthState"
+    )
+    preflight = publisher.index(
+        "preflightPublishedVersion = await fetchPublishedLibraryVersionViaFacade"
+    )
+    editor_mutation = publisher.index("await setEditorContent(session.page, code)")
+    assert auth_probe < preflight < editor_mutation
+    assert "if (!pageAuthenticated)" in publisher
+    assert "rejected the configured auth source as anonymous" in publisher
+    assert "preflightPublishedVersion === details.expectedCurrentVersion" in publisher
+    assert "No editor or publish mutation was attempted." in publisher
+    assert "exactVersionVerified = facadeVersion === details.version;" in publisher
+    assert "exactVersionVerified = true;" not in publisher
+
+
 def test_engine_publisher_rejects_incoherent_publish_identity() -> None:
     """The expected version must be integral and match the consumer import."""
     text = ENGINE_PUBLISHER.read_text(encoding="utf-8")

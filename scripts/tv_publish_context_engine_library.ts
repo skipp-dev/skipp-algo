@@ -10,6 +10,7 @@ import {
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   collectPublishedVersionContextTexts,
+  collectTradingViewPageAuthState,
   ensurePineEditor,
   fetchPublishedLibraryVersionViaFacade,
   gotoChart,
@@ -39,6 +40,7 @@ type CliArgs = {
   importPath: string;
   alias: string;
   version: number;
+  expectedCurrentVersion: number;
   description: string;
   out: string;
   openExisting: boolean;
@@ -52,6 +54,7 @@ type ContractDetails = {
   importPath: string;
   alias: string;
   version: number;
+  expectedCurrentVersion: number;
 };
 
 type PublishContextEngineReport = {
@@ -69,6 +72,10 @@ type PublishContextEngineReport = {
   versionVerificationMode: VersionVerificationMode;
   expectedImportPath: string;
   expectedVersion: number;
+  expectedCurrentVersion: number;
+  pageAuthenticated: boolean;
+  preflightPublishedVersion: number | null;
+  preflightVersionOk: boolean;
   publishedVersion: number | null;
   fallbackPublishedVersion: number | null;
   noChangeDetected: boolean;
@@ -102,6 +109,7 @@ function parseArgs(): CliArgs {
     importPath: getFlag("--import-path", "preuss_steffen/smc_context_engine_private/3"),
     alias: getFlag("--alias", "cx"),
     version: Number(getFlag("--version", "3")),
+    expectedCurrentVersion: Number(getFlag("--expected-current-version", "2")),
     description: getFlag(
       "--description",
       "Private confirmed-bar context frames for structure, imbalance, zones, sweeps, liquidity pools, sessions, and aggregate context.",
@@ -209,8 +217,18 @@ function verifyContextEnginePublishContract(cli: CliArgs): ContractDetails {
         `${cli.scriptName}/${cli.version} (${expectedImportLine}), but ${detail}`,
     );
   }
-  if (!Number.isFinite(cli.version) || cli.version < 1) {
+  if (!Number.isInteger(cli.version) || cli.version < 1) {
     throw new Error(`Context engine library version must be a positive integer, received: ${cli.version}`);
+  }
+  if (!Number.isInteger(cli.expectedCurrentVersion) || cli.expectedCurrentVersion < 1) {
+    throw new Error(
+      `Expected current context engine library version must be a positive integer, received: ${cli.expectedCurrentVersion}`,
+    );
+  }
+  if (cli.expectedCurrentVersion !== cli.version - 1) {
+    throw new Error(
+      `Context engine publish must advance exactly one version: expected_current=${cli.expectedCurrentVersion}, target=${cli.version}`,
+    );
   }
 
   return {
@@ -220,6 +238,7 @@ function verifyContextEnginePublishContract(cli: CliArgs): ContractDetails {
     importPath: cli.importPath,
     alias: cli.alias,
     version: cli.version,
+    expectedCurrentVersion: cli.expectedCurrentVersion,
   };
 }
 
@@ -235,6 +254,9 @@ export async function runPublishContextEngineLibraryCli(): Promise<number> {
   let publishedScriptVerified = false;
   let identityVerificationMode: IdentityVerificationMode = "not_verified";
   let versionVerificationMode: VersionVerificationMode = "not_verified";
+  let pageAuthenticated = false;
+  let preflightPublishedVersion: number | null = null;
+  let preflightVersionOk = false;
   let publishedVersion: number | null = null;
   let fallbackPublishedVersion: number | null = null;
   let noChangeDetected = false;
@@ -251,6 +273,31 @@ export async function runPublishContextEngineLibraryCli(): Promise<number> {
       }
 
       await gotoChart(session.page);
+      const pageAuthState = await collectTradingViewPageAuthState(session.page);
+      pageAuthenticated = pageAuthState.authenticated;
+      if (!pageAuthenticated) {
+        throw new Error(
+          "TradingView rejected the configured auth source as anonymous. " +
+            "Refresh TV_STORAGE_STATE or use an authenticated persistent profile before publishing.",
+        );
+      }
+
+      // Fail closed before touching the editor. A stale operator assumption
+      // about the current published version must never turn an intended /3
+      // publish into /4 (or overwrite a newer private release).
+      preflightPublishedVersion = await fetchPublishedLibraryVersionViaFacade(
+        session.page,
+        details.scriptName,
+      ).catch(() => null);
+      preflightVersionOk = preflightPublishedVersion === details.expectedCurrentVersion;
+      if (!preflightVersionOk) {
+        throw new Error(
+          `Context engine publish predecessor mismatch: expected_current=${details.expectedCurrentVersion}, ` +
+            `detected_current=${preflightPublishedVersion ?? "unknown"}, target=${details.version}. ` +
+            "No editor or publish mutation was attempted.",
+        );
+      }
+
       await ensurePineEditor(session.page);
 
       if (cli.openExisting) {
@@ -412,7 +459,7 @@ export async function runPublishContextEngineLibraryCli(): Promise<number> {
       if (facadeVersion !== null) {
         publishedVersion = facadeVersion;
         versionVerificationMode = "facade_list";
-        exactVersionVerified = true;
+        exactVersionVerified = facadeVersion === details.version;
       }
 
       if (!exactScriptVerified || !exactVersionVerified) {
@@ -439,6 +486,10 @@ export async function runPublishContextEngineLibraryCli(): Promise<number> {
       versionVerificationMode,
       expectedImportPath: details.importPath,
       expectedVersion: details.version,
+      expectedCurrentVersion: details.expectedCurrentVersion,
+      pageAuthenticated,
+      preflightPublishedVersion,
+      preflightVersionOk,
       publishedVersion,
       fallbackPublishedVersion,
       noChangeDetected,
@@ -468,6 +519,10 @@ export async function runPublishContextEngineLibraryCli(): Promise<number> {
       versionVerificationMode,
       expectedImportPath: details?.importPath ?? cli.importPath,
       expectedVersion: details?.version ?? cli.version,
+      expectedCurrentVersion: details?.expectedCurrentVersion ?? cli.expectedCurrentVersion,
+      pageAuthenticated,
+      preflightPublishedVersion,
+      preflightVersionOk,
       publishedVersion,
       fallbackPublishedVersion,
       noChangeDetected,

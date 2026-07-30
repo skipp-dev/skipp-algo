@@ -12,8 +12,9 @@
  *
  * This builder is the PRODUCER half of the monitoring layer (mirrors
  * `scripts/build_evidence_freshness_snapshot.py`). It:
- *   1. discovers every `import preuss_steffen/<lib>/<N>` pin in the repo's
- *      `.pine` files (root consumers + inter-library imports),
+ *   1. discovers every repo-owned `library("<name>")` declaration and every
+ *      `import preuss_steffen/<lib>/<N>` pin in the repo's `.pine` files
+ *      (root consumers + inter-library imports),
  *   2. probes each distinct library's REAL published version via the
  *      pine-facade `filter=published` listing
  *      (`fetchPublishedLibraryVersionViaFacade` — the #3603-corrected source;
@@ -81,6 +82,7 @@ export type PineLibraryVersionSnapshot = {
 
 const OWNER_PREFIX = "preuss_steffen";
 const PIN_RE = new RegExp(`import\\s+${OWNER_PREFIX}\\/([A-Za-z0-9_]+)\\/(\\d+)`, "g");
+const LIBRARY_DECL_RE = /^\s*library\(\s*"([A-Za-z0-9_]+)"/m;
 const ASOF_DATE_RE = /export\s+const\s+string\s+ASOF_DATE\s*=\s*"(\d{4}-\d{2}-\d{2})"/;
 
 /** Directories that hold fixtures / generated snapshots / vendored code — never live consumer pins. */
@@ -100,6 +102,11 @@ export function parseImportPins(pineText: string, file: string): ConsumerPin[] {
     }
   }
   return pins;
+}
+
+/** Extract a repo-owned Pine library declaration, if this source has one. */
+export function parseLibraryDeclaration(pineText: string): string | null {
+  return LIBRARY_DECL_RE.exec(pineText)?.[1] ?? null;
 }
 
 /** Recursively collect `.pine` files under `root`, skipping excluded directories. */
@@ -128,7 +135,9 @@ function collectPineFiles(root: string): string[] {
 }
 
 /**
- * Discover all consumer pins in the repo, grouped by library name. Paths are
+ * Discover all repo-owned libraries and consumer pins, grouped by library
+ * name. Declared libraries are seeded even when they have zero consumers so a
+ * bootstrap library cannot disappear from version monitoring. Paths are
  * repo-relative so the snapshot is host-independent.
  */
 export function discoverConsumerPins(root: string): Map<string, ConsumerPin[]> {
@@ -136,6 +145,10 @@ export function discoverConsumerPins(root: string): Map<string, ConsumerPin[]> {
   for (const absFile of collectPineFiles(root)) {
     const rel = path.relative(root, absFile);
     const text = fs.readFileSync(absFile, "utf-8");
+    const declaredLibrary = parseLibraryDeclaration(text);
+    if (declaredLibrary && !byLibrary.has(declaredLibrary)) {
+      byLibrary.set(declaredLibrary, []);
+    }
     for (const pin of parseImportPins(text, rel)) {
       const list = byLibrary.get(pin.library) ?? [];
       list.push(pin);

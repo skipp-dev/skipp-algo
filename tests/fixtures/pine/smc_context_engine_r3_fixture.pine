@@ -17,7 +17,7 @@
 // and build_context_frame() composes all six domains without running a second
 // structure detector for the dependent ZoneFrame.
 indicator("SMC Context Engine R3 Fixture TEST ONLY", overlay = false)
-// Canonical source SHA-256: b42ffbd99e60b2f5055ec980899ef38f3ca7338974ce5932c034af7f89eaebb9
+// Canonical source SHA-256: 16d0fc5ae7255d9970c4b9b50a85debb82168121426140a50a6a1c6e7f55b210
 
 // Pine requires every library referenced by a *used* type's fields to be imported
 // (CE10293), and those libraries must come before the engine that pulls them into
@@ -805,9 +805,9 @@ build_context_frame(simple int swing_len = 50, simple int fresh_max_bars = 20, f
     ImbalanceFrame imbalance = build_imbalance_frame(fvg_size_threshold)
     SweepFrame sweep = build_sweep_frame(sweep_pivot_len, sweep_volume_len, fresh_max_bars)
     PoolFrame pool = build_pool_frame(pool_pivot_len, pool_tolerance_pct, pool_max_levels)
-    SessionFrame session = build_session_frame(structure, imbalance)
+    SessionFrame session_frame = build_session_frame(structure, imbalance)
 
-    _aggregate_context(structure, imbalance, zone, sweep, pool, session)
+    _aggregate_context(structure, imbalance, zone, sweep, pool, session_frame)
 
 // ── TEST-ONLY R3 RUNTIME FIXTURE ────────────────────────────────────────────
 // GENERATED FILE. DO NOT PUBLISH OR ADD TO A MANAGED PRODUCT LAYOUT.
