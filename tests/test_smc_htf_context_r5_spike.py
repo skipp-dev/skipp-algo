@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,11 @@ RUNBOOK = ROOT / "docs/SMC_HTF_CONTEXT_R5_SPIKE_RUNBOOK.md"
 EVIDENCE = (
     ROOT
     / "artifacts/governance/smc_htf_context_r5_spike_tradingview_2026-07-30.json"
+)
+TEMPORAL_EVIDENCE = (
+    ROOT
+    / "artifacts/governance/"
+    "smc_htf_context_r5_temporal_closeout_tradingview_2026-07-30.json"
 )
 
 
@@ -99,6 +105,51 @@ def test_historical_autumn_checkpoints_match_the_registered_zone_offsets() -> No
     assert after_us_fall.astimezone(berlin).isoformat() == (
         "2025-11-03T15:45:00+01:00"
     )
+
+
+def test_temporal_closeout_evidence_closes_all_three_cases_and_restores_chart() -> None:
+    evidence = json.loads(TEMPORAL_EVIDENCE.read_text(encoding="utf-8"))
+    expected_manifest_sha = hashlib.sha256(TEMPORAL_CLOSEOUT.read_bytes()).hexdigest()
+
+    assert evidence["manifest"]["sha256"] == expected_manifest_sha
+    assert evidence["results"]["status"] == "passed"
+    assert evidence["results"]["passedLogicalCases"] == 3
+    assert evidence["results"]["failedLogicalCases"] == 0
+    assert evidence["results"]["pendingLogicalCases"] == 0
+    by_id = {case["caseId"]: case for case in evidence["results"]["cases"]}
+    assert set(by_id) == {
+        "R5-HTF-08",
+        "R5-DST-04-HISTORICAL-EQUIVALENT",
+        "R5-DST-05-HISTORICAL-EQUIVALENT",
+    }
+    assert by_id["R5-HTF-08"]["observed"][
+        "confirmedSourceCloseStableUntilBoundary"
+    ] == 1
+    assert by_id["R5-HTF-08"]["observed"]["rawDiffersFromConfirmed"] == 1
+    assert by_id["R5-DST-04-HISTORICAL-EQUIVALENT"]["observed"] == {
+        "sourceOpenUtc": "2025-10-27T13:30:00Z",
+        "sourceCloseUtc": "2025-10-27T13:45:00Z",
+        "sessionCode": 3,
+        "sourceConfirmed": 1,
+        "publishEdge": 1,
+        "rawProbeEnabled": 0,
+    }
+    assert by_id["R5-DST-05-HISTORICAL-EQUIVALENT"]["observed"] == {
+        "sourceOpenUtc": "2025-11-03T14:30:00Z",
+        "sourceCloseUtc": "2025-11-03T14:45:00Z",
+        "sessionCode": 3,
+        "sourceConfirmed": 1,
+        "publishEdge": 1,
+        "rawProbeEnabled": 0,
+    }
+    assert evidence["gate"]["status"] == "complete"
+    restored = evidence["tradingView"]["canonicalStateAfterRestore"]
+    assert evidence["tradingView"]["canonicalChartStateRestored"] is True
+    assert restored["replayActive"] is False
+    assert restored["fixtureOnChart"] is False
+    assert restored["objectTreeAndDataWindowOpen"] is False
+    assert restored["layoutSaved"] is True
+    assert restored["reloadVerified"] is True
 
 
 def test_fixture_runs_the_stateless_fallback_inside_requests() -> None:
@@ -316,15 +367,14 @@ def test_partial_private_runtime_evidence_is_truthfully_scoped() -> None:
 def test_r5_traceability_points_to_the_executable_temporal_closeout() -> None:
     requirement = _requirement("R5-HTF-SPIKE")
 
-    assert requirement["status"] == "partial"
-    assert requirement["openGates"] == [
-        "Execute the three cases in smc_htf_context_r5_temporal_closeout_manifest.json: the live regular-session repaint observation and the two historical autumn DST equivalents.",
-    ]
+    assert requirement["status"] == "complete"
+    assert requirement["openGates"] == []
     for path in (
         FIXTURE.relative_to(ROOT).as_posix(),
         DEFAULT_OUTPUT.relative_to(ROOT).as_posix(),
         EVIDENCE.relative_to(ROOT).as_posix(),
         TEMPORAL_CLOSEOUT.relative_to(ROOT).as_posix(),
+        TEMPORAL_EVIDENCE.relative_to(ROOT).as_posix(),
         "scripts/smc_htf_context_r5_spike_manifest.py",
         "scripts/smc_htf_context_r5_temporal_closeout_manifest.py",
         "tests/test_smc_htf_context_r5_spike.py",

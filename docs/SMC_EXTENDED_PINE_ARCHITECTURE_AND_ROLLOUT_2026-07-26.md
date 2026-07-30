@@ -1321,14 +1321,16 @@ HTF calculation layer. The fallback test-only source, generated 15-case
 manifest, DST matrix, and operator runbook test 15m, 1h, 4h, lower/equal
 timeframe rejection, regular and extended data, the independent US/European
 DST transition gaps, realtime repaint behavior, and profiler budgets.
-The fallback compiled privately and passed 12 of 15 cases with profiler,
-request-site, drawing-object, memory, and runtime-error evidence recorded in
-`smc_htf_context_r5_spike_tradingview_2026-07-30.json`. `R5-HTF-SPIKE`
-remains partial only for the live regular-session repaint observation and the
-two historical autumn DST equivalents registered by the temporal closeout
-manifest. The matching 2026 checkpoints remain non-blocking revalidation
-targets rather than making the semantic gate wait for future bars. The
-known-broken snapshot consumers remain unchanged.
+The fallback compiled privately and passed all 15 cases. The initial 12-case
+run, profiler, request-site, drawing-object, memory, and runtime-error evidence
+are recorded in
+`smc_htf_context_r5_spike_tradingview_2026-07-30.json`. The live
+regular-session repaint observation and both historical autumn DST equivalents
+are recorded in
+`smc_htf_context_r5_temporal_closeout_tradingview_2026-07-30.json`.
+`R5-HTF-SPIKE` is complete. The matching 2026 checkpoints remain optional
+non-blocking revalidation targets. The known-broken snapshot consumers remain
+unchanged.
 
 #### HTF technical spike
 
