@@ -1,0 +1,141 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// R5 technical spike only. This script is not a managed product surface and
+// must never be published. It tests the private ContextFrame builder inside
+// request.security() before SMC_HTF_Confluence.pine is rebuilt.
+indicator(
+     "SMC HTF Context R5 Spike TEST ONLY",
+     overlay = false,
+     dynamic_requests = true)
+
+import preuss_steffen/smc_context_engine_private/4 as ctx
+
+const string TF_15M = "15"
+const string TF_1H = "60"
+const string TF_4H = "240"
+const int CALC_BARS = 1000
+
+var g_spike = "R5 HTF spike — TEST ONLY"
+string inspect_tf = input.string(
+     TF_15M,
+     "Inspect timeframe",
+     options = [TF_15M, TF_1H, TF_4H],
+     group = g_spike)
+bool show_raw_probe = input.bool(
+     false,
+     "Enable repaint comparison for 15m",
+     group = g_spike,
+     tooltip = "Diagnostic only. The lookahead_off arm may change during an open HTF bar and must never become a product input.")
+
+// A compact primitive projection is transported instead of the complete nested
+// ContextFrame object. The stateful canonical builder still executes inside the
+// requested context, while the request copies only the fields R5 needs to prove.
+// This keeps the spike honest about both semantics and memory risk.
+type HtfSnapshot
+    bool available
+    int source_open_ms
+    int source_close_ms
+    int structure_trend
+    int context_bias
+    int available_domains
+    int quality_score
+    int session_code
+    bool source_confirmed
+
+_empty_snapshot() =>
+    HtfSnapshot.new(false, na, na, 0, 0, 0, 0, 0, false)
+
+_current_snapshot() =>
+    ctx.ContextFrame frame = ctx.build_context_frame()
+    HtfSnapshot.new(
+         not na(time_close),
+         time,
+         time_close,
+         frame.structure.trend,
+         frame.bias,
+         frame.available_domains,
+         frame.quality_score,
+         frame.session.session_code,
+         barstate.isconfirmed)
+
+// TradingView's documented non-repainting HTF pattern is an expression offset
+// by one requested-context bar combined with lookahead_on. Offsetting each
+// primitive here avoids transporting the large nested ContextFrame object and
+// publishes only a closed HTF bar at the start of the following HTF interval.
+_confirmed_snapshot() =>
+    ctx.ContextFrame frame = ctx.build_context_frame()
+    HtfSnapshot.new(
+         not na(time_close[1]),
+         time[1],
+         time_close[1],
+         frame.structure.trend[1],
+         frame.bias[1],
+         frame.available_domains[1],
+         frame.quality_score[1],
+         frame.session.session_code[1],
+         barstate.isconfirmed[1])
+
+_strictly_higher(string requested_tf) =>
+    timeframe.in_seconds(requested_tf) > timeframe.in_seconds()
+
+_request_confirmed(string requested_tf) =>
+    HtfSnapshot result = _empty_snapshot()
+    if _strictly_higher(requested_tf)
+        result := request.security(
+             syminfo.tickerid,
+             requested_tf,
+             _confirmed_snapshot(),
+             gaps = barmerge.gaps_off,
+             lookahead = barmerge.lookahead_on,
+             calc_bars_count = CALC_BARS)
+    result
+
+// This arm exists only to expose the realtime difference. lookahead_off without
+// an offset can return the open HTF bar's changing state. It is intentionally
+// limited to 15m and disabled by default.
+_request_raw_15m(bool enabled) =>
+    HtfSnapshot result = _empty_snapshot()
+    if enabled and _strictly_higher(TF_15M)
+        result := request.security(
+             syminfo.tickerid,
+             TF_15M,
+             _current_snapshot(),
+             gaps = barmerge.gaps_off,
+             lookahead = barmerge.lookahead_off,
+             calc_bars_count = CALC_BARS)
+    result
+
+HtfSnapshot confirmed_15m = _request_confirmed(TF_15M)
+HtfSnapshot confirmed_1h = _request_confirmed(TF_1H)
+HtfSnapshot confirmed_4h = _request_confirmed(TF_4H)
+HtfSnapshot raw_15m = _request_raw_15m(show_raw_probe)
+
+HtfSnapshot inspected = inspect_tf == TF_15M ? confirmed_15m :
+     inspect_tf == TF_1H ? confirmed_1h : confirmed_4h
+
+bool publish_edge = inspected.available and ta.change(inspected.source_close_ms) != 0
+bool raw_differs = raw_15m.available and confirmed_15m.available and (
+     raw_15m.source_close_ms != confirmed_15m.source_close_ms or
+     raw_15m.structure_trend != confirmed_15m.structure_trend or
+     raw_15m.context_bias != confirmed_15m.context_bias or
+     raw_15m.session_code != confirmed_15m.session_code)
+
+// Data-window diagnostics. No labels, lines, boxes, alerts, or strategy effects.
+plot(inspected.available ? 1 : 0, "R5 Available", display = display.data_window)
+plot(publish_edge ? 1 : 0, "R5 Confirmed Publish Edge", display = display.data_window)
+plot(inspected.source_confirmed ? 1 : 0, "R5 Source Confirmed", display = display.data_window)
+plot(inspected.source_open_ms / 1000, "R5 Source Open Epoch", display = display.data_window)
+plot(inspected.source_close_ms / 1000, "R5 Source Close Epoch", display = display.data_window)
+plot(inspected.structure_trend, "R5 Structure Trend", display = display.data_window)
+plot(inspected.context_bias, "R5 Context Bias", display = display.data_window)
+plot(inspected.available_domains, "R5 Available Domains", display = display.data_window)
+plot(inspected.quality_score, "R5 Quality Score", display = display.data_window)
+plot(inspected.session_code, "R5 Session Code", display = display.data_window)
+plot(_strictly_higher(TF_15M) ? 1 : 0, "R5 15m Relation Valid", display = display.data_window)
+plot(_strictly_higher(TF_1H) ? 1 : 0, "R5 1h Relation Valid", display = display.data_window)
+plot(_strictly_higher(TF_4H) ? 1 : 0, "R5 4h Relation Valid", display = display.data_window)
+plot(raw_15m.available ? 1 : 0, "R5 Raw Probe Enabled", display = display.data_window)
+plot(raw_differs ? 1 : 0, "R5 Raw Differs From Confirmed", display = display.data_window)

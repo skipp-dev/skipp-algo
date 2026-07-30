@@ -259,15 +259,21 @@
     {
       "id": "R5",
       "name": "Rebuild HTF Confluence and Session",
-      "status": "not_started",
+      "status": "in_progress",
       "requirements": [
         {
           "id": "R5-HTF-SPIKE",
           "description": "The confirmed-bar request.security spike passes timeframe, session, DST, repaint, and performance cases.",
-          "status": "not_started",
-          "evidence": [],
+          "status": "partial",
+          "evidence": [
+            "tests/fixtures/pine/smc_htf_context_r5_spike.pine",
+            "artifacts/governance/smc_htf_context_r5_spike_manifest.json",
+            "scripts/smc_htf_context_r5_spike_manifest.py",
+            "tests/test_smc_htf_context_r5_spike.py",
+            "docs/SMC_HTF_CONTEXT_R5_SPIKE_RUNBOOK.md"
+          ],
           "openGates": [
-            "Run the R5 HTF technical spike before replacing the snapshot implementation."
+            "Compile the private R5 fixture, execute the fifteen-case matrix, capture profiler/runtime evidence, and record the direct-stateful versus dedicated-stateless implementation decision before replacing the snapshot implementation."
           ]
         },
         {

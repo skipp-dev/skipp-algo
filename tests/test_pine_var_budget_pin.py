@@ -126,10 +126,14 @@ _FROZEN_LEDGER: dict[str, int] = {
     # canonical context library's 40 persistent declarations, source-derived
     # without adding a second detector implementation.
     "tests/fixtures/pine/smc_context_engine_r3_fixture.pine": 40,
+    # 2026-07-30: R5 HTF spike uses one persistent input-group label. All
+    # requested ContextFrame state remains owned by the imported private /4
+    # library rather than duplicated in the fixture.
+    "tests/fixtures/pine/smc_htf_context_r5_spike.pine": 1,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1067  # 2026-07-29: +40 source-derived R3 runtime fixture.
+_TOTAL_BUDGET = 1068  # 2026-07-30: +1 test-only R5 HTF spike group label.
 
 
 def _iter_pine() -> list[Path]:
