@@ -123,8 +123,17 @@ These cases remain open:
 
 - `R5-HTF-08`: observe the diagnostic raw arm during a live open NASDAQ
   regular-session 15-minute bar;
-- `R5-DST-04`: replay after the 2026-10-26 checkpoint exists; and
-- `R5-DST-05`: replay after the 2026-11-02 checkpoint exists.
+- `R5-DST-04`: replay the historical equivalent at
+  `2025-10-27T13:45:00Z`; and
+- `R5-DST-05`: replay the historical equivalent at
+  `2025-11-03T14:45:00Z`.
+
+The executable closeout matrix is
+`artifacts/governance/smc_htf_context_r5_temporal_closeout_manifest.json`.
+The historical equivalents use the same `America/New_York` and
+`Europe/Berlin` offset relationships as the registered future checkpoints.
+The original 2026 checkpoints remain scheduled as non-blocking revalidation;
+they no longer force the semantic gate to wait for future bars.
 
 The private chart was restored to AAPL 5m, RTH, Europe/Berlin, replay off,
 profiler off, fixture removed, panels closed, and `All changes saved`.

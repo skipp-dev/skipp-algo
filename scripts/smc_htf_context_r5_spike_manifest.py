@@ -250,6 +250,10 @@ def build_manifest() -> dict[str, object]:
             "artifacts/governance/"
             "smc_htf_context_r5_spike_tradingview_2026-07-30.json"
         ),
+        "temporalCloseoutManifest": (
+            "artifacts/governance/"
+            "smc_htf_context_r5_temporal_closeout_manifest.json"
+        ),
         "fixture": {
             "path": FIXTURE.relative_to(ROOT).as_posix(),
             "scriptName": "SMC HTF Context R5 Spike TEST ONLY",
@@ -306,16 +310,8 @@ def build_manifest() -> dict[str, object]:
         ],
         "openGates": [
             (
-                "Observe confirmed-versus-raw behavior during a live open "
-                "NASDAQ regular-session 15-minute bar."
-            ),
-            (
-                "Replay R5-DST-04 after 2026-10-26T13:45:00Z exists in "
-                "TradingView history."
-            ),
-            (
-                "Replay R5-DST-05 after 2026-11-02T14:45:00Z exists in "
-                "TradingView history."
+                "Execute the live repaint observation and two historical "
+                "autumn DST equivalents registered in temporalCloseoutManifest."
             ),
         ],
         "references": [

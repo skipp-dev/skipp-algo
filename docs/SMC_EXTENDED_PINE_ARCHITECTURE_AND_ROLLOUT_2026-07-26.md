@@ -1325,7 +1325,9 @@ The fallback compiled privately and passed 12 of 15 cases with profiler,
 request-site, drawing-object, memory, and runtime-error evidence recorded in
 `smc_htf_context_r5_spike_tradingview_2026-07-30.json`. `R5-HTF-SPIKE`
 remains partial only for the live regular-session repaint observation and the
-two future autumn DST checkpoints on 2026-10-26 and 2026-11-02. The
+two historical autumn DST equivalents registered by the temporal closeout
+manifest. The matching 2026 checkpoints remain non-blocking revalidation
+targets rather than making the semantic gate wait for future bars. The
 known-broken snapshot consumers remain unchanged.
 
 #### HTF technical spike
