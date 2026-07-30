@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-30) — Rebuilt live confirmed HTF and session companions
+
+- Replaced the snapshot-backed `SMC HTF Confluence` root with exactly three
+  confirmed, stateless 15m/1h/4h request sites. Every transported value uses
+  the prior closed source bar with `barmerge.lookahead_on`; equal/lower frames
+  and incomplete three-frame aggregates fail closed.
+- Replaced the snapshot-backed `SMC Session Context` root with confirmed local
+  state and independent `Asia/Tokyo`, `Europe/London`, and
+  `America/New_York` session clocks, so US and European DST transitions are
+  not treated as equal.
+- Preserved both v1 snapshot sources under `pine/legacy/` and added a private
+  two-script preflight scope plus an 11-case compile/replay/DST/rollback
+  manifest. Rollout remains `not_deployed` pending immutable private
+  TradingView evidence.
+- Expanded the frozen `request.security` ledger from one to four sites and
+  assigned the rebuilt HTF root a reviewed budget of four (three used, one
+  headroom).
+
 ### Added (2026-07-23) — Outcome pipeline measures 60 m / 120 m / EOD, anchored at `fired_at` (A1)
 
 - **The problem.** `open_prep/outcome_backfill.py` measured exactly one

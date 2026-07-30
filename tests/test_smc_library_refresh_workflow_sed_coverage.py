@@ -27,15 +27,20 @@ EXPECTED_CONSUMERS: set[str] = {
     "SMC_Hold_Manager.pine",
     "SMC_Confluence_Hub.pine",
     "SMC_Structure_Context.pine",
-    "SMC_Session_Context.pine",
     "SMC_Profile_Context.pine",
     "SMC_Orderflow_Overlay.pine",
     "SMC_Liquidity_Structure.pine",
     "SMC_Liquidity_Context.pine",
     "SMC_Imbalance_Context.pine",
-    "SMC_HTF_Confluence.pine",
     "SMC_Event_Overlay.pine",
 }
+
+# 2026-07-30 (R5-REBUILD): SMC_HTF_Confluence.pine and SMC_Session_Context.pine
+# were rebuilt as stateless standalone consumers and no longer import
+# smc_micro_profiles_generated, so the version bump has nothing to re-pin in
+# them. They stay out of this set until an import is reintroduced. They remain
+# in the workflow's git-add list (pinned by test_smc_library_refresh_workflow):
+# staging an unchanged file is a no-op, and this set only has to be a subset.
 
 EXCLUDED_PARTS = {"tests", "generated", "node_modules", ".git", "pine"}
 

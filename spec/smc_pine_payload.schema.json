@@ -97,7 +97,7 @@
         },
         "preflightScopes": {
           "type": "object",
-          "required": ["smcCoreDashboard", "smcMainline", "smcDecisionFirst", "smcHoldManagerShadow", "smcR1Companions", "smcR4ContextShadow"],
+          "required": ["smcCoreDashboard", "smcMainline", "smcDecisionFirst", "smcHoldManagerShadow", "smcR1Companions", "smcR4ContextShadow", "smcR5HtfSession"],
           "additionalProperties": false,
           "properties": {
             "smcCoreDashboard": {
@@ -228,6 +228,9 @@
               "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
             },
             "smcR4ContextShadow": {
+              "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
+            },
+            "smcR5HtfSession": {
               "$ref": "#/properties/product_cut/properties/preflightScopes/properties/smcCoreDashboard"
             }
           }

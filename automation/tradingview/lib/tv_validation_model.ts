@@ -640,6 +640,7 @@ export function getRequiredLibraryReleaseManifestFields(
         "smcHoldManagerShadow",
         "smcR1Companions",
         "smcR4ContextShadow",
+        "smcR5HtfSession",
       ] as const) {
         if (!Array.isArray(manifest.productCut.preflightScopes[scope])) {
           missing.push(`productCut.preflightScopes.${scope}`);

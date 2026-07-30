@@ -156,6 +156,14 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
           groupTitle: "Context BUS · Meta",
         }],
       }],
+      smcR5HtfSession: [{
+        file: "SMC_HTF_Confluence.pine",
+        scriptName: "SMC HTF Confluence",
+        savedScriptName: "SMC HTF Confluence",
+        checkInputs: false,
+        addToChart: true,
+        allowFreshDraftOnMissingExisting: true,
+      }],
     },
     deprecatedFieldPolicy: {
       mode: "compatibility_only",

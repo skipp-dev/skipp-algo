@@ -1329,8 +1329,19 @@ regular-session repaint observation and both historical autumn DST equivalents
 are recorded in
 `smc_htf_context_r5_temporal_closeout_tradingview_2026-07-30.json`.
 `R5-HTF-SPIKE` is complete. The matching 2026 checkpoints remain optional
-non-blocking revalidation targets. The known-broken snapshot consumers remain
-unchanged.
+non-blocking revalidation targets.
+
+Repository implementation status for `R5-REBUILD` on 2026-07-30: the two
+snapshot-era sources are preserved under `pine/legacy/`, while the root
+products have been replaced locally by live confirmed-data implementations.
+HTF Confluence uses exactly three stateless 15m/1h/4h request sites with the
+confirmed-offset plus `barmerge.lookahead_on` pattern and fails closed when a
+requested frame is equal to or below the chart frame. Session Context owns no
+MTF request and derives Asia, London, NY AM, and NY PM from their independent
+IANA timezones. The Product Cut exposes both scripts through the private
+`smcR5HtfSession` preflight scope. This makes the repository implementation
+testable; it is not deployment evidence. Private compile, the 11-case rebuild
+manifest, source-hash verification, layout evidence, and rollback remain open.
 
 #### HTF technical spike
 
@@ -1348,11 +1359,10 @@ unchanged.
 
 #### Implementation
 
-- archive the old snapshot implementation only after the spike passes;
-- rebuild root `SMC_HTF_Confluence.pine`;
-- rebuild Session Context either as a compact standalone consumer or Context
-  Overlay module;
-- add explicit timeframe and freshness labels;
+- archive the old snapshot implementations under their versioned legacy paths;
+- rebuild root `SMC_HTF_Confluence.pine` with confirmed stateless HTF tuples;
+- rebuild Session Context as a compact standalone IANA-timezone consumer;
+- expose explicit timeframe, source-close, availability, and freshness labels;
 - compile, save, bind, and source-hash verify; and
 - run historical replay across session and HTF boundaries.
 

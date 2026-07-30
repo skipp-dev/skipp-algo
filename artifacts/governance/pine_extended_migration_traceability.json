@@ -296,10 +296,22 @@
         {
           "id": "R5-REBUILD",
           "description": "HTF Confluence and Session are rebuilt from live confirmed chart data with rollback evidence.",
-          "status": "not_started",
-          "evidence": [],
+          "status": "partial",
+          "evidence": [
+            "SMC_HTF_Confluence.pine",
+            "SMC_Session_Context.pine",
+            "pine/legacy/SMC_HTF_Confluence_v1_snapshot.pine",
+            "pine/legacy/SMC_Session_Context_v1_snapshot.pine",
+            "artifacts/governance/smc_r5_htf_session_rebuild_manifest.json",
+            "automation/tradingview/preflight-r5-htf-session.json",
+            "scripts/smc_r5_htf_session_rebuild_manifest.py",
+            "tests/test_smc_r5_htf_session_rebuild.py",
+            "docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md"
+          ],
           "openGates": [
-            "Do not promote the known-broken snapshot consumer."
+            "Compile both rebuilt root companions privately in TradingView.",
+            "Execute all cases in smc_r5_htf_session_rebuild_manifest.json.",
+            "Record source-hash, replay, layout, and rollback evidence before deployment."
           ]
         }
       ]
