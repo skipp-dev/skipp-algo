@@ -65,10 +65,8 @@ These sources exist, but are not part of the current managed rollout:
 | `SMC_Exit_Signal.pine` | planned standard companion |
 | `SMC_Hold_Manager.pine` | planned standard companion after its readiness gates |
 | `SMC_Volume_Profile_Overlay.pine` | planned optional companion |
-
-`SMC_Context_Bus.pine` and `SMC_Context_Overlay.pine` are planned registry
-surfaces whose source files do not exist yet. They are intentionally absent
-from the physical-file tables in this index.
+| `SMC_Context_Bus.pine` | R4 shadow producer; source exists but is not deployed until private runtime gates pass |
+| `SMC_Context_Overlay.pine` | R4 non-gating shadow consumer; source exists but is not deployed until binding and parity gates pass |
 
 ### Replacement or retirement pending
 
