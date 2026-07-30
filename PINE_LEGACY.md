@@ -128,6 +128,8 @@ Generated 2026-04-24 by enumerating root-level `*.pine` files that are
 | `USI-Flip.pine`                                             |  209 | LEGACY      |                                                |
 | `REV-Ladder-CHoCH.pine`                                     |  157 | LEGACY      |                                                |
 | `Volume_Weighted_Trend_SkippAlgo.pine`                      |   81 | LEGACY      |                                                |
+| `SMC_HTF_Confluence_v1_snapshot.pine`                       |  101 | LEGACY      | R5 snapshot-era HTF consumer; rollback reference for the confirmed rebuild |
+| `SMC_Session_Context_v1_snapshot.pine`                      |   56 | LEGACY      | R5 snapshot-era Session consumer; rollback reference for the IANA rebuild |
 | `test_div.pine`                                             |   ~ | TEST FIXTURE | not legacy — used by lint tests               |
 
 **Total legacy LOC**: ~12 000 lines across 24 files.

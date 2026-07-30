@@ -103,9 +103,14 @@ Layouts aufnehmen:
 - alte Liquidity Context
 - alte Liquidity Structure
 - alte Profile Context
-- alte Session Context
-- alte HTF Confluence
+- archivierte Session-Context-v1-Snapshot-Quelle
+- archivierte HTF-Confluence-v1-Snapshot-Quelle
 - Orderflow Overlay als vermeintliche Live-Orderflow-Anzeige
+
+Die neu gebauten Root-Skripte `SMC Session Context` und `SMC HTF Confluence`
+bleiben bis zum privaten Compile-, Replay-, Hash- und Rollback-Nachweis
+`not_deployed`; sie sind nicht mit den archivierten Snapshot-Quellen
+gleichzusetzen.
 
 Die konkreten Ersatz- und Archivierungsbedingungen stehen im
 [Architektur- und Rollout-Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).

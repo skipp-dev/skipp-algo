@@ -262,6 +262,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'smcHoldManagerShadow',
         'smcR1Companions',
         'smcR4ContextShadow',
+        'smcR5HtfSession',
     )
     # Canonical unique TV script identities (no third-party substring collision).
     # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.

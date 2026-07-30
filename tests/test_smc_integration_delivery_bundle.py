@@ -81,6 +81,7 @@ def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
         "smcHoldManagerShadow",
         "smcR1Companions",
         "smcR4ContextShadow",
+        "smcR5HtfSession",
     }
     assert bundle["product_cut"]["contracts"]["lite"][0] == "BUS ZoneActive"
     assert bundle["snapshot"]["meta"]["volume"]["value"] == {

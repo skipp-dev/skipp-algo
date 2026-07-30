@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "gate": "R5-REBUILD",
+  "status": "ready_for_private_execution",
+  "purpose": "Validate the rebuilt live HTF Confluence and Session Context companions before any deployment.",
+  "sources": {
+    "htfConfluence": {
+      "path": "SMC_HTF_Confluence.pine",
+      "sha256": "7fed75382abdcf71f63dd23d5084313f6c35fa881edd7878cc9a77ce0a17fa4b",
+      "savedScript": "SMC HTF Confluence"
+    },
+    "sessionContext": {
+      "path": "SMC_Session_Context.pine",
+      "sha256": "069d258be21d7b438a673629a75fe7aa95170093dc0a160961644eb7250eac7b",
+      "savedScript": "SMC Session Context"
+    }
+  },
+  "caseCount": 11,
+  "cases": [
+    {
+      "caseId": "R5-REBUILD-COMPILE-HTF",
+      "mode": "compile",
+      "target": "htfConfluence",
+      "expectedDiagnostics": [
+        "compileStatus=passed",
+        "runtimeError=0"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-COMPILE-SESSION",
+      "mode": "compile",
+      "target": "sessionContext",
+      "expectedDiagnostics": [
+        "compileStatus=passed",
+        "runtimeError=0"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-HTF-15M",
+      "mode": "replay",
+      "chartTimeframe": "5",
+      "inspectTimeframe": "15",
+      "expectedDiagnostics": [
+        "available=1",
+        "sourceConfirmed=1",
+        "sourceCloseAdvancesOnlyAtBoundary=1"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-HTF-1H",
+      "mode": "replay",
+      "chartTimeframe": "5",
+      "inspectTimeframe": "60",
+      "expectedDiagnostics": [
+        "available=1",
+        "sourceConfirmed=1",
+        "sourceCloseAdvancesOnlyAtBoundary=1"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-HTF-4H",
+      "mode": "replay",
+      "chartTimeframe": "5",
+      "inspectTimeframe": "240",
+      "expectedDiagnostics": [
+        "available=1",
+        "sourceConfirmed=1",
+        "sourceCloseAdvancesOnlyAtBoundary=1"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-FAIL-CLOSED",
+      "mode": "replay",
+      "chartTimeframes": [
+        "15",
+        "60",
+        "240"
+      ],
+      "expectedDiagnostics": [
+        "equalOrLowerRequestedFrameAvailable=0",
+        "partialDataAvailable=0"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-LIVE-NO-REPAINT",
+      "mode": "live_observation",
+      "chartTimeframe": "5",
+      "sessionMode": "regular",
+      "expectedDiagnostics": [
+        "confirmedValuesStableInsideOpenSourceBar=1",
+        "lookaheadOffProductPath=0"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-DST-EU-GAP",
+      "mode": "replay",
+      "checkpointUtc": "2025-10-27T13:45:00Z",
+      "expectedDiagnostics": [
+        "sessionCode=3",
+        "sessionLabel=NY AM",
+        "sourceCloseUtc=2025-10-27T13:45:00Z"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-DST-STANDARD",
+      "mode": "replay",
+      "checkpointUtc": "2025-11-03T14:45:00Z",
+      "expectedDiagnostics": [
+        "sessionCode=3",
+        "sessionLabel=NY AM",
+        "sourceCloseUtc=2025-11-03T14:45:00Z"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-EXTENDED",
+      "mode": "replay",
+      "sessionMode": "extended",
+      "checkpointUtc": "2026-03-09T21:15:00Z",
+      "expectedDiagnostics": [
+        "sessionCode=0",
+        "sessionLabel=Outside",
+        "sourceConfirmed=1"
+      ],
+      "tradingViewStatus": "pending"
+    },
+    {
+      "caseId": "R5-REBUILD-ROLLBACK",
+      "mode": "layout_restore",
+      "expectedDiagnostics": [
+        "sourceHashVerified=1",
+        "priorChartStateRestored=1",
+        "layoutSaved=1"
+      ],
+      "tradingViewStatus": "pending"
+    }
+  ],
+  "requiredTradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC HTF Context R5 Validation",
+    "symbol": "NASDAQ:AAPL",
+    "visibility": "private",
+    "publicationAllowed": false
+  },
+  "operatorRules": [
+    "Capture rendered chart and Data Window diagnostics only.",
+    "Do not publish either root script during validation.",
+    "Run historical checkpoints in the Europe/Berlin chart timezone.",
+    "Restore and save the prior chart state after execution."
+  ]
+}

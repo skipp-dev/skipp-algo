@@ -148,20 +148,6 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
 }
 
 KNOWN_MISSING_MP_FIELDS_BY_FILE: dict[str, tuple[str, ...]] = {
-    'SMC_HTF_Confluence.pine': (
-        'CONFIRM_SCORE',
-        'FOLLOW_THROUGH_SCORE',
-        'FVG_CONFIRM_OK',
-        'HTF_BEARISH_DIVERGENCE',
-        'HTF_BEARISH_PATTERN',
-        'HTF_BULLISH_DIVERGENCE',
-        'HTF_BULLISH_PATTERN',
-        'HTF_STRUCTURE_OK',
-        'RETRACE_OK',
-        'REVERSAL_CONTEXT_ACTIVE',
-        'SETUP_SCORE',
-        'VWAP_HOLD_OK',
-    ),
     'SMC_Imbalance_Context.pine': (
         'BEAR_FVG_ACTIVE',
         'BEAR_FVG_BOTTOM',
@@ -225,10 +211,6 @@ KNOWN_MISSING_MP_FIELDS_BY_FILE: dict[str, tuple[str, ...]] = {
         'PROFILE_VWAP_DISTANCE_PCT',
         'PROFILE_VWAP_POSITION',
         'PROFILE_WICKINESS',
-    ),
-    'SMC_Session_Context.pine': (
-        'SESSION_MSS_BEAR',
-        'SESSION_MSS_BULL',
     ),
     'SMC_Structure_Context.pine': (
         'ACTIVE_RESISTANCE',
@@ -341,12 +323,13 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_HTF_Confluence.pine'],
+        lifecycle = 'active',
+        deployment_mode = 'optional',
+        rollout_state = 'not_deployed',
+        compile_expectation = 'required',
+        archive_state = 'none',
         notes = (
-            'Snapshot-era source awaiting a confirmed true-HTF rebuild.',
+            'Confirmed live 15m/1h/4h companion pending private TradingView validation.',
         ),
     ),
     SurfaceDefinition(
@@ -383,12 +366,13 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'companion_operator_only',
         contract_tier = 'pro',
         consumer_role = 'context_companion',
-        lifecycle = 'replacement_pending',
-        compile_expectation = 'known_broken',
-        archive_state = 'replace_in_place_pending',
-        known_missing_mp_fields = KNOWN_MISSING_MP_FIELDS_BY_FILE['SMC_Session_Context.pine'],
+        lifecycle = 'active',
+        deployment_mode = 'optional',
+        rollout_state = 'not_deployed',
+        compile_expectation = 'required',
+        archive_state = 'none',
         notes = (
-            'Snapshot-era source awaiting replacement by Context BUS v3.',
+            'Confirmed IANA-timezone session companion pending private TradingView validation.',
         ),
     ),
     SurfaceDefinition(
@@ -851,6 +835,25 @@ PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
         60,
         'SMC Context Overlay',
         'contextOverlayBindings',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+)
+
+PREFLIGHT_R5_HTF_SESSION_TARGETS: tuple[PreflightTarget, ...] = (
+    PreflightTarget(
+        'SMC_HTF_Confluence.pine',
+        'SMC HTF Confluence',
+        False,
+        True,
+        saved_script_name = 'SMC HTF Confluence',
+        allow_fresh_draft_on_missing_existing = True,
+    ),
+    PreflightTarget(
+        'SMC_Session_Context.pine',
+        'SMC Session Context',
+        False,
+        True,
+        saved_script_name = 'SMC Session Context',
         allow_fresh_draft_on_missing_existing = True,
     ),
 )
@@ -1424,6 +1427,7 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'smcHoldManagerShadow': [_preflight_target_payload(target) for target in PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS],
             'smcR1Companions': [_preflight_target_payload(target) for target in PREFLIGHT_R1_COMPANION_TARGETS],
             'smcR4ContextShadow': [_preflight_target_payload(target) for target in PREFLIGHT_R4_CONTEXT_SHADOW_TARGETS],
+            'smcR5HtfSession': [_preflight_target_payload(target) for target in PREFLIGHT_R5_HTF_SESSION_TARGETS],
         },
         'validationEvidence': {
             'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,

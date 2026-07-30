@@ -67,7 +67,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Long_Dip_Dashboard.pine": 35,
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
-    "SMC_HTF_Confluence.pine": 8,
+    # 2026-07-30 R5 rebuild: snapshot-era state removed; only the fixed status
+    # table persists in the confirmed three-frame implementation.
+    "SMC_HTF_Confluence.pine": 1,
     # 2026-07-03 correctness lane: +1 var latch to detect the Arm Long
     # input toggle on the last bar; history indexing cannot see input edges.
     "SMC_Hold_Manager.pine": 11,
@@ -80,7 +82,9 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Long_Dip_Mobile.pine": 16,
     "SMC_Orderflow_Overlay.pine": 10,
     "SMC_Profile_Context.pine": 11,
-    "SMC_Session_Context.pine": 11,
+    # 2026-07-30 R5 rebuild: 17 declarations own confirmed session/range/VWAP/
+    # MSS state locally. This replaces, rather than shadows, frozen mp.* data.
+    "SMC_Session_Context.pine": 17,
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
     "SMC_Regime_and_News.pine": 1,  # retired compatibility notice; no data ingress
@@ -105,6 +109,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/REV-BUY.pine": 3,
     "pine/legacy/REV-Ladder-CHoCH.pine": 7,
     "pine/legacy/REV-Ladder.pine": 14,
+    # 2026-07-30 R5 rebuild: immutable snapshot-era rollback references. Their
+    # state counts are frozen and they are excluded from active product paths.
+    "pine/legacy/SMC_HTF_Confluence_v1_snapshot.pine": 8,
+    "pine/legacy/SMC_Session_Context_v1_snapshot.pine": 11,
     "pine/legacy/USI-CHOCH.pine": 13,
     "pine/legacy/USI_Strategy.pine": 2,
     "pine/legacy/VWAP_Long_Reclaim_Indicator.pine": 12,

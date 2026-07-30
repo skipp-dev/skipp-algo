@@ -1,6 +1,6 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 616,
+  "total_inputs": 613,
   "total_hidden": 397,
   "files": [
     {
@@ -1299,50 +1299,50 @@
       "hidden_count": 0,
       "inputs": [
         {
-          "varname": "show_atr_regime",
-          "kind": "bool",
-          "label": "Show ATR regime",
-          "group": "g_htf",
+          "varname": "tf_fast",
+          "kind": "timeframe",
+          "label": "15",
+          "group": "GROUP_FRAMES",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "show_squeeze",
+          "varname": "tf_medium",
+          "kind": "timeframe",
+          "label": "60",
+          "group": "GROUP_FRAMES",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "tf_slow",
+          "kind": "timeframe",
+          "label": "240",
+          "group": "GROUP_FRAMES",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "show_atr",
           "kind": "bool",
-          "label": "Show squeeze markers",
-          "group": "g_htf",
+          "label": "Show ATR regime",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_reversal",
           "kind": "bool",
-          "label": "Show reversal context",
-          "group": "g_htf",
+          "label": "Show reversal scores",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "col_compression",
-          "kind": "color",
-          "label": "Compression",
-          "group": "g_htf",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_expansion",
-          "kind": "color",
-          "label": "Expansion",
-          "group": "g_htf",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_exhaustion",
-          "kind": "color",
-          "label": "Exhaustion",
-          "group": "g_htf",
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show confirmed-source table",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         }
@@ -4697,70 +4697,46 @@
     },
     {
       "file": "SMC_Session_Context.pine",
-      "input_count": 8,
+      "input_count": 5,
       "hidden_count": 0,
       "inputs": [
         {
-          "varname": "show_session_label",
+          "varname": "show_session_table",
           "kind": "bool",
-          "label": "Show session label",
-          "group": "g_sc",
+          "label": "Show session status",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_killzone_bg",
           "kind": "bool",
-          "label": "Show killzone background",
-          "group": "g_sc",
+          "label": "Show active-session background",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_mss_markers",
           "kind": "bool",
-          "label": "Show MSS markers",
-          "group": "g_sc",
+          "label": "Show confirmed MSS markers",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
           "varname": "show_context_score",
           "kind": "bool",
-          "label": "Show context score bar",
-          "group": "g_sc",
+          "label": "Show context score",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         },
         {
-          "varname": "col_bullish",
-          "kind": "color",
-          "label": "Bullish color",
-          "group": "g_sc",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_bearish",
-          "kind": "color",
-          "label": "Bearish color",
-          "group": "g_sc",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_neutral",
-          "kind": "color",
-          "label": "Neutral color",
-          "group": "g_sc",
-          "has_display_none": false,
-          "visibility": null
-        },
-        {
-          "varname": "col_killzone",
-          "kind": "color",
-          "label": "Killzone bg",
-          "group": "g_sc",
+          "varname": "opening_minutes",
+          "kind": "int",
+          "label": "Opening-range minutes",
+          "group": "GROUP_VIEW",
           "has_display_none": false,
           "visibility": null
         }

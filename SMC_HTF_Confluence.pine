@@ -3,118 +3,217 @@
 
 //@version=6
 
-// Product role: companion_operator_only. Pro-only HTF-context companion outside the Lite default surface.
-
-// ─────────────────────────────────────────────────────────────────
-// SMC HTF Confluence Overlay — lightweight companion to SMC Core
+// Product role: companion_operator_only. Pro-only confirmed HTF context.
 //
-// Visualizes compression/ATR regime + reversal context from v5.1:
-//   • ATR regime state (compression → normal → expansion → exhaustion)
-//   • Squeeze on/released markers
-//   • Reversal context scores (setup / confirm / follow-through)
-//   • HTF structure + divergence flags
-//
-// Reads mp.* fields from the generated micro-profiles library.
-// ─────────────────────────────────────────────────────────────────
+// Every higher-timeframe value is transported from the last closed source bar.
+// Equal/lower requested frames and incomplete source history fail closed.
 
-indicator("SMC HTF Confluence", overlay = false, max_labels_count = 50)
+indicator("SMC HTF Confluence", overlay = false, max_labels_count = 20, dynamic_requests = true)
 
-import preuss_steffen/smc_micro_profiles_generated/179 as mp
+string GROUP_FRAMES = "Confirmed higher timeframes"
+string GROUP_VIEW = "View"
 
-// ── Inputs ──────────────────────────────────────────────────────
+string tf_fast = input.timeframe("15", "Fast HTF (15m)", group = GROUP_FRAMES)
+string tf_medium = input.timeframe("60", "Medium HTF (1h)", group = GROUP_FRAMES)
+string tf_slow = input.timeframe("240", "Slow HTF (4h)", group = GROUP_FRAMES)
+bool show_atr = input.bool(true, "Show ATR regime", group = GROUP_VIEW)
+bool show_reversal = input.bool(true, "Show reversal scores", group = GROUP_VIEW)
+bool show_table = input.bool(true, "Show confirmed-source table", group = GROUP_VIEW)
 
-var g_htf = "HTF Confluence"
-var bool show_atr_regime     = input.bool(true,  "Show ATR regime",            group = g_htf)
-var bool show_squeeze        = input.bool(true,  "Show squeeze markers",       group = g_htf)
-var bool show_reversal       = input.bool(true,  "Show reversal context",      group = g_htf)
-var color col_compression    = input.color(color.new(color.blue, 40),   "Compression",  group = g_htf)
-var color col_expansion      = input.color(color.new(color.orange, 40), "Expansion",    group = g_htf)
-var color col_exhaustion     = input.color(color.new(color.red, 40),    "Exhaustion",   group = g_htf)
+_strictly_higher(string requested_tf) =>
+    float requested_seconds = timeframe.in_seconds(requested_tf)
+    float chart_seconds = timeframe.in_seconds(timeframe.period)
+    not na(requested_seconds) and not na(chart_seconds) and requested_seconds > chart_seconds
 
-// ── Library fields ──────────────────────────────────────────────
+_confirmed_tuple() =>
+    float ema_fast = ta.ema(close, 21)
+    float ema_slow = ta.ema(close, 55)
+    float rsi = ta.rsi(close, 14)
+    float atr = ta.atr(14)
+    float atr_baseline = ta.sma(atr, 50)
+    float atr_ratio = atr_baseline > 0 ? atr / atr_baseline : na
+    float bb_basis = ta.sma(close, 20)
+    float bb_deviation = ta.stdev(close, 20) * 2.0
+    float bb_upper = bb_basis + bb_deviation
+    float bb_lower = bb_basis - bb_deviation
+    float kc_basis = ta.ema(close, 20)
+    float kc_range = ta.atr(20) * 1.5
+    float kc_upper = kc_basis + kc_range
+    float kc_lower = kc_basis - kc_range
+    bool squeeze_on = bb_upper < kc_upper and bb_lower > kc_lower
+    bool squeeze_released = not squeeze_on and squeeze_on[1]
+    int trend = close > ema_fast and ema_fast > ema_slow ? 1 : close < ema_fast and ema_fast < ema_slow ? -1 : 0
+    bool bull_pattern = close > open and close > high[1] and low <= low[1]
+    bool bear_pattern = close < open and close < low[1] and high >= high[1]
+    bool bull_divergence = low < low[5] and rsi > rsi[5]
+    bool bear_divergence = high > high[5] and rsi < rsi[5]
+    float source_vwap = ta.vwap(hlc3)
+    bool vwap_hold = trend > 0 and close >= source_vwap or trend < 0 and close <= source_vwap
+    bool retrace_ok = trend != 0 and math.abs(close - ema_fast) <= atr * 0.75
+    bool reversal_active = bull_pattern or bear_pattern or bull_divergence or bear_divergence
+    int setup_score = (squeeze_on ? 1 : 0) + (retrace_ok ? 1 : 0) + (reversal_active ? 1 : 0)
+    int confirm_score = (trend != 0 ? 1 : 0) + (vwap_hold ? 1 : 0) + (bull_pattern or bear_pattern ? 1 : 0)
+    int follow_score = (squeeze_released ? 1 : 0) + (trend > 0 and close > high[1] or trend < 0 and close < low[1] ? 1 : 0)
+    [
+        time[1],
+        time_close[1],
+        barstate.isconfirmed[1],
+        trend[1],
+        atr_ratio[1],
+        squeeze_on[1],
+        squeeze_released[1],
+        reversal_active[1],
+        bull_pattern[1],
+        bear_pattern[1],
+        bull_divergence[1],
+        bear_divergence[1],
+        vwap_hold[1],
+        retrace_ok[1],
+        setup_score[1],
+        confirm_score[1],
+        follow_score[1]
+    ]
 
-bool   sq_on             = mp.SQUEEZE_ON
-bool   sq_released       = mp.SQUEEZE_RELEASED
-string sq_momentum       = mp.SQUEEZE_MOMENTUM_BIAS
-string atr_regime        = mp.ATR_REGIME
-float  atr_ratio         = mp.ATR_RATIO
+[
+    fast_source_time,
+    fast_source_close,
+    fast_source_confirmed,
+    fast_trend_raw,
+    fast_atr_ratio_raw,
+    fast_squeeze_on_raw,
+    fast_squeeze_released_raw,
+    fast_reversal_active_raw,
+    fast_bull_pattern_raw,
+    fast_bear_pattern_raw,
+    fast_bull_divergence_raw,
+    fast_bear_divergence_raw,
+    fast_vwap_hold_raw,
+    fast_retrace_ok_raw,
+    fast_setup_raw,
+    fast_confirm_raw,
+    fast_follow_raw
+] = request.security(syminfo.tickerid, tf_fast, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
 
-bool   rev_active        = mp.REVERSAL_CONTEXT_ACTIVE
-int    rev_setup         = mp.SETUP_SCORE
-int    rev_confirm       = mp.CONFIRM_SCORE
-int    rev_follow        = mp.FOLLOW_THROUGH_SCORE
-bool   htf_struct_ok     = mp.HTF_STRUCTURE_OK
-bool   htf_bull_pat      = mp.HTF_BULLISH_PATTERN
-bool   htf_bear_pat      = mp.HTF_BEARISH_PATTERN
-bool   htf_bull_div      = mp.HTF_BULLISH_DIVERGENCE
-bool   htf_bear_div      = mp.HTF_BEARISH_DIVERGENCE
-bool   fvg_confirm       = mp.FVG_CONFIRM_OK
-bool   vwap_hold         = mp.VWAP_HOLD_OK
-bool   retrace_ok        = mp.RETRACE_OK
+[
+    medium_source_time,
+    medium_source_close,
+    medium_source_confirmed,
+    medium_trend_raw,
+    medium_atr_ratio_raw,
+    medium_squeeze_on_raw,
+    medium_squeeze_released_raw,
+    medium_reversal_active_raw,
+    medium_bull_pattern_raw,
+    medium_bear_pattern_raw,
+    medium_bull_divergence_raw,
+    medium_bear_divergence_raw,
+    medium_vwap_hold_raw,
+    medium_retrace_ok_raw,
+    medium_setup_raw,
+    medium_confirm_raw,
+    medium_follow_raw
+] = request.security(syminfo.tickerid, tf_medium, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
 
-// Library freshness check (shared pattern across all companions)
-var label stale_badge = na
-if barstate.islast
-    float asof_year  = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
-    float asof_month = str.tonumber(str.substring(mp.ASOF_DATE, 5, 7))
-    float asof_day   = str.tonumber(str.substring(mp.ASOF_DATE, 8, 10))
-    int asof_ts      = timestamp(int(asof_year), int(asof_month), int(asof_day))
-    int days_old     = math.floor((timenow - asof_ts) / 86400000)
-    if days_old > 2
-        if not na(stale_badge)
-            label.delete(stale_badge)
-        stale_badge := label.new(bar_index, low,
-            "⚠ Library " + str.tostring(days_old) + "d old",
-            color = color.new(color.red, 40), textcolor = color.white,
-            style = label.style_label_up, size = size.tiny)
+[
+    slow_source_time,
+    slow_source_close,
+    slow_source_confirmed,
+    slow_trend_raw,
+    slow_atr_ratio_raw,
+    slow_squeeze_on_raw,
+    slow_squeeze_released_raw,
+    slow_reversal_active_raw,
+    slow_bull_pattern_raw,
+    slow_bear_pattern_raw,
+    slow_bull_divergence_raw,
+    slow_bear_divergence_raw,
+    slow_vwap_hold_raw,
+    slow_retrace_ok_raw,
+    slow_setup_raw,
+    slow_confirm_raw,
+    slow_follow_raw
+] = request.security(syminfo.tickerid, tf_slow, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
 
-// ── ATR regime plot ─────────────────────────────────────────────
+bool fast_available = _strictly_higher(tf_fast) and fast_source_confirmed and not na(fast_source_time) and not na(fast_source_close) and not na(fast_atr_ratio_raw)
+bool medium_available = _strictly_higher(tf_medium) and medium_source_confirmed and not na(medium_source_time) and not na(medium_source_close) and not na(medium_atr_ratio_raw)
+bool slow_available = _strictly_higher(tf_slow) and slow_source_confirmed and not na(slow_source_time) and not na(slow_source_close) and not na(slow_atr_ratio_raw)
+bool frames_ordered = timeframe.in_seconds(tf_fast) < timeframe.in_seconds(tf_medium) and timeframe.in_seconds(tf_medium) < timeframe.in_seconds(tf_slow)
+fast_available := frames_ordered and fast_available
+medium_available := frames_ordered and medium_available
+slow_available := frames_ordered and slow_available
 
-float atr_plot_val = show_atr_regime ? atr_ratio : na
-color atr_color = atr_regime == "COMPRESSION" ? col_compression :
-     atr_regime == "EXPANSION"  ? col_expansion  :
-     atr_regime == "EXHAUSTION" ? col_exhaustion  :
-     color.new(color.gray, 50)
-plot(atr_plot_val, "ATR Ratio", atr_color, 2, plot.style_columns)
+int fast_trend = fast_available ? fast_trend_raw : 0
+int medium_trend = medium_available ? medium_trend_raw : 0
+int slow_trend = slow_available ? slow_trend_raw : 0
+float fast_atr_ratio = fast_available ? fast_atr_ratio_raw : na
+float medium_atr_ratio = medium_available ? medium_atr_ratio_raw : na
+float slow_atr_ratio = slow_available ? slow_atr_ratio_raw : na
+
+bool squeeze_on = fast_available and fast_squeeze_on_raw or medium_available and medium_squeeze_on_raw or slow_available and slow_squeeze_on_raw
+bool squeeze_released = fast_available and fast_squeeze_released_raw or medium_available and medium_squeeze_released_raw or slow_available and slow_squeeze_released_raw
+bool reversal_active = fast_available and fast_reversal_active_raw or medium_available and medium_reversal_active_raw or slow_available and slow_reversal_active_raw
+bool bull_pattern = fast_available and fast_bull_pattern_raw or medium_available and medium_bull_pattern_raw or slow_available and slow_bull_pattern_raw
+bool bear_pattern = fast_available and fast_bear_pattern_raw or medium_available and medium_bear_pattern_raw or slow_available and slow_bear_pattern_raw
+bool bull_divergence = fast_available and fast_bull_divergence_raw or medium_available and medium_bull_divergence_raw or slow_available and slow_bull_divergence_raw
+bool bear_divergence = fast_available and fast_bear_divergence_raw or medium_available and medium_bear_divergence_raw or slow_available and slow_bear_divergence_raw
+bool vwap_hold = fast_available and fast_vwap_hold_raw or medium_available and medium_vwap_hold_raw or slow_available and slow_vwap_hold_raw
+bool retrace_ok = fast_available and fast_retrace_ok_raw or medium_available and medium_retrace_ok_raw or slow_available and slow_retrace_ok_raw
+
+int available_count = (fast_available ? 1 : 0) + (medium_available ? 1 : 0) + (slow_available ? 1 : 0)
+int trend_sum = fast_trend + medium_trend + slow_trend
+int confluence_bias = available_count == 3 ? (trend_sum >= 2 ? 1 : trend_sum <= -2 ? -1 : 0) : 0
+float confluence_score = available_count == 3 ? trend_sum / 3.0 * 100.0 : na
+int setup_score = (fast_available ? fast_setup_raw : 0) + (medium_available ? medium_setup_raw : 0) + (slow_available ? slow_setup_raw : 0)
+int confirm_score = (fast_available ? fast_confirm_raw : 0) + (medium_available ? medium_confirm_raw : 0) + (slow_available ? slow_confirm_raw : 0)
+int follow_score = (fast_available ? fast_follow_raw : 0) + (medium_available ? medium_follow_raw : 0) + (slow_available ? slow_follow_raw : 0)
+
+color bias_color = confluence_bias > 0 ? color.new(color.green, 20) : confluence_bias < 0 ? color.new(color.red, 20) : color.new(color.gray, 55)
+float atr_display = not show_atr ? na : fast_available ? fast_atr_ratio : medium_available ? medium_atr_ratio : slow_atr_ratio
+plot(atr_display, "Confirmed ATR Ratio", bias_color, 2, plot.style_columns)
 hline(1.0, "ATR Baseline", color.new(color.gray, 70), hline.style_dotted)
+plot(show_reversal and reversal_active ? setup_score : na, "Setup Score", color.new(color.blue, 30), 1, plot.style_stepline)
+plot(show_reversal and reversal_active ? confirm_score : na, "Confirm Score", color.new(color.green, 30), 1, plot.style_stepline)
+plot(show_reversal and reversal_active ? follow_score : na, "Follow Score", color.new(color.orange, 30), 1, plot.style_stepline)
+plotshape(squeeze_on, "Squeeze On", shape.diamond, location.bottom, color.new(color.blue, 20), size = size.tiny)
+plotshape(squeeze_released, "Squeeze Released", shape.circle, location.bottom, color.new(color.orange, 20), size = size.tiny)
+plotshape(bull_divergence, "HTF Bull Divergence", shape.triangleup, location.bottom, color.new(color.green, 20), size = size.tiny)
+plotshape(bear_divergence, "HTF Bear Divergence", shape.triangledown, location.top, color.new(color.red, 20), size = size.tiny)
+bgcolor(bull_pattern ? color.new(color.green, 92) : bear_pattern ? color.new(color.red, 92) : na, title = "Confirmed HTF pattern")
 
-// ── Squeeze markers ─────────────────────────────────────────────
+plot(fast_available ? 1 : 0, "HTF 15m Available", display = display.data_window)
+plot(medium_available ? 1 : 0, "HTF 1h Available", display = display.data_window)
+plot(slow_available ? 1 : 0, "HTF 4h Available", display = display.data_window)
+plot(fast_available ? fast_source_close : na, "HTF 15m Source Close", display = display.data_window)
+plot(medium_available ? medium_source_close : na, "HTF 1h Source Close", display = display.data_window)
+plot(slow_available ? slow_source_close : na, "HTF 4h Source Close", display = display.data_window)
+plot(fast_available ? fast_trend : na, "HTF 15m Trend", display = display.data_window)
+plot(medium_available ? medium_trend : na, "HTF 1h Trend", display = display.data_window)
+plot(slow_available ? slow_trend : na, "HTF 4h Trend", display = display.data_window)
+plot(fast_atr_ratio, "HTF 15m ATR Ratio", display = display.data_window)
+plot(medium_atr_ratio, "HTF 1h ATR Ratio", display = display.data_window)
+plot(slow_atr_ratio, "HTF 4h ATR Ratio", display = display.data_window)
+plot(confluence_bias, "HTF Confluence Bias", display = display.data_window)
+plot(confluence_score, "HTF Confluence Score", display = display.data_window)
+plot(vwap_hold ? 1 : 0, "HTF VWAP Hold", display = display.data_window)
+plot(retrace_ok ? 1 : 0, "HTF Retrace OK", display = display.data_window)
 
-plotshape(show_squeeze and sq_on,       "Squeeze On",       shape.diamond, location.bottom, col_compression, size = size.tiny)
-plotshape(show_squeeze and sq_released, "Squeeze Released", shape.circle,  location.bottom, col_expansion,   size = size.tiny)
+_available_text(bool available, int source_close) =>
+    available ? "closed " + str.format_time(source_close, "yyyy-MM-dd HH:mm", "Etc/UTC") + " UTC" : "unavailable"
 
-// ── Squeeze momentum background ────────────────────────────────
-
-color momentum_bg = show_squeeze and sq_on ?
-     sq_momentum == "BULLISH"  ? color.new(color.green, 92) :
-     sq_momentum == "BEARISH"  ? color.new(color.red, 92)   :
-     color.new(color.yellow, 94) :
-     na
-bgcolor(momentum_bg, title = "Squeeze Momentum")
-
-// ── Reversal context scores ─────────────────────────────────────
-
-plot(show_reversal and rev_active ? rev_setup   : na, "Setup Score",   color.new(color.blue, 40),   1, plot.style_stepline, display = display.pane)
-plot(show_reversal and rev_active ? rev_confirm : na, "Confirm Score", color.new(color.green, 40),  1, plot.style_stepline, display = display.pane)
-plot(show_reversal and rev_active ? rev_follow  : na, "Follow Score",  color.new(color.orange, 40), 1, plot.style_stepline, display = display.pane)
-
-// ── HTF flags ───────────────────────────────────────────────────
-
-plotshape(show_reversal and htf_bull_div, "HTF Bull Divergence", shape.triangleup,   location.bottom, color.new(color.green, 20), size = size.tiny)
-plotshape(show_reversal and htf_bear_div, "HTF Bear Divergence", shape.triangledown, location.top,    color.new(color.red, 20),   size = size.tiny)
-
-// ── Reversal context background ─────────────────────────────────
-
-color rev_bg = show_reversal and rev_active ?
-     rev_setup >= 4 and rev_confirm >= 3 ? color.new(color.green, 88) :
-     rev_setup >= 3                       ? color.new(color.yellow, 90) :
-     color.new(color.gray, 93) :
-     na
-bgcolor(rev_bg, title = "Reversal Context")
-
-// ── Status line ─────────────────────────────────────────────────
-
-string htf_summary = "ATR:" + atr_regime + " R:" + str.tostring(atr_ratio, "#.##") +
-     (sq_on ? " SQ" : "") + (sq_released ? " REL" : "") +
-     (rev_active ? " REV:" + str.tostring(rev_setup) + "/" + str.tostring(rev_confirm) + "/" + str.tostring(rev_follow) : "")
-plotchar(0, "HTF Summary", "•", location.absolute, size = size.tiny, display = display.status_line, char = htf_summary)
+var table status = table.new(position.top_right, 3, 5, border_width = 1)
+if barstate.islast and show_table
+    table.cell(status, 0, 0, "Frame", bgcolor = color.new(color.gray, 75))
+    table.cell(status, 1, 0, "Freshness", bgcolor = color.new(color.gray, 75))
+    table.cell(status, 2, 0, "Trend", bgcolor = color.new(color.gray, 75))
+    table.cell(status, 0, 1, tf_fast)
+    table.cell(status, 1, 1, _available_text(fast_available, fast_source_close))
+    table.cell(status, 2, 1, fast_available ? str.tostring(fast_trend) : "—")
+    table.cell(status, 0, 2, tf_medium)
+    table.cell(status, 1, 2, _available_text(medium_available, medium_source_close))
+    table.cell(status, 2, 2, medium_available ? str.tostring(medium_trend) : "—")
+    table.cell(status, 0, 3, tf_slow)
+    table.cell(status, 1, 3, _available_text(slow_available, slow_source_close))
+    table.cell(status, 2, 3, slow_available ? str.tostring(slow_trend) : "—")
+    table.cell(status, 0, 4, "Aggregate")
+    table.cell(status, 1, 4, not frames_ordered ? "invalid frame order" : available_count == 3 ? "all confirmed" : "fail closed")
+    table.cell(status, 2, 4, available_count == 3 ? str.tostring(confluence_score, "#") + "%" : "—", text_color = bias_color)

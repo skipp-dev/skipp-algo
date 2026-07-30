@@ -146,28 +146,15 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Snapshot-era source awaiting a confirmed true-HTF rebuild."
+        "Confirmed live 15m/1h/4h companion pending private TradingView validation."
       ],
-      "lifecycle": "replacement_pending",
-      "deployment_mode": "none",
+      "lifecycle": "active",
+      "deployment_mode": "optional",
       "rollout_state": "not_deployed",
-      "compile_expectation": "known_broken",
+      "compile_expectation": "required",
       "bus_dependencies": [],
-      "archive_state": "replace_in_place_pending",
-      "known_missing_mp_fields": [
-        "CONFIRM_SCORE",
-        "FOLLOW_THROUGH_SCORE",
-        "FVG_CONFIRM_OK",
-        "HTF_BEARISH_DIVERGENCE",
-        "HTF_BEARISH_PATTERN",
-        "HTF_BULLISH_DIVERGENCE",
-        "HTF_BULLISH_PATTERN",
-        "HTF_STRUCTURE_OK",
-        "RETRACE_OK",
-        "REVERSAL_CONTEXT_ACTIVE",
-        "SETUP_SCORE",
-        "VWAP_HOLD_OK"
-      ]
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Imbalance_Context.pine",
@@ -248,18 +235,15 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Snapshot-era source awaiting replacement by Context BUS v3."
+        "Confirmed IANA-timezone session companion pending private TradingView validation."
       ],
-      "lifecycle": "replacement_pending",
-      "deployment_mode": "none",
+      "lifecycle": "active",
+      "deployment_mode": "optional",
       "rollout_state": "not_deployed",
-      "compile_expectation": "known_broken",
+      "compile_expectation": "required",
       "bus_dependencies": [],
-      "archive_state": "replace_in_place_pending",
-      "known_missing_mp_fields": [
-        "SESSION_MSS_BEAR",
-        "SESSION_MSS_BULL"
-      ]
+      "archive_state": "none",
+      "known_missing_mp_fields": []
     },
     {
       "file": "SMC_Profile_Context.pine",
@@ -3140,6 +3124,24 @@
             "tier": "diagnostic"
           }
         ],
+        "allowFreshDraftOnMissingExisting": true
+      }
+    ],
+    "smcR5HtfSession": [
+      {
+        "file": "SMC_HTF_Confluence.pine",
+        "scriptName": "SMC HTF Confluence",
+        "checkInputs": false,
+        "addToChart": true,
+        "savedScriptName": "SMC HTF Confluence",
+        "allowFreshDraftOnMissingExisting": true
+      },
+      {
+        "file": "SMC_Session_Context.pine",
+        "scriptName": "SMC Session Context",
+        "checkInputs": false,
+        "addToChart": true,
+        "savedScriptName": "SMC Session Context",
         "allowFreshDraftOnMissingExisting": true
       }
     ]

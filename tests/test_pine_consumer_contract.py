@@ -657,9 +657,17 @@ class TestV55LeanContract:
         assert not missing, f"v5.5 lean fields missing from inventory: {missing}"
 
     def test_all_lean_fields_consumed_by_engine(self):
-        """Every v5.5 lean field is consumed somewhere or explicitly reserved."""
+        """Every v5.5 lean field is consumed somewhere or explicitly classified.
+
+        2026-07-30 (R5-REBUILD): accept PYTHON_ONLY_EXPORTS alongside
+        RESERVED_PINE_EXPORTS. The rebuilt Session Context computes its
+        direction from confirmed chart data, so SESSION_DIRECTION_BIAS lost its
+        Pine consumer by design. It is a deliberate Python-only demotion, not
+        reserved debt awaiting a Pine consumer, and the audit module records it
+        as such. An unclassified lean field still fails here.
+        """
         from tests.test_library_field_audit import (
-            RESERVED_PINE_EXPORTS,
+            _INFRA_ONLY,
             _collect_pine_mp_refs,
         )
 
@@ -668,10 +676,10 @@ class TestV55LeanContract:
             all_lean |= fields
         missing = all_lean - ENGINE_CONSUMED_FIELDS
         pine_consumed = set().union(*_collect_pine_mp_refs().values())
-        unclassified = missing - RESERVED_PINE_EXPORTS - pine_consumed
+        unclassified = missing - _INFRA_ONLY - pine_consumed
         assert not unclassified, (
-            "v5.5 lean fields are neither consumed nor reserved: "
-            f"{unclassified}"
+            "v5.5 lean fields are neither consumed nor explicitly classified "
+            f"as Python-only/reserved: {unclassified}"
         )
 
     def test_lean_field_count(self):

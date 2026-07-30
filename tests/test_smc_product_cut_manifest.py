@@ -38,8 +38,10 @@ def test_product_cut_manifest_exports_surface_governance_schema_v3() -> None:
     assert surfaces['SMC_Long_Dip_Dashboard.pine']['rollout_state'] == 'deployed'
     assert surfaces['SMC_Hold_Manager.pine']['lifecycle'] == 'planned'
     assert surfaces['SMC_Hold_Manager.pine']['bus_dependencies'] == ['engine_v2']
-    assert surfaces['SMC_HTF_Confluence.pine']['compile_expectation'] == 'known_broken'
-    assert len(surfaces['SMC_HTF_Confluence.pine']['known_missing_mp_fields']) == 12
+    assert surfaces['SMC_HTF_Confluence.pine']['compile_expectation'] == 'required'
+    assert surfaces['SMC_HTF_Confluence.pine']['known_missing_mp_fields'] == []
+    assert surfaces['SMC_Session_Context.pine']['compile_expectation'] == 'required'
+    assert surfaces['SMC_Session_Context.pine']['known_missing_mp_fields'] == []
     assert surfaces['SMC_Context_Overlay.pine']['bus_dependencies'] == ['context_v3']
     assert payload['contracts']['contextOverlayBindings'][0] == 'CTX SchemaVersion'
     assert len(payload['contracts']['contextOverlayBindings']) == 60
@@ -64,6 +66,9 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     }
     assert _load_json('automation/tradingview/preflight-r4-context-shadow.json') == {
         'productCutScope': 'smcR4ContextShadow',
+    }
+    assert _load_json('automation/tradingview/preflight-r5-htf-session.json') == {
+        'productCutScope': 'smcR5HtfSession',
     }
     assert _load_json('automation/tradingview/preflight-smc-mainline-open-only.json') == {
         'targets': [

@@ -186,8 +186,10 @@ def test_missing_mp_field_debt_is_exact_and_replacement_scoped() -> None:
         if surface.known_missing_mp_fields
     ]
 
-    assert len(debt_surfaces) == 7
-    assert sum(len(surface.known_missing_mp_fields) for surface in debt_surfaces) == 81
+    # 2026-07-30 R5 rebuild removed HTF Confluence (12 fields) and Session
+    # Context (2 fields) from the snapshot-debt population: 7/81 -> 5/67.
+    assert len(debt_surfaces) == 5
+    assert sum(len(surface.known_missing_mp_fields) for surface in debt_surfaces) == 67
     for surface in debt_surfaces:
         observed = pine_refs.get(surface.file, set()) - generated
         assert surface.lifecycle == "replacement_pending"
@@ -308,6 +310,17 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     "VOLATILITY_PROXY_SOURCE",
     "VOLATILITY_PROXY_SYMBOL",
     "VOLATILITY_REGIME_CONFIDENCE",
+    # ── R5 live-context cutover (2026-07-30) ──
+    # These compatibility exports remain generated for Python enrichment and
+    # existing published-library readers. The rebuilt Pine roots deliberately
+    # compute confirmed chart/session state locally and MUST NOT regress to
+    # these frozen snapshot fields.
+    "ATR_RATIO",
+    "ATR_REGIME",
+    "SESSION_DIRECTION_BIAS",
+    "SQUEEZE_MOMENTUM_BIAS",
+    "SQUEEZE_ON",
+    "SQUEEZE_RELEASED",
     # ── zone priority calibration weights (Python-side only) ──
     "ZONE_CAL_OB",
     "ZONE_CAL_FVG",
