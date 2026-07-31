@@ -173,7 +173,7 @@ fifteen registered TradingView replay cases passed at their exact checkpoints.
 R4 now has local, non-deployed implementations for:
 
 - `SMC_Context_Bus.pine`;
-- the frozen schema `8001` manifest with 60 channels and four reserves;
+- the frozen schema `8001` manifest with 62 channels and two reserves;
 - `SMC_Context_Overlay.pine`; and
 - a dedicated source-save/preflight and 60-binding contract.
 
@@ -520,8 +520,8 @@ Contract requirements:
 
 - schema version `8001`;
 - `CTX ` channel prefix;
-- no more than 60 channels;
-- at least four unused reserve plots;
+- no more than 62 channels;
+- at least two unused reserve plots;
 - stable domain channels rather than UI rows;
 - confirmed-bar values by default;
 - explicit availability and age;
@@ -542,8 +542,8 @@ The initial channel groups are:
 | Session | code, killzone, range, opening range, directional context |
 
 The consumer-driven budget review froze the exact order and encodings in
-`artifacts/governance/smc_context_bus_v3_manifest.json`: 60 direct channels,
-four reserved slots, and no packed UI-row transport. Any change to that
+`artifacts/governance/smc_context_bus_v3_manifest.json`: 62 direct channels,
+two reserved slots, and no packed UI-row transport. Any change to that
 artifact, producer order, or consumer binding order fails the R4 freeze tests.
 
 ### 6.9 Consolidated Context Overlay
@@ -1284,8 +1284,8 @@ is active yet.
 
 - implement `SMC_Context_Bus.pine`;
 - freeze schema `8001`;
-- allocate no more than 60 channels;
-- reserve at least four channels;
+- allocate no more than 62 channels;
+- reserve at least two channels;
 - generate manifest and consumer binding contract;
 - implement consolidated Context Overlay;
 - add source-save and binding automation;
@@ -1678,7 +1678,7 @@ history.
 | Risk | Control |
 | --- | --- |
 | Context BUS duplicates expensive detection | shared context builders, single aggregated frame, performance budget |
-| TradingView 64-plot cap | separate BUS v3, maximum 60 channels, four-channel reserve |
+| TradingView 64-plot cap | separate BUS v3, maximum 62 channels, two-channel reserve |
 | Too many indicators for user subscription | named layout presets, managed versus default distinction |
 | Hold infers a fill that did not occur at broker | explicit assumed-fill wording; no broker-position claim |
 | Exit and Hold produce conflicting alerts | mutually exclusive actionable mode |
