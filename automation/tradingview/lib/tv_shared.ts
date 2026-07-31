@@ -45,8 +45,14 @@ export type TradingViewPageAuthState = {
 
 export type TradingViewStorageCaptureWaitAction =
   | "wait"
+  | "navigate_to_login"
   | "navigate_to_chart"
   | "complete";
+
+/** TradingView serves every interactive login surface under /accounts/. */
+function isTradingViewAuthSurface(url: string): boolean {
+  return /\/accounts\//i.test(url);
+}
 
 export function resolveTradingViewStorageCaptureWaitAction(input: {
   url: string;
@@ -54,15 +60,43 @@ export function resolveTradingViewStorageCaptureWaitAction(input: {
   authenticated: boolean;
   storageLooksAuthenticated: boolean;
   persistentProfile: boolean;
+  /**
+   * Server-confirmed anonymous session (not merely "no positive auth evidence
+   * yet"). Optional so existing callers keep their previous behaviour.
+   */
+  explicitlyAnonymous?: boolean;
+  /**
+   * RAW DOM evidence that a login form is on screen. Deliberately separate from
+   * `signInSignals`, which the capture script ORs with "session is anonymous" —
+   * that conflated flag is true for every anonymous page and would suppress the
+   * login navigation entirely.
+   */
+  loginFormVisible?: boolean;
 }): TradingViewStorageCaptureWaitAction {
   const authenticatedSession =
     !input.signInSignals
     && input.authenticated
     && (input.storageLooksAuthenticated || input.persistentProfile);
-  if (!authenticatedSession) {
-    return "wait";
+  if (authenticatedSession) {
+    return input.url.includes("/chart") ? "complete" : "navigate_to_chart";
   }
-  return input.url.includes("/chart") ? "complete" : "navigate_to_chart";
+
+  // A persistent profile whose session expired (or was never minted) lands on
+  // the chart URL, where TradingView shows no login form. Polling it until the
+  // timeout looks identical to "operator is still typing", so send the operator
+  // to the login page once. Only on a SERVER-CONFIRMED anonymous session:
+  // storage heuristics accept a guest `sessionid`/`device_t` as authenticated,
+  // so they cannot gate this. The raw login-form check and the /accounts/ check
+  // keep the navigation from fighting a form that is already on screen.
+  if (
+    input.explicitlyAnonymous === true
+    && !input.loginFormVisible
+    && !isTradingViewAuthSurface(input.url)
+  ) {
+    return "navigate_to_login";
+  }
+
+  return "wait";
 }
 
 export type VisibleCount = {

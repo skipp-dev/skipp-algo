@@ -71,6 +71,8 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   title: string;
   bodyPreview: string;
   signInSignals: boolean;
+  loginFormVisible: boolean;
+  explicitlyAnonymous: boolean;
   authenticated: boolean;
   authReason: string;
   authProbeStatuses: number[];
@@ -102,6 +104,10 @@ async function collectPageAuthDiagnostics(page: import("playwright").Page): Prom
   return {
     ...domDiagnostics,
     signInSignals: domDiagnostics.signInSignals || pageAuthState?.explicitlyAnonymous === true || pageAuthState?.authenticated === false,
+    // Unconflated DOM evidence: the field above is ORed with "session is
+    // anonymous", so it cannot answer "is a login form actually on screen?".
+    loginFormVisible: domDiagnostics.signInSignals,
+    explicitlyAnonymous: pageAuthState?.explicitlyAnonymous === true,
     authenticated: pageAuthState?.authenticated === true,
     authReason: pageAuthState?.reason ?? "auth_state_probe_failed",
     authProbeStatuses: pageAuthState?.evidence.accountProbeStatuses ?? [],
@@ -421,6 +427,7 @@ async function waitForUserOrAuthenticatedChart(
   );
 
   const deadline = Date.now() + cli.waitTimeoutMs;
+  let navigatedToLogin = false;
   while (Date.now() < deadline) {
     await page.waitForTimeout(1_000);
     await assistTwoFactorSubmission(page, twoFactorState, cli.totpSecret).catch(() => undefined);
@@ -431,6 +438,8 @@ async function waitForUserOrAuthenticatedChart(
       ? resolveTradingViewStorageCaptureWaitAction({
           url: authDiagnostics.url,
           signInSignals: authDiagnostics.signInSignals,
+          loginFormVisible: authDiagnostics.loginFormVisible,
+          explicitlyAnonymous: authDiagnostics.explicitlyAnonymous,
           authenticated: authDiagnostics.authenticated,
           storageLooksAuthenticated: inspection?.looksAuthenticated === true,
           persistentProfile: Boolean(cli.persistentProfileDir),
@@ -463,6 +472,19 @@ async function waitForUserOrAuthenticatedChart(
       console.log("Authenticated TradingView session detected outside the chart; navigating to chart URL...");
       await page.goto(cli.chartUrl, { waitUntil: "domcontentloaded" });
       continue;
+    }
+    if (waitAction === "navigate_to_login") {
+      // Once per run: repeated navigation would wipe a half-filled form if the
+      // login page ever fails to expose recognisable sign-in DOM.
+      if (!navigatedToLogin) {
+        navigatedToLogin = true;
+        console.log(
+          `Session is anonymous and no login form is on screen — opening the login page (${cli.loginUrl}). `
+          + "Complete the login in THIS browser window; the capture keeps polling.",
+        );
+        await page.goto(cli.loginUrl, { waitUntil: "domcontentloaded" });
+        continue;
+      }
     }
 
     await sleep(cli.pollIntervalMs);
