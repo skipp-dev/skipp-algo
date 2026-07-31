@@ -112,8 +112,11 @@ status change (also owner-ordered on 2026-07-31).
 ## Pro HTF preset decision (2026-07-31)
 
 **`SMC HTF Confluence` enters the Pro HTF preset. `SMC Session Context` does
-not.** Both keep `rollout_state = not_deployed`; preset membership and
-deployment are separate steps, and this decision only settles the first.
+not.** On decision day both kept `rollout_state = not_deployed`; preset
+membership and deployment are separate steps, and this decision only settled
+the first. The second step followed the same evening, owner-ordered:
+`SMC HTF Confluence` is `deployed` (and a consumer-rollout save target);
+`SMC Session Context` stays `not_deployed` by this decision.
 
 ### Why HTF Confluence is in
 

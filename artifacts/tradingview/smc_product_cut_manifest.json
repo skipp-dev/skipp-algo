@@ -146,14 +146,15 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Confirmed live 15m/1h/4h companion pending private TradingView validation."
+        "Confirmed live 15m/1h/4h companion; R5-REBUILD validated 2026-07-31 (all 11 cases), member of the optional Pro HTF preset per #4257."
       ],
       "lifecycle": "active",
       "deployment_mode": "optional",
-      "rollout_state": "not_deployed",
+      "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
       "archive_state": "none",
+      "chart_instance_name": "SMC HTF Confluence",
       "known_missing_mp_fields": []
     },
     {
@@ -235,7 +236,7 @@
       "consumer_role": "context_companion",
       "validation_target": false,
       "notes": [
-        "Confirmed IANA-timezone session companion pending private TradingView validation."
+        "Confirmed IANA-timezone session companion; R5-REBUILD validated 2026-07-31 but in no preset per #4257 \u2014 operator measurement instrument for the R5 validation layout."
       ],
       "lifecycle": "active",
       "deployment_mode": "optional",
