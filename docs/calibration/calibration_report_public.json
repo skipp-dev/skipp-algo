@@ -5,7 +5,7 @@
     "OB": 0.4782,
     "SWEEP": 0.6799
   },
-  "generated_at": "2026-07-30T05:26:00.614372+00:00",
+  "generated_at": "2026-07-31T05:43:35.157997+00:00",
   "metrics": {
     "dce": 0.122597,
     "ece": 0.132014,
@@ -29,14 +29,14 @@
       "concentrated": true,
       "dominant_regime": "RANGING",
       "per_regime_pnl": {
-        "NEUTRAL": 0.07536489600436679,
-        "RANGING": 0.6160553267970243,
+        "NEUTRAL": 0.09597474305278045,
+        "RANGING": 0.5707027653107699,
         "TRENDING": 0.0006650103772017166
       },
-      "share_of_total_pnl": 0.8901437240144828,
+      "share_of_total_pnl": 0.8551871779242578,
       "threshold": 0.8
     },
-    "date": "2026-07-29",
+    "date": "2026-07-30",
     "measurement": {
       "cost_bps": 5.0,
       "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py",
@@ -47,13 +47,13 @@
     "n_trades_with_regime": 28,
     "per_regime": {
       "NEUTRAL": {
-        "n": 5,
-        "regime_frequency_pct": 0.17857142857142858,
+        "n": 6,
+        "regime_frequency_pct": 0.21428571428571427,
         "skipped_reason": "insufficient_n"
       },
       "RANGING": {
-        "n": 20,
-        "regime_frequency_pct": 0.7142857142857143,
+        "n": 19,
+        "regime_frequency_pct": 0.6785714285714286,
         "skipped_reason": "insufficient_n"
       },
       "TRENDING": {
@@ -70,8 +70,8 @@
       "n_resamples": 0,
       "observed": null,
       "per_regime_n": {
-        "NEUTRAL": 5,
-        "RANGING": 20,
+        "NEUTRAL": 6,
+        "RANGING": 19,
         "TRENDING": 3
       },
       "seed": 0,
@@ -85,9 +85,9 @@
   },
   "schema_version": "1.3.0",
   "source": {
-    "commit_sha": "4b09284a6493fe683460de671d36ca718d47c598",
+    "commit_sha": "fc68503277b0d7a3a5b7dd3d9cce5776b5c3e6ab",
     "path": "artifacts/reports/zone_priority_calibration.json",
-    "workflow_run": "30516558129"
+    "workflow_run": "30607533306"
   },
   "status": "ok",
   "track_record_gate": {
