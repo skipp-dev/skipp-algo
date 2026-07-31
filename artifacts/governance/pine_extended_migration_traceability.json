@@ -307,12 +307,13 @@
             "tests/test_smc_r5_htf_session_rebuild.py",
             "docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md",
             "artifacts/governance/smc_r5_htf_session_rebuild_survey_2026-07-31.json",
-            "artifacts/governance/smc_r5_htf_session_rebuild_tradingview_2026-07-31.json"
+            "artifacts/governance/smc_r5_htf_session_rebuild_tradingview_2026-07-31.json",
+            "artifacts/governance/smc_r5_htf_session_rebuild_ce10156_diagnosis_2026-07-31.json",
+            "artifacts/governance/smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json"
           ],
           "openGates": [
-            "Compile both rebuilt root companions privately in TradingView.",
-            "Execute all cases in smc_r5_htf_session_rebuild_manifest.json.",
-            "Record source-hash, replay, layout, and rollback evidence before deployment."
+            "Execute the replay, live-observation, and rollback cases in smc_r5_htf_session_rebuild_manifest.json.",
+            "Record replay, layout, and rollback evidence before deployment."
           ]
         }
       ]

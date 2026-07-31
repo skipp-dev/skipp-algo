@@ -87,7 +87,9 @@ compile and replay evidence.
 records:
 
 - both exact source SHA-256 values;
-- successful private compile for both saved scripts;
+- successful private compile for both saved scripts —
+  **done 2026-07-31**, `smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json`
+  (every preflight axis true for both targets, runtime smoke included);
 - all 11 manifest cases;
 - layout identity and chart state;
 - zero unredacted secret or editor-source capture;
