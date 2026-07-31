@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from scripts.smc_r5_htf_session_rebuild_manifest import (
@@ -364,3 +365,75 @@ def test_every_manifest_case_now_has_landed_evidence() -> None:
     cited = "\n".join(manifest["resultEvidence"])
     for fragment in ("preflight_green", "replay", "extended", "availability", "live_no_repaint", "rollback"):
         assert fragment in cited, f"no evidence cited for {fragment}"
+
+
+def test_pro_htf_preset_decision_is_recorded_with_its_premises() -> None:
+    """The Pro HTF preset decision must stay tied to the facts it rests on.
+
+    The exit gate's last open item was "the decision whether either companion
+    enters the optional Pro HTF layout". It was decided on 2026-07-31: HTF
+    Confluence is in, Session Context is not. The reasoning is checkable, so it
+    is checked here rather than trusted — if any premise stops being true, this
+    test fails and the decision gets revisited instead of quietly rotting.
+    """
+    runbook = (ROOT / "docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md").read_text(encoding="utf-8")
+    combinations = (ROOT / "docs/SMC_Chart_Combinations.md").read_text(encoding="utf-8")
+
+    assert "Pro HTF preset decision (2026-07-31)" in runbook
+    assert "the decision whether either companion enters the optional Pro HTF layout —" in runbook
+    for doc in (runbook, combinations):
+        assert "SMC HTF Confluence" in doc and "SMC Session Context" in doc
+
+    # Premise 1: Context Overlay already renders the session surface, so a
+    # separate Session script would be redundant in the preset.
+    overlay = (ROOT / "SMC_Context_Overlay.pine").read_text(encoding="utf-8")
+    for marker in ("CTX SessionCode", "CTX SessionKillzone", "CTX SessionRangeTop", "CTX OpeningRangeTop"):
+        assert marker in overlay, f"Context Overlay no longer binds {marker}; revisit the decision"
+
+    # Premise 2: that data comes from the Context BUS, not from Session Context.
+    assert "CTX SessionCode" in (ROOT / "SMC_Context_Bus.pine").read_text(encoding="utf-8")
+
+    # Premise 3: Session Context is unwired — it binds nothing and imports
+    # nothing, so nothing in a preset would depend on it being present.
+    session = (ROOT / "SMC_Session_Context.pine").read_text(encoding="utf-8")
+    assert "input.source" not in session, "Session Context now binds inputs; it is no longer standalone"
+    assert not re.search(r"^import ", session, re.MULTILINE), "Session Context now imports a library"
+
+    # Premise 4: both stay operator-only and undeployed. Preset membership is
+    # not deployment, and this decision must not be read as one.
+    product_cut = json.loads(PRODUCT_CUT.read_text(encoding="utf-8"))
+    for file_name in ("SMC_HTF_Confluence.pine", "SMC_Session_Context.pine"):
+        assert file_name in product_cut["companionOperatorOnlyFiles"]
+        assert _surface(file_name)["rollout_state"] == "not_deployed"
+
+    # The follow-up must stay visible: session MSS exists only here.
+    assert "Session MSS Bull Confirmed" in session
+    assert "Session MSS" not in overlay
+    assert "session-level MSS" in runbook
+
+
+def test_no_r5_evidence_artifact_carries_source_or_secrets() -> None:
+    """The exit gate demands "zero unredacted secret or editor-source capture".
+
+    These artifacts are produced by a browser driving a logged-in TradingView
+    session with the Pine editor open, so leaking either is a live risk rather
+    than a theoretical one. Checked over every landed artifact, not sampled.
+    """
+    # Keyed on markers that only appear in a captured FILE, not on Pine
+    # identifiers: the CE10156 diagnosis explains the bug in prose and names
+    # `request.security` doing so. Naming a function is not capturing source,
+    # and a pattern that cannot tell them apart would push future diagnoses
+    # toward being vaguer than the evidence needs to be.
+    patterns = {
+        "pine source": re.compile(r"//@version|\bindicator\(\""),
+        "bearer token": re.compile(r"Bearer\s+[A-Za-z0-9._-]{8}"),
+        "session cookie": re.compile(r"sessionid", re.IGNORECASE),
+        "password": re.compile(r"password", re.IGNORECASE),
+    }
+    artifacts = sorted((ROOT / "artifacts/governance").glob("smc_r5_htf_*.json"))
+    assert artifacts, "no R5 evidence found to check"
+
+    for artifact in artifacts:
+        payload = artifact.read_text(encoding="utf-8")
+        for label, pattern in patterns.items():
+            assert not pattern.search(payload), f"{artifact.name} contains {label}"
