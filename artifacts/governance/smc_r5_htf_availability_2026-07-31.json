@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "evidenceType": "htf_availability_and_fail_closed_execution",
+  "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+  "layoutRepair": {
+    "staleInstancesRemoved": 1,
+    "publishesAfterRepair": true,
+    "diagnostics": {
+      "available": "1",
+      "sourceCloseUtc": "2026-07-30T19:45:00Z",
+      "sourceConfirmed": "1"
+    }
+  },
+  "failClosed": {
+    "passed": true,
+    "observations": [
+      {
+        "chartInterval": "15",
+        "requestedFrame": "15",
+        "intervalApplied": true,
+        "observed": {
+          "available": "0",
+          "sourceConfirmed": "0"
+        },
+        "passed": true,
+        "failures": []
+      },
+      {
+        "chartInterval": "60",
+        "requestedFrame": "60",
+        "intervalApplied": true,
+        "observed": {
+          "available": "0",
+          "sourceConfirmed": "0"
+        },
+        "passed": true,
+        "failures": []
+      },
+      {
+        "chartInterval": "240",
+        "requestedFrame": "240",
+        "intervalApplied": true,
+        "observed": {
+          "available": "0",
+          "sourceConfirmed": "0"
+        },
+        "passed": true,
+        "failures": []
+      }
+    ]
+  },
+  "htfCases": [
+    {
+      "frame": "15",
+      "executed": true,
+      "chartInterval": "5",
+      "available": true,
+      "observations": [
+        {
+          "atUtc": "step-0",
+          "sourceCloseUtc": "2025-10-27T13:45:00Z",
+          "available": "1"
+        },
+        {
+          "atUtc": "step-1",
+          "sourceCloseUtc": "2025-10-27T14:00:00Z",
+          "available": "1"
+        }
+      ],
+      "verdict": {
+        "advancesOnlyAtBoundary": true,
+        "distinctSourceCloses": 2,
+        "advances": 1,
+        "violations": []
+      },
+      "passed": true
+    },
+    {
+      "frame": "60",
+      "executed": true,
+      "chartInterval": "15",
+      "available": true,
+      "observations": [
+        {
+          "atUtc": "step-0",
+          "sourceCloseUtc": "2025-10-24T20:00:00Z",
+          "available": "1"
+        },
+        {
+          "atUtc": "step-1",
+          "sourceCloseUtc": "2025-10-24T20:00:00Z",
+          "available": "1"
+        }
+      ],
+      "verdict": {
+        "advancesOnlyAtBoundary": false,
+        "distinctSourceCloses": 1,
+        "advances": 0,
+        "violations": [
+          "observed only 1 distinct source close(s); the run never caught an advance and proves nothing"
+        ]
+      },
+      "passed": false
+    },
+    {
+      "frame": "240",
+      "executed": true,
+      "chartInterval": "60",
+      "available": true,
+      "observations": [
+        {
+          "atUtc": "step-0",
+          "sourceCloseUtc": "2025-10-24T20:00:00Z",
+          "available": "1"
+        },
+        {
+          "atUtc": "step-1",
+          "sourceCloseUtc": "2025-10-24T20:00:00Z",
+          "available": "1"
+        }
+      ],
+      "verdict": {
+        "advancesOnlyAtBoundary": false,
+        "distinctSourceCloses": 1,
+        "advances": 0,
+        "violations": [
+          "observed only 1 distinct source close(s); the run never caught an advance and proves nothing"
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "capturedAt": "2026-07-31T13:05:00Z",
+  "caseVerdicts": {
+    "R5-REBUILD-FAIL-CLOSED": "passed",
+    "R5-REBUILD-HTF-15M": "passed",
+    "R5-REBUILD-HTF-1H": "not_certified",
+    "R5-REBUILD-HTF-4H": "not_certified"
+  },
+  "notCertifiedReason": "Bar Replay's Forward control disappears from the toolbar after roughly three steps, measured across two runs and unchanged by a 25s poll for the control (3 successful steps and 3 replay-forward-missing per run). The 15m frame crosses its boundary within those three steps and is certified; the 1h and 4h frames need four and therefore observed only one distinct source close each. evaluateSourceCloseBoundaries refuses to certify that, which is the intended behaviour - a run that never caught an advance proves nothing. The instability is NOT characterised yet, so neither frame is claimed either way.",
+  "mechanismsProven": [
+    "the layout defect is repairable and the repair persists (stale instance removed, working instance saved)",
+    "setChartInterval reaches 15m/60m/240m once the display label is mapped (60 shows as 1h, 240 as 4h)",
+    "the strictly-higher rule reports available=0 on all three equal frames",
+    "stepping crosses a 15m boundary and the confirmed source close advances by exactly one frame"
+  ]
+}

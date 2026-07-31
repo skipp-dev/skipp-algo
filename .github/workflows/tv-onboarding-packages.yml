@@ -12,6 +12,7 @@ on:
       - "automation/tradingview/lib/**"
       - "automation/tradingview/selectors.ts"
       - "scripts/tv_r5_replay_cases.ts"
+      - "scripts/tv_r5_htf_cases.ts"
       - "automation/tradingview/tests/tv_onboarding.test.ts"
       - "automation/tradingview/tests/tv_preflight_add_to_chart_floor.test.ts"
       - "automation/tradingview/tests/tv_open_script_identity.test.ts"

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   HTF_FRAME_LABELS,
+  chartIntervalDisplayLabel,
   evaluateReplayCase,
   evaluateSourceCloseBoundaries,
   mapHtfDiagnostics,
@@ -185,4 +186,25 @@ test("a 4h frame is evaluated on its own grid", () => {
 test("an empty observation set cannot certify anything", () => {
   assert.equal(evaluateSourceCloseBoundaries([], 15).advancesOnlyAtBoundary, false);
   assert.equal(evaluateSourceCloseBoundaries([{ atUtc: at(0), sourceCloseUtc: "2025-10-27T14:00:00Z", available: "1" }], 0).advancesOnlyAtBoundary, false);
+});
+
+// Measured 2026-07-31: typing "15" leaves the interval control reading "15",
+// but "60" reads "1h" and "240" reads "4h". Comparing against the typed value
+// reported applied=false for every hourly frame, so FAIL-CLOSED could not be
+// driven onto 60 or 240 at all. (It failed rather than measuring the wrong
+// timeframe, which is the behaviour we want — but the chart never moved.)
+test("interval labels match what TradingView shows, not what is typed", () => {
+  assert.equal(chartIntervalDisplayLabel("5"), "5");
+  assert.equal(chartIntervalDisplayLabel("15"), "15");
+  assert.equal(chartIntervalDisplayLabel("60"), "1h");
+  assert.equal(chartIntervalDisplayLabel("240"), "4h");
+  assert.equal(chartIntervalDisplayLabel("1440"), "1D");
+});
+
+test("an unmappable interval returns null so the caller fails closed", () => {
+  for (const bad of ["", "0", "-5", "5m", "abc", "1.5"]) {
+    assert.equal(chartIntervalDisplayLabel(bad), null, `expected null for ${JSON.stringify(bad)}`);
+  }
+  // 90 minutes is a real TradingView interval and is NOT a whole hour.
+  assert.equal(chartIntervalDisplayLabel("90"), "90");
 });

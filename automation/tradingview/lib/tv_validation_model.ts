@@ -1029,3 +1029,26 @@ export function evaluateSourceCloseBoundaries(
     violations,
   };
 }
+
+/**
+ * The label TradingView's interval control SHOWS for a requested interval.
+ *
+ * Measured 2026-07-31: typing "15" leaves the control reading "15", but "60"
+ * reads "1h" and "240" reads "4h". Comparing the control against the typed
+ * value therefore reported applied=false for every hourly frame, which made
+ * R5-REBUILD-FAIL-CLOSED fail on 60 and 240 — correctly, since the chart had
+ * not moved, but for a reason that is a mapping gap rather than a chart fault.
+ *
+ * Minutes below 60 are shown as-is; whole hours as "<n>h"; whole days as
+ * "<n>D". Anything that is not a positive integer count of minutes returns
+ * null so a caller fails closed instead of comparing against a guess.
+ */
+export function chartIntervalDisplayLabel(interval: string): string | null {
+  if (!/^\d+$/.test(interval)) return null;
+  const minutes = Number(interval);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  if (minutes < 60) return String(minutes);
+  if (minutes % (60 * 24) === 0) return `${minutes / (60 * 24)}D`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return String(minutes);
+}
