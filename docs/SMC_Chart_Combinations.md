@@ -112,5 +112,24 @@ bleiben bis zum privaten Compile-, Replay-, Hash- und Rollback-Nachweis
 `not_deployed`; sie sind nicht mit den archivierten Snapshot-Quellen
 gleichzusetzen.
 
+**Stand 2026-07-31:** Alle vier Nachweise liegen vor (alle 11 R5-Fälle
+ausgeführt, Belege in `smc_r5_htf_session_rebuild_manifest.json` unter
+`resultEvidence`). Die Preset-Entscheidung ist damit getroffen:
+
+- **`SMC HTF Confluence` gehört in `Pro HTF`** — wie in §15.1 und Phase R8 des
+  Rollout-Plans vorgesehen. Kein anderes Skript in `Pro Context` liefert
+  Multi-Frame-HTF-Confluence.
+- **`SMC Session Context` gehört in kein Preset.** Session und Killzone liefert
+  bereits `SMC Context Overlay` aus dem Context BUS (`CTX Session*`), Session
+  VWAP das Dashboard (`BUS SessionVwap`). Session Context ist demgegenüber
+  **unverdrahtet**: kein `input.source`, kein Import, und kein Skript im Repo
+  liest seine Ausgaben. Es bleibt Operator-Werkzeug — konkret das
+  Messinstrument dieses Gates — und `companion_operator_only`.
+
+`rollout_state` bleibt für **beide** `not_deployed`. Preset-Zugehörigkeit und
+Deployment sind getrennte Schritte; das Deployment ist eine eigene Änderung.
+Begründung und Belege im
+[R5-Runbook](SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md#pro-htf-preset-decision-2026-07-31).
+
 Die konkreten Ersatz- und Archivierungsbedingungen stehen im
 [Architektur- und Rollout-Plan](SMC_EXTENDED_PINE_ARCHITECTURE_AND_ROLLOUT_2026-07-26.md).

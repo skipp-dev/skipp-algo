@@ -93,8 +93,73 @@ records:
 - all 11 manifest cases;
 - layout identity and chart state;
 - zero unredacted secret or editor-source capture;
-- rollback and reload verification; and
-- the decision whether either companion enters the optional Pro HTF layout.
+- rollback and reload verification — **done 2026-07-31**,
+  `smc_r5_htf_session_rebuild_rollback_2026-07-31.json` (perturbation took, the
+  in-session restore matched, the layout was saved, and the state survived a
+  reload); and
+- the decision whether either companion enters the optional Pro HTF layout —
+  **decided 2026-07-31**, see below.
 
 Only then may traceability move to `complete` and Product Cut rollout state be
 considered for a separate deployment change.
+
+## Pro HTF preset decision (2026-07-31)
+
+**`SMC HTF Confluence` enters the Pro HTF preset. `SMC Session Context` does
+not.** Both keep `rollout_state = not_deployed`; preset membership and
+deployment are separate steps, and this decision only settles the first.
+
+### Why HTF Confluence is in
+
+The architecture already designated it — §15.1 lists "Pro HTF: Pro Context plus
+HTF Confluence" and phase R8 names "rebuilt HTF Confluence for the Pro HTF
+layout". What was missing was the evidence, and
+`SMC_Chart_Combinations.md` named the exact condition: the rebuilt roots stay
+`not_deployed` "bis zum privaten Compile-, Replay-, Hash- und
+Rollback-Nachweis". All four now exist:
+
+| Nachweis | Beleg |
+| --- | --- |
+| Compile | `…preflight_green_2026-07-31.json` — every axis true, both targets |
+| Replay | `…replay_`, `…extended_`, `…availability_`, `…live_no_repaint_` |
+| Hash | manifest `sources.*.sha256`, re-verified by the rollback drill |
+| Rollback | `…rollback_2026-07-31.json` |
+
+Nothing else in Pro Context supplies multi-frame HTF confluence: Context BUS and
+Context Overlay carry session, structure and zone context, not a 15m/1h/4h
+trend, ATR-ratio, squeeze and divergence roll-up.
+
+### Why Session Context is out
+
+§15.2 recommended putting session and killzone in Context Overlay and Dashboard
+by default, and keeping a separate compact Session script **only if** mobile or
+layout tests show a distinct user need. Both halves were checked rather than
+assumed:
+
+- **The recommendation's premise holds.** `SMC_Context_Overlay.pine` already
+  plots session high/low, opening-range high/low, a killzone background and a
+  session row showing code and direction; `SMC_Long_Dip_Dashboard.pine` carries
+  `BUS SessionVwap`. The session surface is present in Pro Context without this
+  script.
+- **The condition for keeping it is not met.** No mobile or layout test showing
+  a distinct need exists.
+- **It is unwired.** `SMC_Session_Context.pine` declares no `input.source` and
+  imports nothing, and no script in the repo reads any of its outputs. The
+  session data Context Overlay renders comes from `SMC_Context_Bus.pine`
+  (`CTX Session*`), not from here — the two are parallel producers, not a chain.
+- **It costs a pane.** It is `overlay = false`, so on top of an indicator slot
+  it adds a second separate pane to a preset that already has one for HTF
+  Confluence.
+
+Its current real role is the **validation instrument** for this gate: the DST
+and EXTENDED cases read its `Session Code` and `Session Source Close` rows. That
+is an operator surface, which is exactly what `companion_operator_only` means,
+and it stays one.
+
+### Follow-up recorded, not silently dropped
+
+Session Context is the only script that publishes session-level MSS
+(`Session MSS Bull/Bear Confirmed`); nothing else in the repo does. That is a
+genuine gap in the Pro Context surface — but the answer is to add it to Context
+BUS and Context Overlay, where the session chain already lives, not to ship a
+redundant parallel producer in a preset. Not in scope here.
