@@ -17,7 +17,10 @@ from scripts.smc_bus_manifest import (
     ENGINE_BUS_LABELS,
     SURFACE_DEFINITIONS,
 )
-from tests.smc_manifest_test_utils import extract_hidden_plot_labels
+from tests.smc_manifest_test_utils import (
+    extract_hidden_plot_labels,
+    find_active_label_consumers,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLLOUT_CONFIG = ROOT / "automation" / "tradingview" / "config" / "consumer-rollout.json"
@@ -191,6 +194,41 @@ def test_non_deployed_surfaces_are_absent_from_rollout_targets() -> None:
     assert rollout_sources.isdisjoint(non_deployed)
 
 
+def _archived_surfaces() -> list:
+    return [
+        surface
+        for surface in SURFACE_DEFINITIONS
+        if surface.lifecycle == "archived" or surface.archive_state == "archived"
+    ]
+
+
+def test_the_archived_population_is_declared_rather_than_incidental() -> None:
+    """A gate that silently applies to nothing is not a passing gate.
+
+    2026-07-31: the archived population is EMPTY. Every check below therefore
+    loops zero times and reports green while proving nothing — which is exactly
+    the shape of failure the R0 gates exist to prevent, so the count is pinned
+    instead of left to chance. The five snapshot-era context scripts are
+    `replacement_pending`, not archived; archiving them is what will make this
+    number move, and moving it is a deliberate edit with a reason.
+
+    The rule itself is proven on data in `test_archived_surface_consumers.py`,
+    because it cannot be proven here while the set is empty.
+    """
+    assert [surface.file for surface in _archived_surfaces()] == []
+    assert sorted(
+        surface.file
+        for surface in SURFACE_DEFINITIONS
+        if surface.lifecycle == "replacement_pending"
+    ) == [
+        "SMC_Imbalance_Context.pine",
+        "SMC_Liquidity_Context.pine",
+        "SMC_Liquidity_Structure.pine",
+        "SMC_Profile_Context.pine",
+        "SMC_Structure_Context.pine",
+    ]
+
+
 def test_archived_surfaces_are_isolated_from_active_rollout() -> None:
     rollout = _rollout()
     rollout_sources = {
@@ -198,16 +236,62 @@ def test_archived_surfaces_are_isolated_from_active_rollout() -> None:
         for key in ("saveTargets", "verifyTargets")
         for target in rollout[key]
     }
-    archived = [
-        surface
-        for surface in SURFACE_DEFINITIONS
-        if surface.lifecycle == "archived" or surface.archive_state == "archived"
-    ]
 
-    for surface in archived:
+    for surface in _archived_surfaces():
         assert not (ROOT / surface.file).is_file()
         assert (ROOT / "pine" / "legacy" / Path(surface.file).name).is_file()
         assert surface.file not in rollout_sources
+
+
+def test_archived_surfaces_have_no_active_consumers() -> None:
+    """The half of the rule the gate above never checked.
+
+    "Archivierte Skripte dürfen keine aktiven Consumer mehr haben" is about
+    BINDINGS, not rollout membership: a chart can still read an archived
+    producer's outputs long after it left `saveTargets`. Absence from the
+    rollout says nothing about that.
+
+    Two ways an archived surface can still be consumed are checked — a live
+    binding of a label only it published, and any surviving reference to its
+    filename.
+    """
+    archived = _archived_surfaces()
+    active_files = sorted(
+        surface.file
+        for surface in SURFACE_DEFINITIONS
+        if surface.lifecycle != "archived"
+        and surface.archive_state != "archived"
+        and (ROOT / surface.file).is_file()
+    )
+    active_sources = {
+        file: (ROOT / file).read_text(encoding="utf-8") for file in active_files
+    }
+
+    # Labels an ACTIVE producer still publishes are served by that producer, so
+    # a binding to one of them does not strand anybody.
+    still_published: set[str] = set()
+    for source in active_sources.values():
+        still_published.update(extract_hidden_plot_labels(source))
+
+    archived_labels = {}
+    for surface in archived:
+        legacy = ROOT / "pine" / "legacy" / Path(surface.file).name
+        archived_labels[surface.file] = extract_hidden_plot_labels(
+            legacy.read_text(encoding="utf-8")
+        ) if legacy.is_file() else ()
+
+    stranded = find_active_label_consumers(
+        archived_labels, active_sources, frozenset(still_published)
+    )
+    assert stranded == {}, f"archived surfaces still bound by active scripts: {stranded}"
+
+    # A filename reference is the cruder leak: a config, manifest or script that
+    # still names the archived source at all.
+    searchable = dict(active_sources)
+    searchable["consumer-rollout.json"] = ROLLOUT_CONFIG.read_text(encoding="utf-8")
+    for surface in archived:
+        for where, text in searchable.items():
+            assert surface.file not in text, f"{where} still references archived {surface.file}"
 
 
 # --- bus_schema --------------------------------------------------------------
