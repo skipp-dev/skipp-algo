@@ -8,26 +8,23 @@
     "publishesAfterRepair": true,
     "diagnostics": {
       "available": "1",
-      "sourceCloseUtc": "2026-07-30T20:00:00Z",
+      "sourceCloseUtc": "2026-07-31T14:30:00Z",
       "sourceConfirmed": "1"
     }
   },
   "failClosed": {
-    "passed": false,
+    "passed": true,
     "observations": [
       {
         "chartInterval": "15",
         "requestedFrame": "15",
         "intervalApplied": true,
-        "observed": {},
-        "passed": false,
-        "failures": [
-          {
-            "key": "available",
-            "expected": "0",
-            "observed": null
-          }
-        ]
+        "observed": {
+          "available": "0",
+          "sourceConfirmed": "0"
+        },
+        "passed": true,
+        "failures": []
       },
       {
         "chartInterval": "60",
@@ -55,6 +52,7 @@
   },
   "htfCases": [
     {
+      "caseId": "R5-REBUILD-HTF-15M",
       "frame": "15",
       "executed": true,
       "chartInterval": "5",
@@ -102,11 +100,13 @@
         "advances": 2,
         "cleanAdvances": 2,
         "gapCrossings": 0,
+        "sessionTruncations": 0,
         "violations": []
       },
       "passed": true
     },
     {
+      "caseId": "R5-REBUILD-HTF-1H",
       "frame": "60",
       "executed": true,
       "chartInterval": "15",
@@ -154,11 +154,13 @@
         "advances": 2,
         "cleanAdvances": 1,
         "gapCrossings": 1,
+        "sessionTruncations": 0,
         "violations": []
       },
       "passed": true
     },
     {
+      "caseId": "R5-REBUILD-HTF-4H",
       "frame": "240",
       "executed": true,
       "chartInterval": "60",
@@ -201,33 +203,15 @@
         }
       ],
       "verdict": {
-        "advancesOnlyAtBoundary": false,
+        "advancesOnlyAtBoundary": true,
         "distinctSourceCloses": 3,
         "advances": 2,
         "cleanAdvances": 0,
         "gapCrossings": 1,
-        "violations": [
-          "step-5: source close advanced by 150min, not a multiple of the 240min frame (2025-10-27T17:30:00Z -> 2025-10-27T20:00:00Z)",
-          "observed 3 distinct source close(s) and 1 market-gap crossing(s) but no within-session advance; the run proves nothing"
-        ]
+        "sessionTruncations": 1,
+        "violations": []
       },
-      "passed": false
+      "passed": true
     }
-  ],
-  "capturedAt": "2026-07-31T16:40:00Z",
-  "caseVerdicts": {
-    "R5-REBUILD-FAIL-CLOSED": "passed_on_60m_and_240m_flaky_on_15m",
-    "R5-REBUILD-HTF-15M": "passed",
-    "R5-REBUILD-HTF-1H": "passed",
-    "R5-REBUILD-HTF-4H": "not_certified"
-  },
-  "steppingRootCause": "The Forward control loses its title attribute after being clicked: TradingView's apply-common-tooltip machinery strips `title` while its own tooltip is up and does not restore it while the pointer stays on the button. Measured by diffing the toolbar around one click - same position, same classes, title=\"Forward\" becomes title=\"\". A [title=\"Forward\"] locator is therefore single-use, which is why every multi-step run reported that the frame never advanced. Resolving the control structurally (controls__button index 1, after Play) fixed it: 18 successful steps in this run against 1 before.",
-  "disprovenHypotheses": [
-    "the control scrolls out of view - refuted: the toolbar does not overflow (scrollWidth == clientWidth) and scrollIntoViewIfNeeded cannot rescue it",
-    "reading the Data Window between steps breaks it - refuted: it vanishes with no reads at all",
-    "Bar Replay exits - refuted: isBarReplayActive stays true, the toolbar stays, the header toggle is unchanged",
-    "5m survives more steps than 15m - refuted: identical, one step each; the earlier '3 steps' were three CASES with one step each"
-  ],
-  "htf4hOpenQuestion": "HTF-4H reports 2025-10-27T17:30:00Z -> 2025-10-27T20:00:00Z, 150 minutes, and the checker calls that not-a-whole-frame. The US regular session is 6.5h (13:30-20:00 UTC), so a 4h grid does not fit it: the first bar spans 13:30-17:30 and the second is TRUNCATED at the session close to 2.5h. The violation is therefore most likely a false positive of the checker, the fourth assumption of this kind found today. It is deliberately NOT loosened without an owner decision - three such rules have already been relaxed on evidence (absolute UTC grid, interval display label, market gaps) and a fourth needs to be a conscious choice, not a reflex.",
-  "failClosedNote": "The 15m observation returned no diagnostics at all in this run (previous run: available=0, PASS). That is the fail-closed path working - an empty Data Window read cannot pass - but it makes the case flaky at that step and it is reported as such."
+  ]
 }

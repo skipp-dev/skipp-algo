@@ -6,6 +6,8 @@ import {
   chartIntervalDisplayLabel,
   evaluateReplayCase,
   evaluateSourceCloseBoundaries,
+  sessionAnchoredCloseMinutes,
+  US_REGULAR_SESSION_EDT,
   mapHtfDiagnostics,
 } from "../lib/tv_validation_model.js";
 
@@ -254,4 +256,121 @@ test("a mid-bar move is still a violation and is not excused as a gap", () => {
   );
   assert.equal(verdict.advancesOnlyAtBoundary, false);
   assert.match(verdict.violations.join(" "), /not a multiple of the 60min frame/);
+});
+
+// ── session-anchored grid (HTF-4H) ───────────────────────────────────────────
+//
+// 2026-07-31: HTF-4H reported `17:30Z -> 20:00Z, 150min, not a multiple of the
+// 240min frame`. It is not a repaint — the US regular session is 6.5h and a 4h
+// frame does not fit into it, so TradingView emits 13:30-17:30 and truncates
+// the second bar at 17:30-20:00. Passing the session switches the check from
+// "every step is a whole frame" to "every value sits on this session's bar
+// grid", which is stricter about absolute positions and correct about
+// truncation. This was the fourth measurement-driven correction to this checker
+// in one day, so the cases that must STILL fail are pinned alongside.
+
+test("the session grid is anchored at the open and ends at the close", () => {
+  assert.deepEqual(sessionAnchoredCloseMinutes(240, US_REGULAR_SESSION_EDT), [
+    17 * 60 + 30, // 13:30 + 4h
+    20 * 60,      // truncated bar closes with the session
+  ]);
+  assert.deepEqual(sessionAnchoredCloseMinutes(60, US_REGULAR_SESSION_EDT), [
+    14 * 60 + 30, 15 * 60 + 30, 16 * 60 + 30, 17 * 60 + 30, 18 * 60 + 30, 19 * 60 + 30,
+    20 * 60, // 19:30 + 1h would be 20:30, past the close: truncated
+  ]);
+  // 15m divides the session evenly, so the close is just the last grid point.
+  const quarter = sessionAnchoredCloseMinutes(15, US_REGULAR_SESSION_EDT);
+  assert.equal(quarter[0], 13 * 60 + 45);
+  assert.equal(quarter[quarter.length - 1], 20 * 60);
+  assert.equal(new Set(quarter).size, quarter.length, "no duplicate close for an evenly dividing frame");
+});
+
+test("the truncated last 4h bar of the session is not a violation", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-27T17:30:00Z", available: "1" },
+      { atUtc: at(5), sourceCloseUtc: "2025-10-27T17:30:00Z", available: "1" },
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T20:00:00Z", available: "1" },
+    ],
+    240,
+    { session: US_REGULAR_SESSION_EDT },
+  );
+  assert.deepEqual(verdict.violations, []);
+  assert.equal(verdict.advancesOnlyAtBoundary, true);
+  assert.equal(verdict.sessionTruncations, 1);
+  assert.equal(verdict.cleanAdvances, 0);
+});
+
+test("without a session the same run still reports the false violation", () => {
+  // Pins WHY the parameter exists: the delta rule alone cannot tell a truncated
+  // bar from a mid-bar move, so it rejects a correct chart.
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-27T17:30:00Z", available: "1" },
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T20:00:00Z", available: "1" },
+    ],
+    240,
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.match(verdict.violations[0], /150min, not a multiple of the 240min frame/);
+});
+
+test("a value off the session grid is a violation even if the delta is a whole frame", () => {
+  // 16:00 -> 20:00 is exactly 4h, so the delta rule would accept it. But 16:00
+  // is not a 4h boundary of this session, so the value could not have come from
+  // the requested series.
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-27T16:00:00Z", available: "1" },
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T20:00:00Z", available: "1" },
+    ],
+    240,
+    { session: US_REGULAR_SESSION_EDT },
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.match(verdict.violations.join("|"), /not on the 240min session grid/);
+});
+
+test("a sub-frame step that does NOT land on the close stays a violation", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-27T17:30:00Z", available: "1" },
+      // 19:30 is on the 1h grid but not the 4h grid, and it is not the close.
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T19:30:00Z", available: "1" },
+    ],
+    240,
+    { session: US_REGULAR_SESSION_EDT },
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.equal(verdict.sessionTruncations, 0);
+});
+
+test("a backwards step onto the session close is still a violation", () => {
+  // Guards the truncation branch from swallowing a repaint: the branch must not
+  // be reachable for a negative delta.
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-28T17:30:00Z", available: "1" },
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T20:00:00Z", available: "1" },
+    ],
+    240,
+    { session: US_REGULAR_SESSION_EDT },
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.equal(verdict.sessionTruncations, 0);
+  assert.match(verdict.violations.join("|"), /moved backwards/);
+});
+
+test("a run that only ever crossed the overnight gap still proves nothing", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(0), sourceCloseUtc: "2025-10-24T20:00:00Z", available: "1" },
+      { atUtc: at(10), sourceCloseUtc: "2025-10-27T17:30:00Z", available: "1" },
+    ],
+    240,
+    { session: US_REGULAR_SESSION_EDT },
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.equal(verdict.gapCrossings, 1);
+  assert.match(verdict.violations.join("|"), /no within-session advance/);
 });

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "gate": "R5-REBUILD",
-  "status": "compile_replay_and_live_executed_rollback_pending",
+  "status": "all_cases_executed",
   "purpose": "Validate the rebuilt live HTF Confluence and Session Context companions before any deployment.",
   "statusSemantics": "Per-case tradingViewStatus values preserve the preregistered baseline, as in the R5-HTF-SPIKE manifest. Actual private runtime outcomes are recorded in resultEvidence.",
   "resultEvidence": [
@@ -12,7 +12,8 @@
     "artifacts/governance/smc_r5_htf_session_rebuild_extended_2026-07-31.json",
     "artifacts/governance/smc_r5_htf_stepping_mechanism_2026-07-31.json",
     "artifacts/governance/smc_r5_htf_availability_2026-07-31.json",
-    "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json"
+    "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json",
+    "artifacts/governance/smc_r5_htf_session_rebuild_rollback_2026-07-31.json"
   ],
   "sources": {
     "htfConfluence": {

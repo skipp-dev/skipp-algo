@@ -964,8 +964,50 @@ export type BoundaryVerdict = {
   cleanAdvances: number;
   /** Advances across a market gap: legitimate, but carrying no evidence. */
   gapCrossings: number;
+  /** Sub-frame advances onto the session close: the truncated last bar. */
+  sessionTruncations: number;
   violations: string[];
 };
+
+/**
+ * A trading session as minutes-of-day UTC, e.g. the US regular session under
+ * EDT is `{ openMinutes: 810, closeMinutes: 1200 }` (13:30-20:00).
+ */
+export type SessionWindowUtc = { openMinutes: number; closeMinutes: number };
+
+export const US_REGULAR_SESSION_EDT: SessionWindowUtc = Object.freeze({
+  openMinutes: 13 * 60 + 30,
+  closeMinutes: 20 * 60,
+});
+
+function minutesOfDayUtc(iso: string): number | null {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  const date = new Date(ms);
+  return date.getUTCHours() * 60 + date.getUTCMinutes();
+}
+
+/**
+ * The minutes-of-day at which a source bar of `frameMinutes` may close, for a
+ * session that does not divide evenly by the frame.
+ *
+ * TradingView anchors intraday bars to the session OPEN and truncates the last
+ * one at the close. On the 6.5h US regular session a 4h frame therefore
+ * produces exactly two bars: 13:30-17:30 and 17:30-20:00, the second only 2.5h
+ * long. Its close times are {17:30, 20:00} — the second is not open + k*4h.
+ */
+export function sessionAnchoredCloseMinutes(
+  frameMinutes: number,
+  session: SessionWindowUtc,
+): number[] {
+  const out: number[] = [];
+  if (!Number.isFinite(frameMinutes) || frameMinutes <= 0) return out;
+  for (let at = session.openMinutes + frameMinutes; at < session.closeMinutes; at += frameMinutes) {
+    out.push(at);
+  }
+  out.push(session.closeMinutes);
+  return out;
+}
 
 /**
  * Decide whether a confirmed HTF source close advanced ONLY at boundaries of
@@ -987,20 +1029,38 @@ export type BoundaryVerdict = {
  * both correct, neither a whole multiple of its frame. The property the cases
  * actually pin is that the value ADVANCES by whole frames, and that survives
  * any session offset.
+ *
+ * Pass `session` when the frame does not divide the session evenly. The delta
+ * rule alone then reports a false violation on the LAST bar of the day: a 4h
+ * frame on the 6.5h US regular session yields 13:30-17:30 and a truncated
+ * 17:30-20:00, so the confirmed close steps 17:30 -> 20:00, which is 150
+ * minutes and no multiple of 240. That step is TradingView aligning to the
+ * session, not the script repainting. With a session the check switches from
+ * "every step is a whole frame" to the stricter and correct "every value sits
+ * on this session's bar grid, and steps only ever go forward" — which pins
+ * absolute positions rather than only deltas, and is satisfied by truncation.
+ *
+ * The session grid is anchored at the session OPEN, never at midnight UTC. That
+ * distinction is what the live chart established and it is preserved here:
+ * 19:30Z is 13:30 + 6h and 17:30Z is 13:30 + 4h.
  */
 export function evaluateSourceCloseBoundaries(
   observations: BoundaryObservation[],
   frameMinutes: number,
+  options: { session?: SessionWindowUtc } = {},
 ): BoundaryVerdict {
   const violations: string[] = [];
   if (!Number.isFinite(frameMinutes) || frameMinutes <= 0) {
-    return { advancesOnlyAtBoundary: false, distinctSourceCloses: 0, advances: 0, cleanAdvances: 0, gapCrossings: 0, violations: ["frameMinutes must be positive"] };
+    return { advancesOnlyAtBoundary: false, distinctSourceCloses: 0, advances: 0, cleanAdvances: 0, gapCrossings: 0, sessionTruncations: 0, violations: ["frameMinutes must be positive"] };
   }
+  const session = options.session;
+  const legalCloses = session ? sessionAnchoredCloseMinutes(frameMinutes, session) : null;
 
   const seen: string[] = [];
   let advances = 0;
   let cleanAdvances = 0;
   let gapCrossings = 0;
+  let sessionTruncations = 0;
   let previous: string | null = null;
 
   for (const observation of observations) {
@@ -1010,6 +1070,15 @@ export function evaluateSourceCloseBoundaries(
       continue;
     }
     if (!seen.includes(value)) seen.push(value);
+    if (legalCloses !== null) {
+      const at = minutesOfDayUtc(value);
+      if (at === null || !legalCloses.includes(at)) {
+        violations.push(
+          `${observation.atUtc}: source close ${value} is not on the ${frameMinutes}min session grid `
+          + `(legal closes: ${legalCloses.map((m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`).join(", ")} UTC)`,
+        );
+      }
+    }
     if (previous !== null && value !== previous) {
       advances += 1;
       const deltaMs = Date.parse(value) - Date.parse(previous);
@@ -1023,12 +1092,17 @@ export function evaluateSourceCloseBoundaries(
         // INSIDE an open HTF bar, and a gap crossing does not violate it. It
         // carries no evidence either, so it is tolerated but not counted.
         gapCrossings += 1;
-      } else if (deltaMs % (frameMinutes * 60_000) !== 0) {
+      } else if (deltaMs % (frameMinutes * 60_000) === 0) {
+        cleanAdvances += 1;
+      } else if (legalCloses !== null && minutesOfDayUtc(value) === session?.closeMinutes) {
+        // The truncated last bar of the session. Both endpoints were already
+        // checked against the session grid above, so this is a real bar
+        // boundary and not a mid-bar move; it just is not a whole frame long.
+        sessionTruncations += 1;
+      } else {
         violations.push(
           `${observation.atUtc}: source close advanced by ${deltaMs / 60_000}min, not a multiple of the ${frameMinutes}min frame (${previous} -> ${value})`,
         );
-      } else {
-        cleanAdvances += 1;
       }
     }
     previous = value;
@@ -1037,7 +1111,14 @@ export function evaluateSourceCloseBoundaries(
   // Certification needs at least one WITHIN-SESSION advance. Distinct values
   // alone are not enough: a run that only ever crossed a weekend saw the value
   // change without ever observing the frame-boundary behaviour.
-  if (cleanAdvances < 1) {
+  //
+  // A session truncation counts, because it IS a within-session bar boundary
+  // that the run observed the value stepping across. Requiring a whole-frame
+  // advance instead would make the 4h case structurally uncertifiable: on a
+  // 6.5h session a 4h frame has exactly two bars a day, so its only
+  // within-session advance is ever the truncated one, and every other step
+  // crosses the overnight gap.
+  if (cleanAdvances + sessionTruncations < 1) {
     violations.push(
       `observed ${seen.length} distinct source close(s) and ${gapCrossings} market-gap crossing(s) but no within-session advance; the run proves nothing`,
     );
@@ -1049,6 +1130,7 @@ export function evaluateSourceCloseBoundaries(
     advances,
     cleanAdvances,
     gapCrossings,
+    sessionTruncations,
     violations,
   };
 }
@@ -1263,4 +1345,96 @@ export function evaluateLiveNoRepaint(
     chartWasTicking,
     violations,
   };
+}
+
+/**
+ * What "the chart state" means for R5-REBUILD-ROLLBACK.
+ *
+ * Deliberately excludes anything that moves on its own — last price, the clock,
+ * bar count. A rollback drill that compared those could never pass on a live
+ * market, and the property under test is that the LAYOUT came back, not that
+ * the market stood still.
+ */
+export type ChartStateSnapshot = {
+  layoutName: string | null;
+  symbol: string | null;
+  interval: string | null;
+  timezone: string | null;
+  /** Study/indicator titles in the legend, order-insensitive. */
+  studies: string[];
+};
+
+export type ChartStateComparison = {
+  restored: boolean;
+  differences: string[];
+};
+
+/**
+ * Compare a captured chart state against the one observed after a restore.
+ *
+ * Fails closed on unknowns: a field that could not be read on either side is a
+ * difference, not a match. A rollback that "passed" because the reader returned
+ * null twice would be exactly the vacuous evidence this gate exists to prevent.
+ */
+export function compareChartState(
+  before: ChartStateSnapshot,
+  after: ChartStateSnapshot,
+): ChartStateComparison {
+  const differences: string[] = [];
+
+  for (const field of ["layoutName", "symbol", "interval", "timezone"] as const) {
+    const expected = before[field];
+    const observed = after[field];
+    if (expected === null || observed === null) {
+      differences.push(`${field}: unreadable (before=${expected}, after=${observed})`);
+    } else if (expected !== observed) {
+      differences.push(`${field}: ${expected} -> ${observed}`);
+    }
+  }
+
+  const expectedStudies = [...before.studies].sort();
+  const observedStudies = [...after.studies].sort();
+  if (expectedStudies.length === 0) {
+    differences.push("studies: nothing was captured, so nothing can be certified as restored");
+  }
+  const missing = expectedStudies.filter((entry) => !observedStudies.includes(entry));
+  const extra = observedStudies.filter((entry) => !expectedStudies.includes(entry));
+  if (missing.length > 0) differences.push(`studies missing after restore: ${missing.join(", ")}`);
+  if (extra.length > 0) differences.push(`studies present that were not captured: ${extra.join(", ")}`);
+
+  return { restored: differences.length === 0, differences };
+}
+
+/**
+ * Invert `chartIntervalDisplayLabel`: turn what the control SHOWS back into the
+ * interval `setChartInterval` accepts.
+ *
+ * The rollback drill has to put the chart back on whatever it captured, and
+ * what it captured is the display label. Feeding "1h" straight back would make
+ * `setChartInterval` return false — `chartIntervalDisplayLabel("1h")` is null,
+ * because "1h" is not a digit string — so the restore would silently fail on
+ * every hourly chart and the drill would report a difference it caused itself.
+ *
+ * Returns null for anything unrecognised, so a caller fails closed rather than
+ * typing a guess into the chart.
+ */
+export function chartIntervalFromDisplayLabel(label: string): string | null {
+  const trimmed = label.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  const hours = /^(\d+)h$/i.exec(trimmed);
+  if (hours) return String(Number(hours[1]) * 60);
+  const days = /^(\d+)D$/.exec(trimmed);
+  if (days) return String(Number(days[1]) * 60 * 24);
+  return null;
+}
+
+/**
+ * The interval the rollback drill moves the chart to, given what it captured.
+ *
+ * Must never equal the captured one: a perturbation that does not perturb makes
+ * the later "restored" verdict vacuous. Takes the DISPLAY label, because that is
+ * what the state reader returns.
+ */
+export function perturbationInterval(currentDisplayLabel: string | null): string {
+  return currentDisplayLabel === "15" ? "30" : "15";
 }
