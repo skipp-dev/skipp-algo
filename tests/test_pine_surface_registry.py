@@ -97,7 +97,11 @@ def test_only_planned_surface_sources_may_be_absent() -> None:
     )
 
 
-def test_rollout_save_targets_are_exactly_the_ten_deployed_surfaces() -> None:
+def test_rollout_save_targets_are_exactly_the_eleven_deployed_surfaces() -> None:
+    # 2026-07-31: 10 -> 11. SMC_HTF_Confluence.pine deployed after R5-REBUILD
+    # completed (all 11 cases) and the Pro HTF preset decision (#4257) put it
+    # in; owner-ordered rollout. It is a standalone request.security companion
+    # (no engine_v2 dependency), so verifyTargets stays at nine below.
     rollout = _rollout()
     save_targets = rollout["saveTargets"]
     deployed = {
@@ -106,8 +110,8 @@ def test_rollout_save_targets_are_exactly_the_ten_deployed_surfaces() -> None:
         if surface.rollout_state == "deployed"
     }
 
-    assert len(save_targets) == 10
-    assert len({target["source"] for target in save_targets}) == 10
+    assert len(save_targets) == 11
+    assert len({target["source"] for target in save_targets}) == 11
     assert {target["source"] for target in save_targets} == set(deployed)
     assert {
         target["source"]: target["scriptName"]

@@ -160,13 +160,21 @@ def test_snapshot_sources_are_archived_and_roots_are_compile_required() -> None:
     assert "smc_micro_profiles_generated/179" in LEGACY_HTF.read_text(encoding="utf-8")
     assert "smc_micro_profiles_generated/179" in LEGACY_SESSION.read_text(encoding="utf-8")
 
-    for file_name in ("SMC_HTF_Confluence.pine", "SMC_Session_Context.pine"):
+    # 2026-07-31 rollout: HTF Confluence deployed into the optional Pro HTF
+    # preset (owner-ordered, after all 11 R5 cases and decision #4257);
+    # Session Context stays not_deployed BY DECISION — it is in no preset and
+    # serves as the R5 gate's measurement instrument.
+    expected_rollout = {
+        "SMC_HTF_Confluence.pine": "deployed",
+        "SMC_Session_Context.pine": "not_deployed",
+    }
+    for file_name, rollout_state in expected_rollout.items():
         surface = _surface(file_name)
         assert surface["lifecycle"] == "active"
         assert surface["compile_expectation"] == "required"
         assert surface["known_missing_mp_fields"] == []
         assert surface["archive_state"] == "none"
-        assert surface["rollout_state"] == "not_deployed"
+        assert surface["rollout_state"] == rollout_state
 
 
 def test_product_cut_exposes_private_r5_preflight_scope() -> None:
@@ -409,12 +417,17 @@ def test_pro_htf_preset_decision_is_recorded_with_its_premises() -> None:
     assert "input.source" not in session, "Session Context now binds inputs; it is no longer standalone"
     assert not re.search(r"^import ", session, re.MULTILINE), "Session Context now imports a library"
 
-    # Premise 4: both stay operator-only and undeployed. Preset membership is
-    # not deployment, and this decision must not be read as one.
+    # Premise 4, as decided: preset membership and deployment are separate
+    # steps. On decision day both surfaces were not_deployed; the deployment
+    # step followed the same evening on the owner's instruction and flipped
+    # exactly the surface the decision put into a preset. The premise that
+    # still holds — and is pinned — is the SEPARATION: Session Context gained
+    # no deployment from the decision alone.
     product_cut = json.loads(PRODUCT_CUT.read_text(encoding="utf-8"))
     for file_name in ("SMC_HTF_Confluence.pine", "SMC_Session_Context.pine"):
         assert file_name in product_cut["companionOperatorOnlyFiles"]
-        assert _surface(file_name)["rollout_state"] == "not_deployed"
+    assert _surface("SMC_HTF_Confluence.pine")["rollout_state"] == "deployed"
+    assert _surface("SMC_Session_Context.pine")["rollout_state"] == "not_deployed"
 
     # The follow-up must stay visible: session MSS exists only here.
     assert "Session MSS Bull Confirmed" in session

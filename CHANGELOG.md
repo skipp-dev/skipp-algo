@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-07-31) — R5-REBUILD complete; SMC HTF Confluence deployed
+
+- Closed the R5-REBUILD exit gate: all 11 manifest cases executed with landed
+  evidence (compile, DST replay, EXTENDED, FAIL-CLOSED, HTF-15M/1H/4H,
+  LIVE-NO-REPAINT against the open session, rollback+reload), traceability
+  moved to `complete`, phase R5 derived-complete (owner-ordered).
+- Deployed `SMC_HTF_Confluence.pine` (`rollout_state = deployed`, consumer
+  rollout save target #11) into the optional Pro HTF preset per decision
+  #4257. This supersedes the "Rollout remains `not_deployed`" line in the
+  rebuild entry below.
+- `SMC_Session_Context.pine` stays `not_deployed` **by decision**: in no
+  preset, serving as the R5 gate's measurement instrument
+  (`companion_operator_only`).
+
 ### Changed (2026-07-31) — `c13-daily-cron` owns the published calibration report (issue #298)
 
 - Moved ownership of `docs/calibration/calibration_report_public.json` to

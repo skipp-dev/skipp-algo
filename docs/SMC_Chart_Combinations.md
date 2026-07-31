@@ -126,8 +126,12 @@ ausgeführt, Belege in `smc_r5_htf_session_rebuild_manifest.json` unter
   liest seine Ausgaben. Es bleibt Operator-Werkzeug — konkret das
   Messinstrument dieses Gates — und `companion_operator_only`.
 
-`rollout_state` bleibt für **beide** `not_deployed`. Preset-Zugehörigkeit und
-Deployment sind getrennte Schritte; das Deployment ist eine eigene Änderung.
+**Rollout, ebenfalls 2026-07-31 (auf Anweisung des Owners):**
+`SMC HTF Confluence` ist `deployed` — Mitglied des optionalen `Pro HTF`-Presets
+und Save-Target des Consumer-Rollouts. `SMC Session Context` bleibt
+`not_deployed`, **durch Entscheidung, nicht durch offene Arbeit**: Es ist in
+keinem Preset und dient als Messinstrument des R5-Gates. Preset-Zugehörigkeit
+und Deployment waren getrennte Schritte und wurden getrennt vollzogen.
 Begründung und Belege im
 [R5-Runbook](SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md#pro-htf-preset-decision-2026-07-31).
 

@@ -325,11 +325,20 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         consumer_role = 'context_companion',
         lifecycle = 'active',
         deployment_mode = 'optional',
-        rollout_state = 'not_deployed',
+        # 2026-07-31: deployed on the owner's instruction after all 11
+        # R5-REBUILD cases passed and the Pro HTF preset decision (#4257)
+        # put this companion in. Deployment target: the optional Pro HTF
+        # layout; the certified private script identity is the one the
+        # R5 preflight saved and hash-verified the same day.
+        rollout_state = 'deployed',
+        # Measured legend title on the validation chart — the same identity
+        # every R5 legend probe matched on 2026-07-31.
+        chart_instance_name = 'SMC HTF Confluence',
         compile_expectation = 'required',
         archive_state = 'none',
         notes = (
-            'Confirmed live 15m/1h/4h companion pending private TradingView validation.',
+            'Confirmed live 15m/1h/4h companion; R5-REBUILD validated 2026-07-31 '
+            '(all 11 cases), member of the optional Pro HTF preset per #4257.',
         ),
     ),
     SurfaceDefinition(
@@ -368,11 +377,18 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         consumer_role = 'context_companion',
         lifecycle = 'active',
         deployment_mode = 'optional',
+        # 2026-07-31: stays not_deployed BY DECISION, not by pending work.
+        # R5-REBUILD validated it the same day as HTF Confluence, but #4257
+        # kept it out of every preset: its session surface is already served
+        # by Context BUS -> Context Overlay, nothing in the repo consumes its
+        # outputs, and its real role is the R5 gate's measurement instrument.
         rollout_state = 'not_deployed',
         compile_expectation = 'required',
         archive_state = 'none',
         notes = (
-            'Confirmed IANA-timezone session companion pending private TradingView validation.',
+            'Confirmed IANA-timezone session companion; R5-REBUILD validated '
+            '2026-07-31 but in no preset per #4257 — operator measurement '
+            'instrument for the R5 validation layout.',
         ),
     ),
     SurfaceDefinition(

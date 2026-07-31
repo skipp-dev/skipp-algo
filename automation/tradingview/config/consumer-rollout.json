@@ -2,27 +2,99 @@
   "producerName": "SMC Long-Dip Suite",
   "primaryChartUrl": "https://www.tradingview.com/chart/vWgAWyfC/",
   "saveTargets": [
-    {"source": "SMC_Long_Dip_Suite.pine", "scriptName": "SMC Long-Dip Suite"},
-    {"source": "SMC_Breakout_Overlay.pine", "scriptName": "SMC Breakout Overlay"},
-    {"source": "SMC_Confluence_Hub.pine", "scriptName": "SMC Confluence Hub"},
-    {"source": "SMC_Long_Dip_Alerts.pine", "scriptName": "SMC Long-Dip Alerts"},
-    {"source": "SMC_Long_Dip_Dashboard.pine", "scriptName": "SMC Long-Dip Dashboard"},
-    {"source": "SMC_Long_Dip_Mobile.pine", "scriptName": "SMC Long-Dip Mobile"},
-    {"source": "SMC_Long_Dip_Strategy.pine", "scriptName": "SMC Long-Dip Strategy"},
-    {"source": "SMC_Setup_Check.pine", "scriptName": "SMC Setup Check"},
-    {"source": "SMC_Event_Overlay.pine", "scriptName": "SMC Event Overlay"},
-    {"source": "SMC_Exit_Signal.pine", "scriptName": "SMC Exit Signal"}
+    {
+      "source": "SMC_Long_Dip_Suite.pine",
+      "scriptName": "SMC Long-Dip Suite"
+    },
+    {
+      "source": "SMC_Breakout_Overlay.pine",
+      "scriptName": "SMC Breakout Overlay"
+    },
+    {
+      "source": "SMC_Confluence_Hub.pine",
+      "scriptName": "SMC Confluence Hub"
+    },
+    {
+      "source": "SMC_Long_Dip_Alerts.pine",
+      "scriptName": "SMC Long-Dip Alerts"
+    },
+    {
+      "source": "SMC_Long_Dip_Dashboard.pine",
+      "scriptName": "SMC Long-Dip Dashboard"
+    },
+    {
+      "source": "SMC_Long_Dip_Mobile.pine",
+      "scriptName": "SMC Long-Dip Mobile"
+    },
+    {
+      "source": "SMC_Long_Dip_Strategy.pine",
+      "scriptName": "SMC Long-Dip Strategy"
+    },
+    {
+      "source": "SMC_Setup_Check.pine",
+      "scriptName": "SMC Setup Check"
+    },
+    {
+      "source": "SMC_Event_Overlay.pine",
+      "scriptName": "SMC Event Overlay"
+    },
+    {
+      "source": "SMC_Exit_Signal.pine",
+      "scriptName": "SMC Exit Signal"
+    },
+    {
+      "source": "SMC_HTF_Confluence.pine",
+      "scriptName": "SMC HTF Confluence"
+    }
   ],
   "verifyTargets": [
-    {"source": "SMC_Long_Dip_Dashboard.pine", "savedScriptName": "SMC Long-Dip Dashboard", "scriptName": "SMC Decision Board"},
-    {"source": "SMC_Long_Dip_Strategy.pine", "savedScriptName": "SMC Long-Dip Strategy", "scriptName": "SMC Long-Dip Strategy"},
-    {"source": "SMC_Long_Dip_Alerts.pine", "savedScriptName": "SMC Long-Dip Alerts", "scriptName": "SMC Long-Dip Alerts"},
-    {"source": "SMC_Setup_Check.pine", "savedScriptName": "SMC Setup Check", "scriptName": "SMC Setup Check"},
-    {"source": "SMC_Breakout_Overlay.pine", "savedScriptName": "SMC Breakout Overlay", "scriptName": "SMC Breakout Overlay"},
-    {"source": "SMC_Confluence_Hub.pine", "savedScriptName": "SMC Confluence Hub", "scriptName": "SMC Confluence Hub"},
-    {"source": "SMC_Long_Dip_Mobile.pine", "savedScriptName": "SMC Long-Dip Mobile", "scriptName": "SMC Long-Dip Mobile"},
-    {"source": "SMC_Event_Overlay.pine", "savedScriptName": "SMC Event Overlay", "scriptName": "SMC Event Overlay", "chartUrl": "https://www.tradingview.com/chart/hKHTmKhu/"},
-    {"source": "SMC_Exit_Signal.pine", "savedScriptName": "SMC Exit Signal", "scriptName": "SMC Exit Signal", "chartUrl": "https://www.tradingview.com/chart/hKHTmKhu/"}
+    {
+      "source": "SMC_Long_Dip_Dashboard.pine",
+      "savedScriptName": "SMC Long-Dip Dashboard",
+      "scriptName": "SMC Decision Board"
+    },
+    {
+      "source": "SMC_Long_Dip_Strategy.pine",
+      "savedScriptName": "SMC Long-Dip Strategy",
+      "scriptName": "SMC Long-Dip Strategy"
+    },
+    {
+      "source": "SMC_Long_Dip_Alerts.pine",
+      "savedScriptName": "SMC Long-Dip Alerts",
+      "scriptName": "SMC Long-Dip Alerts"
+    },
+    {
+      "source": "SMC_Setup_Check.pine",
+      "savedScriptName": "SMC Setup Check",
+      "scriptName": "SMC Setup Check"
+    },
+    {
+      "source": "SMC_Breakout_Overlay.pine",
+      "savedScriptName": "SMC Breakout Overlay",
+      "scriptName": "SMC Breakout Overlay"
+    },
+    {
+      "source": "SMC_Confluence_Hub.pine",
+      "savedScriptName": "SMC Confluence Hub",
+      "scriptName": "SMC Confluence Hub"
+    },
+    {
+      "source": "SMC_Long_Dip_Mobile.pine",
+      "savedScriptName": "SMC Long-Dip Mobile",
+      "scriptName": "SMC Long-Dip Mobile"
+    },
+    {
+      "source": "SMC_Event_Overlay.pine",
+      "savedScriptName": "SMC Event Overlay",
+      "scriptName": "SMC Event Overlay",
+      "chartUrl": "https://www.tradingview.com/chart/hKHTmKhu/"
+    },
+    {
+      "source": "SMC_Exit_Signal.pine",
+      "savedScriptName": "SMC Exit Signal",
+      "scriptName": "SMC Exit Signal",
+      "chartUrl": "https://www.tradingview.com/chart/hKHTmKhu/"
+    }
   ],
   "repairE2ETarget": {
     "source": "SMC_Long_Dip_Dashboard.pine",
