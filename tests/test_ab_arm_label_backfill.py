@@ -14,6 +14,7 @@ False), and non-ok days are skipped.
 """
 from __future__ import annotations
 
+import ast
 import json
 from datetime import date
 from pathlib import Path
@@ -142,3 +143,43 @@ def test_outcome_rows_never_gain_arm_b_shadow_entries(
     ob.backfill_ab_arm_labels(target_dates=[date(2026, 7, 27)], provider=MagicMock())
 
     assert (dirs["outcomes"] / f"outcomes_{day}.json").read_bytes() == before
+
+
+def test_main_guard_is_last_top_level_statement() -> None:
+    """The `__main__` guard must sit BELOW every definition `main()` reaches.
+
+    Regression pin for issue #4235. The §G3 block was appended at the very
+    bottom of ``outcome_backfill.py`` so the line-pinned ledgers upstream
+    would stay stable — but it landed *below* the ``if __name__ ==
+    "__main__"`` guard. Running the module as a script therefore executed
+    ``main()`` before ``AB_ARMS_DIR`` / ``backfill_ab_arm_labels`` were bound,
+    and the nightly cron died with ``NameError: name
+    'backfill_ab_arm_labels' is not defined`` after doing all of its work but
+    before the outcomes were committed (3 lost sessions, 2026-07-28..30).
+
+    Every import-based test stayed green throughout: importing the module runs
+    the file to the end and never enters the guard. Only executing it as
+    ``__main__`` trips the bug, which no unit test did — hence this structural
+    pin instead.
+    """
+    module = ast.parse(Path(ob.__file__).read_text(encoding="utf-8"))
+    guard_positions = [
+        index
+        for index, node in enumerate(module.body)
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+    ]
+
+    assert guard_positions, "outcome_backfill.py lost its `__main__` guard"
+    trailing = [
+        type(node).__name__ for node in module.body[guard_positions[-1] + 1 :]
+    ]
+    assert not trailing, (
+        "`if __name__ == '__main__'` must be the LAST top-level statement in "
+        f"open_prep/outcome_backfill.py, but {len(trailing)} statement(s) "
+        f"follow it: {trailing}. Anything defined below the guard is unbound "
+        "when the module runs as a script (issue #4235) — append new "
+        "top-level code ABOVE the guard, not below it."
+    )

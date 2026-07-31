@@ -1118,22 +1118,18 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         raise
 
 
-if __name__ == "__main__":  # pragma: no cover
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
-        raise SystemExit(130) from None
-    except SystemExit:
-        raise
-    except Exception:
-        logger.critical("Fatal error in %s", __name__, exc_info=True)
-        raise SystemExit(1) from None
-
-
 # ── §G3 arm-label backfill (2026-07-27) ──────────────────────────────
 #
 # Appended below every line-pinned site so the ledgers stay stable.
+#
+# The ``if __name__ == "__main__"`` guard MUST remain the LAST top-level
+# statement in this module (2026-07-31, issue #4235). It calls ``main()``,
+# and ``main()`` calls ``backfill_ab_arm_labels`` below — so a guard placed
+# above these definitions runs before they are bound and dies with
+# ``NameError: name 'backfill_ab_arm_labels' is not defined``. Import-based
+# tests never catch it, because importing the module executes the file to
+# the end without entering the guard. Pinned by
+# ``tests/test_ab_arm_label_backfill.py::test_main_guard_is_last_top_level_statement``.
 
 AB_ARMS_DIR = Path("artifacts/open_prep/ab_arms")
 
@@ -1269,3 +1265,17 @@ def backfill_ab_arm_labels(
         summary["pending"] += len(pending)
 
     return summary
+
+
+# NOTE: keep this guard LAST — see the §G3 header comment above.
+if __name__ == "__main__":  # pragma: no cover
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error in %s", __name__, exc_info=True)
+        raise SystemExit(1) from None
