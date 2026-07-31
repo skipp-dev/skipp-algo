@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "caseId": "R5-REBUILD-LIVE-NO-REPAINT",
+  "evidenceType": "live_no_repaint_execution",
+  "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+  "startedAtUtc": "2026-07-31T14:00:31Z",
+  "frame": "15",
+  "cadenceSeconds": 30,
+  "plannedSamples": 40,
+  "republishedInstance": false,
+  "finishedAtUtc": "2026-07-31T14:23:18Z",
+  "sessionOpenThroughout": true,
+  "verdict": {
+    "confirmedValuesStableInsideOpenSourceBar": true,
+    "lookaheadLeaks": 0,
+    "samples": 40,
+    "usableSamples": 40,
+    "distinctSourceCloses": 2,
+    "longestHoldSamples": 25,
+    "boundaryAdvances": 1,
+    "chartWasTicking": true,
+    "violations": []
+  },
+  "observedDiagnostics": {
+    "confirmedValuesStableInsideOpenSourceBar": "1",
+    "lookaheadOffProductPath": "0"
+  },
+  "samples": [
+    {
+      "atUtc": "2026-07-31T14:01:07Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:01:41Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:02:15Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:02:49Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:03:23Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:03:57Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:04:31Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:05:05Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:05:39Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:06:13Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:06:47Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:07:21Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:07:55Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:08:29Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:09:04Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:09:38Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:10:12Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:10:46Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:11:20Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:11:54Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:12:28Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:13:02Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:13:36Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:14:10Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:14:44Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:00:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.41"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:15:18Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:15:52Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:16:26Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:17:00Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:17:34Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:18:08Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:18:42Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:19:16Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:19:50Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:20:24Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:20:58Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:21:32Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:22:06Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:22:40Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    },
+    {
+      "atUtc": "2026-07-31T14:23:14Z",
+      "available": "1",
+      "sourceCloseUtc": "2026-07-31T14:15:00Z",
+      "confirmed": {
+        "HTF 15m Trend": "−1.0000",
+        "HTF 15m ATR Ratio": "2.26"
+      }
+    }
+  ],
+  "status": "pass"
+}

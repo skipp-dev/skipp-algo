@@ -154,7 +154,7 @@ def build_manifest() -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "gate": "R5-REBUILD",
-        "status": "compile_executed_replay_pending",
+        "status": "compile_replay_and_live_executed_rollback_pending",
         "purpose": ("Validate the rebuilt live HTF Confluence and Session Context companions before any deployment."),
         "statusSemantics": (
             "Per-case tradingViewStatus values preserve the preregistered baseline, as in the "
@@ -167,6 +167,17 @@ def build_manifest() -> dict[str, Any]:
             "artifacts/governance/smc_r5_htf_session_rebuild_ce10156_diagnosis_2026-07-31.json",
             # Re-execution after the fix: both compile cases green on every axis.
             "artifacts/governance/smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json",
+            # The two DST replay cases, driven by Bar Replay checkpoints (#4243).
+            "artifacts/governance/smc_r5_htf_session_rebuild_replay_2026-07-31.json",
+            # EXTENDED, after the expectation itself was corrected to Asia (#4244/#4245).
+            "artifacts/governance/smc_r5_htf_session_rebuild_extended_2026-07-31.json",
+            # Why replay stepping only ever advanced once: the Forward control
+            # drops its title attribute on click (#4250).
+            "artifacts/governance/smc_r5_htf_stepping_mechanism_2026-07-31.json",
+            # FAIL-CLOSED plus HTF-15M/1H certified; HTF-4H deliberately not (#4248/#4250).
+            "artifacts/governance/smc_r5_htf_availability_2026-07-31.json",
+            # LIVE-NO-REPAINT against the open regular session.
+            "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json",
         ],
         "sources": {
             "htfConfluence": {

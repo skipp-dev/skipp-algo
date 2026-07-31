@@ -246,3 +246,63 @@ def test_compile_gate_evidence_is_recorded_and_reachable() -> None:
     # resultEvidence (the R5-HTF-SPIKE convention).
     assert all(case["tradingViewStatus"] == "pending" for case in manifest["cases"])
     assert "preregistered baseline" in manifest["statusSemantics"]
+
+
+def test_live_no_repaint_evidence_is_recorded_and_reachable() -> None:
+    """R5-REBUILD-LIVE-NO-REPAINT must cite a run that was actually live.
+
+    This is the one case Bar Replay cannot stand in for: the property is what
+    the script publishes while a higher-frame bar is still forming, which only
+    exists on an open feed. The failure mode worth pinning is therefore not "the
+    values moved" but "the values held still because nothing was moving at all"
+    — a run taken after the close would report perfect stability and prove
+    nothing. So the evidence has to carry the liveness proof, not just a verdict.
+    """
+    manifest = build_manifest()
+    path = "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json"
+
+    assert path in manifest["resultEvidence"]
+    assert (ROOT / path).is_file()
+
+    report = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    assert report["caseId"] == "R5-REBUILD-LIVE-NO-REPAINT"
+    assert report["status"] == "pass"
+    assert report["observedDiagnostics"]["confirmedValuesStableInsideOpenSourceBar"] == "1"
+    assert report["observedDiagnostics"]["lookaheadOffProductPath"] == "0"
+
+    verdict = report["verdict"]
+    assert verdict["violations"] == []
+    # The feed was demonstrably running, and the run looked INSIDE an open bar
+    # rather than sampling one value per bar and calling it stable.
+    assert verdict["chartWasTicking"] is True
+    assert verdict["longestHoldSamples"] >= 3
+    assert verdict["lookaheadLeaks"] == 0
+    assert report["sessionOpenThroughout"] is True
+
+    # Every expectation the manifest preregisters for the case is answered.
+    case = next(entry for entry in manifest["cases"] if entry["caseId"] == "R5-REBUILD-LIVE-NO-REPAINT")
+    for expectation in case["expectedDiagnostics"]:
+        key, _, value = expectation.partition("=")
+        assert report["observedDiagnostics"][key] == value
+
+
+def test_landed_r5_evidence_is_all_referenced_by_the_manifest() -> None:
+    """Evidence in the tree that the manifest does not cite is invisible.
+
+    Between #4243 and #4250 five artifacts landed while resultEvidence still
+    listed only the three compile-era ones, so the manifest — the index a
+    reviewer reads — under-reported what had been executed.
+    """
+    manifest = build_manifest()
+    for path in manifest["resultEvidence"]:
+        assert (ROOT / path).is_file(), f"{path} is cited but missing"
+
+    on_disk = {
+        f"artifacts/governance/{entry.name}"
+        for entry in (ROOT / "artifacts/governance").glob("smc_r5_htf_*.json")
+        if entry.name != "smc_r5_htf_session_rebuild_manifest.json"
+        # The survey records what was NOT runnable at the time, not a result.
+        and entry.name != "smc_r5_htf_session_rebuild_survey_2026-07-31.json"
+    }
+    missing = sorted(on_disk - set(manifest["resultEvidence"]))
+    assert not missing, f"landed R5 evidence not cited by the manifest: {missing}"
