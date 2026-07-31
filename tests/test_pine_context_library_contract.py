@@ -918,6 +918,13 @@ def test_remaining_frame_types_are_complete_and_explicit() -> None:
         "opening_range_bottom",
         "direction_bias",
         "context_score",
+        # 2026-07-31: session-level MSS (confirmed close crossing the PREVIOUS
+        # session's extreme), added to close the gap the R5 preset decision
+        # recorded — parity with SMC_Session_Context.pine's "Session MSS
+        # Bull/Bear Confirmed". Distinct from mss_bull/mss_bear (structure
+        # events during a session).
+        "prev_session_break_bull",
+        "prev_session_break_bear",
     }
     assert _type_fields("ContextFrame") == {
         "structure",

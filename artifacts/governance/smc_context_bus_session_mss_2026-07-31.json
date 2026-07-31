@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Evidence for the session-MSS channels: library v5 published, Context BUS publishes 62 channels including CTX SessionMssBull/Bear, Context Overlay compiles with all 62 bindings. Closes the follow-up recorded by the R5 Pro-HTF preset decision (#4257).",
+  "libraryPublish": {
+    "scriptName": "smc_context_engine_private",
+    "publishedVersion": 5,
+    "preflightPublishedVersion": 4,
+    "versionVerificationMode": "facade_list",
+    "publishOk": true,
+    "generatedAt": "2026-07-31T18:34:53.660Z",
+    "note": "First attempt failed at the publish-flow REOPEN after the add-to-chart gate \u2014 the title-keyed selector is single-use (apply-common-tooltip strips the title on click); fixed structurally in #4261, and this publish is that fix's end-to-end proof."
+  },
+  "chartVerification": {
+    "schemaVersion": 1,
+    "purpose": "context-bus session-MSS chain verification (library v5 -> BUS 62 channels -> overlay compile)",
+    "startedAtUtc": "2026-07-31T18:35:20Z",
+    "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+    "bus": {
+      "compileError": null,
+      "ctxChannelCount": 62,
+      "mssRows": [
+        {
+          "title": "CTX SessionMssBull",
+          "value": "\u2205"
+        },
+        {
+          "title": "CTX SessionMssBear",
+          "value": "\u2205"
+        }
+      ],
+      "hasBull": true,
+      "hasBear": true
+    },
+    "overlay": {
+      "compileError": null
+    },
+    "status": "pass",
+    "finishedAtUtc": "2026-07-31T18:38:37Z"
+  }
+}

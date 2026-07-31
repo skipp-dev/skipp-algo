@@ -4,11 +4,13 @@
 //@version=6
 
 // Hidden, domain-first Context BUS v3 producer.
-// Contract: schema 8001, exactly 60 direct channels, four TradingView plot
-// slots reserved.  This producer is observational and cannot gate Suite trades.
+// Contract: schema 8001, exactly 62 direct channels, two TradingView plot
+// slots reserved (2026-07-31: two spent on session MSS; additive within
+// schema 8001 — bindings are by name and the reserve exists for this).
+// This producer is observational and cannot gate Suite trades.
 indicator("SMC Context Bus", overlay = false)
 
-import preuss_steffen/smc_context_engine_private/4 as ctx
+import preuss_steffen/smc_context_engine_private/5 as ctx
 
 const int SCHEMA_VERSION = 8001
 
@@ -124,3 +126,5 @@ plot(frame.session.opening_range_active ? 1 : 0, "CTX OpeningRangeActive", displ
 plot(frame.session.opening_range_top, "CTX OpeningRangeTop", display = display.none)
 plot(frame.session.opening_range_bottom, "CTX OpeningRangeBottom", display = display.none)
 plot(frame.session.direction_bias, "CTX SessionDirection", display = display.none)
+plot(frame.session.prev_session_break_bull ? 1 : 0, "CTX SessionMssBull", display = display.none)
+plot(frame.session.prev_session_break_bear ? 1 : 0, "CTX SessionMssBear", display = display.none)

@@ -210,6 +210,13 @@ export type SessionFrame
     float  opening_range_bottom
     int    direction_bias
     int    context_score
+    // Session-level MSS: the confirmed close crossing the PREVIOUS session's
+    // extreme (one-bar pulse). Distinct from mss_bull/mss_bear above, which
+    // are structure events (BOS/CHoCH) while a session is active — those are
+    // already derivable from the structure channels. Parity target is
+    // SMC_Session_Context.pine's "Session MSS Bull/Bear Confirmed".
+    bool   prev_session_break_bull
+    bool   prev_session_break_bear
 
 // One confirmed-bar aggregate. Nested frames retain domain provenance; the
 // aggregate adds only an explicit six-domain vote and availability summary.
@@ -662,20 +669,28 @@ export build_pool_frame(simple int pivot_len = 5, float tolerance_pct = 0.1, sim
 // Stateful session seam. The live wrapper owns IANA-zone classification; this
 // helper owns the range, VWAP, scoring, and reset behavior replayed by the R3
 // fixture.
-_build_session_from_inputs(StructureFrame structure, ImbalanceFrame imbalance, int bar_time, float bar_high, float bar_low, float bar_hlc3, float bar_volume, int session_code, bool in_killzone, bool confirmed) =>
+_build_session_from_inputs(StructureFrame structure, ImbalanceFrame imbalance, int bar_time, float bar_high, float bar_low, float bar_close, float bar_hlc3, float bar_volume, int session_code, bool in_killzone, bool confirmed) =>
     var int active_session = 0
     var int session_started_at = na
     var float session_top = na
     var float session_bottom = na
+    // The finished extremes of the most recently COMPLETED session, stashed at
+    // both exit transitions (active -> outside, active -> other session)
+    // before the running range resets — mirroring SMC_Session_Context.pine.
+    var float previous_session_top = na
+    var float previous_session_bottom = na
     var float opening_top = na
     var float opening_bottom = na
     var float cumulative_pv = 0.0
     var float cumulative_volume = 0.0
-    var SessionFrame published = SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0)
+    var SessionFrame published = SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0, false, false)
 
     if confirmed
         bool session_changed = session_code != active_session
         if session_code == 0
+            if active_session != 0 and not na(session_top)
+                previous_session_top := session_top
+                previous_session_bottom := session_bottom
             active_session := 0
             session_started_at := na
             session_top := na
@@ -684,9 +699,12 @@ _build_session_from_inputs(StructureFrame structure, ImbalanceFrame imbalance, i
             opening_bottom := na
             cumulative_pv := 0.0
             cumulative_volume := 0.0
-            published := SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0)
+            published := SessionFrame.new(0, false, false, false, 0, false, false, false, na, na, na, na, na, na, false, na, na, 0, 0, false, false)
         else
             if session_changed
+                if active_session != 0 and not na(session_top)
+                    previous_session_top := session_top
+                    previous_session_bottom := session_bottom
                 active_session := session_code
                 session_started_at := bar_time
                 session_top := bar_high
@@ -722,9 +740,15 @@ _build_session_from_inputs(StructureFrame structure, ImbalanceFrame imbalance, i
             context_score += structure.trend != 0 ? 1 : 0
             context_score += imbalance.bpr_active ? 1 : 0
 
+            // One-bar pulse, evaluated on the first bar of a session too —
+            // the previous session's extreme is broken most often right at
+            // the open, and SMC_Session_Context.pine fires there as well.
+            bool prev_break_bull = not na(previous_session_top) and bar_close > previous_session_top and bar_close[1] <= previous_session_top
+            bool prev_break_bear = not na(previous_session_bottom) and bar_close < previous_session_bottom and bar_close[1] >= previous_session_bottom
+
             float session_mean = (session_top + session_bottom) / 2.0
             float session_vwap = cumulative_volume > 0 ? cumulative_pv / cumulative_volume : na
-            published := SessionFrame.new(session_code, in_killzone, mss_bull, mss_bear, structure.trend, imbalance.bull_fvg_active, imbalance.bear_fvg_active, imbalance.bpr_active, session_top, session_bottom, session_mean, session_vwap, session_top, session_bottom, opening_active, opening_top, opening_bottom, direction_bias, math.min(context_score, 7))
+            published := SessionFrame.new(session_code, in_killzone, mss_bull, mss_bear, structure.trend, imbalance.bull_fvg_active, imbalance.bear_fvg_active, imbalance.bpr_active, session_top, session_bottom, session_mean, session_vwap, session_top, session_bottom, opening_active, opening_top, opening_bottom, direction_bias, math.min(context_score, 7), prev_break_bull, prev_break_bear)
 
     published
 
@@ -743,7 +767,7 @@ export build_session_frame(StructureFrame structure, ImbalanceFrame imbalance) =
     bool london_kz = intraday and not na(time(timeframe.period, "0800-1100:1234567", "Europe/London"))
     bool ny_kz = intraday and not na(time(timeframe.period, "0930-1200:1234567", "America/New_York"))
     bool in_killzone = asia_kz or london_kz or ny_kz
-    _build_session_from_inputs(structure, imbalance, time, high, low, hlc3, volume, session_code, in_killzone, barstate.isconfirmed)
+    _build_session_from_inputs(structure, imbalance, time, high, low, close, hlc3, volume, session_code, in_killzone, barstate.isconfirmed)
 
 // Aggregate seam shared by the live builder and the source-derived R3 runtime
 // fixture. All voting and availability semantics live in exactly one place.

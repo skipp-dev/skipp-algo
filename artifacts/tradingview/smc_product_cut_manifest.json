@@ -899,7 +899,9 @@
       "CTX OpeningRangeActive",
       "CTX OpeningRangeTop",
       "CTX OpeningRangeBottom",
-      "CTX SessionDirection"
+      "CTX SessionDirection",
+      "CTX SessionMssBull",
+      "CTX SessionMssBear"
     ]
   },
   "preflightScopes": {
@@ -2761,7 +2763,9 @@
           "CTX OpeningRangeActive",
           "CTX OpeningRangeTop",
           "CTX OpeningRangeBottom",
-          "CTX SessionDirection"
+          "CTX SessionDirection",
+          "CTX SessionMssBull",
+          "CTX SessionMssBear"
         ],
         "bindingLabelGroups": [
           {
@@ -3120,6 +3124,18 @@
           },
           {
             "label": "CTX SessionDirection",
+            "group": "g_session",
+            "groupTitle": "Context BUS \u00b7 Session",
+            "tier": "diagnostic"
+          },
+          {
+            "label": "CTX SessionMssBull",
+            "group": "g_session",
+            "groupTitle": "Context BUS \u00b7 Session",
+            "tier": "diagnostic"
+          },
+          {
+            "label": "CTX SessionMssBear",
             "group": "g_session",
             "groupTitle": "Context BUS \u00b7 Session",
             "tier": "diagnostic"

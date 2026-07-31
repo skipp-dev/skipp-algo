@@ -291,7 +291,7 @@ _run_fixture(simple string selected_case, int fixture_step, bool fixture_started
         float fixture_vwap = direction == 1 ? 101.0 : direction == -1 ? 99.0 : 100.0
         SessionFrame result = _build_session_from_inputs(
              structure, imbalance, fixture_anchor + fixture_step * 300000,
-             105.0, 95.0, fixture_vwap, 100.0, session_code, killzone,
+             105.0, 95.0, 100.0, fixture_vwap, 100.0, session_code, killzone,
              fixture_started and fixture_step == 0)
         value_1 := result.session_code
         value_2 := result.in_killzone ? 1 : 0

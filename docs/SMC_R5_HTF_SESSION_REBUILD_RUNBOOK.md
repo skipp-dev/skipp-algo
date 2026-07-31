@@ -165,10 +165,21 @@ and EXTENDED cases read its `Session Code` and `Session Source Close` rows. That
 is an operator surface, which is exactly what `companion_operator_only` means,
 and it stays one.
 
-### Follow-up recorded, not silently dropped
+### Follow-up recorded — and closed the same day
 
-Session Context is the only script that publishes session-level MSS
-(`Session MSS Bull/Bear Confirmed`); nothing else in the repo does. That is a
-genuine gap in the Pro Context surface — but the answer is to add it to Context
-BUS and Context Overlay, where the session chain already lives, not to ship a
-redundant parallel producer in a preset. Not in scope here.
+Session Context was the only script publishing session-level MSS
+(`Session MSS Bull/Bear Confirmed`); nothing else in the repo did. That was a
+genuine gap in the Pro Context surface — and the answer was to add it to
+Context BUS and Context Overlay, where the session chain already lives, not to
+ship a redundant parallel producer in a preset.
+
+**Closed 2026-07-31 (owner-ordered):** the engine library's session seam now
+computes the previous-session-extreme break (`prev_session_break_bull/bear`,
+one-bar pulse on the confirmed close, parity with Session Context), the
+Context BUS publishes it as `CTX SessionMssBull/Bear` (channels 61–62, spending
+two of the four reserved slots — additive within schema 8001), and the Context
+Overlay renders the markers under its session gate. Deliberately NOT reused:
+the library's pre-existing `mss_bull/mss_bear`, which are structure events
+(BOS/CHoCH during a session) already derivable from the structure channels —
+publishing those under an MSS label would have been a second meaning behind
+the same name.

@@ -44,14 +44,16 @@ def test_product_cut_manifest_exports_surface_governance_schema_v3() -> None:
     assert surfaces['SMC_Session_Context.pine']['known_missing_mp_fields'] == []
     assert surfaces['SMC_Context_Overlay.pine']['bus_dependencies'] == ['context_v3']
     assert payload['contracts']['contextOverlayBindings'][0] == 'CTX SchemaVersion'
-    assert len(payload['contracts']['contextOverlayBindings']) == 60
+    # 2026-07-31: 60 -> 62 — the two session-MSS channels appended to the
+    # v3 contract (additive within schema 8001, reserve spent 4 -> 2).
+    assert len(payload['contracts']['contextOverlayBindings']) == 62
     r4_targets = payload['preflightScopes']['smcR4ContextShadow']
     assert [target['file'] for target in r4_targets] == [
         'SMC_Context_Bus.pine',
         'SMC_Context_Overlay.pine',
     ]
     assert r4_targets[1]['bindingContractKey'] == 'contextOverlayBindings'
-    assert len(r4_targets[1]['bindingContractLabels']) == 60
+    assert len(r4_targets[1]['bindingContractLabels']) == 62  # 2026-07-31: +2 session MSS
     assert 'SMC++.pine' not in surfaces
     assert 'SMC_Core_Zones.pine' not in surfaces
     assert 'SMC Core + Zones.pine' not in surfaces

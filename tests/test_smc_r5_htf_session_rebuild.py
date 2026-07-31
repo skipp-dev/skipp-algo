@@ -429,9 +429,14 @@ def test_pro_htf_preset_decision_is_recorded_with_its_premises() -> None:
     assert _surface("SMC_HTF_Confluence.pine")["rollout_state"] == "deployed"
     assert _surface("SMC_Session_Context.pine")["rollout_state"] == "not_deployed"
 
-    # The follow-up must stay visible: session MSS exists only here.
+    # The recorded follow-up is CLOSED (2026-07-31, same day): session-level
+    # MSS now flows through the session chain the decision pointed at —
+    # engine library (prev_session_break_*) -> Context BUS (CTX SessionMss*)
+    # -> Context Overlay markers. Session Context keeps its own rows and its
+    # instrument role; it did NOT enter a preset through this.
     assert "Session MSS Bull Confirmed" in session
-    assert "Session MSS" not in overlay
+    assert '"CTX SessionMssBull"' in overlay
+    assert '"CTX SessionMssBear"' in overlay
     assert "session-level MSS" in runbook
 
 
