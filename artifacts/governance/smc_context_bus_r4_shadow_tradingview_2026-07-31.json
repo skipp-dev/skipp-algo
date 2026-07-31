@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "requirementIds": [
+    "R4-BUS",
+    "R4-OVERLAY"
+  ],
+  "capturedAt": "2026-07-31T02:40:00Z",
+  "evidenceType": "private_shadow_layout_compile_save_and_bound_readback",
+  "scope": "Private TradingView compile, saved-script creation, chart instantiation, 60-source binding readback and budget observation on an isolated shadow layout. Not publication, not a managed layout change, not Suite/Breakout parity, and not rollback evidence.",
+  "authorization": {
+    "account": "preuss_steffen",
+    "layout": "SMC Context R4 Shadow",
+    "chartUrl": "https://www.tradingview.com/chart/Jb2Vp6xs/",
+    "symbol": "NASDAQ:AAPL",
+    "publicationAllowed": false,
+    "alertCreationAllowed": false
+  },
+  "repositoryBaseline": {
+    "commit": "393dafedd",
+    "productCutScope": "smcR4ContextShadow",
+    "preflightConfig": "automation/tradingview/preflight-r4-context-shadow.json"
+  },
+  "sources": [
+    {
+      "path": "SMC_Context_Bus.pine",
+      "savedScript": "SMC Context Bus",
+      "repositorySha256": "c693bede4ac671bfbb208e4f2968cb765119cd771510b313c1fec780446f6de8",
+      "schemaVersion": 8001
+    },
+    {
+      "path": "SMC_Context_Overlay.pine",
+      "savedScript": "SMC Context Overlay",
+      "repositorySha256": "d982e40fe7d1feb16f28f16978504bbba511082364faa4510fc93ac53af704cf"
+    }
+  ],
+  "preflight": {
+    "report": "automation/tradingview/reports/preflight-r4-context-shadow-2026-07-31-live.json",
+    "reportTrackedAsEvidence": false,
+    "executionMode": "mutating",
+    "authMode": "storage_state",
+    "producer": {
+      "auth_ok": true,
+      "chart_ok": true,
+      "editor_ok": true,
+      "compile_ok": true,
+      "script_found_on_chart_ok": true,
+      "runtime_smoke_ok": true,
+      "overall_preflight_ok": true
+    },
+    "consumer": {
+      "auth_ok": true,
+      "chart_ok": true,
+      "editor_ok": true,
+      "compile_ok": true,
+      "script_found_on_chart_ok": true,
+      "settings_open_ok": true,
+      "inputs_tab_ok": true,
+      "bindings_count_ok": true,
+      "bindings_names_ok": true,
+      "binding_contract_key": "contextOverlayBindings",
+      "contract_drift_likely": false,
+      "runtime_smoke_ok": true,
+      "overall_preflight_ok": true
+    }
+  },
+  "bindingReadback": {
+    "contract": "contextOverlayBindings",
+    "producerName": "SMC Context Bus",
+    "checked": 60,
+    "boundOk": 60,
+    "mismatches": 0,
+    "unknownParentRuntimeError": false,
+    "runtimeErrors": 0,
+    "forceRebind": false,
+    "readbackMode": "read_only_after_layout_save_and_fresh_session_reload",
+    "selectionForm": "SMC Context Bus: CTX <Channel>",
+    "persistenceNote": "A force-rebind run reports 60/60 inside its own session even when nothing persists: tv_verify_consumer_bindings.ts clicks the settings submit button but never calls saveChangedChartLayout, and submit only mutates the in-memory instance. The first read-only reload during this session returned 60/60 'Close' for exactly that reason. The recorded result comes from a rebind and layout save performed in one session, re-read in a fresh session."
+  },
+  "budgets": {
+    "tradingViewPlotLimit": 64,
+    "producerPlotSlots": 60,
+    "producerReservedSlots": 4,
+    "consumerPlotSlots": 18,
+    "consumerFillCount": 7,
+    "drawingObjects": {
+      "boxes": 0,
+      "lines": 0,
+      "labels": 0,
+      "tables": 0
+    },
+    "drawingObjectNote": "Both scripts use plot/plotshape/fill only, so no drawing-object budget is consumed.",
+    "runtimeErrorsOnFreshLoad": 0,
+    "observationWindowMs": 20000,
+    "instancesOnLayout": {
+      "SMC Context Bus": 1,
+      "SMC Context Overlay": 1
+    }
+  },
+  "nonInterference": {
+    "layoutContainsOnly": [
+      "SMC Context Bus",
+      "SMC Context Overlay"
+    ],
+    "absentFromLayout": [
+      "SMC Long-Dip Suite",
+      "SMC Long-Dip Dashboard",
+      "SMC Long-Dip Strategy",
+      "SMC Long-Dip Alerts",
+      "SMC Hold Manager",
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ],
+    "engineBusV2Touched": false,
+    "managedLayoutsTouched": false,
+    "holdManagerShadowLayoutTouched": false,
+    "note": "The R2.4 Hold Manager layout twh98JLB was not opened. No Suite instance exists on this layout, so the 'Context results alter a Suite decision or alert' condition is structurally excluded rather than merely unobserved."
+  },
+  "openGates": [
+    "Compare structure and zone output with Suite and Breakout evidence and explain discrepancies; no recorded Suite/Breakout structure-zone evidence set exists in the repository yet.",
+    "Run the rollback drill (remove both scripts from the shadow layout and save) — not executed here, so the shadow remains established.",
+    "Decide whether the private saved script satisfies the 'privately publish' wording of the R4-BUS gate or whether a TradingView publish step is additionally required."
+  ]
+}

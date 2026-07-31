@@ -246,11 +246,11 @@
             "artifacts/governance/smc_context_bus_v3_manifest.json",
             "automation/tradingview/preflight-r4-context-shadow.json",
             "docs/SMC_CONTEXT_BUS_R4_RUNBOOK.md",
-            "tests/test_smc_context_bus_v3_contract.py"
+            "tests/test_smc_context_bus_v3_contract.py",
+            "artifacts/governance/smc_context_bus_r4_shadow_tradingview_2026-07-31.json"
           ],
           "openGates": [
-            "Compile and privately publish the producer after its source hash and facade version are verified.",
-            "Verify the generated 60-source consumer binding contract on TradingView."
+            "Decide whether the private saved script satisfies the 'privately publish' wording or whether a TradingView publish step is additionally required."
           ]
         },
         {
@@ -261,12 +261,12 @@
             "SMC_Context_Overlay.pine",
             "automation/tradingview/preflight-r4-context-shadow.json",
             "docs/SMC_CONTEXT_BUS_R4_RUNBOOK.md",
-            "tests/test_smc_context_bus_v3_contract.py"
+            "tests/test_smc_context_bus_v3_contract.py",
+            "artifacts/governance/smc_context_bus_r4_shadow_tradingview_2026-07-31.json"
           ],
           "openGates": [
-            "Compile and bind the overlay to all 60 producer outputs in a private shadow layout.",
-            "Measure TradingView execution and object budgets.",
-            "Compare structure and zone output with Suite and Breakout evidence, explain discrepancies, and run rollback."
+            "Compare structure and zone output with Suite and Breakout evidence and explain discrepancies.",
+            "Run the rollback drill and record its evidence."
           ]
         }
       ]
