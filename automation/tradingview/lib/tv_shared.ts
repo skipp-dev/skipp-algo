@@ -11,7 +11,7 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
-import { chartIntervalDisplayLabel } from "./tv_validation_model.js";
+import { chartIntervalDisplayLabel, type ChartStateSnapshot } from "./tv_validation_model.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
@@ -8865,4 +8865,72 @@ export async function setChartInterval(page: Page, interval: string): Promise<bo
     tracePageEvent(page, "chart-interval", `${before}->${after} (wanted ${interval} shown as ${expected})`);
     return after === expected;
   }, Math.max(stepTimeoutMs(), 60_000));
+}
+
+/**
+ * Read the chart state R5-REBUILD-ROLLBACK restores, from measured selectors.
+ *
+ * Measured 2026-07-31 on the R5 validation layout:
+ *   symbol    `#header-toolbar-symbol-search`            -> "AAPL"
+ *   interval  `[aria-label="Change interval"]`           -> "5" / "1h" / "4h"
+ *   layout    `#header-toolbar-save-load`                -> "SMC HTF Context
+ *                                                           R5 Validation\nSave"
+ *   timezone  `[data-name="time-zone-menu"]`             -> "14:30:13 UTC"
+ *   studies   `[class*="sourcesWrapper"] [class*="item"]`-> ["Vol", "SMC
+ *                                                           Session Context",
+ *                                                           "SMC HTF Confluence"]
+ *
+ * The interval control is the same one `setChartInterval` verifies against, so
+ * it is already proven to report the display label rather than the typed value.
+ *
+ * Every field is nullable and nothing is defaulted: `compareChartState` treats
+ * an unreadable field as a difference, so a broken reader fails the drill
+ * instead of certifying a rollback nobody observed.
+ */
+export async function readChartStateSnapshot(page: Page): Promise<ChartStateSnapshot> {
+  return runTrackedStep(page, "readChartStateSnapshot", async () => {
+    const raw = await page.evaluate(`(() => {
+      function text(sel) {
+        var el = document.querySelector(sel);
+        if (!el) return null;
+        var t = (el.innerText || '').trim();
+        return t.length > 0 ? t : null;
+      }
+      var studies = [];
+      var rows = document.querySelectorAll('[class*="sourcesWrapper"] [class*="item"]');
+      for (var i = 0; i < rows.length; i++) {
+        var s = (rows[i].innerText || '').trim().replace(/\\s+/g, ' ');
+        if (s && studies.indexOf(s) === -1) studies.push(s);
+      }
+      return {
+        layoutRaw: text('#header-toolbar-save-load'),
+        symbol: text('#header-toolbar-symbol-search'),
+        interval: text('[aria-label="Change interval"]') || text('[data-tooltip="Change interval"]'),
+        clock: text('[data-name="time-zone-menu"]'),
+        studies: studies
+      };
+    })()`) as {
+      layoutRaw: string | null;
+      symbol: string | null;
+      interval: string | null;
+      clock: string | null;
+      studies: string[];
+    };
+
+    // "SMC HTF Context R5 Validation\nSave" -> the layout name is the first line.
+    const layoutName = raw.layoutRaw === null ? null : (raw.layoutRaw.split("\n")[0] ?? "").trim() || null;
+    // "14:30:13 UTC" -> the zone is the trailing token; the time itself moves and
+    // is deliberately not part of the state.
+    const timezone = raw.clock === null ? null : (raw.clock.trim().split(/\s+/).pop() ?? null);
+
+    const snapshot: ChartStateSnapshot = {
+      layoutName,
+      symbol: raw.symbol,
+      interval: raw.interval,
+      timezone,
+      studies: raw.studies,
+    };
+    tracePageEvent(page, "chart-state", JSON.stringify(snapshot));
+    return snapshot;
+  });
 }

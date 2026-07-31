@@ -154,7 +154,7 @@ def build_manifest() -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "gate": "R5-REBUILD",
-        "status": "compile_replay_and_live_executed_rollback_pending",
+        "status": "all_cases_executed",
         "purpose": ("Validate the rebuilt live HTF Confluence and Session Context companions before any deployment."),
         "statusSemantics": (
             "Per-case tradingViewStatus values preserve the preregistered baseline, as in the "
@@ -178,6 +178,8 @@ def build_manifest() -> dict[str, Any]:
             "artifacts/governance/smc_r5_htf_availability_2026-07-31.json",
             # LIVE-NO-REPAINT against the open regular session.
             "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json",
+            # ROLLBACK: capture, perturb, restore, save, reload, verify.
+            "artifacts/governance/smc_r5_htf_session_rebuild_rollback_2026-07-31.json",
         ],
         "sources": {
             "htfConfluence": {

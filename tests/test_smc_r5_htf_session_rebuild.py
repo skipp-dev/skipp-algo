@@ -306,3 +306,61 @@ def test_landed_r5_evidence_is_all_referenced_by_the_manifest() -> None:
     }
     missing = sorted(on_disk - set(manifest["resultEvidence"]))
     assert not missing, f"landed R5 evidence not cited by the manifest: {missing}"
+
+
+def test_rollback_evidence_records_a_drill_that_actually_perturbed_the_chart() -> None:
+    """R5-REBUILD-ROLLBACK must prove a restore, not an untouched chart.
+
+    The failure mode worth pinning is a drill that reports "restored" because it
+    never changed anything. So the evidence has to show the perturbation took,
+    the in-session restore matched, the layout was saved, AND the state survived
+    a reload — a save that is never re-read proves only that a button was
+    clicked.
+    """
+    manifest = build_manifest()
+    path = "artifacts/governance/smc_r5_htf_session_rebuild_rollback_2026-07-31.json"
+
+    assert path in manifest["resultEvidence"]
+    assert (ROOT / path).is_file()
+
+    report = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    assert report["caseId"] == "R5-REBUILD-ROLLBACK"
+    assert report["status"] == "pass"
+
+    # The source that was reinstalled is the one the manifest pins.
+    assert report["sourceHashVerified"] is True
+    assert report["sourceHash"] == manifest["sources"]["htfConfluence"]["sha256"]
+
+    # The perturbation is what makes the restore meaningful.
+    assert report["perturbationTook"] is True
+    assert report["perturbationDifferences"], "a drill that changed nothing certifies nothing"
+
+    assert report["inSessionComparison"]["restored"] is True
+    assert report["layoutSaved"] is True
+    assert report["reloadComparison"]["restored"] is True
+    assert report["reloadComparison"]["differences"] == []
+
+    # The baseline is the repaired chart, captured at drill time, and the
+    # evidence says so rather than implying a record that was never taken.
+    assert "step-1 record was never taken" in report["baselineOrigin"]
+
+    case = next(entry for entry in manifest["cases"] if entry["caseId"] == "R5-REBUILD-ROLLBACK")
+    for expectation in case["expectedDiagnostics"]:
+        key, _, value = expectation.partition("=")
+        assert report["observedDiagnostics"][key] == value
+
+
+def test_every_manifest_case_now_has_landed_evidence() -> None:
+    """All 11 R5 cases have been executed; the manifest must show it.
+
+    `resultEvidence` is the index a reviewer reads. If a case is executed but its
+    artifact is not cited, the gate under-reports itself — which is how five
+    artifacts sat unreferenced between #4243 and #4250.
+    """
+    manifest = build_manifest()
+    assert manifest["status"] == "all_cases_executed"
+    assert manifest["caseCount"] == len(manifest["cases"]) == 11
+
+    cited = "\n".join(manifest["resultEvidence"])
+    for fragment in ("preflight_green", "replay", "extended", "availability", "live_no_repaint", "rollback"):
+        assert fragment in cited, f"no evidence cited for {fragment}"
