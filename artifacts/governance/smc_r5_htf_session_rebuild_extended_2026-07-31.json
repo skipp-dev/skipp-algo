@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "evidenceType": "bar_replay_checkpoint_execution",
+  "chartTimezone": "UTC",
+  "chartSessionModesUsed": [
+    "Extended"
+  ],
+  "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+  "caseCount": 1,
+  "passedCount": 0,
+  "cases": [
+    {
+      "caseId": "R5-REBUILD-EXTENDED",
+      "runnable": true,
+      "checkpointUtc": "2026-03-09T21:15:00Z",
+      "drivenToUtc": "2026-03-09T21:20:00Z",
+      "checkpointApplied": true,
+      "attempts": 1,
+      "dataWindowRows": 23,
+      "observed": {
+        "sessionCode": "1",
+        "sessionLabel": "Asia",
+        "sourceCloseUtc": "2026-03-09T21:15:00Z",
+        "sourceConfirmed": "1"
+      },
+      "expected": [
+        "sessionCode=0",
+        "sessionLabel=Outside",
+        "sourceConfirmed=1"
+      ],
+      "passed": false,
+      "failures": [
+        {
+          "key": "sessionCode",
+          "expected": "0",
+          "observed": "1"
+        },
+        {
+          "key": "sessionLabel",
+          "expected": "Outside",
+          "observed": "Asia"
+        }
+      ]
+    }
+  ],
+  "notDone": [
+    "layout not saved",
+    "no publication",
+    "no alerts"
+  ]
+}

@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+
+const _dir = path.dirname(fileURLToPath(import.meta.url));
 
 import {
   SESSION_CODE_LABELS,
@@ -152,7 +157,13 @@ test("checkpointAfterClose refuses malformed input rather than guessing", () => 
   assert.equal(checkpointAfterClose("2025-10-27T13:45:00Z", Number.NaN), null);
 });
 
-test("an extended-hours case is not runnable rather than silently failed", () => {
+// The extended-hours requirement is no longer a refusal: the driver can put
+// the chart on Extended session data (measured control: chart settings ->
+// Symbol -> "Session", options Regular / Extended / 24 hours). The plan must
+// therefore CARRY the requirement so the caller can establish it and fail
+// closed if it cannot — a case run against the wrong data mode would be a
+// verdict about the wrong chart.
+test("an extended-hours case carries its data-mode requirement to the caller", () => {
   const plan = resolveReplayCheckpointPlan({
     caseId: "R5-REBUILD-EXTENDED",
     mode: "replay",
@@ -160,8 +171,30 @@ test("an extended-hours case is not runnable rather than silently failed", () =>
     checkpointUtc: "2026-03-09T21:15:00Z",
     expectedDiagnostics: ["sessionCode=0"],
   });
-  assert.equal(plan.runnable, false);
-  assert.match(plan.reason ?? "", /extended-hours/i);
+  assert.equal(plan.runnable, true);
+  assert.equal(plan.sessionMode, "extended");
+});
+
+test("a case without a declared session mode carries none", () => {
+  const plan = resolveReplayCheckpointPlan({
+    caseId: "R5-REBUILD-DST-EU-GAP",
+    mode: "replay",
+    checkpointUtc: "2025-10-27T13:45:00Z",
+    expectedDiagnostics: ["sessionCode=3"],
+  });
+  assert.equal(plan.runnable, true);
+  assert.equal(plan.sessionMode, undefined);
+});
+
+test("the runner establishes the session mode and fails closed", () => {
+  const source = fs.readFileSync(
+    path.join(_dir, "..", "..", "..", "scripts", "tv_r5_replay_cases.ts"),
+    "utf-8",
+  );
+  assert.match(source, /setChartSessionMode\(page, wantExtended \? "Extended" : "Regular"\)/);
+  assert.match(source, /could not put the chart on .* session data/);
+  // A data-mode change reloads the chart, so replay has to be re-entered.
+  assert.match(source, /could not re-enter Bar Replay after the session-mode change/);
 });
 
 test("a regular-session replay case stays runnable", () => {

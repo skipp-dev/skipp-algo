@@ -31,6 +31,7 @@ import {
   newTradingViewSession,
   readDataWindowValues,
   readReplayTimeframeLabel,
+  setChartSessionMode,
   setChartTimezone,
 } from "../automation/tradingview/lib/tv_shared.js";
 import {
@@ -91,6 +92,7 @@ async function main(): Promise<number> {
   const session = await newTradingViewSession();
   const page = session.page;
   let timezoneUtc = false;
+  const sessionModesUsed = new Set<string>();
 
   try {
     await gotoChart(page);
@@ -127,6 +129,39 @@ async function main(): Promise<number> {
       if (!plan.runnable || !plan.checkpointUtc) {
         reports.push({ caseId: entry.caseId, runnable: false, reason: plan.reason, passed: false });
         console.log(`[skip] ${entry.caseId}: ${plan.reason}`);
+        continue;
+      }
+
+      // Establish the data mode the case needs BEFORE driving it. Without
+      // extended data the requested instant has no bar and replay clamps to
+      // the last regular-session bar, which would produce a verdict about the
+      // wrong chart. Fail closed if the switch does not take.
+      const wantExtended = plan.sessionMode === "extended";
+      const modeOk = await setChartSessionMode(page, wantExtended ? "Extended" : "Regular");
+      if (!modeOk) {
+        reports.push({
+          caseId: entry.caseId,
+          runnable: false,
+          checkpointUtc: plan.checkpointUtc,
+          passed: false,
+          reason: `could not put the chart on ${wantExtended ? "Extended" : "Regular"} session data`,
+        });
+        console.log(`[skip] ${entry.caseId}: chart session mode not established`);
+        continue;
+      }
+      sessionModesUsed.add(wantExtended ? "Extended" : "Regular");
+      // Changing the data mode reloads the chart, so replay must be re-entered.
+      await exitBarReplay(page).catch(() => undefined);
+      await page.waitForTimeout(1_500);
+      if (!(await enterBarReplay(page))) {
+        reports.push({
+          caseId: entry.caseId,
+          runnable: true,
+          checkpointUtc: plan.checkpointUtc,
+          passed: false,
+          reason: "could not re-enter Bar Replay after the session-mode change",
+        });
+        console.log(`[FAIL] ${entry.caseId}: replay unavailable after session-mode change`);
         continue;
       }
 
@@ -224,6 +259,7 @@ async function main(): Promise<number> {
       requirementId: "R5-REBUILD",
       evidenceType: "bar_replay_checkpoint_execution",
       chartTimezone: timezoneUtc ? "UTC" : "not_set",
+      chartSessionModesUsed: [...sessionModesUsed],
       chartUrl: process.env.TV_CHART_URL ?? "",
       caseCount: reports.length,
       passedCount: reports.filter((entry) => entry.passed).length,
