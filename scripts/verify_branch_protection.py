@@ -71,7 +71,23 @@ class ProtectionReport:
 
     @property
     def passed(self) -> bool:
-        return all(r.passed for r in self.results if r.severity == "error")
+        errors = [r for r in self.results if r.severity == "error"]
+        # `all([])` is True, so with no error-severity result this returned
+        # "passed" having verified nothing. That is reachable by design rather
+        # than by accident: the classic layer is warn-only because "the ruleset
+        # check below is the authoritative verdict", and every early return in
+        # the ruleset check -- 404, non-200, empty list -- is warn-only because
+        # "classic protection may cover governance". Each layer defers to the
+        # other, so when BOTH fall through (classic 404 is the expected state
+        # since 2026-07-09; the rulesets call 403s on a token without
+        # administration:read) nothing is authoritative and the tool exits 0.
+        #
+        # The per-layer warn stays deliberate. What is added is the floor it
+        # rested on: at least one governance layer must actually have been
+        # observed.
+        if not errors:
+            return False
+        return all(r.passed for r in errors)
 
     def add(self, name: str, passed: bool, detail: str, *, severity: str = "error") -> None:
         self.results.append(CheckResult(name=name, passed=passed, detail=detail, severity=severity))

@@ -30,9 +30,18 @@ def mod() -> types.ModuleType:
 
 
 class TestProtectionReport:
-    def test_empty_report_passes(self, mod: types.ModuleType) -> None:
+    def test_empty_report_fails(self, mod: types.ModuleType) -> None:
+        """2026-08-01: was test_empty_report_passes.
+
+        `all([])` is True, so a report with no error-severity result claimed
+        "passed" having verified nothing. Both governance layers are warn-only
+        by design, each deferring to the other, so a run in which BOTH fall
+        through (classic 404 is expected since 2026-07-09; the rulesets call
+        403s without administration:read) produced exactly this report and
+        exited 0. Verifying nothing is not passing.
+        """
         report = mod.ProtectionReport()
-        assert report.passed is True
+        assert report.passed is False
 
     def test_all_checks_pass(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()
@@ -125,7 +134,10 @@ class TestCheckBranchProtection:
         with patch.object(mod, "_github_get", return_value=(403, {"message": "forbidden"})):
             mod._check_branch_protection("fake-token", report)
 
-        assert report.passed is True
+        # This exercises ONE layer, so it asserts that layer's severity, not the
+        # aggregate verdict: the whole point is that a single warn-only layer
+        # cannot decide the run.
+        assert not [r for r in report.results if r.severity == "error"]
         assert any(r.name == "branch_protection_enabled" and r.severity == "warn" for r in report.results)
 
     def test_no_classic_protection_is_warn_rulesets_govern(self, mod: types.ModuleType) -> None:
@@ -135,7 +147,7 @@ class TestCheckBranchProtection:
         with patch.object(mod, "_github_get", return_value=(404, {})):
             mod._check_branch_protection("fake-token", report)
 
-        assert report.passed is True
+        assert not [r for r in report.results if r.severity == "error"]
         assert any(
             r.name == "branch_protection_enabled" and r.severity == "warn"
             for r in report.results
@@ -234,8 +246,9 @@ class TestCheckRulesets:
         with patch.object(mod, "_github_get", return_value=(200, [])):
             mod._check_rulesets("fake-token", report)
 
-        # No rulesets is advisory (classic protection may cover governance).
-        assert report.passed is True
+        # No rulesets is advisory (classic protection may cover governance) --
+        # but advisory means "does not fail on its own", not "passes the run".
+        assert not [r for r in report.results if r.severity == "error"]
         assert any(r.severity == "warn" for r in report.results)
 
 
@@ -280,3 +293,39 @@ class TestMain:
 
 import os
 from typing import Any
+
+
+class TestBothLayersAdvisory:
+    """The combination neither layer's own test covered.
+
+    Each governance layer is warn-only on purpose, and each justifies that by
+    pointing at the other: the classic check because "the ruleset check below is
+    the authoritative verdict", the ruleset check because "classic protection
+    may cover governance". Nothing asserted what happens when BOTH fall through
+    — which is the state the repo is in whenever the rulesets call fails, since
+    classic protection has been absent by design since 2026-07-09.
+    """
+
+    def test_both_layers_falling_through_does_not_pass(self, mod: types.ModuleType) -> None:
+        report = mod.ProtectionReport()
+        # Classic: 404, the expected post-2026-07-09 state.
+        with patch.object(mod, "_github_get", return_value=(404, {})):
+            mod._check_branch_protection("fake-token", report)
+        # Rulesets: 403, a token without administration:read.
+        with patch.object(mod, "_github_get", return_value=(403, {"message": "forbidden"})):
+            mod._check_rulesets("fake-token", report)
+
+        assert [r.severity for r in report.results] == ["warn", "warn"]
+        assert report.passed is False, (
+            "no governance layer was observed; reporting a pass would certify nothing"
+        )
+
+    def test_one_observed_layer_is_enough(self, mod: types.ModuleType) -> None:
+        # The floor must not turn into "both layers required" — the two-layer
+        # design deliberately lets either one carry governance.
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", return_value=(404, {})):
+            mod._check_branch_protection("fake-token", report)
+        report.add("rulesets_governance", True, "main-governance ruleset enforces the checks.")
+
+        assert report.passed is True
