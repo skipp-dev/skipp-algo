@@ -1343,6 +1343,25 @@ IANA timezones. The Product Cut exposes both scripts through the private
 testable; it is not deployment evidence. Private compile, the 11-case rebuild
 manifest, source-hash verification, layout evidence, and rollback remain open.
 
+Compile-gate diagnosis on 2026-07-31: the first private preflight of the
+rebuilt root companions
+(`smc_r5_htf_session_rebuild_tradingview_2026-07-31.json`) passed
+`R5-REBUILD-COMPILE-SESSION` but failed `R5-REBUILD-COMPILE-HTF` — the applied
+chart instance reported `Compilation error: CE10156` and zero of the 20 HTF
+plot titles reached the Data Window. `CE10156` is TradingView's generic Pine
+*syntax-error* code ("Syntax error at input …", captured verbatim in the
+2026-07-13 automation runs, including once against an HTF Confluence draft at
+a tuple `[` with "end of line without line continuation"). Root cause: the
+rebuilt HTF source wrapped its three tuple destructures and the
+`_confirmed_tuple()` return across lines with continuations indented by
+multiples of four spaces, which Pine's line-wrapping rule reserves for local
+blocks. The spike source wrapped everything with the legal five-space
+continuation style and compiled on the same layout; the root source now uses
+that proven style. An editor body that stays clean after Save does not clear
+this class — TradingView can reveal the compiler error only after Add to
+chart (the CE10271 incident; see `getVisibleChartScriptError`). The private
+compile re-run of the reformatted source remains open.
+
 #### HTF technical spike
 
 - test stateful Context Frame calls under `request.security`;
