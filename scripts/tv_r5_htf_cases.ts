@@ -49,6 +49,7 @@ import {
 import {
   evaluateReplayCase,
   evaluateSourceCloseBoundaries,
+  US_REGULAR_SESSION_EDT,
   mapHtfDiagnostics,
   parseDataWindowItems,
   type BoundaryObservation,
@@ -56,6 +57,13 @@ import {
 
 const SOURCE = path.resolve("SMC_HTF_Confluence.pine");
 const SCRIPT = "SMC HTF Confluence";
+/** The manifest case each frame answers, so the evidence names itself. */
+const HTF_CASE_IDS: Readonly<Record<string, string>> = Object.freeze({
+  "15": "R5-REBUILD-HTF-15M",
+  "60": "R5-REBUILD-HTF-1H",
+  "240": "R5-REBUILD-HTF-4H",
+});
+
 /** chartTimeframe -> the frame that becomes equal-or-lower there. */
 const EQUAL_FRAME_AT: ReadonlyArray<{ interval: string; frame: string }> = [
   { interval: "15", frame: "15" },
@@ -137,6 +145,12 @@ async function main(): Promise<number> {
     // all. Driving every frame from 5m (the first attempt) crossed a 1h
     // boundary in none of 16 steps and would have needed 48 for 4h.
     const htfCases: Array<Record<string, unknown>> = [];
+    // The checkpoint sits on 2025-10-27, before the US DST end on 2025-11-02,
+    // so the regular session is 13:30-20:00 UTC. Passing it lets the boundary
+    // check tell a session-truncated bar from a repaint — without it the 4h
+    // frame is structurally uncertifiable, because 4h does not fit into a 6.5h
+    // session and its last bar of the day is always short.
+    const session = US_REGULAR_SESSION_EDT;
     for (const [frame, minutes, chartInterval, steps] of [
       ["15", 15, "5", 6],
       ["60", 60, "15", 6],
@@ -146,12 +160,12 @@ async function main(): Promise<number> {
       const onInterval = await setChartInterval(page, chartInterval);
       await page.waitForTimeout(8_000);
       if (!onInterval) {
-        htfCases.push({ frame, executed: false, reason: `could not put the chart on ${chartInterval}m to step the ${frame}m frame` });
+        htfCases.push({ caseId: HTF_CASE_IDS[frame], frame, executed: false, reason: `could not put the chart on ${chartInterval}m to step the ${frame}m frame` });
         console.log(`[htf ${frame}] not executed (chart would not move to ${chartInterval}m)`);
         continue;
       }
       if (!(await enterBarReplay(page))) {
-        htfCases.push({ frame, executed: false, reason: "could not enter Bar Replay" });
+        htfCases.push({ caseId: HTF_CASE_IDS[frame], frame, executed: false, reason: "could not enter Bar Replay" });
         continue;
       }
       await waitForBarReplayToolbar(page);
@@ -165,9 +179,9 @@ async function main(): Promise<number> {
         if (step === steps) break;
         if ((await stepReplayForward(page, 1)) !== 1) break;
       }
-      const verdict = evaluateSourceCloseBoundaries(observations, minutes);
+      const verdict = evaluateSourceCloseBoundaries(observations, minutes, { session });
       const available = observations.every((entry) => entry.available === "1");
-      htfCases.push({ frame, executed: true, chartInterval, available, observations, verdict, passed: available && verdict.advancesOnlyAtBoundary });
+      htfCases.push({ caseId: HTF_CASE_IDS[frame], frame, executed: true, chartInterval, available, observations, verdict, passed: available && verdict.advancesOnlyAtBoundary });
       console.log(`[htf ${frame}] chart=${chartInterval}m available=${available} advances=${verdict.advances} clean=${verdict.advancesOnlyAtBoundary} ${verdict.violations.join("; ")}`);
     }
     report.htfCases = htfCases;
