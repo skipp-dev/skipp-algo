@@ -6,7 +6,7 @@
   "sources": {
     "htfConfluence": {
       "path": "SMC_HTF_Confluence.pine",
-      "sha256": "7fed75382abdcf71f63dd23d5084313f6c35fa881edd7878cc9a77ce0a17fa4b",
+      "sha256": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
       "savedScript": "SMC HTF Confluence"
     },
     "sessionContext": {

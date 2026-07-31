@@ -55,84 +55,47 @@ _confirmed_tuple() =>
     int confirm_score = (trend != 0 ? 1 : 0) + (vwap_hold ? 1 : 0) + (bull_pattern or bear_pattern ? 1 : 0)
     int follow_score = (squeeze_released ? 1 : 0) + (trend > 0 and close > high[1] or trend < 0 and close < low[1] ? 1 : 0)
     [
-        time[1],
-        time_close[1],
-        barstate.isconfirmed[1],
-        trend[1],
-        atr_ratio[1],
-        squeeze_on[1],
-        squeeze_released[1],
-        reversal_active[1],
-        bull_pattern[1],
-        bear_pattern[1],
-        bull_divergence[1],
-        bear_divergence[1],
-        vwap_hold[1],
-        retrace_ok[1],
-        setup_score[1],
-        confirm_score[1],
-        follow_score[1]
-    ]
+         time[1],
+         time_close[1],
+         barstate.isconfirmed[1],
+         trend[1],
+         atr_ratio[1],
+         squeeze_on[1],
+         squeeze_released[1],
+         reversal_active[1],
+         bull_pattern[1],
+         bear_pattern[1],
+         bull_divergence[1],
+         bear_divergence[1],
+         vwap_hold[1],
+         retrace_ok[1],
+         setup_score[1],
+         confirm_score[1],
+         follow_score[1]]
 
-[
-    fast_source_time,
-    fast_source_close,
-    fast_source_confirmed,
-    fast_trend_raw,
-    fast_atr_ratio_raw,
-    fast_squeeze_on_raw,
-    fast_squeeze_released_raw,
-    fast_reversal_active_raw,
-    fast_bull_pattern_raw,
-    fast_bear_pattern_raw,
-    fast_bull_divergence_raw,
-    fast_bear_divergence_raw,
-    fast_vwap_hold_raw,
-    fast_retrace_ok_raw,
-    fast_setup_raw,
-    fast_confirm_raw,
-    fast_follow_raw
-] = request.security(syminfo.tickerid, tf_fast, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
+[fast_source_time, fast_source_close, fast_source_confirmed, fast_trend_raw, fast_atr_ratio_raw, fast_squeeze_on_raw, fast_squeeze_released_raw, fast_reversal_active_raw, fast_bull_pattern_raw, fast_bear_pattern_raw, fast_bull_divergence_raw, fast_bear_divergence_raw, fast_vwap_hold_raw, fast_retrace_ok_raw, fast_setup_raw, fast_confirm_raw, fast_follow_raw] = request.security(
+     syminfo.tickerid,
+     tf_fast,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = 500)
 
-[
-    medium_source_time,
-    medium_source_close,
-    medium_source_confirmed,
-    medium_trend_raw,
-    medium_atr_ratio_raw,
-    medium_squeeze_on_raw,
-    medium_squeeze_released_raw,
-    medium_reversal_active_raw,
-    medium_bull_pattern_raw,
-    medium_bear_pattern_raw,
-    medium_bull_divergence_raw,
-    medium_bear_divergence_raw,
-    medium_vwap_hold_raw,
-    medium_retrace_ok_raw,
-    medium_setup_raw,
-    medium_confirm_raw,
-    medium_follow_raw
-] = request.security(syminfo.tickerid, tf_medium, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
+[medium_source_time, medium_source_close, medium_source_confirmed, medium_trend_raw, medium_atr_ratio_raw, medium_squeeze_on_raw, medium_squeeze_released_raw, medium_reversal_active_raw, medium_bull_pattern_raw, medium_bear_pattern_raw, medium_bull_divergence_raw, medium_bear_divergence_raw, medium_vwap_hold_raw, medium_retrace_ok_raw, medium_setup_raw, medium_confirm_raw, medium_follow_raw] = request.security(
+     syminfo.tickerid,
+     tf_medium,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = 500)
 
-[
-    slow_source_time,
-    slow_source_close,
-    slow_source_confirmed,
-    slow_trend_raw,
-    slow_atr_ratio_raw,
-    slow_squeeze_on_raw,
-    slow_squeeze_released_raw,
-    slow_reversal_active_raw,
-    slow_bull_pattern_raw,
-    slow_bear_pattern_raw,
-    slow_bull_divergence_raw,
-    slow_bear_divergence_raw,
-    slow_vwap_hold_raw,
-    slow_retrace_ok_raw,
-    slow_setup_raw,
-    slow_confirm_raw,
-    slow_follow_raw
-] = request.security(syminfo.tickerid, tf_slow, _confirmed_tuple(), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on, calc_bars_count = 500)
+[slow_source_time, slow_source_close, slow_source_confirmed, slow_trend_raw, slow_atr_ratio_raw, slow_squeeze_on_raw, slow_squeeze_released_raw, slow_reversal_active_raw, slow_bull_pattern_raw, slow_bear_pattern_raw, slow_bull_divergence_raw, slow_bear_divergence_raw, slow_vwap_hold_raw, slow_retrace_ok_raw, slow_setup_raw, slow_confirm_raw, slow_follow_raw] = request.security(
+     syminfo.tickerid,
+     tf_slow,
+     _confirmed_tuple(),
+     gaps = barmerge.gaps_off,
+     lookahead = barmerge.lookahead_on,
+     calc_bars_count = 500)
 
 bool fast_available = _strictly_higher(tf_fast) and fast_source_confirmed and not na(fast_source_time) and not na(fast_source_close) and not na(fast_atr_ratio_raw)
 bool medium_available = _strictly_higher(tf_medium) and medium_source_confirmed and not na(medium_source_time) and not na(medium_source_close) and not na(medium_atr_ratio_raw)
