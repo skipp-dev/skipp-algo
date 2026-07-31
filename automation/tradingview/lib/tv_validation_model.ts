@@ -1478,3 +1478,42 @@ export function clipboardReadbackProvesWrite(input: {
       actual.slice(-200) === wanted.slice(-200))
   );
 }
+
+export type HtfSuiteCase = { caseId?: string; executed: boolean; passed?: boolean };
+export type HtfSuiteVerdict = {
+  ok: boolean;
+  executed: number;
+  expected: number;
+  notExecuted: string[];
+  failed: string[];
+};
+
+/**
+ * Decide whether an HTF case suite certifies anything.
+ *
+ * The runner used to answer this with
+ * `cases.filter((c) => c.executed).every((c) => c.passed === true)`. When NO
+ * case executed — the chart refused an interval change, Bar Replay would not
+ * start — the filter is empty and `every` is vacuously true, so the run exited
+ * 0 and wrote an evidence artifact claiming certification without having
+ * observed a single case.
+ *
+ * An unexecuted case is therefore a failure of the suite, not an absence from
+ * it: this is evidence for a gate, and evidence that was never gathered cannot
+ * certify. `expected` must be non-zero for the same reason.
+ */
+export function resolveHtfSuiteVerdict(
+  failClosedPassed: boolean,
+  cases: ReadonlyArray<HtfSuiteCase>,
+): HtfSuiteVerdict {
+  const label = (entry: HtfSuiteCase, index: number): string => entry.caseId ?? `case-${index}`;
+  const notExecuted = cases.filter((entry) => !entry.executed).map(label);
+  const failed = cases.filter((entry) => entry.executed && entry.passed !== true).map(label);
+  return {
+    ok: failClosedPassed && cases.length > 0 && notExecuted.length === 0 && failed.length === 0,
+    executed: cases.length - notExecuted.length,
+    expected: cases.length,
+    notExecuted,
+    failed,
+  };
+}
