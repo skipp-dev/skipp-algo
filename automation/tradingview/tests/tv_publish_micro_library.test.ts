@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   resolvePreMutationOpenGate,
@@ -539,4 +540,64 @@ test("pipeline phase detects core preflight failure after successful publish", (
   assert.equal(phase.failedAtStep, "core_preflight");
   assert.equal(phase.resumeFrom, "core_preflight");
   assert.equal(phase.completedPhase, "version_verification");
+});
+
+// --- stale version sentinel -------------------------------------------------
+//
+// The promote corroborates `expectedVersion` against `expectedImportPath` — but
+// both come from the SAME generated artifact, so the check compared 1 against 1
+// and could never fail. The generator runs BEFORE the publish, so it cannot know
+// the version it is about to get and regenerates `library_version: 1` every
+// time; on main the consumers pin /179 while the artifact still says 1.
+//
+// The only real evidence is the facade probe, which is documented fail-open.
+// When it fell through, the promote wrote library_release_manifest.json with
+// expectedVersion 1 — replacing a correct 179 with the sentinel.
+
+test("the stale version-1 sentinel cannot be promoted as publish confirmation", () => {
+  const base = {
+    publishConfirmed: true,
+    publishSurfaceClosedAfterConfirm: true,
+    publishNoChangeDetected: false,
+    identityVerificationMode: "script_context" as const,
+    versionVerificationMode: "not_verified" as const,
+  };
+
+  assert.equal(
+    shouldPromotePublishConfirmationVersionEvidence({
+      ...base,
+      expectedImportPath: "preuss_steffen/smc_micro_profiles_generated/1",
+      expectedVersion: 1,
+    }),
+    false,
+    "version 1 is the pre-publish generator default, never a real published version",
+  );
+
+  // A genuine version still promotes.
+  assert.equal(
+    shouldPromotePublishConfirmationVersionEvidence({
+      ...base,
+      expectedImportPath: "preuss_steffen/smc_micro_profiles_generated/180",
+      expectedVersion: 180,
+    }),
+    true,
+  );
+});
+
+test("the shipped generated artifact still carries the sentinel", () => {
+  // The regression guard for the premise: if this ever stops being 1, the
+  // generator started learning the published version and the guard above can be
+  // revisited. Until then it is load-bearing.
+  const artifact = JSON.parse(
+    fs.readFileSync(
+      path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "..", "..", "..", "pine/generated/smc_micro_profiles_generated.json",
+      ),
+      "utf-8",
+    ),
+  ) as { library_version: number; recommended_import_path: string };
+
+  assert.equal(artifact.library_version, 1);
+  assert.ok(artifact.recommended_import_path.endsWith("/1"));
 });

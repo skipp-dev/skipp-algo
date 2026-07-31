@@ -11,6 +11,7 @@ import {
   collectOpenScriptIdentityTexts,
   collectPublishedVersionContextTexts,
   ensurePineEditor,
+  fetchPublishedLibraryVersionViaFacade,
   gotoChart,
   newTradingViewSession,
   openExistingScript,
@@ -42,7 +43,7 @@ export { hasExpectedImportPathEvidence };
 // and exercised exclusively in the TradingView publish workflow.
 
 type IdentityVerificationMode = "script_context" | "not_verified";
-type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
+type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified" | "facade_list";
 type OpenMode = "existing" | "fresh_draft";
 
 type CliArgs = {
@@ -373,6 +374,24 @@ export async function runPublishOverlayLibraryCli(): Promise<number> {
         exactScriptVerified = publishedScriptVerified || identityVerificationMode === "script_context";
         exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
           && publishedVersion === details.version;
+      }
+
+      // The pine-facade filter=published listing is authoritative; UI evidence
+      // stays the fallback. Every other library publisher has consulted it since
+      // #3603/#3606 -- this one was missed because it publishes a GENERATED
+      // library and so fell outside both fixes and outside the pin test that
+      // guards the wiring "so it cannot silently regress".
+      //
+      // Without it `exactVersionVerified` reduced to `details.version ===
+      // details.version`: `--version` defaults to 1 and the publishing workflow
+      // never passes the flag, so a "Nothing to update" dialog -- which proves
+      // content equality and says nothing about the published version -- was
+      // enough for publishStatus "published".
+      const facadeVersion = await fetchPublishedLibraryVersionViaFacade(session.page, details.scriptName).catch(() => null);
+      if (facadeVersion !== null) {
+        publishedVersion = facadeVersion;
+        versionVerificationMode = "facade_list";
+        exactVersionVerified = facadeVersion === details.version;
       }
 
       if (!exactScriptVerified || !exactVersionVerified) {
