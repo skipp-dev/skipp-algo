@@ -119,5 +119,57 @@
     "Compare structure and zone output with Suite and Breakout evidence and explain discrepancies; no recorded Suite/Breakout structure-zone evidence set exists in the repository yet.",
     "Run the rollback drill (remove both scripts from the shadow layout and save) — not executed here, so the shadow remains established.",
     "Decide whether the private saved script satisfies the 'privately publish' wording of the R4-BUS gate or whether a TradingView publish step is additionally required."
-  ]
+  ],
+  "rollbackDrill": {
+    "executedAt": "2026-07-31T04:30:00Z",
+    "procedure": "Remove SMC Context Overlay and SMC Context Bus from the shadow layout, save the layout.",
+    "removed": {
+      "SMC Context Overlay": 1,
+      "SMC Context Bus": 1
+    },
+    "instancesAfterRemovalSameSession": {
+      "SMC Context Overlay": 0,
+      "SMC Context Bus": 0
+    },
+    "instancesAfterRemovalFreshSession": {
+      "SMC Context Overlay": 0,
+      "SMC Context Bus": 0
+    },
+    "managedSurfacesPresentOnLayout": [],
+    "managedSurfacesNote": "No managed script (Suite, Dashboard, Strategy, Alerts, Hold Manager) was present on the layout before or after the drill, so 'verify those existing surfaces remain unchanged' holds structurally: the rollback had no managed surface to touch.",
+    "restored": {
+      "SMC Context Bus": 1,
+      "SMC Context Overlay": 1
+    },
+    "rebindAfterRestore": {
+      "checked": 60,
+      "mismatches": 0,
+      "ok": true
+    },
+    "readbackAfterRestore": {
+      "mode": "read_only_fresh_session",
+      "checked": 60,
+      "boundOk": 60,
+      "mismatches": 0,
+      "sample": "SMC Context Bus: CTX SchemaVersion"
+    },
+    "verdict": "reversible_and_restorable",
+    "note": "Both the removal and the restoration were confirmed in a FRESH session, not only inside the mutating run — the same standard applied to the original binding evidence."
+  },
+  "publishWording": {
+    "question": "Does the private saved script satisfy the R4-BUS 'privately publish' gate?",
+    "answer": "yes_saved_script_is_the_repository_precedent",
+    "evidence": [
+      ".github/workflows/tv-save-consumer-source.yml: 'Unlike the library publishers, consumers are not \"published\"; they are the operator\\'s saved chart scripts.'",
+      "CLAUDE.md: publishing is repo -> TradingView for Pine LIBRARIES only.",
+      "scripts/tv_publish_micro_library.ts lists SMC Long-Dip Suite (the Engine BUS v2 producer) as a library CONSUMER with role 'producer'; the Suite itself is never published."
+    ],
+    "conclusion": "SMC Context Bus is handled exactly like the Engine BUS v2 producer: a private saved chart script. No TradingView publish step is required for this gate."
+  },
+  "suiteBreakoutComparison": {
+    "status": "blocked_on_observability",
+    "finding": "All 60 CTX channels are plotted with display = display.none on the producer, and the 60 consumer inputs carry display.none as well. TradingView renders display.none nowhere, not even in the Data Window, so the channel VALUES cannot be read from the UI for a numeric parity comparison.",
+    "visibleSurface": "Only the overlay's own rendering is visible (8 plots, 10 plotshapes, 7 fills), which supports a qualitative visual check, not the value parity the gate asks for.",
+    "requiredNext": "A fixture-only on-chart readback mechanism, following the R2.4 precedent (table.new marked TEST ONLY, never published). Deliberately NOT built here: a second competing observability mechanism is explicitly ruled out by the R2.4 outcome, so the method is an owner decision."
+  }
 }
