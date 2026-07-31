@@ -567,3 +567,4 @@
 {"event_name":"schedule","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"30583498301","runner_environment":"github-hosted","ts":"2026-07-30T21:48:10Z","workflow":"smc-library-refresh"}
 {"event_name":"schedule","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"30590143500","runner_environment":"github-hosted","ts":"2026-07-30T23:20:02Z","workflow":"smc-library-refresh"}
 {"event_name":"schedule","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"30621669829","runner_environment":"github-hosted","ts":"2026-07-31T09:55:19Z","workflow":"smc-library-refresh"}
+{"event_name":"workflow_run","matched_runner_name":null,"reason":"forced_github_hosted","run_id":"30621968934","runner_environment":"github-hosted","ts":"2026-07-31T10:00:21Z","workflow":"smc-library-refresh"}
