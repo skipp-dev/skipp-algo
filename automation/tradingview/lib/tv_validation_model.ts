@@ -1346,3 +1346,95 @@ export function evaluateLiveNoRepaint(
     violations,
   };
 }
+
+/**
+ * What "the chart state" means for R5-REBUILD-ROLLBACK.
+ *
+ * Deliberately excludes anything that moves on its own — last price, the clock,
+ * bar count. A rollback drill that compared those could never pass on a live
+ * market, and the property under test is that the LAYOUT came back, not that
+ * the market stood still.
+ */
+export type ChartStateSnapshot = {
+  layoutName: string | null;
+  symbol: string | null;
+  interval: string | null;
+  timezone: string | null;
+  /** Study/indicator titles in the legend, order-insensitive. */
+  studies: string[];
+};
+
+export type ChartStateComparison = {
+  restored: boolean;
+  differences: string[];
+};
+
+/**
+ * Compare a captured chart state against the one observed after a restore.
+ *
+ * Fails closed on unknowns: a field that could not be read on either side is a
+ * difference, not a match. A rollback that "passed" because the reader returned
+ * null twice would be exactly the vacuous evidence this gate exists to prevent.
+ */
+export function compareChartState(
+  before: ChartStateSnapshot,
+  after: ChartStateSnapshot,
+): ChartStateComparison {
+  const differences: string[] = [];
+
+  for (const field of ["layoutName", "symbol", "interval", "timezone"] as const) {
+    const expected = before[field];
+    const observed = after[field];
+    if (expected === null || observed === null) {
+      differences.push(`${field}: unreadable (before=${expected}, after=${observed})`);
+    } else if (expected !== observed) {
+      differences.push(`${field}: ${expected} -> ${observed}`);
+    }
+  }
+
+  const expectedStudies = [...before.studies].sort();
+  const observedStudies = [...after.studies].sort();
+  if (expectedStudies.length === 0) {
+    differences.push("studies: nothing was captured, so nothing can be certified as restored");
+  }
+  const missing = expectedStudies.filter((entry) => !observedStudies.includes(entry));
+  const extra = observedStudies.filter((entry) => !expectedStudies.includes(entry));
+  if (missing.length > 0) differences.push(`studies missing after restore: ${missing.join(", ")}`);
+  if (extra.length > 0) differences.push(`studies present that were not captured: ${extra.join(", ")}`);
+
+  return { restored: differences.length === 0, differences };
+}
+
+/**
+ * Invert `chartIntervalDisplayLabel`: turn what the control SHOWS back into the
+ * interval `setChartInterval` accepts.
+ *
+ * The rollback drill has to put the chart back on whatever it captured, and
+ * what it captured is the display label. Feeding "1h" straight back would make
+ * `setChartInterval` return false — `chartIntervalDisplayLabel("1h")` is null,
+ * because "1h" is not a digit string — so the restore would silently fail on
+ * every hourly chart and the drill would report a difference it caused itself.
+ *
+ * Returns null for anything unrecognised, so a caller fails closed rather than
+ * typing a guess into the chart.
+ */
+export function chartIntervalFromDisplayLabel(label: string): string | null {
+  const trimmed = label.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  const hours = /^(\d+)h$/i.exec(trimmed);
+  if (hours) return String(Number(hours[1]) * 60);
+  const days = /^(\d+)D$/.exec(trimmed);
+  if (days) return String(Number(days[1]) * 60 * 24);
+  return null;
+}
+
+/**
+ * The interval the rollback drill moves the chart to, given what it captured.
+ *
+ * Must never equal the captured one: a perturbation that does not perturb makes
+ * the later "restored" verdict vacuous. Takes the DISPLAY label, because that is
+ * what the state reader returns.
+ */
+export function perturbationInterval(currentDisplayLabel: string | null): string {
+  return currentDisplayLabel === "15" ? "30" : "15";
+}

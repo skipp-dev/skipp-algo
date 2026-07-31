@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "caseId": "R5-REBUILD-ROLLBACK",
+  "evidenceType": "layout_restore_drill",
+  "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+  "startedAtUtc": "2026-07-31T14:53:31Z",
+  "baselineOrigin": "Captured from the repaired chart at drill time. The runbook's step-1 record was never taken, and the state that preceded validation was the defective pre-CE10156-fix layout, so there is no earlier state that would be correct to restore.",
+  "sourceHash": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+  "pinnedHash": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+  "sourceHashVerified": true,
+  "captured": {
+    "layoutName": "SMC HTF Context R5 Validation",
+    "symbol": "AAPL",
+    "interval": "15",
+    "timezone": "UTC",
+    "studies": [
+      "Vol",
+      "SMC Session Context",
+      "SMC HTF Confluence"
+    ]
+  },
+  "perturbed": {
+    "layoutName": "SMC HTF Context R5 Validation",
+    "symbol": "AAPL",
+    "interval": "30",
+    "timezone": "UTC",
+    "studies": [
+      "Vol",
+      "SMC Session Context"
+    ]
+  },
+  "perturbationTook": true,
+  "perturbationDifferences": [
+    "interval: 15 -> 30",
+    "studies missing after restore: SMC HTF Confluence"
+  ],
+  "restoredInSession": {
+    "layoutName": "SMC HTF Context R5 Validation",
+    "symbol": "AAPL",
+    "interval": "15",
+    "timezone": "UTC",
+    "studies": [
+      "Vol",
+      "SMC Session Context",
+      "SMC HTF Confluence"
+    ]
+  },
+  "inSessionComparison": {
+    "restored": true,
+    "differences": []
+  },
+  "layoutSaved": true,
+  "afterReload": {
+    "layoutName": "SMC HTF Context R5 Validation",
+    "symbol": "AAPL",
+    "interval": "15",
+    "timezone": "UTC",
+    "studies": [
+      "Vol",
+      "SMC Session Context",
+      "SMC HTF Confluence"
+    ]
+  },
+  "reloadComparison": {
+    "restored": true,
+    "differences": []
+  },
+  "observedDiagnostics": {
+    "sourceHashVerified": "1",
+    "priorChartStateRestored": "1",
+    "layoutSaved": "1"
+  },
+  "status": "pass",
+  "finishedAtUtc": "2026-07-31T14:55:43Z"
+}

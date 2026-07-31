@@ -314,7 +314,8 @@
             "artifacts/governance/smc_r5_htf_session_rebuild_extended_2026-07-31.json",
             "artifacts/governance/smc_r5_htf_stepping_mechanism_2026-07-31.json",
             "artifacts/governance/smc_r5_htf_availability_2026-07-31.json",
-            "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json"
+            "artifacts/governance/smc_r5_htf_session_rebuild_live_no_repaint_2026-07-31.json",
+            "artifacts/governance/smc_r5_htf_session_rebuild_rollback_2026-07-31.json"
           ],
           "openGates": [
             "Execute the replay, live-observation, and rollback cases in smc_r5_htf_session_rebuild_manifest.json.",
