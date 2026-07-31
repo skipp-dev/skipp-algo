@@ -132,8 +132,20 @@ def build_manifest() -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "gate": "R5-REBUILD",
-        "status": "ready_for_private_execution",
+        "status": "compile_executed_replay_pending",
         "purpose": ("Validate the rebuilt live HTF Confluence and Session Context companions before any deployment."),
+        "statusSemantics": (
+            "Per-case tradingViewStatus values preserve the preregistered baseline, as in the "
+            "R5-HTF-SPIKE manifest. Actual private runtime outcomes are recorded in resultEvidence."
+        ),
+        "resultEvidence": [
+            # First execution: COMPILE-SESSION passed, COMPILE-HTF failed with CE10156.
+            "artifacts/governance/smc_r5_htf_session_rebuild_tradingview_2026-07-31.json",
+            # Compiler verdict for that failure and for the fix (pine-facade translate_light).
+            "artifacts/governance/smc_r5_htf_session_rebuild_ce10156_diagnosis_2026-07-31.json",
+            # Re-execution after the fix: both compile cases green on every axis.
+            "artifacts/governance/smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json",
+        ],
         "sources": {
             "htfConfluence": {
                 "path": HTF_SOURCE.relative_to(ROOT).as_posix(),

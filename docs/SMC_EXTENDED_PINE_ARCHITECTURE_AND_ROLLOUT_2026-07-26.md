@@ -1343,6 +1343,16 @@ IANA timezones. The Product Cut exposes both scripts through the private
 testable; it is not deployment evidence. Private compile, the 11-case rebuild
 manifest, source-hash verification, layout evidence, and rollback remain open.
 
+Compile-gate status on 2026-07-31: **closed.** Both root companions compile and
+run green on the private validation layout — every preflight axis true for both
+targets, runtime smoke included
+(`smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json`). Reaching that
+took two fixes, and the second one is the reason the first was briefly believed
+not to work: the CE10156 line-wrapping fix in the HTF source, and the preflight
+stale-instance fix that stopped the gate from re-measuring the pre-fix chart
+instance. The replay, live-observation and rollback cases are untouched by
+this, so `R5-REBUILD` stays `partial`.
+
 Compile-gate diagnosis on 2026-07-31: the first private preflight of the
 rebuilt root companions
 (`smc_r5_htf_session_rebuild_tradingview_2026-07-31.json`) passed
