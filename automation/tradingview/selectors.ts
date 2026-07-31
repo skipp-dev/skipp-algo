@@ -341,6 +341,21 @@ export const tvSelectors = {
     const pineDialog = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]').last();
 
     return [
+      // TradingView relabelled this control: the Pine editor header button that
+      // starts the publish flow is now titled "Share your script with
+      // community" and contains the word "publish" NOWHERE. Every pattern
+      // below keys on "publish", so all of them missed and openPublishSurface
+      // reported "Could not open publish flow" — which is why
+      // smc-library-refresh has been unable to publish since 2026-07-30 while
+      // generating the library fine and passing its auth probe.
+      //
+      // Measured 2026-07-31 in the editor header: "Add to chart", an unnamed
+      // button, [title="Share your script with community"], "More". Clicking it
+      // opens the publish flow, which immediately shows the known
+      // "Script is not on the chart" gate that hasPublishAddToChartGate already
+      // handles.
+      pineDialog.locator('[title="Share your script with community"]'),
+      pineDialog.locator('[title*="share your script" i]'),
       pineDialog.getByRole("button", { name: /publish script/i }),
       pineDialog.getByRole("button", { name: /publish library/i }),
       pineDialog.getByRole("button", { name: /^publish$/i }),
