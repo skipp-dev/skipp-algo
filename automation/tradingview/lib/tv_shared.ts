@@ -8764,3 +8764,41 @@ export async function setChartSessionMode(page: Page, mode: "Regular" | "Extende
     return picked;
   }, Math.max(stepTimeoutMs(), 60_000));
 }
+
+/**
+ * Put the chart on a timeframe ("5", "15", "60", "240").
+ *
+ * FAIL-CLOSED needs the chart moved ONTO the requested frames so the script's
+ * strictly-higher rule can be observed rejecting equal and lower ones; that is
+ * a chart-level change, not a replay one.
+ *
+ * Reports whether the interval control ended up showing the requested value,
+ * so a caller can fail closed rather than measure the previous timeframe.
+ */
+export async function setChartInterval(page: Page, interval: string): Promise<boolean> {
+  return runTrackedStep(page, `setChartInterval:${interval}`, async () => {
+    const control = page.locator('[data-tooltip="Change interval"], [aria-label="Change interval"]').first();
+    if (!(await control.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      tracePageEvent(page, "chart-interval-control-missing", interval);
+      return false;
+    }
+    const before = ((await control.innerText().catch(() => "")) ?? "").trim();
+    if (before === interval) {
+      tracePageEvent(page, "chart-interval-already", interval);
+      return true;
+    }
+    // The keyboard route is TradingView's own and avoids depending on the
+    // menu's hashed rows: type the interval, then Enter.
+    await page.locator("body").click({ position: { x: 400, y: 400 } }).catch(() => undefined);
+    await page.waitForTimeout(300);
+    for (const character of interval) {
+      await page.keyboard.press(character).catch(() => undefined);
+      await page.waitForTimeout(120);
+    }
+    await page.keyboard.press("Enter").catch(() => undefined);
+    await page.waitForTimeout(6_000);
+    const after = ((await control.innerText().catch(() => "")) ?? "").trim();
+    tracePageEvent(page, "chart-interval", `${before}->${after} (wanted ${interval})`);
+    return after === interval;
+  }, Math.max(stepTimeoutMs(), 60_000));
+}
