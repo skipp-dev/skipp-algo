@@ -872,9 +872,22 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       await takeScreenshot(session.page, runId, `${details.libraryName}-compiled`, screenshots);
 
       publishAttempted = true;
+      // Bound outside the failure closure: TypeScript loses the non-null
+      // narrowing of `details` (a mutable outer binding) inside a callback.
+      const publishLibraryName = details.libraryName;
       const publishResult = await publishPrivateScript(session.page, {
-        scriptName: details.libraryName,
-        title: details.libraryName,
+        scriptName: publishLibraryName,
+        title: publishLibraryName,
+      }).catch(async (publishError: unknown) => {
+        // 2026-07-31 (issue #4238): a failing publish shipped NO screenshot of
+        // its own failure. The outer catch cannot take one — the enclosing
+        // `finally` has already closed the session by then — so the only image
+        // in the report was the pre-publish "-compiled" shot, taken before
+        // anything went wrong. Capture the actual failure frame here, while the
+        // page is still alive, then rethrow unchanged.
+        await takeScreenshot(session.page, runId, `${publishLibraryName}-publish-failed`, screenshots)
+          .catch(() => undefined);
+        throw publishError;
       });
       publishNoChangeDetected = publishResult.noChangeDetected;
       publishConfirmed = publishConfirmed || publishResult.publishConfirmed;
