@@ -623,8 +623,6 @@ async function main(): Promise<number> {
     const session = await newTradingViewSession();
 
     try {
-      let usedFreshDraftPath = false;
-
       await gotoChart(session.page);
       const pageAuthState = await collectTradingViewPageAuthState(session.page).catch(() => null);
       targetResult.auth_ok = Boolean(pageAuthState?.authenticated);
@@ -654,14 +652,12 @@ async function main(): Promise<number> {
         if (!openedExisting) {
           if (cli.executionMode === "mutating" && target.allowFreshDraftOnMissingExisting) {
             await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
-            usedFreshDraftPath = true;
           } else {
             throw new Error(buildMissingExistingScriptError(target, cli.executionMode, indicatorsFallbackResult));
           }
         }
       } else if (cli.executionMode === "mutating") {
         await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
-        usedFreshDraftPath = true;
       }
 
       await ensurePineEditor(session.page);
@@ -676,7 +672,16 @@ async function main(): Promise<number> {
       }
 
       if (target.addToChart || target.checkInputs) {
-        if (usedFreshDraftPath && target.scriptName) {
+        if (cli.executionMode === "mutating" && target.scriptName) {
+          // The mutating path just saved this source, but a chart instance that
+          // predates the save keeps running the previously compiled version —
+          // including its compile-error badge. Without clearing it first,
+          // addCurrentScriptToChart hits its "already present" fast path and
+          // every downstream axis (runtime smoke included) measures the STALE
+          // instance: the 2026-07-31 CE10156 re-run reported the old syntax
+          // error for a source pine-facade had already accepted, which read
+          // exactly like the fix not working. Clear and force a fresh insert
+          // so the measured instance is the saved source.
           await removeVisibleChartScriptInstances(session.page, target.scriptName).catch(() => 0);
           await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true, stepTimeoutMs: Math.max(stepTimeoutMs(), 90_000) });
         } else {

@@ -2437,9 +2437,58 @@ function normalizeVisibleEvidenceValues(entries: Array<{
 
 export async function collectOpenScriptIdentityTexts(page: Page, scriptName: string): Promise<string[]> {
   const texts: string[] = [];
+  let legendEvidenceSkipped = 0;
 
   for (const candidate of tvSelectors.openScriptIdentity(page, scriptName)) {
-    texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(candidate, 750)));
+    const total = await candidate.count().catch(() => 0);
+    for (let index = 0; index < total; index += 1) {
+      const element = candidate.nth(index);
+      try {
+        if (!(await element.isVisible({ timeout: 750 }))) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      // The identity families scan the whole page, and with the script ON THE
+      // CHART two chart-side surfaces carry its name in exactly the
+      // [class*="title"] shapes they accept: the legend row and the Object
+      // Tree entry in the right widgetbar. Both leaked as open-script identity
+      // evidence while the editor sat on an untouched "Untitled script" draft
+      // (measured live 2026-07-31 during the CE10156 diagnosis; ancestor
+      // chains: legend titles under .legend-* < .chart-gui-wrapper <
+      // .chart-container, tree entries under [data-name="tree"] inside the
+      // widgetbar). Chart-side texts are never editor evidence. Two layers:
+      // the measured, unhashed chart-surface containers first, then the same
+      // legend-action-button proximity probe countChartScriptInstances uses,
+      // in case TradingView renames the wrapper classes.
+      const insideLegendRow = await element.evaluate((node) => {
+        if (node.closest('.chart-container, .chart-gui-wrapper, [data-name="tree"]')) {
+          return true;
+        }
+        let current: Element | null = node;
+        for (let depth = 0; depth < 4 && current; depth += 1) {
+          const text = (current as HTMLElement).innerText ?? "";
+          if (text.length > 300) {
+            break;
+          }
+          if (current.querySelector('button[data-qa-id="legend-settings-action"], button[data-qa-id="legend-more-action"]')) {
+            return true;
+          }
+          current = current.parentElement;
+        }
+        return false;
+      }).catch(() => false);
+      if (insideLegendRow) {
+        legendEvidenceSkipped += 1;
+        continue;
+      }
+      texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(element, 750)));
+    }
+  }
+
+  if (legendEvidenceSkipped > 0) {
+    tracePageEvent(page, "open-script-identity-legend-evidence-skipped", `${scriptName}:${legendEvidenceSkipped}`);
   }
 
   return uniqueNormalizedTexts(texts);
@@ -6275,15 +6324,19 @@ export async function openExistingScript(
     const selectionAttempts = resolveOpenScriptSelectionAttempts(scriptName);
     // The title is not sufficient proof that the corresponding Monaco model is
     // active. TradingView can retain a previous script buffer while repainting
-    // the requested title after a publish/save transition.
+    // the requested title after a publish/save transition. Worse, the identity
+    // families scan the whole page, so with the script ON THE CHART the legend
+    // row satisfies them while the editor sits on an untouched "Untitled
+    // script" draft — observed live 2026-07-31 during the CE10156 diagnosis,
+    // where this fast path returned true without touching the editor. The
+    // Monaco-model declaration can only come from the editor buffer, so the
+    // fast path requires it unconditionally; when it cannot be proven the
+    // function just proceeds to the picker, which is what it would do anyway.
     const uiAlreadyOpen = options.forceSelection
       ? false
       : await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
     const alreadyOpen = uiAlreadyOpen
-      && (
-        !options.requireVisibleDeclarationIdentity
-        || await waitForVisiblePineDeclarationIdentity(page, identityNames, 1_500).catch(() => false)
-      );
+      && await waitForVisiblePineDeclarationIdentity(page, identityNames, 1_500).catch(() => false);
     if (alreadyOpen) {
       tracePageEvent(page, "open-script-identity-current", scriptName);
       return true;
