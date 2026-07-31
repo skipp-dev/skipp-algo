@@ -8681,3 +8681,86 @@ export async function readReplayTimeframeLabel(page: Page, timeoutMs = 20_000): 
   tracePageEvent(page, "replay-timeframe-label", `${JSON.stringify(text)}->${label ?? "none"}`);
   return label;
 }
+
+/**
+ * Set the chart's data session mode.
+ *
+ * Measured 2026-07-31: chart settings (`[data-name="header-toolbar-properties"]`)
+ * -> Symbol tab -> "DATA MODIFICATION" -> a "Session" dropdown whose options are
+ * exactly "Regular", "Extended" and "24 hours". This is what an extended-hours
+ * case needs; without it the requested instant simply has no bar and Bar Replay
+ * clamps to the last regular-session bar.
+ *
+ * Applies with the dialog's "Ok" button and reports whether the control ended
+ * up on the requested value, so a caller can fail closed instead of driving a
+ * chart that never changed mode.
+ */
+export async function setChartSessionMode(page: Page, mode: "Regular" | "Extended" | "24 hours"): Promise<boolean> {
+  return runTrackedStep(page, `setChartSessionMode:${mode}`, async () => {
+    const opened = await page.locator('[data-name="header-toolbar-properties"]').first()
+      .click({ timeout: 5_000 }).then(() => true).catch(() => false);
+    if (!opened) {
+      tracePageEvent(page, "chart-session-no-settings", mode);
+      return false;
+    }
+    await page.waitForTimeout(2_000);
+    await page.getByText(/^Symbol$/).first().click({ timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(1_500);
+
+    const current = await page.evaluate(() => {
+      for (const el of Array.from(document.querySelectorAll("span,div"))) {
+        const node = el as HTMLElement;
+        const own = Array.from(node.childNodes)
+          .filter((child) => child.nodeType === Node.TEXT_NODE)
+          .map((child) => child.textContent ?? "")
+          .join("")
+          .trim();
+        if (own === "Regular" || own === "Extended" || own === "24 hours") {
+          const rect = node.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) return own;
+        }
+      }
+      return null;
+    }).catch(() => null);
+
+    if (current === mode) {
+      tracePageEvent(page, "chart-session-already", mode);
+      await page.getByText(/^Cancel$/).first().click({ timeout: 3_000 }).catch(() => undefined);
+      return true;
+    }
+    if (current === null) {
+      tracePageEvent(page, "chart-session-no-control", mode);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      return false;
+    }
+
+    await page.getByText(new RegExp(`^${current}$`)).first().click({ timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(1_500);
+    // The closed control still shows the old value, so the OPTION is the second
+    // match; pick the lowest one on screen, which is the list entry.
+    const picked = await page.evaluate((wanted) => {
+      const hits: HTMLElement[] = [];
+      for (const el of Array.from(document.querySelectorAll("span,div,[role='option']"))) {
+        const node = el as HTMLElement;
+        const own = Array.from(node.childNodes)
+          .filter((child) => child.nodeType === Node.TEXT_NODE)
+          .map((child) => child.textContent ?? "")
+          .join("")
+          .trim();
+        if (own !== wanted) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) hits.push(node);
+      }
+      if (!hits.length) return false;
+      hits.sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top);
+      hits[0].click();
+      return true;
+    }, mode).catch(() => false);
+    await page.waitForTimeout(1_500);
+
+    await page.getByText(/^Ok$/).first().click({ timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(6_000);
+    tracePageEvent(page, "chart-session-mode", `${current}->${mode}:picked=${picked}`);
+    return picked;
+  }, Math.max(stepTimeoutMs(), 60_000));
+}

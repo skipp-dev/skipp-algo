@@ -730,6 +730,8 @@ export type ReplayCheckpointPlan = {
   caseId: string;
   checkpointUtc?: string;
   chartTimeframe?: string;
+  /** The chart data mode the case needs; the caller must establish it. */
+  sessionMode?: string;
   reason?: string;
 };
 
@@ -751,21 +753,18 @@ export function resolveReplayCheckpointPlan(input: ReplayCaseDefinition): Replay
   // requested instant simply has no bar and Bar Replay clamps to the last
   // regular-session bar — measured 2026-07-31: asking for 2026-03-09T21:15Z
   // reported a source close of 19:55Z (15:55 ET, the last bar before the
-  // regular close) and an NY PM session instead of Outside. That is not the
-  // case failing; it is the case never having run, and it must not be
-  // reported as a verdict.
-  if (input.sessionMode === "extended") {
-    return {
-      runnable: false,
-      caseId: input.caseId,
-      reason: "requires extended-hours chart data, which this driver does not switch on",
-    };
-  }
+  // regular close) and an NY PM session instead of Outside. The requirement is
+  // carried through to the caller, which must switch the chart and fail closed
+  // if it cannot; a case run against the wrong data mode is not a verdict.
+  // Only ADD the key when the case declares one: the plan shape is pinned by
+  // an existing deep-equality test, and an always-present `sessionMode:
+  // undefined` is not the same object.
   return {
     runnable: true,
     caseId: input.caseId,
     checkpointUtc: input.checkpointUtc,
     chartTimeframe: input.chartTimeframe,
+    ...(input.sessionMode === undefined ? {} : { sessionMode: input.sessionMode }),
   };
 }
 
