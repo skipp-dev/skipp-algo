@@ -155,7 +155,7 @@ async function main(): Promise<number> {
         continue;
       }
       await waitForBarReplayToolbar(page);
-      await jumpToReplayCheckpoint(page, { dateIso: "2025-10-27", timeHhMm: "14:00" });
+      await jumpToReplayCheckpoint(page, { dateIso: "2025-10-27", timeHhMm: "17:00" });
       await page.waitForTimeout(4_000);
 
       const observations: BoundaryObservation[] = [];
