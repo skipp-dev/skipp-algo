@@ -1438,3 +1438,43 @@ export function chartIntervalFromDisplayLabel(label: string): string | null {
 export function perturbationInterval(currentDisplayLabel: string | null): string {
   return currentDisplayLabel === "15" ? "30" : "15";
 }
+
+/**
+ * Decide whether a clipboard readback proves the editor write landed.
+ *
+ * The clipboard write path used to compare the readback against the value it
+ * had itself just put on the clipboard: write `code` -> paste -> select-all ->
+ * copy -> read. If the copy is a no-op (focus lost, Monaco not focused, an
+ * overlay in front), the clipboard still holds the ORIGINAL write, so the
+ * comparison succeeds without the editor ever having changed.
+ *
+ * The read path in the same module already guards against exactly this by
+ * seeding a marker first — "so a copy that never lands cannot masquerade as
+ * source". This is that guard for the write path: the readback must differ
+ * from the seeded marker AND match the expected text.
+ *
+ * The head/tail comparison is kept from the original: some editors normalise
+ * trailing whitespace, so an exact match is too strict for a 200 KB document,
+ * while equal length plus identical first and last 200 characters is not
+ * something a truncated or stale grab produces.
+ */
+export function clipboardReadbackProvesWrite(input: {
+  expected: string;
+  seededMarker: string;
+  readback: string;
+  normalize: (value: string) => string;
+}): boolean {
+  const { expected, seededMarker, readback, normalize } = input;
+  if (seededMarker.length === 0) return false;
+  // The copy never landed: the clipboard still holds the marker we seeded.
+  if (readback === seededMarker) return false;
+  const actual = normalize(readback);
+  const wanted = normalize(expected);
+  if (actual.length === 0) return false;
+  return (
+    actual === wanted ||
+    (actual.length === wanted.length &&
+      actual.slice(0, 200) === wanted.slice(0, 200) &&
+      actual.slice(-200) === wanted.slice(-200))
+  );
+}
