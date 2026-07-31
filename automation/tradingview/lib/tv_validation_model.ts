@@ -1075,3 +1075,192 @@ export function chartIntervalDisplayLabel(interval: string): string | null {
   if (minutes % 60 === 0) return `${minutes / 60}h`;
   return String(minutes);
 }
+
+export type LiveSample = {
+  /** Wall-clock UTC at which the Data Window was read. */
+  atUtc: string;
+  available: string | null;
+  sourceCloseUtc: string | null;
+  /** Every confirmed field the frame publishes, so a repaint anywhere shows up. */
+  confirmed: Record<string, string | null>;
+  /** The full Data Window row set, used only to prove the chart was ticking. */
+  raw: Record<string, string | null>;
+};
+
+export type LiveNoRepaintVerdict = {
+  confirmedValuesStableInsideOpenSourceBar: boolean;
+  lookaheadLeaks: number;
+  samples: number;
+  usableSamples: number;
+  distinctSourceCloses: number;
+  longestHoldSamples: number;
+  boundaryAdvances: number;
+  chartWasTicking: boolean;
+  violations: string[];
+};
+
+/** Confirmed rows a frame publishes, beyond the source close itself. */
+export function liveConfirmedFieldTitles(frame: string): string[] {
+  const prefix = HTF_FRAME_LABELS[frame];
+  if (prefix === undefined) return [];
+  return [`${prefix} Trend`, `${prefix} ATR Ratio`];
+}
+
+/** Build one live sample for a frame out of a parsed Data Window snapshot. */
+export function buildLiveSample(
+  parsed: Record<string, string | null>,
+  frame: string,
+  atUtc: string,
+): LiveSample {
+  const diagnostics = mapHtfDiagnostics(parsed, frame);
+  const confirmed: Record<string, string | null> = {};
+  for (const title of liveConfirmedFieldTitles(frame)) confirmed[title] = parsed[title] ?? null;
+  return {
+    atUtc,
+    available: diagnostics.available ?? null,
+    sourceCloseUtc: diagnostics.sourceCloseUtc ?? null,
+    confirmed,
+    raw: parsed,
+  };
+}
+
+/**
+ * Decide the two properties R5-REBUILD-LIVE-NO-REPAINT pins, from a series of
+ * live Data Window samples taken while the regular session is OPEN.
+ *
+ * The script requests its higher frames with `barmerge.lookahead_on` and reads
+ * every element of the tuple at `[1]`. That is the canonical non-repainting
+ * idiom, not a defect: lookahead_on selects the source bar that CONTAINS the
+ * chart bar, and `[1]` then takes the bar before it — which has, by
+ * construction, already closed. `lookaheadOffProductPath=0` records exactly
+ * that: the product path does not use lookahead_off.
+ *
+ * Live, the idiom has two observable consequences, and this function asserts
+ * both rather than re-reading the source:
+ *
+ *   1. STABILITY — while one source bar is still open, ticks keep arriving on
+ *      the chart but every confirmed field must hold its value. A change with
+ *      an unchanged source close is a repaint.
+ *   2. NO LEAK — the confirmed source close is the close time of an ALREADY
+ *      CLOSED bar, so it must never lie in the future. A value ahead of the
+ *      wall clock is data the chart could not have had.
+ *
+ * Fails closed in three ways, because a live run has more ways to be vacuous
+ * than a replay run:
+ *
+ *   - a chart that published nothing usable yields no verdict;
+ *   - a chart on which NOTHING changed for the whole run was not ticking (the
+ *     market was shut, or the tab was frozen), and stability observed against a
+ *     dead feed proves nothing;
+ *   - never seeing the same source bar across several samples means the run
+ *     never actually looked INSIDE an open bar.
+ *
+ * It deliberately does NOT assert how stale the confirmed close may be. The
+ * distance between `now` and the last source close depends on where in the
+ * session the sample lands and on TradingView's session alignment, and pinning
+ * it would only re-create the false positives the boundary checker already had.
+ */
+export function evaluateLiveNoRepaint(
+  samples: LiveSample[],
+  frameMinutes: number,
+  options: { minHoldSamples?: number } = {},
+): LiveNoRepaintVerdict {
+  const minHold = options.minHoldSamples ?? 3;
+  const violations: string[] = [];
+
+  if (!Number.isFinite(frameMinutes) || frameMinutes <= 0) {
+    return {
+      confirmedValuesStableInsideOpenSourceBar: false,
+      lookaheadLeaks: 0,
+      samples: samples.length,
+      usableSamples: 0,
+      distinctSourceCloses: 0,
+      longestHoldSamples: 0,
+      boundaryAdvances: 0,
+      chartWasTicking: false,
+      violations: ["frameMinutes must be positive"],
+    };
+  }
+
+  // Was anything moving at all? Any Data Window row that changed across the run
+  // proves the feed was live; the confirmed rows are expected to be still, so a
+  // completely frozen snapshot set means the market was not open.
+  const rawKeys = new Set<string>();
+  for (const sample of samples) for (const key of Object.keys(sample.raw)) rawKeys.add(key);
+  let chartWasTicking = false;
+  for (const key of rawKeys) {
+    const values = new Set(samples.map((sample) => sample.raw[key] ?? null));
+    if (values.size > 1) { chartWasTicking = true; break; }
+  }
+
+  const usable = samples.filter((sample) => sample.available === "1" && sample.sourceCloseUtc !== null);
+  const seen: string[] = [];
+  let lookaheadLeaks = 0;
+  let boundaryAdvances = 0;
+  let longestHold = 0;
+  let hold = 0;
+  let previous: LiveSample | null = null;
+
+  for (const sample of usable) {
+    const value = sample.sourceCloseUtc as string;
+    if (!seen.includes(value)) seen.push(value);
+
+    const closeMs = Date.parse(value);
+    const atMs = Date.parse(sample.atUtc);
+    if (Number.isFinite(closeMs) && Number.isFinite(atMs) && closeMs > atMs) {
+      lookaheadLeaks += 1;
+      violations.push(`${sample.atUtc}: confirmed source close ${value} is AHEAD of the wall clock`);
+    }
+
+    if (previous === null || previous.sourceCloseUtc !== value) {
+      if (previous !== null) {
+        boundaryAdvances += 1;
+        const deltaMs = closeMs - Date.parse(previous.sourceCloseUtc as string);
+        if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
+          violations.push(`${sample.atUtc}: source close moved backwards ${previous.sourceCloseUtc} -> ${value}`);
+        } else if (deltaMs % (frameMinutes * 60_000) !== 0) {
+          violations.push(
+            `${sample.atUtc}: source close advanced by ${deltaMs / 60_000}min, not a multiple of the ${frameMinutes}min frame (${previous.sourceCloseUtc} -> ${value})`,
+          );
+        }
+      }
+      hold = 1;
+    } else {
+      hold += 1;
+      for (const [title, current] of Object.entries(sample.confirmed)) {
+        const before = previous.confirmed[title] ?? null;
+        if (before !== (current ?? null)) {
+          violations.push(
+            `${sample.atUtc}: "${title}" changed ${before} -> ${current} while the source bar closing ${value} was still open (repaint)`,
+          );
+        }
+      }
+    }
+    if (hold > longestHold) longestHold = hold;
+    previous = sample;
+  }
+
+  if (usable.length === 0) {
+    violations.push("no sample published a confirmed source close; nothing to certify");
+  }
+  if (!chartWasTicking) {
+    violations.push("no Data Window value changed for the whole run; the feed was not live, so stability is vacuous");
+  }
+  if (longestHold < minHold) {
+    violations.push(
+      `the longest run inside one open source bar was ${longestHold} sample(s), below the required ${minHold}; the run never looked inside an open bar`,
+    );
+  }
+
+  return {
+    confirmedValuesStableInsideOpenSourceBar: violations.length === 0,
+    lookaheadLeaks,
+    samples: samples.length,
+    usableSamples: usable.length,
+    distinctSourceCloses: seen.length,
+    longestHoldSamples: longestHold,
+    boundaryAdvances,
+    chartWasTicking,
+    violations,
+  };
+}
