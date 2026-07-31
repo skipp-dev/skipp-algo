@@ -314,9 +314,25 @@ def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
     """
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert "saveChangedChartLayout(session.page)" in batch
-    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
+    # 2026-07-31: the single trailing save was replaced by a save at every
+    # layout boundary. The old shape --
+    #   if (executionPlan.saveLayout && report.bindings.failed.length === 0)
+    # -- ran once, on whichever chart the loop ended on, and persisted only
+    # that one. Because gotoChart is a hard page.goto, the reload had ALREADY
+    # discarded the rebinds of the layout being left, so the other layouts
+    # could not be saved afterwards either: navigating back would have saved
+    # the reverted state. With the shipped config that silently dropped the
+    # seven consumers on the primary operator chart.
+    assert "const persistCurrentLayout" in batch
+    assert "await persistCurrentLayout();" in batch
+    assert batch.count("await persistCurrentLayout();") >= 2, (
+        "persist before leaving a layout AND after the last one"
+    )
     # A failed save lands in bindings.failed, which gates report.ok below.
-    assert '"chart-layout"' in batch
+    assert '"chart-layout' in batch
+    # Nothing may be reported green having persisted a strict subset.
+    assert "resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)" in batch
+    assert "layouts never saved" in batch
 
     shared = (_REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts").read_text(encoding="utf-8")
     assert "export async function saveChangedChartLayout(page: Page)" in shared
@@ -351,7 +367,7 @@ def test_verify_only_mode_structurally_gates_every_mutation_and_records_provenan
     assert "saveLayout: false" in evidence
     assert "if (executionPlan.saveSources)" in batch
     assert "if (report.save.failed.length === 0 && executionPlan.refreshProducer)" in batch
-    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
+    assert "if (!executionPlan.saveLayout || unsavedChartUrl === null) return;" in batch
     assert "schemaVersion: 2" in batch
     assert "repoCommitSha" in batch
     assert "rolloutConfigSha256" in batch

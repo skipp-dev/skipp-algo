@@ -226,3 +226,30 @@ export function buildRolloutProvenance(options: {
     },
   };
 }
+
+/**
+ * The chart layouts a repairing rollout must SAVE, in the order it visits them.
+ *
+ * The rollout walks `verifyTargets` and calls `gotoChart` whenever the next
+ * target lives on a different chart. `gotoChart` is a hard `page.goto`, so the
+ * reload discards every unsaved rebind made on the layout being left — which is
+ * why a single save after the loop persisted only the LAST layout, and why
+ * saving afterwards by navigating back would persist the reverted state rather
+ * than the repair.
+ *
+ * Returns one entry per contiguous run of targets on the same chart, so the
+ * caller can save at each boundary and once at the end. Consecutive duplicates
+ * are collapsed; a layout the run returns to later legitimately appears twice,
+ * because it has to be saved again.
+ */
+export function resolveLayoutSavePoints(
+  targets: ReadonlyArray<{ chartUrl?: string }>,
+  primaryChartUrl: string,
+): string[] {
+  const points: string[] = [];
+  for (const target of targets) {
+    const chartUrl = target.chartUrl ?? primaryChartUrl;
+    if (points[points.length - 1] !== chartUrl) points.push(chartUrl);
+  }
+  return points;
+}

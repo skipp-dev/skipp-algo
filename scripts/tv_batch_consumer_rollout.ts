@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   buildRolloutProvenance,
   resolveExecutionPlan,
+  resolveLayoutSavePoints,
   type RolloutExecutionMode,
   type RolloutProvenance,
 } from "../automation/tradingview/lib/tv_consumer_rollout_evidence.js";
@@ -77,6 +78,8 @@ type RolloutReport = {
     bindingsRepaired: number;
     layoutSaveRequested: boolean;
     layoutSaved: boolean;
+    /** Every chart layout actually persisted, in visit order. */
+    savedChartUrls: string[];
   };
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
@@ -168,6 +171,7 @@ async function main(): Promise<void> {
       bindingsRepaired: 0,
       layoutSaveRequested: executionPlan.saveLayout,
       layoutSaved: false,
+      savedChartUrls: [],
     },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
@@ -288,9 +292,33 @@ async function main(): Promise<void> {
       // Opt-in only: the immutable execution plan permits repair only in write
       // mode. Verify-only always passes false/false and therefore only reads
       // the currently selected BUS sources.
+      // Persist the rebinds of the layout we are LEAVING, before leaving it.
+      // gotoChart is a hard page.goto, so the reload discards every unsaved
+      // rebind on the current layout — saving after the loop can therefore only
+      // ever persist the last chart visited, and navigating back to save the
+      // others would save the state the reload already reverted.
+      const savedChartUrls: string[] = [];
+      let unsavedChartUrl: string | null = null;
+      const persistCurrentLayout = async (): Promise<void> => {
+        if (!executionPlan.saveLayout || unsavedChartUrl === null) return;
+        const chartUrl = unsavedChartUrl;
+        unsavedChartUrl = null;
+        try {
+          await saveChangedChartLayout(session.page);
+          savedChartUrls.push(chartUrl);
+          report.mutations.layoutSaved = true;
+        } catch (error) {
+          report.bindings.failed.push({
+            target: `chart-layout:${chartUrl}`,
+            error: `layout save failed (rebinds not persisted): ${String((error as Error)?.message ?? error)}`,
+          });
+        }
+      };
+
       for (const target of config.verifyTargets) {
         const targetChartUrl = target.chartUrl ?? config.primaryChartUrl;
         if (!session.page.url().startsWith(targetChartUrl)) {
+          await persistCurrentLayout();
           await gotoChart(session.page, targetChartUrl);
         }
         let result: VerifyConsumerResult | null = null;
@@ -312,25 +340,31 @@ async function main(): Promise<void> {
         }
         if (result) report.bindings.consumers.push(result);
         else report.bindings.failed.push({ target: target.scriptName, error: lastError });
+        if (executionPlan.repairBindings) unsavedChartUrl = targetChartUrl;
       }
 
-      // Persist the rebinds. The per-consumer settings "submit" only mutates the
-      // in-session indicator instance; without an explicit layout save the
-      // changes revert on reload, so the operator's chart (and the next
-      // read-only verify) still show the stale "Close" sources even though this
-      // run read them back as bound (2026-07-25 incident). Only writing runs
-      // save; a save failure must not report green, so it lands in
+      // Persist the last layout too. The per-consumer settings "submit" only
+      // mutates the in-session indicator instance; without an explicit layout
+      // save the changes revert on reload, so the operator's chart (and the
+      // next read-only verify) still show the stale "Close" sources even though
+      // this run read them back as bound (2026-07-25 incident). Only writing
+      // runs save; a save failure must not report green, so it lands in
       // bindings.failed and gates report.ok.
-      if (executionPlan.saveLayout && report.bindings.failed.length === 0) {
-        try {
-          await saveChangedChartLayout(session.page);
-          report.mutations.layoutSaved = true;
-        } catch (error) {
+      await persistCurrentLayout();
+
+      // Every layout carrying repairs must have been saved. Without this the
+      // run could report green having persisted a strict subset — which is the
+      // failure it is meant to prevent, just less visibly.
+      if (executionPlan.saveLayout) {
+        const expectedSavePoints = resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl);
+        const missed = expectedSavePoints.filter((chartUrl) => !savedChartUrls.includes(chartUrl));
+        if (missed.length > 0) {
           report.bindings.failed.push({
             target: "chart-layout",
-            error: `layout save failed (rebinds not persisted): ${String((error as Error)?.message ?? error)}`,
+            error: `layouts never saved (rebinds not persisted): ${missed.join(", ")}`,
           });
         }
+        report.mutations.savedChartUrls = savedChartUrls;
       }
     }
   } finally {
