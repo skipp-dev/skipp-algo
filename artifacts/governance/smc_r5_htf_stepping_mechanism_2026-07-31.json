@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "capturedAt": "2026-07-31T12:10:00Z",
+  "evidenceType": "htf_availability_mechanism_proof",
+  "purpose": "Prove the two mechanisms the HTF availability cases need, after both were blocked.",
+  "blockersResolved": {
+    "scriptOnChart": {
+      "cause": "the saved validation layout still held the pre-fix CE10156 instance, so an add-if-missing saw a legend match and skipped",
+      "evidence": "addExistingScriptToChartViaIndicators reported added=true and produced 0 HTF rows; clearing the stale instance and force-inserting the repo source produced 18",
+      "route": "removeVisibleChartScriptInstances + setEditorContent + addCurrentScriptToChart({forceInsert:true})"
+    },
+    "stepControl": {
+      "cause": "the control is <div data-role=\"button\" title=\"Forward\">; the earlier [data-tooltip=\"Forward\"] selector matched nothing",
+      "misreadAs": "the control being inert at the live edge",
+      "evidence": "one step advanced the confirmed 15m source close by exactly one frame"
+    }
+  },
+  "framesAfterAdd": {
+    "15": {
+      "available": "1",
+      "sourceCloseUtc": "2026-07-30T19:45:00Z",
+      "sourceConfirmed": "1"
+    },
+    "60": {
+      "available": "1",
+      "sourceCloseUtc": "2026-07-30T19:30:00Z",
+      "sourceConfirmed": "1"
+    },
+    "240": {
+      "available": "1",
+      "sourceCloseUtc": "2026-07-30T17:30:00Z",
+      "sourceConfirmed": "1"
+    }
+  },
+  "steppingObservations": [
+    {
+      "step": 0,
+      "available": "1",
+      "sourceCloseUtc": "2025-10-27T13:45:00Z",
+      "sourceConfirmed": "1"
+    },
+    {
+      "step": 1,
+      "available": "1",
+      "sourceCloseUtc": "2025-10-27T14:00:00Z",
+      "sourceConfirmed": "1"
+    }
+  ],
+  "boundaryVerdict15m": {
+    "advancesOnlyAtBoundary": true,
+    "distinctSourceCloses": 2,
+    "advances": 1,
+    "violations": []
+  },
+  "correctedAssumption": "evaluateSourceCloseBoundaries originally also required the value to sit on an absolute UTC grid. The live 1h close reads 19:30Z and the 4h close 17:30Z because TradingView aligns intraday bars to the session (09:30 ET), so that assertion would have flagged correct values. Removed; the advance-by-whole-frames property is what the cases actually pin.",
+  "notDone": [
+    "layout not saved",
+    "no publication",
+    "the four cases are not yet executed end to end"
+  ]
+}

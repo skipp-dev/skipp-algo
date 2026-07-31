@@ -8766,6 +8766,39 @@ export async function setChartSessionMode(page: Page, mode: "Regular" | "Extende
 }
 
 /**
+ * Step Bar Replay forward by one chart bar.
+ *
+ * The control is `<div data-role="button" title="Forward">` inside the replay
+ * toolbar. That matters: an earlier attempt used `[data-tooltip="Forward"]`,
+ * which matches NOTHING, so it stepped 0 of 3 bars and the failure was
+ * misread as the control being inert at the live edge. The label lives in
+ * `title`.
+ *
+ * Proven 2026-07-31 on the private validation layout: one step moved the
+ * confirmed 15m HTF source close from 2025-10-27T13:45:00Z to 14:00:00Z —
+ * exactly one frame.
+ */
+export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500): Promise<number> {
+  return runTrackedStep(page, `stepReplayForward:${bars}`, async () => {
+    if (!(await waitForBarReplayToolbar(page))) return 0;
+    const forward = page.locator(`${REPLAY_TOOLBAR} [title="Forward"]`).first();
+    if (!(await forward.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      tracePageEvent(page, "replay-forward-missing", String(bars));
+      return 0;
+    }
+    let stepped = 0;
+    for (let index = 0; index < bars; index += 1) {
+      const clicked = await forward.click({ timeout: 8_000 }).then(() => true).catch(() => false);
+      if (!clicked) break;
+      stepped += 1;
+      await page.waitForTimeout(settleMs);
+    }
+    tracePageEvent(page, "replay-forward-stepped", `${stepped}/${bars}`);
+    return stepped;
+  }, Math.max(stepTimeoutMs(), 120_000));
+}
+
+/**
  * Put the chart on a timeframe ("5", "15", "60", "240").
  *
  * FAIL-CLOSED needs the chart moved ONTO the requested frames so the script's
