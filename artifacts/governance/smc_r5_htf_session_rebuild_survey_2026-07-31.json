@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "capturedAt": "2026-07-31T05:30:00Z",
+  "evidenceType": "pre_execution_source_reconciliation_and_scope_survey",
+  "scope": "Read-only TradingView reconciliation of the two rebuilt roots before any mutating run. Not compile evidence, not replay evidence, not layout or rollback evidence.",
+  "account": "preuss_steffen",
+  "savedScriptState": {
+    "SMC HTF Confluence": {
+      "existsInAccount": true,
+      "capturedFromEditorSha256": "6c81a5fd1233a8ddc79c8948f68ea4b5b77efd79c3de5ed4d39a6cc66a3033f0",
+      "repositorySha256": "7fed75382abdcf71f63dd23d5084313f6c35fa881edd7878cc9a77ce0a17fa4b",
+      "matchesRepositorySource": true,
+      "matchMode": "identical_after_trailing_whitespace_normalisation",
+      "lineCount": {
+        "tradingView": 219,
+        "repository": 219,
+        "legacySnapshot": 101
+      },
+      "note": "The account already carries the rebuilt source; a mutating save would be a no-op rather than a deployment. The raw hash differs from the repository hash only because the editor readback normalises trailing whitespace — a byte diff after normalisation is empty."
+    },
+    "SMC Session Context": {
+      "existsInAccount": false,
+      "repositorySha256": "069d258be21d7b438a673629a75fe7aa95170093dc0a160961644eb7250eac7b",
+      "note": "Absent, so the preflight would create a fresh private draft (explicitly allowed by the runbook)."
+    }
+  },
+  "observability": {
+    "htfConfluence": {
+      "plots": 20,
+      "displayNone": 0,
+      "tableCalls": 16
+    },
+    "sessionContext": {
+      "plots": 13,
+      "displayNone": 0,
+      "tableCalls": 11
+    },
+    "conclusion": "Unlike the R4 Context surfaces, neither R5 root hides its diagnostics behind display.none; both render on-chart status tables. The replay cases are therefore readable from the chart without inventing an observability mechanism."
+  },
+  "blockers": [
+    {
+      "id": "validation-layout",
+      "detail": "The runbook mandates the private layout 'SMC HTF Context R5 Validation'. Its existence could not be confirmed: the TradingView layout menu did not render under automation, and no layout-listing API is reachable. Creating or choosing the layout is an operator step."
+    },
+    {
+      "id": "live-no-repaint-case",
+      "detail": "R5-REBUILD-LIVE-NO-REPAINT requires an open regular session; the survey ran post-close. Executable from the next US regular session onwards."
+    },
+    {
+      "id": "historical-replay-driver",
+      "detail": "R5-REBUILD-DST-EU-GAP, R5-REBUILD-DST-STANDARD and R5-REBUILD-EXTENDED pin historical UTC checkpoints and need TradingView Bar Replay. No reusable replay driver exists in the repository; the R2.4 precedent drove it interactively."
+    }
+  ],
+  "unaffected": {
+    "r4ShadowLayout": "SMC Context R4 Shadow still carries SMC Context Bus and SMC Context Overlay after the rollback drill.",
+    "mutationsPerformed": "none — this survey opened scripts read-only and saved nothing"
+  }
+}
