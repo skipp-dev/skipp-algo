@@ -47,8 +47,13 @@ on:
         default: "30"
 
 permissions:
-  contents: read
+  # `contents: write` + `pull-requests: write` (2026-07-31, issue #298): this
+  # cron now OWNS docs/calibration/calibration_report_public.json and commits
+  # it via a `bot/*` branch + auto-merge PR, the way
+  # public-calibration-dashboard.yml used to. See "Step 5c" below.
+  contents: write
   issues: write
+  pull-requests: write
 
 concurrency:
   group: c13-daily-cron-${{ github.ref }}
@@ -466,6 +471,60 @@ jobs:
             docs/calibration/calibration_report_public_history.jsonl
             artifacts/drift/calibration_corpus.jsonl
           if-no-files-found: warn
+
+      - name: Step 5c — commit refreshed public calibration report via PR
+        # 2026-07-31 (issue #298): ownership of the published report moved
+        # here from public-calibration-dashboard.yml, which has been removed.
+        #
+        # WHY: that workflow re-emitted the report WITHOUT --include-families
+        # and committed the result at 04:30 UTC, overwriting nothing (it never
+        # saw this run's file) but publishing a family-less report. Step 5b
+        # above emits WITH --include-families, so this cron is the only place
+        # that has the families[] payload at all. check_c12_trigger reads the
+        # COMMITTED report, so before this step the C12 gate saw
+        # `families inspected: 0` on every single day and could never flip
+        # GREEN — the C9/T7 anchor test was a permanent no-op pass.
+        #
+        # NOT continue-on-error, deliberately, and unlike every other step in
+        # this job: a publish that fails silently is what caused #298. A red
+        # run is the alarm (c13-daily-cron.yml is on the freshness-monitor
+        # watchlist at 72:weekday).
+        if: steps.emit_public.outcome == 'success'
+        env:
+          # GH_PAT (not GITHUB_TOKEN) so the PR triggers the required
+          # fast-gates check; a GITHUB_TOKEN-authored PR spawns no child
+          # workflow and stays BLOCKED on an "expected" check forever.
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/calibration/calibration_report_public.json \
+                  docs/calibration/calibration_report_public_history.jsonl || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          BRANCH="bot/calibration-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(docs): public calibration report ${GITHUB_RUN_ID}"
+          # This job's checkout does NOT set persist-credentials: false (the
+          # data/phase-a-audit overlay step needs the tokened remote), so the
+          # actions/checkout extraheader is still configured and would win over
+          # the URL-embedded PAT below — pushing as GITHUB_TOKEN and silently
+          # costing us the fast-gates trigger. Drop it first.
+          git config --local --unset-all http."https://github.com/".extraheader || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(docs): public calibration report ${GITHUB_RUN_ID}" \
+            --body "Automated public calibration report refresh from c13-daily-cron run ${GITHUB_RUN_ID} (emitted with --include-families)." 2>pr_err.log \
+            || { rc=$?; if grep -qi 'already exists' pr_err.log; then echo "PR already exists for ${BRANCH}"; else cat pr_err.log; exit $rc; fi; }
+          gh pr merge "$BRANCH" --auto --squash --delete-branch 2>merge_err.log \
+            || { rc=$?; if grep -qiE 'already (merged|closed)|cannot be merged' merge_err.log; then echo "auto-merge already armed or completed for ${BRANCH}"; else cat merge_err.log; exit $rc; fi; }
 
       - name: Open issue if any required step failed
         # rc values: '0' = success, '78' = soft-skip (expected on no-audit /

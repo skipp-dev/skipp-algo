@@ -360,7 +360,7 @@ jobs:
             --head "$BRANCH" \
             --label automated \
             --title "chore(governance): gate + regime artifacts ${{ steps.date.outputs.value }}" \
-            --body "Automated ADR-0031 artifacts from \`promotion-gate-daily\` (run ${GITHUB_RUN_ID}): Variant-A returns series, C6/C7 track-record-gate verdict and C5 regime-stratified report. The 04:30 UTC public-calibration-dashboard run embeds the newest of these into the public report."; then
+            --body "Automated ADR-0031 artifacts from \`promotion-gate-daily\` (run ${GITHUB_RUN_ID}): Variant-A returns series, C6/C7 track-record-gate verdict and C5 regime-stratified report. The 22:00 UTC c13-daily-cron run (Step 5b) embeds the newest of these into the public report."; then
             echo "::error file=.github/workflows/promotion-gate-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1
           fi

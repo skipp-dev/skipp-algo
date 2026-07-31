@@ -1,7 +1,8 @@
 # docs/calibration/gates/ — ADR-0031 drop-zone
 
 Daily artifacts committed by `promotion-gate-daily` (14:00 UTC, bot auto-merge
-PR) and consumed fail-soft by `public-calibration-dashboard` (04:30 UTC):
+PR) and consumed fail-soft by `c13-daily-cron` (22:00 UTC, Step 5b — moved
+2026-07-31 from the removed `public-calibration-dashboard`, see issue #298):
 
 | File | Producer | Consumer |
 |---|---|---|

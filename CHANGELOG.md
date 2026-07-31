@@ -6,6 +6,34 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-07-31) — `c13-daily-cron` owns the published calibration report (issue #298)
+
+- Moved ownership of `docs/calibration/calibration_report_public.json` to
+  `c13-daily-cron` (new Step 5c, bot branch + auto-merge PR) and removed
+  `public-calibration-dashboard.yml`, whose only job was to re-emit and commit
+  that same file.
+- Fixes a silent dead data-flow: `c13-daily-cron` emits the report **with**
+  `--include-families`, but only ever uploaded it as a run artefact, while
+  `public-calibration-dashboard` re-emitted it **without** families and
+  committed that. Every committed report was therefore family-less, so
+  `check_c12_trigger` read `families inspected: 0` on every run, the C12 gate
+  could never flip GREEN, and the C9/T7 anchor test
+  (`test_c9_threshold_finalisation_anchor.py`) was a permanent no-op pass.
+- ADR-0031 gate artefacts (`track_record_gate`, `regime_stratified`) are now
+  embedded the same day they are produced (14:00 → 22:00 UTC) instead of the
+  following morning.
+
+### Fixed (2026-07-31) — Outcome backfill crashed as a script (issue #4235)
+
+- Moved the `__main__` guard in `open_prep/outcome_backfill.py` below the §G3
+  arm-label definitions. The block had been appended beneath the guard to keep
+  the line-pinned ledgers stable, so `main()` ran before
+  `backfill_ab_arm_labels` was bound and every scheduled run since 2026-07-28
+  died with `NameError` — after resolving its outcomes but before the
+  `if: success()` commit step, losing three sessions (30 unresolved records).
+- Import-based tests could not catch this; added
+  `test_main_guard_is_last_top_level_statement` to pin the ordering.
+
 ### Added (2026-07-30) — Rebuilt live confirmed HTF and session companions
 
 - Replaced the snapshot-backed `SMC HTF Confluence` root with exactly three
