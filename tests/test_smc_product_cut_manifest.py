@@ -178,13 +178,28 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['productCut']['internalFiles'] == product_cut['internalFiles']
     assert payload['productCut']['legacyFiles'] == product_cut['legacyFiles']
     assert payload['productCut']['contracts']['lite'] == product_cut['contracts']['lite']
-    assert set(payload['productCut']['preflightScopes'].keys()) == {
+    # 2026-07-31: this was a frozen five-name literal and it went stale twice
+    # over — smcR4ContextShadow and then smcR5HtfSession (#4227, 2026-07-30)
+    # were added to the registry, but the copy embedded in the release manifest
+    # only caught up when the library refresh regenerated it (#4272, 22:17Z).
+    # The literal never caught up at all, so main turned red on a required gate
+    # roughly two hours later, with nothing wrong in the code it guards.
+    # What this test actually means is "the embedded copy declares the same
+    # scopes as the canonical product cut" — so derive it from that artifact,
+    # which every other assertion in this test already compares against. A
+    # literal here can only ever drift again.
+    assert set(payload['productCut']['preflightScopes'].keys()) == set(
+        product_cut['preflightScopes'].keys()
+    )
+    # Floor: without this the comparison above would also pass if BOTH sides
+    # lost every scope.
+    assert {
         'smcCoreDashboard',
         'smcMainline',
         'smcDecisionFirst',
         'smcHoldManagerShadow',
         'smcR1Companions',
-    }
+    } <= set(product_cut['preflightScopes'].keys())
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy'
