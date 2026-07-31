@@ -22,8 +22,12 @@ name: g23-ab-watchdog
 
 on:
   schedule:
-    # 05:30 UTC weekdays — 1 h after the public-calibration-dashboard run
-    # so the latest comparison artifact (if any) has already landed.
+    # 05:30 UTC weekdays — the latest comparison artifact (if any) has
+    # long since landed: the public calibration report is committed by
+    # c13-daily-cron the previous evening (22:00 UTC). This slot used to
+    # sit 1 h after public-calibration-dashboard (04:30), which was
+    # removed 2026-07-31 (issue #298); the input is now strictly older,
+    # never fresher, so the ordering still holds.
     - cron: "30 5 * * 1-5"
   workflow_dispatch: {}
 

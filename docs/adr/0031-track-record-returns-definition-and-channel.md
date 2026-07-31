@@ -76,11 +76,19 @@ wird im Aggregat ausgewiesen.
 `docs/calibration/gates/` und committet sie per Bot-Branch + Auto-Merge-PR
 (Muster: `run-open-prep-daily`): `returns_series_<date>.json`,
 `track_record_gate_<date>.json`, `regime_stratified_<date>.json`
-(Retention: neueste 90 pro Familie). Der 04:30-UTC-Lauf von
-`public-calibration-dashboard` lädt die jeweils neuesten davon fail-soft und
+(Retention: neueste 90 pro Familie). Der 22:00-UTC-Lauf von
+`c13-daily-cron` (Step 5b) lädt die jeweils neuesten davon fail-soft und
 bettet sie als additive Keys (`track_record_gate` 1.1.0, `regime_stratified`
 1.2.0) in den Public-Report ein — der bereits verdrahtete, SHA-verifizierbare
 Kanal (committed + GH Pages).
+
+> **2026-07-31 (issue #298):** Dieser Einbettungs- UND Commit-Schritt lag bis
+> dahin bei `public-calibration-dashboard` (04:30 UTC), das inzwischen entfernt
+> ist. Grund: nur `c13-daily-cron` ruft den Emitter mit `--include-families`
+> auf, und der Dashboard-Lauf committete danach eine Fassung **ohne**
+> `families[]` — womit `check_c12_trigger` dauerhaft
+> `families inspected: 0` sah. Die Gate-Artefakte werden jetzt am selben Tag
+> eingebettet (14:00 → 22:00 UTC) statt am Folgemorgen.
 
 **Verworfen:** Der `cache/calibration/`-Docker-Mount-Kanal
 (`streamlit_dashboard.py`) bleibt **unverdrahtet**; ob dieses separate Image

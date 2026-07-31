@@ -14,8 +14,10 @@ name: fvg-quality-quartile-gate
 
 on:
   schedule:
-    # 06:00 UTC weekdays — after public-calibration-dashboard (04:30) and
-    # g23-ab-watchdog (05:30).
+    # 06:00 UTC weekdays — after g23-ab-watchdog (05:30). The public
+    # calibration report it reads is committed by c13-daily-cron the
+    # previous evening (22:00 UTC); public-calibration-dashboard, which
+    # used to refresh it at 04:30, was removed 2026-07-31 (issue #298).
     - cron: "0 6 * * 1-5"
   workflow_dispatch:
     inputs:
