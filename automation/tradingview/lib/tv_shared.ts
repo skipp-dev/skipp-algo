@@ -8435,17 +8435,45 @@ const REPLAY_TOGGLE_SELECTORS = [
   '#header-toolbar-replay',
 ];
 
+const REPLAY_TOOLBAR = '[data-name="replay-bottom-toolbar"]';
+
+/**
+ * Wait for the Bar Replay toolbar itself — the surface every replay control
+ * lives on.
+ *
+ * {@link isBarReplayActive} accepts a body-text fallback, and that is not good
+ * enough to drive from: measured 2026-07-31, enterBarReplay returned true
+ * 2.5s after the toggle click while the toolbar had not rendered, so the
+ * checkpoint jump found no "Select date" control and every DST case failed
+ * with "checkpoint did not apply". Anything that intends to CLICK a replay
+ * control must wait for the control's own surface.
+ */
+export async function waitForBarReplayToolbar(page: Page, timeoutMs = 20_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await page.locator(REPLAY_TOOLBAR).first().isVisible({ timeout: 500 }).catch(() => false)) {
+      return true;
+    }
+    await page.waitForTimeout(250);
+  }
+  tracePageEvent(page, "bar-replay-toolbar-timeout", String(timeoutMs));
+  return false;
+}
+
 /** Enter Bar Replay. Idempotent: a chart already in replay mode is left alone. */
 export async function enterBarReplay(page: Page): Promise<boolean> {
   return runTrackedStep(page, "enterBarReplay", async () => {
-    if (await isBarReplayActive(page)) {
+    if (await page.locator(REPLAY_TOOLBAR).first().isVisible({ timeout: 500 }).catch(() => false)) {
       tracePageEvent(page, "bar-replay-already-active");
       return true;
     }
     if (!(await clickFirstVisible(page, REPLAY_TOGGLE_SELECTORS, "bar-replay-toggle"))) return false;
-    await page.waitForTimeout(2_500);
-    return isBarReplayActive(page);
-  });
+    // Settle on the toolbar, not on the loose activity probe: returning true
+    // before the controls exist strands every caller that wants to use them.
+    const ready = await waitForBarReplayToolbar(page);
+    tracePageEvent(page, "bar-replay-entered", `toolbar=${ready}`);
+    return ready;
+  }, Math.max(stepTimeoutMs(), 60_000));
 }
 
 /** Leave Bar Replay so the chart is handed back in its ordinary state. */
@@ -8460,10 +8488,196 @@ export async function exitBarReplay(page: Page): Promise<boolean> {
 
 export async function isBarReplayActive(page: Page): Promise<boolean> {
   return page.evaluate(() => {
-    const text = document.body?.innerText ?? "";
-    const hasControls = Boolean(
-      document.querySelector('[data-name="replay-play-pause"], [data-name="replay-step-forward"]'),
+    // Measured 2026-07-31 on the private validation layout: entering Bar
+    // Replay adds [data-name="replay-bottom-toolbar"] (text "Select date 1x
+    // <tf>"), and neither replay-play-pause nor replay-step-forward exists
+    // under those names. The structural marker is therefore the authority.
+    // The body-text fallback stays for older/other TradingView surfaces, but
+    // it is a substring grep over the first 400 characters and would answer
+    // "yes" to any chrome that merely says "Replay" — so it must never be the
+    // reason a caller believes replay is active when the toolbar is absent.
+    const toolbar = document.querySelector(
+      '[data-name="replay-bottom-toolbar"], [data-name="replay-play-pause"], [data-name="replay-step-forward"]',
     );
-    return hasControls || /replay/i.test(text.slice(0, 400));
+    if (toolbar) return true;
+    const text = document.body?.innerText ?? "";
+    return /replay/i.test(text.slice(0, 400));
   }).catch(() => false);
+}
+
+const CHART_TIMEZONE_CONTROL = '[aria-label="Timezone"]';
+
+/**
+ * Put the chart on a named timezone (measured menu entries: a bare "UTC",
+ * "Exchange", then "(UTC±N) City" rows).
+ *
+ * The R5 DST cases pin their checkpoints as UTC instants, while the Bar Replay
+ * date/time dialog reads in CHART-LOCAL time. Typing a UTC instant into a
+ * UTC+2 chart silently lands on the wrong bar — exactly the confusion these
+ * cases exist to detect — so the driver puts the chart on UTC first and the
+ * two clocks coincide.
+ */
+export async function setChartTimezone(page: Page, label: string): Promise<boolean> {
+  return runTrackedStep(page, `setChartTimezone:${label}`, async () => {
+    const control = page.locator(CHART_TIMEZONE_CONTROL).first();
+    if (!(await control.count())) {
+      tracePageEvent(page, "chart-timezone-control-missing", label);
+      return false;
+    }
+    const before = ((await control.innerText().catch(() => "")) ?? "").trim();
+    await control.click({ timeout: 5_000, force: true }).catch(() => undefined);
+    await page.waitForTimeout(2_000);
+
+    const picked = await page.evaluate((wanted) => {
+      for (const el of Array.from(document.querySelectorAll("div,span,button,[role='menuitem']"))) {
+        const node = el as HTMLElement;
+        const rect = node.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        const own = Array.from(node.childNodes)
+          .filter((child) => child.nodeType === Node.TEXT_NODE)
+          .map((child) => child.textContent ?? "")
+          .join("")
+          .trim();
+        if (own === wanted) {
+          node.click();
+          return true;
+        }
+      }
+      return false;
+    }, label).catch(() => false);
+
+    await page.waitForTimeout(2_500);
+    const after = ((await control.innerText().catch(() => "")) ?? "").trim();
+    tracePageEvent(page, "chart-timezone", `${label}:picked=${picked}:${before}->${after}`);
+    return picked && after.includes(label);
+  });
+}
+
+export type ReplayCheckpoint = { dateIso: string; timeHhMm: string };
+
+/**
+ * Drive Bar Replay to a checkpoint. `dateIso` is YYYY-MM-DD and `timeHhMm` is
+ * HH:mm, both read in the chart's current timezone — call
+ * {@link setChartTimezone} with "UTC" first when the checkpoint is a UTC
+ * instant.
+ *
+ * Measured dialog (2026-07-31): the replay toolbar carries a "Select date"
+ * control which opens [data-name="select-date-dialog"] holding an input with
+ * placeholder YYYY-MM-DD and a second input holding HH:mm.
+ */
+export async function jumpToReplayCheckpoint(page: Page, checkpoint: ReplayCheckpoint): Promise<boolean> {
+  return runTrackedStep(page, `jumpToReplayCheckpoint:${checkpoint.dateIso}T${checkpoint.timeHhMm}`, async () => {
+    if (!(await waitForBarReplayToolbar(page))) {
+      tracePageEvent(page, "replay-checkpoint-not-in-replay", checkpoint.dateIso);
+      return false;
+    }
+
+    const toolbar = page.locator(REPLAY_TOOLBAR);
+    // After a checkpoint has been chosen once, the control shows that date
+    // instead of the "Select date" placeholder, so accept either.
+    //
+    // Poll rather than probe once: the toolbar element becomes visible before
+    // its contents render. Measured 2026-07-31 — with a single count() check
+    // straight after enterBarReplay every case failed with
+    // "no-select-date", while the same query 4s later returned 1.
+    const selectDate = toolbar.getByText(/select date|^\d{4}-\d{2}-\d{2}/i).first();
+    const controlDeadline = Date.now() + 20_000;
+    let controlReady = false;
+    while (Date.now() < controlDeadline) {
+      if (await selectDate.isVisible({ timeout: 500 }).catch(() => false)) {
+        controlReady = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    if (!controlReady) {
+      tracePageEvent(page, "replay-checkpoint-no-select-date", checkpoint.dateIso);
+      return false;
+    }
+    await selectDate.click({ timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(2_000);
+
+    const dialog = page.locator('[data-name="select-date-dialog"]');
+    if (!(await dialog.first().isVisible({ timeout: 5_000 }).catch(() => false))) {
+      tracePageEvent(page, "replay-checkpoint-no-dialog", checkpoint.dateIso);
+      return false;
+    }
+
+    const dateInput = dialog.locator('input[placeholder="YYYY-MM-DD"]').first();
+    const timeInput = dialog.locator("input").nth(1);
+    if (!(await dateInput.count()) || !(await timeInput.count())) {
+      tracePageEvent(page, "replay-checkpoint-no-inputs", checkpoint.dateIso);
+      return false;
+    }
+
+    await dateInput.fill(checkpoint.dateIso).catch(() => undefined);
+    await timeInput.fill(checkpoint.timeHhMm).catch(() => undefined);
+    await page.waitForTimeout(500);
+
+    // Read the fields back before committing: a rejected date silently keeps
+    // the previous value, and a checkpoint that never applied must not be
+    // reported as reached.
+    const echoedDate = (await dateInput.inputValue().catch(() => "")) ?? "";
+    const echoedTime = (await timeInput.inputValue().catch(() => "")) ?? "";
+    if (echoedDate !== checkpoint.dateIso || echoedTime !== checkpoint.timeHhMm) {
+      tracePageEvent(
+        page,
+        "replay-checkpoint-input-rejected",
+        `${checkpoint.dateIso}T${checkpoint.timeHhMm}!=${echoedDate}T${echoedTime}`,
+      );
+      await page.keyboard.press("Escape").catch(() => undefined);
+      return false;
+    }
+
+    // Enter does NOT submit this dialog — measured 2026-07-31, the fields
+    // accepted the checkpoint and the dialog stayed open, so every case
+    // reported "did not apply". The dialog's own footer buttons are "Cancel"
+    // and "Select"; the latter is the commit.
+    const confirm = dialog.getByRole("button", { name: /^select$/i }).first();
+    if (!(await confirm.isVisible({ timeout: 5_000 }).catch(() => false))) {
+      tracePageEvent(page, "replay-checkpoint-no-confirm", checkpoint.dateIso);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      return false;
+    }
+    await confirm.click({ timeout: 5_000 }).catch(() => undefined);
+
+    const closeDeadline = Date.now() + 20_000;
+    let dialogGone = false;
+    while (Date.now() < closeDeadline) {
+      if (!(await dialog.first().isVisible({ timeout: 500 }).catch(() => false))) {
+        dialogGone = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    // Give the chart time to reload history at the checkpoint before any
+    // caller reads diagnostics off it.
+    if (dialogGone) await page.waitForTimeout(6_000);
+    tracePageEvent(page, "replay-checkpoint-applied", `${checkpoint.dateIso}T${checkpoint.timeHhMm}:closed=${dialogGone}`);
+    return dialogGone;
+  }, Math.max(stepTimeoutMs(), 90_000));
+}
+
+/**
+ * Read the chart timeframe the Bar Replay toolbar is stepping in ("5m", "1h").
+ * Returns the raw label; callers convert with `timeframeLabelToMinutes`.
+ */
+export async function readReplayTimeframeLabel(page: Page, timeoutMs = 20_000): Promise<string | null> {
+  if (!(await waitForBarReplayToolbar(page, timeoutMs))) return null;
+  const toolbar = page.locator(REPLAY_TOOLBAR).first();
+  // Poll for CONTENT, not just for the element. The toolbar becomes visible
+  // before it renders its children — the same race that made the first
+  // checkpoint attempts fail, observed a third time here as an empty label.
+  const deadline = Date.now() + timeoutMs;
+  let text = "";
+  while (Date.now() < deadline) {
+    text = ((await toolbar.innerText().catch(() => "")) ?? "").trim();
+    if (text) break;
+    await page.waitForTimeout(250);
+  }
+  // Measured layout: "Select date\n1x\n5m" — speed then timeframe.
+  const match = /(\d+\s*[smhdwSMHDW])\s*$/.exec(text);
+  const label = match ? match[1].replace(/\s+/g, "") : null;
+  tracePageEvent(page, "replay-timeframe-label", `${JSON.stringify(text)}->${label ?? "none"}`);
+  return label;
 }

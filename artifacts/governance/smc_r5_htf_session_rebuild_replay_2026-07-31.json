@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R5-REBUILD",
+  "evidenceType": "bar_replay_checkpoint_execution",
+  "chartTimezone": "UTC",
+  "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
+  "caseCount": 7,
+  "passedCount": 2,
+  "cases": [
+    {
+      "caseId": "R5-REBUILD-HTF-15M",
+      "runnable": false,
+      "reason": "checkpointUtc must be an ISO-8601 UTC instant, got none",
+      "passed": false
+    },
+    {
+      "caseId": "R5-REBUILD-HTF-1H",
+      "runnable": false,
+      "reason": "checkpointUtc must be an ISO-8601 UTC instant, got none",
+      "passed": false
+    },
+    {
+      "caseId": "R5-REBUILD-HTF-4H",
+      "runnable": false,
+      "reason": "checkpointUtc must be an ISO-8601 UTC instant, got none",
+      "passed": false
+    },
+    {
+      "caseId": "R5-REBUILD-FAIL-CLOSED",
+      "runnable": false,
+      "reason": "checkpointUtc must be an ISO-8601 UTC instant, got none",
+      "passed": false
+    },
+    {
+      "caseId": "R5-REBUILD-DST-EU-GAP",
+      "runnable": true,
+      "checkpointUtc": "2025-10-27T13:45:00Z",
+      "drivenToUtc": "2025-10-27T13:50:00Z",
+      "checkpointApplied": true,
+      "attempts": 1,
+      "dataWindowRows": 23,
+      "observed": {
+        "sessionCode": "3",
+        "sessionLabel": "NY AM",
+        "sourceCloseUtc": "2025-10-27T13:45:00Z",
+        "sourceConfirmed": "1"
+      },
+      "expected": [
+        "sessionCode=3",
+        "sessionLabel=NY AM",
+        "sourceCloseUtc=2025-10-27T13:45:00Z"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "caseId": "R5-REBUILD-DST-STANDARD",
+      "runnable": true,
+      "checkpointUtc": "2025-11-03T14:45:00Z",
+      "drivenToUtc": "2025-11-03T14:50:00Z",
+      "checkpointApplied": true,
+      "attempts": 2,
+      "dataWindowRows": 23,
+      "observed": {
+        "sessionCode": "3",
+        "sessionLabel": "NY AM",
+        "sourceCloseUtc": "2025-11-03T14:45:00Z",
+        "sourceConfirmed": "1"
+      },
+      "expected": [
+        "sessionCode=3",
+        "sessionLabel=NY AM",
+        "sourceCloseUtc=2025-11-03T14:45:00Z"
+      ],
+      "passed": true,
+      "failures": []
+    },
+    {
+      "caseId": "R5-REBUILD-EXTENDED",
+      "runnable": false,
+      "reason": "requires extended-hours chart data, which this driver does not switch on",
+      "passed": false
+    }
+  ],
+  "notDone": [
+    "layout not saved",
+    "no publication",
+    "no alerts"
+  ]
+}

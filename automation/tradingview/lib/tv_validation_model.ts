@@ -720,6 +720,8 @@ export type ReplayCaseDefinition = {
   mode: string;
   checkpointUtc?: string;
   chartTimeframe?: string;
+  /** "regular" | "extended" — the chart data mode the case needs. */
+  sessionMode?: string;
   expectedDiagnostics: string[];
 };
 
@@ -743,6 +745,20 @@ export function resolveReplayCheckpointPlan(input: ReplayCaseDefinition): Replay
       runnable: false,
       caseId: input.caseId,
       reason: `checkpointUtc must be an ISO-8601 UTC instant, got ${input.checkpointUtc ?? "none"}`,
+    };
+  }
+  // An extended-hours case needs extended data ON THE CHART. Without it the
+  // requested instant simply has no bar and Bar Replay clamps to the last
+  // regular-session bar — measured 2026-07-31: asking for 2026-03-09T21:15Z
+  // reported a source close of 19:55Z (15:55 ET, the last bar before the
+  // regular close) and an NY PM session instead of Outside. That is not the
+  // case failing; it is the case never having run, and it must not be
+  // reported as a verdict.
+  if (input.sessionMode === "extended") {
+    return {
+      runnable: false,
+      caseId: input.caseId,
+      reason: "requires extended-hours chart data, which this driver does not switch on",
     };
   }
   return {
@@ -777,4 +793,124 @@ export function evaluateReplayCase(
     if (actual !== expected) failures.push({ key, expected, observed: actual });
   }
   return { passed: failures.length === 0, failures };
+}
+
+/**
+ * Session codes as declared by SMC_Session_Context.pine. The Data Window can
+ * only carry numbers, so the human label the R5 DST cases assert
+ * ("sessionLabel=NY AM") is derived here from the code using the script's own
+ * _session_label mapping. Keep the two in lockstep.
+ */
+export const SESSION_CODE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  "0": "Outside",
+  "1": "Asia",
+  "2": "London",
+  "3": "NY AM",
+  "4": "NY PM",
+});
+
+/**
+ * TradingView renders Data Window numbers for a human: thousands separators
+ * and two decimals ("1,785,440,700,000.00"). Recover the plain number, or
+ * null when the cell is not one.
+ */
+export function parseDataWindowNumber(value: string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const cleaned = value.replace(/,/g, "").trim();
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Format an epoch-millisecond Data Window value as an ISO-8601 UTC instant.
+ *
+ * Epoch milliseconds are timezone-independent, which is why the R5 DST
+ * checkpoints are asserted against this and not against any on-chart clock:
+ * the chart's own timezone cannot corrupt the answer.
+ */
+export function epochMsToIsoUtc(epochMs: number | null): string | null {
+  if (epochMs === null || !Number.isFinite(epochMs)) return null;
+  // Guard against a price being mistaken for a timestamp: anything below
+  // 1e12 ms (2001-09) is not a chart timestamp this project will ever read.
+  if (epochMs < 1_000_000_000_000) return null;
+  const date = new Date(epochMs);
+  const iso = date.toISOString();
+  return `${iso.slice(0, 19)}Z`;
+}
+
+export type SessionDiagnostics = Record<string, string>;
+
+/**
+ * Translate parsed Data Window rows into the diagnostic keys the R5 rebuild
+ * manifest asserts.
+ *
+ * Fails closed by omission: a row that is absent or not readable as the
+ * expected type produces NO key, and {@link evaluateReplayCase} treats a
+ * missing key as a failure. Nothing here invents a default.
+ */
+export function mapSessionDiagnostics(parsed: Record<string, string | null>): SessionDiagnostics {
+  const out: SessionDiagnostics = {};
+
+  const codeNumber = parseDataWindowNumber(parsed["Session Code"]);
+  if (codeNumber !== null && Number.isInteger(codeNumber)) {
+    const code = String(codeNumber);
+    out.sessionCode = code;
+    const label = SESSION_CODE_LABELS[code];
+    if (label !== undefined) out.sessionLabel = label;
+  }
+
+  const sourceCloseIso = epochMsToIsoUtc(parseDataWindowNumber(parsed["Session Source Close"]));
+  if (sourceCloseIso !== null) {
+    out.sourceCloseUtc = sourceCloseIso;
+    // A readable source-close timestamp IS the confirmation that the session
+    // has published a closed source bar; the script writes it only then.
+    out.sourceConfirmed = "1";
+  }
+
+  return out;
+}
+
+/**
+ * Parse a TradingView timeframe label ("5m", "1h", "4h", "1D") into minutes,
+ * or null when it is not one.
+ */
+export function timeframeLabelToMinutes(label: string | null | undefined): number | null {
+  const match = /^\s*(\d+)\s*([smhdwSMHDW])\s*$/.exec(label ?? "");
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  switch (match[2].toLowerCase()) {
+    case "s": return amount / 60;
+    case "m": return amount;
+    case "h": return amount * 60;
+    case "d": return amount * 60 * 24;
+    case "w": return amount * 60 * 24 * 7;
+    default: return null;
+  }
+}
+
+/**
+ * Shift a UTC checkpoint forward by one chart bar.
+ *
+ * Measured on the private validation layout, 2026-07-31: Bar Replay's
+ * "Select date" positions AT the bar containing the chosen instant, while
+ * Session Context publishes the last CLOSED bar. Selecting 13:45 therefore
+ * reported Source Close 13:40, and selecting 13:50 reported 13:45 — the value
+ * the DST cases assert. A case that pins "the confirmed source close IS the
+ * checkpoint" must consequently be driven to the bar AFTER it, so the
+ * checkpoint bar has closed.
+ *
+ * Returns null for a malformed instant or timeframe rather than guessing.
+ */
+export function checkpointAfterClose(
+  checkpointUtc: string,
+  timeframeMinutes: number,
+): { dateIso: string; timeHhMm: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(checkpointUtc)) return null;
+  if (!Number.isFinite(timeframeMinutes) || timeframeMinutes <= 0) return null;
+  const shifted = new Date(Date.parse(checkpointUtc) + timeframeMinutes * 60_000);
+  if (Number.isNaN(shifted.getTime())) return null;
+  const iso = shifted.toISOString();
+  return { dateIso: iso.slice(0, 10), timeHhMm: iso.slice(11, 16) };
 }
