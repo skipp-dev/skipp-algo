@@ -973,7 +973,16 @@ export type BoundaryVerdict = {
  *
  * Fails closed: fewer than two DISTINCT values means the observation never
  * caught an advance and cannot certify anything, so it is a violation rather
- * than a vacuous pass. A backwards or off-grid step is a violation too.
+ * than a vacuous pass. A backwards step, a step that is not a whole frame, and
+ * a missing value are violations too.
+ *
+ * It deliberately does NOT require the value to sit on an absolute UTC grid.
+ * That assumption was in the first version and the live chart disproved it:
+ * TradingView aligns intraday bars to the SESSION, not to midnight UTC, so on
+ * NASDAQ:AAPL the confirmed 1h close reads 19:30Z and the 4h close 17:30Z —
+ * both correct, neither a whole multiple of its frame. The property the cases
+ * actually pin is that the value ADVANCES by whole frames, and that survives
+ * any session offset.
  */
 export function evaluateSourceCloseBoundaries(
   observations: BoundaryObservation[],
@@ -1004,10 +1013,6 @@ export function evaluateSourceCloseBoundaries(
         violations.push(
           `${observation.atUtc}: source close advanced by ${deltaMs / 60_000}min, not a multiple of the ${frameMinutes}min frame (${previous} -> ${value})`,
         );
-      }
-      // The value itself must sit on the frame grid, not merely step by it.
-      if (Date.parse(value) % (frameMinutes * 60_000) !== 0) {
-        violations.push(`${observation.atUtc}: ${value} is not on the ${frameMinutes}min grid`);
       }
     }
     previous = value;

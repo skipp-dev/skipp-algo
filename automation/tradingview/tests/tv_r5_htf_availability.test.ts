@@ -88,16 +88,41 @@ test("an advance that is not a whole frame is a violation", () => {
   assert.match(verdict.violations.join(" "), /not a multiple of the 15min frame/);
 });
 
-test("a value off the frame grid is a violation even if the step size fits", () => {
+// Measured on NASDAQ:AAPL 2026-07-31: the confirmed 1h close reads 19:30Z and
+// the 4h close 17:30Z, because TradingView aligns intraday bars to the SESSION
+// (09:30 ET) rather than to midnight UTC. An absolute-grid assertion — which
+// the first version of this function carried — would have called both of those
+// violations. The property the cases pin is the ADVANCE, not the offset.
+test("a session-aligned frame is clean as long as it advances by whole frames", () => {
   const verdict = evaluateSourceCloseBoundaries(
     [
-      { atUtc: at(46), sourceCloseUtc: "2025-10-27T13:46:00Z", available: "1" },
-      { atUtc: at(1), sourceCloseUtc: "2025-10-27T14:01:00Z", available: "1" },
+      { atUtc: at(30), sourceCloseUtc: "2026-07-30T18:30:00Z", available: "1" },
+      { atUtc: at(30), sourceCloseUtc: "2026-07-30T19:30:00Z", available: "1" },
     ],
-    15,
+    60,
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, true, verdict.violations.join("; "));
+
+  const fourHour = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(30), sourceCloseUtc: "2026-07-30T13:30:00Z", available: "1" },
+      { atUtc: at(30), sourceCloseUtc: "2026-07-30T17:30:00Z", available: "1" },
+    ],
+    240,
+  );
+  assert.equal(fourHour.advancesOnlyAtBoundary, true, fourHour.violations.join("; "));
+});
+
+test("an off-frame advance is still a violation on a session-aligned series", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: at(30), sourceCloseUtc: "2026-07-30T18:30:00Z", available: "1" },
+      { atUtc: at(45), sourceCloseUtc: "2026-07-30T18:45:00Z", available: "1" },
+    ],
+    60,
   );
   assert.equal(verdict.advancesOnlyAtBoundary, false);
-  assert.match(verdict.violations.join(" "), /not on the 15min grid/);
+  assert.match(verdict.violations.join(" "), /not a multiple of the 60min frame/);
 });
 
 test("a backwards move is a violation", () => {
