@@ -250,7 +250,7 @@
             "artifacts/governance/smc_context_bus_r4_shadow_tradingview_2026-07-31.json"
           ],
           "openGates": [
-            "Decide whether the private saved script satisfies the 'privately publish' wording or whether a TradingView publish step is additionally required."
+            "Owner sign-off on the shadow observation before the Context surfaces become standard."
           ]
         },
         {
@@ -265,8 +265,7 @@
             "artifacts/governance/smc_context_bus_r4_shadow_tradingview_2026-07-31.json"
           ],
           "openGates": [
-            "Compare structure and zone output with Suite and Breakout evidence and explain discrepancies.",
-            "Run the rollback drill and record its evidence."
+            "Compare structure and zone output with Suite and Breakout evidence: blocked until a fixture-only on-chart readback exists, because all 60 CTX channels are display.none and TradingView renders that nowhere."
           ]
         }
       ]
