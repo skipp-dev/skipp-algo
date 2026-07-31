@@ -11,6 +11,7 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
+import { chartIntervalDisplayLabel } from "./tv_validation_model.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
@@ -8781,8 +8782,24 @@ export async function setChartSessionMode(page: Page, mode: "Regular" | "Extende
 export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500): Promise<number> {
   return runTrackedStep(page, `stepReplayForward:${bars}`, async () => {
     if (!(await waitForBarReplayToolbar(page))) return 0;
+    // Poll for the CONTROL, not just the toolbar. The toolbar becomes visible
+    // before its children render, and after a chart-interval change it takes
+    // noticeably longer — a single 5s probe reported the control missing for
+    // the 1h and 4h frames and stepped nothing, which read as "the frame never
+    // advanced". This is the fourth time this render race has been paid for in
+    // this driver; the pattern is always the same, so wait on the thing that
+    // is about to be clicked.
     const forward = page.locator(`${REPLAY_TOOLBAR} [title="Forward"]`).first();
-    if (!(await forward.isVisible({ timeout: 5_000 }).catch(() => false))) {
+    const deadline = Date.now() + 25_000;
+    let ready = false;
+    while (Date.now() < deadline) {
+      if (await forward.isVisible({ timeout: 500 }).catch(() => false)) {
+        ready = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    if (!ready) {
       tracePageEvent(page, "replay-forward-missing", String(bars));
       return 0;
     }
@@ -8815,8 +8832,14 @@ export async function setChartInterval(page: Page, interval: string): Promise<bo
       tracePageEvent(page, "chart-interval-control-missing", interval);
       return false;
     }
+    // The control shows "1h" for 60 and "4h" for 240, not the typed number.
+    const expected = chartIntervalDisplayLabel(interval);
+    if (expected === null) {
+      tracePageEvent(page, "chart-interval-unmappable", interval);
+      return false;
+    }
     const before = ((await control.innerText().catch(() => "")) ?? "").trim();
-    if (before === interval) {
+    if (before === expected) {
       tracePageEvent(page, "chart-interval-already", interval);
       return true;
     }
@@ -8831,7 +8854,7 @@ export async function setChartInterval(page: Page, interval: string): Promise<bo
     await page.keyboard.press("Enter").catch(() => undefined);
     await page.waitForTimeout(6_000);
     const after = ((await control.innerText().catch(() => "")) ?? "").trim();
-    tracePageEvent(page, "chart-interval", `${before}->${after} (wanted ${interval})`);
-    return after === interval;
+    tracePageEvent(page, "chart-interval", `${before}->${after} (wanted ${interval} shown as ${expected})`);
+    return after === expected;
   }, Math.max(stepTimeoutMs(), 60_000));
 }
