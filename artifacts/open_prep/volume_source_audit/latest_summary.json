@@ -1,0 +1,18 @@
+{
+  "eod_to_minute_session_median": 1.923013,
+  "minimum_sessions": 5,
+  "quote_to_minute_session_median": 1.908386,
+  "ready_for_decision": false,
+  "recommended_next_step": "continue collection; do not change source semantics yet",
+  "schema_version": 1,
+  "sessions": [
+    {
+      "eod_to_minute_median": 1.923013,
+      "quote_to_minute_median": 1.908386,
+      "session_date": "2026-07-31",
+      "symbols_measured": 10
+    }
+  ],
+  "sessions_observed": 1,
+  "verdict": "accumulating_evidence"
+}
