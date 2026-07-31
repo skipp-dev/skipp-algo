@@ -972,9 +972,17 @@ def _surface_payload(surface: SurfaceDefinition) -> dict[str, Any]:
     payload['bus_dependencies'] = list(surface.bus_dependencies)
     payload['known_missing_mp_fields'] = list(surface.known_missing_mp_fields)
     payload['notes'] = list(surface.notes)
-    if surface.chart_instance_name is None:
-        payload.pop('chart_instance_name')
-    return payload
+    # Optional fields are OMITTED when unset, never emitted as null. This was a
+    # special case for `chart_instance_name`; generalising it is what keeps the
+    # next optional field from repeating the bug `bus_schema` just caused.
+    #
+    # The consumer that forces it: `smc_core.serialization.snapshot_to_dict`
+    # runs the payload through `_drop_nones` before embedding it in a delivery
+    # bundle, while the bundle also carries the raw payload. A null in one and
+    # not the other makes those two copies unequal, and
+    # `test_delivery_bundle_snapshot_dashboard_pine_alignment` fails on the
+    # difference — in fast-gates, which the local ledger guard does not run.
+    return {key: value for key, value in payload.items() if value is not None}
 
 
 def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:

@@ -291,3 +291,34 @@ def test_the_context_producer_note_is_derived_from_the_contract() -> None:
     # The numbers that were wrong must not reappear as literals.
     assert "60 direct domain channels" not in note
     assert "four TradingView plot" not in note
+
+
+def test_the_surface_payload_omits_unset_fields_instead_of_emitting_null() -> None:
+    """A null in the payload silently breaks the delivery bundle.
+
+    `smc_core.serialization.snapshot_to_dict` runs the product cut through
+    `_drop_nones` before embedding it in a bundle that ALSO carries the raw
+    payload, so a null present in one copy and absent from the other makes the
+    two unequal and trips
+    `test_delivery_bundle_snapshot_dashboard_pine_alignment`.
+
+    That test lives in the fast SMC integration lane, which the local ledger
+    guard does not run — so `bus_schema` shipped a null, passed every local
+    check, and only turned red in CI. This pin catches the whole class next to
+    the registry it comes from, where it is cheap to run.
+    """
+    from scripts.smc_bus_manifest import build_product_cut_manifest_payload
+    from smc_core.serialization import _drop_nones
+
+    payload = build_product_cut_manifest_payload()
+    assert _drop_nones(dict(payload)) == payload, (
+        "the product-cut payload carries null values; optional fields must be "
+        "omitted when unset"
+    )
+
+    nulls = {
+        surface["file"]: sorted(key for key, value in surface.items() if value is None)
+        for surface in payload["surfaceRoles"]
+        if any(value is None for value in surface.values())
+    }
+    assert nulls == {}, f"surfaces emitting null fields: {nulls}"

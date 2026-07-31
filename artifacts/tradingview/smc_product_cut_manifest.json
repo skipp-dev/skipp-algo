@@ -107,7 +107,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "pending",
       "known_missing_mp_fields": []
     },
@@ -126,7 +125,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "ACTIVE_RESISTANCE_COUNT",
@@ -159,7 +157,6 @@
       "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "none",
       "chart_instance_name": "SMC HTF Confluence",
       "known_missing_mp_fields": []
@@ -179,7 +176,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "BEAR_FVG_ACTIVE",
@@ -221,7 +217,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "ACTIVE_RESISTANCE",
@@ -252,7 +247,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -271,7 +265,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "PROFILE_AH_QUALITY",
@@ -304,7 +297,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "POOL_IMBALANCE",
@@ -401,7 +393,6 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "excluded",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -507,7 +498,6 @@
       "rollout_state": "planned",
       "compile_expectation": "required",
       "bus_dependencies": [],
-      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
