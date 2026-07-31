@@ -4,11 +4,11 @@
   "consumer": "SMC_Context_Overlay.pine",
   "schemaVersion": 8001,
   "channelPrefix": "CTX ",
-  "channelCount": 60,
+  "channelCount": 62,
   "plotLimit": 64,
-  "reservedChannels": 4,
-  "maxChannels": 60,
-  "minReservedChannels": 4,
+  "reservedChannels": 2,
+  "maxChannels": 62,
+  "minReservedChannels": 2,
   "channels": [
     {
       "index": 1,
@@ -488,6 +488,22 @@
       "name": "SessionDirection",
       "group": "session",
       "value_type": "direction",
+      "required": false
+    },
+    {
+      "index": 61,
+      "label": "CTX SessionMssBull",
+      "name": "SessionMssBull",
+      "group": "session",
+      "value_type": "bool",
+      "required": false
+    },
+    {
+      "index": 62,
+      "label": "CTX SessionMssBear",
+      "name": "SessionMssBear",
+      "group": "session",
+      "value_type": "bool",
       "required": false
     }
   ]

@@ -20,8 +20,13 @@ DEFAULT_OUTPUT = ROOT / "artifacts/governance/smc_context_bus_v3_manifest.json"
 SCHEMA_VERSION = 8001
 CHANNEL_PREFIX = "CTX "
 TRADINGVIEW_PLOT_LIMIT = 64
-MAX_CHANNELS = 60
-MIN_RESERVED_CHANNELS = 4
+# 2026-07-31: 60 -> 62. Two of the four reserved slots were spent on the
+# session-MSS channels (SessionMssBull/Bear) that close the gap recorded by
+# the R5 Pro-HTF preset decision. The schema stays 8001: the reserve exists
+# precisely for ADDITIVE growth, bindings are by name, and a bump would blind
+# every deployed 8001 consumer (the R4 shadow overlay) until re-saved.
+MAX_CHANNELS = 62
+MIN_RESERVED_CHANNELS = 2
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,13 @@ CONTEXT_BUS_CHANNELS: tuple[ContextChannel, ...] = (
     ContextChannel("OpeningRangeTop", "session", "price"),
     ContextChannel("OpeningRangeBottom", "session", "price"),
     ContextChannel("SessionDirection", "session", "direction"),
+    # Session-level MSS: the confirmed close crossing the PREVIOUS session's
+    # extreme (one-bar pulse). NOT the structure event during a session — that
+    # is derivable from StructureBos/StructureChoch/StructureEventDirection.
+    # Appended (not inserted) because producer plots and consumer bindings are
+    # order-pinned to this list, and operators bind top-to-bottom.
+    ContextChannel("SessionMssBull", "session", "bool"),
+    ContextChannel("SessionMssBear", "session", "bool"),
 )
 
 

@@ -90,6 +90,8 @@ src_or_active = input.source(close, "CTX OpeningRangeActive", group = g_session,
 src_or_top = input.source(close, "CTX OpeningRangeTop", group = g_session, display = display.none)
 src_or_bottom = input.source(close, "CTX OpeningRangeBottom", group = g_session, display = display.none)
 src_session_dir = input.source(close, "CTX SessionDirection", group = g_session, display = display.none)
+src_session_mss_bull = input.source(close, "CTX SessionMssBull", group = g_session, display = display.none)
+src_session_mss_bear = input.source(close, "CTX SessionMssBear", group = g_session, display = display.none)
 
 mask_has(float mask_value, simple int flag) =>
     int(math.floor(math.max(mask_value, 0.0) / flag)) % 2 == 1
@@ -184,6 +186,10 @@ plot(show_session and session_ok and session_geometry_ok ? src_session_bottom : 
 color opening_color = src_or_active >= 0.5 ? color.new(color.yellow, 10) : color.new(color.yellow, 55)
 plot(show_session and session_ok and opening_geometry_ok ? src_or_top : na, "Opening Range High", opening_color, 1, plot.style_linebr)
 plot(show_session and session_ok and opening_geometry_ok ? src_or_bottom : na, "Opening Range Low", opening_color, 1, plot.style_linebr)
+// Session-level MSS: the confirmed close crossed the PREVIOUS session's
+// extreme (producer-computed one-bar pulse; see the v3 contract).
+plotshape(show_session and session_ok and src_session_mss_bull >= 0.5, "Session MSS Bull", shape.triangleup, location.belowbar, color.new(color.green, 10), text = "sMSS", size = size.tiny)
+plotshape(show_session and session_ok and src_session_mss_bear >= 0.5, "Session MSS Bear", shape.triangledown, location.abovebar, color.new(color.red, 10), text = "sMSS", size = size.tiny)
 bgcolor(show_session and session_ok and src_killzone >= 0.5 ? color.new(color.blue, 94) : na, title = "Context Killzone")
 
 var table summary = table.new(position.top_right, 2, 8, border_width = 1)

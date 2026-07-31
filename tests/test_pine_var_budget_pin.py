@@ -137,7 +137,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 2026-07-29: generated, test-only R3 runtime harness. These are the
     # canonical context library's 40 persistent declarations, source-derived
     # without adding a second detector implementation.
-    "tests/fixtures/pine/smc_context_engine_r3_fixture.pine": 40,
+    # 2026-07-31: 40 -> 42 — previous_session_top/bottom vars added to the
+    # session seam for the session-MSS channels (deliberate, see the v3
+    # contract); the fixture is generated from that source.
+    "tests/fixtures/pine/smc_context_engine_r3_fixture.pine": 42,
     # 2026-07-30: R5 HTF spike uses one persistent input-group label. All
     # requested ContextFrame state remains owned by the imported private /4
     # library rather than duplicated in the fixture.

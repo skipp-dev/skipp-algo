@@ -36,10 +36,14 @@ def test_manifest_is_generated_from_the_canonical_contract() -> None:
     assert json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8")) == build_manifest()
 
 
-def test_context_bus_budget_reserves_four_slots() -> None:
-    assert len(CONTEXT_BUS_CHANNELS) == MAX_CHANNELS == 60
+def test_context_bus_budget_reserves_two_slots() -> None:
+    # 2026-07-31: 60 -> 62, reserve 4 -> 2. Two reserved slots were spent on
+    # the session-MSS channels (see the contract module for why the schema
+    # stays 8001). The remaining two slots are the last additive headroom
+    # before the TradingView plot limit forces a successor schema.
+    assert len(CONTEXT_BUS_CHANNELS) == MAX_CHANNELS == 62
     assert TRADINGVIEW_PLOT_LIMIT - len(CONTEXT_BUS_CHANNELS) >= MIN_RESERVED_CHANNELS
-    assert build_manifest()["reservedChannels"] == 4
+    assert build_manifest()["reservedChannels"] == 2
 
 
 def test_channel_names_and_labels_are_unique_and_domain_first() -> None:
@@ -55,14 +59,14 @@ def test_producer_plot_order_exactly_matches_manifest() -> None:
     labels = PLOT_TITLE_RE.findall(_text(PRODUCER))
     expected = [channel.label for channel in CONTEXT_BUS_CHANNELS]
     assert labels == expected
-    assert len(labels) == 60
+    assert len(labels) == 62
 
 
 def test_consumer_binding_order_exactly_matches_manifest() -> None:
     labels = SOURCE_TITLE_RE.findall(_text(CONSUMER))
     expected = [channel.label for channel in CONTEXT_BUS_CHANNELS]
     assert labels == expected
-    assert len(labels) == 60
+    assert len(labels) == 62
 
 
 def test_schema_is_distinct_and_fail_closed() -> None:
@@ -81,7 +85,8 @@ def test_schema_is_distinct_and_fail_closed() -> None:
 
 def test_producer_uses_the_confirmed_r3_aggregate_once() -> None:
     producer = _text(PRODUCER)
-    assert "preuss_steffen/smc_context_engine_private/4" in producer
+    # 2026-07-31: /4 -> /5 (session-MSS fields added to the session seam).
+    assert "preuss_steffen/smc_context_engine_private/5" in producer
     assert producer.count("ctx.build_context_frame(") == 1
     assert "request.security" not in producer
     assert "lookahead_on" not in producer
