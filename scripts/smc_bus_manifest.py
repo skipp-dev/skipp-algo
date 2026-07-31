@@ -572,6 +572,20 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
             'fail-closed primary plan, explicit manual fallback, '
             'ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, '
             'time-stop, and confirmed-history state reconstruction.',
+            # The three state fields above read like nothing is running, which
+            # is why this sentence exists: the R2 shadow window HAS been open
+            # since 2026-07-28 and only the traceability artifact, the
+            # activation evidence and the architecture doc said so. A reader of
+            # the canonical registry alone could not tell. deployment_mode
+            # records the TARGET tier (never a phase — it has never once been
+            # changed on any surface), and rollout_state stays 'planned' by the
+            # decision taken when the window opened, so neither field can carry
+            # this fact. Pinned against the evidence by
+            # test_pine_surface_registry so the date cannot drift.
+            'R2 shadow observation window open since 2026-07-28T22:41:34Z '
+            '(evidence: artifacts/governance/'
+            'smc_hold_manager_shadow_activation_2026-07-28.json); rollout_state '
+            "stays 'planned' until the window and the rollback drill pass.",
         ),
     ),
     SurfaceDefinition(
