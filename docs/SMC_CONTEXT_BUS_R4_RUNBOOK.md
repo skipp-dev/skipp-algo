@@ -5,9 +5,11 @@ This runbook covers the private, non-gating rollout of `SMC Context Bus`
 publication or any trade-gating change.
 
 The canonical channel order and budget live in
-`artifacts/governance/smc_context_bus_v3_manifest.json`. The producer exports
-60 direct `CTX ` channels and reserves four TradingView plot slots. The overlay
-must bind all 60 channels to the one producer instance in the same chart pane.
+`artifacts/governance/smc_context_bus_v3_manifest.json` — read the counts from
+there rather than from this sentence. As of 2026-07-31 the producer exports
+**62** direct `CTX ` channels and reserves **two** TradingView plot slots
+(#4263 spent two of the former four on the session-MSS channels). The overlay
+must bind every channel to the one producer instance in the same chart pane.
 
 ## Required order
 

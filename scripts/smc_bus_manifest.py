@@ -3,7 +3,26 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from scripts.smc_context_bus_manifest import CONTEXT_BUS_CHANNELS
+from scripts.smc_context_bus_manifest import (
+    CONTEXT_BUS_CHANNELS,
+    TRADINGVIEW_PLOT_LIMIT,
+)
+from scripts.smc_context_bus_manifest import (
+    SCHEMA_VERSION as CONTEXT_BUS_SCHEMA_VERSION,
+)
+
+# The engine (v2) BUS schema, as declared by the producer itself in
+# `plot(7001, 'BUS SchemaVersion')`. It had no name in Python and lived as a
+# bare literal in four fixture/replay modules, so nothing tied the registry's
+# view of the contract to the source that defines it.
+ENGINE_BUS_SCHEMA_VERSION = 7001
+
+# Which schema each BUS family speaks. `bus_dependencies` names the family a
+# surface CONSUMES; producers declare their own family below.
+BUS_SCHEMA_BY_FAMILY: dict[str, int] = {
+    'engine_v2': ENGINE_BUS_SCHEMA_VERSION,
+    'context_v3': CONTEXT_BUS_SCHEMA_VERSION,
+}
 
 
 @dataclass(frozen = True)
@@ -27,6 +46,12 @@ class SurfaceDefinition:
     rollout_state: str = 'not_deployed'
     compile_expectation: str = 'required'
     bus_dependencies: tuple[str, ...] = ()
+    # The BUS schema this surface SPEAKS — whether it produces or consumes it.
+    # `bus_dependencies` names only the family a surface consumes, which left
+    # the producers (Suite, Context Bus) with no recorded version at all and
+    # tied nothing in the registry to the number the Pine source declares.
+    # None means the surface participates in no BUS.
+    bus_schema: int | None = None
     archive_state: str = 'none'
     chart_instance_name: str | None = None
     known_missing_mp_fields: tuple[str, ...] = ()
@@ -234,6 +259,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'lite_primary',
         contract_tier = 'lite_and_pro',
         consumer_role = 'producer',
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         chart_instance_name = 'SMC Long-Dip Suite',
@@ -252,6 +278,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Decision Board',
         validation_target = True,
         notes = (
@@ -268,6 +295,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Long-Dip Strategy',
         validation_target = True,
         notes = (
@@ -284,6 +312,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Event Overlay',
         validation_target = True,
         notes = (
@@ -428,6 +457,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Setup Check',
         notes = (
             'BUS connection validator — guides new users through initial setup.',
@@ -443,6 +473,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Long-Dip Mobile',
         notes = (
             'Mobile-first dashboard — 4-row table, no overlays.',
@@ -458,6 +489,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Confluence Hub',
         notes = (
             'Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).',
@@ -491,6 +523,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Breakout Overlay',
         notes = (
             'LonesomeTheBlue-style breakout/breakdown box renderer. Three-tier '
@@ -513,6 +546,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Exit Signal',
         validation_target = True,
         notes = (
@@ -532,6 +566,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'planned',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         notes = (
             'Read-only hold-management overlay with Engine BUS v2 as its '
             'fail-closed primary plan, explicit manual fallback, '
@@ -548,6 +583,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         deployment_mode = 'standard',
         rollout_state = 'deployed',
         bus_dependencies = ('engine_v2',),
+        bus_schema = ENGINE_BUS_SCHEMA_VERSION,
         chart_instance_name = 'SMC Long-Dip Alerts',
         notes = (
             'Alert companion for the Suite. Restores the 16 lifecycle / structure '
@@ -578,15 +614,23 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         surface_role = 'internal',
         contract_tier = 'internal',
         consumer_role = 'producer',
+        bus_schema = CONTEXT_BUS_SCHEMA_VERSION,
         lifecycle = 'active',
         deployment_mode = 'shadow',
         rollout_state = 'not_deployed',
         compile_expectation = 'required',
         notes = (
-            'Context BUS v3 producer; schema 8001 exposes 60 direct domain '
-            'channels with four TradingView plot slots reserved. Source exists '
-            'locally but remains non-deployed until private compile, publish, '
-            'binding and shadow evidence pass.',
+            # Derived, never typed: this sentence said "60 ... four reserved"
+            # while the contract had moved to 62/2 (#4263 spent two reserved
+            # slots on the session-MSS channels). The budget test was updated,
+            # this note was not — so the canonical registry disagreed with the
+            # module it describes. Counting at import time makes that
+            # impossible rather than merely unlikely.
+            f'Context BUS v3 producer; schema {CONTEXT_BUS_SCHEMA_VERSION} exposes '
+            f'{len(CONTEXT_BUS_CHANNELS)} direct domain channels with '
+            f'{TRADINGVIEW_PLOT_LIMIT - len(CONTEXT_BUS_CHANNELS)} TradingView plot '
+            'slots reserved. Source exists locally but remains non-deployed until '
+            'private compile, publish, binding and shadow evidence pass.',
         ),
     ),
     SurfaceDefinition(
@@ -600,6 +644,7 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         rollout_state = 'not_deployed',
         compile_expectation = 'required',
         bus_dependencies = ('context_v3',),
+        bus_schema = CONTEXT_BUS_SCHEMA_VERSION,
         notes = (
             'Consolidated fail-closed Context BUS v3 consumer. Source exists '
             'locally but remains shadow-only and non-gating until private '

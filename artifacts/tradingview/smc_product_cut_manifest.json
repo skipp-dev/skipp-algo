@@ -19,6 +19,7 @@
       "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Long-Dip Suite",
       "known_missing_mp_fields": []
@@ -41,6 +42,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Decision Board",
       "known_missing_mp_fields": []
@@ -63,6 +65,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Long-Dip Strategy",
       "known_missing_mp_fields": []
@@ -84,6 +87,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Event Overlay",
       "known_missing_mp_fields": []
@@ -103,6 +107,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "pending",
       "known_missing_mp_fields": []
     },
@@ -121,6 +126,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "ACTIVE_RESISTANCE_COUNT",
@@ -153,6 +159,7 @@
       "rollout_state": "deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "none",
       "chart_instance_name": "SMC HTF Confluence",
       "known_missing_mp_fields": []
@@ -172,6 +179,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "BEAR_FVG_ACTIVE",
@@ -213,6 +221,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "ACTIVE_RESISTANCE",
@@ -243,6 +252,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -261,6 +271,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "PROFILE_AH_QUALITY",
@@ -293,6 +304,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "known_broken",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "replace_in_place_pending",
       "known_missing_mp_fields": [
         "POOL_IMBALANCE",
@@ -323,6 +335,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Setup Check",
       "known_missing_mp_fields": []
@@ -345,6 +358,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Long-Dip Mobile",
       "known_missing_mp_fields": []
@@ -367,6 +381,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Confluence Hub",
       "known_missing_mp_fields": []
@@ -386,6 +401,7 @@
       "rollout_state": "not_deployed",
       "compile_expectation": "excluded",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -406,6 +422,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Breakout Overlay",
       "known_missing_mp_fields": []
@@ -427,6 +444,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Exit Signal",
       "known_missing_mp_fields": []
@@ -448,6 +466,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -468,6 +487,7 @@
       "bus_dependencies": [
         "engine_v2"
       ],
+      "bus_schema": 7001,
       "archive_state": "none",
       "chart_instance_name": "SMC Long-Dip Alerts",
       "known_missing_mp_fields": []
@@ -487,6 +507,7 @@
       "rollout_state": "planned",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": null,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -498,13 +519,14 @@
       "consumer_role": "producer",
       "validation_target": false,
       "notes": [
-        "Context BUS v3 producer; schema 8001 exposes 60 direct domain channels with four TradingView plot slots reserved. Source exists locally but remains non-deployed until private compile, publish, binding and shadow evidence pass."
+        "Context BUS v3 producer; schema 8001 exposes 62 direct domain channels with 2 TradingView plot slots reserved. Source exists locally but remains non-deployed until private compile, publish, binding and shadow evidence pass."
       ],
       "lifecycle": "active",
       "deployment_mode": "shadow",
       "rollout_state": "not_deployed",
       "compile_expectation": "required",
       "bus_dependencies": [],
+      "bus_schema": 8001,
       "archive_state": "none",
       "known_missing_mp_fields": []
     },
@@ -525,6 +547,7 @@
       "bus_dependencies": [
         "context_v3"
       ],
+      "bus_schema": 8001,
       "archive_state": "none",
       "known_missing_mp_fields": []
     }

@@ -208,3 +208,86 @@ def test_archived_surfaces_are_isolated_from_active_rollout() -> None:
         assert not (ROOT / surface.file).is_file()
         assert (ROOT / "pine" / "legacy" / Path(surface.file).name).is_file()
         assert surface.file not in rollout_sources
+
+
+# --- bus_schema --------------------------------------------------------------
+#
+# `bus_dependencies` records only the family a surface CONSUMES, so the two
+# producers carried no version at all and nothing tied the registry to the
+# number their Pine source declares. 7001 had no name in Python either — it sat
+# as a bare literal in four fixture/replay modules. These gates close both: the
+# field must agree with the family it consumes, and with the source that
+# defines the contract.
+
+
+def test_every_bus_participant_records_the_schema_it_speaks() -> None:
+    from scripts.smc_bus_manifest import BUS_SCHEMA_BY_FAMILY
+
+    for surface in SURFACE_DEFINITIONS:
+        for family in surface.bus_dependencies:
+            assert family in BUS_SCHEMA_BY_FAMILY, f"{surface.file}: unknown BUS family {family}"
+            assert surface.bus_schema == BUS_SCHEMA_BY_FAMILY[family], (
+                f"{surface.file} consumes {family} but records schema {surface.bus_schema}"
+            )
+
+
+def test_surfaces_outside_any_bus_record_no_schema() -> None:
+    """A schema on a surface that speaks no BUS is a claim nothing backs."""
+    producers = {"SMC_Long_Dip_Suite.pine", "SMC_Context_Bus.pine"}
+
+    for surface in SURFACE_DEFINITIONS:
+        if surface.bus_dependencies or surface.file in producers:
+            continue
+        assert surface.bus_schema is None, (
+            f"{surface.file} has no BUS dependency and is not a producer, "
+            f"but records schema {surface.bus_schema}"
+        )
+
+
+def test_producers_record_the_schema_their_source_declares() -> None:
+    """The registry number must come from the Pine source, not from memory.
+
+    This is the gate the stale channel-count note showed was missing: two
+    surfaces described the same contract and only one was kept current.
+    """
+    from scripts.smc_bus_manifest import (
+        CONTEXT_BUS_SCHEMA_VERSION,
+        ENGINE_BUS_SCHEMA_VERSION,
+        SURFACE_DEFINITIONS_BY_FILE,
+    )
+
+    engine = (ROOT / "SMC_Long_Dip_Suite.pine").read_text(encoding="utf-8")
+    declared_engine = re.search(r"plot\(\s*(\d+)\s*,\s*'BUS SchemaVersion'", engine)
+    assert declared_engine, "the engine producer no longer declares BUS SchemaVersion"
+    assert int(declared_engine.group(1)) == ENGINE_BUS_SCHEMA_VERSION
+    assert SURFACE_DEFINITIONS_BY_FILE["SMC_Long_Dip_Suite.pine"].bus_schema == ENGINE_BUS_SCHEMA_VERSION
+
+    context = (ROOT / "SMC_Context_Bus.pine").read_text(encoding="utf-8")
+    declared_context = re.search(r"const int SCHEMA_VERSION\s*=\s*(\d+)", context)
+    assert declared_context, "the context producer no longer declares SCHEMA_VERSION"
+    assert int(declared_context.group(1)) == CONTEXT_BUS_SCHEMA_VERSION
+    assert SURFACE_DEFINITIONS_BY_FILE["SMC_Context_Bus.pine"].bus_schema == CONTEXT_BUS_SCHEMA_VERSION
+
+
+def test_the_context_producer_note_is_derived_from_the_contract() -> None:
+    """The note that drifted must now be impossible to state wrongly.
+
+    It read "60 direct domain channels with four ... reserved" while the
+    contract had moved to 62/2 (#4263). Counting at import time is what makes a
+    repeat structurally impossible; this pins that it is still counted.
+    """
+    from scripts.smc_bus_manifest import SURFACE_DEFINITIONS_BY_FILE
+    from scripts.smc_context_bus_manifest import (
+        CONTEXT_BUS_CHANNELS,
+        TRADINGVIEW_PLOT_LIMIT,
+    )
+
+    note = " ".join(SURFACE_DEFINITIONS_BY_FILE["SMC_Context_Bus.pine"].notes)
+    channels = len(CONTEXT_BUS_CHANNELS)
+    reserved = TRADINGVIEW_PLOT_LIMIT - channels
+
+    assert f"{channels} direct domain channels" in note
+    assert f"{reserved} TradingView plot slots reserved" in note
+    # The numbers that were wrong must not reappear as literals.
+    assert "60 direct domain channels" not in note
+    assert "four TradingView plot" not in note
