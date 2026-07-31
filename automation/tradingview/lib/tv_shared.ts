@@ -8769,31 +8769,28 @@ export async function setChartSessionMode(page: Page, mode: "Regular" | "Extende
 /**
  * Step Bar Replay forward by one chart bar.
  *
- * The control is `<div data-role="button" title="Forward">` inside the replay
- * toolbar. That matters: an earlier attempt used `[data-tooltip="Forward"]`,
- * which matches NOTHING, so it stepped 0 of 3 bars and the failure was
- * misread as the control being inert at the live edge. The label lives in
- * `title`.
+ * The control must NOT be addressed by `[title="Forward"]`. TradingView's
+ * `apply-common-tooltip` machinery strips the `title` attribute while its own
+ * tooltip is up and does not restore it while the pointer remains on the
+ * button — so a title-based locator finds it exactly ONCE and never again.
+ * Measured 2026-07-31 by diffing the toolbar around a click: the element stays
+ * at the same position with the same classes, only `title="Forward"` becomes
+ * `title=""`. That single-use behaviour is what made every multi-step run
+ * report "the frame never advanced", on 5m and 15m alike.
  *
- * Proven 2026-07-31 on the private validation layout: one step moved the
- * confirmed 15m HTF source close from 2025-10-27T13:45:00Z to 14:00:00Z —
- * exactly one frame.
+ * The stable identity is structural: inside the replay toolbar the interactive
+ * `controls__button` elements are, in order, Play, Forward, Replay speed,
+ * Update interval, Jump to real-time chart. Forward is index 1.
  */
 export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500): Promise<number> {
   return runTrackedStep(page, `stepReplayForward:${bars}`, async () => {
     if (!(await waitForBarReplayToolbar(page))) return 0;
-    // Poll for the CONTROL, not just the toolbar. The toolbar becomes visible
-    // before its children render, and after a chart-interval change it takes
-    // noticeably longer — a single 5s probe reported the control missing for
-    // the 1h and 4h frames and stepped nothing, which read as "the frame never
-    // advanced". This is the fourth time this render race has been paid for in
-    // this driver; the pattern is always the same, so wait on the thing that
-    // is about to be clicked.
-    const forward = page.locator(`${REPLAY_TOOLBAR} [title="Forward"]`).first();
+
+    const controls = page.locator(`${REPLAY_TOOLBAR} [class*="controls__button"]`);
     const deadline = Date.now() + 25_000;
     let ready = false;
     while (Date.now() < deadline) {
-      if (await forward.isVisible({ timeout: 500 }).catch(() => false)) {
+      if ((await controls.count().catch(() => 0)) >= 2) {
         ready = true;
         break;
       }
@@ -8803,6 +8800,17 @@ export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500):
       tracePageEvent(page, "replay-forward-missing", String(bars));
       return 0;
     }
+    const forward = controls.nth(1);
+
+    // Guard the ordinal against a toolbar reshuffle: on the first pass the
+    // title is still present, so it can be confirmed once. A later pass sees
+    // an empty title by design and must not treat that as a mismatch.
+    const firstTitle = await forward.getAttribute("title").catch(() => null);
+    if (firstTitle !== null && firstTitle !== "" && !/forward/i.test(firstTitle)) {
+      tracePageEvent(page, "replay-forward-ordinal-mismatch", firstTitle);
+      return 0;
+    }
+
     let stepped = 0;
     for (let index = 0; index < bars; index += 1) {
       const clicked = await forward.click({ timeout: 8_000 }).then(() => true).catch(() => false);
@@ -8812,7 +8820,7 @@ export async function stepReplayForward(page: Page, bars = 1, settleMs = 2_500):
     }
     tracePageEvent(page, "replay-forward-stepped", `${stepped}/${bars}`);
     return stepped;
-  }, Math.max(stepTimeoutMs(), 120_000));
+  }, Math.max(stepTimeoutMs(), 180_000));
 }
 
 /**

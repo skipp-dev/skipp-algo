@@ -147,7 +147,7 @@ test("a run that never caught an advance proves nothing and must not pass", () =
     15,
   );
   assert.equal(verdict.advancesOnlyAtBoundary, false);
-  assert.match(verdict.violations.join(" "), /never caught an advance/);
+  assert.match(verdict.violations.join(" "), /no within-session advance/);
 });
 
 test("a missing source close is a violation, not a skipped sample", () => {
@@ -207,4 +207,51 @@ test("an unmappable interval returns null so the caller fails closed", () => {
   }
   // 90 minutes is a real TradingView interval and is NOT a whole hour.
   assert.equal(chartIntervalDisplayLabel("90"), "90");
+});
+
+
+// Market gaps, measured 2026-07-31 on NASDAQ:AAPL: stepping from a checkpoint
+// at the session open made the confirmed 1h close jump Friday 20:00Z -> Monday
+// 14:30Z (3990 minutes). No bars exist in between, so that is not the value
+// moving inside an open HTF bar — but it is also not evidence that it never
+// does. Tolerated, and not counted toward certification.
+test("a market gap is tolerated but certifies nothing on its own", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: "step-0", sourceCloseUtc: "2025-10-24T20:00:00Z", available: "1" },
+      { atUtc: "step-1", sourceCloseUtc: "2025-10-27T14:30:00Z", available: "1" },
+    ],
+    60,
+  );
+  assert.equal(verdict.gapCrossings, 1);
+  assert.equal(verdict.cleanAdvances, 0);
+  assert.equal(verdict.advancesOnlyAtBoundary, false, "a gap alone must not certify");
+  assert.match(verdict.violations.join(" "), /market-gap crossing/);
+});
+
+test("a within-session advance certifies even when the run also crossed a gap", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: "step-0", sourceCloseUtc: "2025-10-24T20:00:00Z", available: "1" },
+      { atUtc: "step-1", sourceCloseUtc: "2025-10-27T14:30:00Z", available: "1" },
+      { atUtc: "step-2", sourceCloseUtc: "2025-10-27T15:30:00Z", available: "1" },
+    ],
+    60,
+  );
+  assert.equal(verdict.gapCrossings, 1);
+  assert.equal(verdict.cleanAdvances, 1);
+  assert.equal(verdict.advancesOnlyAtBoundary, true, verdict.violations.join("; "));
+});
+
+test("a mid-bar move is still a violation and is not excused as a gap", () => {
+  const verdict = evaluateSourceCloseBoundaries(
+    [
+      { atUtc: "step-0", sourceCloseUtc: "2025-10-27T14:30:00Z", available: "1" },
+      { atUtc: "step-1", sourceCloseUtc: "2025-10-27T14:50:00Z", available: "1" },
+      { atUtc: "step-2", sourceCloseUtc: "2025-10-27T15:50:00Z", available: "1" },
+    ],
+    60,
+  );
+  assert.equal(verdict.advancesOnlyAtBoundary, false);
+  assert.match(verdict.violations.join(" "), /not a multiple of the 60min frame/);
 });

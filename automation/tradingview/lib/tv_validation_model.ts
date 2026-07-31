@@ -960,6 +960,10 @@ export type BoundaryVerdict = {
   advancesOnlyAtBoundary: boolean;
   distinctSourceCloses: number;
   advances: number;
+  /** Advances of whole frames inside one session — the only certifying evidence. */
+  cleanAdvances: number;
+  /** Advances across a market gap: legitimate, but carrying no evidence. */
+  gapCrossings: number;
   violations: string[];
 };
 
@@ -990,11 +994,13 @@ export function evaluateSourceCloseBoundaries(
 ): BoundaryVerdict {
   const violations: string[] = [];
   if (!Number.isFinite(frameMinutes) || frameMinutes <= 0) {
-    return { advancesOnlyAtBoundary: false, distinctSourceCloses: 0, advances: 0, violations: ["frameMinutes must be positive"] };
+    return { advancesOnlyAtBoundary: false, distinctSourceCloses: 0, advances: 0, cleanAdvances: 0, gapCrossings: 0, violations: ["frameMinutes must be positive"] };
   }
 
   const seen: string[] = [];
   let advances = 0;
+  let cleanAdvances = 0;
+  let gapCrossings = 0;
   let previous: string | null = null;
 
   for (const observation of observations) {
@@ -1009,23 +1015,40 @@ export function evaluateSourceCloseBoundaries(
       const deltaMs = Date.parse(value) - Date.parse(previous);
       if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
         violations.push(`${observation.atUtc}: source close moved backwards ${previous} -> ${value}`);
+      } else if (deltaMs > frameMinutes * 60_000 * 2) {
+        // A market gap. Measured 2026-07-31: stepping from a checkpoint at the
+        // session open made the confirmed 1h close jump Friday 20:00Z ->
+        // Monday 14:30Z, 3990 minutes — legitimate, because no bars exist in
+        // between. The property under test is that the value never moves
+        // INSIDE an open HTF bar, and a gap crossing does not violate it. It
+        // carries no evidence either, so it is tolerated but not counted.
+        gapCrossings += 1;
       } else if (deltaMs % (frameMinutes * 60_000) !== 0) {
         violations.push(
           `${observation.atUtc}: source close advanced by ${deltaMs / 60_000}min, not a multiple of the ${frameMinutes}min frame (${previous} -> ${value})`,
         );
+      } else {
+        cleanAdvances += 1;
       }
     }
     previous = value;
   }
 
-  if (seen.length < 2) {
-    violations.push(`observed only ${seen.length} distinct source close(s); the run never caught an advance and proves nothing`);
+  // Certification needs at least one WITHIN-SESSION advance. Distinct values
+  // alone are not enough: a run that only ever crossed a weekend saw the value
+  // change without ever observing the frame-boundary behaviour.
+  if (cleanAdvances < 1) {
+    violations.push(
+      `observed ${seen.length} distinct source close(s) and ${gapCrossings} market-gap crossing(s) but no within-session advance; the run proves nothing`,
+    );
   }
 
   return {
     advancesOnlyAtBoundary: violations.length === 0,
     distinctSourceCloses: seen.length,
     advances,
+    cleanAdvances,
+    gapCrossings,
     violations,
   };
 }
