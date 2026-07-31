@@ -1353,6 +1353,11 @@ stale-instance fix that stopped the gate from re-measuring the pre-fix chart
 instance. The replay, live-observation and rollback cases are untouched by
 this, so `R5-REBUILD` stays `partial`.
 
+Update, 2026-07-31 (evening): the sentence above is superseded. All 11 manifest
+cases were executed the same day (#4243–#4256), the Pro HTF preset was decided
+(#4257), and `R5-REBUILD` moved to `complete` on the owner's instruction — the
+full exit-gate record is in `docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md`.
+
 Compile-gate diagnosis on 2026-07-31: the first private preflight of the
 rebuilt root companions
 (`smc_r5_htf_session_rebuild_tradingview_2026-07-31.json`) passed

@@ -81,27 +81,33 @@ compile and replay evidence.
 10. Restore the exact prior chart state, save the layout, and verify it after a
     reload.
 
-## Exit gate
+## Exit gate — CLOSED 2026-07-31
 
-`R5-REBUILD` remains `partial` until a separate immutable evidence artifact
-records:
+`R5-REBUILD` moved to `complete` on 2026-07-31, on the owner's instruction,
+after every item below was recorded:
 
-- both exact source SHA-256 values;
+- both exact source SHA-256 values — manifest `sources.*.sha256`, re-verified
+  live by the rollback drill;
 - successful private compile for both saved scripts —
-  **done 2026-07-31**, `smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json`
+  `smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json`
   (every preflight axis true for both targets, runtime smoke included);
-- all 11 manifest cases;
-- layout identity and chart state;
-- zero unredacted secret or editor-source capture;
-- rollback and reload verification — **done 2026-07-31**,
+- all 11 manifest cases — manifest `status = all_cases_executed`, every case
+  cited in `resultEvidence` (pinned by
+  `test_every_manifest_case_now_has_landed_evidence`);
+- layout identity and chart state —
+  `smc_r5_htf_session_rebuild_rollback_2026-07-31.json` `captured`;
+- zero unredacted secret or editor-source capture — checked over **every**
+  landed artifact, pinned by
+  `test_no_r5_evidence_artifact_carries_source_or_secrets`;
+- rollback and reload verification —
   `smc_r5_htf_session_rebuild_rollback_2026-07-31.json` (perturbation took, the
   in-session restore matched, the layout was saved, and the state survived a
   reload); and
 - the decision whether either companion enters the optional Pro HTF layout —
   **decided 2026-07-31**, see below.
 
-Only then may traceability move to `complete` and Product Cut rollout state be
-considered for a separate deployment change.
+Product Cut rollout state is a separate deployment change, taken after this
+status change (also owner-ordered on 2026-07-31).
 
 ## Pro HTF preset decision (2026-07-31)
 
