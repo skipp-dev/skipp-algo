@@ -14,6 +14,7 @@ import { tvSelectors, type PineDraftKind } from "../selectors.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
+  type DataWindowItem,
   type TradingViewAuthResolution,
   type TradingViewStorageStateInspection,
 } from "./tv_validation_model.js";
@@ -8302,4 +8303,114 @@ export async function publishPrivateScript(
     versionContextTexts: evidence.versionContextTexts,
     bodyText: evidence.bodyText || openSurfaceBodyText,
   };
+}
+
+// ── Bar Replay driver + on-chart table reader ───────────────────────────────
+// Added 2026-07-31. Before this, the repository had no Bar Replay automation:
+// the R2.4 evidence was produced by driving TradingView by hand, which left
+// nothing reusable and cost a full reconstruction cycle later. The decision
+// layer (case plans, expectation matching, table parsing) lives in
+// tv_validation_model.ts and is unit-tested; this file owns only the DOM.
+
+/** Open the Object-tree/Data-window panel if it is not already visible. */
+export async function openDataWindow(page: Page): Promise<boolean> {
+  return runTrackedStep(page, "openDataWindow", async () => {
+    const already = await page.locator("[data-test-id-value-title]").first().isVisible().catch(() => false);
+    if (already) return true;
+    const clicked = await page.evaluate(`(() => {
+      const nodes = document.querySelectorAll('button,[role="button"]');
+      for (const n of nodes) {
+        const label = (n.getAttribute('aria-label') || n.getAttribute('data-tooltip') || n.getAttribute('title') || '');
+        if (/data window|object tree/i.test(label)) { n.click(); return label; }
+      }
+      return null;
+    })()`).catch(() => null);
+    tracePageEvent(page, "data-window-toggle", String(clicked));
+    await page.waitForTimeout(4_000);
+    return page.locator("[data-test-id-value-title]").first().isVisible().catch(() => false);
+  });
+}
+
+/**
+ * Read every Data Window row as a label/value pair.
+ *
+ * Pine tables are canvas-rendered and therefore unreadable; the Data Window is
+ * the readable channel. `data-test-id-value-title` is TradingView's own test
+ * hook, so this does not depend on hashed class names.
+ */
+export async function readDataWindowValues(page: Page): Promise<DataWindowItem[]> {
+  return runTrackedStep(page, "readDataWindowValues", async () => {
+    await openDataWindow(page);
+    const items = await page.evaluate(`(() => {
+      const out = [];
+      const rows = document.querySelectorAll('[data-test-id-value-title]');
+      for (const row of rows) {
+        const title = row.getAttribute('data-test-id-value-title') || '';
+        let value = '';
+        const cells = row.querySelectorAll('div');
+        for (const c of cells) {
+          if (String(c.className).indexOf('valueValue') === 0 || String(c.className).indexOf('valueValue') > -1) {
+            value = (c.innerText || '').trim();
+          }
+        }
+        if (title) out.push({ title: title, value: value });
+      }
+      return out;
+    })()`) as DataWindowItem[];
+    tracePageEvent(page, "data-window-items", String(items.length));
+    return items;
+  });
+}
+
+async function clickFirstVisible(page: Page, selectors: string[], label: string): Promise<boolean> {
+  for (const selector of selectors) {
+    const candidate = page.locator(selector).first();
+    if (await candidate.isVisible().catch(() => false)) {
+      await candidate.click().catch(() => undefined);
+      tracePageEvent(page, `${label}-clicked`, selector);
+      return true;
+    }
+  }
+  tracePageEvent(page, `${label}-miss`, selectors.join("|"));
+  return false;
+}
+
+const REPLAY_TOGGLE_SELECTORS = [
+  '[data-name="replay"]',
+  'button[aria-label*="Replay" i]',
+  'button[data-tooltip*="Replay" i]',
+  '#header-toolbar-replay',
+];
+
+/** Enter Bar Replay. Idempotent: a chart already in replay mode is left alone. */
+export async function enterBarReplay(page: Page): Promise<boolean> {
+  return runTrackedStep(page, "enterBarReplay", async () => {
+    if (await isBarReplayActive(page)) {
+      tracePageEvent(page, "bar-replay-already-active");
+      return true;
+    }
+    if (!(await clickFirstVisible(page, REPLAY_TOGGLE_SELECTORS, "bar-replay-toggle"))) return false;
+    await page.waitForTimeout(2_500);
+    return isBarReplayActive(page);
+  });
+}
+
+/** Leave Bar Replay so the chart is handed back in its ordinary state. */
+export async function exitBarReplay(page: Page): Promise<boolean> {
+  return runTrackedStep(page, "exitBarReplay", async () => {
+    if (!(await isBarReplayActive(page))) return true;
+    await clickFirstVisible(page, REPLAY_TOGGLE_SELECTORS, "bar-replay-exit");
+    await page.waitForTimeout(2_000);
+    return !(await isBarReplayActive(page));
+  });
+}
+
+export async function isBarReplayActive(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const text = document.body?.innerText ?? "";
+    const hasControls = Boolean(
+      document.querySelector('[data-name="replay-play-pause"], [data-name="replay-step-forward"]'),
+    );
+    return hasControls || /replay/i.test(text.slice(0, 400));
+  }).catch(() => false);
 }

@@ -680,3 +680,101 @@ export function reportProvidesRepoSourceCompileEvidence(report: {
 } | null | undefined): boolean {
   return report?.execution_mode === "mutating" && report?.compile_green === true;
 }
+
+// ── Bar Replay: pure decision layer ─────────────────────────────────────────
+// The browser driver in tv_shared.ts owns the DOM; everything decidable
+// without a page lives here so it is testable. Added 2026-07-31 for the
+// R5-REBUILD replay cases — the repository previously had no replay
+// automation at all, so the R2.4 evidence had to be produced interactively
+// and left nothing reusable behind.
+
+export type DataWindowItem = { title: string; value: string };
+
+/**
+ * Fold Data Window items into a label -> value map.
+ *
+ * The Data Window is the only DOM-readable value channel on a TradingView
+ * chart: Pine `table` objects render on CANVAS (verified 2026-07-31 — the
+ * chart carried 32 canvases and zero DOM occurrences of the status-table
+ * headers), so table text cannot be scraped.
+ *
+ * TradingView writes "not available" as U+2205. That is mapped to null rather
+ * than kept as text, so a case expecting a value can never be satisfied by an
+ * empty cell. Later duplicates never overwrite an earlier resolved value.
+ */
+export function parseDataWindowItems(items: DataWindowItem[]): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const item of items) {
+    const title = item.title?.trim();
+    if (!title) continue;
+    const raw = item.value?.trim() ?? "";
+    const value = raw === "" || raw === "\u2205" ? null : raw;
+    if (Object.prototype.hasOwnProperty.call(out, title) && out[title] !== null) continue;
+    out[title] = value;
+  }
+  return out;
+}
+
+export type ReplayCaseDefinition = {
+  caseId: string;
+  mode: string;
+  checkpointUtc?: string;
+  chartTimeframe?: string;
+  expectedDiagnostics: string[];
+};
+
+export type ReplayCheckpointPlan = {
+  runnable: boolean;
+  caseId: string;
+  checkpointUtc?: string;
+  chartTimeframe?: string;
+  reason?: string;
+};
+
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+
+/** Decide whether the Bar Replay driver can execute a manifest case at all. */
+export function resolveReplayCheckpointPlan(input: ReplayCaseDefinition): ReplayCheckpointPlan {
+  if (input.mode !== "replay") {
+    return { runnable: false, caseId: input.caseId, reason: `mode ${input.mode} is not driven by Bar Replay` };
+  }
+  if (!input.checkpointUtc || !ISO_UTC.test(input.checkpointUtc)) {
+    return {
+      runnable: false,
+      caseId: input.caseId,
+      reason: `checkpointUtc must be an ISO-8601 UTC instant, got ${input.checkpointUtc ?? "none"}`,
+    };
+  }
+  return {
+    runnable: true,
+    caseId: input.caseId,
+    checkpointUtc: input.checkpointUtc,
+    chartTimeframe: input.chartTimeframe,
+  };
+}
+
+export type ReplayExpectationFailure = { key: string; expected: string; observed: string | null };
+export type ReplayCaseResult = { passed: boolean; failures: ReplayExpectationFailure[] };
+
+/**
+ * Compare manifest expectations ("key=value") against observed diagnostics.
+ * Fails closed: a missing diagnostic is a failure, and a case with no
+ * expectations can never certify itself as passed.
+ */
+export function evaluateReplayCase(
+  expectedDiagnostics: string[],
+  observed: Record<string, string>,
+): ReplayCaseResult {
+  if (expectedDiagnostics.length === 0) {
+    return { passed: false, failures: [{ key: "no_expectations", expected: "at least one", observed: null }] };
+  }
+  const failures: ReplayExpectationFailure[] = [];
+  for (const entry of expectedDiagnostics) {
+    const index = entry.indexOf("=");
+    const key = index === -1 ? entry : entry.slice(0, index);
+    const expected = index === -1 ? "" : entry.slice(index + 1);
+    const actual = Object.prototype.hasOwnProperty.call(observed, key) ? observed[key] : null;
+    if (actual !== expected) failures.push({ key, expected, observed: actual });
+  }
+  return { passed: failures.length === 0, failures };
+}
