@@ -74,3 +74,34 @@ test("every preflight add-to-chart carries the same 90s floor as the publish pat
     );
   }
 });
+
+// 2026-07-31: the mutating preflight saved a fixed SMC HTF Confluence source,
+// then hit addCurrentScriptToChart's "already present" fast path and measured
+// the STALE chart instance — re-reporting the pre-fix CE10156 for a source
+// pine-facade had already accepted. A mutating run must clear existing
+// instances and force a fresh insert so every downstream axis (runtime smoke
+// included) measures the just-saved source.
+test("the mutating preflight clears stale instances and force-inserts after save", () => {
+  const source = preflightSource();
+
+  const mutatingBranch = source.match(
+    /if \(cli\.executionMode === "mutating" && target\.scriptName\) \{[\s\S]*?removeVisibleChartScriptInstances[\s\S]*?addCurrentScriptToChart\([^;]*?forceInsert: true[\s\S]*?\}/,
+  );
+  assert.ok(
+    mutatingBranch,
+    "tv_preflight's add-to-chart block must, in mutating mode, call "
+    + "removeVisibleChartScriptInstances and then addCurrentScriptToChart with "
+    + "forceInsert: true — otherwise the 'already present' fast path re-measures "
+    + "the stale instance after a source change (the 2026-07-31 CE10156 re-run).",
+  );
+
+  const staleReuse = source.match(
+    /usedFreshDraftPath/,
+  );
+  assert.equal(
+    staleReuse,
+    null,
+    "the fresh-draft-only guard must stay retired: forceInsert now applies to "
+    + "every mutating run, not only the fresh-draft path",
+  );
+});
