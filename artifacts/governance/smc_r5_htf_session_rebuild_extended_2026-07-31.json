@@ -8,7 +8,7 @@
   ],
   "chartUrl": "https://www.tradingview.com/chart/FT4bpvrU/",
   "caseCount": 1,
-  "passedCount": 0,
+  "passedCount": 1,
   "cases": [
     {
       "caseId": "R5-REBUILD-EXTENDED",
@@ -25,23 +25,12 @@
         "sourceConfirmed": "1"
       },
       "expected": [
-        "sessionCode=0",
-        "sessionLabel=Outside",
+        "sessionCode=1",
+        "sessionLabel=Asia",
         "sourceConfirmed=1"
       ],
-      "passed": false,
-      "failures": [
-        {
-          "key": "sessionCode",
-          "expected": "0",
-          "observed": "1"
-        },
-        {
-          "key": "sessionLabel",
-          "expected": "Outside",
-          "observed": "Asia"
-        }
-      ]
+      "passed": true,
+      "failures": []
     }
   ],
   "notDone": [

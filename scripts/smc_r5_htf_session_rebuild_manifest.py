@@ -111,9 +111,31 @@ def build_manifest() -> dict[str, Any]:
             "mode": "replay",
             "sessionMode": "extended",
             "checkpointUtc": "2026-03-09T21:15:00Z",
+            # Corrected 2026-07-31, on the first execution of this case, by
+            # owner decision.
+            #
+            # It was preregistered as sessionCode=0 / "Outside", carried over
+            # from the R5-HTF-SPIKE case R5-SESSION-01, which pins the SAME
+            # instant and calls it "outside all configured context sessions".
+            # That is true of the SPIKE script and false of this one, because
+            # the two define the Asia window as opposite halves of the day:
+            #
+            #   spike   smc_htf_context_r5_spike.pine  asia "0900-1700" Tokyo
+            #   product SMC_Session_Context.pine       asia "0000-0900" Tokyo
+            #
+            # 2026-03-09T21:15Z is 2026-03-10 06:15 in Asia/Tokyo, a Tuesday.
+            # That is OUTSIDE 09:00-17:00 (so the spike is right to expect 0)
+            # and INSIDE 00:00-09:00 (so this script is right to report Asia).
+            # NY AM, NY PM and London are outside it either way, so
+            # _session_code() falls through to Asia here.
+            #
+            # The chart agrees: with Extended session data the case observed
+            # sessionCode=1 / "Asia" at a sourceCloseUtc of exactly
+            # 2026-03-09T21:15:00Z. The expectation was wrong, not the script —
+            # and the completed spike gate is NOT affected, so do not "fix" it.
             "expectedDiagnostics": [
-                "sessionCode=0",
-                "sessionLabel=Outside",
+                "sessionCode=1",
+                "sessionLabel=Asia",
                 "sourceConfirmed=1",
             ],
         },

@@ -132,8 +132,8 @@
       "sessionMode": "extended",
       "checkpointUtc": "2026-03-09T21:15:00Z",
       "expectedDiagnostics": [
-        "sessionCode=0",
-        "sessionLabel=Outside",
+        "sessionCode=1",
+        "sessionLabel=Asia",
         "sourceConfirmed=1"
       ],
       "tradingViewStatus": "pending"
