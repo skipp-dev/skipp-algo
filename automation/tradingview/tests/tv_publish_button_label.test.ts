@@ -61,3 +61,25 @@ test("the publish-by-name patterns are kept, not replaced", () => {
     assert.ok(body.includes(pattern), `the ${pattern} pattern must stay as a fallback`);
   }
 });
+
+test("a structural candidate survives the title strip on reopen", () => {
+  // 2026-07-31, publishing smc_context_engine_private v5: the title-keyed
+  // candidates are single-use, because apply-common-tooltip strips the title
+  // attribute on click. The first open matched, the "Script is not on the
+  // chart" gate was cleared, and the reopen missed all candidates — leaving
+  // every publish that passes through the gate (all libraries) broken one
+  // step later than the #4251 relabelling. The stable structural anchor is
+  // TradingView's own class prefix; the hashed suffix must NOT be pinned.
+  const body = pinePublishButtonsBody();
+  assert.ok(
+    body.includes('button[class*="publishButton"]'),
+    "pinePublishButtons must keep a class-prefix candidate that does not "
+    + "depend on the strip-on-click title attribute",
+  );
+  // Only selector STRINGS are constrained — the measured hash may (and
+  // should) appear in the comment as evidence.
+  assert.ok(
+    !/["'][^"'\n]*publishButton-[A-Za-z0-9]/.test(body),
+    "never pin the hashed class suffix in a selector — it changes on TradingView deploys",
+  );
+});

@@ -356,6 +356,16 @@ export const tvSelectors = {
       // handles.
       pineDialog.locator('[title="Share your script with community"]'),
       pineDialog.locator('[title*="share your script" i]'),
+      // The title selectors above are SINGLE-USE: the control carries
+      // apply-common-tooltip, which strips the title attribute on click and
+      // does not restore it while the pointer rests on the button. Measured
+      // 2026-07-31 publishing smc_context_engine_private v5: the first open
+      // matched by title, the "Script is not on the chart" gate was cleared,
+      // and the REOPEN missed all 11 candidates — same mechanism as the
+      // Replay Forward button. TradingView's own class name for the control
+      // (className publishButton-ddmSLPrc apply-common-tooltip ...) survives
+      // the strip; the hashed suffix does not, so match the stable prefix.
+      pineDialog.locator('button[class*="publishButton"]'),
       pineDialog.getByRole("button", { name: /publish script/i }),
       pineDialog.getByRole("button", { name: /publish library/i }),
       pineDialog.getByRole("button", { name: /^publish$/i }),
