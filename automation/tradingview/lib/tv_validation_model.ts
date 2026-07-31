@@ -913,3 +913,114 @@ export function checkpointAfterClose(
   const iso = shifted.toISOString();
   return { dateIso: iso.slice(0, 10), timeHhMm: iso.slice(11, 16) };
 }
+
+/** Data Window title prefixes for the three HTF frames, as SMC_HTF_Confluence.pine plots them. */
+export const HTF_FRAME_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  "15": "HTF 15m",
+  "60": "HTF 1h",
+  "240": "HTF 4h",
+});
+
+/**
+ * Translate Data Window rows into the diagnostics the HTF availability cases
+ * assert, for one requested frame.
+ *
+ * Fails closed by omission, like {@link mapSessionDiagnostics}: a row that is
+ * absent or unreadable produces no key, and {@link evaluateReplayCase} treats a
+ * missing key as a failure. `available` is deliberately NOT defaulted to 0 —
+ * "the script says unavailable" and "the script is not on the chart" must not
+ * look alike, or FAIL-CLOSED would pass against an empty chart.
+ */
+export function mapHtfDiagnostics(
+  parsed: Record<string, string | null>,
+  frame: string,
+): Record<string, string> {
+  const prefix = HTF_FRAME_LABELS[frame];
+  if (prefix === undefined) return {};
+  const out: Record<string, string> = {};
+
+  const available = parseDataWindowNumber(parsed[`${prefix} Available`]);
+  if (available !== null) out.available = String(available === 0 ? 0 : 1);
+
+  const sourceCloseIso = epochMsToIsoUtc(parseDataWindowNumber(parsed[`${prefix} Source Close`]));
+  if (sourceCloseIso !== null) {
+    out.sourceCloseUtc = sourceCloseIso;
+    // The script publishes a source close only for a CONFIRMED closed HTF bar.
+    out.sourceConfirmed = "1";
+  } else if (available === 0) {
+    // Masked-unavailable is a confirmed *absence*, not an unknown.
+    out.sourceConfirmed = "0";
+  }
+
+  return out;
+}
+
+export type BoundaryObservation = { atUtc: string; sourceCloseUtc: string | null; available: string | null };
+export type BoundaryVerdict = {
+  advancesOnlyAtBoundary: boolean;
+  distinctSourceCloses: number;
+  advances: number;
+  violations: string[];
+};
+
+/**
+ * Decide whether a confirmed HTF source close advanced ONLY at boundaries of
+ * its own frame, over a sequence of chart-bar observations.
+ *
+ * This is the non-repainting property the HTF-15M/1H/4H cases pin: on a 5m
+ * chart a 15m frame must hold its confirmed value for three chart bars and then
+ * step by exactly one HTF interval.
+ *
+ * Fails closed: fewer than two DISTINCT values means the observation never
+ * caught an advance and cannot certify anything, so it is a violation rather
+ * than a vacuous pass. A backwards or off-grid step is a violation too.
+ */
+export function evaluateSourceCloseBoundaries(
+  observations: BoundaryObservation[],
+  frameMinutes: number,
+): BoundaryVerdict {
+  const violations: string[] = [];
+  if (!Number.isFinite(frameMinutes) || frameMinutes <= 0) {
+    return { advancesOnlyAtBoundary: false, distinctSourceCloses: 0, advances: 0, violations: ["frameMinutes must be positive"] };
+  }
+
+  const seen: string[] = [];
+  let advances = 0;
+  let previous: string | null = null;
+
+  for (const observation of observations) {
+    const value = observation.sourceCloseUtc;
+    if (value === null) {
+      violations.push(`${observation.atUtc}: no source close published`);
+      continue;
+    }
+    if (!seen.includes(value)) seen.push(value);
+    if (previous !== null && value !== previous) {
+      advances += 1;
+      const deltaMs = Date.parse(value) - Date.parse(previous);
+      if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
+        violations.push(`${observation.atUtc}: source close moved backwards ${previous} -> ${value}`);
+      } else if (deltaMs % (frameMinutes * 60_000) !== 0) {
+        violations.push(
+          `${observation.atUtc}: source close advanced by ${deltaMs / 60_000}min, not a multiple of the ${frameMinutes}min frame (${previous} -> ${value})`,
+        );
+      }
+      // The value itself must sit on the frame grid, not merely step by it.
+      if (Date.parse(value) % (frameMinutes * 60_000) !== 0) {
+        violations.push(`${observation.atUtc}: ${value} is not on the ${frameMinutes}min grid`);
+      }
+    }
+    previous = value;
+  }
+
+  if (seen.length < 2) {
+    violations.push(`observed only ${seen.length} distinct source close(s); the run never caught an advance and proves nothing`);
+  }
+
+  return {
+    advancesOnlyAtBoundary: violations.length === 0,
+    distinctSourceCloses: seen.length,
+    advances,
+    violations,
+  };
+}
