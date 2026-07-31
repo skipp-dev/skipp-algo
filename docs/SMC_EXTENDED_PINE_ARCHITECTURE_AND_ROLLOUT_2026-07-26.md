@@ -1348,19 +1348,40 @@ rebuilt root companions
 (`smc_r5_htf_session_rebuild_tradingview_2026-07-31.json`) passed
 `R5-REBUILD-COMPILE-SESSION` but failed `R5-REBUILD-COMPILE-HTF` — the applied
 chart instance reported `Compilation error: CE10156` and zero of the 20 HTF
-plot titles reached the Data Window. `CE10156` is TradingView's generic Pine
-*syntax-error* code ("Syntax error at input …", captured verbatim in the
-2026-07-13 automation runs, including once against an HTF Confluence draft at
-a tuple `[` with "end of line without line continuation"). Root cause: the
-rebuilt HTF source wrapped its three tuple destructures and the
-`_confirmed_tuple()` return across lines with continuations indented by
-multiples of four spaces, which Pine's line-wrapping rule reserves for local
-blocks. The spike source wrapped everything with the legal five-space
-continuation style and compiled on the same layout; the root source now uses
-that proven style. An editor body that stays clean after Save does not clear
-this class — TradingView can reveal the compiler error only after Add to
-chart (the CE10271 incident; see `getVisibleChartScriptError`). The private
-compile re-run of the reformatted source remains open.
+plot titles reached the Data Window. The badge carries only the code, so the
+diagnosis was taken from the compiler itself: Pine is translated server-side,
+and posting the source to `pine-facade/translate_light` returns the verdict in
+full. For the pre-fix source (sha256 `7fed7538…`, the hash the failing evidence
+pins) it answers
+
+```json
+{"code":"CE10156","message":"Syntax error at input {value}",
+ "ctx":{"value":"\"end of line without line continuation\""},
+ "start":{"line":57,"column":6}}
+```
+
+Line 57 column 6 is the standalone `[` that opens the `_confirmed_tuple()`
+return. Root cause: the rebuilt HTF source wrapped that return and its three
+tuple destructures with continuation lines indented by multiples of four
+spaces, which Pine reserves for local blocks — so the parser reached end of
+line after `[` with no continuation. The spike source wraps everything at five
+spaces and compiled on the same layout; the root source now uses that proven
+style. Verified after the reformat: `translate_light` returns `success: true`
+with the full 88-symbol table (down to `status = series table`, the file's last
+construct), `save/new_draft` returns compiled IL, and a chart instance added
+from that source publishes all 20 HTF plot titles to the Data Window with the
+status table rendering three confirmed frames.
+
+Two verification traps were paid for here and must not be repeated. First, the
+`compile_ok` axis of the preflight only scans for a visible error marker in the
+editor body; it reported `true` for a source the compiler rejects, because
+TradingView can reveal a Pine error only after Add to chart (the CE10271
+incident; see `getVisibleChartScriptError`). Second, and more dangerous:
+`addCurrentScriptToChart` skips insertion when a legend match already exists
+(`add-to-chart-already-present`). Re-running the gate after a source fix
+therefore re-measures the STALE instance and reports the old failure, which
+reads exactly like the fix not working. A compile re-run after a source change
+must force a fresh instance, or remove the old one first.
 
 #### HTF technical spike
 
