@@ -192,24 +192,34 @@ def test_product_cut_exposes_private_r5_preflight_scope() -> None:
     ]
 
 
-def test_traceability_keeps_r5_rebuild_partial_until_private_runtime() -> None:
-    requirement = _requirement("R5-REBUILD")
+def test_traceability_records_r5_rebuild_complete_with_all_case_evidence() -> None:
+    """R5-REBUILD is complete; the claim must stay tied to the evidence.
 
-    assert requirement["status"] == "partial"
+    History of this pin: it held the requirement at "partial" through the
+    CE10156 fix (#4239), the preflight stale-instance fix (#4241), and the
+    replay/live/rollback executions (#4243-#4256), refusing to let openGates
+    shrink without landed evidence. On 2026-07-31 the owner ordered the status
+    change after every exit-gate item was recorded — all 11 manifest cases
+    executed, rollback+reload verified, the Pro HTF preset decided (#4257),
+    and the secret/source-capture check run over every artifact. "complete"
+    is only as good as that chain, so the chain is asserted, not assumed.
+    """
+    requirement = _requirement("R5-REBUILD")
+    manifest = build_manifest()
+
+    assert requirement["status"] == "complete"
+    # The completeness invariant in test_pine_extended_migration_traceability
+    # additionally requires every evidence path to exist on disk.
+    assert requirement["openGates"] == []
+
     assert HTF_SOURCE.relative_to(ROOT).as_posix() in requirement["evidence"]
     assert SESSION_SOURCE.relative_to(ROOT).as_posix() in requirement["evidence"]
     assert DEFAULT_OUTPUT.relative_to(ROOT).as_posix() in requirement["evidence"]
-    # 2026-07-31: the private compile gate is closed. Both root companions
-    # compiled and ran green on the private validation layout after the
-    # CE10156 line-wrapping fix (#4239) and the preflight stale-instance fix
-    # (#4241) — the second of which is what let the gate observe the fix
-    # instead of re-measuring the failed instance. The replay,
-    # live-observation and rollback cases stay open, so the requirement stays
-    # partial and this list must not shrink further without their evidence.
-    assert requirement["openGates"] == [
-        "Execute the replay, live-observation, and rollback cases in smc_r5_htf_session_rebuild_manifest.json.",
-        "Record replay, layout, and rollback evidence before deployment.",
-    ]
+
+    # Completeness rests on all 11 cases having landed evidence — the same
+    # facts test_every_manifest_case_now_has_landed_evidence pins in detail.
+    assert manifest["status"] == "all_cases_executed"
+    assert manifest["caseCount"] == 11
 
 
 def test_compile_gate_evidence_is_recorded_and_reachable() -> None:
