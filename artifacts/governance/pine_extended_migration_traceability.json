@@ -305,7 +305,8 @@
             "automation/tradingview/preflight-r5-htf-session.json",
             "scripts/smc_r5_htf_session_rebuild_manifest.py",
             "tests/test_smc_r5_htf_session_rebuild.py",
-            "docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md"
+            "docs/SMC_R5_HTF_SESSION_REBUILD_RUNBOOK.md",
+            "artifacts/governance/smc_r5_htf_session_rebuild_survey_2026-07-31.json"
           ],
           "openGates": [
             "Compile both rebuilt root companions privately in TradingView.",
