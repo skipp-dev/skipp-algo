@@ -563,6 +563,60 @@ def test_library_refresh_completion_triggers_writing_save() -> None:
     assert "github.event.workflow_run.conclusion == 'success'" in text
 
 
+def test_refresh_triggered_save_checks_out_the_refresh_commit_not_a_moving_tip() -> None:
+    """2026-08-01: chaining off the workflow raced the commit it was chaining to.
+
+    smc-library-refresh does not push its output. It opens
+    ``bot/library-refresh-<run id>-*`` and auto-merges it, which lands SECONDS
+    after the workflow completes -- and ``workflow_run`` fires on completion.
+    Measured: this chain started 02:55:28Z, the refresh PR merged 02:55:48Z. So
+    both the event's head_sha (the parent) and main's tip at checkout time were
+    the pre-refresh tree, the run re-saved the OLD sources to TradingView, and
+    it reported ``sources.drifted=0`` because it verified them against the OLD
+    repo. Every consumer stayed one library version behind until a hand
+    dispatch.
+
+    The run could not have noticed: rollout provenance compares
+    ``library.expectedVersion`` to ``library.publishedVersion`` and both are
+    fields of the same manifest file in the checked-out tree, so a stale tree
+    agrees with itself.
+
+    Hence: resolve the refresh COMMIT and check that out. When the resolution
+    cannot be trusted the job must fail, because continuing is precisely the
+    silent-stale-write this closes.
+    """
+    steps = _steps()
+    names = [step.get("name") for step in steps]
+    assert "Await the refresh commit on main" in names
+    # It must run BEFORE checkout, or the checkout has nothing to consume.
+    assert names.index("Await the refresh commit on main") < names.index("Checkout")
+
+    await_step = next(s for s in steps if s.get("name") == "Await the refresh commit on main")
+    assert await_step["if"] == "github.event_name == 'workflow_run'"
+    run = await_step["run"]
+    # Identified by the refresh run id the event carries, not guessed from timing.
+    assert "bot/library-refresh-${REFRESH_RUN_ID}-" in run
+    assert "github.event.workflow_run.id" in await_step["env"]["REFRESH_RUN_ID"]
+    # Both untrustworthy outcomes are fatal. A `|| true` here would restore the
+    # old behaviour while looking like it had been fixed.
+    assert run.count("exit 1") >= 2
+    assert "was closed without merging" in run
+    assert "did not merge within" in run
+    # An absent PR is a real no-op: the refresh only opens one when the
+    # regeneration changed something.
+    assert "no post-publish changes" in run
+
+    checkout = next(s for s in steps if s.get("name") == "Checkout")
+    ref = checkout["with"]["ref"]
+    assert "steps.refresh_commit.outputs.sha" in ref
+    # The resolved commit must win over the moving branch tip, not the reverse.
+    assert ref.index("steps.refresh_commit.outputs.sha") < ref.index("head_branch")
+
+    # Reading the PR needs the scope; without it the step 404s and the job fails
+    # closed rather than silently falling back.
+    assert _load()["permissions"]["pull-requests"] == "read"
+
+
 def test_refresh_triggered_save_enables_producer_refresh_and_rebind() -> None:
     """The workflow_run path must run with TV_REFRESH_PRODUCER=true AND
     TV_FORCE_REBIND=true: refreshChartScriptInstance replaces the applied
