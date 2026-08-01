@@ -2226,6 +2226,48 @@ export async function gotoChart(page: Page, chartUrl?: string): Promise<void> {
   await page.waitForTimeout(3_000);
 }
 
+export const DRILL_SETTLE_TIMEOUT_MS = Number(process.env.TV_DRILL_SETTLE_TIMEOUT_MS ?? 30_000);
+
+/**
+ * Load a chart and wait until TradingView has actually surfaced `scriptName`.
+ *
+ * `gotoChart` resolves on `domcontentloaded` plus a FIXED 3s wait, which is
+ * sometimes before the legend has been rebuilt. Every read afterwards then dies
+ * on `Existing chart instance not found` against a chart that is perfectly
+ * healthy: CI run 30684930443 failed that way 8s in, and the identical retry
+ * (30685141166) was green. Re-rolling the dice costs a whole browser run, so
+ * wait for the condition instead of paying for another one.
+ *
+ * The wait is deliberately the SAME predicate that throws inside
+ * `verifyConsumerBindings`, not a stricter proxy for it: waiting on a different
+ * signal would only move the guess. If it never becomes true the error says how
+ * long it waited, so a genuinely missing indicator still reads as missing
+ * rather than as a slow one.
+ *
+ * Introduced for the repair drill (#4295) and shared from here because a second
+ * drill needs the identical wait. A drill that asserts a script is ABSENT needs
+ * it even more: on an unsettled chart absence is indistinguishable from a
+ * legend that has not been drawn, so it must first wait for something that is
+ * expected to be present — the producer — and only then read the absence.
+ */
+export async function gotoChartAndAwaitScript(
+  page: Page,
+  chartUrl: string,
+  scriptName: string,
+): Promise<void> {
+  await gotoChart(page, chartUrl);
+  const deadline = Date.now() + DRILL_SETTLE_TIMEOUT_MS;
+  for (;;) {
+    if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Chart did not surface ${scriptName} within ${DRILL_SETTLE_TIMEOUT_MS}ms of loading ${chartUrl}`,
+      );
+    }
+    await page.waitForTimeout(500);
+  }
+}
+
 export async function takeScreenshot(
   page: Page,
   runId: string,
