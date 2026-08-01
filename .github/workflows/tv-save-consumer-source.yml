@@ -93,7 +93,16 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: tv-save-consumer-source
+  # 2026-08-01: one TradingView account, one browser session at a time.
+  # Every workflow below drives the SAME external account, and until now each
+  # one only serialised against itself — two of these blocks already said
+  # "TradingView is a single shared external target" while keeping a private
+  # group, so the guarantee was stated but never implemented. Measured trigger:
+  # a manual tv-save-consumer-source dispatch ran while an R4 readback was
+  # being prepared; nothing in CI would have stopped them overlapping.
+  # cancel-in-progress stays false everywhere: these runs save layouts and
+  # publish scripts, so a queued run must wait, never pre-empt.
+  group: tradingview-session
   cancel-in-progress: false
 
 defaults:

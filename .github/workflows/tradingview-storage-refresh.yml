@@ -73,6 +73,13 @@ permissions:
 # Never cancel a running refresh — a half-written secret is worse than
 # waiting for the previous run to finish.
 concurrency:
+  # 2026-08-01: deliberately NOT in the shared `tradingview-session` group.
+  # This job maintains or probes the credential the other TradingView
+  # workflows depend on, and it is short (~1 min). smc-library-refresh runs
+  # ~216 min and three times per trading day, so a shared group would park
+  # credential maintenance behind up to eleven hours of publishing — which is
+  # how a 72 h cookie TTL turns into an outage, and how a stale-cookie probe
+  # stops being timely. Read-only or secret-writing, never layout-mutating.
   group: tradingview-storage-refresh
   cancel-in-progress: false
 
