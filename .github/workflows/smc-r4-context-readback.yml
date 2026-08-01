@@ -1,5 +1,5 @@
 name: smc-r4-context-readback
-# live-window: manual-dispatch-only
+# live-window: manual-only
 
 # R4 Context readback / binding measurement, on demand.
 #
