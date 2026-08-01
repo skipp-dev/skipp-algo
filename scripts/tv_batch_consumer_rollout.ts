@@ -87,6 +87,14 @@ type RolloutReport = {
      * half rebound — and repair stopped at the first of them.
      */
     abandonedChartUrls: string[];
+    /**
+     * Save targets skipped because the registered R1 evidence still attests a
+     * different source. Writing them would un-attest a live rollout through a
+     * path no pull-request gate observes (#4286 guards the diff, not the
+     * dispatch). Holding them back keeps what is deployed equal to what is
+     * attested; the run is expected to end red so a human re-attests.
+     */
+    heldBackForAttestation: string[];
   };
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
@@ -133,6 +141,15 @@ async function main(): Promise<void> {
   } else if (!executionPlan.saveSources) {
     config.saveTargets = [];
   }
+  // AFTER the mapping override on purpose: an explicit mapping must not be able
+  // to smuggle a held-back target past the attestation guard.
+  const heldBack = new Set<string>(
+    JSON.parse(process.env.TV_ATTESTED_HOLDBACK?.trim() || "[]") as string[],
+  );
+  const heldBackForAttestation = config.saveTargets
+    .filter((target) => heldBack.has(target.scriptName))
+    .map((target) => target.scriptName);
+  config.saveTargets = config.saveTargets.filter((target) => !heldBack.has(target.scriptName));
   config.verifyTargets = config.verifyTargets.map((target) => ({ ...target, producerName: config.producerName }));
   const bindingEvidenceTargets = config.verifyTargets.map((target) => {
     if (!target.source) throw new Error(`Binding evidence target has no source: ${target.scriptName}`);
@@ -180,6 +197,7 @@ async function main(): Promise<void> {
       layoutSaved: false,
       savedChartUrls: [],
       abandonedChartUrls: [],
+      heldBackForAttestation,
     },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
@@ -442,7 +460,12 @@ async function main(): Promise<void> {
     // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
     // already-published script, and TradingView's SPA makes it the flakiest step in
     // the run. Its outcome stays in report.producerRefresh.{ok,error} as evidence.
-    report.ok = report.save.failed.length === 0
+    // A held-back target also shows up as source drift, so ok would already be
+    // false — but only as a side effect of the save it skipped. Naming it here
+    // keeps the run from being red by coincidence: if the drift accounting ever
+    // changes, an unattested rollout must still not report ok.
+    report.ok = report.mutations.heldBackForAttestation.length === 0
+      && report.save.failed.length === 0
       && report.inputsMatchCommit
       && report.repositoryExpected.libraryRelease.matches
       && report.sources.failed.length === 0

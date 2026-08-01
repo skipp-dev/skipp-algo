@@ -228,6 +228,12 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_no_fake_push_success.py",
     "tests/test_workflow_orphan_inventory.py",
     "tests/test_workflow_permissions_present.py",
+    # 2026-08-01: tv-save-consumer-source pushes repository sources onto the
+    # live account on schedule, on dispatch, and chained after a library
+    # refresh -- none of them a pull request. #4286 guards the diff; this guards
+    # the dispatch, by holding back sources the registered R1 evidence no
+    # longer attests. A guard on that path may not first run post-merge.
+    "tests/test_tv_attested_source_holdback.py",
     # 2026-08-01: the live-window posture vocabulary is closed, but the guard
     # ran only in heavy CI on main push. #4281 invented the near-synonym
     # "manual-dispatch-only", merged green, and turned main red -- a posture

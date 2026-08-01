@@ -79,6 +79,11 @@ on:
         type: boolean
         required: false
         default: false
+      r1_rollback_drill:
+        description: "Remove BOTH R1 companions from the managed layout, prove the removal survives a reload, then restore and rebind them"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -173,10 +178,27 @@ jobs:
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
 
+      # Runs on EVERY trigger, before the browser opens. The 2026-08-01
+      # un-attestation arrived through the workflow_run chain, not a dispatch,
+      # so gating only the manual path would leave the door that was used.
+      # A step OUTPUT, not $GITHUB_ENV: writing the environment file is a
+      # zizmor `github-env` high finding, and an output is what this actually
+      # is -- one value, consumed by two named steps.
+      - name: Hold back R1-attested sources from an unattested save
+        id: attestation
+        run: |
+          set -euo pipefail
+          held="$(python3 -m scripts.tv_attested_source_holdback \
+            --config automation/tradingview/config/consumer-rollout.json)"
+          echo "holdback=${held}" >> "$GITHUB_OUTPUT"
+
       - name: Save or read-only verify consumers in one browser session
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          # Sources the registered R1 evidence no longer attests. The rollout
+          # drops them from its save targets after any explicit mapping.
+          TV_ATTESTED_HOLDBACK: ${{ steps.attestation.outputs.holdback }}
           TV_VERIFY_ONLY: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}
           # [] remains a legacy-compatible belt-and-suspenders guard. The
           # actual no-write contract is --verify-only below.
@@ -198,6 +220,15 @@ jobs:
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: npx tsx scripts/tv_repair_binding_e2e.ts
+
+      # Between its two saves the managed layout genuinely carries no
+      # companions, so nothing is evaluating there. Opt-in only, and never
+      # alongside a read-only run.
+      - name: R1 companion rollback drill
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.r1_rollback_drill == 'true' && github.event.inputs.verify_only != 'true' }}
+        env:
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: npx tsx scripts/tv_r1_companion_rollback_drill.ts
 
       - name: Upload binding snapshot
         if: ${{ always() }}
@@ -237,3 +268,31 @@ jobs:
           else
             echo "::warning::TradingView binding snapshot push failed; uploaded artifact remains available."
           fi
+
+      # Last, so the snapshot is uploaded and published first: a run that held a
+      # source back did something that needs a human, and a green run would say
+      # the opposite. Deliberately NOT always() -- this reports the hold, it does
+      # not re-report an unrelated failure.
+      - name: Fail the run when an R1-attested source was held back
+        if: ${{ steps.attestation.outputs.holdback != '' && steps.attestation.outputs.holdback != '[]' }}
+        env:
+          TV_ATTESTED_HOLDBACK: ${{ steps.attestation.outputs.holdback }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## R1-attested sources were held back"
+            echo
+            echo "The repository content of these saved scripts no longer matches the"
+            echo "registered R1 execution evidence, so this run did NOT push them to"
+            echo "TradingView. What is deployed for them still equals what is attested."
+            echo
+            echo '```'
+            echo "${TV_ATTESTED_HOLDBACK}"
+            echo '```'
+            echo
+            echo "Re-attest with a NEW dated evidence artifact, or revert the source"
+            echo "change. Do not edit the existing dated artifact to match today's"
+            echo "hashes -- that falsifies a measurement rather than repeating it."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::R1-attested sources held back: ${TV_ATTESTED_HOLDBACK}"
+          exit 1
