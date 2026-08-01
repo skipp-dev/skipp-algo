@@ -4,6 +4,15 @@
     "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid.",
     "An automated consumer save can overwrite an attested source without passing any pull request, so a source hash matching the evidence proves re-attestation only for the axes the evidence actually measured. Read openGates before treating this contract as complete."
   ],
+  "closedSinceRegisteredEvidence": [
+    {
+      "evidence": "artifacts/governance/smc_r1_rollback_drill_2026-08-01.json",
+      "gate": "rollback drill removing and restoring both companions",
+      "note": "The registered evidence still records rollback.status = not_run as of 05:05:15Z, when no implementation existed. The drill ran at 17:23:24Z. Both readings are true of their own moment; the dated measurement is repeated by a new artifact, never rewritten.",
+      "run": 30710010604,
+      "status": "passed"
+    }
+  ],
   "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json",
   "executionPerformed": true,
   "gate": "R1-LIVE-ROLLOUT",
@@ -20,8 +29,7 @@
   "openGates": [
     "alert-condition inventory for both companions",
     "Hold Manager exclusivity and Simple Management layout inventory",
-    "chart-instance compile status after a final reload",
-    "rollback drill removing and restoring both companions"
+    "chart-instance compile status after a final reload"
   ],
   "preflight": {
     "command": "npx tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-r1-companions.json --execution-mode mutating",

@@ -41,6 +41,19 @@ PRIOR_EXECUTION_EVIDENCE: Final = (
     / "smc_r1_live_rollout_evidence_2026-07-29.json"
 )
 
+# The rollback gate, and ONLY that gate, is closed by a later run on the same
+# day (30710010604, 17:23:24Z). Its own dated artifact carries it. The R1
+# evidence above still reads rollback.status = not_run and stays that way: it
+# was captured at 05:05:15Z, when no implementation existed, and a dated
+# measurement is repeated by a new artifact rather than rewritten to match a
+# later one.
+ROLLBACK_DRILL_EVIDENCE: Final = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_r1_rollback_drill_2026-08-01.json"
+)
+
 # Evidence the 2026-07-29 attended session recorded from operator observation
 # and that no 2026-08-01 run reproduces. Listed as open rather than carried
 # over: the sources under them changed, so the old observation no longer
@@ -49,7 +62,6 @@ OPEN_GATES: Final = (
     "alert-condition inventory for both companions",
     "Hold Manager exclusivity and Simple Management layout inventory",
     "chart-instance compile status after a final reload",
-    "rollback drill removing and restoring both companions",
 )
 
 
@@ -83,6 +95,26 @@ def build_rollout_contract() -> dict:
         "executionPerformed": True,
         "executionEvidence": EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
         "priorExecutionEvidence": PRIOR_EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
+        # Gates the registered evidence lists as open and that a LATER dated
+        # artifact has since closed. This list is the only sanctioned way for a
+        # gate to leave openGates: the alternative is editing the registered
+        # evidence so it agrees with today, which replaces a measurement with a
+        # fabrication. The tests derive openGates from the evidence minus this
+        # list, so a gate cannot be dropped without an artifact behind it.
+        "closedSinceRegisteredEvidence": [
+            {
+                "gate": "rollback drill removing and restoring both companions",
+                "status": "passed",
+                "evidence": ROLLBACK_DRILL_EVIDENCE.relative_to(ROOT).as_posix(),
+                "run": 30710010604,
+                "note": (
+                    "The registered evidence still records rollback.status = not_run "
+                    "as of 05:05:15Z, when no implementation existed. The drill ran at "
+                    "17:23:24Z. Both readings are true of their own moment; the dated "
+                    "measurement is repeated by a new artifact, never rewritten."
+                ),
+            },
+        ],
         "preflight": {
             "config": CONFIG.relative_to(ROOT).as_posix(),
             "scope": "smcR1Companions",

@@ -21,6 +21,7 @@ from scripts.smc_r1_rollout_contract import (
     EXECUTION_EVIDENCE,
     OPEN_GATES,
     PRIOR_EXECUTION_EVIDENCE,
+    ROLLBACK_DRILL_EVIDENCE,
     build_rollout_contract,
 )
 
@@ -119,17 +120,86 @@ def test_open_gates_are_named_and_the_evidence_refuses_to_claim_them() -> None:
 
     assert contract["openGates"] == list(OPEN_GATES)
     assert contract["openGates"], "R1 has open gates; an empty roster would be a false claim"
-    assert evidence["openGates"] == list(OPEN_GATES)
+    # NOT equality against the registered evidence. That artifact is dated: it
+    # lists what was open at 05:05:15Z and must keep saying so. The live roster
+    # is that list minus the gates a later dated artifact has closed -- so a gate
+    # can only leave by acquiring evidence, never by being deleted from a list.
+    closed = {entry["gate"] for entry in contract["closedSinceRegisteredEvidence"]}
+    assert closed <= set(evidence["openGates"])
+    assert set(OPEN_GATES) == set(evidence["openGates"]) - closed
 
     assert trading_view["alertConditionInventory"] == "not_run"
     assert trading_view["holdManagerPresent"] == "not_run"
     assert trading_view["forbiddenConcurrentScriptsPresent"] == "not_run"
     assert trading_view["finalInventory"] == "not_run"
     assert trading_view["compileStatusAfterFinalReload"] == "not_run"
-    assert evidence["rollback"]["status"] == "not_run"
 
     # The producer was never counted, only inferred from resolved BUS parents.
     assert trading_view["suitePresence"] == "inferred"
+
+
+def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() -> None:
+    """The one gate that left the roster, and what had to exist for it to leave.
+
+    A gate is closed here only when a dated artifact carries a verdict that
+    could have come out the other way. The drill removes both companions,
+    persists that, crosses a hard reload, and only then reads the layout back --
+    so every field below is a reading of what TradingView actually held, not a
+    restatement of what the run intended.
+    """
+    contract = build_rollout_contract()
+    drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
+    verdict = drill["drill"]["verdict"]
+
+    entry = next(
+        e for e in contract["closedSinceRegisteredEvidence"]
+        if e["gate"] == "rollback drill removing and restoring both companions"
+    )
+    assert "rollback drill removing and restoring both companions" not in OPEN_GATES
+    assert drill["status"] == "passed"
+    assert entry["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
+        DEFAULT_OUTPUT.parents[2]
+    ).as_posix()
+    assert entry["run"] == drill["drill"]["run"]
+
+    # Both halves, each across a reload, plus the part that makes it a ROLLBACK
+    # rather than a teardown: the producer stayed, alone.
+    assert verdict["removalSurvivedReload"] is True
+    assert verdict["suiteRemainedPresent"] is True
+    assert verdict["suiteOnlyInventoryAfterReload"] == [drill["chart"]["producerName"]]
+    assert verdict["companionsRestoredFromSavedScripts"] is True
+    assert verdict["finalReloadStatus"] == "passed"
+    assert verdict["bindingsRestored"] == _evidence()["tradingView"]["bindingsChecked"]
+
+    # The artifact may not disagree with the roster it reports around.
+    assert drill["remainingOpenGates"] == list(OPEN_GATES)
+
+
+def test_the_registered_evidence_still_says_not_run_and_stays_that_way() -> None:
+    """The divergence is deliberate, and it is the whole point of dating evidence.
+
+    The registered R1 evidence was captured at 05:05:15Z, when the drill had no
+    implementation, and it records ``rollback: not_run``. The drill ran at
+    17:23:24Z. Editing the earlier artifact so the two agree would replace a
+    measurement with a fabrication -- the same move that keeps the 2026-07-29
+    artifact byte-exact. The later artifact carries the later reading.
+    """
+    evidence = _evidence()
+    drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
+
+    assert evidence["rollback"]["status"] == "not_run"
+    assert evidence["capturedAt"] < drill["capturedAt"]
+    assert "not_run" in drill["supersedesNothing"]
+    assert contract_note_names_the_divergence(build_rollout_contract())
+
+
+def contract_note_names_the_divergence(contract: dict) -> bool:
+    """The contract has to say the two artifacts disagree, or a reader will read
+    the older one as current and conclude the gate is still open."""
+    return any(
+        "not_run" in entry["note"] and "dated measurement" in entry["note"]
+        for entry in contract["closedSinceRegisteredEvidence"]
+    )
 
 
 def test_carried_over_replay_requires_the_exit_signal_source_to_be_unchanged() -> None:

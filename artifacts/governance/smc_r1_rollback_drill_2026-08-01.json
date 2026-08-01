@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "gate": "R1-ROLLBACK-DRILL",
+  "capturedAt": "2026-08-01T17:23:24Z",
+  "status": "passed",
+  "scope": "This artifact closes ONE R1 gate: the companion rollback drill. It is not an R1 re-attestation and measures none of the other open gates. The current R1 attestation remains artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json.",
+  "supersedesNothing": "The 2026-08-01 R1 evidence still records rollback.status = not_run, captured at 05:05:15Z. That was true when it was measured -- no implementation existed at that hour. It is deliberately NOT edited to match this later measurement, under the same rule that keeps the 2026-07-29 artifact byte-exact: a dated measurement is repeated by a new artifact, never rewritten.",
+  "chart": {
+    "layoutUrl": "https://www.tradingview.com/chart/hKHTmKhu/",
+    "layout": "SMC Simple Management R1",
+    "producerName": "SMC Long-Dip Suite",
+    "companions": [
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ]
+  },
+  "drill": {
+    "run": 30710010604,
+    "repoCommitSha": "f7f6ddbcdd02a0144302430b9bda432a1049b166",
+    "startedAt": "2026-08-01T17:17:37Z",
+    "finishedAt": "2026-08-01T17:23:30Z",
+    "dispatch": "workflow_dispatch tv-save-consumer-source, r1_rollback_drill=true, mapping='[]', verify_only=false",
+    "implementation": "scripts/tv_r1_companion_rollback_drill.ts",
+    "verdict": {
+      "ok": true,
+      "companionsRemoved": [
+        "SMC Event Overlay",
+        "SMC Exit Signal"
+      ],
+      "removalSurvivedReload": true,
+      "suiteRemainedPresent": true,
+      "suiteOnlyInventoryAfterReload": [
+        "SMC Long-Dip Suite"
+      ],
+      "companionsRestoredFromSavedScripts": true,
+      "bindingsRestored": 10,
+      "finalReloadStatus": "passed",
+      "finalInventoryRestored": true
+    },
+    "whyTheReloadsMatter": "Both halves cross a hard page.goto. An in-session read proves only that the UI accepted a click -- it was green throughout the 2026-07-25 incident. The removal half additionally settles on the producer before reading absence, because on a chart whose legend has not been rebuilt yet 'absent' is indistinguishable from 'not drawn' and the assertion would pass on a layout that still carried both companions.",
+    "sameSessionVerification": {
+      "bindingsCheckedConsumers": 9,
+      "bindingMismatches": 0,
+      "sourcesChecked": 11,
+      "sourcesDrifted": 0,
+      "observedAt": "2026-08-01T17:18:15Z"
+    }
+  },
+  "firstAttempt": {
+    "run": 30700389375,
+    "outcome": "removal passed, restore failed four times, layout left without both companions",
+    "degradedFrom": "2026-08-01T12:50:38Z",
+    "degradedUntil": "2026-08-01T13:57:41Z",
+    "marketState": "2026-08-01 was a Saturday; US equity markets were closed for the whole degraded window.",
+    "cause": "The restore drove addExistingScriptToChartViaIndicators. Its row locator reported no visible candidate, it fell back to the keyboard, and that dialog does not commit on Enter -- its footer button reads 'Select'. Four insertions never happened and each was still reported as ok.",
+    "repair": {
+      "run": 30702594643,
+      "mode": "restore_only",
+      "bindingsRestored": 10,
+      "attestedBindings": 10,
+      "independentReadOnlyVerification": 30702807994,
+      "independentVerdict": "9/9 consumers checked, 0 mismatches, 0 failures, no mutations; SMC Event Overlay 1/1 and SMC Exit Signal 9/9 bindings"
+    },
+    "fixes": [
+      "#4309 -- restore through refreshChartScriptInstance (Pine editor, force-insert), read presence back off the chart, and check both companions are present BEFORE rebinding so a failed insertion does not surface as a binding fault",
+      "#4309 -- r1_restore_companions / TV_DRILL_RESTORE_ONLY, because the full drill dies in its baseline precondition when the companions are already missing, which is before its recovery block is armed",
+      "#4310 -- the repair step runs on save-step failure too; with the companions missing the verification ahead of it reports 'Existing chart instance not found' and fails, so the repair was skipped by exactly the damage it was dispatched for"
+    ]
+  },
+  "remainingOpenGates": [
+    "alert-condition inventory for both companions",
+    "Hold Manager exclusivity and Simple Management layout inventory",
+    "chart-instance compile status after a final reload"
+  ]
+}
