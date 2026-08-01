@@ -11,7 +11,7 @@ operator noticing rather than by CI.
 Three workflows stay out of the shared group ON PURPOSE, and that is pinned
 here too so the exemption cannot quietly grow: they maintain or probe the
 credential the others depend on and must not queue behind a publish.
-``smc-library-refresh`` alone runs ~216 minutes, three times per trading day.
+``smc-library-refresh`` alone runs ~216 minutes, nine times per trading day (09:00-23:00 UTC crons).
 """
 
 from __future__ import annotations
