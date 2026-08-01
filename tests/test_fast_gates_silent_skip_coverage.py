@@ -251,6 +251,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # default and the shared session concurrency group are the properties that
     # keep it safe, so the guard has to gate rather than merely exist.
     "tests/test_smc_r4_context_readback_workflow.py",
+    # 2026-08-01: pins the shared TradingView session group. The partition it
+    # guards is the whole point — an unguarded one drifts back to per-workflow
+    # groups exactly the way the original "single shared external target"
+    # comment did, stating a guarantee nothing enforced.
+    "tests/test_tradingview_session_concurrency.py",
     "tests/test_workflow_python_unbuffered.py",
     "tests/test_workflow_pythonpath_for_direct_invoke.py",
     "tests/test_workflow_runner_pinned.py",
