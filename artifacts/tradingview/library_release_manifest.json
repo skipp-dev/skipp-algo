@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-07-28T15:59:44.767Z",
+  "generatedAt": "2026-07-31T23:52:16.185Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/179",
-    "expectedVersion": 179,
-    "publishedVersion": 179,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/181",
+    "expectedVersion": 181,
+    "publishedVersion": 181,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
@@ -19,8 +19,8 @@
       "placeholderSymbols": [
         "CCC"
       ],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-07-27.csv",
-      "universeSize": 6927,
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-07-30.csv",
+      "universeSize": 6935,
       "eventRiskSource": "smc_event_risk_builder"
     }
   },
@@ -340,6 +340,70 @@
         "BUS StopLevel",
         "BUS Target1",
         "BUS Target2"
+      ],
+      "contextOverlayBindings": [
+        "CTX SchemaVersion",
+        "CTX Ready",
+        "CTX AvailabilityMask",
+        "CTX ConfirmedEpoch",
+        "CTX Bias",
+        "CTX AvailableDomains",
+        "CTX QualityScore",
+        "CTX StructureTrend",
+        "CTX StructureBos",
+        "CTX StructureChoch",
+        "CTX StructureEventDirection",
+        "CTX StructureResistance",
+        "CTX StructureSupport",
+        "CTX StructureEventAgeBars",
+        "CTX ImbalanceState",
+        "CTX FvgBias",
+        "CTX BullFvgActive",
+        "CTX BearFvgActive",
+        "CTX BullFvgTop",
+        "CTX BullFvgBottom",
+        "CTX BearFvgTop",
+        "CTX BearFvgBottom",
+        "CTX BprActive",
+        "CTX BprDirection",
+        "CTX BprTop",
+        "CTX BprBottom",
+        "CTX LiquidityVoidActive",
+        "CTX LiquidityVoidTop",
+        "CTX LiquidityVoidBottom",
+        "CTX ZoneState",
+        "CTX ObBias",
+        "CTX BullObTop",
+        "CTX BullObBottom",
+        "CTX BearObTop",
+        "CTX BearObBottom",
+        "CTX BullObNew",
+        "CTX BearObNew",
+        "CTX BullObBroken",
+        "CTX BearObBroken",
+        "CTX SweepDirection",
+        "CTX SweepType",
+        "CTX SweepZoneTop",
+        "CTX SweepZoneBottom",
+        "CTX SweepReclaimActive",
+        "CTX SweepQualityScore",
+        "CTX SweepEventAgeBars",
+        "CTX BuyPoolLevel",
+        "CTX SellPoolLevel",
+        "CTX BuyPoolStrength",
+        "CTX SellPoolStrength",
+        "CTX PoolMagnetDirection",
+        "CTX PoolImbalance",
+        "CTX SessionCode",
+        "CTX SessionKillzone",
+        "CTX SessionRangeTop",
+        "CTX SessionRangeBottom",
+        "CTX OpeningRangeActive",
+        "CTX OpeningRangeTop",
+        "CTX OpeningRangeBottom",
+        "CTX SessionDirection",
+        "CTX SessionMssBull",
+        "CTX SessionMssBear"
       ]
     },
     "preflightScopes": {
@@ -2119,6 +2183,484 @@
               "tier": "critical"
             }
           ],
+          "allowFreshDraftOnMissingExisting": true
+        }
+      ],
+      "smcR4ContextShadow": [
+        {
+          "file": "SMC_Context_Bus.pine",
+          "scriptName": "SMC Context Bus",
+          "checkInputs": false,
+          "addToChart": true,
+          "savedScriptName": "SMC Context Bus",
+          "allowFreshDraftOnMissingExisting": true
+        },
+        {
+          "file": "SMC_Context_Overlay.pine",
+          "scriptName": "SMC Context Overlay",
+          "checkInputs": true,
+          "addToChart": true,
+          "minInputs": 60,
+          "savedScriptName": "SMC Context Overlay",
+          "bindingContractKey": "contextOverlayBindings",
+          "bindingContractName": "Context Overlay schema-8001 bindings",
+          "bindingConsumerRole": "context_companion",
+          "bindingContractLabels": [
+            "CTX SchemaVersion",
+            "CTX Ready",
+            "CTX AvailabilityMask",
+            "CTX ConfirmedEpoch",
+            "CTX Bias",
+            "CTX AvailableDomains",
+            "CTX QualityScore",
+            "CTX StructureTrend",
+            "CTX StructureBos",
+            "CTX StructureChoch",
+            "CTX StructureEventDirection",
+            "CTX StructureResistance",
+            "CTX StructureSupport",
+            "CTX StructureEventAgeBars",
+            "CTX ImbalanceState",
+            "CTX FvgBias",
+            "CTX BullFvgActive",
+            "CTX BearFvgActive",
+            "CTX BullFvgTop",
+            "CTX BullFvgBottom",
+            "CTX BearFvgTop",
+            "CTX BearFvgBottom",
+            "CTX BprActive",
+            "CTX BprDirection",
+            "CTX BprTop",
+            "CTX BprBottom",
+            "CTX LiquidityVoidActive",
+            "CTX LiquidityVoidTop",
+            "CTX LiquidityVoidBottom",
+            "CTX ZoneState",
+            "CTX ObBias",
+            "CTX BullObTop",
+            "CTX BullObBottom",
+            "CTX BearObTop",
+            "CTX BearObBottom",
+            "CTX BullObNew",
+            "CTX BearObNew",
+            "CTX BullObBroken",
+            "CTX BearObBroken",
+            "CTX SweepDirection",
+            "CTX SweepType",
+            "CTX SweepZoneTop",
+            "CTX SweepZoneBottom",
+            "CTX SweepReclaimActive",
+            "CTX SweepQualityScore",
+            "CTX SweepEventAgeBars",
+            "CTX BuyPoolLevel",
+            "CTX SellPoolLevel",
+            "CTX BuyPoolStrength",
+            "CTX SellPoolStrength",
+            "CTX PoolMagnetDirection",
+            "CTX PoolImbalance",
+            "CTX SessionCode",
+            "CTX SessionKillzone",
+            "CTX SessionRangeTop",
+            "CTX SessionRangeBottom",
+            "CTX OpeningRangeActive",
+            "CTX OpeningRangeTop",
+            "CTX OpeningRangeBottom",
+            "CTX SessionDirection",
+            "CTX SessionMssBull",
+            "CTX SessionMssBear"
+          ],
+          "bindingLabelGroups": [
+            {
+              "label": "CTX SchemaVersion",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX Ready",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX AvailabilityMask",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX ConfirmedEpoch",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX Bias",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX AvailableDomains",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX QualityScore",
+              "group": "g_meta",
+              "groupTitle": "Context BUS \u00b7 Meta",
+              "tier": "critical"
+            },
+            {
+              "label": "CTX StructureTrend",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureBos",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureChoch",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureEventDirection",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureResistance",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureSupport",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX StructureEventAgeBars",
+              "group": "g_structure",
+              "groupTitle": "Context BUS \u00b7 Structure",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX ImbalanceState",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX FvgBias",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullFvgActive",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearFvgActive",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullFvgTop",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullFvgBottom",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearFvgTop",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearFvgBottom",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BprActive",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BprDirection",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BprTop",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BprBottom",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX LiquidityVoidActive",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX LiquidityVoidTop",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX LiquidityVoidBottom",
+              "group": "g_imbalance",
+              "groupTitle": "Context BUS \u00b7 Imbalance",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX ZoneState",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX ObBias",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullObTop",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullObBottom",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearObTop",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearObBottom",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullObNew",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearObNew",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BullObBroken",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BearObBroken",
+              "group": "g_zone",
+              "groupTitle": "Context BUS \u00b7 Zones",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepDirection",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepType",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepZoneTop",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepZoneBottom",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepReclaimActive",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepQualityScore",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SweepEventAgeBars",
+              "group": "g_sweep",
+              "groupTitle": "Context BUS \u00b7 Sweeps",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BuyPoolLevel",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SellPoolLevel",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX BuyPoolStrength",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SellPoolStrength",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX PoolMagnetDirection",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX PoolImbalance",
+              "group": "g_pool",
+              "groupTitle": "Context BUS \u00b7 Pools",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionCode",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionKillzone",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionRangeTop",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionRangeBottom",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX OpeningRangeActive",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX OpeningRangeTop",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX OpeningRangeBottom",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionDirection",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionMssBull",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            },
+            {
+              "label": "CTX SessionMssBear",
+              "group": "g_session",
+              "groupTitle": "Context BUS \u00b7 Session",
+              "tier": "diagnostic"
+            }
+          ],
+          "allowFreshDraftOnMissingExisting": true
+        }
+      ],
+      "smcR5HtfSession": [
+        {
+          "file": "SMC_HTF_Confluence.pine",
+          "scriptName": "SMC HTF Confluence",
+          "checkInputs": false,
+          "addToChart": true,
+          "savedScriptName": "SMC HTF Confluence",
+          "allowFreshDraftOnMissingExisting": true
+        },
+        {
+          "file": "SMC_Session_Context.pine",
+          "scriptName": "SMC Session Context",
+          "checkInputs": false,
+          "addToChart": true,
+          "savedScriptName": "SMC Session Context",
           "allowFreshDraftOnMissingExisting": true
         }
       ]
