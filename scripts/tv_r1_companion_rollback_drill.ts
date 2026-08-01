@@ -34,12 +34,12 @@
 import fs from "node:fs";
 
 import {
-  addExistingScriptToChartViaIndicators,
   closeTradingViewSession,
   countChartScriptInstances,
   gotoChartAndAwaitScript,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
+  refreshChartScriptInstance,
   removeVisibleChartScriptInstances,
   saveChangedChartLayout,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -83,9 +83,21 @@ async function restoreCompanions(
 ): Promise<string[]> {
   const restored: string[] = [];
   for (const name of COMPANIONS) {
-    const result = await addExistingScriptToChartViaIndicators(session.page, name);
-    if (result.added) restored.push(name);
+    // NOT the indicators dialog. Measured 2026-08-01, run 30700389375: its row
+    // locator reported no visible candidate, it fell back to the keyboard, and
+    // that dialog does not commit on Enter -- its footer button reads "Select".
+    // Four attempts logged add-to-chart-indicators-no-visible-script and the
+    // managed layout stayed empty while the step still reported ok. This is the
+    // insertion the producer refresh completes on every run instead: open the
+    // saved script in the Pine editor and force-insert it.
+    await refreshChartScriptInstance(session.page, name);
+    if (await isScriptVisibleOnChartSurface(session.page, name)) restored.push(name);
   }
+  // Rebinding an instance that is not on the chart cannot fail usefully: the
+  // verifier throws "Existing chart instance not found", which reads as a
+  // binding fault and hides that the insertion never happened. That is exactly
+  // how run 30700389375 reported itself.
+  if (restored.length !== COMPANIONS.length) return restored;
   // force-rebind: a freshly inserted instance comes back with DEFAULT inputs,
   // so every BUS parent has to be re-selected. This is the step the manual
   // 2026-07-29 drill recorded as "bindingsRestored: 10".
@@ -110,6 +122,8 @@ async function main(): Promise<void> {
   }
   const chartUrl = [...chartUrls][0] as string;
 
+  const restoreOnly = (process.env.TV_DRILL_RESTORE_ONLY ?? "").trim() === "true";
+
   const session = await newTradingViewSession();
   let companionsRemoved = false;
   try {
@@ -117,6 +131,37 @@ async function main(): Promise<void> {
       throw new Error("R1 rollback drill requires authenticated TradingView state");
     }
     await gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);
+
+    if (restoreOnly) {
+      // The repair half on its own. Re-running the full drill cannot fix a
+      // layout the drill left empty: it dies in the baseline precondition
+      // below, before companionsRemoved is set, so the recovery block never
+      // runs. Run 30700389375 needed exactly this and the repository did not
+      // have it, which is the same gap the drill itself was written to close.
+      companionsRemoved = true;
+      const restored = await restoreCompanions(session, targets);
+      if (restored.length !== COMPANIONS.length) {
+        throw new Error(
+          `R1 restore could not put both companions back from their saved scripts: restored ${restored.join(", ") || "none"}`,
+        );
+      }
+      // No live baseline exists here -- the companions were already gone. The
+      // number comes from the registered evidence instead, so "restored" means
+      // restored to the attested state rather than to whatever came back.
+      const expected = attestedBindingCount();
+      const restoredBindings = await persistAndProveRestore(session, targets, chartUrl, expected);
+      companionsRemoved = false;
+      console.log(JSON.stringify({
+        ok: true,
+        mode: "restore_only",
+        chartUrl,
+        companionsRestoredFromSavedScripts: true,
+        bindingsRestored: restoredBindings,
+        attestedBindings: expected,
+        finalReloadStatus: "passed",
+      }));
+      return;
+    }
 
     const baseline = await verifyAll(session, targets, false);
     const baselineBindings = countRestoredBindings(baseline);
@@ -165,30 +210,7 @@ async function main(): Promise<void> {
     // The load-bearing half. The reads inside restoreCompanions are in-session
     // and were green throughout the 2026-07-25 incident; only what survives
     // this save and reload is what the managed layout actually holds.
-    await saveChangedChartLayout(session.page);
-    await gotoChartAndAwaitScript(session.page, chartUrl, COMPANIONS[0]);
-
-    const after = await verifyAll(session, targets, false);
-    const missing: string[] = [];
-    for (const name of COMPANIONS) {
-      if (!(await isScriptVisibleOnChartSurface(session.page, name))) missing.push(name);
-    }
-    if (missing.length > 0) {
-      throw new Error(`R1 rollback drill restored in-session but the layout came back without: ${missing.join(", ")}`);
-    }
-    const mismatches = after.flatMap((result) => result.mismatches.map((m) => `${m.label}=${m.actual}`));
-    if (mismatches.length > 0) {
-      throw new Error(`R1 rollback drill rebound in-session but the bindings did not survive the reload: ${mismatches.join(", ")}`);
-    }
-    if (after.some((result) => result.unknownParentRuntimeError)) {
-      throw new Error("R1 rollback drill read back clean but TradingView reported an unknown parent after the reload");
-    }
-    const restoredBindings = countRestoredBindings(after);
-    if (restoredBindings !== baselineBindings) {
-      throw new Error(
-        `R1 rollback drill restored ${restoredBindings} bindings, baseline had ${baselineBindings}`,
-      );
-    }
+    const restoredBindings = await persistAndProveRestore(session, targets, chartUrl, baselineBindings);
 
     companionsRemoved = false;
     console.log(JSON.stringify({
@@ -225,6 +247,69 @@ async function main(): Promise<void> {
     }
     await closeTradingViewSession(session);
   }
+}
+
+/** Bindings the registered R1 evidence attests, newest dated artifact wins.
+ *
+ * Only the restore-only path needs this: the full drill measures its own
+ * baseline seconds before it removes anything, which is strictly better. Here
+ * the companions are already gone, so a live baseline would read zero and any
+ * comparison against it would pass no matter what came back.
+ */
+function attestedBindingCount(): number {
+  const dir = "artifacts/governance";
+  const dated = fs
+    .readdirSync(dir)
+    .filter((name) => /^smc_r1_live_rollout_evidence_\d{4}-\d{2}-\d{2}\.json$/.test(name))
+    .sort();
+  const newest = dated[dated.length - 1];
+  if (!newest) {
+    throw new Error("no registered R1 evidence to take the attested binding count from");
+  }
+  const evidence = JSON.parse(fs.readFileSync(`${dir}/${newest}`, "utf-8")) as {
+    tradingView?: { bindingsChecked?: number };
+  };
+  const count = evidence.tradingView?.bindingsChecked;
+  if (typeof count !== "number" || count <= 0) {
+    throw new Error(`${newest} carries no usable tradingView.bindingsChecked`);
+  }
+  return count;
+}
+
+/** Save, reload, and read the layout back. Declared below main deliberately:
+ * the workflow contract test anchors the removal half on file order.
+ */
+async function persistAndProveRestore(
+  session: Awaited<ReturnType<typeof newTradingViewSession>>,
+  targets: VerifyConsumerTarget[],
+  chartUrl: string,
+  expectedBindings: number,
+): Promise<number> {
+  await saveChangedChartLayout(session.page);
+  await gotoChartAndAwaitScript(session.page, chartUrl, COMPANIONS[0]);
+
+  const after = await verifyAll(session, targets, false);
+  const missing: string[] = [];
+  for (const name of COMPANIONS) {
+    if (!(await isScriptVisibleOnChartSurface(session.page, name))) missing.push(name);
+  }
+  if (missing.length > 0) {
+    throw new Error(`R1 rollback drill restored in-session but the layout came back without: ${missing.join(", ")}`);
+  }
+  const mismatches = after.flatMap((result) => result.mismatches.map((m) => `${m.label}=${m.actual}`));
+  if (mismatches.length > 0) {
+    throw new Error(`R1 rollback drill rebound in-session but the bindings did not survive the reload: ${mismatches.join(", ")}`);
+  }
+  if (after.some((result) => result.unknownParentRuntimeError)) {
+    throw new Error("R1 rollback drill read back clean but TradingView reported an unknown parent after the reload");
+  }
+  const restoredBindings = countRestoredBindings(after);
+  if (restoredBindings !== expectedBindings) {
+    throw new Error(
+      `R1 rollback drill restored ${restoredBindings} bindings, expected ${expectedBindings}`,
+    );
+  }
+  return restoredBindings;
 }
 
 main().catch((error) => {

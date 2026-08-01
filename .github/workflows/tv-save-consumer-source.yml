@@ -84,6 +84,11 @@ on:
         type: boolean
         required: false
         default: false
+      r1_restore_companions:
+        description: "Repair only: put both R1 companions back, rebind them to the attested count, and prove it across a reload (no removal)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -314,9 +319,15 @@ jobs:
       # companions, so nothing is evaluating there. Opt-in only, and never
       # alongside a read-only run.
       - name: R1 companion rollback drill
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.r1_rollback_drill == 'true' && github.event.inputs.verify_only != 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.r1_rollback_drill == 'true' || github.event.inputs.r1_restore_companions == 'true') && github.event.inputs.verify_only != 'true' }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          # Repair mode. The removal half is skipped entirely, so this is the
+          # only way to put the companions back after a drill that removed them
+          # and could not restore them (run 30700389375) -- re-running the full
+          # drill dies in its baseline precondition before its recovery block
+          # is armed.
+          TV_DRILL_RESTORE_ONLY: ${{ github.event.inputs.r1_restore_companions }}
         run: npx tsx scripts/tv_r1_companion_rollback_drill.ts
 
       - name: Upload binding snapshot
