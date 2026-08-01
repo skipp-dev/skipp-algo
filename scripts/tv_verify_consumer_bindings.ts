@@ -84,6 +84,93 @@ async function readSelectedSource(page: Parameters<typeof openInputsTab>[0], lab
   return null;
 }
 
+export type MissingSourceRowEvidence = {
+  label: string;
+  renderedBefore: readonly string[];
+  renderedAfter: readonly string[];
+  appearedAfterScroll: boolean;
+  dialogScrolled: boolean;
+};
+
+/**
+ * "Source combobox not found" conflates two failures with opposite fixes:
+ * TradingView virtualizing the row out of the DOM (it exists, scroll to it),
+ * and the applied chart instance genuinely not carrying the input (re-apply,
+ * or the source never compiled). Run 30700161400 died on `CTX SessionMssBull`
+ * — row 61 of 62 — against an instance inserted seconds earlier from the
+ * verified current source, which rules out staleness and leaves both of those
+ * open. One run against the live account costs ~5 minutes and touches a
+ * layout, so the next one has to SETTLE this rather than narrow it.
+ */
+export function formatMissingSourceRowEvidence(evidence: MissingSourceRowEvidence): string {
+  const tail = (rows: readonly string[]): string =>
+    rows.length === 0 ? "none" : JSON.stringify(rows.slice(-3).join(" | "));
+  const verdict = evidence.appearedAfterScroll
+    ? "the row EXISTS and was only virtualized out of the DOM"
+    : evidence.dialogScrolled
+      ? "the row is ABSENT from the applied instance even at the end of the dialog"
+      : "no scrollable settings dialog was found, so virtualization stays untested";
+
+  return [
+    `Source combobox not found for ${evidence.label}`,
+    `rendered rows ${evidence.renderedBefore.length} -> ${evidence.renderedAfter.length} after scrolling to the dialog end`,
+    `last before ${tail(evidence.renderedBefore)}, last after ${tail(evidence.renderedAfter)}`,
+    verdict,
+  ].join("; ");
+}
+
+async function collectRenderedSourceRowLabels(
+  page: Parameters<typeof openInputsTab>[0],
+): Promise<string[]> {
+  return await page
+    .getByText(/^CTX /)
+    .allInnerTexts()
+    .then((texts) => texts.map((text) => text.replace(/\s+/g, " ").trim()).filter(Boolean))
+    .catch(() => []);
+}
+
+async function scrollOpenSettingsDialogToEnd(
+  page: Parameters<typeof openInputsTab>[0],
+): Promise<boolean> {
+  return await page
+    .evaluate(() => {
+      let scrolled = false;
+      for (const dialog of Array.from(document.querySelectorAll('[role="dialog"]'))) {
+        for (const element of Array.from(dialog.querySelectorAll("*"))) {
+          if (element.scrollHeight > element.clientHeight + 8) {
+            element.scrollTop = element.scrollHeight;
+            scrolled = true;
+          }
+        }
+      }
+      return scrolled;
+    })
+    .catch(() => false);
+}
+
+async function describeMissingSourceRow(
+  page: Parameters<typeof openInputsTab>[0],
+  label: string,
+): Promise<string> {
+  const renderedBefore = await collectRenderedSourceRowLabels(page);
+  const dialogScrolled = await scrollOpenSettingsDialogToEnd(page);
+  await page.waitForTimeout(400);
+  const renderedAfter = await collectRenderedSourceRowLabels(page);
+  const appearedAfterScroll = await page
+    .getByText(label, { exact: true })
+    .count()
+    .then((count) => count > 0)
+    .catch(() => false);
+
+  return formatMissingSourceRowEvidence({
+    label,
+    renderedBefore,
+    renderedAfter,
+    appearedAfterScroll,
+    dialogScrolled,
+  });
+}
+
 export async function repairSelectedSource(
   page: Parameters<typeof openInputsTab>[0],
   label: string,
@@ -117,7 +204,13 @@ export async function repairSelectedSource(
     }
     return;
   }
-  throw new Error(`Source combobox not found for ${label}`);
+  // Still fail-closed — the probe only decides WHAT the failure says, never
+  // whether it fails. A probe that throws must not swallow the real error.
+  throw new Error(
+    await describeMissingSourceRow(page, label).catch(
+      (error) => `Source combobox not found for ${label}; evidence probe failed: ${String(error)}`,
+    ),
+  );
 }
 
 /** Confirm that a live producer output is offered before mutating any consumer bindings. */
