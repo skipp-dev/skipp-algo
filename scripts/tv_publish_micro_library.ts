@@ -767,6 +767,28 @@ function expectedImportPathMatchesVersion(expectedImportPath: string, expectedVe
   return versionSegment === String(expectedVersion);
 }
 
+/**
+ * Version 1 is the known-stale sentinel, never a real published version.
+ *
+ * The generator runs BEFORE the publish, so it cannot know the version it is
+ * about to get and regenerates `library_version: 1` /
+ * `recommended_import_path: .../1` every time. On main today the consumers pin
+ * /179 while the generated artifact still says 1.
+ *
+ * That matters here because the promote below corroborates
+ * `expectedVersion` against `expectedImportPath` — and BOTH come from that same
+ * artifact, so the check compares 1 against 1 and can never fail. The only real
+ * evidence is the facade probe, which is documented fail-open (null on any
+ * error). When it falls through, the promote used to write
+ * `library_release_manifest.json` with expectedVersion 1, replacing a correct
+ * 179 with the sentinel.
+ *
+ * `smc-library-refresh.yml` already refuses the same value for the consumer
+ * repin — "A modern publish can never legitimately be version 1 again — treat
+ * it as broken evidence". This is that rule where the manifest is written.
+ */
+const STALE_LIBRARY_VERSION_SENTINEL = 1;
+
 export function shouldPromotePublishConfirmationVersionEvidence(options: {
   publishConfirmed: boolean;
   publishSurfaceClosedAfterConfirm: boolean;
@@ -782,7 +804,7 @@ export function shouldPromotePublishConfirmationVersionEvidence(options: {
     && options.identityVerificationMode === "script_context"
     && options.versionVerificationMode === "not_verified"
     && Number.isInteger(options.expectedVersion)
-    && options.expectedVersion > 0
+    && options.expectedVersion > STALE_LIBRARY_VERSION_SENTINEL
     && expectedImportPathMatchesVersion(options.expectedImportPath, options.expectedVersion);
 }
 

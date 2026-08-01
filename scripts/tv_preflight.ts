@@ -471,10 +471,17 @@ function buildInitialTargetResult(
     compile_ok: "not_run",
     script_found_on_chart_ok: target.addToChart || target.checkInputs ? "not_run" : "not_run",
     settings_open_ok: target.checkInputs ? "not_run" : "not_run",
-    inputs_tab_ok: target.checkInputs ? "not_run" : "not_run",
-    bindings_count_ok: target.checkInputs ? "not_run" : "not_run",
-    bindings_names_ok: target.checkInputs ? "not_run" : "not_run",
-    bindings_names_not_verified: false,
+    // Both ternary branches were identical ("not_run" either way) — a refactor
+    // leftover that read as a decision.
+    inputs_tab_ok: "not_run",
+    bindings_count_ok: "not_run",
+    bindings_names_ok: "not_run",
+    // Starts TRUE: nothing has been verified yet. It was initialised to false
+    // and only ever assigned false, so a target with checkInputs=false reported
+    // "the binding names were verified" while bindings_names_ok said "not_run"
+    // — the field asserted the opposite of its own name. Landed evidence:
+    // smc_r5_htf_session_rebuild_preflight_green_2026-07-31.json.
+    bindings_names_not_verified: true,
     binding_contract_key: target.bindingContractKey ?? null,
     binding_contract_name: target.bindingContractName ?? null,
     binding_consumer_role: target.bindingConsumerRole ?? null,

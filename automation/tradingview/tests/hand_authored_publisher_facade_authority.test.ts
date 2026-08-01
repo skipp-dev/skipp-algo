@@ -24,6 +24,15 @@ const HAND_AUTHORED_PUBLISHERS = [
   "context_resolvers",
   "profile_engine",
   "context_engine",
+  // 2026-07-31: "overlay" was missing. It publishes a GENERATED library, so it
+  // fell outside both facade fixes (#3603 micro, #3606 hand-authored) and
+  // outside this guard — the one whose whole purpose is that the wiring "cannot
+  // silently regress". With no facade call its exactVersionVerified reduced to
+  // `details.version === details.version` (the --version default is 1 and the
+  // publishing workflow never passes the flag), so a "Nothing to update" dialog
+  // was enough for publishStatus "published". The list is about which
+  // publishers must be facade-authoritative, not about who hand-wrote the Pine.
+  "overlay",
 ];
 
 for (const name of HAND_AUTHORED_PUBLISHERS) {
