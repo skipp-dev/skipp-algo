@@ -56,6 +56,13 @@ concurrency:
   group: tradingview-session
   cancel-in-progress: false
 
+# Load-bearing here, not boilerplate: runs-on resolves to the Windows
+# self-hosted runner whenever SMC_GH_HOSTED_RUNNER is set, and every run: step
+# below is bash (set -euo pipefail, heredocs) which PowerShell cannot parse.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   readback:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
