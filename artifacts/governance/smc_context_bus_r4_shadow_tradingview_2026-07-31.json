@@ -170,6 +170,8 @@
     "status": "blocked_on_observability",
     "finding": "All 60 CTX channels are plotted with display = display.none on the producer, and the 60 consumer inputs carry display.none as well. TradingView renders display.none nowhere, not even in the Data Window, so the channel VALUES cannot be read from the UI for a numeric parity comparison.",
     "visibleSurface": "Only the overlay's own rendering is visible (8 plots, 10 plotshapes, 7 fills), which supports a qualitative visual check, not the value parity the gate asks for.",
-    "requiredNext": "A fixture-only on-chart readback mechanism, following the R2.4 precedent (table.new marked TEST ONLY, never published). Deliberately NOT built here: a second competing observability mechanism is explicitly ruled out by the R2.4 outcome, so the method is an owner decision."
+    "requiredNext": "A fixture-only readback, following the R2.4 precedent: the readback lives in a generated TEST ONLY fixture derived from the canonical source, never in the production surface, and is never published. Method decided 2026-08-01, see docs/SMC_R4_CONTEXT_READBACK_DECISION.md.",
+    "requiredNextAmendedAt": "2026-08-01",
+    "requiredNextAmendmentReason": "The original wording said a second competing observability mechanism was 'explicitly ruled out by the R2.4 outcome', and that claim is not supported by the R2.4 record. No R2.4 artifact or document states such a rule; the record documents a procedure (exact-hash approval, private TEST ONLY script, isolated layout, not published, canonical state restored), not a prohibition. The precedent it cites is in fact an instance of BUILDING a readback: SMC_Hold_Manager.pine contains no table.new at all while the R2.4 fixture contains eight. What the precedent rules out is a readback in the PRODUCTION surface, not a readback as such. The measurement in 'finding' above is unchanged: it is a dated observation and stays as captured."
   }
 }
