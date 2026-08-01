@@ -484,7 +484,7 @@ jobs:
             tests/test_workflow_permissions_present.py \
             tests/test_workflow_python_bin_resolved.py \
             tests/test_workflow_live_window_posture.py \
-            tests/test_tv_attested_source_holdback.py \
+            tests/test_check_tv_unattested_sources.py \
             tests/test_workflow_auth_pattern.py \
             tests/test_dynamic_setattr_hasattr_zero_surface.py \
             tests/test_hmac_auth_zero_surface.py \
