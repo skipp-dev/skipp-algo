@@ -4845,6 +4845,70 @@ type VisibleChartScriptStateProbeOptions = {
   legendAncestorTextTimeoutMs?: number;
 };
 
+// The chart legend lives under the chart surface; the Pine editor, dialogs,
+// menus and the Object Tree do not. Legend titles sit under .legend-* <
+// .chart-gui-wrapper < .chart-container (measured 2026-07-31 during the CE10156
+// diagnosis).
+export const CHART_LEGEND_CONTAINER_SELECTOR = ".chart-container, .chart-gui-wrapper";
+
+// Surfaces that also carry the script name but are NOT the chart legend. The
+// pine-editor host is the important one: the editor shows the script's title
+// whenever it is open, and counting that as on-chart would make presence
+// trivially true. LEGEND_TEXT_EXCLUDED_SURFACES (defined further down) covers
+// dialogs, menus, the tree and the pine-dialog; the id-based editor selectors
+// catch the docked editor's title button. Composed at call time, not module
+// load, because LEGEND_TEXT_EXCLUDED_SURFACES initializes after this point.
+function chartLegendExcludedSelector(): string {
+  return `${LEGEND_TEXT_EXCLUDED_SURFACES}, #pine-editor-dialog, [id*="pine-editor" i]`;
+}
+
+/**
+ * Pure verdict for {@link hasVisibleChartLegendText}: a name match counts as an
+ * on-chart legend row only when it sits inside the chart container AND outside
+ * every excluded surface. Kept separate from the DOM probe so the decision is
+ * unit-testable without a browser.
+ */
+export function chartLegendTextVerdict(flags: { inContainer: boolean; inExcluded: boolean }): boolean {
+  return flags.inContainer && !flags.inExcluded;
+}
+
+/**
+ * Button-free presence check: is {@link scriptName} visible as legend text on
+ * the chart? This is the source-level fix for the transient-button blindness
+ * that {@link findLegendRowWrappers} inherits — removal, the refresh residual
+ * check and verify visibility all funnel through hasLegendMatch, so keying
+ * presence on the text here fixes all three at once. It does NOT return a
+ * clickable handle (removal still needs the wrapper for that); it only answers
+ * "is it there".
+ */
+async function hasVisibleChartLegendText(page: Page, scriptName: string): Promise<boolean> {
+  const [exactPattern, loosePattern] = buildScriptNamePatterns(scriptName);
+  for (const pattern of [exactPattern, loosePattern]) {
+    const matches = page.getByText(pattern);
+    const total = await matches.count().catch(() => 0);
+    for (let index = 0; index < Math.min(total, 24); index += 1) {
+      const target = matches.nth(index);
+      if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
+        continue;
+      }
+      const flags = await target
+        .evaluate(
+          (node, selectors) => ({
+            inContainer: Boolean((node as Element).closest(selectors.container)),
+            inExcluded: Boolean((node as Element).closest(selectors.excluded)),
+          }),
+          { container: CHART_LEGEND_CONTAINER_SELECTOR, excluded: chartLegendExcludedSelector() },
+        )
+        .catch(() => ({ inContainer: false, inExcluded: true }));
+      if (chartLegendTextVerdict(flags)) {
+        tracePageEvent(page, "chart-legend-text-present", `${scriptName}:${index}`);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export async function collectVisibleChartScriptState(
   page: Page,
   scriptName: string,
@@ -4855,7 +4919,13 @@ export async function collectVisibleChartScriptState(
   const locatorTimeoutMs = options.locatorTimeoutMs ?? 500;
 
   const legendWrappers = await findLegendRowWrappers(page, scriptName, options).catch(() => []);
-  const hasLegendMatch = legendWrappers.length > 0;
+  // The wrapper probe starts at the legend-settings-action button, which
+  // TradingView only renders on hover / right after an interaction. A script
+  // that IS on the chart but whose row is idle reads as absent (run
+  // 30718040533: a freshly added overlay verified as "not found"). Fall back
+  // to the visible legend TEXT, which does not depend on the transient button.
+  const hasLegendMatch = legendWrappers.length > 0
+    || await hasVisibleChartLegendText(page, scriptName).catch(() => false);
   const hasStrategyReportMatch = await hasVisibleLocator([
     page.getByText(strategyPattern),
     page.getByRole("button", { name: strategyPattern }),
