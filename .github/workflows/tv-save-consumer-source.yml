@@ -318,8 +318,21 @@ jobs:
       # Between its two saves the managed layout genuinely carries no
       # companions, so nothing is evaluating there. Opt-in only, and never
       # alongside a read-only run.
+      #
+      # Repair must run even when the step above went red, and run 30701657039
+      # is why: with the companions missing, that step reports "Existing chart
+      # instance not found" for both and fails -- so the repair for exactly that
+      # damage was skipped and the layout stayed broken. The rollback drill
+      # keeps the opposite rule: a red verification means the layout is not in
+      # the state its baseline assumes, and removing things then proves nothing.
+      #
+      # Both arms read steps.save.conclusion rather than always(): if an earlier
+      # step failed, save never ran, there is no authenticated browser session,
+      # and running the drill would only produce a second, misleading failure.
       - name: R1 companion rollback drill
-        if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.r1_rollback_drill == 'true' || github.event.inputs.r1_restore_companions == 'true') && github.event.inputs.verify_only != 'true' }}
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only != 'true' && (
+          (github.event.inputs.r1_restore_companions == 'true' && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure')) ||
+          (github.event.inputs.r1_rollback_drill == 'true' && steps.save.conclusion == 'success')) }}
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           # Repair mode. The removal half is skipped entirely, so this is the
