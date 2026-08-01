@@ -652,54 +652,64 @@ def test_the_attestation_holdback_runs_on_every_trigger_before_the_browser_opens
     """
     steps = _steps()
     names = [step.get("name") for step in steps]
-    guard = next(s for s in steps if s.get("name") == "Hold back R1-attested sources from an unattested save")
+    detect = "Detect R1-attested sources this save would un-attest"
+    guard = next(s for s in steps if s.get("name") == detect)
 
-    assert "python -m scripts.tv_attested_source_holdback" in guard["run"].replace("python3", "python")
+    assert "python -m scripts.check_tv_unattested_sources" in guard["run"].replace("python3", "python")
     # A step output, not $GITHUB_ENV: writing the environment file is a zizmor
     # `github-env` high finding, and it also let the value reach the rollout
     # implicitly -- so nothing pinned that it arrived at all.
-    assert 'echo "holdback=${held}" >> "$GITHUB_OUTPUT"' in guard["run"]
+    assert 'echo "unattested=${unattested}" >> "$GITHUB_OUTPUT"' in guard["run"]
     assert "GITHUB_ENV" not in guard["run"]
     # No `if:` at all -- schedule, dispatch and the workflow_run chain alike.
-    assert "if" not in guard, "the holdback must not be conditional on the trigger"
-    assert names.index("Hold back R1-attested sources from an unattested save") < names.index(
+    assert "if" not in guard, "the detection must not be conditional on the trigger"
+    assert names.index(detect) < names.index(
         "Save or read-only verify consumers in one browser session"
     )
 
-    # The load-bearing wiring: computing a holdback the rollout never receives
-    # would leave the guard reporting a hold that did not happen.
+    # The load-bearing wiring: a detection the rollout never receives would
+    # leave the report green while the evidence goes stale.
     save = next(s for s in steps if s.get("name") == "Save or read-only verify consumers in one browser session")
-    assert save["env"]["TV_ATTESTED_HOLDBACK"] == "${{ steps.attestation.outputs.holdback }}"
+    assert save["env"]["TV_UNATTESTED_SOURCES"] == "${{ steps.attestation.outputs.unattested }}"
     assert guard["id"] == "attestation"
 
 
-def test_a_held_back_source_turns_the_run_red_after_the_snapshot_is_published() -> None:
+def test_an_unattested_save_turns_the_run_red_after_the_snapshot_is_published() -> None:
     steps = _steps()
     names = [step.get("name") for step in steps]
-    fail = next(s for s in steps if s.get("name") == "Fail the run when an R1-attested source was held back")
+    fail_step = "Fail the run when an R1-attested source was saved un-attested"
+    fail = next(s for s in steps if s.get("name") == fail_step)
 
     assert "exit 1" in fail["run"]
-    assert "steps.attestation.outputs.holdback != '[]'" in fail["if"]
-    # Not always(): this step reports the hold, it must not re-report an
-    # unrelated failure as an attestation problem.
+    assert "steps.attestation.outputs.unattested != '[]'" in fail["if"]
+    # Not always(): this step reports the un-attestation, it must not re-report
+    # an unrelated failure as an attestation problem.
     assert "always()" not in fail["if"]
     # Last, so the binding snapshot is still uploaded and published.
-    assert names.index("Fail the run when an R1-attested source was held back") > names.index(
-        "Publish latest binding snapshot"
-    )
+    assert names.index(fail_step) > names.index("Publish latest binding snapshot")
     assert "falsifies a measurement" in fail["run"]
 
 
-def test_the_rollout_drops_held_back_targets_after_any_explicit_mapping() -> None:
-    """An explicit mapping must not be able to smuggle a held-back target through."""
+def test_the_rollout_reports_unattested_saves_without_skipping_them() -> None:
+    """Operator decision 2026-08-01: save anyway, report loudly.
+
+    Holding the drifted targets back was built first and dropped: it keeps the
+    evidence literally true while freezing those scripts on an old pinned
+    library as the producer moves on. So nothing may filter saveTargets, and
+    the report has to carry the fact instead.
+    """
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
 
     override = batch.index("TV_CONSUMER_MAPPING_JSON")
-    holdback = batch.index("TV_ATTESTED_HOLDBACK")
-    assert override < holdback, "the holdback filter must run after the mapping override"
-    assert "heldBackForAttestation" in batch
-    # Red on purpose, not red as a side effect of the drift the skipped save leaves.
-    assert "report.ok = report.mutations.heldBackForAttestation.length === 0" in batch
+    detected = batch.index("TV_UNATTESTED_SOURCES")
+    assert override < detected, "the report must describe the targets the mapping override left"
+    assert "savedWithoutAttestation" in batch
+    # No skipping: a filter that drops these from saveTargets is the policy
+    # that was rejected, and it would silently reintroduce itself here.
+    assert "config.saveTargets = config.saveTargets.filter" not in batch
+    # An un-attested save writes exactly what the repository holds, so every
+    # other ok clause stays satisfied. This one carries the red alone.
+    assert "report.ok = report.mutations.savedWithoutAttestation.length === 0" in batch
 
 
 def test_the_r1_rollback_drill_is_opt_in_and_crosses_a_reload_on_both_halves() -> None:

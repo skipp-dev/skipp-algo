@@ -88,13 +88,17 @@ type RolloutReport = {
      */
     abandonedChartUrls: string[];
     /**
-     * Save targets skipped because the registered R1 evidence still attests a
-     * different source. Writing them would un-attest a live rollout through a
-     * path no pull-request gate observes (#4286 guards the diff, not the
-     * dispatch). Holding them back keeps what is deployed equal to what is
-     * attested; the run is expected to end red so a human re-attests.
+     * Sources this run SAVED even though the registered R1 evidence attests
+     * different content — so the evidence stops describing what is deployed
+     * the moment the run finishes. #4286 guards the pull-request path; a
+     * dispatch, a schedule and the post-refresh chain reach TradingView
+     * without one, which is how 2026-08-01 happened.
+     *
+     * Deliberately a report, not a skip: skipping would freeze these scripts
+     * on an old pinned library while the producer moves on. The run ends red
+     * so a human re-attests.
      */
-    heldBackForAttestation: string[];
+    savedWithoutAttestation: string[];
   };
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
@@ -141,15 +145,16 @@ async function main(): Promise<void> {
   } else if (!executionPlan.saveSources) {
     config.saveTargets = [];
   }
-  // AFTER the mapping override on purpose: an explicit mapping must not be able
-  // to smuggle a held-back target past the attestation guard.
-  const heldBack = new Set<string>(
-    JSON.parse(process.env.TV_ATTESTED_HOLDBACK?.trim() || "[]") as string[],
+  // Computed AFTER the mapping override and the verify-only reset, so it
+  // describes what this run actually writes: a read-only run saves nothing and
+  // therefore un-attests nothing, and an explicit mapping cannot hide a target
+  // from the report by naming it late.
+  const unattested = new Set<string>(
+    JSON.parse(process.env.TV_UNATTESTED_SOURCES?.trim() || "[]") as string[],
   );
-  const heldBackForAttestation = config.saveTargets
-    .filter((target) => heldBack.has(target.scriptName))
+  const savedWithoutAttestation = config.saveTargets
+    .filter((target) => unattested.has(target.scriptName))
     .map((target) => target.scriptName);
-  config.saveTargets = config.saveTargets.filter((target) => !heldBack.has(target.scriptName));
   config.verifyTargets = config.verifyTargets.map((target) => ({ ...target, producerName: config.producerName }));
   const bindingEvidenceTargets = config.verifyTargets.map((target) => {
     if (!target.source) throw new Error(`Binding evidence target has no source: ${target.scriptName}`);
@@ -197,7 +202,7 @@ async function main(): Promise<void> {
       layoutSaved: false,
       savedChartUrls: [],
       abandonedChartUrls: [],
-      heldBackForAttestation,
+      savedWithoutAttestation,
     },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
@@ -460,11 +465,11 @@ async function main(): Promise<void> {
     // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
     // already-published script, and TradingView's SPA makes it the flakiest step in
     // the run. Its outcome stays in report.producerRefresh.{ok,error} as evidence.
-    // A held-back target also shows up as source drift, so ok would already be
-    // false — but only as a side effect of the save it skipped. Naming it here
-    // keeps the run from being red by coincidence: if the drift accounting ever
-    // changes, an unattested rollout must still not report ok.
-    report.ok = report.mutations.heldBackForAttestation.length === 0
+    // This one is load-bearing on its own: an un-attested save writes exactly
+    // what the repository holds, so every other clause below stays satisfied
+    // and the run would otherwise be green while the registered evidence has
+    // just stopped describing what is deployed.
+    report.ok = report.mutations.savedWithoutAttestation.length === 0
       && report.save.failed.length === 0
       && report.inputsMatchCommit
       && report.repositoryExpected.libraryRelease.matches

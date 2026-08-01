@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep an automated TradingView save from silently un-attesting an R1 source.
+"""Report when an automated TradingView save un-attests an R1 source.
 
 ``scripts/check_r1_attested_sources.py`` (#4286) closes the PULL REQUEST path:
 a diff that moves an attested source away from its evidence fails the gate.
@@ -13,24 +13,19 @@ Event Overlay micro-profile pin ``179 -> 182``, the chained save pushed the new
 source, and the source the R1 evidence attests stopped existing anywhere. The
 evidence still read ``authorized_execution_completed`` with ``openGates: []``.
 
-What this guard does NOT do, deliberately:
+The gap was never that the save happened. It is that nobody learned the
+attestation had died. So this does not block the save and does not skip a
+target: everything is pushed, exactly as before, and the run reports that an
+attested source is now deployed un-attested.
 
-* It does not fail the run before the browser opens. The chained save exists to
-  stop applied chart instances freezing on an old library ("Library 9d alt",
-  2026-07-22); killing the whole run would trade a stale attestation for a
-  stale deployment across all eleven consumers.
-* It does not touch anything the ``--verify-only`` contract governs. Holding a
-  target back only matters when sources are being written at all.
-
-What it does: name the attested sources whose repository content no longer
-matches the registered evidence, so the rollout can skip exactly those and
-leave what is deployed equal to what is attested. Everything else saves
-normally, and the run is expected to end red -- an attestation that needs a
-human is a fact about the system, not a detail to swallow.
+The alternative -- holding the drifted targets back -- was built first and
+deliberately dropped (operator decision, 2026-08-01). It keeps the evidence
+literally true but freezes those two scripts on an old pinned library while the
+producer moves on, which is a live divergence traded for a bookkeeping one.
 
 Run as a module from the repository root::
 
-    python -m scripts.tv_attested_source_holdback --config <rollout config>
+    python -m scripts.check_tv_unattested_sources --config <rollout config>
 
 The attested set and the hash function come from
 ``scripts.smc_r1_rollout_contract``; re-deriving them here would compare one
@@ -53,12 +48,13 @@ from scripts.smc_r1_rollout_contract import (
 DEFAULT_CONFIG = ROOT / "automation" / "tradingview" / "config" / "consumer-rollout.json"
 
 _REMEDY = """
-This save would replace an R1-attested source on TradingView with repository
-content the registered evidence does not attest.
+This save replaces an R1-attested source on TradingView with repository content
+the registered evidence does not attest.
 
-The targets below are held back; everything else saves normally. What is
-deployed for them stays equal to what {evidence} attests, which is the only
-reason the R1 contract may claim anything at all. The run ends red on purpose.
+The save is NOT blocked -- the sources below are pushed like every other
+consumer, so the deployment stays consistent with the repository. What changes
+is that {evidence} stops describing what is deployed the moment this run
+finishes. The run ends red for exactly that reason.
 
 To resolve, one of:
 
@@ -66,9 +62,10 @@ To resolve, one of:
     NEW dated evidence artifact. Do NOT edit the existing dated artifact to
     match today's hashes -- that falsifies a measurement rather than repeating
     it.
-  * Revert the source change if it was not intended to reach the live account.
+  * Revert the source change if it was not intended to reach the live account,
+    then re-run this workflow to push the attested content back.
 
-Held back:
+Saved without attestation:
 """
 
 
@@ -110,26 +107,26 @@ def drifted_attested_targets(
     return drifted
 
 
-def holdback_names(config_path: Path, drifted: list[dict]) -> list[str]:
-    """Drifted attested scripts that this rollout config would actually save.
+def unattested_save_targets(config_path: Path, drifted: list[dict]) -> list[str]:
+    """Drifted attested scripts that this rollout config actually saves.
 
     Intersecting with the config matters: a source can be attested without being
-    a save target, and holding back a name the rollout never writes would report
-    a hold that did not happen.
+    a save target, and reporting a name the rollout never writes would claim an
+    un-attestation that did not happen.
     """
     config = json.loads(config_path.read_text(encoding="utf-8"))
     save_targets = {target["scriptName"] for target in config.get("saveTargets", [])}
     return sorted(item["scriptName"] for item in drifted if item["scriptName"] in save_targets)
 
 
-def _render(drifted: list[dict], held: list[str]) -> str:
+def _render(drifted: list[dict], unattested: list[str]) -> str:
     lines = [_REMEDY.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix())]
     by_name = {item["scriptName"]: item for item in drifted}
-    for name in held:
+    for name in unattested:
         item = by_name[name]
         lines.append(f"  {name}  ({item['path']})")
         lines.append(f"      evidence attests: {item['attestedSha256']}")
-        lines.append(f"      repository now  : {item['repositorySha256']}")
+        lines.append(f"      being saved now : {item['repositorySha256']}")
     return "\n".join(lines)
 
 
@@ -139,19 +136,17 @@ def main() -> int:
     args = parser.parse_args()
 
     drifted = drifted_attested_targets()
-    held = holdback_names(args.config, drifted)
+    unattested = unattested_save_targets(args.config, drifted)
 
-    # stdout carries ONLY the machine value, so the caller can append it to
-    # $GITHUB_ENV without parsing prose. Writing that file from here would mean
-    # a raw append in scripts/, and appending is the one thing an atomic
-    # replace cannot do without clobbering what other steps exported.
-    print(json.dumps(held))
+    # stdout carries ONLY the machine value: the caller writes it into a step
+    # output, and any prose here would land in that value.
+    print(json.dumps(unattested))
 
-    if held:
-        print(_render(drifted, held), file=sys.stderr)
+    if unattested:
+        print(_render(drifted, unattested), file=sys.stderr)
     else:
         print(
-            "R1-attested sources agree with the registered evidence; nothing held back.",
+            "R1-attested sources agree with the registered evidence; this save keeps them attested.",
             file=sys.stderr,
         )
     return 0

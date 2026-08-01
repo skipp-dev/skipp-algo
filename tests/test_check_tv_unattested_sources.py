@@ -1,9 +1,13 @@
-"""The automated save must not un-attest an R1 source.
+"""An automated save that un-attests an R1 source must say so.
 
 #4286 guards the pull-request path. The 2026-08-01 un-attestation did not take
 it: ``smc-library-refresh`` succeeded, the chained ``tv-save-consumer-source``
 pushed the new Event Overlay source, and the source the evidence attests
-stopped existing. No diff, no gate.
+stopped existing. No diff, no gate, green run.
+
+The save itself is not blocked (operator decision, 2026-08-01): skipping the
+drifted targets would freeze them on an old pinned library while the producer
+moves on. What must not survive is the silence.
 
 These tests drive real drift and real agreement through injected data rather
 than reading whatever the checked-in state happens to be. A guard whose tests
@@ -18,13 +22,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.smc_r1_rollout_contract import ROOT, build_rollout_contract
-from scripts.tv_attested_source_holdback import (
+from scripts.check_tv_unattested_sources import (
     DEFAULT_CONFIG,
     attested_sources,
     drifted_attested_targets,
-    holdback_names,
+    unattested_save_targets,
 )
+from scripts.smc_r1_rollout_contract import ROOT, build_rollout_contract
 
 _ATTESTED = "a" * 64
 _DRIFTED = "b" * 64
@@ -51,7 +55,7 @@ def _config(tmp_path: Path, names: list[str]) -> Path:
     return path
 
 
-def test_agreement_holds_nothing_back() -> None:
+def test_agreement_reports_nothing() -> None:
     assert drifted_attested_targets(targets=_TARGETS, sources=_sources()) == []
 
 
@@ -86,23 +90,23 @@ def test_a_source_the_evidence_does_not_attest_is_not_this_guard_s_business() ->
     assert drifted == []
 
 
-def test_holdback_is_intersected_with_what_this_config_would_actually_save(
+def test_the_report_is_intersected_with_what_this_config_would_actually_save(
     tmp_path: Path,
 ) -> None:
-    """Holding back a name the rollout never writes would report a hold that did not happen."""
+    """Naming a script the rollout never writes would claim an un-attestation that did not happen."""
     drifted = drifted_attested_targets(
         targets=_TARGETS,
         sources=_sources(**{"SMC Event Overlay": _DRIFTED, "SMC Exit Signal": _DRIFTED}),
     )
 
     both = _config(tmp_path, ["SMC Event Overlay", "SMC Exit Signal", "SMC Long-Dip Suite"])
-    assert holdback_names(both, drifted) == ["SMC Event Overlay", "SMC Exit Signal"]
+    assert unattested_save_targets(both, drifted) == ["SMC Event Overlay", "SMC Exit Signal"]
 
     one = _config(tmp_path, ["SMC Exit Signal", "SMC Long-Dip Suite"])
-    assert holdback_names(one, drifted) == ["SMC Exit Signal"]
+    assert unattested_save_targets(one, drifted) == ["SMC Exit Signal"]
 
     none = _config(tmp_path, ["SMC Long-Dip Suite"])
-    assert holdback_names(none, drifted) == []
+    assert unattested_save_targets(none, drifted) == []
 
 
 def test_the_shipped_config_still_saves_both_attested_companions(tmp_path: Path) -> None:
@@ -126,21 +130,21 @@ def test_the_guard_reads_the_registered_evidence_not_a_second_copy() -> None:
     assert set(sources) == set(targets)
     for name, target in targets.items():
         assert sources[name]["repositorySha256"] == target["sha256"], (
-            f"{name} disagrees with the registered evidence; the holdback guard would "
-            "hold it back on every run"
+            f"{name} disagrees with the registered evidence; the guard would report it "
+            "as un-attested on every run"
         )
 
 
 def test_stdout_is_only_the_machine_value_so_the_shell_can_append_it_verbatim() -> None:
-    """The workflow does ``echo "TV_ATTESTED_HOLDBACK=$(...)" >> $GITHUB_ENV``.
+    """The workflow does ``echo "unattested=$(...)" >> $GITHUB_OUTPUT``.
 
-    Any prose on stdout would land in the environment file and break the run,
-    so the human-readable remedy goes to stderr. Checked as a subprocess
-    because that is the interface the workflow actually uses -- calling main()
-    in-process would not catch a stray print.
+    Any prose on stdout would land in the step output and reach the rollout as
+    part of the value, so the human-readable remedy goes to stderr. Checked as
+    a subprocess because that is the interface the workflow actually uses --
+    calling main() in-process would not catch a stray print.
     """
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.tv_attested_source_holdback"],
+        [sys.executable, "-m", "scripts.check_tv_unattested_sources"],
         cwd=ROOT,
         capture_output=True,
         text=True,
