@@ -228,6 +228,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_no_fake_push_success.py",
     "tests/test_workflow_orphan_inventory.py",
     "tests/test_workflow_permissions_present.py",
+    # 2026-08-01: a workflow that uses $SMC_PYTHON_BIN without setting it
+    # exits 127 on its first heredoc step. workflow_dispatch-only workflows
+    # are never exercised by CI, so the break is invisible until someone
+    # needs the workflow (smc-r4-context-readback, run 30683157375).
+    "tests/test_workflow_python_bin_resolved.py",
     # 2026-08-01: contract for smc-r4-context-readback, which can drive a live
     # TradingView account at mutating execution mode. Dispatch-only, a readonly
     # default and the shared session concurrency group are the properties that
