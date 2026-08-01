@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 613,
-  "total_hidden": 397,
+  "total_inputs": 615,
+  "total_hidden": 399,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -530,8 +530,8 @@
     },
     {
       "file": "SMC_Context_Overlay.pine",
-      "input_count": 67,
-      "hidden_count": 60,
+      "input_count": 69,
+      "hidden_count": 62,
       "inputs": [
         {
           "varname": "src_schema",
@@ -1065,6 +1065,22 @@
           "varname": "src_session_dir",
           "kind": "source",
           "label": "CTX SessionDirection",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_session_mss_bull",
+          "kind": "source",
+          "label": "CTX SessionMssBull",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "varname": "src_session_mss_bear",
+          "kind": "source",
+          "label": "CTX SessionMssBear",
           "group": "g_session",
           "has_display_none": true,
           "visibility": null
