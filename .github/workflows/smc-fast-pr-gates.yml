@@ -251,7 +251,12 @@ jobs:
           # upstream smc-library-refresh runs only on schedule/dispatch —
           # never from fork PRs — the job gates on conclusion == 'success',
           # and the workflow holds contents:read only.
-          ZIZMOR_HIGH_BUDGET: "92"
+          # high 92→91 (2026-08-01): both template-injection sinks in
+          # smc-r4-context-readback.yml resolved — the dispatch inputs now
+          # reach the CLI through env instead of being expanded into `run:`.
+          # One of the two shipped in #4281 and was already inside the 92, so
+          # this PR fixes more than it adds and the budget shrinks with it.
+          ZIZMOR_HIGH_BUDGET: "91"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
