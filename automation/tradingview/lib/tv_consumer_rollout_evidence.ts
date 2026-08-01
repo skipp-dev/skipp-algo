@@ -51,6 +51,47 @@ export type RolloutProvenance = {
   };
 };
 
+/**
+ * What TradingView actually publishes, next to what the checked-out tree claims
+ * it publishes.
+ *
+ * The manifest-only check above cannot fail usefully: it compares
+ * `library.expectedVersion` against `library.publishedVersion`, and both are
+ * fields of the SAME file in the SAME checkout. A tree always agrees with
+ * itself. On 2026-08-01 a chained rollout ran on a pre-refresh tree and
+ * reported `matches: true` at version 180 while main was already on 182 — the
+ * provenance had no reference to anything it had not itself just read.
+ *
+ * `verdict` is deliberately three-valued. An unreachable facade must not
+ * masquerade as "in sync" OR as drift; that distinction is already load-bearing
+ * in build_pine_library_version_snapshot.ts and is kept here.
+ */
+export type LibraryPublishObservation = Readonly<{
+  scriptName: string;
+  /** What the checked-out manifest claims is published. */
+  manifestPublishedVersion: number;
+  /** What the pine-facade listing reports, or null when it could not be read. */
+  observedVersion: number | null;
+  verdict: "match" | "drift" | "unknown";
+}>;
+
+export function resolveLibraryPublishObservation(input: {
+  scriptName: string;
+  manifestPublishedVersion: number;
+  observedVersion: number | null;
+}): LibraryPublishObservation {
+  const { scriptName, manifestPublishedVersion, observedVersion } = input;
+  // fetchPublishedLibraryVersionViaFacade collapses "listing unreadable" and
+  // "library absent from the listing" into null. Both mean the same thing here:
+  // nothing was observed, so nothing may be concluded.
+  const verdict = observedVersion === null
+    ? "unknown"
+    : observedVersion === manifestPublishedVersion
+      ? "match"
+      : "drift";
+  return Object.freeze({ scriptName, manifestPublishedVersion, observedVersion, verdict });
+}
+
 function isTrue(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }

@@ -8,12 +8,15 @@ import {
   groupTargetsByLayout,
   resolveExecutionPlan,
   resolveLayoutSavePoints,
+  resolveLibraryPublishObservation,
+  type LibraryPublishObservation,
   type RolloutExecutionMode,
   type RolloutProvenance,
 } from "../automation/tradingview/lib/tv_consumer_rollout_evidence.js";
 import {
   closeTradingViewSession,
   ensurePineEditor,
+  fetchPublishedLibraryVersionViaFacade,
   gotoChart,
   isTrackedStepTimeoutError,
   newTradingViewSession,
@@ -58,6 +61,13 @@ type RolloutReport = {
   inputsMatchCommit: boolean;
   repositoryExpected: RolloutProvenance["repositoryExpected"];
   tradingViewObserved: {
+    /**
+     * The only field in this report that is read from outside the checkout.
+     * repositoryExpected.libraryRelease.matches compares two fields of one
+     * manifest file, so it is true for any internally consistent tree,
+     * including a stale one.
+     */
+    libraryRelease: LibraryPublishObservation;
     sources: Array<{
       scriptName: string;
       actualSha256: string;
@@ -138,6 +148,12 @@ async function main(): Promise<void> {
     getFlag("--release-manifest", "artifacts/tradingview/library_release_manifest.json"),
   );
   const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as RolloutConfig;
+  // Named here rather than threaded through buildRolloutProvenance so the
+  // provenance payload shape (and its pins) stays untouched.
+  const libraryScriptName = String(
+    (JSON.parse(fs.readFileSync(libraryReleaseManifestPath, "utf-8")).library ?? {}).scriptName ?? "",
+  );
+  if (!libraryScriptName) throw new Error("library release manifest has no library.scriptName");
   const sourceVerificationTargets = config.saveTargets.map((target) => ({ ...target }));
   const override = process.env.TV_CONSUMER_MAPPING_JSON?.trim();
   if (executionPlan.saveSources && override) {
@@ -190,7 +206,17 @@ async function main(): Promise<void> {
     libraryReleaseVersion: provenance.libraryReleaseVersion,
     inputsMatchCommit: provenance.inputsMatchCommit,
     repositoryExpected: provenance.repositoryExpected,
-    tradingViewObserved: { sources: [], bindings: [] },
+    tradingViewObserved: {
+      // Starts as an honest "not looked yet": unknown, with no observed value.
+      // If the probe below never runs, this stays unknown rather than pretending.
+      libraryRelease: resolveLibraryPublishObservation({
+        scriptName: libraryScriptName,
+        manifestPublishedVersion: provenance.repositoryExpected.libraryRelease.publishedVersion,
+        observedVersion: null,
+      }),
+      sources: [],
+      bindings: [],
+    },
     mutations: {
       sourceSaveRequested: executionPlan.saveSources,
       sourceSavesCompleted: 0,
@@ -226,6 +252,40 @@ async function main(): Promise<void> {
   const session = await newTradingViewSession();
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Rollout requires authenticated TradingView state");
+
+    // Read what TradingView actually publishes, BEFORE anything is written.
+    // Every other provenance field in this report is derived from the checked-out
+    // tree, so it is satisfied by any tree that agrees with itself -- including a
+    // stale one (2026-08-01: matches=true at 180 while main was on 182).
+    //
+    // A known disagreement stops the run rather than colouring the report after
+    // the fact: the consumers about to be saved carry `import .../<N>` pins, and
+    // saving them against a version TradingView does not publish is the CE10272
+    // class -- the scripts land and then fail to compile on the operator chart.
+    //
+    // An unreadable facade is NOT drift. It warns and the run continues, because
+    // a probe outage is not evidence about the library. The verdict stays
+    // "unknown" in the artifact rather than being rounded to "match".
+    report.tradingViewObserved.libraryRelease = resolveLibraryPublishObservation({
+      scriptName: libraryScriptName,
+      manifestPublishedVersion: provenance.repositoryExpected.libraryRelease.publishedVersion,
+      observedVersion: await fetchPublishedLibraryVersionViaFacade(session.page, libraryScriptName),
+    });
+    const libraryObservation = report.tradingViewObserved.libraryRelease;
+    if (libraryObservation.verdict === "drift") {
+      throw new Error(
+        `Library publish drift: the manifest says ${libraryObservation.scriptName} is published at `
+        + `version ${libraryObservation.manifestPublishedVersion}, but TradingView lists `
+        + `${libraryObservation.observedVersion}. Refusing to roll consumers onto a pin that is not what is published.`,
+      );
+    }
+    if (libraryObservation.verdict === "unknown") {
+      console.warn(
+        `[rollout] could not read the published version of ${libraryObservation.scriptName} from the pine facade — `
+        + "the run continues, but its library-publish evidence is UNKNOWN, not confirmed.",
+      );
+    }
+
     await gotoChart(session.page, config.primaryChartUrl);
     await ensurePineEditor(session.page);
 
@@ -473,6 +533,11 @@ async function main(): Promise<void> {
       && report.save.failed.length === 0
       && report.inputsMatchCommit
       && report.repositoryExpected.libraryRelease.matches
+      // Explicit even though a drift already threw above: this is the condition
+      // report.ok is meant to encode, and it must not rest on a control-flow
+      // detail elsewhere in this file staying as it is today. "unknown"
+      // deliberately does not gate -- see the probe.
+      && report.tradingViewObserved.libraryRelease.verdict !== "drift"
       && report.sources.failed.length === 0
       && report.sources.checked === report.sources.expected
       && report.sources.drifted === 0
