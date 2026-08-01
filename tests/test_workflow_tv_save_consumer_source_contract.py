@@ -558,3 +558,86 @@ def test_refresh_triggered_save_enables_producer_refresh_and_rebind() -> None:
         assert "github.event.inputs" in line, line
     # The read-only cron contract stays: schedule keeps the empty mapping.
     assert "github.event_name == 'schedule' && '[]'" in text
+
+
+def test_the_attestation_holdback_runs_on_every_trigger_before_the_browser_opens() -> None:
+    """2026-08-01: the un-attestation arrived through the workflow_run chain.
+
+    #4286 guards the pull-request path. The chained save after a successful
+    library refresh is not a pull request, so it walked straight past. Gating
+    only the manual dispatch would leave the door that was actually used, and
+    checking after the save would report a push that already happened.
+    """
+    steps = _steps()
+    names = [step.get("name") for step in steps]
+    guard = next(s for s in steps if s.get("name") == "Hold back R1-attested sources from an unattested save")
+
+    assert "python -m scripts.tv_attested_source_holdback" in guard["run"].replace("python3", "python")
+    assert 'echo "TV_ATTESTED_HOLDBACK=${held}" >> "$GITHUB_ENV"' in guard["run"]
+    # No `if:` at all -- schedule, dispatch and the workflow_run chain alike.
+    assert "if" not in guard, "the holdback must not be conditional on the trigger"
+    assert names.index("Hold back R1-attested sources from an unattested save") < names.index(
+        "Save or read-only verify consumers in one browser session"
+    )
+
+
+def test_a_held_back_source_turns_the_run_red_after_the_snapshot_is_published() -> None:
+    steps = _steps()
+    names = [step.get("name") for step in steps]
+    fail = next(s for s in steps if s.get("name") == "Fail the run when an R1-attested source was held back")
+
+    assert "exit 1" in fail["run"]
+    assert "env.TV_ATTESTED_HOLDBACK != '[]'" in fail["if"]
+    # Not always(): this step reports the hold, it must not re-report an
+    # unrelated failure as an attestation problem.
+    assert "always()" not in fail["if"]
+    # Last, so the binding snapshot is still uploaded and published.
+    assert names.index("Fail the run when an R1-attested source was held back") > names.index(
+        "Publish latest binding snapshot"
+    )
+    assert "falsifies a measurement" in fail["run"]
+
+
+def test_the_rollout_drops_held_back_targets_after_any_explicit_mapping() -> None:
+    """An explicit mapping must not be able to smuggle a held-back target through."""
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+
+    override = batch.index("TV_CONSUMER_MAPPING_JSON")
+    holdback = batch.index("TV_ATTESTED_HOLDBACK")
+    assert override < holdback, "the holdback filter must run after the mapping override"
+    assert "heldBackForAttestation" in batch
+    # Red on purpose, not red as a side effect of the drift the skipped save leaves.
+    assert "report.ok = report.mutations.heldBackForAttestation.length === 0" in batch
+
+
+def test_the_r1_rollback_drill_is_opt_in_and_crosses_a_reload_on_both_halves() -> None:
+    """The gate the 2026-08-01 re-attestation had to leave open (#4290).
+
+    The 2026-07-29 rollback was performed by hand; nothing could repeat it. As
+    with the repair drill (#4289), an in-session read proves only that the UI
+    accepted a click -- so the removal must survive a reload before the restore
+    can prove anything, and the restore must survive one before it may be
+    called restored.
+    """
+    dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
+    assert dispatch["r1_rollback_drill"]["default"] is False
+
+    drill_step = next(s for s in _steps() if s.get("name") == "R1 companion rollback drill")
+    assert "r1_rollback_drill == 'true'" in drill_step["if"]
+    assert "verify_only != 'true'" in drill_step["if"]
+    assert "github.event_name == 'workflow_dispatch'" in drill_step["if"]
+    assert "scripts/tv_r1_companion_rollback_drill.ts" in drill_step["run"]
+
+    drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
+    assert "saveChangedChartLayout(session.page)" in drill
+    # Open, after the removal save, after the restore save, plus the recovery
+    # block -- gotoChart is a hard page.goto, which is what makes the read-back
+    # evidence rather than an echo of the session that wrote it.
+    assert drill.count("gotoChart(session.page, chartUrl)") >= 4
+    # Two DISTINCT failures, one per half.
+    assert "removal did not survive the reload" in drill
+    assert "restored in-session but the layout came back without" in drill
+    # A rollback that takes the producer with it is not a rollback.
+    assert "removed more than the companions" in drill
+    # Leaving the layout without its companions must be loud, not silent.
+    assert "MANUAL REPAIR REQUIRED" in drill
