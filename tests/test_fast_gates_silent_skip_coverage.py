@@ -256,6 +256,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # groups exactly the way the original "single shared external target"
     # comment did, stating a guarantee nothing enforced.
     "tests/test_tradingview_session_concurrency.py",
+    # 2026-08-01: its sibling above joined the required path in #4297 while
+    # THIS one stayed post-merge-only -- so #4297 could turn main red by
+    # contradicting a pin no PR gate reads. Two guards on one workflow
+    # belong in the same lane, or the older one only speaks after a merge.
+    "tests/test_workflow_databento_handoff_concurrency.py",
     "tests/test_workflow_python_unbuffered.py",
     "tests/test_workflow_pythonpath_for_direct_invoke.py",
     "tests/test_workflow_runner_pinned.py",
