@@ -4979,6 +4979,80 @@ export async function findLegendRowWrappers(
   return matches.slice(0, 6).map((entry) => entry.locator);
 }
 
+// The script name also shows up in dialogs, menus, the Object Tree and the
+// Pine dialog (measured 2026-07-31 during the CE10156 diagnosis). Text-first
+// legend discovery must never resolve one of those as a legend row.
+export const LEGEND_TEXT_EXCLUDED_SURFACES =
+  '[role="dialog"], [data-name*="dialog" i], [class*="modal" i], [role="menu"], [data-name*="menu" i], [data-name="tree"], [data-name="pine-dialog"]';
+
+/**
+ * Text-first legend row discovery, for rows the button-first probes miss.
+ *
+ * Run 30702240413, same session, same DOM: {@link findLegendRowWrappers}
+ * reported 0 rows for the pre-#4263 overlay instance while the text-first
+ * settings opener found the row, hovered it and opened it — 60 rows, twice,
+ * in two runs. TradingView renders the legend action buttons on hover, so a
+ * probe that STARTS at the buttons never sees a row nobody is pointing at.
+ * This starts at the visible legend text, hovers it (which is what makes the
+ * action buttons the wrapper resolution needs exist), and only then resolves
+ * the tight legend row exactly like the settings opener does.
+ */
+export async function findLegendRowWrappersByVisibleText(page: Page, scriptName: string): Promise<Locator[]> {
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
+  const wrappers: Locator[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const [index] of candidateNames.entries()) {
+    const [, loosePattern] = patternsList[index];
+    const matches = page.getByText(loosePattern);
+    const total = await matches.count().catch(() => 0);
+    for (let item = 0; item < Math.min(total, 24); item += 1) {
+      const target = matches.nth(item);
+      if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
+        continue;
+      }
+      const excluded = await target
+        .evaluate((node, selector) => Boolean(node.closest(selector)), LEGEND_TEXT_EXCLUDED_SURFACES)
+        .catch(() => true);
+      if (excluded) {
+        continue;
+      }
+      await target.scrollIntoViewIfNeeded().catch(() => undefined);
+      await target.hover({ timeout: 750 }).catch(() => undefined);
+      const wrapper = target
+        .locator('xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]][1]')
+        .first();
+      if (!(await wrapper.isVisible({ timeout: 400 }).catch(() => false))) {
+        continue;
+      }
+      const wrapperText = normalizeUiText((await wrapper.innerText({ timeout: 300 }).catch(() => "")) || "");
+      if (!wrapperText || wrapperText.length > 300) {
+        continue;
+      }
+      // Tight row only — a pane container carries the text of every study
+      // below it and exactly this over-match is why the wrapper probe grew
+      // its one-settings-action rule. Mirror it.
+      const settingsActionCount = await wrapper
+        .locator('button[data-qa-id="legend-settings-action"]')
+        .count()
+        .catch(() => 0);
+      if (settingsActionCount !== 1) {
+        continue;
+      }
+      const box = await wrapper.boundingBox().catch(() => null);
+      const key = box ? `${Math.round(box.x)}:${Math.round(box.y)}:${Math.round(box.width)}` : `${index}:${item}`;
+      if (seenKeys.has(key)) {
+        continue;
+      }
+      seenKeys.add(key);
+      wrappers.push(wrapper);
+      tracePageEvent(page, "legend-text-wrapper-found", `${scriptName}:${item}:${wrapperText.slice(0, 80)}`);
+    }
+  }
+  return wrappers.slice(0, 6);
+}
+
 /**
  * Count how many DISTINCT legend rows on the chart match {@link scriptName}.
  *
@@ -5191,7 +5265,18 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
       await dismissSignInModal(page);
       await closePineEditorIfVisible(page);
 
-      const wrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
+      let wrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
+      if (wrappers.length === 0) {
+        // Run 30702240413: the pre-#4263 overlay row was invisible to the
+        // button-first probe above while the text-first settings opener found
+        // and opened it. Without this fallback the stale instance survives
+        // removal and the force-insert stacks a fresh copy next to it — which
+        // is what five R4 readback runs then rebound into.
+        wrappers = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
+        if (wrappers.length > 0) {
+          tracePageEvent(page, "script-remove-text-fallback-found", `${scriptName}:${wrappers.length}`);
+        }
+      }
       if (wrappers.length === 0) {
         break;
       }
@@ -5311,12 +5396,30 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
     // match; after a successful removal TradingView can briefly retain those
     // texts outside the legend and make a cleared 1 -> 0 instance look stale.
     const initialCount = await countChartScriptInstances(page, scriptName).catch(() => 0);
-    const removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
+    let removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
     const remainingCount = await countChartScriptInstances(page, scriptName).catch(() => initialCount);
     tracePageEvent(page, "script-refresh-instance-counts", `${scriptName}:${initialCount}->${remainingCount}`);
 
     if (initialCount > 0 && remainingCount > 0) {
       throw new Error(`Could not clear stale chart instance before refresh for ${scriptName}`);
+    }
+
+    // The counting probes above are button-first and were blind to exactly the
+    // row this matters for (run 30702240413: overlay 0->0 while the row was
+    // openable by text). Re-probe by TEXT and fail closed: inserting next to a
+    // stale instance is how five runs rebound 60 sources into the wrong
+    // dialog. No .catch on the probe — if it breaks, failing this step is
+    // more honest than reading the breakage as "no residuals".
+    let residualRows = await findLegendRowWrappersByVisibleText(page, scriptName);
+    for (let extra = 0; residualRows.length > 0 && extra < 2; extra += 1) {
+      tracePageEvent(page, "script-refresh-residual-text-rows", `${scriptName}:${residualRows.length}`);
+      removedCount += await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
+      residualRows = await findLegendRowWrappersByVisibleText(page, scriptName);
+    }
+    if (residualRows.length > 0) {
+      throw new Error(
+        `Stale ${scriptName} instance still on the chart after removal (${residualRows.length} text-visible row(s))`,
+      );
     }
 
     await ensurePineEditor(page).catch(() => undefined);
