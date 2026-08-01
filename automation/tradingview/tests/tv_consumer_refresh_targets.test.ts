@@ -11,11 +11,17 @@ const ROLLOUT = path.join(_dir, "..", "..", "..", "scripts", "tv_batch_consumer_
 
 // Saving a consumer's SOURCE does not change the instance already applied to a
 // layout — TradingView keeps it on the version it was added with. That is why
-// the producer is re-applied after a save. Until 2026-08-01 the consumer never
-// was, so a consumer whose own source GAINED an input kept a stale instance:
-// the new rows simply do not exist in its settings dialog and the rebind dies
-// with "Source combobox not found". Runs 30694013096, 30696257671, 30698519321
-// all failed that way on CTX SessionMssBull.
+// the producer is re-applied after a save, and until 2026-08-01 the consumer
+// never was. The rule the helper encodes stands on its own: an instance whose
+// source this run saved may be a version behind, so it has to be re-applied.
+//
+// It is NOT, however, what broke runs 30694013096 / 30696257671 / 30698519321.
+// Run 30700161400 carried this fix and still failed on CTX SessionMssBull,
+// with `script-refresh-instance-counts SMC Context Overlay:0->0` — there was no
+// prior instance to be stale, and the freshly inserted one missed the row too.
+// The cause of THAT is under investigation; see formatMissingSourceRowEvidence
+// in scripts/tv_verify_consumer_bindings.ts. Do not read these tests as
+// evidence for a diagnosis they never established.
 
 const R4 = {
   producerName: "SMC Context Bus",
