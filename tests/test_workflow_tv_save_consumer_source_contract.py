@@ -822,6 +822,34 @@ def test_repair_mode_can_restore_a_layout_the_drill_left_empty() -> None:
     assert "verify_only != 'true'" in drill_step["if"]
     assert drill_step["env"]["TV_DRILL_RESTORE_ONLY"] == "${{ github.event.inputs.r1_restore_companions }}"
 
+
+def test_repair_survives_the_red_verification_it_exists_to_repair() -> None:
+    """Run 30701657039: the repair was skipped by the damage it was dispatched for.
+
+    With both companions missing, the save/verify step reports "Existing chart
+    instance not found" for each and fails. A repair step that only runs after a
+    green step is therefore unreachable in precisely the situation it was built
+    for. The rollback drill keeps the opposite rule: a red verification means the
+    layout is not in the state its baseline assumes.
+    """
+    drill_step = next(s for s in _steps() if s.get("name") == "R1 companion rollback drill")
+    condition = " ".join(drill_step["if"].split())
+
+    assert "!cancelled()" in condition
+    assert (
+        "github.event.inputs.r1_restore_companions == 'true' && "
+        "(steps.save.conclusion == 'success' || steps.save.conclusion == 'failure')"
+    ) in condition
+    assert (
+        "github.event.inputs.r1_rollback_drill == 'true' && steps.save.conclusion == 'success'"
+    ) in condition
+    # Not always(): with an earlier step red the save never ran, there is no
+    # browser session, and the drill would only add a misleading second failure.
+    assert "always()" not in condition
+    # The step it depends on has to keep the id the condition reads.
+    save_step = next(s for s in _steps() if s.get("name", "").startswith("Save or read-only verify"))
+    assert save_step["id"] == "save"
+
     drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
     assert 'process.env.TV_DRILL_RESTORE_ONLY ?? ""' in drill
     # The repair half arms the recovery block before it touches anything, so a
