@@ -95,6 +95,34 @@ def test_session_comes_from_the_secret_and_records_its_authorization(
     assert '"alertCreationAllowed": False' in auth_step["run"]
 
 
+def test_python_interpreter_is_resolved_before_anything_uses_it(workflow: dict) -> None:
+    """``$SMC_PYTHON_BIN`` must be exported before the first step that runs it.
+
+    ``setup-python-pinned`` installs the interpreter but exports no path. Run
+    30683157375 expanded the variable to the empty string and the storage-state
+    heredoc died with exit 127. It survived review because the step before it,
+    ``uv pip install --python "$SMC_PYTHON_BIN"``, tolerated the empty value and
+    reported success — so "the earlier Python step was green" proves nothing.
+    """
+    steps = workflow["jobs"]["readback"]["steps"]
+    setter = next(
+        (
+            i
+            for i, s in enumerate(steps)
+            if "SMC_PYTHON_BIN=" in s.get("run", "") and "GITHUB_ENV" in s.get("run", "")
+        ),
+        None,
+    )
+    assert setter is not None, "no step exports SMC_PYTHON_BIN"
+
+    users = [i for i, s in enumerate(steps) if "$SMC_PYTHON_BIN" in s.get("run", "")]
+    # Floor: if nothing used the variable this rule would pass on nothing.
+    assert users, "no step uses SMC_PYTHON_BIN — this pin is measuring nothing"
+    assert min(users) > setter, (
+        f"step {min(users)} uses $SMC_PYTHON_BIN before step {setter} exports it"
+    )
+
+
 def test_evidence_is_uploaded_even_when_the_run_fails(workflow: dict) -> None:
     """A failed TradingView run is exactly when the screenshots matter."""
     steps = workflow["jobs"]["readback"]["steps"]
