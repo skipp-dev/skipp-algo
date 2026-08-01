@@ -136,11 +136,22 @@ def test_traceability_records_completed_tv_replay_and_live_rollout() -> None:
     assert replay["status"] == "complete"
     assert replay["openGates"] == []
     # 2026-08-01: the live rollout was re-attested after an automated save
-    # overwrote the Event Overlay source, and now carries four open gates. The
-    # replay above is deliberately NOT dragged along: its subject is the Exit
-    # Signal source, which is byte-identical to the version it was measured
-    # against. tests/test_smc_r1_rollout_contract.py enforces exactly that
-    # condition on the carry-over, so "complete" here stays earned.
-    assert rollout["status"] == "partial"
-    assert rollout["openGates"], "a partial rollout must name what is still open"
+    # overwrote the Event Overlay source. It carried four open gates through the
+    # day and closed all four by 19:40Z -- the rollback drill by run
+    # 30710010604, the three observation gates by the account owner reading the
+    # live layout. The replay above is deliberately NOT dragged along: its
+    # subject is the Exit Signal source, which is byte-identical to the version
+    # it was measured against. tests/test_smc_r1_rollout_contract.py enforces
+    # exactly that condition on the carry-over, so "complete" here stays earned.
+    assert rollout["status"] == "complete"
+    assert rollout["openGates"] == []
+    # "complete" with an empty gate list is the easiest false claim in this
+    # file to make, so it does not stand on the status string alone: the
+    # artifacts that closed the gates have to be cited right here.
     assert LIVE_ROLLOUT_EVIDENCE.relative_to(ROOT).as_posix() in rollout["evidence"]
+    for closing in (
+        "artifacts/governance/smc_r1_rollback_drill_2026-08-01.json",
+        "artifacts/governance/smc_r1_operator_observation_2026-08-01.json",
+    ):
+        assert closing in rollout["evidence"], f"{closing} closed a gate but is not cited"
+        assert (ROOT / closing).exists()

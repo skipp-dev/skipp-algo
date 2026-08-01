@@ -135,11 +135,15 @@ def test_live_claims_follow_the_surface_rollout_state() -> None:
 
     # 2026-08-01: an automated consumer save overwrote the Event Overlay source
     # attested on 2026-07-29, so the rollout was re-attested against what three
-    # runs actually measured. Sources, compile and the ten bindings are closed;
-    # four axes the attended session had observed by hand are not, and are
-    # carried as open gates. The surfaces stay "deployed" because they are: what
-    # is partial is the evidence, not the deployment.
-    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "partial"
+    # runs actually measured. Sources, compile and the ten bindings closed at
+    # 05:05Z; four axes the attended session had observed by hand did not, and
+    # were carried as open gates. All four closed the same day -- the rollback
+    # drill by run 30710010604 at 17:23Z, the three observation axes by the
+    # account owner reading the live layout at 19:40Z. The surfaces were
+    # "deployed" throughout: what was partial was the evidence, never the
+    # deployment, which is why nothing about them changes here.
+    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "complete"
+    assert requirements["R1-LIVE-ROLLOUT"]["openGates"] == []
     # 2026-07-28 22:41Z: R2 shadow observation window opened (partial) — the
     # surface itself stays a planned rollout until the window and rollback
     # drill pass; "partial" must never silently become "complete" here.

@@ -11,6 +11,27 @@
       "note": "The registered evidence still records rollback.status = not_run as of 05:05:15Z, when no implementation existed. The drill ran at 17:23:24Z. Both readings are true of their own moment; the dated measurement is repeated by a new artifact, never rewritten.",
       "run": 30710010604,
       "status": "passed"
+    },
+    {
+      "evidence": "artifacts/governance/smc_r1_operator_observation_2026-08-01.json",
+      "gate": "alert-condition inventory for both companions",
+      "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
+      "observer": "preuss_steffen",
+      "status": "passed"
+    },
+    {
+      "evidence": "artifacts/governance/smc_r1_operator_observation_2026-08-01.json",
+      "gate": "Hold Manager exclusivity and Simple Management layout inventory",
+      "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
+      "observer": "preuss_steffen",
+      "status": "passed"
+    },
+    {
+      "evidence": "artifacts/governance/smc_r1_operator_observation_2026-08-01.json",
+      "gate": "chart-instance compile status after a final reload",
+      "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
+      "observer": "preuss_steffen",
+      "status": "passed"
     }
   ],
   "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json",
@@ -26,11 +47,7 @@
       "SMC Exit Signal"
     ]
   },
-  "openGates": [
-    "alert-condition inventory for both companions",
-    "Hold Manager exclusivity and Simple Management layout inventory",
-    "chart-instance compile status after a final reload"
-  ],
+  "openGates": [],
   "preflight": {
     "command": "npx tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-r1-companions.json --execution-mode mutating",
     "config": "automation/tradingview/preflight-r1-companions.json",
@@ -47,7 +64,7 @@
     "rollback drill removing both companions without changing the Suite or existing consumers"
   ],
   "schemaVersion": 1,
-  "status": "authorized_execution_partially_reattested",
+  "status": "authorized_execution_reattested",
   "targets": [
     {
       "bindingLabels": [

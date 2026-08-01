@@ -42,7 +42,7 @@
     {
       "id": "R1",
       "name": "Event Overlay and Exit Signal",
-      "status": "in_progress",
+      "status": "complete",
       "requirements": [
         {
           "id": "R1-EVENT-TIME",
@@ -86,7 +86,7 @@
         {
           "id": "R1-LIVE-ROLLOUT",
           "description": "Event Overlay and Exit Signal compile, save, bind, hash-verify, and enter the intended managed layout.",
-          "status": "partial",
+          "status": "complete",
           "evidence": [
             "automation/tradingview/preflight-r1-companions.json",
             "scripts/smc_r1_rollout_contract.py",
@@ -95,15 +95,12 @@
             "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json",
             "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
             "artifacts/governance/smc_r1_rollback_drill_2026-08-01.json",
+            "artifacts/governance/smc_r1_operator_observation_2026-08-01.json",
             "scripts/smc_bus_manifest.py",
             "artifacts/tradingview/smc_product_cut_manifest.json",
             "automation/tradingview/config/consumer-rollout.json"
           ],
-          "openGates": [
-            "alert-condition inventory for both companions",
-            "Hold Manager exclusivity and Simple Management layout inventory",
-            "chart-instance compile status after a final reload"
-          ]
+          "openGates": []
         }
       ]
     },
