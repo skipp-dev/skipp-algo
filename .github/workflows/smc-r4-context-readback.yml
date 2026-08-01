@@ -1,0 +1,251 @@
+name: smc-r4-context-readback
+# live-window: manual-dispatch-only
+
+# R4 Context readback / binding measurement, on demand.
+#
+# Why this workflow exists
+# ------------------------
+# The R4 shadow evidence was captured by hand from a local machine
+# (docs/SMC_CONTEXT_BUS_R4_RUNBOOK.md runs tv_preflight.ts directly), which is
+# why closing R4 has always waited on a person being at a keyboard. Nothing
+# about it actually needs one: the TradingView session is fully automated in
+# CI — TV_STORAGE_STATE is refreshed every 48 h by
+# tradingview-storage-refresh.yml, with TV_USERNAME / TV_PASSWORD /
+# TV_TOTP_SECRET as the headless-login fallback.
+#
+# The measurement is also stale on its own terms. The recorded 60/60 binding
+# readback was captured against commit 393dafedd; #4263 has since changed both
+# SMC_Context_Bus.pine and SMC_Context_Overlay.pine and moved the contract from
+# 60 channels to 62. Whatever readback mechanism is used, that number has to be
+# re-measured against the current contract.
+#
+# Default mode is READONLY on purpose. A readonly run answers "do all 62
+# channels still bind after #4263?" without writing anything to the account.
+# Mutating runs (which create/save scripts and modify a layout) must be
+# selected explicitly, per the authorization discipline the R4 and R2.4
+# evidence artifacts record.
+
+on:
+  workflow_dispatch:
+    inputs:
+      execution_mode:
+        description: "readonly = measure only; mutating = may create/save scripts and modify the layout"
+        type: choice
+        options:
+          - readonly
+          - mutating
+        default: readonly
+      chart_url:
+        description: "TradingView chart/layout to run against (empty = TradingView default chart)"
+        type: string
+        default: "https://www.tradingview.com/chart/Jb2Vp6xs/"
+      config:
+        description: "Preflight config to run"
+        type: string
+        default: automation/tradingview/preflight-r4-context-shadow.json
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  # One TradingView session at a time: concurrent runs fight over the same
+  # account, the same layout and the same saved scripts.
+  group: tradingview-session
+  cancel-in-progress: false
+
+# Load-bearing here, not boilerplate: runs-on resolves to the Windows
+# self-hosted runner whenever SMC_GH_HOSTED_RUNNER is set, and every run: step
+# below is bash (set -euo pipefail, heredocs) which PowerShell cannot parse.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  readback:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: "true"
+          cache-dependency-glob: |
+            requirements*.txt
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --python "$SMC_PYTHON_BIN" --system -r requirements.txt pytest
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw_version
+        run: |
+          version="$(npx --no-install playwright --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+          if [ -z "$version" ]; then
+            version="$(node -p "require('./node_modules/playwright/package.json').version")"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browsers cache
+        id: pw_cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
+
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          mkdir -p automation/tradingview/auth
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
+      - name: Record what this run was authorized to do
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/tradingview
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          # The R2.4 and R4 evidence artifacts record a per-session
+          # authorization. A dispatched run has one too — the dispatch itself —
+          # so capture it in the same shape instead of leaving the provenance
+          # of a CI-driven session undocumented.
+          record = {
+              "schemaVersion": 1,
+              "trigger": "workflow_dispatch",
+              "actor": os.environ["GH_ACTOR"],
+              "runId": os.environ["GH_RUN_ID"],
+              "executionMode": os.environ["EXECUTION_MODE"],
+              "chartUrl": os.environ["CHART_URL"],
+              "config": os.environ["PREFLIGHT_CONFIG"],
+              "publicationAllowed": False,
+              "alertCreationAllowed": False,
+          }
+          Path("artifacts/tradingview/r4_readback_authorization.json").write_text(
+              json.dumps(record, indent=2) + "\n", encoding="utf-8"
+          )
+          print(json.dumps(record, indent=2))
+          PY
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_RUN_ID: ${{ github.run_id }}
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          CHART_URL: ${{ inputs.chart_url }}
+          PREFLIGHT_CONFIG: ${{ inputs.config }}
+
+      - name: Run TradingView preflight
+        id: preflight
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+          TV_CHART_URL: ${{ inputs.chart_url }}
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
+          TV_PREFLIGHT_REPORT: artifacts/tradingview/r4_readback_preflight.json
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/tradingview/screenshots
+          npx tsx scripts/tv_preflight.ts \
+            --config "${{ inputs.config }}" \
+            --execution-mode "${{ inputs.execution_mode }}" \
+            --out artifacts/tradingview/r4_readback_preflight.json
+
+      - name: Summarise the measurement
+        if: always()
+        run: |
+          set -euo pipefail
+          report=artifacts/tradingview/r4_readback_preflight.json
+          if [ ! -f "$report" ]; then
+            echo "No preflight report produced — see the step log above." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          "$SMC_PYTHON_BIN" - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import os
+          from pathlib import Path
+
+          from scripts.smc_context_bus_manifest import MAX_CHANNELS
+
+          report = json.loads(
+              Path("artifacts/tradingview/r4_readback_preflight.json").read_text(encoding="utf-8")
+          )
+          print("## R4 Context readback\n")
+          print(f"- execution mode: `{os.environ['EXECUTION_MODE']}`")
+          print(f"- contract channels today: **{MAX_CHANNELS}**")
+          print(f"- report `ok`: **{report.get('ok')}**\n")
+          print("```json")
+          print(json.dumps(report, indent=2)[:4000])
+          print("```")
+          PY
+        env:
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+
+      - name: Upload readback evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: r4-context-readback
+          path: |
+            artifacts/tradingview/r4_readback_preflight.json
+            artifacts/tradingview/r4_readback_authorization.json
+            artifacts/tradingview/screenshots/**
+          if-no-files-found: warn
+          retention-days: 30
