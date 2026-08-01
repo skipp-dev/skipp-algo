@@ -263,6 +263,36 @@ def test_repair_e2e_is_explicit_and_uses_visible_dashboard_test_instance() -> No
     assert "verifyConsumerBindings(session, target, true)" in e2e
 
 
+def test_repair_e2e_proves_the_repair_across_a_reload_not_only_in_session() -> None:
+    """2026-08-01: the drill could not observe the failure it exists for.
+
+    It drifted, repaired and re-verified inside ONE session, never reloading the
+    chart and never saving the layout. But an in-session read was green all
+    through the 2026-07-25 incident too -- the rebinds were discarded the moment
+    the layout was left. So the drill passed on every day the primary operator
+    layout was never saved, which is precisely the regression it is meant to
+    catch.
+
+    Both halves must therefore cross a hard reload: the deliberate drift is
+    saved and re-read (otherwise the repair has nothing real to fix), and the
+    repair is saved and re-read (otherwise "repaired" means only "submitted").
+    """
+    e2e = (_REPO_ROOT / "scripts" / "tv_repair_binding_e2e.ts").read_text(encoding="utf-8")
+    assert "saveChangedChartLayout(session.page)" in e2e
+    # gotoChart is a hard page.goto: the reload is what makes the read-back
+    # evidence rather than an echo of the session that wrote it.
+    # Three in the happy path (open, after the drift save, after the repair
+    # save) plus the one in the recovery block, which must also re-read.
+    assert e2e.count("gotoChart(session.page, chartUrl)") >= 4
+    # Two DISTINCT failures, one per half. Asserting a shared substring twice
+    # would pin only one of them while reading like it covered both.
+    assert "drift did not survive the reload" in e2e
+    assert "repaired in-session but the repair did not survive the reload" in e2e
+    # Persisting a drift is a real exposure between the two saves; failing to
+    # undo it must name the chart and the input instead of exiting quietly.
+    assert "MANUAL REPAIR REQUIRED" in e2e
+
+
 def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
     upload = next(s for s in _steps() if s.get("name") == "Upload binding snapshot")
     assert upload["if"] == "${{ always() }}"
