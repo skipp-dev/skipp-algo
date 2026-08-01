@@ -171,6 +171,50 @@ async function describeMissingSourceRow(
   });
 }
 
+export type InstanceContractCoverage = {
+  ok: boolean;
+  present: number;
+  total: number;
+  missing: readonly string[];
+};
+
+/**
+ * Whether the applied instance's settings dialog carries every contract input
+ * at all — regardless of what each one is bound to. `actual: null` means
+ * readSelectedSource found no row for the label, and rows do not go missing
+ * from a current build: a new instance shows every input defaulted to
+ * `close`. Missing rows mean an older build, and rebinding an older build is
+ * 60 mutations toward a wrong outcome.
+ */
+export function assessInstanceContractCoverage(
+  bindings: ReadonlyArray<{ label: string; actual: string | null }>,
+): InstanceContractCoverage {
+  const missing = bindings.filter((binding) => binding.actual === null).map((binding) => binding.label);
+  return {
+    ok: missing.length === 0,
+    present: bindings.length - missing.length,
+    total: bindings.length,
+    missing,
+  };
+}
+
+export function formatInstanceContractCoverage(
+  scriptName: string,
+  coverage: InstanceContractCoverage,
+): string {
+  const shown = coverage.missing.slice(0, 8);
+  const overflow = coverage.missing.length - shown.length;
+  const missingList = shown.join(", ") + (overflow > 0 ? ` (+${overflow} more)` : "");
+  const scale = coverage.present === 0
+    ? `none of the ${coverage.total} contract inputs`
+    : `only ${coverage.present} of ${coverage.total} contract inputs`;
+
+  return (
+    `Applied instance of ${scriptName} carries ${scale} — it is an older build than the source this run saved. `
+    + `Missing: ${missingList}. Refusing to rebind it; re-apply the instance from the saved source first.`
+  );
+}
+
 export async function repairSelectedSource(
   page: Parameters<typeof openInputsTab>[0],
   label: string,
@@ -290,6 +334,17 @@ export async function verifyConsumerBindings(
   }
   let mismatches = bindings.filter((binding) => !binding.ok);
   const repaired: string[] = [];
+  // Refuse to rebind an instance that is not the version this run saved.
+  // Reading a label as null means its row is not in the dialog at all, and an
+  // instance missing contract rows is by definition an older build. Repairing
+  // it anyway is what runs 30694013096 / 30696257671 / 30698519321 /
+  // 30700161400 / 30702240413 all did: 60 sources rebound on a pre-#4263
+  // instance before dying on the 61st. Verify-only runs are left alone — they
+  // mutate nothing and the per-label table is the more useful answer there.
+  const coverage = assessInstanceContractCoverage(bindings);
+  if (repair && !coverage.ok) {
+    throw new Error(formatInstanceContractCoverage(target.scriptName, coverage));
+  }
   // A matching dropdown label does not prove a live parent: TradingView keeps the text
   // while the stored input.source parent study id is dead. --force-rebind re-selects every
   // source so those stale-but-identical bindings are re-pointed too.
