@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from scripts.smc_bus_manifest import SURFACE_DEFINITIONS
+from scripts.smc_r1_rollout_contract import OPEN_GATES as R1_OPEN_GATES
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACE_PATH = (
@@ -81,6 +82,36 @@ def test_completed_requirements_have_existing_repository_evidence() -> None:
             )
 
 
+def test_r1_traceability_cannot_disagree_with_the_r1_contract() -> None:
+    """Two artifacts describing one rollout must not drift apart.
+
+    Before 2026-08-01 this matrix carried R1-LIVE-ROLLOUT as complete with no
+    open gates while the R1 contract had just grown four. Nothing tied them
+    together, so the stale one -- the one that reads "complete" -- would have
+    stayed authoritative to anyone reading the matrix instead of the contract.
+    """
+    trace = _trace()
+    requirement = next(
+        item
+        for phase in trace["phases"]
+        for item in phase["requirements"]
+        if item["id"] == "R1-LIVE-ROLLOUT"
+    )
+
+    assert requirement["openGates"] == list(R1_OPEN_GATES)
+    assert (requirement["status"] == "complete") == (not R1_OPEN_GATES)
+    assert (
+        "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json"
+        in requirement["evidence"]
+    )
+    # The superseded artifact stays cited: it is what the current evidence
+    # supersedes, and dropping it would hide that a re-attestation happened.
+    assert (
+        "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json"
+        in requirement["evidence"]
+    )
+
+
 def test_open_requirements_name_their_remaining_gate() -> None:
     trace = _trace()
 
@@ -102,7 +133,13 @@ def test_live_claims_follow_the_surface_rollout_state() -> None:
     }
     surfaces = {surface.file: surface for surface in SURFACE_DEFINITIONS}
 
-    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "complete"
+    # 2026-08-01: an automated consumer save overwrote the Event Overlay source
+    # attested on 2026-07-29, so the rollout was re-attested against what three
+    # runs actually measured. Sources, compile and the ten bindings are closed;
+    # four axes the attended session had observed by hand are not, and are
+    # carried as open gates. The surfaces stay "deployed" because they are: what
+    # is partial is the evidence, not the deployment.
+    assert requirements["R1-LIVE-ROLLOUT"]["status"] == "partial"
     # 2026-07-28 22:41Z: R2 shadow observation window opened (partial) — the
     # surface itself stays a planned rollout until the window and rollback
     # drill pass; "partial" must never silently become "complete" here.

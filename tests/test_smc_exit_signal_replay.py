@@ -135,6 +135,12 @@ def test_traceability_records_completed_tv_replay_and_live_rollout() -> None:
         assert path in replay["evidence"]
     assert replay["status"] == "complete"
     assert replay["openGates"] == []
-    assert rollout["status"] == "complete"
-    assert rollout["openGates"] == []
+    # 2026-08-01: the live rollout was re-attested after an automated save
+    # overwrote the Event Overlay source, and now carries four open gates. The
+    # replay above is deliberately NOT dragged along: its subject is the Exit
+    # Signal source, which is byte-identical to the version it was measured
+    # against. tests/test_smc_r1_rollout_contract.py enforces exactly that
+    # condition on the carry-over, so "complete" here stays earned.
+    assert rollout["status"] == "partial"
+    assert rollout["openGates"], "a partial rollout must name what is still open"
     assert LIVE_ROLLOUT_EVIDENCE.relative_to(ROOT).as_posix() in rollout["evidence"]
