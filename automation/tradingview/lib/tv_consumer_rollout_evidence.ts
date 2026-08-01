@@ -227,29 +227,44 @@ export function buildRolloutProvenance(options: {
   };
 }
 
+export type RolloutLayoutGroup<T> = Readonly<{ chartUrl: string; targets: readonly T[] }>;
+
 /**
- * The chart layouts a repairing rollout must SAVE, in the order it visits them.
+ * The rollout's targets split into the chart layouts it visits, in visit order.
  *
  * The rollout walks `verifyTargets` and calls `gotoChart` whenever the next
  * target lives on a different chart. `gotoChart` is a hard `page.goto`, so the
- * reload discards every unsaved rebind made on the layout being left — which is
+ * reload discards every unsaved rebind made on the layout being left. That is
  * why a single save after the loop persisted only the LAST layout, and why
  * saving afterwards by navigating back would persist the reverted state rather
  * than the repair.
  *
- * Returns one entry per contiguous run of targets on the same chart, so the
- * caller can save at each boundary and once at the end. Consecutive duplicates
- * are collapsed; a layout the run returns to later legitimately appears twice,
- * because it has to be saved again.
+ * The layout is therefore the unit the rollout can act on atomically: every
+ * rebind on it is persisted together by one save, or discarded together by the
+ * next reload. Grouping the targets makes that unit explicit, so the caller can
+ * decide per layout — save it, or abandon it — instead of per target.
+ *
+ * Consecutive duplicates are collapsed; a layout the run returns to later
+ * legitimately appears twice, because it has to be saved again.
  */
+export function groupTargetsByLayout<T extends { chartUrl?: string }>(
+  targets: ReadonlyArray<T>,
+  primaryChartUrl: string,
+): Array<RolloutLayoutGroup<T>> {
+  const groups: Array<{ chartUrl: string; targets: T[] }> = [];
+  for (const target of targets) {
+    const chartUrl = target.chartUrl ?? primaryChartUrl;
+    const current = groups[groups.length - 1];
+    if (current && current.chartUrl === chartUrl) current.targets.push(target);
+    else groups.push({ chartUrl, targets: [target] });
+  }
+  return groups;
+}
+
+/** The chart layouts a repairing rollout must SAVE, in the order it visits them. */
 export function resolveLayoutSavePoints(
   targets: ReadonlyArray<{ chartUrl?: string }>,
   primaryChartUrl: string,
 ): string[] {
-  const points: string[] = [];
-  for (const target of targets) {
-    const chartUrl = target.chartUrl ?? primaryChartUrl;
-    if (points[points.length - 1] !== chartUrl) points.push(chartUrl);
-  }
-  return points;
+  return groupTargetsByLayout(targets, primaryChartUrl).map((group) => group.chartUrl);
 }
