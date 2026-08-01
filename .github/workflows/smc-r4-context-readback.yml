@@ -76,6 +76,19 @@ jobs:
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
 
+      - name: Resolve Python 3.12 interpreter
+        # setup-python-pinned installs the interpreter but exports no path, and
+        # every Python step below runs as "$SMC_PYTHON_BIN". Without this the
+        # variable is empty: run 30683157375 expanded it to "" and the
+        # storage-state heredoc died with exit 127 (command not found). The step
+        # before it, `uv pip install --python "$SMC_PYTHON_BIN"`, had tolerated
+        # the empty value and reported success — which is exactly why the gap
+        # survived to the first live run. This job is GitHub-hosted only, so one
+        # pinned check suffices.
+        run: |
+          python -c "import sys; raise SystemExit('pinned Python bootstrap did not resolve 3.12' if sys.version_info[:2] != (3, 12) else 0)"
+          echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
