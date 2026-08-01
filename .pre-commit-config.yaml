@@ -69,3 +69,22 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-commit]
+
+      # zizmor workflow-security ratchet: local mirror of the fast-gates
+      # "zizmor (workflow security ratchet)" step. Budgets AND the pinned
+      # zizmor version are read out of smc-fast-pr-gates.yml at runtime
+      # (single source of truth — same approach as ledger-pin-drift-guard;
+      # a second copy of the numbers here would drift the moment a finding
+      # is fixed and the budgets are lowered).
+      # Scoped to .github/workflows/** because that is the only input the
+      # audit reads; runs the whole directory (not just the changed files)
+      # since the budgets are repo-wide totals. ~5s over 68 workflows.
+      # Needs zizmor at the pinned version — `uv tool install zizmor==<ver>`
+      # — or uv, in which case the script uvx's the exact pinned wheel.
+      - id: zizmor-workflow-security-ratchet
+        name: zizmor workflow security ratchet (fast-gates parity, ~5s)
+        entry: bash scripts/run_zizmor_ratchet.sh
+        language: system
+        files: '^\.github/workflows/.*\.ya?ml$'
+        pass_filenames: false
+        stages: [pre-commit]
