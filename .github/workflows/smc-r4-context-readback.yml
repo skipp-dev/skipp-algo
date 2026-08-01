@@ -229,11 +229,15 @@ jobs:
           TV_CHART_URL: ${{ inputs.chart_url }}
           TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
           TV_FORCE_REBIND: "true"
+          # Through env, not interpolated into the shell: a dispatch input
+          # expanded directly into `run:` is a template-injection sink
+          # (zizmor high). The value reaches the CLI as an ordinary argument.
+          REBIND_CONFIG: ${{ inputs.rebind_config }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/tradingview/screenshots
           npx tsx scripts/tv_batch_consumer_rollout.ts \
-            --config "${{ inputs.rebind_config }}" \
+            --config "$REBIND_CONFIG" \
             --out artifacts/tradingview/r4_rebind_rollout.json
 
       - name: Run TradingView preflight
@@ -250,11 +254,15 @@ jobs:
           TV_CHART_URL: ${{ inputs.chart_url }}
           TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
           TV_PREFLIGHT_REPORT: artifacts/tradingview/r4_readback_preflight.json
+          # Same reason as the rebind step above. This one shipped in #4281 and
+          # was already inside the zizmor baseline, so fixing it here lowers the
+          # ratchet rather than merely holding it.
+          PREFLIGHT_CONFIG: ${{ inputs.config }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/tradingview/screenshots
           npx tsx scripts/tv_preflight.ts \
-            --config "${{ inputs.config }}" \
+            --config "$PREFLIGHT_CONFIG" \
             --execution-mode readonly \
             --out artifacts/tradingview/r4_readback_preflight.json
 
