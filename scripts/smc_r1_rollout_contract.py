@@ -54,15 +54,23 @@ ROLLBACK_DRILL_EVIDENCE: Final = (
     / "smc_r1_rollback_drill_2026-08-01.json"
 )
 
-# Evidence the 2026-07-29 attended session recorded from operator observation
-# and that no 2026-08-01 run reproduces. Listed as open rather than carried
-# over: the sources under them changed, so the old observation no longer
-# describes what is deployed.
-OPEN_GATES: Final = (
-    "alert-condition inventory for both companions",
-    "Hold Manager exclusivity and Simple Management layout inventory",
-    "chart-instance compile status after a final reload",
+# The three fields no automation reports -- alert-condition inventory, layout
+# inventory with Hold Manager exclusivity, compile status after a final reload.
+# The operator read them off the live layout on 2026-08-01 at 19:40Z and
+# supplied screenshots, exactly as on 2026-07-29. The readonly preflight still
+# does not report them, so this stays an attended observation by design.
+OPERATOR_OBSERVATION_EVIDENCE: Final = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_r1_operator_observation_2026-08-01.json"
 )
+
+# Empty, and that is a claim in its own right. It is only allowed to be empty
+# because every gate the registered evidence lists as open now has its own
+# dated artifact below; the tests derive this from those artifacts rather than
+# trusting the literal.
+OPEN_GATES: Final = ()
 
 
 def _source(path: Path) -> dict:
@@ -91,7 +99,7 @@ def build_rollout_contract() -> dict:
     return {
         "schemaVersion": 1,
         "gate": "R1-LIVE-ROLLOUT",
-        "status": "authorized_execution_partially_reattested",
+        "status": "authorized_execution_reattested",
         "executionPerformed": True,
         "executionEvidence": EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
         "priorExecutionEvidence": PRIOR_EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
@@ -114,6 +122,24 @@ def build_rollout_contract() -> dict:
                     "measurement is repeated by a new artifact, never rewritten."
                 ),
             },
+            *(
+                {
+                    "gate": gate,
+                    "status": "passed",
+                    "evidence": OPERATOR_OBSERVATION_EVIDENCE.relative_to(ROOT).as_posix(),
+                    "observer": "preuss_steffen",
+                    "note": (
+                        "Read off the live layout at 19:40Z with screenshots. No automation "
+                        "reports this field, which is why the 05:05:15Z evidence records it "
+                        "as not_run and keeps doing so."
+                    ),
+                }
+                for gate in (
+                    "alert-condition inventory for both companions",
+                    "Hold Manager exclusivity and Simple Management layout inventory",
+                    "chart-instance compile status after a final reload",
+                )
+            ),
         ],
         "preflight": {
             "config": CONFIG.relative_to(ROOT).as_posix(),

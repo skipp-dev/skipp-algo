@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "gate": "R1-OPERATOR-OBSERVATION",
+  "capturedAt": "2026-08-01T19:40:00Z",
+  "status": "passed",
+  "observer": "preuss_steffen",
+  "method": "Direct observation of the live layout by the account owner, reported with screenshots. No automation reads these fields: the readonly preflight reports source hashes and bindings only, which is why they stood at not_run in the 2026-08-01 evidence.",
+  "scope": "Closes the three remaining R1 gates. Does not re-measure sources, bindings or compile hashes -- those are carried by artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json and were independently re-verified read-only at 18:50:26Z (9/9 consumers, 0 mismatches, 11 sources, 0 drifted).",
+  "chart": {
+    "layoutUrl": "https://www.tradingview.com/chart/hKHTmKhu/",
+    "layout": "SMC Simple Management R1",
+    "symbol": "NASDAQ:BKNG",
+    "interval": "5"
+  },
+  "alertConditionInventory": {
+    "SMC Event Overlay": [
+      "Event Restriction Hard Block Started",
+      "Event Restriction Window Started"
+    ],
+    "SMC Exit Signal": [
+      "ENTER LONG (trigger filled)",
+      "EXIT — Stop hit",
+      "EXIT — TP1 (take half)",
+      "EXIT — TP2 (close rest)",
+      "EXIT — Defensive (setup invalidated)",
+      "EXIT (any full close)"
+    ],
+    "matchesContract": true,
+    "readFrom": "The alert dialog's SECOND selector, below the indicator picker. The first selector lists the chart's studies, not the conditions.",
+    "genericEntriesAlsoPresent": [
+      "Crossing",
+      "Crossing Up",
+      "Crossing Down"
+    ],
+    "genericEntriesNote": "TradingView's own plot-based conditions. They are not declared by the scripts and are not part of the contract."
+  },
+  "layoutInventory": {
+    "finalInventory": [
+      "SMC Long-Dip Suite",
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ],
+    "holdManagerPresent": false,
+    "forbiddenConcurrentScriptsPresent": [],
+    "checkedNames": [
+      "SMC Hold Manager",
+      "SMC Hold Manager R2.4 Validation",
+      "SMC Hold Manager R2.4 Fixture"
+    ],
+    "layoutNameConfirmed": "SMC Simple Management R1",
+    "evidence": "The alert dialog's indicator selector enumerates every study on the chart. It listed Price plus exactly three scripts, with their TradingView versions: SMC Long-Dip Suite v48.0, SMC Event Overlay v7.0, SMC Exit Signal v1.0.",
+    "instanceCountsMeasured": {
+      "SMC Event Overlay": 1,
+      "SMC Exit Signal": 1,
+      "source": "Run 30710010604 logged script-remove-ok SMC Event Overlay:1->0 and SMC Exit Signal:1->0 before the rollback drill removed them, and the restore re-inserts exactly one via refreshChartScriptInstance, which clears all visible instances first.",
+      "whyItWasChecked": "The selector renders SMC Exit Signal as 'SMC Exit Signal (2)'. The (2) is the input summary of defensive_grace_bars = input.int(2, ...), not a second instance; the nine BUS inputs carry display = display.none and never reach the title."
+    }
+  },
+  "compileStatusAfterFinalReload": "passed",
+  "compileEvidence": "Hard reload (Cmd+Shift+R), waited for the chart to draw fully, then read each legend entry. No error badge on any of the three scripts.",
+  "alertsCreated": false,
+  "alertsModified": false,
+  "alertMutationEvidence": "Every dialog was closed with Cancel. The inventory was read, not built.",
+  "observedCaution": {
+    "surface": "TradingView alert dialog header, orange exclamation",
+    "text": "This alert may function differently than expected. This is due to calculations being based on an indicator or strategy that can get repainted.",
+    "appearedFor": [
+      "SMC Long-Dip Suite",
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ],
+    "repositoryMitigation": "Both companions gate every alertcondition() on bar close. SMC_Exit_Signal.pine: bool eval_now = (not confirm_bars_only) or barstate.isconfirmed, with confirm_bars_only defaulting to true, and _alertGate = eval_now. SMC_Event_Overlay.pine: _alertGate = barCloseOnly ? barstate.isconfirmed : true. tests/test_pine_alert_bar_close_gate.py pins this. The dialog's own Trigger read 'Once per bar close'.",
+    "notDetermined": "Whether TradingView emits this caution for every custom-script alert or from a specific detection. It appeared for all three scripts, which is consistent with a blanket notice but does not establish one. NOT measured, so NOT claimed. A one-click check would settle it: select Price in the first selector and see whether the caution disappears.",
+    "treatment": "Recorded as a disclosed observation, not an open gate. It reports a property of alerting on custom scripts; it does not contradict any field this artifact attests."
+  },
+  "closesGates": [
+    "alert-condition inventory for both companions",
+    "Hold Manager exclusivity and Simple Management layout inventory",
+    "chart-instance compile status after a final reload"
+  ]
+}

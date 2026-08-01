@@ -1,10 +1,15 @@
 """Fail-closed contracts for the R1 private TradingView rollout.
 
 2026-08-01: the rollout was re-attested after an automated consumer save
-overwrote the source attested on 2026-07-29. The re-attestation closes the
-source, compile and binding axes and leaves four axes open, because nothing in
-the 2026-08-01 runs reproduces what the attended 2026-07-29 session observed by
-hand.
+overwrote the source attested on 2026-07-29. The re-attestation closed the
+source, compile and binding axes at 05:05Z and left FOUR open, because nothing
+in those runs reproduced what the attended 2026-07-29 session observed by hand.
+
+All four have since closed, each by its own dated artifact rather than by an
+edit to the 05:05Z evidence -- the rollback drill at 17:23Z (run 30710010604)
+and the operator's observation of the remaining three at 19:40Z. The registered
+evidence still reads ``not_run`` for every one of them and always will; that is
+what dating a measurement means.
 
 The tests below therefore have two jobs, and the second matters more than the
 first: assert what the evidence proves, and make it impossible to close an open
@@ -20,6 +25,7 @@ from scripts.smc_r1_rollout_contract import (
     DEFAULT_OUTPUT,
     EXECUTION_EVIDENCE,
     OPEN_GATES,
+    OPERATOR_OBSERVATION_EVIDENCE,
     PRIOR_EXECUTION_EVIDENCE,
     ROLLBACK_DRILL_EVIDENCE,
     build_rollout_contract,
@@ -35,7 +41,7 @@ def test_checked_in_rollout_contract_is_current() -> None:
     actual = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
 
     assert actual == expected
-    assert actual["status"] == "authorized_execution_partially_reattested"
+    assert actual["status"] == "authorized_execution_reattested"
     assert actual["executionPerformed"] is True
     assert actual["executionEvidence"] == EXECUTION_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
@@ -119,7 +125,6 @@ def test_open_gates_are_named_and_the_evidence_refuses_to_claim_them() -> None:
     trading_view = evidence["tradingView"]
 
     assert contract["openGates"] == list(OPEN_GATES)
-    assert contract["openGates"], "R1 has open gates; an empty roster would be a false claim"
     # NOT equality against the registered evidence. That artifact is dated: it
     # lists what was open at 05:05:15Z and must keep saying so. The live roster
     # is that list minus the gates a later dated artifact has closed -- so a gate
@@ -127,6 +132,18 @@ def test_open_gates_are_named_and_the_evidence_refuses_to_claim_them() -> None:
     closed = {entry["gate"] for entry in contract["closedSinceRegisteredEvidence"]}
     assert closed <= set(evidence["openGates"])
     assert set(OPEN_GATES) == set(evidence["openGates"]) - closed
+
+    # The roster is empty now, and an empty roster is the strongest claim this
+    # contract makes. It used to be pinned as non-empty, which was the honest
+    # assertion while gates were open and becomes a false one the moment they
+    # are not. What carries the weight instead: every gate that left must name
+    # an artifact that exists and reports passed. Emptying the roster without
+    # that is what the pin now prevents.
+    for entry in contract["closedSinceRegisteredEvidence"]:
+        artifact = DEFAULT_OUTPUT.parents[2] / entry["evidence"]
+        assert artifact.exists(), f"{entry['gate']} names evidence that is not in the tree"
+        assert json.loads(artifact.read_text(encoding="utf-8"))["status"] == "passed"
+        assert entry["status"] == "passed"
 
     assert trading_view["alertConditionInventory"] == "not_run"
     assert trading_view["holdManagerPresent"] == "not_run"
@@ -171,8 +188,20 @@ def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() ->
     assert verdict["finalReloadStatus"] == "passed"
     assert verdict["bindingsRestored"] == _evidence()["tradingView"]["bindingsChecked"]
 
-    # The artifact may not disagree with the roster it reports around.
-    assert drill["remainingOpenGates"] == list(OPEN_GATES)
+    # NOT equality. ``remainingOpenGates`` says what was still open at
+    # 17:23:24Z, and three gates were -- the operator closed them at 19:40Z.
+    # Pinning it to the live roster would force an edit to a dated artifact the
+    # first time anything else closed, which is the move this whole file exists
+    # to prevent. I wrote that equality four hours ago and it was wrong then
+    # too; it only looked right because nothing had moved yet.
+    #
+    # What must hold instead: the artifact may not UNDERSTATE what was open.
+    # Everything it listed is either still open or has since acquired its own
+    # dated evidence.
+    still_open = set(OPEN_GATES)
+    closed_since = {entry["gate"] for entry in contract["closedSinceRegisteredEvidence"]}
+    assert still_open <= set(drill["remainingOpenGates"])
+    assert set(drill["remainingOpenGates"]) - still_open <= closed_since
 
 
 def test_the_registered_evidence_still_says_not_run_and_stays_that_way() -> None:
@@ -247,3 +276,63 @@ def test_the_superseded_dated_evidence_is_kept_verbatim() -> None:
     # The superseded hash must differ from today's, or the artifact is claiming
     # a supersession that never happened.
     assert superseded != evidence["sources"]["SMC Event Overlay"]["repositorySha256"]
+
+
+def test_the_operator_observation_carries_what_no_run_reports() -> None:
+    """The three fields that made R1 partial, and why they stayed partial.
+
+    The readonly preflight reports source hashes and bindings. It does not read
+    the alert-condition selector, does not enumerate the layout, and does not
+    look for an error badge after a reload. Those three came from the account
+    owner on 2026-07-29 and again on 2026-08-01, with screenshots -- an attended
+    observation by design, not a gap waiting for automation.
+    """
+    observation = json.loads(OPERATOR_OBSERVATION_EVIDENCE.read_text(encoding="utf-8"))
+    contract = build_rollout_contract()
+
+    assert observation["status"] == "passed"
+    assert observation["alertsCreated"] is False, "the inventory was read, not built"
+    assert observation["alertsModified"] is False
+
+    # The named conditions must match the contract's requiredAlerts exactly --
+    # em dashes included. They come verbatim from alertcondition(title = ...),
+    # so a differing character means the source moved underneath the alert.
+    inventory = observation["alertConditionInventory"]
+    for target in contract["targets"]:
+        assert inventory[target["scriptName"]] == target["requiredAlerts"]
+
+    # A rollback is only a rollback if the rest is untouched; an inventory is
+    # only an inventory if it names what must NOT be there.
+    layout = observation["layoutInventory"]
+    assert layout["holdManagerPresent"] is False
+    assert layout["forbiddenConcurrentScriptsPresent"] == []
+    assert "SMC Hold Manager" in layout["checkedNames"]
+    assert layout["finalInventory"] == contract["layoutContract"]["requiredScripts"]
+    # The layout has to BE the Simple Management preset, which is what makes the
+    # Hold Manager exclusion meaningful rather than an observation about some
+    # other chart that happens to carry three scripts.
+    assert contract["layoutContract"]["preset"] in layout["layoutNameConfirmed"]
+
+    assert observation["compileStatusAfterFinalReload"] == "passed"
+
+
+def test_the_repaint_caution_is_disclosed_and_its_unknown_is_named() -> None:
+    """TradingView flagged the alerts; the artifact says so rather than omitting it.
+
+    Recording only what confirms the attestation is how an artifact becomes an
+    advertisement. The caution appeared on all three scripts, the repository's
+    mitigation is real and pinned, and whether the notice is blanket or specific
+    was NOT measured -- so it is named as unmeasured instead of resolved by
+    plausibility.
+    """
+    observation = json.loads(OPERATOR_OBSERVATION_EVIDENCE.read_text(encoding="utf-8"))
+    caution = observation["observedCaution"]
+
+    assert "repainted" in caution["text"]
+    assert len(caution["appearedFor"]) == 3
+    # The mitigation must cite the gate, not merely assert one exists.
+    assert "barstate.isconfirmed" in caution["repositoryMitigation"]
+    assert "test_pine_alert_bar_close_gate.py" in caution["repositoryMitigation"]
+    # And the open question must stay open, with the check that would settle it.
+    assert "NOT measured" in caution["notDetermined"]
+    assert caution["treatment"].startswith("Recorded as a disclosed observation")
