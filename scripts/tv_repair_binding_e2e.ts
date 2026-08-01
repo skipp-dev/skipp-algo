@@ -25,12 +25,9 @@
 
 import fs from "node:fs";
 
-import type { Page } from "playwright";
-
 import {
   closeTradingViewSession,
-  gotoChart,
-  isScriptVisibleOnChartSurface,
+  gotoChartAndAwaitScript,
   newTradingViewSession,
   saveChangedChartLayout,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -42,36 +39,6 @@ import {
 } from "./tv_verify_consumer_bindings.js";
 
 type Config = { producerName: string; primaryChartUrl: string; repairE2ETarget: VerifyConsumerTarget };
-
-const SETTLE_TIMEOUT_MS = Number(process.env.TV_DRILL_SETTLE_TIMEOUT_MS ?? 30_000);
-
-/**
- * gotoChart resolves on `domcontentloaded` plus a FIXED 3s wait, which is
- * sometimes before TradingView has rebuilt the legend. Every read afterwards
- * then dies on `Existing chart instance not found` against a chart that is
- * perfectly healthy: CI run 30684930443 failed that way 8s in, and the
- * identical retry (30685141166) was green. Re-rolling the dice costs a whole
- * browser run, so wait for the condition instead of paying for another one.
- *
- * The wait is deliberately the SAME predicate that throws inside
- * verifyConsumerBindings, not a stricter proxy for it: waiting on a different
- * signal would only move the guess. If it never becomes true the error says
- * how long it waited, so a genuinely missing indicator still reads as missing
- * rather than as a slow one.
- */
-async function gotoChartAndAwaitInstance(page: Page, chartUrl: string, scriptName: string): Promise<void> {
-  await gotoChart(page, chartUrl);
-  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
-  for (;;) {
-    if (await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false)) return;
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `Chart did not surface ${scriptName} within ${SETTLE_TIMEOUT_MS}ms of loading ${chartUrl}`,
-      );
-    }
-    await page.waitForTimeout(500);
-  }
-}
 
 async function main(): Promise<void> {
   const config = JSON.parse(fs.readFileSync("automation/tradingview/config/consumer-rollout.json", "utf-8")) as Config;
@@ -85,7 +52,7 @@ async function main(): Promise<void> {
   let deliberatelyDrifted = false;
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Repair E2E requires authenticated TradingView state");
-    await gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName);
+    await gotoChartAndAwaitScript(session.page, chartUrl, target.scriptName);
     const baseline = await verifyConsumerBindings(session, target, false);
     if (!baseline.ok) throw new Error("Repair E2E precondition failed: target was already drifted");
 
@@ -100,7 +67,7 @@ async function main(): Promise<void> {
     // this the drill measures an in-memory round trip: the drift would revert
     // on its own and the repair below would have nothing to prove.
     await saveChangedChartLayout(session.page);
-    await gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName);
+    await gotoChartAndAwaitScript(session.page, chartUrl, target.scriptName);
     const before = await verifyConsumerBindings(session, target, false);
     if (before.mismatches.length !== 1 || before.mismatches[0]?.label !== testLabel) {
       throw new Error("Repair E2E drift did not survive the reload, so the repair below would prove nothing");
@@ -113,7 +80,7 @@ async function main(): Promise<void> {
     // green throughout the 2026-07-25 incident; only what survives this save
     // and reload is what the operator's chart actually holds.
     await saveChangedChartLayout(session.page);
-    await gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName);
+    await gotoChartAndAwaitScript(session.page, chartUrl, target.scriptName);
     const after = await verifyConsumerBindings(session, target, false);
     if (!after.ok) {
       throw new Error(
@@ -131,7 +98,7 @@ async function main(): Promise<void> {
       const recovered = await verifyConsumerBindings(session, target, true)
         .then(async (result) => {
           await saveChangedChartLayout(session.page);
-          await gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName);
+          await gotoChartAndAwaitScript(session.page, chartUrl, target.scriptName);
           return (await verifyConsumerBindings(session, target, false)).ok && result.ok;
         })
         .catch(() => false);

@@ -37,7 +37,7 @@ import {
   addExistingScriptToChartViaIndicators,
   closeTradingViewSession,
   countChartScriptInstances,
-  gotoChart,
+  gotoChartAndAwaitScript,
   isScriptVisibleOnChartSurface,
   newTradingViewSession,
   removeVisibleChartScriptInstances,
@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     if (!session.authResolution.authReusedOk) {
       throw new Error("R1 rollback drill requires authenticated TradingView state");
     }
-    await gotoChart(session.page, chartUrl);
+    await gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);
 
     const baseline = await verifyAll(session, targets, false);
     const baselineBindings = countRestoredBindings(baseline);
@@ -130,7 +130,12 @@ async function main(): Promise<void> {
     }
     companionsRemoved = true;
     await saveChangedChartLayout(session.page);
-    await gotoChart(session.page, chartUrl);
+    // Wait for the PRODUCER, which is never removed. This half asserts that
+    // two scripts are absent, and on a chart whose legend has not been rebuilt
+    // yet absence is indistinguishable from "not drawn": the assertion would
+    // pass on a chart that still carries both companions. Settling on
+    // something expected to be PRESENT is what makes the absence readable.
+    await gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);
 
     const stillPresent: string[] = [];
     for (const name of COMPANIONS) {
@@ -161,7 +166,7 @@ async function main(): Promise<void> {
     // and were green throughout the 2026-07-25 incident; only what survives
     // this save and reload is what the managed layout actually holds.
     await saveChangedChartLayout(session.page);
-    await gotoChart(session.page, chartUrl);
+    await gotoChartAndAwaitScript(session.page, chartUrl, COMPANIONS[0]);
 
     const after = await verifyAll(session, targets, false);
     const missing: string[] = [];
@@ -207,7 +212,7 @@ async function main(): Promise<void> {
       const recovered = await restoreCompanions(session, targets)
         .then(async (restored) => {
           await saveChangedChartLayout(session.page);
-          await gotoChart(session.page, chartUrl);
+          await gotoChartAndAwaitScript(session.page, chartUrl, COMPANIONS[0]);
           const reread = await verifyAll(session, targets, false);
           return restored.length === COMPANIONS.length && reread.every((result) => result.ok);
         })

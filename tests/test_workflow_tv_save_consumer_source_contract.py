@@ -283,7 +283,7 @@ def test_repair_e2e_proves_the_repair_across_a_reload_not_only_in_session() -> N
     # evidence rather than an echo of the session that wrote it.
     # Three in the happy path (open, after the drift save, after the repair
     # save) plus the one in the recovery block, which must also re-read.
-    assert e2e.count("gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName)") >= 4
+    assert e2e.count("gotoChartAndAwaitScript(session.page, chartUrl, target.scriptName)") >= 4
     # And no navigation may bypass the settling wrapper. The wrapper itself
     # calls gotoChart(page, ...), so this only forbids the un-settled form.
     assert "gotoChart(session.page" not in e2e
@@ -312,13 +312,19 @@ def test_repair_e2e_waits_for_the_chart_rather_than_costing_a_rerun() -> None:
     """
     e2e = (_REPO_ROOT / "scripts" / "tv_repair_binding_e2e.ts").read_text(encoding="utf-8")
     verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
-    assert "isScriptVisibleOnChartSurface" in e2e
+    # 2026-08-01: the wait moved into tv_shared because a second drill needs the
+    # identical one, and two copies of a timing fix is how one of them stays
+    # broken. The drill must USE it; the shared module must BE it.
+    shared = (_REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts").read_text(encoding="utf-8")
+    assert "gotoChartAndAwaitScript" in e2e
+    assert "export async function gotoChartAndAwaitScript" in shared
     # The coupling is the point: if the verifier ever gates on something else,
-    # this pin fails and names the drill that still waits for the old signal.
+    # this pin fails and names the wait that still watches the old signal.
+    assert "isScriptVisibleOnChartSurface" in shared
     assert "isScriptVisibleOnChartSurface" in verifier
     assert "Existing chart instance not found" in verifier
-    assert "TV_DRILL_SETTLE_TIMEOUT_MS" in e2e
-    assert "did not surface" in e2e
+    assert "TV_DRILL_SETTLE_TIMEOUT_MS" in shared
+    assert "did not surface" in shared
 
 
 def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
@@ -733,9 +739,11 @@ def test_the_r1_rollback_drill_is_opt_in_and_crosses_a_reload_on_both_halves() -
     drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
     assert "saveChangedChartLayout(session.page)" in drill
     # Open, after the removal save, after the restore save, plus the recovery
-    # block -- gotoChart is a hard page.goto, which is what makes the read-back
-    # evidence rather than an echo of the session that wrote it.
-    assert drill.count("gotoChart(session.page, chartUrl)") >= 4
+    # block -- the wrapper calls a hard page.goto, which is what makes the
+    # read-back evidence rather than an echo of the session that wrote it.
+    assert drill.count("gotoChartAndAwaitScript(session.page, chartUrl") >= 4
+    # No navigation may bypass the settling wrapper.
+    assert "gotoChart(session.page" not in drill
     # Two DISTINCT failures, one per half.
     assert "removal did not survive the reload" in drill
     assert "restored in-session but the layout came back without" in drill
@@ -743,3 +751,26 @@ def test_the_r1_rollback_drill_is_opt_in_and_crosses_a_reload_on_both_halves() -
     assert "removed more than the companions" in drill
     # Leaving the layout without its companions must be loud, not silent.
     assert "MANUAL REPAIR REQUIRED" in drill
+
+
+def test_the_rollback_drill_settles_on_the_producer_before_reading_absence() -> None:
+    """The removal half asserts two scripts are GONE, which is the fragile direction.
+
+    On a chart whose legend TradingView has not rebuilt yet, absence is
+    indistinguishable from "not drawn" -- so the assertion would pass on a
+    layout that still carries both companions, and the restore afterwards would
+    prove nothing. Waiting for the companions themselves is impossible here (they
+    are supposed to be gone), so the wait is on the producer, which is never
+    removed and is therefore a real settling signal.
+
+    The repair drill (#4295) hit the same race in the easier direction: there an
+    unsettled chart merely threw. Here it would have passed.
+    """
+    drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
+
+    removal_save = drill.index("await saveChangedChartLayout(session.page);")
+    absence_read = drill.index("if (await isScriptVisibleOnChartSurface(session.page, name)) stillPresent.push(name);")
+    settle = drill.index("gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);", removal_save)
+    assert removal_save < settle < absence_read, (
+        "the absence read must come after a wait for the producer, not straight after the save"
+    )
