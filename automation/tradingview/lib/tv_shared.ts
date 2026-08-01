@@ -6311,19 +6311,28 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
 /**
  * Best-effort: dismiss the Pine editor so it stops covering chart surfaces.
  *
- * Returns whether the editor is gone — `true` also when none was open. It is
- * NOT a guarantee: as of 2026-07-22 TradingView serves no close affordance for
- * this panel at all. Live probing of the real chart found `#pine-editor-dialog`
- * right-docked at 878x950 carrying only Add-to-chart / Save / Publish / More;
- * Escape does not dismiss it; the `[data-name="pine-dialog-button"]` toolbar
- * toggle keeps its `isActive` class even on a direct DOM `.click()` (the click
- * is not intercepted — `elementFromPoint` resolves into the button); and the
- * More menu offers only editor-settings/window items. Callers must therefore
- * treat a `false` as normal and stay correct with the editor still open.
+ * Returns whether the editor is gone — `true` also when none was open.
  *
- * A blind mouse click into the panel's top-right corner used to follow the
- * Escape fallback. Probing showed it lands on empty header chrome — it opened
- * no menu and closed nothing — so it is gone rather than left as cargo cult.
+ * 2026-08-01, CORRECTION. This comment used to state that "TradingView serves
+ * no close affordance for this panel at all". That is FALSE. The operator's
+ * screenshot of the docked panel shows minimise / expand / X in the panel
+ * chrome, and reports the X present on every chart and every layout. The
+ * earlier claim generalised a single probe of one layout (vWgAWyfC, 2026-07-22)
+ * into a statement about the product, and because it was written as settled
+ * nobody looked again for ten days.
+ *
+ * What the traces actually said was never evidence for that claim either:
+ * `pine-editor-close-candidate-miss-summary count:2` counts candidate LOCATORS
+ * that yielded nothing visible, not elements found. Both families below match
+ * on an English accessible name or `aria-label="Close"`; the real controls are
+ * icon-only, so the helper has been searching for a button that was never the
+ * one on screen.
+ *
+ * The fix is deliberately NOT a positional guess. The same panel chrome carries
+ * Publish and Add-to-chart, and a mis-aimed click there is a live action on the
+ * operator's account. This pass therefore only ENUMERATES the controls into the
+ * trace so the next change can pin the real one against a measurement. Callers
+ * still treat a `false` as normal and stay correct with the editor open.
  */
 export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
   const dialog = await firstVisibleLocator(
@@ -6358,17 +6367,44 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
     return true;
   }
 
-  // No close affordance exists. Live-probed 2026-07-22: on the primary layout
-  // (vWgAWyfC) the Pine editor is DOCKED into the saved workspace — the panel is
-  // present and 878x950 on every fresh load, its toolbar carries only
-  // Add-to-chart / Save / Publish / More, and Escape, the
-  // `[data-name="pine-dialog-button"]` toggle (real click, force, DOM .click(),
-  // 8 attempts) and the More menu are all no-ops. On the mobile layout
-  // (YcGLVHXR) the element is absent entirely. This is layout state; only the
-  // human who owns the layout can undock it, so the helper reports and stops
-  // rather than firing a global Escape at whatever surface happens to be
-  // focused. Callers already treat the result as advisory — a docked editor has
-  // never blocked the chart-surface work these call sites do.
+  // The selectors above missed. Rather than assert again that nothing exists,
+  // read the panel's controls out and put them in the trace. Attributes only --
+  // no click, no keyboard, nothing that could reach Publish or Add-to-chart.
+  // The next change pins the real control against THIS output instead of
+  // against a guess about how TradingView labels its buttons.
+  const controls = await dialog
+    .evaluate((root: Element) =>
+      Array.from(root.querySelectorAll('button, [role="button"], [data-name]'))
+        .slice(0, 40)
+        .map((element, index) => {
+          const box = element.getBoundingClientRect();
+          return {
+            i: index,
+            tag: element.tagName.toLowerCase(),
+            dataName: element.getAttribute("data-name"),
+            ariaLabel: element.getAttribute("aria-label"),
+            title: element.getAttribute("title"),
+            text: (element.textContent ?? "").trim().slice(0, 24),
+            cls: (element.getAttribute("class") ?? "").slice(0, 60),
+            x: Math.round(box.x),
+            y: Math.round(box.y),
+            w: Math.round(box.width),
+            h: Math.round(box.height),
+          };
+        }),
+    )
+    .catch(() => null);
+  tracePageEvent(
+    page,
+    "pine-editor-close-control-inventory",
+    controls ? JSON.stringify(controls) : "unreadable",
+  );
+
+  // Still unresolved and NOT to be assumed either way: whether the docked state
+  // lives in the saved layout (server-side, so a CI run could close it for the
+  // operator) or in the browser profile the storage state was captured from (in
+  // which case closing it here changes nothing on the operator's screen). The
+  // earlier comment asserted the former without measuring it.
   tracePageEvent(page, "pine-editor-docked-not-closeable");
   return false;
 }
