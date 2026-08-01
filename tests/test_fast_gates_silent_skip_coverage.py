@@ -106,6 +106,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_broad_except_silent_budget.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
+    # 2026-08-01: guards that the R1-attested-source gate stays wired into
+    # fast-gates. Without it the gate could be dropped from the workflow and,
+    # like the R1 contract test itself, nothing would notice until after a
+    # merge — which is the hole #4272 and #4284 went through.
+    "tests/test_check_r1_attested_sources.py",
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_datetime_tz_safety_zero_surface.py",

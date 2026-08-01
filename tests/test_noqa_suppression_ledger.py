@@ -145,6 +145,12 @@ _FROZEN_SITES: dict[str, int] = {
     # call; the path is intentionally partial (PATH-resolved).
     "scripts/check_branch_safety.py": 1,
     "scripts/check_commit_authors.py": 1,
+    # 2026-08-01: the R1-attested-source gate shells out to `git diff
+    # --name-only <range>` to learn which files the PR is responsible for.
+    # S603 (subprocess call) and S607 (`git` resolved from PATH) mirror the
+    # commit-author guard directly above; the argument list is a literal, no
+    # shell, and the range comes from the workflow's own base/head SHAs.
+    "scripts/check_r1_attested_sources.py": 2,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,

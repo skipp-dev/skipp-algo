@@ -399,6 +399,16 @@ file = "scripts/analyze_publish_cadence.py"
 attr = "run"
 count = 1
 
+# scripts/check_r1_attested_sources.py: `git diff --name-only <range>` to learn
+# which files a PR is responsible for, so the R1-attested-source gate can be
+# scoped to the change rather than the standing state (2026-08-01). Token-list
+# args, no shell=True, read-only; the range comes from the workflow's own
+# base/head SHAs, never from a branch name or PR title.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/check_r1_attested_sources.py"
+attr = "run"
+count = 1
+
 # scripts/build_evidence_freshness_snapshot.py: single `_git` helper wrapping
 # read-only git queries (ls-tree/show/log) for the evidence-freshness snapshot.
 # Fixed token-list argv, no shell, no untrusted input.
