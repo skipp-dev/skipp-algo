@@ -1,0 +1,81 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  launchTradingViewChromium,
+  probeRuntimeSmoke,
+} from "../lib/tv_shared.js";
+
+// The chart-side error channel exists for ONE reason: a Pine compile error that
+// lives only in the legend badge's `title`/`aria-label` and never in the page
+// body text (the CE10271 class). The body-text channel cannot see those, which
+// is why `getVisibleChartScriptError` walks the legend row instead.
+//
+// It resolved to `string | null` — with no third state for "I could not look".
+// `findLegendRowWrappers` returns `[]` on three pure non-observation paths
+// (`buttons.count().catch(() => 0)`, the single hardcoded
+// `data-qa-id="legend-settings-action"` anchor not matching, and a 300 ms
+// `innerText` timeout per ancestor depth), and an empty list makes the `for`
+// loop body never run, so the function returns `null` = "clean".
+//
+// The body-text sibling already solved exactly this with the
+// COMPILE_PROBE_UNREADABLE sentinel and the comment "so a crashed body read
+// fails the smoke gate CLOSED instead of masquerading as a clean compile". The
+// chart side never got it.
+
+test("a missing legend anchor must not read as a clean compile", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    // A chart carrying a REAL compile error, rendered the way TradingView does
+    // it — the error text lives only in the title attribute. The legend action
+    // button is absent, which is what happens when TradingView renames the
+    // qa-id (it has done so before) or when the row has not painted yet.
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <span title="Compilation error: CE10271">!</span>
+        </div>
+      </div>
+    `);
+
+    const smoke = await probeRuntimeSmoke(page, "SMC Live Overlay");
+
+    // Before the fix: compileError === null and, with the name visible on the
+    // page, ok === true — a broken chart certified as clean.
+    assert.notEqual(
+      smoke.compileError,
+      null,
+      "an unobservable chart error channel must report a probe failure, not a clean compile",
+    );
+    assert.equal(smoke.ok, false);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("an observed, genuinely clean legend row still passes", async () => {
+  // The counterpart that keeps the fix from degenerating into "always red":
+  // when the anchor IS present and carries no error marker, the probe must
+  // still report clean.
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </div>
+      </div>
+    `);
+
+    const smoke = await probeRuntimeSmoke(page, "SMC Live Overlay");
+
+    assert.equal(smoke.compileError, null);
+    assert.equal(smoke.ok, true);
+  } finally {
+    await browser.close();
+  }
+});

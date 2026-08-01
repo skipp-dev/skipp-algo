@@ -7698,8 +7698,44 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
  * generic body-text gate above cannot see an icon whose diagnostic lives in a
  * title/aria-label attribute (the CE10271 incident on 2026-07-16).
  */
-export async function getVisibleChartScriptError(page: Page, scriptName: string): Promise<string | null> {
-  const wrappers = await findLegendRowWrappers(page, scriptName);
+/**
+ * Signals that the chart error channel could not LOOK, as opposed to having
+ * looked and found nothing. Mirrors {@link COMPILE_PROBE_UNREADABLE} on the
+ * body-text side, for the same reason: an unobservable probe must never be
+ * conflated with a genuinely clean compile.
+ */
+export const CHART_ERROR_PROBE_UNREADABLE = Symbol("chart-error-probe-unreadable");
+
+/**
+ * Look for a Pine error on the script's legend row, and say whether the look
+ * succeeded.
+ *
+ * This channel exists for errors that live ONLY in the legend badge's
+ * `title`/`aria-label` (the CE10271 class); the body-text channel cannot see
+ * them. `findLegendRowWrappers` returns `[]` on three pure non-observation
+ * paths — `buttons.count().catch(() => 0)`, the single hardcoded
+ * `data-qa-id="legend-settings-action"` anchor no longer matching, and a 300 ms
+ * `innerText` timeout per ancestor depth — and an empty list used to make the
+ * loop body never run, so the function returned `null`, which every caller read
+ * as "clean". A chart carrying a red compile badge therefore certified green.
+ *
+ * One bounded re-look before giving up: a gate that flakes red gets switched
+ * off by the humans it protects, and the legend row is the one element here
+ * that is genuinely still painting right after an insert.
+ */
+export async function probeVisibleChartScriptError(
+  page: Page,
+  scriptName: string,
+): Promise<string | typeof CHART_ERROR_PROBE_UNREADABLE | null> {
+  let wrappers = await findLegendRowWrappers(page, scriptName);
+  if (wrappers.length === 0) {
+    await page.waitForTimeout(750).catch(() => undefined);
+    wrappers = await findLegendRowWrappers(page, scriptName);
+  }
+  if (wrappers.length === 0) {
+    tracePageEvent(page, "chart-error-probe", `unreadable:${scriptName}`);
+    return CHART_ERROR_PROBE_UNREADABLE;
+  }
   for (const wrapper of wrappers) {
     const candidates = wrapper.locator("[title], [aria-label]");
     const count = await candidates.count();
@@ -7716,6 +7752,16 @@ export async function getVisibleChartScriptError(page: Page, scriptName: string)
     if (detectPineCompileErrorMarker(rowText)) return rowText;
   }
   return null;
+}
+
+/**
+ * Back-compatible view of {@link probeVisibleChartScriptError} for callers that
+ * only want the error text. "Could not look" maps to `null` here, so this must
+ * NOT be used by anything that gates on a clean compile — use the probe.
+ */
+export async function getVisibleChartScriptError(page: Page, scriptName: string): Promise<string | null> {
+  const probed = await probeVisibleChartScriptError(page, scriptName);
+  return probed === CHART_ERROR_PROBE_UNREADABLE ? null : probed;
 }
 
 export async function assertNoVisibleChartScriptError(page: Page, scriptName: string): Promise<void> {
@@ -8168,9 +8214,23 @@ export async function probeRuntimeSmoke(
   // smoke gate CLOSED instead of masquerading as a clean compile (`null`).
   const compileMarker = await getVisibleCompileErrorMarker(page).catch(() => "runtime_smoke_probe_failed" as const);
   const bodyCompileError = compileMarker === COMPILE_PROBE_UNREADABLE ? "runtime_smoke_probe_failed" : compileMarker;
-  const chartCompileError = bodyCompileError
+  // The chart channel now reports whether it could look at all. An unreadable
+  // look fails the gate CLOSED, exactly as the body channel already did — the
+  // two are not redundant: the body text cannot see an error that lives only in
+  // the legend badge's title attribute, which is the whole reason this second
+  // channel exists.
+  //
+  // This also closes the combination that made the gate certifiable-by-accident:
+  // `scriptVisible` below falls back to matching the script NAME anywhere on the
+  // page (its own comment two definitions up says that flag must not decide), so
+  // a script that never loaded could read as visible while the error channel
+  // reported clean. With no legend row there is now no clean verdict to have.
+  const chartProbe = bodyCompileError
     ? null
-    : await getVisibleChartScriptError(page, scriptName).catch(() => "runtime_smoke_probe_failed");
+    : await probeVisibleChartScriptError(page, scriptName).catch(() => "runtime_smoke_probe_failed" as const);
+  const chartCompileError = chartProbe === CHART_ERROR_PROBE_UNREADABLE
+    ? "runtime_smoke_probe_failed"
+    : chartProbe;
   const compileError = bodyCompileError || chartCompileError;
 
   return {
