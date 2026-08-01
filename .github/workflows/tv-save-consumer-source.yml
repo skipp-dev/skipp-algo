@@ -181,17 +181,24 @@ jobs:
       # Runs on EVERY trigger, before the browser opens. The 2026-08-01
       # un-attestation arrived through the workflow_run chain, not a dispatch,
       # so gating only the manual path would leave the door that was used.
+      # A step OUTPUT, not $GITHUB_ENV: writing the environment file is a
+      # zizmor `github-env` high finding, and an output is what this actually
+      # is -- one value, consumed by two named steps.
       - name: Hold back R1-attested sources from an unattested save
+        id: attestation
         run: |
           set -euo pipefail
           held="$(python3 -m scripts.tv_attested_source_holdback \
             --config automation/tradingview/config/consumer-rollout.json)"
-          echo "TV_ATTESTED_HOLDBACK=${held}" >> "$GITHUB_ENV"
+          echo "holdback=${held}" >> "$GITHUB_OUTPUT"
 
       - name: Save or read-only verify consumers in one browser session
         id: save
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          # Sources the registered R1 evidence no longer attests. The rollout
+          # drops them from its save targets after any explicit mapping.
+          TV_ATTESTED_HOLDBACK: ${{ steps.attestation.outputs.holdback }}
           TV_VERIFY_ONLY: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}
           # [] remains a legacy-compatible belt-and-suspenders guard. The
           # actual no-write contract is --verify-only below.
@@ -267,7 +274,9 @@ jobs:
       # the opposite. Deliberately NOT always() -- this reports the hold, it does
       # not re-report an unrelated failure.
       - name: Fail the run when an R1-attested source was held back
-        if: ${{ env.TV_ATTESTED_HOLDBACK != '' && env.TV_ATTESTED_HOLDBACK != '[]' }}
+        if: ${{ steps.attestation.outputs.holdback != '' && steps.attestation.outputs.holdback != '[]' }}
+        env:
+          TV_ATTESTED_HOLDBACK: ${{ steps.attestation.outputs.holdback }}
         run: |
           set -euo pipefail
           {

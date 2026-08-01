@@ -573,12 +573,22 @@ def test_the_attestation_holdback_runs_on_every_trigger_before_the_browser_opens
     guard = next(s for s in steps if s.get("name") == "Hold back R1-attested sources from an unattested save")
 
     assert "python -m scripts.tv_attested_source_holdback" in guard["run"].replace("python3", "python")
-    assert 'echo "TV_ATTESTED_HOLDBACK=${held}" >> "$GITHUB_ENV"' in guard["run"]
+    # A step output, not $GITHUB_ENV: writing the environment file is a zizmor
+    # `github-env` high finding, and it also let the value reach the rollout
+    # implicitly -- so nothing pinned that it arrived at all.
+    assert 'echo "holdback=${held}" >> "$GITHUB_OUTPUT"' in guard["run"]
+    assert "GITHUB_ENV" not in guard["run"]
     # No `if:` at all -- schedule, dispatch and the workflow_run chain alike.
     assert "if" not in guard, "the holdback must not be conditional on the trigger"
     assert names.index("Hold back R1-attested sources from an unattested save") < names.index(
         "Save or read-only verify consumers in one browser session"
     )
+
+    # The load-bearing wiring: computing a holdback the rollout never receives
+    # would leave the guard reporting a hold that did not happen.
+    save = next(s for s in steps if s.get("name") == "Save or read-only verify consumers in one browser session")
+    assert save["env"]["TV_ATTESTED_HOLDBACK"] == "${{ steps.attestation.outputs.holdback }}"
+    assert guard["id"] == "attestation"
 
 
 def test_a_held_back_source_turns_the_run_red_after_the_snapshot_is_published() -> None:
@@ -587,7 +597,7 @@ def test_a_held_back_source_turns_the_run_red_after_the_snapshot_is_published() 
     fail = next(s for s in steps if s.get("name") == "Fail the run when an R1-attested source was held back")
 
     assert "exit 1" in fail["run"]
-    assert "env.TV_ATTESTED_HOLDBACK != '[]'" in fail["if"]
+    assert "steps.attestation.outputs.holdback != '[]'" in fail["if"]
     # Not always(): this step reports the hold, it must not re-report an
     # unrelated failure as an attestation problem.
     assert "always()" not in fail["if"]
