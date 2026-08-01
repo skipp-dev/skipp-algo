@@ -1,0 +1,47 @@
+[
+  {
+    "entry": 31.97,
+    "quantity": 1,
+    "stop_loss": 26.0065,
+    "symbol": "SMCI",
+    "take_profit": 43.897,
+    "trade_date": "2026-06-12",
+    "variant": "smc_orb_vwap_hold"
+  },
+  {
+    "entry": 204.87,
+    "quantity": 1,
+    "stop_loss": 192.316,
+    "symbol": "NVDA",
+    "take_profit": 229.978,
+    "trade_date": "2026-06-12",
+    "variant": "smc_orb_vwap_hold"
+  },
+  {
+    "entry": 488.45,
+    "quantity": 1,
+    "stop_loss": 439.9592,
+    "symbol": "AMD",
+    "take_profit": 585.4316,
+    "trade_date": "2026-06-12",
+    "variant": "smc_orb_vwap_hold"
+  },
+  {
+    "entry": 399.15,
+    "quantity": 1,
+    "stop_loss": 372.2061,
+    "symbol": "TSLA",
+    "take_profit": 453.0378,
+    "trade_date": "2026-06-12",
+    "variant": "smc_orb_vwap_hold"
+  },
+  {
+    "entry": 241.51,
+    "quantity": 1,
+    "stop_loss": 230.5912,
+    "symbol": "AMZN",
+    "take_profit": 263.3476,
+    "trade_date": "2026-06-12",
+    "variant": "smc_orb_vwap_hold"
+  }
+]
