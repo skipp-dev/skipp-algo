@@ -768,9 +768,72 @@ def test_the_rollback_drill_settles_on_the_producer_before_reading_absence() -> 
     """
     drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
 
-    removal_save = drill.index("await saveChangedChartLayout(session.page);")
+    # Anchored on the removal itself, not on "the first saveChangedChartLayout
+    # in the file". The save is no longer unique to this half -- the restore
+    # path saves too -- and a helper moved above main() would silently point
+    # this anchor at a different save, leaving the ordering assertion true for
+    # the wrong reason.
+    removal = drill.index("companionsRemoved = true;\n    await saveChangedChartLayout(session.page);")
     absence_read = drill.index("if (await isScriptVisibleOnChartSurface(session.page, name)) stillPresent.push(name);")
-    settle = drill.index("gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);", removal_save)
-    assert removal_save < settle < absence_read, (
+    settle = drill.index("gotoChartAndAwaitScript(session.page, chartUrl, config.producerName);", removal)
+    assert removal < settle < absence_read, (
         "the absence read must come after a wait for the producer, not straight after the save"
     )
+
+
+def test_the_restore_uses_the_insertion_path_that_actually_inserts() -> None:
+    """Run 30700389375 removed both companions and could not put them back.
+
+    The restore drove the indicators dialog. Its row locator reported no visible
+    candidate, it fell back to the keyboard, and that dialog does not commit on
+    Enter -- the footer button reads "Select". Four attempts logged
+    ``add-to-chart-indicators-no-visible-script`` while the step still reported
+    ok, and the managed layout stayed empty. The producer refresh inserts
+    through the Pine editor instead, on every run, and that is the path here.
+    """
+    drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
+
+    assert "addExistingScriptToChartViaIndicators" not in drill
+    assert "await refreshChartScriptInstance(session.page, name);" in drill
+    # Presence is read from the chart, not taken from the insertion's own word.
+    assert "if (await isScriptVisibleOnChartSurface(session.page, name)) restored.push(name);" in drill
+
+    # A rebind against an instance that is not on the chart throws "Existing
+    # chart instance not found", which reads as a binding fault and hides the
+    # failed insertion underneath it. That is how the run reported itself.
+    guard = drill.index("if (restored.length !== COMPANIONS.length) return restored;")
+    rebind = drill.index("await verifyAll(session, targets, true);")
+    assert guard < rebind
+
+
+def test_repair_mode_can_restore_a_layout_the_drill_left_empty() -> None:
+    """Re-running the full drill cannot repair its own damage.
+
+    With the companions already gone it fails the baseline precondition, which
+    is BEFORE ``companionsRemoved`` is set -- so the recovery block never runs
+    and the layout stays empty. Run 30700389375 needed exactly this path and the
+    repository did not have it.
+    """
+    dispatch = (_load().get("on") or _load().get(True))["workflow_dispatch"]["inputs"]
+    assert dispatch["r1_restore_companions"]["default"] is False
+
+    drill_step = next(s for s in _steps() if s.get("name") == "R1 companion rollback drill")
+    assert "r1_restore_companions == 'true'" in drill_step["if"]
+    assert "verify_only != 'true'" in drill_step["if"]
+    assert drill_step["env"]["TV_DRILL_RESTORE_ONLY"] == "${{ github.event.inputs.r1_restore_companions }}"
+
+    drill = (_REPO_ROOT / "scripts" / "tv_r1_companion_rollback_drill.ts").read_text(encoding="utf-8")
+    assert 'process.env.TV_DRILL_RESTORE_ONLY ?? ""' in drill
+    # The repair half arms the recovery block before it touches anything, so a
+    # failed restore is still announced rather than exiting quietly.
+    restore_only = drill.index("if (restoreOnly) {")
+    arm = drill.index("companionsRemoved = true;", restore_only)
+    restore = drill.index("await restoreCompanions(session, targets);", restore_only)
+    assert restore_only < arm < restore
+
+    # There is no live baseline in repair mode -- the companions are gone, so a
+    # measured baseline would read zero and any comparison against it would pass
+    # whatever came back. The number comes from the registered evidence instead.
+    assert "attestedBindingCount()" in drill
+    assert "tradingView?.bindingsChecked" in drill
+    assert "smc_r1_live_rollout_evidence_" in drill
