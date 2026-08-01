@@ -11,7 +11,11 @@ import {
 } from "playwright";
 
 import { tvSelectors, type PineDraftKind } from "../selectors.js";
-import { chartIntervalDisplayLabel, type ChartStateSnapshot } from "./tv_validation_model.js";
+import {
+  chartIntervalDisplayLabel,
+  clipboardReadbackProvesWrite,
+  type ChartStateSnapshot,
+} from "./tv_validation_model.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
@@ -6745,6 +6749,32 @@ export async function setEditorContent(
       await page.keyboard.press(`${mod}+V`).catch(() => undefined);
       await page.waitForTimeout(Math.min(2_500, 250 + Math.ceil(code.length / 100)));
 
+      // Re-seed the clipboard with a marker BEFORE copying the editor back.
+      // Without it the readback below compares `code` against the very value
+      // this function put on the clipboard 20 lines ago: a copy that never
+      // lands (focus lost, Monaco not focused, an overlay in front) leaves the
+      // original write in place and the comparison succeeds while the editor is
+      // untouched. The read path in this module has guarded against exactly
+      // this since it was written — "so a copy that never lands cannot
+      // masquerade as source".
+      const clipboardMarker = `tv-editor-write-probe-${Date.now()}-${code.length}`;
+      const seeded = await page
+        .evaluate(async (marker) => {
+          try {
+            await navigator.clipboard.writeText(marker);
+            return true;
+          } catch {
+            return false;
+          }
+        }, clipboardMarker)
+        .catch(() => false);
+      tracePageEvent(page, "editor-trace", `clipboard:seed:${seeded}`);
+      if (!seeded) {
+        // Cannot tell a stale readback from a real one — fail closed and let
+        // the next strategy try.
+        return false;
+      }
+
       await page.keyboard.press(`${mod}+A`).catch(() => undefined);
       await page.keyboard.press(`${mod}+C`).catch(() => undefined);
       await page.waitForTimeout(150);
@@ -6759,14 +6789,17 @@ export async function setEditorContent(
         })
         .catch(() => "");
 
-      const normalizedExpected = normalizeClipboardText(code);
-      const normalizedActual = normalizeClipboardText(copiedBack);
-      const matches =
-        normalizedActual === normalizedExpected ||
-        (normalizedActual.length === normalizedExpected.length &&
-          normalizedActual.slice(0, 200) === normalizedExpected.slice(0, 200) &&
-          normalizedActual.slice(-200) === normalizedExpected.slice(-200));
-      tracePageEvent(page, "editor-trace", `clipboard:readback:${normalizedActual.length}:${matches}`);
+      const matches = clipboardReadbackProvesWrite({
+        expected: code,
+        seededMarker: clipboardMarker,
+        readback: copiedBack,
+        normalize: normalizeClipboardText,
+      });
+      tracePageEvent(
+        page,
+        "editor-trace",
+        `clipboard:readback:${copiedBack.length}:${copiedBack === clipboardMarker ? "marker" : "content"}:${matches}`,
+      );
       return matches;
     };
 
