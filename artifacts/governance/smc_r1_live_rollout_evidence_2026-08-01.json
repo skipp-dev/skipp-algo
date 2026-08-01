@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 2,
+  "capturedAt": "2026-08-01T05:05:15Z",
+  "scope": "Re-attestation of the R1 companion saved sources after an automated consumer save overwrote the 2026-07-29 attested SMC Event Overlay source. Measurement only: no publication, no alert creation or modification, no Railway mutation, no layout-preset change.",
+  "supersedes": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
+  "supersessionNote": "The 2026-07-29 artifact remains checked in and unmodified. It is a dated measurement of the state on that day and stays true of that day; it is superseded as the CURRENT attestation, not corrected.",
+  "reattestationTrigger": {
+    "reason": "smc-library-refresh bumped the Event Overlay micro-profile import from /179 to /182 (#4284) and the chained consumer save pushed the new source to TradingView, so the source attested on 2026-07-29 no longer existed live.",
+    "attestedEventOverlaySha256": "12c2d18e238bb775de794ac496286cc619c6770d9a9191a4d05cc5aaf9df3048",
+    "supersededByRepositorySha256": "7175b404221136b8885b3f6de9b5dc2fca6d28b948c6e183a9b0ecf205ccaae1",
+    "sourceDiffCharacter": "library pin 179 -> 182, continuation-line reindent (CE10156 class), and one status-line change replacing a single dynamic plotchar with five static ones because Pine requires plotchar.char to be a const string. Display surface only: no alert, no plot consumed by another script, no trade logic.",
+    "exitSignalUnchanged": true,
+    "gateThatDidNotFire": "scripts/check_r1_attested_sources.py (#4286) blocks a PULL REQUEST that un-attests a source. The overwrite reached TradingView through a workflow_dispatch of tv-save-consumer-source, which no gate observes."
+  },
+  "authorization": {
+    "account": "preuss_steffen",
+    "layout": "SMC Simple Management R1",
+    "visibility": "private",
+    "publicationAuthorized": false,
+    "alertMutationAuthorized": false,
+    "railwayMutationAuthorized": false
+  },
+  "sources": {
+    "SMC Event Overlay": {
+      "path": "SMC_Event_Overlay.pine",
+      "repositorySha256": "7175b404221136b8885b3f6de9b5dc2fca6d28b948c6e183a9b0ecf205ccaae1",
+      "savedSourceReadbackSha256": "7175b404221136b8885b3f6de9b5dc2fca6d28b948c6e183a9b0ecf205ccaae1",
+      "compileStatus": "passed",
+      "compileDiagnostics": [],
+      "compileEvidenceMechanism": "saveConsumerSource awaits waitForPostSaveCompileSettlement and then assertNoVisibleCompileError (scripts/tv_save_consumer_source.ts:142-144). The check is enforced by throwing, so it is proven by the save entry reporting ok rather than recorded as its own field.",
+      "savedSourceReadbackRun": 30685141166,
+      "saveRun": 30684233847
+    },
+    "SMC Exit Signal": {
+      "path": "SMC_Exit_Signal.pine",
+      "repositorySha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+      "savedSourceReadbackSha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+      "compileStatus": "passed",
+      "compileDiagnostics": [],
+      "compileEvidenceMechanism": "saveConsumerSource awaits waitForPostSaveCompileSettlement and then assertNoVisibleCompileError (scripts/tv_save_consumer_source.ts:142-144). The check is enforced by throwing, so it is proven by the save entry reporting ok rather than recorded as its own field.",
+      "savedSourceReadbackRun": 30685141166,
+      "saveRun": 30684233847,
+      "unchangedSince": "2026-07-29"
+    }
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Simple Management R1",
+    "layoutUrl": "https://www.tradingview.com/chart/hKHTmKhu/",
+    "consumersFoundOnChart": [
+      "SMC Event Overlay",
+      "SMC Exit Signal"
+    ],
+    "bindings": {
+      "SMC Event Overlay": {
+        "BUS LeanPackA": "SMC Long-Dip Suite: BUS LeanPackA"
+      },
+      "SMC Exit Signal": {
+        "BUS SchemaVersion": "SMC Long-Dip Suite: BUS SchemaVersion",
+        "BUS Armed": "SMC Long-Dip Suite: BUS Armed",
+        "BUS Confirmed": "SMC Long-Dip Suite: BUS Confirmed",
+        "BUS Ready": "SMC Long-Dip Suite: BUS Ready",
+        "BUS Trigger": "SMC Long-Dip Suite: BUS Trigger",
+        "BUS Invalidation": "SMC Long-Dip Suite: BUS Invalidation",
+        "BUS StopLevel": "SMC Long-Dip Suite: BUS StopLevel",
+        "BUS Target1": "SMC Long-Dip Suite: BUS Target1",
+        "BUS Target2": "SMC Long-Dip Suite: BUS Target2"
+      }
+    },
+    "bindingsChecked": 10,
+    "bindingMismatches": 0,
+    "bindingStatusAfterChartLoad": "passed",
+    "bindingObservationCount": 3,
+    "chartRuntimeErrorsAfterLoad": [],
+    "unknownParentRuntimeError": false,
+    "suitePresence": "inferred",
+    "suitePresenceEvidence": "Every BUS input resolved to a 'SMC Long-Dip Suite: <label>' parent with zero unknown-parent runtime errors. No direct chart-inventory scan of the producer was run, so the Suite's presence is inferred from live parent resolution rather than counted.",
+    "alertsCreated": false,
+    "alertsModified": false,
+    "alertMutationEvidence": "None of the executed scripts (tv_batch_consumer_rollout.ts, tv_save_consumer_source.ts, tv_verify_consumer_bindings.ts) contains any alert creation, modification, or removal path.",
+    "compileStatusAfterFinalReload": "not_run",
+    "alertConditionInventory": "not_run",
+    "holdManagerPresent": "not_run",
+    "forbiddenConcurrentScriptsPresent": "not_run",
+    "finalInventory": "not_run",
+    "layoutSaveStatus": "not_required",
+    "layoutSaveNote": "No binding was changed on this layout, so no layout save was requested or performed (mutations.layoutSaveRequested false in both runs). The bindings were already correct."
+  },
+  "rollback": {
+    "status": "not_run",
+    "reason": "The 2026-07-29 rollback drill (remove both companions, reload, verify Suite-only, restore from the saved scripts, re-establish ten bindings, final reload) has no implementation in this repository. Running it would mean improvising the sequence against the live account, and re-inserting a chart instance restores it with DEFAULT inputs, which would drop the ten bindings that are currently correct.",
+    "notTheSameAs": "The controlled repair E2E run on 2026-08-01 (run 30685141166) is a different drill on a different chart: it drifts one binding of SMC Decision Board on the primary operator layout vWgAWyfC and proves the repair survives a reload. It exercises the repair machinery, not the R1 companion rollback."
+  },
+  "replay": {
+    "status": "carried_over",
+    "passedLogicalCases": 11,
+    "evidence": "artifacts/governance/smc_exit_signal_tradingview_replay_2026-07-29.json",
+    "justification": "The replay evidence covers SMC Exit Signal, whose source SHA-256 is byte-identical to the 2026-07-29 attested value (82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c). The 2026-08-01 drift is confined to SMC Event Overlay. Nothing the replay measured changed, so re-running it would produce the same cases against the same source."
+  },
+  "openGates": [
+    "alert-condition inventory for both companions",
+    "Hold Manager exclusivity and Simple Management layout inventory",
+    "chart-instance compile status after a final reload",
+    "rollback drill removing and restoring both companions"
+  ],
+  "limitations": [
+    "No TradingView alert was created, changed, enabled, or disabled.",
+    "No script was published.",
+    "No Railway service, variable, deployment, or secret was changed.",
+    "No layout was saved; no binding was repaired or rebound on the R1 layout.",
+    "The four open gates above were NOT measured on 2026-08-01. The 2026-07-29 artifact recorded them from operator observation during an attended session; nothing in this run reproduces them, and they are listed as open rather than carried over.",
+    "The producer's presence on the R1 layout is inferred from resolved BUS parents, not counted by an inventory scan."
+  ],
+  "evidenceRuns": [
+    {
+      "runId": 30684146497,
+      "workflow": "smc-r4-context-readback",
+      "executionMode": "readonly",
+      "capturedAt": "2026-08-01T04:36:59Z",
+      "contributes": "auth, layout identity, both companions found on chart with correct binding count and names"
+    },
+    {
+      "runId": 30684233847,
+      "workflow": "tv-save-consumer-source",
+      "executionMode": "write",
+      "capturedAt": "2026-08-01T04:36:01Z",
+      "contributes": "post-save compile settlement for both companion sources; 11 of 11 consumer sources saved and read back",
+      "dispatchedBy": "a parallel session, not by this attestation"
+    },
+    {
+      "runId": 30685141166,
+      "workflow": "tv-save-consumer-source",
+      "executionMode": "write",
+      "capturedAt": "2026-08-01T05:05:15Z",
+      "contributes": "saved-source SHA-256 readback equality for all 11 consumers (drifted 0) and the ten R1 bindings with zero mismatches and zero runtime errors",
+      "note": "dispatched with an empty mapping, so no source was written; the source and binding verification paths ran in full"
+    }
+  ],
+  "repoCommitSha": "d589ee82a959aa6804217451d59c1d0bd91630df",
+  "libraryReleaseVersion": 182
+}

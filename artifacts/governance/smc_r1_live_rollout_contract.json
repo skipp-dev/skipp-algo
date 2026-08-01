@@ -1,9 +1,10 @@
 {
   "claimPolicy": [
     "This contract and its repository tests do not independently prove live TradingView state; the registered immutable execution evidence does.",
-    "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid."
+    "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid.",
+    "An automated consumer save can overwrite an attested source without passing any pull request, so a source hash matching the evidence proves re-attestation only for the axes the evidence actually measured. Read openGates before treating this contract as complete."
   ],
-  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
+  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json",
   "executionPerformed": true,
   "gate": "R1-LIVE-ROLLOUT",
   "layoutContract": {
@@ -16,12 +17,18 @@
       "SMC Exit Signal"
     ]
   },
-  "openGates": [],
+  "openGates": [
+    "alert-condition inventory for both companions",
+    "Hold Manager exclusivity and Simple Management layout inventory",
+    "chart-instance compile status after a final reload",
+    "rollback drill removing and restoring both companions"
+  ],
   "preflight": {
     "command": "npx tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-r1-companions.json --execution-mode mutating",
     "config": "automation/tradingview/preflight-r1-companions.json",
     "scope": "smcR1Companions"
   },
+  "priorExecutionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
   "requiredEvidence": [
     "authenticated private TradingView account and intended layout identity",
     "post-save compile success for both canonical sources",
@@ -32,7 +39,7 @@
     "rollback drill removing both companions without changing the Suite or existing consumers"
   ],
   "schemaVersion": 1,
-  "status": "authorized_execution_completed",
+  "status": "authorized_execution_partially_reattested",
   "targets": [
     {
       "bindingLabels": [
@@ -40,7 +47,7 @@
       ],
       "libraryPin": {
         "importPath": "preuss_steffen/smc_micro_profiles_generated",
-        "version": 179
+        "version": 182
       },
       "path": "SMC_Event_Overlay.pine",
       "requiredAlerts": [
@@ -48,7 +55,7 @@
         "Event Restriction Window Started"
       ],
       "scriptName": "SMC Event Overlay",
-      "sha256": "12c2d18e238bb775de794ac496286cc619c6770d9a9191a4d05cc5aaf9df3048"
+      "sha256": "7175b404221136b8885b3f6de9b5dc2fca6d28b948c6e183a9b0ecf205ccaae1"
     },
     {
       "bindingLabels": [
