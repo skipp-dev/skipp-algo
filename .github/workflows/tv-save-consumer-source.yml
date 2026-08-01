@@ -144,7 +144,12 @@ jobs:
         id: refresh_commit
         if: github.event_name == 'workflow_run'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Canonical binding required by tests/test_workflow_gh_pat_discipline.py
+          # for every `gh pr` call. This step only READS, so github.token alone
+          # would function — but the discipline is uniform on purpose: the rule
+          # cannot tell a read from a write without parsing the subcommand, and
+          # an exception here would be one more thing that has to stay true.
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           REPO: ${{ github.repository }}
           REFRESH_RUN_ID: ${{ github.event.workflow_run.id }}
           # Auto-merge on a bot/* PR skips heavy CI and lands in seconds; the
