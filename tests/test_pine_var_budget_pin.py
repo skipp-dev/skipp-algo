@@ -145,10 +145,16 @@ _FROZEN_LEDGER: dict[str, int] = {
     # requested ContextFrame state remains owned by the imported private /4
     # library rather than duplicated in the fixture.
     "tests/fixtures/pine/smc_htf_context_r5_spike.pine": 1,
+    # 2026-08-01: generated, test-only R4 Context readback harness. The two
+    # canonical declarations plus ONE table for the structure/zone parity
+    # readback. No detector state is duplicated: every rendered value is the
+    # canonical plot expression, lifted verbatim by the generator.
+    "tests/fixtures/pine/smc_context_bus_r4_readback_fixture.pine": 3,
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 1068  # 2026-07-30: +1 test-only R5 HTF spike group label.
+# 2026-08-01: 1068 -> 1071 (+3 for the R4 Context readback fixture above).
+_TOTAL_BUDGET = 1071
 
 
 def _iter_pine() -> list[Path]:
