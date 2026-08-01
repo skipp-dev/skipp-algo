@@ -1,0 +1,122 @@
+# live-window: any-trigger  # dispatches a READ-ONLY verification; opens no TradingView session of its own
+name: tv-post-mutation-verify
+
+# Operator decision 2026-08-01: the operator's full browser is the normal
+# production writer on the TradingView account — automation is the guest — and
+# the session concurrency group serialises CI against CI only (#4316).
+# TradingView autosaves from the operator's browser, so a tab that still holds
+# the pre-mutation state can silently write it back minutes after a mutating
+# run finished. Until now the first thing that could notice was the 05:17Z
+# verify cron: up to a day later. Run 30700389375 is the measured shape of the
+# cost — a failed mutation left the managed layout broken for 67 minutes and
+# nothing automated was going to look at it that day.
+#
+# This workflow shortens that window to ~15 minutes: after every MUTATING
+# tv-save-consumer-source run it waits and dispatches a read-only verification
+# of the same surface.
+#
+# Two properties are load-bearing and pinned by
+# tests/test_workflow_tv_post_mutation_verify_contract.py:
+#
+#   * The wait happens OUTSIDE the tradingview-session concurrency group. A
+#     sleep inside that group would hold the single TradingView account hostage
+#     for 15 idle minutes per mutation. Only the dispatched verify run joins
+#     the session group, and only when it actually starts.
+#
+#   * The loop terminates by measurement, not by convention: the trigger fires
+#     for EVERY completed tv-save-consumer-source run, including the verify
+#     runs this workflow dispatches. The gate reads the completed run's
+#     published binding snapshot and exits when executionMode is verify-only.
+#     A run whose snapshot is missing (died before upload) is treated as
+#     mutating — nobody can prove it did not write, so the cheap re-verify
+#     runs. Fail closed, in the direction of looking.
+
+on:
+  # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
+  # tv-save-consumer-source (no fork/PR-controlled context reaches it: that
+  # workflow has no pull_request trigger). This job checks out nothing, reads
+  # one artifact of the completed run, and dispatches with a fixed read-only
+  # input; permissions are actions:write + contents:read only.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows:
+      - tv-save-consumer-source
+    types:
+      - completed
+
+permissions:
+  actions: write # dispatch the verify run and read the trigger run's artifact
+  contents: read
+
+concurrency:
+  # Deliberately NOT cancel-in-progress: a verify-triggered instance exits in
+  # seconds at the loop guard, so the queue stays shallow — and cancelling a
+  # sleeping instance when an unrelated verify run completes would silently
+  # drop a pending re-verify whose mutation still deserves its +15min look.
+  group: tv-post-mutation-verify
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reverify:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - name: Read the completed run's execution mode from its snapshot
+        id: mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          mode="unknown"
+          if gh run download "${TRIGGER_RUN_ID}" -n tradingview-consumer-bindings -D snapshot 2>/dev/null; then
+            mode="$(jq -r '.executionMode // "unknown"' snapshot/tradingview_consumer_bindings.json 2>/dev/null || echo unknown)"
+          fi
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "trigger run ${TRIGGER_RUN_ID} executionMode: ${mode}"
+
+      # Loop guard. The verify run this workflow dispatches completes and
+      # re-triggers this workflow; its snapshot says verify-only and the chain
+      # ends here — measured from the artifact, not inferred from event names.
+      - name: Stop when the completed run was read-only
+        if: ${{ steps.mode.outputs.mode == 'verify-only' }}
+        run: |
+          echo "::notice::completed run was verify-only — no re-verification needed"
+
+      - name: Wait 15 minutes before re-reading the mutated surface
+        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        run: sleep 900
+
+      - name: Dispatch the read-only verification
+        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"verify_only":"true"}}'
+
+      - name: Write dispatch summary
+        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        env:
+          TRIGGER_MODE: ${{ steps.mode.outputs.mode }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          {
+            echo "### Post-mutation verification dispatched"
+            echo ""
+            echo "- trigger run: ${TRIGGER_RUN_ID} (executionMode: ${TRIGGER_MODE})"
+            echo "- dispatched: tv-save-consumer-source.yml verify_only=true after 15 min"
+          } >> "$GITHUB_STEP_SUMMARY"

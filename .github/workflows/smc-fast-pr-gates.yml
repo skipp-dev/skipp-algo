@@ -473,6 +473,7 @@ jobs:
             tests/test_workflow_runner_pinned.py \
             tests/test_workflow_set_plus_e_inventory.py \
             tests/test_workflow_tv_save_consumer_source_contract.py \
+            tests/test_workflow_tv_post_mutation_verify_contract.py \
             tests/test_workflow_orphan_inventory.py \
             tests/test_smc_r4_context_readback_workflow.py \
             tests/test_scripts_path_as_posix_guard.py \
