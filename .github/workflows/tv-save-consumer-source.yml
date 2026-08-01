@@ -14,7 +14,7 @@ name: tv-save-consumer-source
 # chained save stays inside the off-hours posture on normal days.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
-# strategies — SMC_Dashboard, SMC_Core_Engine, …) into their EXISTING TradingView
+# strategies — SMC_Long_Dip_Dashboard, SMC_Long_Dip_Strategy, …) into their EXISTING TradingView
 # saved scripts, via one shared-browser batch (open → paste → save →
 # compile-verify → verify chart bindings). Unlike the library publishers, consumers are not "published";
 # they are the operator's saved chart scripts, which froze months ago on old
@@ -33,9 +33,9 @@ name: tv-save-consumer-source
 #   * The batch opens each script by EXACT saved name; a wrong/
 #     unknown name simply fails to open (no wrong-script paste) and is reported
 #     as a per-entry miss — the run continues and summarizes hits vs misses.
-#   * Each save compile-verifies before reporting ok; existing Dashboard,
-#     Strategy, Alerts, Setup Check, Breakout, and Confluence chart bindings are
-#     checked afterwards in that same browser session.
+#   * Each save compile-verifies before reporting ok; the chart bindings of
+#     every consumer-rollout.json verifyTarget (Decision Board through the R1
+#     companions) are checked afterwards in that same browser session.
 #
 # The `mapping` input is a JSON array of {"source": "<repo .pine>", "scriptName":
 # "<exact saved TV name>"}. Default covers the saved names known from the repo /
