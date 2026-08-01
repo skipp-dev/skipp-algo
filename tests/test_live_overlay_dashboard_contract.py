@@ -81,24 +81,33 @@ def test_alert_rules_include_dedicated_news_snapshot_series_missing_rule() -> No
     assert "absent(live_overlay_provider_news_snapshot_age_seconds" in expr
 
 
-def test_alert_rules_include_combined_news_snapshot_stale_or_missing_warning() -> None:
-    """Combined stale/missing snapshot alert must stay present and warning-severity."""
+def test_alert_rules_split_news_snapshot_missing_and_stale_coverage() -> None:
+    """Both halves of the news-snapshot alert must stay present.
+
+    Until 2026-07-31 this guarded a single combined rule
+    ``lo-news-snapshot-stale-or-missing`` and skipped when it was absent. #2882
+    (2026-06-21) deliberately SPLIT that rule into ``lo-news-snapshot-unavailable``
+    (snapshot missing) and ``lo-news-snapshot-stale`` (snapshot too old), so the
+    guard skipped for six weeks and enforced nothing. Re-anchored on the two
+    successors; the severities are the ones the split actually chose — missing is
+    high, stale is warning — not the combined rule's uniform warning.
+    """
     rules_doc = yaml.safe_load(_ALERT_RULES_YAML.read_text(encoding="utf-8"))
     groups = rules_doc["groups"]
     warning_group = next(g for g in groups if g.get("name") == "live-overlay-warning")
-    rule = next(
-        (r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale-or-missing"),
-        None,
-    )
+    by_uid = {r.get("uid"): r for r in warning_group["rules"]}
 
-    if rule is None:
-        pytest.skip("combined stale/missing warning rule not present in current ruleset")
+    missing = by_uid.get("lo-news-snapshot-unavailable")
+    stale = by_uid.get("lo-news-snapshot-stale")
+    assert missing is not None, "snapshot-missing half of the news-snapshot alert vanished"
+    assert stale is not None, "snapshot-stale half of the news-snapshot alert vanished"
 
-    assert rule["labels"]["severity"] == "warning"
-    expr = rule["data"][0]["model"]["expr"]
-    assert "live_overlay_provider_news_snapshot_loaded" in expr
-    assert "live_overlay_provider_news_snapshot_age_seconds" in expr
-    assert "or" in expr
+    assert missing["labels"]["severity"] == "high"
+    assert stale["labels"]["severity"] == "warning"
+    assert "live_overlay_provider_news_snapshot_loaded" in missing["data"][0]["model"]["expr"]
+    stale_expr = stale["data"][0]["model"]["expr"]
+    assert "live_overlay_provider_news_snapshot_loaded" in stale_expr
+    assert "live_overlay_provider_news_snapshot_age_seconds" in stale_expr
 
 
 def test_state_timeline_panels_hide_threshold_range_legend() -> None:
@@ -107,19 +116,23 @@ def test_state_timeline_panels_hide_threshold_range_legend() -> None:
     convey the value mappings.
 
     In v2 format: vizConfig.group == 'state-timeline' identifies the panel type;
-    legend settings live at vizConfig.spec.options.legend.showLegend.
+    legend settings live at vizConfig.spec.options.legend.showLegend. Legacy v1
+    panels carry type == 'state-timeline' and options.legend directly; both
+    shapes are read below, so the pin holds for either format.
+
+    Both former escape hatches were removed 2026-07-31: a v1-only skip (the
+    dashboard has been v1 all along, so the pin never once executed) and an
+    empty-list skip. Measured at removal: 7 state-timeline panels, all with
+    showLegend false — the guarantee held, it was simply never checked.
     """
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    if isinstance(dashboard.get("panels"), list):
-        pytest.skip("state-timeline legend pin currently enforced for v2 dashboards only")
     panels = _dashboard_panels(dashboard)
     timelines = [
         p
         for p in panels
         if p.get("vizConfig", {}).get("group") == "state-timeline" or p.get("type") == "state-timeline"
     ]
-    if not timelines:
-        pytest.skip("no state-timeline panel present in current dashboard layout")
+    assert timelines, "no state-timeline panel found — legend pin would pass vacuously"
     for panel in timelines:
         options = panel.get("vizConfig", {}).get("spec", {}).get("options", panel.get("options", {}))
         legend = options["legend"]

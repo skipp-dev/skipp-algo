@@ -32,7 +32,12 @@
 # is unavailable (mirrors the other repo tripwires).
 "tests/test_no_merge_conflict_markers.py" = 1
 # 2026-07-22: 4 -> 3 (removed the skip-only Active-Alerts stateFilter guard)
-"tests/test_live_overlay_dashboard_contract.py" = 3
+# 2026-07-31: 3 -> 0, entry removed. All three remaining skips were unreachable
+# guarantees: two in the state-timeline legend pin (a v1-only bail-out on a
+# dashboard that has always been v1, plus an empty-list bail-out) and one in the
+# news-snapshot alert pin, whose combined rule #2882 split on 2026-06-21. The
+# guarded properties all hold today, so the skips were deleted rather than the
+# assertions weakened.
 "tests/test_performance_report.py" = 1
 "tests/test_pine_boundary_literals.py" = 1
 "tests/test_pine_input_surface.py" = 2

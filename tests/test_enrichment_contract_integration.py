@@ -382,6 +382,9 @@ class TestFullEnrichment:
     def test_no_python_booleans(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
         bool_lines = [ln for ln in text.splitlines() if "const bool " in ln]
+        # See test_smc_library_pipeline_integration.test_booleans_lowercase:
+        # an empty list makes this gate pass without checking anything.
+        assert bool_lines, "generator emitted no 'const bool' export — Python-bool pin would pass vacuously"
         for line in bool_lines:
             assert "True" not in line and "False" not in line, f"Python bool in: {line}"
 
