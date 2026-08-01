@@ -238,7 +238,7 @@
       "requirements": [
         {
           "id": "R4-BUS",
-          "description": "Context BUS schema 8001 is implemented with at most 60 channels and at least four reserves.",
+          "description": "Context BUS schema 8001 is implemented with at most 62 channels and at least two reserves.",
           "status": "partial",
           "evidence": [
             "SMC_Context_Bus.pine",
@@ -265,7 +265,7 @@
             "artifacts/governance/smc_context_bus_r4_shadow_tradingview_2026-07-31.json"
           ],
           "openGates": [
-            "Compare structure and zone output with Suite and Breakout evidence: blocked until a fixture-only on-chart readback exists, because all 60 CTX channels are display.none and TradingView renders that nowhere."
+            "Compare structure and zone output with Suite and Breakout evidence: blocked until a fixture-only on-chart readback exists, because all 62 CTX channels are display.none and TradingView renders that nowhere."
           ]
         }
       ]

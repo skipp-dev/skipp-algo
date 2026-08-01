@@ -200,7 +200,7 @@ frozen up front.
 | Live context library | `SMC++/smc_context_engine_private.pine` (imports `smc_engine_private`) |
 | Schema version | `8001` (distinct from engine `7001`) |
 | Channel label prefix | `CTX ` (e.g. `CTX StructureState`) — must never appear on the v2 engine bus |
-| Channel budget | ≤ 60 direct channels, ≥ 4 reserve slots (of the 64 cap) |
+| Channel budget | ≤ 62 direct channels, ≥ 2 reserve slots (of the 64 cap) |
 
 The v2 engine + strategy surface is byte-frozen by
 [test_smc_bus_v2_freeze.py](../tests/test_smc_bus_v2_freeze.py) for the entire
