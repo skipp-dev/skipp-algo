@@ -29,7 +29,27 @@ EXECUTION_EVIDENCE: Final = (
     ROOT
     / "artifacts"
     / "governance"
+    / "smc_r1_live_rollout_evidence_2026-08-01.json"
+)
+# The 2026-07-29 artifact stays checked in and unmodified. It is a dated
+# measurement and remains true of that day; it is superseded as the CURRENT
+# attestation, never rewritten to match today's state.
+PRIOR_EXECUTION_EVIDENCE: Final = (
+    ROOT
+    / "artifacts"
+    / "governance"
     / "smc_r1_live_rollout_evidence_2026-07-29.json"
+)
+
+# Evidence the 2026-07-29 attended session recorded from operator observation
+# and that no 2026-08-01 run reproduces. Listed as open rather than carried
+# over: the sources under them changed, so the old observation no longer
+# describes what is deployed.
+OPEN_GATES: Final = (
+    "alert-condition inventory for both companions",
+    "Hold Manager exclusivity and Simple Management layout inventory",
+    "chart-instance compile status after a final reload",
+    "rollback drill removing and restoring both companions",
 )
 
 
@@ -59,9 +79,10 @@ def build_rollout_contract() -> dict:
     return {
         "schemaVersion": 1,
         "gate": "R1-LIVE-ROLLOUT",
-        "status": "authorized_execution_completed",
+        "status": "authorized_execution_partially_reattested",
         "executionPerformed": True,
         "executionEvidence": EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
+        "priorExecutionEvidence": PRIOR_EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
         "preflight": {
             "config": CONFIG.relative_to(ROOT).as_posix(),
             "scope": "smcR1Companions",
@@ -118,8 +139,9 @@ def build_rollout_contract() -> dict:
         "claimPolicy": [
             "This contract and its repository tests do not independently prove live TradingView state; the registered immutable execution evidence does.",
             "Keep these targets deployed only while the registered source hashes, bindings, alert inventory, layout exclusivity, reload, and rollback evidence remain valid.",
+            "An automated consumer save can overwrite an attested source without passing any pull request, so a source hash matching the evidence proves re-attestation only for the axes the evidence actually measured. Read openGates before treating this contract as complete.",
         ],
-        "openGates": [],
+        "openGates": list(OPEN_GATES),
     }
 
 
