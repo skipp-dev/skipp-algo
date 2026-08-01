@@ -151,6 +151,23 @@ jobs:
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python scripts/check_commit_authors.py --range "${BASE_SHA}..${HEAD_SHA}"
 
+      # The R1 contract claims `authorized_execution_completed` with no open
+      # gates, which is only true while the registered evidence still attests to
+      # the current sources. test_smc_r1_rollout_contract.py checks that, but it
+      # is not on the fast list below — it runs in the main-push job, AFTER the
+      # merge. The library-refresh bot went through that hole twice (#4272
+      # /179->/180, #4284 ->/182), both times green at merge time. This guard is
+      # diff-scoped on purpose: main is already drifted, so a standing-state
+      # check here would fail every PR in the repo, including the repair.
+      - name: Guard R1-attested sources
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
+
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -406,6 +423,7 @@ jobs:
             tests/test_bundle_loader_frame_discipline.py \
             tests/test_broad_except_silent_budget.py \
             tests/test_builtin_open_encoding_ledger.py \
+            tests/test_check_r1_attested_sources.py \
             tests/test_dynamic_getattr_ledger.py \
             tests/test_dynamic_import_and_todo_tripwires.py \
             tests/test_field_preference_chain_ledger.py \
