@@ -21,6 +21,7 @@ import {
   isTrackedStepTimeoutError,
   newTradingViewSession,
   refreshChartScriptInstance,
+  resolveConsumerRefreshTargets,
   resolveProducerRefreshChartUrls,
   saveChangedChartLayout,
 } from "../automation/tradingview/lib/tv_shared.js";
@@ -85,6 +86,7 @@ type RolloutReport = {
     sourceSavesCompleted: number;
     producerRefreshRequested: boolean;
     producerInstancesRemoved: number;
+    consumerInstancesRemoved: number;
     bindingRepairRequested: boolean;
     bindingsRepaired: number;
     layoutSaveRequested: boolean;
@@ -112,6 +114,7 @@ type RolloutReport = {
   };
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
+  consumerRefresh: { requested: boolean; ok: boolean; removedInstances: number; errors: string[] };
   sources: {
     expected: number;
     checked: number;
@@ -222,6 +225,7 @@ async function main(): Promise<void> {
       sourceSavesCompleted: 0,
       producerRefreshRequested: executionPlan.refreshProducer,
       producerInstancesRemoved: 0,
+      consumerInstancesRemoved: 0,
       bindingRepairRequested: executionPlan.repairBindings,
       bindingsRepaired: 0,
       layoutSaveRequested: executionPlan.saveLayout,
@@ -232,6 +236,7 @@ async function main(): Promise<void> {
     },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
+    consumerRefresh: { requested: executionPlan.repairBindings, ok: true, removedInstances: 0, errors: [] },
     sources: {
       expected: sourceVerificationTargets.length,
       checked: 0,
@@ -344,6 +349,41 @@ async function main(): Promise<void> {
         // the source/binding truth below, so it warns instead of failing the run.
         console.warn(`[rollout] producer refresh failed (cosmetic, non-fatal): ${report.producerRefresh.error}`);
       }
+    }
+
+    // A saved consumer needs the same treatment as the producer, and for the
+    // same reason: the applied instance stays on the version it was added with.
+    // The producer got a refresh, the consumer never did — so a consumer whose
+    // own source GAINED an input kept a stale instance whose settings dialog
+    // has no row for the new label, and the rebind below died with "Source
+    // combobox not found" (runs 30694013096, 30696257671 and 30698519321, all
+    // on CTX SessionMssBull after #4263 appended two channels).
+    //
+    // Gated on repairBindings, not on refreshProducer: re-applying a script
+    // DROPS its bindings, and only the repair pass below puts them back. Doing
+    // this without that pass would leave the consumer unbound.
+    if (report.save.failed.length === 0 && executionPlan.repairBindings) {
+      for (const consumer of resolveConsumerRefreshTargets(config)) {
+        try {
+          if (!session.page.url().startsWith(consumer.chartUrl)) {
+            await gotoChart(session.page, consumer.chartUrl);
+          }
+          report.consumerRefresh.removedInstances += await refreshChartScriptInstance(
+            session.page,
+            consumer.scriptName,
+          );
+        } catch (error) {
+          // NOT cosmetic, unlike the producer pass: without the refresh the
+          // rebind cannot see the new inputs at all. Record it and let the
+          // binding failure below carry the run red, rather than pretending
+          // the consumer was brought up to date.
+          report.consumerRefresh.ok = false;
+          report.consumerRefresh.errors.push(
+            `${consumer.scriptName} @ ${consumer.chartUrl}: ${String((error as Error)?.message ?? error)}`,
+          );
+        }
+      }
+      report.mutations.consumerInstancesRemoved = report.consumerRefresh.removedInstances;
     }
 
     // Gated on saves ALONE. The cosmetic refresh above used to gate this block too,
