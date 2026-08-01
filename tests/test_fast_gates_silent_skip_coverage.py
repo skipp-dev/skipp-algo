@@ -223,6 +223,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_no_fake_push_success.py",
     "tests/test_workflow_orphan_inventory.py",
     "tests/test_workflow_permissions_present.py",
+    # 2026-08-01: contract for smc-r4-context-readback, which can drive a live
+    # TradingView account at mutating execution mode. Dispatch-only, a readonly
+    # default and the shared session concurrency group are the properties that
+    # keep it safe, so the guard has to gate rather than merely exist.
+    "tests/test_smc_r4_context_readback_workflow.py",
     "tests/test_workflow_python_unbuffered.py",
     "tests/test_workflow_pythonpath_for_direct_invoke.py",
     "tests/test_workflow_runner_pinned.py",
