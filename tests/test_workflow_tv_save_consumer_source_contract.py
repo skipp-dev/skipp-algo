@@ -300,7 +300,15 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     ).read_text(encoding="utf-8")
     assert "env.TV_FORCE_REBIND" in evidence
     assert "executionPlan.repairBindings" in batch
-    assert batch.count("executionPlan.repairBindings") >= 3
+    # 2026-08-01: pin the dataflow rather than an occurrence count. The old
+    # `count(...) >= 3` pinned a shape in which the plan was re-read at each
+    # rebind call site; the plan now seeds a local that the run may narrow to
+    # false when a layout is abandoned (never widen -- see
+    # test_a_layout_is_saved_whole_or_discarded_whole). What must not regress is
+    # that TV_FORCE_REBIND still reaches BOTH arguments of the rebind call, so a
+    # forced rebind cannot be dropped on the way in.
+    assert "let repairBindings = executionPlan.repairBindings;" in batch
+    assert "verifyConsumerBindings(session, target, repairBindings, repairBindings)" in batch
 
 
 def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
@@ -314,9 +322,71 @@ def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
     """
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert "saveChangedChartLayout(session.page)" in batch
-    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
+    # 2026-07-31: the single trailing save was replaced by a per-LAYOUT decision.
+    # The old shape --
+    #   if (executionPlan.saveLayout && report.bindings.failed.length === 0)
+    # -- ran once, on whichever chart the loop ended on, and persisted only
+    # that one. Because gotoChart is a hard page.goto, the reload had ALREADY
+    # discarded the rebinds of the layout being left, so the other layouts
+    # could not be saved afterwards either: navigating back would have saved
+    # the reverted state. With the shipped config that silently dropped the
+    # seven consumers on the primary operator chart.
+    assert "groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)" in batch
     # A failed save lands in bindings.failed, which gates report.ok below.
-    assert '"chart-layout"' in batch
+    assert '"chart-layout' in batch
+    # Nothing may be reported green having persisted a strict subset.
+    assert "resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)" in batch
+    assert "layouts never saved" in batch
+
+
+def test_a_layout_is_saved_whole_or_discarded_whole() -> None:
+    """2026-08-01: saving at every boundary still persisted PARTIAL repairs.
+
+    Saving once per layout stops whole layouts from being dropped, but the save
+    was unconditional: repair consumers 1-4 of the primary chart, fail on 5, and
+    the operator's traded chart was persisted half rebound.
+
+    The layout is the unit that commits or discards atomically -- one save
+    persists every rebind on it, one reload discards every rebind on it -- so
+    the decision belongs to the layout, not the target. A layout is saved only
+    when every target on it came back clean; otherwise it is abandoned and the
+    reload rolls it back exactly.
+
+    After an abandoned layout the run stops mutating, so what is persisted is
+    always a complete PREFIX of the rollout. The shipped config visits the
+    primary operator chart first, so a late failure leaves the traded chart
+    repaired and the rest untouched, never the reverse.
+    """
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+
+    # Repair is narrowed by a mutable local, never widened; the immutable plan
+    # still bounds the run because this only ever assigns false.
+    assert "let repairBindings = executionPlan.repairBindings;" in batch
+    assert "verifyConsumerBindings(session, target, repairBindings, repairBindings)" in batch
+    assert batch.count("repairBindings = false;") >= 2, (
+        "repair stops both on an abandoned layout and on an unconfirmed save"
+    )
+    assert "repairBindings = true" not in batch, "repair may only ever be narrowed mid-run"
+
+    # The completeness predicate must match what makes report.ok true, per
+    # target. result.ok additionally carries unknownParentRuntimeError, which is
+    # evidence only: the residual window after a repair still collects
+    # dead-parent errors from the consumers this run has NOT repaired yet, so
+    # abandoning on it would abandon every layout of a healthy rollout.
+    assert "if (!result || result.mismatches.length > 0) layoutRepairedCleanly = false;" in batch
+    assert "!result.ok" not in batch
+
+    # An incomplete layout is discarded, not saved, and recorded as such.
+    assert "if (!layoutRepairedCleanly) {" in batch
+    assert "abandonedChartUrls.push(layout.chartUrl);" in batch
+    assert "report.mutations.abandonedChartUrls = abandonedChartUrls;" in batch
+    # The rollback is the reload itself -- the same mechanism that used to
+    # revert rebinds silently.
+    assert "await gotoChart(session.page, layout.chartUrl).catch(() => undefined);" in batch
+
+    # A layout that was never mutated is not a save point.
+    assert "const mutatingLayout = repairBindings;" in batch
+    assert "if (!executionPlan.saveLayout || !mutatingLayout) continue;" in batch
 
     shared = (_REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts").read_text(encoding="utf-8")
     assert "export async function saveChangedChartLayout(page: Page)" in shared
@@ -351,7 +421,7 @@ def test_verify_only_mode_structurally_gates_every_mutation_and_records_provenan
     assert "saveLayout: false" in evidence
     assert "if (executionPlan.saveSources)" in batch
     assert "if (report.save.failed.length === 0 && executionPlan.refreshProducer)" in batch
-    assert "if (executionPlan.saveLayout && report.bindings.failed.length === 0)" in batch
+    assert "if (!executionPlan.saveLayout || !mutatingLayout) continue;" in batch
     assert "schemaVersion: 2" in batch
     assert "repoCommitSha" in batch
     assert "rolloutConfigSha256" in batch

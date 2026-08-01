@@ -5,7 +5,9 @@ import path from "node:path";
 
 import {
   buildRolloutProvenance,
+  groupTargetsByLayout,
   resolveExecutionPlan,
+  resolveLayoutSavePoints,
   type RolloutExecutionMode,
   type RolloutProvenance,
 } from "../automation/tradingview/lib/tv_consumer_rollout_evidence.js";
@@ -77,6 +79,14 @@ type RolloutReport = {
     bindingsRepaired: number;
     layoutSaveRequested: boolean;
     layoutSaved: boolean;
+    /** Every chart layout actually persisted, in visit order. */
+    savedChartUrls: string[];
+    /**
+     * Layouts whose rebinds were deliberately discarded because not every
+     * target on them came back clean. These charts are unchanged, not
+     * half rebound — and repair stopped at the first of them.
+     */
+    abandonedChartUrls: string[];
   };
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
@@ -168,6 +178,8 @@ async function main(): Promise<void> {
       bindingsRepaired: 0,
       layoutSaveRequested: executionPlan.saveLayout,
       layoutSaved: false,
+      savedChartUrls: [],
+      abandonedChartUrls: [],
     },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
@@ -288,47 +300,113 @@ async function main(): Promise<void> {
       // Opt-in only: the immutable execution plan permits repair only in write
       // mode. Verify-only always passes false/false and therefore only reads
       // the currently selected BUS sources.
-      for (const target of config.verifyTargets) {
-        const targetChartUrl = target.chartUrl ?? config.primaryChartUrl;
-        if (!session.page.url().startsWith(targetChartUrl)) {
-          await gotoChart(session.page, targetChartUrl);
-        }
-        let result: VerifyConsumerResult | null = null;
-        let lastError = "unknown verification failure";
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-          try {
-            result = await verifyConsumerBindings(
-              session,
-              target,
-              executionPlan.repairBindings,
-              executionPlan.repairBindings,
-            );
-            lastError = "";
-            break;
-          } catch (error) {
-            lastError = String((error as Error)?.message ?? error);
-            if (attempt < 2) await gotoChart(session.page, targetChartUrl).catch(() => undefined);
-          }
-        }
-        if (result) report.bindings.consumers.push(result);
-        else report.bindings.failed.push({ target: target.scriptName, error: lastError });
-      }
+      //
+      // The chart layout is the unit this loop can act on atomically. The
+      // per-consumer settings "submit" mutates only the in-session indicator
+      // instance; an explicit layout save persists every rebind on that layout
+      // at once, and gotoChart -- a hard page.goto -- discards every unsaved
+      // rebind on it at once. Without the save the operator's chart (and the
+      // next read-only verify) still show the stale "Close" sources even though
+      // this run read them back as bound (2026-07-25 incident).
+      //
+      // That cuts both ways, and the second edge is the useful one: NOT saving
+      // is an exact, free rollback. So a layout is saved only when every target
+      // on it came back clean. A layout with any failure is abandoned -- not
+      // saved, then reloaded to discard -- and is left exactly as it was. No
+      // chart is ever persisted half rebound.
+      //
+      // After an abandoned layout the run stops mutating and finishes
+      // read-only, so what is persisted is always a complete PREFIX of the
+      // rollout rather than an arbitrary subset. The shipped config visits the
+      // primary operator chart first, so a late failure leaves the traded chart
+      // repaired and the rest untouched, never the reverse. Repair is only ever
+      // narrowed here, never widened, so the immutable execution plan still
+      // bounds the run.
+      const savedChartUrls: string[] = [];
+      const abandonedChartUrls: string[] = [];
+      let repairBindings = executionPlan.repairBindings;
 
-      // Persist the rebinds. The per-consumer settings "submit" only mutates the
-      // in-session indicator instance; without an explicit layout save the
-      // changes revert on reload, so the operator's chart (and the next
-      // read-only verify) still show the stale "Close" sources even though this
-      // run read them back as bound (2026-07-25 incident). Only writing runs
-      // save; a save failure must not report green, so it lands in
-      // bindings.failed and gates report.ok.
-      if (executionPlan.saveLayout && report.bindings.failed.length === 0) {
+      for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
+        if (!session.page.url().startsWith(layout.chartUrl)) {
+          await gotoChart(session.page, layout.chartUrl);
+        }
+        // Captured before the targets run: it decides whether THIS layout was
+        // mutated, and a failure inside the layout must not retroactively make
+        // it look untouched.
+        const mutatingLayout = repairBindings;
+        let layoutRepairedCleanly = true;
+
+        for (const target of layout.targets) {
+          let result: VerifyConsumerResult | null = null;
+          let lastError = "unknown verification failure";
+          for (let attempt = 1; attempt <= 2; attempt += 1) {
+            try {
+              result = await verifyConsumerBindings(session, target, repairBindings, repairBindings);
+              lastError = "";
+              break;
+            } catch (error) {
+              lastError = String((error as Error)?.message ?? error);
+              if (attempt < 2) await gotoChart(session.page, layout.chartUrl).catch(() => undefined);
+            }
+          }
+          if (result) report.bindings.consumers.push(result);
+          else report.bindings.failed.push({ target: target.scriptName, error: lastError });
+          // Exactly the run's own success criterion, per target: report.ok is
+          // gated on bindings.failed and bindings.mismatches. It deliberately
+          // does NOT include result.ok, which also carries
+          // unknownParentRuntimeError -- that signal is evidence only, because
+          // the residual window after the repair still collects dead-parent
+          // errors from the OTHER consumers this run has not repaired yet.
+          // Abandoning on it would abandon every layout of a healthy rollout.
+          if (!result || result.mismatches.length > 0) layoutRepairedCleanly = false;
+        }
+
+        if (!executionPlan.saveLayout || !mutatingLayout) continue;
+
+        if (!layoutRepairedCleanly) {
+          // Roll back by discarding: reload without saving. This is the same
+          // mechanism that silently reverted rebinds before the save existed --
+          // used deliberately, it is the reason a partial repair can never
+          // reach the operator's chart.
+          abandonedChartUrls.push(layout.chartUrl);
+          repairBindings = false;
+          await gotoChart(session.page, layout.chartUrl).catch(() => undefined);
+          continue;
+        }
+
         try {
           await saveChangedChartLayout(session.page);
+          savedChartUrls.push(layout.chartUrl);
           report.mutations.layoutSaved = true;
         } catch (error) {
+          // The save never confirmed, so what reached this layout is unknown.
+          // Stop mutating rather than stack another layout on top of it; the
+          // failure gates report.ok below.
+          repairBindings = false;
+          report.bindings.failed.push({
+            target: `chart-layout:${layout.chartUrl}`,
+            error: `layout save failed (rebinds not persisted): ${String((error as Error)?.message ?? error)}`,
+          });
+        }
+      }
+
+      if (executionPlan.saveLayout) {
+        report.mutations.savedChartUrls = savedChartUrls;
+        report.mutations.abandonedChartUrls = abandonedChartUrls;
+        // A run that abandoned or failed nothing must have saved every layout
+        // it planned to. Without this a green report could still cover a strict
+        // subset -- the failure this whole block exists to prevent. When
+        // something WAS abandoned, the layouts after it are unsaved on purpose
+        // and report.ok is already false through the target that caused it.
+        const planned = resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl);
+        const missed = planned.filter((chartUrl) => !savedChartUrls.includes(chartUrl));
+        const nothingWentWrong = abandonedChartUrls.length === 0
+          && report.bindings.failed.length === 0
+          && report.bindings.consumers.every((item) => item.mismatches.length === 0);
+        if (missed.length > 0 && nothingWentWrong) {
           report.bindings.failed.push({
             target: "chart-layout",
-            error: `layout save failed (rebinds not persisted): ${String((error as Error)?.message ?? error)}`,
+            error: `layouts never saved (rebinds not persisted): ${missed.join(", ")}`,
           });
         }
       }
