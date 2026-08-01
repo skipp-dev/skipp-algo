@@ -283,7 +283,10 @@ def test_repair_e2e_proves_the_repair_across_a_reload_not_only_in_session() -> N
     # evidence rather than an echo of the session that wrote it.
     # Three in the happy path (open, after the drift save, after the repair
     # save) plus the one in the recovery block, which must also re-read.
-    assert e2e.count("gotoChart(session.page, chartUrl)") >= 4
+    assert e2e.count("gotoChartAndAwaitInstance(session.page, chartUrl, target.scriptName)") >= 4
+    # And no navigation may bypass the settling wrapper. The wrapper itself
+    # calls gotoChart(page, ...), so this only forbids the un-settled form.
+    assert "gotoChart(session.page" not in e2e
     # Two DISTINCT failures, one per half. Asserting a shared substring twice
     # would pin only one of them while reading like it covered both.
     assert "drift did not survive the reload" in e2e
@@ -291,6 +294,31 @@ def test_repair_e2e_proves_the_repair_across_a_reload_not_only_in_session() -> N
     # Persisting a drift is a real exposure between the two saves; failing to
     # undo it must name the chart and the input instead of exiting quietly.
     assert "MANUAL REPAIR REQUIRED" in e2e
+
+
+def test_repair_e2e_waits_for_the_chart_rather_than_costing_a_rerun() -> None:
+    """2026-08-01: the drill's precondition was a timing race, not a check.
+
+    gotoChart resolves on `domcontentloaded` plus a FIXED 3s wait. Sometimes
+    TradingView has rebuilt the legend by then and sometimes it has not, so the
+    first read died on `Existing chart instance not found` against a healthy
+    chart (run 30684930443, 8s in) while the identical retry was green
+    (30685141166). The remedy was a whole extra browser run each time.
+
+    So the drill waits for the condition. The wait must use the SAME predicate
+    that throws inside verifyConsumerBindings -- waiting on a stricter proxy
+    would only relocate the guess -- and a wait that runs out must say how long
+    it waited, so a genuinely absent indicator still reads as absent.
+    """
+    e2e = (_REPO_ROOT / "scripts" / "tv_repair_binding_e2e.ts").read_text(encoding="utf-8")
+    verifier = (_REPO_ROOT / "scripts" / "tv_verify_consumer_bindings.ts").read_text(encoding="utf-8")
+    assert "isScriptVisibleOnChartSurface" in e2e
+    # The coupling is the point: if the verifier ever gates on something else,
+    # this pin fails and names the drill that still waits for the old signal.
+    assert "isScriptVisibleOnChartSurface" in verifier
+    assert "Existing chart instance not found" in verifier
+    assert "TV_DRILL_SETTLE_TIMEOUT_MS" in e2e
+    assert "did not surface" in e2e
 
 
 def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
