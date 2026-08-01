@@ -276,6 +276,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_runner_pinned.py",
     "tests/test_workflow_set_plus_e_inventory.py",
     "tests/test_workflow_tv_save_consumer_source_contract.py",
+    "tests/test_workflow_tv_post_mutation_verify_contract.py",
     "tests/test_workflow_upload_artifact_uniform_version.py",
     "tests/test_yaml_xml_zero_surface.py",
 )
