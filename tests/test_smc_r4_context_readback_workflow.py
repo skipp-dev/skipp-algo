@@ -160,16 +160,39 @@ def test_the_mutating_path_persists_and_is_re_read_by_a_separate_process(
     )
 
 
-def test_the_rebind_config_pushes_no_pine_source(workflow: dict) -> None:
-    """The rebind may touch bindings and the layout — not the saved sources."""
+def test_the_rebind_config_saves_producer_before_consumer(workflow: dict) -> None:
+    """Owner authorised the source save on 2026-08-01 — with a required order.
+
+    Until then ``saveTargets`` was empty, on the premise that the TradingView
+    sources were current. Run 30694013096 disproved it: the rebind died with
+    "Source combobox not found for CTX SessionMssBull" because the saved
+    overlay is still pre-#4263 and has no such input.
+
+    The producer must be saved FIRST. The saved BUS is pre-#4263 too, so the
+    two new CTX outputs do not exist until it is saved and its chart instance
+    re-applied — and an input cannot be bound to an output that is not there.
+    Reversing this order reproduces exactly the failure above, one level down.
+    """
     inputs = _on_block(workflow)["workflow_dispatch"]["inputs"]
     config_path = Path(__file__).resolve().parents[1] / inputs["rebind_config"]["default"]
     config = json.loads(config_path.read_text(encoding="utf-8"))
 
-    assert config["saveTargets"] == [], (
-        "a non-empty saveTargets would push Pine sources to TradingView, which "
-        "is a far larger action than the binding repair this run is for"
+    sources = [t["source"] for t in config["saveTargets"]]
+    assert sources == ["SMC_Context_Bus.pine", "SMC_Context_Overlay.pine"], (
+        "the R4 rebind saves exactly the two Context sources, producer first; "
+        f"found {sources}"
     )
+
+    steps = workflow["jobs"]["readback"]["steps"]
+    rebind = next(
+        s for s in steps if s.get("name", "").startswith("Rebind the overlay and SAVE")
+    )
+    assert rebind["env"]["TV_REFRESH_PRODUCER"] == "true", (
+        "saving the BUS source leaves the ALREADY APPLIED instance on the old "
+        "version, still exposing the old outputs; without the refresh the "
+        "overlay's new inputs have nothing to bind to"
+    )
+
     assert "repairE2ETarget" not in config, (
         "the repair drill deliberately drifts a binding first — not on a shadow "
         "layout being brought up to contract"
