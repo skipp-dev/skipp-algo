@@ -49,6 +49,7 @@ import {
 import {
   evaluateReplayCase,
   evaluateSourceCloseBoundaries,
+  resolveHtfSuiteVerdict,
   US_REGULAR_SESSION_EDT,
   mapHtfDiagnostics,
   parseDataWindowItems,
@@ -186,7 +187,14 @@ async function main(): Promise<number> {
     }
     report.htfCases = htfCases;
 
-    return failClosedPassed && htfCases.filter((c) => c.executed).every((c) => c.passed === true) ? 0 : 1;
+    // A case that never executed is a FAILURE of the suite, not an absence from
+    // it. The old verdict filtered to executed cases and asked `.every(passed)`,
+    // so a run in which nothing executed exited 0 and wrote an artifact claiming
+    // a certification it had not observed.
+    const suite = resolveHtfSuiteVerdict(failClosedPassed, htfCases as Array<{ caseId?: string; executed: boolean; passed?: boolean }>);
+    report.suiteVerdict = suite;
+    console.log(`[suite] ok=${suite.ok} executed=${suite.executed}/${suite.expected} notExecuted=[${suite.notExecuted.join(", ")}] failed=[${suite.failed.join(", ")}]`);
+    return suite.ok ? 0 : 1;
   } finally {
     await exitBarReplay(page).catch(() => undefined);
     fs.writeFileSync(cli.out, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
