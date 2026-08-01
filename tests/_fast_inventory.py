@@ -114,6 +114,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_live_window_posture.py",
     "test_workflow_python_bin_resolved.py",
     "test_smc_r4_context_readback_workflow.py",
+    "test_select_workflow_guards.py",
     "test_tradingview_session_concurrency.py",
     "test_workflow_databento_handoff_concurrency.py",
     "test_workflow_auth_pattern.py",

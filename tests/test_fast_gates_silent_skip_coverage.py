@@ -255,6 +255,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # guards is the whole point — an unguarded one drifts back to per-workflow
     # groups exactly the way the original "single shared external target"
     # comment did, stating a guarantee nothing enforced.
+    # 2026-08-01: the selector that makes THIS roster stop being the only
+    # thing standing between a workflow change and the guards that read it.
+    # If it silently stopped selecting, the class it closes would re-open
+    # with no signal at all.
+    "tests/test_select_workflow_guards.py",
     "tests/test_tradingview_session_concurrency.py",
     # 2026-08-01: its sibling above joined the required path in #4297 while
     # THIS one stayed post-merge-only -- so #4297 could turn main red by
