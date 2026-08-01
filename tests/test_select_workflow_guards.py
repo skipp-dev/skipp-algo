@@ -124,3 +124,10 @@ def test_the_gate_actually_runs_the_selection() -> None:
     assert 'git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- .github/workflows/' in gates
     # And the selection has to be executed, not merely printed.
     assert "python -m pytest ${guards}" in gates
+
+    # Placement, not just presence. The first attempt sat beside the R1 guard,
+    # which needs only the standard library, and died on "No module named
+    # pytest" (run 30697585385) -- the selection was correct and unusable.
+    install = gates.index("- name: Install dependencies")
+    step = gates.index("- name: Run every guard that reads a workflow this PR changed")
+    assert install < step, "the selection runs pytest, so it must follow the dependency install"

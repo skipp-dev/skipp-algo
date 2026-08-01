@@ -168,39 +168,6 @@ jobs:
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
 
-      # 2026-08-01: three green PRs in one day changed a workflow and broke a
-      # guard that reads it but is not on the pinned list below (#4288, #4291,
-      # #4302). Adding one more file each time closes the instance, not the
-      # class -- and a roster rule cannot close it either: 571 test files read a
-      # workflow and 484 are unlisted. So the selection follows the DIFF. A PR
-      # that touches no workflow pays nothing; one that touches a workflow runs
-      # every guard that reads it, listed or not.
-      - name: Run every guard that reads a workflow this PR changed
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- .github/workflows/)"
-          if [ -z "${changed}" ]; then
-            echo "No workflow changed in this pull request."
-            exit 0
-          fi
-          echo "Changed workflows:"
-          echo "${changed}" | sed 's/^/  /'
-          # shellcheck disable=SC2086
-          guards="$(python -m scripts.select_workflow_guards ${changed})"
-          if [ -z "${guards}" ]; then
-            echo "::warning::no guard reads the changed workflows"
-            exit 0
-          fi
-          echo "Guards selected by the diff:"
-          echo "${guards}" | sed 's/^/  /'
-          # shellcheck disable=SC2086
-          python -m pytest ${guards} -q --no-header
-
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -597,6 +564,39 @@ jobs:
             tests/test_smc_live_overlay_metrics.py \
             tests/test_smc_product_cut_manifest.py \
             tests/test_update_overlay_dashboard.py
+
+      # 2026-08-01: three green PRs in one day changed a workflow and broke a
+      # guard that reads it but is not on the pinned list below (#4288, #4291,
+      # #4302). Adding one more file each time closes the instance, not the
+      # class -- and a roster rule cannot close it either: 571 test files read a
+      # workflow and 484 are unlisted. So the selection follows the DIFF. A PR
+      # that touches no workflow pays nothing; one that touches a workflow runs
+      # every guard that reads it, listed or not.
+      - name: Run every guard that reads a workflow this PR changed
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- .github/workflows/)"
+          if [ -z "${changed}" ]; then
+            echo "No workflow changed in this pull request."
+            exit 0
+          fi
+          echo "Changed workflows:"
+          echo "${changed}" | sed 's/^/  /'
+          # shellcheck disable=SC2086
+          guards="$(python -m scripts.select_workflow_guards ${changed})"
+          if [ -z "${guards}" ]; then
+            echo "::warning::no guard reads the changed workflows"
+            exit 0
+          fi
+          echo "Guards selected by the diff:"
+          echo "${guards}" | sed 's/^/  /'
+          # shellcheck disable=SC2086
+          python -m pytest ${guards} -q --no-header
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
