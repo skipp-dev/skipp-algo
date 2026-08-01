@@ -40,9 +40,13 @@ on:
         type: string
         default: "https://www.tradingview.com/chart/Jb2Vp6xs/"
       config:
-        description: "Preflight config to run"
+        description: "Preflight config for the read-back measurement"
         type: string
         default: automation/tradingview/preflight-r4-context-shadow.json
+      rebind_config:
+        description: "Rollout config used by the mutating rebind (ignored when readonly)"
+        type: string
+        default: automation/tradingview/config/consumer-rollout-r4-context.json
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -203,8 +207,41 @@ jobs:
           CHART_URL: ${{ inputs.chart_url }}
           PREFLIGHT_CONFIG: ${{ inputs.config }}
 
+      - name: Rebind the overlay and SAVE the layout (mutating only)
+        if: inputs.execution_mode == 'mutating'
+        # tv_preflight.ts never calls saveChangedChartLayout — measured, zero
+        # call sites. Driving it in mutating mode rebinds inside its own session
+        # and discards everything when the session ends, which reads back as a
+        # green 62/62 that persists nothing. That exact trap is on record twice:
+        # in the original R4 evidence ("a force-rebind run reports 60/60 inside
+        # its own session even when nothing persists") and in the header of
+        # tv_repair_binding_e2e.ts after #4289.
+        #
+        # tv_batch_consumer_rollout.ts is the tool that persists: it rebinds,
+        # saves per layout, and discards by reloading when a repair came out
+        # unclean. The R4 config carries an EMPTY saveTargets, so no Pine source
+        # is pushed — this run only touches bindings and the layout.
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+          TV_CHART_URL: ${{ inputs.chart_url }}
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
+          TV_FORCE_REBIND: "true"
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/tradingview/screenshots
+          npx tsx scripts/tv_batch_consumer_rollout.ts \
+            --config "${{ inputs.rebind_config }}" \
+            --out artifacts/tradingview/r4_rebind_rollout.json
+
       - name: Run TradingView preflight
         id: preflight
+        # For a mutating run this is the proof, not a formality: a SEPARATE
+        # process with a fresh session and a fresh page load. An in-session
+        # re-read cannot distinguish "persisted" from "still in memory"; a new
+        # process can only see what the layout save actually kept.
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
@@ -218,7 +255,7 @@ jobs:
           mkdir -p artifacts/tradingview/screenshots
           npx tsx scripts/tv_preflight.ts \
             --config "${{ inputs.config }}" \
-            --execution-mode "${{ inputs.execution_mode }}" \
+            --execution-mode readonly \
             --out artifacts/tradingview/r4_readback_preflight.json
 
       - name: Summarise the measurement
@@ -259,6 +296,7 @@ jobs:
           path: |
             artifacts/tradingview/r4_readback_preflight.json
             artifacts/tradingview/r4_readback_authorization.json
+            artifacts/tradingview/r4_rebind_rollout.json
             artifacts/tradingview/screenshots/**
           if-no-files-found: warn
           retention-days: 30

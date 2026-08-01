@@ -17,6 +17,7 @@ property that would be silently lost by an ordinary-looking edit:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -121,6 +122,67 @@ def test_python_interpreter_is_resolved_before_anything_uses_it(workflow: dict) 
     assert min(users) > setter, (
         f"step {min(users)} uses $SMC_PYTHON_BIN before step {setter} exports it"
     )
+
+
+def test_the_mutating_path_persists_and_is_re_read_by_a_separate_process(
+    workflow: dict,
+) -> None:
+    """A rebind that is not saved, and not re-read fresh, proves nothing.
+
+    ``tv_preflight.ts`` contains zero ``saveChangedChartLayout`` call sites, so
+    running it in mutating mode rebinds inside its own session and discards the
+    result — a green 62/62 that persists nothing. The rebind therefore goes
+    through ``tv_batch_consumer_rollout.ts`` (which saves per layout), and the
+    preflight that follows must run READONLY so it is an independent re-read in
+    a fresh process rather than a second mutation.
+    """
+    steps = workflow["jobs"]["readback"]["steps"]
+    names = [s.get("name", "") for s in steps]
+
+    rebind_idx = names.index("Rebind the overlay and SAVE the layout (mutating only)")
+    preflight_idx = names.index("Run TradingView preflight")
+    assert rebind_idx < preflight_idx, "the re-read must follow the rebind"
+
+    rebind = steps[rebind_idx]
+    assert rebind["if"] == "inputs.execution_mode == 'mutating'"
+    assert "tv_batch_consumer_rollout.ts" in rebind["run"]
+    assert "tv_preflight.ts" not in rebind["run"], (
+        "tv_preflight never saves the layout — it cannot be the rebind tool"
+    )
+    # Without this the plan resolves to repairBindings=false, saveLayout=false
+    # and the step silently degrades into a no-op verify.
+    assert rebind["env"]["TV_FORCE_REBIND"] == "true"
+
+    preflight = steps[preflight_idx]
+    assert "--execution-mode readonly" in preflight["run"], (
+        "the verification pass must be readonly, otherwise a mutating dispatch "
+        "mutates twice and never independently confirms the save"
+    )
+
+
+def test_the_rebind_config_pushes_no_pine_source(workflow: dict) -> None:
+    """The rebind may touch bindings and the layout — not the saved sources."""
+    inputs = _on_block(workflow)["workflow_dispatch"]["inputs"]
+    config_path = Path(__file__).resolve().parents[1] / inputs["rebind_config"]["default"]
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert config["saveTargets"] == [], (
+        "a non-empty saveTargets would push Pine sources to TradingView, which "
+        "is a far larger action than the binding repair this run is for"
+    )
+    assert "repairE2ETarget" not in config, (
+        "the repair drill deliberately drifts a binding first — not on a shadow "
+        "layout being brought up to contract"
+    )
+    assert config["producerName"] == "SMC Context Bus"
+    # Floor: an empty verifyTargets would make the rollout a no-op that still
+    # reports success.
+    assert config["verifyTargets"], "nothing would be rebound"
+    for target in config["verifyTargets"]:
+        assert "bindingLabels" not in target, (
+            "labels must be parsed from the Pine source so the rebind follows "
+            "the current contract instead of a frozen list"
+        )
 
 
 def test_evidence_is_uploaded_even_when_the_run_fails(workflow: dict) -> None:
