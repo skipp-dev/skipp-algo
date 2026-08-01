@@ -8,6 +8,7 @@ import { test } from "node:test";
 import {
   buildRolloutProvenance,
   resolveExecutionPlan,
+  resolveLibraryPublishObservation,
   sha256Bytes,
 } from "../lib/tv_consumer_rollout_evidence.js";
 
@@ -134,4 +135,69 @@ test("unpublished or mismatched library state remains explicit fail-closed evide
   } finally {
     fs.rmSync(repoRoot, { recursive: true, force: true });
   }
+});
+
+test("a manifest that agrees with itself is not evidence that the library is published", () => {
+  // 2026-08-01: a chained rollout ran on a pre-refresh tree and reported
+  // repositoryExpected.libraryRelease.matches === true at version 180 while
+  // main was already on 182. It could not have reported anything else --
+  // expectedVersion and publishedVersion are two fields of the SAME manifest
+  // file in the SAME checkout, so that check passes for any internally
+  // consistent tree, stale or not. The observation below is the only field in
+  // the report read from outside the checkout.
+  const stale = resolveLibraryPublishObservation({
+    scriptName: "smc_micro_profiles_generated",
+    manifestPublishedVersion: 180,
+    observedVersion: 182,
+  });
+  assert.equal(stale.verdict, "drift");
+  assert.equal(stale.observedVersion, 182);
+
+  const current = resolveLibraryPublishObservation({
+    scriptName: "smc_micro_profiles_generated",
+    manifestPublishedVersion: 182,
+    observedVersion: 182,
+  });
+  assert.equal(current.verdict, "match");
+
+  // The other direction is drift too: a manifest claiming a version the facade
+  // does not list yet means the consumers' import pins point at nothing.
+  const unpublished = resolveLibraryPublishObservation({
+    scriptName: "smc_micro_profiles_generated",
+    manifestPublishedVersion: 183,
+    observedVersion: 182,
+  });
+  assert.equal(unpublished.verdict, "drift");
+});
+
+test("an unreadable facade stays unknown instead of being rounded to either verdict", () => {
+  // fetchPublishedLibraryVersionViaFacade returns null for an unreachable
+  // listing AND for a library missing from it. Neither is evidence about the
+  // library, so neither may become "match" (which would restore the vacuous
+  // green this replaces) or "drift" (which would fail every run during a
+  // facade outage). build_pine_library_version_snapshot.ts already draws this
+  // distinction; it is kept here rather than re-decided.
+  const observation = resolveLibraryPublishObservation({
+    scriptName: "smc_micro_profiles_generated",
+    manifestPublishedVersion: 182,
+    observedVersion: null,
+  });
+  assert.equal(observation.verdict, "unknown");
+  assert.notEqual(observation.verdict, "match");
+  assert.equal(observation.observedVersion, null);
+});
+
+test("only a known drift gates report.ok; unknown does not", () => {
+  // The rollout throws on drift before the first write, but report.ok must
+  // encode the condition itself rather than rely on that control flow staying
+  // where it is. Pinned here as the exact expression the rollout uses.
+  const rollout = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "..", "scripts", "tv_batch_consumer_rollout.ts"),
+    "utf-8",
+  );
+  assert.ok(rollout.includes('report.tradingViewObserved.libraryRelease.verdict !== "drift"'));
+  // Probed before anything is written, not after.
+  const probeAt = rollout.indexOf("fetchPublishedLibraryVersionViaFacade");
+  const firstSaveAt = rollout.indexOf("saveConsumerSource(session, target)");
+  assert.ok(probeAt > 0 && firstSaveAt > 0 && probeAt < firstSaveAt);
 });
