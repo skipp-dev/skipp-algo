@@ -476,6 +476,7 @@ jobs:
             tests/test_workflow_orphan_inventory.py \
             tests/test_smc_r4_context_readback_workflow.py \
             tests/test_tradingview_session_concurrency.py \
+            tests/test_workflow_databento_handoff_concurrency.py \
             tests/test_workflow_pythonpath_for_direct_invoke.py \
             tests/test_workflow_concurrency_cron_no_cancel.py \
             tests/test_workflow_invoked_scripts_importable.py \
