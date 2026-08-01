@@ -1319,7 +1319,30 @@ export function diagnoseInputContract(
   const expectedCount = expectedSet.size;
   const observedCount = observedSet.size;
   const missingCount = Math.max(expectedCount - overlapCount, 0);
-  const likelyDrift = legacyLabels.length >= 2 && missingCount > 0;
+
+  // 2026-08-01: drift used to require `legacyLabels.length >= 2`, i.e. it was
+  // only recognised when the instance still SHOWED labels that no longer exist.
+  // That sees renames and replacements and is structurally blind to a purely
+  // ADDITIVE contract change, where the stale instance shows a strict subset
+  // and no legacy label at all. #4263 added CTX SessionMssBull/Bear to the
+  // Context BUS ("additive within schema 8001"); the saved overlay was updated
+  // and verified, yet the applied instance kept its old 60 inputs. The
+  // diagnosis called that `likelyPartialSurface` — "we probably just did not
+  // see everything" — so the mutating preflight never refreshed the instance
+  // and the R4 rebind failed with "Source combobox not found for
+  // CTX SessionMssBull" on runs 30694013096 and 30696257671.
+  //
+  // The benign reading is not available here: `collectVisibleInputLabels`
+  // enumerates through `snapshotDialogAcrossScroll`, which walks the dialog's
+  // whole scroll plan. A label missing from an across-scroll enumeration is
+  // missing from the instance, not merely off-screen.
+  //
+  // What DOES stay a surface problem is seeing none of the expected labels:
+  // that is the wrong dialog or an unrendered one, and re-applying the script
+  // on that evidence would drop bindings for nothing. So the split is now
+  // "some seen, some missing" = stale instance, "none seen" = surface.
+  // legacyLabels stays reported: it still names WHY an instance is stale.
+  const likelyDrift = missingCount > 0 && overlapCount > 0;
 
   return {
     expectedCount,
@@ -1328,7 +1351,7 @@ export function diagnoseInputContract(
     missingCount,
     legacyLabels,
     likelyDrift,
-    likelyPartialSurface: !likelyDrift && overlapCount > 0 && missingCount > 0,
+    likelyPartialSurface: missingCount > 0 && overlapCount === 0,
   };
 }
 
