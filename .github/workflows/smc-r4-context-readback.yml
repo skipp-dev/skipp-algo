@@ -236,6 +236,13 @@ jobs:
           TV_CHART_URL: ${{ inputs.chart_url }}
           TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
           TV_FORCE_REBIND: "true"
+          # Saving the BUS source is not enough: the instance already applied to
+          # the layout stays on the OLD version and would keep exposing the old
+          # 60 outputs, so the overlay's two new inputs would have nothing to
+          # bind to. refreshChartScriptInstance removes and re-applies the
+          # producer so the chart carries the saved version. The plan resolver
+          # rejects this without TV_FORCE_REBIND, which is set above.
+          TV_REFRESH_PRODUCER: "true"
           # Through env, not interpolated into the shell: a dispatch input
           # expanded directly into `run:` is a template-injection sink
           # (zizmor high). The value reaches the CLI as an ordinary argument.

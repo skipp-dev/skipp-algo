@@ -1,8 +1,17 @@
 {
-  "_comment": "R4 Context shadow rebind. saveTargets is deliberately empty: the sources are already saved on TradingView and this rollout must only rebind the overlay inputs and SAVE THE LAYOUT. bindingLabels is omitted so the labels are parsed from SMC_Context_Overlay.pine itself, which is what makes the rebind follow the current 62-channel contract instead of a frozen list. repairE2ETarget is omitted on purpose: the repair drill deliberately drifts a binding first, which has no place on a shadow layout being brought up to contract.",
+  "_comment": "R4 Context shadow: bring the saved TradingView scripts up to the current contract, then rebind and save the layout. saveTargets was EMPTY until 2026-08-01, on the premise that the sources were already saved on TradingView. Run 30694013096 disproved that premise: the rebind failed with 'Source combobox not found for CTX SessionMssBull' because the saved overlay still carries the pre-#4263 source and simply has no such input. The producer is listed FIRST and TV_REFRESH_PRODUCER is required with this config: the saved BUS is pre-#4263 too, so without saving it and re-applying its chart instance there would be no CTX SessionMssBull/Bear OUTPUT for the overlay input to bind to. Owner authorised the source save on 2026-08-01. bindingLabels stays omitted so the labels are parsed from SMC_Context_Overlay.pine itself and follow the current 62-channel contract instead of a frozen list. repairE2ETarget is omitted on purpose: the repair drill deliberately drifts a binding first, which has no place on a shadow layout being brought up to contract.",
   "producerName": "SMC Context Bus",
   "primaryChartUrl": "https://www.tradingview.com/chart/Jb2Vp6xs/",
-  "saveTargets": [],
+  "saveTargets": [
+    {
+      "source": "SMC_Context_Bus.pine",
+      "scriptName": "SMC Context Bus"
+    },
+    {
+      "source": "SMC_Context_Overlay.pine",
+      "scriptName": "SMC Context Overlay"
+    }
+  ],
   "verifyTargets": [
     {
       "source": "SMC_Context_Overlay.pine",
