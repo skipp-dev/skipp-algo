@@ -90,9 +90,13 @@ test("refresh-path add-to-chart carries the same 90s floor as its wrapper", () =
     path.join(repoRoot, "automation", "tradingview", "lib", "tv_shared.ts"),
     "utf-8",
   );
-  const refreshBlock = shared.split("export async function refreshChartScriptInstance", 2)[1] ?? "";
+  // 2026-08-01 (stale-instance residual check): the fail-closed text re-probe
+  // now sits between removal and insert, so the insert no longer fits a fixed
+  // 2000-char slice. Bound the pin to the function itself instead.
+  const refreshBlock = (shared.split("export async function refreshChartScriptInstance", 2)[1] ?? "")
+    .split("\nexport ", 1)[0];
   assert.match(
-    refreshBlock.slice(0, 2000),
+    refreshBlock,
     /addCurrentScriptToChart\(page, scriptName, \{[^}]*stepTimeoutMs: Math\.max\(stepTimeoutMs\(\), 90_000\)/s,
   );
 });
