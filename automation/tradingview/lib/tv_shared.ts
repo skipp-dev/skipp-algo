@@ -6330,9 +6330,21 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
  *
  * The fix is deliberately NOT a positional guess. The same panel chrome carries
  * Publish and Add-to-chart, and a mis-aimed click there is a live action on the
- * operator's account. This pass therefore only ENUMERATES the controls into the
- * trace so the next change can pin the real one against a measurement. Callers
- * still treat a `false` as normal and stay correct with the editor open.
+ * operator's account. The failed-close path therefore ENUMERATES the controls
+ * into the trace instead of aiming at them. Callers still treat a `false` as
+ * normal and stay correct with the editor open.
+ *
+ * MEASURED 2026-08-01, read-only run 30716530874. The inventory found eight
+ * button-like elements inside the dialog subtree and NO close control among
+ * them: the script-title dropdown, Add-to-chart, one untitled 34x34 button,
+ * Publish, More, and three status-bar items. In the session the storage state
+ * renders, the panel is right-docked WITHOUT the window chrome the operator's
+ * own browser shows (back-arrow / "Pine Editor" / minimise / expand / X). Both
+ * statements are true at once: the operator's X exists, and this session has
+ * nothing to click. Scope honestly stated: the enumeration covered
+ * `button, [role="button"], [data-name]` under the dialog root only — chrome
+ * living outside that subtree, or rendered as plain icon divs, would not
+ * appear. So this helper stays advisory-false by measurement, not by claim.
  */
 export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
   const dialog = await firstVisibleLocator(
@@ -6405,6 +6417,13 @@ export async function closePineEditorIfVisible(page: Page): Promise<boolean> {
   // operator) or in the browser profile the storage state was captured from (in
   // which case closing it here changes nothing on the operator's screen). The
   // earlier comment asserted the former without measuring it.
+  //
+  // Evidence so far, 2026-08-01, listed without concluding: the operator closed
+  // the panel in their browser (~19:0xZ) and CI runs at 18:50Z and 19:5xZ both
+  // still saw it open — and both editors showed the SAME script (SMC HTF
+  // Confluence). Consistent with: which script is open is server-side, whether
+  // the panel shows (and its dock mode) is client-side per browser profile.
+  // Also consistent with the operator simply not having saved. Not settled.
   tracePageEvent(page, "pine-editor-docked-not-closeable");
   return false;
 }

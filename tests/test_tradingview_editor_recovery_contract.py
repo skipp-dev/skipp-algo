@@ -181,3 +181,24 @@ def test_the_docked_state_ownership_is_marked_unmeasured() -> None:
 
     assert "Still unresolved and NOT to be assumed either way" in source
     assert "This is layout state; only the" not in source
+
+
+def test_the_close_helper_cites_the_measurement_it_now_rests_on() -> None:
+    """Advisory-false by measurement, not by claim -- and the measurement is named.
+
+    Read-only run 30716530874 enumerated the dialog subtree and found no close
+    control among eight button-like elements; the session the storage state
+    renders shows the panel right-docked without the window chrome the
+    operator's browser has. The comment carries the run id and the honest scope
+    of the enumeration, so the next reader can re-run the measurement instead
+    of re-litigating the claim.
+    """
+    source = _read(TV_SHARED_PATH)
+
+    assert "MEASURED 2026-08-01, read-only run 30716530874" in source
+    assert "NO close control among" in source
+    # The scope limitation must stay stated -- chrome outside the dialog
+    # subtree or icon divs without a role would not appear in the inventory.
+    assert "under the dialog root only" in source
+    # And the ownership question stays open, now with evidence listed.
+    assert "listed without concluding" in source
