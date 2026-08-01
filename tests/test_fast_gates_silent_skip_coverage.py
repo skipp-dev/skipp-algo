@@ -228,6 +228,13 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_no_fake_push_success.py",
     "tests/test_workflow_orphan_inventory.py",
     "tests/test_workflow_permissions_present.py",
+    # 2026-08-01: the live-window posture vocabulary is closed, but the guard
+    # ran only in heavy CI on main push. #4281 invented the near-synonym
+    # "manual-dispatch-only", merged green, and turned main red -- a posture
+    # guard that cannot block the pull request that breaks it is a report, not
+    # a gate. The marker decides whether a workflow may touch a live account,
+    # so it belongs on the required path.
+    "tests/test_workflow_live_window_posture.py",
     # 2026-08-01: a workflow that uses $SMC_PYTHON_BIN without setting it
     # exits 127 on its first heredoc step. workflow_dispatch-only workflows
     # are never exercised by CI, so the break is invisible until someone
