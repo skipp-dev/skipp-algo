@@ -92,7 +92,10 @@ def select_guards(changed: list[str], tests_dir: Path | None = None) -> list[str
             selected.add(candidate)
 
     root = tests_dir.resolve().parent
-    return sorted(str(path.resolve().relative_to(root)) for path in selected)
+    # as_posix(), not str(): the result is compared against forward-slash
+    # literals in tests and handed to pytest, and str(Path) yields backslashes
+    # on Windows. tests/test_scripts_path_as_posix_guard.py enforces it.
+    return sorted(path.resolve().relative_to(root).as_posix() for path in selected)
 
 
 def main() -> int:

@@ -259,6 +259,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # thing standing between a workflow change and the guards that read it.
     # If it silently stopped selecting, the class it closes would re-open
     # with no signal at all.
+    # 2026-08-01: this one caught #4305 -- the selector built to close the
+    # "guard not on the required path" class -- AFTER it merged, because it
+    # was itself not on the required path. It scans scripts/, so the
+    # diff-scoped workflow selection cannot reach it. 2s.
+    "tests/test_scripts_path_as_posix_guard.py",
     "tests/test_select_workflow_guards.py",
     "tests/test_tradingview_session_concurrency.py",
     # 2026-08-01: its sibling above joined the required path in #4297 while
