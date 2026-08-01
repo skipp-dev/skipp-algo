@@ -1134,6 +1134,14 @@ jobs:
           # write step gets the larger budget. The 240-min job cap still bounds
           # a genuine hang.
           TV_STEP_TIMEOUT_MS: "240000"
+          # 2026-07-31 (issue #4238): the 2026-07-13 incident fix — point failure
+          # screenshots at the uploaded tree — was applied to the readonly
+          # preflight and the post-release validation, but NOT to this step, the
+          # one that has been failing since 2026-07-30. Its screenshots kept
+          # landing in the default automation/tradingview/reports/screenshots,
+          # which the artifact upload (artifacts/tradingview/) never captures, so
+          # the publish outage shipped no image of itself at all.
+          TV_SCREENSHOT_DIR: artifacts/tradingview/screenshots
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \
             --manifest pine/generated/smc_micro_profiles_generated.json \

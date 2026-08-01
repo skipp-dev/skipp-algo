@@ -8295,6 +8295,87 @@ export async function closeModal(page: Page): Promise<void> {
   ).catch(() => undefined);
 }
 
+// Selector set behind tvSelectors.pinePublishButtons' `pineDialog` — kept here
+// so the absence diagnostic reports exactly what that locator resolves over.
+const PINE_DIALOG_SELECTOR = '[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]';
+
+// 2026-07-31 (smc-library-refresh publish outage, issue #4238): a candidate miss
+// logs only a COUNT, never the DOM it looked at — which is why two days of
+// failures could not name their own cause. Run 30644048525 carried the #4251
+// fix, matched the relabelled control by title, opened the publish surface and
+// satisfied the "script is not on the chart" gate; 29s later the SAME candidate
+// list reported no-visible-candidate for all 11 entries while the editor header
+// still showed `smc_micro_profiles_generated`.
+//
+// The cause turned out to be the title strip fixed in #4261: the control carries
+// apply-common-tooltip, which removes its title attribute on click, so a
+// title-only match works exactly once per session. Reaching that answer needed a
+// DOM dump — the trace alone could not tell it apart from a `.last()` retarget
+// of PINE_DIALOG_SELECTOR, from TradingView removing the control, or from an
+// undismissed gate dialog. All three were plausible from the trace, and all
+// three were wrong.
+//
+// So this dumps, at the moment of the miss: every node the pineDialog set
+// resolves to (marking the .last() one), every share control in the document
+// with its attributes and computed visibility, and the text of any open overlay.
+// A stripped attribute, a retarget, a removal and a covering modal each leave a
+// different fingerprint here. Without it the next such regression costs another
+// ~2h CI cycle per guess.
+async function tracePublishSurfaceAbsence(page: Page, phase: string): Promise<void> {
+  const dialogs = await page
+    .locator(PINE_DIALOG_SELECTOR)
+    .evaluateAll((nodes) => nodes.map((node, index) => {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return {
+        index,
+        isLast: index === nodes.length - 1,
+        tag: element.tagName,
+        id: element.id || "",
+        dataName: element.getAttribute("data-name") || "",
+        className: String(element.className || "").slice(0, 80),
+        display: style.display,
+        visibility: style.visibility,
+        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+        buttons: element.querySelectorAll('button, [role="button"]').length,
+        hasShareControl: Boolean(element.querySelector('[title*="hare your script"], [class*="publishButton" i]')),
+      };
+    }))
+    .catch(() => []);
+  tracePageEvent(page, "publish-absence-pine-dialogs", `${phase}:${JSON.stringify(dialogs).slice(0, 1_800)}`);
+
+  const shareControls = await page
+    .locator('[title*="hare your script"], [class*="publishButton" i]')
+    .evaluateAll((nodes, dialogSelector) => nodes.map((node, index) => {
+      const element = node as HTMLElement;
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      const owner = element.closest(dialogSelector) as HTMLElement | null;
+      return {
+        index,
+        tag: element.tagName,
+        title: element.getAttribute("title") || "",
+        className: String(element.className || "").slice(0, 80),
+        display: style.display,
+        visibility: style.visibility,
+        opacity: style.opacity,
+        // A detached/collapsed control has no offsetParent — this separates
+        // "removed by TradingView" from "present but hidden".
+        hasOffsetParent: Boolean(element.offsetParent),
+        rect: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+        // Which pine-dialog node owns it, so a .last() retarget is visible as
+        // "control lives in dialog 0 while .last() points at dialog 1".
+        ownerId: owner ? (owner.id || owner.getAttribute("data-name") || String(owner.className || "").slice(0, 40)) : "none",
+      };
+    }), PINE_DIALOG_SELECTOR)
+    .catch(() => []);
+  tracePageEvent(page, "publish-absence-share-controls", `${phase}:${JSON.stringify(shareControls).slice(0, 1_800)}`);
+
+  const overlaySnippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
+  tracePageEvent(page, "publish-absence-overlays", `${phase}:${JSON.stringify(overlaySnippets).slice(0, 1_200)}`);
+}
+
 export async function publishPrivateScript(
   page: Page,
   options: {
@@ -8320,6 +8401,7 @@ export async function publishPrivateScript(
     if (compileErrorDetails) {
       throw new Error(`Could not open publish flow because TradingView reported a compile error: ${compileErrorDetails}`);
     }
+    await tracePublishSurfaceAbsence(page, "open").catch(() => undefined);
     throw new Error("Could not open publish flow");
   }
 
@@ -8354,6 +8436,7 @@ export async function publishPrivateScript(
       if (compileErrorDetails) {
         throw new Error(`Could not reopen publish flow after adding script to chart because TradingView reported a compile error: ${compileErrorDetails}`);
       }
+      await tracePublishSurfaceAbsence(page, `reopen:dialog-add-clicked=${clickedDialogAdd}`).catch(() => undefined);
       throw new Error("Could not reopen publish flow after adding script to chart");
     }
   }
