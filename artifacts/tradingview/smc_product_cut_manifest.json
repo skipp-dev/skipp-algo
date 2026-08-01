@@ -448,7 +448,8 @@
       "consumer_role": "exit_companion",
       "validation_target": false,
       "notes": [
-        "Read-only hold-management overlay with Engine BUS v2 as its fail-closed primary plan, explicit manual fallback, ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, time-stop, and confirmed-history state reconstruction."
+        "Read-only hold-management overlay with Engine BUS v2 as its fail-closed primary plan, explicit manual fallback, ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, time-stop, and confirmed-history state reconstruction.",
+        "R2 shadow observation window open since 2026-07-28T22:41:34Z (evidence: artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json); rollout_state stays 'planned' until the window and the rollback drill pass."
       ],
       "lifecycle": "planned",
       "deployment_mode": "standard",

@@ -377,6 +377,46 @@ def test_the_context_producer_note_is_derived_from_the_contract() -> None:
     assert "four TradingView plot" not in note
 
 
+def test_the_hold_manager_note_reports_the_open_shadow_window_from_evidence() -> None:
+    """The registry must surface a running shadow window, not only the end state.
+
+    `deployment_mode` records the target tier and has never been changed on any
+    surface; `rollout_state` deliberately stayed 'planned' when the window
+    opened (#4180, which touched ten files but left this registry alone). So
+    neither field can express "a shadow observation window is open right now",
+    and a reader of the canonical registry could not tell that one was —
+    the fact lived only in the traceability artifact, the activation evidence
+    and the architecture doc. The note carries it; this pins the note to the
+    evidence so the timestamp cannot drift away from it.
+    """
+    from scripts.smc_bus_manifest import SURFACE_DEFINITIONS_BY_FILE
+
+    activation = json.loads(
+        (
+            ROOT
+            / "artifacts"
+            / "governance"
+            / "smc_hold_manager_shadow_activation_2026-07-28.json"
+        ).read_text(encoding="utf-8")
+    )
+    surface = SURFACE_DEFINITIONS_BY_FILE["SMC_Hold_Manager.pine"]
+    note = " ".join(surface.notes)
+
+    activated_at = activation["activatedAtUtc"]
+    assert activated_at, "activation evidence no longer records activatedAtUtc"
+    assert activated_at in note, (
+        "the Hold Manager note no longer states the activation timestamp from "
+        f"the evidence artifact ({activated_at})"
+    )
+    assert "shadow observation window open" in note
+
+    # The note explains why the state fields read the way they do. If either
+    # field is ever changed on purpose, this pin must be revisited WITH it —
+    # that is the point: the two cannot drift apart silently.
+    assert surface.rollout_state == "planned"
+    assert surface.deployment_mode == "standard"
+
+
 def test_the_surface_payload_omits_unset_fields_instead_of_emitting_null() -> None:
     """A null in the payload silently breaks the delivery bundle.
 
