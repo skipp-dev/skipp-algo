@@ -100,3 +100,30 @@ def test_exempt_workflows_stay_out_of_the_shared_group(name: str) -> None:
         "workflow depends on; queueing it behind a publish is the failure this "
         "exemption exists to prevent"
     )
+
+
+@pytest.mark.parametrize("name", sorted(MUTATING))
+def test_the_group_does_not_claim_to_serialise_the_operator(name: str) -> None:
+    """The comment used to say "one browser session at a time". False.
+
+    The group serialises CI against CI and nothing else. The operator's own
+    browser is a second, unserialised writer on the same account, TradingView
+    autosaves from it (operator-confirmed 2026-08-01, autosave active), and a
+    chart tab on this account was open all day on 2026-08-01 while runs mutated
+    layouts -- nothing in CI knew or could have known. Same defect class as the
+    Pine-editor "no close affordance" comment fixed the same day: a guarantee
+    stated wider than what is implemented stops being questioned.
+    """
+    text = _tradingview_workflows()[name].read_text(encoding="utf-8")
+
+    assert "one TradingView account, one browser session at a time" not in text, (
+        f"{name} restates the over-claim this test exists to keep dead"
+    )
+    assert "second, unserialised writer" in text, (
+        f"{name} shares the session group but no longer discloses the "
+        "operator's browser as an unserialised second writer"
+    )
+    assert "autosave" in text, (
+        f"{name} must name autosave -- it is what turns an open operator tab "
+        "from a reader into a writer"
+    )

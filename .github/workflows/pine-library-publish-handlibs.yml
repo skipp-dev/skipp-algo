@@ -37,7 +37,13 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # 2026-08-01: one TradingView account, one browser session at a time.
+  # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
+  # This group does NOT serialise the account: the operator's own browser is
+  # a second, unserialised writer on the same layouts, and TradingView
+  # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
+  # chart tab on this account was open all day while runs mutated layouts —
+  # nothing here knew). No mechanism detects or excludes that session;
+  # mutating runs coordinate with the operator by convention, not by code.
   # Every workflow below drives the SAME external account, and until now each
   # one only serialised against itself — two of these blocks already said
   # "TradingView is a single shared external target" while keeping a private
