@@ -87,6 +87,10 @@ on:
 
 permissions:
   contents: read
+  # Read-only, and only for the workflow_run path: the chain has to find the
+  # bot/library-refresh-* PR that carries the refresh commit before it can
+  # check that commit out. See "Await the refresh commit on main" below.
+  pull-requests: read
 
 concurrency:
   group: tv-save-consumer-source
@@ -108,19 +112,87 @@ jobs:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
+      # The workflow_run event fires when smc-library-refresh COMPLETES, but the
+      # refresh does not push its output: it opens bot/library-refresh-<run id>-*
+      # and auto-merges it, which settles SECONDS LATER. Measured 2026-08-01:
+      # this chain started 02:55:28Z and the refresh PR (#4284) merged 02:55:48Z,
+      # so at checkout time both the event's head_sha (the parent) AND main's tip
+      # were still the pre-refresh tree. The run then re-saved the OLD consumer
+      # sources to TradingView and verified them against the OLD repo — reporting
+      # sources.drifted=0 while every consumer on the operator chart stayed one
+      # library version behind, until someone dispatched by hand.
+      #
+      # Nothing inside the run could catch it. The rollout's provenance compares
+      # library.expectedVersion against library.publishedVersion, and BOTH are
+      # fields of the same manifest file in the checked-out tree, so a stale tree
+      # agrees with itself: that run reported matches=true at version 180 while
+      # main was already on 182.
+      #
+      # So wait for the COMMIT instead of for the workflow. The refresh names its
+      # branch after its own run id, which is exactly what this event carries, so
+      # the PR is identifiable rather than guessed at.
+      - name: Await the refresh commit on main
+        id: refresh_commit
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REFRESH_RUN_ID: ${{ github.event.workflow_run.id }}
+          # Auto-merge on a bot/* PR skips heavy CI and lands in seconds; the
+          # observed gap was 20s. This is the outer bound before we would rather
+          # fail loudly than write a tree we cannot vouch for.
+          AWAIT_TIMEOUT_SECONDS: "600"
+        run: |
+          set -euo pipefail
+          prefix="bot/library-refresh-${REFRESH_RUN_ID}-"
+          deadline=$(( SECONDS + AWAIT_TIMEOUT_SECONDS ))
+          while :; do
+            # Sorted newest-first; the PR we want was created minutes ago.
+            pr=$(gh pr list --repo "$REPO" --state all --limit 100 \
+                   --json number,headRefName,state,mergeCommit \
+                   --jq "[.[] | select(.headRefName | startswith(\"${prefix}\"))] | first // empty")
+
+            if [ -z "$pr" ]; then
+              # The refresh only opens a PR when the regeneration actually
+              # changed something ("No post-publish changes to commit."), so an
+              # absent PR is a legitimate no-op, not a lost commit.
+              echo "::notice::No ${prefix}* PR exists — the refresh reported no post-publish changes, so main already carries its output."
+              exit 0
+            fi
+
+            number=$(jq -r '.number' <<<"$pr")
+            state=$(jq -r '.state' <<<"$pr")
+            sha=$(jq -r '.mergeCommit.oid // ""' <<<"$pr")
+
+            if [ "$state" = "MERGED" ] && [ -n "$sha" ]; then
+              echo "::notice::Refresh commit ${sha} (PR #${number}) is on main; checking that out."
+              echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            if [ "$state" = "CLOSED" ]; then
+              echo "::error::PR #${number} for refresh run ${REFRESH_RUN_ID} was closed without merging. Refusing to save a tree that is not the refresh output."
+              exit 1
+            fi
+
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              # Deliberately fatal. Continuing would reproduce exactly the defect
+              # this step exists to close, and would report it as green.
+              echo "::error::PR #${number} for refresh run ${REFRESH_RUN_ID} did not merge within ${AWAIT_TIMEOUT_SECONDS}s (state ${state}). Merge it and re-dispatch this workflow."
+              exit 1
+            fi
+
+            echo "PR #${number} is ${state}; waiting for the auto-merge to land."
+            sleep 15
+          done
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          # smc-library-refresh pushes its output commit DURING its run, but the
-          # workflow_run event's head_sha is the commit that run STARTED from —
-          # the parent of the refresh commit. Defaulting to that head_sha checks
-          # out the pre-refresh tree, so the chained save re-saves the OLD source
-          # (a no-op) and the fresh consumer source is never pushed to TradingView,
-          # leaving "saved consumer source drifts from repo" firing until a manual
-          # dispatch. For workflow_run, check out the branch tip instead so the
-          # post-refresh source is what gets saved. Empty ref keeps the default
-          # (github.sha) for schedule/dispatch, which already land on main's tip.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || '' }}
+          # Prefer the exact refresh commit resolved above. It is empty when the
+          # refresh changed nothing, and for schedule/dispatch the whole step is
+          # skipped — both fall through to main's tip, which is correct there.
+          ref: ${{ steps.refresh_commit.outputs.sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch) || '' }}
           fetch-depth: 1
           persist-credentials: false
 
