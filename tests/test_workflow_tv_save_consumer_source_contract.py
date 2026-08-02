@@ -865,3 +865,36 @@ def test_repair_survives_the_red_verification_it_exists_to_repair() -> None:
     assert "attestedBindingCount()" in drill
     assert "tradingView?.bindingsChecked" in drill
     assert "smc_r1_live_rollout_evidence_" in drill
+
+
+_GATE = "Refuse to mutate inside the operator's TradingView window"
+
+
+def test_operator_window_gate_runs_before_the_expensive_setup() -> None:
+    """A refusal must cost seconds, not a Playwright install.
+
+    Placed after Checkout (it needs the script) and before Set up Node, so an
+    open window ends the run in about a second instead of after three minutes
+    of npm and browser downloads.
+    """
+    names = [step.get("name", "") for step in _steps()]
+    assert _GATE in names, f"missing step: {_GATE}"
+    assert names.index("Checkout") < names.index(_GATE) < names.index("Set up Node")
+
+
+def test_operator_window_gate_exempts_read_only_runs() -> None:
+    """An open window must not suppress the verification that makes it safe.
+
+    Read-only runs write nothing, so they are never gated. The condition
+    classifies the trigger paths exactly as the rollout step's TV_VERIFY_ONLY
+    expression does: schedule is read-only, a dispatch with verify_only=true is
+    read-only, and everything else -- including the workflow_run refresh chain,
+    which is how 2026-08-01 reached the account -- mutates.
+    """
+    step = next(s for s in _steps() if s.get("name") == _GATE)
+    condition = step["if"]
+    assert "github.event_name != 'schedule'" in condition
+    assert "github.event.inputs.verify_only != 'true'" in condition
+    assert "github.event_name == 'workflow_run'" not in condition
+    assert step["env"]["TV_OPERATOR_ACTIVE"] == "${{ vars.TV_OPERATOR_ACTIVE }}"
+    assert "scripts.check_tv_operator_window" in step["run"]

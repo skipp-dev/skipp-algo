@@ -221,6 +221,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # The operator's browser is the normal production writer on this account
+      # and automation is the guest; the tradingview-session group serialises
+      # CI against CI only. This is the one direction that can be excluded
+      # honestly: CI starting while the operator is working. The variable holds
+      # an EXPIRY, so a forgotten claim cannot block this workflow past its own
+      # timestamp -- see scripts/check_tv_operator_window.py.
+      #
+      # Read-only runs are exempt on purpose: they write nothing, and gating
+      # them would let an open window suppress the evening verification.
+      - name: Refuse to mutate inside the operator's TradingView window
+        if: ${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}
+        env:
+          TV_OPERATOR_ACTIVE: ${{ vars.TV_OPERATOR_ACTIVE }}
+        run: python3 -m scripts.check_tv_operator_window
+
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
