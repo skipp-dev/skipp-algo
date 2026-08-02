@@ -38,6 +38,11 @@ import {
   type VerifyConsumerResult,
   type VerifyConsumerTarget,
 } from "./tv_verify_consumer_bindings.js";
+import {
+  compareAgainstBaseline,
+  type ObservedConsumer,
+  type OutOfBandVerdict,
+} from "../automation/tradingview/lib/tv_out_of_band_drift.js";
 
 type RolloutConfig = {
   producerName: string;
@@ -112,6 +117,13 @@ type RolloutReport = {
      */
     savedWithoutAttestation: string[];
   };
+  /**
+   * Whether anyone wrote to the managed layouts between the last CI run and
+   * this one. Measured BEFORE this run's first mutation, so a difference is
+   * attributable to a second writer -- normally the operator's browser, whose
+   * autosave nothing in CI serialises against.
+   */
+  outOfBandDrift: OutOfBandVerdict;
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
   consumerRefresh: { requested: boolean; ok: boolean; removedInstances: number; errors: string[] };
@@ -136,6 +148,38 @@ function getFlag(name: string, fallback: string): string {
   const args = process.argv.slice(2);
   const index = args.indexOf(name);
   return index === -1 || !args[index + 1] ? fallback : args[index + 1];
+}
+
+/**
+ * Read the bindings of every verify target without changing anything.
+ *
+ * verifyConsumerBindings is called with repair=false and forceRebind=false, so
+ * this walks the layouts read-only. A target that cannot be read is simply
+ * absent from the result, which the comparison turns into "unknown" rather than
+ * into a false drift.
+ */
+async function observeBindingsOnly(
+  session: Awaited<ReturnType<typeof newTradingViewSession>>,
+  config: RolloutConfig,
+): Promise<ObservedConsumer[]> {
+  const observed: ObservedConsumer[] = [];
+  for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
+    if (!session.page.url().startsWith(layout.chartUrl)) {
+      await gotoChart(session.page, layout.chartUrl);
+    }
+    for (const target of layout.targets) {
+      try {
+        const result = await verifyConsumerBindings(session, target, false, false);
+        observed.push({
+          scriptName: result.scriptName,
+          selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
+        });
+      } catch {
+        // Left out deliberately: an unread target must not read as unchanged.
+      }
+    }
+  }
+  return observed;
 }
 
 async function main(): Promise<void> {
@@ -234,6 +278,11 @@ async function main(): Promise<void> {
       abandonedChartUrls: [],
       savedWithoutAttestation,
     },
+    outOfBandDrift: {
+      status: "unknown",
+      reason: "the pre-mutation observation has not run yet",
+      changed: [],
+    },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
     consumerRefresh: { requested: executionPlan.repairBindings, ok: true, removedInstances: 0, errors: [] },
@@ -289,6 +338,29 @@ async function main(): Promise<void> {
         `[rollout] could not read the published version of ${libraryObservation.scriptName} from the pine facade — `
         + "the run continues, but its library-publish evidence is UNKNOWN, not confirmed.",
       );
+    }
+
+    // Before anything is written. After the first save, a difference could be
+    // this run's own doing and proves nothing about a second writer.
+    if (executionPlan.mode !== "verify-only") {
+      const baselinePath = path.resolve(
+        getFlag("--baseline", "artifacts/monitoring/previous/tradingview_consumer_bindings.json"),
+      );
+      let baseline: ObservedConsumer[] | null = null;
+      try {
+        const parsed = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
+        baseline = (parsed?.tradingViewObserved?.bindings ?? null) as ObservedConsumer[] | null;
+      } catch {
+        baseline = null;
+      }
+      report.outOfBandDrift = compareAgainstBaseline({
+        observed: await observeBindingsOnly(session, config),
+        baseline,
+        expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
+      });
+      if (report.outOfBandDrift.status !== "clean") {
+        console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
+      }
     }
 
     await gotoChart(session.page, config.primaryChartUrl);
@@ -601,7 +673,14 @@ async function main(): Promise<void> {
       && report.sources.drifted === 0
       && report.bindings.failed.length === 0
       && report.bindings.checkedConsumers === report.bindings.expectedConsumers
-      && report.bindings.mismatches === 0;
+      && report.bindings.mismatches === 0
+      // A second writer touched the managed layouts since the last CI run, or
+      // the comparison could not be made. The save is NOT withheld -- that
+      // would freeze the consumers on an old pinned library while the producer
+      // moves on (operator decision 2026-08-01) -- so this field carries the
+      // red on its own. Never rely on another clause to catch it: an
+      // out-of-band binding change leaves sources.drifted at 0.
+      && report.outOfBandDrift.status === "clean";
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
     console.log(JSON.stringify(report));
