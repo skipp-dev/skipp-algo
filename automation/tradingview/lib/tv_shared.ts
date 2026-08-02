@@ -5233,6 +5233,122 @@ function scriptRemovalConfirmActionLocators(page: Page): Locator[] {
   ];
 }
 
+// Measured 2026-07-31 at the identity-evidence probe: Object Tree entries
+// live under [data-name="tree"] inside the right widgetbar.
+export const OBJECT_TREE_PANEL_SELECTOR = '[data-name="tree"]';
+
+// Candidates for the right-sidebar toggle that opens the Object Tree panel.
+// Unlike the panel anchor above these are NOT live-measured yet — the first
+// tree-removal run proves them. Kept as a family so one rename does not kill
+// the path.
+function objectTreeToggleLocators(page: Page): Locator[] {
+  return [
+    page.locator('button[data-name="object_tree"], [data-name="object-tree"], [data-name="objecttree"]'),
+    page.getByRole("button", { name: /object tree/i }),
+    page.locator('button[aria-label*="object tree" i], [data-tooltip*="object tree" i]'),
+  ];
+}
+
+async function ensureObjectTreeVisible(page: Page): Promise<boolean> {
+  const panel = page.locator(OBJECT_TREE_PANEL_SELECTOR).first();
+  if (await panel.isVisible({ timeout: 300 }).catch(() => false)) {
+    return true;
+  }
+  const opened = await clickVisibleWithFallback(
+    page,
+    objectTreeToggleLocators(page),
+    "object-tree-open",
+    1_500,
+    300,
+  ).catch(() => false);
+  if (!opened) {
+    return false;
+  }
+  await page.waitForTimeout(400);
+  return await panel.isVisible({ timeout: 1_000 }).catch(() => false);
+}
+
+function objectTreeRowsForScript(page: Page, scriptName: string): Locator {
+  const [, loosePattern] = buildScriptNamePatterns(scriptName);
+  return page.locator(OBJECT_TREE_PANEL_SELECTOR).first().getByText(loosePattern);
+}
+
+/**
+ * Operator-suggested removal path (2026-08-02): right sidebar -> Object Tree
+ * -> right-click the entry -> Remove.
+ *
+ * Every other removal path anchors on the chart LEGEND row, which must first
+ * be found by the button-first probe — and TradingView renders those buttons
+ * on hover only, so the pre-#4263 overlay row was undiscoverable (0 wrappers
+ * in 192ms across four detection variants) while plainly visible to a human,
+ * who removed it by hand exactly this way. The Object Tree is a complete
+ * inventory panel with stable rows, and the context menu needs no
+ * hover-rendered buttons. The menu machinery (right-click, the Remove and
+ * confirm locator families) already existed; only the tree as an anchor
+ * surface was missing.
+ *
+ * Success is judged by the tree's OWN row count, never by
+ * countChartScriptInstances — that probe is blind for exactly the rows this
+ * path exists to remove, and consulting it would report every successful
+ * tree removal as a failure.
+ */
+export async function removeChartScriptInstancesViaObjectTree(
+  page: Page,
+  scriptName: string,
+  maxRemovals = 4,
+): Promise<number> {
+  if (!(await ensureObjectTreeVisible(page))) {
+    tracePageEvent(page, "object-tree-unavailable", scriptName);
+    return 0;
+  }
+
+  let removedCount = 0;
+  for (let attempt = 0; attempt < maxRemovals; attempt += 1) {
+    const rows = objectTreeRowsForScript(page, scriptName);
+    const before = await rows.count().catch(() => 0);
+    if (before === 0) {
+      break;
+    }
+    const row = rows.first();
+    if (!(await row.isVisible({ timeout: 400 }).catch(() => false))) {
+      break;
+    }
+    await row.scrollIntoViewIfNeeded().catch(() => undefined);
+    await row.click({ timeout: 800 }).catch(() => undefined); // highlight, as the operator does
+    await row.click({ button: "right", timeout: 1_000, force: true }).catch(() => undefined);
+
+    const clickedRemove = await clickVisibleWithFallback(
+      page,
+      scriptRemovalActionLocators(page),
+      "object-tree-remove",
+      1_200,
+      300,
+    ).catch(() => false);
+    if (!clickedRemove) {
+      tracePageEvent(page, "object-tree-remove-miss", `${scriptName}:${attempt}`);
+      await closeModal(page).catch(() => undefined);
+      break;
+    }
+    await clickVisibleWithFallback(
+      page,
+      scriptRemovalConfirmActionLocators(page),
+      "object-tree-remove-confirm",
+      1_000,
+      300,
+    ).catch(() => false);
+    await page.waitForTimeout(400);
+
+    const after = await objectTreeRowsForScript(page, scriptName).count().catch(() => before);
+    if (after >= before) {
+      tracePageEvent(page, "object-tree-remove-no-change", `${scriptName}:${attempt}:${before}->${after}`);
+      break;
+    }
+    removedCount += before - after;
+    tracePageEvent(page, "object-tree-remove-ok", `${scriptName}:${before}->${after}`);
+  }
+  return removedCount;
+}
+
 async function tryKeyboardRemoveScriptInstance(page: Page, wrapper: Locator, scriptName: string, attempt: number): Promise<boolean> {
   await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
   await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
@@ -5348,6 +5464,17 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
         }
       }
       if (wrappers.length === 0) {
+        // Last resort, suggested by the operator after removing by hand what
+        // four legend-probe variants could not find: the Object Tree lists
+        // every applied object as a stable row and its context menu needs no
+        // hover-rendered buttons. Zero tree removals means there is genuinely
+        // nothing left to remove (or no tree) — then, as before, we stop.
+        const treeRemoved = await removeChartScriptInstancesViaObjectTree(page, scriptName).catch(() => 0);
+        if (treeRemoved > 0) {
+          removedCount += treeRemoved;
+          tracePageEvent(page, "script-remove-object-tree-fallback-ok", `${scriptName}:${treeRemoved}`);
+          continue; // re-probe: further copies may now be discoverable
+        }
         break;
       }
 
