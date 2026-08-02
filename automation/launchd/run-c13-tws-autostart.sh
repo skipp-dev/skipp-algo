@@ -35,8 +35,13 @@
 #      5ea02834bfc9379b98d4d217ddf87df74c070b7901306b05795dfe166f4d3898).
 #   2. The OFFLINE TWS build at ~/Applications/TWS-Offline, symlinked as
 #      "~/Applications/Trader Workstation 10.45" (IBC resolves the install
-#      as "<tws-path>/Trader Workstation <version>"). The self-updating TWS
-#      under /Applications does NOT work with IBC — see below.
+#      as "<tws-path>/Trader Workstation <version>"). Use the NATIVE Apple
+#      Silicon build (tws-stable-macos-arm.dmg — note "macos-arm", the x64
+#      one is "macosx-x64"): the x64 build works but runs under Rosetta,
+#      which macOS now warns about and Apple is phasing out. Re-verified on
+#      arm 2026-08-02: real credential login, port open after 10s. The
+#      self-updating TWS under /Applications does NOT work with IBC — see
+#      below.
 #   3. Inside TWS-Offline/jars every *.dat has a *.jar symlink next to it.
 #      Modern TWS ships core jars renamed to timestamped .dat (plain,
 #      unencrypted jar archives — verified with file/unzip), and IBC's
