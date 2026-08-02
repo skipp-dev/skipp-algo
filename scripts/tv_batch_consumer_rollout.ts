@@ -323,6 +323,52 @@ async function main(): Promise<void> {
       }
     }
 
+    // Source verification runs BEFORE the instance refreshes, and the order is
+    // load-bearing in both directions (root-caused 2026-08-02):
+    //
+    //  * Its reload below is the point — verify TradingView's persisted
+    //    saved-script state, not the Monaco buffers this run just edited.
+    //  * That same hard reload reverts the chart to its SAVED layout, which
+    //    silently discards any unsaved instance the refreshes insert. Sitting
+    //    between refresh and binding verification, it made six R4 runs report
+    //    "Existing chart instance not found" / stale 60-input dialogs about
+    //    instances that had genuinely been rolled back moments earlier
+    //    (30694013096, 30696257671, 30698519321, 30700161400, 30702240413,
+    //    30718040533) — and sent four detection-side fixes (#4304, #4307,
+    //    #4313, #4320) after probes that were telling the truth.
+    //
+    // Up here it verifies exactly what it should while there is nothing
+    // unsaved to destroy. From the refreshes onward the flow stays on the
+    // layout without an unconditional reload until the binding loop's own
+    // save/abandon decision — abandoning now rolls back the inserts too,
+    // which strengthens the free-rollback property rather than weakening it.
+    if (report.save.failed.length === 0) {
+      if (executionPlan.saveSources && report.save.succeeded.length > 0) {
+        await gotoChart(session.page, config.primaryChartUrl);
+        await ensurePineEditor(session.page);
+      }
+
+      for (const target of sourceVerificationTargets) {
+        let result: VerifyConsumerSourceResult | null = null;
+        let lastError = "unknown source verification failure";
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+          try {
+            result = await verifyConsumerSource(session, target);
+            lastError = "";
+            break;
+          } catch (error) {
+            lastError = String((error as Error)?.message ?? error);
+            if (attempt < 2) {
+              await gotoChart(session.page, config.primaryChartUrl).catch(() => undefined);
+              await ensurePineEditor(session.page).catch(() => undefined);
+            }
+          }
+        }
+        if (result) report.sources.consumers.push(result);
+        else report.sources.failed.push({ target: target.scriptName, error: lastError });
+      }
+    }
+
     if (report.save.failed.length === 0 && executionPlan.refreshProducer) {
       // The applied producer instance lives in EVERY layout that carries
       // consumers (desktop primary + e.g. the Mobile layout the operator
@@ -386,40 +432,12 @@ async function main(): Promise<void> {
       report.mutations.consumerInstancesRemoved = report.consumerRefresh.removedInstances;
     }
 
-    // Gated on saves ALONE. The cosmetic refresh above used to gate this block too,
-    // so a single refresh timeout reported `sources.checked 0` / `bindings 0` and
-    // skipped the load-bearing verification entirely (live runs 29929470730 and
-    // 29946386778, 2026-07-22).
+    // Gated on saves ALONE. The cosmetic refresh above used to gate this block
+    // too, so a single refresh timeout skipped the load-bearing verification
+    // entirely (live runs 29929470730 and 29946386778, 2026-07-22; at the time
+    // that meant `sources.checked 0` as well — source verification has since
+    // moved ABOVE the refreshes, see the ordering comment there).
     if (report.save.failed.length === 0) {
-      if (executionPlan.saveSources && report.save.succeeded.length > 0) {
-        // Do not verify against the same in-memory Monaco buffers we just
-        // edited. Reload the chart first so source hashes are reconstructed
-        // from TradingView's persisted saved-script state. This catches a Save
-        // command that appears successful but does not survive navigation.
-        await gotoChart(session.page, config.primaryChartUrl);
-        await ensurePineEditor(session.page);
-      }
-
-      for (const target of sourceVerificationTargets) {
-        let result: VerifyConsumerSourceResult | null = null;
-        let lastError = "unknown source verification failure";
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-          try {
-            result = await verifyConsumerSource(session, target);
-            lastError = "";
-            break;
-          } catch (error) {
-            lastError = String((error as Error)?.message ?? error);
-            if (attempt < 2) {
-              await gotoChart(session.page, config.primaryChartUrl).catch(() => undefined);
-              await ensurePineEditor(session.page).catch(() => undefined);
-            }
-          }
-        }
-        if (result) report.sources.consumers.push(result);
-        else report.sources.failed.push({ target: target.scriptName, error: lastError });
-      }
-
       // Opt-in only: the immutable execution plan permits repair only in write
       // mode. Verify-only always passes false/false and therefore only reads
       // the currently selected BUS sources.
