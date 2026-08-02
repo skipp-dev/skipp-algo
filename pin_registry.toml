@@ -290,8 +290,9 @@ codes = ["E402", "I001"]
 # for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
-# github-mirror-sync.yml (2026-07-01): intentional orphan workflow for
-# repository mirroring; no dedicated test contract yet.
+# github-mirror-sync.yml left the orphan list 2026-08-02: the mirror workflow
+# (push of the full ref namespace to spreuss_cisco/spreuss_cisco-skipp-algo)
+# was removed — the mirror is no longer needed.
 # sync-tradingview-pine-libraries.yml left the orphan list 2026-07-11: the
 # dead TV→repo Pine-sync workflow was removed (repo is SSOT; see
 # pine/PINE_LIBRARIES_AUDIT.md).
@@ -301,7 +302,7 @@ codes = ["E402", "I001"]
 # openprep-pine-panel-daily-trigger.yml (2026-07-04, post-first-publish):
 # workflow_run bridge that dispatches the publisher after successful daily
 # producer schedule runs on main; intentionally contract-light/orphan.
-allowed = ["github-mirror-sync.yml", "openprep-pine-panel-daily-trigger.yml"]
+allowed = ["openprep-pine-panel-daily-trigger.yml"]
 
 # ---------------------------------------------------------------------------
 # test_workflow_set_plus_e_inventory.py — workflows allowed to use
