@@ -9,11 +9,11 @@ clears it, so a typo costs seconds.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from scripts.check_tv_operator_window import evaluate
 
-_NOW = datetime(2026, 8, 2, 20, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 2, 20, 0, tzinfo=UTC)
 
 
 def test_unset_variable_lets_the_run_through() -> None:

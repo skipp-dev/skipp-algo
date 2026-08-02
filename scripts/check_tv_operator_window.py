@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 VARIABLE = "TV_OPERATOR_ACTIVE"
 CLEAR_COMMAND = f"gh variable delete {VARIABLE}"
@@ -66,7 +66,7 @@ def evaluate(raw: str | None, now: datetime) -> tuple[int, str]:
 
 def main() -> int:
     argparse.ArgumentParser(description="Gate mutating TradingView runs on the operator window.").parse_args()
-    code, message = evaluate(os.environ.get(VARIABLE), datetime.now(timezone.utc))
+    code, message = evaluate(os.environ.get(VARIABLE), datetime.now(UTC))
     if message:
         print(f"::{'error' if code else 'notice'}::{message}")
     return code
