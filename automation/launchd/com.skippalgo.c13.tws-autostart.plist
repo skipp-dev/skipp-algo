@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.skippalgo.c13.tws-autostart</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <!-- REPLACE __REPO_PATH__ with the absolute path to your local
+             skipp-algo checkout when copying this plist to
+             ~/Library/LaunchAgents/. See automation/launchd/README.md. -->
+        <string>__REPO_PATH__/automation/launchd/run-c13-tws-autostart.sh</string>
+    </array>
+
+    <!-- 07:30 ET target, 30 min ahead of the 08:00 ET ibkr-smoke and a full
+         hour ahead of the 09:28 ET phase-a submit. Same DST-bracketing as the
+         other ET-gated jobs: three candidate LOCAL hours (12:30/13:30/14:30,
+         Berlin<->ET +5/+6/+7h); the ET gate in run-c13-tws-autostart.sh lets
+         exactly one per ET weekday proceed. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>12</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>14</integer><key>Minute</key><integer>30</integer></dict>
+    </array>
+
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-tws-autostart.err</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-tws-autostart.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
