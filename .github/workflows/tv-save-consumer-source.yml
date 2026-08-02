@@ -294,6 +294,32 @@ jobs:
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
 
+      # The comparison baseline is the observation the LAST run published to
+      # bot/live-tradingview-bindings. Fetched over the API rather than with
+      # git: the checkout above sets persist-credentials: false, so no
+      # credential is available to git here.
+      #
+      # A missing baseline is not an error. It is the "unknown" verdict, and the
+      # rollout decides that -- a first run, or a pruned branch, must not fail a
+      # step that has measured nothing.
+      - name: Fetch the published binding baseline
+        if: ${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/monitoring/previous
+          out="artifacts/monitoring/previous/tradingview_consumer_bindings.json"
+          path="artifacts/monitoring/latest/tradingview_consumer_bindings.json"
+          if gh api "repos/${GH_REPO}/contents/${path}?ref=bot/live-tradingview-bindings" \
+               --jq '.content' 2>/dev/null | base64 -d > "${out}"; then
+            echo "Baseline fetched: $(wc -c < "${out}") bytes"
+          else
+            rm -f "${out}"
+            echo "::warning::No published binding baseline — out-of-band drift will report as unknown."
+          fi
+
       # Runs on EVERY trigger, before the browser opens. The 2026-08-01
       # un-attestation arrived through the workflow_run chain, not a dispatch,
       # so watching only the manual path would leave the door that was used.

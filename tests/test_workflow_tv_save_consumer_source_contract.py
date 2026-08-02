@@ -907,3 +907,30 @@ def test_operator_window_gate_exempts_read_only_runs() -> None:
     assert condition == "${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}"
     assert step["env"]["TV_OPERATOR_ACTIVE"] == "${{ vars.TV_OPERATOR_ACTIVE }}"
     assert "scripts.check_tv_operator_window" in step["run"]
+
+
+_BASELINE = "Fetch the published binding baseline"
+
+
+def test_baseline_fetch_reads_the_published_branch_and_precedes_the_rollout() -> None:
+    names = [step.get("name", "") for step in _steps()]
+    assert _BASELINE in names, f"missing step: {_BASELINE}"
+    rollout = next(
+        i for i, s in enumerate(_steps()) if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", "")
+    )
+    assert names.index(_BASELINE) < rollout
+
+    step = next(s for s in _steps() if s.get("name") == _BASELINE)
+    assert "bot/live-tradingview-bindings" in step["run"]
+    assert "artifacts/monitoring/previous/tradingview_consumer_bindings.json" in step["run"]
+
+
+def test_a_missing_baseline_does_not_fail_the_step() -> None:
+    """An absent baseline is the "unknown" verdict, decided by the rollout.
+
+    Failing here instead would turn a first-ever run, or a pruned branch, into
+    a red step with no measurement behind it.
+    """
+    step = next(s for s in _steps() if s.get("name") == _BASELINE)
+    assert "::warning::" in step["run"]
+    assert "exit 1" not in step["run"]
