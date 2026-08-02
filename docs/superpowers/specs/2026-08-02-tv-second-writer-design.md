@@ -106,8 +106,26 @@ difference is by construction not this run's doing — that is the proof nobody
 currently produces.
 
 The comparison key is, per verify target, the map
-`label -> selections[].actual` (the actual bound parent study IDs). Source
-hashes stay out of it: `sources.drifted` already covers them on every run.
+`label -> selections[].actual`. Source hashes stay out of it: `sources.drifted`
+already covers them on every run.
+
+**What that key actually is, corrected 2026-08-03 after review.** This document
+first called it "the actual bound parent study IDs". It is not. `readSelectedSource`
+returns the rendered text of the settings dialog's `button[role=combobox]` — a
+label, not an id. `tv_batch_consumer_rollout.ts` states the consequence in its own
+comment: *"A matching dropdown label does not prove a live parent: TradingView
+keeps the text while the stored input.source parent study id is dead."*
+
+So the detector's reach is narrower than the sentence above implied. It sees a
+binding repointed to a *differently named* source, and it sees one that
+disappeared. It does NOT see the case where the operator re-applies the Suite and
+every consumer's binding goes dead while the dropdown text stays identical — that
+reads as `clean`. That case is the one `unknownParentRuntimeError` exists for, and
+it remains the signal to watch; this design does not replace it.
+
+Comparing real parent study ids would be strictly better and is not done here,
+because nothing in the automation reads them today. Recorded as a known bound,
+not as a gap someone forgot.
 
 ### Verdict states
 
