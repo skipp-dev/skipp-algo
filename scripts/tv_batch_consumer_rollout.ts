@@ -164,19 +164,34 @@ async function observeBindingsOnly(
 ): Promise<ObservedConsumer[]> {
   const observed: ObservedConsumer[] = [];
   for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
-    if (!session.page.url().startsWith(layout.chartUrl)) {
-      await gotoChart(session.page, layout.chartUrl);
-    }
-    for (const target of layout.targets) {
-      try {
-        const result = await verifyConsumerBindings(session, target, false, false);
-        observed.push({
-          scriptName: result.scriptName,
-          selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
-        });
-      } catch {
-        // Left out deliberately: an unread target must not read as unchanged.
+    try {
+      // The navigation sits inside the same swallow as the read below it, on
+      // purpose: this pass runs before the primary chart is even visited (see
+      // the ordering comment at the call site), so a flake reaching a
+      // SECONDARY layout here must not abort the run before the traded chart
+      // is ever touched. The shipped config visits the primary chart first --
+      // "a late failure leaves the traded chart repaired and the rest
+      // untouched, never the reverse" -- and an unreachable layout up here
+      // must degrade to unread targets (which the coverage guard below turns
+      // into "unknown"), not a fatal error that reverses that property.
+      if (!session.page.url().startsWith(layout.chartUrl)) {
+        await gotoChart(session.page, layout.chartUrl);
       }
+      for (const target of layout.targets) {
+        try {
+          const result = await verifyConsumerBindings(session, target, false, false);
+          observed.push({
+            scriptName: result.scriptName,
+            selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
+          });
+        } catch {
+          // Left out deliberately: an unread target must not read as unchanged.
+        }
+      }
+    } catch {
+      // The layout itself could not be reached (e.g. a page.goto timeout).
+      // Every target on it is simply absent from `observed`, same as a single
+      // unread target above.
     }
   }
   return observed;
@@ -349,7 +364,12 @@ async function main(): Promise<void> {
       let baseline: ObservedConsumer[] | null = null;
       try {
         const parsed = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
-        baseline = (parsed?.tradingViewObserved?.bindings ?? null) as ObservedConsumer[] | null;
+        const raw = parsed?.tradingViewObserved?.bindings;
+        // A present-but-malformed shape (object/number/boolean instead of an
+        // array) must not throw inside compareAgainstBaseline's `for...of`.
+        // Reading a baseline file must never abort the run; every malformed
+        // shape ends as "unknown", same as a missing or unparsable file.
+        baseline = Array.isArray(raw) ? (raw as ObservedConsumer[]) : null;
       } catch {
         baseline = null;
       }
@@ -361,6 +381,17 @@ async function main(): Promise<void> {
       if (report.outOfBandDrift.status !== "clean") {
         console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
       }
+    } else {
+      // A read-only run writes nothing, so there is no second writer to
+      // attribute anything to -- and Task 6's baseline is fetched only for
+      // mutating runs, so a read-only run could not compare against one even
+      // if it wanted to. Replacing the initialiser's "has not run yet" text
+      // here keeps the published artifact from reading like a stuck probe.
+      report.outOfBandDrift = {
+        status: "unknown",
+        reason: "read-only run: nothing written, so no second writer to attribute",
+        changed: [],
+      };
     }
 
     await gotoChart(session.page, config.primaryChartUrl);
@@ -680,7 +711,12 @@ async function main(): Promise<void> {
       // moves on (operator decision 2026-08-01) -- so this field carries the
       // red on its own. Never rely on another clause to catch it: an
       // out-of-band binding change leaves sources.drifted at 0.
-      && report.outOfBandDrift.status === "clean";
+      //
+      // Exempted for a read-only run: it writes nothing, so there is nothing
+      // to attribute to a second writer, and it never fetches a baseline (that
+      // fetch is gated to mutating runs above) -- so the field is permanently
+      // "unknown" here by construction, not by a failure to measure.
+      && (executionPlan.mode === "verify-only" || report.outOfBandDrift.status === "clean");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
     console.log(JSON.stringify(report));

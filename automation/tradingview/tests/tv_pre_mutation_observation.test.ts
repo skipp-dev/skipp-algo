@@ -47,6 +47,20 @@ test("a drifted or unknown verdict makes the run red", () => {
   assert.match(SOURCE, /report\.outOfBandDrift\.status === "clean"/);
 });
 
+test("a read-only run is exempt from the drift conjunct, so it is never permanently red", () => {
+  // The pre-mutation observation only runs when executionPlan.mode !==
+  // "verify-only" (see the test above), so a read-only run's outOfBandDrift
+  // never leaves its "unknown" initialiser. Without this exemption sitting
+  // alongside the "clean" check, report.ok would require an unreachable
+  // condition on every read-only run -- both tv-save-consumer-source.yml
+  // schedule crons and every verify_only=true tv-post-mutation-verify.yml
+  // dispatch would be permanently red while perfectly healthy.
+  assert.match(
+    SOURCE,
+    /\(executionPlan\.mode === "verify-only" \|\| report\.outOfBandDrift\.status === "clean"\)/,
+  );
+});
+
 test("the verdict is reported, not used to withhold the save", () => {
   // Operator decision 2026-08-01, repeated here: withholding freezes the
   // consumers on an old pinned library while the producer moves on.
