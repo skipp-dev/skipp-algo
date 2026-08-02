@@ -8,6 +8,8 @@ rollout handling. Also satisfies
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -925,12 +927,46 @@ def test_baseline_fetch_reads_the_published_branch_and_precedes_the_rollout() ->
     assert "artifacts/monitoring/previous/tradingview_consumer_bindings.json" in step["run"]
 
 
-def test_a_missing_baseline_does_not_fail_the_step() -> None:
-    """An absent baseline is the "unknown" verdict, decided by the rollout.
+def test_a_missing_baseline_warns_and_leaves_no_file_instead_of_failing(tmp_path: Path) -> None:
+    """Ensures the step gracefully handles a missing baseline by exiting 0 with a warning.
 
-    Failing here instead would turn a first-ever run, or a pruned branch, into
-    a red step with no measurement behind it.
+    The previous grep-based check ("exit 1" not in step["run"]) could not detect
+    differently-spelled failures like `exit 2` or `false`. This test actually
+    executes the script to verify it exits cleanly even when the baseline fetch
+    fails. A red step here would report a failure it never measured; the rollout
+    already turns an absent baseline into "unknown" and decides verdict downstream.
     """
+    # Extract the script from the workflow
     step = next(s for s in _steps() if s.get("name") == _BASELINE)
-    assert "::warning::" in step["run"]
-    assert "exit 1" not in step["run"]
+    script = step["run"]
+
+    # Create a mock gh command that exits 1 (simulating missing baseline)
+    mock_gh_dir = tmp_path / "mock_bin"
+    mock_gh_dir.mkdir()
+    mock_gh = mock_gh_dir / "gh"
+    mock_gh.write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+    mock_gh.chmod(0o755)
+
+    # Create a working directory for the script
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+
+    # Run the script with the mock gh in PATH
+    env = os.environ.copy()
+    env["PATH"] = str(mock_gh_dir) + ":" + env.get("PATH", "")
+    env["GH_TOKEN"] = "fake-token"
+    env["GH_REPO"] = "fake/repo"
+
+    result = subprocess.run(
+        ["bash", "-c", script],
+        cwd=work_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    # Assertions
+    assert result.returncode == 0, f"Script failed with exit code {result.returncode}: {result.stderr}"
+    assert "::warning::" in result.stdout, f"No warning found in stdout: {result.stdout}"
+    baseline_file = work_dir / "artifacts/monitoring/previous/tradingview_consumer_bindings.json"
+    assert not baseline_file.exists(), f"Baseline file should not exist when fetch fails, but found: {baseline_file}"
