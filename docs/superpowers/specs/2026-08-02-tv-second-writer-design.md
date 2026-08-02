@@ -4,8 +4,16 @@
 **Operator decision this supersedes:** 2026-08-01 rejected Dispatch-Ack (A),
 post-run notification (B) and TV session probe (D), building only the
 post-mutation re-verify (C, #4318). On 2026-08-02 the operator lifted that
-rejection for the work below: both halves are in scope, and D returns as a
-time-boxed feasibility spike whose negative result is an acceptable outcome.
+rejection for both halves of the coverage gap below.
+
+**Amendment, 2026-08-02 (same day, before implementation):** the session probe
+(D) is struck again, this time deliberately. It was scoped here as a
+feasibility spike, but the spike cannot be delegated: TradingView auth is only
+reachable through a Chrome profile copy plus CDP export on the operator's own
+machine, and running a probe session against the account is itself an instance
+of the second-writer risk this design exists to reduce. The 2026-08-01
+rejection of D therefore stands — now as a recorded choice rather than an
+unexamined one. A1 and A2 cover the exclusion half without it.
 
 ## Problem
 
@@ -36,14 +44,15 @@ rewrite.
 
 ## Scope
 
-Four components, in dependency order. Each is independently useful; none
-depends on the spike.
+Three components are built, in dependency order; each is independently useful.
+The fourth is recorded here as a decision not to build it.
 
 1. **Evening verify** — halve the no-CI-run detection latency.
 2. **A1, out-of-band drift fingerprint** — prove, before mutating, whether
    someone wrote since the last CI run.
 3. **A2, operator window** — let the operator exclude CI by code, with expiry.
-4. **A3 spike** — decide whether a session probe is feasible at all.
+4. ~~**A3 spike** — decide whether a session probe is feasible at all.~~
+   Struck 2026-08-02; see Component 4.
 
 ### Non-goals
 
@@ -189,16 +198,23 @@ which classifies the three trigger paths the same way the rollout step's
 
 Precedent for repository variables in this repo: `vars.SMC_GH_HOSTED_RUNNER`.
 
-## Component 4 — A3, session-probe spike
+## Component 4 — A3, session probe: NOT BUILT
 
-Time-boxed investigation of whether an authenticated TradingView session can
-observe other active sessions on the same account, and whether CI's own session
-would be distinguishable from the operator's.
+Struck on 2026-08-02 before implementation. The idea was to ask TradingView
+which sessions are active on the account and refuse to mutate when one of them
+is not CI's own.
 
-The deliverable is a written finding under `docs/`, explicitly including a
-negative one. No probe code lands unless the finding shows the surface exists
-and is stable. This is the component whose feasibility is unverified; it is
-sequenced last so that a negative result costs nothing already built.
+Two reasons it does not happen here. The investigation needs an authenticated
+session that only exists on the operator's machine — TradingView auth is
+reachable solely through a Chrome profile copy plus CDP export, so no CI job and
+no delegated agent can run it. And the probe would open a browser session
+against the account purely to ask who else is on it, which is the very
+second-writer pressure this design reduces.
+
+What that leaves uncovered is stated plainly: an operator session that is never
+declared through `TV_OPERATOR_ACTIVE` remains invisible to CI. A1 still catches
+what such a session *wrote*, on the next mutating run or the next scheduled
+verify. Nothing catches it while it is merely open.
 
 ## Testing
 
@@ -213,7 +229,7 @@ Every component is testable without a TradingView account.
   classes, driven by an injected clock rather than wall time. A workflow
   contract test pins the step's position ahead of the Node setup and its
   read-only exemption.
-* **Component 4** — none; the deliverable is prose.
+* **Component 4** — not built; nothing to test.
 
 Workflow edits in this repo are only partially covered by the fast-gates
 selection, so every task that touches a `.github/workflows/` file runs

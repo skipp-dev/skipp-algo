@@ -4,7 +4,7 @@
 
 **Goal:** Detect out-of-band writes to the managed TradingView layouts, let the operator exclude CI by code, and halve the detection latency on days with no CI run.
 
-**Architecture:** Three independent mechanisms plus one spike. A Python gate refuses mutating runs inside an operator-declared window. A pure TypeScript comparison function decides, before the first mutation, whether the live bindings still match the last CI observation published to `bot/live-tradingview-bindings`. A second read-only cron shortens the no-run detection gap. Nothing here changes what a mutating run writes.
+**Architecture:** Three independent mechanisms. A Python gate refuses mutating runs inside an operator-declared window. A pure TypeScript comparison function decides, before the first mutation, whether the live bindings still match the last CI observation published to `bot/live-tradingview-bindings`. A second read-only cron shortens the no-run detection gap. Nothing here changes what a mutating run writes.
 
 **Tech Stack:** GitHub Actions workflows (YAML), Python 3.12 (stdlib only), TypeScript run through `tsx`, `node:test` for TS unit tests, pytest for Python tests.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Python interpreter:** use the main repo `.venv` (3.12). The system `python3` is 3.9 and produces spurious `datetime.UTC` ImportErrors. Never write `datetime.UTC`; write `timezone.utc`.
+- **Python interpreter:** `/Users/spreuss/Documents/skipp-algo/.venv/bin/python` (3.12). This worktree has no `.venv` of its own; the main checkout's is the one to use, and it runs this worktree's tests correctly from this working directory (verified 2026-08-02). The system `python3` is 3.9 and produces spurious `datetime.UTC` ImportErrors. Never write `datetime.UTC`; write `timezone.utc`.
 - **Workflow edits:** the pre-push guard only runs the fast-gates selection, so it is blind to workflow contract tests. Any task touching `.github/workflows/` runs `pytest tests/ -k workflow` in full before committing.
 - **New TypeScript test files** must be registered in THREE places in `.github/workflows/tv-onboarding-packages.yml`: the `paths:` filter near line 30, the `paths:` filter near line 77, and the space-separated file list in the `npx tsx --test …` run step near line 192. A file missing from the run step never executes and the gate is vacuous.
 - **Ledger guard:** run with `PYTEST_ADDOPTS="-n 4"`. The default `-n auto` gets SIGKILLed (rc=137) on a 16 GB Mac.
@@ -29,7 +29,6 @@
 - `tests/test_check_tv_operator_window.py` — unit tests for the four value classes, injected clock.
 - `automation/tradingview/lib/tv_out_of_band_drift.ts` — pure comparison of observed bindings against a baseline snapshot. No Playwright import.
 - `automation/tradingview/tests/tv_out_of_band_drift.test.ts` — unit tests for clean / drifted / missing / incomplete baselines.
-- `docs/tv-session-probe-feasibility.md` — the A3 spike finding (Task 7).
 
 **Modify:**
 - `.github/workflows/tv-save-consumer-source.yml` — operator-window gate, evening cron, baseline fetch step.
@@ -105,7 +104,7 @@ def test_naive_timestamp_is_refused_rather_than_guessed() -> None:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_check_tv_operator_window.py -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_check_tv_operator_window.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'scripts.check_tv_operator_window'`
 
 - [ ] **Step 3: Write the implementation**
@@ -193,7 +192,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `.venv/bin/python -m pytest tests/test_check_tv_operator_window.py -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_check_tv_operator_window.py -v`
 Expected: PASS, 5 tests
 
 - [ ] **Step 5: Verify the CLI behaves as a module**
@@ -208,7 +207,7 @@ Expected: first prints an `::error::` line and `exit=1`; second prints nothing a
 - [ ] **Step 6: Lint and commit**
 
 ```bash
-.venv/bin/python -m ruff check scripts/check_tv_operator_window.py tests/test_check_tv_operator_window.py
+/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m ruff check scripts/check_tv_operator_window.py tests/test_check_tv_operator_window.py
 git add scripts/check_tv_operator_window.py tests/test_check_tv_operator_window.py
 git commit -m "feat(tv): decide whether an operator window blocks a mutating run"
 ```
@@ -265,7 +264,7 @@ def test_operator_window_gate_exempts_read_only_runs() -> None:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k operator_window -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k operator_window -v`
 Expected: FAIL — `missing step: Refuse to mutate inside the operator's TradingView window`
 
 - [ ] **Step 3: Insert the step in the workflow**
@@ -291,12 +290,12 @@ In `.github/workflows/tv-save-consumer-source.yml`, immediately after the `- nam
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -v`
 Expected: PASS, all tests in the file
 
 - [ ] **Step 5: Run the full workflow selection**
 
-Run: `.venv/bin/python -m pytest tests/ -k workflow -q`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/ -k workflow -q`
 Expected: PASS. `test_workflow_auth_pattern.py` and `test_fast_gates_silent_skip_coverage.py` also read this file; a new step must not trip them.
 
 - [ ] **Step 6: Commit**
@@ -336,7 +335,7 @@ Leave the rest of the test body unchanged.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k schedule -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k schedule -v`
 Expected: FAIL — `assert [{'cron': '17 5 * * *'}] == [{'cron': '17 5 * * *'}, {'cron': '17 21 * * *'}]`
 
 - [ ] **Step 3: Add the cron entry**
@@ -354,7 +353,7 @@ In `.github/workflows/tv-save-consumer-source.yml`, change the `schedule` block 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `.venv/bin/python -m pytest tests/ -k workflow -q`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/ -k workflow -q`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -829,7 +828,7 @@ Run:
 ```bash
 npx tsx --test automation/tradingview/tests/tv_pre_mutation_observation.test.ts automation/tradingview/tests/tv_out_of_band_drift.test.ts
 npx tsc --noEmit -p tsconfig.json
-.venv/bin/python -m pytest tests/ -k workflow -q
+/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/ -k workflow -q
 ```
 Expected: TS tests PASS; `tsc` reports no errors; workflow tests PASS.
 
@@ -888,7 +887,7 @@ def test_a_missing_baseline_does_not_fail_the_step() -> None:
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k baseline -v`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/test_workflow_tv_save_consumer_source_contract.py -k baseline -v`
 Expected: FAIL — `missing step: Fetch the published binding baseline`
 
 - [ ] **Step 3: Add the step**
@@ -925,7 +924,7 @@ In `.github/workflows/tv-save-consumer-source.yml`, insert immediately before th
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `.venv/bin/python -m pytest tests/ -k workflow -q`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/ -k workflow -q`
 Expected: PASS
 
 - [ ] **Step 5: Prove the fetch command works against the real branch**
@@ -946,43 +945,22 @@ git commit -m "feat(tv): fetch the published binding baseline before a mutating 
 
 ---
 
-## Task 7: Session-probe feasibility spike
+## Task 7: Session-probe feasibility spike — STRUCK
 
-**Files:**
-- Create: `docs/tv-session-probe-feasibility.md`
+Removed on 2026-08-02, before implementation, by operator decision.
 
-**Interfaces:**
-- Consumes: nothing.
-- Produces: a written finding only. No code, no workflow change.
+The spike needed an authenticated TradingView session, and that only exists on
+the operator's own machine (Chrome profile copy plus CDP export). Neither a CI
+job nor a delegated agent can produce one -- and a probe session opened just to
+ask who else is on the account is itself the second-writer pressure this plan
+reduces.
 
-This task is allowed to conclude "not feasible". That is a result, not a
-failure — it is the reason the spike is sequenced last.
+The 2026-08-01 rejection of option D therefore stands, now as a recorded choice.
+See the spec's Component 4 for what stays uncovered: an operator session that is
+never declared through `TV_OPERATOR_ACTIVE` is invisible while it is open. A1
+still catches what it wrote, on the next mutating run or scheduled verify.
 
-- [ ] **Step 1: Time-box and investigate**
-
-Spend at most 90 minutes. Using an authenticated TradingView session (the
-existing `TV_STORAGE_STATE` capture flow, driven locally), establish:
-
-1. Does TradingView expose active sessions or devices for the account anywhere in the authenticated UI (account/security settings)?
-2. If yes, is the listing stable enough to scrape — does it carry a stable selector, and does it distinguish sessions by user agent, IP, or last-seen time?
-3. Could CI's own Playwright session be told apart from the operator's browser in that listing?
-4. What does the listing show while a CI run is mid-flight? Run one `verify_only=true` dispatch and observe.
-
-- [ ] **Step 2: Write the finding**
-
-Create `docs/tv-session-probe-feasibility.md` covering, in this order: what was
-tried, what was observed (with the date), the verdict (feasible / not feasible /
-feasible but not worth it), and the reasoning. If any question above could not
-be answered, say so explicitly rather than leaving it out — an unanswered
-question recorded as unanswered is what lets the next attempt start where this
-one stopped.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add docs/tv-session-probe-feasibility.md
-git commit -m "docs(tv): record whether a TradingView session probe is feasible"
-```
+Nothing in Tasks 1-6 depends on this task.
 
 ---
 
@@ -995,7 +973,7 @@ Expected: PASS. `-n auto` gets SIGKILLed on a 16 GB Mac; a phantom F is not a re
 
 - [ ] **Step 2: Full workflow selection**
 
-Run: `.venv/bin/python -m pytest tests/ -k workflow -q`
+Run: `/Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest tests/ -k workflow -q`
 Expected: PASS
 
 - [ ] **Step 3: Complete TS test list**
