@@ -41,6 +41,33 @@ function coverage(consumers: ObservedConsumer[], expected: string[]): string[] {
   return expected.filter((name) => !present.has(name));
 }
 
+function findDuplicateLabelInConsumer(consumer: ObservedConsumer): string | null {
+  const labels = new Set<string>();
+  for (const selection of consumer.selections) {
+    if (labels.has(selection.label)) return selection.label;
+    labels.add(selection.label);
+  }
+  return null;
+}
+
+function findDuplicateScriptName(consumers: ObservedConsumer[]): string | null {
+  const names = new Set<string>();
+  for (const consumer of consumers) {
+    if (names.has(consumer.scriptName)) return consumer.scriptName;
+    names.add(consumer.scriptName);
+  }
+  return null;
+}
+
+function findDuplicateNameInExpected(expected: string[]): string | null {
+  const names = new Set<string>();
+  for (const name of expected) {
+    if (names.has(name)) return name;
+    names.add(name);
+  }
+  return null;
+}
+
 export function compareAgainstBaseline(args: {
   observed: ObservedConsumer[];
   baseline: ObservedConsumer[] | null;
@@ -48,12 +75,76 @@ export function compareAgainstBaseline(args: {
 }): OutOfBandVerdict {
   const { observed, baseline, expectedScriptNames } = args;
 
+  // Guard 1: empty expectedScriptNames means nothing to compare
+  if (expectedScriptNames.length === 0) {
+    return {
+      status: "unknown",
+      reason: "no verify targets were named, so nothing was compared",
+      changed: [],
+    };
+  }
+
+  // Guard 2: duplicate names in expectedScriptNames are ambiguous
+  const dupInExpected = findDuplicateNameInExpected(expectedScriptNames);
+  if (dupInExpected !== null) {
+    return {
+      status: "unknown",
+      reason: `duplicate name in expectedScriptNames: ${dupInExpected}`,
+      changed: [],
+    };
+  }
+
+  // Guard 3: baseline null is unknown
   if (baseline === null) {
     return {
       status: "unknown",
       reason: "no published baseline snapshot was available to compare against",
       changed: [],
     };
+  }
+
+  // Guard 4: duplicate scriptNames in baseline are ambiguous
+  const dupInBaseline = findDuplicateScriptName(baseline);
+  if (dupInBaseline !== null) {
+    return {
+      status: "unknown",
+      reason: `duplicate scriptName in the baseline: ${dupInBaseline}`,
+      changed: [],
+    };
+  }
+
+  // Guard 5: duplicate labels within any baseline consumer are ambiguous
+  for (const consumer of baseline) {
+    const dupLabel = findDuplicateLabelInConsumer(consumer);
+    if (dupLabel !== null) {
+      return {
+        status: "unknown",
+        reason: `duplicate label "${dupLabel}" for ${consumer.scriptName} in the baseline`,
+        changed: [],
+      };
+    }
+  }
+
+  // Guard 6: duplicate scriptNames in observed are ambiguous
+  const dupInObserved = findDuplicateScriptName(observed);
+  if (dupInObserved !== null) {
+    return {
+      status: "unknown",
+      reason: `duplicate scriptName in the observed reading: ${dupInObserved}`,
+      changed: [],
+    };
+  }
+
+  // Guard 7: duplicate labels within any observed consumer are ambiguous
+  for (const consumer of observed) {
+    const dupLabel = findDuplicateLabelInConsumer(consumer);
+    if (dupLabel !== null) {
+      return {
+        status: "unknown",
+        reason: `duplicate label "${dupLabel}" for ${consumer.scriptName} in the observed reading`,
+        changed: [],
+      };
+    }
   }
 
   const missingFromBaseline = coverage(baseline, expectedScriptNames);

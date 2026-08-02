@@ -73,5 +73,61 @@ test("a binding that disappeared counts as drift", () => {
     expectedScriptNames: NAMES,
   });
   assert.equal(verdict.status, "drifted");
+  assert.equal(verdict.changed.length, 1);
+  assert.equal(verdict.changed[0].scriptName, NAMES[0]);
+  assert.equal(verdict.changed[0].baseline, "study_1");
   assert.equal(verdict.changed[0].observed, null);
+});
+
+test("duplicate label within a consumer is unknown", () => {
+  const verdict = compareAgainstBaseline({
+    observed: [
+      { scriptName: NAMES[0], selections: [{ label: "Bus", actual: "study_9" }, { label: "Bus", actual: "study_1" }] },
+      consumer(NAMES[1], "study_2"),
+    ],
+    baseline: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    expectedScriptNames: NAMES,
+  });
+  assert.equal(verdict.status, "unknown");
+  assert.match(verdict.reason, /duplicate label.*Bus/);
+});
+
+test("duplicate scriptName in observed is unknown", () => {
+  const verdict = compareAgainstBaseline({
+    observed: [consumer(NAMES[0], "study_1"), consumer(NAMES[0], "study_9"), consumer(NAMES[1], "study_2")],
+    baseline: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    expectedScriptNames: NAMES,
+  });
+  assert.equal(verdict.status, "unknown");
+  assert.match(verdict.reason, /duplicate scriptName.*observed/);
+});
+
+test("duplicate scriptName in baseline is unknown", () => {
+  const verdict = compareAgainstBaseline({
+    observed: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    baseline: [consumer(NAMES[0], "study_1"), consumer(NAMES[0], "study_9"), consumer(NAMES[1], "study_2")],
+    expectedScriptNames: NAMES,
+  });
+  assert.equal(verdict.status, "unknown");
+  assert.match(verdict.reason, /duplicate scriptName.*baseline/);
+});
+
+test("duplicate name in expectedScriptNames is unknown", () => {
+  const verdict = compareAgainstBaseline({
+    observed: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    baseline: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    expectedScriptNames: [NAMES[0], NAMES[0], NAMES[1]],
+  });
+  assert.equal(verdict.status, "unknown");
+  assert.match(verdict.reason, /duplicate name.*expectedScriptNames/);
+});
+
+test("empty expectedScriptNames is unknown", () => {
+  const verdict = compareAgainstBaseline({
+    observed: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    baseline: [consumer(NAMES[0], "study_1"), consumer(NAMES[1], "study_2")],
+    expectedScriptNames: [],
+  });
+  assert.equal(verdict.status, "unknown");
+  assert.match(verdict.reason, /no verify targets were named/);
 });
