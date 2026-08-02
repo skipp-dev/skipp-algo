@@ -44,6 +44,10 @@ name: tv-save-consumer-source
 on:
   schedule:
     - cron: "17 5 * * *"
+    # Evening read-only look. Operator-caused drift on a day with no CI run was
+    # otherwise invisible until the next morning; this halves the worst case to
+    # ~12h. After the US close, so the off-hours posture holds.
+    - cron: "17 21 * * *"
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
   # smc-library-refresh on the default branch (no fork/PR-controlled context);
   # this consumer only re-saves repo-owned sources with repo secrets it

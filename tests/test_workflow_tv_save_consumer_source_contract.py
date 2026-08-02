@@ -28,10 +28,16 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_schedule_is_daily_and_invokes_explicit_verify_only_mode() -> None:
+def test_schedule_runs_twice_daily_and_invokes_explicit_verify_only_mode() -> None:
     on_block = _load().get("on") or _load().get(True)
     assert "workflow_dispatch" in on_block
-    assert on_block["schedule"] == [{"cron": "17 5 * * *"}]
+    # Two read-only looks per day. The morning cron alone left operator-caused
+    # drift undetected for up to 24h on a day with no other run; the evening one
+    # halves that. Both sit after the US close, honouring this file's
+    # off-hours-only live-window declaration. Read-only is structural, not
+    # conventional: TV_VERIFY_ONLY and TV_CONSUMER_MAPPING_JSON both derive from
+    # github.event_name == 'schedule', so no cron entry can mutate.
+    assert on_block["schedule"] == [{"cron": "17 5 * * *"}, {"cron": "17 21 * * *"}]
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
     verify_only = rollout["env"]["TV_VERIFY_ONLY"]
     assert "github.event_name == 'schedule'" in verify_only
