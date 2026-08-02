@@ -885,6 +885,11 @@ def test_operator_window_gate_runs_before_the_expensive_setup() -> None:
 def test_operator_window_gate_exempts_read_only_runs() -> None:
     """An open window must not suppress the verification that makes it safe.
 
+    Exact equality pin: any edit to the condition — including swapping the
+    AND operator to OR — now forces a deliberate test change instead of
+    passing silently. This catches the recurring failure mode of confusing
+    AND/OR logic.
+
     Read-only runs write nothing, so they are never gated. The condition
     classifies the trigger paths exactly as the rollout step's TV_VERIFY_ONLY
     expression does: schedule is read-only, a dispatch with verify_only=true is
@@ -893,8 +898,6 @@ def test_operator_window_gate_exempts_read_only_runs() -> None:
     """
     step = next(s for s in _steps() if s.get("name") == _GATE)
     condition = step["if"]
-    assert "github.event_name != 'schedule'" in condition
-    assert "github.event.inputs.verify_only != 'true'" in condition
-    assert "github.event_name == 'workflow_run'" not in condition
+    assert condition == "${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}"
     assert step["env"]["TV_OPERATOR_ACTIVE"] == "${{ vars.TV_OPERATOR_ACTIVE }}"
     assert "scripts.check_tv_operator_window" in step["run"]
