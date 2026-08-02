@@ -135,6 +135,31 @@ else
     echo "phase-a cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
 fi
 
+# --- smoke-sentinel guard ---
+# 2026-08-02: until today this submit ignored cache/live/smoke_HALT, and it
+# had to. The 08:00-ET smoke raised the sentinel on EVERY non-zero exit —
+# including a merely unreachable TWS — and never auto-clears it. Across the
+# 19 recorded smoke days 10 were DEGRADED, all of them EXIT=1
+# (ConnectionRefused on 7497), so an honoured sentinel would have stood
+# permanently: the 2 fills of 2026-07-14 landed on a DEGRADED day with the
+# sentinel already standing since 07-10, and blocking them would have cost
+# most of the 23-fill track record.
+#
+# The smoke now raises it ONLY for danger that carries state a human must
+# inspect — EXIT=2 (risk violation) and EXIT=3 (leftover non-terminal
+# orders). An unreachable TWS writes the day marker alone: this submit then
+# fails on its own if TWS is still down, and runs if it came back. Because
+# the sentinel finally means danger, honouring it is now correct.
+SMOKE_HALT_PATH="${REPO}/cache/live/smoke_HALT"
+if [[ -f "${SMOKE_HALT_PATH}" ]]; then
+    echo "phase-a cron: smoke_HALT sentinel present" \
+         "($(head -c 200 "${SMOKE_HALT_PATH}" | tr -d '\n')) — refusing to submit" \
+         "paper orders until the operator clears ${SMOKE_HALT_PATH}" >&2
+    _write_marker "DEGRADED" "smoke-halt-sentinel"
+    exit 1
+fi
+# --- end smoke-sentinel guard ---
+
 # 3. Run the orchestrator. --place-paper-orders (C13b T1.2, 2026-07-06)
 #    swaps the no-op audit stub for the paper submitter: surviving intents
 #    are transmitted as bracket sets to the IBKR *paper* TWS on 127.0.0.1.
