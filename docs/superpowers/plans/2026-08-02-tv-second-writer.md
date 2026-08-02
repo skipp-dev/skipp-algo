@@ -367,6 +367,16 @@ git commit -m "feat(tv): add an evening read-only verification of the managed la
 
 ## Task 4: Out-of-band drift comparison
 
+> **Amended after review, 2026-08-03.** The code below shipped, then gained seven
+> guard clauses that this text does not show. Review found two defects in it,
+> both reproduced with a probe rather than argued: duplicate keys collapsed
+> through `new Map(...)` last-write-wins and produced a false `clean` over a real
+> drift, and an empty `expectedScriptNames` returned `clean` while comparing
+> nothing. Both now resolve to `unknown` — a duplicated `scriptName` or `label`
+> on either side, a duplicated name in `expectedScriptNames`, and an empty
+> expected list. Read `automation/tradingview/lib/tv_out_of_band_drift.ts` for
+> what actually runs; the block below is the starting point, not the result.
+
 **Files:**
 - Create: `automation/tradingview/lib/tv_out_of_band_drift.ts`
 - Create: `automation/tradingview/tests/tv_out_of_band_drift.test.ts`
