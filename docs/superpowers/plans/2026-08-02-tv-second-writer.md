@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Python interpreter:** `/Users/spreuss/Documents/skipp-algo/.venv/bin/python` (3.12). This worktree has no `.venv` of its own; the main checkout's is the one to use, and it runs this worktree's tests correctly from this working directory (verified 2026-08-02). The system `python3` is 3.9 and produces spurious `datetime.UTC` ImportErrors. Never write `datetime.UTC`; write `timezone.utc`.
+- **Python interpreter:** `/Users/spreuss/Documents/skipp-algo/.venv/bin/python` (3.12). This worktree has no `.venv` of its own; the main checkout's is the one to use, and it runs this worktree's tests correctly from this working directory (verified 2026-08-02). The system `python3` is 3.9 and raises spurious `datetime.UTC` ImportErrors -- that is a reason to invoke the right interpreter, NOT a reason to avoid the spelling. Write `datetime.UTC`: ruff's UP017 is enforced here and rewrites `timezone.utc` to it, and the five existing files that need a UTC constant all use `datetime.UTC`.
 - **Workflow edits:** the pre-push guard only runs the fast-gates selection, so it is blind to workflow contract tests. Any task touching `.github/workflows/` runs `pytest tests/ -k workflow` in full before committing.
 - **New TypeScript test files** must be registered in THREE places in `.github/workflows/tv-onboarding-packages.yml`: the `paths:` filter near line 30, the `paths:` filter near line 77, and the space-separated file list in the `npx tsx --test …` run step near line 192. A file missing from the run step never executes and the gate is vacuous.
 - **Ledger guard:** run with `PYTEST_ADDOPTS="-n 4"`. The default `-n auto` gets SIGKILLed (rc=137) on a 16 GB Mac.
@@ -64,11 +64,11 @@ clears it, so a typo costs seconds.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from scripts.check_tv_operator_window import evaluate
 
-_NOW = datetime(2026, 8, 2, 20, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 8, 2, 20, 0, tzinfo=UTC)
 
 
 def test_unset_variable_lets_the_run_through() -> None:
@@ -139,7 +139,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 VARIABLE = "TV_OPERATOR_ACTIVE"
 CLEAR_COMMAND = f"gh variable delete {VARIABLE}"
@@ -180,7 +180,7 @@ def evaluate(raw: str | None, now: datetime) -> tuple[int, str]:
 
 def main() -> int:
     argparse.ArgumentParser(description="Gate mutating TradingView runs on the operator window.").parse_args()
-    code, message = evaluate(os.environ.get(VARIABLE), datetime.now(timezone.utc))
+    code, message = evaluate(os.environ.get(VARIABLE), datetime.now(UTC))
     if message:
         print(f"::{'error' if code else 'notice'}::{message}")
     return code
