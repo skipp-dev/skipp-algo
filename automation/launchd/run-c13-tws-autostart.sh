@@ -28,6 +28,25 @@
 #
 # The file is removed on every exit path via trap, including failure.
 #
+# One-time machine setup (performed and live-verified 2026-08-02, dry-run
+# "TWS listening on 7497 after 20s"):
+#
+#   1. IBC 3.24.1 unpacked at ~/ibc (sha256 of IBCMacos-3.24.1.zip:
+#      5ea02834bfc9379b98d4d217ddf87df74c070b7901306b05795dfe166f4d3898).
+#   2. The OFFLINE TWS build at ~/Applications/TWS-Offline, symlinked as
+#      "~/Applications/Trader Workstation 10.45" (IBC resolves the install
+#      as "<tws-path>/Trader Workstation <version>"). The self-updating TWS
+#      under /Applications does NOT work with IBC — see below.
+#   3. Inside TWS-Offline/jars every *.dat has a *.jar symlink next to it.
+#      Modern TWS ships core jars renamed to timestamped .dat (plain,
+#      unencrypted jar archives — verified with file/unzip), and IBC's
+#      classpath glob in scripts/ibcstart.sh collects *.jar ONLY. Without
+#      the symlinks IBC dies at startup with "jclient/LoginFrame" (exit
+#      1107) because that class lives in jts4launch-*.dat. The offline
+#      build never self-updates, so the symlinks are durable; the
+#      self-updating build replaces its jars on every update, which is why
+#      it is not used here.
+#
 # Repo policy: never --force, never --no-verify.
 
 set -euo pipefail
@@ -37,8 +56,8 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 IBC_HOME="${C13_IBC_HOME:-${HOME}/ibc}"
 KEY_SERVICE="${C13_IBKR_KEYCHAIN_SERVICE:-skipp.ibkr.paper}"
 KEY_ACCOUNT="${C13_IBKR_KEYCHAIN_ACCOUNT:-steffen81}"
-TWS_MAJOR="${C13_TWS_MAJOR_VRSN:-10.48}"
-TWS_APP_PATH="${C13_TWS_PATH:-/Applications}"
+TWS_MAJOR="${C13_TWS_MAJOR_VRSN:-10.45}"
+TWS_APP_PATH="${C13_TWS_PATH:-${HOME}/Applications}"
 WAIT_SECS="${C13_TWS_WAIT_SECS:-240}"
 DATE="$(date -u +%Y-%m-%d)"
 MARKER="${REPO}/cache/live/.tws_autostart_status_${DATE}"
