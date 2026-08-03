@@ -413,6 +413,31 @@ def _render(source: str, node: ast.expr) -> str:
     return " ".join(segment.split())
 
 
+def _witness_candidates(source: str, node: ast.expr) -> set[str]:
+    """Rendered expressions, any one of which proves *node* non-empty.
+
+    The node's own text always qualifies — that is the loop form, where the
+    iterated expression is what a witness is written about. The ``assert
+    all(<genexp>)`` form needs one more: :func:`_iterating_asserts` hands
+    back the *comprehension*, so comparing only its text could never match
+    the repo's most common pairing, ``assert xs`` on the line directly above
+    ``assert all(f(x) for x in xs)``.
+
+    The base only stands in for a single unfiltered generator. An ``if``
+    clause can empty the comprehension while the base is full, and with a
+    second ``for`` clause the inner iterable can be empty for every element
+    of the outer one. In both cases a non-empty base proves nothing, so
+    accepting it would fabricate a witness — the failure direction this
+    module treats as the worse one.
+    """
+    candidates = {_render(source, node)}
+    if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        generators = node.generators
+        if len(generators) == 1 and not generators[0].ifs:
+            candidates.add(_render(source, generators[0].iter))
+    return candidates
+
+
 def _parametrize_claims(
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
     module_bindings: dict[str, str],
@@ -464,7 +489,7 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
         witnessed = witness_keys(source, node)
         for iterated, lineno in _iterating_asserts(node):
             rendered = _render(source, iterated)
-            if rendered in witnessed:
+            if witnessed & _witness_candidates(source, iterated):
                 continue
             kind = classify_iterable(iterated, bindings, helpers)
             if kind is None:

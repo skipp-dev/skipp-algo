@@ -352,6 +352,56 @@ def test_witness_key_uses_the_same_renderer_as_the_iterable() -> None:
     assert _kinds(source) == {}
 
 
+def test_witness_on_the_base_covers_an_unfiltered_genexp() -> None:
+    """``assert xs`` above ``assert all(f(x) for x in xs)`` is a witness.
+
+    The repo's most common pairing, and the one the loop form already
+    handles. ``_iterating_asserts`` hands back the *comprehension* for the
+    ``all()`` shape, so comparing only the comprehension's own text against
+    the witness set can never match a witness written on ``xs`` — the claim
+    would be reported although the line directly above proves it wrong.
+    """
+    source = """
+        def test_all_debug():
+            records = [r for r in caplog.records if "unreadable" in r.message]
+            assert records, "expected at least one matching record"
+            assert all(r.levelno == DEBUG for r in records)
+    """
+    assert _kinds(source) == {}
+
+
+def test_witness_on_the_base_does_not_cover_a_filtered_genexp() -> None:
+    """An ``if`` clause can empty the comprehension while the base is full."""
+    source = """
+        def test_all_critical_ok():
+            results = probe_all()
+            assert results, "no probes ran"
+            assert all(r.status == "OK" for r in results if r.critical)
+    """
+    assert _kinds(source) == {
+        "r.status == \"OK\" for r in results if r.critical":
+            "filtered comprehension",
+    }
+
+
+def test_witness_on_the_outer_base_does_not_cover_a_nested_genexp() -> None:
+    """With a second ``for`` clause the inner iterable can still be empty.
+
+    Every panel existing says nothing about any panel having a target, so a
+    witness on the outer iterable must not clear the comprehension.
+    """
+    source = """
+        def test_all_scoped():
+            panels = [p for p in dashboard if p.get("type")]
+            assert panels, "no panels"
+            assert all(t.expr for p in panels for t in p.targets)
+    """
+    assert _kinds(source) == {
+        "t.expr for p in panels for t in p.targets":
+            "local filtered comprehension",
+    }
+
+
 def test_parametrize_over_a_literal_is_not_a_claim() -> None:
     """A literal argvalues list cannot silently become empty."""
     source = """
