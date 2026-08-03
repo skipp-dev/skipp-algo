@@ -132,12 +132,7 @@ def _diag_resp(payload: dict):
 
 
 def _run_failing(guard, monkeypatch, diag_payload, *, exc=None):
-    """Drive main() down the UNRUNNABLE path: both questions refused.
-
-    Since 2026-08-03 a denied `deploymentTriggers` is not the end — the guard
-    falls back to the service source. So reaching the diagnosis at all requires
-    that fallback to be refused too, which is what the runner actually saw.
-    """
+    """Drive main() down the failure path and let the diagnosis probe answer."""
 
     def _raise(*a, **k):
         raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
@@ -149,9 +144,6 @@ def _run_failing(guard, monkeypatch, diag_payload, *, exc=None):
             raise exc
         # The probe must authenticate the same way the failing call did.
         assert req.headers.get("Authorization") == "Bearer t"
-        query = json.loads(req.data.decode("utf-8"))["query"]
-        if "services" in query:
-            return _diag_resp({"errors": [{"message": "Not Authorized"}]})
         return _diag_resp(diag_payload)
 
     monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
@@ -213,12 +205,17 @@ def test_unreachable_project_names_the_workspace_fix(guard, monkeypatch, capsys)
     assert "#4345" in err
 
 
-def test_reachable_project_names_a_field_level_denial(guard, monkeypatch, capsys):
-    # The credential reaches the project, so only the field is refused.
+def test_a_reachable_project_clears_the_credential(guard, monkeypatch, capsys):
+    """The credential reaches the project, so it is not the fault — and the
+    message must not invent one. It used to say "the refusal is field-level,
+    escalate the token's permissions", which sent the operator to issue a fourth
+    token for a fault that was an empty serviceId (#4359). Name that instead."""
     rc = _run_failing(guard, monkeypatch, {"data": {"project": {"name": "skipp-algo"}}})
     err = capsys.readouterr().err
     assert rc == 2
-    assert "refusal is field-level" in err
+    assert "credential is NOT the fault" in err
+    assert "Suspect the service id next" in err
+    assert "field-level" not in err
 
 
 def test_empty_project_payload_is_treated_as_unreachable_not_valid(guard, monkeypatch, capsys):
@@ -401,12 +398,14 @@ def test_a_foreign_environment_id_is_named_before_the_token_is_blamed(guard, mon
     assert "Escalate the token" not in err
 
 
-def test_a_member_environment_leaves_the_verdict_at_field_level(guard, monkeypatch, capsys):
+def test_a_member_environment_moves_the_suspicion_to_the_service_id(
+    guard, monkeypatch, capsys
+):
     rc = _run_failing(guard, monkeypatch, _project_payload(["e", "other"]))
     err = capsys.readouterr().err
     assert rc == 2
     assert "RAILWAY_ENVIRONMENT_ID belongs to" in err
-    assert "refusal is field-level" in err
+    assert "Suspect the service id next" in err
 
 
 def test_an_unlistable_environment_set_does_not_invent_a_verdict(guard, monkeypatch, capsys):
@@ -541,137 +540,6 @@ def test_guard_workflow_can_dispatch_the_probe():
     # The scheduled run must keep asserting: an input that defaults to probing
     # would replace the daily guard with a daily measurement.
     assert "default: false" in text
-
-
-# --- readable-field fallback (2026-08-03, run 30843047407) --------------------
-# Railway denies `deploymentTriggers` to both of this repo's credentials while
-# the project resolves and the environment belongs to it. `project.services[]
-# .serviceInstances[].source` is readable by both, and `source.repo` is what
-# Railway connects a GitHub repo to — connecting one is what CREATES the native
-# trigger. These pin that the substitute answers, says it is a substitute, and
-# stays fail-closed when it cannot locate the service.
-
-_SOURCE_BODY = {
-    "data": {
-        "project": {
-            "services": {
-                "edges": [
-                    {
-                        "node": {
-                            "id": "other-service",
-                            "name": "mlflow-tracking",
-                            "serviceInstances": {
-                                "edges": [
-                                    {
-                                        "node": {
-                                            "environmentId": "e",
-                                            "source": {"repo": "skipp-dev/other", "image": None},
-                                        }
-                                    }
-                                ]
-                            },
-                        }
-                    },
-                    {
-                        "node": {
-                            "id": "svc",
-                            "name": "live_overlay_daemon",
-                            "serviceInstances": {
-                                "edges": [
-                                    {
-                                        "node": {
-                                            "environmentId": "staging",
-                                            "source": {"repo": "skipp-dev/skipp-algo", "image": None},
-                                        }
-                                    },
-                                    {
-                                        "node": {
-                                            "environmentId": "e",
-                                            "source": {"repo": None, "image": None},
-                                        }
-                                    },
-                                ]
-                            },
-                        }
-                    },
-                ]
-            }
-        }
-    }
-}
-
-
-def _with_denied_triggers(guard, monkeypatch, source_body):
-    """deploymentTriggers denied (as in production); the source query answers."""
-
-    def _raise(*a, **k):
-        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
-
-    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
-    monkeypatch.setattr(
-        guard.urllib.request, "urlopen", lambda req, timeout=0: _diag_resp(source_body)
-    )
-    monkeypatch.setenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID", "svc")
-
-
-def test_denied_triggers_falls_back_to_the_service_source(guard, monkeypatch, capsys):
-    _with_denied_triggers(guard, monkeypatch, _SOURCE_BODY)
-    rc = guard.main()
-    out, err = capsys.readouterr()
-    assert rc == 0
-    assert "no GitHub repo connected" in out
-    # It must not pass itself off as the field it could not read.
-    assert "denied to this credential" in out
-    assert "falling back" in err
-
-
-def test_a_connected_repo_is_drift_even_without_deployment_triggers(
-    guard, monkeypatch, capsys
-):
-    body = json.loads(json.dumps(_SOURCE_BODY))
-    inst = body["data"]["project"]["services"]["edges"][1]["node"]["serviceInstances"]
-    inst["edges"][1]["node"]["source"]["repo"] = "skipp-dev/skipp-algo"
-    _with_denied_triggers(guard, monkeypatch, body)
-    rc = guard.main()
-    err = capsys.readouterr().err
-    assert rc == 1
-    assert "DRIFT" in err
-    assert "skipp-dev/skipp-algo" in err
-
-
-def test_the_source_lookup_is_scoped_to_our_service_and_environment(guard, monkeypatch):
-    """The fixture is built to punish a loose match: another service carries a
-    repo, and our own service carries one in a DIFFERENT environment. Either
-    would be reported as drift by a lookup that forgets to filter."""
-    _with_denied_triggers(guard, monkeypatch, _SOURCE_BODY)
-    assert guard.main() == 0
-    assert guard._fetch_service_source("t", "p", "e", "svc") == {
-        "name": "live_overlay_daemon",
-        "repo": None,
-        "image": None,
-    }
-
-
-def test_an_unlocatable_service_is_inconclusive_not_healthy(guard, monkeypatch, capsys):
-    """Fail-closed: a guard that cannot find its service has verified nothing.
-    Reporting 0 there would make it pass hardest when its inputs are wrong."""
-    _with_denied_triggers(guard, monkeypatch, _SOURCE_BODY)
-    monkeypatch.setenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID", "not-in-this-project")
-    rc = guard.main()
-    err = capsys.readouterr().err
-    assert rc == 2
-    assert "has NOT verified anything" in err
-
-
-def test_a_readable_deployment_triggers_still_wins(guard, monkeypatch):
-    """If Railway ever grants the authoritative field, the substitute steps aside."""
-
-    def _boom(*a, **k):
-        raise AssertionError("must not fall back while deploymentTriggers answers")
-
-    monkeypatch.setattr(guard, "_fetch_triggers", lambda *a, **k: [])
-    monkeypatch.setattr(guard, "_fetch_service_source", _boom)
-    assert guard.main() == 0
 
 
 def test_an_empty_service_id_secret_falls_back_to_the_production_default(
