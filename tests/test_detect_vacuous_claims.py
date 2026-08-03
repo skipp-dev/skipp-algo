@@ -170,3 +170,143 @@ def test_multiline_iterable_is_rendered_single_line() -> None:
         'not flag.startswith("--") for flag in flags if flag':
             "filtered comprehension",
     }
+
+
+def test_bare_truth_check_witnesses_its_own_iterable() -> None:
+    """The lived idiom from the repo: ``assert xs, "…would pass vacuously"``."""
+    source = """
+        def test_no_python_booleans():
+            bool_lines = [ln for ln in TEXT.splitlines() if "const bool " in ln]
+            assert bool_lines, "generator emitted no 'const bool' export"
+            for line in bool_lines:
+                assert "True" not in line
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_witness_for_one_iterable_does_not_cover_its_neighbour() -> None:
+    """The strongest single piece of evidence in the repo, in one fixture.
+
+    Someone recognised the class, healed ``bool_lines`` and left the
+    identically shaped ``export_lines`` directly above it alone.
+    """
+    source = """
+        def test_pine_syntax_valid():
+            export_lines = [ln for ln in TEXT.splitlines() if ln.startswith("export")]
+            bool_lines = [ln for ln in TEXT.splitlines() if "const bool " in ln]
+            assert bool_lines
+            for line in export_lines:
+                assert TYPE_PAT.match(line)
+    """
+    assert _kinds(source) == {"export_lines": "local filtered comprehension"}
+
+
+def test_len_check_is_a_witness() -> None:
+    source = """
+        def test_ledgers_are_gated():
+            ledgers = [p for p in TEST_DIR.glob("test_*.py") if "pin_registry" in p.read_text()]
+            assert len(ledgers) >= 15, "discovery found nothing"
+            for ledger in ledgers:
+                assert ledger.name in STEP
+    """
+    assert _kinds(source) == {}
+
+
+def test_equality_with_a_nonempty_literal_is_a_witness() -> None:
+    source = """
+        def test_exact_set():
+            found = [n for n in NAMES if n.startswith("smc_")]
+            assert found == ["smc_a", "smc_b"]
+            for name in found:
+                assert name.islower()
+    """
+    assert _kinds(source) == {}
+
+
+def test_equality_with_an_empty_literal_is_not_a_witness() -> None:
+    """``assert xs == []`` proves emptiness — the opposite of a witness."""
+    source = """
+        def test_nothing_left():
+            found = [n for n in NAMES if n.startswith("smc_")]
+            assert found == []
+            for name in found:
+                assert name.islower()
+    """
+    assert _kinds(source) == {"found": "local filtered comprehension"}
+
+
+def test_raise_after_the_loop_is_a_witness() -> None:
+    """The ``frozen site`` idiom: exhausting the loop is itself a failure."""
+    source = """
+        def test_frozen_site_still_present():
+            for path in ROOT.rglob("*.py"):
+                if path.name == "target.py":
+                    assert path.read_text()
+                    return
+            raise AssertionError("target.py no longer present — pin is stale")
+    """
+    assert _kinds(source) == {}
+
+
+def test_for_else_raise_is_a_witness() -> None:
+    source = """
+        def test_frozen_site_still_present():
+            for path in ROOT.rglob("*.py"):
+                if path.name == "target.py":
+                    assert path.read_text()
+                    break
+            else:
+                raise AssertionError("target.py no longer present")
+    """
+    assert _kinds(source) == {}
+
+
+def test_pytest_fail_after_the_loop_is_a_witness() -> None:
+    source = """
+        def test_frozen_site_still_present():
+            for path in ROOT.rglob("*.py"):
+                if path.name == "target.py":
+                    assert path.read_text()
+                    return
+            pytest.fail("target.py no longer present")
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_witness_in_a_different_test_does_not_count() -> None:
+    """Cross-test witnesses are a registry decision, not a detector heuristic.
+
+    ``tests/test_spec_constant_drift.py`` is the real instance: a separate
+    ``test_at_least_one_spec_exists`` proves the glob non-empty, but at a
+    different expression instance that no static rule can tie to this one.
+    Such cases get a dated exemption, so the reasoning stays visible.
+    """
+    source = """
+        def test_at_least_one_spec_exists():
+            assert list(SPEC_DIR.glob("*.json"))
+
+        def test_specs_are_valid():
+            for path in SPEC_DIR.glob("*.json"):
+                assert path.read_text()
+    """
+    assert _kinds(source) == {'SPEC_DIR.glob("*.json")': "discovery call"}
+
+
+def test_witness_key_uses_the_same_renderer_as_the_iterable() -> None:
+    """A witness must match through ``_render``, not ``ast.unparse``.
+
+    ``ast.unparse`` normalises string quoting: the double-quoted source
+    ``ROOT.glob("*.py")`` round-trips as ``ROOT.glob('*.py')``. If
+    ``witness_keys`` rendered its keys with ``ast.unparse`` while the
+    iterable is compared through ``_render`` (which preserves the source
+    segment verbatim), this witness would never match its own loop and the
+    claim would be reported despite being witnessed — silently, because
+    each side's own tests only exercise its own renderer.
+    """
+    source = """
+        def test_everything_typed():
+            assert ROOT.glob("*.py")
+            for path in ROOT.glob("*.py"):
+                assert path.suffix == ".py"
+    """
+    assert _kinds(source) == {}

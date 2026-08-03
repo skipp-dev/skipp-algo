@@ -175,6 +175,103 @@ def _local_bindings(
     return bindings
 
 
+def _is_nonempty_length_check(op: ast.cmpop, right: ast.expr) -> bool:
+    """True when ``len(x) <op> <right>`` proves ``x`` non-empty."""
+    if not (isinstance(right, ast.Constant) and isinstance(right.value, int)):
+        return False
+    if isinstance(op, ast.Gt):
+        return right.value >= 0
+    if isinstance(op, (ast.GtE, ast.Eq)):
+        return right.value >= 1
+    return False
+
+
+def _is_nonempty_literal(node: ast.expr) -> bool:
+    """True for literals that cannot be empty."""
+    if isinstance(node, (ast.List, ast.Set, ast.Tuple)):
+        return bool(node.elts)
+    if isinstance(node, ast.Dict):
+        return bool(node.keys)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return bool(node.value)
+    return False
+
+
+def witness_keys(source: str, func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Return the rendered expressions proven non-empty inside *func*.
+
+    Four forms, all of them already lived in this repo (spec §5):
+    ``assert xs``, ``assert len(xs) >= n``, ``assert xs == <non-empty
+    literal>``, and — handled in :func:`_exhaustion_raises` — a ``raise``
+    reached by exhausting the loop.
+
+    Scoped to one function on purpose. A witness for ``bool_lines`` says
+    nothing about ``export_lines`` two lines above it.
+
+    Every key is rendered through :func:`_render`, the same renderer
+    :func:`scan_source` uses for the iterable it is compared against.
+    ``ast.unparse`` normalises string quoting (``"*.py"`` -> ``'*.py'``), so
+    rendering the two sides differently would make a witness for
+    ``ROOT.glob("*.py")`` never match the identically-written loop.
+    """
+    keys: set[str] = set()
+    for node in _walk_own(func):
+        if not isinstance(node, ast.Assert):
+            continue
+        test = node.test
+        if isinstance(test, ast.Compare) and len(test.ops) == 1:
+            left = test.left
+            op = test.ops[0]
+            right = test.comparators[0]
+            if (
+                isinstance(left, ast.Call)
+                and isinstance(left.func, ast.Name)
+                and left.func.id == "len"
+                and left.args
+            ):
+                if _is_nonempty_length_check(op, right):
+                    keys.add(_render(source, left.args[0]))
+                continue
+            if isinstance(op, ast.Eq) and _is_nonempty_literal(right):
+                keys.add(_render(source, left))
+            continue
+        keys.add(_render(source, test))
+    return keys
+
+
+def _raises_or_fails(node: ast.AST) -> bool:
+    """True for ``raise ...`` and for ``pytest.fail(...)``."""
+    if isinstance(node, ast.Raise):
+        return True
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and ast.unparse(node.value.func).endswith("fail")
+    )
+
+
+def _exhaustion_raises(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+    loop: ast.For,
+) -> bool:
+    """True when falling out of *loop* raises instead of continuing.
+
+    ``for … else: raise`` and a ``raise`` as the loop's next sibling are the
+    same contract: "finding nothing is a failure". That is the correct
+    anti-vacuity idiom and must be recognised, not flagged.
+    """
+    if any(_raises_or_fails(stmt) for stmt in loop.orelse):
+        return True
+    for node in ast.walk(func):
+        for _field, value in ast.iter_fields(node):
+            if not isinstance(value, list):
+                continue
+            for index, item in enumerate(value):
+                if item is loop and index + 1 < len(value):
+                    return _raises_or_fails(value[index + 1])
+    return False
+
+
 def _iterating_asserts(
     func: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> Iterator[tuple[ast.expr, int]]:
@@ -193,7 +290,8 @@ def _iterating_asserts(
         if isinstance(node, ast.For) and any(
             isinstance(inner, ast.Assert) for inner in _walk_own(node)
         ):
-            yield node.iter, node.lineno
+            if not _exhaustion_raises(func, node):
+                yield node.iter, node.lineno
         if isinstance(node, ast.Assert):
             test = node.test
             negated = False
@@ -261,7 +359,11 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         bindings = _local_bindings(node, helpers)
+        witnessed = witness_keys(source, node)
         for iterated, lineno in _iterating_asserts(node):
+            rendered = _render(source, iterated)
+            if rendered in witnessed:
+                continue
             kind = classify_iterable(iterated, bindings, helpers)
             if kind is None:
                 continue
@@ -270,7 +372,7 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
                     path=path,
                     lineno=lineno,
                     test=node.name,
-                    iterable=_render(source, iterated),
+                    iterable=rendered,
                     kind=kind,
                 )
             )
