@@ -121,25 +121,45 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
-_IDENTITY_QUERY = "query { me { email } }"
+# Asks the only question this guard actually needs answered: can the credential
+# SEE the project? NOT `{ me }`. Railway's docs are explicit that `me` "cannot
+# be used with a workspace or project token because the data returned is scoped
+# to your personal account" — so a perfectly good WORKSPACE token fails it, and
+# the probe would report a healthy credential as dead.
+#
+# That is not hypothetical. Measured 2026-08-03 across four credentials: the
+# operator's CLI session reads the project, his personal ACCOUNT token answers
+# `me` but cannot see the project ("scope, not identity"), and a project token
+# answers neither. The account token's failure is the informative one — it means
+# skipp-algo lives in a WORKSPACE, not in the personal account, so a workspace
+# token is the correct credential here and `me` is exactly the wrong question.
+_PROJECT_VISIBILITY_QUERY = "query($projectId: String!) { project(id: $projectId) { name } }"
 
 
-def _diagnose_account_token(token: str, timeout: float = 15.0) -> str:
+def _diagnose_account_token(token: str, project_id: str, timeout: float = 15.0) -> str:
     """Say which fault Railway's bare "Not Authorized" is hiding.
 
-    ``deploymentTriggers`` answers the same line for a dead credential and for
-    a live one whose workspace does not contain this project — different fixes,
-    identical message. ``me`` resolves against the token alone, so it separates
-    them: an account token answers it, and anything else (project token, revoked
-    token, no token) does not. Measured 2026-08-03 (#4345): a project token
-    fails ``me`` with exactly the "Not Authorized" an unauthenticated request
-    gets.
+    ``deploymentTriggers`` answers the same line for a credential that cannot
+    reach this project at all and for one that reaches it but is denied this
+    field — different fixes, identical message. So the probe asks whether the
+    credential can SEE the project.
 
-    Returns one operator-facing line and never echoes the token or the address.
+    It used to ask ``{ me }``. That was wrong in a way this guard could not
+    survive: Railway documents that ``me`` "cannot be used with a workspace or
+    project token because the data returned is scoped to your personal
+    account", so a healthy WORKSPACE token — the credential this project
+    actually needs — was reported as "does not authenticate at all". Measured
+    2026-08-03: the operator's personal account token answers ``me`` yet cannot
+    see the project, which is precisely how we learned the project lives in a
+    workspace rather than in the personal account.
+
+    Returns one operator-facing line and never echoes the token or project data.
     """
     req = urllib.request.Request(
         _GRAPHQL_ENDPOINT,
-        data=json.dumps({"query": _IDENTITY_QUERY}).encode("utf-8"),
+        data=json.dumps(
+            {"query": _PROJECT_VISIBILITY_QUERY, "variables": {"projectId": project_id}}
+        ).encode("utf-8"),
         headers={
             **_auth_header(token, "account"),
             "Content-Type": "application/json",
@@ -153,16 +173,18 @@ def _diagnose_account_token(token: str, timeout: float = 15.0) -> str:
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
 
-    if body.get("errors") or not ((body.get("data") or {}).get("me") or {}).get("email"):
+    if body.get("errors") or not ((body.get("data") or {}).get("project") or {}).get("name"):
         return (
-            "RAILWAY_API_TOKEN does not authenticate as an account at all — `me` is "
-            "refused too, so it is a project token, revoked, or mistyped. Issue an "
-            "ACCOUNT token (project tokens cannot read deploymentTriggers: #4345)"
+            "RAILWAY_API_TOKEN cannot see the project in RAILWAY_PROJECT_ID at all — "
+            "wrong workspace, revoked, or mistyped. skipp-algo lives in a WORKSPACE, "
+            "so issue a WORKSPACE token for the workspace that owns it (a personal "
+            "account token does not reach it; project tokens cannot read "
+            "deploymentTriggers either: #4345)"
         )
     return (
-        "RAILWAY_API_TOKEN is a valid account token — `me` resolves — so the refusal "
-        "is scope, not identity: this account's workspace does not include the "
-        "project in RAILWAY_PROJECT_ID. Use a token from the workspace that owns it"
+        "RAILWAY_API_TOKEN CAN see the project — so the refusal is field-level: this "
+        "credential reaches the project but is denied deploymentTriggers. Escalate the "
+        "token's permissions or query a different field"
     )
 
 
@@ -198,7 +220,10 @@ def main() -> int:
         # merely outside this project's workspace — two different fixes. Ask
         # `me`, which resolves against the token by itself, and print the
         # answer next to the failure instead of leaving it to the next round.
-        print(f"DIAGNOSIS: {_diagnose_account_token(token)}", file=sys.stderr)
+        print(
+            f"DIAGNOSIS: {_diagnose_account_token(token, project_id)}",
+            file=sys.stderr,
+        )
         return 2
 
     if not triggers:
