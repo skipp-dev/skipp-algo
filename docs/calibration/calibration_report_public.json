@@ -35,7 +35,7 @@
     "OB": 0.4782,
     "SWEEP": 0.6799
   },
-  "generated_at": "2026-07-31T22:18:28.308925+00:00",
+  "generated_at": "2026-08-03T22:20:14.196877+00:00",
   "metrics": {
     "dce": 0.122597,
     "ece": 0.132014,
@@ -57,16 +57,16 @@
     },
     "concentration": {
       "concentrated": false,
-      "dominant_regime": "RANGING",
+      "dominant_regime": "NEUTRAL",
       "per_regime_pnl": {
-        "NEUTRAL": 0.09597474305278045,
-        "RANGING": 0.3255603968649457,
-        "TRENDING": 0.0006650103772017166
+        "NEUTRAL": 0.2652333497867256,
+        "RANGING": 0.2116973483078528,
+        "TRENDING": 0.04134226611665705
       },
-      "share_of_total_pnl": 0.7711044077969312,
+      "share_of_total_pnl": 0.5117638157922954,
       "threshold": 0.8
     },
-    "date": "2026-07-31",
+    "date": "2026-08-03",
     "measurement": {
       "cost_bps": 5.0,
       "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py",
@@ -77,18 +77,18 @@
     "n_trades_with_regime": 28,
     "per_regime": {
       "NEUTRAL": {
-        "n": 6,
-        "regime_frequency_pct": 0.21428571428571427,
+        "n": 7,
+        "regime_frequency_pct": 0.25,
         "skipped_reason": "insufficient_n"
       },
       "RANGING": {
-        "n": 19,
-        "regime_frequency_pct": 0.6785714285714286,
+        "n": 17,
+        "regime_frequency_pct": 0.6071428571428571,
         "skipped_reason": "insufficient_n"
       },
       "TRENDING": {
-        "n": 3,
-        "regime_frequency_pct": 0.10714285714285714,
+        "n": 4,
+        "regime_frequency_pct": 0.14285714285714285,
         "skipped_reason": "insufficient_n"
       }
     },
@@ -100,9 +100,9 @@
       "n_resamples": 0,
       "observed": null,
       "per_regime_n": {
-        "NEUTRAL": 6,
-        "RANGING": 19,
-        "TRENDING": 3
+        "NEUTRAL": 7,
+        "RANGING": 17,
+        "TRENDING": 4
       },
       "seed": 0,
       "skipped_regimes": [
@@ -115,9 +115,9 @@
   },
   "schema_version": "1.3.0",
   "source": {
-    "commit_sha": "b182d1542a5db4d952c8c5b1cb08c8f2bb74e465",
+    "commit_sha": "fb8d06dc95bf7b917c42e6e8ad15c06f7a336a46",
     "path": "artifacts/reports/zone_priority_calibration.json",
-    "workflow_run": "30669490532"
+    "workflow_run": "30858196339"
   },
   "status": "ok",
   "track_record_gate": {
