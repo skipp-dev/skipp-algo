@@ -421,11 +421,14 @@ def test_an_unlistable_environment_set_does_not_invent_a_verdict(guard, monkeypa
 
 
 # --- credential-capability probe (2026-08-03) --------------------------------
-# Railway denies `deploymentTriggers` to BOTH of this repo's tokens while the
-# project itself resolves (run 30840756670). The replacement field therefore has
-# to be measured, and a measurement is only worth running if a wrong field name
-# and a denied field are told apart — otherwise the next guess masquerades as a
-# permission wall for another week.
+# Built when `deploymentTriggers` looked permanently denied to both credentials
+# (run 30840756670). It was not denied: the runner was sending an EMPTY serviceId
+# and Railway answers that with the same "Not Authorized" (#4359). With the id
+# fixed every candidate field reads fine (run 30847141633).
+#
+# The probe stays because it is what produced both of those findings, and it is
+# only worth running if a wrong field name and a denied field are told apart —
+# otherwise the next guess masquerades as a permission wall for another week.
 
 
 def _probe_env(guard, monkeypatch, bodies):
@@ -577,3 +580,111 @@ def test_an_explicit_service_id_secret_still_wins(guard, monkeypatch):
     monkeypatch.setattr(guard, "_fetch_triggers", _capture)
     assert guard.main() == 0
     assert seen["service_id"] == "some-other-service"
+
+
+# --- review follow-up 2026-08-04: false green / false red on odd responses ----
+
+
+def _answer_with(guard, monkeypatch, body):
+    class _Resp:
+        def read(self):
+            return json.dumps(body).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", lambda req, timeout=0: _Resp())
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"data": None},
+        {"data": {}},
+        {"data": {"deploymentTriggers": None}},
+        {"data": {"deploymentTriggers": {}}},
+        {"data": {"deploymentTriggers": {"edges": None}}},
+        [],
+        "nope",
+    ],
+)
+def test_an_unreadable_response_is_inconclusive_never_healthy(
+    guard, monkeypatch, capsys, body
+):
+    """A 200 whose body does not contain the answer must be exit 2.
+
+    Measured before this fix: `{}` and `{"data": null}` printed "OK: no native
+    deploy trigger" — fail-OPEN in a fail-closed guard, because every level was
+    read with `or {}`. And `{"data": {"deploymentTriggers": null}}` raised an
+    uncaught AttributeError, which exits the PROCESS with status 1 — the code
+    this guard reserves for DRIFT. Both halves of the requirement, wrong.
+    """
+    _answer_with(guard, monkeypatch, body)
+    rc = guard.main()
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert "no native Railway deploy trigger" not in out
+
+
+def test_a_well_formed_empty_answer_is_still_healthy(guard, monkeypatch, capsys):
+    """The shape assertion must not make the real healthy answer inconclusive."""
+    _answer_with(guard, monkeypatch, {"data": {"deploymentTriggers": {"edges": []}}})
+    rc = guard.main()
+    assert rc == 0
+    assert "no native Railway deploy trigger" in capsys.readouterr().out
+
+
+def test_a_read_timeout_is_inconclusive_not_drift(guard, monkeypatch, capsys):
+    """urllib wraps a CONNECT timeout in URLError, but a timeout during
+    resp.read() propagates as a bare TimeoutError. Uncaught it escapes main()
+    and the process exits 1 — which this guard defines as DRIFT, sending the
+    operator to hunt a trigger that does not exist."""
+
+    def _timeout(*a, **k):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _timeout)
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _timeout)
+    rc = guard.main()
+    assert rc == 2
+    assert "DRIFT" not in capsys.readouterr().err
+
+
+def test_the_skip_line_names_only_the_variable_that_is_missing(monkeypatch, capsys):
+    """Deleting one secret must not read like the designed dormant state."""
+    mod = _load()
+    monkeypatch.delenv("RAILWAY_PROJECT_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "t")
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
+
+    assert mod.main() == 0
+    out = capsys.readouterr().out
+    assert "RAILWAY_ENVIRONMENT_ID not set" in out
+    assert "RAILWAY_API_TOKEN" not in out
+    assert "deleted secret" in out
+
+
+def test_a_schema_error_is_not_swallowed_by_a_denial_in_the_same_body(guard):
+    """A query naming four fields can fail both ways at once. Reporting that as
+    a pure permission wall is the conflation _classify exists to prevent."""
+    mixed = {
+        "errors": [
+            {"message": 'Cannot query field "meta" on type "Deployment"'},
+            {"message": "Not Authorized"},
+        ]
+    }
+    status, detail = guard._classify(mixed)
+    assert status == "SCHEMA+DENIED"
+    assert "Cannot query field" in detail and "Not Authorized" in detail
+
+
+def test_classify_survives_shapes_that_carry_no_message(guard):
+    assert guard._classify([])[0] == "ERROR"
+    status, detail = guard._classify({"errors": [{"extensions": {"code": "UNAUTH"}}]})
+    assert status == "ERROR"
+    assert detail  # a verdict with no evidence behind it is not a verdict
