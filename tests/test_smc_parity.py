@@ -262,6 +262,14 @@ _EXPECTED_PARAMS = [
 class TestFixtureFamilyPresence:
     """Verify each targeted fixture actually produces its expected families."""
 
+    def test_expected_param_roster_is_not_empty(self) -> None:
+        """Zero argvalues would collect zero tests — silently, with no output."""
+        assert len(_EXPECTED_PARAMS) >= 5, (
+            f"only {len(_EXPECTED_PARAMS)} parity fixtures carry an "
+            "EXPECTED_FAMILIES entry — the parametrized check below would "
+            "collect nothing and report nothing"
+        )
+
     @pytest.mark.parametrize("name,factory,symbol,tf", _EXPECTED_PARAMS)
     def test_expected_families_populated(self, name, factory, symbol, tf) -> None:
         expected = EXPECTED_FAMILIES.get(name, set())
