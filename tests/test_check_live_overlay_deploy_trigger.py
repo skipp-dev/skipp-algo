@@ -69,13 +69,15 @@ def test_missing_token_skips_without_failing(monkeypatch):
     assert mod.main() == 0
 
 
-def test_project_token_is_preferred_and_sent_with_its_own_header(guard, monkeypatch):
-    """A Railway PROJECT token authenticates via Project-Access-Token, not Bearer.
+def test_a_configured_project_token_is_ignored_not_preferred(guard, monkeypatch):
+    """Project tokens cannot query deploymentTriggers — measured, not assumed.
 
-    Measured 2026-08-03: sent as Bearer, a valid project token fails even
-    ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
-    gets — the API cannot tell a wrong header from a missing token, so the
-    header choice has to be structural, not diagnosable at runtime.
+    Run 30831201160 (2026-08-03): the operator's project token, sent with its
+    correct Project-Access-Token header, resolves ``projectToken`` to this
+    exact project yet gets "Not Authorized" for ``deploymentTriggers``; an
+    account-scoped token reading the identical query returns data. #4343
+    preferred the project token for a few hours, which made the guard uncurably
+    red while that secret was set. main() must therefore not read it at all.
     """
     monkeypatch.setenv("RAILWAY_PROJECT_ACCESS_TOKEN", "proj-tok")
     seen: dict = {}
@@ -87,24 +89,19 @@ def test_project_token_is_preferred_and_sent_with_its_own_header(guard, monkeypa
 
     monkeypatch.setattr(guard, "_fetch_triggers", _capture)
     assert guard.main() == 0
-    # Preferred over the account token the fixture also sets.
-    assert seen == {"token": "proj-tok", "auth_kind": "project"}
+    assert seen == {"token": "t", "auth_kind": "account"}
 
+
+def test_auth_header_still_knows_both_railway_header_schemes(guard):
+    """The header property is real and stays documented in code.
+
+    A project token sent as Bearer fails even ``{ me }`` with the same bare
+    "Not Authorized" an unauthenticated request gets — whoever next reaches for
+    a project token here should find working header code next to the measured
+    refutation, not rediscover both from the API's unhelpful error.
+    """
     assert guard._auth_header("proj-tok", "project") == {"Project-Access-Token": "proj-tok"}
     assert guard._auth_header("acct-tok", "account") == {"Authorization": "Bearer acct-tok"}
-
-
-def test_account_token_alone_still_authenticates_as_bearer(guard, monkeypatch):
-    seen: dict = {}
-
-    def _capture(token, *a, **k):
-        seen["token"] = token
-        seen["auth_kind"] = k.get("auth_kind")
-        return []
-
-    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
-    assert guard.main() == 0
-    assert seen == {"token": "t", "auth_kind": "account"}
 
 
 def test_api_error_is_inconclusive_not_pass(guard, monkeypatch):

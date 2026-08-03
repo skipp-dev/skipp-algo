@@ -12,16 +12,21 @@ bar cache and resetting uptime each time. With `checkSuites:false` it also
 deploys before CI validates the commit. This drift is invisible in the repo —
 it lives in Railway config — so this guard catches it re-appearing.
 
-Auth, in order of preference (plus `RAILWAY_PROJECT_ID` +
-`RAILWAY_ENVIRONMENT_ID`, and the service id
-`RAILWAY_LIVE_OVERLAY_SERVICE_ID` defaulting to the production service):
+Auth: `RAILWAY_API_TOKEN` — an ACCOUNT/workspace token, `Authorization:
+Bearer` — plus `RAILWAY_PROJECT_ID` + `RAILWAY_ENVIRONMENT_ID`, and the
+service id `RAILWAY_LIVE_OVERLAY_SERVICE_ID` defaulting to the production
+service.
 
-* `RAILWAY_PROJECT_ACCESS_TOKEN` — a Railway PROJECT token, scoped to exactly
-  this project + environment, sent as the `Project-Access-Token` header.
-  Verified live 2026-08-03: the operator's project token resolves
-  `projectToken { projectId environmentId }` to this project.
-* `RAILWAY_API_TOKEN` — an account/workspace token, sent as
-  `Authorization: Bearer` (the header project tokens do NOT accept).
+A Railway PROJECT token cannot drive this guard, and that is measured, not
+assumed: sent with its correct `Project-Access-Token` header it resolves
+`projectToken { projectId environmentId }` to this exact project, yet the
+same token gets "Not Authorized" for `deploymentTriggers` (run 30831201160,
+2026-08-03), while an account-scoped session token reading the identical
+query with identical variables gets data. The docs document no per-query
+scope table, so this refutation is the only authority. #4343 briefly
+PREFERRED a project token on the assumption that project-scoped meant
+query-complete; that preference made the guard uncurably red whenever the
+project-token secret was set, and was removed the same day.
 
 Exit codes:
   0  no native deploy trigger (healthy)  OR  token not configured (skipped)
@@ -62,8 +67,12 @@ def _auth_header(token: str, auth_kind: str) -> dict[str, str]:
     public-api). Measured 2026-08-03: a project token sent as Bearer fails even
     ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
     gets, so the error text cannot distinguish a wrong header from a missing
-    token. A project token is also the better credential here: it is scoped to
-    exactly one project + environment instead of the whole account.
+    token.
+
+    Kept although main() no longer takes project tokens: the header property is
+    real and measured, and the next person who reaches for a project token here
+    should find the refutation (see the module docstring) instead of the API's
+    unhelpful error.
     """
     if auth_kind == "project":
         return {"Project-Access-Token": token}
@@ -113,26 +122,26 @@ def _fetch_triggers(
 
 
 def main() -> int:
-    project_token = os.environ.get("RAILWAY_PROJECT_ACCESS_TOKEN")
-    account_token = os.environ.get("RAILWAY_API_TOKEN")
-    token, auth_kind = (
-        (project_token, "project") if project_token else (account_token, "account")
-    )
+    # Deliberately NOT reading RAILWAY_PROJECT_ACCESS_TOKEN: project tokens
+    # cannot query deploymentTriggers (measured, see module docstring), and a
+    # preferred-but-unauthorized credential kept this guard red no matter what
+    # else was configured.
+    token = os.environ.get("RAILWAY_API_TOKEN")
     project_id = os.environ.get("RAILWAY_PROJECT_ID")
     environment_id = os.environ.get("RAILWAY_ENVIRONMENT_ID")
     service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_SERVICE_ID)
 
     if not (token and project_id and environment_id):
         print(
-            "SKIP: neither RAILWAY_PROJECT_ACCESS_TOKEN nor RAILWAY_API_TOKEN set, "
-            "or RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID missing — "
-            "deploy-trigger drift guard did not run.",
+            "SKIP: RAILWAY_API_TOKEN (account token) / RAILWAY_PROJECT_ID / "
+            "RAILWAY_ENVIRONMENT_ID not all set — deploy-trigger drift guard "
+            "did not run.",
         )
         return 0
 
     try:
         triggers = _fetch_triggers(
-            token, project_id, environment_id, service_id, auth_kind=auth_kind
+            token, project_id, environment_id, service_id, auth_kind="account"
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
         print(f"ERROR: could not query Railway deployment triggers: {exc}", file=sys.stderr)
