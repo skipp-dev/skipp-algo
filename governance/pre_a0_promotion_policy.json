@@ -2,13 +2,26 @@
   "candidate": {
     "max_test_brier_ratio": 1.0,
     "max_test_ece": 0.05,
-    "min_test_average_precision": 0.8,
+    "min_test_average_precision_lift": 2.0,
+    "min_test_positive_rows": 250,
     "min_test_rows": 200,
     "require_calibration": true,
     "require_not_expired": true,
     "require_offline_evaluated": true
   },
-  "contract_version": "pre-a0-promotion-policy-v1",
+  "contract_version": "pre-a0-promotion-policy-v2",
+  "derivation": {
+    "date": "2026-08-03",
+    "method": "Monte Carlo over random rankings, seed 20260803, 99.9th percentile of null AP",
+    "note": "Absolute AP floors are base-rate-dependent: the v1 value 0.8 equalled 16.8x lift on the bootstrap eval (210 rows, 10 positives, base rate 4.76%) but 156x lift on the live shadow distribution (base rate 0.51%) - unreachable by construction. Lift 2.0 doubles precision over prevalence and sits above the measured noise ceiling ONLY with enough positives, so the lift threshold and the positives floor are an inseparable pair. Validity bound: derived for base rates >= 0.5%; at base rate 0.1% the ceiling at 250 positives is 2.53x and the pair under-certifies.",
+    "null_ap_p999_lift_by_positives": {
+      "100": 3.25,
+      "150": 2.53,
+      "200": 2.12,
+      "250": 1.93,
+      "287": 1.76
+    }
+  },
   "production": {
     "reason": "The Railway worker consumes only a separately reviewed local JSON contract.",
     "supported": false
@@ -16,9 +29,9 @@
   "shadow": {
     "max_brier_ratio": 1.0,
     "max_ece": 0.05,
-    "min_average_precision": 0.8,
+    "min_average_precision_lift": 2.0,
     "min_labeled_rows_per_horizon": 1000,
-    "min_positive_rows_per_horizon": 20,
+    "min_positive_rows_per_horizon": 250,
     "min_score_coverage": 0.98,
     "min_sessions": 5,
     "require_candidate": true,

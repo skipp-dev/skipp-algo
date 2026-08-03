@@ -72,7 +72,13 @@ def _row(
     )
 
 
-def _fixture(tmp_path: Path):
+def _fixture(
+    tmp_path: Path,
+    *,
+    positive_probability: float = 0.9,
+    negative_probability: float = 0.1,
+    extra_positive: bool = False,
+):
     artifact_path = tmp_path / "artifact.json"
     artifact = _artifact(artifact_path)
     offline = tmp_path / "offline.json"
@@ -94,7 +100,7 @@ def _fixture(tmp_path: Path):
                 "shadow": {
                     "max_brier_ratio": 1.0,
                     "max_ece": 0.5,
-                    "min_average_precision": 0.8,
+                    "min_average_precision_lift": 2.0,
                     "min_labeled_rows_per_horizon": 5,
                     "min_positive_rows_per_horizon": 5,
                     "min_score_coverage": 1.0,
@@ -110,13 +116,38 @@ def _fixture(tmp_path: Path):
     journal = tmp_path / "a0.jsonl"
     journal_rows = []
     for day in range(1, 6):
-        positive = _row(day, 0, probability=0.9, artifact_id=artifact.artifact_id)
-        negative = _row(
-            day, 10, probability=0.1, artifact_id=artifact.artifact_id, symbol="ABC"
+        positive = _row(
+            day, 0, probability=positive_probability, artifact_id=artifact.artifact_id
         )
-        sentinel = _row(day, 300, probability=0.1, artifact_id=artifact.artifact_id)
+        negative = _row(
+            day, 10, probability=negative_probability, artifact_id=artifact.artifact_id, symbol="ABC"
+        )
+        sentinel = _row(
+            day, 300, probability=negative_probability, artifact_id=artifact.artifact_id
+        )
+        day_rows = [positive, negative, sentinel]
+        if extra_positive:
+            second = _row(
+                day, 5, probability=positive_probability,
+                artifact_id=artifact.artifact_id, symbol="DEF",
+            )
+            day_rows.append(second)
+            journal_rows.append(
+                json.dumps(
+                    {
+                        "decision_id": f"a0-def-{day}",
+                        "symbol": "DEF",
+                        "direction": "LONG",
+                        "source": "databento",
+                        "final_level": "A0",
+                        "decision_at": second.prediction_time + 30,
+                        "session_date": second.session_date,
+                        "reason_codes": ["core_a0_thresholds"],
+                    }
+                )
+            )
         write_snapshot_partition(
-            [positive, negative, sentinel], snapshots, build_id=f"b{day}", code_revision="abc"
+            day_rows, snapshots, build_id=f"b{day}", code_revision="abc"
         )
         journal_rows.append(
             json.dumps(
@@ -151,6 +182,50 @@ def test_shadow_evaluation_passes_with_scored_multisession_evidence(tmp_path: Pa
     assert report["shadow_evaluation"]["horizons"]["60"]["score_coverage"] == 1.0
     assert validated.artifact_id == artifact.artifact_id
     assert validated.gates["shadow_evaluated"] is True
+
+
+def test_shadow_gate_blocks_when_ap_lift_is_below_minimum(tmp_path: Path) -> None:
+    """Policy v2: the AP floor per horizon is min(1.0, lift * base_rate).
+
+    Inverted probabilities (positives scored LOW) rank worse than the base
+    rate — the gate must name the lift reason, not pass on an absolute floor
+    tuned to a different base-rate regime.
+    """
+    artifact_path, offline, policy, snapshots, journal, _artifact = _fixture(
+        tmp_path, positive_probability=0.1, negative_probability=0.9
+    )
+    report, _ = evaluate_pre_a0_shadow.evaluate(
+        artifact_path=artifact_path,
+        offline_report_path=offline,
+        policy_path=policy,
+        snapshot_root=snapshots,
+        journal_paths=[journal],
+    )
+    assert report["shadow_gate_passed"] is False
+    assert any(
+        reason.endswith("_average_precision_lift_below_minimum")
+        for reason in report["shadow_evaluation"]["reasons"]
+    ), report["shadow_evaluation"]["reasons"]
+
+
+def test_lift_floor_is_capped_so_perfect_ranking_stays_attainable(tmp_path: Path) -> None:
+    """At base rates above 1/lift the uncapped floor exceeds the maximum
+    possible AP (1.0) — a perfectly ranked horizon would be blocked by
+    construction. The floor must degrade to 1.0, not to impossible."""
+    artifact_path, offline, policy, snapshots, journal, _artifact = _fixture(
+        tmp_path, extra_positive=True  # 2 positives / 1 negative scored -> base rate 2/3
+    )
+    report, _ = evaluate_pre_a0_shadow.evaluate(
+        artifact_path=artifact_path,
+        offline_report_path=offline,
+        policy_path=policy,
+        snapshot_root=snapshots,
+        journal_paths=[journal],
+    )
+    assert not any(
+        reason.endswith("_average_precision_lift_below_minimum")
+        for reason in report["shadow_evaluation"]["reasons"]
+    ), report["shadow_evaluation"]["reasons"]
 
 
 def test_shadow_evaluation_rejects_mixed_artifact_identity(tmp_path: Path) -> None:

@@ -1,11 +1,11 @@
 {
-  "artifact_id": "71831770afe43bdd424aa7ab",
-  "calibrated_from": "2026-07-08",
-  "calibrated_through": "2026-07-08",
+  "artifact_id": "de97b74e6c6f645a513ece01",
+  "calibrated_from": "2026-07-30",
+  "calibrated_through": "2026-07-30",
   "calibration": {
-    "fitted_samples": 2331,
-    "intercept": -3.1074236156137776,
-    "slope": 0.04094503477329374,
+    "fitted_samples": 60079,
+    "intercept": 0.0173521426203998,
+    "slope": 0.9243250122329281,
     "version": "platt-v1"
   },
   "contract_version": "pre-a0-model-v1",
@@ -17,6 +17,7 @@
     "shadow_evaluated": false
   },
   "horizons": [
+    30,
     60,
     180
   ],
@@ -24,41 +25,41 @@
     "regular"
   ],
   "metrics": {
-    "calibration_brier": 0.04339540085144698,
-    "calibration_ece": 0.021184694313689873,
-    "test_average_precision": 0.9572979797979798,
-    "test_base_rate_brier": 0.045351473922902494,
-    "test_brier": 0.04088809733877144,
-    "test_ece": 0.046959161264098645,
-    "test_rows": 210.0
+    "calibration_brier": 0.0033463820913906188,
+    "calibration_ece": 0.00010318214314285028,
+    "test_average_precision": 0.01659241003884509,
+    "test_base_rate_brier": 0.005097376039969146,
+    "test_brier": 0.005092687873627547,
+    "test_ece": 0.001822164798905946,
+    "test_rows": 56015.0
   },
   "model": {
     "coefficients": [
-      0.7527064498340509,
-      0.8491266699948639,
-      -0.5734600394374917,
-      -1.434335185873133,
-      -0.0550893972229746,
-      -0.14417809535434833,
-      0.18401544298226624
+      0.0002866556779587328,
+      -0.007945179985140705,
+      -0.010743940362540623,
+      -0.18919251059396683,
+      -0.012006737373493798,
+      -0.0019493297517357154,
+      0.0015044172031108095
     ],
     "feature_max": [
-      5.572369592309057,
-      10.181557593809844,
-      1.993212285762767,
-      2.9172390505415766,
+      1343.4782608695652,
+      606.4088212400986,
+      2.0,
+      2.999984515264491,
       1.0,
       1.0,
       180.0
     ],
     "feature_min": [
-      0.0033938571186165056,
-      0.02758698315280782,
+      0.0,
+      5.161578502943607e-06,
       0.0,
       0.0,
-      1.0,
+      0.0,
       -1.0,
-      60.0
+      30.0
     ],
     "feature_names": [
       "price_progress",
@@ -69,11 +70,11 @@
       "direction",
       "horizon_s"
     ],
-    "intercept": -3.051510110510736
+    "intercept": -6.031609759497574
   },
-  "review_after": "2026-08-17T08:53:15.116529Z",
+  "review_after": "2026-11-01T18:14:43Z",
   "schema_version": "pre-a0-snapshot-v1",
-  "split_manifest_sha256": "36e61186c083572cf32344bda5102641c57d890d3893881d354f2d18d2845343",
-  "trained_from": "2026-06-18",
-  "trained_through": "2026-07-07"
+  "split_manifest_sha256": "7b4b411dc2de454920a9317a81ef777b0cfdeeabea6d59ffef9d2e2df2e55a2a",
+  "trained_from": "2026-07-21",
+  "trained_through": "2026-07-29"
 }
