@@ -121,6 +121,39 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
+def _auth_probe(token: str, auth_kind: str, timeout: float = 15.0) -> str:
+    """``me=ok`` / ``me=denied`` / ``me=probe-failed:<why>`` for the error message.
+
+    Railway answers a wrong header, a mangled secret, a wrong-workspace token
+    AND a field-level denial with the identical bare "Not Authorized" — on
+    2026-08-03 that one string had four different causes in one afternoon. The
+    query error alone therefore cannot say whether AUTH works. This probe asks
+    ``{ me { email } }`` with the same credential: me=ok narrows the failure to
+    the deploymentTriggers field (query denied in this context), me=denied
+    means the token as received here is not the token that was tested locally.
+    Never prints the email or anything derived from the secret.
+    """
+    payload = json.dumps({"query": "{ me { email } }"}).encode("utf-8")
+    req = urllib.request.Request(
+        _GRAPHQL_ENDPOINT,
+        data=payload,
+        headers={
+            **_auth_header(token, auth_kind),
+            "Content-Type": "application/json",
+            "User-Agent": "skipp-algo-deploy-trigger-guard/1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, ValueError) as exc:  # pragma: no cover - transport
+        return f"me=probe-failed:{type(exc).__name__}"
+    if (body.get("data") or {}).get("me"):
+        return "me=ok"
+    return "me=denied"
+
+
 def main() -> int:
     # Deliberately NOT reading RAILWAY_PROJECT_ACCESS_TOKEN: project tokens
     # cannot query deploymentTriggers (measured, see module docstring), and a
@@ -144,7 +177,13 @@ def main() -> int:
             token, project_id, environment_id, service_id, auth_kind="account"
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
-        print(f"ERROR: could not query Railway deployment triggers: {exc}", file=sys.stderr)
+        detail = ""
+        if "Not Authorized" in str(exc):
+            detail = f" [auth probe: {_auth_probe(token, 'account')}]"
+        print(
+            f"ERROR: could not query Railway deployment triggers: {exc}{detail}",
+            file=sys.stderr,
+        )
         return 2
 
     if not triggers:

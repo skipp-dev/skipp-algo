@@ -11,6 +11,7 @@ Network is mocked: these pin the exit-code contract, not Railway connectivity.
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -213,3 +214,63 @@ def test_guard_workflow_invokes_the_script():
     assert "scripts/check_live_overlay_deploy_trigger.py" in text
     assert "schedule:" in text  # runs on a cadence, not push
 
+
+
+def test_not_authorized_errors_carry_the_auth_probe_verdict(guard, monkeypatch, capsys):
+    """One string, four causes in one afternoon — the error must self-discriminate.
+
+    2026-08-03: Railway's bare "Not Authorized" was, in sequence, a wrong
+    header, a wrong token type, a mangled secret candidate and a possible
+    field-level denial. The guard's error now runs a ``{ me }`` probe with the
+    same credential and appends me=ok / me=denied, so the next red run says
+    which half of the world it is in. Nothing derived from the secret is
+    printed.
+    """
+    def _raise(*a, **k):
+        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
+    monkeypatch.setattr(guard, "_auth_probe", lambda *a, **k: "me=ok")
+    assert guard.main() == 2
+    err = capsys.readouterr().err
+    assert "[auth probe: me=ok]" in err
+
+    # A non-auth error must NOT probe — no extra network call on timeouts etc.
+    def _timeout(*a, **k):
+        raise RuntimeError("timed out")
+
+    called = {"probe": False}
+
+    def _no_probe(*a, **k):  # pragma: no cover - failing marker
+        called["probe"] = True
+        return "me=ok"
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _timeout)
+    monkeypatch.setattr(guard, "_auth_probe", _no_probe)
+    assert guard.main() == 2
+    assert called["probe"] is False, "auth probe must run only on Not Authorized"
+
+
+def test_auth_probe_reads_me_and_never_echoes_the_account(guard, monkeypatch):
+    class _Resp:
+        def __init__(self, payload):
+            self._payload = payload
+        def read(self):
+            return json.dumps(self._payload).encode()
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    responses = iter([
+        {"data": {"me": {"email": "operator@example.com"}}},
+        {"errors": [{"message": "Not Authorized"}], "data": None},
+    ])
+    monkeypatch.setattr(
+        guard.urllib.request, "urlopen", lambda req, timeout: _Resp(next(responses))
+    )
+    ok = guard._auth_probe("tok", "account")
+    denied = guard._auth_probe("tok", "account")
+    assert ok == "me=ok"
+    assert "operator@example.com" not in ok, "the probe must not leak the account"
+    assert denied == "me=denied"
