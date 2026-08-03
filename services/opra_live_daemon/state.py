@@ -77,6 +77,11 @@ class OpraShadowState:
         self._trades: deque[dict[str, Any]] = deque()
         self._seen: set[tuple[Any, ...]] = set()
         self._seen_order: deque[tuple[Any, ...]] = deque(maxlen=200_000)
+        # Latest tcbbo BBO per instrument. Counting happens on the trades
+        # schema (its ``sequence`` distinguishes genuine identical child
+        # fills); tcbbo — which has no sequence field at all — degrades to a
+        # pure quote source for aggressor classification (issue #4368).
+        self._last_bbo: dict[int, tuple[float | None, float | None]] = {}
         self._lock = threading.RLock()
         self.duplicates = 0
         self.unknown_instruments = 0
@@ -113,6 +118,11 @@ class OpraShadowState:
                     if instrument_id in allowed_ids
                 },
             )
+            self._last_bbo = {
+                instrument_id: value
+                for instrument_id, value in self._last_bbo.items()
+                if instrument_id in allowed_ids
+            }
 
     def _roll_session(self, ts_ns: int) -> None:
         if ts_ns <= 0:
@@ -129,6 +139,7 @@ class OpraShadowState:
         self._trades.clear()
         self._seen.clear()
         self._seen_order.clear()
+        self._last_bbo.clear()
         self.last_event_ns = 0
 
     def add_definition(self, value: OpraDefinitionRecord | Mapping[str, Any], *, ts_ns: int = 0) -> int:
@@ -166,6 +177,27 @@ class OpraShadowState:
             accepted += int(self.add_trade(trade, count_unknown=False))
         return accepted
 
+    def update_quote(self, value: Mapping[str, Any] | Any) -> None:
+        """Record the latest tcbbo BBO for an instrument — quotes are never counted.
+
+        The BBO feeds ``_quote_side`` when the instrument's next trades-schema
+        record arrives. Within a burst of identical child fills the BBO is
+        constant, so classification quality matches the old at-trade BBO; the
+        only skew is a trade processed before its tcbbo twin, which then uses
+        the previous trade's BBO (or fails open to "unknown" on first sight).
+        """
+        row = _mapping(value)
+        try:
+            instrument_id = int(row.get("instrument_id") or 0)
+        except (TypeError, ValueError):
+            return
+        if not instrument_id:
+            return
+        bid = _price(row.get("bid_px_00"))
+        ask = _price(row.get("ask_px_00"))
+        with self._lock:
+            self._last_bbo[instrument_id] = (bid, ask)
+
     def add_trade(self, value: Mapping[str, Any] | Any, *, count_unknown: bool = True) -> bool:
         row = _mapping(value)
         try:
@@ -197,7 +229,7 @@ class OpraShadowState:
                     self.unknown_instruments += 1
                     databento_usage.record(
                         dataset="OPRA.PILLAR",
-                        schema="tcbbo",
+                        schema="trades",
                         mode="live",
                         consumer="opra-shadow",
                         unknown_instruments=1,
@@ -207,8 +239,13 @@ class OpraShadowState:
                 self.out_of_order += 1
             self.last_event_ns = max(self.last_event_ns, ts_event)
             price = _price(row.get("price"))
+            # Trades-schema records carry no BBO; classify against the stored
+            # tcbbo quote. A record that still carries its own BBO (tests,
+            # replayed pre-migration rows) keeps using it.
             bid = _price(row.get("bid_px_00"))
             ask = _price(row.get("ask_px_00"))
+            if bid is None and ask is None:
+                bid, ask = self._last_bbo.get(instrument_id, (None, None))
             side, source = _quote_side(price, bid, ask)
             normalized = dict(row)
             normalized.update(
@@ -290,14 +327,14 @@ class OpraShadowState:
                     if ts_ns
                     else None,
                     "source_dataset": "OPRA.PILLAR",
-                    "source_schema": "tcbbo",
+                    "source_schema": "trades",
                     "shadow_only": True,
                 }
             )
             clean.append(candidate)
         databento_usage.record(
             dataset="OPRA.PILLAR",
-            schema="tcbbo",
+            schema="trades",
             mode="live",
             consumer="opra-shadow",
             candidates=len(clean),

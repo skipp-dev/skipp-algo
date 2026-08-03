@@ -218,3 +218,112 @@ def test_new_session_clears_previous_session_state() -> None:
     state.add_definition(_definition(), ts_ns=day_two)
     assert state.build_snapshot()["metrics"]["records_in_window"] == 0
     assert state.session_date == "2026-07-18"
+
+
+# ---- trades as count source, tcbbo as quote source (issue #4368) -----------
+#
+# Measured 2026-08-04 on the recorded live feed (10s SPY.OPT, both schemas):
+# tcbbo records carry NO sequence field at all, and 30/685 prints (4.4%) were
+# genuine separate child fills identical in (instrument, ts_event, price,
+# size, publisher) — distinguishable ONLY by the trades-schema sequence
+# (685/685 populated, all colliding groups fully distinct). The daemon
+# therefore counts from the trades schema and keeps tcbbo purely as the
+# BBO-at-trade source for aggressor classification.
+
+
+def _trades_row(*, instrument_id: int = 1, ts: int = 1_000_000_000, sequence: int = 1,
+                price: float = 3.0, size: int = 100):
+    """Shape of a TradeMsg row: sequence populated, NO bid/ask fields."""
+    return {
+        "instrument_id": instrument_id, "ts_event": ts, "ts_recv": ts + 1_000,
+        "sequence": sequence, "price": price, "size": size, "side": "N",
+        "publisher_id": 20,
+    }
+
+
+def _quote_row(*, instrument_id: int = 1, ts: int = 999_999_000,
+               bid: float = 2.9, ask: float = 3.0):
+    """Shape of a CMBP1Msg (tcbbo) row: bid/ask present, NO sequence field."""
+    return {
+        "instrument_id": instrument_id, "ts_event": ts, "ts_recv": ts + 1_000,
+        "price": 3.0, "size": 100, "side": "N",
+        "bid_px_00": bid, "ask_px_00": ask, "publisher_id": 20,
+    }
+
+
+def test_identical_multi_fills_with_distinct_sequences_all_count() -> None:
+    # The measured 4.4%: a large order split into identical child fills must
+    # not be deduplicated away — that is the burst UOA exists to count.
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    state.update_quote(_quote_row())
+    assert state.add_trade(_trades_row(sequence=101))
+    assert state.add_trade(_trades_row(sequence=102))
+    metrics = state.build_snapshot()["metrics"]
+    assert metrics["records_in_window"] == 2
+    assert metrics["duplicates"] == 0
+
+
+def test_replayed_trade_with_same_sequence_is_still_deduplicated() -> None:
+    # Reconnect replay resends the SAME record (same sequence) — dedup must
+    # keep working for exactly that case.
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    state.update_quote(_quote_row())
+    assert state.add_trade(_trades_row(sequence=101))
+    assert not state.add_trade(_trades_row(sequence=101))
+    assert state.build_snapshot()["metrics"]["duplicates"] == 1
+
+
+def test_aggressor_side_comes_from_the_quote_store() -> None:
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    state.update_quote(_quote_row(bid=2.9, ask=3.0))
+    assert state.add_trade(_trades_row(price=3.0))  # trades at the stored ask
+    candidate = state.build_snapshot(now=datetime.fromtimestamp(2, tz=UTC))["candidates"][0]
+    assert candidate["aggressor_ind"] == "B"
+    assert candidate["aggressor_source"] == "quote_rule"
+    assert candidate["nbbo_bid"] == 2.9
+    assert candidate["nbbo_ask"] == 3.0
+
+
+def test_trade_before_any_quote_counts_with_unknown_side() -> None:
+    # A trades record arriving before its instrument's first tcbbo record
+    # must COUNT (never drop data) and classify as unknown, fail-open on side.
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    assert state.add_trade(_trades_row())
+    snapshot = state.build_snapshot(now=datetime.fromtimestamp(2, tz=UTC))
+    assert snapshot["metrics"]["records_in_window"] == 1
+    candidate = snapshot["candidates"][0]
+    assert candidate["aggressor_source"] == "unknown"
+
+
+def test_quote_record_is_never_counted_as_a_trade() -> None:
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    state.update_quote(_quote_row())
+    assert state.build_snapshot()["metrics"]["records_in_window"] == 0
+
+
+def test_feed_routes_quotes_and_trades_to_their_paths() -> None:
+    from services.opra_live_daemon.feed import route_record
+
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    assert route_record(state, _quote_row()) == "quote"
+    assert route_record(state, _trades_row()) == "trade"
+    metrics = state.build_snapshot()["metrics"]
+    assert metrics["records_in_window"] == 1  # the quote was stored, not counted
+
+
+def test_feed_subscribes_the_trades_schema_alongside_tcbbo() -> None:
+    # Source pin: dropping either subscription silently reverts to the
+    # 4.4%-undercount regime measured in #4368.
+    import inspect
+
+    from services.opra_live_daemon import feed
+
+    source = inspect.getsource(feed)
+    assert 'schema="trades"' in source
+    assert "subscriptions=3" in source
