@@ -864,7 +864,8 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # What the partition is NOT. It is not "the tests whose import graph reaches
 # playwright". Measured 2026-08-03: of the 42 tests the workflow runs, 14
 # value-import `playwright` transitively through automation/tradingview/
-# lib/tv_shared.ts (which imports `chromium` from "playwright" at its line 11)
+# lib/tv_shared.ts (whose `import { chromium, … } from "playwright"` spans its
+# lines 4-11: `chromium` on line 5, the specifier on line 11)
 # — tv_chart_error_probe.test.ts among them. Reaching playwright therefore
 # does not force exemption, and describing the set that way told a reader a
 # rule the code does not follow.
