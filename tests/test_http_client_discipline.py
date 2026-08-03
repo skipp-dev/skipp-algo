@@ -228,8 +228,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the HTTP loaders shifted these sites by +3 lines.
         ("services/live_overlay_daemon/compute.py", 260),  # +4 (2026-07-09): signal/trade-context docstring header
-        ("services/live_overlay_daemon/compute.py", 449),
-        ("services/live_overlay_daemon/compute.py", 641),
+        ("services/live_overlay_daemon/compute.py", 458),
+        ("services/live_overlay_daemon/compute.py", 650),
         # 2026-06-24: Railway GraphQL API bridge for container metrics polling;
         # fixed https endpoint (backboard.railway.com), explicit timeout discipline.
         # 2026-07-07: `import math` for the non-finite guard shifted this 85 -> 86.

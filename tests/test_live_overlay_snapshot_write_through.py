@@ -417,6 +417,17 @@ def test_signals_service_url_to_full_with_host_and_url() -> None:
     )
     # Out-of-range port -> "" (rather than a broken endpoint that 404s).
     assert compute._signals_service_url_to_full("https://host:999999") == ""
+    # The function's own output must be a fixed point. Found by the Hypothesis
+    # fuzz test on 2026-08-03 (main run 30822226130), reproduced here so it does
+    # not depend on the fuzzer re-rolling the same input: "? #" leaves a query of
+    # a single space, so the first pass emits a URL ending in whitespace — which
+    # the leading .strip() of the SECOND pass then eats, dropping the query.
+    for _base in ("http://0/signals.json? #", "http://0/? #", "0? #", "https://host/signals.json?x=1 #"):
+        _once = compute._signals_service_url_to_full(_base)
+        assert compute._signals_service_url_to_full(_once) == _once, _base
+    # Whitespace-only query/fragment carry nothing and must not survive as a
+    # dangling "?" / "#".
+    assert compute._signals_service_url_to_full("http://0/signals.json? #") == "http://0/signals.json"
 
 
 def test_validate_https_url_requires_host() -> None:

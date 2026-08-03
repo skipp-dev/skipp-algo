@@ -422,7 +422,16 @@ def _signals_service_url_to_full(base: str) -> str:
     path = parsed.path.rstrip("/")
     if not path.endswith("/signals.json"):
         path = f"{path}/signals.json"
-    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
+    # Strip the query/fragment for the same reason ``base`` is stripped above:
+    # this function's output is fed back through it (a full SIGNALS_SERVICE_URL
+    # is normalised on every call), so the output has to be a fixed point. A
+    # value like "host/? #" leaves a query of one space; emitting it would end
+    # the URL in whitespace, which the leading ``base.strip()`` of the next pass
+    # eats — silently dropping the query on the second call. Whitespace-only
+    # components collapse to "" and urlunsplit then omits the "?" / "#".
+    query = parsed.query.strip()
+    fragment = parsed.fragment.strip()
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, query, fragment))
 
 
 def _fetch_signals_service(
