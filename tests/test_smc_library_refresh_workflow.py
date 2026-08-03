@@ -596,6 +596,31 @@ def test_preflight_does_not_gate_on_retired_newsapi() -> None:
     )
 
 
+def test_refresh_workflow_never_wires_retired_newsapi_secret() -> None:
+    """Whole-file guard mirroring the existing "must not be re-added" pins in
+    tests/test_workflow_predictive_review_guards.py and
+    tests/test_smc_live_newsapi_refresh_structural_pin.py.
+
+    #4335 stopped the preflight from gating on the retired provider, but the
+    Generate step kept passing the secret. That was already dead weight — every
+    consumption site is gated on ``enable_newsapi_ai AND newsapi_ai_key``
+    (newsstack_fmp/pipeline.py:850,1032) and ENABLE_NEWSAPI_AI defaults OFF —
+    and a configured-but-dead secret is exactly what let a retired provider
+    reach a gate in the first place. Keep it out of the whole file so the next
+    reader cannot mistake it for a live dependency.
+    """
+    workflow_text = _read(WORKFLOW_PATH)
+    assert "secrets.NEWSAPI_KEY" not in workflow_text, (
+        "NEWSAPI_KEY must not be re-added (NewsAPI.ai retired 2026-07-08); "
+        "re-granting means flipping ENABLE_NEWSAPI_AI on as well"
+    )
+    # The YAML-key form only — prose may name the flag (the comments above the
+    # preflight and Generate steps explain the retirement and cite it).
+    assert "ENABLE_NEWSAPI_AI:" not in workflow_text, (
+        "enabling the retired provider needs an explicit decision, not a silent env flip"
+    )
+
+
 _PRODUCER_PATH = ROOT / ".github/workflows/smc-databento-production-export-sharded.yml"
 
 
