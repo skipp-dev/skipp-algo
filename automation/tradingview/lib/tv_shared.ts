@@ -8254,10 +8254,21 @@ export async function getVisibleChartScriptError(page: Page, scriptName: string)
   return probed === CHART_ERROR_PROBE_UNREADABLE ? null : probed;
 }
 
+/**
+ * Hard pre-publish gate. Deliberately built on {@link probeVisibleChartScriptError},
+ * not {@link getVisibleChartScriptError}: that view maps "could not look" to
+ * `null`, so gating on it would let a publish certify a compile it never
+ * observed. Its own docstring says not to use it for gating.
+ */
 export async function assertNoVisibleChartScriptError(page: Page, scriptName: string): Promise<void> {
-  const hit = await getVisibleChartScriptError(page, scriptName);
-  if (hit) {
-    throw new Error(`Visible chart error detected for ${scriptName}: ${hit}`);
+  const probed = await probeVisibleChartScriptError(page, scriptName);
+  if (probed === CHART_ERROR_PROBE_UNREADABLE) {
+    throw new Error(
+      `Chart legend unreadable for ${scriptName}: refusing to report a clean compile from a surface that could not be read.`,
+    );
+  }
+  if (probed) {
+    throw new Error(`Visible chart error detected for ${scriptName}: ${probed}`);
   }
 }
 
