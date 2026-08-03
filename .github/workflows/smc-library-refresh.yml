@@ -50,7 +50,11 @@
 #   SMTP_PASS          – SMTP login password
 #   ALERT_EMAIL_FROM   – Sender address for email alerts
 #   ALERT_EMAIL_TO     – Recipient address for email alerts
-#   NEWSAPI_KEY     – NewsAPI.ai key for optional news fallback enrichment
+#
+# (NewsAPI.ai was listed here until 2026-08-03. Retired 2026-07-08 — the
+# subscription was cancelled, ENABLE_NEWSAPI_AI defaults OFF and this workflow
+# never sets it, so no step in this file can consume the key. It is no longer
+# passed to any step; see tests/test_smc_library_refresh_workflow.py.)
 #
 # Secret compatibility note (v4 → v5):
 #   Secret names are unchanged from v4 — no reconfiguration needed.
@@ -649,7 +653,10 @@ jobs:
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           # Transport-Flip (Massive-Reseller-Key) — repo variable, default direct.
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
-          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          # NewsAPI.ai deliberately NOT wired (retired 2026-07-08): every
+          # consumption site is gated on `enable_newsapi_ai AND newsapi_ai_key`
+          # (newsstack_fmp/pipeline.py:850,1032) and ENABLE_NEWSAPI_AI defaults
+          # OFF, so dropping the key is behaviour-neutral here.
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \
             --bundle artifacts/smc_microstructure_exports \
