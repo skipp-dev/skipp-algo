@@ -13,13 +13,20 @@ meta-guards already use (``assert len(ledgers) >= 15`` and its two
 siblings in ``tests/test_fast_gates_silent_skip_coverage.py``).
 
 Scope: ``tests/`` only, and that is a measured decision rather than an
-omission. On 2026-08-03 ``python -m scripts.detect_vacuous_claims scripts/
-services/`` reported **0 vacuum-prone claims over 805 files** — production
+omission. On 2026-08-03 the analyzer was pointed at the **whole**
+production tree — every directory outside ``tests/`` that holds Python
+(``dashboard governance ml newsstack_fmp open_prep rl scripts services
+skipp_config smc_adapters smc_core smc_integration smc_tv_bridge
+terminal_tabs tools``) plus the 56 top-level ``*.py`` modules — and
+reported **0 vacuum-prone claims over 1133 files**. That is the complete
+remainder: 1625 files under ``tests/`` plus these 1133 account for all
+2758 ``*.py`` files in the repo (vendored trees excluded). Production
 ``assert`` is already budget-gated by
 ``tests/test_assert_in_production_budget.py``, so the surface is empty.
 Pointing the guard at an empty population would be precisely the failure
 this module exists to forbid: it would report green having observed
-nothing. Re-measure before widening the scope.
+nothing. Re-measure before widening the scope — and measure the roots you
+name, not a subset of them.
 """
 
 from __future__ import annotations
@@ -45,9 +52,17 @@ def _scan() -> ScanResult:
 def test_the_analyzer_observed_the_test_suite() -> None:
     """Witness for the gate below — without it, this file is its own bug.
 
-    If discovery breaks (a moved tests/ layout, a swallowed parse error),
-    the claim set goes empty and every assertion here passes while proving
-    nothing. Pinning the scanned population makes that failure loud.
+    The failure this actually covers is a *shrunken* population: tests
+    moved out from under ``tests/``, a sub-tree renamed, or
+    :func:`scan_paths`' ``rglob`` narrowed. The claim set then goes empty
+    and every assertion here passes while proving nothing.
+
+    It is deliberately not described as covering a swallowed parse error,
+    because :func:`scan_paths` swallows nothing: a ``SyntaxError`` from
+    ``ast.parse`` (and a ``FileNotFoundError`` if ``tests/`` disappears
+    entirely) propagates and fails this run loudly on its own. Claiming a
+    coverage this witness does not have is the exact defect the module
+    exists to catch.
     """
     scanned = _scan().files
     assert len(scanned) > 1_000, (
