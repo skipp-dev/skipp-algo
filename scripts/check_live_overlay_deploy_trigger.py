@@ -12,16 +12,21 @@ bar cache and resetting uptime each time. With `checkSuites:false` it also
 deploys before CI validates the commit. This drift is invisible in the repo —
 it lives in Railway config — so this guard catches it re-appearing.
 
-Auth, in order of preference (plus `RAILWAY_PROJECT_ID` +
-`RAILWAY_ENVIRONMENT_ID`, and the service id
-`RAILWAY_LIVE_OVERLAY_SERVICE_ID` defaulting to the production service):
+Auth: `RAILWAY_API_TOKEN` — an ACCOUNT/workspace token, `Authorization:
+Bearer` — plus `RAILWAY_PROJECT_ID` + `RAILWAY_ENVIRONMENT_ID`, and the
+service id `RAILWAY_LIVE_OVERLAY_SERVICE_ID` defaulting to the production
+service.
 
-* `RAILWAY_PROJECT_ACCESS_TOKEN` — a Railway PROJECT token, scoped to exactly
-  this project + environment, sent as the `Project-Access-Token` header.
-  Verified live 2026-08-03: the operator's project token resolves
-  `projectToken { projectId environmentId }` to this project.
-* `RAILWAY_API_TOKEN` — an account/workspace token, sent as
-  `Authorization: Bearer` (the header project tokens do NOT accept).
+A Railway PROJECT token cannot drive this guard, and that is measured, not
+assumed: sent with its correct `Project-Access-Token` header it resolves
+`projectToken { projectId environmentId }` to this exact project, yet the
+same token gets "Not Authorized" for `deploymentTriggers` (run 30831201160,
+2026-08-03), while an account-scoped session token reading the identical
+query with identical variables gets data. The docs document no per-query
+scope table, so this refutation is the only authority. #4343 briefly
+PREFERRED a project token on the assumption that project-scoped meant
+query-complete; that preference made the guard uncurably red whenever the
+project-token secret was set, and was removed the same day.
 
 Exit codes:
   0  no native deploy trigger (healthy)  OR  token not configured (skipped)
@@ -62,8 +67,12 @@ def _auth_header(token: str, auth_kind: str) -> dict[str, str]:
     public-api). Measured 2026-08-03: a project token sent as Bearer fails even
     ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
     gets, so the error text cannot distinguish a wrong header from a missing
-    token. A project token is also the better credential here: it is scoped to
-    exactly one project + environment instead of the whole account.
+    token.
+
+    Kept although main() no longer takes project tokens: the header property is
+    real and measured, and the next person who reaches for a project token here
+    should find the refutation (see the module docstring) instead of the API's
+    unhelpful error.
     """
     if auth_kind == "project":
         return {"Project-Access-Token": token}
@@ -112,31 +121,27 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
-_PROJECT_TOKEN_QUERY = "query { projectToken { projectId environmentId } }"
+_IDENTITY_QUERY = "query { me { email } }"
 
 
-def _diagnose_project_token(
-    token: str,
-    project_id: str,
-    environment_id: str,
-    timeout: float = 15.0,
-) -> str:
-    """Say which of the cases Railway's bare "Not Authorized" is hiding.
+def _diagnose_account_token(token: str, timeout: float = 15.0) -> str:
+    """Say which fault Railway's bare "Not Authorized" is hiding.
 
-    ``deploymentTriggers`` answers "Not Authorized" for a revoked token, for a
-    token pointing at another project, and for a live token that simply may not
-    read that field — three different fixes, one message. ``projectToken``
-    resolves against the token itself, so it separates them.
+    ``deploymentTriggers`` answers the same line for a dead credential and for
+    a live one whose workspace does not contain this project — different fixes,
+    identical message. ``me`` resolves against the token alone, so it separates
+    them: an account token answers it, and anything else (project token, revoked
+    token, no token) does not. Measured 2026-08-03 (#4345): a project token
+    fails ``me`` with exactly the "Not Authorized" an unauthenticated request
+    gets.
 
-    Returns a single operator-facing line. Never echoes the token, and reports
-    the resolved ids only as match/mismatch: they are repository secrets, and
-    an unmasked id in a public log is a leak.
+    Returns one operator-facing line and never echoes the token or the address.
     """
     req = urllib.request.Request(
         _GRAPHQL_ENDPOINT,
-        data=json.dumps({"query": _PROJECT_TOKEN_QUERY}).encode("utf-8"),
+        data=json.dumps({"query": _IDENTITY_QUERY}).encode("utf-8"),
         headers={
-            "Project-Access-Token": token,
+            **_auth_header(token, "account"),
             "Content-Type": "application/json",
             "User-Agent": "skipp-algo-deploy-trigger-guard/1",
         },
@@ -148,72 +153,52 @@ def _diagnose_project_token(
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
 
-    if body.get("errors"):
+    if body.get("errors") or not ((body.get("data") or {}).get("me") or {}).get("email"):
         return (
-            "Railway does not recognise this project token (projectToken -> "
-            f"{body['errors']}) — it was revoked or rotated; issue a new one and "
-            "update RAILWAY_PROJECT_ACCESS_TOKEN"
-        )
-    resolved = (body.get("data") or {}).get("projectToken") or {}
-    got_project = resolved.get("projectId")
-    got_env = resolved.get("environmentId")
-    if not got_project or not got_env:
-        return "projectToken returned no ids — diagnosis inconclusive"
-    if got_project != project_id or got_env != environment_id:
-        which = []
-        if got_project != project_id:
-            which.append("project")
-        if got_env != environment_id:
-            which.append("environment")
-        return (
-            f"the project token is live but resolves to a different {'/'.join(which)} "
-            "than RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID — the token and the ids "
-            "describe different places"
+            "RAILWAY_API_TOKEN does not authenticate as an account at all — `me` is "
+            "refused too, so it is a project token, revoked, or mistyped. Issue an "
+            "ACCOUNT token (project tokens cannot read deploymentTriggers: #4345)"
         )
     return (
-        "the project token is live and scoped to exactly this project+environment, "
-        "so deploymentTriggers is beyond what a project token may read — unset "
-        "RAILWAY_PROJECT_ACCESS_TOKEN to fall back to the account token in "
-        "RAILWAY_API_TOKEN"
+        "RAILWAY_API_TOKEN is a valid account token — `me` resolves — so the refusal "
+        "is scope, not identity: this account's workspace does not include the "
+        "project in RAILWAY_PROJECT_ID. Use a token from the workspace that owns it"
     )
 
 
 def main() -> int:
-    project_token = os.environ.get("RAILWAY_PROJECT_ACCESS_TOKEN")
-    account_token = os.environ.get("RAILWAY_API_TOKEN")
-    token, auth_kind = (
-        (project_token, "project") if project_token else (account_token, "account")
-    )
+    # Deliberately NOT reading RAILWAY_PROJECT_ACCESS_TOKEN: project tokens
+    # cannot query deploymentTriggers (measured, see module docstring), and a
+    # preferred-but-unauthorized credential kept this guard red no matter what
+    # else was configured.
+    token = os.environ.get("RAILWAY_API_TOKEN")
     project_id = os.environ.get("RAILWAY_PROJECT_ID")
     environment_id = os.environ.get("RAILWAY_ENVIRONMENT_ID")
     service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_SERVICE_ID)
 
     if not (token and project_id and environment_id):
         print(
-            "SKIP: neither RAILWAY_PROJECT_ACCESS_TOKEN nor RAILWAY_API_TOKEN set, "
-            "or RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID missing — "
-            "deploy-trigger drift guard did not run.",
+            "SKIP: RAILWAY_API_TOKEN (account token) / RAILWAY_PROJECT_ID / "
+            "RAILWAY_ENVIRONMENT_ID not all set — deploy-trigger drift guard "
+            "did not run.",
         )
         return 0
 
     try:
         triggers = _fetch_triggers(
-            token, project_id, environment_id, service_id, auth_kind=auth_kind
+            token, project_id, environment_id, service_id, auth_kind="account"
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
-        # Name the credential: RAILWAY_PROJECT_ACCESS_TOKEN wins outright when
-        # set, with no fallback, so a dead project token masks a working
-        # account token — and the old message never said which one was tried.
         print(
-            f"ERROR: could not query Railway deployment triggers "
-            f"using the {auth_kind} token: {exc}",
+            "ERROR: could not query Railway deployment triggers using the "
+            f"account token in RAILWAY_API_TOKEN: {exc}",
             file=sys.stderr,
         )
-        if auth_kind == "project":
-            print(
-                f"DIAGNOSIS: {_diagnose_project_token(token, project_id, environment_id)}",
-                file=sys.stderr,
-            )
+        # "Not Authorized" alone cannot say whether the credential is dead or
+        # merely outside this project's workspace — two different fixes. Ask
+        # `me`, which resolves against the token by itself, and print the
+        # answer next to the failure instead of leaving it to the next round.
+        print(f"DIAGNOSIS: {_diagnose_account_token(token)}", file=sys.stderr)
         return 2
 
     if not triggers:

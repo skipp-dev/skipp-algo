@@ -71,13 +71,15 @@ def test_missing_token_skips_without_failing(monkeypatch):
     assert mod.main() == 0
 
 
-def test_project_token_is_preferred_and_sent_with_its_own_header(guard, monkeypatch):
-    """A Railway PROJECT token authenticates via Project-Access-Token, not Bearer.
+def test_a_configured_project_token_is_ignored_not_preferred(guard, monkeypatch):
+    """Project tokens cannot query deploymentTriggers — measured, not assumed.
 
-    Measured 2026-08-03: sent as Bearer, a valid project token fails even
-    ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
-    gets — the API cannot tell a wrong header from a missing token, so the
-    header choice has to be structural, not diagnosable at runtime.
+    Run 30831201160 (2026-08-03): the operator's project token, sent with its
+    correct Project-Access-Token header, resolves ``projectToken`` to this
+    exact project yet gets "Not Authorized" for ``deploymentTriggers``; an
+    account-scoped token reading the identical query returns data. #4343
+    preferred the project token for a few hours, which made the guard uncurably
+    red while that secret was set. main() must therefore not read it at all.
     """
     monkeypatch.setenv("RAILWAY_PROJECT_ACCESS_TOKEN", "proj-tok")
     seen: dict = {}
@@ -89,24 +91,19 @@ def test_project_token_is_preferred_and_sent_with_its_own_header(guard, monkeypa
 
     monkeypatch.setattr(guard, "_fetch_triggers", _capture)
     assert guard.main() == 0
-    # Preferred over the account token the fixture also sets.
-    assert seen == {"token": "proj-tok", "auth_kind": "project"}
+    assert seen == {"token": "t", "auth_kind": "account"}
 
+
+def test_auth_header_still_knows_both_railway_header_schemes(guard):
+    """The header property is real and stays documented in code.
+
+    A project token sent as Bearer fails even ``{ me }`` with the same bare
+    "Not Authorized" an unauthenticated request gets — whoever next reaches for
+    a project token here should find working header code next to the measured
+    refutation, not rediscover both from the API's unhelpful error.
+    """
     assert guard._auth_header("proj-tok", "project") == {"Project-Access-Token": "proj-tok"}
     assert guard._auth_header("acct-tok", "account") == {"Authorization": "Bearer acct-tok"}
-
-
-def test_account_token_alone_still_authenticates_as_bearer(guard, monkeypatch):
-    seen: dict = {}
-
-    def _capture(token, *a, **k):
-        seen["token"] = token
-        seen["auth_kind"] = k.get("auth_kind")
-        return []
-
-    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
-    assert guard.main() == 0
-    assert seen == {"token": "t", "auth_kind": "account"}
 
 
 def test_api_error_is_inconclusive_not_pass(guard, monkeypatch):
@@ -133,9 +130,8 @@ def _diag_resp(payload: dict):
     return _Resp()
 
 
-def _run_with_project_token(guard, monkeypatch, diag_payload, *, exc=None):
-    """Drive main() down the project-token failure path and capture stderr."""
-    monkeypatch.setenv("RAILWAY_PROJECT_ACCESS_TOKEN", "proj")
+def _run_failing(guard, monkeypatch, diag_payload, *, exc=None):
+    """Drive main() down the failure path and let the diagnosis probe answer."""
 
     def _raise(*a, **k):
         raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
@@ -145,66 +141,54 @@ def _run_with_project_token(guard, monkeypatch, diag_payload, *, exc=None):
     def _urlopen(req, timeout=0):
         if exc is not None:
             raise exc
-        assert req.headers.get("Project-access-token") == "proj"
+        # The probe must authenticate the same way the failing call did.
+        assert req.headers.get("Authorization") == "Bearer t"
         return _diag_resp(diag_payload)
 
     monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
     return guard.main()
 
 
-def test_failure_names_which_credential_was_used(guard, monkeypatch, capsys):
+def test_failure_names_the_credential_it_used(guard, monkeypatch, capsys):
     """The old message never said which token was tried.
 
-    RAILWAY_PROJECT_ACCESS_TOKEN wins outright with no fallback, so a dead
-    project token masks a working account token — an operator reading
-    "Not Authorized" cannot tell which credential to go fix.
+    With three auth layers fixed in one day (Cloudflare UA #4334, project-token
+    header #4343, project-token refutation #4345) each round re-derived the
+    credential from the workflow file. Print it.
     """
-
-    def _raise(*a, **k):
-        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
-
-    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
-    assert guard.main() == 2
-    assert "using the account token" in capsys.readouterr().err
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "x@y"}}})
+    assert rc == 2
+    assert "account token in RAILWAY_API_TOKEN" in capsys.readouterr().err
 
 
-def test_revoked_project_token_is_named_as_such(guard, monkeypatch, capsys):
-    rc = _run_with_project_token(
-        guard, monkeypatch, {"errors": [{"message": "Project Token not found"}]}
-    )
+def test_dead_credential_is_named_as_such(guard, monkeypatch, capsys):
+    # `me` refused too -> the token is not an account token at all.
+    rc = _run_failing(guard, monkeypatch, {"errors": [{"message": "Not Authorized"}]})
     err = capsys.readouterr().err
     assert rc == 2
-    assert "using the project token" in err
-    assert "revoked or rotated" in err
+    assert "does not authenticate as an account at all" in err
+    assert "#4345" in err
 
 
-def test_project_token_pointing_elsewhere_is_named_as_such(guard, monkeypatch, capsys):
-    rc = _run_with_project_token(
-        guard,
-        monkeypatch,
-        {"data": {"projectToken": {"projectId": "other", "environmentId": "e"}}},
-    )
+def test_valid_token_outside_the_workspace_is_named_as_such(guard, monkeypatch, capsys):
+    # `me` resolves -> identity is fine, so the refusal is scope.
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "ops@example.com"}}})
     err = capsys.readouterr().err
     assert rc == 2
-    assert "different project" in err
-    # The ids are repository secrets — report match/mismatch, never the value.
-    assert "other" not in err
+    assert "is scope, not identity" in err
+    # The probe answers with an address; it must not reach the log.
+    assert "ops@example.com" not in err
 
 
-def test_live_scoped_project_token_points_at_the_permission_gap(guard, monkeypatch, capsys):
-    rc = _run_with_project_token(
-        guard,
-        monkeypatch,
-        {"data": {"projectToken": {"projectId": "p", "environmentId": "e"}}},
-    )
-    err = capsys.readouterr().err
+def test_empty_me_payload_is_treated_as_dead_not_valid(guard, monkeypatch, capsys):
+    # No errors key but no email either — must not be read as a healthy token.
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {}}})
     assert rc == 2
-    assert "beyond what a project token may read" in err
-    assert "RAILWAY_API_TOKEN" in err
+    assert "does not authenticate as an account at all" in capsys.readouterr().err
 
 
 def test_diagnosis_failure_is_inconclusive_not_a_verdict(guard, monkeypatch, capsys):
-    rc = _run_with_project_token(guard, monkeypatch, {}, exc=urllib.error.URLError("dns"))
+    rc = _run_failing(guard, monkeypatch, {}, exc=urllib.error.URLError("dns"))
     err = capsys.readouterr().err
     assert rc == 2
     assert "inconclusive" in err

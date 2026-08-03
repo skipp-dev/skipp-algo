@@ -88,7 +88,7 @@
 "scripts/smc_alert_notifier.py" = [481]
 # 2026-07-24: live_overlay deploy-trigger drift guard; Railway GraphQL POST,
 # explicit timeout=15s, reuses the railway_metrics API-token env vars.
-"scripts/check_live_overlay_deploy_trigger.py" = [107, 146]  # 80->107 (2026-08-03): _auth_header added above — Railway project tokens need the Project-Access-Token header, not Bearer. +146 (2026-08-03): _diagnose_project_token — a SECOND, deliberate Railway call, made only on the failure path to tell a revoked token from a permission gap
+"scripts/check_live_overlay_deploy_trigger.py" = [116, 151]  # 107->116 (2026-08-03): docstring records the project-token refutation (run 30831201160) — deploymentTriggers denies project tokens. +151 (2026-08-03): _diagnose_account_token — a SECOND, deliberate Railway call made ONLY on the failure path, to tell a dead credential from one outside the project workspace
 "scripts/verify_branch_protection.py" = [124]  # 108->124 (2026-08-01): ProtectionReport.passed gained the "at least one governance layer observed" floor +16
 "terminal_notifications.py" = [255, 319]
 # 2026-06-10: bare-name urlopen() calls newly detected after expanding
