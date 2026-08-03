@@ -14,6 +14,7 @@ import base64
 import gzip
 import io
 import json
+import urllib.error
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
@@ -22,10 +23,13 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from scripts.credential_health_check import (
+    COMPOSIO_AUTH_POLICY_PATH,
     DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
     WARN_FRACTION,
     ProbeResult,
+    _composio_declared_pins,
     probe_benzinga,
+    probe_composio_accounts,
     probe_databento,
     probe_databento_delivery,
     probe_finnhub,
@@ -613,3 +617,214 @@ def test_databento_delivery_uses_basic_auth_and_dataset() -> None:
     assert auth is not None and auth.startswith("Basic ")
     assert "metadata.get_dataset_range" in req.full_url
     assert "dataset=EQUS.SUMMARY" in req.full_url
+
+
+# -- Composio connected-account probes --------------------------------------
+#
+# Post-mortem 2026-08-03: the weekly Notion digest (composio-publish) failed
+# every run from 2026-07-20 because connected account ca_t1SW1B3NFDA3 was in
+# EXPIRED state, while THIS check reported green the whole time — it probed no
+# Composio surface at all. A project API key stays valid while an individual
+# OAuth connection underneath it expires.
+
+_BASE = "https://backend.composio.dev"
+
+
+def _account_body(
+    *,
+    status: str = "ACTIVE",
+    toolkit: str = "notion",
+    disabled: bool = False,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": "ca_x",
+        "status": status,
+        "status_reason": reason,
+        "is_disabled": disabled,
+        "toolkit": {"slug": toolkit},
+    }
+
+
+def _composio_opener(by_account: dict[str, Any]):
+    """Fake opener dispatching on the account id in the request URL.
+
+    Values are either a body dict (served as HTTP 200) or an Exception to raise.
+    """
+    opener = MagicMock()
+
+    def _open(req, timeout=None):  # signature mirrors urllib's opener
+        account_id = req.full_url.rsplit("/", 1)[-1]
+        outcome = by_account[account_id]
+        if isinstance(outcome, Exception):
+            raise outcome
+        resp = MagicMock()
+        resp.getcode.return_value = 200
+        resp.read.return_value = json.dumps(outcome).encode("utf-8")
+        resp.__enter__ = lambda self: self
+        resp.__exit__ = lambda self, *a: False
+        return resp
+
+    opener.open.side_effect = _open
+    return opener
+
+
+def _probe_one(account_id: str, outcome: Any, *, toolkit: str = "notion", access: str = "write"):
+    results = probe_composio_accounts(
+        "ak_test",
+        pins=[(toolkit, access)],
+        account_ids={(toolkit, access): account_id},
+        base_url=_BASE,
+        opener=_composio_opener({account_id: outcome}),
+    )
+    assert len(results) == 1
+    return results[0]
+
+
+def test_composio_declared_pins_match_the_repo_policy() -> None:
+    # Drives off the real policy file: the probe set must follow the repo's
+    # declaration, not whatever happens to be exported into the environment.
+    assert _composio_declared_pins() == [
+        ("github", "read"),
+        ("github", "write"),
+        ("notion", "read"),
+        ("notion", "write"),
+        ("outlook", "read"),
+        ("outlook", "write"),
+        ("slack", "read"),
+        ("slack", "write"),
+    ]
+    assert COMPOSIO_AUTH_POLICY_PATH.exists()
+
+
+def test_composio_policy_without_accounts_is_an_error_not_silence(tmp_path) -> None:
+    policy = tmp_path / "p.json"
+    policy.write_text(json.dumps({"auth_configs": {}}), encoding="utf-8")
+    assert _composio_declared_pins(policy) == []
+    results = probe_composio_accounts("ak_test", pins=[], account_ids={}, base_url=_BASE)
+    assert [r.severity for r in results] == ["error"]
+    assert "verifying nothing" in results[0].message
+
+
+def test_composio_empty_api_key_reports_pins_unverified() -> None:
+    results = probe_composio_accounts(
+        "", pins=[("notion", "write")], account_ids={("notion", "write"): "ca_1"}, base_url=_BASE
+    )
+    assert [r.severity for r in results] == ["error"]
+    assert "UNVERIFIED" in results[0].message
+    assert results[0].details["declared_pins"] == 1
+
+
+def test_composio_declared_but_unpinned_account_is_an_error() -> None:
+    results = probe_composio_accounts(
+        "ak_test", pins=[("slack", "read")], account_ids={}, base_url=_BASE
+    )
+    assert [r.severity for r in results] == ["error"]
+    assert "COMPOSIO_SLACK_READ_ACCOUNT_ID is unset" in results[0].message
+
+
+def test_composio_active_account_is_ok() -> None:
+    r = _probe_one("ca_ok", _account_body(status="ACTIVE"))
+    assert r.severity == "ok"
+    assert r.details["status"] == "ACTIVE"
+
+
+def test_composio_expired_account_is_an_error() -> None:
+    # The exact production shape observed on ca_t1SW1B3NFDA3, 2026-08-03.
+    r = _probe_one(
+        "ca_t1SW1B3NFDA3",
+        _account_body(status="EXPIRED", reason="Permanent auth error during token refresh"),
+    )
+    assert r.severity == "error"
+    assert "EXPIRED" in r.message
+    assert "re-authorise" in r.message
+    assert "Permanent auth error during token refresh" in r.message
+    assert r.details["account_id"] == "ca_t1SW1B3NFDA3"
+
+
+def test_composio_disabled_account_is_an_error() -> None:
+    r = _probe_one("ca_off", _account_body(status="ACTIVE", disabled=True))
+    assert r.severity == "error"
+    assert "DISABLED" in r.message
+
+
+def test_composio_pin_wired_to_the_wrong_toolkit_is_an_error() -> None:
+    r = _probe_one("ca_mix", _account_body(status="ACTIVE", toolkit="slack"))
+    assert r.severity == "error"
+    assert "wrong toolkit" in r.message
+    assert r.details["live_toolkit"] == "slack"
+
+
+def test_composio_unknown_account_id_is_an_error() -> None:
+    exc = urllib.error.HTTPError(f"{_BASE}/x", 404, "Not Found", {}, None)  # type: ignore[arg-type]
+    r = _probe_one("ca_gone", exc)
+    assert r.severity == "error"
+    assert "does not know" in r.message
+
+
+def test_composio_rejected_key_maps_to_the_shared_severity_model() -> None:
+    exc = urllib.error.HTTPError(f"{_BASE}/x", 401, "Unauthorized", {}, None)  # type: ignore[arg-type]
+    r = _probe_one("ca_401", exc)
+    assert r.severity == "error"
+    assert "rotate the secret" in r.message
+
+
+def test_composio_network_failure_is_inconclusive_not_green() -> None:
+    r = _probe_one("ca_net", urllib.error.URLError("dns"))
+    assert r.severity == "warn"
+    assert "inconclusive" in r.message
+
+
+def test_composio_unreadable_body_is_inconclusive_not_green() -> None:
+    r = _probe_one("ca_junk", ["not", "a", "dict"])
+    assert r.severity == "warn"
+    assert "unreadable" in r.message
+
+
+def test_composio_probes_every_declared_pin_not_just_the_first() -> None:
+    pins = [("notion", "read"), ("notion", "write"), ("slack", "write")]
+    ids = {p: f"ca_{p[0]}_{p[1]}" for p in pins}
+    bodies = {
+        "ca_notion_read": _account_body(status="ACTIVE", toolkit="notion"),
+        "ca_notion_write": _account_body(status="EXPIRED", toolkit="notion"),
+        "ca_slack_write": _account_body(status="ACTIVE", toolkit="slack"),
+    }
+    results = probe_composio_accounts(
+        "ak_test", pins=pins, account_ids=ids, base_url=_BASE, opener=_composio_opener(bodies)
+    )
+    assert [r.name for r in results] == [
+        "composio_account_notion_read",
+        "composio_account_notion_write",
+        "composio_account_slack_write",
+    ]
+    assert [r.severity for r in results] == ["ok", "error", "ok"]
+
+
+def test_composio_probe_sends_the_api_key_header() -> None:
+    opener = _composio_opener({"ca_1": _account_body()})
+    probe_composio_accounts(
+        "ak_secret",
+        pins=[("notion", "write")],
+        account_ids={("notion", "write"): "ca_1"},
+        base_url=_BASE,
+        opener=opener,
+    )
+    req = opener.open.call_args[0][0]
+    assert (req.headers.get("X-api-key") or req.headers.get("x-api-key")) == "ak_secret"
+    assert req.full_url == f"{_BASE}/api/v3/connected_accounts/ca_1"
+
+
+def test_composio_env_var_name_matches_what_production_resolves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Anti-drift pin: the env var named in the probe's error message must be the
+    # one composio_ops actually reads, or operators get told to set the wrong key.
+    from scripts import composio_ops
+
+    results = probe_composio_accounts(
+        "ak_test", pins=[("notion", "write")], account_ids={}, base_url=_BASE
+    )
+    named = "COMPOSIO_NOTION_WRITE_ACCOUNT_ID"
+    assert named in results[0].message
+    monkeypatch.setenv(named, "ca_probe_pin")
+    assert composio_ops._account_for_toolkit("notion", "write") == "ca_probe_pin"
