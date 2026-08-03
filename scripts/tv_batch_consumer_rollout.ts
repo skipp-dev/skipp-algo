@@ -755,10 +755,14 @@ async function main(): Promise<void> {
       // red on its own. Never rely on another clause to catch it: an
       // out-of-band binding change leaves sources.drifted at 0.
       //
-      // Exempted for a read-only run: it writes nothing, so there is nothing
-      // to attribute to a second writer, and it never fetches a baseline (that
-      // fetch is gated to mutating runs above) -- so the field is permanently
-      // "unknown" here by construction, not by a failure to measure.
+      // Exempted for a read-only run, and ONLY because it writes nothing:
+      // there is no second writer to attribute a difference to. It does still
+      // MEASURE -- the finally block above compares its own verification
+      // reading against the baseline and records a real clean/drifted/unknown
+      // verdict, at no extra browser cost. That measurement is the point: a
+      // read-only run also republishes the baseline, so without it the morning
+      // cron would quietly absorb an operator's overnight write before any
+      // mutating run ever looked. Report, do not gate.
       && (executionPlan.mode === "verify-only" || report.outOfBandDrift.status === "clean");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");

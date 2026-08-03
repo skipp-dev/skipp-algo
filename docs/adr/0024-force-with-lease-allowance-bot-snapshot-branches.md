@@ -136,12 +136,16 @@ Constraints that must hold for the allowance to remain valid:
   fetched tip (`git checkout <tip-sha> -- artifacts/monitoring/latest`)
   before adding its own file, then stages the whole directory — replacing
   only its own path while carrying the sibling producer's file forward.
-  `tv-save-consumer-source.yml` was not modified to seed symmetrically (it
-  predates having a second producer on this branch and is intentionally
-  left as the reference implementation for the single-producer case
-  elsewhere in this ADR); the residual asymmetric risk — that workflow's
-  next run can still overwrite the R4 path — is accepted for now and noted
-  in the fix's PR description rather than silently left undocumented.
+  `tv-save-consumer-source.yml` seeds the same way, so the protection is
+  symmetric and neither producer can drop the other's file. An earlier draft
+  of this bullet said that workflow had been left unseeded and called the
+  asymmetry an accepted residual risk; that was true for one commit and is
+  no longer. Both directions were verified by extracting the two `run:`
+  bodies and round-tripping them against a throwaway bare repository —
+  first publish creates the branch, each subsequent publish carries the
+  sibling's file forward, and a stale lease is rejected without clobbering.
+  **Any third producer on this branch must seed identically**; a bare
+  `git add -f` of one path would delete both existing files on its first push.
 * The same pattern is applied outside CI by
   `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has

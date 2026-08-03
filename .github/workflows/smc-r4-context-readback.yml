@@ -356,12 +356,12 @@ jobs:
       # first, seed stable_dir from the fetched tip BEFORE adding this run's
       # file, then stage the whole directory rather than only the one path.
       #
-      # This protects tv-save-consumer-source.yml's file from a R4 publish.
-      # It does NOT protect the reverse: that workflow is out of scope here
-      # (constraints forbid touching it) and still stages only its own path,
-      # so it will still delete tradingview_r4_context_bindings.json the
-      # next time IT runs. That asymmetric residual risk is real and is
-      # called out in this change's report rather than left implicit.
+      # This protects tv-save-consumer-source.yml's file from an R4 publish,
+      # and that workflow now seeds symmetrically, so an R4 file survives its
+      # publishes too. Both directions were proven by round-tripping the two
+      # `run:` bodies against a throwaway bare repo, not by reading them.
+      # A third producer on this branch MUST seed the same way or it will
+      # delete both existing files on its first push.
       #
       # Gated on `steps.rebind.conclusion` -- 'success' or 'failure', never
       # 'skipped' or 'cancelled' -- for the same reason tv-save-consumer-
