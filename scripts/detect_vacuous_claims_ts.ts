@@ -27,9 +27,11 @@
  *   is truthy, so that assertion proves nothing about emptiness.
  * * only a length comparison that actually implies "at least one" counts.
  *   `assert.equal(wrappers.length, 0, ...)` occurs in this very test suite
- *   (tv_legend_text_visibility.test.ts), and reading every `.length`
- *   mention as a witness would let a proven-*empty* collection exonerate a
- *   loop over it.
+ *   — automation/tradingview/tests/tv_shared.test.ts:1162 ("page-chrome-only
+ *   ancestors must not be treated as legend rows") and :1187 ("invisible
+ *   legend buttons must be ignored") — and reading every `.length` mention
+ *   as a witness would let a proven-*empty* collection exonerate a loop
+ *   over it.
  */
 
 import fs from "node:fs";
