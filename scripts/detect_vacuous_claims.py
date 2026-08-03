@@ -240,13 +240,28 @@ def witness_keys(source: str, func: ast.FunctionDef | ast.AsyncFunctionDef) -> s
 
 
 def _raises_or_fails(node: ast.AST) -> bool:
-    """True for ``raise ...`` and for ``pytest.fail(...)``."""
+    """True for ``raise ...`` and for an exact ``<expr>.fail(...)`` call.
+
+    Only an attribute access literally named ``fail`` qualifies — that
+    covers ``pytest.fail(...)`` and ``self.fail(...)`` on a
+    ``unittest.TestCase``, both of which actually raise. A suffix match
+    (the earlier, broader implementation) also matched any dotted call
+    whose text merely *ends* in "fail" — ``logger.softfail(...)``,
+    ``report_fail(...)`` — which do not necessarily raise. Treating those
+    as witnesses would fabricate a guard: a loop that runs zero times could
+    still look proven. A bare ``fail(...)`` name call is deliberately
+    excluded too, for the same reason: without resolving what the name is
+    bound to, there is no evidence it raises. Under-reporting a genuinely
+    vacuous claim is the worse failure direction for this tool, so the
+    narrower reading is preferred over the permissive one.
+    """
     if isinstance(node, ast.Raise):
         return True
     return (
         isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Call)
-        and ast.unparse(node.value.func).endswith("fail")
+        and isinstance(node.value.func, ast.Attribute)
+        and node.value.func.attr == "fail"
     )
 
 

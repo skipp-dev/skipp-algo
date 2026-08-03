@@ -292,6 +292,46 @@ def test_a_witness_in_a_different_test_does_not_count() -> None:
     assert _kinds(source) == {'SPEC_DIR.glob("*.json")': "discovery call"}
 
 
+def test_non_raising_fail_lookalike_is_not_a_witness() -> None:
+    """Only an exact ``.fail`` attribute call counts — not a look-alike name.
+
+    A helper like ``logger.softfail(...)`` may log or record a failure
+    without raising. The earlier, broader implementation matched it because
+    ``ast.unparse(...).endswith("fail")`` is true for ``logger.softfail``
+    too — that would fabricate a witness and let a genuinely vacuous claim
+    pass silently. The real ``pytest.fail`` idiom must stay recognised;
+    see ``test_pytest_fail_after_the_loop_is_a_witness`` above.
+    """
+    source = """
+        def test_frozen_site_still_present():
+            for path in ROOT.rglob("*.py"):
+                if path.name == "target.py":
+                    assert path.read_text()
+                    return
+            logger.softfail("target.py no longer present")
+    """
+    assert _kinds(source) == {'ROOT.rglob("*.py")': "discovery call"}
+
+
+def test_bare_fail_name_call_is_not_a_witness() -> None:
+    """A bare ``fail(...)`` name call is deliberately not treated as raising.
+
+    Unlike ``pytest.fail(...)`` / ``self.fail(...)``, a bare name gives no
+    evidence about what it does without resolving the import it came from;
+    accepting it on faith risks fabricating a witness for a helper that
+    merely records a failure instead of raising one.
+    """
+    source = """
+        def test_frozen_site_still_present():
+            for path in ROOT.rglob("*.py"):
+                if path.name == "target.py":
+                    assert path.read_text()
+                    return
+            fail("target.py no longer present")
+    """
+    assert _kinds(source) == {'ROOT.rglob("*.py")': "discovery call"}
+
+
 def test_witness_key_uses_the_same_renderer_as_the_iterable() -> None:
     """A witness must match through ``_render``, not ``ast.unparse``.
 
