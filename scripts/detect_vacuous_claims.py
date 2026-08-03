@@ -212,6 +212,14 @@ def _iterating_asserts(
 def _render(source: str, node: ast.expr) -> str:
     """Render *node* as the reviewer would read it: the source as written.
 
+    This is the module's single rendering entry point. Anything that will be
+    *compared* or used as an *identity* -- :attr:`VacuousClaim.iterable`,
+    :attr:`VacuousClaim.key`, and (Task 2) a witness expression checked
+    against an iterable string -- must go through this function and no
+    other. Rendering an iterable through ``_render`` and a witness through
+    ``ast.unparse`` would make matching ones fail silently on quote-style
+    alone (``"*.py"`` vs ``'*.py'``); the guard must compare like with like.
+
     ``ast.unparse`` regenerates syntax from the tree and normalises string
     quoting along the way, so it cannot be used for a human-facing label. A
     bare generator expression that is the sole argument of a call (as in
@@ -219,13 +227,25 @@ def _render(source: str, node: ast.expr) -> str:
     call's own parentheses to the ``GeneratorExp`` node's source span, so
     the raw segment reads ``(x for x in y)`` with parens nobody wrote around
     the generator itself; strip that one borrowed layer.
+
+    Two more properties are required of the result, because it feeds both a
+    one-line-per-claim CLI report and a "stable identity" key:
+
+    * single-line -- an expression spanning several source lines (e.g. a
+      generator expression whose ``for``/``if`` clauses are wrapped) must
+      not turn into a multi-line label, so runs of whitespace (including
+      the newlines and indentation ``get_source_segment`` preserves
+      verbatim) collapse to one space;
+    * total -- ``get_source_segment`` returns ``None`` for a synthesized
+      node or when the source is unavailable; fall back to ``ast.unparse``
+      rather than letting ``None`` reach a claim.
     """
     segment = ast.get_source_segment(source, node)
     if segment is None:
-        return ast.unparse(node)
-    if isinstance(node, ast.GeneratorExp) and segment[0] == "(" and segment[-1] == ")":
-        return segment[1:-1]
-    return segment
+        segment = ast.unparse(node)
+    elif isinstance(node, ast.GeneratorExp) and segment[0] == "(" and segment[-1] == ")":
+        segment = segment[1:-1]
+    return " ".join(segment.split())
 
 
 def scan_source(source: str, path: str) -> list[VacuousClaim]:

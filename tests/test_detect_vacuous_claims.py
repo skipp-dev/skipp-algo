@@ -147,3 +147,26 @@ def test_assert_any_alone_is_not_a_claim() -> None:
             assert any(line.startswith("export") for line in LINES if line.strip())
     """
     assert _kinds(source) == {}
+
+
+def test_multiline_iterable_is_rendered_single_line() -> None:
+    """The ``label.new`` shape: a wrapped genexp must not become a multi-line key.
+
+    ``ast.get_source_segment`` preserves the original newlines and
+    indentation verbatim when the iterated expression spans several source
+    lines. Left unnormalised that breaks two promises: ``main()`` prints
+    one line per claim, and ``VacuousClaim.key`` is supposed to be a stable
+    identity, not a blob of raw whitespace that shifts on reformatting.
+    """
+    source = """
+        def test_wrapped():
+            assert all(
+                not flag.startswith("--")
+                for flag in flags
+                if flag
+            )
+    """
+    assert _kinds(source) == {
+        'not flag.startswith("--") for flag in flags if flag':
+            "filtered comprehension",
+    }
