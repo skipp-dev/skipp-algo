@@ -45,8 +45,9 @@ on:
   schedule:
     - cron: "17 5 * * *"
     # Evening read-only look. Operator-caused drift on a day with no CI run was
-    # otherwise invisible until the next morning; this halves the worst case to
-    # ~12h. After the US close, so the off-hours posture holds.
+    # otherwise invisible until the next morning. 05:17Z and 21:17Z split the day
+    # into a 16h gap and an 8h one, so the worst case drops from ~24h to 16h --
+    # a third, not a half. After the US close, so the off-hours posture holds.
     - cron: "17 21 * * *"
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
   # smc-library-refresh on the default branch (no fork/PR-controlled context);
@@ -107,8 +108,14 @@ concurrency:
   # a second, unserialised writer on the same layouts, and TradingView
   # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
   # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
+  # nothing here knew). Since 2026-08-03 that is no longer true FOR THIS FILE:
+  # the operator can exclude a mutating run by declaring a window
+  # (TV_OPERATOR_ACTIVE, see the gate step below), and a mutating run measures
+  # whether anyone wrote since the last CI run before it writes anything. What
+  # still holds is the harder half -- an UNDECLARED operator session remains
+  # invisible while it is open; only what it wrote is detectable, afterwards.
+  # The identical paragraph in the other workflows sharing this group is still
+  # true of them.
   # Every workflow below drives the SAME external account, and until now each
   # one only serialised against itself — two of these blocks already said
   # "TradingView is a single shared external target" while keeping a private

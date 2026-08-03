@@ -3,8 +3,12 @@
 
 The operator's browser is the normal production writer on the TradingView
 account and automation is the guest; TradingView autosaves from that browser.
-Until now the two coordinated by convention -- ``tv-save-consumer-source``
-itself says so: "No mechanism detects or excludes that session."
+The two used to coordinate by convention alone, and the workflows sharing the
+``tradingview-session`` group said so in as many words: "No mechanism detects or
+excludes that session; mutating runs coordinate with the operator by convention,
+not by code." That sentence still stands in the workflows this gate does not
+cover; ``tv-save-consumer-source`` and ``smc-r4-context-readback`` now carry an
+amended version, because of this script.
 
 This is that mechanism, in the one direction it can honestly cover: CI starting
 while the operator is working. It cannot detect an undeclared session, and it

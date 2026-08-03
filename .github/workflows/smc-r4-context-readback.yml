@@ -60,8 +60,11 @@ concurrency:
   # a second, unserialised writer on the same layouts, and TradingView
   # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
   # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
+  # nothing here knew). Since 2026-08-03 a mutating run of THIS workflow can be
+  # excluded by an operator-declared window (TV_OPERATOR_ACTIVE, see the gate
+  # step below) and measures out-of-band drift against its own published
+  # baseline before it writes. An UNDECLARED operator session is still
+  # invisible while it is open; only what it wrote is detectable, afterwards.
   # Every workflow below drives the SAME external account, and until now each
   # one only serialised against itself — two of these blocks already said
   # "TradingView is a single shared external target" while keeping a private

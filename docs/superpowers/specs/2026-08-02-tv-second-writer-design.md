@@ -80,7 +80,10 @@ mutate regardless of which cron fired it. 21:17Z is after the US close and so
 honours the file's `# live-window: off-hours-only` declaration.
 
 Worst-case latency for operator drift on a day with no other run falls from
-~24 h to ~12 h. Cost: one additional read-only run per day (~3–9 min).
+~24 h to **16 h**, not the 12 h an earlier draft of this document claimed: crons
+at 05:17Z and 21:17Z split the day into a 16 h gap and an 8 h one, so the worst
+case is the longer of the two — a 33 % reduction, not a halving. Cost: one
+additional read-only run per day (~3–9 min).
 
 **Blocking detail:** `tests/test_workflow_tv_save_consumer_source_contract.py`
 pins the schedule by exact equality —
@@ -129,18 +132,33 @@ not as a gap someone forgot.
 
 ### Verdict states
 
-| State | Condition | Report |
-|---|---|---|
-| `clean` | every target's actual selections equal the baseline's | `ok` unaffected |
-| `drifted` | any target differs | `ok=false`, red closing step |
-| `unknown` | baseline missing, unparsable, or **incomplete** | `ok=false`, red closing step |
+| State | Condition | Report on a mutating run | Report on a read-only run |
+|---|---|---|---|
+| `clean` | every target's actual selections equal the baseline's | `ok` unaffected | `ok` unaffected |
+| `drifted` | any target differs | `ok=false`, red closing step | recorded only |
+| `unknown` | baseline missing, unparsable, **incomplete**, or **ambiguous** | `ok=false`, red closing step | recorded only |
 
-`unknown` on an incomplete baseline is load-bearing. The publish step runs under
-`if: always()`, so a run that died before its verification pass publishes a
-snapshot with fewer checked consumers than expected — comparing a full
-observation against that would report drift that never happened. A baseline
+`unknown` on an incomplete baseline is load-bearing. The publish step runs after
+any run whose rollout step executed, so a run that died mid-verification
+publishes a snapshot with fewer checked consumers than expected — comparing a
+full observation against that would report drift that never happened. A baseline
 whose `bindings` array does not cover every current verify target is `unknown`,
-never `drifted`.
+never `drifted`. Review added a fourth trigger for `unknown`: an *ambiguous*
+reading — a duplicated `scriptName` or `label` on either side, or an empty list
+of verify targets. Duplicates previously collapsed through a `Map` and produced a
+false `clean` over a real drift; an empty target list previously returned `clean`
+while comparing nothing.
+
+**Read-only runs compare too, and never gate on the result** (decided
+2026-08-03, after review). They cannot be the second writer, so gating them on
+the verdict would only produce red runs with nothing to attribute. But they were
+also *publishing* their observation as the next baseline while never comparing —
+so the 05:17Z cron absorbed an operator's overnight write hours before the
+mutating chain (normally ~09-13Z) ever looked at it, and the comparison then
+reported `clean` over it. A read-only run therefore now compares its own
+verification reading against the baseline and records the verdict, without
+touching `report.ok`. That is what makes the evening cron of Component 1 worth
+having: it now *sees* the drift it used to bury.
 
 ### Policy on a finding: report, do not withhold
 
@@ -178,16 +196,36 @@ A new `scripts/check_tv_operator_window.py` runs as the first step after
 checkout — before the Node and Playwright installs, so a refusal costs seconds
 rather than minutes.
 
-**Which workflows are gated: `tv-save-consumer-source` only.** Seven workflows
-share the `tradingview-session` group, but only this one writes the operator's
-traded layout and its bindings, which is the surface the finding is about. The
-library publishers (`smc-library-refresh`,
-`pine-library-publish-handlibs`, `smc-overlay-library-publish`,
-`openprep-pine-panel-publish`) write script sources, not layouts — and the one
-of them that does reach a layout, `smc-library-refresh`, reaches it by chaining
-into `tv-save-consumer-source`, where the gate already stands. Extending the
-gate to the remaining workflows is a separate decision with its own evidence,
-deliberately not smuggled into this one.
+**Which workflows are gated: `tv-save-consumer-source` and
+`smc-r4-context-readback`.** An earlier draft of this document said "the first
+one only", on the reasoning that no other workflow writes a layout. That was
+wrong, and the whole-branch review caught it: `smc-r4-context-readback` invokes
+the *same* rollout script in mutating mode, with its own config and its own
+output path. Left ungated it would have failed on every mutating run — and
+worse, its `Run TradingView preflight` step, the separate-process proof that the
+layout save persisted, had no condition and would have been skipped by exactly
+the failure it exists to survive. That is the shape of run 30700389375.
+
+So R4 is gated too, and it gets **its own baseline**: the published snapshot
+covers the consumer-rollout targets, not the R4 context surface, so sharing one
+would have meant a permanent `unknown`. R4 publishes and fetches
+`artifacts/monitoring/latest/tradingview_r4_context_bindings.json` on the same
+`bot/live-tradingview-bindings` branch. Its first run finds no baseline, reports
+`unknown` and goes red — an honest bootstrap, matching the ADR-0031 precedent
+for a gate that starts red rather than pretending.
+
+Two producers now write to that one branch, which is a shape this repository has
+been bitten by before (two producers owning one output left a gate permanently
+blind). Both publish steps therefore seed the branch tip before staging, so
+neither deletes the other's file. That was verified by round-tripping both
+publish blocks against a throwaway repo, not by reading them.
+
+The library publishers (`smc-library-refresh`, `pine-library-publish-handlibs`,
+`smc-overlay-library-publish`, `openprep-pine-panel-publish`) write script
+sources, not layouts — and the one that does reach a layout,
+`smc-library-refresh`, reaches it by chaining into `tv-save-consumer-source`,
+where the gate stands. `smc-release-gates` drives `tv_preflight.ts` in readonly
+mode. Extending the gate to those is a separate decision with its own evidence.
 
 | Value | Behaviour |
 |---|---|
@@ -262,5 +300,16 @@ selection, so every task that touches a `.github/workflows/` file runs
 * **A1 false positives.** Any legitimate out-of-band change — the operator
   deliberately fixing a binding by hand — reports as drift. That is the
   intended reading: the run says "someone else wrote", not "something broke".
+* **A1 reports drift after every BUS-contract change, and this one is
+  predictable.** The observed label set is derived from the repo's current
+  `.pine` sources, while the baseline carries the labels of the previous commit.
+  A removed or renamed BUS binding label therefore compares as `was → null` and
+  the first mutating run after that PR goes red, naming targets and attributing
+  them to a second writer that does not exist. It self-clears on the next run.
+  The refresh chain that moved 60 → 62 channels (#4263) is exactly the kind of
+  change that triggers it. Written down here so the first red after a contract
+  change is diagnosable rather than alarming — a detector whose own docstring
+  warns that false drift "trains the operator to ignore the signal" should not
+  keep its most predictable false positive undocumented.
 * **Evening cron cost.** One more run per day against an Actions budget that
   has been exhausted before. ~3–9 min/day.

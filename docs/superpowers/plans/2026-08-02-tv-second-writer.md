@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Detect out-of-band writes to the managed TradingView layouts, let the operator exclude CI by code, and halve the detection latency on days with no CI run.
+**Goal:** Detect out-of-band writes to the managed TradingView layouts, let the operator exclude CI by code, and cut the detection latency on days with no CI run from ~24 h to 16 h.
 
 **Architecture:** Three independent mechanisms. A Python gate refuses mutating runs inside an operator-declared window. A pure TypeScript comparison function decides, before the first mutation, whether the live bindings still match the last CI observation published to `bot/live-tradingview-bindings`. A second read-only cron shortens the no-run detection gap. Nothing here changes what a mutating run writes.
 
@@ -346,8 +346,9 @@ In `.github/workflows/tv-save-consumer-source.yml`, change the `schedule` block 
   schedule:
     - cron: "17 5 * * *"
     # Evening read-only look. Operator-caused drift on a day with no CI run was
-    # otherwise invisible until the next morning; this halves the worst case to
-    # ~12h. After the US close, so the off-hours posture holds.
+    # otherwise invisible until the next morning. 05:17Z and 21:17Z split the day
+    # into a 16h gap and an 8h one, so the worst case drops from ~24h to 16h --
+    # a third, not a half. After the US close, so the off-hours posture holds.
     - cron: "17 21 * * *"
 ```
 
@@ -620,6 +621,30 @@ git commit -m "feat(tv): compare live bindings against the last published CI obs
 ---
 
 ## Task 5: Read the layouts before mutating and report the verdict
+
+> **Amended after review, 2026-08-03. Do not implement the steps below verbatim
+> — three of them are defective, and the whole-branch review traced each one.**
+>
+> * **Step 6 caused a Critical.** "Add `report.outOfBandDrift.status === "clean"`
+>   as one more conjunct" is wrong on its own: the observation is skipped on
+>   read-only runs while the field initialises to `unknown`, so BOTH schedule
+>   crons and every post-mutation verify dispatch would have been permanently
+>   red with nothing measured behind the failure. The shipped conjunct exempts
+>   read-only runs.
+> * **Step 4's helper needs its navigation inside the try.** As written, a
+>   transient chart-load failure on a *secondary* layout aborts the run before
+>   the primary traded chart is saved or repaired — inverting the "primary
+>   first" property the rollout file documents.
+> * **Step 5's baseline parse needs an `Array.isArray` guard.** A `bindings`
+>   value that is present but not an array threw `TypeError`, aborting a run
+>   because of a file it only reads.
+> * **The helper also broke a neighbouring pin.** Placing `observeBindingsOnly`
+>   above `main()` moved the first `groupTargetsByLayout(` in the file, which
+>   inverted the index window in `tv_rollout_verify_order.test.ts`: one test
+>   failed and its sibling went silently vacuous. That test now anchors on a
+>   marker unique to the write path and refuses to run against an empty window.
+>
+> Read `scripts/tv_batch_consumer_rollout.ts` for what actually runs.
 
 **Files:**
 - Modify: `scripts/tv_batch_consumer_rollout.ts`
