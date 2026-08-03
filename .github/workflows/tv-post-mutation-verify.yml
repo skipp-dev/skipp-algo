@@ -29,7 +29,9 @@ name: tv-post-mutation-verify
 #     published binding snapshot and exits when executionMode is verify-only.
 #     A run whose snapshot is missing (died before upload) is treated as
 #     mutating — nobody can prove it did not write, so the cheap re-verify
-#     runs. Fail closed, in the direction of looking.
+#     runs. Fail closed, in the direction of looking. One exception, decided
+#     2026-08-03: a SKIPPED trigger run exits at the job gate — skipped means
+#     the save job never started, which is GitHub's own record, not a claim.
 
 on:
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
@@ -64,6 +66,19 @@ defaults:
 
 jobs:
   reverify:
+    # SKIPPED trigger runs exit here (operator decision 2026-08-03). Skipped
+    # means the save job's own gate stopped it before any step ran — GitHub's
+    # run state, not an inference — so there is nothing to re-verify. Measured
+    # trigger: three red library-refresh crons on 2026-08-03 produced four
+    # fail-closed re-verifies (~6 min of TradingView session each) whose only
+    # finding was that nothing had been mutated.
+    #
+    # ONLY skipped. A FAILED run may have mutated before dying — run
+    # 30700389375 removed both R1 companions and then failed — so failure,
+    # cancelled and timed_out all still get the +15min look via the snapshot
+    # gate below. The contract test pins that this condition never grows a
+    # failure filter.
+    if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
