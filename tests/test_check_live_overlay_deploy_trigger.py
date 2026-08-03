@@ -11,6 +11,8 @@ Network is mocked: these pin the exit-code contract, not Railway connectivity.
 from __future__ import annotations
 
 import importlib.util
+import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -115,6 +117,97 @@ def test_api_error_is_inconclusive_not_pass(guard, monkeypatch):
     # rc=2 (inconclusive) is distinct from 0 (healthy) so an auth/API break
     # never masquerades as "no drift".
     assert guard.main() == 2
+
+
+def _diag_resp(payload: dict):
+    class _Resp:
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    return _Resp()
+
+
+def _run_with_project_token(guard, monkeypatch, diag_payload, *, exc=None):
+    """Drive main() down the project-token failure path and capture stderr."""
+    monkeypatch.setenv("RAILWAY_PROJECT_ACCESS_TOKEN", "proj")
+
+    def _raise(*a, **k):
+        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
+
+    def _urlopen(req, timeout=0):
+        if exc is not None:
+            raise exc
+        assert req.headers.get("Project-access-token") == "proj"
+        return _diag_resp(diag_payload)
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
+    return guard.main()
+
+
+def test_failure_names_which_credential_was_used(guard, monkeypatch, capsys):
+    """The old message never said which token was tried.
+
+    RAILWAY_PROJECT_ACCESS_TOKEN wins outright with no fallback, so a dead
+    project token masks a working account token — an operator reading
+    "Not Authorized" cannot tell which credential to go fix.
+    """
+
+    def _raise(*a, **k):
+        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
+    assert guard.main() == 2
+    assert "using the account token" in capsys.readouterr().err
+
+
+def test_revoked_project_token_is_named_as_such(guard, monkeypatch, capsys):
+    rc = _run_with_project_token(
+        guard, monkeypatch, {"errors": [{"message": "Project Token not found"}]}
+    )
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "using the project token" in err
+    assert "revoked or rotated" in err
+
+
+def test_project_token_pointing_elsewhere_is_named_as_such(guard, monkeypatch, capsys):
+    rc = _run_with_project_token(
+        guard,
+        monkeypatch,
+        {"data": {"projectToken": {"projectId": "other", "environmentId": "e"}}},
+    )
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "different project" in err
+    # The ids are repository secrets — report match/mismatch, never the value.
+    assert "other" not in err
+
+
+def test_live_scoped_project_token_points_at_the_permission_gap(guard, monkeypatch, capsys):
+    rc = _run_with_project_token(
+        guard,
+        monkeypatch,
+        {"data": {"projectToken": {"projectId": "p", "environmentId": "e"}}},
+    )
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "beyond what a project token may read" in err
+    assert "RAILWAY_API_TOKEN" in err
+
+
+def test_diagnosis_failure_is_inconclusive_not_a_verdict(guard, monkeypatch, capsys):
+    rc = _run_with_project_token(guard, monkeypatch, {}, exc=urllib.error.URLError("dns"))
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "inconclusive" in err
 
 
 def test_fetch_parses_the_graphql_edge_shape(guard, monkeypatch):

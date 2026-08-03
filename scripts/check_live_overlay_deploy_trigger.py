@@ -112,6 +112,72 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
+_PROJECT_TOKEN_QUERY = "query { projectToken { projectId environmentId } }"
+
+
+def _diagnose_project_token(
+    token: str,
+    project_id: str,
+    environment_id: str,
+    timeout: float = 15.0,
+) -> str:
+    """Say which of the cases Railway's bare "Not Authorized" is hiding.
+
+    ``deploymentTriggers`` answers "Not Authorized" for a revoked token, for a
+    token pointing at another project, and for a live token that simply may not
+    read that field — three different fixes, one message. ``projectToken``
+    resolves against the token itself, so it separates them.
+
+    Returns a single operator-facing line. Never echoes the token, and reports
+    the resolved ids only as match/mismatch: they are repository secrets, and
+    an unmasked id in a public log is a leak.
+    """
+    req = urllib.request.Request(
+        _GRAPHQL_ENDPOINT,
+        data=json.dumps({"query": _PROJECT_TOKEN_QUERY}).encode("utf-8"),
+        headers={
+            "Project-Access-Token": token,
+            "Content-Type": "application/json",
+            "User-Agent": "skipp-algo-deploy-trigger-guard/1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - literal endpoint
+            body = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
+
+    if body.get("errors"):
+        return (
+            "Railway does not recognise this project token (projectToken -> "
+            f"{body['errors']}) — it was revoked or rotated; issue a new one and "
+            "update RAILWAY_PROJECT_ACCESS_TOKEN"
+        )
+    resolved = (body.get("data") or {}).get("projectToken") or {}
+    got_project = resolved.get("projectId")
+    got_env = resolved.get("environmentId")
+    if not got_project or not got_env:
+        return "projectToken returned no ids — diagnosis inconclusive"
+    if got_project != project_id or got_env != environment_id:
+        which = []
+        if got_project != project_id:
+            which.append("project")
+        if got_env != environment_id:
+            which.append("environment")
+        return (
+            f"the project token is live but resolves to a different {'/'.join(which)} "
+            "than RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID — the token and the ids "
+            "describe different places"
+        )
+    return (
+        "the project token is live and scoped to exactly this project+environment, "
+        "so deploymentTriggers is beyond what a project token may read — unset "
+        "RAILWAY_PROJECT_ACCESS_TOKEN to fall back to the account token in "
+        "RAILWAY_API_TOKEN"
+    )
+
+
 def main() -> int:
     project_token = os.environ.get("RAILWAY_PROJECT_ACCESS_TOKEN")
     account_token = os.environ.get("RAILWAY_API_TOKEN")
@@ -135,7 +201,19 @@ def main() -> int:
             token, project_id, environment_id, service_id, auth_kind=auth_kind
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
-        print(f"ERROR: could not query Railway deployment triggers: {exc}", file=sys.stderr)
+        # Name the credential: RAILWAY_PROJECT_ACCESS_TOKEN wins outright when
+        # set, with no fallback, so a dead project token masks a working
+        # account token — and the old message never said which one was tried.
+        print(
+            f"ERROR: could not query Railway deployment triggers "
+            f"using the {auth_kind} token: {exc}",
+            file=sys.stderr,
+        )
+        if auth_kind == "project":
+            print(
+                f"DIAGNOSIS: {_diagnose_project_token(token, project_id, environment_id)}",
+                file=sys.stderr,
+            )
         return 2
 
     if not triggers:
