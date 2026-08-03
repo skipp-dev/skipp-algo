@@ -152,10 +152,25 @@ def _fetch_triggers(
         auth_kind=auth_kind,
         timeout=timeout,
     )
+    if not isinstance(body, dict):
+        raise RuntimeError(f"Railway returned non-object JSON: {str(body)[:200]}")
     if body.get("errors"):
         raise RuntimeError(f"Railway API errors: {body['errors']}")
-    edges = (body.get("data") or {}).get("deploymentTriggers", {}).get("edges") or []
-    return [e["node"] for e in edges if e.get("node")]
+    # Assert the shape; do NOT default it. The previous line was
+    #     (body.get("data") or {}).get("deploymentTriggers", {}).get("edges") or []
+    # which reads a body with no `data` at all as "no triggers" — fail-OPEN in a
+    # fail-closed guard, and measured: `{}` and `{"data": null}` both printed
+    # "OK: no native deploy trigger" without having verified anything. A
+    # spec-conforming server pairs `data: null` with `errors` (raised above), but
+    # this endpoint sits behind Cloudflare, which is exactly where unexpected
+    # 200-with-JSON bodies come from — and "cannot parse" must be exit 2, never
+    # exit 0 or 1.
+    triggers = (body.get("data") or {}).get("deploymentTriggers")
+    if not isinstance(triggers, dict) or not isinstance(triggers.get("edges"), list):
+        raise RuntimeError(
+            f"unexpected deploymentTriggers shape, cannot verify: {str(body)[:200]}"
+        )
+    return [e["node"] for e in triggers["edges"] if isinstance(e, dict) and e.get("node")]
 
 
 # Asks the only question this guard actually needs answered: can the credential
@@ -234,6 +249,13 @@ def _diagnose_account_token(
         )
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
+
+    # A non-object body would raise AttributeError here — out of this function's
+    # except tuple, out of main()'s, and out of the process with status 1, which
+    # this guard defines as DRIFT. The diagnosis exists to explain a failure; it
+    # must not be able to convert one into a false verdict.
+    if not isinstance(body, dict):
+        return "follow-up probe got non-object JSON — diagnosis inconclusive"
 
     if body.get("errors") or not ((body.get("data") or {}).get("project") or {}).get("name"):
         return (
@@ -330,19 +352,33 @@ def _classify(body: dict) -> tuple[str, str]:
     or replace the credential. SCHEMA means the field name is wrong — my query is
     the bug, not the token. Conflating them is exactly how a guessed field name
     would masquerade as a permission wall for another week.
+
+    SCHEMA therefore wins a mixed body. A query naming four fields can come back
+    with one "Cannot query field" and one "Not Authorized"; testing DENIED first
+    reported that as a pure permission wall, which is the conflation this
+    docstring promises to prevent, in the one case where it matters most.
     """
+    if not isinstance(body, dict):
+        return "ERROR", f"non-object JSON response: {str(body)[:200]}"
     errors = body.get("errors") or []
     if not errors:
         payload = json.dumps(body.get("data") or {}, sort_keys=True)
         return "OK", payload[:400] + ("…" if len(payload) > 400 else "")
-    messages = "; ".join(str(err.get("message", "")) for err in errors)
-    if "Not Authorized" in messages:
-        return "DENIED", messages[:200]
+    # An error object without `message` must not degrade to an empty detail —
+    # that prints as a verdict with no evidence behind it.
+    messages = "; ".join(
+        str(err.get("message") or err) if isinstance(err, dict) else str(err)
+        for err in errors
+    )
     if any(
         marker in messages
         for marker in ("Cannot query field", "Unknown argument", "Unknown type")
     ):
-        return "SCHEMA", messages[:200]
+        return ("SCHEMA+DENIED" if "Not Authorized" in messages else "SCHEMA"), messages[
+            :200
+        ]
+    if "Not Authorized" in messages:
+        return "DENIED", messages[:200]
     return "ERROR", messages[:200]
 
 
@@ -409,11 +445,26 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         return _probe(project_id, environment_id, service_id)
 
-    if not (token and project_id and environment_id):
+    # Name the ones that are actually missing. The old line listed all three
+    # whichever was empty, so deleting a single secret would have parked the
+    # guard on a permanent silent green with a message that looks like the
+    # designed dormant state — a fresh instance of the very class this guard
+    # spent four commits learning ("a missing Actions secret arrives as '' ").
+    missing = [
+        name
+        for name, value in (
+            ("RAILWAY_API_TOKEN", token),
+            ("RAILWAY_PROJECT_ID", project_id),
+            ("RAILWAY_ENVIRONMENT_ID", environment_id),
+        )
+        if not value
+    ]
+    if missing:
         print(
-            "SKIP: RAILWAY_API_TOKEN (account token) / RAILWAY_PROJECT_ID / "
-            "RAILWAY_ENVIRONMENT_ID not all set — deploy-trigger drift guard "
-            "did not run.",
+            f"SKIP: {', '.join(missing)} not set — deploy-trigger drift guard "
+            "did not run. (Dormant by design only while the deployment itself "
+            "is unconfigured; if the daemon IS deployed, this is a deleted "
+            "secret, not a healthy state.)",
         )
         return 0
 
@@ -421,7 +472,19 @@ def main(argv: list[str] | None = None) -> int:
         triggers = _fetch_triggers(
             token, project_id, environment_id, service_id, auth_kind="account"
         )
-    except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
+    # TimeoutError explicitly, like the two other handlers in this file: urllib
+    # wraps a CONNECT-phase timeout in URLError, but a timeout during
+    # resp.read() propagates as a bare TimeoutError. Uncaught, it escapes with a
+    # traceback and a process exit status of 1 — which this guard defines as
+    # DRIFT. A network stall on the daily cron would send the operator into the
+    # Railway console hunting a trigger that does not exist.
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+    ) as exc:
         print(
             "ERROR: could not query Railway deployment triggers using the "
             f"account token in RAILWAY_API_TOKEN: {exc}",

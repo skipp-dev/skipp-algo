@@ -18,11 +18,12 @@ on:
     inputs:
       probe_credentials:
         description: >-
-          Measure which Railway fields each credential may read instead of
-          asserting (read-only, always green). Railway denies deploymentTriggers
-          to both of this repo's tokens (runs 30840756670 / 30831201160) even
-          though the project resolves, so the replacement field has to be
-          measured rather than guessed.
+          Measure which Railway fields each credential may read, instead of
+          asserting (read-only, always green). The daily assert is the
+          authoritative check — use this only to see, side by side, what each
+          credential can actually read. If the guard is red, suspect the IDs
+          before the token: Railway answers an unresolvable serviceId with the
+          same "Not Authorized" it gives a rejected credential (#4359).
         type: boolean
         default: false
 
