@@ -822,3 +822,10 @@ frozen_major = "v7"
 "terminal_tabs/tab_segments.py" = [["segment_label", "category"]]
 "terminal_tabs/tab_spikes.py" = [["mktcap_display", "market_cap"]]
 "terminal_tabs/tab_track_record.py" = [["gate_failures", "failures"]]
+
+# ---------------------------------------------------------------------------
+# test_vacuous_claim_guard.py — assertions whose iterable may legitimately be
+# empty. Key: "file::test::iterable". Value: dated reason, normally naming the
+# test that proves the emptiness is declared rather than incidental.
+# ---------------------------------------------------------------------------
+[vacuous_claim_guard.exemptions]
