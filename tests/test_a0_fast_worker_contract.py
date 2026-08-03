@@ -106,6 +106,7 @@ def test_worker_has_no_notification_or_publication_import() -> None:
         if isinstance(node, (ast.Import, ast.ImportFrom))
         for alias in node.names
     }
+    assert imports, "worker module parsed to zero imports — the ban below would pass vacuously"
     assert not any("rt_notify" in name or "slack" in name for name in imports)
     source = path.read_text(encoding="utf-8")
     assert "notify_fresh_signals" not in source

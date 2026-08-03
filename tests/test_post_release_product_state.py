@@ -91,6 +91,7 @@ class TestSkippedSurfaces:
             trust=_trust(),
         )
         action_checks = [c for c in report.checks if c.surface == "Action"]
+        assert action_checks, "no Action check was emitted — the status check below would pass vacuously"
         assert len(action_checks) == len(HERO_ACTION_REQUIRED)
         assert all(c.status is CheckStatus.SKIPPED for c in action_checks)
 

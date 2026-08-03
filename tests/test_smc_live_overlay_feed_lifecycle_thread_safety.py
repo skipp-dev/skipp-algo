@@ -496,9 +496,12 @@ def test_worker_liveness_reports_dead_supervisor(monkeypatch: pytest.MonkeyPatch
     liveness = feed_mod.worker_liveness()
 
     assert liveness["supervisor"] is False
-    assert all(alive for name, alive in liveness.items() if name != "supervisor"), (
-        "only the supervisor may be down in this scenario"
+    others = {name: alive for name, alive in liveness.items() if name != "supervisor"}
+    assert len(others) == 4, (
+        f"worker_liveness() reported {sorted(others)} beside the supervisor — "
+        "_do_start() starts five threads and all five must be graded"
     )
+    assert all(others.values()), "only the supervisor may be down in this scenario"
     assert not all(liveness.values()), (
         "/ready and live_overlay_workers_healthy must go unhealthy on a dead supervisor"
     )

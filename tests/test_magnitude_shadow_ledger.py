@@ -189,6 +189,7 @@ def test_main_thin_feed_appends_heartbeat_and_advances_ledger(tmp_path, capsys) 
     assert rc == 3  # all_thin verdict code is unchanged...
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
     # ...but the ledger now carries today's heartbeat rows (was: empty).
+    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
     assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
     assert all(r["date"] == "2026-07-06" for r in rows)
     assert all(r["status"] == "INCONCLUSIVE" for r in rows)
@@ -209,7 +210,10 @@ def test_main_stale_feed_still_appends_nothing(tmp_path, capsys) -> None:
     rc = shadow.main([str(events_path), "--ledger", str(ledger), "--date", "2026-07-06"])
     assert rc == 5
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
-    # No 2026-07-06 row was appended — the frozen feed does not advance the ledger.
+    # No 2026-07-06 row was appended — the frozen feed does not advance the
+    # ledger. Pinning the seed row's survival keeps the check below from
+    # passing over an empty file, which would look identical.
+    assert len(rows) == 1
     assert all(r["date"] != "2026-07-06" for r in rows)
 
 
@@ -587,6 +591,7 @@ def test_main_plane_filter_grades_only_governed_plane_events(tmp_path) -> None:
     )
     assert rc == 3  # thin 1D subset -> all_thin heartbeat, a valid verdict
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
     assert {r["plane"] for r in rows} == {"1D"}
     # The graded evidence is exactly the 1D subset, not the raw pool.
     assert {r["events_hash"] for r in rows} == {shadow.events_content_hash(one_d)}
@@ -606,6 +611,7 @@ def test_main_plane_starved_pool_heartbeats_and_stays_single_plane(tmp_path) -> 
     )
     assert rc == 3
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert rows, "the ledger stayed empty — the per-row checks below would pass vacuously"
     assert {r["family"] for r in rows} == set(shadow.ALL_FAMILIES)
     assert {r["plane"] for r in rows} == {"1D"}
     assert all(r["fail_reasons"] == ["plane_starved"] for r in rows)
@@ -624,6 +630,7 @@ def test_main_plane_starved_repeat_is_stale_skip(tmp_path) -> None:
     assert shadow.main([*args, "--date", "2026-07-22"]) == 3
     assert shadow.main([*args, "--date", "2026-07-23"]) == 5
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines() if ln.strip()]
+    assert rows, "day 1 appended nothing — the freeze check below would pass vacuously"
     assert all(r["date"] == "2026-07-22" for r in rows)
 
 

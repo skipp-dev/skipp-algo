@@ -207,6 +207,7 @@ def test_backfill_handles_mixed_actions(tmp_path: Path) -> None:
     assert summary["records_pending_close"] == 1
     out = _read_jsonl(path)
     closed = [r for r in out if r["action"] != "submitted"]
+    assert len(closed) == 4
     assert all(PNL_KEY in r for r in closed)
 
 

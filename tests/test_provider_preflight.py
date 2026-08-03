@@ -119,7 +119,9 @@ def test_preflight_or_die_passes_when_all_critical_ok():
     ]
     with patch.object(pp, "PROBES", probes):
         results = pp.preflight_or_die(notify=False)
-    assert all(r.status == "OK" for r in results if r.critical)
+    critical = [r for r in results if r.critical]
+    assert len(critical) == 1, "the one critical probe must be graded, not skipped"
+    assert all(r.status == "OK" for r in critical)
 
 
 def test_preflight_or_die_raises_on_critical_fail():

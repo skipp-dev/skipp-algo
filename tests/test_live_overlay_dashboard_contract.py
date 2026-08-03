@@ -306,7 +306,9 @@ def test_alert_rules_arm_consumer_reminder_for_the_verified_client() -> None:
 def test_multi_target_stat_panels_use_field_specific_units() -> None:
     """Known mixed-unit rates must never inherit one global Grafana unit."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    for panel in _dashboard_panels(dashboard):
+    panels = _dashboard_panels(dashboard)
+    assert panels, "dashboard exposes no panel — the unit checks below would pass vacuously"
+    for panel in panels:
         if panel.get("type") != "stat" or len(panel.get("targets", [])) < 2:
             continue
         expected: dict[str, str] = {}
@@ -1245,6 +1247,7 @@ def test_dashboard_sections_are_user_first_and_all_expanded() -> None:
     expanded (no collapsed rows — scrolling is preferred over clicking)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     rows = _rows_in_order(dashboard)
+    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
     assert [r["title"] for r in rows] == SECTION_ORDER
     for r in rows:
         assert r.get("collapsed") is False, f"{r['title']} must be expanded"
@@ -1536,7 +1539,9 @@ def test_dashboard_triage_guide_links_are_known() -> None:
     panels = {p.get("title"): p for p in _dashboard_panels(dashboard)}
     content = panels["Incident Triage Guide"].get("options", {}).get("content", "")
     known_urls = {"https://github.com/skipp-dev/skipp-algo/actions"}
-    for m in re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content):
+    links = list(re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content))
+    assert links, "the triage guide links nowhere — the URL checks below would pass vacuously"
+    for m in links:
         url = m.group(2)
         assert "REPLACE_" not in url, f"placeholder Railway URL leaked into dashboard: {url}"
         if url.startswith("https://github.com/skipp-dev/skipp-algo/blob/main/"):
@@ -1556,6 +1561,7 @@ def test_dashboard_drilldown_links_target_real_panels() -> None:
     """Any panel link that uses a viewPanel ID must point to an existing panel."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
     panels = _dashboard_panels(dashboard)
+    assert panels, "dashboard exposes no panel — the link checks below would pass vacuously"
     valid_ids = {p.get("id") for p in panels if "id" in p}
     for panel in panels:
         for link in panel.get("links", []) + panel.get("fieldConfig", {}).get("defaults", {}).get("links", []):
@@ -1853,7 +1859,9 @@ def test_dashboard_no_row_is_collapsed() -> None:
     """Redesign contract: every section is expanded so content is visible by
     scrolling — no click-to-expand tabs (2026-07-07 product-owner decision)."""
     dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
-    for row in _rows_in_order(dashboard):
+    rows = _rows_in_order(dashboard)
+    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
+    for row in rows:
         assert row.get("collapsed") is False, f"{row['title']} must not be collapsed"
         assert not row.get("panels"), (
             f"{row['title']} must not nest panels (expanded rows keep panels at top level)"

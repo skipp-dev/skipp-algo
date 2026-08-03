@@ -375,6 +375,7 @@ class TestFullEnrichment:
         text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
         assert text.startswith("//@version=6\n")
         export_lines = _export_lines(text)
+        assert export_lines, "generator emitted no export line — type pin would pass vacuously"
         type_pat = re.compile(r'^export const (string|int|float|bool) [A-Z0-9_]+ = .+')
         for line in export_lines:
             assert type_pat.match(line), f"Bad export line: {line}"

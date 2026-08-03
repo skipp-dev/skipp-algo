@@ -454,6 +454,7 @@ def test_newsapi_refresh_workflow_keeps_fmp_and_tradingview_enabled() -> None:
         for ln in text.splitlines()
         if ln.strip() and not ln.lstrip().startswith("#")
     ]
+    assert active_lines, "workflow has no shell lines — the flag ban below would pass vacuously"
     assert not any("--newsapi-only" in ln for ln in active_lines), (
         "smc-live-news-refresh.yml must not run the export with --newsapi-only "
         "(that disables FMP + TradingView despite active subscriptions)."
@@ -488,6 +489,7 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         r for g in groups for r in g["rules"] if r["uid"] == "lo-bridge-contract-missing"
     )
     exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
+    assert exprs, "rule exposes no A/B/C query — every check below would pass vacuously"
     unconditional_families = (
         "live_overlay_bridge_enabled",
         "live_overlay_bridge_configured",

@@ -87,15 +87,23 @@ def test_physical_surface_titles_match_unique_registry_names() -> None:
 
 
 def test_only_planned_surface_sources_may_be_absent() -> None:
+    """Today no surface source is absent, so the allowance is unexercised.
+
+    2026-08-03: this used to assert ``missing == []`` and then loop the
+    lifecycle rule over ``missing`` — an iteration the line above had just
+    proven runs zero times, so the rule it names was never checked. The
+    stricter fact is the one that holds; it carries the rule's message so a
+    future absence still reports what the allowance actually is.
+    """
     missing = [
         surface
         for surface in SURFACE_DEFINITIONS
         if not (ROOT / surface.file).is_file()
     ]
 
-    assert missing == []
-    assert all(surface.lifecycle == "planned" for surface in missing), (
-        "only lifecycle=planned surfaces may omit their source: "
+    assert missing == [], (
+        "only lifecycle=planned surfaces may omit their source, and no "
+        "surface is planned today: "
         f"{[(surface.file, surface.lifecycle) for surface in missing]}"
     )
 
