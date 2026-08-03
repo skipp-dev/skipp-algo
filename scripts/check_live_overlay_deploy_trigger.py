@@ -28,22 +28,27 @@ PREFERRED a project token on the assumption that project-scoped meant
 query-complete; that preference made the guard uncurably red whenever the
 project-token secret was set, and was removed the same day.
 
-Two questions, because Railway only answers the second one. Measured 2026-08-03
-(run 30843047407, both of this repo's credentials, one run): `deploymentTriggers`
-and `serviceInstance.source` are both DENIED while `project.services[]
-.serviceInstances[].source` is readable — and the project resolves and the
-environment belongs to it, so this is not a credential fault (#4349). The guard
-therefore asks the authoritative field first and, when it is refused, asks what a
-native trigger is CREATED from: a GitHub repo connected to the service. That is
-a substitute, not the same field, and the guard says so in every verdict it
-reaches that way.
+Railway answers "Not Authorized" for an unresolvable serviceId, not just for a
+credential it rejects — and that cost this guard a week. From 2026-07-31 it sent
+an EMPTY service id (a missing Actions secret arrives as "", #4359), so every
+run came back "Not Authorized" on `deploymentTriggers` and the failure read as a
+permission wall. Three token types were issued chasing it; #4349 proved the
+credential, the project and the environment all correct, which should have been
+the clue. With the id fixed, the same credential reads the same field
+(run 30847017825).
+
+Two refutations worth keeping, both measured 2026-08-03 with the correct id
+(run 30847141633, both credentials, one run): every candidate field is readable,
+so there is NO field-level denial — and `serviceInstance.source.repo` is
+`skipp-dev/skipp-algo` while `deploymentTriggers` is EMPTY. A connected repo is
+therefore NOT evidence of a native trigger: the 2026-07-24 cleanup removed the
+trigger and left the repo association. A guard built on `source.repo` (#4354)
+would have reported drift every day, so it was removed the same day it shipped.
 
 Exit codes:
   0  no native deploy trigger (healthy)  OR  token not configured (skipped)
-  1  a native deploy trigger exists, or a GitHub repo is connected to the
-     service in this environment (drift — disconnect it, see OPS.md)
-  2  neither question could be answered, or the service could not be located
-     (auth/network/API error, or wrong service/environment id)
+  1  a native deploy trigger exists (drift — remove it, see OPS.md)
+  2  the check could not run (auth/network/API error)
 
 Skipping on an absent token mirrors `deploy-live-overlay-daemon.yml`, which
 no-ops without its Railway secret: an unconfigured guard must not false-fail.
@@ -153,80 +158,6 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
-# The fallback question, and the only one Railway lets this repo ask.
-# Measured 2026-08-03, run 30843047407, BOTH credentials, same run:
-#
-#     deploymentTriggers        DENIED
-#     serviceInstance.source    DENIED
-#     project.services[].source OK
-#     deployments.meta          OK (empty for this service)
-#
-# So the authoritative field is unreachable and this is the substitute. It is a
-# substitute, not the same field: a service's `source.repo` is what Railway
-# connects a GitHub repository to, and connecting one is what CREATES the native
-# deploy trigger — that is the shape the 2026-07-24 drift actually had. The API
-# will not confirm the equivalence from here (the field that would is the denied
-# one), so the guard says which question it answered whenever it answers this
-# one, and never claims to have read deploymentTriggers.
-_SERVICE_SOURCE_QUERY = (
-    "query($projectId: String!) { project(id: $projectId) { services { edges {"
-    " node { id name serviceInstances { edges { node { environmentId"
-    " source { repo image } } } } } } } } }"
-)
-
-
-class _ServiceNotFoundError(RuntimeError):
-    """Our service/environment pair is not in the project's service list.
-
-    Its own type because it must NOT read as "no repo connected": an unlocatable
-    service is an unanswered question, and answering it "healthy" would make the
-    guard pass hardest exactly when its inputs are wrong.
-    """
-
-
-def _fetch_service_source(
-    token: str,
-    project_id: str,
-    environment_id: str,
-    service_id: str,
-    timeout: float = 15.0,
-    auth_kind: str = "account",
-) -> dict:
-    """Return `{name, repo, image}` for our service instance in our environment."""
-    body = _graphql(
-        _SERVICE_SOURCE_QUERY,
-        {"projectId": project_id},
-        token,
-        auth_kind=auth_kind,
-        timeout=timeout,
-    )
-    if body.get("errors"):
-        raise RuntimeError(f"Railway API errors: {body['errors']}")
-    services = (
-        ((body.get("data") or {}).get("project") or {}).get("services") or {}
-    ).get("edges") or []
-    for edge in services:
-        node = edge.get("node") or {}
-        if node.get("id") != service_id:
-            continue
-        for inst_edge in (node.get("serviceInstances") or {}).get("edges") or []:
-            inst = inst_edge.get("node") or {}
-            # Instances exist per environment; a repo connected in staging is
-            # not this environment's trigger.
-            if inst.get("environmentId") != environment_id:
-                continue
-            source = inst.get("source") or {}
-            return {
-                "name": node.get("name"),
-                "repo": source.get("repo"),
-                "image": source.get("image"),
-            }
-    raise _ServiceNotFoundError(
-        f"service {service_id} has no instance in environment {environment_id} "
-        f"among the project's {len(services)} services"
-    )
-
-
 # Asks the only question this guard actually needs answered: can the credential
 # SEE the project? NOT `{ me }`. Railway's docs are explicit that `me` "cannot
 # be used with a workspace or project token because the data returned is scoped
@@ -248,12 +179,17 @@ _PROJECT_VISIBILITY_QUERY = (
 def _credential_fingerprint(token: str) -> str:
     """A comparable, non-reversible label for the credential the runner received.
 
-    Measured 2026-08-03: the operator's workspace token answers
-    ``deploymentTriggers`` from his machine and is refused from the runner --
-    same query, same variables, same header, allegedly the same secret. That
-    leaves exactly two worlds, and no log line could tell them apart: the
-    runner receives a DIFFERENT value, or it receives the same one and Railway
-    treats the caller differently.
+    Written 2026-08-03, when the operator's workspace token answered
+    ``deploymentTriggers`` from his machine and was refused from the runner --
+    apparently the same query, the same header, the same secret. Two worlds no
+    log line could tell apart: a DIFFERENT value reaches the runner, or the same
+    one is treated differently.
+
+    It was neither. The runner sent an EMPTY serviceId (#4359) and Railway
+    answers that with the same "Not Authorized" it gives a rejected credential.
+    Kept anyway: it costs one line, it took the credential out of the suspect
+    list for good, and the whole reason that week was expensive is that one
+    error string stood for four different faults.
 
     So publish something comparable. sha256 truncated to 8 hex chars is not
     reversible and does not narrow a brute-force search in any useful way,
@@ -270,10 +206,12 @@ def _diagnose_account_token(
 ) -> str:
     """Say which fault Railway's bare "Not Authorized" is hiding.
 
-    ``deploymentTriggers`` answers the same line for a credential that cannot
-    reach this project at all and for one that reaches it but is denied this
-    field — different fixes, identical message. So the probe asks whether the
-    credential can SEE the project.
+    ``deploymentTriggers`` answers the same line for at least four faults: a
+    credential that cannot reach this project, one that reaches it but lacks the
+    field, an environment id from another project, and — the one that actually
+    happened, #4359 — a serviceId that resolves to nothing. Different fixes,
+    identical message. So the probe asks whether the credential can SEE the
+    project, which separates the first from the rest.
 
     It used to ask ``{ me }``. That was wrong in a way this guard could not
     survive: Railway documents that ``me`` "cannot be used with a workspace or
@@ -326,20 +264,33 @@ def _diagnose_account_token(
         )
     return (
         "RAILWAY_API_TOKEN CAN see the project and RAILWAY_ENVIRONMENT_ID belongs to "
-        "it — so the refusal is field-level: this credential reaches the project but "
-        "is denied deploymentTriggers. Escalate the token's permissions or query a "
-        "different field"
+        "it, so the credential is NOT the fault. Suspect the service id next: an "
+        "unresolvable serviceId gets the same 'Not Authorized', and that — not a "
+        "permission wall — is what this guard chased for a week (#4359). Run the "
+        "workflow with probe_credentials=true to see which fields answer"
     )
 
 
-# Candidate ways to answer "is this service natively repo-triggered?", to be
-# measured against every credential this repo owns. `deploymentTriggers` is the
-# authoritative one and is DENIED to both of them (run 30840756670 for the
-# workspace token, 30831201160 for the project token) — the project resolves,
-# the environment belongs to it, and Railway still refuses the field. So the
-# question is no longer "which credential" but "which readable field carries
-# the same fact", and that is a measurement, not a guess: a wrong field name
-# and a denied field produce different errors, and this probe separates them.
+# Candidate ways to answer "is this service natively repo-triggered?", measured
+# against every credential this repo owns. Built to find a substitute for a
+# `deploymentTriggers` that looked permanently denied; it earned its keep twice
+# over instead, and neither time the way it was meant to.
+#
+# Run 30843047407 (empty serviceId, before #4359): deploymentTriggers and
+# serviceInstance.source DENIED, project.services[].source OK. Read as a
+# field-level permission wall. It was not one — the id was empty, and every
+# query that named a service failed for that reason.
+#
+# Run 30847141633 (correct serviceId): ALL FOUR fields OK for BOTH credentials,
+# which refuted the permission story, and `serviceInstance.source.repo` came
+# back "skipp-dev/skipp-algo" while `deploymentTriggers` came back EMPTY —
+# refuting the substitute itself. A connected repo is not a native trigger; the
+# 2026-07-24 cleanup removed the trigger and left the repo association. The
+# guard built on that equivalence (#4354) would have cried drift daily and was
+# removed the same day.
+#
+# Keep the probe. Twice now the thing that unblocked this was one run that
+# reported what each credential can actually read, side by side.
 #
 # `deployments` is on the list because it is PROVEN readable from CI — the
 # deploy workflow polls it after every `railway up` with the project token
@@ -471,48 +422,26 @@ def main(argv: list[str] | None = None) -> int:
             token, project_id, environment_id, service_id, auth_kind="account"
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
-        # Expected as of 2026-08-03: Railway denies `deploymentTriggers` to both
-        # of this repo's credentials while the project itself resolves and the
-        # environment belongs to it (runs 30840756670 / 30843047407). So do not
-        # give up here — ask the readable question, and only report failure if
-        # that one fails too. The note stays on stderr because a guard that
-        # silently substitutes its question is worse than one that cannot run.
         print(
-            "NOTE: deploymentTriggers is not readable with this credential "
-            f"({exc}) — falling back to the service's configured source, which "
-            "is what a native GitHub trigger is created from.",
+            "ERROR: could not query Railway deployment triggers using the "
+            f"account token in RAILWAY_API_TOKEN: {exc}",
             file=sys.stderr,
         )
-        try:
-            source = _fetch_service_source(
-                token, project_id, environment_id, service_id, auth_kind="account"
-            )
-        except (
-            urllib.error.URLError,
-            RuntimeError,
-            ValueError,
-            KeyError,
-        ) as fallback_exc:
-            return _report_unrunnable(token, project_id, environment_id, fallback_exc)
-        if not source.get("repo"):
-            print(
-                f"OK: {source.get('name') or 'live_overlay_daemon'} has no GitHub "
-                "repo connected in this environment, so Railway cannot have "
-                "created a native deploy trigger for it (source.repo=None, "
-                f"source.image={source.get('image')!r}). deploymentTriggers itself "
-                "is denied to this credential — this is the readable substitute, "
-                "not that field."
-            )
-            return 0
+        # "Not Authorized" alone cannot say whether the credential is dead or
+        # merely outside this project's workspace — two different fixes. Ask
+        # whether it can SEE the project and print the answer next to the
+        # failure instead of leaving it to the next round.
         print(
-            "DRIFT: live_overlay_daemon has a GitHub repo connected in Railway "
-            f"(source.repo={source['repo']!r}) — that is what creates a native "
-            "deploy trigger, which has no path filter and redeploys on EVERY "
-            "push to its branch, bypassing the path-filtered CI workflow. "
-            "Disconnect it (see services/live_overlay_daemon/OPS.md).",
+            f"DIAGNOSIS: {_diagnose_account_token(token, project_id, environment_id)}",
             file=sys.stderr,
         )
-        return 1
+        # Which credential arrived here, comparably and without revealing it.
+        print(
+            f"CREDENTIAL: {_credential_fingerprint(token)} "
+            "(compare locally: printf '%s' \"$TOKEN\" | shasum -a 256 | cut -c1-8)",
+            file=sys.stderr,
+        )
+        return 2
 
     if not triggers:
         print("OK: live_overlay_daemon has no native Railway deploy trigger (CI-only).")
@@ -531,41 +460,6 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
     return 1
-
-
-def _report_unrunnable(
-    token: str, project_id: str, environment_id: str, exc: Exception
-) -> int:
-    """Neither question could be answered — say which fault, name the credential."""
-    if isinstance(exc, _ServiceNotFoundError):
-        print(
-            f"ERROR: {exc} — the guard could not locate the service it is meant "
-            "to watch, so it has NOT verified anything. Check "
-            "RAILWAY_LIVE_OVERLAY_SERVICE_ID / RAILWAY_ENVIRONMENT_ID.",
-            file=sys.stderr,
-        )
-    else:
-        print(
-            "ERROR: could not query Railway using the account token in "
-            f"RAILWAY_API_TOKEN — neither deploymentTriggers nor the service "
-            f"source: {exc}",
-            file=sys.stderr,
-        )
-    # "Not Authorized" alone cannot say whether the credential is dead or merely
-    # outside this project's workspace — two different fixes. Ask whether it can
-    # SEE the project, and print the answer next to the failure instead of
-    # leaving it to the next round.
-    print(
-        f"DIAGNOSIS: {_diagnose_account_token(token, project_id, environment_id)}",
-        file=sys.stderr,
-    )
-    # Which credential arrived here, comparably and without revealing it.
-    print(
-        f"CREDENTIAL: {_credential_fingerprint(token)} "
-        "(compare locally: printf '%s' \"$TOKEN\" | shasum -a 256 | cut -c1-8)",
-        file=sys.stderr,
-    )
-    return 2
 
 
 if __name__ == "__main__":
