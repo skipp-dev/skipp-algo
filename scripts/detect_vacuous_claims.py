@@ -279,31 +279,103 @@ def _is_nonempty_literal(node: ast.expr) -> bool:
     return False
 
 
-#: Context managers under which a failing ``assert`` is not a failure. The
-#: first three are the polarity inversion :func:`_unconditional_asserts`
-#: exists to stop; ``suppress`` swallows the ``AssertionError`` outright.
+#: Context managers that may turn a failing ``assert`` into a passing test.
+#: ``raises`` and its ``unittest`` spellings expect an exception; ``suppress``
+#: discards one.
 _ASSERTION_INVERTING_CONTEXTS: frozenset[str] = frozenset(
     {"raises", "assertRaises", "assertRaisesRegex", "assertRaisesRegexp", "suppress"}
 )
 
+#: Exception types that actually catch a failing ``assert``. Anything else
+#: (``ValueError``, …) lets the ``AssertionError`` propagate, so the test
+#: still goes red -- see :func:`_swallows_assertion_error`.
+_ASSERTION_ERROR_TYPES: frozenset[str] = frozenset(
+    {"AssertionError", "Exception", "BaseException"}
+)
+
+
+def _called_name(node: ast.expr) -> str | None:
+    """The trailing name of a call target: ``pytest.raises`` -> ``raises``."""
+    if not isinstance(node, ast.Call):
+        return None
+    target = node.func
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    if isinstance(target, ast.Name):
+        return target.id
+    return None
+
 
 def _inverts_assertions(stmt: ast.With | ast.AsyncWith) -> bool:
-    """True when *stmt* turns a failing assertion into a passing test."""
+    """True when *stmt* may turn a failing assertion into a passing test.
+
+    Deliberately type-blind, and that is the right reading for the one thing
+    it is used for: deciding whether an assert inside the block may be
+    *hoisted out* of it as a witness for the enclosing block
+    (:func:`_unconditional_asserts`). It may not, whatever exception is
+    expected — an earlier statement in the block can raise that exception
+    and exit before the assert is ever reached, leaving the enclosing block
+    with a witness that never ran.
+
+    For the narrower question "does a failing assert *inside* this block
+    still fail the test", the exception type decides and the answer lives in
+    :func:`_swallows_assertion_error`.
+    """
+    return any(_called_name(item.context_expr) in _ASSERTION_INVERTING_CONTEXTS
+               for item in stmt.items)
+
+
+def _swallows_assertion_error(stmt: ast.With | ast.AsyncWith) -> bool:
+    """True when a failing ``assert`` inside *stmt* leaves the test green.
+
+    This is the polarity inversion one scope level below the one
+    :func:`_unconditional_asserts` rejects, and it is narrower than
+    :func:`_inverts_assertions` on purpose. Measured, all five shapes::
+
+        pytest.raises(AssertionError)   assert [] -> test GREEN
+        pytest.raises(Exception)        assert [] -> test GREEN
+        suppress(AssertionError)        assert [] -> test GREEN
+        pytest.raises(ValueError)       assert [] -> test RED
+        suppress(ValueError)            assert [] -> test RED
+
+    Under ``pytest.raises(ValueError)`` the ``AssertionError`` does not
+    match, propagates, and fails the run — so the witness is genuine and
+    voiding it would be a fabricated claim. Only a context that catches
+    ``AssertionError`` itself (directly, or via ``Exception`` /
+    ``BaseException``) reads an assertion *expected to fail* as proof of
+    non-emptiness.
+
+    A bare ``suppress()`` or a non-literal exception expression yields
+    ``False``: it catches nothing this analyzer can see, and guessing in the
+    direction of voiding a real witness is the failure this module treats as
+    the worse one.
+    """
     for item in stmt.items:
         call = item.context_expr
-        if not isinstance(call, ast.Call):
+        if _called_name(call) not in _ASSERTION_INVERTING_CONTEXTS:
             continue
-        target = call.func
-        name = (
-            target.attr
-            if isinstance(target, ast.Attribute)
-            else target.id
-            if isinstance(target, ast.Name)
-            else None
-        )
-        if name in _ASSERTION_INVERTING_CONTEXTS:
+        if any(
+            name in _ASSERTION_ERROR_TYPES
+            for argument in call.args  # type: ignore[union-attr]
+            for name in _exception_names(argument)
+        ):
             return True
     return False
+
+
+def _exception_names(node: ast.expr) -> Iterator[str]:
+    """Yield the trailing name of each exception type named by *node*.
+
+    Handles the bare name, the dotted form, and the tuple form
+    ``pytest.raises((AssertionError, ValueError))``.
+    """
+    if isinstance(node, ast.Tuple):
+        for element in node.elts:
+            yield from _exception_names(element)
+    elif isinstance(node, ast.Attribute):
+        yield node.attr
+    elif isinstance(node, ast.Name):
+        yield node.id
 
 
 def _unconditional_asserts(
@@ -543,13 +615,31 @@ def _witness_candidates(source: str, node: ast.expr) -> set[str]:
 def _nested_blocks(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
     """Yield the statement blocks written directly inside *stmt*.
 
-    ``for``/``while`` bodies and their ``else``, both ``if`` arms, ``with``
-    bodies, every ``try`` limb including each handler. Nested ``def``/
-    ``class`` bodies are *not* yielded: a claim or a witness inside a nested
-    helper belongs to that helper, the same scope rule :func:`_walk_own`
-    applies.
+    Exactly one thing is skipped: the body of a nested ``def``. A claim or a
+    witness inside a nested helper belongs to that helper, which is the same
+    scope rule :func:`_walk_own` applies — and :func:`scan_source` visits
+    every ``FunctionDef`` in the module in its own right, so nothing is lost
+    by not descending here.
+
+    Everything else is descended into, including three shapes that carry a
+    block somewhere other than a plain ``list[ast.stmt]`` field and were
+    silently invisible until they were named here:
+
+    * ``except``/``except*`` handlers — the block hangs off an
+      ``ast.ExceptHandler``, not off ``Try`` directly;
+    * ``match`` cases — the block hangs off an ``ast.match_case``, so
+      ``Match.cases`` is a list of *those*, not of statements;
+    * a nested ``class`` body — which really does execute, unconditionally,
+      when the enclosing function runs. :func:`_walk_own` descends into it
+      (it skips only ``FunctionDef``/``AsyncFunctionDef``/``Lambda``), so
+      refusing to here would have been a blind spot rather than a scope
+      rule. Its *methods* are still skipped, by the ``def`` rule above.
+
+    A guard against unobserved checks must not itself have somewhere it
+    never looks, so the rule is stated as "descend into everything except a
+    nested ``def``" rather than as a list of the shapes someone remembered.
     """
-    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return
     for _field, value in ast.iter_fields(stmt):
         if not isinstance(value, list):
@@ -558,7 +648,7 @@ def _nested_blocks(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
         if block:
             yield block
         for item in value:
-            if isinstance(item, ast.ExceptHandler):
+            if isinstance(item, (ast.ExceptHandler, ast.match_case)):
                 yield item.body
 
 
@@ -568,6 +658,8 @@ def _block_claims(
     inherited: set[str],
     bindings: dict[str, str],
     helpers: dict[str, str],
+    *,
+    witnesses_hold: bool = True,
 ) -> Iterator[tuple[ast.expr, int, str]]:
     """Yield ``(iterable, lineno, kind)`` for the unwitnessed claims under *body*.
 
@@ -584,8 +676,23 @@ def _block_claims(
     loop, or a ``pytest.raises`` block says nothing about the block that
     contains it. That is the whole point of :func:`_unconditional_asserts`,
     and inheriting in one direction only is what keeps both properties.
+
+    ``witnesses_hold`` carries the second half of that rule downwards. Once
+    a block is inside a context that swallows ``AssertionError``
+    (:func:`_swallows_assertion_error`), the asserts *written in it* prove
+    nothing about anything: they are expected to fail. Reading them as
+    proof of non-emptiness would be the same polarity inversion rejected
+    one scope level up, so they are voided here and in every block nested
+    below. Witnesses established *before* the block was entered are
+    unaffected — they already ran — which is what makes the honest
+    restructuring work::
+
+        assert hits                        # real witness, outside
+        with pytest.raises(AssertionError):
+            for hit in hits:               # inherited witness still covers it
+                assert hit.bad
     """
-    visible = inherited | witness_keys(source, body)
+    visible = inherited | (witness_keys(source, body) if witnesses_hold else set())
     for iterated, lineno in _iterating_asserts(body):
         if visible & _witness_candidates(source, iterated):
             continue
@@ -593,8 +700,13 @@ def _block_claims(
         if kind is not None:
             yield iterated, lineno, kind
     for stmt in body:
+        holds = witnesses_hold and not (
+            isinstance(stmt, (ast.With, ast.AsyncWith)) and _swallows_assertion_error(stmt)
+        )
         for block in _nested_blocks(stmt):
-            yield from _block_claims(source, block, visible, bindings, helpers)
+            yield from _block_claims(
+                source, block, visible, bindings, helpers, witnesses_hold=holds
+            )
 
 
 def _parametrize_claims(

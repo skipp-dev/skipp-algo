@@ -298,6 +298,116 @@ def test_a_witness_under_pytest_raises_is_not_a_witness() -> None:
     assert _kinds(source) == {"hits": "local filtered comprehension"}
 
 
+def test_a_witness_inside_a_raises_block_does_not_cover_that_block() -> None:
+    """The polarity inversion one scope level down.
+
+    Inside ``pytest.raises(AssertionError)`` the ``assert hits`` is
+    *expected to fail*: if ``hits`` is empty it raises, the block is
+    satisfied, the test goes green and the loop ran zero times. Reading it
+    as proof of non-emptiness for a loop in its own block is the same
+    mistake as reading it as proof for the block above.
+    """
+    source = """
+        def test_empty_input_is_rejected():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            with pytest.raises(AssertionError):
+                assert hits
+                for hit in hits:
+                    assert hit.rejected
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_witness_inside_a_non_matching_raises_block_still_counts() -> None:
+    """Voiding must be narrower than "any raises block", or it fabricates.
+
+    Under ``pytest.raises(ValueError)`` a failing ``assert hits`` raises an
+    ``AssertionError`` that does *not* match, so it propagates and the test
+    fails loudly — measured, not assumed. The witness is therefore genuine
+    and voiding it would invent a claim. Only a context that catches
+    ``AssertionError`` itself (or via ``Exception``/``BaseException``)
+    inverts the polarity.
+    """
+    source = """
+        def test_bad_input_is_rejected():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            with pytest.raises(ValueError):
+                assert hits
+                for hit in hits:
+                    assert hit.rejected
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_witness_before_a_raises_block_still_covers_it() -> None:
+    """The honest restructuring, and why voiding is actionable.
+
+    A witness that already ran before the block was entered is unaffected —
+    which is exactly the shape the guard's message steers a reader towards.
+    """
+    source = """
+        def test_empty_input_is_rejected():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            assert hits
+            with pytest.raises(AssertionError):
+                for hit in hits:
+                    assert hit.rejected
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_claim_inside_a_match_case_is_seen() -> None:
+    """``Match.cases`` holds ``match_case``, not statements.
+
+    A traversal that only collects ``list[ast.stmt]`` fields walks straight
+    past every ``match`` arm. A guard against unobserved checks must not
+    have somewhere it never looks.
+    """
+    source = """
+        def test_modes():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            match mode:
+                case "strict":
+                    for hit in hits:
+                        assert hit.name
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_claim_inside_a_nested_class_body_is_seen() -> None:
+    """A nested class body really does execute when the test runs.
+
+    ``_walk_own`` descends into it (it skips only functions and lambdas),
+    so refusing to descend here would have been a blind spot rather than a
+    scope rule.
+    """
+    source = """
+        def test_probe():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            class Probe:
+                for hit in hits:
+                    assert hit.name
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_claim_inside_a_nested_def_is_not_the_outer_tests() -> None:
+    """The one thing the traversal still refuses to enter.
+
+    Pinned because the skip rule was narrowed from "def, class, lambda" to
+    "def" alone: a nested helper's loop belongs to that helper, and
+    ``scan_source`` visits it in its own right.
+    """
+    source = """
+        def test_probe():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            def check():
+                for hit in hits:
+                    assert hit.name
+    """
+    assert _kinds(source) == {}
+
+
 def test_a_witness_in_the_same_loop_body_still_counts() -> None:
     """The sound in-loop idiom must keep working — it is lived repo code.
 
