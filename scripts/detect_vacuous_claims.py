@@ -149,6 +149,48 @@ def _module_helpers(tree: ast.Module) -> dict[str, str]:
     return helpers
 
 
+def _module_bindings(tree: ast.Module, helpers: dict[str, str]) -> dict[str, str]:
+    """Map module-level names to the kind of what they hold.
+
+    ``argvalues`` is evaluated at import time, so module scope — not test
+    scope — is what decides whether a parametrize set can be empty.
+    """
+    bindings: dict[str, str] = {}
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            targets: list[ast.expr] = list(stmt.targets)
+            value: ast.expr | None = stmt.value
+        elif isinstance(stmt, ast.AnnAssign):
+            targets = [stmt.target]
+            value = stmt.value
+        else:
+            continue
+        if value is None:
+            continue
+        kind = classify_iterable(value, bindings, helpers)
+        if kind is None:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = f"local {kind}"
+    return bindings
+
+
+def _parametrize_argvalues(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[tuple[ast.expr, int]]:
+    """Yield ``(argvalues expression, lineno)`` for every parametrize decorator."""
+    for decorator in func.decorator_list:
+        if not isinstance(decorator, ast.Call):
+            continue
+        target = decorator.func
+        if not (isinstance(target, ast.Attribute) and target.attr == "parametrize"):
+            continue
+        if len(decorator.args) < 2:
+            continue
+        yield decorator.args[1], decorator.lineno
+
+
 def _local_bindings(
     func: ast.FunctionDef | ast.AsyncFunctionDef,
     helpers: dict[str, str],
@@ -369,6 +411,7 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
     """
     tree = ast.parse(source)
     helpers = _module_helpers(tree)
+    module_bindings = _module_bindings(tree, helpers)
     claims: list[VacuousClaim] = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -389,6 +432,19 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
                     test=node.name,
                     iterable=rendered,
                     kind=kind,
+                )
+            )
+        for argvalues, lineno in _parametrize_argvalues(node):
+            kind = classify_iterable(argvalues, module_bindings, helpers)
+            if kind is None:
+                continue
+            claims.append(
+                VacuousClaim(
+                    path=path,
+                    lineno=lineno,
+                    test=node.name,
+                    iterable=_render(source, argvalues),
+                    kind=f"parametrize {kind}",
                 )
             )
     return claims

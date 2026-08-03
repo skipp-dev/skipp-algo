@@ -350,3 +350,62 @@ def test_witness_key_uses_the_same_renderer_as_the_iterable() -> None:
                 assert path.suffix == ".py"
     """
     assert _kinds(source) == {}
+
+
+def test_parametrize_over_a_literal_is_not_a_claim() -> None:
+    """A literal argvalues list cannot silently become empty."""
+    source = """
+        @pytest.mark.parametrize("name", ["a", "b"])
+        def test_names(name):
+            assert name.islower()
+    """
+    assert _kinds(source) == {}
+
+
+def test_parametrize_over_a_frozenset_constant_is_not_a_claim() -> None:
+    """``_FROZEN_SITES`` is a literal: emptying it is a visible edit."""
+    source = """
+        _FROZEN_SITES = frozenset({("a.py", 1), ("b.py", 2)})
+
+        @pytest.mark.parametrize(("rel", "lineno"), sorted(_FROZEN_SITES))
+        def test_frozen_site_still_present(rel, lineno):
+            assert (ROOT / rel).is_file()
+    """
+    assert _kinds(source) == {}
+
+
+def test_parametrize_over_a_discovery_call_is_a_claim() -> None:
+    """Zero argvalues collects zero tests — no skip, no failure, no output."""
+    source = """
+        @pytest.mark.parametrize("path", (REPO_ROOT / "artifacts").glob("*.json"))
+        def test_specs(path):
+            assert path.read_text()
+    """
+    assert _kinds(source) == {
+        '(REPO_ROOT / "artifacts").glob("*.json")': "parametrize discovery call"
+    }
+
+
+def test_parametrize_over_a_helper_is_a_claim() -> None:
+    source = """
+        def _iter_workflow_files():
+            return sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+        @pytest.mark.parametrize("path", _iter_workflow_files())
+        def test_workflow_auth(path):
+            assert "permissions:" in path.read_text()
+    """
+    assert _kinds(source) == {
+        "_iter_workflow_files()": "parametrize helper returns discovery call"
+    }
+
+
+def test_parametrize_over_a_filtered_module_constant_is_a_claim() -> None:
+    source = """
+        _NK_CASES = [c for c in ALL_CASES if c.n > 0]
+
+        @pytest.mark.parametrize("case", _NK_CASES)
+        def test_llr(case):
+            assert case.llr > 0
+    """
+    assert _kinds(source) == {"_NK_CASES": "parametrize local filtered comprehension"}
