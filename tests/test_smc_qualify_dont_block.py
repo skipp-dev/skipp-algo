@@ -68,6 +68,9 @@ class TestQualifyDontBlock:
         er = EventRisk(event_type="FOMC", severity="HIGH", window_start=50.0, window_end=150.0)
         snapshot_normal = apply_layering(_structure_with_ob(), _meta("NORMAL"), generated_at=1.0)
         snapshot_event = apply_layering(_structure_with_ob(), _meta("NORMAL", event_risk=er), generated_at=1.0)
+        assert snapshot_normal.layered.zone_styles, (
+            "no zone styles were produced — the strength comparison below would pass vacuously"
+        )
         for key in snapshot_normal.layered.zone_styles:
             s_normal = snapshot_normal.layered.zone_styles[key].strength
             s_event = snapshot_event.layered.zone_styles[key].strength

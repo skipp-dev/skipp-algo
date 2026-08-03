@@ -836,3 +836,267 @@ def test_dict_with_keyword_args_is_not_a_claim() -> None:
                 assert call
     """
     assert _kinds(source) == {}
+
+
+def test_a_property_of_a_produced_object_is_a_claim() -> None:
+    """The analyzer watched this object being made, so its fields are data.
+
+    It cannot see inside ``run_walk_forward``, but it does not need to: the
+    object is a runtime result, not source text, so ``out.folds`` can be
+    empty and the loop can run zero times.
+    """
+    source = """
+        def test_folds():
+            out = run_walk_forward(returns)
+            for fold in out.folds:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {"out.folds": "property of a produced object"}
+
+
+def test_a_property_of_an_imported_module_is_not_a_claim() -> None:
+    """A module constant is source the analyzer never watched being produced.
+
+    Measured 2026-08-04: every ``<module alias>.<CONST>`` iterated in
+    ``tests/`` resolves to a non-empty tuple or frozenset literal, so
+    classifying these would report false positives rather than defects.
+    """
+    source = """
+        import scripts.pine_library_freshness as plf
+
+        def test_scope():
+            for name in plf.SHARED_LIBRARIES:
+                assert name.startswith("skipp_")
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_produced_object_itself_is_not_a_claim() -> None:
+    """Only the *properties* are classified, never the object.
+
+    ``for row in load_rows()`` is already covered by the helper and
+    discovery rules; making the bare name emptiable would classify every
+    local that happens to hold a call result.
+    """
+    source = """
+        def test_object():
+            out = run_walk_forward(returns)
+            for fold in out:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_length_witness_clears_a_produced_property() -> None:
+    source = """
+        def test_folds():
+            out = run_walk_forward(returns)
+            assert len(out.folds) == 4
+            for fold in out.folds:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_nonempty_subset_witnesses_the_base_it_was_drawn_from() -> None:
+    """A non-empty subset proves the set it came from non-empty.
+
+    Lived at ``tests/test_smc_volume_profile.py:69-73``: the test filters
+    ``profile.rows`` into ``nonzero_rows``, asserts that is non-empty, then
+    loops over ``profile.rows``. Without this rule that loop reports as
+    unwitnessed even though the proof is two lines above it.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert len(nonzero) > 1
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_bare_truth_check_on_a_subset_also_witnesses_its_base() -> None:
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert nonzero
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {}
+
+
+def test_the_subset_rule_does_not_run_backwards() -> None:
+    """The inverse stays refused: a non-empty base proves nothing about a subset.
+
+    This is the direction :func:`_witness_candidates` already rejects, and
+    the subset rule must not reopen it — the filter can empty the result
+    while the base is full.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            assert len(profile.rows) > 1
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            for row in nonzero:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"nonzero": "local filtered comprehension"}
+
+
+def test_a_value_derived_from_a_produced_property_is_a_claim() -> None:
+    """A local holding a produced property carries that property's emptiness.
+
+    ``keys = list(module._DERIVED_KEYS)`` is the lived shape at
+    ``tests/test_streamlit_terminal_session_schema_invalidation.py:44``.
+    Merging the produced properties *after* :func:`_bind_assignments` would
+    lose this: the assignment is classified while the produced properties
+    are not yet in the binding dict, so ``keys`` binds to nothing and the
+    loop below reports clean. They are seeded in *before* instead.
+    """
+    source = """
+        def test_derived():
+            module = reload_terminal()
+            keys = list(module._DERIVED_KEYS)
+            for key in keys:
+                assert key not in state
+    """
+    assert _kinds(source) == {"keys": "local property of a produced object"}
+
+
+def test_an_assignment_wins_over_the_produced_property_kind() -> None:
+    """Seeding must not let the coarse kind mask a specific one.
+
+    ``rec.calls`` is both a property of a produced object *and* a dotted
+    name the function was watched assigning a filtered comprehension to.
+    The assignment is the more specific fact and has to survive the seed.
+    """
+    source = """
+        def test_recording():
+            rec = make_recorder()
+            rec.calls = [c for c in observed if c]
+            for call in rec.calls:
+                assert call
+    """
+    assert _kinds(source) == {"rec.calls": "local filtered comprehension"}
+
+
+def test_assert_any_witnesses_the_iterable_it_ranges_over() -> None:
+    """``any(())`` is ``False``, so a passing ``assert any(...)`` proves the base.
+
+    Lived at ``tests/test_realtime_active_signal_lifecycle.py:98-99``: the
+    test asserts ``any(s.symbol == "AAPL" ...)`` and then ``all(s.symbol !=
+    "NVDA" ...)`` over the same list. The first assertion goes red on an
+    empty list, so the second cannot be vacuous — reporting it was a false
+    positive, and a false positive is fixed here, never waived.
+    """
+    source = """
+        def test_active():
+            eng = make_engine()
+            assert any(s.symbol == "AAPL" for s in eng.active)
+            assert all(s.symbol != "NVDA" for s in eng.active)
+    """
+    assert _kinds(source) == {}
+
+
+def test_assert_not_any_does_not_witness_its_iterable() -> None:
+    """The negation proves nothing: ``not any(())`` is ``True``.
+
+    This is the polarity half of the rule above and the reason it is keyed
+    to the un-negated form only.
+    """
+    source = """
+        def test_active():
+            eng = make_engine()
+            assert not any(s.symbol == "NVDA" for s in eng.active)
+            for s in eng.active:
+                assert s.ok
+    """
+    assert _kinds(source) == {
+        's.symbol == "NVDA" for s in eng.active': "property of a produced object",
+        "eng.active": "property of a produced object",
+    }
+
+
+def test_a_membership_check_witnesses_its_container() -> None:
+    """``x in y`` cannot be true of an empty ``y``.
+
+    Lived at ``tests/test_realtime_signals_uplift_b.py:396-398``: two
+    ``assert "…" in s._cache`` lines directly above a loop over
+    ``s._cache``.
+    """
+    source = """
+        def test_cache():
+            s = make_scorer()
+            assert "FRESH:1D" in s._cache
+            assert all(not k.startswith("S") for k in s._cache)
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_negative_membership_check_does_not_witness_its_container() -> None:
+    """``x not in y`` is true of an empty ``y``, so it proves nothing."""
+    source = """
+        def test_cache():
+            s = make_scorer()
+            assert "GONE:1D" not in s._cache
+            for k in s._cache:
+                assert k
+    """
+    assert _kinds(source) == {"s._cache": "property of a produced object"}
+
+
+def test_a_literal_equality_on_a_comprehension_witnesses_its_base() -> None:
+    """A comprehension equal to a non-empty literal had a non-empty base.
+
+    Lived at ``tests/test_smc_integration_measurement_evidence.py:145``:
+    ``assert [e.family for e in evidence.scored_events] == ["BOS", ...]``
+    sits directly above four ``assert all(... for e in
+    evidence.scored_events)`` lines. The list it is compared to has four
+    entries, so the loop underneath it demonstrably ran.
+    """
+    source = """
+        def test_events():
+            evidence = build_evidence()
+            assert [e.family for e in evidence.scored_events] == ["BOS", "OB"]
+            assert all(e.outcome is True for e in evidence.scored_events)
+    """
+    assert _kinds(source) == {}
+
+
+def test_an_empty_literal_equality_does_not_witness_a_comprehension_base() -> None:
+    """``[... for x in xs] == []`` is exactly the empty case, not a witness."""
+    source = """
+        def test_events():
+            evidence = build_evidence()
+            assert [e.family for e in evidence.scored_events] == []
+            assert all(e.outcome is True for e in evidence.scored_events)
+    """
+    assert _kinds(source) == {
+        "e.outcome is True for e in evidence.scored_events": (
+            "property of a produced object"
+        )
+    }
+
+
+def test_a_bare_generator_subset_does_not_witness_its_base() -> None:
+    """A generator object is always truthy, so ``assert gen`` proves nothing.
+
+    The subset rule credits the base of a comprehension that was asserted
+    non-empty. For a *generator* expression the assertion is vacuously true
+    whatever the base held, so crediting it would fabricate the witness this
+    module treats as the worse failure. List and set comprehensions are
+    real containers and keep the rule.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = (row for row in profile.rows if row.total > 0.0)
+            assert nonzero
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}

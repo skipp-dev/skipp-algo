@@ -69,6 +69,7 @@ def test_session_liquidity_profile_suppresses_orderblocks() -> None:
 def test_conservative_profile_filters_invalid_zones() -> None:
     result = build_structure_profile(_bars(), symbol="AAPL", timeframe="15m", profile="conservative")
     assert result.diagnostics["structure_profile_used"] == "conservative"
+    assert result.orderblocks, "conservative profile kept no orderblocks — the validity check below would pass vacuously"
     assert all(bool(row.get("valid", True)) for row in result.orderblocks)
     assert all(bool(row.get("valid", True)) for row in result.fvg)
 

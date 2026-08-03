@@ -105,6 +105,12 @@ def test_missing_optionals_are_skipped_not_red() -> None:
         "fdr_rate",
         "per_regime_hit_rate_spread",
     }
+    assert verdict.checks, "the gate emitted no checks at all — the loop below would pass vacuously"
+    optional_seen = optional_names & {c.name for c in verdict.checks}
+    assert optional_seen == optional_names, (
+        "the verdict does not carry every optional check, so the SKIPPED "
+        f"assertion below never runs for: {sorted(optional_names - optional_seen)}"
+    )
     for c in verdict.checks:
         if c.name in optional_names:
             assert c.status == SKIPPED, f"{c.name} should be SKIPPED, got {c.status}"

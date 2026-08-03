@@ -80,6 +80,7 @@ def test_module_docstring_match(sample_repo: Path) -> None:
 
 def test_tests_dir_is_excluded(sample_repo: Path) -> None:
     result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
+    assert result.hits, "no hits — the exclusion assertion below would pass vacuously"
     assert all("tests/" not in h.path for h in result.hits)
 
 
@@ -105,16 +106,19 @@ def test_exclude_only_applies_to_repo_relative_parts(tmp_path: Path) -> None:
 def test_paths_use_posix_separator(sample_repo: Path) -> None:
     """All emitted paths must use forward slashes for cross-platform output."""
     result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
+    assert result.hits, "no hits — the separator assertion below would pass vacuously"
     assert all("\\" not in h.path for h in result.hits)
 
 
 def test_pycache_is_excluded(sample_repo: Path) -> None:
     result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
+    assert result.hits, "no hits — the exclusion assertion below would pass vacuously"
     assert all("__pycache__" not in h.path for h in result.hits)
 
 
 def test_unrelated_symbol_not_reported(sample_repo: Path) -> None:
     result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
+    assert result.hits, "no hits — the absence assertion below would pass vacuously"
     assert all(h.name != "unrelated_helper" for h in result.hits)
 
 
