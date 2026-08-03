@@ -30,14 +30,23 @@ _DEFAULT_RAILWAY_ENVIRONMENT_ID = "470fbd0f-894d-46cd-8722-6b072d255d99"
 _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
 _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = "81f8c6b5-ffe2-4646-a978-e62143192a9a"
 
-_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID", _DEFAULT_RAILWAY_PROJECT_ID)
-_RAILWAY_ENVIRONMENT_ID = os.getenv("RAILWAY_ENVIRONMENT_ID", _DEFAULT_RAILWAY_ENVIRONMENT_ID)
-_RAILWAY_LIVE_OVERLAY_SERVICE_ID = os.getenv(
-    "RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
+# `or`, not a fallback argument. Three of these four names are fed from Actions
+# secrets elsewhere in this repo, and an env var bound to a MISSING secret
+# arrives as "" — a value, so the fallback argument never fires and the URLs
+# below would be built from empty ids. Latent today (no workflow that runs this
+# script sets them, so the defaults do apply) and one `env:` block away from
+# being the bug that kept the deploy-trigger guard red for a week (#4359).
+_RAILWAY_PROJECT_ID = os.getenv("RAILWAY_PROJECT_ID") or _DEFAULT_RAILWAY_PROJECT_ID
+_RAILWAY_ENVIRONMENT_ID = (
+    os.getenv("RAILWAY_ENVIRONMENT_ID") or _DEFAULT_RAILWAY_ENVIRONMENT_ID
 )
-_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = os.getenv(
-    "RAILWAY_SIGNALS_PRODUCER_SERVICE_ID",
-    _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID,
+_RAILWAY_LIVE_OVERLAY_SERVICE_ID = (
+    os.getenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID")
+    or _DEFAULT_RAILWAY_LIVE_OVERLAY_SERVICE_ID
+)
+_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID = (
+    os.getenv("RAILWAY_SIGNALS_PRODUCER_SERVICE_ID")
+    or _DEFAULT_RAILWAY_SIGNALS_PRODUCER_SERVICE_ID
 )
 
 RAILWAY_LINKS: dict[str, str] = {
