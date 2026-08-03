@@ -122,6 +122,10 @@ test("scriptRow strict mode refuses third-party script substring match", () => {
   tvSelectors.scriptRow(fakePage as never, "SMC Execution", { strict: true });
 
   const thirdPartyTitle = "SMC Execution Engine (Free) by @abdallacrypto v1.3";
+  assert.ok(
+    recording.filterCalls.length > 0,
+    "strict mode emitted no filter at all — the substring-collision pin below would pass vacuously",
+  );
   for (const patternSource of recording.filterCalls) {
     const pattern = new RegExp(patternSource, "i");
     assert.equal(

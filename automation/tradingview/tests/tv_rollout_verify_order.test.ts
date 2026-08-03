@@ -96,7 +96,13 @@ test("the refresh-phase navigations stay conditional on a URL mismatch", () => {
   // the second target destroys what the first one inserted.
   const { between } = locateWindow(source(), "resolveProducerRefreshChartUrls(config)", TO_MARKER);
 
-  for (const match of between.matchAll(/await gotoChart\(/g)) {
+  const gotos = [...between.matchAll(/await gotoChart\(/g)];
+  assert.ok(
+    gotos.length > 0,
+    "no gotoChart call in the refresh window — the guard pin below would pass vacuously",
+  );
+
+  for (const match of gotos) {
     // 500 chars: the guard and the goto are separated by explanatory comments
     // (e.g. the "No ensurePineEditor here" block), which is fine — the pin
     // cares that a guard exists, not that it is adjacent.
