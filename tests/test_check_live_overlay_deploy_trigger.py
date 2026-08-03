@@ -156,35 +156,67 @@ def test_failure_names_the_credential_it_used(guard, monkeypatch, capsys):
     header #4343, project-token refutation #4345) each round re-derived the
     credential from the workflow file. Print it.
     """
-    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "x@y"}}})
+    rc = _run_failing(guard, monkeypatch, {"data": {"project": {"name": "skipp-algo"}}})
     assert rc == 2
     assert "account token in RAILWAY_API_TOKEN" in capsys.readouterr().err
 
 
-def test_dead_credential_is_named_as_such(guard, monkeypatch, capsys):
-    # `me` refused too -> the token is not an account token at all.
+def test_the_probe_asks_about_the_project_never_about_the_person(guard, monkeypatch):
+    """`me` is the wrong question and Railway documents why.
+
+    "This query cannot be used with a workspace or project token because the
+    data returned is scoped to your personal account" (docs.railway.com/guides/
+    public-api). skipp-algo lives in a WORKSPACE — measured 2026-08-03: the
+    operator's personal account token answers `me` and still cannot see the
+    project — so the credential this guard needs is a workspace token, and the
+    old probe reported exactly that healthy credential as dead.
+    """
+    sent: dict = {}
+
+    def _raise(*a, **k):
+        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
+
+    def _urlopen(req, timeout=0):
+        sent["body"] = json.loads(req.data.decode("utf-8"))
+        return _diag_resp({"data": {"project": {"name": "skipp-algo"}}})
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
+    guard.main()
+
+    # NOT a bare "me" substring check — that matches the `name` field we do
+    # select, and would pass on the very query it is meant to forbid.
+    compact = sent["body"]["query"].replace(" ", "")
+    assert "me{" not in compact, "the probe must not select the personal `me` field"
+    assert "project(id:" in compact
+    # The probe must ask about the SAME project the failing query used.
+    assert sent["body"]["variables"] == {"projectId": "p"}
+
+
+def test_unreachable_project_names_the_workspace_fix(guard, monkeypatch, capsys):
+    # The project is invisible to this credential -> wrong workspace/revoked.
     rc = _run_failing(guard, monkeypatch, {"errors": [{"message": "Not Authorized"}]})
     err = capsys.readouterr().err
     assert rc == 2
-    assert "does not authenticate as an account at all" in err
+    assert "cannot see the project" in err
+    assert "WORKSPACE token" in err
     assert "#4345" in err
 
 
-def test_valid_token_outside_the_workspace_is_named_as_such(guard, monkeypatch, capsys):
-    # `me` resolves -> identity is fine, so the refusal is scope.
-    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "ops@example.com"}}})
+def test_reachable_project_names_a_field_level_denial(guard, monkeypatch, capsys):
+    # The credential reaches the project, so only the field is refused.
+    rc = _run_failing(guard, monkeypatch, {"data": {"project": {"name": "skipp-algo"}}})
     err = capsys.readouterr().err
     assert rc == 2
-    assert "is scope, not identity" in err
-    # The probe answers with an address; it must not reach the log.
-    assert "ops@example.com" not in err
+    assert "refusal is field-level" in err
 
 
-def test_empty_me_payload_is_treated_as_dead_not_valid(guard, monkeypatch, capsys):
-    # No errors key but no email either — must not be read as a healthy token.
-    rc = _run_failing(guard, monkeypatch, {"data": {"me": {}}})
+def test_empty_project_payload_is_treated_as_unreachable_not_valid(guard, monkeypatch, capsys):
+    # No errors key but no name either — must not be read as a healthy token.
+    rc = _run_failing(guard, monkeypatch, {"data": {"project": {}}})
     assert rc == 2
-    assert "does not authenticate as an account at all" in capsys.readouterr().err
+    assert "cannot see the project" in capsys.readouterr().err
 
 
 def test_diagnosis_failure_is_inconclusive_not_a_verdict(guard, monkeypatch, capsys):
