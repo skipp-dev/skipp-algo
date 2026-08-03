@@ -111,6 +111,13 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # like the R1 contract test itself, nothing would notice until after a
     # merge — which is the hole #4272 and #4284 went through.
     "tests/test_check_r1_attested_sources.py",
+    # 2026-08-03: derived cross-consumer guard for
+    # scripts/credential_health_check.py. #4333 added a probe to that shared
+    # script without touching the other two consuming workflows, aborting
+    # smc-library-refresh 12 times. That PR changed no workflow file, so the
+    # diff-driven guard selection could not have caught it — the guard has to
+    # be pinned to the required path unconditionally, hence this entry.
+    "tests/test_credential_probe_consumers.py",
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_datetime_tz_safety_zero_surface.py",

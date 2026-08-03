@@ -597,6 +597,19 @@ jobs:
           # Generate step; Massive-reseller key needs BENZINGA_PROVIDER=massive.
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
+          # Composio is NOT wired in here and is skipped below (--skip-composio).
+          # This workflow uses Composio zero times downstream (before this
+          # change `grep -ci composio` on this file returned 0): generation,
+          # publish and the Pine push touch no Composio toolkit. PR #4333 added
+          # probe_composio_accounts to the shared script and wired the env into
+          # credential-health-check.yml only; this workflow then aborted on an
+          # empty COMPOSIO_PROD_API_KEY — 12 consecutive failed runs on
+          # 2026-08-03, with every other probe ok. Skipping (not granting a
+          # credential this workflow does not use) is the fix: gating ~2.5h of
+          # Pine generation on a Notion OAuth connection is wrong coupling.
+          # Same reasoning as --skip-tv / --skip-gh-pat / --skip-newsapi above.
+          # tests/test_credential_probe_consumers.py now enforces this per
+          # consumer, so the next added probe cannot repeat it silently.
         run: |
           mkdir -p artifacts/ci
           set +e
@@ -604,6 +617,7 @@ jobs:
             --skip-tv \
             --skip-gh-pat \
             --skip-newsapi \
+            --skip-composio \
             --databento-key-env DATABENTO_API_KEY \
             --fmp-key-env FMP_API_KEY \
             --output artifacts/ci/provider_preflight.json

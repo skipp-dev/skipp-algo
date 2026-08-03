@@ -417,6 +417,14 @@ jobs:
         # ci.yml is status-only on PRs, so `pytest -m "not slow"` collected 0 of
         # its tests). It only ran post-merge on main push. YAML/JSON parsing only,
         # ~1.5s.
+        #
+        # test_credential_probe_consumers.py (2026-08-03) is pinned here rather
+        # than left to the diff-driven step below, and the distinction matters:
+        # the regression it guards (#4333 added probe_composio_accounts and
+        # broke smc-library-refresh for 12 runs) arrived in a PR that changed
+        # scripts/credential_health_check.py and NO workflow file — so the
+        # diff-driven selection would have picked nothing. It must sit on the
+        # required path unconditionally. Source parsing only, <0.5s.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -567,7 +575,8 @@ jobs:
             tests/test_smc_product_cut_manifest.py \
             tests/test_update_overlay_dashboard.py \
             tests/test_detect_vacuous_claims.py \
-            tests/test_vacuous_claim_guard.py
+            tests/test_vacuous_claim_guard.py \
+            tests/test_credential_probe_consumers.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,
