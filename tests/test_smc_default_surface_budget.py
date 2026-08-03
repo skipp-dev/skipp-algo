@@ -122,6 +122,7 @@ class TestPineSurfaceDefault:
         )
         assert match is not None, "surface_mode options not found"
         options = re.findall(r'"([^"]+)"', match.group(1))
+        assert options, "surface_mode declares no option — the budget check would pass vacuously"
         # All Pine view modes must be priced in the visual budget.
         for mode in options:
             assert mode in VISUAL_BUDGET, f"Pine view mode {mode!r} missing budget"

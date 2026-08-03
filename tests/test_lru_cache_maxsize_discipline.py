@@ -64,6 +64,11 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # maxsize=4 — one Cisco client per active (key, region, timeout) tuple;
     # the bound accommodates overlapping key rotation without unbounded growth.
     ("cisco_ai_defense.py", "_get_client"),
+    # maxsize=1 — one repo-wide vacuity scan shared by the guard's five tests.
+    # Takes ZERO arguments, so the key domain is exactly one entry and maxsize=1
+    # is the correct sizing; the cache exists so the ~11s tests/ walk runs once
+    # per process rather than five times.
+    ("tests/test_vacuous_claim_guard.py", "_scan"),
 })
 
 

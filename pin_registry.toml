@@ -822,3 +822,35 @@ frozen_major = "v7"
 "terminal_tabs/tab_segments.py" = [["segment_label", "category"]]
 "terminal_tabs/tab_spikes.py" = [["mktcap_display", "market_cap"]]
 "terminal_tabs/tab_track_record.py" = [["gate_failures", "failures"]]
+
+# ---------------------------------------------------------------------------
+# test_vacuous_claim_guard.py — assertions whose iterable may legitimately be
+# empty. Key: "file::test::iterable". Value: dated reason, normally naming the
+# test that proves the emptiness is declared rather than incidental.
+#
+# Two shapes live here, and neither is "the detector is wrong" — a false
+# positive is fixed in scripts/detect_vacuous_claims.py, never waived:
+#
+#   1. a population that is intentionally empty today, pinned by a test that
+#      says so (the archive gate);
+#   2. a @pytest.mark.parametrize roster proven non-empty by a sibling
+#      test_..._roster_is_not_empty. That witness lives in another test
+#      function, which the analyzer deliberately cannot see -- it scopes
+#      witnesses to one function on purpose, because a witness for one
+#      iterable says nothing about another. The exemption is what records the
+#      reasoning the analyzer is not allowed to guess at.
+# ---------------------------------------------------------------------------
+[vacuous_claim_guard.exemptions]
+"tests/test_c9_threshold_finalisation_anchor.py::test_documented_precondition_matches_the_gate::int(day) == MIN_LIVE_DAYS for day in found" = "2026-08-03: per-surface emptiness is the rule, not a gap — the precondition has to be stated somewhere, not in every file, so a surface that quotes no window is legitimate. The aggregate is witnessed inside the same test by `assert seen` after the loop, which the analyzer cannot bind to `found`."
+"tests/test_ml_kernel_import_boundary.py::test_ml_kernel_imports_no_domain_package::_ml_python_files()" = "2026-08-03: roster non-emptiness is proven by test_ml_root_exists in the same file (`assert _ml_python_files(), \"ml/ contains no Python files to guard.\"`), a cross-test witness the analyzer deliberately cannot see."
+"tests/test_pine_surface_registry.py::test_archived_surfaces_are_isolated_from_active_rollout::_archived_surfaces()" = "2026-08-03: the archived population is intentionally empty and pinned by test_the_archived_population_is_declared_rather_than_incidental; the rule itself is proven on data in tests/test_archived_surface_consumers.py."
+"tests/test_pine_surface_registry.py::test_archived_surfaces_have_no_active_consumers::archived" = "2026-08-03: same declared-empty archived population as the gate above — pinned by test_the_archived_population_is_declared_rather_than_incidental, rule proven on data in tests/test_archived_surface_consumers.py."
+"tests/test_requirements_lock_consistency.py::test_lock_pin_satisfies_source_specifier::_pinned_direct_requirements()" = "2026-08-03: roster non-emptiness is proven by test_pinned_direct_requirement_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_secret_leakage_probes.py::test_r7_no_unredacted_secret_leakage::sorted(str(p.relative_to(_REPO_ROOT)) for p in _REPO_ROOT.glob(_PROBE_GLOB))" = "2026-08-03: roster non-emptiness is proven by test_probe_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_smc_parity.py::test_expected_families_populated::_EXPECTED_PARAMS" = "2026-08-03: roster non-emptiness is proven by TestFixtureFamilyPresence::test_expected_param_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_spec_constant_drift.py::test_spec_contains_required_keys::sorted((REPO_ROOT / \"artifacts\" / \"experiments\").glob(\"*.json\"))" = "2026-08-03: roster non-emptiness is proven by TestAllSpecFilesLoadable::test_at_least_one_spec_exists in the same class, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_sprt_llr_invariants_property.py::test_streaming_llr_equals_closed_form::_NK_CASES" = "2026-08-03: roster non-emptiness is proven by test_nk_case_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_workflow_auth_pattern.py::test_workflow_git_push_is_safe::_iter_workflow_files()" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_workflow_no_fake_push_success.py::test_workflow_does_not_fake_push_success::_WORKFLOWS" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."
+"tests/test_workflow_no_fake_push_success.py::test_workflow_does_not_fake_pr_create_success::_WORKFLOWS" = "2026-08-03: same _WORKFLOWS roster as the push check above, proven by test_workflow_roster_is_not_empty in the same file."
+"tests/test_workflow_pythonpath_for_direct_invoke.py::test_direct_invoke_workflow_sets_pythonpath::_iter_workflow_files()" = "2026-08-03: roster non-emptiness is proven by test_workflow_roster_is_not_empty in the same file, a cross-test witness the analyzer deliberately cannot see."

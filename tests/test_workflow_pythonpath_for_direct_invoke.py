@@ -69,6 +69,15 @@ def _workflow_exports_pythonpath(doc: object) -> bool:
     return _has_pythonpath(doc.get("env"))
 
 
+def test_workflow_roster_is_not_empty() -> None:
+    """Zero argvalues would collect zero tests — silently, with no output."""
+    workflows = _iter_workflow_files()
+    assert len(workflows) >= 10, (
+        f"workflow discovery found {len(workflows)} files — the parametrized "
+        "check below would collect nothing and report nothing"
+    )
+
+
 @pytest.mark.parametrize("wf_path", _iter_workflow_files(), ids=lambda p: p.name)
 def test_direct_invoke_workflow_sets_pythonpath(wf_path: Path) -> None:
     """Each workflow that direct-invokes ``python scripts/X.py`` exports PYTHONPATH.

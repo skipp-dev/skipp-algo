@@ -266,6 +266,7 @@ def test_extract_panel_levels_join_and_absence() -> None:
     assert by_sym["MCD"]["entry"] == 10.0 and by_sym["MCD"]["target"] == 11.0
     # Candidates without a setup keep None (rendered as "–" in Pine).
     others = [c for s, c in by_sym.items() if s != "MCD"]
+    assert len(others) == 1
     assert all(c["entry"] is None and c["stop"] is None for c in others)
 
 

@@ -92,6 +92,7 @@ def test_no_duplicate_fallback_queries_after_update(temp_dashboard: Path) -> Non
     """Newer Grafana renders each branch of `or` separately; avoid duplicates."""
     _run_script(temp_dashboard)
     data = json.loads(temp_dashboard.read_text(encoding="utf-8"))
+    compared = 0
     for panel in data["panels"]:
         exprs = [t.get("expr", "") for t in panel.get("targets", [])]
         for expr in exprs:
@@ -99,10 +100,22 @@ def test_no_duplicate_fallback_queries_after_update(temp_dashboard: Path) -> Non
                 continue
             first = expr.split(" or ")[0].strip()
             bare_first = first.split("{")[0] if "{" in first else first
-            rest = [part.strip() for part in expr.split(" or ")[1:] if not part.strip().startswith("vector(")]
-            for part in rest:
+            for raw in expr.split(" or ")[1:]:
+                part = raw.strip()
+                # A ``vector(...)`` fallback is a literal, never a duplicate query.
+                if part.startswith("vector("):
+                    continue
+                compared += 1
                 bare_part = part.split("{")[0] if "{" in part else part
                 assert bare_part != bare_first, f"Panel {panel['title']!r} has duplicate fallback: {expr[:200]}"
+    # Without this the check above says nothing the day the updater stops
+    # emitting ``or`` fallbacks: zero comparisons is indistinguishable from
+    # zero duplicates. 35 branches are compared today.
+    assert compared >= 20, (
+        f"only {compared} fallback branches were compared — the updated "
+        "dashboard has (almost) no `or` fallback query left and this check "
+        "would pass vacuously"
+    )
 
 
 def test_latency_panels_consolidated_and_slo_added(temp_dashboard: Path) -> None:

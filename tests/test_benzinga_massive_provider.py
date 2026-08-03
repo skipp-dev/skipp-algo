@@ -213,7 +213,12 @@ def test_workflows_pass_the_provider_flag() -> None:
     BENZINGA_PROVIDER — otherwise flipping the repo variable would silently
     leave that job on the direct transport with a Massive key (401s)."""
     wf_dir = _REPO / ".github" / "workflows"
-    for wf in sorted(wf_dir.glob("*.yml")):
+    workflows = sorted(wf_dir.glob("*.yml"))
+    assert len(workflows) >= 20, (
+        f"workflow discovery found {len(workflows)} files — the pairing check "
+        "below would pass vacuously"
+    )
+    for wf in workflows:
         text = wf.read_text(encoding="utf-8")
         if "secrets.BENZINGA_API_KEY" in text:
             assert "BENZINGA_PROVIDER" in text, f"{wf.name} passes the key but not the provider flag"

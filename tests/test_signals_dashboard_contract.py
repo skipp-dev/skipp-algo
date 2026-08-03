@@ -39,6 +39,7 @@ def _visual_panels(d: dict) -> list[dict]:
 def test_sections_are_user_first_and_all_expanded() -> None:
     d = _load()
     rows = _rows(d)
+    assert rows, "dashboard exposes no section row — the checks below would pass vacuously"
     assert [r["title"] for r in rows] == SECTION_ORDER
     for r in rows:
         assert r.get("collapsed") is False, r["title"]
@@ -102,7 +103,9 @@ def test_every_signal_panel_is_in_a_section() -> None:
     """No panel floats above the first section (except the banner at y=0)."""
     d = _load()
     first_row_y = _rows(d)[0]["gridPos"]["y"]
-    for p in _visual_panels(d):
+    panels = _visual_panels(d)
+    assert panels, "dashboard exposes no visual panel — the check below would pass vacuously"
+    for p in panels:
         if p.get("id") == 999:
             continue
         assert p["gridPos"]["y"] >= first_row_y, p.get("title")

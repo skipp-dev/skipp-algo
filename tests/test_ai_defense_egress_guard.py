@@ -28,7 +28,9 @@ def _production_python() -> list[Path]:
 
 def test_direct_llm_egress_inventory_is_exact_and_guarded():
     hits = set()
-    for path in _production_python():
+    sources = _production_python()
+    assert sources, "no production module was scanned — the checks below would pass vacuously"
+    for path in sources:
         text = path.read_text(encoding="utf-8")
         if any(endpoint in text for endpoint in _GENERATION_ENDPOINTS):
             relative = path.relative_to(ROOT).as_posix()

@@ -86,16 +86,32 @@ def test_physical_surface_titles_match_unique_registry_names() -> None:
     }
 
 
-def test_only_planned_surface_sources_may_be_absent() -> None:
+def test_every_surface_ships_its_source() -> None:
+    """Every surface ships its source today, so the allowance is unexercised.
+
+    Named for what it asserts. It used to be called
+    ``test_only_planned_surface_sources_may_be_absent``, which promised the
+    lifecycle *allowance* — the opposite of the strict rule below.
+
+    2026-08-03: this used to assert ``missing == []`` and then loop the
+    lifecycle rule over ``missing`` — an iteration the line above had just
+    proven runs zero times, so the rule the test is named after had never
+    once been evaluated. Two surfaces *are* ``planned``
+    (SMC_Hold_Manager.pine, SMC_Volume_Profile_Overlay.pine) and would
+    therefore be allowed to omit their source, but both ship one, so the
+    stricter fact is the one that actually holds. Anything that does go
+    missing is reported with its lifecycle, which is what tells the reader
+    whether the allowance was meant to cover it.
+    """
     missing = [
         surface
         for surface in SURFACE_DEFINITIONS
         if not (ROOT / surface.file).is_file()
     ]
 
-    assert missing == []
-    assert all(surface.lifecycle == "planned" for surface in missing), (
-        "only lifecycle=planned surfaces may omit their source: "
+    assert missing == [], (
+        "every surface must ship its source; only lifecycle=planned ones may "
+        "omit it: "
         f"{[(surface.file, surface.lifecycle) for surface in missing]}"
     )
 

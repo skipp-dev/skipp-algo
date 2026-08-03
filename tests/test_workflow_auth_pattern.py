@@ -103,6 +103,15 @@ def _classify_push(run_text: str) -> list[tuple[int, str]]:
     return unsafe
 
 
+def test_workflow_roster_is_not_empty() -> None:
+    """Zero argvalues would collect zero tests — silently, with no output."""
+    workflows = _iter_workflow_files()
+    assert len(workflows) >= 10, (
+        f"workflow discovery found {len(workflows)} files — the parametrized "
+        "checks below would collect nothing and report nothing"
+    )
+
+
 @pytest.mark.parametrize(
     "wf_path",
     _iter_workflow_files(),

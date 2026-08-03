@@ -565,7 +565,9 @@ jobs:
             tests/test_smc_fast_pr_gates_workflow.py \
             tests/test_smc_live_overlay_metrics.py \
             tests/test_smc_product_cut_manifest.py \
-            tests/test_update_overlay_dashboard.py
+            tests/test_update_overlay_dashboard.py \
+            tests/test_detect_vacuous_claims.py \
+            tests/test_vacuous_claim_guard.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,

@@ -254,6 +254,7 @@ class TestGeneratedArtifactDrift:
     def test_shared_lean_families_do_not_reintroduce_alias_exports(self, regenerated: Path):
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
         export_names = _extract_export_names(pine)
+        assert export_names, "no export was extracted — the alias ban below would pass vacuously"
         for prefix in LEAN_ALIAS_PREFIXES:
             assert not any(name.startswith(prefix) for name in export_names), (
                 f"Shared lean family alias export reintroduced: {prefix}*"

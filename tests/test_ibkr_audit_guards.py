@@ -251,6 +251,7 @@ def test_s2_run_mock_prices_not_used_for_orders(tmp_path: Path) -> None:
     )
     assert res["mode"] == "mock"
     rows = [json.loads(ln) for ln in audit.read_text().splitlines() if ln]
+    assert rows, "no audit row was written — the per-row checks below would pass vacuously"
     assert len(rows) == res["intent_count"]
     for row in rows:
         # In mock mode the recorded entry_price matches the setup (no 50% cut)
@@ -446,6 +447,7 @@ def test_s1_audit_jsonl_written_on_success(tmp_path: Path) -> None:
 
     assert audit.exists(), "audit JSONL must be written"
     rows = [json.loads(ln) for ln in audit.read_text().splitlines() if ln]
+    assert rows, "no audit row was written — the per-row checks below would pass vacuously"
     assert len(rows) == result["intent_count"]
     for row in rows:
         assert row["mode"] == "live"

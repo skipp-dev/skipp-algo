@@ -66,6 +66,8 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_smc_live_overlay_metrics.py",
     "test_smc_product_cut_manifest.py",
     "test_update_overlay_dashboard.py",
+    "test_detect_vacuous_claims.py",
+    "test_vacuous_claim_guard.py",
     "test_mutable_defaults_and_loads_pins.py",
     "test_nonlocal_budget.py",
     "test_noqa_budget.py",

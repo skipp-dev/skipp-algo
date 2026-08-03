@@ -135,6 +135,16 @@ def test_direct_dep_is_pinned_in_lock(requirement: Requirement) -> None:
     )
 
 
+def test_pinned_direct_requirement_roster_is_not_empty() -> None:
+    """Zero argvalues would collect zero tests — silently, with no output."""
+    pinned = _pinned_direct_requirements()
+    assert len(pinned) >= 10, (
+        f"only {len(pinned)} direct requirements resolved to a lock pin — the "
+        "parametrized specifier check below would collect nothing and report "
+        "nothing"
+    )
+
+
 @pytest.mark.parametrize(
     "requirement",
     _pinned_direct_requirements(),

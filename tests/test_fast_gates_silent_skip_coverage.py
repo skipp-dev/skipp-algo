@@ -114,6 +114,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_datetime_tz_safety_zero_surface.py",
+    "tests/test_detect_vacuous_claims.py",
     "tests/test_division_site_baseline.py",
     "tests/test_dynamic_exec_and_pickle_zero_surface.py",
     "tests/test_dynamic_getattr_ledger.py",
@@ -213,6 +214,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_type_ignore_budget.py",
     "tests/test_update_overlay_dashboard.py",
     "tests/test_urllib_urlopen_ledger.py",
+    # 2026-08-03: the vacuity guard reads pin_registry.toml, so
+    # test_every_pinned_ledger_is_on_the_required_path demands it be gated.
+    # Registered here as well because the roster check is bidirectional.
+    "tests/test_vacuous_claim_guard.py",
     "tests/test_verdict_panel.py",
     "tests/test_warnings_simplefilter_ledger.py",
     "tests/test_weak_hash_pin.py",

@@ -388,7 +388,9 @@ class TestFiHardening:
         p_values = {"signal": 1e-6, **{f"noise{i}": 0.8 for i in range(10)}}
         flags = _benjamini_hochberg(p_values)
         assert flags["signal"] is True
-        assert not any(v for k, v in flags.items() if k != "signal")
+        noise = [v for k, v in flags.items() if k != "signal"]
+        assert len(noise) == 10, "every input needs a verdict — a short set would hide a rejection"
+        assert not any(noise)
 
     def test_bh_empty(self) -> None:
         assert _benjamini_hochberg({}) == {}

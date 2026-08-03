@@ -119,6 +119,7 @@ def test_table_renders_the_canonical_expression_not_a_reimplementation() -> None
     rendered = [ln for ln in text.splitlines() if "str.tostring(" in ln and "r4_parity" in ln]
     # first cell is the bar_index header, the rest are channel values
     values = [ln for ln in rendered if "bar_index" not in ln]
+    assert values, "fixture renders no channel value — the check below would pass vacuously"
     assert len(values) == len(parity_channel_names())
     for line in values:
         expr = line.split("str.tostring(", 1)[1].rsplit("))", 1)[0]
