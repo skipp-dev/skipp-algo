@@ -46,6 +46,13 @@ jobs:
 
       - name: Assert no native Railway deploy trigger
         env:
+          # Preferred: a Railway PROJECT token (scoped to this project +
+          # environment, Project-Access-Token header). RAILWAY_API_TOKEN stays
+          # as the account-token fallback via Authorization: Bearer — project
+          # tokens do not accept that header, and the API's "Not Authorized"
+          # cannot tell a wrong header from a missing token (measured
+          # 2026-08-03).
+          RAILWAY_PROJECT_ACCESS_TOKEN: ${{ secrets.RAILWAY_PROJECT_ACCESS_TOKEN }}
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
