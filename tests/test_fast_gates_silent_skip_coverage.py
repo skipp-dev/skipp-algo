@@ -859,18 +859,39 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # This freezes the current TS state: every *.test.ts must be either RUN by the
 # workflow or on the exempt set below. A new TS test then forces a conscious
 # choice (wire it, or exempt it with a reason) instead of silently running
-# nowhere. The exempt set is exactly the tests whose import graph reaches
-# `playwright` (via lib/tv_shared.ts) — verified by running each: the 13 exempt
-# fail fast with ERR_MODULE_NOT_FOUND 'playwright' locally and need a pinned
-# browser (the local `tv:test` lane, which hangs without it), so demanding they
-# run in this packaging workflow would break it. The hermetic source-scan /
-# pure-logic pins (no playwright import) all gate: 13 run, 13 exempt.
+# nowhere.
+#
+# What the partition is NOT. It is not "the tests whose import graph reaches
+# playwright". Measured 2026-08-03: of the 42 tests the workflow runs, 14
+# value-import `playwright` transitively through automation/tradingview/
+# lib/tv_shared.ts (whose `import { chromium, … } from "playwright"` spans its
+# lines 4-11: `chromium` on line 5, the specifier on line 11)
+# — tv_chart_error_probe.test.ts among them. Reaching playwright therefore
+# does not force exemption, and describing the set that way told a reader a
+# rule the code does not follow.
+#
+# What actually forces exemption is needing a pinned browser at RUNTIME, and
+# that accounts for two members, not thirteen: tv_shared.test.ts (25
+# launchTradingViewChromium call sites; 133 tests, 21.5s locally) and
+# tv_pine_editor_close.test.ts (4 sites, 2.6s). The remaining 11 exempt tests
+# launch no browser and each finished green in ~330ms when run locally on
+# 2026-08-03 — they are exempt for history, not for a technical obstacle, and
+# wiring them is an open question for a follow-up rather than a claim made
+# here. (The converse also exists: tv_chart_error_probe.test.ts does launch a
+# real headless Chromium and runs in the hermetic step anyway. Verified here by
+# reading the file, not by pointing at the workflow's own comment — that
+# comment is corrected in a separate PR, and a cross-reference into a change
+# that can be reverted on its own would go stale the moment it is.)
+#
+# Counts, re-derived 2026-08-03: 55 *.test.ts total = 42 run (1 + 1 + 40
+# across the three `npx tsx --test` steps) + 13 exempt.
 TV_ONBOARDING_WORKFLOW = ROOT / ".github" / "workflows" / "tv-onboarding-packages.yml"
 _TV_TEST_DIR = ROOT / "automation" / "tradingview" / "tests"
 
-#: TS tests that legitimately do not run in tv-onboarding-packages.yml — the
-#: 13 that import `playwright` transitively and need a pinned browser. Adding a
-#: member is a deliberate edit (audit trail), the same contract as the
+#: TS tests that do not run in tv-onboarding-packages.yml. Two of them cannot
+#: (tv_shared.test.ts, tv_pine_editor_close.test.ts launch a pinned browser);
+#: the other eleven are inherited, not forced — see the measurement above.
+#: Adding a member is a deliberate edit (audit trail), the same contract as the
 #: *_INTENTIONALLY_UNGATED sets above. Reducing it means a browserless test was
 #: wired into CI (the 10 hermetic pins were, 2026-07-24).
 _TS_TESTS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
