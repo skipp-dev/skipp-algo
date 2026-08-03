@@ -68,6 +68,12 @@ def _fetch_triggers(
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
+            # Railway sits behind Cloudflare, which rejects urllib's default
+            # ``Python-urllib/3.x`` agent with HTTP 403 / error code 1010 —
+            # measured 2026-08-03: identical request, any User-Agent, 200.
+            # Without this the guard reports "403 Forbidden", which reads as a
+            # credential fault and hid a header fault for weeks.
+            "User-Agent": "skipp-algo-deploy-trigger-guard/1",
         },
         method="POST",
     )
