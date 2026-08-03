@@ -86,8 +86,12 @@ def test_physical_surface_titles_match_unique_registry_names() -> None:
     }
 
 
-def test_only_planned_surface_sources_may_be_absent() -> None:
+def test_every_surface_ships_its_source() -> None:
     """Every surface ships its source today, so the allowance is unexercised.
+
+    Named for what it asserts. It used to be called
+    ``test_only_planned_surface_sources_may_be_absent``, which promised the
+    lifecycle *allowance* — the opposite of the strict rule below.
 
     2026-08-03: this used to assert ``missing == []`` and then loop the
     lifecycle rule over ``missing`` — an iteration the line above had just
