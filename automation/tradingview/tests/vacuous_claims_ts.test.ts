@@ -164,7 +164,13 @@ test("a witness in one test does not clear another test's collection", () => {
       for (const hit of hits) { assert.ok(hit.startsWith("import")); }
     });
   `;
-  assert.deepEqual(kinds(source), { hits: "local filter call" });
+  // Asserted by scope, not by `kinds`: both tests name the collection
+  // `hits`, so keying on the iterable alone would collapse two claims into
+  // one entry and hide a witness that stopped binding altogether.
+  assert.deepEqual(
+    scanSource(source, "example.test.ts").map((claim) => claim.scope),
+    ["does not"],
+  );
 });
 
 test("a throw after the loop is a witness", () => {
