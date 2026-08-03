@@ -49,6 +49,11 @@ _TRANSPARENT_CALLS: frozenset[str] = frozenset(
     {"sorted", "list", "set", "tuple", "frozenset", "reversed"}
 )
 
+#: Zero-argument constructors that produce an empty collection. Separate
+#: from :data:`_TRANSPARENT_CALLS` on purpose: ``list(xs)`` passes ``xs``'s
+#: emptiness through, while ``list()`` *is* the emptiness.
+_EMPTY_CONSTRUCTORS: frozenset[str] = frozenset({"list", "set", "dict"})
+
 
 @dataclass(frozen=True)
 class VacuousClaim:
@@ -118,11 +123,20 @@ def classify_iterable(
                 return helpers[func.id]
             if func.id in _TRANSPARENT_CALLS and node.args:
                 return classify_iterable(source, node.args[0], bindings, helpers)
+            if func.id in _EMPTY_CONSTRUCTORS and not node.args:
+                return "empty literal"
         return None
     if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         if any(generator.ifs for generator in node.generators):
             return "filtered comprehension"
         return classify_iterable(source, node.generators[0].iter, bindings, helpers)
+    if isinstance(node, (ast.List, ast.Set, ast.Dict)):
+        # An empty collection literal is the accumulator idiom's starting
+        # point: ``calls = []``, something appends, a loop asserts. When the
+        # code under test appends nothing, the loop runs zero times. A
+        # literal *with* elements stays out for the reason the module
+        # docstring gives for tuples — it cannot be empty at runtime.
+        return None if _is_nonempty_literal(node) else "empty literal"
     if isinstance(node, ast.Name):
         return bindings.get(node.id)
     if isinstance(node, ast.Attribute):
@@ -209,6 +223,44 @@ def _bind_assignments(
     return bindings
 
 
+def _mutated_by_loop(stmts: Iterable[ast.stmt], name: str) -> bool:
+    """True when a ``for`` loop among *stmts* writes into *name*.
+
+    This is the one signal that separates the module-scope accumulator
+    idiom from a hand-maintained literal: ``_COUNTS = {}`` followed by a
+    loop that fills it from something discoverable can legitimately end up
+    empty at runtime, exactly like the local recording idiom. A bare empty
+    literal with no such loop anywhere in the module never changes once the
+    module is imported — its emptiness is a fact visible in the diff, not
+    an unobserved one, so it must not be flagged as a claim.
+
+    Both mutation shapes count: subscript assignment (``d[k] = v``) and the
+    mutating-method call (``xs.append(...)`` / ``.add`` / ``.update`` /
+    ``.extend``), since either can appear in the accumulator loop body.
+    """
+    for stmt in stmts:
+        if not isinstance(stmt, ast.For):
+            continue
+        for inner in ast.walk(stmt):
+            if isinstance(inner, ast.Assign):
+                for target in inner.targets:
+                    if (
+                        isinstance(target, ast.Subscript)
+                        and isinstance(target.value, ast.Name)
+                        and target.value.id == name
+                    ):
+                        return True
+            elif (
+                isinstance(inner, ast.Call)
+                and isinstance(inner.func, ast.Attribute)
+                and isinstance(inner.func.value, ast.Name)
+                and inner.func.value.id == name
+                and inner.func.attr in {"append", "add", "update", "extend"}
+            ):
+                return True
+    return False
+
+
 def _module_bindings(
     source: str, tree: ast.Module, helpers: dict[str, str]
 ) -> dict[str, str]:
@@ -216,8 +268,20 @@ def _module_bindings(
 
     ``argvalues`` is evaluated at import time, so module scope — not test
     scope — is what decides whether a parametrize set can be empty.
+
+    A bare empty collection literal is dropped again here unless
+    :func:`_mutated_by_loop` finds a loop that fills it — see that
+    function's docstring. This filter is scoped tightly to exactly the
+    ``"local empty literal"`` kind so it never touches the other bound
+    kinds (``"local discovery call"``, ``"local filtered comprehension"``,
+    …), whose emptiness genuinely is a runtime fact at module scope too.
     """
-    return _bind_assignments(source, tree.body, helpers)
+    bindings = _bind_assignments(source, tree.body, helpers)
+    return {
+        name: kind
+        for name, kind in bindings.items()
+        if kind != "local empty literal" or _mutated_by_loop(tree.body, name)
+    }
 
 
 def _parametrize_argvalues(

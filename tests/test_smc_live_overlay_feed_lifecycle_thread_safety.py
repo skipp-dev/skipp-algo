@@ -181,6 +181,7 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     assert not t2.is_alive(), "state flip thread did not finish within timeout"
 
     assert not errors, errors
+    assert liveness_results, "no liveness polls recorded — this pin would pass vacuously"
     assert len(liveness_results) == iterations
     for result in liveness_results:
         # Must stay in step with the workers _do_start() actually starts — this
