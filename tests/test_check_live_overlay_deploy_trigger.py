@@ -28,6 +28,7 @@ def _load():
 @pytest.fixture
 def guard(monkeypatch):
     mod = _load()
+    monkeypatch.delenv("RAILWAY_PROJECT_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("RAILWAY_API_TOKEN", "t")
     monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "e")
@@ -52,6 +53,10 @@ def test_native_trigger_is_drift(guard, monkeypatch):
 
 def test_missing_token_skips_without_failing(monkeypatch):
     mod = _load()
+    # BOTH token variables: with the project-token path added, deleting only
+    # RAILWAY_API_TOKEN would let an ambient RAILWAY_PROJECT_ACCESS_TOKEN keep
+    # the guard live and this test would assert the wrong thing.
+    monkeypatch.delenv("RAILWAY_PROJECT_ACCESS_TOKEN", raising=False)
     monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
     monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "e")
@@ -62,6 +67,44 @@ def test_missing_token_skips_without_failing(monkeypatch):
 
     monkeypatch.setattr(mod, "_fetch_triggers", _boom)
     assert mod.main() == 0
+
+
+def test_project_token_is_preferred_and_sent_with_its_own_header(guard, monkeypatch):
+    """A Railway PROJECT token authenticates via Project-Access-Token, not Bearer.
+
+    Measured 2026-08-03: sent as Bearer, a valid project token fails even
+    ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
+    gets — the API cannot tell a wrong header from a missing token, so the
+    header choice has to be structural, not diagnosable at runtime.
+    """
+    monkeypatch.setenv("RAILWAY_PROJECT_ACCESS_TOKEN", "proj-tok")
+    seen: dict = {}
+
+    def _capture(token, *a, **k):
+        seen["token"] = token
+        seen["auth_kind"] = k.get("auth_kind")
+        return []
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
+    assert guard.main() == 0
+    # Preferred over the account token the fixture also sets.
+    assert seen == {"token": "proj-tok", "auth_kind": "project"}
+
+    assert guard._auth_header("proj-tok", "project") == {"Project-Access-Token": "proj-tok"}
+    assert guard._auth_header("acct-tok", "account") == {"Authorization": "Bearer acct-tok"}
+
+
+def test_account_token_alone_still_authenticates_as_bearer(guard, monkeypatch):
+    seen: dict = {}
+
+    def _capture(token, *a, **k):
+        seen["token"] = token
+        seen["auth_kind"] = k.get("auth_kind")
+        return []
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
+    assert guard.main() == 0
+    assert seen == {"token": "t", "auth_kind": "account"}
 
 
 def test_api_error_is_inconclusive_not_pass(guard, monkeypatch):

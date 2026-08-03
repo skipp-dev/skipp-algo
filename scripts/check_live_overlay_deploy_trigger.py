@@ -12,10 +12,16 @@ bar cache and resetting uptime each time. With `checkSuites:false` it also
 deploys before CI validates the commit. This drift is invisible in the repo —
 it lives in Railway config — so this guard catches it re-appearing.
 
-Auth reuses the same read-capable Railway API token the `railway_metrics`
-bridge already uses (`RAILWAY_API_TOKEN` + `RAILWAY_PROJECT_ID` +
-`RAILWAY_ENVIRONMENT_ID`), plus the service id
-(`RAILWAY_LIVE_OVERLAY_SERVICE_ID`, defaulting to the production service).
+Auth, in order of preference (plus `RAILWAY_PROJECT_ID` +
+`RAILWAY_ENVIRONMENT_ID`, and the service id
+`RAILWAY_LIVE_OVERLAY_SERVICE_ID` defaulting to the production service):
+
+* `RAILWAY_PROJECT_ACCESS_TOKEN` — a Railway PROJECT token, scoped to exactly
+  this project + environment, sent as the `Project-Access-Token` header.
+  Verified live 2026-08-03: the operator's project token resolves
+  `projectToken { projectId environmentId }` to this project.
+* `RAILWAY_API_TOKEN` — an account/workspace token, sent as
+  `Authorization: Bearer` (the header project tokens do NOT accept).
 
 Exit codes:
   0  no native deploy trigger (healthy)  OR  token not configured (skipped)
@@ -48,8 +54,29 @@ _QUERY = (
 )
 
 
+def _auth_header(token: str, auth_kind: str) -> dict[str, str]:
+    """The header Railway expects for this token type.
+
+    Project tokens do NOT authenticate via ``Authorization: Bearer`` — they use
+    a dedicated ``Project-Access-Token`` header (docs.railway.com/guides/
+    public-api). Measured 2026-08-03: a project token sent as Bearer fails even
+    ``{ me }`` with the same bare "Not Authorized" an unauthenticated request
+    gets, so the error text cannot distinguish a wrong header from a missing
+    token. A project token is also the better credential here: it is scoped to
+    exactly one project + environment instead of the whole account.
+    """
+    if auth_kind == "project":
+        return {"Project-Access-Token": token}
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _fetch_triggers(
-    token: str, project_id: str, environment_id: str, service_id: str, timeout: float = 15.0
+    token: str,
+    project_id: str,
+    environment_id: str,
+    service_id: str,
+    timeout: float = 15.0,
+    auth_kind: str = "account",
 ) -> list[dict]:
     """Return the service's deployment-trigger nodes. Raises on API/transport error."""
     payload = json.dumps(
@@ -66,7 +93,7 @@ def _fetch_triggers(
         _GRAPHQL_ENDPOINT,
         data=payload,
         headers={
-            "Authorization": f"Bearer {token}",
+            **_auth_header(token, auth_kind),
             "Content-Type": "application/json",
             # Railway sits behind Cloudflare, which rejects urllib's default
             # ``Python-urllib/3.x`` agent with HTTP 403 / error code 1010 —
@@ -86,20 +113,27 @@ def _fetch_triggers(
 
 
 def main() -> int:
-    token = os.environ.get("RAILWAY_API_TOKEN")
+    project_token = os.environ.get("RAILWAY_PROJECT_ACCESS_TOKEN")
+    account_token = os.environ.get("RAILWAY_API_TOKEN")
+    token, auth_kind = (
+        (project_token, "project") if project_token else (account_token, "account")
+    )
     project_id = os.environ.get("RAILWAY_PROJECT_ID")
     environment_id = os.environ.get("RAILWAY_ENVIRONMENT_ID")
     service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_SERVICE_ID)
 
     if not (token and project_id and environment_id):
         print(
-            "SKIP: RAILWAY_API_TOKEN / RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID "
-            "not all set — deploy-trigger drift guard did not run.",
+            "SKIP: neither RAILWAY_PROJECT_ACCESS_TOKEN nor RAILWAY_API_TOKEN set, "
+            "or RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID missing — "
+            "deploy-trigger drift guard did not run.",
         )
         return 0
 
     try:
-        triggers = _fetch_triggers(token, project_id, environment_id, service_id)
+        triggers = _fetch_triggers(
+            token, project_id, environment_id, service_id, auth_kind=auth_kind
+        )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
         print(f"ERROR: could not query Railway deployment triggers: {exc}", file=sys.stderr)
         return 2
