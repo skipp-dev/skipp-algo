@@ -35,9 +35,33 @@ def test_triggers_on_every_completed_save_run_and_only_there() -> None:
     trigger = (_load().get("on") or _load().get(True))["workflow_run"]
     assert trigger["workflows"] == ["tv-save-consumer-source"]
     assert trigger["types"] == ["completed"]
-    # No conclusion filter in the job: run 30700389375 FAILED and had mutated.
-    # A failure filter here would have skipped the one case that mattered.
-    assert "if" not in _load()["jobs"]["reverify"]
+
+
+def test_skipped_runs_exit_and_failed_runs_never_do() -> None:
+    """The job gate excludes exactly ONE conclusion, and it is not failure.
+
+    Until 2026-08-03 this file pinned the ABSENCE of any job-level ``if``,
+    because run 30700389375 FAILED and had mutated — a failure filter would
+    have skipped the one case that mattered. That half still holds and is
+    pinned below.
+
+    What changed: three red library-refresh crons on 2026-08-03 produced four
+    fail-closed re-verifies whose only finding was that nothing had been
+    mutated — a SKIPPED save is the save job's own gate declining to start,
+    GitHub's run state rather than anyone's claim, so there is nothing to
+    look at. Operator decision 2026-08-03: skipped exits.
+    """
+    condition = " ".join(_load()["jobs"]["reverify"]["if"].split())
+
+    assert "github.event.workflow_run.conclusion != 'skipped'" in condition
+    # The 2026-08-01 rationale survives the 2026-08-03 change: no outcome that
+    # ever opened a browser may be filtered here. A failed, cancelled or
+    # timed-out run may have mutated before dying; they keep the +15min look.
+    for still_fail_closed in ("failure", "cancelled", "timed_out", "success"):
+        assert still_fail_closed not in condition, (
+            f"the job gate must never filter '{still_fail_closed}' — "
+            "run 30700389375 failed AND had mutated"
+        )
 
 
 def test_the_wait_happens_outside_the_shared_session_group() -> None:
