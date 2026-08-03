@@ -80,28 +80,23 @@ def _auth_header(token: str, auth_kind: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _fetch_triggers(
+def _graphql(
+    query: str,
+    variables: dict[str, str],
     token: str,
-    project_id: str,
-    environment_id: str,
-    service_id: str,
-    timeout: float = 15.0,
     auth_kind: str = "account",
-) -> list[dict]:
-    """Return the service's deployment-trigger nodes. Raises on API/transport error."""
-    payload = json.dumps(
-        {
-            "query": _QUERY,
-            "variables": {
-                "projectId": project_id,
-                "environmentId": environment_id,
-                "serviceId": service_id,
-            },
-        }
-    ).encode("utf-8")
+    timeout: float = 15.0,
+) -> dict:
+    """POST one GraphQL document and return the decoded body, errors included.
+
+    The single HTTP call site in this module: the guard query, the diagnosis
+    probe and the credential-capability probe all go through here, so the
+    Cloudflare User-Agent workaround below cannot be forgotten by one of them
+    (and the urlopen ledger pins one line rather than three).
+    """
     req = urllib.request.Request(
         _GRAPHQL_ENDPOINT,
-        data=payload,
+        data=json.dumps({"query": query, "variables": variables}).encode("utf-8"),
         headers={
             **_auth_header(token, auth_kind),
             "Content-Type": "application/json",
@@ -114,8 +109,30 @@ def _fetch_triggers(
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = json.loads(resp.read().decode("utf-8"))
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - literal endpoint
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _fetch_triggers(
+    token: str,
+    project_id: str,
+    environment_id: str,
+    service_id: str,
+    timeout: float = 15.0,
+    auth_kind: str = "account",
+) -> list[dict]:
+    """Return the service's deployment-trigger nodes. Raises on API/transport error."""
+    body = _graphql(
+        _QUERY,
+        {
+            "projectId": project_id,
+            "environmentId": environment_id,
+            "serviceId": service_id,
+        },
+        token,
+        auth_kind=auth_kind,
+        timeout=timeout,
+    )
     if body.get("errors"):
         raise RuntimeError(f"Railway API errors: {body['errors']}")
     edges = (body.get("data") or {}).get("deploymentTriggers", {}).get("edges") or []
@@ -181,21 +198,14 @@ def _diagnose_account_token(
 
     Returns one operator-facing line and never echoes the token or project data.
     """
-    req = urllib.request.Request(
-        _GRAPHQL_ENDPOINT,
-        data=json.dumps(
-            {"query": _PROJECT_VISIBILITY_QUERY, "variables": {"projectId": project_id}}
-        ).encode("utf-8"),
-        headers={
-            **_auth_header(token, "account"),
-            "Content-Type": "application/json",
-            "User-Agent": "skipp-algo-deploy-trigger-guard/1",
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - literal endpoint
-            body = json.loads(resp.read().decode("utf-8"))
+        body = _graphql(
+            _PROJECT_VISIBILITY_QUERY,
+            {"projectId": project_id},
+            token,
+            auth_kind="account",
+            timeout=timeout,
+        )
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
 
@@ -234,7 +244,108 @@ def _diagnose_account_token(
     )
 
 
-def main() -> int:
+# Candidate ways to answer "is this service natively repo-triggered?", to be
+# measured against every credential this repo owns. `deploymentTriggers` is the
+# authoritative one and is DENIED to both of them (run 30840756670 for the
+# workspace token, 30831201160 for the project token) — the project resolves,
+# the environment belongs to it, and Railway still refuses the field. So the
+# question is no longer "which credential" but "which readable field carries
+# the same fact", and that is a measurement, not a guess: a wrong field name
+# and a denied field produce different errors, and this probe separates them.
+#
+# `deployments` is on the list because it is PROVEN readable from CI — the
+# deploy workflow polls it after every `railway up` with the project token
+# (deploy-live-overlay-daemon.yml). Its `meta` may carry the origin of a
+# deployment, which would make it a tripwire even if no config field is legible.
+_PROBE_QUERIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("deploymentTriggers", _QUERY, ("projectId", "environmentId", "serviceId")),
+    (
+        "serviceInstance.source",
+        "query($environmentId: String!, $serviceId: String!) {"
+        " serviceInstance(environmentId: $environmentId, serviceId: $serviceId)"
+        " { id source { repo image } } }",
+        ("environmentId", "serviceId"),
+    ),
+    (
+        "project.services[].source",
+        "query($projectId: String!) { project(id: $projectId) { services { edges"
+        " { node { id name serviceInstances { edges { node { environmentId"
+        " source { repo image } } } } } } } } }",
+        ("projectId",),
+    ),
+    (
+        "deployments.meta",
+        "query($projectId: String!, $environmentId: String!, $serviceId: String!) {"
+        " deployments(first: 1, input: { projectId: $projectId,"
+        " environmentId: $environmentId, serviceId: $serviceId })"
+        " { edges { node { id status createdAt meta } } } }",
+        ("projectId", "environmentId", "serviceId"),
+    ),
+)
+
+
+def _classify(body: dict) -> tuple[str, str]:
+    """Split Railway's failures into the three that need different fixes.
+
+    DENIED means the field exists and this credential may not read it — escalate
+    or replace the credential. SCHEMA means the field name is wrong — my query is
+    the bug, not the token. Conflating them is exactly how a guessed field name
+    would masquerade as a permission wall for another week.
+    """
+    errors = body.get("errors") or []
+    if not errors:
+        payload = json.dumps(body.get("data") or {}, sort_keys=True)
+        return "OK", payload[:400] + ("…" if len(payload) > 400 else "")
+    messages = "; ".join(str(err.get("message", "")) for err in errors)
+    if "Not Authorized" in messages:
+        return "DENIED", messages[:200]
+    if any(
+        marker in messages
+        for marker in ("Cannot query field", "Unknown argument", "Unknown type")
+    ):
+        return "SCHEMA", messages[:200]
+    return "ERROR", messages[:200]
+
+
+def _probe(project_id: str, environment_id: str, service_id: str) -> int:
+    """Print which candidate query each available credential may actually read.
+
+    Read-only and always exit 0: this is a measurement, and a measurement that
+    can turn the daily guard red would not get run.
+    """
+    variables = {
+        "projectId": project_id,
+        "environmentId": environment_id,
+        "serviceId": service_id,
+    }
+    credentials = [
+        ("account", "RAILWAY_API_TOKEN", os.environ.get("RAILWAY_API_TOKEN")),
+        # The deploy workflow's project token, sent with its own header. It is
+        # the only credential proven to answer a Railway query from a runner.
+        ("project", "RAILWAY_TOKEN", os.environ.get("RAILWAY_TOKEN")),
+    ]
+    for auth_kind, env_name, token in credentials:
+        if not token:
+            print(f"PROBE {env_name}: not set — skipped")
+            continue
+        print(f"PROBE {env_name} ({auth_kind} header): {_credential_fingerprint(token)}")
+        for name, query, needed in _PROBE_QUERIES:
+            try:
+                body = _graphql(
+                    query,
+                    {key: variables[key] for key in needed},
+                    token,
+                    auth_kind=auth_kind,
+                )
+            except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+                status, detail = "TRANSPORT", f"{type(exc).__name__}: {exc}"
+            else:
+                status, detail = _classify(body)
+            print(f"  {name:<28} {status:<9} {detail}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     # Deliberately NOT reading RAILWAY_PROJECT_ACCESS_TOKEN: project tokens
     # cannot query deploymentTriggers (measured, see module docstring), and a
     # preferred-but-unauthorized credential kept this guard red no matter what
@@ -243,6 +354,15 @@ def main() -> int:
     project_id = os.environ.get("RAILWAY_PROJECT_ID")
     environment_id = os.environ.get("RAILWAY_ENVIRONMENT_ID")
     service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_SERVICE_ID)
+
+    if "--probe" in (sys.argv[1:] if argv is None else argv):
+        if not (project_id and environment_id):
+            print(
+                "SKIP: RAILWAY_PROJECT_ID / RAILWAY_ENVIRONMENT_ID not set — "
+                "credential probe did not run."
+            )
+            return 0
+        return _probe(project_id, environment_id, service_id)
 
     if not (token and project_id and environment_id):
         print(

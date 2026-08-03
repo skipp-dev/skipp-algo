@@ -411,3 +411,125 @@ def test_an_unlistable_environment_set_does_not_invent_a_verdict(guard, monkeypa
     err = capsys.readouterr().err
     assert rc == 2
     assert "is NOT one of this project" not in err
+
+
+# --- credential-capability probe (2026-08-03) --------------------------------
+# Railway denies `deploymentTriggers` to BOTH of this repo's tokens while the
+# project itself resolves (run 30840756670). The replacement field therefore has
+# to be measured, and a measurement is only worth running if a wrong field name
+# and a denied field are told apart — otherwise the next guess masquerades as a
+# permission wall for another week.
+
+
+def _probe_env(guard, monkeypatch, bodies):
+    """Answer every probe request from `bodies` (a list, consumed in order)."""
+    seen = []
+
+    class _Resp:
+        def __init__(self, body):
+            self._body = body
+
+        def read(self):
+            return json.dumps(self._body).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _urlopen(req, timeout=0):
+        seen.append(
+            {
+                "query": json.loads(req.data.decode("utf-8"))["query"],
+                "variables": json.loads(req.data.decode("utf-8"))["variables"],
+                "headers": dict(req.headers),
+            }
+        )
+        return _Resp(bodies[min(len(seen) - 1, len(bodies) - 1)])
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
+    return seen
+
+
+def test_classify_separates_a_denied_field_from_a_wrong_field_name(guard):
+    assert guard._classify({"errors": [{"message": "Not Authorized"}]})[0] == "DENIED"
+    assert (
+        guard._classify(
+            {"errors": [{"message": 'Cannot query field "source" on type "X"'}]}
+        )[0]
+        == "SCHEMA"
+    )
+    assert guard._classify({"errors": [{"message": "upstream exploded"}]})[0] == "ERROR"
+    assert guard._classify({"data": {"project": {"name": "skipp-algo"}}})[0] == "OK"
+
+
+def test_probe_asks_every_candidate_with_every_credential_it_has(guard, monkeypatch):
+    monkeypatch.setenv("RAILWAY_TOKEN", "proj-tok")
+    seen = _probe_env(guard, monkeypatch, [{"errors": [{"message": "Not Authorized"}]}])
+
+    assert guard.main(["--probe"]) == 0
+
+    assert len(seen) == 2 * len(guard._PROBE_QUERIES)
+    # Both header schemes were exercised — a probe that silently sent Bearer for
+    # the project token would measure the header bug, not the permission.
+    schemes = {tuple(sorted(k.lower() for k in call["headers"])) for call in seen}
+    assert any("authorization" in s for s in schemes)
+    assert any("project-access-token" in s for s in schemes)
+
+
+def test_probe_reports_each_candidate_and_never_prints_the_token(
+    guard, monkeypatch, capsys
+):
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "super-secret-token")
+    monkeypatch.delenv("RAILWAY_TOKEN", raising=False)
+    _probe_env(guard, monkeypatch, [{"data": {"serviceInstance": {"source": {}}}}])
+
+    assert guard.main(["--probe"]) == 0
+
+    out = capsys.readouterr().out
+    for name, _query, _needed in guard._PROBE_QUERIES:
+        assert name in out
+    assert "super-secret-token" not in out
+    assert guard._credential_fingerprint("super-secret-token") in out
+    assert "RAILWAY_TOKEN: not set — skipped" in out
+
+
+def test_probe_never_asserts_so_it_cannot_redden_the_daily_guard(guard, monkeypatch):
+    """A measurement that can fail the guard would not get run at all."""
+
+    def _boom(*a, **k):
+        raise AssertionError("probe mode must not run the assert path")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _boom)
+    _probe_env(guard, monkeypatch, [{"errors": [{"message": "Not Authorized"}]}])
+    assert guard.main(["--probe"]) == 0
+
+
+def test_a_project_token_alone_still_skips_rather_than_asserting(guard, monkeypatch):
+    """RAILWAY_TOKEN reaches the step's env for the probe. The assert path must
+    not silently adopt it: project tokens are measured to be denied
+    deploymentTriggers (#4345), so adopting one would turn a SKIP into a red."""
+    monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
+    monkeypatch.setenv("RAILWAY_TOKEN", "proj-tok")
+
+    def _boom(*a, **k):
+        raise AssertionError("must not query Railway with the project token")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _boom)
+    assert guard.main([]) == 0
+
+
+def test_guard_workflow_can_dispatch_the_probe():
+    wf = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "live-overlay-deploy-trigger-guard.yml"
+    )
+    text = wf.read_text(encoding="utf-8")
+    assert "probe_credentials:" in text
+    assert "--probe" in text
+    # The scheduled run must keep asserting: an input that defaults to probing
+    # would replace the daily guard with a daily measurement.
+    assert "default: false" in text
