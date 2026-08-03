@@ -316,11 +316,14 @@ def _raw_opra_trades(
     sizes: list[float],
     prices: list[float],
     sides: list[str],
+    option_types: list[str] | None = None,
 ) -> pd.DataFrame:
     """A raw OPRA ``trades`` frame already mapped to the underlying.
 
     One row per option print with epoch-second ``timestamp``, ``size``
-    (contracts), ``price`` (per-contract premium) and ``side`` (A/B/N).
+    (contracts), ``price`` (per-contract premium), ``side`` (A/B/N) and
+    ``option_type`` (C/P/""). Defaults to all-calls so aggressor-focused tests
+    keep their arithmetic; put/unknown behavior gets its own explicit frames.
     """
     return pd.DataFrame(
         {
@@ -328,6 +331,7 @@ def _raw_opra_trades(
             "size": sizes,
             "price": prices,
             "side": sides,
+            "option_type": option_types if option_types is not None else ["C"] * len(offsets),
         }
     )
 
@@ -343,9 +347,19 @@ def test_normalize_opra_trades_frame_from_datetime_index() -> None:
 
     out = normalize_opra_trades_frame(raw, underlying="aapl")
 
-    assert list(out.columns) == ["timestamp", "price", "size", "side", "underlying"]
+    assert list(out.columns) == [
+        "timestamp",
+        "price",
+        "size",
+        "side",
+        "option_type",
+        "underlying",
+    ]
     assert out["timestamp"].tolist() == [_T0, _T0 + 60, _T0 + 120]
     assert out["side"].tolist() == ["A", "B", "N"]  # upper-cased Databento enum
+    # No OSI ``symbol`` column in the raw frame -> option type unknown ("")
+    # on every row (the aggregator then keeps these prints unsigned).
+    assert out["option_type"].tolist() == ["", "", ""]
     assert out["size"].dtype == np.float64
     assert (out["underlying"] == "AAPL").all()  # parent symbology stamp
 
@@ -399,19 +413,30 @@ def test_normalize_opra_trades_frame_drops_unpriced_rows() -> None:
 
 
 def test_normalize_opra_trades_frame_feeds_aggregation() -> None:
-    """The normaliser output is consumed verbatim by the aggregator."""
+    """The normaliser output is consumed verbatim by the aggregator.
+
+    Both prints are aggressive BUYS (side A); the sign difference comes purely
+    from the contract direction parsed off the OSI symbol: the bought call is
+    bullish (+2000), the bought put is bearish (-1200).
+    """
     index = pd.to_datetime(
         [(_T0 + i * 60) * 1_000_000_000 for i in range(2)], utc=True
     )
     raw = pd.DataFrame(
-        {"price": [2.0, 3.0], "size": [10, 4], "side": ["A", "B"]},
+        {
+            "price": [2.0, 3.0],
+            "size": [10, 4],
+            "side": ["A", "A"],
+            "symbol": ["AAPL  260821C00190000", "AAPL  260821P00185000"],
+        },
         index=pd.DatetimeIndex(index, name="ts_event"),
     )
 
     normalized = normalize_opra_trades_frame(raw, underlying="AAPL")
+    assert normalized["option_type"].tolist() == ["C", "P"]
     agg = aggregate_signed_uoa_notional(normalized, "15m")
 
-    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # +2000 - 1200
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
 
 
@@ -423,13 +448,16 @@ def _raw_opra_tcbbo(
     asks: list[float],
     *,
     raw_sides: list[str] | None = None,
+    symbols: list[str] | None = None,
 ) -> pd.DataFrame:
     """A raw OPRA ``tcbbo`` frame: trade price + consolidated NBBO
-    (``bid_px_00``/``ask_px_00``).
+    (``bid_px_00``/``ask_px_00``) + the mapped OSI ``symbol``.
 
     The raw ``side`` defaults to ``"N"`` for every row to mirror the live OPRA
     tape (no reliable aggressor flag), proving the normaliser reconstructs the
-    aggressor from the quote rule rather than trusting the field.
+    aggressor from the quote rule rather than trusting the field. ``symbol``
+    defaults to all-call OSI symbols (the live ``to_df()`` mapping always
+    attaches one); pass put symbols to exercise the direction sign.
     """
     n = len(offsets)
     index = pd.to_datetime([(_T0 + o) * 1_000_000_000 for o in offsets], utc=True)
@@ -440,6 +468,7 @@ def _raw_opra_tcbbo(
             "side": raw_sides if raw_sides is not None else ["N"] * n,
             "bid_px_00": bids,
             "ask_px_00": asks,
+            "symbol": symbols if symbols is not None else ["AAPL  260821C00190000"] * n,
         },
         index=pd.DatetimeIndex(index, name="ts_event"),
     )
@@ -514,9 +543,10 @@ def test_normalize_opra_tcbbo_quote_rule_overrides_raw_side() -> None:
 
 
 def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
-    # Three OPRA prints in one 15m window. OPRA convention is INVERSE of equity:
-    #   A (ask-lift) = bullish (+): size 10 * price 2 * 100 = +2000
-    #   B (bid-hit)  = bearish (-): size  4 * price 3 * 100 = -1200
+    # Three OPRA CALL prints in one 15m window. OPRA convention is INVERSE of
+    # equity:
+    #   A (ask-lift) = call bought = bullish (+): size 10 * price 2 * 100 = +2000
+    #   B (bid-hit)  = call sold   = bearish (-): size  4 * price 3 * 100 = -1200
     #   N (cross)    = unsigned (0 signed), still counted: size 7 * price 1 * 100 = 700 abs
     raw = _raw_opra_trades([0, 60, 100], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
 
@@ -539,6 +569,88 @@ def test_aggregate_signed_uoa_notional_uint32_size_no_underflow() -> None:
 
     assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0  # 2000 + 1200
+
+
+def test_aggregate_signed_uoa_notional_put_flow_signs_economic() -> None:
+    # The call/put blind spot (fixed 2026-08-04): the sign must be aggressor x
+    # contract direction, not aggressor alone. Two PUT prints:
+    #   A (ask-lift) on a put = put BOUGHT = bearish (-): 10 * 2 * 100 = -2000
+    #   B (bid-hit)  on a put = put SOLD   = bullish (+):  4 * 3 * 100 = +1200
+    raw = _raw_opra_trades(
+        [0, 60], [10.0, 4.0], [2.0, 3.0], ["A", "B"], option_types=["P", "P"]
+    )
+
+    agg = aggregate_signed_uoa_notional(raw, "15m")
+
+    assert float(agg["uoa_signed_notional"].iloc[0]) == -800.0  # -2000 + 1200
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0  # magnitude unaffected
+
+
+def test_aggregate_signed_uoa_notional_unknown_option_type_stays_unsigned() -> None:
+    # A print whose contract direction is unknown ("" value or the column
+    # missing entirely) contributes 0 to the signed sum -- assuming "call"
+    # would silently restore the blind spot -- but stays in abs + count.
+    with_blank = _raw_opra_trades(
+        [0, 60], [10.0, 4.0], [2.0, 3.0], ["A", "A"], option_types=["", "C"]
+    )
+    agg = aggregate_signed_uoa_notional(with_blank, "15m")
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 1200.0  # only the call
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
+    assert int(agg["uoa_trade_count"].iloc[0]) == 2
+
+    without_column = _raw_opra_trades([0], [10.0], [2.0], ["A"]).drop(
+        columns=["option_type"]
+    )
+    agg = aggregate_signed_uoa_notional(without_column, "15m")
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 0.0
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 2000.0
+
+
+def test_normalize_opra_frame_parses_option_type_from_osi_symbol() -> None:
+    # Real OSI shapes from the live parent-symbology mapping (6-char padded
+    # root + yymmdd + C/P + 8 strike digits); a non-OSI value degrades to ""
+    # (unknown -> unsigned) instead of raising or guessing.
+    raw = pd.DataFrame(
+        {
+            "ts_event": pd.to_datetime(
+                [(_T0 + o) * 1_000_000_000 for o in (0, 60, 120)], utc=True
+            ),
+            "price": [2.0, 3.0, 1.0],
+            "size": [1, 2, 3],
+            "side": ["A", "B", "N"],
+            "symbol": [
+                "SPY   260804C00757000",
+                "SPY   260803P00748000",
+                "not-an-osi-symbol",
+            ],
+        }
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="SPY")
+
+    assert out["option_type"].tolist() == ["C", "P", ""]
+
+
+def test_normalize_opra_tcbbo_put_buy_counts_bearish_end_to_end() -> None:
+    # End-to-end through the live path (quote-rule aggressor + OSI parse): an
+    # ask-lifting print on a PUT must come out bearish. Before the 2026-08-04
+    # fix this exact frame aggregated to +2000 (counted as bullish).
+    raw = _raw_opra_tcbbo(
+        offsets=[0],
+        sizes=[10.0],
+        prices=[2.0],  # at the ask -> aggressive buyer (A)
+        bids=[1.8],
+        asks=[2.0],
+        symbols=["SPY   260803P00748000"],
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="SPY")
+    assert out["side"].tolist() == ["A"]
+    assert out["option_type"].tolist() == ["P"]
+
+    agg = aggregate_signed_uoa_notional(out, "15m")
+    assert float(agg["uoa_signed_notional"].iloc[0]) == -2000.0
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 2000.0
 
 
 def test_aggregate_signed_uoa_notional_empty_input() -> None:

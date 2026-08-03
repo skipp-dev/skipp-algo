@@ -16,24 +16,31 @@ Over a window it is the **signed options-flow imbalance**
 where, per bar, the producer embeds
 
   * ``uoa_signed_notional`` = ``sum`` over the bar's OPRA prints of
-    ``(+1 if side == 'A' else -1 if side == 'B' else 0) * price * size * 100``
-    (the OCC contract multiplier), and
+    ``aggressor_sign * direction_sign * price * size * 100`` (the OCC contract
+    multiplier), with ``aggressor_sign`` = ``+1`` for side ``A`` (buyer), ``-1``
+    for ``B`` (seller), ``0`` for ``N``, and ``direction_sign`` = ``+1`` for
+    calls, ``-1`` for puts, ``0`` when the option type is unknown, and
   * ``uoa_abs_notional`` = ``sum`` of ``price * size * 100`` over **all** the
     bar's prints (the total premium notional that changed hands).
 
 Note the OPRA aggressor convention is the **inverse** of the equity tape used by
 the ADR-0016 ``signed_volume`` features: on options ``A`` (trade hit the ask) is
-the aggressive **buyer** -> bullish (+), and ``B`` (hit the bid) is the
-aggressive **seller** -> bearish (-); ``N`` (cross / unknown) is unsigned. NB the
-letters are REDEFINED here by the quote rule: this producer OVERWRITES ``side``
-(raw Databento side -- A=sell aggressor, #3355 -- is never used for signing), so
-economically + = buying either way. See ``_quote_rule_opra_aggressor``.
+the aggressive **buyer**, and ``B`` (hit the bid) is the aggressive **seller**;
+``N`` (cross / unknown) is unsigned. NB the letters are REDEFINED here by the
+quote rule: this producer OVERWRITES ``side`` (raw Databento side -- A=sell
+aggressor, #3355 -- is never used for signing), so economically + = buying
+either way. See ``_quote_rule_opra_aggressor``.
+
+The economic sign folds in the **contract direction** (2026-08-04; before that
+the sign was aggressor-only and an aggressively bought put counted as bullish
+flow): bought calls and sold puts are bullish (+), bought puts and sold calls
+are bearish (-), unknown option type is honest-unsigned.
 
 Unlike order-flow *imbalance* (``ofi_imbalance_at``), which takes the absolute
 value because magnitude one-sidedness is its question, this feature **keeps the
 sign**: the whole thesis of options flow is *direction* — are the big premium
-prints leaning bullish or bearish — so ``+1`` is fully ask-lifting call/put
-premium one way and ``-1`` the other.
+prints leaning bullish or bearish — so ``+1`` is a window whose premium is
+fully bullish-positioned (calls bought / puts sold) and ``-1`` the opposite.
 
 Options do not print on every bar (especially out-of-the-money strikes), so the
 window is **gap-tolerant**: a bar with no embedded UOA keys contributed no flow

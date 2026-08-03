@@ -219,3 +219,24 @@ adapter remains audit-complete. Neither feeds the score or the gate.
 - **A `regime_conditions_resolution` that flips sign between labels is noise.**
   The pre-registered rule (only `candidate_lifts_resolution` unlocks) is exactly
   what stops a thin, sign-unstable regime split from being mistaken for an edge.
+
+## 8. Addendum 2026-08-04 — sign definition corrected (call/put), NULL verdict predates it
+
+The producer sign used for every A/B in this note was **aggressor-only**
+(`A` = +, `B` = −, regardless of contract type), i.e. **call/put-blind**: an
+aggressively **bought put** counted as *bullish* premium. That was a documented
+by-construction limitation of the recorded-only feature (shadow-tier deep
+review 2026-07-25), fixed on 2026-08-04: the economic sign is now
+**aggressor × contract direction** (bought calls / sold puts = +, bought puts /
+sold calls = −; unknown option type stays unsigned). The option type is parsed
+from the OSI `symbol` the parent-symbology mapping attaches to every `tcbbo`
+print (measured 2026-08-04: 685/685 records of a 10 s SPY probe parse as C/P,
+354 C / 331 P), so no `definition` join was added.
+
+Consequence for this note's verdict: the "clean, measurable NULL" of §4 was
+measured under the old sign, where opposing call and put flow **net against
+each other inside `uoa_signed_notional`** — the NULL therefore does not carry
+over to the corrected feature. `signed_uoa_notional` remains recorded-only and
+un-promoted; **any future promotion decision requires a fresh pre-registered
+A/B on data produced with the corrected sign**, not a reuse of the §4 result in
+either direction. The dated §1–§7 content above is preserved as measured.
