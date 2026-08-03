@@ -124,6 +124,24 @@ Constraints that must hold for the allowance to remain valid:
   `bot/live-tradingview-bindings` cache branch. The workflow fetches
   the current tip and uses an explicit lease; the branch remains a pure
   machine-generated cache cursor consumed by the live-overlay daemon.
+* `smc-r4-context-readback.yml` (added 2026-08-03) became a SECOND producer
+  on `bot/live-tradingview-bindings`, publishing its own R4 rebind snapshot
+  to `artifacts/monitoring/latest/tradingview_r4_context_bindings.json`
+  alongside `tv-save-consumer-source.yml`'s `tradingview_consumer_bindings.json`
+  in the same directory. This is the constraint #5 case: a bare `git add -f`
+  of only its own file, committed on top of a fresh checkout (which does not
+  carry that bot-branch-only directory at all), would silently delete the
+  other producer's file the moment the commit became the new tip. Its
+  publish step fetches first, seeds `artifacts/monitoring/latest/` from the
+  fetched tip (`git checkout <tip-sha> -- artifacts/monitoring/latest`)
+  before adding its own file, then stages the whole directory — replacing
+  only its own path while carrying the sibling producer's file forward.
+  `tv-save-consumer-source.yml` was not modified to seed symmetrically (it
+  predates having a second producer on this branch and is intentionally
+  left as the reference implementation for the single-producer case
+  elsewhere in this ADR); the residual asymmetric risk — that workflow's
+  next run can still overwrite the R4 path — is accepted for now and noted
+  in the fix's PR description rather than silently left undocumented.
 * The same pattern is applied outside CI by
   `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has
