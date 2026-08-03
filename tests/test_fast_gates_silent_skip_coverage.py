@@ -877,9 +877,11 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # launch no browser and each finished green in ~330ms when run locally on
 # 2026-08-03 — they are exempt for history, not for a technical obstacle, and
 # wiring them is an open question for a follow-up rather than a claim made
-# here. (The converse also exists and is already documented in the workflow:
-# tv_chart_error_probe.test.ts does launch a real headless Chromium and runs
-# in the hermetic step anyway.)
+# here. (The converse also exists: tv_chart_error_probe.test.ts does launch a
+# real headless Chromium and runs in the hermetic step anyway. Verified here by
+# reading the file, not by pointing at the workflow's own comment — that
+# comment is corrected in a separate PR, and a cross-reference into a change
+# that can be reverted on its own would go stale the moment it is.)
 #
 # Counts, re-derived 2026-08-03: 55 *.test.ts total = 42 run (1 + 1 + 40
 # across the three `npx tsx --test` steps) + 13 exempt.
