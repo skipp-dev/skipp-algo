@@ -299,8 +299,19 @@ def evaluate(
             reasons.append(f"{prefix}_brier_does_not_beat_baseline")
         if values["ece"] > float(shadow_policy["max_ece"]):
             reasons.append(f"{prefix}_ece_above_maximum")
-        if values["average_precision"] < float(shadow_policy["min_average_precision"]):
-            reasons.append(f"{prefix}_average_precision_below_minimum")
+        # Policy v2 (2026-08-03): the AP floor is lift-based — min_average_
+        # precision_lift times the horizon's own base rate over its SCORED
+        # rows (AP is computed over exactly those rows). Capped at 1.0 because
+        # lift is bounded by 1/base_rate: at base rates above 1/lift a fixed
+        # multiple would be unattainable by construction, so the floor
+        # degrades to "perfect ranking" instead of "impossible".
+        horizon_base_rate = values["positive_rows"] / values["scored_rows"]
+        ap_floor = min(
+            1.0,
+            float(shadow_policy["min_average_precision_lift"]) * horizon_base_rate,
+        )
+        if values["average_precision"] < ap_floor:
+            reasons.append(f"{prefix}_average_precision_lift_below_minimum")
 
     passed = not reasons
     flat_metrics = {

@@ -16,7 +16,7 @@ from scripts.smc_atomic_write import atomic_write_json
 
 DEFAULT_MODEL_NAME = "skipp-pre-a0"
 DEFAULT_ALIAS = "candidate"
-DEFAULT_ARTIFACT_ID = "71831770afe43bdd424aa7ab"
+DEFAULT_ARTIFACT_ID = "de97b74e6c6f645a513ece01"
 DEFAULT_RUNTIME_CONTRACT = "local-json-v1"
 
 
