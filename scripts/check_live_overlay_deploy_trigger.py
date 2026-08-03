@@ -58,9 +58,11 @@ import urllib.error
 import urllib.request
 
 # Matches the railway_metrics bridge's proven-in-production endpoint. Overridable
-# for tests / a future endpoint move via RAILWAY_GRAPHQL_ENDPOINT.
-_GRAPHQL_ENDPOINT = os.environ.get(
-    "RAILWAY_GRAPHQL_ENDPOINT", "https://backboard.railway.com/graphql/v2"
+# for tests / a future endpoint move via RAILWAY_GRAPHQL_ENDPOINT. `or`, not a
+# get() default, for the same reason as service_id below: an env var mapped to a
+# missing Actions secret arrives as "", which a two-argument default accepts.
+_GRAPHQL_ENDPOINT = (
+    os.environ.get("RAILWAY_GRAPHQL_ENDPOINT") or "https://backboard.railway.com/graphql/v2"
 )
 # Production live_overlay_daemon service (skipp-dev's Projects / skipp-algo).
 _DEFAULT_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
@@ -439,7 +441,13 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("RAILWAY_API_TOKEN")
     project_id = os.environ.get("RAILWAY_PROJECT_ID")
     environment_id = os.environ.get("RAILWAY_ENVIRONMENT_ID")
-    service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID", _DEFAULT_SERVICE_ID)
+    # `or`, not a get() default. GitHub Actions sets an env var mapped to a
+    # MISSING secret to the empty string, so the two-argument default never
+    # applied and this guard asked Railway about service "" — invisible for as
+    # long as deploymentTriggers answered "Not Authorized" first, and surfaced
+    # the moment the readable fallback had to locate the service (run
+    # 30845071629: "service  has no instance ... among the project's 10").
+    service_id = os.environ.get("RAILWAY_LIVE_OVERLAY_SERVICE_ID") or _DEFAULT_SERVICE_ID
 
     if "--probe" in (sys.argv[1:] if argv is None else argv):
         if not (project_id and environment_id):

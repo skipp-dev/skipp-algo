@@ -672,3 +672,40 @@ def test_a_readable_deployment_triggers_still_wins(guard, monkeypatch):
     monkeypatch.setattr(guard, "_fetch_triggers", lambda *a, **k: [])
     monkeypatch.setattr(guard, "_fetch_service_source", _boom)
     assert guard.main() == 0
+
+
+def test_an_empty_service_id_secret_falls_back_to_the_production_default(
+    guard, monkeypatch
+):
+    """GitHub maps a MISSING secret to "" — not to an absent env var.
+
+    So `os.environ.get(name, default)` never returned the default, and the guard
+    asked Railway about service "". It stayed invisible while deploymentTriggers
+    answered "Not Authorized" before the id could matter, and surfaced the moment
+    the readable fallback had to locate the service (run 30845071629: "service
+    has no instance in environment *** among the project's 10 services").
+    """
+    monkeypatch.setenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID", "")
+    seen: dict = {}
+
+    def _capture(token, project_id, environment_id, service_id, *a, **k):
+        seen["service_id"] = service_id
+        return []
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
+    assert guard.main() == 0
+    assert seen["service_id"] == guard._DEFAULT_SERVICE_ID
+
+
+def test_an_explicit_service_id_secret_still_wins(guard, monkeypatch):
+    """The override must keep working — the fix is about "" only."""
+    monkeypatch.setenv("RAILWAY_LIVE_OVERLAY_SERVICE_ID", "some-other-service")
+    seen: dict = {}
+
+    def _capture(token, project_id, environment_id, service_id, *a, **k):
+        seen["service_id"] = service_id
+        return []
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _capture)
+    assert guard.main() == 0
+    assert seen["service_id"] == "some-other-service"
