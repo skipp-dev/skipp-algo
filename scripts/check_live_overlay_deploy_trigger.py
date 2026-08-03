@@ -38,6 +38,7 @@ no-ops without its Railway secret: an unconfigured guard must not false-fail.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -136,6 +137,26 @@ def _fetch_triggers(
 _PROJECT_VISIBILITY_QUERY = "query($projectId: String!) { project(id: $projectId) { name } }"
 
 
+def _credential_fingerprint(token: str) -> str:
+    """A comparable, non-reversible label for the credential the runner received.
+
+    Measured 2026-08-03: the operator's workspace token answers
+    ``deploymentTriggers`` from his machine and is refused from the runner --
+    same query, same variables, same header, allegedly the same secret. That
+    leaves exactly two worlds, and no log line could tell them apart: the
+    runner receives a DIFFERENT value, or it receives the same one and Railway
+    treats the caller differently.
+
+    So publish something comparable. sha256 truncated to 8 hex chars is not
+    reversible and does not narrow a brute-force search in any useful way,
+    while the operator can run
+    ``printf '%s' "$TOKEN" | shasum -a 256 | cut -c1-8`` and compare directly.
+    Length is included because the historical failure was whitespace.
+    """
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:8]
+    return f"len={len(token)} sha256[:8]={digest}"
+
+
 def _diagnose_account_token(token: str, project_id: str, timeout: float = 15.0) -> str:
     """Say which fault Railway's bare "Not Authorized" is hiding.
 
@@ -222,6 +243,12 @@ def main() -> int:
         # answer next to the failure instead of leaving it to the next round.
         print(
             f"DIAGNOSIS: {_diagnose_account_token(token, project_id)}",
+            file=sys.stderr,
+        )
+        # Which credential arrived here, comparably and without revealing it.
+        print(
+            f"CREDENTIAL: {_credential_fingerprint(token)} "
+            "(compare locally: printf '%s' \"$TOKEN\" | shasum -a 256 | cut -c1-8)",
             file=sys.stderr,
         )
         return 2
