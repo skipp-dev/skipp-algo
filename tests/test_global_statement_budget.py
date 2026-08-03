@@ -245,19 +245,19 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # _parse_history_lines shifted this anchor to 853.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 857 -> 860.
-        ("services/live_overlay_daemon/compute.py", 860, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
+        ("services/live_overlay_daemon/compute.py", 869, ("_news_index", "_news_index_built_at", "_news_index_cache_key")),
         # 2026-06-23 (feat/grafana-trading-signals): realtime trading-signals
         # snapshot loader mirrors the news snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 473 -> 476.
-        ("services/live_overlay_daemon/compute.py", 476, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 485, ("_signals_cache", "_signals_checked_at", "_signals_loaded_at")),
         # 2026-06-23 (feat/grafana-tv-credential-age): credential-health report
         # loader mirrors the same snapshot caching pattern.
         # 2026-06-26 (PR #2962): shifted by producer client code.
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted this anchor 560 -> 563.
-        ("services/live_overlay_daemon/compute.py", 563, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 572, ("_tradingview_credential_cache", "_tradingview_credential_checked_at", "_tradingview_credential_loaded_at")),
         # 2026-06-23 (feat/grafana-experiment-timeline): daily experiment rollup
         # + per-day history loaders mirror the same snapshot caching pattern.
         # 2026-06-24 (feat/live-overlay-credential-health): +5 lines for
@@ -270,8 +270,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-19 (mesh semantic-contract docs): explicit unknown event
         # fields added above the cache loaders shifted these anchors 720/768
         # -> 723/771.
-        ("services/live_overlay_daemon/compute.py", 723, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
-        ("services/live_overlay_daemon/compute.py", 771, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 732, ("_experiment_cache", "_experiment_checked_at", "_experiment_loaded_at")),
+        ("services/live_overlay_daemon/compute.py", 780, ("_experiment_history_cache", "_experiment_history_checked_at", "_experiment_history_loaded_at")),
         # 2026-06-21 (provider/bridge + queue backpressure follow-ups):
         # feed.py gained additional helper/config blocks, shifting global
         # statements to 362/420/496.
