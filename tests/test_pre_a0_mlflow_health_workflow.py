@@ -19,6 +19,25 @@ def test_health_workflow_is_read_only_scheduled_and_fail_loud() -> None:
     assert "continue-on-error" not in text
 
 
+def test_health_workflow_expected_artifact_id_matches_the_script_default() -> None:
+    """Anti-drift pin between the two places the artifact id is written.
+
+    2026-08-03: the retrain PR (#4358) repinned DEFAULT_ARTIFACT_ID in the
+    script and the governance bundle but missed the workflow's hard-coded
+    --expected-artifact-id — CI then reported tag_mismatch against a live,
+    correct MLflow registration while the local probe (using the script
+    default) said healthy. Two writers, one value: pin them together.
+    """
+    from scripts.check_pre_a0_mlflow_health import DEFAULT_ARTIFACT_ID
+
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert f"--expected-artifact-id {DEFAULT_ARTIFACT_ID}" in text, (
+        "workflow --expected-artifact-id disagrees with "
+        "scripts/check_pre_a0_mlflow_health.DEFAULT_ARTIFACT_ID — update both "
+        "in the same PR (the daily retrain job seds exactly these two files)"
+    )
+
+
 def test_health_workflow_uses_pinned_actions_and_dedicated_secrets() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6" in text
