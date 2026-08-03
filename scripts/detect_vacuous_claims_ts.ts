@@ -174,16 +174,44 @@ const classify = (
     return null;
   }
   if (ts.isIdentifier(node)) return bindings.resolve(node.text, at) ?? null;
+  // Only a dotted name that `collectBindings` actually saw being initialised
+  // with something emptiable resolves here. Classifying every property
+  // access would report on config literals whose contents the analyzer has
+  // never seen — `CONFIG.targets` is not evidence of anything.
+  if (ts.isPropertyAccessExpression(node)) {
+    return bindings.resolve(render(node, source), at) ?? null;
+  }
   return null;
 };
 
-/** Collect `const xs = <emptiable>` bindings, keyed by their own block. */
+/**
+ * Collect `const xs = <emptiable>` bindings, keyed by their own block.
+ *
+ * An object literal initialiser also binds its properties by dotted name:
+ * `const recording: Recording = { locatorCalls: [], filterCalls: [] }` is
+ * the same recording idiom as a bare `const calls = []`, one indirection
+ * further, and `tv_selectors_strict_mode.test.ts` loops over
+ * `recording.filterCalls` with nothing proving it non-empty. Only these
+ * bindings make a property access classifiable — see :func:`classify`.
+ */
 const collectBindings = (source: ts.SourceFile): ScopeChain<string> => {
   const bindings = new ScopeChain<string>();
   const visit = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
       const kind = classify(node.initializer, source, bindings, node);
       if (kind !== null) bindings.add(containerOf(node), node.name.text, `local ${kind}`);
+      if (ts.isObjectLiteralExpression(node.initializer)) {
+        for (const property of node.initializer.properties) {
+          if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(property.name)) continue;
+          const propertyKind = classify(property.initializer, source, bindings, node);
+          if (propertyKind === null) continue;
+          bindings.add(
+            containerOf(node),
+            `${node.name.text}.${property.name.text}`,
+            `local ${propertyKind}`,
+          );
+        }
+      }
     }
     ts.forEachChild(node, visit);
   };

@@ -83,6 +83,37 @@ test("an empty recording array is a claim", () => {
   assert.deepEqual(kinds(source), { calls: "local empty array literal" });
 });
 
+test("a recording object's array property is a claim", () => {
+  // The `recording` variant of the same idiom: one object holds several
+  // recording arrays and the fake page pushes into its properties.
+  const source = `
+    const recording: Recording = { locatorCalls: [], filterCalls: [], textCalls: [] };
+    for (const pattern of recording.filterCalls) { assert.ok(pattern.startsWith("^")); }
+  `;
+  assert.deepEqual(kinds(source), { "recording.filterCalls": "local empty array literal" });
+});
+
+test("a witness on a recording property clears that property only", () => {
+  const source = `
+    const recording: Recording = { locatorCalls: [], filterCalls: [], textCalls: [] };
+    assert.equal(recording.filterCalls.length, 3);
+    for (const pattern of recording.filterCalls) { assert.ok(pattern.startsWith("^")); }
+    for (const selector of recording.locatorCalls) { assert.ok(selector.includes("USER;")); }
+  `;
+  assert.deepEqual(kinds(source), { "recording.locatorCalls": "local empty array literal" });
+});
+
+test("an unbound property access is not a claim", () => {
+  // Bounded on purpose: only properties whose initialiser was seen to be
+  // emptiable bind. Widening to every property access would report on
+  // config literals the analyzer knows nothing about.
+  const source = `
+    for (const failure of result.failures) { assert.ok(failure.observed === null); }
+    for (const item of CONFIG.targets) { assert.ok(item.name); }
+  `;
+  assert.deepEqual(kinds(source), {});
+});
+
 test("assert.equal over .some compared to false is a claim", () => {
   const source = `
     const calls: string[] = [];
@@ -205,17 +236,56 @@ test("no unexempted vacuous claims in the TypeScript tests", () => {
   );
 });
 
-test("every TypeScript exemption still matches a claim", () => {
-  const { claims } = scanDir(TEST_DIR);
-  const keys = new Set(claims.map((claim) => claim.key));
-  const stale = Object.keys(TS_VACUITY_EXEMPTIONS).filter((key) => !keys.has(key)).sort();
-  assert.deepEqual(stale, [], `stale exemption(s): ${stale.join(", ")}`);
-});
+/**
+ * Waived keys that no longer match any detected claim.
+ *
+ * Extracted so the registry tests below and the fixtures that observe them
+ * run the *same* code. A fixture exercising a second copy of this logic
+ * would prove nothing about what the registry test actually calls.
+ */
+const staleExemptions = (
+  exemptions: Record<string, string>,
+  claimKeys: readonly string[],
+): string[] => {
+  const keys = new Set(claimKeys);
+  return Object.keys(exemptions)
+    .filter((key) => !keys.has(key))
+    .sort();
+};
 
-test("every TypeScript exemption carries a dated reason", () => {
-  const undated = Object.entries(TS_VACUITY_EXEMPTIONS)
+/** Waived keys whose reason is not a `YYYY-MM-DD: <something>` justification. */
+const undatedExemptions = (exemptions: Record<string, string>): string[] =>
+  Object.entries(exemptions)
     .filter(([, reason]) => !/^\d{4}-\d{2}-\d{2}: \S/.test(reason))
     .map(([key]) => key)
     .sort();
+
+test("every TypeScript exemption still matches a claim", () => {
+  const { claims } = scanDir(TEST_DIR);
+  const stale = staleExemptions(TS_VACUITY_EXEMPTIONS, claims.map((claim) => claim.key));
+  assert.deepEqual(stale, [], `stale exemption(s): ${stale.join(", ")}`);
+});
+
+test("the stale-exemption check names the waiver whose claim is gone", () => {
+  // Witness for the registry test above. TS_VACUITY_EXEMPTIONS is empty, so
+  // that test runs this predicate over no input at all and would stay green
+  // if the predicate stopped working — the very shape this file forbids.
+  assert.deepEqual(
+    staleExemptions(
+      { "a.test.ts::t::gone": "2026-08-03: x", "a.test.ts::t::live": "2026-08-03: x" },
+      ["a.test.ts::t::live"],
+    ),
+    ["a.test.ts::t::gone"],
+  );
+});
+
+test("every TypeScript exemption carries a dated reason", () => {
+  const undated = undatedExemptions(TS_VACUITY_EXEMPTIONS);
   assert.deepEqual(undated, [], `undated exemption(s): ${undated.join(", ")}`);
+});
+
+test("the dated-reason check accepts a dated waiver and rejects a bare one", () => {
+  // Witness for the registry test above, for the same reason.
+  assert.deepEqual(undatedExemptions({ "a.test.ts::t::i": "2026-08-03: proven by test X" }), []);
+  assert.deepEqual(undatedExemptions({ "a.test.ts::t::i": "because" }), ["a.test.ts::t::i"]);
 });
