@@ -10,6 +10,7 @@ Network is mocked: these pin the exit-code contract, not Railway connectivity.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import urllib.error
@@ -325,3 +326,88 @@ def test_guard_workflow_invokes_the_script():
     assert "scripts/check_live_overlay_deploy_trigger.py" in text
     assert "schedule:" in text  # runs on a cadence, not push
 
+
+
+def test_the_failure_fingerprints_the_credential_without_revealing_it(guard, monkeypatch, capsys):
+    """Same token, works locally, refused from the runner — name the value.
+
+    Measured 2026-08-03: the operator's workspace token answers
+    deploymentTriggers from his machine and is refused from the runner. Either
+    the runner receives a different value or it does not, and no log line could
+    say which. The fingerprint is comparable and non-reversible.
+    """
+    rc = _run_failing(guard, monkeypatch, {"data": {"project": {"name": "skipp-algo"}}})
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "CREDENTIAL: len=1 sha256[:8]=" in err
+
+    fingerprint = err.split("sha256[:8]=")[1].split()[0]
+    assert len(fingerprint) == 8
+    assert fingerprint == hashlib.sha256(b"t").hexdigest()[:8]
+
+    # The fixture's token is the single character "t". Asserting it is absent
+    # from a German-and-English sentence would pass on any string containing no
+    # "t" at all, so anchor on the line that carries the secret's derivative:
+    # the CREDENTIAL line must contain the length, the digest, and nothing else
+    # drawn from the token.
+    credential_line = next(line for line in err.splitlines() if line.startswith("CREDENTIAL:"))
+    assert credential_line == (
+        f"CREDENTIAL: len=1 sha256[:8]={fingerprint} "
+        "(compare locally: printf '%s' \"$TOKEN\" | shasum -a 256 | cut -c1-8)"
+    )
+
+
+def test_fingerprint_is_stable_and_differs_between_values(guard):
+    a = guard._credential_fingerprint("alpha")
+    b = guard._credential_fingerprint("beta")
+    assert a == guard._credential_fingerprint("alpha")
+    assert a != b
+    # Whitespace is the historical failure mode; it must change the fingerprint.
+    assert guard._credential_fingerprint("alpha") != guard._credential_fingerprint("alpha\n")
+
+
+def _project_payload(env_ids):
+    return {
+        "data": {
+            "project": {
+                "name": "skipp-algo",
+                "environments": {"edges": [{"node": {"id": i}} for i in env_ids]},
+            }
+        }
+    }
+
+
+def test_a_foreign_environment_id_is_named_before_the_token_is_blamed(guard, monkeypatch, capsys):
+    """deploymentTriggers takes an environment; the project probe does not.
+
+    So a correct token and a correct project id still produce "Not Authorized"
+    when RAILWAY_ENVIRONMENT_ID belongs to a different project — same message,
+    entirely different fix. The fixture's environment is "e"; the project here
+    reports other ids.
+    """
+    rc = _run_failing(guard, monkeypatch, _project_payload(["env-a", "env-b"]))
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "RAILWAY_ENVIRONMENT_ID is NOT one of this project's 2 environments" in err
+    # It must NOT reach for the token: both other inputs are proven good here.
+    assert "Escalate the token" not in err
+
+
+def test_a_member_environment_leaves_the_verdict_at_field_level(guard, monkeypatch, capsys):
+    rc = _run_failing(guard, monkeypatch, _project_payload(["e", "other"]))
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "RAILWAY_ENVIRONMENT_ID belongs to" in err
+    assert "refusal is field-level" in err
+
+
+def test_an_unlistable_environment_set_does_not_invent_a_verdict(guard, monkeypatch, capsys):
+    """No environments in the payload -> membership is unknown, not false.
+
+    Claiming the environment is foreign because the API did not enumerate it
+    would send the operator to re-set a secret that is fine.
+    """
+    rc = _run_failing(guard, monkeypatch, {"data": {"project": {"name": "skipp-algo"}}})
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "is NOT one of this project" not in err

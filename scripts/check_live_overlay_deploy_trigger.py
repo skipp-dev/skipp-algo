@@ -38,6 +38,7 @@ no-ops without its Railway secret: an unconfigured guard must not false-fail.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -133,10 +134,35 @@ def _fetch_triggers(
 # answers neither. The account token's failure is the informative one — it means
 # skipp-algo lives in a WORKSPACE, not in the personal account, so a workspace
 # token is the correct credential here and `me` is exactly the wrong question.
-_PROJECT_VISIBILITY_QUERY = "query($projectId: String!) { project(id: $projectId) { name } }"
+_PROJECT_VISIBILITY_QUERY = (
+    "query($projectId: String!) { project(id: $projectId) { name"
+    " environments { edges { node { id } } } } }"
+)
 
 
-def _diagnose_account_token(token: str, project_id: str, timeout: float = 15.0) -> str:
+def _credential_fingerprint(token: str) -> str:
+    """A comparable, non-reversible label for the credential the runner received.
+
+    Measured 2026-08-03: the operator's workspace token answers
+    ``deploymentTriggers`` from his machine and is refused from the runner --
+    same query, same variables, same header, allegedly the same secret. That
+    leaves exactly two worlds, and no log line could tell them apart: the
+    runner receives a DIFFERENT value, or it receives the same one and Railway
+    treats the caller differently.
+
+    So publish something comparable. sha256 truncated to 8 hex chars is not
+    reversible and does not narrow a brute-force search in any useful way,
+    while the operator can run
+    ``printf '%s' "$TOKEN" | shasum -a 256 | cut -c1-8`` and compare directly.
+    Length is included because the historical failure was whitespace.
+    """
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:8]
+    return f"len={len(token)} sha256[:8]={digest}"
+
+
+def _diagnose_account_token(
+    token: str, project_id: str, environment_id: str = "", timeout: float = 15.0
+) -> str:
     """Say which fault Railway's bare "Not Authorized" is hiding.
 
     ``deploymentTriggers`` answers the same line for a credential that cannot
@@ -181,10 +207,30 @@ def _diagnose_account_token(token: str, project_id: str, timeout: float = 15.0) 
             "account token does not reach it; project tokens cannot read "
             "deploymentTriggers either: #4345)"
         )
+    # The project resolved, so RAILWAY_PROJECT_ID and the credential are both
+    # right. deploymentTriggers takes an ENVIRONMENT too, and nothing above
+    # touches it — an environment id that belongs to some other project is
+    # answered with the same "Not Authorized", so check membership before
+    # blaming the token's permissions.
+    environments = {
+        (edge.get("node") or {}).get("id")
+        for edge in (
+            ((body.get("data") or {}).get("project") or {}).get("environments") or {}
+        ).get("edges")
+        or []
+    }
+    if environment_id and environments and environment_id not in environments:
+        return (
+            "RAILWAY_API_TOKEN and RAILWAY_PROJECT_ID are both correct — the project "
+            "resolves — but RAILWAY_ENVIRONMENT_ID is NOT one of this project's "
+            f"{len(environments)} environments, and Railway answers that with the same "
+            "'Not Authorized'. Re-read it from `railway status` and re-set the secret"
+        )
     return (
-        "RAILWAY_API_TOKEN CAN see the project — so the refusal is field-level: this "
-        "credential reaches the project but is denied deploymentTriggers. Escalate the "
-        "token's permissions or query a different field"
+        "RAILWAY_API_TOKEN CAN see the project and RAILWAY_ENVIRONMENT_ID belongs to "
+        "it — so the refusal is field-level: this credential reaches the project but "
+        "is denied deploymentTriggers. Escalate the token's permissions or query a "
+        "different field"
     )
 
 
@@ -221,7 +267,13 @@ def main() -> int:
         # `me`, which resolves against the token by itself, and print the
         # answer next to the failure instead of leaving it to the next round.
         print(
-            f"DIAGNOSIS: {_diagnose_account_token(token, project_id)}",
+            f"DIAGNOSIS: {_diagnose_account_token(token, project_id, environment_id)}",
+            file=sys.stderr,
+        )
+        # Which credential arrived here, comparably and without revealing it.
+        print(
+            f"CREDENTIAL: {_credential_fingerprint(token)} "
+            "(compare locally: printf '%s' \"$TOKEN\" | shasum -a 256 | cut -c1-8)",
             file=sys.stderr,
         )
         return 2
