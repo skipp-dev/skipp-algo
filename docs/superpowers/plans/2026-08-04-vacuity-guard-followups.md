@@ -255,7 +255,12 @@ Read each site. Apply exactly one verdict per site, and record the verdict in th
   ```
 - **sharpen** — the detector is wrong: add a fixture to `tests/test_detect_vacuous_claims.py` **first**, then narrow the branch. Never waive a detector bug.
 
-The two `parametrize` hits on `_FROZEN_ASSERT_COUNTS` / `_FROZEN_OPEN_COUNTS` need a look at how those module-level dicts are built: a dict literal that is populated by a loop at import time is a true claim (an empty argvalues collects **zero** tests, silently), whereas one populated from a literal source is a *sharpen* candidate. Decide from the source, not from the name.
+The two `parametrize` hits on `_FROZEN_ASSERT_COUNTS` / `_FROZEN_OPEN_COUNTS` need a look at how those module-level dicts are built. Two corrections to how this paragraph originally read, both measured on 2026-08-04 while executing the task:
+
+- **An empty `argvalues` does not silently collect zero tests.** `empty_parameter_set_mark` is unset in this repo, so pytest's default `skip` applies and the run emits `SKIPPED … got empty parameter set` — measured, four such skips in this one file. It is an **unrun check reported as a skip**, not a silent pass. That changes the reasoning you write down, not the verdict: an unrun check still proves nothing.
+- **These two are *declare*, not *sharpen*.** Both dicts are hand-maintained and provably never mutated (AST scan: no subscript assign, no `AugAssign`, no `append/add/update/extend`, no `global`) — but that makes them a population which is *permanently* empty, which is the stronger form of the condition, not a false positive. `pin_registry.toml` names exactly this as exemption shape 1, "a population that is intentionally empty today, pinned by a test that says so (the archive gate)", and already carries the structurally identical `_archived_surfaces()` entries. Narrowing the detector instead would encode the emptiness as permanent behaviour, so nothing re-audits it when the ledger fills again; a dated exemption goes stale-red through `test_every_exemption_still_matches_a_claim`.
+
+A dict genuinely populated by a loop at import time remains a true claim and must stay detected — do not add a module-scope filter to suppress the two above. Note also that the sibling parametrize sites over `sorted(_FROZEN_*.items())` (`:122`, `:213`) carry the identical emptiness and are **invisible** to the analyzer, because `.items()` is neither a discovery attribute nor a helper. Say so in the exemption reason rather than implying the analyzer sees the whole ledger; extending `.items()` handling is out of scope here and is recorded as a follow-up.
 
 - [ ] **Step 8: Verify the guard is green**
 
