@@ -149,14 +149,20 @@ def _module_helpers(tree: ast.Module) -> dict[str, str]:
     return helpers
 
 
-def _module_bindings(tree: ast.Module, helpers: dict[str, str]) -> dict[str, str]:
-    """Map module-level names to the kind of what they hold.
+def _bind_assignments(
+    stmts: Iterable[ast.AST], helpers: dict[str, str]
+) -> dict[str, str]:
+    """Map assignment targets in *stmts* to the kind of what they hold.
 
-    ``argvalues`` is evaluated at import time, so module scope — not test
-    scope — is what decides whether a parametrize set can be empty.
+    Shared by :func:`_module_bindings` and :func:`_local_bindings`: the
+    ``Assign``/``AnnAssign`` handling and the ``classify_iterable`` call are
+    identical between module scope and function scope — only which
+    statements get fed in (``tree.body`` vs. :func:`_walk_own`) and what the
+    result means differ. Keep that difference at the two named call sites,
+    not duplicated in this logic.
     """
     bindings: dict[str, str] = {}
-    for stmt in tree.body:
+    for stmt in stmts:
         if isinstance(stmt, ast.Assign):
             targets: list[ast.expr] = list(stmt.targets)
             value: ast.expr | None = stmt.value
@@ -176,16 +182,38 @@ def _module_bindings(tree: ast.Module, helpers: dict[str, str]) -> dict[str, str
     return bindings
 
 
+def _module_bindings(tree: ast.Module, helpers: dict[str, str]) -> dict[str, str]:
+    """Map module-level names to the kind of what they hold.
+
+    ``argvalues`` is evaluated at import time, so module scope — not test
+    scope — is what decides whether a parametrize set can be empty.
+    """
+    return _bind_assignments(tree.body, helpers)
+
+
 def _parametrize_argvalues(
-    func: ast.FunctionDef | ast.AsyncFunctionDef,
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
 ) -> Iterator[tuple[ast.expr, int]]:
-    """Yield ``(argvalues expression, lineno)`` for every parametrize decorator."""
-    for decorator in func.decorator_list:
+    """Yield ``(argvalues expression, lineno)`` for every parametrize decorator.
+
+    *node* is a function/method **or** a class: pytest applies a
+    class-level ``@pytest.mark.parametrize`` to every test method on that
+    class exactly as if each carried the decorator individually, so the
+    class's own ``decorator_list`` must be inspected too — see
+    :func:`scan_source`, which attributes a class-level hit to the class as
+    a single claim rather than to each method.
+    """
+    for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
             continue
         target = decorator.func
         if not (isinstance(target, ast.Attribute) and target.attr == "parametrize"):
             continue
+        # Only the positional ``argvalues`` form is recognised. The keyword
+        # form ``parametrize("x", argvalues=CASES)`` is deliberately
+        # unhandled: zero instances exist in tests/ today (verified by AST
+        # scan), and adding a second lookup path for a shape nobody uses
+        # would be speculative.
         if len(decorator.args) < 2:
             continue
         yield decorator.args[1], decorator.lineno
@@ -196,25 +224,7 @@ def _local_bindings(
     helpers: dict[str, str],
 ) -> dict[str, str]:
     """Map names assigned inside *func* to the kind of what they hold."""
-    bindings: dict[str, str] = {}
-    for stmt in _walk_own(func):
-        if isinstance(stmt, ast.Assign):
-            targets: list[ast.expr] = list(stmt.targets)
-            value: ast.expr | None = stmt.value
-        elif isinstance(stmt, ast.AnnAssign):
-            targets = [stmt.target]
-            value = stmt.value
-        else:
-            continue
-        if value is None:
-            continue
-        kind = classify_iterable(value, bindings, helpers)
-        if kind is None:
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name):
-                bindings[target.id] = f"local {kind}"
-    return bindings
+    return _bind_assignments(_walk_own(func), helpers)
 
 
 def _is_nonempty_length_check(op: ast.cmpop, right: ast.expr) -> bool:
@@ -403,6 +413,31 @@ def _render(source: str, node: ast.expr) -> str:
     return " ".join(segment.split())
 
 
+def _parametrize_claims(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
+    module_bindings: dict[str, str],
+    helpers: dict[str, str],
+    source: str,
+    path: str,
+) -> Iterator[VacuousClaim]:
+    """Yield a claim for every emptiable ``argvalues`` decorating *node*.
+
+    Shared between the function/method branch and the class branch of
+    :func:`scan_source`'s node loop so the two report identically.
+    """
+    for argvalues, lineno in _parametrize_argvalues(node):
+        kind = classify_iterable(argvalues, module_bindings, helpers)
+        if kind is None:
+            continue
+        yield VacuousClaim(
+            path=path,
+            lineno=lineno,
+            test=node.name,
+            iterable=_render(source, argvalues),
+            kind=f"parametrize {kind}",
+        )
+
+
 def scan_source(source: str, path: str) -> list[VacuousClaim]:
     """Return every vacuum-prone claim in *source*.
 
@@ -414,6 +449,15 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
     module_bindings = _module_bindings(tree, helpers)
     claims: list[VacuousClaim] = []
     for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            # A class-level ``@pytest.mark.parametrize`` applies to every
+            # method on the class; attribute one claim to the class itself
+            # (``test`` = class name) rather than duplicating it per method.
+            # This is also what fixes ``VacuousClaim.key`` for a later
+            # exemption registry: one entry waives the whole class, matching
+            # what a reviewer actually decided about.
+            claims.extend(_parametrize_claims(node, module_bindings, helpers, source, path))
+            continue
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         bindings = _local_bindings(node, helpers)
@@ -434,19 +478,7 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
                     kind=kind,
                 )
             )
-        for argvalues, lineno in _parametrize_argvalues(node):
-            kind = classify_iterable(argvalues, module_bindings, helpers)
-            if kind is None:
-                continue
-            claims.append(
-                VacuousClaim(
-                    path=path,
-                    lineno=lineno,
-                    test=node.name,
-                    iterable=_render(source, argvalues),
-                    kind=f"parametrize {kind}",
-                )
-            )
+        claims.extend(_parametrize_claims(node, module_bindings, helpers, source, path))
     return claims
 
 

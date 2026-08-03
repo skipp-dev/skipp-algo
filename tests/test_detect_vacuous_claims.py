@@ -409,3 +409,54 @@ def test_parametrize_over_a_filtered_module_constant_is_a_claim() -> None:
             assert case.llr > 0
     """
     assert _kinds(source) == {"_NK_CASES": "parametrize local filtered comprehension"}
+
+
+def test_class_decorated_parametrize_over_a_literal_is_not_a_claim() -> None:
+    """A class-level parametrize is as unemptiable as a function-level one.
+
+    ``tests/test_newsstack_retry_after_hygiene.py`` carries this exact
+    shape: ``TestParseRetryAfterSeconds`` decorated with a literal list of
+    module paths, applied to every method on the class.
+    """
+    source = """
+        @pytest.mark.parametrize("module_path", ["a.mod", "b.mod"])
+        class TestParseRetryAfterSeconds:
+            def test_accepts_integer_seconds_form(self, module_path):
+                assert module_path
+    """
+    assert _kinds(source) == {}
+
+
+def test_class_decorated_parametrize_over_a_discovery_call_is_a_claim() -> None:
+    """pytest applies a class-level parametrize to every method on it.
+
+    A guard blind to ``ast.ClassDef.decorator_list`` would never see this
+    shape at all -- reporting clean while never having looked.
+    """
+    source = """
+        @pytest.mark.parametrize("path", (REPO_ROOT / "specs").glob("*.json"))
+        class TestSpecs:
+            def test_one(self, path):
+                assert path.read_text()
+
+            def test_two(self, path):
+                assert path.exists()
+    """
+    assert _kinds(source) == {
+        '(REPO_ROOT / "specs").glob("*.json")': "parametrize discovery call"
+    }
+
+
+def test_class_decorated_parametrize_over_a_helper_is_a_claim() -> None:
+    source = """
+        def _iter_workflow_files():
+            return sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+        @pytest.mark.parametrize("path", _iter_workflow_files())
+        class TestWorkflows:
+            def test_one(self, path):
+                assert "permissions:" in path.read_text()
+    """
+    assert _kinds(source) == {
+        "_iter_workflow_files()": "parametrize helper returns discovery call"
+    }
