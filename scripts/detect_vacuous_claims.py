@@ -123,7 +123,7 @@ def classify_iterable(
                 return helpers[func.id]
             if func.id in _TRANSPARENT_CALLS and node.args:
                 return classify_iterable(source, node.args[0], bindings, helpers)
-            if func.id in _EMPTY_CONSTRUCTORS and not node.args:
+            if func.id in _EMPTY_CONSTRUCTORS and not node.args and not node.keywords:
                 return "empty literal"
         return None
     if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
@@ -223,44 +223,6 @@ def _bind_assignments(
     return bindings
 
 
-def _mutated_by_loop(stmts: Iterable[ast.stmt], name: str) -> bool:
-    """True when a ``for`` loop among *stmts* writes into *name*.
-
-    This is the one signal that separates the module-scope accumulator
-    idiom from a hand-maintained literal: ``_COUNTS = {}`` followed by a
-    loop that fills it from something discoverable can legitimately end up
-    empty at runtime, exactly like the local recording idiom. A bare empty
-    literal with no such loop anywhere in the module never changes once the
-    module is imported — its emptiness is a fact visible in the diff, not
-    an unobserved one, so it must not be flagged as a claim.
-
-    Both mutation shapes count: subscript assignment (``d[k] = v``) and the
-    mutating-method call (``xs.append(...)`` / ``.add`` / ``.update`` /
-    ``.extend``), since either can appear in the accumulator loop body.
-    """
-    for stmt in stmts:
-        if not isinstance(stmt, ast.For):
-            continue
-        for inner in ast.walk(stmt):
-            if isinstance(inner, ast.Assign):
-                for target in inner.targets:
-                    if (
-                        isinstance(target, ast.Subscript)
-                        and isinstance(target.value, ast.Name)
-                        and target.value.id == name
-                    ):
-                        return True
-            elif (
-                isinstance(inner, ast.Call)
-                and isinstance(inner.func, ast.Attribute)
-                and isinstance(inner.func.value, ast.Name)
-                and inner.func.value.id == name
-                and inner.func.attr in {"append", "add", "update", "extend"}
-            ):
-                return True
-    return False
-
-
 def _module_bindings(
     source: str, tree: ast.Module, helpers: dict[str, str]
 ) -> dict[str, str]:
@@ -268,20 +230,8 @@ def _module_bindings(
 
     ``argvalues`` is evaluated at import time, so module scope — not test
     scope — is what decides whether a parametrize set can be empty.
-
-    A bare empty collection literal is dropped again here unless
-    :func:`_mutated_by_loop` finds a loop that fills it — see that
-    function's docstring. This filter is scoped tightly to exactly the
-    ``"local empty literal"`` kind so it never touches the other bound
-    kinds (``"local discovery call"``, ``"local filtered comprehension"``,
-    …), whose emptiness genuinely is a runtime fact at module scope too.
     """
-    bindings = _bind_assignments(source, tree.body, helpers)
-    return {
-        name: kind
-        for name, kind in bindings.items()
-        if kind != "local empty literal" or _mutated_by_loop(tree.body, name)
-    }
+    return _bind_assignments(source, tree.body, helpers)
 
 
 def _parametrize_argvalues(

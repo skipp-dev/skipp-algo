@@ -822,59 +822,17 @@ def test_a_witness_clears_an_empty_literal_accumulator() -> None:
     assert _kinds(source) == {}
 
 
-def test_module_level_frozen_dict_literal_is_not_a_claim() -> None:
-    """A hand-maintained ledger dict is a compile-time fact, not a runtime one.
+def test_dict_with_keyword_args_is_not_a_claim() -> None:
+    """``dict(a=1)`` is not ``{}`` spelled as a call — it has content.
 
-    ``_FROZEN_ASSERT_COUNTS = {}`` in ``tests/test_assert_and_open_encoding_pin.py``
-    is never mutated anywhere in the module — its contents are exactly what
-    the source says, visible in any diff. Unlike ``calls = []`` inside a
-    test (the recording idiom), nothing here runs at import time that could
-    silently fail to populate it. Flagging it makes
-    ``@pytest.mark.parametrize("rel", sorted(_FROZEN_ASSERT_COUNTS))`` read
-    as an unobserved claim when it is really just today's value of a pin
-    that is reviewed by hand.
+    ``_EMPTY_CONSTRUCTORS`` only checked ``node.args``, so a keyword-only
+    call like ``dict(a=1)`` or ``dict(**other)`` had nothing in ``args`` and
+    misclassified as empty even though it plainly is not.
     """
     source = """
-        _FROZEN_COUNTS: dict[str, int] = {}
-
-        @pytest.mark.parametrize("rel", sorted(_FROZEN_COUNTS))
-        def test_files_exist(rel):
-            assert (ROOT / rel).is_file()
+        def test_records():
+            calls = dict(a=1)
+            for call in calls:
+                assert call
     """
     assert _kinds(source) == {}
-
-
-def test_module_level_dict_populated_by_import_time_loop_is_still_a_claim() -> None:
-    """The counterpart the sharpen above must not blind the analyzer to.
-
-    Here the dict starts as the same bare ``{}`` literal, but a ``for`` loop
-    at module scope fills it before the parametrize decorator reads it —
-    exactly the accumulator idiom, just at import time instead of test
-    time. If the loop's source discovers nothing, the dict stays empty and
-    the parametrize set silently collects zero cases; that is a real claim,
-    not a hand-maintained pin.
-    """
-    source = """
-        _COUNTS: dict[str, int] = {}
-        for p in ROOT.glob("*.py"):
-            _COUNTS[str(p)] = 1
-
-        @pytest.mark.parametrize("rel", sorted(_COUNTS))
-        def test_files_exist(rel):
-            assert (ROOT / rel).is_file()
-    """
-    assert _kinds(source) == {"sorted(_COUNTS)": "parametrize local empty literal"}
-
-
-def test_module_level_dict_populated_by_append_loop_is_still_a_claim() -> None:
-    """Same idiom, list-append form: ``xs.append(...)`` inside the loop."""
-    source = """
-        _NAMES: list[str] = []
-        for p in ROOT.glob("*.py"):
-            _NAMES.append(p.name)
-
-        @pytest.mark.parametrize("name", sorted(_NAMES))
-        def test_name_is_lower(name):
-            assert name.islower()
-    """
-    assert _kinds(source) == {"sorted(_NAMES)": "parametrize local empty literal"}
