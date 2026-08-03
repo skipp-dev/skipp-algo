@@ -255,6 +255,17 @@ jobs:
           # it will silently break the TV refresh again. (The fail-loud contract
           # forbids soft error overrides, so the exit code — not a swallowed
           # failure — is the gate; that is why every non-TV probe is skipped.)
+          # That prose rule went unenforced and went stale: PR #4333 (2026-08-03)
+          # added probe_composio_accounts without a --skip-composio here. This
+          # workflow uses Composio zero times (before this change `grep -ci
+          # composio` on this file returned 0) — it mints only the TV cookie —
+          # so the empty COMPOSIO_PROD_API_KEY would have returned `error` and
+          # discarded a good capture on the next scheduled run (last run
+          # 2026-08-03T04:16Z predates #4333, which is the only reason this file
+          # is still green). Skipping, not granting an unused credential, is the
+          # fix. The rule is now MACHINE-ENFORCED by
+          # tests/test_credential_probe_consumers.py, which derives the consumer
+          # set from .github/workflows/*.yml and runs on the required path.
           TV_STORAGE_STATE="$(cat automation/tradingview/auth/storage-state.json)" \
             python scripts/credential_health_check.py \
               --tv-max-age-hours 72 \
@@ -264,6 +275,7 @@ jobs:
               --skip-benzinga \
               --skip-finnhub \
               --skip-newsapi \
+              --skip-composio \
               --output artifacts/ci/cred-health.json
           python - <<'EOF'
           import json, sys

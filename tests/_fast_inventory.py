@@ -38,6 +38,9 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_broad_except_silent_budget.py",
     "test_builtin_open_encoding_ledger.py",
     "test_check_r1_attested_sources.py",
+    # Derived cross-consumer guard for scripts/credential_health_check.py
+    # (2026-08-03, #4333 aftermath). Source parsing only, <0.5s.
+    "test_credential_probe_consumers.py",
     "test_dynamic_getattr_ledger.py",
     "test_dynamic_import_and_todo_tripwires.py",
     "test_field_preference_chain_ledger.py",
