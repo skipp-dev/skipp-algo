@@ -110,6 +110,40 @@ def test_fetch_parses_the_graphql_edge_shape(guard, monkeypatch):
     assert captured["auth"] == "Bearer tok"
 
 
+def test_fetch_sends_an_explicit_user_agent(guard, monkeypatch):
+    """Railway sits behind Cloudflare, which blocks urllib's default agent.
+
+    Measured 2026-08-03 against backboard.railway.com/graphql/v2: the request
+    with no User-Agent (urllib then sends ``Python-urllib/3.12``) is answered
+    with ``HTTP 403 / error code: 1010``; the identical request carrying any
+    User-Agent returns 200. That 403 is exactly what
+    live-overlay-deploy-trigger-guard reported on every run from at least
+    2026-07-25, and it reads like a credential problem while being a header
+    problem — so pin the header.
+    """
+    captured = {}
+
+    class _Resp:
+        def read(self):
+            return b'{"data":{"deploymentTriggers":{"edges":[]}}}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def _fake_urlopen(req, timeout=0):
+        # urllib capitalises header keys passed to Request(...).
+        captured["ua"] = req.headers.get("User-agent") or req.headers.get("User-Agent")
+        return _Resp()
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _fake_urlopen)
+    guard._fetch_triggers("tok", "p", "e", "svc")
+    assert captured["ua"], "no User-Agent set — Cloudflare answers 403 (error code 1010)"
+    assert "python-urllib" not in captured["ua"].lower()
+
+
 def test_fetch_raises_on_graphql_errors(guard, monkeypatch):
     class _Resp:
         def read(self):
