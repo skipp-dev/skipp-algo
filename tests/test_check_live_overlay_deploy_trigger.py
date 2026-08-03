@@ -11,6 +11,8 @@ Network is mocked: these pin the exit-code contract, not Railway connectivity.
 from __future__ import annotations
 
 import importlib.util
+import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -112,6 +114,84 @@ def test_api_error_is_inconclusive_not_pass(guard, monkeypatch):
     # rc=2 (inconclusive) is distinct from 0 (healthy) so an auth/API break
     # never masquerades as "no drift".
     assert guard.main() == 2
+
+
+def _diag_resp(payload: dict):
+    class _Resp:
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    return _Resp()
+
+
+def _run_failing(guard, monkeypatch, diag_payload, *, exc=None):
+    """Drive main() down the failure path and let the diagnosis probe answer."""
+
+    def _raise(*a, **k):
+        raise RuntimeError("Railway API errors: [{'message': 'Not Authorized'}]")
+
+    monkeypatch.setattr(guard, "_fetch_triggers", _raise)
+
+    def _urlopen(req, timeout=0):
+        if exc is not None:
+            raise exc
+        # The probe must authenticate the same way the failing call did.
+        assert req.headers.get("Authorization") == "Bearer t"
+        return _diag_resp(diag_payload)
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _urlopen)
+    return guard.main()
+
+
+def test_failure_names_the_credential_it_used(guard, monkeypatch, capsys):
+    """The old message never said which token was tried.
+
+    With three auth layers fixed in one day (Cloudflare UA #4334, project-token
+    header #4343, project-token refutation #4345) each round re-derived the
+    credential from the workflow file. Print it.
+    """
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "x@y"}}})
+    assert rc == 2
+    assert "account token in RAILWAY_API_TOKEN" in capsys.readouterr().err
+
+
+def test_dead_credential_is_named_as_such(guard, monkeypatch, capsys):
+    # `me` refused too -> the token is not an account token at all.
+    rc = _run_failing(guard, monkeypatch, {"errors": [{"message": "Not Authorized"}]})
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "does not authenticate as an account at all" in err
+    assert "#4345" in err
+
+
+def test_valid_token_outside_the_workspace_is_named_as_such(guard, monkeypatch, capsys):
+    # `me` resolves -> identity is fine, so the refusal is scope.
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {"email": "ops@example.com"}}})
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "is scope, not identity" in err
+    # The probe answers with an address; it must not reach the log.
+    assert "ops@example.com" not in err
+
+
+def test_empty_me_payload_is_treated_as_dead_not_valid(guard, monkeypatch, capsys):
+    # No errors key but no email either — must not be read as a healthy token.
+    rc = _run_failing(guard, monkeypatch, {"data": {"me": {}}})
+    assert rc == 2
+    assert "does not authenticate as an account at all" in capsys.readouterr().err
+
+
+def test_diagnosis_failure_is_inconclusive_not_a_verdict(guard, monkeypatch, capsys):
+    rc = _run_failing(guard, monkeypatch, {}, exc=urllib.error.URLError("dns"))
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "inconclusive" in err
 
 
 def test_fetch_parses_the_graphql_edge_shape(guard, monkeypatch):

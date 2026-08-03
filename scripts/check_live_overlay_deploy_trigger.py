@@ -121,6 +121,51 @@ def _fetch_triggers(
     return [e["node"] for e in edges if e.get("node")]
 
 
+_IDENTITY_QUERY = "query { me { email } }"
+
+
+def _diagnose_account_token(token: str, timeout: float = 15.0) -> str:
+    """Say which fault Railway's bare "Not Authorized" is hiding.
+
+    ``deploymentTriggers`` answers the same line for a dead credential and for
+    a live one whose workspace does not contain this project — different fixes,
+    identical message. ``me`` resolves against the token alone, so it separates
+    them: an account token answers it, and anything else (project token, revoked
+    token, no token) does not. Measured 2026-08-03 (#4345): a project token
+    fails ``me`` with exactly the "Not Authorized" an unauthenticated request
+    gets.
+
+    Returns one operator-facing line and never echoes the token or the address.
+    """
+    req = urllib.request.Request(
+        _GRAPHQL_ENDPOINT,
+        data=json.dumps({"query": _IDENTITY_QUERY}).encode("utf-8"),
+        headers={
+            **_auth_header(token, "account"),
+            "Content-Type": "application/json",
+            "User-Agent": "skipp-algo-deploy-trigger-guard/1",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310 - literal endpoint
+            body = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
+
+    if body.get("errors") or not ((body.get("data") or {}).get("me") or {}).get("email"):
+        return (
+            "RAILWAY_API_TOKEN does not authenticate as an account at all — `me` is "
+            "refused too, so it is a project token, revoked, or mistyped. Issue an "
+            "ACCOUNT token (project tokens cannot read deploymentTriggers: #4345)"
+        )
+    return (
+        "RAILWAY_API_TOKEN is a valid account token — `me` resolves — so the refusal "
+        "is scope, not identity: this account's workspace does not include the "
+        "project in RAILWAY_PROJECT_ID. Use a token from the workspace that owns it"
+    )
+
+
 def main() -> int:
     # Deliberately NOT reading RAILWAY_PROJECT_ACCESS_TOKEN: project tokens
     # cannot query deploymentTriggers (measured, see module docstring), and a
@@ -144,7 +189,16 @@ def main() -> int:
             token, project_id, environment_id, service_id, auth_kind="account"
         )
     except (urllib.error.URLError, RuntimeError, ValueError, KeyError) as exc:
-        print(f"ERROR: could not query Railway deployment triggers: {exc}", file=sys.stderr)
+        print(
+            "ERROR: could not query Railway deployment triggers using the "
+            f"account token in RAILWAY_API_TOKEN: {exc}",
+            file=sys.stderr,
+        )
+        # "Not Authorized" alone cannot say whether the credential is dead or
+        # merely outside this project's workspace — two different fixes. Ask
+        # `me`, which resolves against the token by itself, and print the
+        # answer next to the failure instead of leaving it to the next round.
+        print(f"DIAGNOSIS: {_diagnose_account_token(token)}", file=sys.stderr)
         return 2
 
     if not triggers:
