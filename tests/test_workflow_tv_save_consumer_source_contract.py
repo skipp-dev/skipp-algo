@@ -337,13 +337,46 @@ def test_repair_e2e_waits_for_the_chart_rather_than_costing_a_rerun() -> None:
 
 def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
     upload = next(s for s in _steps() if s.get("name") == "Upload binding snapshot")
-    assert upload["if"] == "${{ always() }}"
     assert upload["with"]["path"] == "artifacts/monitoring/tradingview_consumer_bindings.json"
     publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
-    assert publish["if"] == "${{ always() }}"
     assert 'stable_dir="artifacts/monitoring/latest"' in publish["run"]
     assert '"${stable_dir}/tradingview_consumer_bindings.json"' in publish["run"]
     assert "bot/live-tradingview-bindings" in publish["run"]
+    # Both still run when the rollout ran and FAILED (run 30700389375 is why
+    # the gate is `success() || failure()`, not `success()` alone) -- see
+    # test_snapshot_steps_only_run_when_the_rollout_step_actually_executed
+    # for the exact-equality pin on the condition itself.
+    assert "steps.save.conclusion == 'failure'" in upload["if"]
+    assert "steps.save.conclusion == 'failure'" in publish["if"]
+
+
+def test_snapshot_steps_only_run_when_the_rollout_step_actually_executed() -> None:
+    """2026-08-03: a gate-blocked run publishes a stale GREEN snapshot.
+
+    Both steps used to be `if: always()`. When the operator-window gate
+    exits 1 -- before Node, Playwright, or any browser session -- `save`
+    (the rollout step) never runs, so there is no fresh snapshot on disk.
+    But `artifacts/monitoring/tradingview_consumer_bindings.json` is TRACKED
+    IN GIT: the checkout leaves the repository's 2026-07-25 copy in place
+    (ok: true, old schema, no executionMode, 7/7 consumers, 0 mismatches),
+    and always() found and force-pushed THAT to bot/live-tradingview-bindings
+    -- the branch the live overlay daemon polls -- producing a false green on
+    a live monitoring surface with no rollout having run at all.
+
+    Gating on `steps.save.conclusion` instead: 'skipped' (the gate refused,
+    or any earlier step failed) and 'cancelled' never opened a browser, so
+    neither has anything fresh to publish and both are excluded. 'success'
+    and 'failure' both did open a browser and both keep the outer always()
+    so a LATER optional step failing (Controlled repair E2E, the R1 rollback
+    drill) still lets the snapshot through -- unchanged from before.
+    """
+    expected_if = "${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}"
+    upload = next(s for s in _steps() if s.get("name") == "Upload binding snapshot")
+    assert upload["if"] == expected_if
+    publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
+    assert publish["if"] == expected_if
+    save_step = next(s for s in _steps() if s.get("name", "").startswith("Save or read-only verify"))
+    assert save_step["id"] == "save"
 
 
 def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
@@ -925,6 +958,52 @@ def test_baseline_fetch_reads_the_published_branch_and_precedes_the_rollout() ->
     step = next(s for s in _steps() if s.get("name") == _BASELINE)
     assert "bot/live-tradingview-bindings" in step["run"]
     assert "artifacts/monitoring/previous/tradingview_consumer_bindings.json" in step["run"]
+    # Unconditional as of 2026-08-03 (Finding 3): a read-only run now compares
+    # its own verification reading against the baseline too (report-only), so
+    # it needs one fetched just as much as a mutating run does. See
+    # test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ.
+    assert "if" not in step, "the baseline fetch must run on every trigger, not only mutating ones"
+
+
+def test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ() -> None:
+    """Three expressions classify every trigger path the same way, or must not.
+
+    The operator-window gate's `if:`, the baseline-fetch step's `if:`, and the
+    rollout step's TV_VERIFY_ONLY env expression all decide "is this trigger
+    read-only or mutating". Before 2026-08-03 all three agreed exactly
+    (mutating-only). Finding 3 widened ONLY the fetch condition -- read-only
+    runs now fetch a baseline to compare their own verification reading
+    against (report-only, report.ok stays ungated by it) -- so it no longer
+    equals the other two. Pinning each one here by exact equality, rather
+    than by cross-checking them against each other, means a future edit to
+    any single one of them fails HERE instead of silently drifting the three
+    apart.
+    """
+    gate = next(s for s in _steps() if s.get("name") == _GATE)
+    fetch = next(s for s in _steps() if s.get("name") == _BASELINE)
+    rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+
+    # Gate: mutating triggers only (schedule and dispatch verify_only=true are
+    # exempt). Gating a read-only run would let an open operator window
+    # suppress the very verification that makes declaring the window safe.
+    assert gate["if"] == "${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}"
+
+    # Fetch: every trigger, unconditionally. A read-only run compares too now
+    # (report-only), so it needs the baseline on disk exactly as much as a
+    # mutating run that will gate report.ok on the comparison.
+    assert "if" not in fetch
+
+    # TV_VERIFY_ONLY: the execution-mode boundary the rollout script itself
+    # reads via executionPlan.mode, deciding whether to save/refresh/rebind/
+    # save-layout at all. This one must keep classifying EXACTLY
+    # schedule + dispatch(verify_only=true) as read-only -- widening it the
+    # way the fetch condition was widened would turn a read-only trigger into
+    # a writing one, which is a materially different kind of mistake than an
+    # under-fetched baseline.
+    assert rollout["env"]["TV_VERIFY_ONLY"] == (
+        "${{ github.event_name == 'schedule' && 'true' || "
+        "github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}"
+    )
 
 
 def test_a_missing_baseline_warns_and_leaves_no_file_instead_of_failing(tmp_path: Path) -> None:

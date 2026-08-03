@@ -197,12 +197,40 @@ async function observeBindingsOnly(
   return observed;
 }
 
+/**
+ * Read the last published binding snapshot from disk.
+ *
+ * A present-but-malformed shape (missing file, unparsable JSON, or a
+ * tradingViewObserved.bindings field that is not an array) must never abort
+ * the run -- it is the "unknown" verdict, decided downstream by
+ * compareAgainstBaseline, not a fetch-time error. Shared by both call sites
+ * below: a mutating run loads it before its first mutation, a read-only run
+ * loads it after its own normal verification completes (see the finally
+ * block in main()).
+ */
+function loadPublishedBaseline(baselinePath: string): ObservedConsumer[] | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
+    const raw = parsed?.tradingViewObserved?.bindings;
+    return Array.isArray(raw) ? (raw as ObservedConsumer[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function main(): Promise<void> {
   const started = Date.now();
   const executionPlan = resolveExecutionPlan(process.argv.slice(2), process.env);
   const repoRoot = process.cwd();
   const configPath = path.resolve(getFlag("--config", "automation/tradingview/config/consumer-rollout.json"));
   const outPath = path.resolve(getFlag("--out", "artifacts/monitoring/tradingview_consumer_bindings.json"));
+  // Hoisted above the mode branch below: a mutating run reads this before its
+  // first mutation, a read-only run reads it again in the finally block after
+  // its own verification completes (Finding 3, 2026-08-03) -- both need the
+  // same path.
+  const baselinePath = path.resolve(
+    getFlag("--baseline", "artifacts/monitoring/previous/tradingview_consumer_bindings.json"),
+  );
   const productManifestPath = path.resolve(
     getFlag("--product-manifest", "artifacts/tradingview/smc_product_cut_manifest.json"),
   );
@@ -356,42 +384,21 @@ async function main(): Promise<void> {
     }
 
     // Before anything is written. After the first save, a difference could be
-    // this run's own doing and proves nothing about a second writer.
+    // this run's own doing and proves nothing about a second writer. A
+    // read-only run never writes, so it has no "before the first mutation"
+    // moment to anchor on -- it compares AFTER its own normal verification
+    // completes instead (see the finally block below, which reuses
+    // report.tradingViewObserved.bindings rather than paying for a second
+    // observeBindingsOnly pass here).
     if (executionPlan.mode !== "verify-only") {
-      const baselinePath = path.resolve(
-        getFlag("--baseline", "artifacts/monitoring/previous/tradingview_consumer_bindings.json"),
-      );
-      let baseline: ObservedConsumer[] | null = null;
-      try {
-        const parsed = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
-        const raw = parsed?.tradingViewObserved?.bindings;
-        // A present-but-malformed shape (object/number/boolean instead of an
-        // array) must not throw inside compareAgainstBaseline's `for...of`.
-        // Reading a baseline file must never abort the run; every malformed
-        // shape ends as "unknown", same as a missing or unparsable file.
-        baseline = Array.isArray(raw) ? (raw as ObservedConsumer[]) : null;
-      } catch {
-        baseline = null;
-      }
       report.outOfBandDrift = compareAgainstBaseline({
         observed: await observeBindingsOnly(session, config),
-        baseline,
+        baseline: loadPublishedBaseline(baselinePath),
         expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
       });
       if (report.outOfBandDrift.status !== "clean") {
         console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
       }
-    } else {
-      // A read-only run writes nothing, so there is no second writer to
-      // attribute anything to -- and Task 6's baseline is fetched only for
-      // mutating runs, so a read-only run could not compare against one even
-      // if it wanted to. Replacing the initialiser's "has not run yet" text
-      // here keeps the published artifact from reading like a stuck probe.
-      report.outOfBandDrift = {
-        status: "unknown",
-        reason: "read-only run: nothing written, so no second writer to attribute",
-        changed: [],
-      };
     }
 
     await gotoChart(session.page, config.primaryChartUrl);
@@ -682,6 +689,42 @@ async function main(): Promise<void> {
       })),
       runtimeErrors: item.runtimeErrors,
     }));
+    // Operator decision 2026-08-03 (Finding 3): read-only runs compare too,
+    // report-only. Read-only never took the `mode !== "verify-only"` branch
+    // above, so outOfBandDrift is still the constructor's "has not run yet"
+    // placeholder at this point. Its own normal verification loop just read
+    // every verifyTarget's bindings (repairBindings/forceRebind are both
+    // false for verify-only -- see resolveExecutionPlan) into
+    // report.bindings.consumers, and report.tradingViewObserved.bindings
+    // above is exactly that reading, reshaped to what compareAgainstBaseline
+    // consumes. Reusing it here means a read-only run gets a real verdict
+    // without paying for a second observeBindingsOnly pass -- there is
+    // nothing "pre-mutation" to protect in a run that never mutates.
+    //
+    // report.ok is NOT gated by this verdict: the
+    // `executionPlan.mode === "verify-only"` arm of the exemption below
+    // short-circuits before report.outOfBandDrift.status is ever read on a
+    // read-only run. This block exists to populate the published artifact
+    // honestly, not to turn a read-only run red.
+    if (executionPlan.mode === "verify-only") {
+      report.outOfBandDrift = compareAgainstBaseline({
+        observed: report.tradingViewObserved.bindings.map((consumer) => ({
+          scriptName: consumer.scriptName,
+          selections: consumer.selections.map((selection) => ({
+            label: selection.label,
+            actual: selection.actual,
+          })),
+        })),
+        baseline: loadPublishedBaseline(baselinePath),
+        expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
+      });
+      if (report.outOfBandDrift.status !== "clean") {
+        console.warn(
+          `[rollout] out-of-band drift (read-only, report-only) ${report.outOfBandDrift.status}: `
+          + report.outOfBandDrift.reason,
+        );
+      }
+    }
     report.durationSeconds = Math.round((Date.now() - started) / 100) / 10;
     // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
     // already-published script, and TradingView's SPA makes it the flakiest step in

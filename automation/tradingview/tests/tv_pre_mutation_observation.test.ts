@@ -66,3 +66,26 @@ test("the verdict is reported, not used to withhold the save", () => {
   // consumers on an old pinned library while the producer moves on.
   assert.doesNotMatch(SOURCE, /outOfBandDrift[\s\S]{0,200}?config\.saveTargets = \[\]/);
 });
+
+test("a read-only run produces a real verdict from its own verification reading, not a canned placeholder", () => {
+  // Operator decision 2026-08-03 (Finding 3): the publish step is always() on
+  // every trigger, so a read-only run was silently advancing the baseline
+  // with nothing to show for it -- an evening cron or a post-mutation verify
+  // dispatch could absorb an operator write hours before the next mutating
+  // run's own pre-mutation comparison ever looked at it. Read-only runs now
+  // compare too, inside the mode === "verify-only" arm that used to just
+  // stamp a fixed "nothing written" placeholder into outOfBandDrift.
+  assert.match(
+    SOURCE,
+    /executionPlan\.mode === "verify-only"\) \{[\s\S]*?compareAgainstBaseline\(/,
+  );
+  // It must reuse tradingViewObserved.bindings -- the normal verification's
+  // own reading -- rather than pay for a second observeBindingsOnly pass,
+  // which the earlier test in this file pins as conditional on
+  // `mode !== "verify-only"`, i.e. never taken on a read-only run.
+  assert.match(
+    SOURCE,
+    /executionPlan\.mode === "verify-only"\) \{[\s\S]*?tradingViewObserved\.bindings\.map\(/,
+  );
+  assert.doesNotMatch(SOURCE, /reason: "read-only run: nothing written/);
+});

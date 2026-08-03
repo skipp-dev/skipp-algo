@@ -6,8 +6,15 @@
  * currently cannot produce. The baseline is the snapshot every run force-pushes
  * to `bot/live-tradingview-bindings`.
  *
- * The comparison key is the actual bound parent study id per label. Source
- * hashes stay out of it: `sources.drifted` already covers them on every run.
+ * The comparison key is, per label, the settings dialog's combobox TEXT
+ * (`readSelectedSource`'s return value) -- not the actual bound parent study
+ * id. A matching label does not prove a live parent: TradingView can keep
+ * showing the old text while the stored input.source parent id has gone
+ * dead, so a re-applied Suite that leaves every dropdown reading the same
+ * name reads as `clean` here even though the bindings underneath it are
+ * dead. `unknownParentRuntimeError` is what still watches for that case.
+ * Source hashes stay out of this comparison: `sources.drifted` already
+ * covers them on every run.
  *
  * Three verdicts, and the third is load-bearing. "unknown" means the comparison
  * could not be made -- a missing, unreadable or PARTIAL baseline, or a run that

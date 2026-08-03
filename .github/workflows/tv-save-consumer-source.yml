@@ -302,8 +302,21 @@ jobs:
       # A missing baseline is not an error. It is the "unknown" verdict, and the
       # rollout decides that -- a first run, or a pruned branch, must not fail a
       # step that has measured nothing.
+      #
+      # Unconditional as of 2026-08-03 (Finding 3). This used to share the
+      # operator-window gate's condition exactly, because only a mutating run
+      # compared against a baseline. It no longer does: a read-only run now
+      # compares its own normal verification reading against the baseline too
+      # (report-only -- report.ok stays ungated on a read-only run, see
+      # tv_batch_consumer_rollout.ts). Without a widened fetch, every read-only
+      # trigger -- both crons and every post-mutation verify dispatch -- would
+      # advance the baseline on publish (that publish step is always()) while
+      # never having fetched one to compare against, silently absorbing an
+      # operator write hours before the next mutating run's own comparison ran.
+      # See test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ
+      # for why this condition, the gate's, and TV_VERIFY_ONLY are no longer
+      # the same expression on purpose.
       - name: Fetch the published binding baseline
-        if: ${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -394,8 +407,25 @@ jobs:
           TV_DRILL_RESTORE_ONLY: ${{ github.event.inputs.r1_restore_companions }}
         run: npx tsx scripts/tv_r1_companion_rollback_drill.ts
 
+      # Gated on the rollout step (id: save) having actually EXECUTED, not on
+      # always(). 2026-08-03: a run the operator-window gate refused (exit 1,
+      # before Node/Playwright/the browser ever started) still ran both of
+      # these steps under the old always(), found the checked-in
+      # 2026-07-25 snapshot at artifacts/monitoring/tradingview_consumer_bindings.json
+      # (it is tracked in git, so a fresh checkout always has SOME copy on
+      # disk), and force-pushed that stale ok:true/7-of-7-clean report to
+      # bot/live-tradingview-bindings -- which the live overlay daemon polls.
+      # A run that never opened a browser has nothing fresh to publish.
+      #
+      # `success() || failure()` on steps.save.conclusion, wrapped in
+      # always() so a later optional step failing (Controlled repair E2E, the
+      # R1 rollback drill) still lets the snapshot through -- that is the
+      # behaviour always() existed for, and it stays for everything AFTER
+      # save. 'skipped' (gate refused, or any earlier step failed) and
+      # 'cancelled' are deliberately excluded: neither ran a browser, so
+      # neither has a fresh snapshot to publish.
       - name: Upload binding snapshot
-        if: ${{ always() }}
+        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tradingview-consumer-bindings
@@ -403,8 +433,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Same gate as the upload above, same reason: run 30700389375 is why
+      # 'failure' stays in the OR -- a rollout that opened a browser and then
+      # failed still has a real, fresh snapshot worth publishing.
       - name: Publish latest binding snapshot
-        if: ${{ always() }}
+        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
