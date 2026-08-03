@@ -44,6 +44,11 @@ name: tv-save-consumer-source
 on:
   schedule:
     - cron: "17 5 * * *"
+    # Evening read-only look. Operator-caused drift on a day with no CI run was
+    # otherwise invisible until the next morning. 05:17Z and 21:17Z split the day
+    # into a 16h gap and an 8h one, so the worst case drops from ~24h to 16h --
+    # a third, not a half. After the US close, so the off-hours posture holds.
+    - cron: "17 21 * * *"
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
   # smc-library-refresh on the default branch (no fork/PR-controlled context);
   # this consumer only re-saves repo-owned sources with repo secrets it
@@ -103,8 +108,14 @@ concurrency:
   # a second, unserialised writer on the same layouts, and TradingView
   # autosaves from it (operator-confirmed 2026-08-01: autosave active, and a
   # chart tab on this account was open all day while runs mutated layouts —
-  # nothing here knew). No mechanism detects or excludes that session;
-  # mutating runs coordinate with the operator by convention, not by code.
+  # nothing here knew). Since 2026-08-03 that is no longer true FOR THIS FILE:
+  # the operator can exclude a mutating run by declaring a window
+  # (TV_OPERATOR_ACTIVE, see the gate step below), and a mutating run measures
+  # whether anyone wrote since the last CI run before it writes anything. What
+  # still holds is the harder half -- an UNDECLARED operator session remains
+  # invisible while it is open; only what it wrote is detectable, afterwards.
+  # The identical paragraph in the other workflows sharing this group is still
+  # true of them.
   # Every workflow below drives the SAME external account, and until now each
   # one only serialised against itself — two of these blocks already said
   # "TradingView is a single shared external target" while keeping a private
@@ -221,6 +232,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # The operator's browser is the normal production writer on this account
+      # and automation is the guest; the tradingview-session group serialises
+      # CI against CI only. This is the one direction that can be excluded
+      # honestly: CI starting while the operator is working. The variable holds
+      # an EXPIRY, so a forgotten claim cannot block this workflow past its own
+      # timestamp -- see scripts/check_tv_operator_window.py.
+      #
+      # Read-only runs are exempt on purpose: they write nothing, and gating
+      # them would let an open window suppress the evening verification.
+      - name: Refuse to mutate inside the operator's TradingView window
+        if: ${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}
+        env:
+          TV_OPERATOR_ACTIVE: ${{ vars.TV_OPERATOR_ACTIVE }}
+        run: python3 -m scripts.check_tv_operator_window
+
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -274,6 +300,45 @@ jobs:
           out = Path('automation/tradingview/auth/storage-state.json')
           out.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
           PY
+
+      # The comparison baseline is the observation the LAST run published to
+      # bot/live-tradingview-bindings. Fetched over the API rather than with
+      # git: the checkout above sets persist-credentials: false, so no
+      # credential is available to git here.
+      #
+      # A missing baseline is not an error. It is the "unknown" verdict, and the
+      # rollout decides that -- a first run, or a pruned branch, must not fail a
+      # step that has measured nothing.
+      #
+      # Unconditional as of 2026-08-03 (Finding 3). This used to share the
+      # operator-window gate's condition exactly, because only a mutating run
+      # compared against a baseline. It no longer does: a read-only run now
+      # compares its own normal verification reading against the baseline too
+      # (report-only -- report.ok stays ungated on a read-only run, see
+      # tv_batch_consumer_rollout.ts). Without a widened fetch, every read-only
+      # trigger -- both crons and every post-mutation verify dispatch -- would
+      # advance the baseline on publish (that publish step is always()) while
+      # never having fetched one to compare against, silently absorbing an
+      # operator write hours before the next mutating run's own comparison ran.
+      # See test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ
+      # for why this condition, the gate's, and TV_VERIFY_ONLY are no longer
+      # the same expression on purpose.
+      - name: Fetch the published binding baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/monitoring/previous
+          out="artifacts/monitoring/previous/tradingview_consumer_bindings.json"
+          path="artifacts/monitoring/latest/tradingview_consumer_bindings.json"
+          if gh api "repos/${GH_REPO}/contents/${path}?ref=bot/live-tradingview-bindings" \
+               --jq '.content' 2>/dev/null | base64 -d > "${out}"; then
+            echo "Baseline fetched: $(wc -c < "${out}") bytes"
+          else
+            rm -f "${out}"
+            echo "::warning::No published binding baseline — out-of-band drift will report as unknown."
+          fi
 
       # Runs on EVERY trigger, before the browser opens. The 2026-08-01
       # un-attestation arrived through the workflow_run chain, not a dispatch,
@@ -349,8 +414,25 @@ jobs:
           TV_DRILL_RESTORE_ONLY: ${{ github.event.inputs.r1_restore_companions }}
         run: npx tsx scripts/tv_r1_companion_rollback_drill.ts
 
+      # Gated on the rollout step (id: save) having actually EXECUTED, not on
+      # always(). 2026-08-03: a run the operator-window gate refused (exit 1,
+      # before Node/Playwright/the browser ever started) still ran both of
+      # these steps under the old always(), found the checked-in
+      # 2026-07-25 snapshot at artifacts/monitoring/tradingview_consumer_bindings.json
+      # (it is tracked in git, so a fresh checkout always has SOME copy on
+      # disk), and force-pushed that stale ok:true/7-of-7-clean report to
+      # bot/live-tradingview-bindings -- which the live overlay daemon polls.
+      # A run that never opened a browser has nothing fresh to publish.
+      #
+      # `success() || failure()` on steps.save.conclusion, wrapped in
+      # always() so a later optional step failing (Controlled repair E2E, the
+      # R1 rollback drill) still lets the snapshot through -- that is the
+      # behaviour always() existed for, and it stays for everything AFTER
+      # save. 'skipped' (gate refused, or any earlier step failed) and
+      # 'cancelled' are deliberately excluded: neither ran a browser, so
+      # neither has a fresh snapshot to publish.
       - name: Upload binding snapshot
-        if: ${{ always() }}
+        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tradingview-consumer-bindings
@@ -358,8 +440,33 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Same gate as the upload above, same reason: run 30700389375 is why
+      # 'failure' stays in the OR -- a rollout that opened a browser and then
+      # failed still has a real, fresh snapshot worth publishing.
+      #
+      # 2026-08-03 (Fix wave 1b): this directory is SHARED. A parallel change
+      # gave smc-r4-context-readback.yml its own publisher onto this exact
+      # branch, at a DISTINCT path (tradingview_r4_context_bindings.json)
+      # under this same artifacts/monitoring/latest/. The old body here built
+      # its commit on top of `actions/checkout` (main, which does not carry
+      # this bot-branch-only directory at all), staged ONLY its own file, and
+      # force-pushed -- so every run of THIS workflow replaced the branch tip
+      # and silently deleted the R4 file, leaving R4's fetch permanently
+      # "unknown". ADR-0024 §5 names this exact shape: a directory with more
+      # than one producer must seed from the fetched remote tip before
+      # committing, and replace only its own owned path.
+      #
+      # Mechanics mirrored from smc-r4-context-readback.yml's "Publish latest
+      # R4 binding snapshot" (which already carries the symmetric protection
+      # for THIS file): fetch the remote ref FIRST, resolve its tip sha, and
+      # -- if one exists -- check the shared directory out of that tip BEFORE
+      # copying this run's own snapshot into it. Staging the whole directory
+      # afterwards means the commit carries both the file this run refreshed
+      # and any sibling file already on the branch. If a THIRD producer ever
+      # joins this directory, it must do the same seed-then-replace-only-
+      # your-own-path dance, or it silently deletes the other two.
       - name: Publish latest binding snapshot
-        if: ${{ always() }}
+        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -369,19 +476,22 @@ jobs:
             echo "::warning::Cannot publish TradingView binding snapshot (missing GH_PAT or snapshot)."
             exit 0
           fi
-          stable_dir="artifacts/monitoring/latest"
-          mkdir -p "${stable_dir}"
-          cp "${snapshot}" "${stable_dir}/tradingview_consumer_bindings.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           remote_ref="refs/heads/bot/live-tradingview-bindings"
           tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
-          git add -f "${stable_dir}/tradingview_consumer_bindings.json"
-          git commit -m "[skip ci] chore: refresh TradingView binding snapshot"
-          git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>/dev/null || true
           zero_sha="0000000000000000000000000000000000000000"
+          git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>/dev/null || true
           expected_sha="$(git rev-parse --verify "${tracking_ref}" 2>/dev/null || echo "${zero_sha}")"
+          stable_dir="artifacts/monitoring/latest"
+          mkdir -p "${stable_dir}"
+          if [ "${expected_sha}" != "${zero_sha}" ]; then
+            git checkout "${expected_sha}" -- "${stable_dir}" 2>/dev/null || true
+          fi
+          cp "${snapshot}" "${stable_dir}/tradingview_consumer_bindings.json"
+          git add -f "${stable_dir}"
+          git commit -m "[skip ci] chore: refresh TradingView binding snapshot"
           if git push "--force-with-lease=${remote_ref}:${expected_sha}" "${remote_url}" "HEAD:${remote_ref}"; then
             echo "Published TradingView binding snapshot to bot/live-tradingview-bindings."
           else

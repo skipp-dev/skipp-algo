@@ -26,6 +26,45 @@ const ROLLOUT = path.join(_dir, "..", "..", "..", "scripts", "tv_batch_consumer_
 
 const source = () => fs.readFileSync(ROLLOUT, "utf-8");
 
+// The window below has to bound the REAL verification loop inside main(), not
+// the read-only pre-mutation helper `observeBindingsOnly` that now sits ABOVE
+// main() (added for the out-of-band drift check). That helper's body calls
+// `groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)` with
+// the exact same argument text as the real loop -- so neither `indexOf` (finds
+// the helper's earlier occurrence) nor `lastIndexOf` (would silently break the
+// same way again the day a THIRD call site is ever added below the real loop)
+// can tell them apart by that string alone. Six red R4 runs and four wrong
+// fixes came from an ordering bug in this exact region, so the anchor here
+// has to be one that cannot be produced by any read-only helper: only the
+// real loop's mutation path declares `repairBindings` as a mutable local
+// immediately before grouping its targets -- a read-only pass has nothing to
+// narrow, since it always calls verifyConsumerBindings with repair=false.
+const TO_MARKER = "let repairBindings = executionPlan.repairBindings;";
+
+/**
+ * Locate a `[from, to)` window by two markers and refuse to hand back a
+ * window nobody can vouch for.
+ *
+ * Both `indexOf` calls fail closed: a marker that has moved, been renamed, or
+ * been duplicated above main() must fail this assertion LOUDLY, never pass
+ * silently by producing an inverted or empty slice that the caller then
+ * inspects as if it were real content (Finding 1, 2026-08-03: exactly that
+ * happened here -- `s.slice(481-idx, 166-idx)` returned "" and a test still
+ * asserted over it and reported green).
+ */
+function locateWindow(s: string, fromMarker: string, toMarker: string): { from: number; to: number; between: string } {
+  const from = s.indexOf(fromMarker);
+  const to = s.indexOf(toMarker);
+  assert.ok(from >= 0, `start marker not found: ${JSON.stringify(fromMarker)}`);
+  assert.ok(to >= 0, `end marker not found: ${JSON.stringify(toMarker)}`);
+  assert.ok(
+    from < to,
+    `window is empty or inverted (from=${from}, to=${to}) -- both markers were found but not in the `
+      + "expected order, which is exactly how the six-red-run bug passed silently before",
+  );
+  return { from, to, between: s.slice(from, to) };
+}
+
 test("source verification runs before the producer refresh", () => {
   const s = source();
   const verifyAt = s.indexOf("await verifyConsumerSource(session, target)");
@@ -42,12 +81,7 @@ test("source verification runs before the producer refresh", () => {
 });
 
 test("no primary-chart reload sits between the refreshes and the binding loop", () => {
-  const s = source();
-  const from = s.indexOf("resolveProducerRefreshChartUrls(config)");
-  const to = s.indexOf("groupTargetsByLayout(");
-  assert.ok(0 < from && from < to, "expected refresh phase before binding loop");
-
-  const between = s.slice(from, to);
+  const { between } = locateWindow(source(), "resolveProducerRefreshChartUrls(config)", TO_MARKER);
   assert.doesNotMatch(
     between,
     /gotoChart\(session\.page, config\.primaryChartUrl\)/,
@@ -60,10 +94,7 @@ test("the refresh-phase navigations stay conditional on a URL mismatch", () => {
   // A goto to the URL the page is already on is still a hard reload. The
   // producer and consumer refresh gotos must remain guarded, or refreshing
   // the second target destroys what the first one inserted.
-  const s = source();
-  const from = s.indexOf("resolveProducerRefreshChartUrls(config)");
-  const to = s.indexOf("groupTargetsByLayout(");
-  const between = s.slice(from, to);
+  const { between } = locateWindow(source(), "resolveProducerRefreshChartUrls(config)", TO_MARKER);
 
   for (const match of between.matchAll(/await gotoChart\(/g)) {
     // 500 chars: the guard and the goto are separated by explanatory comments

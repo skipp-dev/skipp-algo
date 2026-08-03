@@ -124,6 +124,28 @@ Constraints that must hold for the allowance to remain valid:
   `bot/live-tradingview-bindings` cache branch. The workflow fetches
   the current tip and uses an explicit lease; the branch remains a pure
   machine-generated cache cursor consumed by the live-overlay daemon.
+* `smc-r4-context-readback.yml` (added 2026-08-03) became a SECOND producer
+  on `bot/live-tradingview-bindings`, publishing its own R4 rebind snapshot
+  to `artifacts/monitoring/latest/tradingview_r4_context_bindings.json`
+  alongside `tv-save-consumer-source.yml`'s `tradingview_consumer_bindings.json`
+  in the same directory. This is the constraint #5 case: a bare `git add -f`
+  of only its own file, committed on top of a fresh checkout (which does not
+  carry that bot-branch-only directory at all), would silently delete the
+  other producer's file the moment the commit became the new tip. Its
+  publish step fetches first, seeds `artifacts/monitoring/latest/` from the
+  fetched tip (`git checkout <tip-sha> -- artifacts/monitoring/latest`)
+  before adding its own file, then stages the whole directory — replacing
+  only its own path while carrying the sibling producer's file forward.
+  `tv-save-consumer-source.yml` seeds the same way, so the protection is
+  symmetric and neither producer can drop the other's file. An earlier draft
+  of this bullet said that workflow had been left unseeded and called the
+  asymmetry an accepted residual risk; that was true for one commit and is
+  no longer. Both directions were verified by extracting the two `run:`
+  bodies and round-tripping them against a throwaway bare repository —
+  first publish creates the branch, each subsequent publish carries the
+  sibling's file forward, and a stale lease is rejected without clobbering.
+  **Any third producer on this branch must seed identically**; a bare
+  `git add -f` of one path would delete both existing files on its first push.
 * The same pattern is applied outside CI by
   `scripts/publish_signals_snapshot.py`, a host-run helper that updates
   `bot/live-signals-snapshot` with `latest_realtime_signals.json` (which has

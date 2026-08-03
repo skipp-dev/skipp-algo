@@ -38,6 +38,11 @@ import {
   type VerifyConsumerResult,
   type VerifyConsumerTarget,
 } from "./tv_verify_consumer_bindings.js";
+import {
+  compareAgainstBaseline,
+  type ObservedConsumer,
+  type OutOfBandVerdict,
+} from "../automation/tradingview/lib/tv_out_of_band_drift.js";
 
 type RolloutConfig = {
   producerName: string;
@@ -112,6 +117,13 @@ type RolloutReport = {
      */
     savedWithoutAttestation: string[];
   };
+  /**
+   * Whether anyone wrote to the managed layouts between the last CI run and
+   * this one. Measured BEFORE this run's first mutation, so a difference is
+   * attributable to a second writer -- normally the operator's browser, whose
+   * autosave nothing in CI serialises against.
+   */
+  outOfBandDrift: OutOfBandVerdict;
   save: { expected: number; succeeded: SaveConsumerResult[]; failed: FailedTarget[] };
   producerRefresh: { requested: boolean; ok: boolean; removedInstances: number; error: string };
   consumerRefresh: { requested: boolean; ok: boolean; removedInstances: number; errors: string[] };
@@ -138,12 +150,87 @@ function getFlag(name: string, fallback: string): string {
   return index === -1 || !args[index + 1] ? fallback : args[index + 1];
 }
 
+/**
+ * Read the bindings of every verify target without changing anything.
+ *
+ * verifyConsumerBindings is called with repair=false and forceRebind=false, so
+ * this walks the layouts read-only. A target that cannot be read is simply
+ * absent from the result, which the comparison turns into "unknown" rather than
+ * into a false drift.
+ */
+async function observeBindingsOnly(
+  session: Awaited<ReturnType<typeof newTradingViewSession>>,
+  config: RolloutConfig,
+): Promise<ObservedConsumer[]> {
+  const observed: ObservedConsumer[] = [];
+  for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
+    try {
+      // The navigation sits inside the same swallow as the read below it, on
+      // purpose: this pass runs before the primary chart is even visited (see
+      // the ordering comment at the call site), so a flake reaching a
+      // SECONDARY layout here must not abort the run before the traded chart
+      // is ever touched. The shipped config visits the primary chart first --
+      // "a late failure leaves the traded chart repaired and the rest
+      // untouched, never the reverse" -- and an unreachable layout up here
+      // must degrade to unread targets (which the coverage guard below turns
+      // into "unknown"), not a fatal error that reverses that property.
+      if (!session.page.url().startsWith(layout.chartUrl)) {
+        await gotoChart(session.page, layout.chartUrl);
+      }
+      for (const target of layout.targets) {
+        try {
+          const result = await verifyConsumerBindings(session, target, false, false);
+          observed.push({
+            scriptName: result.scriptName,
+            selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
+          });
+        } catch {
+          // Left out deliberately: an unread target must not read as unchanged.
+        }
+      }
+    } catch {
+      // The layout itself could not be reached (e.g. a page.goto timeout).
+      // Every target on it is simply absent from `observed`, same as a single
+      // unread target above.
+    }
+  }
+  return observed;
+}
+
+/**
+ * Read the last published binding snapshot from disk.
+ *
+ * A present-but-malformed shape (missing file, unparsable JSON, or a
+ * tradingViewObserved.bindings field that is not an array) must never abort
+ * the run -- it is the "unknown" verdict, decided downstream by
+ * compareAgainstBaseline, not a fetch-time error. Shared by both call sites
+ * below: a mutating run loads it before its first mutation, a read-only run
+ * loads it after its own normal verification completes (see the finally
+ * block in main()).
+ */
+function loadPublishedBaseline(baselinePath: string): ObservedConsumer[] | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
+    const raw = parsed?.tradingViewObserved?.bindings;
+    return Array.isArray(raw) ? (raw as ObservedConsumer[]) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function main(): Promise<void> {
   const started = Date.now();
   const executionPlan = resolveExecutionPlan(process.argv.slice(2), process.env);
   const repoRoot = process.cwd();
   const configPath = path.resolve(getFlag("--config", "automation/tradingview/config/consumer-rollout.json"));
   const outPath = path.resolve(getFlag("--out", "artifacts/monitoring/tradingview_consumer_bindings.json"));
+  // Hoisted above the mode branch below: a mutating run reads this before its
+  // first mutation, a read-only run reads it again in the finally block after
+  // its own verification completes (Finding 3, 2026-08-03) -- both need the
+  // same path.
+  const baselinePath = path.resolve(
+    getFlag("--baseline", "artifacts/monitoring/previous/tradingview_consumer_bindings.json"),
+  );
   const productManifestPath = path.resolve(
     getFlag("--product-manifest", "artifacts/tradingview/smc_product_cut_manifest.json"),
   );
@@ -234,6 +321,11 @@ async function main(): Promise<void> {
       abandonedChartUrls: [],
       savedWithoutAttestation,
     },
+    outOfBandDrift: {
+      status: "unknown",
+      reason: "the pre-mutation observation has not run yet",
+      changed: [],
+    },
     save: { expected: config.saveTargets.length, succeeded: [], failed: [] },
     producerRefresh: { requested: refreshProducer, ok: !refreshProducer, removedInstances: 0, error: "" },
     consumerRefresh: { requested: executionPlan.repairBindings, ok: true, removedInstances: 0, errors: [] },
@@ -289,6 +381,24 @@ async function main(): Promise<void> {
         `[rollout] could not read the published version of ${libraryObservation.scriptName} from the pine facade — `
         + "the run continues, but its library-publish evidence is UNKNOWN, not confirmed.",
       );
+    }
+
+    // Before anything is written. After the first save, a difference could be
+    // this run's own doing and proves nothing about a second writer. A
+    // read-only run never writes, so it has no "before the first mutation"
+    // moment to anchor on -- it compares AFTER its own normal verification
+    // completes instead (see the finally block below, which reuses
+    // report.tradingViewObserved.bindings rather than paying for a second
+    // observeBindingsOnly pass here).
+    if (executionPlan.mode !== "verify-only") {
+      report.outOfBandDrift = compareAgainstBaseline({
+        observed: await observeBindingsOnly(session, config),
+        baseline: loadPublishedBaseline(baselinePath),
+        expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
+      });
+      if (report.outOfBandDrift.status !== "clean") {
+        console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
+      }
     }
 
     await gotoChart(session.page, config.primaryChartUrl);
@@ -579,6 +689,42 @@ async function main(): Promise<void> {
       })),
       runtimeErrors: item.runtimeErrors,
     }));
+    // Operator decision 2026-08-03 (Finding 3): read-only runs compare too,
+    // report-only. Read-only never took the `mode !== "verify-only"` branch
+    // above, so outOfBandDrift is still the constructor's "has not run yet"
+    // placeholder at this point. Its own normal verification loop just read
+    // every verifyTarget's bindings (repairBindings/forceRebind are both
+    // false for verify-only -- see resolveExecutionPlan) into
+    // report.bindings.consumers, and report.tradingViewObserved.bindings
+    // above is exactly that reading, reshaped to what compareAgainstBaseline
+    // consumes. Reusing it here means a read-only run gets a real verdict
+    // without paying for a second observeBindingsOnly pass -- there is
+    // nothing "pre-mutation" to protect in a run that never mutates.
+    //
+    // report.ok is NOT gated by this verdict: the
+    // `executionPlan.mode === "verify-only"` arm of the exemption below
+    // short-circuits before report.outOfBandDrift.status is ever read on a
+    // read-only run. This block exists to populate the published artifact
+    // honestly, not to turn a read-only run red.
+    if (executionPlan.mode === "verify-only") {
+      report.outOfBandDrift = compareAgainstBaseline({
+        observed: report.tradingViewObserved.bindings.map((consumer) => ({
+          scriptName: consumer.scriptName,
+          selections: consumer.selections.map((selection) => ({
+            label: selection.label,
+            actual: selection.actual,
+          })),
+        })),
+        baseline: loadPublishedBaseline(baselinePath),
+        expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
+      });
+      if (report.outOfBandDrift.status !== "clean") {
+        console.warn(
+          `[rollout] out-of-band drift (read-only, report-only) ${report.outOfBandDrift.status}: `
+          + report.outOfBandDrift.reason,
+        );
+      }
+    }
     report.durationSeconds = Math.round((Date.now() - started) / 100) / 10;
     // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
     // already-published script, and TradingView's SPA makes it the flakiest step in
@@ -601,7 +747,23 @@ async function main(): Promise<void> {
       && report.sources.drifted === 0
       && report.bindings.failed.length === 0
       && report.bindings.checkedConsumers === report.bindings.expectedConsumers
-      && report.bindings.mismatches === 0;
+      && report.bindings.mismatches === 0
+      // A second writer touched the managed layouts since the last CI run, or
+      // the comparison could not be made. The save is NOT withheld -- that
+      // would freeze the consumers on an old pinned library while the producer
+      // moves on (operator decision 2026-08-01) -- so this field carries the
+      // red on its own. Never rely on another clause to catch it: an
+      // out-of-band binding change leaves sources.drifted at 0.
+      //
+      // Exempted for a read-only run, and ONLY because it writes nothing:
+      // there is no second writer to attribute a difference to. It does still
+      // MEASURE -- the finally block above compares its own verification
+      // reading against the baseline and records a real clean/drifted/unknown
+      // verdict, at no extra browser cost. That measurement is the point: a
+      // read-only run also republishes the baseline, so without it the morning
+      // cron would quietly absorb an operator's overnight write before any
+      // mutating run ever looked. Report, do not gate.
+      && (executionPlan.mode === "verify-only" || report.outOfBandDrift.status === "clean");
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
     console.log(JSON.stringify(report));

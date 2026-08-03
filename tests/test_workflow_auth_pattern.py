@@ -179,6 +179,15 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # dropdown-binding JSON to bot/live-tradingview-bindings
     # cache cursor after fetching its current tip. See ADR-0024.
     "tv-save-consumer-source.yml",
+    # smc-r4-context-readback.yml (2026-08-03): a second producer on the
+    # same bot/live-tradingview-bindings branch, at a distinct
+    # artifacts/monitoring/latest/tradingview_r4_context_bindings.json path
+    # (tv-save-consumer-source.yml owns tradingview_consumer_bindings.json
+    # in the same directory). Because the branch now has more than one
+    # producer, this publish step additionally seeds the shared directory
+    # from the fetched tip before adding its own file — the ADR-0024 §5
+    # "replace only their owned paths" case. See ADR-0024.
+    "smc-r4-context-readback.yml",
 })
 
 _FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")

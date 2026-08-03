@@ -8,6 +8,8 @@ rollout handling. Also satisfies
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -28,10 +30,16 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_schedule_is_daily_and_invokes_explicit_verify_only_mode() -> None:
+def test_schedule_runs_twice_daily_and_invokes_explicit_verify_only_mode() -> None:
     on_block = _load().get("on") or _load().get(True)
     assert "workflow_dispatch" in on_block
-    assert on_block["schedule"] == [{"cron": "17 5 * * *"}]
+    # Two read-only looks per day. The morning cron alone left operator-caused
+    # drift undetected for up to 24h on a day with no other run; the evening one
+    # halves that. Both sit after the US close, honouring this file's
+    # off-hours-only live-window declaration. Read-only is structural, not
+    # conventional: TV_VERIFY_ONLY and TV_CONSUMER_MAPPING_JSON both derive from
+    # github.event_name == 'schedule', so no cron entry can mutate.
+    assert on_block["schedule"] == [{"cron": "17 5 * * *"}, {"cron": "17 21 * * *"}]
     rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
     verify_only = rollout["env"]["TV_VERIFY_ONLY"]
     assert "github.event_name == 'schedule'" in verify_only
@@ -329,13 +337,89 @@ def test_repair_e2e_waits_for_the_chart_rather_than_costing_a_rerun() -> None:
 
 def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
     upload = next(s for s in _steps() if s.get("name") == "Upload binding snapshot")
-    assert upload["if"] == "${{ always() }}"
     assert upload["with"]["path"] == "artifacts/monitoring/tradingview_consumer_bindings.json"
     publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
-    assert publish["if"] == "${{ always() }}"
     assert 'stable_dir="artifacts/monitoring/latest"' in publish["run"]
     assert '"${stable_dir}/tradingview_consumer_bindings.json"' in publish["run"]
     assert "bot/live-tradingview-bindings" in publish["run"]
+    # Both still run when the rollout ran and FAILED (run 30700389375 is why
+    # the gate is `success() || failure()`, not `success()` alone) -- see
+    # test_snapshot_steps_only_run_when_the_rollout_step_actually_executed
+    # for the exact-equality pin on the condition itself.
+    assert "steps.save.conclusion == 'failure'" in upload["if"]
+    assert "steps.save.conclusion == 'failure'" in publish["if"]
+
+
+def test_publish_step_seeds_the_shared_directory_before_adding_its_own_file() -> None:
+    """artifacts/monitoring/latest/ on bot/live-tradingview-bindings is SHARED.
+
+    2026-08-03 (Fix wave 1b): smc-r4-context-readback.yml publishes its own
+    tradingview_r4_context_bindings.json to this exact branch, at the same
+    shared directory. The old body here built its commit on top of a fresh
+    `actions/checkout` (main, which does not carry this bot-branch-only
+    directory at all), staged ONLY its own file, and force-pushed — so every
+    run of this workflow made that commit the entire directory and silently
+    deleted R4's file the moment it became the new tip. R4's fetch would then
+    find nothing, report "unknown", and stay permanently red — this
+    repository has a documented history with exactly this shape (a gate left
+    permanently blind because two producers owned one output).
+
+    Mirrors smc-r4-context-readback.yml's own "Publish latest R4 binding
+    snapshot" step (which already carries the symmetric protection for THIS
+    file) rather than inventing a second mechanism. Pins the two properties
+    that prevent the deletion: the tip is fetched and checked out into the
+    shared directory BEFORE this run's own file overlays it, and the WHOLE
+    directory (not one explicit filename) is staged, which is what carries
+    the seeded sibling file into this run's commit.
+    """
+    publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
+    run = publish["run"]
+
+    fetch_idx = run.index("git fetch")
+    seed_idx = run.index('git checkout "${expected_sha}" -- "${stable_dir}"')
+    copy_idx = run.index('cp "${snapshot}"')
+    add_idx = run.index("git add -f")
+    commit_idx = run.index("git commit")
+
+    assert fetch_idx < seed_idx < copy_idx < add_idx < commit_idx, (
+        "the tip must be fetched, then checked out into the shared directory, BEFORE this "
+        "run's own file overlays it and the directory is staged — any other order can commit "
+        "a directory missing the sibling producer's file"
+    )
+    assert 'git add -f "${stable_dir}"' in run
+    assert 'git add -f "${stable_dir}/tradingview_consumer_bindings.json"' not in run
+    # Must not collide with smc-r4-context-readback.yml's published path —
+    # that is exactly the "always unknown" trap this whole change avoids.
+    assert "tradingview_r4_context_bindings.json" not in run
+
+
+def test_snapshot_steps_only_run_when_the_rollout_step_actually_executed() -> None:
+    """2026-08-03: a gate-blocked run publishes a stale GREEN snapshot.
+
+    Both steps used to be `if: always()`. When the operator-window gate
+    exits 1 -- before Node, Playwright, or any browser session -- `save`
+    (the rollout step) never runs, so there is no fresh snapshot on disk.
+    But `artifacts/monitoring/tradingview_consumer_bindings.json` is TRACKED
+    IN GIT: the checkout leaves the repository's 2026-07-25 copy in place
+    (ok: true, old schema, no executionMode, 7/7 consumers, 0 mismatches),
+    and always() found and force-pushed THAT to bot/live-tradingview-bindings
+    -- the branch the live overlay daemon polls -- producing a false green on
+    a live monitoring surface with no rollout having run at all.
+
+    Gating on `steps.save.conclusion` instead: 'skipped' (the gate refused,
+    or any earlier step failed) and 'cancelled' never opened a browser, so
+    neither has anything fresh to publish and both are excluded. 'success'
+    and 'failure' both did open a browser and both keep the outer always()
+    so a LATER optional step failing (Controlled repair E2E, the R1 rollback
+    drill) still lets the snapshot through -- unchanged from before.
+    """
+    expected_if = "${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}"
+    upload = next(s for s in _steps() if s.get("name") == "Upload binding snapshot")
+    assert upload["if"] == expected_if
+    publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
+    assert publish["if"] == expected_if
+    save_step = next(s for s in _steps() if s.get("name", "").startswith("Save or read-only verify"))
+    assert save_step["id"] == "save"
 
 
 def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
@@ -865,3 +949,146 @@ def test_repair_survives_the_red_verification_it_exists_to_repair() -> None:
     assert "attestedBindingCount()" in drill
     assert "tradingView?.bindingsChecked" in drill
     assert "smc_r1_live_rollout_evidence_" in drill
+
+
+_GATE = "Refuse to mutate inside the operator's TradingView window"
+
+
+def test_operator_window_gate_runs_before_the_expensive_setup() -> None:
+    """A refusal must cost seconds, not a Playwright install.
+
+    Placed after Checkout (it needs the script) and before Set up Node, so an
+    open window ends the run in about a second instead of after three minutes
+    of npm and browser downloads.
+    """
+    names = [step.get("name", "") for step in _steps()]
+    assert _GATE in names, f"missing step: {_GATE}"
+    assert names.index("Checkout") < names.index(_GATE) < names.index("Set up Node")
+
+
+def test_operator_window_gate_exempts_read_only_runs() -> None:
+    """An open window must not suppress the verification that makes it safe.
+
+    Exact equality pin: any edit to the condition — including swapping the
+    AND operator to OR — now forces a deliberate test change instead of
+    passing silently. This catches the recurring failure mode of confusing
+    AND/OR logic.
+
+    Read-only runs write nothing, so they are never gated. The condition
+    classifies the trigger paths exactly as the rollout step's TV_VERIFY_ONLY
+    expression does: schedule is read-only, a dispatch with verify_only=true is
+    read-only, and everything else -- including the workflow_run refresh chain,
+    which is how 2026-08-01 reached the account -- mutates.
+    """
+    step = next(s for s in _steps() if s.get("name") == _GATE)
+    condition = step["if"]
+    assert condition == "${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}"
+    assert step["env"]["TV_OPERATOR_ACTIVE"] == "${{ vars.TV_OPERATOR_ACTIVE }}"
+    assert "scripts.check_tv_operator_window" in step["run"]
+
+
+_BASELINE = "Fetch the published binding baseline"
+
+
+def test_baseline_fetch_reads_the_published_branch_and_precedes_the_rollout() -> None:
+    names = [step.get("name", "") for step in _steps()]
+    assert _BASELINE in names, f"missing step: {_BASELINE}"
+    rollout = next(
+        i for i, s in enumerate(_steps()) if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", "")
+    )
+    assert names.index(_BASELINE) < rollout
+
+    step = next(s for s in _steps() if s.get("name") == _BASELINE)
+    assert "bot/live-tradingview-bindings" in step["run"]
+    assert "artifacts/monitoring/previous/tradingview_consumer_bindings.json" in step["run"]
+    # Unconditional as of 2026-08-03 (Finding 3): a read-only run now compares
+    # its own verification reading against the baseline too (report-only), so
+    # it needs one fetched just as much as a mutating run does. See
+    # test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ.
+    assert "if" not in step, "the baseline fetch must run on every trigger, not only mutating ones"
+
+
+def test_the_three_trigger_classifying_conditions_are_pinned_and_may_now_differ() -> None:
+    """Three expressions classify every trigger path the same way, or must not.
+
+    The operator-window gate's `if:`, the baseline-fetch step's `if:`, and the
+    rollout step's TV_VERIFY_ONLY env expression all decide "is this trigger
+    read-only or mutating". Before 2026-08-03 all three agreed exactly
+    (mutating-only). Finding 3 widened ONLY the fetch condition -- read-only
+    runs now fetch a baseline to compare their own verification reading
+    against (report-only, report.ok stays ungated by it) -- so it no longer
+    equals the other two. Pinning each one here by exact equality, rather
+    than by cross-checking them against each other, means a future edit to
+    any single one of them fails HERE instead of silently drifting the three
+    apart.
+    """
+    gate = next(s for s in _steps() if s.get("name") == _GATE)
+    fetch = next(s for s in _steps() if s.get("name") == _BASELINE)
+    rollout = next(s for s in _steps() if "scripts/tv_batch_consumer_rollout.ts" in s.get("run", ""))
+
+    # Gate: mutating triggers only (schedule and dispatch verify_only=true are
+    # exempt). Gating a read-only run would let an open operator window
+    # suppress the very verification that makes declaring the window safe.
+    assert gate["if"] == "${{ github.event_name != 'schedule' && github.event.inputs.verify_only != 'true' }}"
+
+    # Fetch: every trigger, unconditionally. A read-only run compares too now
+    # (report-only), so it needs the baseline on disk exactly as much as a
+    # mutating run that will gate report.ok on the comparison.
+    assert "if" not in fetch
+
+    # TV_VERIFY_ONLY: the execution-mode boundary the rollout script itself
+    # reads via executionPlan.mode, deciding whether to save/refresh/rebind/
+    # save-layout at all. This one must keep classifying EXACTLY
+    # schedule + dispatch(verify_only=true) as read-only -- widening it the
+    # way the fetch condition was widened would turn a read-only trigger into
+    # a writing one, which is a materially different kind of mistake than an
+    # under-fetched baseline.
+    assert rollout["env"]["TV_VERIFY_ONLY"] == (
+        "${{ github.event_name == 'schedule' && 'true' || "
+        "github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}"
+    )
+
+
+def test_a_missing_baseline_warns_and_leaves_no_file_instead_of_failing(tmp_path: Path) -> None:
+    """Ensures the step gracefully handles a missing baseline by exiting 0 with a warning.
+
+    The previous grep-based check ("exit 1" not in step["run"]) could not detect
+    differently-spelled failures like `exit 2` or `false`. This test actually
+    executes the script to verify it exits cleanly even when the baseline fetch
+    fails. A red step here would report a failure it never measured; the rollout
+    already turns an absent baseline into "unknown" and decides verdict downstream.
+    """
+    # Extract the script from the workflow
+    step = next(s for s in _steps() if s.get("name") == _BASELINE)
+    script = step["run"]
+
+    # Create a mock gh command that exits 1 (simulating missing baseline)
+    mock_gh_dir = tmp_path / "mock_bin"
+    mock_gh_dir.mkdir()
+    mock_gh = mock_gh_dir / "gh"
+    mock_gh.write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+    mock_gh.chmod(0o755)
+
+    # Create a working directory for the script
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+
+    # Run the script with the mock gh in PATH
+    env = os.environ.copy()
+    env["PATH"] = str(mock_gh_dir) + ":" + env.get("PATH", "")
+    env["GH_TOKEN"] = "fake-token"
+    env["GH_REPO"] = "fake/repo"
+
+    result = subprocess.run(
+        ["bash", "-c", script],
+        cwd=work_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    # Assertions
+    assert result.returncode == 0, f"Script failed with exit code {result.returncode}: {result.stderr}"
+    assert "::warning::" in result.stdout, f"No warning found in stdout: {result.stdout}"
+    baseline_file = work_dir / "artifacts/monitoring/previous/tradingview_consumer_bindings.json"
+    assert not baseline_file.exists(), f"Baseline file should not exist when fetch fails, but found: {baseline_file}"
