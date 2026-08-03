@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertNoVisibleChartScriptError,
   launchTradingViewChromium,
   probeRuntimeSmoke,
 } from "../lib/tv_shared.js";
@@ -75,6 +76,84 @@ test("an observed, genuinely clean legend row still passes", async () => {
 
     assert.equal(smoke.compileError, null);
     assert.equal(smoke.ok, true);
+  } finally {
+    await browser.close();
+  }
+});
+
+// ── assertNoVisibleChartScriptError — the publish-time gate ─────────────────
+// This is the hard gate `scripts/tv_publish_openprep_panel.ts` calls right
+// before publishing. Until this fix it was built on
+// `getVisibleChartScriptError`, whose own docstring says not to use it for
+// gating: that view maps "could not look" to `null`, so an unreadable legend
+// (button renamed, row not yet painted, etc.) certified a clean compile. The
+// three tests below pin the tri-state at the one caller that actually gates
+// a publish on it.
+
+test("assertNoVisibleChartScriptError rejects when the legend cannot be read", async () => {
+  // Same DOM shape as the probe-level test above (no
+  // data-qa-id="legend-settings-action" anchor), but exercised through the
+  // assert wrapper itself: a surface the probe could not look at must not be
+  // certified clean.
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+        </div>
+      </div>
+    `);
+
+    await assert.rejects(
+      () => assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+      /unreadable/i,
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("assertNoVisibleChartScriptError rejects and names the error when the legend shows a compile error", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <span title="Compilation error: CE10271">!</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </div>
+      </div>
+    `);
+
+    await assert.rejects(
+      () => assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+      /CE10271/,
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("assertNoVisibleChartScriptError resolves on a readable, error-free legend", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </div>
+      </div>
+    `);
+
+    await assert.doesNotReject(() =>
+      assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+    );
   } finally {
     await browser.close();
   }
