@@ -93,14 +93,18 @@ def _walk_own(node: ast.AST) -> Iterator[ast.AST]:
 
 
 def classify_iterable(
+    source: str,
     node: ast.expr,
     bindings: dict[str, str],
     helpers: dict[str, str],
 ) -> str | None:
     """Return a kind string when *node* can be empty at runtime, else ``None``.
 
-    ``bindings`` maps local names to kinds, ``helpers`` maps function names
-    to kinds; both are resolved by the caller so this stays a pure function.
+    ``bindings`` maps local names *and dotted property names* to kinds,
+    ``helpers`` maps function names to kinds; both are resolved by the caller
+    so this stays a pure function. ``source`` is only used to render a dotted
+    name through :func:`_render`, the module's single renderer, so that a
+    binding and a lookup of the same property text always agree.
     """
     if isinstance(node, ast.Call):
         func = node.func
@@ -113,20 +117,25 @@ def classify_iterable(
             if func.id in helpers:
                 return helpers[func.id]
             if func.id in _TRANSPARENT_CALLS and node.args:
-                return classify_iterable(node.args[0], bindings, helpers)
+                return classify_iterable(source, node.args[0], bindings, helpers)
         return None
     if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         if any(generator.ifs for generator in node.generators):
             return "filtered comprehension"
-        return classify_iterable(node.generators[0].iter, bindings, helpers)
+        return classify_iterable(source, node.generators[0].iter, bindings, helpers)
     if isinstance(node, ast.Name):
         return bindings.get(node.id)
     if isinstance(node, ast.Attribute):
-        return bindings.get(ast.unparse(node))
+        # Bounded on purpose, exactly as the TypeScript half is: only a dotted
+        # name that :func:`_bind_assignments` actually *saw* being assigned
+        # something emptiable resolves here. Classifying every property access
+        # would report on objects whose contents the analyzer has never
+        # observed — ``CONFIG.targets`` is not evidence of anything.
+        return bindings.get(_render(source, node))
     return None
 
 
-def _module_helpers(tree: ast.Module) -> dict[str, str]:
+def _module_helpers(source: str, tree: ast.Module) -> dict[str, str]:
     """Map helper name -> kind for helpers that hand back an emptiable set."""
     helpers: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -134,7 +143,7 @@ def _module_helpers(tree: ast.Module) -> dict[str, str]:
             continue
         for stmt in _walk_own(node):
             if isinstance(stmt, (ast.Return, ast.YieldFrom)) and stmt.value is not None:
-                kind = classify_iterable(stmt.value, {}, helpers)
+                kind = classify_iterable(source, stmt.value, {}, helpers)
                 if kind is not None:
                     helpers[node.name] = f"helper returns {kind}"
                     break
@@ -142,7 +151,7 @@ def _module_helpers(tree: ast.Module) -> dict[str, str]:
                 isinstance(inner, (ast.Yield, ast.YieldFrom))
                 for inner in _walk_own(stmt)
             ):
-                kind = classify_iterable(stmt.iter, {}, helpers)
+                kind = classify_iterable(source, stmt.iter, {}, helpers)
                 if kind is not None:
                     helpers[node.name] = f"helper yields {kind}"
                     break
@@ -150,7 +159,7 @@ def _module_helpers(tree: ast.Module) -> dict[str, str]:
 
 
 def _bind_assignments(
-    stmts: Iterable[ast.AST], helpers: dict[str, str]
+    source: str, stmts: Iterable[ast.AST], helpers: dict[str, str]
 ) -> dict[str, str]:
     """Map assignment targets in *stmts* to the kind of what they hold.
 
@@ -160,6 +169,22 @@ def _bind_assignments(
     statements get fed in (``tree.body`` vs. :func:`_walk_own`) and what the
     result means differ. Keep that difference at the two named call sites,
     not duplicated in this logic.
+
+    Two target shapes bind. A bare ``ast.Name`` is the obvious one. An
+    ``ast.Attribute`` binds under its :func:`_render`ed dotted text, because
+    a recording object is a lived idiom rather than a hypothetical: the
+    TypeScript half found ``recording.filterCalls`` to be the *dominant*
+    recording shape in ``automation/tradingview/tests`` and had to grow the
+    same binding to see it. Without it, ``rec.calls = [p for p in
+    ROOT.glob("*.py") if p.name]`` followed by ``for c in rec.calls: assert
+    c`` reports nothing at all: :func:`classify_iterable` has an
+    ``ast.Attribute`` branch, but no key it looks up could ever contain a
+    dot, so the branch was unreachable.
+
+    Boundedness is the same as the TypeScript half's and is the point: only
+    a property the analyzer *watched* being assigned something emptiable
+    becomes classifiable. An arbitrary attribute access whose producer was
+    never seen stays unclassified rather than being guessed at.
     """
     bindings: dict[str, str] = {}
     for stmt in stmts:
@@ -173,22 +198,26 @@ def _bind_assignments(
             continue
         if value is None:
             continue
-        kind = classify_iterable(value, bindings, helpers)
+        kind = classify_iterable(source, value, bindings, helpers)
         if kind is None:
             continue
         for target in targets:
             if isinstance(target, ast.Name):
                 bindings[target.id] = f"local {kind}"
+            elif isinstance(target, ast.Attribute):
+                bindings[_render(source, target)] = f"local {kind}"
     return bindings
 
 
-def _module_bindings(tree: ast.Module, helpers: dict[str, str]) -> dict[str, str]:
+def _module_bindings(
+    source: str, tree: ast.Module, helpers: dict[str, str]
+) -> dict[str, str]:
     """Map module-level names to the kind of what they hold.
 
     ``argvalues`` is evaluated at import time, so module scope — not test
     scope — is what decides whether a parametrize set can be empty.
     """
-    return _bind_assignments(tree.body, helpers)
+    return _bind_assignments(source, tree.body, helpers)
 
 
 def _parametrize_argvalues(
@@ -220,11 +249,12 @@ def _parametrize_argvalues(
 
 
 def _local_bindings(
+    source: str,
     func: ast.FunctionDef | ast.AsyncFunctionDef,
     helpers: dict[str, str],
 ) -> dict[str, str]:
     """Map names assigned inside *func* to the kind of what they hold."""
-    return _bind_assignments(_walk_own(func), helpers)
+    return _bind_assignments(source, _walk_own(func), helpers)
 
 
 def _is_nonempty_length_check(op: ast.cmpop, right: ast.expr) -> bool:
@@ -249,16 +279,96 @@ def _is_nonempty_literal(node: ast.expr) -> bool:
     return False
 
 
-def witness_keys(source: str, func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
-    """Return the rendered expressions proven non-empty inside *func*.
+#: Context managers under which a failing ``assert`` is not a failure. The
+#: first three are the polarity inversion :func:`_unconditional_asserts`
+#: exists to stop; ``suppress`` swallows the ``AssertionError`` outright.
+_ASSERTION_INVERTING_CONTEXTS: frozenset[str] = frozenset(
+    {"raises", "assertRaises", "assertRaisesRegex", "assertRaisesRegexp", "suppress"}
+)
+
+
+def _inverts_assertions(stmt: ast.With | ast.AsyncWith) -> bool:
+    """True when *stmt* turns a failing assertion into a passing test."""
+    for item in stmt.items:
+        call = item.context_expr
+        if not isinstance(call, ast.Call):
+            continue
+        target = call.func
+        name = (
+            target.attr
+            if isinstance(target, ast.Attribute)
+            else target.id
+            if isinstance(target, ast.Name)
+            else None
+        )
+        if name in _ASSERTION_INVERTING_CONTEXTS:
+            return True
+    return False
+
+
+def _unconditional_asserts(
+    body: Iterable[ast.stmt],
+) -> Iterator[ast.Assert]:
+    """Yield the asserts that run every time *body* runs.
+
+    A witness has to be *executed* to prove anything, and it proves it only
+    for the block it runs in — hence this is deliberately shallow. It takes
+    one block's statements, not a whole function; :func:`_block_claims`
+    walks the nesting and hands each block its own witnesses plus the ones
+    inherited from the blocks above it.
+
+    Accepted from *body*:
+
+    * an ``assert`` written directly in it — unconditional by construction;
+    * the asserts of a nested ``with`` whose context managers are not in
+      :data:`_ASSERTION_INVERTING_CONTEXTS`. ``with
+      tempfile.TemporaryDirectory() as d:`` is a lived witness site and
+      entering the block does not make the assert conditional; hoisting
+      those into the enclosing block costs nothing and keeps the idiom
+      working.
+
+    Not accepted, so they do not leak upwards: ``if``/``else``,
+    ``for``/``while``, ``match`` and all four ``try`` limbs, plus any
+    ``with`` that inverts assertion polarity. The first two are the
+    reachability cases — a branch may not be taken and a loop may run zero
+    times, and a "witness" that is itself vacuum-prone must not exonerate
+    anything. ``with pytest.raises(AssertionError): assert hits`` is the
+    polarity inversion: there the assertion is *expected to fail*, so
+    reading it as proof of non-emptiness inverts its meaning — the same
+    mistake the TypeScript half guards against explicitly. ``try`` is
+    excluded even for its ``body``, which is reached: ``try: assert
+    xs\\nexcept AssertionError: pass`` is that inversion one keyword
+    further away.
+
+    None of this stops the sound in-loop idiom
+    ``for pat in PATTERNS: matched = ...; assert matched; for m in
+    matched: ...``, because there the witness and the loop it covers share
+    one block — see :func:`_block_claims`.
+
+    Residual, stated rather than hidden: a custom context manager whose
+    ``__exit__`` returns truthy also swallows the ``AssertionError`` while
+    not being named in the set above. Resolving that needs the manager's
+    definition, which this AST-only analyzer does not have.
+    """
+    for stmt in body:
+        if isinstance(stmt, ast.Assert):
+            yield stmt
+        elif isinstance(stmt, (ast.With, ast.AsyncWith)) and not _inverts_assertions(stmt):
+            yield from _unconditional_asserts(stmt.body)
+
+
+def witness_keys(source: str, body: Iterable[ast.stmt]) -> set[str]:
+    """Return the expressions *body* itself proves non-empty.
 
     Four forms, all of them already lived in this repo (spec §5):
     ``assert xs``, ``assert len(xs) >= n``, ``assert xs == <non-empty
     literal>``, and — handled in :func:`_exhaustion_raises` — a ``raise``
     reached by exhausting the loop.
 
-    Scoped to one function on purpose. A witness for ``bool_lines`` says
-    nothing about ``export_lines`` two lines above it.
+    Scoped to one block on purpose, and never across a function boundary. A
+    witness for ``bool_lines`` says nothing about ``export_lines`` two lines
+    above it, and one inside a branch that may not be taken says nothing at
+    all — see :func:`_unconditional_asserts`.
 
     Every key is rendered through :func:`_render`, the same renderer
     :func:`scan_source` uses for the iterable it is compared against.
@@ -267,9 +377,7 @@ def witness_keys(source: str, func: ast.FunctionDef | ast.AsyncFunctionDef) -> s
     ``ROOT.glob("*.py")`` never match the identically-written loop.
     """
     keys: set[str] = set()
-    for node in _walk_own(func):
-        if not isinstance(node, ast.Assert):
-            continue
+    for node in _unconditional_asserts(body):
         test = node.test
         if isinstance(test, ast.Compare) and len(test.ops) == 1:
             left = test.left
@@ -317,32 +425,25 @@ def _raises_or_fails(node: ast.AST) -> bool:
     )
 
 
-def _exhaustion_raises(
-    func: ast.FunctionDef | ast.AsyncFunctionDef,
-    loop: ast.For,
-) -> bool:
-    """True when falling out of *loop* raises instead of continuing.
+def _exhaustion_raises(body: list[ast.stmt], index: int) -> bool:
+    """True when falling out of ``body[index]`` raises instead of continuing.
 
     ``for … else: raise`` and a ``raise`` as the loop's next sibling are the
     same contract: "finding nothing is a failure". That is the correct
     anti-vacuity idiom and must be recognised, not flagged.
     """
-    if any(_raises_or_fails(stmt) for stmt in loop.orelse):
+    loop = body[index]
+    if isinstance(loop, ast.For) and any(_raises_or_fails(s) for s in loop.orelse):
         return True
-    for node in ast.walk(func):
-        for _field, value in ast.iter_fields(node):
-            if not isinstance(value, list):
-                continue
-            for index, item in enumerate(value):
-                if item is loop and index + 1 < len(value):
-                    return _raises_or_fails(value[index + 1])
-    return False
+    return index + 1 < len(body) and _raises_or_fails(body[index + 1])
 
 
-def _iterating_asserts(
-    func: ast.FunctionDef | ast.AsyncFunctionDef,
-) -> Iterator[tuple[ast.expr, int]]:
-    """Yield ``(iterated expression, lineno)`` for every assertion-bearing loop.
+def _iterating_asserts(body: list[ast.stmt]) -> Iterator[tuple[ast.expr, int]]:
+    """Yield ``(iterated expression, lineno)`` for the claims *body* carries.
+
+    Block-local on purpose: a claim belongs to the block it is written in,
+    so that :func:`_block_claims` can hand it exactly the witnesses that are
+    in scope for it. Nested blocks are visited by that walker, not here.
 
     Three syntactic positions carry the same semantics:
 
@@ -353,11 +454,11 @@ def _iterating_asserts(
     A bare ``assert any(<genexp>)`` is *not* included: over an empty
     iterable it is ``False``, so it fails loudly instead of silently.
     """
-    for node in _walk_own(func):
+    for index, node in enumerate(body):
         if (
             isinstance(node, ast.For)
             and any(isinstance(inner, ast.Assert) for inner in _walk_own(node))
-            and not _exhaustion_raises(func, node)
+            and not _exhaustion_raises(body, index)
         ):
             yield node.iter, node.lineno
         if isinstance(node, ast.Assert):
@@ -439,6 +540,63 @@ def _witness_candidates(source: str, node: ast.expr) -> set[str]:
     return candidates
 
 
+def _nested_blocks(stmt: ast.stmt) -> Iterator[list[ast.stmt]]:
+    """Yield the statement blocks written directly inside *stmt*.
+
+    ``for``/``while`` bodies and their ``else``, both ``if`` arms, ``with``
+    bodies, every ``try`` limb including each handler. Nested ``def``/
+    ``class`` bodies are *not* yielded: a claim or a witness inside a nested
+    helper belongs to that helper, the same scope rule :func:`_walk_own`
+    applies.
+    """
+    if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return
+    for _field, value in ast.iter_fields(stmt):
+        if not isinstance(value, list):
+            continue
+        block = [item for item in value if isinstance(item, ast.stmt)]
+        if block:
+            yield block
+        for item in value:
+            if isinstance(item, ast.ExceptHandler):
+                yield item.body
+
+
+def _block_claims(
+    source: str,
+    body: list[ast.stmt],
+    inherited: set[str],
+    bindings: dict[str, str],
+    helpers: dict[str, str],
+) -> Iterator[tuple[ast.expr, int, str]]:
+    """Yield ``(iterable, lineno, kind)`` for the unwitnessed claims under *body*.
+
+    Witnesses are block-scoped and inherited downwards, which is what makes
+    the sound in-loop idiom work while the unsound shapes still fail::
+
+        for pat in PATTERNS:          # PATTERNS is a literal: not a claim
+            matched = sorted(dir.glob(pat))
+            assert matched            # witness, in matched's own block
+            for hit in matched:       # same block -> covered
+                assert is_fast(hit)
+
+    Nothing is inherited *upwards*: a witness written inside a branch, a
+    loop, or a ``pytest.raises`` block says nothing about the block that
+    contains it. That is the whole point of :func:`_unconditional_asserts`,
+    and inheriting in one direction only is what keeps both properties.
+    """
+    visible = inherited | witness_keys(source, body)
+    for iterated, lineno in _iterating_asserts(body):
+        if visible & _witness_candidates(source, iterated):
+            continue
+        kind = classify_iterable(source, iterated, bindings, helpers)
+        if kind is not None:
+            yield iterated, lineno, kind
+    for stmt in body:
+        for block in _nested_blocks(stmt):
+            yield from _block_claims(source, block, visible, bindings, helpers)
+
+
 def _parametrize_claims(
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef,
     module_bindings: dict[str, str],
@@ -452,7 +610,7 @@ def _parametrize_claims(
     :func:`scan_source`'s node loop so the two report identically.
     """
     for argvalues, lineno in _parametrize_argvalues(node):
-        kind = classify_iterable(argvalues, module_bindings, helpers)
+        kind = classify_iterable(source, argvalues, module_bindings, helpers)
         if kind is None:
             continue
         yield VacuousClaim(
@@ -471,8 +629,8 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
     repo-relative posix path so the keys stay stable across checkouts.
     """
     tree = ast.parse(source)
-    helpers = _module_helpers(tree)
-    module_bindings = _module_bindings(tree, helpers)
+    helpers = _module_helpers(source, tree)
+    module_bindings = _module_bindings(source, tree, helpers)
     claims: list[VacuousClaim] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
@@ -486,21 +644,16 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
             continue
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        bindings = _local_bindings(node, helpers)
-        witnessed = witness_keys(source, node)
-        for iterated, lineno in _iterating_asserts(node):
-            rendered = _render(source, iterated)
-            if witnessed & _witness_candidates(source, iterated):
-                continue
-            kind = classify_iterable(iterated, bindings, helpers)
-            if kind is None:
-                continue
+        bindings = _local_bindings(source, node, helpers)
+        for iterated, lineno, kind in _block_claims(
+            source, node.body, set(), bindings, helpers
+        ):
             claims.append(
                 VacuousClaim(
                     path=path,
                     lineno=lineno,
                     test=node.name,
-                    iterable=rendered,
+                    iterable=_render(source, iterated),
                     kind=kind,
                 )
             )

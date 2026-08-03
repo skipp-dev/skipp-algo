@@ -201,6 +201,136 @@ def test_a_witness_for_one_iterable_does_not_cover_its_neighbour() -> None:
     assert _kinds(source) == {"export_lines": "local filtered comprehension"}
 
 
+def test_recorded_property_is_a_claim() -> None:
+    """A recording object is a lived idiom, not a hypothetical shape.
+
+    The TypeScript half found ``recording.filterCalls`` to be the *dominant*
+    recording shape in ``automation/tradingview/tests`` and had to grow a
+    dotted binding to see it. Python's analyzer had the ``ast.Attribute``
+    lookup branch from the start but no assignment ever wrote a dotted key,
+    so the branch could not be reached and this whole shape reported
+    nothing.
+    """
+    source = """
+        def test_every_call_is_scoped():
+            rec.calls = [p for p in ROOT.glob("*.py") if p.name]
+            for call in rec.calls:
+                assert call.scoped
+    """
+    assert _kinds(source) == {"rec.calls": "local filtered comprehension"}
+
+
+def test_a_witness_on_the_recorded_property_clears_it() -> None:
+    """The dotted binding is a real binding: the normal idiom heals it."""
+    source = """
+        def test_every_call_is_scoped():
+            rec.calls = [p for p in ROOT.glob("*.py") if p.name]
+            assert rec.calls
+            for call in rec.calls:
+                assert call.scoped
+    """
+    assert _kinds(source) == {}
+
+
+def test_an_unbound_property_access_is_not_a_claim() -> None:
+    """Boundedness, mirroring the TypeScript half exactly.
+
+    Only a property the analyzer *watched* being assigned something
+    emptiable is classifiable. Reporting on every attribute access would
+    mean claiming that a config object nobody in this file populates might
+    be empty — ``CONFIG.targets`` is not evidence of anything, and a
+    detector that guesses is a detector nobody trusts.
+    """
+    source = """
+        def test_every_target_is_known():
+            for target in CONFIG.targets:
+                assert target in KNOWN
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_witness_behind_a_condition_is_not_a_witness() -> None:
+    """``if cond: assert hits`` may never run, so it proves nothing."""
+    source = """
+        def test_hits_are_scoped():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            if RUN_EXTRA_CHECK:
+                assert hits
+            for hit in hits:
+                assert hit.name
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_witness_carried_by_a_neighbouring_loop_is_not_a_witness() -> None:
+    """A witness inside a loop cannot cover a claim outside that loop.
+
+    The loop may run zero times, in which case the "witness" never
+    executed — a vacuum-prone assertion exonerating another one.
+    """
+    source = """
+        def test_hits_are_scoped():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            for pattern in PATTERNS:
+                assert hits
+            for hit in hits:
+                assert hit.name
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_witness_under_pytest_raises_is_not_a_witness() -> None:
+    """The polarity inversion, and the reason this filter exists.
+
+    Under ``pytest.raises(AssertionError)`` the assertion is *expected to
+    fail*. Reading it as proof of non-emptiness inverts its meaning — the
+    same mistake the TypeScript analyzer guards against explicitly, latent
+    on the Python side until now.
+    """
+    source = """
+        def test_hits_are_scoped():
+            hits = [p for p in ROOT.glob("*.py") if p.name]
+            with pytest.raises(AssertionError):
+                assert hits
+            for hit in hits:
+                assert hit.name
+    """
+    assert _kinds(source) == {"hits": "local filtered comprehension"}
+
+
+def test_a_witness_in_the_same_loop_body_still_counts() -> None:
+    """The sound in-loop idiom must keep working — it is lived repo code.
+
+    ``tests/test_pytest_marker_bucket_discipline.py`` writes exactly this:
+    the witness and the loop it covers share one block, so whenever the
+    inner loop runs, the witness ran on the same iteration. Excluding all
+    loop-carried asserts (rather than scoping them to their block) would
+    turn that healthy site into a false positive.
+    """
+    source = """
+        def test_globs_are_live():
+            for pattern in ("test_a*.py", "test_b*.py"):
+                matched = sorted(TESTS_DIR.glob(pattern))
+                assert matched, "glob matches nothing — dead inventory"
+                for match in matched:
+                    assert is_fast(match.name)
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_witness_inside_a_plain_with_block_still_counts() -> None:
+    """A non-suppressing context manager does not make an assert conditional."""
+    source = """
+        def test_written_files_are_named():
+            with tempfile.TemporaryDirectory() as directory:
+                written = [p for p in Path(directory).glob("*") if p.name]
+                assert written
+                for path in written:
+                    assert path.name
+    """
+    assert _kinds(source) == {}
+
+
 def test_len_check_is_a_witness() -> None:
     source = """
         def test_ledgers_are_gated():
