@@ -526,10 +526,11 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert 'scripts/credential_health_check.py' in workflow_text
     assert '--skip-tv' in workflow_text
     assert '--skip-gh-pat' in workflow_text
-    # NEWSAPI_KEY remains optional: if missing, the workflow explicitly skips
-    # the NewsAPI probe instead of hard-failing preflight on an empty key.
-    assert 'NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe.' in workflow_text
-    assert 'newsapi_arg+=(--skip-newsapi)' in workflow_text
+    # 2026-08-03: the NewsAPI probe is now skipped UNCONDITIONALLY (retired
+    # 2026-07-08). The former conditional skip only fired when the secret was
+    # absent, which let a present-but-401 key hard-block the refresh — see
+    # test_preflight_does_not_gate_on_retired_newsapi for the full mechanism.
+    assert '--skip-newsapi' in workflow_text
     assert '--databento-key-env DATABENTO_API_KEY' in workflow_text
     # The script returns exit 2 for *both* warn and error, so the gate must
     # branch on overall_severity from the JSON report, not on the exit code.
@@ -560,6 +561,38 @@ def test_preflight_step_wires_benzinga_key_and_provider() -> None:
     )
     assert "BENZINGA_PROVIDER:" in block, (
         "preflight step must pass BENZINGA_PROVIDER — a Massive key on the direct transport 401s"
+    )
+
+
+def test_preflight_does_not_gate_on_retired_newsapi() -> None:
+    """Mirror of the Benzinga guard for a RETIRED provider: NewsAPI.ai must not
+    be able to hard-block generation.
+
+    NewsAPI.ai was retired 2026-07-08 (subscription cancelled). The 2026-07-10
+    truth-audit demoted it to critical=False in scripts/probe_providers.py and
+    skipped it in credential-health-check.yml — but THIS workflow was missed and
+    kept probing it at severity=error. The dead key still answered HTTP 200
+    until 2026-08-01, so the miss stayed invisible for ~3 weeks; it then went
+    401 and permanently blocked the daily refresh (run 30805042119).
+
+    The asymmetry was the defect: an ABSENT key was skipped with a warning,
+    while a PRESENT-but-invalid key aborted the whole run — so an optional
+    provider blocked harder when broken than when removed. Nothing here can
+    consume it either way: ENABLE_NEWSAPI_AI defaults OFF and this workflow
+    never sets it, so newsstack_fmp.config never adds newsapi_ai to sources.
+    """
+    block = _step_block(_read(WORKFLOW_PATH), "Provider credential preflight")
+    assert "--skip-newsapi" in block, (
+        "retired NewsAPI probe must be skipped; a cancelled subscription's key 401s forever"
+    )
+    assert "secrets.NEWSAPI_KEY" not in block, (
+        "preflight step must not wire the retired NewsAPI secret — a present-but-dead "
+        "key is what turned this into a hard block"
+    )
+    # Unconditional skip: the old conditional only skipped when the key was
+    # ABSENT, which is precisely the branch that never fired here.
+    assert "newsapi_arg" not in block, (
+        "skip must be unconditional, not gated on the secret being absent"
     )
 
 
