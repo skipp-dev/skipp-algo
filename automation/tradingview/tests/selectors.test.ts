@@ -37,6 +37,7 @@ test("settingsForScript does not use raw CSS attribute interpolation for arbitra
   const locators = tvSelectors.settingsForScript(fakePage as never, 'SMC Core ["Engine"]');
 
   assert.equal(locators.length, 3);
+  assert.ok(calls.length > 0, "the fake page recorded nothing — the absence pin below would pass vacuously");
   assert.equal(calls.some((call) => call.startsWith("locator:")), false);
 });
 
@@ -55,6 +56,7 @@ test("publishedVersionContext requires immediate version evidence for the exact 
   const locators = tvSelectors.publishedVersionContext(fakePage as never, "SMC Core");
 
   assert.equal(locators.length, 4);
+  assert.ok(calls.length > 0, "the fake locator recorded nothing — the .every pin below would pass vacuously");
   assert.equal(calls.every((call) => call.includes("SMC Core") && call.includes("version")), true);
 });
 
@@ -74,6 +76,7 @@ test("openScript excludes the chart indicators entry point", () => {
   const locators = tvSelectors.openScript(fakePage as never);
 
   assert.equal(locators.length, 3);
+  assert.ok(calls.length > 0, "the fake page recorded nothing — the absence pin below would pass vacuously");
   assert.equal(calls.some((call) => /indicators/i.test(call)), false);
 });
 
@@ -109,15 +112,20 @@ test("publishButtons excludes chart-publish header candidates from generic publi
     locatorSelectors.some((selector) => selector.includes(':not(.publish-chart-button):not(.publish-chart-button *)')),
     true,
   );
+  const genericButtonFallbacks = locatorSelectors.filter((selector) =>
+    selector.includes('button:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+    || selector.includes('[role="button"]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+    || selector.includes('[class*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
+    || selector.includes('[data-name*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])'),
+  );
+  assert.ok(
+    genericButtonFallbacks.length > 0,
+    "no generic button fallback was emitted — the .every pin below would pass vacuously",
+  );
   assert.equal(
-    locatorSelectors
-      .filter((selector) =>
-        selector.includes('button:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
-        || selector.includes('[role="button"]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
-        || selector.includes('[class*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])')
-        || selector.includes('[data-name*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])'),
-      )
-      .every((selector) => selector.includes(':not(.publish-chart-button):not(.publish-chart-button *)')),
+    genericButtonFallbacks.every((selector) =>
+      selector.includes(':not(.publish-chart-button):not(.publish-chart-button *)'),
+    ),
     true,
   );
   assert.equal(andCalls.includes("role:^publish$"), true);
@@ -151,6 +159,7 @@ test("openScriptIdentity probes exact and fuzzy title contexts", () => {
   const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Long-Dip Dashboard v7");
 
   assert.equal(locators.length, 12);
+  assert.ok(calls.length > 0, "the fake page recorded nothing — the absence pins below would pass vacuously");
   assert.equal(calls.some((call) => call.includes("pine-dialog")), false);
   assert.equal(calls.some((call) => call.includes('[data-name*="editor" i]')), false);
   assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Dashboard")), true);

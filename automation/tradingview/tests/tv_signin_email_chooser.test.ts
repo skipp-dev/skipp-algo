@@ -117,6 +117,10 @@ test("reports failure instead of hanging on a social-only sign-in page", async (
 
   assert.equal(await revealEmailLoginField(page as never), false);
   assert.ok(
+    calls.length > 0,
+    "the helper probed nothing at all — the absence pin below would pass vacuously",
+  );
+  assert.ok(
     !calls.some((call) => call.startsWith("click:")),
     `nothing clickable existed, yet a click was attempted: ${calls.join(" -> ")}`,
   );
