@@ -350,6 +350,49 @@ def test_binding_snapshot_is_uploaded_even_when_rollout_fails() -> None:
     assert "steps.save.conclusion == 'failure'" in publish["if"]
 
 
+def test_publish_step_seeds_the_shared_directory_before_adding_its_own_file() -> None:
+    """artifacts/monitoring/latest/ on bot/live-tradingview-bindings is SHARED.
+
+    2026-08-03 (Fix wave 1b): smc-r4-context-readback.yml publishes its own
+    tradingview_r4_context_bindings.json to this exact branch, at the same
+    shared directory. The old body here built its commit on top of a fresh
+    `actions/checkout` (main, which does not carry this bot-branch-only
+    directory at all), staged ONLY its own file, and force-pushed — so every
+    run of this workflow made that commit the entire directory and silently
+    deleted R4's file the moment it became the new tip. R4's fetch would then
+    find nothing, report "unknown", and stay permanently red — this
+    repository has a documented history with exactly this shape (a gate left
+    permanently blind because two producers owned one output).
+
+    Mirrors smc-r4-context-readback.yml's own "Publish latest R4 binding
+    snapshot" step (which already carries the symmetric protection for THIS
+    file) rather than inventing a second mechanism. Pins the two properties
+    that prevent the deletion: the tip is fetched and checked out into the
+    shared directory BEFORE this run's own file overlays it, and the WHOLE
+    directory (not one explicit filename) is staged, which is what carries
+    the seeded sibling file into this run's commit.
+    """
+    publish = next(s for s in _steps() if s.get("name") == "Publish latest binding snapshot")
+    run = publish["run"]
+
+    fetch_idx = run.index("git fetch")
+    seed_idx = run.index('git checkout "${expected_sha}" -- "${stable_dir}"')
+    copy_idx = run.index('cp "${snapshot}"')
+    add_idx = run.index("git add -f")
+    commit_idx = run.index("git commit")
+
+    assert fetch_idx < seed_idx < copy_idx < add_idx < commit_idx, (
+        "the tip must be fetched, then checked out into the shared directory, BEFORE this "
+        "run's own file overlays it and the directory is staged — any other order can commit "
+        "a directory missing the sibling producer's file"
+    )
+    assert 'git add -f "${stable_dir}"' in run
+    assert 'git add -f "${stable_dir}/tradingview_consumer_bindings.json"' not in run
+    # Must not collide with smc-r4-context-readback.yml's published path —
+    # that is exactly the "always unknown" trap this whole change avoids.
+    assert "tradingview_r4_context_bindings.json" not in run
+
+
 def test_snapshot_steps_only_run_when_the_rollout_step_actually_executed() -> None:
     """2026-08-03: a gate-blocked run publishes a stale GREEN snapshot.
 
