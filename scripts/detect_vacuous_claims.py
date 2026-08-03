@@ -354,11 +354,12 @@ def _iterating_asserts(
     iterable it is ``False``, so it fails loudly instead of silently.
     """
     for node in _walk_own(func):
-        if isinstance(node, ast.For) and any(
-            isinstance(inner, ast.Assert) for inner in _walk_own(node)
+        if (
+            isinstance(node, ast.For)
+            and any(isinstance(inner, ast.Assert) for inner in _walk_own(node))
+            and not _exhaustion_raises(func, node)
         ):
-            if not _exhaustion_raises(func, node):
-                yield node.iter, node.lineno
+            yield node.iter, node.lineno
         if isinstance(node, ast.Assert):
             test = node.test
             negated = False
