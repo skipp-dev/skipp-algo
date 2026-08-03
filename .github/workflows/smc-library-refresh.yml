@@ -580,7 +580,12 @@ jobs:
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          # NewsAPI.ai is NOT wired in here: retired 2026-07-08 (subscription
+          # cancelled), demoted in probe_providers.py + skipped in
+          # credential-health-check.yml on 2026-07-10. This workflow was the
+          # missed third site — its dead key answered HTTP 200 until 2026-08-01,
+          # then 401'd and permanently blocked the daily refresh (run
+          # 30805042119). Passing the secret is what made the probe run at all.
           # Benzinga News API is load-bearing (2026-07-08: open_prep Core News +
           # live-news cron). The Benzinga probe is not skipped here, so the
           # key + transport MUST be wired in or the preflight aborts on an empty
@@ -590,16 +595,11 @@ jobs:
           BENZINGA_PROVIDER: ${{ vars.BENZINGA_PROVIDER || 'direct' }}
         run: |
           mkdir -p artifacts/ci
-          newsapi_arg=()
-          if [ -z "${NEWSAPI_KEY:-}" ]; then
-            echo "::warning::NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe."
-            newsapi_arg+=(--skip-newsapi)
-          fi
           set +e
           "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
             --skip-tv \
             --skip-gh-pat \
-            "${newsapi_arg[@]}" \
+            --skip-newsapi \
             --databento-key-env DATABENTO_API_KEY \
             --fmp-key-env FMP_API_KEY \
             --output artifacts/ci/provider_preflight.json
