@@ -88,7 +88,7 @@
 "scripts/smc_alert_notifier.py" = [481]
 # 2026-07-24: live_overlay deploy-trigger drift guard; Railway GraphQL POST,
 # explicit timeout=15s, reuses the railway_metrics API-token env vars.
-"scripts/check_live_overlay_deploy_trigger.py" = [117, 192]  # 116->117, 171->192 (2026-08-03): hashlib import + _credential_fingerprint — the failure now publishes a non-reversible sha256[:8] of the credential the RUNNER received, because the same token answers from the operator machine and is refused from CI
+"scripts/check_live_overlay_deploy_trigger.py" = [117, 197]  # 116->117, 171->197 (2026-08-03): hashlib import + _credential_fingerprint, and the probe now also enumerates the project environments so a foreign RAILWAY_ENVIRONMENT_ID is named instead of the token being blamed
 "scripts/verify_branch_protection.py" = [124]  # 108->124 (2026-08-01): ProtectionReport.passed gained the "at least one governance layer observed" floor +16
 "terminal_notifications.py" = [255, 319]
 # 2026-06-10: bare-name urlopen() calls newly detected after expanding
