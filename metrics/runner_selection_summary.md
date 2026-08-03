@@ -1,19 +1,19 @@
 # Runner Selection Metrics
 
-- **Total selections:** 582
+- **Total selections:** 583
 - **Self-hosted matched:** 0 (0.0%)
-- **GitHub-hosted fallback:** 582 (100.0%)
-- **Window:** 2026-06-15T18:20:03Z → 2026-08-03T12:04:37Z
+- **GitHub-hosted fallback:** 583 (100.0%)
+- **Window:** 2026-06-15T18:20:03Z → 2026-08-03T13:19:28Z
 
 ## By resolution reason
 
 | Reason | Count |
 | --- | ---: |
-| `forced_github_hosted` | 470 |
+| `forced_github_hosted` | 471 |
 | `no_idle_matching_self_hosted_runner` | 112 |
 
 ## By runner environment
 
 | Environment | Count |
 | --- | ---: |
-| `github-hosted` | 582 |
+| `github-hosted` | 583 |
