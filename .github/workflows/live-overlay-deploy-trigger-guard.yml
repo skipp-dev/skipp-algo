@@ -15,6 +15,16 @@ on:
   schedule:
     - cron: "17 6 * * *" # daily, off-peak
   workflow_dispatch:
+    inputs:
+      probe_credentials:
+        description: >-
+          Measure which Railway fields each credential may read instead of
+          asserting (read-only, always green). Railway denies deploymentTriggers
+          to both of this repo's tokens (runs 30840756670 / 30831201160) even
+          though the project resolves, so the replacement field has to be
+          measured rather than guessed.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -55,4 +65,17 @@ jobs:
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
           RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
           RAILWAY_LIVE_OVERLAY_SERVICE_ID: ${{ secrets.RAILWAY_LIVE_OVERLAY_SERVICE_ID }}
-        run: python scripts/check_live_overlay_deploy_trigger.py
+          # Probe mode only: the deploy workflow's project token is the one
+          # credential PROVEN to answer a Railway query from a runner (it polls
+          # `deployments` after every `railway up`), so the probe must be able
+          # to ask it too. The assert path never reads it — project tokens are
+          # measured to be denied deploymentTriggers (#4345).
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          PROBE_CREDENTIALS: ${{ inputs.probe_credentials }}
+        run: |
+          set -euo pipefail
+          if [[ "${PROBE_CREDENTIALS:-false}" == "true" ]]; then
+            python scripts/check_live_overlay_deploy_trigger.py --probe
+          else
+            python scripts/check_live_overlay_deploy_trigger.py
+          fi
