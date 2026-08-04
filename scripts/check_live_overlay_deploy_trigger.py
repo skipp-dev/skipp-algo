@@ -46,20 +46,29 @@ trigger and left the repo association. A guard built on `source.repo` (#4354)
 would have reported drift every day, so it was removed the same day it shipped.
 
 Exit codes:
-  0  no native deploy trigger (healthy)  OR  token not configured (skipped)
+  0  no native deploy trigger (healthy)  OR  the deployment is declared
+     unconfigured (_DEPLOYMENT_IS_CONFIGURED = False) and an input is missing
+     (skipped)  OR  `--probe` ran (or could not run for want of
+     RAILWAY_PROJECT_ID/RAILWAY_ENVIRONMENT_ID): a probe MEASURES what each
+     credential can read, it is never a verdict, so it always returns 0 —
+     whatever it found, and whether or not it ran at all
   1  a native deploy trigger exists (drift — remove it, see OPS.md)
-  2  the check could not run (auth/network/API error)
+  2  could not verify: auth/network/API error or unreadable response, OR an
+     input is missing while _DEPLOYMENT_IS_CONFIGURED is True (a deleted or
+     mistyped secret, not a healthy state)
 
-Skipping on an absent token mirrors `deploy-live-overlay-daemon.yml`, which
-no-ops without its Railway secret: an unconfigured guard must not false-fail.
+Skipping on an absent input mirrors `deploy-live-overlay-daemon.yml`, which
+no-ops without its Railway secret — but only while the deployment is declared
+unconfigured. With the declaration True (the production default), a missing
+input cannot false-fail as a healthy skip; it exits 2.
 """
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import sys
-import urllib.error
 import urllib.request
 
 # Matches the railway_metrics bridge's proven-in-production endpoint. Overridable
@@ -71,6 +80,20 @@ _GRAPHQL_ENDPOINT = (
 )
 # Production live_overlay_daemon service (skipp-dev's Projects / skipp-algo).
 _DEFAULT_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
+
+# Does the deployment this guard watches exist? This is a DECLARATION, not a
+# probe — the guard cannot ask "am I supposed to be configured?" of an API it
+# needs the missing credential to reach.
+#
+# It exists because exit 0 meant two different things: "verified, no drift" and
+# "not configured, did not run". A deleted Actions secret therefore produced a
+# permanent green whose message reads exactly like the designed dormant state.
+# With this, a missing input is exit 2 while the daemon is deployed, and the
+# dormant state requires a reviewed repo change instead of a quiet one in the
+# GitHub settings UI. `test_the_declaration_cannot_be_flipped_to_silence_the
+# _guard` couples it to the deploy workflow's existence so it cannot be used
+# as a mute button.
+_DEPLOYMENT_IS_CONFIGURED = True
 
 _QUERY = (
     "query($projectId: String!, $environmentId: String!, $serviceId: String!) {"
@@ -170,7 +193,22 @@ def _fetch_triggers(
         raise RuntimeError(
             f"unexpected deploymentTriggers shape, cannot verify: {str(body)[:200]}"
         )
-    return [e["node"] for e in triggers["edges"] if isinstance(e, dict) and e.get("node")]
+    # Same fail-OPEN trap one level deeper: `[e["node"] for e in edges if
+    # isinstance(e, dict) and e.get("node")]` FILTERS a malformed entry away
+    # instead of rejecting it, so `edges: [{}]`, `[{"node": null}]` and
+    # `[1, 2, 3]` all silently became an empty trigger list — rc 0 "no native
+    # deploy trigger" without having verified anything, which is exactly the
+    # fail-OPEN behaviour the comment above rules out for the outer shape. An
+    # edge that is not a dict carrying a dict `node` is an unreadable
+    # response, not evidence of health.
+    nodes = []
+    for edge in triggers["edges"]:
+        if not isinstance(edge, dict) or not isinstance(edge.get("node"), dict):
+            raise RuntimeError(
+                f"unexpected deploymentTriggers edge shape, cannot verify: {str(edge)[:200]}"
+            )
+        nodes.append(edge["node"])
+    return nodes
 
 
 # Asks the only question this guard actually needs answered: can the credential
@@ -247,7 +285,7 @@ def _diagnose_account_token(
             auth_kind="account",
             timeout=timeout,
         )
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+    except (OSError, http.client.HTTPException, RuntimeError, ValueError, KeyError) as exc:
         return f"follow-up probe could not run ({type(exc).__name__}) — diagnosis inconclusive"
 
     # A non-object body would raise AttributeError here — out of this function's
@@ -345,6 +383,94 @@ _PROBE_QUERIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
+# Leaf values printed verbatim. Everything else is reported by TYPE, never by
+# value: one of the probe's four queries is `deployments.meta`, a free-form
+# object whose contents Railway decides, and this prints into a CI log. GitHub
+# masks registered secrets; it cannot mask what it was never told about.
+#
+# The allowlist is the set of fields that actually answered a question here:
+# `repo`/`image` refuted the source-as-trigger equivalence, `repository` is the
+# same fact under `deploymentTriggers`' own field name — main()'s DRIFT path
+# already prints it verbatim to stderr on a real trigger, so redacting it here
+# would be inconsistent rather than protective — `edges` counts answered "is
+# there a trigger", and id/name/status/branch/provider identify WHICH object
+# answered. It only applies where WE define the shape: these are exactly the
+# common names Railway's own deployment metadata uses, so once the walk
+# descends into a free-form subtree (`meta`), the allowlist stops applying —
+# a key named `branch` inside `meta` is not the guard's `branch`.
+_PAYLOAD_FIELDS = frozenset(
+    {
+        "id",
+        "name",
+        "repo",
+        "repository",
+        "image",
+        "status",
+        "branch",
+        "provider",
+        "createdAt",
+    }
+)
+# Keys whose subtree's shape Railway controls, not us. Everything below one of
+# these is reported by TYPE ONLY, allowlist or not — and that now includes the
+# KEY NAMES, not just the leaf values: a free-form object's field names are
+# third-party content exactly like its values are (a prior version of this
+# code enumerated key names verbatim below `meta`, which a test even pinned as
+# `meta={branch=<str>}` — the comment already claimed the stronger guarantee
+# this now delivers). See `_summarize`'s `not trusted` branch: an untrusted
+# dict collapses to `{<N keys>}`, never to a listing of its keys.
+_PAYLOAD_FREEFORM_KEYS = frozenset({"meta"})
+_PAYLOAD_MAX = 400
+# Sized from the deepest real shape in `_PROBE_QUERIES`
+# (`project.services[].source`), NOT from a synthetic test payload — that was
+# the mistake this cap corrects. Each GraphQL connection costs 3 depth levels
+# per hop (`X -> edges -> elem -> node`), and that query nests TWO connections
+# (`services` then `serviceInstances`) before reaching `source.repo`/`image`,
+# the exact field that, on 2026-08-03, was the evidence a connected repo is
+# NOT a deploy trigger (see the module docstring). At the old cap of 6 that
+# field was elided from the probe summary entirely — the probe's whole reason
+# to exist, silenced by a bound sized for a shorter shape. 12 is the measured
+# depth at which every `_PROBE_QUERIES` shape renders in full; the deepest of
+# the four still summarises to ~203 chars, well inside `_PAYLOAD_MAX` (400).
+_PAYLOAD_MAX_DEPTH = 12
+
+
+def _summarize(value: object, key: str = "", depth: int = 0, trusted: bool = True) -> str:
+    """Structure in full, allowlisted leaves verbatim, everything else by type.
+
+    `trusted` tracks whether the walk is still inside a subtree whose shape we
+    define. It starts True and latches False for the rest of the recursion
+    once a `_PAYLOAD_FREEFORM_KEYS` key is entered — a free-form object one
+    level down is still free-form five levels down. While untrusted, a dict's
+    KEY NAMES are content too (Railway controls them, not us) — so an
+    untrusted dict is reported as its key COUNT, never its key names, exactly
+    the same "type only" treatment its leaf values already get.
+    """
+    if depth > _PAYLOAD_MAX_DEPTH:
+        return "…"
+    if isinstance(value, dict):
+        if not trusted:
+            return f"{{<{len(value)} keys>}}"
+        return (
+            "{"
+            + ", ".join(
+                f"{k}={_summarize(v, k, depth + 1, trusted and k not in _PAYLOAD_FREEFORM_KEYS)}"
+                for k, v in sorted(value.items())
+            )
+            + "}"
+        )
+    if isinstance(value, list):
+        if not value:
+            return "[0 items]"
+        # One representative element: the shape repeats, the values do not.
+        return f"[{len(value)} items: {_summarize(value[0], key, depth + 1, trusted)}]"
+    if value is None or isinstance(value, bool):
+        return str(value)
+    if trusted and key in _PAYLOAD_FIELDS:
+        return json.dumps(value)[:80]
+    return f"<{type(value).__name__}>"
+
+
 def _classify(body: dict) -> tuple[str, str]:
     """Split Railway's failures into the three that need different fixes.
 
@@ -357,13 +483,17 @@ def _classify(body: dict) -> tuple[str, str]:
     with one "Cannot query field" and one "Not Authorized"; testing DENIED first
     reported that as a pure permission wall, which is the conflation this
     docstring promises to prevent, in the one case where it matters most.
+
+    The OK detail is a SUMMARY, not the payload: see `_summarize`. A probe that
+    prints whatever a third-party API returns is a log-exfiltration surface, and
+    the probe's value was always the shape of the answer, not its contents.
     """
     if not isinstance(body, dict):
         return "ERROR", f"non-object JSON response: {str(body)[:200]}"
     errors = body.get("errors") or []
     if not errors:
-        payload = json.dumps(body.get("data") or {}, sort_keys=True)
-        return "OK", payload[:400] + ("…" if len(payload) > 400 else "")
+        summary = _summarize(body.get("data") or {})
+        return "OK", summary[:_PAYLOAD_MAX] + ("…" if len(summary) > _PAYLOAD_MAX else "")
     # An error object without `message` must not degrade to an empty detail —
     # that prints as a verdict with no evidence behind it.
     messages = "; ".join(
@@ -412,7 +542,17 @@ def _probe(project_id: str, environment_id: str, service_id: str) -> int:
                     token,
                     auth_kind=auth_kind,
                 )
-            except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            # Same widened tuple as main()/_diagnose_account_token below: an
+            # uncaught transport fault here would crash the process with exit
+            # status 1, contradicting this function's "always returns 0"
+            # contract (module docstring) just as surely as it would main()'s.
+            except (
+                OSError,
+                http.client.HTTPException,
+                RuntimeError,
+                ValueError,
+                KeyError,
+            ) as exc:
                 status, detail = "TRANSPORT", f"{type(exc).__name__}: {exc}"
             else:
                 status, detail = _classify(body)
@@ -459,12 +599,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not value
     ]
+    if missing and _DEPLOYMENT_IS_CONFIGURED:
+        print(
+            f"ERROR: {', '.join(missing)} not set, but this repo declares the "
+            "live_overlay_daemon deployment as configured "
+            "(_DEPLOYMENT_IS_CONFIGURED). A deleted or mistyped secret is not a "
+            "healthy state — the guard has verified NOTHING. Restore the secret, "
+            "or retire the deployment and flip the declaration in a reviewed PR.",
+            file=sys.stderr,
+        )
+        return 2
     if missing:
         print(
-            f"SKIP: {', '.join(missing)} not set — deploy-trigger drift guard "
-            "did not run. (Dormant by design only while the deployment itself "
-            "is unconfigured; if the daemon IS deployed, this is a deleted "
-            "secret, not a healthy state.)",
+            f"SKIP: {', '.join(missing)} not set and the deployment is declared "
+            "unconfigured — deploy-trigger drift guard did not run.",
         )
         return 0
 
@@ -478,9 +626,17 @@ def main(argv: list[str] | None = None) -> int:
     # traceback and a process exit status of 1 — which this guard defines as
     # DRIFT. A network stall on the daily cron would send the operator into the
     # Railway console hunting a trigger that does not exist.
+    #
+    # TimeoutError was only one member of this class. URLError and TimeoutError
+    # are both OSError subclasses, but ssl.SSLError and ConnectionResetError are
+    # OSError SIBLINGS raised straight out of the socket layer during
+    # resp.read(), and http.client.IncompleteRead is neither an OSError nor a
+    # ValueError — a stalled or truncated read from any of those three escaped
+    # this tuple exactly like the bare TimeoutError above, with the same
+    # consequence: exit 1, misread as DRIFT. Caught by base class from here on.
     except (
-        urllib.error.URLError,
-        TimeoutError,
+        OSError,
+        http.client.HTTPException,
         RuntimeError,
         ValueError,
         KeyError,

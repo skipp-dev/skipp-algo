@@ -212,8 +212,12 @@ The scheduled workflow **`live-overlay-deploy-trigger-guard.yml`** runs
 trigger reappears. It reuses the read-capable Railway API secrets the
 `railway_metrics` bridge already needs (`RAILWAY_API_TOKEN`,
 `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`; optional
-`RAILWAY_LIVE_OVERLAY_SERVICE_ID`) and stays inert (prints `SKIP`, passes) until
-those secrets are added to the repo.
+`RAILWAY_LIVE_OVERLAY_SERVICE_ID`). The script declares this deployment
+configured (`_DEPLOYMENT_IS_CONFIGURED = True`), so a missing secret is now
+exit 2 (fails, "verified NOTHING") rather than a silent `SKIP` — a deleted
+secret is not a healthy state. `SKIP`/exit 0 is only reachable by flipping
+that declaration to `False` in a reviewed PR, which is the correct move if
+the deployment itself is retired.
 
 ### Environment variables
 

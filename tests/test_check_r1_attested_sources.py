@@ -187,3 +187,76 @@ def test_the_evidence_artifact_is_valid_json_with_sources() -> None:
     payload = json.loads(EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
     assert isinstance(payload.get("sources"), dict)
     assert payload["sources"], "evidence registers no sources"
+
+
+# --- the guard fired on PRs that touched nothing (2026-08-04) -----------------
+
+
+def test_a_two_dot_range_is_read_from_the_merge_base() -> None:
+    """`git diff A..B` is `git diff A B` — a comparison of two TREES, not a
+    range. On a branch created before an attested source changed on main, that
+    reports main's change as this PR's.
+
+    Measured 2026-08-04: PR #4373 touches no .pine file at all and this guard
+    failed it for SMC_Event_Overlay.pine, because #4371 changed that file on
+    main after the branch point. Ten pine files came back from the two-dot form
+    and none from the three-dot form.
+    """
+    from scripts.check_r1_attested_sources import _merge_base_range
+
+    assert _merge_base_range("abc..def") == "abc...def"
+    # An explicit three-dot range is already the question we want; leave it.
+    assert _merge_base_range("abc...def") == "abc...def"
+    # A single revision has no range semantics to correct.
+    assert _merge_base_range("HEAD") == "HEAD"
+
+
+def test_the_diff_is_actually_invoked_with_three_dots(monkeypatch) -> None:
+    """Pins the call, not just the helper: the normalisation is worthless if
+    `_changed_paths` forgets to route through it."""
+    from scripts import check_r1_attested_sources as guard
+
+    seen: dict = {}
+
+    class _Result:
+        stdout = ""
+
+    def _fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        return _Result()
+
+    monkeypatch.setattr(guard.subprocess, "run", _fake_run)
+    guard._changed_paths("BASE..HEAD")
+
+    assert seen["argv"] == ["git", "diff", "--name-only", "BASE...HEAD"]
+
+
+def test_a_pine_only_bot_pr_still_runs_this_guard() -> None:
+    """The hole this guard was built to close, re-opened by the lane it runs in.
+
+    `*.pine` sits on fast-gates' data-only allowlist ("published to TradingView,
+    never executed by CI"), which is true about execution risk and wrong about
+    attestation. So a pine-only bot PR got run_heavy=false, the checkout was
+    skipped, this step with it — measured on #4371, which merged green on
+    2026-08-04 and left every later PR red on this guard.
+    """
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "smc-fast-pr-gates.yml"
+    )
+    text = workflow.read_text(encoding="utf-8")
+
+    # The gate must publish a pine signal ...
+    assert "run_pine_guard=$pine" in text
+    # ... the checkout must happen for it (no checkout, no guard) ...
+    assert (
+        "if: steps.gate.outputs.run_heavy == 'true' || "
+        "steps.gate.outputs.run_pine_guard == 'true'" in text
+    )
+    # ... and the guard step itself must not hang on run_heavy alone.
+    guard_step = text.split("- name: Guard R1-attested sources", 1)[1]
+    condition = guard_step.split("run:", 1)[0]
+    assert "run_pine_guard" in condition
+    assert "steps.gate.outputs.run_heavy == 'true' &&" not in condition

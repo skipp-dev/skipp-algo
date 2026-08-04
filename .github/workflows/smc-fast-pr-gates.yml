@@ -113,12 +113,24 @@ jobs:
             exit 0
           fi
           heavy=false
+          pine=false
           while IFS= read -r f; do
             [[ -z "$f" ]] && continue
             case "$f" in
+              # Pine is published to TradingView, never executed by CI or the
+              # Python services, so it stays out of the HEAVY suite — but it is
+              # exactly what the R1 evidence attests, and that is a different
+              # axis from execution risk. Flag it separately so the R1 guard
+              # still runs. Measured 2026-08-04: #4371 changed
+              # SMC_Event_Overlay.pine, "Guard R1-attested sources" was SKIPPED
+              # on its own PR, it merged green, and every unrelated PR has been
+              # red on that guard since — the one producer the guard exists to
+              # stop was the one it could not see.
+              *.pine|pine/generated/*) pine=true ;;
+            esac
+            case "$f" in
               # Data/docs/generated artifacts the bot workflows legitimately
-              # produce. Pine is published to TradingView, never executed by CI
-              # or the Python services, so *.pine / pine/generated are safe here.
+              # produce.
               artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
               *)
                 heavy=true
@@ -131,10 +143,17 @@ jobs:
           else
             echo "Bot data-only PR ($HEAD_REF); skipping heavy fast-gates."
           fi
+          if [[ "$pine" == "true" ]]; then
+            echo "Pine touched — the R1-attested-source guard runs regardless of heavy gates."
+          fi
           echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
+          echo "run_pine_guard=$pine" >> "$GITHUB_OUTPUT"
 
+      # Also on a pine-only bot PR: without a checkout the R1 guard below cannot
+      # run at all, which is how it came to be skipped for the only producer it
+      # was built to stop.
       - name: Checkout
-        if: steps.gate.outputs.run_heavy == 'true'
+        if: steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       # Audit P2 MED: enforce the single-maintainer authorship mandate. Every
@@ -160,7 +179,7 @@ jobs:
       # diff-scoped on purpose: main is already drifted, so a standing-state
       # check here would fail every PR in the repo, including the repair.
       - name: Guard R1-attested sources
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        if: (steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true') && github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}

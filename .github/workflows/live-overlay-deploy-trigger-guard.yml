@@ -7,8 +7,10 @@
 #
 # Requires the read-capable Railway API secrets the railway_metrics bridge
 # already uses: RAILWAY_API_TOKEN, RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT_ID
-# (optionally RAILWAY_LIVE_OVERLAY_SERVICE_ID). Without them the script prints
-# SKIP and the job passes, so this file is inert until the secrets are added.
+# (optionally RAILWAY_LIVE_OVERLAY_SERVICE_ID). The daemon deployment is
+# declared configured in the script (_DEPLOYMENT_IS_CONFIGURED), so a missing
+# secret is exit 2 and this job FAILS — not a silent SKIP. Only flipping that
+# declaration (a reviewed repo change) makes a missing secret inert again.
 name: "live-overlay-deploy-trigger-guard"
 
 on:
