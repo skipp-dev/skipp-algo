@@ -1489,9 +1489,22 @@ jobs:
       # indistinguishable from success. It goes through the same
       # "## R1 attestation check could not run" report as a raised exception:
       # loud, in the job summary AND in the PR body, saying the attestation is
-      # UNKNOWN rather than intact. The floor itself stays enforced on the
-      # required path by tests/test_fast_gates_attested_pine_coverage.py, which
-      # pins the same MIN_ATTESTED_SOURCES on every pull request.
+      # UNKNOWN rather than intact. The floor itself is pinned by
+      # tests/test_fast_gates_attested_pine_coverage.py, which imports the same
+      # MIN_ATTESTED_SOURCES rather than re-typing the number.
+      #
+      # That test does NOT run on every pull request, and saying so here was
+      # wrong. It sits in the "Run pin / ledger drift guard" step of
+      # smc-fast-pr-gates.yml, and that step is gated
+      # `if: steps.gate.outputs.run_heavy == 'true'` — which is precisely false
+      # for the `bot/library-refresh-*` PR this workflow opens, whose diff is
+      # data-only. Being listed in that step's file list, in
+      # tests/_fast_inventory.py and in the silent-skip coverage test puts a
+      # file INTO the step; none of the three makes the step run. What does run
+      # on those PRs is #4376's `run_pine_guard` arm, which pulls in the
+      # checkout plus `Guard R1-attested sources` and nothing else. Adding a
+      # contract target touches a .py file, so the floor pin does run for its
+      # own trigger — the claim was too broad, not inverted.
       #
       # The roster is DERIVED from the contract, never hand-listed here, so a
       # third attested source joins this notice automatically — the same rule
@@ -1554,31 +1567,60 @@ jobs:
 
             attested = sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
             evidence = EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()
+            # DISTINCT PATHS, while MIN_ATTESTED_SOURCES is a floor on contract
+            # TARGETS. Two targets can name one file, so paths <= targets: this
+            # comparison can only be stricter than intended, never looser. It
+            # may raise a false "vacuous roster" — which reports UNKNOWN and
+            # costs a look — and can never wave through a roster that really
+            # collapsed. The safe direction, deliberately.
             floor = MIN_ATTESTED_SOURCES
-            diff = subprocess.run(
-              ["git", "diff", "--name-only", "HEAD", "--", *attested],
-              capture_output=True,
-              text=True,
-              check=True,
-            )
-            stale = sorted(line.strip() for line in diff.stdout.splitlines() if line.strip())
-            # The second, INDEPENDENT question. `stale` answers "did this run
-            # rewrite an attested source"; it says nothing about whether the
-            # registered evidence still describes them, and an empty git diff
-            # was previously published as if it answered both. It cannot: the
-            # rollout can already be un-attested when this run starts — #4371
-            # did exactly that and sat unnoticed for hours. So compare the
-            # hashes too, using the guard that owns the comparison rather than
-            # re-deriving it here, which would measure one implementation
-            # against another instead of against the evidence.
-            drifted = sorted(item["path"] for item in drifted_attested_targets())
+            roster_ok = len(attested) >= floor
+
+            # The roster is checked BEFORE the diff, not after, and on
+            # `attested` itself rather than only on the floor. `git diff
+            # --name-only HEAD -- <paths>` with an EMPTY path list is not "no
+            # files" — the pathspec vanishes and git answers about every file
+            # in the tree, so the step would report the whole repository as
+            # rewritten attested sources. Guarding on the floor alone would
+            # leave that reachable the day MIN_ATTESTED_SOURCES is set to 0,
+            # which is exactly when nobody is watching this step.
+            stale: list[str] = []
+            drifted: list[str] = []
+            if attested and roster_ok:
+              diff = subprocess.run(
+                ["git", "diff", "--name-only", "HEAD", "--", *attested],
+                capture_output=True,
+                text=True,
+                check=True,
+              )
+              stale = sorted(line.strip() for line in diff.stdout.splitlines() if line.strip())
+              # The second, INDEPENDENT question. `stale` answers "did this run
+              # rewrite an attested source"; it says nothing about whether the
+              # registered evidence still describes them, and an empty git diff
+              # was previously published as if it answered both. It cannot: the
+              # rollout can already be un-attested when this run starts — #4371
+              # did exactly that and sat unnoticed for hours. So compare the
+              # hashes too, using the guard that owns the comparison rather
+              # than re-deriving it here, which would measure one
+              # implementation against another instead of against the evidence.
+              drifted = sorted(item["path"] for item in drifted_attested_targets())
           except Exception:
             detail = traceback.format_exc()
             print("::error::R1 attestation check could not run; see the job summary")
             print(detail)
-            summary = notice = cannot_run("The derivation raised.", detail)
+            summary = cannot_run("The derivation raised.", detail)
+            # The PR body gets the SAME verdict without the traceback. A
+            # traceback carries the runner's absolute checkout path and
+            # whatever a frame happened to interpolate, and the PR body is
+            # public and unbounded in width — while the job summary and the run
+            # log, which do carry it, are not. The reviewer still learns the
+            # attestation is UNKNOWN and where to look.
+            notice = cannot_run(
+              "The derivation raised.",
+              "The traceback is in this run's job summary and log.\n",
+            )
           else:
-            if len(attested) < floor:
+            if not roster_ok:
               # NOT an all-clear. A roster that observed nothing would otherwise
               # print "Checked 0 attested source(s) … still describes them",
               # which is indistinguishable from success and would survive
@@ -1675,16 +1717,38 @@ jobs:
               )
 
           # Called exactly once, outside every branch: the job summary for the
-          # run log, $GITHUB_ENV for the PR body in the commit step below. This
-          # is the only statement in the step that can fail it, and only on a
-          # runner fault (unwritable or unset summary/env file) — never on a
-          # verdict this check reached.
+          # run log, a STEP OUTPUT for the PR body in the commit step below.
+          # This is the only statement in the step that can fail it, and only on
+          # a runner fault (unwritable or unset summary/output file) — never on
+          # a verdict this check reached.
+          #
+          # $GITHUB_OUTPUT, not $GITHUB_ENV. An env write is visible to every
+          # LATER step in the job, so a value this step derives becomes ambient
+          # state for steps that never asked for it; an output is addressed
+          # (`steps.r1_attestation.outputs.notice`) and reaches only the step
+          # that names it. tv-save-consumer-source.yml documents the same rule
+          # for the same need, and zizmor rates the env form a `github-env`
+          # HIGH — but its audit is shell-pattern-based and did not see this
+          # one, because the write happens inside a Python heredoc. Measured
+          # 2026-08-04 with the pinned zizmor 1.25.2 --offline: four
+          # `github-env` HIGHs in this file, none of them this step. The
+          # ratchet could not have caught the regression; the rule still binds.
+          #
+          # The delimiter is GROWN until it cannot occur in the value. A fixed
+          # one can be collided with by the content it delimits — and this
+          # content includes a traceback, so it is neither short nor fully
+          # under our control. A collision would end the block early and let
+          # the remainder be parsed as further outputs.
+          delimiter = "R1_NOTICE_EOF"
+          while delimiter in notice:
+            delimiter += "_X"
+
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
             handle.write(summary + "\n")
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
-            handle.write("R1_ATTESTATION_NOTICE<<R1_NOTICE_EOF\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+            handle.write(f"notice<<{delimiter}\n")
             handle.write(notice)
-            handle.write("\nR1_NOTICE_EOF\n")
+            handle.write(f"\n{delimiter}\n")
           PY
 
       - name: Commit and push changes
@@ -1716,6 +1780,13 @@ jobs:
           # and tests/test_workflow_gh_pat_discipline.py.
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          # Bound through `env:`, never interpolated into the `run:` script.
+          # `${{ }}` inside a shell body is textual substitution before bash
+          # sees it, so a value carrying a quote or a `$(` would be executed —
+          # zizmor's `template-injection`. Through env: it is only ever data.
+          # Empty when the notice step was skipped, which is the same thing the
+          # unset variable used to mean.
+          R1_ATTESTATION_NOTICE: ${{ steps.r1_attestation.outputs.notice }}
         run: |
           # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
           # so direct `git push origin HEAD:main` is rejected with GH013

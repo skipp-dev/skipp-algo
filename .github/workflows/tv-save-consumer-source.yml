@@ -521,7 +521,16 @@ jobs:
           # rendered rather than deleted.
           # tests/test_workflow_tv_save_consumer_source_contract.py pins the
           # agreement.
-          resolution="$(python3 -c 'from scripts.check_tv_unattested_sources import RESOLUTION; from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE, ROOT; print(RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()), end="")')"
+          # `|| resolution=…` and not a bare assignment: under `set -euo
+          # pipefail` a failing command substitution aborts the step HERE, and
+          # everything that makes this step useful comes after it — the job
+          # summary naming the un-attested sources, and the `::error::` line.
+          # The run would still be red, so the gate holds, but the report a
+          # reviewer needs would be gone precisely when rendering the remedy is
+          # what broke. Losing the prose is acceptable; losing the finding is
+          # not.
+          resolution="$(python3 -c 'from scripts.check_tv_unattested_sources import RESOLUTION; from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE, ROOT; print(RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()), end="")')" \
+            || resolution="(the shared remedy could not be rendered — see this run's log; it lives in scripts/check_tv_unattested_sources.RESOLUTION)"
           {
             echo "## R1-attested sources were saved un-attested"
             echo
