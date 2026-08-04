@@ -5,7 +5,7 @@ starlette==1.3.1  # 2026-08-04: pinned at the version this file already
                   # are the real risk on the deployed daemon, the
                   # production path with the highest blast radius — see
                   # requirements.txt for the root-cause writeup.
-uvicorn==0.52.0
+uvicorn==0.52.1
 databento==0.82.0
 psutil==7.2.2
 holidays==0.101
