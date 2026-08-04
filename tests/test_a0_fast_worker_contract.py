@@ -119,7 +119,7 @@ def test_worker_image_packages_pre_a0_atomic_parquet_runtime() -> None:
     requirements = (root / "services/a0_fast_detector/requirements.txt").read_text(encoding="utf-8")
     railway = (root / "services/a0_fast_detector/railway.toml").read_text(encoding="utf-8")
     assert "COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py" in dockerfile
-    assert "pyarrow==24.0.0" in requirements
+    assert "pyarrow==25.0.0" in requirements  # 2026-08-04 (#4439 accepted): 24.0.0->25.0.0, a0-fast-shadow measured healthy on the deployed image
     assert '"open_prep/pre_a0*.py"' in railway
     assert '"scripts/smc_atomic_write.py"' in railway
 

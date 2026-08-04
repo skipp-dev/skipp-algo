@@ -24,7 +24,10 @@ plotly==6.7.0
 eventregistry==9.1
 yfinance==1.3.0
 tradingview-ta==3.3.0
-databento==0.79.0
+# 2026-08-04: 0.79.0->0.82.0, aligned with the four service pins dependabot bumped
+# in #4439; both deployed live daemons measured healthy on 0.82.0 before this bump.
+# NB: test_databento_live_contract compares the whole pin LINE — keep it bare.
+databento==0.82.0
 ib-async==2.1.0
 openpyxl==3.1.5
 pyarrow==24.0.0
