@@ -19,6 +19,7 @@ from smc_integration.release_policy import (
     VOLATILE_ARTIFACT_POLICY,
     classify_artifact_drift,
 )
+from tests._workflow_step_shell import run_step, step_by_name
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"
@@ -1830,3 +1831,112 @@ def test_an_evidence_artifact_missing_a_hash_never_produces_an_all_clear(
             f"{description}: the verdict never reached the PR body, which is the "
             "only surface anyone reads"
         )
+
+
+# --- the publish gate, executed rather than described ------------------------
+#
+# `publish_gate` decides `publish_allowed`, and twelve later steps hang on it --
+# including the one that publishes to the live TradingView account. Its contract
+# above (test_publish_gate_combines_breaking_with_operator_override) pins the
+# four env keys and the warning string; none of that constrains the logic.
+#
+# Measured 2026-08-04 with a value-preserving arm swap (the multiset of
+# `name=value` tokens left unchanged, so every substring assertion is blind by
+# construction): swapping the two `PUBLISH_ALLOWED=` arms left all 597 tests
+# across the 32 files that name this workflow green -- while a breaking change
+# would publish without an operator override, and a clean refresh would not
+# publish at all.
+
+
+PUBLISH_GATE_STEP = "Compute publish gate"
+
+
+def _publish_gate(tmp_path, *, breaking, is_dispatch, is_main, allow_breaking):
+    """Run the real step; return its outputs."""
+    return run_step(
+        "smc-library-refresh.yml",
+        PUBLISH_GATE_STEP,
+        tmp_path,
+        env={
+            "BREAKING": breaking,
+            "IS_DISPATCH": is_dispatch,
+            "IS_MAIN": is_main,
+            "ALLOW_BREAKING": allow_breaking,
+        },
+    )
+
+
+def test_publish_gate_harness_feeds_exactly_the_step_env(tmp_path) -> None:
+    """The harness env must mirror the step's ``env:`` block, and nothing more.
+
+    The step runs under ``-u``, but a future variable the workflow adds and this
+    harness does not would still be the dangerous shape: the tests below would
+    keep passing against a gate that no longer behaves as they describe. Pinning
+    the key set makes that a named failure instead.
+    """
+    declared = set(step_by_name("smc-library-refresh.yml", PUBLISH_GATE_STEP)["env"])
+    assert declared == {"BREAKING", "IS_DISPATCH", "IS_MAIN", "ALLOW_BREAKING"}
+
+
+def test_a_clean_refresh_publishes(tmp_path) -> None:
+    """No breaking change: publishing is the normal outcome, override irrelevant."""
+    result = _publish_gate(
+        tmp_path, breaking="false", is_dispatch="false", is_main="true", allow_breaking="false"
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["publish_allowed"] == "true"
+    assert result.outputs["override_active"] == "false"
+
+
+def test_a_breaking_change_does_not_publish_on_its_own(tmp_path) -> None:
+    """The gate's reason for existing: breaking changes stop here."""
+    result = _publish_gate(
+        tmp_path, breaking="true", is_dispatch="false", is_main="true", allow_breaking="false"
+    )
+    assert result.outputs["publish_allowed"] == "false"
+    assert result.outputs["override_active"] == "false"
+
+
+def test_the_override_needs_all_three_conditions(tmp_path) -> None:
+    """Defence in depth, checked exhaustively rather than by example.
+
+    A breaking change may publish only on a manual dispatch, against main, with
+    the operator input set. Any one of the three missing must block -- so all
+    eight combinations are enumerated instead of trusting the happy path and one
+    counter-example.
+    """
+    seen_allowed = 0
+    for dispatch in ("true", "false"):
+        for main in ("true", "false"):
+            for allow in ("true", "false"):
+                result = _publish_gate(
+                    tmp_path,
+                    breaking="true",
+                    is_dispatch=dispatch,
+                    is_main=main,
+                    allow_breaking=allow,
+                )
+                expected = "true" if dispatch == main == allow == "true" else "false"
+                seen_allowed += expected == "true"
+                assert result.outputs["publish_allowed"] == expected, (
+                    f"breaking change with dispatch={dispatch} main={main} "
+                    f"allow_breaking={allow} must be publish_allowed={expected}"
+                )
+                assert result.outputs["override_active"] == expected
+    # Without this the loop could assert eight identical "false"s and still pass
+    # against a gate that never honours the override at all.
+    assert seen_allowed == 1, "exactly one of the eight combinations may publish"
+
+
+def test_the_override_announces_itself(tmp_path) -> None:
+    """An override that publishes silently is the one nobody reviews."""
+    overridden = _publish_gate(
+        tmp_path, breaking="true", is_dispatch="true", is_main="true", allow_breaking="true"
+    )
+    assert "Operator override active" in overridden.stdout
+    plain = _publish_gate(
+        tmp_path, breaking="false", is_dispatch="true", is_main="true", allow_breaking="true"
+    )
+    assert "Operator override active" not in plain.stdout, (
+        "a refresh with no breaking change must not claim an override was used"
+    )
