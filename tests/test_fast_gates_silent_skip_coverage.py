@@ -869,13 +869,28 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # nowhere.
 #
 # What the partition is NOT. It is not "the tests whose import graph reaches
-# playwright". Measured 2026-08-03: of the 42 tests the workflow runs, 14
-# value-import `playwright` transitively through automation/tradingview/
-# lib/tv_shared.ts (whose `import { chromium, … } from "playwright"` spans its
-# lines 4-11: `chromium` on line 5, the specifier on line 11)
-# — tv_chart_error_probe.test.ts among them. Reaching playwright therefore
-# does not force exemption, and describing the set that way told a reader a
-# rule the code does not follow.
+# playwright". Measured 2026-08-03 (historical — the run step was 42 tests
+# then, see the re-derived 2026-08-04 figure below for the current 53): of
+# the 42 tests the workflow ran, 14 value-import `playwright` transitively
+# through automation/tradingview/lib/tv_shared.ts (whose
+# `import { chromium, … } from "playwright"` spans its lines 4-11: `chromium`
+# on line 5, the specifier on line 11) — tv_chart_error_probe.test.ts among
+# them.
+#
+# Re-measured 2026-08-04 against the current 53-test run step with the same
+# method (walk each run test's import graph, follow only VALUE — not
+# `import type` — edges, count a hit only if a value edge reaches the literal
+# "playwright" specifier): 25 of 53 value-import playwright transitively,
+# still overwhelmingly through tv_shared.ts's `chromium` import. The eleven
+# added 2026-08-04 contribute some of those 25 (e.g. tv_auth_probe_precedence,
+# tv_binding_repair, tv_preflight_identity_assertion, tv_producer_refresh_layouts,
+# tv_publish_draw_library, tv_publish_micro_library, tv_publish_openprep_panel,
+# tv_publish_overlay_library, tv_read_editor_content, tv_save_consumer_source,
+# tv_launch_options — the last via its own direct `import type` line, which by
+# itself would NOT count under this method; it counts here because it also
+# reaches tv_shared.ts through a value-import chain), but reaching playwright
+# still does not force exemption — describing the set that way told a reader
+# a rule the code does not follow, then and now.
 #
 # What actually forces exemption is needing a pinned browser at RUNTIME, and
 # that accounts for two members, not thirteen: tv_shared.test.ts (25
@@ -914,9 +929,9 @@ def _tv_workflow_text() -> str:
     return TV_ONBOARDING_WORKFLOW.read_text(encoding="utf-8")
 
 
-def _tv_run_step_tests() -> set[str]:
+def _tv_run_step_tests(text: str | None = None) -> set[str]:
     """Basenames of *.test.ts invoked by an `npx tsx --test` line."""
-    text = _tv_workflow_text()
+    text = _tv_workflow_text() if text is None else text
     tests: set[str] = set()
     for line in text.splitlines():
         if "tsx --test" not in line:
@@ -925,12 +940,38 @@ def _tv_run_step_tests() -> set[str]:
     return {Path(t).name for t in tests}
 
 
-def _tv_paths_filter_tests() -> set[str]:
-    """Basenames of *.test.ts listed under any `paths:` filter."""
-    return {Path(t).name for t in re.findall(r"([A-Za-z0-9_./-]+\.test\.ts)", _tv_workflow_text())} - _tv_run_step_tests() | {
-        Path(t).name
-        for t in re.findall(r'-\s*"([^"]+\.test\.ts)"', _tv_workflow_text())
-    }
+def _tv_yaml_sibling_block(text: str, key: str) -> str:
+    """Text of the ``  <key>:`` block, up to the next sibling or top-level key.
+
+    ``on:``'s direct children (``push:``, ``pull_request:``, …) sit at 2-space
+    indent; the workflow's own top-level keys (``permissions:``, ``jobs:``, …)
+    sit at 0-space indent once ``on:`` is exhausted. A line matching either
+    boundary ends the block, so this does not need to know what the *next*
+    sibling is called.
+    """
+    start_match = re.search(rf"(?m)^  {re.escape(key)}:\s*$", text)
+    if not start_match:
+        return ""
+    rest = text[start_match.end() :]
+    end_match = re.search(r"(?m)^(  \S|\S)", rest)
+    return rest[: end_match.start()] if end_match else rest
+
+
+def _tv_paths_filter_tests_in_block(block: str) -> set[str]:
+    """Basenames of *.test.ts listed as a quoted `paths:` entry within ``block``."""
+    return {Path(t).name for t in re.findall(r'-\s*"([^"]+\.test\.ts)"', block)}
+
+
+def _tv_push_paths_tests(text: str | None = None) -> set[str]:
+    """Basenames of *.test.ts under the push `paths:` filter only."""
+    text = _tv_workflow_text() if text is None else text
+    return _tv_paths_filter_tests_in_block(_tv_yaml_sibling_block(text, "push"))
+
+
+def _tv_pull_request_paths_tests(text: str | None = None) -> set[str]:
+    """Basenames of *.test.ts under the pull_request `paths:` filter only."""
+    text = _tv_workflow_text() if text is None else text
+    return _tv_paths_filter_tests_in_block(_tv_yaml_sibling_block(text, "pull_request"))
 
 
 def _all_ts_tests() -> set[str]:
@@ -976,18 +1017,96 @@ def test_exempt_ts_tests_still_exist() -> None:
 
 
 def test_gated_ts_tests_trigger_their_own_workflow() -> None:
-    """A TS test that runs but is not in `paths:` does not trigger on its change.
+    """A TS test that runs but is not in BOTH `paths:` filters does not always
+    trigger on its own change.
 
     tv_preflight_add_to_chart_floor needed BOTH a run step and a paths entry
     (#3970): without the paths entry, editing the test — or the source it
     guards — would not start the workflow, so the pin could not fire on its own
-    regression. Every run test must therefore also be in the paths filter.
+    regression. Every run test must therefore be in the push `paths:` filter
+    AND the pull_request `paths:` filter — being in only one (e.g. push) still
+    leaves a PR that touches only the test unable to start the workflow that
+    guards it, which is the same #3970 failure mode with a narrower trigger.
+    The two filters are checked as separate blocks (see
+    ``_tv_yaml_sibling_block``), not as one pooled set of `.test.ts` names
+    scraped from the whole file — a name present under push.paths alone must
+    not count as "wired" for pull_request.
     """
     gated = _tv_run_step_tests()
-    in_paths = _tv_paths_filter_tests()
-    missing = sorted(gated - in_paths)
-    assert not missing, (
-        "TS test(s) run in tv-onboarding-packages.yml but are absent from its "
-        f"`paths:` filter: {missing}. A change to the test then does not trigger "
-        "the workflow. Add each to both the push and pull_request `paths:` lists."
+    missing_push = sorted(gated - _tv_push_paths_tests())
+    missing_pull_request = sorted(gated - _tv_pull_request_paths_tests())
+    assert not missing_push and not missing_pull_request, (
+        "TS test(s) run in tv-onboarding-packages.yml but are absent from one "
+        "or both of its `paths:` filters. A change to the test then does not "
+        "reliably trigger the workflow that guards it.\n\n"
+        f"Missing from push.paths: {missing_push}\n"
+        f"Missing from pull_request.paths: {missing_pull_request}\n\n"
+        "Add each to both the push and pull_request `paths:` lists."
+    )
+
+
+# Regression fixture for the push/pull_request paths-filter split above.
+#
+# _tv_paths_filter_tests() (removed 2026-08-04) used to scrape *.test.ts
+# basenames from the WHOLE workflow file text without distinguishing the
+# push.paths block from the pull_request.paths block, so a test present in
+# only ONE of the two still counted as "in paths" and
+# test_gated_ts_tests_trigger_their_own_workflow passed — even though a PR
+# that touches only that test would not start the workflow on every trigger.
+# That is the #3970 failure mode again, just with "missing from one of two
+# blocks" instead of "missing from both". Verified by reading the guard, not
+# by running it against a real regression, hence this synthetic fixture:
+# tv_example_push_only.test.ts below is run AND listed under push.paths, but
+# absent from pull_request.paths — exactly the half-wired case.
+_SYNTHETIC_HALF_WIRED_WORKFLOW = """\
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "automation/tradingview/tests/tv_example_wired_everywhere.test.ts"
+      - "automation/tradingview/tests/tv_example_push_only.test.ts"
+  pull_request:
+    paths:
+      - "automation/tradingview/tests/tv_example_wired_everywhere.test.ts"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    steps:
+      - name: Test hermetic TV pins
+        run: npx tsx --test automation/tradingview/tests/tv_example_wired_everywhere.test.ts automation/tradingview/tests/tv_example_push_only.test.ts
+"""
+
+
+def test_paths_filter_split_catches_single_block_wiring() -> None:
+    """A test wired into only ONE of push/pull_request `paths:` must be caught.
+
+    This exercises the block-splitting helpers directly against synthetic
+    workflow text rather than the real file, so the fixture is independent of
+    whatever the eleven 2026-08-04 tests currently look like. Mutation check
+    (performed manually, not committed): reverting
+    ``_tv_push_paths_tests``/``_tv_pull_request_paths_tests`` to the old
+    whole-file-union behaviour makes ``missing_from_pull_request`` empty below
+    — i.e. this fixture fails before the split and passes after it.
+    """
+    gated = _tv_run_step_tests(_SYNTHETIC_HALF_WIRED_WORKFLOW)
+    assert gated == {
+        "tv_example_wired_everywhere.test.ts",
+        "tv_example_push_only.test.ts",
+    }
+
+    missing_from_push = gated - _tv_push_paths_tests(_SYNTHETIC_HALF_WIRED_WORKFLOW)
+    assert not missing_from_push, (
+        "both synthetic tests are in push.paths; none should be reported missing"
+    )
+
+    missing_from_pull_request = gated - _tv_pull_request_paths_tests(_SYNTHETIC_HALF_WIRED_WORKFLOW)
+    assert missing_from_pull_request == {"tv_example_push_only.test.ts"}, (
+        "tv_example_push_only.test.ts is deliberately absent from "
+        "pull_request.paths in the fixture — the split must report it as "
+        "missing, not silently accept it because it is present under push.paths"
     )
