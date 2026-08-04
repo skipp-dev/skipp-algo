@@ -153,6 +153,65 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      # R1 companion pin vs published library version. Repo-only reads,
+      # sub-second; the deliberate re-attestation stays manual by design
+      # (docs/superpowers/specs/2026-08-04-r1-reattestation-design.md).
+      - name: R1 pin drift (library pin vs published version)
+        id: r1drift
+        if: always()
+        run: |
+          set -euo pipefail
+          python -m scripts.check_r1_pin_drift
+
+      - name: Open / update / close R1 pin-drift issue
+        if: always() && steps.r1drift.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          R1_DRIFTED: ${{ steps.r1drift.outputs.drifted }}
+          R1_MAX_LAG: ${{ steps.r1drift.outputs.max_lag }}
+        run: |
+          set -euo pipefail
+          # Same soft degradation as the freshness issue step above: disabled
+          # Issues must not read as a broken monitor.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=r1-pin-drift::Issues disabled on ${GH_REPO} — drifted=${R1_DRIFTED}, maxLag=${R1_MAX_LAG}. Step summary is the alert."
+            exit 0
+          fi
+          existing=$(gh issue list --repo "$GH_REPO" --state open \
+            --label r1-pin-drift --json number --jq '.[0].number' || echo "")
+          if [ "${R1_DRIFTED}" = "true" ]; then
+            TITLE="r1-pin-drift: companion pin ${R1_MAX_LAG} versions behind the published library"
+            BODY_FILE=$(mktemp)
+            {
+              echo "The R1 companion library pin lags the published smc_micro_profiles_generated version by **${R1_MAX_LAG}** (threshold 3)."
+              echo ""
+              echo "Report: see the r1_pin_drift.json artifact of this run."
+              echo ""
+              echo "Moving the pin is a deliberate re-attestation — run:"
+              echo ""
+              echo '```bash'
+              echo "python -m scripts.run_r1_reattestation prepare"
+              echo '```'
+              echo ""
+              echo "and follow its printed next steps (PR1 -> merge -> mutating dispatch -> measure -> PR2)."
+              echo "Design: docs/superpowers/specs/2026-08-04-r1-reattestation-design.md"
+            } > "$BODY_FILE"
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" --repo "$GH_REPO" --title "$TITLE" --body-file "$BODY_FILE"
+              echo "::notice title=r1-pin-drift::updated issue #$existing (maxLag=${R1_MAX_LAG})"
+            else
+              gh issue create --repo "$GH_REPO" --title "$TITLE" --body-file "$BODY_FILE" --label r1-pin-drift
+              echo "::notice title=r1-pin-drift::opened issue (maxLag=${R1_MAX_LAG})"
+            fi
+          else
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$GH_REPO" \
+                --comment "Pin drift healed: maxLag=${R1_MAX_LAG} < 3. Closed by workflow-freshness-monitor."
+              echo "::notice title=r1-pin-drift::closed issue #$existing"
+            fi
+          fi
+
       - name: Open / update issue on stale or error
         if: always() && (steps.probe.outputs.overall == 'stale' || steps.probe.outputs.overall == 'error')
         env:

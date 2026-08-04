@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._workflow_step_shell import Stub, run_step
+
 WORKFLOW = Path(".github/workflows/workflow-freshness-monitor.yml")
 
 
@@ -144,3 +146,72 @@ def test_job_has_timeout(text: str) -> None:
     # 5 min is generous for a few API calls; absence of timeout-minutes
     # would let a hung request burn the default 6h GHA budget.
     assert "timeout-minutes: 5" in text
+
+
+def _gh_stub(*, issues_enabled: bool, existing_issue: str) -> Stub:
+    """Answer the two gh reads the R1 issue step depends on; no-op everything else.
+
+    Mirrors the ``case "$1$2" in ...`` per-argument answering pattern used for
+    ``gh`` in tests/test_refresh_closes_superseded_bot_prs.py -- one binary,
+    several distinct sub-command answers, everything unmatched a silent
+    success so `issue create`/`close`/`edit` all "work" without asserting on
+    their own output.
+    """
+    enabled = "true" if issues_enabled else "false"
+    return Stub(
+        script=(
+            'case "$1 $2" in\n'
+            f"  \"repo view\") printf '%s\\n' '{enabled}' ;;\n"
+            f"  \"issue list\") printf '%s\\n' '{existing_issue}' ;;\n"
+            "  *) : ;;\n"
+            "esac\n"
+        )
+    )
+
+
+def test_r1_drift_probe_step_runs_the_watcher(tmp_path: Path) -> None:
+    result = run_step(
+        WORKFLOW.name,
+        "R1 pin drift (library pin vs published version)",
+        tmp_path,
+        env={},
+        stubs={"python": 0},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.called_with("-m", "scripts.check_r1_pin_drift"), (
+        "the step no longer invokes the watcher module -- the drift probe is dead"
+    )
+
+
+def test_r1_drift_issue_step_opens_when_drifted(tmp_path: Path) -> None:
+    result = run_step(
+        WORKFLOW.name,
+        "Open / update / close R1 pin-drift issue",
+        tmp_path,
+        env={
+            "GH_TOKEN": "t",
+            "GH_REPO": "o/r",
+            "R1_DRIFTED": "true",
+            "R1_MAX_LAG": "3",
+        },
+        stubs={"gh": _gh_stub(issues_enabled=True, existing_issue="")},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.called_with("issue", "create"), "drifted=true muss ein Issue oeffnen"
+
+
+def test_r1_drift_issue_step_closes_when_healed(tmp_path: Path) -> None:
+    result = run_step(
+        WORKFLOW.name,
+        "Open / update / close R1 pin-drift issue",
+        tmp_path,
+        env={
+            "GH_TOKEN": "t",
+            "GH_REPO": "o/r",
+            "R1_DRIFTED": "false",
+            "R1_MAX_LAG": "0",
+        },
+        stubs={"gh": _gh_stub(issues_enabled=True, existing_issue="17")},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.called_with("issue", "close"), "geheilter Drift muss das Issue schliessen"
