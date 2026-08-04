@@ -207,35 +207,29 @@ def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() ->
 def test_the_drill_reading_moves_forward_by_a_new_artifact_never_by_an_edit() -> None:
     """The divergence is deliberate, and it is the whole point of dating evidence.
 
-    On 2026-08-01 the registered evidence was captured at 05:05:15Z, before the
-    drill had an implementation, and it records ``rollback: not_run``. The drill
-    ran at 17:23:24Z. That artifact still says not_run and must keep saying it.
+    Until 2026-08-04 this test told the story by date: the 2026-08-01 evidence
+    predates the drill and keeps ``not_run``; the 2026-08-04 re-attestation
+    postdates it and carries the drill's artifact. Those are two instances of
+    chain-generic rules, and the automated re-attestation chain appends new
+    instances -- so the generic forms now live in
+    ``tests/test_smc_r1_evidence_chain.py``: byte-frozen artifacts forbid the
+    edit for every reading at once, and the pre/post-drill rule is asserted for
+    every chain member against the drill's own capture time.
 
-    The 2026-08-04 re-attestation was captured after the drill, so ``not_run``
-    would be false there -- it carries the drill's own dated artifact forward
-    instead, and says in the same breath that it did not re-run it. Both
-    readings are true of their own date, which is exactly what editing the
-    earlier one to agree would have destroyed.
+    What stays here is the piece about the CURRENT attestation only: it must
+    carry the drill rather than claim it, and the contract must say the two
+    readings disagree.
     """
     evidence = _evidence()
     drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
-    prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
 
-    # The artifact captured BEFORE the drill keeps its pre-drill reading, for
-    # good. This is the assertion that forbids the edit.
-    assert prior["rollback"]["status"] == "not_run"
-    assert prior["capturedAt"] < drill["capturedAt"]
-    assert "not_run" in drill["supersedesNothing"]
-
-    # The current attestation was captured after the drill, so it may not claim
-    # not_run -- and it may not claim to have run it either. It carries the
-    # drill's own dated artifact and says so.
     assert evidence["capturedAt"] > drill["capturedAt"]
     assert evidence["rollback"]["status"] == "carried_over"
     assert evidence["rollback"]["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
     ).as_posix()
     assert "NOT re-run" in evidence["rollback"]["justification"]
+    assert "not_run" in drill["supersedesNothing"]
     assert contract_note_names_the_divergence(build_rollout_contract())
 
 
@@ -248,35 +242,16 @@ def contract_note_names_the_divergence(contract: dict) -> bool:
     )
 
 
-def test_carried_over_replay_requires_the_exit_signal_source_to_be_unchanged() -> None:
-    """The replay artifact may be reused only while its subject has not moved.
+def test_the_head_names_the_reading_it_superseded() -> None:
+    """The supersession claim must be about the predecessor's actual reading.
 
-    The 2026-07-29 replay covers SMC Exit Signal. Carrying it forward is honest
-    exactly as long as that source is byte-identical to the version it was
-    measured against; the moment Exit Signal changes, the carry-over becomes a
-    claim about a source nobody replayed.
-    """
-    evidence = _evidence()
-    prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
-    replay = evidence["replay"]
-
-    if replay["status"] == "carried_over":
-        assert (
-            evidence["sources"]["SMC Exit Signal"]["repositorySha256"]
-            == prior["sources"]["SMC Exit Signal"]["repositorySha256"]
-        ), "Exit Signal moved, so the 2026-07-29 replay no longer describes it"
-        assert replay["evidence"] == prior["replay"]["evidence"]
-        assert replay["passedLogicalCases"] == prior["replay"]["passedLogicalCases"]
-
-
-def test_the_superseded_dated_evidence_is_kept_verbatim() -> None:
-    """A dated measurement is never rewritten to match the present.
-
-    The 2026-07-29 artifact attests an Event Overlay source that no longer
-    exists on TradingView. That is the point: it records what was true that day.
-    Editing its hash to today's value would turn a measurement into a
-    fabrication and would silently erase the fact that an automated save
-    overwrote an attested source.
+    Immutability of every superseded artifact (byte-frozen), chain
+    completeness, and the pre-drill readings are chain-generic properties and
+    live in ``tests/test_smc_r1_evidence_chain.py`` since 2026-08-04. What is
+    NOT generic is the head's own supersession claim: its trigger must quote
+    exactly the Event Overlay hash its predecessor attested, and that hash must
+    differ from the head's own -- otherwise the artifact claims a supersession
+    that never happened.
     """
     prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
     evidence = _evidence()
@@ -284,20 +259,10 @@ def test_the_superseded_dated_evidence_is_kept_verbatim() -> None:
     superseded = evidence["reattestationTrigger"]["attestedEventOverlaySha256"]
     assert prior["sources"]["SMC Event Overlay"]["repositorySha256"] == superseded
     assert prior["sources"]["SMC Event Overlay"]["savedSourceReadbackSha256"] == superseded
-    assert prior["capturedAt"].startswith("2026-08-01")
-    # Its own pre-drill reading, unedited. The 2026-07-29 artifact it in turn
-    # superseded is still in the tree with ITS reading -- the chain is kept, not
-    # collapsed onto the newest state.
-    assert prior["rollback"]["status"] == "not_run"
-    oldest = DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-07-29.json"
-    assert oldest.exists()
-    assert json.loads(oldest.read_text(encoding="utf-8"))["rollback"]["status"] == "passed"
 
     assert evidence["supersedes"] == PRIOR_EXECUTION_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
     ).as_posix()
-    # The superseded hash must differ from today's, or the artifact is claiming
-    # a supersession that never happened.
     assert superseded != evidence["sources"]["SMC Event Overlay"]["repositorySha256"]
 
 

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "comment": "Append-only supersession index of the R1 rollout evidence artifacts. The contract derives EXECUTION_EVIDENCE (last entry) and PRIOR_EXECUTION_EVIDENCE (second to last) from this chain; appending a new artifact is the only sanctioned way to move the current attestation. Each sha256 freezes the artifact at registration: a dated measurement is never rewritten, a new reading gets a new artifact. Properties enforced by tests/test_smc_r1_evidence_chain.py.",
+  "chain": [
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-07-29.json",
+      "capturedAt": "2026-07-29T09:22:41Z",
+      "sha256": "7d6ad781bc6ce1e56664c5e7e20163d1b86999ecf0606ee6ab65083ea39b2635"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-01.json",
+      "capturedAt": "2026-08-01T05:05:15Z",
+      "sha256": "809896897791d20537f3a325cba5b61dbf17a80a540bfef5bf11f054ba8859ec"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
+      "capturedAt": "2026-08-04T02:54:45.085Z",
+      "sha256": "9179f6a5e3769341e85dd5a4e3111bbdbc8db9fba418bac949f696f5eb456146"
+    }
+  ]
+}

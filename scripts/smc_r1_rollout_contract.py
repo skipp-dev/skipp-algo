@@ -25,23 +25,35 @@ EVENT_SOURCE: Final = ROOT / "SMC_Event_Overlay.pine"
 EXIT_SOURCE: Final = ROOT / "SMC_Exit_Signal.pine"
 CONFIG: Final = ROOT / "automation" / "tradingview" / "preflight-r1-companions.json"
 DEFAULT_OUTPUT: Final = ROOT / "artifacts" / "governance" / "smc_r1_live_rollout_contract.json"
-EXECUTION_EVIDENCE: Final = (
-    ROOT
-    / "artifacts"
-    / "governance"
-    / "smc_r1_live_rollout_evidence_2026-08-04.json"
+EVIDENCE_CHAIN_INDEX: Final = (
+    ROOT / "artifacts" / "governance" / "smc_r1_evidence_chain.json"
 )
-# Every superseded artifact stays checked in and unmodified. Each is a dated
-# measurement and remains true of its day; it is superseded as the CURRENT
-# attestation, never rewritten to match today's state. 2026-07-29 -> 2026-08-01
-# -> 2026-08-04, each step driven by a library refresh moving the Event Overlay
-# import pin and the chained consumer save pushing the new source live.
-PRIOR_EXECUTION_EVIDENCE: Final = (
-    ROOT
-    / "artifacts"
-    / "governance"
-    / "smc_r1_live_rollout_evidence_2026-08-01.json"
-)
+
+
+def load_evidence_chain() -> list[dict]:
+    """Ordered supersession chain of the evidence artifacts, oldest first.
+
+    Every superseded artifact stays checked in and unmodified. Each is a dated
+    measurement and remains true of its day; it is superseded as the CURRENT
+    attestation, never rewritten to match today's state (2026-07-29 ->
+    2026-08-01 -> 2026-08-04, each step driven by a library refresh moving the
+    Event Overlay import pin). The index replaces the hard-coded filename that
+    made every supersession a code change: the automated re-attestation
+    (scripts/smc_r1_generate_attestation.py) appends an entry and the contract
+    follows the head. Chain properties -- completeness, byte-frozen artifacts,
+    supersedes-linkage, capture-time ordering -- are enforced by
+    tests/test_smc_r1_evidence_chain.py.
+    """
+    payload = json.loads(EVIDENCE_CHAIN_INDEX.read_text(encoding="utf-8"))
+    chain = payload["chain"]
+    if len(chain) < 2:
+        raise RuntimeError("evidence chain needs at least a head and its predecessor")
+    return chain
+
+
+_CHAIN: Final = load_evidence_chain()
+EXECUTION_EVIDENCE: Final = ROOT / _CHAIN[-1]["path"]
+PRIOR_EXECUTION_EVIDENCE: Final = ROOT / _CHAIN[-2]["path"]
 
 # The rollback gate, and ONLY that gate, is closed by a later run on the same
 # day (30710010604, 17:23:24Z). Its own dated artifact carries it. The R1
