@@ -95,7 +95,7 @@ jobs:
       status: ${{ steps.read.outputs.status }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -126,7 +126,7 @@ jobs:
       issues: write  # zizmor: job-level least-privilege (Copilot review #2741)
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
 
       # F-V8-B3.1 (2026-05-02): migrated to ./.github/actions/setup-python-pinned
       # composite. NOTE: this is a behavior change — previously this workflow
@@ -181,7 +181,7 @@ jobs:
         # BEFORE the gate step can fail) so the status survives
         # rollback-failed runs.
         id: restore-last-spec-status
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: artifacts/ci/f2/last_spec_status.txt
           key: f2-last-spec-status-v1-${{ github.run_id }}
@@ -244,7 +244,7 @@ jobs:
         # when the spec is missing or the helper failed, and
         # cache/save errors on a missing path.
         if: ${{ hashFiles('artifacts/ci/f2/last_spec_status.txt') != '' }}
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: artifacts/ci/f2/last_spec_status.txt
           key: f2-last-spec-status-v1-${{ github.run_id }}
