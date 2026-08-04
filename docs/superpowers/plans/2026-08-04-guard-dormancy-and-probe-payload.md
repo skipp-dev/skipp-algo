@@ -27,7 +27,7 @@
 | File | Responsibility | Change |
 |---|---|---|
 | `scripts/check_live_overlay_deploy_trigger.py` | The guard: asks Railway whether the service has a native deploy trigger; `--probe` mode reports what each credential can read | Modify — add `_DEPLOYMENT_IS_CONFIGURED` + missing-secret branch (Task 1); add `_PAYLOAD_FIELDS` / `_summarize()` and use it in `_classify` (Task 2) |
-| `tests/test_check_live_overlay_deploy_trigger.py` | The guard's exit-code and message contract; network is always mocked | Modify — 4 tests in Task 1, 4 tests in Task 2 |
+| `tests/test_check_live_overlay_deploy_trigger.py` | The guard's exit-code and message contract; network is always mocked | Modify — 3 tests in Task 1, 4 tests in Task 2 |
 | `pin_registry.toml` | Line-pinned ledgers | Modify only if the urlopen line moves |
 
 Both tasks touch the same two files but disjoint regions. Task 1 edits `main()` (near line 453) and adds a constant near line 73. Task 2 edits `_classify` (near line 348). They can be done in either order; the plan assumes Task 1 first.
@@ -40,39 +40,17 @@ Both tasks touch the same two files but disjoint regions. Task 1 edits `main()` 
 
 **Files:**
 - Modify: `scripts/check_live_overlay_deploy_trigger.py` (constant near `:73`; `main()` at `:453-469`)
-- Test: `tests/test_check_live_overlay_deploy_trigger.py`
+- Test: `tests/test_check_live_overlay_deploy_trigger.py` (3 tests appended)
 
 **Interfaces:**
 - Produces: module constant `_DEPLOYMENT_IS_CONFIGURED: bool` — read by `main()` and asserted by the coupling test. No function signature changes; `main(argv=None) -> int` keeps its contract, with exit 2 newly reachable for missing configuration.
 
-- [ ] **Step 1: Write the four failing tests**
+- [ ] **Step 1: Write the three failing tests**
 
 Append to `tests/test_check_live_overlay_deploy_trigger.py`:
 
 ```python
 # --- dormancy must be declared, not inferred (2026-08-04) --------------------
-
-
-def test_a_missing_secret_is_inconclusive_while_the_deployment_is_declared():
-    """rc 0 used to mean BOTH "verified, no drift" and "did not run". So
-    deleting one Actions secret parked the guard on a permanent green whose
-    message reads like the designed dormant state."""
-    mod = _load()
-    assert mod._DEPLOYMENT_IS_CONFIGURED is True
-    import os
-
-    saved = {k: os.environ.get(k) for k in ("RAILWAY_API_TOKEN", "RAILWAY_PROJECT_ID", "RAILWAY_ENVIRONMENT_ID")}
-    try:
-        os.environ["RAILWAY_API_TOKEN"] = "t"
-        os.environ["RAILWAY_PROJECT_ID"] = "p"
-        os.environ["RAILWAY_ENVIRONMENT_ID"] = ""
-        assert mod.main() == 2
-    finally:
-        for key, value in saved.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
 
 
 def test_the_inconclusive_message_names_the_missing_secret_and_denies_health(
@@ -132,10 +110,10 @@ def test_the_declaration_cannot_be_flipped_to_silence_the_guard():
 cd /Users/spreuss/Documents/skipp-algo-wt-posix
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_check_live_overlay_deploy_trigger.py -q --no-header -k "declared or declaration or undeclared or missing_secret"
+  tests/test_check_live_overlay_deploy_trigger.py -q --no-header -k "declaration or undeclared or inconclusive_message"
 ```
 
-Expected: `AttributeError: module has no attribute '_DEPLOYMENT_IS_CONFIGURED'` on three of them; the fourth (`test_an_undeclared_deployment_still_skips_green`) fails on `monkeypatch.setattr` for the same reason.
+Expected: all three fail — `test_the_inconclusive_message_...` returns 0 instead of 2, and the other two fail on the missing `_DEPLOYMENT_IS_CONFIGURED` attribute (`monkeypatch.setattr` / the direct assertion).
 
 - [ ] **Step 3: Add the declaration**
 
@@ -190,7 +168,7 @@ PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
   tests/test_check_live_overlay_deploy_trigger.py -q --no-header
 ```
 
-Expected: PASS, 46 tests (42 before + 4).
+Expected: PASS, 45 tests (42 before + 3).
 
 One older test asserts the SKIP path with **all three** variables absent — that still returns 0 only if the declaration is False. If `test_missing_token_skips_without_failing` now fails with rc 2, that is correct behaviour, not a regression: update it to `monkeypatch.setattr(mod, "_DEPLOYMENT_IS_CONFIGURED", False)` and add a one-line docstring saying the dormant case is now declared rather than inferred.
 
@@ -206,11 +184,11 @@ t = p.read_text()
 p.write_text(t.replace("    if missing and _DEPLOYMENT_IS_CONFIGURED:", "    if missing and False:"))
 EOF
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_check_live_overlay_deploy_trigger.py -q --no-header -k "missing_secret or names_the_missing"
+  tests/test_check_live_overlay_deploy_trigger.py -q --no-header -k "inconclusive_message"
 cp /tmp/t1.bak scripts/check_live_overlay_deploy_trigger.py
 ```
 
-Expected: 2 failed. Then restore and confirm the full file is green again.
+Expected: 1 failed. Then restore and confirm the full file is green again.
 
 For the coupling test, counter-proof by flipping the constant to `False` in a scratch copy and confirming `test_the_declaration_cannot_be_flipped_to_silence_the_guard` fails.
 
@@ -405,7 +383,7 @@ PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
   tests/test_check_live_overlay_deploy_trigger.py -q --no-header
 ```
 
-Expected: PASS, 50 tests (46 after Task 1 + 4).
+Expected: PASS, 49 tests (45 after Task 1 + 4).
 
 Then eyeball the summariser against the two payloads the probe really returned, to confirm a human can still read the answer:
 
