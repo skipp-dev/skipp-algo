@@ -31,9 +31,12 @@ implements the documented, replicable ones:
    ``publisher_id``/``exchange`` field; >=3 exchange touches inside a 500 ms
    bucket marks the cluster as a sweep.
 2. **Aggressor classification** — OPRA `trades` carries the ``side`` field.
-   Per Databento: `A` (Ask) = sell aggressor → bearish, `B` (Bid) = buy
-   aggressor → bullish, `N` = neutral / cross. We map this into
-   ``aggressor_ind`` and ``sentiment``.
+   Per Databento: `A` (Ask) = sell aggressor, `B` (Bid) = buy aggressor,
+   `N` = neutral / cross. That maps to ``aggressor_ind``, which stays the
+   raw CONTRACT-level pressure label. ``sentiment`` is a different thing:
+   the economic direction on the UNDERLYING, i.e. pressure x contract
+   direction (a bought put is buying pressure but a bearish bet). See
+   :func:`_economic_sentiment`.
 3. **Block-trade premium gate** — total notional premium
    ``size * price * 100`` (OCC contract multiplier) above a configurable
    minimum (default $25k) qualifies the trade for the UOA feed. The same
@@ -97,6 +100,23 @@ _DEFAULT_SWEEP_MIN_EXCHANGES = 3
 _DEFAULT_MIN_PREMIUM = 25_000.0
 
 
+def _normalise_option_type(raw: Any) -> str:
+    """Canonicalise an OPRA option class to ``"CALL"`` / ``"PUT"`` / ``""``.
+
+    Accepts both the definition schema's ``instrument_class`` letters and the
+    spelled-out words, in any case. Anything else — notably OPRA's complex /
+    spread instrument classes — deliberately becomes ``""`` so
+    :func:`_economic_sentiment` degrades to NEUTRAL instead of guessing a
+    direction.
+    """
+    value = str(raw or "").strip().upper()
+    if value in ("C", "CALL"):
+        return "CALL"
+    if value in ("P", "PUT"):
+        return "PUT"
+    return ""
+
+
 @dataclass(frozen=True)
 class OpraDefinitionRecord:
     """Minimal projection of an OPRA ``definition`` row needed for UOA.
@@ -104,31 +124,39 @@ class OpraDefinitionRecord:
     The full definition schema has ~40 columns; we only project the four
     used by the detector. Callers that already have a DataFrame can build
     these via ``OpraDefinitionRecord.from_row(...)``.
+
+    ``option_type`` is normalised in ``__post_init__`` rather than only in
+    :meth:`from_row`, because it became load-bearing for ``sentiment`` on
+    2026-08-04 and BOTH ``detect_unusual_options_activity`` and
+    ``OpraShadowState.add_definition`` accept a pre-built record and pass it
+    through. A caller writing the raw OPRA ``instrument_class`` ('C'/'P')
+    straight into the dataclass used to get a merely cosmetic mislabel; it
+    would now blank the direction to NEUTRAL — which is indistinguishable
+    from the documented "no directional flow" normal state, so the mistake
+    would not announce itself. The invariant belongs on the type.
     """
 
     instrument_id: int
     underlying: str
     strike: float
     expiration: str  # ISO-8601 date, e.g. "2026-06-21"
-    option_type: str  # "CALL" or "PUT"
+    option_type: str  # "CALL" or "PUT", or "" when the class is neither
     raw_symbol: str | None = None  # OCC OSI symbol (optional; pass-through)
+
+    def __post_init__(self) -> None:
+        # frozen=True, so normalise through object.__setattr__.
+        object.__setattr__(self, "option_type", _normalise_option_type(self.option_type))
+        object.__setattr__(self, "underlying", str(self.underlying).upper().strip())
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any]) -> OpraDefinitionRecord:
-        opt_type_raw = str(row.get("instrument_class") or row.get("option_type") or "").upper()
-        # OPRA definition uses 'C' / 'P' in instrument_class for options.
-        if opt_type_raw in ("C", "CALL"):
-            opt_type = "CALL"
-        elif opt_type_raw in ("P", "PUT"):
-            opt_type = "PUT"
-        else:
-            opt_type = ""
         return cls(
             instrument_id=int(row["instrument_id"]),
-            underlying=str(row.get("underlying") or row.get("asset") or "").upper().strip(),
+            underlying=str(row.get("underlying") or row.get("asset") or ""),
             strike=float(row.get("strike_price") or row.get("strike") or 0.0),
             expiration=str(row.get("expiration") or row.get("expiry") or ""),
-            option_type=opt_type,
+            # OPRA definition uses 'C' / 'P' in instrument_class for options.
+            option_type=str(row.get("instrument_class") or row.get("option_type") or ""),
             raw_symbol=str(row.get("raw_symbol") or row.get("symbol") or "") or None,
         )
 
@@ -143,6 +171,15 @@ def _side_to_aggressor(side: str | None) -> tuple[str, str]:
     'N' in prod; the live daemon reconstructs 'A'/'B' from the tcbbo NBBO
     (``_quote_side``) in this same letter convention. Sign here is correct
     when a real 'A'/'B' appears (no #3355 inversion).
+
+    WARNING — the letters mean the OPPOSITE in the ADR-0020 producer. This
+    module's feed (``services/opra_live_daemon/state.py::_quote_side``) marks
+    an ask-lift 'B' (raw Databento: B = Bid = buy aggressor), whereas
+    ``scripts/pull_databento_edge_input.py::_quote_rule_opra_aggressor``
+    OVERWRITES ``side`` and marks the same ask-lift 'A', which
+    ``governance/family_signed_uoa_notional_v2`` then signs +1. Both are
+    self-consistent and both mean "buyer" economically; only the letter
+    differs. Do NOT port sign logic between the two.
 
     The second element is the CONTRACT-level pressure (BULLISH = the contract
     was bought aggressively), NOT the economic direction on the underlying —
@@ -164,12 +201,19 @@ def _economic_sentiment(pressure: str, option_type: str) -> str:
 
     BULLISH = call bought / put sold; BEARISH = put bought / call sold;
     NEUTRAL when either leg is unknown (side 'N', or a definition without a
-    C/P type). This matches the decommissioned Unusual-Whales adapter's
-    ``sentiment`` semantics (it passed through UW's own economically-defined
-    field, ``ingest_unusual_whales.py`` ~:281) — the aggressor-only mapping
-    used here 2026-05-12..2026-08-04 silently drifted from that contract and
-    reported an aggressive put BUY as BULLISH (same blind-spot class as the
-    ADR-0020 signed-UOA sign fixed in #4369).
+    C/P type).
+
+    Why (2026-08-04, #4395): the aggressor-only mapping used here from
+    2026-05-12 reported an aggressively BOUGHT PUT as BULLISH. The field is
+    named ``sentiment`` and its one surface is the streamlit shadow options
+    tab, which renders these rows unfiltered to a human — so the label was
+    wrong where a human reads it. That argument stands on its own; an earlier
+    revision of this docstring justified the change as restoring parity with
+    the decommissioned Unusual-Whales adapter, which this repo cannot
+    support: the cited mapper is dead code
+    (``ingest_unusual_whales._to_benzinga_shape_DEPRECATED``) and its line
+    reads ``rec.get("sentiment") or rec.get("side")`` — a fallback that is
+    itself aggressor-only. UW's own semantics are simply not documented here.
     """
     if pressure == "NEUTRAL":
         return "NEUTRAL"
