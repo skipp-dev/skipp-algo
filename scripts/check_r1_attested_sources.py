@@ -73,9 +73,32 @@ a drift.
 """.strip()
 
 
+def _merge_base_range(commit_range: str) -> str:
+    """Turn ``A..B`` into ``A...B`` so the diff starts at the merge base.
+
+    ``git diff A..B`` is not a range at all — it is ``git diff A B``, a
+    comparison of two TREES. On a PR branch created before an attested source
+    changed on main, that reports main's change as if this PR had made it.
+
+    Measured 2026-08-04: PR #4373 touches no ``.pine`` file whatsoever and this
+    guard failed it for ``SMC_Event_Overlay.pine``, because #4371 had changed
+    that file on main after the branch point. Ten pine files came back from the
+    two-dot form; the three-dot form returns none. That inverts the guard's own
+    contract, which promises "everything that does not touch these files is not
+    this guard's business" — and it fires on precisely the PRs that would repair
+    the drift, since they branch from the drifted main too.
+
+    An explicit three-dot range is left alone, so a caller who means the
+    two-tree comparison can still ask for it by spelling it that way.
+    """
+    if ".." in commit_range and "..." not in commit_range:
+        return commit_range.replace("..", "...", 1)
+    return commit_range
+
+
 def _changed_paths(commit_range: str) -> set[str]:
     result = subprocess.run(  # noqa: S603
-        ["git", "diff", "--name-only", commit_range],  # noqa: S607
+        ["git", "diff", "--name-only", _merge_base_range(commit_range)],  # noqa: S607
         capture_output=True,
         text=True,
         check=True,
