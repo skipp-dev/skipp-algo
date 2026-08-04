@@ -1,19 +1,25 @@
-# Dependabot version updates — decided and added 2026-08-04.
+# Dependabot version updates — added 2026-08-04 (#4407), narrowed the same
+# day after the initial wave measured the design against reality.
 #
-# Until now this file did not exist: alerts surfaced on the Security tab but
-# no update PRs were ever opened, so every vulnerability fix was a manual
-# lock edit (e.g. #4406, cryptography GHSA-g6cj-pr64-35w5). This config turns
-# those into reviewable PRs while keeping CI load bounded — every Dependabot
-# PR runs fast-gates (~20 min), and an Actions-budget exhaustion has blocked
-# the whole repo before, so: weekly cadence, grouped minor/patch, small
-# open-PR limits. Security updates are NOT throttled by these limits.
+# What the first config got wrong, measured 2026-08-04 14:13-14:28Z: groups
+# covered only minor+patch, so every MAJOR update escaped the group and
+# became its own PR — 9 PRs in 15 minutes (typescript 7, pyarrow 25, tzdata
+# 2026.3 twice, a setuptools range widening, plus the 4 intended grouped
+# PRs). github-actions was the control group: its group covered all update
+# types and produced exactly one PR. On top of that, Dependabot rebases every
+# open PR on every main merge — main moved 6+ times that day, so 9 open PRs
+# meant a standing rebase-and-CI cascade.
+#
+# The shape now: ONE grouped PR per ecosystem per week, majors included
+# (open-pull-requests-limit: 1 enforces it), and rebase-strategy: disabled so
+# a busy main does not turn open update PRs into CI load. Security updates
+# are unaffected by these limits and still open immediately.
 #
 # Surfaces covered (measured 2026-08-04):
 #   uv.lock            — locks the pyproject set; consumed by no workflow
 #                        (nothing runs `uv sync`), but it is the manifest
 #                        Dependabot scans, and 8 workflows install the same
-#                        set unpinned via `pip install -e .`. Keeping it
-#                        fresh keeps the scan surface honest. Deliberate
+#                        set unpinned via `pip install -e .`. Deliberate
 #                        decision: scan-only, not wired into CI.
 #   requirements*.txt  — what CI actually installs (fast-gates et al.)
 #   package-lock.json  — root + smc_tv_bridge (source of 4 of the 6
@@ -27,10 +33,11 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
     groups:
-      uv-minor-and-patch:
-        update-types: ["minor", "patch"]
+      uv-all:
+        update-types: ["major", "minor", "patch"]
 
   - package-ecosystem: "pip"
     directories:
@@ -43,10 +50,11 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
     groups:
-      pip-minor-and-patch:
-        update-types: ["minor", "patch"]
+      pip-all:
+        update-types: ["major", "minor", "patch"]
 
   - package-ecosystem: "npm"
     directories:
@@ -55,17 +63,19 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
     groups:
-      npm-minor-and-patch:
-        update-types: ["minor", "patch"]
+      npm-all:
+        update-types: ["major", "minor", "patch"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
     groups:
       actions-all:
         update-types: ["major", "minor", "patch"]
