@@ -88,7 +88,7 @@ from pathlib import Path
 
 import yaml
 
-from tests._fast_gates_gate import SHELL, run_gate
+from tests._fast_gates_gate import HARNESS_ENV, SHELL, gate_step, run_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
@@ -1250,3 +1250,25 @@ def test_a_non_bot_branch_never_reaches_the_path_inspection(tmp_path: Path) -> N
     )
 
     assert outputs["run_heavy"] == "true"
+
+
+def test_the_harness_supplies_every_variable_the_gate_step_reads() -> None:
+    """A variable the workflow adds and the harness omits expands to "".
+
+    The step runs under `-e` but NOT `-u`, so the omission is silent: no error,
+    just an empty string. A shape like `[[ -n "$NEW_FLAG" ]]` would then take a
+    different branch here than in CI, and every gate assertion in this file
+    would keep passing while measuring something the workflow no longer does.
+
+    This is the shape of #4333 — a probe grew a consumer, one caller was wired,
+    twelve runs failed before anyone looked. Cheaper to pin than to re-derive.
+    """
+    declared = set(gate_step().get("env", {}))
+    missing = declared - set(HARNESS_ENV)
+
+    assert not missing, (
+        f"the gate step reads {sorted(missing)}, which tests/_fast_gates_gate.py "
+        "does not supply. Under `-e` without `-u` those expand to '' instead of "
+        "failing, so the harness would silently stop reproducing CI. Add them to "
+        "HARNESS_ENV (with a value that exercises the real path)."
+    )
