@@ -1,7 +1,8 @@
 """Defense-pin: GitHub Actions action-reference allowlist.
 
-Every ``uses: <owner>/<repo>@<ref>`` in ``.github/workflows/*.y*ml`` MUST
-be either:
+Every ``uses: <owner>/<repo>@<ref>`` on ANY of this repo's three action-pin
+surfaces — ``.github/workflows/``, ``.github/actions/``,
+``.github/workflow-templates/`` — MUST be either:
 
 1. SHA-pinned (40-char hex), OR
 2. on the frozen trusted-publisher allowlist below.
@@ -13,6 +14,15 @@ Rationale: prevents drive-by supply-chain attacks via tag-mutation on
 unvetted third-party actions. The allowlist is intentionally tiny —
 adding a new third-party action requires updating this ledger.
 
+Note what rule 1 does and does not say, because it looks like a hole and is
+not one: a 40-hex SHA from an ARBITRARY owner passes, allowlist or no. That is
+deliberate — a SHA cannot be repointed, so tag-mutation, the threat this file
+names, does not apply to it. Measured 2026-08-04 for the avoidance of doubt:
+``uses: evilcorp/totally-fake@deadbeef…`` passes identically in a workflow and
+in a composite action, so it is a repo-wide policy choice and not a gap in any
+one surface. Requiring the allowlist for SHA pins too would be a real policy
+change and belongs in its own PR, not in a widening.
+
 Defense-only — no production changes.
 """
 
@@ -23,7 +33,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._workflow_yaml import iter_workflow_files
+from tests._workflow_yaml import iter_action_pin_surfaces, iter_uses
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
@@ -46,7 +56,6 @@ _ALLOWLIST_OWNER_REPOS: frozenset[str] = frozenset(
     }
 )
 
-_USES_RE = re.compile(r"^\s*-?\s*uses:\s*([^\s#'\"]+)")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 # Approved-SHA drift guard (zero-network).
@@ -90,29 +99,29 @@ _APPROVED_ACTION_SHAS: dict[str, frozenset[str]] = {
 
 
 def _iter_workflow_files() -> list[Path]:
-    """The workflow corpus, from the shared helper.
+    """Every file in this repo that pins an action, from the shared helper.
 
     Was a private duplicate of ``_workflow_yaml.iter_workflow_files`` (verified
     2026-07-15: both return the identical 62 files). Using the shared corpus is
     what makes this guard DERIVABLE — the required-path rule keys off the
-    import, so a PR can no longer drop this supply-chain pin off the merge gate
-    by editing three hand-maintained lists in step (the #3670 shape).
+    IMPORT of ``tests._workflow_yaml``, so a PR can no longer drop this
+    supply-chain pin off the merge gate by editing three hand-maintained lists
+    in step (the #3670 shape). Widening which function is imported does not
+    weaken that: the rule parses the module import, not the symbol.
+
+    Widened 2026-08-04 from workflows to all three pin surfaces. Everything
+    below — SHA-pinning, the trusted-owner allowlist, the approved-SHA ledger —
+    applied to ``.github/workflows/`` alone, so an untrusted owner or a
+    40-hex-but-unresolvable SHA in ``.github/actions/`` or
+    ``.github/workflow-templates/`` was checked by nothing. Measured: adding
+    ``uses: evilcorp/totally-fake@deadbeef…`` to the composite action left all
+    18 assertions across both guard files green.
     """
-    return iter_workflow_files()
+    return iter_action_pin_surfaces()
 
 
 def _iter_uses() -> list[tuple[Path, int, str]]:
-    out: list[tuple[Path, int, str]] = []
-    for wf in _iter_workflow_files():
-        for ln, line in enumerate(wf.read_text(encoding="utf-8").splitlines(), 1):
-            m = _USES_RE.match(line)
-            if not m:
-                continue
-            ref = m.group(1).strip()
-            # strip surrounding quotes if any survived
-            ref = ref.strip("'\"")
-            out.append((wf, ln, ref))
-    return out
+    return iter_uses(_iter_workflow_files())
 
 
 def _owner_repo(ref_left: str) -> str:

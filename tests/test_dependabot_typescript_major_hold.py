@@ -11,13 +11,28 @@ returns a module with no ``ScriptTarget``. At runtime that is
 ``Cannot read properties of undefined (reading 'Latest')``; under ``tsc`` it is
 every ``ts.*`` reported as missing from namespace ``typescript/lib/version``.
 
-The API moved to ``typescript/unstable/*``, and that surface does not carry this
-script. Probed against the real 7.0.2 install: ``forEachChild`` exists in NO
-subpath (``unstable/ast/visitor`` has only ``forEachChildOfJSDoc*``,
-``visitEachChild``, ``visitNode``), and the only ``createSourceFile`` is the
-FACTORY one in ``unstable/ast/factory``, which builds a node rather than parsing
-text. Porting the vacuity detector would mean rewriting it onto a surface
-upstream itself labels "unstable", for a guard that gates merges.
+The API moved to ``typescript/unstable/*``, and a port is a rewrite rather than
+a re-import. Corrected 2026-08-05 after a review re-probed the real 7.0.2
+install and caught this docstring overstating its case — the earlier wording
+claimed ``forEachChild`` "exists in NO subpath", which is false. What is
+actually true, re-measured:
+
+* ``forEachChild`` is no longer an exported FREE function (``unstable/ast`` does
+  not export it; ``unstable/ast/visitor`` has only ``forEachChildOfJSDoc*``,
+  ``visitEachChild``, ``visitNode``). It survives as a Node METHOD —
+  ``dist/ast/ast.d.ts:40`` declares it and ``NodeObject.prototype.forEachChild``
+  is a function — so every ``ts.forEachChild(node, cb)`` call site becomes
+  ``node.forEachChild(cb)``.
+* ``createSourceFile`` under ``unstable/ast/factory`` is the FACTORY, which
+  builds a node from parts. Parsing text goes through ``unstable/sync``'s
+  ``API`` → ``Project`` → ``program.getSourceFile()`` instead, so the
+  entrypoint changes shape, not merely its import path.
+* ``isStringLiteralLike`` is renamed ``isStringLiteralLikeNode``.
+
+So: 34 relocated members plus three genuine shape changes, onto a surface
+upstream itself labels "unstable", for a guard that gates merges. The decision
+to hold is unchanged — it is better supported than the original wording, not
+worse — but the reason is a rewrite, not an absence.
 
 DERIVED, not hand-maintained: the hold is only demanded while something in the
 repo actually imports the compiler API. Delete or rewrite that import and this

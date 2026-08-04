@@ -283,11 +283,25 @@ jobs:
           # reach the CLI through env instead of being expanded into `run:`.
           # One of the two shipped in #4281 and was already inside the 92, so
           # this PR fixes more than it adds and the budget shrinks with it.
-          ZIZMOR_HIGH_BUDGET: "91"
+          # high 91→93 (2026-08-04): NOT a regression — the scan was widened
+          # from .github/workflows/ to all three action-pin surfaces, and the
+          # two added findings were always there, in
+          # .github/actions/setup-persistent-venv/action.yml (github-env,
+          # confidence Low: writes to GITHUB_PATH and GITHUB_ENV). The ratchet
+          # counted zero findings from composite actions and workflow templates
+          # because it never opened them. Measured both ways with the pinned
+          # 1.25.2: workflows-only {High 91, Medium 51}, all three surfaces
+          # {High 93, Medium 51}. Widening it matters beyond bookkeeping —
+          # zizmor rates an unpinned `uses:` High, which is the one thing that
+          # would have caught a mutable tag in the composite while the Python
+          # guards were blind to it (#4448 follow-up).
+          ZIZMOR_HIGH_BUDGET: "93"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
-          zizmor --no-progress --offline --format json .github/workflows/ > zizmor_report.json || true
+          zizmor --no-progress --offline --format json \
+            .github/workflows/ .github/actions/ .github/workflow-templates/ \
+            > zizmor_report.json || true
           python - <<'PY'
           import json, os, sys
           findings = json.load(open("zizmor_report.json"))
@@ -613,6 +627,7 @@ jobs:
             tests/test_httpx_timeout_invariant.py \
             tests/test_gha_action_allowlist.py \
             tests/test_action_pin_surfaces_agree.py \
+            tests/test_zizmor_ratchet_mirrors_ci.py \
             tests/test_pine_alert_bar_close_gate.py \
             tests/test_workflow_continue_on_error_semantics.py \
             tests/test_mkdir_makedirs_exist_ok_invariant.py \

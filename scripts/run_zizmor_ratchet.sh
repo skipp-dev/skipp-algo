@@ -30,7 +30,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 WORKFLOW=".github/workflows/smc-fast-pr-gates.yml"
-WORKFLOW_DIR=".github/workflows/"
+# No WORKFLOW_DIR constant any more — the scanned paths are extracted from the
+# CI step below, alongside the budgets and the pinned version.
 
 if [ ! -f "$WORKFLOW" ]; then
   echo "ERROR: workflow file not found: $WORKFLOW" >&2
@@ -72,6 +73,23 @@ extract_budget() {
 
 HIGH_BUDGET="$(extract_budget ZIZMOR_HIGH_BUDGET || true)"
 MEDIUM_BUDGET="$(extract_budget ZIZMOR_MEDIUM_BUDGET || true)"
+
+# The SCANNED PATHS come from the step too, for the same reason the budgets do.
+# Hardcoding them here made this a mirror in name only: on 2026-08-04 the CI
+# step was widened from .github/workflows/ to all three action-pin surfaces,
+# and a hardcoded WORKFLOW_DIR would have kept counting 91 against a budget of
+# 93 — passing locally, silently measuring something else than CI. Nothing
+# would have gone red; a mirror that stops mirroring reports success either
+# way. tests/test_zizmor_ratchet_mirrors_ci.py pins the parity.
+SCAN_PATHS="$(printf '%s\n' "$STEP_CODE" \
+  | grep -oE '\.github/[A-Za-z0-9_./-]+/' | sort -u || true)"
+if [ -z "$SCAN_PATHS" ]; then
+  echo "ERROR: could not extract any scan path from the zizmor step of $WORKFLOW" >&2
+  echo "       (step restructured? update the extraction in $0)" >&2
+  exit 1
+fi
+# shellcheck disable=SC2206  # deliberate word-splitting: one path per line.
+SCAN_PATH_ARRAY=($SCAN_PATHS)
 PINNED_VERSION="$(printf '%s\n' "$STEP_CODE" \
   | grep -oE 'zizmor==[0-9][0-9A-Za-z.-]*' | sed 's/^zizmor==//' | sort -u || true)"
 
@@ -133,7 +151,7 @@ REPORT="$(mktemp -t zizmor_report.XXXXXX)"
 ZIZMOR_LOG="$(mktemp -t zizmor_log.XXXXXX)"
 trap 'rm -f "$REPORT" "$ZIZMOR_LOG"' EXIT
 
-echo "zizmor ratchet: $WORKFLOW_DIR (budgets: $WORKFLOW; runner: $RUNNER)"
+echo "zizmor ratchet: ${SCAN_PATH_ARRAY[*]} (budgets: $WORKFLOW; runner: $RUNNER)"
 
 # zizmor exits non-zero (14) whenever findings exist; the ratchet — not the
 # exit code — decides pass/fail, so swallow it exactly like the CI step does.
@@ -142,7 +160,7 @@ echo "zizmor ratchet: $WORKFLOW_DIR (budgets: $WORKFLOW; runner: $RUNNER)"
 # workflow, ~70 lines of noise in a commit hook); it does not change the JSON
 # report, so the counts stay identical to CI. The log is captured rather than
 # discarded so a genuine zizmor failure is still visible below.
-"${ZIZMOR_CMD[@]}" --quiet --no-progress --offline --format json "$WORKFLOW_DIR" \
+"${ZIZMOR_CMD[@]}" --quiet --no-progress --offline --format json "${SCAN_PATH_ARRAY[@]}" \
   > "$REPORT" 2> "$ZIZMOR_LOG" || true
 
 if [ ! -s "$REPORT" ]; then
