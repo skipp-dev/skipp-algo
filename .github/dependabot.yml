@@ -1,0 +1,71 @@
+# Dependabot version updates — decided and added 2026-08-04.
+#
+# Until now this file did not exist: alerts surfaced on the Security tab but
+# no update PRs were ever opened, so every vulnerability fix was a manual
+# lock edit (e.g. #4406, cryptography GHSA-g6cj-pr64-35w5). This config turns
+# those into reviewable PRs while keeping CI load bounded — every Dependabot
+# PR runs fast-gates (~20 min), and an Actions-budget exhaustion has blocked
+# the whole repo before, so: weekly cadence, grouped minor/patch, small
+# open-PR limits. Security updates are NOT throttled by these limits.
+#
+# Surfaces covered (measured 2026-08-04):
+#   uv.lock            — locks the pyproject set; consumed by no workflow
+#                        (nothing runs `uv sync`), but it is the manifest
+#                        Dependabot scans, and 8 workflows install the same
+#                        set unpinned via `pip install -e .`. Keeping it
+#                        fresh keeps the scan surface honest. Deliberate
+#                        decision: scan-only, not wired into CI.
+#   requirements*.txt  — what CI actually installs (fast-gates et al.)
+#   package-lock.json  — root + smc_tv_bridge (source of 4 of the 6
+#                        historical alerts)
+#   github-actions     — 68 workflows pin actions by tag
+
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      uv-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/services/a0_fast_detector"
+      - "/services/live_overlay_daemon"
+      - "/services/mlflow_tracking"
+      - "/services/opra_live_daemon"
+      - "/services/signals_producer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      pip-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/smc_tv_bridge"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      actions-all:
+        update-types: ["major", "minor", "patch"]
