@@ -49,6 +49,7 @@ import gzip
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -67,6 +68,48 @@ class ProbeResult:
     severity: str  # "ok" | "warn" | "error"
     message: str
     details: dict[str, Any] = field(default_factory=dict)
+
+
+# Per-request HTTP budget for the credential probes.
+#
+# 2026-08-04 (#4382): hist.databento.com answers its metadata calls with a
+# bimodal time-to-first-byte. Measured that morning against the production key,
+# 5 samples: TTFB 0.44s / 0.90s / 17.4s / 24.3s / 29.4s, while TCP connect was
+# 0.12s, TLS 0.24s and the payload 14 KB — so the wait is server-side, neither
+# the network nor the response size. Against a single 10s attempt a *valid*
+# key came back as `warn` and filed a cron issue on four separate days (#4382,
+# #4196, #4075, #3804), and in each of them the SECOND Databento probe of the
+# same run was `ok`. Nothing was ever wrong with the credential.
+#
+# Two levers, both measured: give Databento a timeout that covers its observed
+# slow branch, and re-roll the inconclusive network/timeout class once. Keep
+# both small — the daily cron probes ~14 endpoints serially inside one job
+# timeout, and tests/test_credential_probe_consumers.py holds that arithmetic.
+HTTP_TIMEOUT_SECONDS = 10.0
+DATABENTO_TIMEOUT_SECONDS = 30.0
+TRANSIENT_RETRY_ATTEMPTS = 2
+TRANSIENT_RETRY_SLEEP_SECONDS = 1.0
+
+
+def _open_with_transient_retry(opener: Any, req: Any, *, timeout: float) -> Any:
+    """Open ``req``, re-rolling only the inconclusive network/timeout class.
+
+    ``urllib.error.HTTPError`` subclasses ``URLError`` but carries a real
+    server verdict (401 revoked, 402 unpaid, 429 quota, 5xx outage). Those are
+    answers, not flakes — they are re-raised on the first attempt so the
+    severity mapping and the operator's wall clock stay untouched.
+    """
+    last_exc: BaseException = TimeoutError("no attempt was made")
+    for attempt in range(TRANSIENT_RETRY_ATTEMPTS):
+        try:
+            return opener.open(req, timeout=timeout)  # nosec B310 - URL is literal per call site
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, TimeoutError) as exc:
+            last_exc = exc
+            if attempt + 1 < TRANSIENT_RETRY_ATTEMPTS:
+                time.sleep(TRANSIENT_RETRY_SLEEP_SECONDS)
+    raise last_exc
 
 
 def _parse_iso(value: str) -> datetime | None:
@@ -205,7 +248,7 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
     )
     _opener = opener or urllib.request.build_opener()
     try:
-        with _opener.open(req, timeout=10) as resp:  # nosec B310 - URL is literal
+        with _open_with_transient_retry(_opener, req, timeout=HTTP_TIMEOUT_SECONDS) as resp:
             status = resp.getcode()
             github_token_expiration = (
                 resp.headers.get("github-authentication-token-expiration")
@@ -370,7 +413,7 @@ def _probe_http_vendor(
     url: str,
     headers: dict[str, str],
     opener: Any = None,
-    timeout: float = 10.0,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> ProbeResult:
     """Generic vendor-credential probe.
 
@@ -392,7 +435,7 @@ def _probe_http_vendor(
     req = urllib.request.Request(url, headers=base_headers)
     _opener = opener or urllib.request.build_opener()
     try:
-        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal per call site
+        with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
             status = resp.getcode()
     except urllib.error.HTTPError as exc:
         return _map_vendor_http_error(name, label, exc)
@@ -435,6 +478,7 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
         url="https://hist.databento.com/v0/metadata.list_publishers",
         headers={"Authorization": f"Basic {token}"} if token else {},
         opener=opener,
+        timeout=DATABENTO_TIMEOUT_SECONDS,
     )
 
 
@@ -453,7 +497,7 @@ def probe_databento_delivery(
     dataset: str = DATABENTO_DELIVERY_DATASET,
     max_staleness_days: float = DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
     now: datetime | None = None,
-    timeout: float = 10.0,
+    timeout: float = DATABENTO_TIMEOUT_SECONDS,
 ) -> ProbeResult:
     """Probe Databento DELIVERY health, not just auth.
 
@@ -490,7 +534,7 @@ def probe_databento_delivery(
     )
     _opener = opener or urllib.request.build_opener()
     try:
-        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal
+        with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
             status = resp.getcode()
             body = resp.read()
     except urllib.error.HTTPError as exc:
@@ -736,7 +780,7 @@ def probe_composio_accounts(
     account_ids: dict[tuple[str, str], str],
     base_url: str,
     opener: Any = None,
-    timeout: float = 10.0,
+    timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> list[ProbeResult]:
     """Probe every declared Composio connected account for liveness.
 
@@ -797,7 +841,7 @@ def probe_composio_accounts(
             },
         )
         try:
-            with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL built from literal base + pinned id
+            with _open_with_transient_retry(_opener, req, timeout=timeout) as resp:
                 status = resp.getcode()
                 body = resp.read()
         except urllib.error.HTTPError as exc:
