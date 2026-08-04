@@ -467,6 +467,20 @@ jobs:
         # recursion: this guard reads the same workflow it is listed in, so if
         # the arm is ever deleted, the very PR that deletes it fails the
         # required check. YAML/source parsing only, <0.5s.
+        #
+        # test_ci_workflow_contract.py + test_ci_workflow_structural_pin.py
+        # (2026-08-04, #4398) are the exception to the paragraphs above, and the
+        # entry owes an honest statement of it: the diff-driven step below DOES
+        # select both — they read .github/workflows/ci.yml and nothing else, so
+        # the only edit that can break them always selects them. Measured on a
+        # tree without this pin: regressing ci.yml's `timeout-minutes: 45 -> 60`
+        # turned the required check red through that step alone. Two gaps remain,
+        # and they are the whole justification. First, the step is
+        # `github.event_name == 'pull_request'`-gated, so it does not run in a
+        # merge_group batch; this list does. Second, the step routes through
+        # scripts/select_workflow_guards.py — a pin that depends on the selector
+        # cannot catch the selector regressing. ci.yml carries the repo's only
+        # full-suite execution, so both gaps are worth a sub-second entry.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \

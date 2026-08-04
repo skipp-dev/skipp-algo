@@ -103,13 +103,13 @@ def gate_run_block() -> str:
 # inversions are not.
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 
+# Mirrors the `env:` block of that step, and nothing more. It once also carried
+# HEAD_REF/PR_NUMBER/REPO/GH_TOKEN, for the bot-path arm #4396 removed as
+# unreachable; keeping scaffolding named after deleted logic is how a harness
+# starts describing a workflow that no longer exists.
 CI_HARNESS_ENV: dict[str, str] = {
     "EVENT_NAME": "push",
     "REF_NAME": "main",
-    "HEAD_REF": "",
-    "PR_NUMBER": "4371",
-    "REPO": "skipp-dev/skipp-algo",
-    "GH_TOKEN": "stub-token",
 }
 
 

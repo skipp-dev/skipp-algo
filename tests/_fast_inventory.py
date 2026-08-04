@@ -38,10 +38,16 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_broad_except_silent_budget.py",
     "test_builtin_open_encoding_ledger.py",
     "test_check_r1_attested_sources.py",
-    # ci.yml's own contract + structural pin (2026-08-04). They were slow-lane
-    # only, and ci.yml is status-only on pull requests — so a regression to the
-    # gate that decides whether the full suite EVER runs was invisible until
-    # after the merge. 20 tests, 2.6s.
+    # ci.yml's own contract + structural pin (2026-08-04). The rationale first
+    # written here — "invisible until after the merge" — was FALSE, and measured
+    # so the same day: the diff-driven step in smc-fast-pr-gates.yml already ran
+    # both files on any PR that edits ci.yml, and a ci.yml edit is the only thing
+    # that can break them (they read no other file). Regressing
+    # `timeout-minutes: 45 -> 60` on a tree without this pin still turned the
+    # required check red. What the pin adds is narrower: that step is gated on
+    # `github.event_name == 'pull_request'`, so it is absent from a merge_group
+    # batch, and it routes through scripts/select_workflow_guards.py, which can
+    # regress on its own. Belt to that step's braces. Sub-second warm.
     "test_ci_workflow_contract.py",
     "test_ci_workflow_structural_pin.py",
     # Derived cross-consumer guard for scripts/credential_health_check.py

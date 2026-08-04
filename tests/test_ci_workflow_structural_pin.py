@@ -3,23 +3,37 @@
 Background
 ==========
 
-``ci.yml``'s ``validate`` job is bound to the ``validate`` required-status
-check on the main branch (see ``branch-protection-required-checks-audit-2026-05-29.md``).
-Renames or accidental drops of the load-bearing structure (job key, runner
-selector, heavy-step gate, pytest invocations, concurrency policy, etc.)
-would silently bypass the required check by mutating the contract that
-GitHub matches by name.
+This file used to open by asserting that ``ci.yml``'s ``validate`` job is
+bound to a ``validate`` required-status check on main, and derived its whole
+purpose from that binding. **That was never true here.** Measured 2026-08-04
+against the live configuration rather than against the 2026-05-29 audit
+document it cited::
 
-PR #2427 already covered the *job rename* failure mode for
-``regime-stratification-validation.yml`` (renamed to ``regime-validate``);
-this file extends the same defensive shape-check to ``ci.yml`` so the
-required-check binding never silently rots.
+    gh api repos/skipp-dev/skipp-algo/rulesets/15245308 \
+      --jq '.rules[]|select(.type=="required_status_checks")
+            |.parameters.required_status_checks[].context'
+    fast-gates
 
-Failure semantics: any assertion failure here means the workflow has been
-restructured in a way that may break branch-protection enforcement OR the
-runner-policy contract. The fix is either to roll back the structural
-change OR to update both this pin AND the branch-protection configuration
-(``gh api repos/:owner/:repo/branches/main/protection``) in the same PR.
+One context, and it is not ``validate``. Protection lives in a **ruleset**,
+not in classic branch protection — the classic endpoint this docstring told
+readers to consult answers 404 (see ``docs/adr/0011-*``: ``fast-gates`` is the
+sole required check by design).
+
+What this pin is actually worth, then, is narrower but real: ``ci.yml`` is
+where the repo's **only full-suite execution** lives, and it runs on main
+pushes and manual dispatch. A rename or accidental drop of the load-bearing
+structure (job key, runner selector, heavy-step gate, pytest invocations,
+concurrency policy) would stop that suite from running without turning any
+PR red — nothing gates on it. The shape-check is the thing that notices.
+
+PR #2427 covered the same *job rename* failure mode for
+``regime-stratification-validation.yml``.
+
+Failure semantics: an assertion failure here means the workflow was
+restructured in a way that may break the runner-policy contract or silence
+the full suite. Either roll back the structural change, or update this pin
+in the same PR — and if the change is meant to alter what gates merges, the
+ruleset above has to change with it.
 """
 
 from __future__ import annotations
