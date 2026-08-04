@@ -124,7 +124,7 @@ jobs:
       artifact_scope: ${{ steps.compute.outputs.artifact_scope }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -300,7 +300,7 @@ jobs:
           echo "::notice::Shard ${{ matrix.shard_id }}/${{ matrix.shard_of }} window=${{ matrix.start_date }}..${{ matrix.end_date }} runner='${{ runner.name }}'"
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           # 2026-06-08: dropped the explicit GH_PAT token override. The
           # producer does a plain same-repo checkout with
@@ -317,7 +317,7 @@ jobs:
 
       # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -335,7 +335,7 @@ jobs:
       # prior day's parquets and the post-#2338 coverage-validation path
       # delta-fetches only the new tail.
       - name: Restore databento volatility cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: artifacts/databento_volatility_cache
           key: dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}-${{ github.run_id }}
@@ -443,7 +443,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -455,7 +455,7 @@ jobs:
       # requirements.txt, but reduce only set up bare Python and failed with
       # ``No module named 'pandas'`` after downloading every shard artifact.
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -470,7 +470,7 @@ jobs:
         # overwrites shard-K-1 in the workspace. Pattern matches every
         # producer-emitted artifact regardless of how many shards the
         # plan dispatched.
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: a9b-2b-shard-*-of-*
           path: shard-artifacts/
@@ -711,7 +711,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -719,7 +719,7 @@ jobs:
         uses: ./.github/actions/setup-python-pinned
 
       - name: Download merged manifest artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: a9b-2b-merged-manifest
           path: artifacts/merged/
