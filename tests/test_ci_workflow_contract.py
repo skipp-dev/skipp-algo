@@ -1,8 +1,8 @@
 """Contract pin: ``ci.yml`` workflow (Bundle D-2 from issue #2422).
 
 Pins the structural invariants of the main CI workflow so silent drift
-of the trigger surface, bot-PR short-circuit, runner policy, or pytest
-lane selection is caught at validate-time.
+of the trigger surface, the event gate, runner policy, or pytest lane
+selection is caught at validate-time.
 
 Note: ``ci.yml`` is NOT a required status check on main (only
 ``fast-gates`` is — see ``smc-fast-pr-gates.yml``). It is the heavy
@@ -71,7 +71,7 @@ def test_pythonunbuffered_env_pinned() -> None:
     assert "PYTHONPATH" in data["env"]
 
 
-def test_single_validate_job_with_bot_pr_gate() -> None:
+def test_single_validate_job_with_event_gate() -> None:
     data = _load()
     assert list(data["jobs"].keys()) == ["validate"], (
         "ci.yml must expose exactly one job named ``validate`` "
@@ -88,19 +88,30 @@ def test_single_validate_job_with_bot_pr_gate() -> None:
     assert "workflow_dispatch" in gate_step["run"]
     assert "REF_NAME" in gate_step["run"]
     assert "run_heavy=false" in gate_step["run"]
-    assert "bot/*" in gate_step["run"], (
-        "bot branch path allow-list fallback must keep matching ``bot/*`` head refs"
+    # The gate's LAST word must be the expensive one. Anything the arms above do
+    # not claim — an event this workflow does not declare today, or a trigger
+    # added later — has to run the full suite rather than skip it in silence.
+    assert gate_step["run"].rstrip().endswith(
+        'echo "run_heavy=true" >> "$GITHUB_OUTPUT"'
+    ), (
+        "the gate no longer falls through to run_heavy=true. An unhandled event "
+        "would then skip the repo's only full-suite run without saying so."
     )
-    # Audit P2 HIGH: the legacy bot path fallback must still verify changed
-    # PATHS, not just the branch name.
-    assert "run_heavy=$heavy" in gate_step["run"], (
-        "gate must emit run_heavy from the per-file path check, not a "
-        "name-only run_heavy=false"
-    )
-    assert ".filename" in gate_step["run"], (
-        "gate must list the PR's changed files to enforce the path allow-list"
-    )
-    assert "run_heavy=true" in gate_step["run"]
+
+
+# What used to stand here: three assertions pinning a ``bot/*`` path allow-list
+# in this gate -- ``bot/*``, ``.filename``, ``run_heavy=$heavy``. That block was
+# UNREACHABLE and was removed on 2026-08-04. ci.yml triggers on push,
+# pull_request and workflow_dispatch only, and each exits in one of the four arms
+# above; measured by executing the block for all three, plus a hypothetical
+# merge_group, before and after removal -- identical verdicts in all seven cases.
+#
+# Those assertions were worse than dead weight: they read as "ci.yml path-checks
+# bot PRs", and a maintainer could reasonably conclude bot PRs get a narrower
+# lane here. They never did. In ci.yml ALL pull requests are status-only, bot or
+# not, and the file-level protection is the outcome witnesses in
+# tests/test_fast_gates_silent_skip_coverage.py, which execute this gate rather
+# than reading it.
 
 
 def test_runs_on_uses_github_hosted_var() -> None:
