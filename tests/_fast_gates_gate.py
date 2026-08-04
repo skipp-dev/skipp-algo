@@ -251,10 +251,25 @@ def step_conditions(workflow: Path | None = None, job: str = "fast-gates") -> di
     """
     doc = yaml.safe_load((workflow or WORKFLOW).read_text(encoding="utf-8"))
     return {
-        str(step.get("name")): str(step.get("if", ""))
+        str(step.get("name")): _unwrap(str(step.get("if", "")))
         for step in doc["jobs"][job]["steps"]
         if isinstance(step, dict)
     }
+
+
+def _unwrap(expression: str) -> str:
+    """Strip the optional ``${{ … }}`` around a condition.
+
+    Actions treats `if: a == 'b'` and `if: ${{ a == 'b' }}` identically, and
+    both spellings are in use — `ml-family-research.yml` and
+    `rl-research-training.yml` wrap theirs. Left in, the braces are an
+    unreadable token and the evaluator refuses the condition, which would look
+    like an unsupported expression rather than a formatting difference.
+    """
+    stripped = expression.strip()
+    if stripped.startswith("${{") and stripped.endswith("}}"):
+        return stripped[3:-2].strip()
+    return stripped
 
 
 # The subset of GitHub's expression grammar the two conditions below use:
