@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 from scripts.check_r1_attested_sources import attested_sources, find_offenders
 from scripts.smc_r1_rollout_contract import build_rollout_contract
+from tests._fast_gates_gate import run_gate
 
 GUARD = ROOT / "scripts" / "check_r1_attested_sources.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
@@ -262,76 +263,9 @@ def test_a_pine_only_bot_pr_still_runs_this_guard() -> None:
     assert "steps.gate.outputs.run_heavy == 'true' &&" not in condition
 
 
-def _gate_run_block() -> str:
-    """The gate step's shell, read out of the workflow itself."""
-    import yaml
-
-    workflow = yaml.safe_load(
-        (
-            Path(__file__).resolve().parents[1]
-            / ".github"
-            / "workflows"
-            / "smc-fast-pr-gates.yml"
-        ).read_text(encoding="utf-8")
-    )
-    for step in workflow["jobs"]["fast-gates"]["steps"]:
-        if step.get("id") == "gate":
-            return str(step["run"])
-    raise AssertionError("fast-gates has no step with id 'gate'")
-
-
-def _run_gate(changed_files: list[str], tmp_path: Path) -> dict[str, str]:
-    """Run the real gate shell against a stubbed ``gh``; return its outputs.
-
-    The assertions above match source text, and text cannot tell "publishes
-    run_pine_guard" apart from "publishes run_pine_guard=false forever".
-    Measured 2026-08-04: deleting the single line that raises the flag left all
-    fourteen tests in this file green while the guard went blind again — the
-    exact defect being fixed, reintroduced under a passing suite. So execute it.
-    """
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    stub = bin_dir / "gh"
-    stub.write_text(
-        "#!/bin/sh\ncat <<'PR_FILES'\n" + "\n".join(changed_files) + "\nPR_FILES\n",
-        encoding="utf-8",
-    )
-    stub.chmod(0o755)
-
-    github_output = tmp_path / "github_output"
-    github_output.write_text("", encoding="utf-8")
-
-    result = subprocess.run(
-        # The shell GitHub gives a `run:` block, so a bashism cannot pass here
-        # and fail in CI.
-        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", _gate_run_block()],
-        env={
-            **os.environ,
-            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-            "GITHUB_OUTPUT": str(github_output),
-            "EVENT_NAME": "pull_request",
-            # A bot branch: the whole path-inspection branch is unreachable for
-            # anything else, and this is the branch shape #4371 actually used.
-            "HEAD_REF": "bot/library-refresh-30861895594-1",
-            "PR_NUMBER": "4371",
-            "REPO": "skipp-dev/skipp-algo",
-            "GH_TOKEN": "stub-token",
-        },
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr
-
-    return dict(
-        line.split("=", 1)
-        for line in github_output.read_text(encoding="utf-8").splitlines()
-        if "=" in line
-    )
-
-
 def test_the_gate_raises_the_pine_flag_for_a_pine_only_bot_pr(tmp_path: Path) -> None:
     """#4371's own shape: one attested pine file, nothing else."""
-    outputs = _run_gate(["SMC_Event_Overlay.pine"], tmp_path)
+    outputs = run_gate(["SMC_Event_Overlay.pine"], tmp_path)
 
     assert outputs["run_pine_guard"] == "true"
     # Pine still must not drag in the heavy suite — that exemption is the point.
@@ -344,7 +278,7 @@ def test_the_gate_leaves_the_pine_flag_down_without_pine(tmp_path: Path) -> None
     A flag hardcoded to ``true`` would satisfy the test above while running the
     heavy checkout on every bot PR. Only both directions pin the behaviour.
     """
-    outputs = _run_gate(["artifacts/governance/some_measurement.json"], tmp_path)
+    outputs = run_gate(["artifacts/governance/some_measurement.json"], tmp_path)
 
     assert outputs["run_pine_guard"] == "false"
     assert outputs["run_heavy"] == "false"

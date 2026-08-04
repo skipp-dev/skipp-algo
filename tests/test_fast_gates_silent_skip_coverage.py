@@ -13,6 +13,13 @@ that catch the silent-skip class of regressions MUST be invoked inside
 the ``smc-fast-pr-gates`` workflow's tripwire pytest call, because that
 is the only check ``main-governance`` requires before merge.
 
+Since 2026-08-04 the file also pins the step that decides whether that
+lane runs at all (see the section at the bottom). Being on the roster is
+worth nothing if the ``gate`` step hands the whole job a skip, and that
+step was previously asserted only as source text — which cannot tell an
+output that is published from one that is published as ``false`` forever.
+Those assertions execute the step instead of reading it.
+
 Listed tests:
   * ``test_workflow_issue_labels_exist.py``  — catches ``--label X``
     where ``X`` is not in the repo's label snapshot (root cause of the
@@ -78,6 +85,10 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+
+import yaml
+
+from tests._fast_gates_gate import SHELL, run_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
@@ -1110,3 +1121,132 @@ def test_paths_filter_split_catches_single_block_wiring() -> None:
         "pull_request.paths in the fixture — the split must report it as "
         "missing, not silently accept it because it is present under push.paths"
     )
+
+
+# --- the gate's own skip decision, executed rather than read (2026-08-04) -----
+#
+# Everything above pins which tests the workflow INVOKES. This section pins the
+# step that decides whether the heavy lane runs at all — by running it.
+#
+# Measured 2026-08-04: deleting the `*)` arm that sets `heavy=true` left 2198
+# tests green under `-k "fast_gates or workflow or r1_attested"`, and 202 green
+# across the 14 test files that name this workflow. A `bot/*` PR touching
+# services/*.py would then merge with no heavy suite at all — verbatim the hole
+# the step's own comment claims to have closed. Nothing executed the step.
+#
+# The step has THREE fail-closed arms (unlistable PR, empty list, non-bot or
+# non-PR event) and two classification arms. Each gets its own witness here:
+# a review found that covering only the arms one happens to think of leaves the
+# neighbours exactly as blind as before.
+
+
+def test_the_harness_matches_the_declared_shell() -> None:
+    """Pin BOTH sides of the harness's fidelity claim.
+
+    `_fast_gates_gate.SHELL` mirrors what `defaults: run: shell: bash` expands
+    to (`bash --noprofile --norc -eo pipefail`). Actions' implicit default is
+    `bash -e` WITHOUT pipefail.
+
+    Asserting only the workflow half is not enough, measured 2026-08-04: gutting
+    the tuple to `("bash", "-e")` killed no test, so the harness could quietly
+    start testing a more forgiving shell than CI runs. The workflow half is also
+    already covered elsewhere — `scripts/lint_workflow_defaults.py` runs in this
+    same lane and fails ANY workflow missing the declaration — so the tuple is
+    the half that actually needed a witness.
+    """
+    workflow = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
+    assert workflow.get("defaults", {}).get("run", {}).get("shell") == "bash", (
+        "smc-fast-pr-gates.yml no longer declares `defaults: run: shell: bash`. "
+        "tests/_fast_gates_gate.py:SHELL claims to reproduce CI's shell flags "
+        "and would now overstate that. Update both together."
+    )
+    assert SHELL == ("bash", "--noprofile", "--norc", "-e", "-o", "pipefail"), (
+        "the harness no longer runs the gate the way `shell: bash` runs it in "
+        f"CI (got {SHELL}); every gate assertion in this file and in "
+        "test_check_r1_attested_sources.py now measures a different shell"
+    )
+
+
+def test_a_source_path_on_a_bot_branch_forces_the_heavy_suite(tmp_path: Path) -> None:
+    """Audit P2 HIGH: the branch NAME alone must never buy the skip.
+
+    The step's comment records why: skipping on `bot/*` alone let arbitrary code
+    ride a bot branch to main untested. That protection is one `case` arm, and
+    until now no test ran it.
+    """
+    outputs = run_gate(["services/live_overlay_daemon/state.py"], tmp_path)
+
+    assert outputs["run_heavy"] == "true", (
+        "a bot/* PR touching a source path skipped the heavy suite; the `*)` arm "
+        "of the gate's path check is gone or no longer reached"
+    )
+
+
+def test_a_data_only_bot_pr_still_skips_the_heavy_suite(tmp_path: Path) -> None:
+    """The other half: a `heavy=true` hardcode would pass the test above.
+
+    Without this, the cheap way to make that assertion green is to delete the
+    exemption — which is the whole point of inspecting paths.
+    """
+    outputs = run_gate(["artifacts/monitoring/latest/some_snapshot.json"], tmp_path)
+
+    assert outputs["run_heavy"] == "false"
+
+
+def test_an_unlistable_pr_fails_closed_to_the_heavy_suite(tmp_path: Path) -> None:
+    """`gh` failing must not be read as "nothing risky changed".
+
+    The list is deliberately NON-empty and data-only. `gh api --paginate` can
+    succeed on page 1 and fail on page 2 (rate limit, expired token), leaving a
+    partial list on stdout and a non-zero exit — classify from that and the gate
+    skips the heavy suite on a file list it knows is incomplete.
+
+    Feeding an EMPTY list here would pass for the wrong reason: the next branch
+    (`-z "$files"`) catches that too, so the test would survive deleting the
+    guard it names. Measured 2026-08-04 — with the guard replaced by
+    `files=$(gh api …) || true`, an empty list still gave run_heavy=true while
+    this data-only list gave false.
+    """
+    outputs = run_gate(
+        ["artifacts/monitoring/latest/some_snapshot.json"], tmp_path, gh_exit_code=1
+    )
+
+    assert outputs["run_heavy"] == "true"
+
+
+def test_an_empty_file_list_fails_closed_to_the_heavy_suite(tmp_path: Path) -> None:
+    """The gate must never conclude "nothing changed" from an empty answer.
+
+    Its own separate branch, and until now witnessed by nothing: deleting
+    `if [[ -z "$files" ]]` killed no test, and the gate then reported success
+    having inspected zero files. Same silent-skip class this file is named for.
+    """
+    outputs = run_gate([], tmp_path)
+
+    assert outputs["run_heavy"] == "true"
+
+
+def test_the_merge_queue_never_takes_the_bot_exemption(tmp_path: Path) -> None:
+    """Non-`pull_request` events skip the path inspection entirely.
+
+    The workflow's `merge_group:` comment calls this merge-critical: the heavy
+    lane must run on any non-PR event regardless of the paths involved. The
+    branch name here is a bot one precisely so the exemption WOULD apply if the
+    event check were dropped.
+    """
+    outputs = run_gate(
+        ["artifacts/monitoring/latest/some_snapshot.json"],
+        tmp_path,
+        event_name="merge_group",
+    )
+
+    assert outputs["run_heavy"] == "true"
+
+
+def test_a_non_bot_branch_never_reaches_the_path_inspection(tmp_path: Path) -> None:
+    """Human PRs are never exempt, whatever they touch."""
+    outputs = run_gate(
+        ["docs/governance/some_note.md"], tmp_path, head_ref="feat/human-branch"
+    )
+
+    assert outputs["run_heavy"] == "true"
