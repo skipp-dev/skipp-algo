@@ -80,10 +80,11 @@ def _merge_base_range(commit_range: str) -> str:
     comparison of two TREES. On a PR branch created before an attested source
     changed on main, that reports main's change as if this PR had made it.
 
-    Measured 2026-08-04: PR #4373 touches no ``.pine`` file whatsoever and this
-    guard failed it for ``SMC_Event_Overlay.pine``, because #4371 had changed
-    that file on main after the branch point. Ten pine files came back from the
-    two-dot form; the three-dot form returns none. That inverts the guard's own
+    Measured 2026-08-04 over ``d3d387a80..233adebc0``: PR #4373 touches no
+    ``.pine`` file whatsoever and this guard failed it for
+    ``SMC_Event_Overlay.pine``, because #4371 had changed that file on main
+    after the branch point. Sixteen ``.pine`` files came back from the two-dot
+    form and none from the three-dot form. That inverts the guard's own
     contract, which promises "everything that does not touch these files is not
     this guard's business" — and it fires on precisely the PRs that would repair
     the drift, since they branch from the drifted main too.
