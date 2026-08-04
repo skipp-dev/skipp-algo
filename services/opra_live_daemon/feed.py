@@ -26,13 +26,31 @@ def _is_definition(record: Any) -> bool:
     )
 
 
+# Non-market-data record types a parent-symbology live session interleaves
+# with the data: 123,294 SymbolMappingMsg arrived in a 20s five-parent sample
+# (2026-08-04). They carry instrument_id + timestamps but no prices, so
+# without this sink they would flow into add_trade as phantom activity.
+_CONTROL_TYPE_FRAGMENTS = ("symbolmapping", "system", "error", "stat")
+
+
+def _is_control(record: Any) -> bool:
+    if isinstance(record, Mapping):
+        return False
+    name = type(record).__name__.lower()
+    return any(fragment in name for fragment in _CONTROL_TYPE_FRAGMENTS)
+
+
 def route_record(state: OpraShadowState, record: Any) -> str:
     """Dispatch one live record to its path; returns the route taken.
 
-    Order matters: definitions first, then quotes (tcbbo, BBO-bearing), and
-    everything else is a trades-schema record that gets COUNTED. Extracted
-    from the live loop so the routing is unit-testable without a Live client.
+    Order matters: control messages are dropped first, then definitions, then
+    quotes (tcbbo, BBO-bearing), and everything else is a trades-schema record
+    that gets COUNTED. Extracted from the live loop so the routing is
+    unit-testable without a Live client — and tested against OBJECT fakes,
+    not only dicts: the 2026-08-04 outage lived exactly in that gap.
     """
+    if _is_control(record):
+        return "control"
     if _is_definition(record):
         row = _mapping(record)
         state.add_definition(row, ts_ns=int(row.get("ts_recv") or 0))
@@ -161,7 +179,7 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
             if stop.is_set():
                 return
             try:
-                if route_record(state, record) == "definition":
+                if route_record(state, record) in ("definition", "control"):
                     return
             except Exception:
                 logger.warning("OPRA record dispatch failed; record skipped", exc_info=True)

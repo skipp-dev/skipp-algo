@@ -312,6 +312,110 @@ def test_quote_record_is_never_counted_as_a_trade() -> None:
     assert state.build_snapshot()["metrics"]["records_in_window"] == 0
 
 
+class _TradeObj:
+    """Attribute surface of a live ``TradeMsg``: NO instrument_class, NO BBO.
+
+    Every routing test above feeds dicts, and dicts pass ``_mapping`` through
+    unchanged — which is exactly how the 2026-08-04 outage stayed invisible:
+    ``_mapping``'s fixed-key fallback fabricated ``instrument_class`` (=None)
+    for every real DBN object, ``_is_definition``'s membership test then
+    routed the ENTIRE live stream into the definition sink, and the daemon
+    processed 129,617 records into zero counters (measured in-container).
+    """
+
+    def __init__(self, *, instrument_id: int = 1, ts: int = 1_000_000_000, sequence: int = 7) -> None:
+        self.instrument_id = instrument_id
+        self.ts_event = ts
+        self.ts_recv = ts + 1_000
+        self.sequence = sequence
+        self.price = 3.0
+        self.size = 100
+        self.side = "N"
+        self.publisher_id = 20
+
+
+class _QuoteObj:
+    """Attribute surface of a live ``CMBP1Msg``: BBO present, no sequence."""
+
+    def __init__(self, *, instrument_id: int = 1, ts: int = 999_999_000) -> None:
+        self.instrument_id = instrument_id
+        self.ts_event = ts
+        self.ts_recv = ts + 1_000
+        self.price = 3.0
+        self.size = 100
+        self.side = "N"
+        self.publisher_id = 20
+        self.bid_px_00 = 2.9
+        self.ask_px_00 = 3.0
+
+
+class _DefObj:
+    """Attribute surface of a live ``InstrumentDefMsg`` (the fields state uses)."""
+
+    def __init__(self, *, instrument_id: int = 1) -> None:
+        self.instrument_id = instrument_id
+        self.ts_recv = 500_000_000
+        self.underlying = "AAPL"
+        self.asset = "AAPL"
+        self.strike_price = 200.0
+        self.expiration = "2026-07-24"
+        self.instrument_class = "C"
+        self.raw_symbol = "AAPL  260724C00200000"
+
+
+class _SymbolMappingObj:
+    """A ``SymbolMappingMsg``: instrument_id + ts, no market-data fields.
+
+    123,294 of these arrived in a 20s live sample — they must route to a
+    control sink, not into add_trade as phantom unknown-instrument trades.
+    """
+
+    def __init__(self) -> None:
+        self.instrument_id = 55
+        self.ts_event = 1_000_000_000
+        self.ts_recv = 1_000_001_000
+        self.stype_out_symbol = "AAPL  260724C00200000"
+
+
+class _SystemObj:
+    """A ``SystemMsg`` heartbeat: carries none of the market-data fields."""
+
+    def __init__(self) -> None:
+        self.msg = "Heartbeat"
+
+
+def test_live_trade_objects_route_as_trades_not_definitions() -> None:
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    assert route_record_import()(state, _QuoteObj()) == "quote"
+    assert route_record_import()(state, _TradeObj()) == "trade"
+    metrics = state.build_snapshot()["metrics"]
+    assert metrics["records_in_window"] == 1
+
+
+def test_live_definition_object_still_routes_as_definition() -> None:
+    state = _state()
+    assert route_record_import()(state, _DefObj()) == "definition"
+    assert state.build_snapshot()["metrics"]["definition_count"] == 1
+
+
+def test_control_messages_route_to_a_sink_and_touch_no_counter() -> None:
+    state = _state()
+    state.add_definition(_definition(), ts_ns=500_000_000)
+    assert route_record_import()(state, _SymbolMappingObj()) == "control"
+    assert route_record_import()(state, _SystemObj()) == "control"
+    metrics = state.build_snapshot()["metrics"]
+    assert metrics["records_in_window"] == 0
+    assert metrics["unknown_instruments"] == 0
+    assert metrics["pending_instruments"] == 0
+
+
+def route_record_import():
+    from services.opra_live_daemon.feed import route_record as rr
+
+    return rr
+
+
 def test_feed_routes_quotes_and_trades_to_their_paths() -> None:
     from services.opra_live_daemon.feed import route_record
 
