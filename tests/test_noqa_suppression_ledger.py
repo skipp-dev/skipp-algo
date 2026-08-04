@@ -148,10 +148,14 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-08-04: constant `git` argv list, no shell=True, no user input —
     # same shape as check_commit_authors.py above (S603 + S607).
     "scripts/hold_r1_attested_sources.py": 2,
-    # 2026-08-05: `_git_head` shells out to `git rev-parse HEAD` to stamp the
-    # pending evidence artifact's `repoCommitSha`. Same shape as
-    # hold_r1_attested_sources.py above (S603 + S607, constant argv, no shell).
-    "scripts/run_r1_reattestation.py": 2,
+    # 2026-08-05: two subprocess.run sites, same S603 + S607 shape as
+    # hold_r1_attested_sources.py above (constant argv, no shell, no user
+    # input) -- 4 noqa markers total. `_git` (shared by `_git_head` and the
+    # `measure` subcommand's default repo-slug lookup) shells out to `git
+    # rev-parse HEAD` / `git remote get-url origin`; `_default_fetch_run`
+    # shells out to `gh api repos/<owner>/<repo>/actions/runs/<id>` to read
+    # back the mutating save + auto-re-verify runs PR2 measures.
+    "scripts/run_r1_reattestation.py": 4,
     # 2026-08-01: the R1-attested-source gate shells out to `git diff
     # --name-only <range>` to learn which files the PR is responsible for.
     # S603 (subprocess call) and S607 (`git` resolved from PATH) mirror the

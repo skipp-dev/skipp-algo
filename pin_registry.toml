@@ -503,14 +503,19 @@ file = "scripts/hold_r1_attested_sources.py"
 attr = "run"
 count = 1
 
-# scripts/run_r1_reattestation.py: 2026-08-05. `_git_head` runs
-# `git rev-parse HEAD` in the target working tree to stamp the pending
-# evidence artifact's `repoCommitSha`. Constant `git` argv list, no
+# scripts/run_r1_reattestation.py: 2026-08-05. Two subprocess.run call sites
+# (AST call-site count, not runtime invocations): the shared `_git` helper
+# (used by both `_git_head` -- `git rev-parse HEAD`, stamping
+# `repoCommitSha` -- and `measure`'s default repo-slug lookup -- `git remote
+# get-url origin`, to build the `gh api repos/<owner>/<repo>/...` path) plus
+# `_default_fetch_run`'s `gh api repos/<owner>/<repo>/actions/runs/<id>` call
+# to read back the mutating save + auto-re-verify runs PR2 measures.
+# Constant argv lists (variable-splatted, never a bare literal), no
 # shell=True, no user input.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/run_r1_reattestation.py"
 attr = "run"
-count = 1
+count = 2
 
 # scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
 # token lookup before authenticated dashboard publish.
