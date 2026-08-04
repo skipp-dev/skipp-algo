@@ -196,6 +196,11 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # already paid for by the guards ahead of them and only the walk is new.
     "test_httpx_timeout_invariant.py",
     "test_gha_action_allowlist.py",
+    # Supply-chain sibling of the allowlist guard, on the same lane for the
+    # same reason: it compares the action pins across .github/workflows/,
+    # .github/actions/ and .github/workflow-templates/, and a partial bump
+    # merges green without it (2026-08-04). YAML/source parsing only, <0.5s.
+    "test_action_pin_surfaces_agree.py",
     "test_pine_alert_bar_close_gate.py",
     "test_workflow_continue_on_error_semantics.py",
     "test_mkdir_makedirs_exist_ok_invariant.py",

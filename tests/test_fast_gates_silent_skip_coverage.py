@@ -179,6 +179,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
     "tests/test_gha_action_allowlist.py",
+    "tests/test_action_pin_surfaces_agree.py",
     "tests/test_global_statement_budget.py",
     "tests/test_globals_call_zero_surface.py",
     "tests/test_grafana_alert_rules_upsert.py",

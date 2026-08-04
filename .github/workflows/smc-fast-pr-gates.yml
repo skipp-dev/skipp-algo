@@ -612,6 +612,7 @@ jobs:
             tests/test_guard_corpus_tracked_files.py \
             tests/test_httpx_timeout_invariant.py \
             tests/test_gha_action_allowlist.py \
+            tests/test_action_pin_surfaces_agree.py \
             tests/test_pine_alert_bar_close_gate.py \
             tests/test_workflow_continue_on_error_semantics.py \
             tests/test_mkdir_makedirs_exist_ok_invariant.py \
