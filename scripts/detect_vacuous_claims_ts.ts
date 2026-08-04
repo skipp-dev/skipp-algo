@@ -187,6 +187,30 @@ const classify = (
 };
 
 /**
+ * Dotted names in *source* whose base identifier is *name*.
+ *
+ * Bound like the object-literal case rather than resolved on demand,
+ * because `ScopeChain` is keyed by rendered text and every key must come
+ * from `render` — the single renderer. A file-wide sweep is sound here:
+ * `ScopeChain.add` files the key under the *declaration's* container, so a
+ * `result.failures` written in a different block still resolves only if
+ * that block is nested inside the one that declared `result`.
+ */
+const propertiesReadFrom = (source: ts.SourceFile, name: string): string[] => {
+  const found = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node)) {
+      let base: ts.Node = node;
+      while (ts.isPropertyAccessExpression(base)) base = base.expression;
+      if (ts.isIdentifier(base) && base.text === name) found.add(render(node, source));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...found];
+};
+
+/**
  * Collect `const xs = <emptiable>` bindings, keyed by their own block.
  *
  * An object literal initialiser also binds its properties by dotted name:
@@ -212,6 +236,20 @@ const collectBindings = (source: ts.SourceFile): ScopeChain<string> => {
             `${node.name.text}.${property.name.text}`,
             `local ${propertyKind}`,
           );
+        }
+      }
+      // An object this scope produced by calling something holds runtime
+      // data, so its fields can be empty. `CONFIG.targets` — a property of
+      // something the analyzer never watched being built — deliberately
+      // stays out: the Python half measured every such iterable in its own
+      // suite and found them all to be non-empty literals, so classifying
+      // them would manufacture false positives rather than find defects.
+      const producer = ts.isAwaitExpression(node.initializer)
+        ? node.initializer.expression
+        : node.initializer;
+      if (ts.isCallExpression(producer)) {
+        for (const property of propertiesReadFrom(source, node.name.text)) {
+          bindings.add(containerOf(node), property, "property of a produced object");
         }
       }
     }
