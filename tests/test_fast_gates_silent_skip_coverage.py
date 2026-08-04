@@ -128,6 +128,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # like the R1 contract test itself, nothing would notice until after a
     # merge — which is the hole #4272 and #4284 went through.
     "tests/test_check_r1_attested_sources.py",
+    # Added 2026-08-04: ci.yml is status-only on pull requests and these two
+    # were slow-lane only, so a regression to the gate deciding whether the
+    # full suite ever runs was invisible until after the merge.
+    "tests/test_ci_workflow_contract.py",
+    "tests/test_ci_workflow_structural_pin.py",
     # 2026-08-03: derived cross-consumer guard for
     # scripts/credential_health_check.py. #4333 added a probe to that shared
     # script without touching the other two consuming workflows, aborting
