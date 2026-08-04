@@ -34,9 +34,9 @@ def test_service_is_pinned_and_separate_from_worker_runtime() -> None:
     assert "scripts/mlflow_artifact_backup.py" in dockerfile
     assert "a0_fast_detector" not in dockerfile
     assert (SERVICE_DIR / "requirements.txt").read_text(encoding="utf-8").splitlines() == [
-        "mlflow[auth]==3.14.0",
-        "psycopg2-binary==2.9.10",
-        "boto3==1.43.51",
+        "mlflow[auth]==3.15.0",  # 2026-08-04 (#4439 accepted): 3.14.0/2.9.10/1.43.51 -> below
+        "psycopg2-binary==2.9.12",
+        "boto3==1.43.62",
     ]
     assert "mlflow" not in Path("services/a0_fast_detector/requirements.txt").read_text(
         encoding="utf-8"
