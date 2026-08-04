@@ -355,9 +355,14 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # invocation: the step died on the failing pipeline and neither rc= nor
 # changed= was ever written.
 # Silent-skip risk is bounded by a DEDICATED final step, "Fail the run if a
-# publish failed", which reads the published rc and ends the run red — for an
-# empty rc too. tests/test_workflow_pine_library_publish_handlibs_contract.py
-# executes the step against a stubbed failing publish and asserts both outputs.
+# publish failed", which ends the run red on a non-zero rc, on an EMPTY rc, and
+# on a non-zero log_rc. That third arm is what makes the bound complete rather
+# than merely plausible: with -e off, a `tee` that cannot write no longer ends
+# the step, and a review measured 2026-08-04 that without a published log_rc
+# such a run finishes GREEN with no publish log at all — under -e it went red.
+# The pipeline has exactly two members and both statuses are published.
+# tests/test_workflow_pine_library_publish_handlibs_contract.py executes the
+# step and the final step against stubbed failures of each.
 "pine-library-publish-handlibs.yml" = 1
 "plan-2-8-monthly-digest.yml" = 4
 "plan-2-8-weekly-digest.yml" = 382

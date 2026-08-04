@@ -88,14 +88,43 @@ from tests._workflow_step_shell import Stub, run_step
 _PUBLISH_STEP = "Ordered publish + repin"
 
 
-def _publish(tmp_path: Path, *, npm_exit: int = 0, git_status: str = ""):
-    """Run the real step with `npm` and `git` shadowed."""
+def _publish(tmp_path: Path, *, npm_exit: int = 0, git_status: str = "", tee_exit: int = 0):
+    """Run the real step with `npm`, `git` and `tee` shadowed.
+
+    ``tee`` is stubbed even in the happy path on purpose. The step writes to a
+    HARD-CODED ``/tmp/handlib_publish.log`` shared by every process on the box,
+    so letting the real one run would have these tests leave a file behind on
+    each developer machine and runner they touch.
+    """
     return run_step(
         "pine-library-publish-handlibs.yml",
         _PUBLISH_STEP,
         tmp_path,
         env={"TV_STORAGE_STATE": "{}"},
-        stubs={"npm": Stub(exit_code=npm_exit), "git": Stub(stdout=git_status)},
+        stubs={
+            "npm": Stub(exit_code=npm_exit),
+            "git": Stub(stdout=git_status),
+            "tee": Stub(exit_code=tee_exit),
+        },
+    )
+
+
+def _final(tmp_path: Path, *, rc: str, log_rc: str):
+    """Run the real `Fail the run if a publish failed` step over given outputs.
+
+    Actions resolves ``${{ steps.publish.outputs.* }}`` before bash sees the
+    block, so the harness substitutes them the same way -- which is what lets
+    the EMPTY-output case be driven at all.
+    """
+    return run_step(
+        "pine-library-publish-handlibs.yml",
+        "Fail the run if a publish failed",
+        tmp_path,
+        env={},
+        expressions={
+            "steps.publish.outputs.rc": rc,
+            "steps.publish.outputs.log_rc": log_rc,
+        },
     )
 
 
@@ -174,53 +203,125 @@ def test_the_publish_step_does_not_fail_the_run_itself(tmp_path: Path) -> None:
     )
 
 
-def test_an_empty_rc_is_reported_as_its_own_failure() -> None:
+def test_an_empty_rc_ends_the_run_with_a_named_cause(tmp_path: Path) -> None:
     """A missing rc must not render as ``exited`` with no number.
 
     ``${rc:-1}`` already failed the run in that case -- the gate was never
     fail-open -- but the message named no cause, which is why a step that could
     not publish its outputs went unnoticed. An empty rc means the publish step
     died before its writes; that is a different fault from a non-zero rc.
-    """
-    for step in _steps():
-        if step.get("name") == "Fail the run if a publish failed":
-            run = str(step["run"])
-            break
-    else:
-        raise AssertionError("no step named 'Fail the run if a publish failed'")
 
-    assert '-z "${rc}"' in run, (
-        "the final step no longer distinguishes an empty rc from a non-zero "
-        "one, so a publish step that dies before writing its outputs reports "
-        "'exited ' again."
+    Executed, not matched. Until 2026-08-04 this asserted only that the string
+    ``-z "${rc}"`` appeared; a review measured that deleting the ``exit 1`` from
+    that branch -- leaving the text -- kept the whole file green. The test
+    claimed to pin the reporting and would have survived its removal.
+    """
+    result = _final(tmp_path, rc="", log_rc="")
+    assert result.returncode != 0, (
+        "an empty rc finished the run GREEN. The publish step only fails to "
+        f"write its outputs when it died before reaching them.\n{result.stdout}"
+    )
+    assert "produced no rc at all" in result.stdout, (
+        "the run failed without naming the cause, which is the 'exited ' with "
+        f"no number this branch exists to replace. Got: {result.stdout!r}"
     )
 
 
-def test_rc_comes_from_the_publish_not_from_tee() -> None:
-    """A LITERAL pin, and the reason it must be one is stated, not hidden.
+def test_a_clean_publish_ends_the_run_green(tmp_path: Path) -> None:
+    """The control direction: without it, `exit 1` unconditionally passes above."""
+    result = _final(tmp_path, rc="0", log_rc="0")
+    assert result.returncode == 0, (
+        f"a successful publish failed the run.\n{result.stdout}\n{result.stderr}"
+    )
 
-    ``rc=${PIPESTATUS[0]}`` and ``rc=$?`` are indistinguishable for every input
-    the executed tests above can produce: under ``pipefail`` a failing publish
-    makes both 7. Measured 2026-08-04 with the real shell -- they diverge in
-    exactly one shape, ``tee`` failing while the publish SUCCEEDS, where ``$?``
-    reports tee's 1 and ``PIPESTATUS[0]`` reports the publish's 0.
 
-    Driving that would mean making the hard-coded ``/tmp/handlib_publish.log``
-    unwritable -- a path shared by every run on the box, so a crashed test
-    leaves it broken for the next one -- or adding a log-path knob to
-    production for the test's benefit. Both are worse than pinning the text and
-    naming the limitation, so: this is the one assertion in this file a
-    source-text change can satisfy without the behaviour holding.
+def test_a_failed_log_pipeline_ends_the_run(tmp_path: Path) -> None:
+    """`tee` dying is a real failure, and turning -e off is what made it silent.
+
+    With -e on, a `tee` that could not write ended the step and the run went
+    red. With -e off -- required for the partial-progress path -- the step now
+    survives it, so the status has to be carried to the end explicitly.
+    Otherwise the run finishes GREEN with no publish log, `Upload publish log`
+    only warns (``if-no-files-found: warn``), and every error message in this
+    workflow points at an artifact that was never written.
     """
-    for step in _steps():
-        if step.get("name") == _PUBLISH_STEP:
-            run = str(step["run"])
-            break
-    else:
-        raise AssertionError(f"no step named {_PUBLISH_STEP!r}")
+    result = _final(tmp_path, rc="0", log_rc="3")
+    assert result.returncode != 0, (
+        "the publish log pipeline failed and the run still finished green -- "
+        f"a run whose own evidence was never written.\n{result.stdout}"
+    )
 
-    assert "rc=${PIPESTATUS[0]}" in run, (
-        "rc no longer comes from PIPESTATUS[0]. As `rc=$?` a failing `tee` "
-        "(disk full, unwritable /tmp) would be reported as a failed publish "
-        "while the publish actually succeeded."
+
+def _open_pr(tmp_path: Path, *, publish_rc: str):
+    """Run the real `Open repin PR` step with git and gh shadowed."""
+    return run_step(
+        "pine-library-publish-handlibs.yml",
+        "Open repin PR",
+        tmp_path,
+        env={
+            "GH_TOKEN": "x",
+            "PUBLISH_RC": publish_rc,
+            "GITHUB_RUN_ID": "999",
+            "GITHUB_REPOSITORY": "owner/repo",
+        },
+        stubs={"git": Stub(), "gh": Stub()},
+    )
+
+
+def test_a_partial_repin_pr_says_so(tmp_path: Path) -> None:
+    """The PR opened on the FAILURE path must not claim the chain completed.
+
+    Making the partial-progress path reachable also made this step run on red
+    runs for the first time. Its body was written when only a fully successful
+    run could reach it and states that the helper "published the changed
+    hand-authored SMC++ libraries ... and repinned their consumers" -- which,
+    on a chain that broke mid-way, tells the human reviewing the pin diff the
+    opposite of what happened.
+    """
+    created = _open_pr(tmp_path, publish_rc="7").called_with("pr", "create")
+    assert created, "no PR was opened on the partial-progress path"
+    body = " ".join(created)
+    assert "PARTIAL" in body, (
+        f"the PR opened after a FAILED publish does not say it is partial: {body}"
+    )
+    assert "7" in body, f"the PR does not report the exit code it was opened for: {body}"
+
+
+def test_a_complete_repin_pr_does_not_cry_partial(tmp_path: Path) -> None:
+    """The control direction: a clean run must not be labelled partial.
+
+    Without it, hardcoding the PARTIAL wording would satisfy the test above
+    while marking every successful weekly run as a failure.
+    """
+    body = " ".join(_open_pr(tmp_path, publish_rc="0").called_with("pr", "create"))
+    assert body, "no PR was opened on the success path"
+    assert "PARTIAL" not in body, f"a successful publish was announced as partial: {body}"
+
+
+def test_rc_comes_from_the_publish_not_from_tee(tmp_path: Path) -> None:
+    """The one shape where ``PIPESTATUS[0]`` and ``$?`` disagree, driven.
+
+    Under ``pipefail`` a failing publish makes both 7, so the executed tests
+    above cannot tell the two apart. They diverge in exactly one case: ``tee``
+    failing while the publish SUCCEEDS, where ``$?`` reports tee's status and
+    ``PIPESTATUS[0]`` reports the publish's 0.
+
+    Until 2026-08-04 this was a literal text pin whose docstring claimed that
+    case could only be reached by making the shared ``/tmp/handlib_publish.log``
+    unwritable or by adding a log-path knob to production. That was wrong, and
+    a review measured it: ``run_step`` shadows executables BY NAME and ``tee``
+    is an executable, so the divergence is a one-line stub. The limitation was
+    never real -- only unexamined.
+    """
+    result = _publish(tmp_path, npm_exit=0, tee_exit=1, git_status=" M pine/skipp_smc_core.pine")
+
+    assert result.outputs.get("rc") == "0", (
+        "a failing `tee` was reported as a failed publish. rc must come from "
+        "PIPESTATUS[0]; as `rc=$?` an unwritable /tmp turns a successful "
+        f"publish chain into a phantom publish failure. Got: {result.outputs}"
+    )
+    assert result.outputs.get("log_rc") == "1", (
+        "the failing log pipeline was not published, so nothing downstream can "
+        "fail the run for it and it finishes green without its evidence. Got: "
+        f"{result.outputs}"
     )
