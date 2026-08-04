@@ -9,6 +9,7 @@ rollout handling. Also satisfies
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -1130,9 +1131,40 @@ def test_the_un_attestation_remedy_is_rendered_from_the_shared_constant() -> Non
     )
     run = str(step["run"])
 
-    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in run
-    assert "RESOLUTION.format(evidence=" in run
-    assert '"${resolution}"' in run
+    # COMMENTS STRIPPED FIRST. Measured 2026-08-04 on the landed PR: deleting
+    # the real command substitution, replacing it with `resolution="See the step
+    # log."`, and leaving two comments that happened to carry the asserted
+    # phrases left all 50 tests in this file green. The assertions forbade a
+    # hand-typed copy but not the remedy's outright removal — the step would
+    # have published a fenced block containing one sentence of prose.
+    code = "\n".join(
+        line for line in run.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in code, (
+        "the remedy is no longer imported in executable code (only, at most, in "
+        "a comment about importing it)"
+    )
+
+    # The variable the summary interpolates must be the one assigned from the
+    # command substitution that renders RESOLUTION — an agreement between the
+    # two, so neither half can be severed while the other keeps the test green.
+    assigned = re.search(r'(\w+)="\$\((.*?)\)"', code, re.S)
+    assert assigned, (
+        "nothing in this step assigns a variable from a command substitution, "
+        "so the remedy cannot be rendered at run time"
+    )
+    variable, substitution = assigned.group(1), assigned.group(2)
+
+    assert "RESOLUTION.format(evidence=" in substitution, (
+        f"${variable} is assigned from a substitution that never renders "
+        f"RESOLUTION:\n{substitution}"
+    )
+    assert f'"${{{variable}}}"' in code, (
+        f"the step renders the remedy into ${variable} and then never publishes "
+        "it; the fenced block in the job summary would be empty or carry "
+        "something else"
+    )
 
     # The prose itself must not be re-typed here, in either wording.
     for phrase in (
