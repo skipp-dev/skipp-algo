@@ -74,6 +74,26 @@ OPERATOR_OBSERVATION_EVIDENCE: Final = (
 # trusting the literal.
 OPEN_GATES: Final = ()
 
+# How many sources ``build_rollout_contract()["targets"]`` must register, held
+# here because more than one consumer derives that roster and each needs a
+# non-vacuity floor: a derivation that silently yields nothing would let both
+# report a clean all-clear forever.
+#
+# Consumers (both DERIVE the roster, neither hand-lists it):
+#   * tests/test_fast_gates_attested_pine_coverage.py -- asserts every attested
+#     source is picked up by the run_pine_guard arm in smc-fast-pr-gates.yml,
+#     which is what pulls the R1 guard onto a pine-only bot PR.
+#   * the "Report R1 attestation drift caused by this refresh" step in
+#     .github/workflows/smc-library-refresh.yml.
+#
+# It lives here rather than in either consumer because it is a property of the
+# contract, not of the thing reading it. Two unlinked copies of this number is
+# the defect those consumers exist to prevent: a legitimate roster change would
+# update one, and the other would then be wrong -- the test pinning a stale
+# floor, or the refresh hard-failing on a roster that is actually correct.
+# Lower it only together with a reason, in the same PR that shrinks the roster.
+MIN_ATTESTED_SOURCES: Final = 2
+
 
 def _source(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")

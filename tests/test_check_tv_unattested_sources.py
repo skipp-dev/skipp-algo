@@ -23,7 +23,11 @@ import sys
 from pathlib import Path
 
 from scripts.check_tv_unattested_sources import (
+    _REMEDY,
     DEFAULT_CONFIG,
+    EXECUTION_EVIDENCE,
+    RESOLUTION,
+    _render,
     attested_sources,
     drifted_attested_targets,
     unattested_save_targets,
@@ -154,3 +158,48 @@ def test_stdout_is_only_the_machine_value_so_the_shell_can_append_it_verbatim() 
     assert isinstance(json.loads(result.stdout.strip()), list)
     assert result.stdout.count("\n") == 1, f"stdout carried more than the value: {result.stdout!r}"
     assert result.stderr.strip(), "the human-readable line must still be emitted, on stderr"
+
+
+def test_the_rendered_remedy_stays_inside_eighty_columns() -> None:
+    """The evidence path is ~66 chars; interpolating it mid-sentence overflows.
+
+    Both emitters of this text wrap at 80: this script's stderr block, and the
+    fenced blocks the two workflows put in a job summary / PR body, where an
+    over-long line forces horizontal scrolling. Measured against the REAL path
+    rather than a short stub, because a stub does not reproduce the defect --
+    it was a 189-character line in the resolution and a 127-character line in
+    the preamble, both invisible to any assertion that used a placeholder.
+    """
+    evidence = EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()
+    assert len(evidence) > 40, (
+        f"the evidence path is only {len(evidence)} chars; this pin assumes a "
+        "long path and would not reproduce the overflow it exists to catch"
+    )
+
+    prose = _REMEDY.format(
+        evidence=evidence,
+        resolution=RESOLUTION.format(evidence=evidence),
+    )
+    offenders = [line for line in prose.splitlines() if len(line) > 80]
+    assert not offenders, (
+        "rendered remedy lines exceed 80 columns:\n"
+        + "\n".join(f"  {len(line):>3}  {line}" for line in offenders)
+        + "\nKeep the {evidence} placeholder on a line of its own."
+    )
+
+    # Scoped to the prose on purpose. The per-source rows _render appends carry
+    # full SHA-256 digests (64 chars + label = 88) and must print whole: a
+    # wrapped hash cannot be grepped or compared by eye, which is the entire
+    # point of showing both of them. Those lines are data, not prose, and are
+    # excluded by measuring the constants rather than _render's output.
+    assert _render(
+        [
+            {
+                "scriptName": "SMC Event Overlay",
+                "path": "SMC_Event_Overlay.pine",
+                "attestedSha256": _ATTESTED,
+                "repositorySha256": _DRIFTED,
+            }
+        ],
+        ["SMC Event Overlay"],
+    ).startswith(prose), "the rendered report must still open with this prose block"

@@ -508,6 +508,20 @@ jobs:
           TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
         run: |
           set -euo pipefail
+          # The remedy is RENDERED from
+          # scripts/check_tv_unattested_sources.RESOLUTION, never hand-typed.
+          # THIS run already prints that same module's stderr from the
+          # "Detect R1-attested sources this save would un-attest" step, so a
+          # hand-copy here means one run stating one remedy twice, in two
+          # wordings — which is exactly what happened: this block still carried
+          # the pre-extraction text after RESOLUTION was corrected, telling
+          # operators to "re-run to push the attested content back" while the
+          # stderr named the workflow. The stderr goes to the step LOG, not to
+          # the job summary, which is why this block exists at all and is
+          # rendered rather than deleted.
+          # tests/test_workflow_tv_save_consumer_source_contract.py pins the
+          # agreement.
+          resolution="$(python3 -c 'from scripts.check_tv_unattested_sources import RESOLUTION; from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE, ROOT; print(RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()), end="")')"
           {
             echo "## R1-attested sources were saved un-attested"
             echo
@@ -520,11 +534,9 @@ jobs:
             echo "${TV_UNATTESTED_SOURCES}"
             echo '```'
             echo
-            echo "Re-attest with a NEW dated evidence artifact, or revert the source"
-            echo "change and re-run to push the attested content back."
-            echo
-            echo "Do not edit the existing dated artifact to match today's hashes:"
-            echo "that falsifies a measurement rather than repeating it."
+            echo '```'
+            echo "${resolution}"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           echo "::error::R1-attested sources saved un-attested: ${TV_UNATTESTED_SOURCES}"
           exit 1

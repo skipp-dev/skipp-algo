@@ -1447,6 +1447,193 @@ jobs:
             echo "Pinned core-import snippet ${SNIPPET} to library ${NEW_VERSION}."
           fi
 
+      # ── R1 attestation notice ───────────────────────────────────
+      # The bump above repins EVERY pine consumer, and SMC_Event_Overlay.pine is
+      # one of them. It is also one of the two Pine sources
+      # scripts/smc_r1_rollout_contract.py hashes into the R1 rollout contract
+      # and compares against a dated evidence artifact, so this refresh can —
+      # and twice did — kill the attestation: #4284 (2026-08-01, repaired four
+      # hours later by the manual re-attestation PR #4290) and #4371
+      # (2026-08-04, unnoticed; main stayed red on
+      # tests/test_check_tv_unattested_sources.py for the next unrelated PR).
+      #
+      # Drift is reported, never blocked. The library bump is legitimate and
+      # must still produce its PR; what was missing is that the run told nobody
+      # the attestation had died, so the required operator follow-up (a live
+      # TradingView re-attestation, which no automation can perform) was
+      # invisible. The run_pine_guard arm in smc-fast-pr-gates.yml (#4376) is
+      # what stops the resulting PR merging silently: a pine touch now pulls
+      # the checkout and "Guard R1-attested sources" onto the bot PR, without
+      # dragging in the whole heavy suite.
+      #
+      # NO verdict this step reaches fails it. Not drift, not a crash, not an
+      # empty roster. The only way this step can go red is if writing
+      # $GITHUB_STEP_SUMMARY / $GITHUB_ENV itself fails, which is a runner
+      # fault rather than anything this check concluded.
+      #
+      # That is deliberate, and the cost of the alternative is larger than
+      # "the refresh PR is lost". Step order in job `refresh`: `Publish library
+      # to TradingView` is 37, this notice is 45, `Commit and push changes` is
+      # 46 — and the commit step's `if:` carries an implicit success(). A fatal
+      # exit here therefore leaves the library PUBLISHED to TradingView with
+      # the repo pins never committed: the 2026-07-13 divergence class the
+      # commit step's own comment block documents ("~6 weeks committed !=
+      # published, run green"). Under GitHub's default `bash -e` any uncaught
+      # non-zero exit would do exactly that, so the handling below is what
+      # keeps this comment true.
+      #
+      # Nothing green is printed on a failure path either, which is the part
+      # that actually matters. An empty or short roster does NOT print
+      # "Checked 0 attested source(s) … still describes them" — a green
+      # all-clear that would survive indefinitely because it is
+      # indistinguishable from success. It goes through the same
+      # "## R1 attestation check could not run" report as a raised exception:
+      # loud, in the job summary AND in the PR body, saying the attestation is
+      # UNKNOWN rather than intact. The floor itself stays enforced on the
+      # required path by tests/test_fast_gates_attested_pine_coverage.py, which
+      # pins the same MIN_ATTESTED_SOURCES on every pull request.
+      #
+      # The roster is DERIVED from the contract, never hand-listed here, so a
+      # third attested source joins this notice automatically — the same rule
+      # tests/test_fast_gates_attested_pine_coverage.py enforces for the
+      # run_pine_guard arm, whose trigger is path-shaped and therefore blind to
+      # an attested target registered outside *.pine / pine/generated/*.
+      # It is derived UNFILTERED, matching that test: every contract target is
+      # hashed, so every target un-attests the rollout when it changes,
+      # whatever its extension.
+      #
+      # The resolution prose is IMPORTED from
+      # scripts/check_tv_unattested_sources.RESOLUTION, not re-typed. Two
+      # producers report this same drift and a hand-copy here would go stale the
+      # first time a resolution path changes — the defect class this PR exists
+      # to close, applied to prose instead of to a file list.
+      - name: Report R1 attestation drift caused by this refresh
+        id: r1_attestation
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import os
+          import subprocess
+          import traceback
+
+          GUARD = "tests/test_check_tv_unattested_sources.py::test_the_guard_reads_the_registered_evidence_not_a_second_copy"
+
+          def cannot_run(reason: str, detail: str) -> str:
+            """The ONE report for every path that did not reach a verdict.
+
+            Crash and vacuous-roster share it on purpose: both mean the
+            attestation state is unknown, and neither may render as an
+            all-clear. Nothing green is printed on either path.
+            """
+            return (
+              "## R1 attestation check could not run\n"
+              "\n"
+              f"{reason}\n"
+              "\n"
+              "This refresh could NOT determine whether it invalidated an R1-attested\n"
+              "source, so treat the attestation as UNKNOWN, not as intact. Run\n"
+              f"`{GUARD}`\n"
+              "against this branch before merging.\n"
+              "\n"
+              "```\n"
+              f"{detail}"
+              "```\n"
+            )
+
+          try:
+            from scripts.check_tv_unattested_sources import RESOLUTION
+            from scripts.smc_r1_rollout_contract import (
+              EXECUTION_EVIDENCE,
+              MIN_ATTESTED_SOURCES,
+              ROOT,
+              build_rollout_contract,
+            )
+
+            attested = sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
+            evidence = EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()
+            floor = MIN_ATTESTED_SOURCES
+            diff = subprocess.run(
+              ["git", "diff", "--name-only", "HEAD", "--", *attested],
+              capture_output=True,
+              text=True,
+              check=True,
+            )
+            stale = sorted(line.strip() for line in diff.stdout.splitlines() if line.strip())
+          except Exception:
+            detail = traceback.format_exc()
+            print("::error::R1 attestation check could not run; see the job summary")
+            print(detail)
+            summary = notice = cannot_run("The derivation raised.", detail)
+          else:
+            if len(attested) < floor:
+              # NOT an all-clear. A roster that observed nothing would otherwise
+              # print "Checked 0 attested source(s) … still describes them",
+              # which is indistinguishable from success and would survive
+              # indefinitely. Reported as unknown, exactly like a crash — and,
+              # exactly like a crash, without failing the step and stranding a
+              # published library on uncommitted pins.
+              print(
+                f"::error::derived {len(attested)} attested source(s) from "
+                f"scripts/smc_r1_rollout_contract.py (expected at least {floor}) — "
+                "refusing to report a vacuous R1 all-clear"
+              )
+              summary = notice = cannot_run(
+                f"Derived only {len(attested)} attested source(s) from "
+                f"scripts/smc_r1_rollout_contract.py; expected at least {floor}. "
+                "Refusing to report a vacuous R1 all-clear.",
+                "".join(f"{path}\n" for path in attested) or "(empty roster)\n",
+              )
+            elif stale:
+              listed = "\n".join(f"- `{path}`" for path in stale)
+              summary = notice = (
+                "## R1 attestation invalidated by this refresh\n"
+                "\n"
+                "This run rewrote the following R1-attested source(s):\n"
+                "\n"
+                f"{listed}\n"
+                "\n"
+                f"`{evidence}` still records the previous hashes, so it stops describing\n"
+                f"what is deployed the moment this PR merges. `{GUARD}`\n"
+                "fails until this is resolved — on main, and on every unrelated PR\n"
+                "branched off it.\n"
+                "\n"
+                "```\n"
+                f"{RESOLUTION.format(evidence=evidence)}"
+                "```\n"
+              )
+              print(
+                "::warning::R1 attestation invalidated by this refresh: "
+                f"{', '.join(stale)} — see the job summary and the PR body"
+              )
+            else:
+              # The ONLY path that reports an all-clear, and it is reached only
+              # after a roster at or above the floor was really compared.
+              notice = ""
+              summary = (
+                "## R1 attestation unaffected\n"
+                "\n"
+                f"Checked {len(attested)} attested source(s) "
+                f"({', '.join(attested)}); none changed in this run, so\n"
+                f"`{evidence}` still describes them.\n"
+              )
+              print(
+                "::notice::No R1-attested source changed in this refresh; "
+                f"{evidence} still describes them."
+              )
+
+          # Called exactly once, outside every branch: the job summary for the
+          # run log, $GITHUB_ENV for the PR body in the commit step below. This
+          # is the only statement in the step that can fail it, and only on a
+          # runner fault (unwritable or unset summary/env file) — never on a
+          # verdict this check reached.
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+            handle.write(summary + "\n")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+            handle.write("R1_ATTESTATION_NOTICE<<R1_NOTICE_EOF\n")
+            handle.write(notice)
+            handle.write("\nR1_NOTICE_EOF\n")
+          PY
+
       - name: Commit and push changes
         id: commit_push
         # Incident 2026-07-13: the commit ALSO gated on the RAW validation step
@@ -1529,6 +1716,16 @@ jobs:
             exit 0
           fi
 
+          # The R1 attestation notice (previous step) is carried into the PR
+          # body, not only the job summary: the job summary is one click away
+          # from a run nobody opens, and #4371 merged green precisely because
+          # the state it created was stated nowhere a reviewer would see. Empty
+          # when this run changed no attested source.
+          PR_BODY="Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs whose diff is data-only (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates); a diff touching Pine still runs the R1-attested-source guard."
+          if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then
+            PR_BODY="${PR_BODY}"$'\n\n'"${R1_ATTESTATION_NOTICE}"
+          fi
+
           BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
@@ -1543,7 +1740,7 @@ jobs:
             --head "$BRANCH" \
             --label automated \
             --title "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
-            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)."; then
+            --body "$PR_BODY"; then
             echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1
           fi

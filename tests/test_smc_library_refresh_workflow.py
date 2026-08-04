@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from scripts.check_tv_unattested_sources import RESOLUTION
+from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE
 from smc_integration.release_policy import (
     DRIFT_CLASS_GITIGNORED,
     DRIFT_CLASS_RESTORE_ON_COMMIT,
@@ -703,3 +705,135 @@ def test_refresh_workflow_repins_consumers_from_real_published_version() -> None
     assert "jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json" not in bump_block
     assert 'is not an integer' in bump_block
     assert 'stale-evidence sentinel' in bump_block
+
+
+def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
+    """A refresh that un-attests an R1 source must SAY so — loudly, and in the PR.
+
+    The bump step repins every pine consumer, and ``SMC_Event_Overlay.pine`` is
+    both a consumer and one of the two sources
+    ``scripts/smc_r1_rollout_contract.py`` hashes into the R1 rollout contract.
+    So the refresh can invalidate the registered evidence, and twice did:
+    #4284 (2026-08-01, repaired four hours later by the manual re-attestation
+    PR #4290) and #4371 (2026-08-04, unnoticed — ``main`` stayed red on
+    ``tests/test_check_tv_unattested_sources.py`` for the next unrelated PR).
+
+    The notice is deliberately NOT a hard failure: the library bump is
+    legitimate and must still produce its PR. The ``run_pine_guard`` arm in
+    ``smc-fast-pr-gates.yml`` (#4376, covered by
+    ``tests/test_fast_gates_attested_pine_coverage.py``) is what stops that PR
+    merging silently. This test pins the reporting half, which nothing else
+    reads — a step no guard observes can be deleted in a green PR.
+    """
+    workflow_text = _read(WORKFLOW_PATH)
+    block = _step_block(workflow_text, "Report R1 attestation drift caused by this refresh")
+
+    # Derived, never hand-listed: the roster comes from the contract, so a
+    # third attested source joins the notice automatically.
+    assert "from scripts.smc_r1_rollout_contract import" in block
+    assert "build_rollout_contract" in block
+    assert "EXECUTION_EVIDENCE" in block
+    for literal in ("SMC_Event_Overlay.pine", "SMC_Exit_Signal.pine"):
+        assert literal not in block, (
+            f"{literal} is hard-coded in the notice step; derive it from "
+            "build_rollout_contract() so a third attested source is covered "
+            "automatically"
+        )
+    # Unfiltered, matching tests/test_fast_gates_attested_pine_coverage.py.
+    # Filtering to *.pine here would silently drop a future attested target
+    # under a path the fast-gates data-only exemption already covers.
+    assert ".endswith" not in block, (
+        "the notice step filters the derived roster; every contract target is "
+        "hashed and un-attests the rollout when it changes, whatever its "
+        "extension — keep the derivation unfiltered, as the coverage guard is"
+    )
+
+    # Non-vacuity witness, and it must read the floor from the contract rather
+    # than carrying a second unlinked copy of the number.
+    assert "refusing to report a vacuous R1 all-clear" in block
+    assert "MIN_ATTESTED_SOURCES" in block
+    assert "< 2" not in block, (
+        "the non-vacuity floor is hard-coded in the notice step; import "
+        "MIN_ATTESTED_SOURCES from scripts/smc_r1_rollout_contract.py so a "
+        "legitimate roster change cannot leave this copy behind"
+    )
+
+    # The remedy prose is IMPORTED, not re-typed — a third hand-copy would go
+    # stale the first time a resolution path changes.
+    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in block
+    assert "RESOLUTION.format(evidence=evidence)" in block
+    assert "Re-attest" not in block, (
+        "the notice step re-types the resolution prose that "
+        "scripts/check_tv_unattested_sources.RESOLUTION already owns; import "
+        "it instead"
+    )
+    assert "GITHUB_STEP_SUMMARY" in block
+
+    # …and the imported constant must still carry the semantics the notice
+    # promises. Pinning only the import would let the shared prose lose the
+    # prohibition without any test noticing.
+    resolution = RESOLUTION.format(evidence="EVIDENCE_PATH")
+    assert "Re-attest" in resolution
+    assert "NEW dated evidence artifact" in resolution
+    assert "Revert the source change" in resolution
+    assert "never rewritten" in resolution
+    assert "replaces a measurement with a fabrication" in resolution
+    assert "EVIDENCE_PATH" in resolution, (
+        "the resolution text must name the evidence artifact it is talking about"
+    )
+
+    # Rendered width. The evidence path is ~66 characters, so interpolating it
+    # mid-sentence produced a 189-character line: it broke the 80-column stderr
+    # block on the save path and forced horizontal scrolling inside the fenced
+    # block in this PR body. Measured against the REAL path, not a short stub,
+    # because a stub would not reproduce the defect.
+    real = RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix())
+    widest = max(len(line) for line in real.splitlines())
+    assert widest <= 80, (
+        f"the rendered resolution has a {widest}-character line; keep the "
+        "{evidence} placeholder on a line of its own so both consumers stay "
+        "inside 80 columns"
+    )
+
+    # A notice, not a gate — and now NO verdict fails the step at all. Step
+    # order in job `refresh`: publish-to-TradingView (37) < this notice (45) <
+    # 'Commit and push changes' (46), whose `if:` implies success(). A fatal
+    # exit here would therefore leave the library published with the repo pins
+    # never committed — the 2026-07-13 divergence class, worse than losing the
+    # PR. GitHub runs `run:` under `bash -e`, so the handling is what makes
+    # that true.
+    assert "except Exception:" in block
+    assert "SystemExit" not in block, (
+        "the notice step can still fail on a verdict it reached; route every "
+        "such path through the 'could not run' report instead. A red step here "
+        "skips 'Commit and push changes' and strands a PUBLISHED library on "
+        "uncommitted pins."
+    )
+    assert "could not run" in block, (
+        "a check that reached no verdict must say so in the PR body — silence "
+        "there is indistinguishable from 'no drift'"
+    )
+    # The vacuity floor stays loud, and shares the crash report rather than
+    # printing an all-clear: def + the crash call site + the vacuity call site.
+    assert "refusing to report a vacuous R1 all-clear" in block
+    assert block.count("cannot_run(") >= 3, (
+        "the short-roster path must render the same 'could not run' report as "
+        "a raised exception; printing 'Checked 0 attested source(s)' is a green "
+        "all-clear that would survive indefinitely"
+    )
+    # Written once, outside every branch, so no report path can be skipped —
+    # and counted on the actual write, not on prose that happens to name the
+    # file.
+    assert block.count('os.environ["GITHUB_STEP_SUMMARY"]') == 1
+    assert block.count('os.environ["GITHUB_ENV"]') == 1
+
+    # It must run BEFORE the commit step that consumes its output.
+    notice_idx = workflow_text.index("      - name: Report R1 attestation drift caused by this refresh")
+    commit_idx = workflow_text.index("      - name: Commit and push changes")
+    assert notice_idx < commit_idx
+
+    # The notice reaches a reviewer who never opens the run log.
+    commit_block = _step_block(workflow_text, "Commit and push changes")
+    assert 'R1_ATTESTATION_NOTICE' in block
+    assert 'if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then' in commit_block
+    assert '--body "$PR_BODY"' in commit_block

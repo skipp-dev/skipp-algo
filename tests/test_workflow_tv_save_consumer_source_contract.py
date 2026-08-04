@@ -777,7 +777,16 @@ def test_an_unattested_save_turns_the_run_red_after_the_snapshot_is_published() 
     assert "always()" not in fail["if"]
     # Last, so the binding snapshot is still uploaded and published.
     assert names.index(fail_step) > names.index("Publish latest binding snapshot")
-    assert "falsifies a measurement" in fail["run"]
+    # The never-edit-the-artifact prohibition must reach the job summary. It
+    # used to be pinned here as the literal phrase "falsifies a measurement",
+    # which pinned a HAND-TYPED copy in place — and that copy then diverged
+    # from scripts/check_tv_unattested_sources.RESOLUTION, which the same run's
+    # stderr renders. The pin now follows the rendered constant instead; see
+    # test_the_un_attestation_remedy_is_rendered_from_the_shared_constant.
+    from scripts.check_tv_unattested_sources import RESOLUTION
+
+    assert "RESOLUTION" in fail["run"]
+    assert "replaces a measurement with a fabrication" in RESOLUTION
 
 
 def test_the_rollout_reports_unattested_saves_without_skipping_them() -> None:
@@ -1092,3 +1101,54 @@ def test_a_missing_baseline_warns_and_leaves_no_file_instead_of_failing(tmp_path
     assert "::warning::" in result.stdout, f"No warning found in stdout: {result.stdout}"
     baseline_file = work_dir / "artifacts/monitoring/previous/tradingview_consumer_bindings.json"
     assert not baseline_file.exists(), f"Baseline file should not exist when fetch fails, but found: {baseline_file}"
+
+
+def test_the_un_attestation_remedy_is_rendered_from_the_shared_constant() -> None:
+    """One run must not state one remedy twice, in two wordings.
+
+    The "Detect R1-attested sources this save would un-attest" step runs
+    ``scripts/check_tv_unattested_sources``, whose stderr renders ``_REMEDY``
+    — which now interpolates the shared :data:`RESOLUTION`. The failing step
+    below writes the *job summary*, which the stderr never reaches, so the
+    block has to exist. It must be RENDERED from the same constant rather than
+    hand-typed.
+
+    It was hand-typed, and it had already drifted: after ``RESOLUTION`` was
+    extracted and corrected, this block still carried the pre-extraction
+    wording ("re-run to push the attested content back", "that falsifies a
+    measurement rather than repeating it"), so a single save run printed two
+    different descriptions of one remedy. That is the
+    hand-maintained-duplicate-goes-stale class the R1 gating work exists to
+    close, one step downstream of where it was closed.
+    """
+    from scripts.check_tv_unattested_sources import RESOLUTION
+
+    step = next(
+        s
+        for s in _steps()
+        if str(s.get("name", "")).startswith("Fail the run when an R1-attested")
+    )
+    run = str(step["run"])
+
+    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in run
+    assert "RESOLUTION.format(evidence=" in run
+    assert '"${resolution}"' in run
+
+    # The prose itself must not be re-typed here, in either wording.
+    for phrase in (
+        "Re-attest with a NEW dated evidence artifact",
+        "falsifies a measurement rather than repeating it",
+        "Do not edit the existing dated artifact",
+    ):
+        assert phrase not in run, (
+            f"the un-attestation remedy is hand-typed in this step ({phrase!r}); "
+            "render it from scripts/check_tv_unattested_sources.RESOLUTION so "
+            "one run cannot describe one remedy two different ways"
+        )
+
+    # …and the shared constant must still carry what this step promises.
+    rendered = RESOLUTION.format(evidence="EVIDENCE_PATH")
+    assert "Re-attest" in rendered
+    assert "NEW dated evidence artifact" in rendered
+    assert "Revert the source change" in rendered
+    assert "replaces a measurement with a fabrication" in rendered
