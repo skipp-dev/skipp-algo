@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -313,8 +314,10 @@ def _produced_properties(
     Returned as *bindings* rather than as a new argument to
     :func:`classify_iterable`, so the existing ``ast.Attribute`` branch
     there resolves them with no signature change — and so a real binding
-    from :func:`_bind_assignments` always wins, because the caller merges
-    these in with ``setdefault``.
+    from :func:`_bind_assignments` always wins, because the caller *seeds*
+    these into that walk and an assignment overwrites the seeded key. The
+    seeding has to happen before the walk rather than as a merge after it:
+    see :func:`_local_bindings` for the derived-value case a merge loses.
 
     Every key goes through :func:`_render`, the module's single renderer.
     Rendering a binding one way and the lookup another is the defect this
@@ -332,6 +335,39 @@ def _produced_properties(
         if isinstance(base, ast.Name) and base.id in produced:
             properties[_render(source, node)] = "property of a produced object"
     return properties
+
+
+def _bound_names(stmt: ast.AST) -> Iterator[str]:
+    """Yield every bare name *stmt* binds, in any binding position.
+
+    Used by :func:`_subset_bindings` to count how often a name is written
+    in a function, so a name written more than once can be refused. Every
+    binding form counts, not just ``=``: a ``for`` target, a ``with ... as``
+    target, augmented assignment and the walrus all rebind the name and so
+    all destroy the one-binding guarantee the subset rule depends on.
+
+    Tuple and starred targets are unpacked, because ``a, b = …`` binds both
+    names just as surely as two statements would.
+    """
+    def names(target: ast.expr | None) -> Iterator[str]:
+        if isinstance(target, ast.Name):
+            yield target.id
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                yield from names(element)
+        elif isinstance(target, ast.Starred):
+            yield from names(target.value)
+
+    if isinstance(stmt, ast.Assign):
+        for target in stmt.targets:
+            yield from names(target)
+    elif isinstance(
+        stmt, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor, ast.NamedExpr)
+    ):
+        yield from names(stmt.target)
+    elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+        for item in stmt.items:
+            yield from names(item.optional_vars)
 
 
 def _subset_bindings(
@@ -358,7 +394,24 @@ def _subset_bindings(
     or set comprehension is a real container whose truthiness is its
     non-emptiness. ``len()`` of a generator raises, so the length-check path
     cannot reach one either.
+
+    A name bound **more than once anywhere in the function** is dropped
+    entirely, whatever it was bound to. This walker has no order and no
+    reachability, so with two bindings live it cannot say which one the
+    witness ran against, and every cheaper rule gets some shape wrong:
+    unioning the bases lets ``assert nonzero`` prove a set it was never
+    drawn from; keeping the last binding credits it to a witness written
+    *above* it; and taking either branch of an ``if``/``else`` claims a
+    proof from a branch that may not have run. Dropping the name
+    under-witnesses, which over-reports — the direction this module treats
+    as the safe one. Counted bindings include ``for`` targets, ``with ...
+    as`` targets, augmented assignment and the walrus, so a loop variable
+    shadowing the name also disqualifies it.
     """
+    bind_counts: Counter[str] = Counter()
+    for stmt in _walk_own(func):
+        for name in _bound_names(stmt):
+            bind_counts[name] += 1
     subsets: dict[str, set[str]] = {}
     for stmt in _walk_own(func):
         if not isinstance(stmt, ast.Assign):
@@ -368,8 +421,8 @@ def _subset_bindings(
             continue
         base = _render(source, value.generators[0].iter)
         for target in stmt.targets:
-            if isinstance(target, ast.Name):
-                subsets.setdefault(target.id, set()).add(base)
+            if isinstance(target, ast.Name) and bind_counts[target.id] == 1:
+                subsets[target.id] = {base}
     return subsets
 
 
@@ -610,10 +663,23 @@ def witness_keys(
 ) -> set[str]:
     """Return the expressions *body* itself proves non-empty.
 
-    Four forms, all of them already lived in this repo (spec §5):
-    ``assert xs``, ``assert len(xs) >= n``, ``assert xs == <non-empty
-    literal>``, and — handled in :func:`_exhaustion_raises` — a ``raise``
-    reached by exhausting the loop.
+    Seven forms, all of them lived in this repo:
+
+    * ``assert xs`` — bare truthiness;
+    * ``assert len(xs) >= n`` (:func:`_is_nonempty_length_check`);
+    * ``assert xs == <non-empty literal>``;
+    * a ``raise`` reached by exhausting the loop
+      (:func:`_exhaustion_raises`);
+    * ``assert any(<comp>)`` — ``any(())`` is ``False``, so the
+      comprehension ranged over something;
+    * ``assert x in y`` — ``in`` cannot hold of an empty ``y``;
+    * a non-empty *subset* proving the base it was drawn from, whether the
+      comprehension was written inline (:func:`_comprehension_base`) or
+      given a name (:func:`_subset_bindings`).
+
+    The last three are polarity-sensitive and their negations are refused
+    explicitly: ``not any(...)``, ``not in`` and ``== []`` are all true of
+    an empty iterable, so none of them witnesses anything.
 
     Scoped to one block on purpose, and never across a function boundary. A
     witness for ``bool_lines`` says nothing about ``export_lines`` two lines

@@ -1100,3 +1100,110 @@ def test_a_bare_generator_subset_does_not_witness_its_base() -> None:
                 assert row.total > 0.0
     """
     assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_rebound_subset_credits_no_base_at_all() -> None:
+    """Two comprehensions on one name: neither may be credited.
+
+    ``_subset_bindings`` is flow-insensitive — it cannot know which
+    assignment was live when the witness ran. Unioning both bases lets
+    ``assert nonzero`` prove a set it was never drawn from, and taking the
+    last one is no better: the witness may sit *above* the later
+    assignment, which would credit it retroactively. A name assigned more
+    than once is therefore dropped entirely.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            nonzero = [row for row in other.rows if row.total > 0.0]
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert nonzero
+            for row in other.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"other.rows": "property of a produced object"}
+
+
+def test_a_subset_bound_in_two_branches_credits_no_base() -> None:
+    """Neither branch is known to have run, so neither base is proven."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            if flag:
+                subset = [row for row in profile.rows if row.ok]
+            else:
+                subset = [row for row in other.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_witness_does_not_credit_a_later_assignment_retroactively() -> None:
+    """The witness runs against the *first* binding, not the last one.
+
+    Order matters and the analyzer does not track it, so a name reassigned
+    below its own witness must not lend that witness the later base. This
+    is the shape a last-write-wins rule gets wrong.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            subset = [row for row in other.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_subset_rebound_to_a_non_comprehension_credits_nothing() -> None:
+    """``nonzero = [...]`` then ``nonzero = f()`` leaves the base unproven."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.ok]
+            nonzero = recompute()
+            assert nonzero
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_nested_comprehension_witness_credits_only_the_outer_iterable() -> None:
+    """Regression pin for ``generators[0]`` in :func:`_comprehension_base`.
+
+    The inner generator's iterable is written in terms of the
+    comprehension's *own* loop variable, so its rendered text can collide
+    with an unrelated expression in the enclosing scope. Crediting it would
+    clear a claim the witness says nothing about.
+    """
+    source = """
+        def test_items():
+            group = load_group()
+            a = load_a()
+            assert len([x for a in group.rows for x in a.items]) > 0
+            for x in a.items:
+                assert x
+    """
+    assert _kinds(source) == {"a.items": "property of a produced object"}
+
+
+def test_a_nested_subset_credits_only_the_outer_iterable() -> None:
+    """Regression pin for ``generators[0]`` in :func:`_subset_bindings`."""
+    source = """
+        def test_items():
+            group = load_group()
+            a = load_a()
+            flat = [x for a in group.rows for x in a.items]
+            assert flat
+            for x in a.items:
+                assert x
+    """
+    assert _kinds(source) == {"a.items": "property of a produced object"}

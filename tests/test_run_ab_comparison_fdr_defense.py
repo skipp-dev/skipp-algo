@@ -49,6 +49,7 @@ def test_required_fdr_functions_present() -> None:
 def test_fdr_q_constant_is_float_literal() -> None:
     """``FDR_Q`` must be a numeric literal so reviewers can audit it."""
     module = _module()
+    assert module.body, "the module parsed to an empty body — the search below would pass vacuously"
     found: float | None = None
     for node in module.body:
         if not isinstance(node, ast.Assign):
