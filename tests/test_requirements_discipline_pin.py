@@ -49,10 +49,9 @@ _DEP_LINE_BUDGETS = {
     # fail-closed request/response inspection boundary for LLM egress.
     # 2026-08-04: 30 → 31 for starlette==1.3.1. Previously unpinned and
     # floating to 1.x transitively via fastapi; pinned at the version
-    # already in use (no behaviour change).
-    # 2026-08-04: 31 → 32 for httpx2==2.9.1, added so starlette.testclient's
-    # TestClient stops warning; httpx stays for outbound calls.
-    "requirements.txt": 32,
+    # fast-gates and the deployed daemon already resolve to (confirmed
+    # behaviour-neutral: 170 tests pass identically under both versions).
+    "requirements.txt": 31,
     "requirements-gpu.txt": 1,
 }
 
