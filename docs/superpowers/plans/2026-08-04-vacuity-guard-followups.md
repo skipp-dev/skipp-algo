@@ -18,7 +18,7 @@ Every number below was measured on `origin/main` at **`fe25ad1ce`** on **2026-08
 | Task 1 — empty collection literals become emptiable | **+7** claims → 20 |
 | Task 2 — properties of objects the scope produced | **+30** claims → 50 |
 | Task 2 — non-empty-subset witness clears | exactly **1** would-be false positive (`test_smc_volume_profile.py::test_span_distribution_spreads_volume_beyond_close_row::profile.rows`) |
-| Task 3 — TypeScript equivalent | **4** sites, 3 distinct (`tv_r5_session_diagnostics.test.ts:90 result.failures`; `tv_shared.test.ts:2082/2086/2114 capture.lines`) |
+| Task 3 — TypeScript equivalent | ~~**4** sites, 3 distinct~~ → **1** site (`tv_r5_session_diagnostics.test.ts:90 result.failures`). **This row was wrong; corrected 2026-08-04 while executing.** The three `tv_shared.test.ts` `capture.lines` occurrences are bare `assert.ok(x.some(f))`, which `vacuousReceiver` excludes by documented design — `[].some(f)` is `false`, so it fails loudly rather than passing vacuously. The measurement script behind this row *approximated* `vacuousReceiver` by collecting `every`/`some` receivers instead of applying it. Apply the rule; do not re-derive it. |
 | Task 4 — the 11 browserless exempt TS tests | **103 tests, 103 pass, 0 fail, 1103 ms** (`npx tsx --test`, wall 1.82 s) |
 | Task 5 — `starlette` | **1.3.1 installed, not pinned anywhere** in `requirements.txt` |
 | Task 5 — `httpx2` | exists on PyPI, latest **2.9.1**; 7 test files use `TestClient` |
@@ -846,7 +846,9 @@ No change to `classify` is needed: its `ts.isPropertyAccessExpression` branch (l
 npx tsx --test automation/tradingview/tests/vacuous_claims_ts.test.ts
 ```
 
-Expected: all fixtures PASS; the repo-wide test in the same file now reports the new claims. Measured 2026-08-04: `tv_r5_session_diagnostics.test.ts:90 result.failures`, and `tv_shared.test.ts:2082 / 2086 / 2114 capture.lines` (which collapse to one key per test scope by the `seen` de-duplication at line 396-411).
+Expected: all fixtures PASS; the repo-wide test in the same file now reports the new claim. **One** site: `tv_r5_session_diagnostics.test.ts:90 result.failures` — re-measured 2026-08-04 by applying `vacuousReceiver` rather than approximating it, and confirmed twice over (`scanDir` reports 0 claims at the fixed HEAD and exactly 1 with the pre-fix file substituted back in).
+
+Do **not** manufacture sites to reach a higher number. The `tv_shared.test.ts` `capture.lines` occurrences that an earlier draft of this plan listed are bare `assert.ok(x.some(f))` and are correctly out of scope.
 
 - [ ] **Step 5: Triage each site — fix, declare, or sharpen**
 
