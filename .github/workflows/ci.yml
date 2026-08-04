@@ -74,12 +74,8 @@ jobs:
         env:
           # env-indirection instead of direct ${{ }} interpolation in run: block
           # — hardens against script-injection via branch names (Audit M-1).
-          HEAD_REF: ${{ github.head_ref }}
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             echo "Pull request CI is status-only; heavy validation runs on main push or workflow_dispatch."
@@ -101,37 +97,19 @@ jobs:
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ "$HEAD_REF" != bot/* ]]; then
-            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if ! files=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename' 2>/dev/null); then
-            echo "Could not list PR files — running heavy validation (fail-closed)."
-            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [[ -z "$files" ]]; then
-            echo "Empty PR file list — running heavy validation (fail-closed)."
-            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          heavy=false
-          while IFS= read -r f; do
-            [[ -z "$f" ]] && continue
-            case "$f" in
-              artifacts/*|docs/*|reports/*|pine/generated/*|*.pine) ;;
-              *)
-                heavy=true
-                echo "non-data path on bot/* PR forces heavy validation: $f"
-                ;;
-            esac
-          done <<< "$files"
-          if [[ "$heavy" == "true" ]]; then
-            echo "Bot PR ($HEAD_REF) touches source paths — running heavy validation."
-          else
-            echo "Bot data-only PR ($HEAD_REF); skipping heavy validation."
-          fi
-          echo "run_heavy=$heavy" >> "$GITHUB_OUTPUT"
+          # Any other event — one this workflow does not declare today, or a
+          # trigger added later — runs the full suite. Fail-safe by
+          # construction: the expensive answer, never the silent skip.
+          #
+          # Until 2026-08-04 this position held a bot/*-branch path allow-list
+          # copied from smc-fast-pr-gates.yml. It was UNREACHABLE: ci.yml
+          # triggers on push, pull_request and workflow_dispatch only, and each
+          # of those exits in one of the four arms above — measured by executing
+          # this block for all three. Two contract tests pinned its presence,
+          # which read as "ci.yml path-checks bot PRs". It never did: here ALL
+          # pull requests are status-only, bot or not. The live protection is
+          # the outcome witnesses in tests/test_fast_gates_silent_skip_coverage.py.
+          echo "run_heavy=true" >> "$GITHUB_OUTPUT"
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
