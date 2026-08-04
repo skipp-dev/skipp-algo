@@ -8,6 +8,7 @@ depend on brittle 1-based line numbers or regex line-pinning.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -54,8 +55,11 @@ def iter_workflow_template_files() -> list[Path]:
     """
     if not WORKFLOW_TEMPLATES_DIR.is_dir():
         return []
-    return sorted(WORKFLOW_TEMPLATES_DIR.glob("*.yml")) + sorted(
-        WORKFLOW_TEMPLATES_DIR.glob("*.yaml")
+    # rglob, matching the composite walker: a template in a subdirectory is
+    # still a template, and a corpus that silently omits one is the failure
+    # mode every guard reading it inherits.
+    return sorted(WORKFLOW_TEMPLATES_DIR.rglob("*.yml")) + sorted(
+        WORKFLOW_TEMPLATES_DIR.rglob("*.yaml")
     )
 
 
@@ -70,6 +74,37 @@ def iter_action_pin_surfaces() -> list[Path]:
     return (
         iter_workflow_files() + iter_composite_action_files() + iter_workflow_template_files()
     )
+
+
+# ONE regex, in one place, because the bug it replaces lived in two.
+#
+# The previous form excluded the quote characters from the capture class
+# (``[^\s#'\"]+``). On ``uses: "actions/checkout@main"`` the very first
+# character after ``uses:`` is a quote, so the ``+`` could not match and the
+# WHOLE LINE was skipped — silently, by both supply-chain guards. Measured
+# 2026-08-04: a quoted mutable tag in a workflow, a quoted mutable tag in the
+# composite action, and an untrusted non-resolvable owner in the composite each
+# left all 18 assertions green. Quoted scalars are identical YAML; Actions runs
+# them.
+#
+# The quotes are stripped after capture instead, which is what the (previously
+# dead) ``.strip("'\"")`` in both callers always believed was happening.
+USES_RE = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)")
+
+
+def iter_uses(paths: list[Path]) -> list[tuple[Path, int, str]]:
+    """``(path, lineno, ref)`` for every ``uses:`` line in ``paths``.
+
+    Line-based on purpose: the guards report a file and a line an operator can
+    open, and a YAML round-trip would lose that. The ``lineno`` is 1-based.
+    """
+    out: list[tuple[Path, int, str]] = []
+    for path in paths:
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = USES_RE.match(line)
+            if match:
+                out.append((path, lineno, match.group(1).strip().strip("'\"")))
+    return out
 
 
 def load_workflow(path: Path) -> dict[str, Any]:

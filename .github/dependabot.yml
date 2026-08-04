@@ -98,13 +98,19 @@ updates:
       # (reading 'Latest')") and tsc reports every `ts.*` as missing from
       # namespace `typescript/lib/version`.
       #
-      # The API moved to `typescript/unstable/*`, and it does not carry this
-      # script: `forEachChild` exists in NO subpath (only
-      # `forEachChildOfJSDoc*` under unstable/ast/visitor), and the only
-      # `createSourceFile` is the FACTORY one in unstable/ast/factory, which
-      # builds a node rather than parsing text. Porting the vacuity detector
-      # would mean rewriting it onto a surface upstream itself labels
-      # "unstable" — for a guard that gates merges, the wrong trade.
+      # The API moved to `typescript/unstable/*`, and a port is a REWRITE, not a
+      # re-import. Corrected 2026-08-05 — the earlier wording here claimed
+      # `forEachChild` "exists in NO subpath", which a review disproved against
+      # the real 7.0.2 install. Re-measured: the exported free function is gone,
+      # but it survives as a Node METHOD (`dist/ast/ast.d.ts:40`), so every
+      # `ts.forEachChild(node, cb)` becomes `node.forEachChild(cb)`; parsing
+      # text moves from `ts.createSourceFile` to `unstable/sync`'s API ->
+      # Project -> program.getSourceFile() (the `createSourceFile` in
+      # unstable/ast/factory is the FACTORY, which builds a node from parts);
+      # and `isStringLiteralLike` is renamed `isStringLiteralLikeNode`. That is
+      # 34 relocated members plus three shape changes, onto a surface upstream
+      # itself labels "unstable" — for a guard that gates merges, the wrong
+      # trade. The decision is unchanged; only the reason is stated correctly.
       #
       # Minor/patch updates are unaffected and still flow. Revisit when
       # TypeScript ships a stable replacement for the parse+walk API.
@@ -116,16 +122,19 @@ updates:
 
   - package-ecosystem: "github-actions"
     # `/` means `.github/workflows/` for this ecosystem and NOTHING else —
-    # measured 2026-08-04 by what #4425 did and did not touch. It bumped
-    # setup-python to v7 in all 64 workflows and left
-    # .github/actions/setup-python-pinned/action.yml on v6, the canonical
-    # composite that several jobs run via `uses: ./.github/actions/...`. Two
-    # setup-python versions in one CI, and nothing was red.
+    # measured 2026-08-04 by what Dependabot's own commit in #4425 (753b7a33e)
+    # did and did not touch. It bumped setup-python to v7 in the 18 workflows
+    # that reference it and left .github/actions/setup-python-pinned/action.yml
+    # on v6, the canonical composite several jobs run via
+    # `uses: ./.github/actions/...`. Two setup-python versions in one CI, and
+    # nothing was red. (Precision added 2026-08-05: the MERGED #4425 does not
+    # carry that split — a companion commit in the same PR repaired it by hand.
+    # The blind spot is Dependabot's, not the merged result's.)
     #
     # The same blind spot let .github/workflow-templates/ keep
-    # astral-sh/setup-uv v3.2.4 (2024-11-23) while the workflows moved to
-    # v8.2.0 (2026-06-03) — five majors, twenty months, in files that are
-    # copied verbatim into new workflows.
+    # astral-sh/setup-uv v3.2.4 (2024-11-23) while the workflows ran v8.2.0
+    # (2026-06-03), and then v9.0.0 (2026-07-21) once #4425 landed — five
+    # majors and twenty months, in files copied verbatim into new workflows.
     #
     # Grouping still yields ONE PR across the added directories: this repo's
     # own #4426 is titled "across 2 directories", so the multi-directory shape

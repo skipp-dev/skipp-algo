@@ -201,6 +201,12 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # .github/actions/ and .github/workflow-templates/, and a partial bump
     # merges green without it (2026-08-04). YAML/source parsing only, <0.5s.
     "test_action_pin_surfaces_agree.py",
+    # Pins that scripts/run_zizmor_ratchet.sh still measures what the CI
+    # zizmor step measures. The script calls itself a "local mirror" and
+    # nothing checked that it was one; widening CI alone would have left it
+    # counting a smaller corpus and passing (2026-08-05). YAML + one bash
+    # subprocess, <0.5s.
+    "test_zizmor_ratchet_mirrors_ci.py",
     "test_pine_alert_bar_close_gate.py",
     "test_workflow_continue_on_error_semantics.py",
     "test_mkdir_makedirs_exist_ok_invariant.py",
