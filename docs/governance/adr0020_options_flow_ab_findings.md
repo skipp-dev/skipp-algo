@@ -240,3 +240,65 @@ over to the corrected feature. `signed_uoa_notional` remains recorded-only and
 un-promoted; **any future promotion decision requires a fresh pre-registered
 A/B on data produced with the corrected sign**, not a reuse of the §4 result in
 either direction. The dated §1–§7 content above is preserved as measured.
+
+## 9. Re-run 2026-08-04 — pre-registration (written BEFORE any harness result)
+
+Fresh A/B on corrected-sign data, per §8. Registered before the first harness
+invocation of this run; the protocol is the §2–§4 protocol unchanged:
+
+| Parameter | Value |
+|-----------|-------|
+| Feature under test | `signed_uoa_notional` (corrected sign, PR #4369 @ `8d6cd2424`) |
+| Producer | `scripts.pull_databento_edge_input.fetch_opra_trades_frame` (post-#4369: quote-rule aggressor × OSI-parsed call/put direction) |
+| Data | Databento `OPRA.PILLAR` `tcbbo`, parent symbology; same window 2026-02-02 → 2026-05-03; same five underliers AAPL, AMZN, MSFT, NVDA, TSLA; same 15m bar grids and structure events as §2 (`<SYM>_15m.json` payloads reused; only the embedded `uoa_*` keys are recomputed) |
+| Re-pull cost | $0.00 (flat-rate plan, verified via `metadata.get_cost` 2026-08-04 before pulling) |
+| Harness | `scripts/run_feature_ab.py`, `--feature-key signed_uoa_notional --cost-bps 5.0`, labels `direction` and `magnitude` (`--mag-q 0.5`), each plain and `--stratify-by abs_feature` — the same four invocations as §3c/§4 |
+| Unlock rule (pre-registered, unchanged from ADR-0020) | **Only** a `candidate_lifts_resolution` verdict in the plain A/B can unlock Meta-Label C. Regime verdicts (`regime_conditions_resolution`) explicitly do NOT trigger promotion. No new rule is invented for this run. |
+| Vacuity gates (must hold or the run is discarded, not interpreted) | (a) option-type parse: unknown share per symbol must be ≈ 0 (measured 685/685 on the 10 s probe; a materially non-zero unknown share means the OSI parse is not covering the tape); (b) non-degeneracy: non-zero share and uniq of the recorded feature must be in the same order as §3b (6,336/6,352 non-zero, uniq 5,257) — a collapse to near-constant means the run is broken, not NULL. |
+| Decision consequence | `candidate_lifts_resolution` on either label → promotion path per ADR-0020 (Meta-Label C unlock process starts). Otherwise → the axis stays recorded-only; the §4 NULL is then confirmed as sign-robust and the options-flow axis is closed again with a fair test. |
+
+Throwaway artifacts of this run live under `~/.local/share/skipp/vpin_followup/`
+(`enrich_bars_tcbbo_v2.py`, `<SYM>_15m_tcbbo_v2.json`, `events_v5_tcbbo_signfix.json`,
+`ab_*_v2.json`) — like the June run, intentionally not promoted to the repo.
+
+### 9a. Results (run executed 2026-08-04, after the §9 registration commit)
+
+**Vacuity gates — both PASS:**
+
+- *(a) option-type parse:* **0.000% unknown on all five symbols** — AAPL
+  9,695,856 prints (C 5,985,051 / P 3,710,805), AMZN 8,854,546 (C 5,662,205 /
+  P 3,192,341), MSFT 8,975,641 (C 5,939,699 / P 3,035,942), NVDA 21,532,532
+  (C 13,002,920 / P 8,529,612), TSLA 32,145,679 (C 18,468,846 / P 13,676,833).
+  Print counts and signed-able shares (51.0–70.4%) match the §3b run.
+- *(b) non-degeneracy:* 10,940 events, 6,318 non-null, **6,302 non-zero,
+  uniq 5,230**, range [−1, +1], balanced sign (3,181 pos / 3,121 neg) — same
+  order as §3b (6,336/6,352, uniq 5,257). The small event-count delta vs §2
+  (10,981 → 10,940) comes from adapter evolution since June, not from the data.
+
+**Plain A/B (the only verdict that can unlock Meta-Label C) —
+`families_lifted = []` on BOTH labels:**
+
+| Family | n_oos | Direction Δ-res | Magnitude Δ-res | Lift |
+|--------|------:|----------------:|----------------:|------|
+| BOS | 1,385 | −0.00447 | −0.01791 (regresses calibration) | none |
+| FVG | 995 | −0.00021 | −0.00457 | none |
+| OB | 1,090 | +0.00002 | −0.00813 (regresses calibration) | none |
+| SWEEP | 216 | −0.00737 | −0.02940 (regresses calibration) | none |
+
+Direction stratify: `families_conditioned = []` (no regime effect in any
+family). Magnitude stratify: a single `regime_conditions_resolution` on SWEEP
+(spread +0.0447, n = 108/stratum, favouring the high-activity stratum) — the
+**same thin-SWEEP-regime pattern as §3c/§4** (June: spread +0.0152,
+n ≈ 135/stratum), and regime verdicts are pre-registered-excluded from the
+promotion trigger.
+
+### 9b. Verdict
+
+**NO promotion — the §4 NULL is sign-robust.** With the call/put direction
+folded in (the sign the June run could not see), `signed_uoa_notional` still
+lifts resolution in no family on either label; the corrected sign did not
+uncover a signal that call/put netting had been hiding. Meta-Label C stays
+LOCKED, the feature stays recorded-only, and the options-flow axis is closed
+again — this time fairly tested under the economically correct sign. The next
+honest reopening of this axis requires new information (a different feature
+definition or data source), not a re-run.
