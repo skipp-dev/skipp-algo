@@ -88,7 +88,13 @@ from pathlib import Path
 
 import yaml
 
-from tests._fast_gates_gate import HARNESS_ENV, SHELL, gate_step, run_gate
+from tests._fast_gates_gate import (
+    HARNESS_ENV,
+    SHELL,
+    gate_step,
+    run_ci_gate,
+    run_gate,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
@@ -1281,3 +1287,74 @@ def test_the_harness_supplies_every_variable_the_gate_step_reads() -> None:
         "failing, so the harness would silently stop reproducing CI. Add them to "
         "HARNESS_ENV (with a value that exercises the real path)."
     )
+
+
+# --- ci.yml's gate: the same shape, and the same blind spot (2026-08-04) ------
+#
+# `ci.yml`'s `validate` job has its own `id: gate`, and ELEVEN steps hang on its
+# run_heavy output -- including the pytest run that is the repo's only full-suite
+# execution. Its contract is pinned in test_ci_workflow_contract.py, by source
+# text, and a mutation sweep measured what that cannot see:
+#
+#     delete the unreachable bot-path block  -> 2 tests die
+#     delete the pull_request arm            -> 2 tests die
+#     delete the non-main-push arm           -> 2 tests die
+#     delete the workflow_dispatch arm       -> 1 test dies
+#     flip the MAIN-PUSH arm true -> false   -> NOTHING dies
+#
+# Deletions are caught because the pinned substring disappears; the inversion is
+# not, because `run_heavy=true` still occurs in another arm. The full suite would
+# stop running on main and every gate assertion would stay green.
+#
+# These witnesses live here rather than beside those assertions because
+# test_ci_workflow_contract.py is NOT on the fast-gates list, and ci.yml is
+# status-only on pull requests -- so on a PR its own contract tests do not run at
+# all. A regression there is visible only after the merge.
+
+
+def test_ci_gate_runs_the_full_suite_on_a_main_push(tmp_path: Path) -> None:
+    """The arm nothing witnessed. Inverting it is silent; deleting it is not."""
+    outputs = run_ci_gate(tmp_path, event_name="push", ref_name="main")
+
+    assert outputs["run_heavy"] == "true", (
+        "a push to main no longer runs heavy validation — that push IS the "
+        "repo's full-suite execution; nothing else runs it"
+    )
+
+
+def test_ci_gate_runs_the_full_suite_on_manual_dispatch(tmp_path: Path) -> None:
+    """The documented escape hatch for validating a branch before it merges.
+
+    This pins the OUTCOME, not the arm that produces it. Measured 2026-08-04:
+    deleting the `workflow_dispatch` arm changes nothing — a dispatch still
+    resolves to true further down, on either `REF_NAME == main` or the
+    `HEAD_REF != bot/*` fallback. The arm is redundant; the guarantee is not,
+    which is why the assertion is on what an operator gets.
+    """
+    outputs = run_ci_gate(tmp_path, event_name="workflow_dispatch", ref_name="feature/x")
+
+    assert outputs["run_heavy"] == "true"
+
+
+def test_ci_gate_stays_status_only_on_a_pull_request(tmp_path: Path) -> None:
+    """The other direction, so "always true" cannot satisfy the two above.
+
+    PR CI being status-only is deliberate (fast-gates is the required check,
+    ADR-0011). Pinning it keeps the pair honest AND documents that the heavy
+    lane genuinely does not run here.
+    """
+    outputs = run_ci_gate(
+        tmp_path,
+        event_name="pull_request",
+        ref_name="feature/x",
+        head_ref="feature/x",
+        changed_files=["services/live_overlay_daemon/state.py"],
+    )
+
+    assert outputs["run_heavy"] == "false"
+
+
+def test_ci_gate_stays_status_only_on_a_non_main_push(tmp_path: Path) -> None:
+    outputs = run_ci_gate(tmp_path, event_name="push", ref_name="feature/x")
+
+    assert outputs["run_heavy"] == "false"
