@@ -81,7 +81,6 @@ selection would pick nothing — which is the same blind spot this test closes.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from scripts.smc_r1_rollout_contract import (
@@ -89,7 +88,7 @@ from scripts.smc_r1_rollout_contract import (
     ROOT,
     build_rollout_contract,
 )
-from tests._fast_gates_gate import run_gate
+from tests._fast_gates_gate import evaluate_condition, run_gate, step_conditions
 
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 
@@ -200,124 +199,6 @@ def test_a_non_attested_data_path_leaves_the_flag_down(tmp_path: Path) -> None:
     )
 
 
-def _step_conditions() -> dict[str, str]:
-    """Every ``fast-gates`` step's ``if:`` expression, keyed by step name."""
-    import yaml
-
-    doc = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
-    return {
-        str(step.get("name")): str(step.get("if", ""))
-        for step in doc["jobs"]["fast-gates"]["steps"]
-        if isinstance(step, dict)
-    }
-
-
-# The subset of GitHub's expression grammar the two conditions below use:
-# parentheses, `&&`, `||`, `==`/`!=`, single-quoted literals, and context
-# references. Anything else raises rather than evaluating to something —
-# a step condition this cannot read is a condition this test cannot vouch for,
-# and reporting green on it would be the vacuity being removed here.
-_EXPRESSION_TOKEN = re.compile(r"\s*(\(|\)|&&|\|\||==|!=|'[^']*'|[A-Za-z_][A-Za-z0-9_.]*)")
-
-
-def _evaluate_condition(
-    expression: str,
-    outputs: dict[str, str],
-    *,
-    event_name: str = "pull_request",
-) -> bool:
-    """Evaluate a step's ``if:`` against real gate outputs.
-
-    Deliberately does NOT short-circuit: both sides of every ``&&`` / ``||``
-    are evaluated, so an operand this evaluator does not understand raises even
-    when the other side already decided the verdict. A silent skip is what is
-    being tested for; it must not be how the test itself behaves.
-    """
-    tokens: list[str] = []
-    position = 0
-    expression = expression.strip()
-    assert expression, (
-        "the step carries no `if:` at all, so it runs unconditionally. That "
-        "passes the coverage direction below for the wrong reason and fails "
-        "the control direction; give it a condition or drop it from this test."
-    )
-    while position < len(expression):
-        match = _EXPRESSION_TOKEN.match(expression, position)
-        assert match is not None, (
-            f"cannot read the step condition from offset {position}: "
-            f"{expression[position:]!r}. This evaluator covers the expression "
-            "shapes fast-gates uses today; extend it in the PR that introduces "
-            "a new one rather than letting this assertion pass unparsed."
-        )
-        tokens.append(match.group(1))
-        position = match.end()
-
-    index = 0
-
-    def peek() -> str | None:
-        return tokens[index] if index < len(tokens) else None
-
-    def take() -> str:
-        nonlocal index
-        assert index < len(tokens), f"the condition ends mid-expression: {expression!r}"
-        token = tokens[index]
-        index += 1
-        return token
-
-    def operand() -> str:
-        token = take()
-        if token.startswith("'"):
-            return token[1:-1]
-        if token.startswith("steps.gate.outputs."):
-            # An output the gate never wrote is "" in GitHub too, which is what
-            # makes `== 'true'` false for a flag the gate stopped publishing.
-            return outputs.get(token.rsplit(".", 1)[1], "")
-        if token == "github.event_name":
-            return event_name
-        raise AssertionError(
-            f"the step condition reads {token!r}, which this evaluator cannot "
-            "resolve. Teach it that context in the same PR — an unresolved "
-            "operand silently decides the verdict otherwise."
-        )
-
-    def comparison() -> bool:
-        if peek() == "(":
-            take()
-            value = disjunction()
-            closing = take()
-            assert closing == ")", f"unbalanced parentheses in {expression!r}"
-            return value
-        left = operand()
-        operator = take()
-        right = operand()
-        if operator == "==":
-            return left == right
-        if operator == "!=":
-            return left != right
-        raise AssertionError(f"unsupported operator {operator!r} in {expression!r}")
-
-    def conjunction() -> bool:
-        value = comparison()
-        while peek() == "&&":
-            take()
-            value = comparison() and value
-        return value
-
-    def disjunction() -> bool:
-        value = conjunction()
-        while peek() == "||":
-            take()
-            value = conjunction() or value
-        return value
-
-    verdict = disjunction()
-    assert index == len(tokens), (
-        f"trailing tokens {tokens[index:]} in {expression!r}; the condition was "
-        "only partly evaluated"
-    )
-    return verdict
-
-
 def test_the_flag_reaches_the_steps_that_make_it_mean_something(tmp_path: Path) -> None:
     """A raised flag that gates nothing is the same skip with extra output.
 
@@ -345,7 +226,7 @@ def test_the_flag_reaches_the_steps_that_make_it_mean_something(tmp_path: Path) 
     # assertion below while checking out the repository on every bot PR.
     data_only = run_gate([NON_PINE_DATA_PATH], data_dir)
 
-    conditions = _step_conditions()
+    conditions = step_conditions()
     for name in ("Checkout", "Guard R1-attested sources"):
         assert name in conditions, (
             f"{FAST_GATES_WORKFLOW.name} has no step named {name!r} in job "
@@ -353,13 +234,13 @@ def test_the_flag_reaches_the_steps_that_make_it_mean_something(tmp_path: Path) 
             "PR) or the R1 guard path was removed — in which case the roster "
             "coverage above is about a flag nobody reads."
         )
-        assert _evaluate_condition(conditions[name], pine_only), (
+        assert evaluate_condition(conditions[name], pine_only), (
             f"the {name!r} step does NOT run for a bot PR that changes only "
             f"{attested[0]}: the gate published {pine_only} and "
             f"`if: {conditions[name]}` evaluates false against it. That is "
             "#4371 verbatim — the guard was skipped because the checkout was."
         )
-        assert not _evaluate_condition(conditions[name], data_only), (
+        assert not evaluate_condition(conditions[name], data_only), (
             f"the {name!r} step runs for a data-only bot PR touching no "
             f"attested source (gate published {data_only}). Its condition is "
             "then effectively a constant, and the assertion above measures "
