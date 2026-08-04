@@ -993,7 +993,7 @@ def test_every_pytest_node_id_the_workflow_prints_actually_resolves() -> None:
             cwd=ROOT,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTEST_ADDOPTS": ""},
+            env={**os.environ, "PYTEST_ADDOPTS": "", "PY_COLORS": "0", "NO_COLOR": "1"},
         )
         assert result.returncode == 0, (
             f"{WORKFLOW_PATH.name} prints {node_id!r} as the command to run, and "
