@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +49,11 @@ DISCOVERY_ATTRS: frozenset[str] = frozenset(
 _TRANSPARENT_CALLS: frozenset[str] = frozenset(
     {"sorted", "list", "set", "tuple", "frozenset", "reversed"}
 )
+
+#: Zero-argument constructors that produce an empty collection. Separate
+#: from :data:`_TRANSPARENT_CALLS` on purpose: ``list(xs)`` passes ``xs``'s
+#: emptiness through, while ``list()`` *is* the emptiness.
+_EMPTY_CONSTRUCTORS: frozenset[str] = frozenset({"list", "set", "dict"})
 
 
 @dataclass(frozen=True)
@@ -118,11 +124,20 @@ def classify_iterable(
                 return helpers[func.id]
             if func.id in _TRANSPARENT_CALLS and node.args:
                 return classify_iterable(source, node.args[0], bindings, helpers)
+            if func.id in _EMPTY_CONSTRUCTORS and not node.args and not node.keywords:
+                return "empty literal"
         return None
     if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
         if any(generator.ifs for generator in node.generators):
             return "filtered comprehension"
         return classify_iterable(source, node.generators[0].iter, bindings, helpers)
+    if isinstance(node, (ast.List, ast.Set, ast.Dict)):
+        # An empty collection literal is the accumulator idiom's starting
+        # point: ``calls = []``, something appends, a loop asserts. When the
+        # code under test appends nothing, the loop runs zero times. A
+        # literal *with* elements stays out for the reason the module
+        # docstring gives for tuples — it cannot be empty at runtime.
+        return None if _is_nonempty_literal(node) else "empty literal"
     if isinstance(node, ast.Name):
         return bindings.get(node.id)
     if isinstance(node, ast.Attribute):
@@ -159,9 +174,21 @@ def _module_helpers(source: str, tree: ast.Module) -> dict[str, str]:
 
 
 def _bind_assignments(
-    source: str, stmts: Iterable[ast.AST], helpers: dict[str, str]
+    source: str,
+    stmts: Iterable[ast.AST],
+    helpers: dict[str, str],
+    seed: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Map assignment targets in *stmts* to the kind of what they hold.
+
+    *seed* pre-populates the binding dict, and is how :func:`_local_bindings`
+    hands in the produced properties. It has to be *in* the dict before the
+    walk rather than merged into the result afterwards, because the
+    classification of each assignment reads this same dict: ``keys =
+    list(module._DERIVED_KEYS)`` only resolves if
+    ``module._DERIVED_KEYS`` is already bound when that line is classified.
+    A merge afterwards silently drops every value derived from a produced
+    property. Assignments still win — they overwrite the seeded key.
 
     Shared by :func:`_module_bindings` and :func:`_local_bindings`: the
     ``Assign``/``AnnAssign`` handling and the ``classify_iterable`` call are
@@ -186,7 +213,7 @@ def _bind_assignments(
     becomes classifiable. An arbitrary attribute access whose producer was
     never seen stays unclassified rather than being guessed at.
     """
-    bindings: dict[str, str] = {}
+    bindings: dict[str, str] = dict(seed) if seed else {}
     for stmt in stmts:
         if isinstance(stmt, ast.Assign):
             targets: list[ast.expr] = list(stmt.targets)
@@ -248,13 +275,219 @@ def _parametrize_argvalues(
         yield decorator.args[1], decorator.lineno
 
 
+def _produced_names(func: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Names *func* bound to the result of a call, or to a ``with`` target.
+
+    "Produced" is the whole boundedness rule of :func:`_produced_properties`
+    and is deliberately narrow. ``out = run_walk_forward(...)`` produced an
+    object here, so its fields hold runtime data. ``import x as mod`` and a
+    module-level constant did not, and their attributes are source text the
+    analyzer never watched being built — measured 2026-08-04, every such
+    iterable in ``tests/`` resolves to a non-empty literal, so treating them
+    as emptiable would only manufacture false positives.
+
+    Tuple targets are excluded on purpose: ``(a,) = obj.instances`` unpacks
+    an *attribute*, not a call, and following it would need the producer of
+    ``obj`` — the very thing this rule refuses to guess at.
+    """
+    produced: set[str] = set()
+    for stmt in _walk_own(func):
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    produced.add(target.id)
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.value, ast.Call):
+            if isinstance(stmt.target, ast.Name):
+                produced.add(stmt.target.id)
+        elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+            for item in stmt.items:
+                if isinstance(item.optional_vars, ast.Name):
+                    produced.add(item.optional_vars.id)
+    return produced
+
+
+def _produced_properties(
+    source: str, func: ast.FunctionDef | ast.AsyncFunctionDef
+) -> dict[str, str]:
+    """Map ``obj.attr`` (rendered) -> kind for objects *func* produced.
+
+    Returned as *bindings* rather than as a new argument to
+    :func:`classify_iterable`, so the existing ``ast.Attribute`` branch
+    there resolves them with no signature change — and so a real binding
+    from :func:`_bind_assignments` always wins, because the caller *seeds*
+    these into that walk and an assignment overwrites the seeded key. The
+    seeding has to happen before the walk rather than as a merge after it:
+    see :func:`_local_bindings` for the derived-value case a merge loses.
+
+    Every key goes through :func:`_render`, the module's single renderer.
+    Rendering a binding one way and the lookup another is the defect this
+    module was corrected for once already: the two sides stop matching on
+    quote style alone and nothing says so.
+    """
+    produced = _produced_names(func)
+    properties: dict[str, str] = {}
+    for node in _walk_own(func):
+        if not isinstance(node, ast.Attribute):
+            continue
+        base: ast.expr = node
+        while isinstance(base, ast.Attribute):
+            base = base.value
+        if isinstance(base, ast.Name) and base.id in produced:
+            properties[_render(source, node)] = "property of a produced object"
+    return properties
+
+
+def _bound_names(stmt: ast.AST) -> Iterator[str]:
+    """Yield every bare name *stmt* binds, in any binding position.
+
+    Used by :func:`_subset_bindings` to count how often a name is written
+    in a function, so a name written more than once can be refused. Every
+    binding form counts, not just ``=``, because any second binding
+    destroys the one-binding guarantee the subset rule depends on:
+
+    * ``=``, ``:=``, annotated and augmented assignment;
+    * ``for`` and ``async for`` targets;
+    * ``with ... as`` / ``async with ... as`` targets;
+    * **function parameters** — positional-only, ordinary, keyword-only,
+      ``*args`` and ``**kwargs``. A parameter is the case that made this
+      list exhaustive rather than illustrative: ``def test_rows(subset)``
+      with a later ``subset = [...]`` leaves an ``assert subset`` written
+      between them witnessing the *parameter*, and an uncounted parameter
+      makes the name look singly-bound, so the witness gets credited to a
+      base it says nothing about. A pytest fixture name colliding with a
+      local comprehension name is ordinary code, not a contrived shape;
+    * ``except ... as`` — which binds the name and then unbinds it again;
+    * ``import ... as`` and ``from ... import`` — for a dotted import
+      without an alias the bound name is the first segment, so
+      ``import a.b`` binds ``a``;
+    * ``match`` capture patterns, including ``*rest`` and ``**rest``.
+
+    Tuple and starred targets are unpacked, because ``a, b = …`` binds both
+    names just as surely as two statements would.
+
+    Comprehension targets are deliberately *not* counted: in Python 3 a
+    comprehension has its own scope, so ``[x for subset in …]`` never
+    rebinds an enclosing ``subset``.
+    """
+    def names(target: ast.expr | None) -> Iterator[str]:
+        if isinstance(target, ast.Name):
+            yield target.id
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                yield from names(element)
+        elif isinstance(target, ast.Starred):
+            yield from names(target.value)
+
+    if isinstance(stmt, ast.Assign):
+        for target in stmt.targets:
+            yield from names(target)
+    elif isinstance(
+        stmt, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor, ast.NamedExpr)
+    ):
+        yield from names(stmt.target)
+    elif isinstance(stmt, (ast.With, ast.AsyncWith)):
+        for item in stmt.items:
+            yield from names(item.optional_vars)
+    elif isinstance(stmt, ast.arguments):
+        for parameter in (
+            *stmt.posonlyargs,
+            *stmt.args,
+            *stmt.kwonlyargs,
+            stmt.vararg,
+            stmt.kwarg,
+        ):
+            if parameter is not None:
+                yield parameter.arg
+    elif isinstance(stmt, ast.ExceptHandler):
+        if stmt.name:
+            yield stmt.name
+    elif isinstance(stmt, (ast.Import, ast.ImportFrom)):
+        for alias in stmt.names:
+            # ``import a.b`` binds ``a``; ``import a.b as c`` binds ``c``.
+            yield (alias.asname or alias.name).split(".")[0]
+    elif isinstance(stmt, (ast.MatchAs, ast.MatchStar)):
+        if stmt.name:
+            yield stmt.name
+    elif isinstance(stmt, ast.MatchMapping) and stmt.rest:
+        yield stmt.rest
+
+
+def _subset_bindings(
+    source: str, func: ast.FunctionDef | ast.AsyncFunctionDef
+) -> dict[str, set[str]]:
+    """Map a name assigned a comprehension -> the base that comprehension iterates.
+
+    A non-empty *subset* proves the set it was drawn from non-empty: if
+    ``[row for row in profile.rows if row.total > 0]`` has an element, then
+    ``profile.rows`` had one. That direction is sound, and it is the exact
+    inverse of the one :func:`_witness_candidates` refuses — a non-empty
+    base says nothing about a filtered comprehension over it, because the
+    filter can empty the result.
+
+    Only the first generator's iterable is recorded. With a second ``for``
+    clause a non-empty result proves that *some* inner iterable was
+    non-empty, not the one any particular loop iterates, so accepting the
+    rest would fabricate a witness.
+
+    Generator expressions are excluded, and that is not an oversight. The
+    witness this feeds is ``assert nonzero`` — and a generator *object* is
+    truthy whether or not it will yield anything, so the assertion passes
+    over an empty base and crediting it would manufacture the proof. A list
+    or set comprehension is a real container whose truthiness is its
+    non-emptiness. ``len()`` of a generator raises, so the length-check path
+    cannot reach one either.
+
+    A name bound **more than once anywhere in the function** is dropped
+    entirely, whatever it was bound to. This walker has no order and no
+    reachability, so with two bindings live it cannot say which one the
+    witness ran against, and every cheaper rule gets some shape wrong:
+    unioning the bases lets ``assert nonzero`` prove a set it was never
+    drawn from; keeping the last binding credits it to a witness written
+    *above* it; and taking either branch of an ``if``/``else`` claims a
+    proof from a branch that may not have run. Dropping the name
+    under-witnesses, which over-reports — the direction this module treats
+    as the safe one. Counted bindings include ``for`` targets, ``with ...
+    as`` targets, augmented assignment and the walrus, so a loop variable
+    shadowing the name also disqualifies it.
+    """
+    bind_counts: Counter[str] = Counter()
+    for stmt in _walk_own(func):
+        for name in _bound_names(stmt):
+            bind_counts[name] += 1
+    subsets: dict[str, set[str]] = {}
+    for stmt in _walk_own(func):
+        if not isinstance(stmt, ast.Assign):
+            continue
+        value = stmt.value
+        if not isinstance(value, (ast.ListComp, ast.SetComp)):
+            continue
+        base = _render(source, value.generators[0].iter)
+        for target in stmt.targets:
+            if isinstance(target, ast.Name) and bind_counts[target.id] == 1:
+                subsets[target.id] = {base}
+    return subsets
+
+
 def _local_bindings(
     source: str,
     func: ast.FunctionDef | ast.AsyncFunctionDef,
     helpers: dict[str, str],
 ) -> dict[str, str]:
-    """Map names assigned inside *func* to the kind of what they hold."""
-    return _bind_assignments(source, _walk_own(func), helpers)
+    """Map names assigned inside *func* to the kind of what they hold.
+
+    The produced properties are *seeded* into :func:`_bind_assignments`
+    rather than merged into its result. Merging afterwards looks equivalent
+    and is not: each assignment is classified against the dict as it stands
+    at that moment, so ``keys = list(module._DERIVED_KEYS)`` would be
+    classified before ``module._DERIVED_KEYS`` existed as a binding and
+    ``keys`` would bind to nothing at all. Seeding also keeps the intended
+    precedence — a dotted name the function was seen assigning something
+    emptiable carries a more specific kind than "some field of an object we
+    produced", and that assignment overwrites the seeded entry.
+    """
+    return _bind_assignments(
+        source, _walk_own(func), helpers, seed=_produced_properties(source, func)
+    )
 
 
 def _is_nonempty_length_check(op: ast.cmpop, right: ast.expr) -> bool:
@@ -429,13 +662,66 @@ def _unconditional_asserts(
             yield from _unconditional_asserts(stmt.body)
 
 
-def witness_keys(source: str, body: Iterable[ast.stmt]) -> set[str]:
+def _comprehension_base(source: str, node: ast.expr) -> set[str]:
+    """The base a *non-empty* comprehension *node* proves non-empty.
+
+    If ``[f(x) for x in xs if p(x)]`` has an element, then some element of
+    ``xs`` reached the filter, so ``xs`` was non-empty. Filters and further
+    ``for`` clauses can only shrink the result, so the *first* generator's
+    iterable is proven whatever they do — which makes this the inline
+    spelling of the rule :func:`_subset_bindings` records for a
+    comprehension that was given a name.
+
+    The caller is responsible for having established that the comprehension
+    really is non-empty. That is why this is not folded into
+    :func:`_witnessed_by`: a bare ``assert (x for x in xs)`` establishes
+    nothing at all, because a generator object is always truthy.
+    """
+    if isinstance(node, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
+        return {_render(source, node.generators[0].iter)}
+    return set()
+
+
+def _witnessed_by(
+    source: str, node: ast.expr, subsets: dict[str, set[str]] | None
+) -> set[str]:
+    """The keys proven non-empty by a witness written about *node*.
+
+    Always the node's own rendering. Additionally, when *node* is a name
+    bound to a comprehension, the base that comprehension was drawn from —
+    see :func:`_subset_bindings` for why that direction is sound and the
+    other one is not.
+    """
+    keys = {_render(source, node)}
+    if subsets and isinstance(node, ast.Name):
+        keys |= subsets.get(node.id, set())
+    return keys
+
+
+def witness_keys(
+    source: str,
+    body: Iterable[ast.stmt],
+    subsets: dict[str, set[str]] | None = None,
+) -> set[str]:
     """Return the expressions *body* itself proves non-empty.
 
-    Four forms, all of them already lived in this repo (spec §5):
-    ``assert xs``, ``assert len(xs) >= n``, ``assert xs == <non-empty
-    literal>``, and — handled in :func:`_exhaustion_raises` — a ``raise``
-    reached by exhausting the loop.
+    Seven forms, all of them lived in this repo:
+
+    * ``assert xs`` — bare truthiness;
+    * ``assert len(xs) >= n`` (:func:`_is_nonempty_length_check`);
+    * ``assert xs == <non-empty literal>``;
+    * a ``raise`` reached by exhausting the loop
+      (:func:`_exhaustion_raises`);
+    * ``assert any(<comp>)`` — ``any(())`` is ``False``, so the
+      comprehension ranged over something;
+    * ``assert x in y`` — ``in`` cannot hold of an empty ``y``;
+    * a non-empty *subset* proving the base it was drawn from, whether the
+      comprehension was written inline (:func:`_comprehension_base`) or
+      given a name (:func:`_subset_bindings`).
+
+    The last three are polarity-sensitive and their negations are refused
+    explicitly: ``not any(...)``, ``not in`` and ``== []`` are all true of
+    an empty iterable, so none of them witnesses anything.
 
     Scoped to one block on purpose, and never across a function boundary. A
     witness for ``bool_lines`` says nothing about ``export_lines`` two lines
@@ -462,12 +748,30 @@ def witness_keys(source: str, body: Iterable[ast.stmt]) -> set[str]:
                 and left.args
             ):
                 if _is_nonempty_length_check(op, right):
-                    keys.add(_render(source, left.args[0]))
+                    keys |= _witnessed_by(source, left.args[0], subsets)
+                    keys |= _comprehension_base(source, left.args[0])
                 continue
             if isinstance(op, ast.Eq) and _is_nonempty_literal(right):
-                keys.add(_render(source, left))
+                keys |= _witnessed_by(source, left, subsets)
+                keys |= _comprehension_base(source, left)
+            elif isinstance(op, ast.In):
+                # ``x in y`` cannot hold of an empty ``y``. The ``not in``
+                # spelling is the opposite and must not land here: it is
+                # true precisely when ``y`` is empty.
+                keys |= _witnessed_by(source, right, subsets)
             continue
-        keys.add(_render(source, test))
+        if (
+            isinstance(test, ast.Call)
+            and isinstance(test.func, ast.Name)
+            and test.func.id == "any"
+            and test.args
+        ):
+            # ``any(())`` is ``False``, so a passing ``assert any(<comp>)``
+            # proves the comprehension ranged over something. ``all`` is
+            # deliberately absent: ``all(())`` is ``True``, which is the
+            # very vacuity this module reports.
+            keys |= _comprehension_base(source, test.args[0])
+        keys |= _witnessed_by(source, test, subsets)
     return keys
 
 
@@ -660,6 +964,7 @@ def _block_claims(
     helpers: dict[str, str],
     *,
     witnesses_hold: bool = True,
+    subsets: dict[str, set[str]] | None = None,
 ) -> Iterator[tuple[ast.expr, int, str]]:
     """Yield ``(iterable, lineno, kind)`` for the unwitnessed claims under *body*.
 
@@ -692,7 +997,7 @@ def _block_claims(
             for hit in hits:               # inherited witness still covers it
                 assert hit.bad
     """
-    visible = inherited | (witness_keys(source, body) if witnesses_hold else set())
+    visible = inherited | (witness_keys(source, body, subsets) if witnesses_hold else set())
     for iterated, lineno in _iterating_asserts(body):
         if visible & _witness_candidates(source, iterated):
             continue
@@ -705,7 +1010,8 @@ def _block_claims(
         )
         for block in _nested_blocks(stmt):
             yield from _block_claims(
-                source, block, visible, bindings, helpers, witnesses_hold=holds
+                source, block, visible, bindings, helpers,
+                witnesses_hold=holds, subsets=subsets,
             )
 
 
@@ -757,8 +1063,9 @@ def scan_source(source: str, path: str) -> list[VacuousClaim]:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         bindings = _local_bindings(source, node, helpers)
+        subsets = _subset_bindings(source, node)
         for iterated, lineno, kind in _block_claims(
-            source, node.body, set(), bindings, helpers
+            source, node.body, set(), bindings, helpers, subsets=subsets
         ):
             claims.append(
                 VacuousClaim(

@@ -137,6 +137,7 @@ def test_runner_handles_evaluator_returning_none() -> None:
         evaluate_fn=none_eval,
     )
     # Empty per-trade arrays → metrics are None but the runner doesn't crash.
+    assert len(out.folds) == 2, "the splitter must yield folds — the metrics check below would pass vacuously"
     for f in out.folds:
         assert f.oos_metrics["sharpe"] is None
 

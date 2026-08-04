@@ -43,6 +43,7 @@ def test_invalidation_drops_derived_keys_on_version_change(monkeypatch) -> None:
     state["_session_schema_ver"] = "1900-01-01.0"
     # Pre-populate every derived key with sentinel values.
     sentinel_keys = list(module._SESSION_DERIVED_STATE_KEYS)
+    assert sentinel_keys, "no derived state keys are declared — the drop assertions below would pass vacuously"
     for key in sentinel_keys:
         state[key] = "sentinel"
     # And one user-input key that must survive.

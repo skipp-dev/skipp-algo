@@ -258,6 +258,7 @@ class TestScoringVsAuditParity:
         assert audit.scoring_vs_audit["scoring_population_by_family"]["BOS"] == 10
         assert to_json(audit)["scoring_vs_audit"] == audit.scoring_vs_audit
         # Populations match here -> no parity finding.
+        assert audit.findings, "no findings at all — the absence check below would pass vacuously"
         assert not any("CALIBRATOR PARITY" in f for f in audit.findings)
 
     def test_parity_finding_when_calibrator_sees_zero_fvg(self, tmp_path: Path) -> None:
@@ -308,4 +309,5 @@ class TestPseudoreplication:
     def test_distinct_slices_do_not_flag(self, benchmark_tree: Path) -> None:
         audit = run_fvg_audit(benchmark_tree)
         assert audit.pseudoreplication["intraday_clone_symbol_count"] == 0
+        assert audit.findings, "no findings at all — the absence check below would pass vacuously"
         assert not any("PSEUDOREPLICATION" in f for f in audit.findings)

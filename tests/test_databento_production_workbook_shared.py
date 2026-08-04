@@ -369,6 +369,7 @@ def test_write_databento_production_workbook_from_frames_threads_progress(tmp_pa
     joined = "\n".join(msgs)
     assert "workbook: write_bytes begin" in joined, joined
     assert "workbook: write_bytes done" in joined, joined
+    assert msgs, "no progress messages recorded — this pin would pass vacuously"
     # All progress lines (including write_bytes markers) carry the elapsed-time suffix.
     assert all("(t+" in m for m in msgs), msgs
     # Inner per-sheet markers must also be present (callback was forwarded).

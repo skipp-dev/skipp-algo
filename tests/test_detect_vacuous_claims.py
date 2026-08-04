@@ -750,3 +750,541 @@ def test_class_decorated_parametrize_over_a_helper_is_a_claim() -> None:
     assert _kinds(source) == {
         "_iter_workflow_files()": "parametrize helper returns discovery call"
     }
+
+
+def test_empty_list_accumulator_is_a_claim() -> None:
+    """The recording idiom: starts empty, stays empty when nothing happens.
+
+    This is the shape the TypeScript half has always caught and the Python
+    half never did — ``calls = []``, the code under test appends, and the
+    loop asserts. When the code under test does nothing at all, the loop
+    runs zero times and the test still reports success.
+    """
+    source = """
+        def test_records():
+            calls = []
+            run(lambda name: calls.append(name))
+            for call in calls:
+                assert call.startswith("smc")
+    """
+    assert _kinds(source) == {"calls": "local empty literal"}
+
+
+def test_nonempty_list_literal_is_not_a_claim() -> None:
+    """A literal with elements cannot be empty, exactly as a tuple cannot."""
+    source = """
+        def test_flags():
+            flags = ["--start-date", "--end-date"]
+            for flag in flags:
+                assert flag in TEXT
+    """
+    assert _kinds(source) == {}
+
+
+def test_empty_dict_accumulator_is_a_claim() -> None:
+    source = """
+        def test_seen():
+            seen = {}
+            record(seen)
+            for key in seen:
+                assert key.isupper()
+    """
+    assert _kinds(source) == {"seen": "local empty literal"}
+
+
+def test_zero_argument_list_constructor_is_a_claim() -> None:
+    """``list()`` is ``[]`` spelled as a call and must read the same.
+
+    ``_TRANSPARENT_CALLS`` already names ``list``/``set``, but only for the
+    argument-carrying form where emptiness passes through. With no argument
+    there is nothing to pass through — the result is empty by construction.
+    """
+    source = """
+        def test_records():
+            calls = list()
+            run(calls.append)
+            for call in calls:
+                assert call
+    """
+    assert _kinds(source) == {"calls": "local empty literal"}
+
+
+def test_a_witness_clears_an_empty_literal_accumulator() -> None:
+    """The lived fix must keep working: assert the recording non-empty."""
+    source = """
+        def test_records():
+            calls = []
+            run(calls.append)
+            assert calls, "nothing recorded — this pin would pass vacuously"
+            for call in calls:
+                assert call.startswith("smc")
+    """
+    assert _kinds(source) == {}
+
+
+def test_dict_with_keyword_args_is_not_a_claim() -> None:
+    """``dict(a=1)`` is not ``{}`` spelled as a call — it has content.
+
+    ``_EMPTY_CONSTRUCTORS`` only checked ``node.args``, so a keyword-only
+    call like ``dict(a=1)`` or ``dict(**other)`` had nothing in ``args`` and
+    misclassified as empty even though it plainly is not.
+    """
+    source = """
+        def test_records():
+            calls = dict(a=1)
+            for call in calls:
+                assert call
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_property_of_a_produced_object_is_a_claim() -> None:
+    """The analyzer watched this object being made, so its fields are data.
+
+    It cannot see inside ``run_walk_forward``, but it does not need to: the
+    object is a runtime result, not source text, so ``out.folds`` can be
+    empty and the loop can run zero times.
+    """
+    source = """
+        def test_folds():
+            out = run_walk_forward(returns)
+            for fold in out.folds:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {"out.folds": "property of a produced object"}
+
+
+def test_a_property_of_an_imported_module_is_not_a_claim() -> None:
+    """A module constant is source the analyzer never watched being produced.
+
+    Measured 2026-08-04: every ``<module alias>.<CONST>`` iterated in
+    ``tests/`` resolves to a non-empty tuple or frozenset literal, so
+    classifying these would report false positives rather than defects.
+    """
+    source = """
+        import scripts.pine_library_freshness as plf
+
+        def test_scope():
+            for name in plf.SHARED_LIBRARIES:
+                assert name.startswith("skipp_")
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_produced_object_itself_is_not_a_claim() -> None:
+    """Only the *properties* are classified, never the object.
+
+    ``for row in load_rows()`` is already covered by the helper and
+    discovery rules; making the bare name emptiable would classify every
+    local that happens to hold a call result.
+    """
+    source = """
+        def test_object():
+            out = run_walk_forward(returns)
+            for fold in out:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_length_witness_clears_a_produced_property() -> None:
+    source = """
+        def test_folds():
+            out = run_walk_forward(returns)
+            assert len(out.folds) == 4
+            for fold in out.folds:
+                assert fold.n_train == 80
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_nonempty_subset_witnesses_the_base_it_was_drawn_from() -> None:
+    """A non-empty subset proves the set it came from non-empty.
+
+    Lived at ``tests/test_smc_volume_profile.py:69-73``: the test filters
+    ``profile.rows`` into ``nonzero_rows``, asserts that is non-empty, then
+    loops over ``profile.rows``. Without this rule that loop reports as
+    unwitnessed even though the proof is two lines above it.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert len(nonzero) > 1
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_bare_truth_check_on_a_subset_also_witnesses_its_base() -> None:
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert nonzero
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {}
+
+
+def test_the_subset_rule_does_not_run_backwards() -> None:
+    """The inverse stays refused: a non-empty base proves nothing about a subset.
+
+    This is the direction :func:`_witness_candidates` already rejects, and
+    the subset rule must not reopen it — the filter can empty the result
+    while the base is full.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            assert len(profile.rows) > 1
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            for row in nonzero:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"nonzero": "local filtered comprehension"}
+
+
+def test_a_value_derived_from_a_produced_property_is_a_claim() -> None:
+    """A local holding a produced property carries that property's emptiness.
+
+    ``keys = list(module._DERIVED_KEYS)`` is the lived shape at
+    ``tests/test_streamlit_terminal_session_schema_invalidation.py:44``.
+    Merging the produced properties *after* :func:`_bind_assignments` would
+    lose this: the assignment is classified while the produced properties
+    are not yet in the binding dict, so ``keys`` binds to nothing and the
+    loop below reports clean. They are seeded in *before* instead.
+    """
+    source = """
+        def test_derived():
+            module = reload_terminal()
+            keys = list(module._DERIVED_KEYS)
+            for key in keys:
+                assert key not in state
+    """
+    assert _kinds(source) == {"keys": "local property of a produced object"}
+
+
+def test_an_assignment_wins_over_the_produced_property_kind() -> None:
+    """Seeding must not let the coarse kind mask a specific one.
+
+    ``rec.calls`` is both a property of a produced object *and* a dotted
+    name the function was watched assigning a filtered comprehension to.
+    The assignment is the more specific fact and has to survive the seed.
+    """
+    source = """
+        def test_recording():
+            rec = make_recorder()
+            rec.calls = [c for c in observed if c]
+            for call in rec.calls:
+                assert call
+    """
+    assert _kinds(source) == {"rec.calls": "local filtered comprehension"}
+
+
+def test_assert_any_witnesses_the_iterable_it_ranges_over() -> None:
+    """``any(())`` is ``False``, so a passing ``assert any(...)`` proves the base.
+
+    Lived at ``tests/test_realtime_active_signal_lifecycle.py:98-99``: the
+    test asserts ``any(s.symbol == "AAPL" ...)`` and then ``all(s.symbol !=
+    "NVDA" ...)`` over the same list. The first assertion goes red on an
+    empty list, so the second cannot be vacuous — reporting it was a false
+    positive, and a false positive is fixed here, never waived.
+    """
+    source = """
+        def test_active():
+            eng = make_engine()
+            assert any(s.symbol == "AAPL" for s in eng.active)
+            assert all(s.symbol != "NVDA" for s in eng.active)
+    """
+    assert _kinds(source) == {}
+
+
+def test_assert_not_any_does_not_witness_its_iterable() -> None:
+    """The negation proves nothing: ``not any(())`` is ``True``.
+
+    This is the polarity half of the rule above and the reason it is keyed
+    to the un-negated form only.
+    """
+    source = """
+        def test_active():
+            eng = make_engine()
+            assert not any(s.symbol == "NVDA" for s in eng.active)
+            for s in eng.active:
+                assert s.ok
+    """
+    assert _kinds(source) == {
+        's.symbol == "NVDA" for s in eng.active': "property of a produced object",
+        "eng.active": "property of a produced object",
+    }
+
+
+def test_a_membership_check_witnesses_its_container() -> None:
+    """``x in y`` cannot be true of an empty ``y``.
+
+    Lived at ``tests/test_realtime_signals_uplift_b.py:396-398``: two
+    ``assert "…" in s._cache`` lines directly above a loop over
+    ``s._cache``.
+    """
+    source = """
+        def test_cache():
+            s = make_scorer()
+            assert "FRESH:1D" in s._cache
+            assert all(not k.startswith("S") for k in s._cache)
+    """
+    assert _kinds(source) == {}
+
+
+def test_a_negative_membership_check_does_not_witness_its_container() -> None:
+    """``x not in y`` is true of an empty ``y``, so it proves nothing."""
+    source = """
+        def test_cache():
+            s = make_scorer()
+            assert "GONE:1D" not in s._cache
+            for k in s._cache:
+                assert k
+    """
+    assert _kinds(source) == {"s._cache": "property of a produced object"}
+
+
+def test_a_literal_equality_on_a_comprehension_witnesses_its_base() -> None:
+    """A comprehension equal to a non-empty literal had a non-empty base.
+
+    Lived at ``tests/test_smc_integration_measurement_evidence.py:145``:
+    ``assert [e.family for e in evidence.scored_events] == ["BOS", ...]``
+    sits directly above four ``assert all(... for e in
+    evidence.scored_events)`` lines. The list it is compared to has four
+    entries, so the loop underneath it demonstrably ran.
+    """
+    source = """
+        def test_events():
+            evidence = build_evidence()
+            assert [e.family for e in evidence.scored_events] == ["BOS", "OB"]
+            assert all(e.outcome is True for e in evidence.scored_events)
+    """
+    assert _kinds(source) == {}
+
+
+def test_an_empty_literal_equality_does_not_witness_a_comprehension_base() -> None:
+    """``[... for x in xs] == []`` is exactly the empty case, not a witness."""
+    source = """
+        def test_events():
+            evidence = build_evidence()
+            assert [e.family for e in evidence.scored_events] == []
+            assert all(e.outcome is True for e in evidence.scored_events)
+    """
+    assert _kinds(source) == {
+        "e.outcome is True for e in evidence.scored_events": (
+            "property of a produced object"
+        )
+    }
+
+
+def test_a_bare_generator_subset_does_not_witness_its_base() -> None:
+    """A generator object is always truthy, so ``assert gen`` proves nothing.
+
+    The subset rule credits the base of a comprehension that was asserted
+    non-empty. For a *generator* expression the assertion is vacuously true
+    whatever the base held, so crediting it would fabricate the witness this
+    module treats as the worse failure. List and set comprehensions are
+    real containers and keep the rule.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = (row for row in profile.rows if row.total > 0.0)
+            assert nonzero
+            for row in profile.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_rebound_subset_credits_no_base_at_all() -> None:
+    """Two comprehensions on one name: neither may be credited.
+
+    ``_subset_bindings`` is flow-insensitive — it cannot know which
+    assignment was live when the witness ran. Unioning both bases lets
+    ``assert nonzero`` prove a set it was never drawn from, and taking the
+    last one is no better: the witness may sit *above* the later
+    assignment, which would credit it retroactively. A name assigned more
+    than once is therefore dropped entirely.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            nonzero = [row for row in other.rows if row.total > 0.0]
+            nonzero = [row for row in profile.rows if row.total > 0.0]
+            assert nonzero
+            for row in other.rows:
+                assert row.total > 0.0
+    """
+    assert _kinds(source) == {"other.rows": "property of a produced object"}
+
+
+def test_a_subset_bound_in_two_branches_credits_no_base() -> None:
+    """Neither branch is known to have run, so neither base is proven."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            if flag:
+                subset = [row for row in profile.rows if row.ok]
+            else:
+                subset = [row for row in other.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_witness_does_not_credit_a_later_assignment_retroactively() -> None:
+    """The witness runs against the *first* binding, not the last one.
+
+    Order matters and the analyzer does not track it, so a name reassigned
+    below its own witness must not lend that witness the later base. This
+    is the shape a last-write-wins rule gets wrong.
+    """
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            other = load_other()
+            subset = [row for row in other.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_subset_rebound_to_a_non_comprehension_credits_nothing() -> None:
+    """``nonzero = [...]`` then ``nonzero = f()`` leaves the base unproven."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            nonzero = [row for row in profile.rows if row.ok]
+            nonzero = recompute()
+            assert nonzero
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_nested_comprehension_witness_credits_only_the_outer_iterable() -> None:
+    """Regression pin for ``generators[0]`` in :func:`_comprehension_base`.
+
+    The inner generator's iterable is written in terms of the
+    comprehension's *own* loop variable, so its rendered text can collide
+    with an unrelated expression in the enclosing scope. Crediting it would
+    clear a claim the witness says nothing about.
+    """
+    source = """
+        def test_items():
+            group = load_group()
+            a = load_a()
+            assert len([x for a in group.rows for x in a.items]) > 0
+            for x in a.items:
+                assert x
+    """
+    assert _kinds(source) == {"a.items": "property of a produced object"}
+
+
+def test_a_nested_subset_credits_only_the_outer_iterable() -> None:
+    """Regression pin for ``generators[0]`` in :func:`_subset_bindings`."""
+    source = """
+        def test_items():
+            group = load_group()
+            a = load_a()
+            flat = [x for a in group.rows for x in a.items]
+            assert flat
+            for x in a.items:
+                assert x
+    """
+    assert _kinds(source) == {"a.items": "property of a produced object"}
+
+
+def test_a_parameter_shadowed_by_a_later_comprehension_credits_nothing() -> None:
+    """A fixture parameter is a binding, and an uncounted one re-opens the hole.
+
+    ``assert subset`` here witnesses the *parameter* — the comprehension is
+    assigned below it. Unless the parameter is counted as a binding, the
+    name looks singly-bound and the witness is credited to
+    ``profile.rows``, which it says nothing about. A pytest fixture name
+    colliding with a local comprehension name is ordinary code.
+    """
+    source = """
+        def test_rows(subset):
+            profile = compute_volume_profile(bars)
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_starred_or_keyword_parameter_also_counts_as_a_binding() -> None:
+    """``*args``/``**kwargs`` bind names too, and so do keyword-only params."""
+    source = """
+        def test_rows(*subset, **rest):
+            profile = compute_volume_profile(bars)
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_an_except_alias_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """``except … as subset`` binds — and unbinds — the same name."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            try:
+                run()
+            except ValueError as subset:
+                pass
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_an_import_alias_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """``import x as subset`` is a binding like any other."""
+    source = """
+        def test_rows():
+            import collections as subset
+
+            profile = compute_volume_profile(bars)
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_match_capture_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """A ``match`` capture pattern binds its name in the enclosing scope."""
+    source = """
+        def test_rows(command):
+            profile = compute_volume_profile(bars)
+            match command:
+                case [subset]:
+                    pass
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}

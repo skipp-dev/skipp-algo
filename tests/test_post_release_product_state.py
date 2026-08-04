@@ -49,6 +49,7 @@ class TestAllPass:
             trust=_trust(),
         )
         assert report.overall_status is CheckStatus.PASS
+        assert report.checks, "no checks were emitted — the per-check status assertion below would pass vacuously"
         assert all(c.status is CheckStatus.PASS for c in report.checks)
         assert "besetzt" in report.summary
 

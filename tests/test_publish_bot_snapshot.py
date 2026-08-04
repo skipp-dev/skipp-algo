@@ -51,6 +51,7 @@ def test_transient_branch_fetch_failure_aborts_without_push(monkeypatch, tmp_pat
     )
 
     assert rc == 1
+    assert calls, "no git invocations recorded — this pin would pass vacuously"
     assert not any(call and call[0] == "push" for call in calls)
 
 
