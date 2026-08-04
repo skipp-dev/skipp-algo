@@ -44,6 +44,15 @@ COPY scripts/smc_newsapi_ai.py /app/scripts/smc_newsapi_ai.py
 # databento path); self-contained (stdlib only). Missing until the shadow
 # deploy surfaced ModuleNotFoundError: No module named 'scripts.smc_atomic_write'.
 COPY scripts/smc_atomic_write.py /app/scripts/smc_atomic_write.py
+# calibrate_signal_followthrough — the nightly in-process calibration
+# (open_prep.calibration_scheduler, RT_CALIBRATION_UTC_HHMM) imports this
+# module to write calibration_latest.json onto the volume. Missing from
+# 2026-07-09 to 2026-08-04: the fail-soft scheduler swallowed the nightly
+# ModuleNotFoundError at debug level, so no table was ever produced and
+# rt_notify's calibrated ⭐P..% path could never arm (same class as the
+# smc_atomic_write miss above). Stdlib-only apart from a lazy
+# open_prep.macro.FMPClient import, which this image already carries.
+COPY scripts/calibrate_signal_followthrough.py /app/scripts/calibrate_signal_followthrough.py
 RUN touch /app/scripts/__init__.py
 
 # Run as a non-root user for security (D1).

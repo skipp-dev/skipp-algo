@@ -26,6 +26,7 @@ watchPatterns = [
     "smc_core/**",
     "scripts/smc_newsapi_ai.py",
     "scripts/smc_atomic_write.py",
+    "scripts/calibrate_signal_followthrough.py",
     "requirements.txt",
     "services/signals_producer/**",
 ]

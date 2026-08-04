@@ -211,6 +211,24 @@ def test_dockerfile_copies_open_prep_and_runs_engine() -> None:
     assert "USER appuser" in dockerfile
 
 
+def test_dockerfile_ships_the_nightly_calibrator_module() -> None:
+    """The in-process nightly calibration (open_prep.calibration_scheduler,
+    RT_CALIBRATION_UTC_HHMM) imports scripts.calibrate_signal_followthrough at
+    run time. The lean image COPYs scripts/ files one by one, and this module
+    was missing 2026-07-09..2026-08-04 — the fail-soft scheduler swallowed the
+    nightly ModuleNotFoundError, so calibration_latest.json never appeared and
+    the calibrated ⭐P..% path could never arm."""
+    dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
+
+    assert (
+        "COPY scripts/calibrate_signal_followthrough.py "
+        "/app/scripts/calibrate_signal_followthrough.py"
+    ) in dockerfile
+
+    watch_patterns = set(_load_railway_config()["build"]["watchPatterns"])
+    assert "scripts/calibrate_signal_followthrough.py" in watch_patterns
+
+
 def test_dockerfile_contains_private_ai_runtime_modules() -> None:
     dockerfile = (_SERVICE_DIR / "Dockerfile").read_text(encoding="utf-8")
 
