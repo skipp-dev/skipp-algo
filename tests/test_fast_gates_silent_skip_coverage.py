@@ -174,6 +174,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_git_fixture_env_isolation.py",
     "tests/test_ts_vacuity_guard_is_required.py",
     "tests/test_dependabot_local_version_pins.py",
+    "tests/test_workflow_pine_library_publish_handlibs_contract.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",

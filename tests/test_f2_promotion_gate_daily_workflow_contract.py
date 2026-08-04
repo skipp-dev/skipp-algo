@@ -199,3 +199,159 @@ def test_h7_artifact_iteration_pattern() -> None:
     """Audit H7: must iterate recent rolling-bench runs, not assume newest."""
     text = _WF_PATH.read_text(encoding="utf-8")
     assert "gh run list" in text and "smc-measurement-benchmark-rolling" in text
+
+
+# --- the two decisions, executed rather than described -----------------------
+#
+# `locate` decides status (ready/skipped) and `gate` decides rc + decision;
+# every later step hangs on one of them. Measured 2026-08-04 with a
+# value-preserving arm swap (the token multiset left unchanged, so any substring
+# assertion is blind by construction): all 121 assertions across the 10 files
+# that name this workflow stayed green for both.
+
+import json
+import sys
+from pathlib import Path
+
+from tests._workflow_step_shell import Stub, run_step
+
+_WF = "f2-promotion-gate-daily.yml"
+_LOCATE_STEP = "Locate dual-arm artifact dirs"
+_GATE_STEP = "Run F2 promotion-gate orchestrator"
+_DATE = "2026-08-04"
+_ARMS = {"control": "static_global_weights", "treatment": "contextual_weights"}
+
+
+def _locate(tmp_path: Path, *, control, treatment):
+    """Run the real step against arm trees of our choosing.
+
+    ``None`` = the arm directory does not exist, ``False`` = it exists but
+    carries no manifest, a dict = that manifest. Python is passed through to the
+    real interpreter: the heredoc IS the decision, and faking its answer would
+    move the thing under test into the test.
+    """
+    for arm, manifest in (("control", control), ("treatment", treatment)):
+        if manifest is None:
+            continue
+        directory = tmp_path / "artifacts/ci/f2" / _ARMS[arm] / _DATE
+        directory.mkdir(parents=True, exist_ok=True)
+        if manifest is not False:
+            (directory / "benchmark_run_manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+    return run_step(
+        _WF, _LOCATE_STEP, tmp_path, env={},
+        stubs={"python": Stub(passthrough=sys.executable)},
+        expressions={"steps.date.outputs.value": _DATE},
+    )
+
+
+_PAIRED = {"pair_runs": [{"pair": "a"}]}
+
+
+def test_two_populated_arms_are_ready(tmp_path: Path) -> None:
+    result = _locate(tmp_path, control=_PAIRED, treatment=_PAIRED)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["status"] == "ready"
+    assert result.outputs["control_dir"].endswith(f"{_ARMS['control']}/{_DATE}")
+    assert result.outputs["treatment_dir"].endswith(f"{_ARMS['treatment']}/{_DATE}")
+
+
+def test_missing_arms_skip_rather_than_fail(tmp_path: Path) -> None:
+    """L-2 fail-soft: no artefacts is a by-design gap, not a red run."""
+    result = _locate(tmp_path, control=None, treatment=None)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["status"] == "skipped"
+
+
+def test_empty_arm_trees_skip_instead_of_reporting_ready(tmp_path: Path) -> None:
+    """The cron-health finding of 2026-06-12, executed.
+
+    The rolling-bench dual-arm step runs under ``if: always()``, so an upstream
+    producer failure still uploads arm trees that exist and are empty. Existence
+    alone made this step report ``ready``; the orchestrator then exited rc=1 on
+    "no benchmark pairs" -- 11 of 11 scheduled runs red across a 14-day window.
+    """
+    result = _locate(tmp_path, control={"pair_runs": []}, treatment={"pair_runs": []})
+    assert result.outputs["status"] == "skipped", (
+        f"empty arm trees must not be declared ready; got {result.outputs}"
+    )
+
+
+def test_a_directory_without_a_manifest_is_not_ready(tmp_path: Path) -> None:
+    result = _locate(tmp_path, control=False, treatment=False)
+    assert result.outputs["status"] == "skipped"
+
+
+def test_one_healthy_arm_is_not_enough(tmp_path: Path) -> None:
+    """BOTH arms, in both orders -- an asymmetric check would pass one of these."""
+    assert _locate(tmp_path / "a", control=_PAIRED, treatment={"pair_runs": []}) \
+        .outputs["status"] == "skipped"
+    assert _locate(tmp_path / "b", control={"pair_runs": []}, treatment=_PAIRED) \
+        .outputs["status"] == "skipped"
+
+
+_ORCHESTRATOR_STUB = Stub(script='''
+case "$1" in
+  -c) exec "$REAL_PYTHON" "$@" ;;
+esac
+out=""; prev=""
+for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; prev="$a"; done
+if [ -n "$out" ]; then mkdir -p "$(dirname "$out")"; printf '%s' "$F2_REPORT" > "$out"; fi
+exit "$F2_RC"
+''')
+
+
+def _gate(tmp_path: Path, *, decision: str, rc: int):
+    """Run the real orchestrator step with the orchestrator itself shadowed."""
+    return run_step(
+        _WF, _GATE_STEP, tmp_path,
+        env={"REAL_PYTHON": sys.executable, "F2_RC": str(rc),
+             "F2_REPORT": json.dumps({"decision": decision})},
+        stubs={"python": _ORCHESTRATOR_STUB},
+        expressions={
+            "steps.date.outputs.value": _DATE,
+            "steps.locate.outputs.control_dir": "artifacts/ci/f2/control",
+            "steps.locate.outputs.treatment_dir": "artifacts/ci/f2/treatment",
+        },
+    )
+
+
+def test_the_gate_reports_the_orchestrator_verdict_verbatim(tmp_path: Path) -> None:
+    """rc and decision are two independent facts and both must survive.
+
+    The exit-code policy above turns rc into CI colour; ``decision`` is what the
+    issue-ping and auto-revert steps read. A step that reported one correctly
+    and the other as a constant would look right in the log and act wrong.
+    """
+    for decision, rc in (("promote", 0), ("hold", 0), ("rollback", 2), ("insufficient_data", 0)):
+        result = _gate(tmp_path, decision=decision, rc=rc)
+        assert result.outputs["decision"] == decision, (
+            f"decision must come from the report; got {result.outputs}"
+        )
+        assert result.outputs["rc"] == str(rc), (
+            f"rc must be the orchestrator's own exit code; got {result.outputs}"
+        )
+        assert result.outputs["report"].endswith(f"f2_promotion_gate_{_DATE}.json")
+
+
+def test_an_unreadable_report_does_not_invent_a_decision(tmp_path: Path) -> None:
+    """A crashed orchestrator must read as ``unknown``, never as ``promote``.
+
+    ``unknown`` is what the exit-code policy escalates. Defaulting to any real
+    verdict here would let a crash promote a model.
+    """
+    result = run_step(
+        _WF, _GATE_STEP, tmp_path,
+        env={"REAL_PYTHON": sys.executable, "F2_RC": "1", "F2_REPORT": "not-json-at-all"},
+        stubs={"python": _ORCHESTRATOR_STUB},
+        expressions={
+            "steps.date.outputs.value": _DATE,
+            "steps.locate.outputs.control_dir": "artifacts/ci/f2/control",
+            "steps.locate.outputs.treatment_dir": "artifacts/ci/f2/treatment",
+        },
+    )
+    assert result.outputs["decision"] == "unknown", (
+        f"an unreadable report must not yield a verdict; got {result.outputs}"
+    )
+    assert result.outputs["rc"] == "1"
