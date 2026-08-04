@@ -118,32 +118,109 @@ def test_an_idempotent_publish_opens_no_pr(tmp_path: Path) -> None:
     assert result.outputs["changed"] == "false"
 
 
-def test_a_failed_publish_fails_the_step_and_publishes_no_outputs(tmp_path: Path) -> None:
-    """What the step really does when the publish chain fails.
+def test_a_failed_publish_still_publishes_its_outputs(tmp_path: Path) -> None:
+    """The partial-progress path, now reachable. REPLACES the test that pinned it shut.
 
-    Its own comment says otherwise::
+    Until 2026-08-04 this file carried
+    ``test_a_failed_publish_fails_the_step_and_publishes_no_outputs``, which
+    recorded the opposite and said why: the behaviour contradicted the step's
+    own comment, and making the path reachable "would change what a failed
+    publish does to the live TradingView account, which is an operator
+    decision, not a test fix". The operator took that decision on 2026-08-04
+    and asked for the repair; this test documents the behaviour that replaced
+    it, as that test's own failure message asked.
 
-        # A non-zero rc means a publish/verify failed mid-chain; still capture
-        # any repins already made so the PR shows partial progress, but mark
-        # the run failed at the end.
+    One correction to the reasoning it was deferred on, measured rather than
+    argued: nothing between the failing pipeline and the PR touches TradingView.
+    ``npm run tv:publish-handlibs`` has already done whatever it did before it
+    failed, and every later step is git and gh only -- checkout, add, commit,
+    push, ``gh pr create``. What the repair changes is what happens in the
+    REPOSITORY: a PR now carries the repins that already succeeded, instead of
+    them being discarded with the runner.
 
-    That path cannot run. The workflow declares ``defaults: run: shell: bash``,
-    so Actions executes the block as ``bash --noprofile --norc -eo pipefail``.
-    The block's own ``set -uo pipefail`` adds ``-u``; it does NOT clear the
-    ``-e`` the shell was started with. So the failing ``npm … | tee`` pipeline
-    aborts the step immediately, and neither ``rc=`` nor ``changed=`` is ever
-    written -- the step's ``rc`` output reaches the summary empty on exactly the
-    runs it was added to describe.
-
-    Measured 2026-08-04, not inferred. Pinned as-is rather than repaired: making
-    the partial-progress path reachable would change what a failed publish does
-    to the live TradingView account, which is an operator decision, not a test
-    fix.
+    The cause: ``defaults: run: shell: bash`` makes Actions invoke the block as
+    ``bash --noprofile --norc -eo pipefail``, so ``-e`` is on before line one,
+    and the block's ``set -uo pipefail`` adds ``-u`` without clearing it. The
+    failing pipeline ended the step before either output was written. ``set +e``
+    is now the first line, and pin_registry.toml carries it in the set-plus-e
+    allowlist with its bounding argument.
     """
-    result = _publish(tmp_path, npm_exit=1, git_status=" M pine/skipp_smc_core.pine")
-    assert result.returncode != 0, "a failed publish must fail the step"
-    assert "rc" not in result.outputs and "changed" not in result.outputs, (
-        "the step now publishes outputs on the failure path. If that was "
-        "deliberate, this test documents the behaviour it replaced: update it "
-        f"and say so in the PR body. Got: {result.outputs}"
+    result = _publish(tmp_path, npm_exit=7, git_status=" M pine/skipp_smc_core.pine")
+
+    assert result.outputs.get("rc") == "7", (
+        "the step did not publish the publish's own exit code. Without it "
+        "'Fail the run if a publish failed' reports 'exited ' with no number, "
+        f"which is how this defect stayed invisible. Got: {result.outputs}"
+    )
+    assert result.outputs.get("changed") == "true", (
+        "the step did not report the repins already made, so 'Open repin PR' "
+        "skips and they are lost with the runner -- the exact failure the "
+        f"step's comment promised to prevent. Got: {result.outputs}"
+    )
+
+
+def test_the_publish_step_does_not_fail_the_run_itself(tmp_path: Path) -> None:
+    """Failing belongs to the dedicated final step, not to this one.
+
+    A red step skips everything gated on its outputs -- including the step that
+    opens the PR carrying the partial repins. The run still ends red, via
+    ``Fail the run if a publish failed`` reading the rc published above.
+    """
+    result = _publish(tmp_path, npm_exit=7, git_status=" M pine/skipp_smc_core.pine")
+    assert result.returncode == 0, (
+        f"the publish step exited {result.returncode} on a failed publish. It "
+        "must reach its output writes and let the final step end the run, or "
+        "the partial-progress path is unreachable again.\n" + result.stderr
+    )
+
+
+def test_an_empty_rc_is_reported_as_its_own_failure() -> None:
+    """A missing rc must not render as ``exited`` with no number.
+
+    ``${rc:-1}`` already failed the run in that case -- the gate was never
+    fail-open -- but the message named no cause, which is why a step that could
+    not publish its outputs went unnoticed. An empty rc means the publish step
+    died before its writes; that is a different fault from a non-zero rc.
+    """
+    for step in _steps():
+        if step.get("name") == "Fail the run if a publish failed":
+            run = str(step["run"])
+            break
+    else:
+        raise AssertionError("no step named 'Fail the run if a publish failed'")
+
+    assert '-z "${rc}"' in run, (
+        "the final step no longer distinguishes an empty rc from a non-zero "
+        "one, so a publish step that dies before writing its outputs reports "
+        "'exited ' again."
+    )
+
+
+def test_rc_comes_from_the_publish_not_from_tee() -> None:
+    """A LITERAL pin, and the reason it must be one is stated, not hidden.
+
+    ``rc=${PIPESTATUS[0]}`` and ``rc=$?`` are indistinguishable for every input
+    the executed tests above can produce: under ``pipefail`` a failing publish
+    makes both 7. Measured 2026-08-04 with the real shell -- they diverge in
+    exactly one shape, ``tee`` failing while the publish SUCCEEDS, where ``$?``
+    reports tee's 1 and ``PIPESTATUS[0]`` reports the publish's 0.
+
+    Driving that would mean making the hard-coded ``/tmp/handlib_publish.log``
+    unwritable -- a path shared by every run on the box, so a crashed test
+    leaves it broken for the next one -- or adding a log-path knob to
+    production for the test's benefit. Both are worse than pinning the text and
+    naming the limitation, so: this is the one assertion in this file a
+    source-text change can satisfy without the behaviour holding.
+    """
+    for step in _steps():
+        if step.get("name") == _PUBLISH_STEP:
+            run = str(step["run"])
+            break
+    else:
+        raise AssertionError(f"no step named {_PUBLISH_STEP!r}")
+
+    assert "rc=${PIPESTATUS[0]}" in run, (
+        "rc no longer comes from PIPESTATUS[0]. As `rc=$?` a failing `tee` "
+        "(disk full, unwritable /tmp) would be reported as a failed publish "
+        "while the publish actually succeeded."
     )

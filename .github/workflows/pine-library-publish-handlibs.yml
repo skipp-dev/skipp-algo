@@ -135,6 +135,25 @@ jobs:
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
+          # `set +e` FIRST, and it is load-bearing. This file sets
+          # `defaults.run.shell: bash` (line 58), so Actions runs this block as
+          # `bash --noprofile --norc -eo pipefail {0}` — -e is already on before
+          # the first line executes, and `set -uo pipefail` below adds -u
+          # without clearing it. The failing pipeline would then end the step
+          # immediately.
+          #
+          # Measured 2026-08-04 under that exact invocation: with -e left on and
+          # the publish failing, the step exits 1 on the pipeline and
+          # $GITHUB_OUTPUT stays EMPTY. Neither rc= nor changed= is ever
+          # written, so `Open repin PR` reads an empty `changed`, skips, and the
+          # repins that already succeeded are lost. The partial-progress
+          # behaviour the comment below promises could not run on a single one
+          # of the runs it exists for.
+          #
+          # This step must never fail on a verdict it reached. Failing the run
+          # is the job of `Fail the run if a publish failed` at the end, which
+          # reads the rc this step publishes.
+          set +e
           set -uo pipefail
           npm run tv:publish-handlibs | tee /tmp/handlib_publish.log
           rc=${PIPESTATUS[0]}
@@ -199,6 +218,17 @@ jobs:
         if: always()
         run: |
           rc="${{ steps.publish.outputs.rc }}"
+          # An EMPTY rc is a different failure from a non-zero one, and saying
+          # so is the difference between a legible run and "exited " with no
+          # number. It means the publish step never reached its output writes —
+          # the shape this workflow shipped with until 2026-08-04, where -e
+          # ended that step on the failing pipeline. `${rc:-1}` below already
+          # fails the run in that case, so this only names it; the gate was
+          # never fail-open.
+          if [ -z "${rc}" ]; then
+            echo "::error::the publish step produced no rc at all — it exited before writing its outputs, so any repins it made were not captured. Check the handlib-publish-log artifact and the 'Ordered publish + repin' step log."
+            exit 1
+          fi
           if [ "${rc:-1}" != "0" ]; then
             echo "::error::tv:publish-handlibs exited ${rc} — a publish/verify failed. See the handlib-publish-log artifact."
             exit 1

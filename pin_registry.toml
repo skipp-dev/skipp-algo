@@ -346,6 +346,19 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # Fault-tolerant rendering pipelines (Plan 2.8 digest family).
 # Each step is independent and uploads its own artefact; one
 # rendering failure must not cascade and hide successful peers.
+# pine-library-publish-handlibs.yml: ONE fail-soft step, added 2026-08-04.
+# "Ordered publish + repin" must survive a publish that fails mid-chain so the
+# repins it already made are still written to $GITHUB_OUTPUT and captured by a
+# PR. Its own comment always promised that; the path could not run, because
+# `defaults.run.shell: bash` makes Actions invoke the block with -e already on
+# and the block's `set -uo pipefail` does not clear it. Measured under that
+# invocation: the step died on the failing pipeline and neither rc= nor
+# changed= was ever written.
+# Silent-skip risk is bounded by a DEDICATED final step, "Fail the run if a
+# publish failed", which reads the published rc and ends the run red — for an
+# empty rc too. tests/test_workflow_pine_library_publish_handlibs_contract.py
+# executes the step against a stubbed failing publish and asserts both outputs.
+"pine-library-publish-handlibs.yml" = 1
 "plan-2-8-monthly-digest.yml" = 4
 "plan-2-8-weekly-digest.yml" = 382
 # Promotion-gate daily: post-#2421 baseline.
