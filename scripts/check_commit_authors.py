@@ -28,6 +28,14 @@ _APPROVED_EMAILS: frozenset[str] = frozenset(
         "preuss.steffen@yahoo.com",
         "github-actions[bot]@users.noreply.github.com",
         "41898282+github-actions[bot]@users.noreply.github.com",
+        # Dependabot, added 2026-08-04. Without it the whole feature is inert:
+        # .github/dependabot.yml (#4407/#4421) opens PRs this gate rejects at
+        # step 4 of fast-gates, before any real gate runs -- measured on #4424,
+        # #4425 and #4426, each red in 9-13s on this identity alone. Security
+        # update PRs carry the SAME identity, so the alert-to-PR path the
+        # config exists for was closed too.
+        "49699333+dependabot[bot]@users.noreply.github.com",
+        "dependabot[bot]@users.noreply.github.com",
     }
 )
 
