@@ -76,7 +76,7 @@ jobs:
       LIVE_DIR: cache/live
       CALIB_DIR: cache/calibration
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # C13 path-mismatch fix: the Phase-A workstation pushes audit JSONL
       # to branch data/phase-a-audit (run-c13-audit-push.sh + the wsh /

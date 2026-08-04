@@ -98,7 +98,7 @@ def test_upsert_step_contract(workflow_text: str) -> None:
 def test_runner_and_python_pinned(workflow_text: str) -> None:
     assert "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" in workflow_text
     assert "./.github/actions/setup-python-pinned" in workflow_text
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in workflow_text
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in workflow_text
 
 
 def test_pyyaml_installed_before_upsert(workflow_text: str) -> None:

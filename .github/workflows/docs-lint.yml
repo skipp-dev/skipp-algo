@@ -46,7 +46,7 @@ jobs:
       resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: ./.github/actions/setup-python-pinned
 
@@ -72,7 +72,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Announce selected runner
         run: |
@@ -82,7 +82,7 @@ jobs:
 
       # Use the repo's canonical setup-python composite action so the Python
       # version stays aligned with the rest of CI (currently 3.12, pinned via
-      # actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6). The lint script imports only stdlib, so we
+      # actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7). The lint script imports only stdlib, so we
       # do not pass `cache: pip` — pip caching stays opt-in at the call site
       # and is not active for this job. Migrating per Copilot review on PR #2185.
       - name: Set up pinned Python (GitHub-hosted)
