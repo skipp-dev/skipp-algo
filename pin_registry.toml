@@ -503,6 +503,15 @@ file = "scripts/hold_r1_attested_sources.py"
 attr = "run"
 count = 1
 
+# scripts/run_r1_reattestation.py: 2026-08-05. `_git_head` runs
+# `git rev-parse HEAD` in the target working tree to stamp the pending
+# evidence artifact's `repoCommitSha`. Constant `git` argv list, no
+# shell=True, no user input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/run_r1_reattestation.py"
+attr = "run"
+count = 1
+
 # scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
 # token lookup before authenticated dashboard publish.
 [[subprocess_shell_injection_pin.sites]]
