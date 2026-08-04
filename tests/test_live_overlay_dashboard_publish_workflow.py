@@ -106,7 +106,7 @@ def test_publish_step_contract_pinned(workflow_doc: dict) -> None:
         None,
     )
     assert isinstance(checkout, dict), "Checkout step missing"
-    assert checkout.get("uses") == "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd"
+    assert checkout.get("uses") == "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 
     verify_index = next(
         (

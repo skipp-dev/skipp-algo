@@ -38,7 +38,7 @@ jobs:
       COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_AUTH_CONFIG_ID }}
       COMPOSIO_NOTION_READ_AUTH_CONFIG_ID: ${{ vars.COMPOSIO_NOTION_READ_AUTH_CONFIG_ID }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup-python-pinned
       - name: Check pinned schemas
         run: python scripts/composio_contract_check.py --output artifacts/ci/composio_contract.json

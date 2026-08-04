@@ -124,7 +124,7 @@ jobs:
       artifact_scope: ${{ steps.compute.outputs.artifact_scope }}
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -300,7 +300,7 @@ jobs:
           echo "::notice::Shard ${{ matrix.shard_id }}/${{ matrix.shard_of }} window=${{ matrix.start_date }}..${{ matrix.end_date }} runner='${{ runner.name }}'"
 
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # 2026-06-08: dropped the explicit GH_PAT token override. The
           # producer does a plain same-repo checkout with
@@ -335,7 +335,7 @@ jobs:
       # prior day's parquets and the post-#2338 coverage-validation path
       # delta-fetches only the new tail.
       - name: Restore databento volatility cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: artifacts/databento_volatility_cache
           key: dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}-${{ github.run_id }}
@@ -443,7 +443,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -711,7 +711,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
