@@ -98,6 +98,15 @@ _REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 # The OPRA aggressor convention is INVERSE of equities (A=bullish buyer +,
 # B=bearish seller -); that sign flip lives in
 # :func:`aggregate_signed_uoa_notional`, not here.
+#
+# The ECONOMIC sign additionally depends on the contract direction: an
+# aggressively BOUGHT put is a bearish bet even though the aggressor is a
+# buyer. The option type is parsed from the OSI ``symbol`` column the parent-
+# symbology ``to_df()`` mapping attaches to every print (measured 2026-08-04:
+# 685/685 records of a 10 s SPY ``tcbbo`` probe parse as C/P), so no
+# ``definition`` join is needed for it either. A print whose type cannot be
+# recovered stays honest-unsigned like an ``N`` aggressor -- assuming "call"
+# would silently re-open the call/put blind spot this parse closes.
 _OPRA_DATASET = "OPRA.PILLAR"
 _OPRA_TRADES_SCHEMA = "tcbbo"
 _OPRA_PARENT_STYPE = "parent"
@@ -108,6 +117,12 @@ _REQUIRED_OPRA_TRADES_COLUMNS = ("price", "size", "side")
 # the raw ``side`` enum is passed through unchanged for back-compat.
 _OPRA_BID_PX_COL = "bid_px_00"
 _OPRA_ASK_PX_COL = "ask_px_00"
+# OSI option symbol column attached by the Databento symbology mapping, e.g.
+# ``SPY   260803C00755000`` (6-char padded root + yymmdd + C/P + 8-digit
+# strike in mills). The single C/P character before the strike digits is the
+# option type; anything that does not match stays "" (unknown -> unsigned).
+_OPRA_SYMBOL_COL = "symbol"
+_OSI_OPTION_TYPE_RE = r"([CP])\d{8}$"
 
 
 def normalize_ohlcv_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
@@ -247,11 +262,14 @@ def _quote_rule_opra_aggressor(
 def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.DataFrame:
     """Coerce a raw OPRA ``tcbbo`` frame into the signed-UOA-notional schema.
 
-    Returns a frame with columns ``underlying, timestamp, price, size, side``
-    where ``timestamp`` is epoch **seconds** (matching :func:`normalize_ohlcv_
-    frame` so option-print buckets and OHLCV bars share one clock), ``price`` is
-    the per-contract premium (dollars), ``size`` the contract count, and ``side``
-    the upper-cased Databento enum ``{"A", "B", "N"}``.
+    Returns a frame with columns ``underlying, timestamp, price, size, side,
+    option_type`` where ``timestamp`` is epoch **seconds** (matching
+    :func:`normalize_ohlcv_frame` so option-print buckets and OHLCV bars share
+    one clock), ``price`` is the per-contract premium (dollars), ``size`` the
+    contract count, ``side`` the upper-cased Databento enum ``{"A", "B", "N"}``
+    and ``option_type`` the contract direction ``{"C", "P", ""}`` parsed from
+    the OSI ``symbol`` column (``""`` = unknown -> the aggregator leaves the
+    print unsigned; assuming call would re-open the call/put blind spot).
 
     Because OPRA trades are pulled via parent symbology (``{underlying}.OPT``),
     every print already belongs to the requested underlying; the ``underlying``
@@ -298,12 +316,26 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
         )
     else:
         side = frame["side"].astype(str).str.strip().str.upper()
+    # Contract direction from the OSI symbol (the single C/P before the 8
+    # strike digits). Missing symbol column or a non-OSI value -> "" so the
+    # aggregator keeps the print honest-unsigned instead of guessing "call".
+    if _OPRA_SYMBOL_COL in frame.columns:
+        option_type = (
+            frame[_OPRA_SYMBOL_COL]
+            .astype(str)
+            .str.strip()
+            .str.extract(_OSI_OPTION_TYPE_RE, expand=False)
+            .fillna("")
+        )
+    else:
+        option_type = pd.Series("", index=frame.index, dtype="object")
     out = pd.DataFrame(
         {
             "timestamp": epoch_seconds,
             "price": price,
             "size": pd.to_numeric(frame["size"], errors="coerce").astype("float64"),
             "side": side,
+            "option_type": option_type,
         }
     )
     out["underlying"] = str(underlying).strip().upper()
@@ -422,16 +454,23 @@ def aggregate_signed_uoa_notional(
 
     ``opra_trades`` is an OPRA ``trades`` frame already mapped to the underlying
     (one row per option print) with columns ``timestamp`` (epoch seconds),
-    ``size`` (contracts), ``price`` (per-contract premium, dollars) and ``side``
-    (``A`` / ``B`` / ``N``). Per print the notional premium is
-    ``price * size * 100`` (the OCC multiplier).
+    ``size`` (contracts), ``price`` (per-contract premium, dollars), ``side``
+    (``A`` / ``B`` / ``N``) and ``option_type`` (``C`` / ``P`` / ``""``). Per
+    print the notional premium is ``price * size * 100`` (the OCC multiplier).
 
     The OPRA aggressor convention is the **inverse** of the equity tape: ``A``
-    (trade hit the ask) is the aggressive **buyer** -> ``+`` (bullish); ``B``
-    (hit the bid) is the aggressive **seller** -> ``-`` (bearish); ``N``
-    (cross / unknown) contributes ``0`` to the signed sum but is still counted in
-    ``uoa_trade_count`` and ``uoa_abs_notional``. NB: OPPOSITE letters to raw-side
+    (trade hit the ask) is the aggressive **buyer**; ``B`` (hit the bid) is the
+    aggressive **seller**; ``N`` (cross / unknown) contributes ``0`` to the
+    signed sum but is still counted in ``uoa_trade_count`` and
+    ``uoa_abs_notional``. NB: OPPOSITE letters to raw-side
     ``newsstack_fmp.opra_uoa._side_to_aggressor`` (A=sell, #3355); + = buying on both.
+
+    The ECONOMIC sign is aggressor x contract direction: bought calls and sold
+    puts are bullish (+); bought puts and sold calls are bearish (-). A print
+    whose ``option_type`` is unknown (``""`` / column absent, e.g. a frame that
+    never carried an OSI symbol) is honest-unsigned like ``N`` -- treating it
+    as a call would silently restore the pre-2026-08-04 call/put blind spot
+    where an aggressive put buy counted as bullish flow.
 
     Per bucket: ``uoa_signed_notional`` = signed premium sum;
     ``uoa_abs_notional`` = total premium sum over **all** prints (the imbalance
@@ -463,9 +502,19 @@ def aggregate_signed_uoa_notional(
     price = pd.to_numeric(opra_trades["price"], errors="coerce").astype("float64").fillna(0.0)
     notional = size * price * float(_OCC_CONTRACT_MULTIPLIER)
     side = opra_trades["side"].astype(str).str.strip().str.upper()
-    # INVERSE of equity: ask-side (A) is the aggressive buyer (+), bid-side (B)
-    # the aggressive seller (-); anything else (N/blank) is unsigned.
-    signed = notional.where(side.eq("A"), 0.0) - notional.where(side.eq("B"), 0.0)
+    # INVERSE of equity: ask-side (A) is the aggressive buyer, bid-side (B)
+    # the aggressive seller; anything else (N/blank) is unsigned.
+    aggressor_sign = pd.Series(0.0, index=side.index)
+    aggressor_sign = aggressor_sign.mask(side.eq("A"), 1.0).mask(side.eq("B"), -1.0)
+    # Contract direction: call +1, put -1, unknown 0 (honest-unsigned; an
+    # assumed "call" would re-open the call/put blind spot). Economic sign =
+    # aggressor x direction, so a bought put counts bearish (-).
+    if "option_type" in opra_trades.columns:
+        opt = opra_trades["option_type"].astype(str).str.strip().str.upper()
+    else:
+        opt = pd.Series("", index=side.index, dtype="object")
+    direction_sign = opt.map({"C": 1.0, "P": -1.0}).astype("float64").fillna(0.0)
+    signed = notional * aggressor_sign * direction_sign
 
     work = pd.DataFrame(
         {
