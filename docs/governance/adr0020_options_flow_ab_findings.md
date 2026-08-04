@@ -240,3 +240,23 @@ over to the corrected feature. `signed_uoa_notional` remains recorded-only and
 un-promoted; **any future promotion decision requires a fresh pre-registered
 A/B on data produced with the corrected sign**, not a reuse of the §4 result in
 either direction. The dated §1–§7 content above is preserved as measured.
+
+## 9. Re-run 2026-08-04 — pre-registration (written BEFORE any harness result)
+
+Fresh A/B on corrected-sign data, per §8. Registered before the first harness
+invocation of this run; the protocol is the §2–§4 protocol unchanged:
+
+| Parameter | Value |
+|-----------|-------|
+| Feature under test | `signed_uoa_notional` (corrected sign, PR #4369 @ `8d6cd2424`) |
+| Producer | `scripts.pull_databento_edge_input.fetch_opra_trades_frame` (post-#4369: quote-rule aggressor × OSI-parsed call/put direction) |
+| Data | Databento `OPRA.PILLAR` `tcbbo`, parent symbology; same window 2026-02-02 → 2026-05-03; same five underliers AAPL, AMZN, MSFT, NVDA, TSLA; same 15m bar grids and structure events as §2 (`<SYM>_15m.json` payloads reused; only the embedded `uoa_*` keys are recomputed) |
+| Re-pull cost | $0.00 (flat-rate plan, verified via `metadata.get_cost` 2026-08-04 before pulling) |
+| Harness | `scripts/run_feature_ab.py`, `--feature-key signed_uoa_notional --cost-bps 5.0`, labels `direction` and `magnitude` (`--mag-q 0.5`), each plain and `--stratify-by abs_feature` — the same four invocations as §3c/§4 |
+| Unlock rule (pre-registered, unchanged from ADR-0020) | **Only** a `candidate_lifts_resolution` verdict in the plain A/B can unlock Meta-Label C. Regime verdicts (`regime_conditions_resolution`) explicitly do NOT trigger promotion. No new rule is invented for this run. |
+| Vacuity gates (must hold or the run is discarded, not interpreted) | (a) option-type parse: unknown share per symbol must be ≈ 0 (measured 685/685 on the 10 s probe; a materially non-zero unknown share means the OSI parse is not covering the tape); (b) non-degeneracy: non-zero share and uniq of the recorded feature must be in the same order as §3b (6,336/6,352 non-zero, uniq 5,257) — a collapse to near-constant means the run is broken, not NULL. |
+| Decision consequence | `candidate_lifts_resolution` on either label → promotion path per ADR-0020 (Meta-Label C unlock process starts). Otherwise → the axis stays recorded-only; the §4 NULL is then confirmed as sign-robust and the options-flow axis is closed again with a fair test. |
+
+Throwaway artifacts of this run live under `~/.local/share/skipp/vpin_followup/`
+(`enrich_bars_tcbbo_v2.py`, `<SYM>_15m_tcbbo_v2.json`, `events_v5_tcbbo_signfix.json`,
+`ab_*_v2.json`) — like the June run, intentionally not promoted to the repo.
