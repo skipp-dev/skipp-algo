@@ -25,6 +25,22 @@
 #   package-lock.json  — root + smc_tv_bridge (source of 4 of the 6
 #                        historical alerts)
 #   github-actions     — 68 workflows pin actions by tag
+#
+# Why torch is ignored in both Python ecosystems (measured 2026-08-04, #4424
+# and #4427 produced the SAME change): torch is pinned across two deliberately
+# different lanes in the root directory. requirements-rl.txt is the PyPI lane
+# and pins a plain `torch==2.12.1`; requirements-rl-gpu.txt is the CUDA lane,
+# carries the repo's only approved non-PyPI index (the PyTorch CDN, SC-03
+# allowlist) and pins `torch==2.12.1+cu129`. Dependabot resolves torch through
+# that index and then writes the resolved string into BOTH files — so the PyPI
+# lane got `torch==2.13.0+cu129`, a PEP 440 local version that cannot exist on
+# PyPI (verified: 49 torch releases there, zero with a local version), and
+# `pip install -r requirements-rl.txt` could no longer resolve. The two-lane
+# split collapses silently in the process. requirements-rl.txt says it itself:
+# "Runner type therefore determines the *effective* torch build; compatibility
+# must be validated against both lanes." That validation is a human decision,
+# so torch moves by hand. tests/test_dependabot_local_version_pins.py holds
+# this open for any future locally-versioned pin, not just torch.
 
 version: 2
 updates:
@@ -35,6 +51,8 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      - dependency-name: "torch"
     groups:
       uv-all:
         update-types: ["major", "minor", "patch"]
@@ -52,6 +70,8 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      - dependency-name: "torch"
     groups:
       pip-all:
         update-types: ["major", "minor", "patch"]
