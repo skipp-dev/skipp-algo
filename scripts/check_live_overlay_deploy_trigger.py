@@ -365,6 +365,49 @@ _PROBE_QUERIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
+# Leaf values printed verbatim. Everything else is reported by TYPE, never by
+# value: one of the probe's four queries is `deployments.meta`, a free-form
+# object whose contents Railway decides, and this prints into a CI log. GitHub
+# masks registered secrets; it cannot mask what it was never told about.
+#
+# The allowlist is the set of fields that actually answered a question here:
+# `repo`/`image` refuted the source-as-trigger equivalence, `edges` counts
+# answered "is there a trigger", and id/name/status/branch/provider identify
+# WHICH object answered.
+_PAYLOAD_FIELDS = frozenset(
+    {"id", "name", "repo", "image", "status", "branch", "provider", "createdAt"}
+)
+_PAYLOAD_MAX = 400
+_PAYLOAD_MAX_DEPTH = 5
+
+
+def _summarize(value: object, key: str = "", depth: int = 0) -> str:
+    """Structure in full, allowlisted leaves verbatim, everything else by type."""
+    if depth > _PAYLOAD_MAX_DEPTH:
+        return "…"
+    if isinstance(value, dict):
+        return (
+            "{"
+            + ", ".join(
+                f"{k}={_summarize(v, k, depth + 1)}" for k, v in sorted(value.items())
+            )
+            + "}"
+        )
+    if isinstance(value, list):
+        if not value:
+            return "[0 items]"
+        # One representative element at the SAME depth: unwrapping the list
+        # exposes a repeated shape, not a new nesting level the way a dict key
+        # is one — the depth budget must not charge twice for the one hop
+        # `deployments.edges[0].node` needs before reaching real fields.
+        return f"[{len(value)} items: {_summarize(value[0], key, depth)}]"
+    if value is None or isinstance(value, bool):
+        return str(value)
+    if key in _PAYLOAD_FIELDS:
+        return json.dumps(value)[:80]
+    return f"<{type(value).__name__}>"
+
+
 def _classify(body: dict) -> tuple[str, str]:
     """Split Railway's failures into the three that need different fixes.
 
@@ -377,13 +420,17 @@ def _classify(body: dict) -> tuple[str, str]:
     with one "Cannot query field" and one "Not Authorized"; testing DENIED first
     reported that as a pure permission wall, which is the conflation this
     docstring promises to prevent, in the one case where it matters most.
+
+    The OK detail is a SUMMARY, not the payload: see `_summarize`. A probe that
+    prints whatever a third-party API returns is a log-exfiltration surface, and
+    the probe's value was always the shape of the answer, not its contents.
     """
     if not isinstance(body, dict):
         return "ERROR", f"non-object JSON response: {str(body)[:200]}"
     errors = body.get("errors") or []
     if not errors:
-        payload = json.dumps(body.get("data") or {}, sort_keys=True)
-        return "OK", payload[:400] + ("…" if len(payload) > 400 else "")
+        summary = _summarize(body.get("data") or {})
+        return "OK", summary[:_PAYLOAD_MAX] + ("…" if len(summary) > _PAYLOAD_MAX else "")
     # An error object without `message` must not degrade to an empty detail —
     # that prints as a verdict with no evidence behind it.
     messages = "; ".join(

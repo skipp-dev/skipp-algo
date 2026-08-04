@@ -755,3 +755,74 @@ def test_the_declaration_cannot_be_flipped_to_silence_the_guard():
         "flip _DEPLOYMENT_IS_CONFIGURED to False in the same PR and update this test"
     )
     assert mod._DEPLOYMENT_IS_CONFIGURED is True
+
+
+# --- the probe must not echo unaudited remote data (2026-08-04) --------------
+
+
+def test_the_ok_summary_prints_structure_not_unknown_values(guard):
+    """`deployments.meta` is Railway-controlled and free-form. Structure and
+    allowlisted leaves are useful; arbitrary values are someone else's data in
+    our log."""
+    body = {
+        "data": {
+            "deployments": {
+                "edges": [
+                    {
+                        "node": {
+                            "id": "d1446af4",
+                            "status": "SUCCESS",
+                            "meta": {
+                                "branch": "main",
+                                "commitAuthor": "unaudited-value-42",
+                            },
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    status, detail = guard._classify(body)
+    assert status == "OK"
+    assert "unaudited-value-42" not in detail
+    assert "commitAuthor=<str>" in detail
+    # Allowlisted leaves and the shape must survive — a summary nobody can read
+    # would just get replaced by the raw dump again.
+    assert "branch=" in detail and "main" in detail
+    assert "status=" in detail and "SUCCESS" in detail
+    assert "id=" in detail
+
+
+def test_the_summary_keeps_the_answers_the_probe_exists_for(guard):
+    """These two payloads decided real questions on 2026-08-03: an empty edge
+    list means no trigger, and source.repo revealed that a connected repo is not
+    a trigger. Both must stay legible."""
+    empty = {"data": {"deploymentTriggers": {"edges": []}}}
+    assert "[0 items]" in guard._classify(empty)[1]
+
+    source = {
+        "data": {
+            "serviceInstance": {
+                "id": "89b0b518",
+                "source": {"image": None, "repo": "skipp-dev/skipp-algo"},
+            }
+        }
+    }
+    detail = guard._classify(source)[1]
+    assert "skipp-dev/skipp-algo" in detail
+    assert "image=None" in detail
+
+
+def test_the_summary_is_bounded_in_width_and_depth(guard):
+    deep = {"data": {"a": {"b": {"c": {"d": {"e": {"f": "deep"}}}}}}}
+    assert "…" in guard._classify(deep)[1]
+
+    wide = {"data": {"edges": [{"node": {"name": f"svc-{i}"}} for i in range(200)]}}
+    detail = guard._classify(wide)[1]
+    assert len(detail) <= 401  # 400 + the ellipsis
+    assert "[200 items" in detail
+
+
+def test_the_summary_survives_shapes_that_are_not_objects(guard):
+    assert guard._classify({"data": None})[1] == "{}"
+    assert "[3 items" in guard._classify({"data": {"x": [1, 2, 3]}})[1]
