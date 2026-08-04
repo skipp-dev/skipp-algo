@@ -308,6 +308,39 @@ jobs:
           sys.exit(0 if ok else 1)
           PY
 
+      # ── TypeScript vacuity guard ──────────────────────────────────────
+      # The Python half of this guard (scripts/detect_vacuous_claims.py) has
+      # gated merges since #4355. The TypeScript half shipped with #4356/#4381
+      # and gated NOTHING: it ran only in tv-onboarding-packages.yml, and
+      # `fast-gates` is the only required check by design (ADR-0011). So the
+      # analyzer that finds "green without observing anything" in the
+      # TradingView automation could go red for weeks without blocking a
+      # single merge — a guard about unobserved checks, itself unobserved.
+      #
+      # Gated on run_heavy like every other guard here, and that is sufficient
+      # rather than a compromise: the data-only exemption in the gate step
+      # above is `artifacts/*|docs/*|reports/*|pine/generated/*|*.pine`, so a
+      # PR touching any .ts file forces heavy. The only PRs that skip this are
+      # the ones that cannot contain TypeScript.
+      #
+      # Measured cost on the required lane (tv-onboarding-packages run
+      # 30885490507, 2026-08-04): Set up Node 12s, npm ci 3s, and the scan
+      # itself under a second against 55 files.
+      - name: Set up Node for the TypeScript vacuity guard
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install Node dependencies
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: npm ci
+
+      - name: Guard against vacuous TypeScript claims
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: npx tsx --test automation/tradingview/tests/vacuous_claims_ts.test.ts
+
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -636,7 +669,8 @@ jobs:
             tests/test_vacuous_claim_guard.py \
             tests/test_credential_probe_consumers.py \
             tests/test_fast_gates_attested_pine_coverage.py \
-            tests/test_git_fixture_env_isolation.py
+            tests/test_git_fixture_env_isolation.py \
+            tests/test_ts_vacuity_guard_is_required.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,

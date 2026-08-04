@@ -170,6 +170,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # not catch it. Pinned to the required path unconditionally.
     "tests/test_fast_gates_attested_pine_coverage.py",
     "tests/test_git_fixture_env_isolation.py",
+    "tests/test_ts_vacuity_guard_is_required.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",

@@ -231,6 +231,11 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # #4284/#4371 aftermath). YAML/source parsing only, <0.5s.
     "test_fast_gates_attested_pine_coverage.py",
     "test_git_fixture_env_isolation.py",
+    # Keeps the TypeScript half of the vacuity guard on the merge-gating
+    # lane. It shipped in #4356/#4381 running only in
+    # tv-onboarding-packages.yml, which is not required, so it gated
+    # nothing (2026-08-04). YAML/source parsing only, <0.5s.
+    "test_ts_vacuity_guard_is_required.py",
     # Bus-v3 / context-library contract guards. On the required path because
     # fast-gates is the only merge-gating test job: #3657 landed the
     # smc_profile_engine allowlist exception together with the test enforcing it,
