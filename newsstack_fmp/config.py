@@ -90,7 +90,8 @@ class Config:
     # ``_cached_bz_options_op`` selector no longer exists) — the tab reads the
     # opra_live_daemon's local shadow snapshot instead;
     # ``ingest_opra_options_flow.fetch_opra_options_flow`` currently has no
-    # in-repo caller (wire-or-remove candidate). Override to 0 DISABLES the
+    # PRODUCTION caller — only ``tests/test_ingest_opra_options_flow.py``
+    # exercises it (wire-or-remove candidate). Override to 0 DISABLES the
     # options-flow feed entirely (empty feed; no fallback path exists).
     # SSOT: routes through ``open_prep.feature_flags.is_opra_uoa_enabled``
     # (audit-L-1 R4) to keep the four call sites uniform.

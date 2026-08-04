@@ -208,6 +208,55 @@ def test_unknown_option_type_yields_neutral_sentiment():
     assert out[0]["sentiment"] == "NEUTRAL"
 
 
+def test_directly_constructed_definition_normalises_its_option_type():
+    """``option_type`` is load-bearing for ``sentiment``, so the invariant
+    must hold however the record is built — not only via ``from_row``.
+
+    ``detect_unusual_options_activity`` and ``OpraShadowState.add_definition``
+    both accept a pre-built ``OpraDefinitionRecord`` and pass it through
+    unnormalised. Before 2026-08-04 a caller writing the raw OPRA
+    ``instrument_class`` ('C'/'P') straight into the dataclass only got a
+    cosmetically wrong ``option_activity_type``; once sentiment folded in the
+    contract direction, the same mistake silently blanked the direction to
+    NEUTRAL — indistinguishable from the documented 'no directional flow'
+    normal state. Normalising at the dataclass boundary closes that.
+    """
+    rec = OpraDefinitionRecord(
+        instrument_id=1,
+        underlying="aapl",
+        strike=200.0,
+        expiration="2026-06-21",
+        option_type="p",  # raw OPRA letter, lower case, direct construction
+    )
+    assert rec.option_type == "PUT"
+    assert rec.underlying == "AAPL"
+
+    trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side="B")]
+    out = detect_unusual_options_activity(trades, [rec])
+    assert len(out) == 1
+    # Put BOUGHT is bearish — the quadrant that would silently read NEUTRAL
+    # if the directly-constructed record kept its raw 'p'.
+    assert out[0]["sentiment"] == "BEARISH"
+    assert out[0]["option_activity_type"] == "PUT"
+
+
+def test_definition_with_a_genuinely_unknown_type_stays_empty():
+    """Normalisation must not invent a direction for a non-option class.
+
+    OPRA carries complex/spread instruments whose ``instrument_class`` is
+    neither C nor P. Those must keep an empty type so sentiment degrades to
+    NEUTRAL — the correct failure mode, not a guessed one.
+    """
+    rec = OpraDefinitionRecord(
+        instrument_id=1,
+        underlying="AAPL",
+        strike=200.0,
+        expiration="2026-06-21",
+        option_type="T",  # complex/spread instrument class
+    )
+    assert rec.option_type == ""
+
+
 # ── Ticker filter ──────────────────────────────────────────────────────
 
 
