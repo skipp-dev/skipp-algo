@@ -138,3 +138,78 @@ def test_upload_artifact_is_fail_soft() -> None:
     cfg = upload_steps[0]["with"]
     assert cfg["if-no-files-found"] == "ignore"
     assert cfg["retention-days"] == 30
+
+
+# --- the weekly verdict, executed rather than described ----------------------
+#
+# `weekly` maps the evaluator's exit code onto a status that later steps read.
+# Measured 2026-08-04 with a value-preserving arm swap on the demotion flag: all
+# 59 assertions across the 3 files that name this workflow stayed green.
+
+import sys
+from pathlib import Path
+
+from tests._workflow_step_shell import Stub, run_step
+
+_WEEKLY_STEP = "Weekly k-of-n judgement (+ auto-demotion)"
+
+
+def _weekly(tmp_path: Path, *, script_rc: int, apply_demotions: str = "true"):
+    """Run the real step with the evaluator shadowed.
+
+    Its exit-code contract is the thing later steps depend on, and it is
+    supplied here so the step's mapping of it is what gets measured.
+    """
+    return run_step(
+        "adr0023-magnitude-stage1-weekly.yml", _WEEKLY_STEP, tmp_path,
+        env={"REAL_PYTHON": sys.executable, "APPLY": apply_demotions, "K": "3", "N": "5"},
+        stubs={"python": Stub(script=f'case "$1" in -c) exec "$REAL_PYTHON" "$@" ;; esac\nexit {script_rc}')},
+    )
+
+
+def test_every_valid_verdict_keeps_its_own_name(tmp_path: Path) -> None:
+    """Four distinct exit codes, four distinct statuses, none of them failures.
+
+    0/2/3/4 are all valid weekly verdicts. Collapsing any two would hide a red
+    flag behind a clean week or an empty ledger behind an applied demotion --
+    and every one of them is green either way, so nothing else would notice.
+    """
+    for script_rc, expected in ((0, "clean"), (2, "red_flag"), (3, "empty_ledger"),
+                                (4, "demotion_applied")):
+        result = _weekly(tmp_path, script_rc=script_rc)
+        assert result.returncode == 0, (
+            f"rc={script_rc} is a valid verdict and must not fail the step: {result.stderr}"
+        )
+        assert result.outputs["status"] == expected, (
+            f"rc={script_rc} must map to {expected!r}; got {result.outputs}"
+        )
+
+
+def test_a_usage_error_is_the_only_real_failure(tmp_path: Path) -> None:
+    """rc=1 alone means the run itself is broken, not the data."""
+    result = _weekly(tmp_path, script_rc=1)
+    assert result.returncode != 0, "a config error must fail the step"
+    assert result.outputs["status"] == "error"
+
+
+def test_a_red_flag_announces_itself(tmp_path: Path) -> None:
+    """An all-pass red flag is a suspected pipeline artifact.
+
+    It is emitted on a green run, so the annotation is the only thing that
+    distinguishes it from a genuinely clean week.
+    """
+    result = _weekly(tmp_path, script_rc=2)
+    assert "::warning" in result.stdout and "red flag" in result.stdout, (
+        f"a red flag must be visible on the run; got {result.stdout!r}"
+    )
+
+
+def test_demotions_are_applied_only_when_asked(tmp_path: Path) -> None:
+    """Both directions. The flag is what turns a report into a mutation."""
+    applied = _weekly(tmp_path, script_rc=0, apply_demotions="true")
+    assert "--apply-demotions" in applied.calls[0], applied.calls
+
+    dry = _weekly(tmp_path, script_rc=0, apply_demotions="false")
+    assert "--apply-demotions" not in dry.calls[0], (
+        f"apply=false must not pass the demotion flag; it ran: {dry.calls}"
+    )
