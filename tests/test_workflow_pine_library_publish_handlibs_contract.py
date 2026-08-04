@@ -112,19 +112,16 @@ def _publish(tmp_path: Path, *, npm_exit: int = 0, git_status: str = "", tee_exi
 def _final(tmp_path: Path, *, rc: str, log_rc: str):
     """Run the real `Fail the run if a publish failed` step over given outputs.
 
-    Actions resolves ``${{ steps.publish.outputs.* }}`` before bash sees the
-    block, so the harness substitutes them the same way -- which is what lets
-    the EMPTY-output case be driven at all.
+    The step takes both statuses through ``env:`` rather than expanding them
+    into the block, so they arrive here as environment variables -- the same
+    way Actions delivers them. An empty string is a real state (the publish
+    step died before its writes), not an absent one.
     """
     return run_step(
         "pine-library-publish-handlibs.yml",
         "Fail the run if a publish failed",
         tmp_path,
-        env={},
-        expressions={
-            "steps.publish.outputs.rc": rc,
-            "steps.publish.outputs.log_rc": log_rc,
-        },
+        env={"RC": rc, "LOG_RC": log_rc},
     )
 
 
@@ -225,6 +222,45 @@ def test_an_empty_rc_ends_the_run_with_a_named_cause(tmp_path: Path) -> None:
         "the run failed without naming the cause, which is the 'exited ' with "
         f"no number this branch exists to replace. Got: {result.stdout!r}"
     )
+
+
+def test_the_final_step_is_actually_wired_to_the_publish_outputs() -> None:
+    """The seam the executed tests CANNOT see, and it is stated rather than hidden.
+
+    :func:`_final` puts RC/LOG_RC into the environment itself, because that is
+    how Actions delivers an ``env:`` binding -- which means it would keep
+    passing if the workflow stopped binding them at all. Measured 2026-08-04:
+    renaming ``RC:`` to ``RC_UNUSED:`` left all 18 tests green. The failure
+    would be fail-CLOSED (an unbound rc reads empty and every run ends red),
+    but a workflow that fails every run for an invisible reason is its own
+    outage, so the wiring is pinned here.
+
+    Structural, not a substring sweep: the binding is read out of the step's
+    parsed ``env`` mapping, so indentation and comment churn cannot break it
+    and a renamed key is a named failure.
+    """
+    for step in _steps():
+        if step.get("name") == "Fail the run if a publish failed":
+            break
+    else:
+        raise AssertionError("no step named 'Fail the run if a publish failed'")
+
+    env = step.get("env") or {}
+    assert env.get("RC") == "${{ steps.publish.outputs.rc }}", (
+        "the final step no longer receives the publish's rc. Unbound it reads "
+        f"empty, so EVERY run ends red on 'produced no rc at all'. Got: {env}"
+    )
+    assert env.get("LOG_RC") == "${{ steps.publish.outputs.log_rc }}", (
+        f"the final step no longer receives the log pipeline's status. Got: {env}"
+    )
+
+    run = str(step["run"])
+    for name in ("RC", "LOG_RC"):
+        assert f"${{{name}:-}}" in run, (
+            f"{name} is bound in env: but the block does not read it, so the "
+            "binding is decoration. A step that ignores the status it was "
+            "handed cannot fail the run for it."
+        )
 
 
 def test_a_clean_publish_ends_the_run_green(tmp_path: Path) -> None:

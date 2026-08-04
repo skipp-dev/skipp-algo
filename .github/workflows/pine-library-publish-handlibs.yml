@@ -247,9 +247,21 @@ jobs:
 
       - name: Fail the run if a publish failed
         if: always()
+        # Through `env:`, not expanded into the `run:` block. Both values are
+        # step outputs and the repo already fixed this class twice for the same
+        # reason (smc-r4-context-readback.yml, smc-library-refresh.yml): an
+        # expansion becomes CODE before bash parses the line, while an env var
+        # is only ever data. Measured 2026-08-04 with the pinned zizmor 1.25.2:
+        # this file reports two `template-injection` findings on the expanded
+        # form and none on this one. They are informational, so the fast-gates
+        # ratchet (high/medium only) never counted them — which is exactly how
+        # a known-bad pattern spreads.
+        env:
+          RC: ${{ steps.publish.outputs.rc }}
+          LOG_RC: ${{ steps.publish.outputs.log_rc }}
         run: |
-          rc="${{ steps.publish.outputs.rc }}"
-          log_rc="${{ steps.publish.outputs.log_rc }}"
+          rc="${RC:-}"
+          log_rc="${LOG_RC:-}"
           # An EMPTY rc is a different failure from a non-zero one, and saying
           # so is the difference between a legible run and "exited " with no
           # number. It means the publish step never reached its output writes —
