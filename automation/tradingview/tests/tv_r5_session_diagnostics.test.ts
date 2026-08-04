@@ -87,6 +87,11 @@ test("mapSessionDiagnostics omits keys it cannot read, and the case then fails",
     result.failures.map((failure) => failure.key),
     ["sessionCode", "sessionLabel", "sourceCloseUtc"],
   );
+  assert.equal(
+    result.failures.length,
+    3,
+    "expected 3 unread keys — an empty failures array would pass the .every() below vacuously",
+  );
   assert.ok(result.failures.every((failure) => failure.observed === null));
 });
 

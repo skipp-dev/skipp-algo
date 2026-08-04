@@ -32,6 +32,28 @@
  *   legend buttons must be ignored") — and reading every `.length` mention
  *   as a witness would let a proven-*empty* collection exonerate a loop
  *   over it.
+ *
+ * Known limitation, not yet fixed: `ScopeChain` keys both bindings and
+ * witnesses by rendered text plus container, with no link to *which*
+ * declaration a witness proved something about. Two shapes exploit that and
+ * fabricate a witness for a different object than the one actually asserted
+ * over — measured 2026-08-04:
+ *
+ * * shadowing — a name re-declared in a nested block, with a witness for the
+ *   outer binding and an unwitnessed claim over the inner, differently
+ *   produced one;
+ * * reassignment — `let x = producerA(...); assert.ok(x.length > 0); x =
+ *   producerB(...); assert.ok(x.every(f));` — one container, no shadowing,
+ *   pure flow-insensitivity on the rebind.
+ *
+ * Both reproduce identically with plain `filter`/`slice`/discovery-call
+ * bindings, not just the produced-object-property rule below, so the gap is
+ * pre-existing and uniform across every rule this module implements, not
+ * something the produced-object rule introduced. It reaches no site in this
+ * repo's TypeScript test suite today (verified by full-suite scan). Fixing
+ * it needs a shadow/generation barrier in `collectWitnesses` and
+ * `ScopeChain`, shared by every rule — deferred as a follow-up rather than
+ * folded into a single rule's change.
  */
 
 import fs from "node:fs";
@@ -187,6 +209,42 @@ const classify = (
 };
 
 /**
+ * Dotted names in *source* whose base identifier is *name*.
+ *
+ * Bound like the object-literal case rather than resolved on demand,
+ * because `ScopeChain` is keyed by rendered text and every key must come
+ * from `render` — the single renderer. `ScopeChain.add` files the key under
+ * the *declaration's* container, so a `result.failures` written in a
+ * different block still resolves only if that block is nested inside the one
+ * that declared `result`.
+ *
+ * Broader than the object-literal rule it is modelled on: that one binds
+ * only the keys actually present in the literal. This sweep binds *every*
+ * dotted name read from `name` anywhere in the file, whether or not that
+ * text was written about the declaration currently being processed. That
+ * breadth is what makes a binding reach a nested block in the first place
+ * (the whole point), but it is also the mechanism behind the shadowing
+ * false-positive noted in the module docstring: an *outer* producer's sweep
+ * can bind a property name that an
+ * *inner*, differently-declared same-named variable never itself produces,
+ * and an inner shadow that is not itself a producer has no binding of its
+ * own at its container to take resolution priority over the outer one.
+ */
+const propertiesReadFrom = (source: ts.SourceFile, name: string): string[] => {
+  const found = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node)) {
+      let base: ts.Node = node;
+      while (ts.isPropertyAccessExpression(base)) base = base.expression;
+      if (ts.isIdentifier(base) && base.text === name) found.add(render(node, source));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...found];
+};
+
+/**
  * Collect `const xs = <emptiable>` bindings, keyed by their own block.
  *
  * An object literal initialiser also binds its properties by dotted name:
@@ -212,6 +270,20 @@ const collectBindings = (source: ts.SourceFile): ScopeChain<string> => {
             `${node.name.text}.${property.name.text}`,
             `local ${propertyKind}`,
           );
+        }
+      }
+      // An object this scope produced by calling something holds runtime
+      // data, so its fields can be empty. `CONFIG.targets` — a property of
+      // something the analyzer never watched being built — deliberately
+      // stays out: the Python half measured every such iterable in its own
+      // suite and found them all to be non-empty literals, so classifying
+      // them would manufacture false positives rather than find defects.
+      const producer = ts.isAwaitExpression(node.initializer)
+        ? node.initializer.expression
+        : node.initializer;
+      if (ts.isCallExpression(producer)) {
+        for (const property of propertiesReadFrom(source, node.name.text)) {
+          bindings.add(containerOf(node), property, "property of a produced object");
         }
       }
     }

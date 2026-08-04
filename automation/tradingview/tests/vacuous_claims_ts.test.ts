@@ -214,6 +214,42 @@ test("a throw after the loop is a witness", () => {
   assert.deepEqual(kinds(source), {});
 });
 
+test("a property of a produced object is a claim", () => {
+  const source = `
+    const result = runDiagnostics(page);
+    assert.ok(result.failures.every((f) => f.code.startsWith("CE")));
+  `;
+  assert.deepEqual(kinds(source), {
+    "result.failures": "property of a produced object",
+  });
+});
+
+test("an awaited producer counts the same", () => {
+  const source = `
+    const capture = await collectConsoleLines(page);
+    for (const line of capture.lines) { assert.ok(line.length > 0); }
+  `;
+  assert.deepEqual(kinds(source), {
+    "capture.lines": "property of a produced object",
+  });
+});
+
+test("a property of an imported constant is not a claim", () => {
+  const source = `
+    for (const name of CONFIG.targets) { assert.ok(name.length > 0); }
+  `;
+  assert.deepEqual(kinds(source), {});
+});
+
+test("a length witness clears a produced property", () => {
+  const source = `
+    const result = runDiagnostics(page);
+    assert.ok(result.failures.length > 0, "no failures collected — vacuous");
+    assert.ok(result.failures.every((f) => f.code.startsWith("CE")));
+  `;
+  assert.deepEqual(kinds(source), {});
+});
+
 test("the analyzer observed the TypeScript test suite", () => {
   // Witness for the gate below: an empty scan would make it pass silently.
   const { files } = scanDir(TEST_DIR);
