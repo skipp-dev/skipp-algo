@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from scripts.check_tv_unattested_sources import RESOLUTION
 from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE
@@ -837,3 +841,299 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
     assert 'R1_ATTESTATION_NOTICE' in block
     assert 'if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then' in commit_block
     assert '--body "$PR_BODY"' in commit_block
+
+
+# ── Executing the notice step ────────────────────────────────────────────────
+# Everything above matches SOURCE TEXT. #4377 settled what that is worth, one
+# day earlier and in this same subsystem: deleting the single line that raised
+# fast-gates' pine flag left all fourteen source-matching tests green while the
+# guard went blind. Its title is "execute the pine gate instead of reading it".
+#
+# The argument binds harder here than it did there. This step's entire job is to
+# SPEAK UP. If it silently stops working, the failure mode is a drift that goes
+# unannounced — which is the exact defect the step was added to fix, restored
+# without a trace and under a green suite. A reporting step nobody executes has
+# the same shape as a guard that observes nothing.
+#
+# So the four branches below run the step's real `run:` block. The source-text
+# assertions are kept, because they pin what execution cannot see: that the step
+# exists at all, that it is ordered before the commit step, that it derives the
+# roster instead of hand-listing it, and that it renders RESOLUTION instead of a
+# hand-typed copy — a re-typed copy of today's prose would execute identically.
+
+NOTICE_STEP = "Report R1 attestation drift caused by this refresh"
+
+# #4377's `_run_gate` was evaluated for reuse and does NOT fit, for three
+# reasons rather than by preference: it stubs `gh` onto PATH and sets the gate's
+# EVENT_NAME/HEAD_REF/PR_NUMBER/REPO/GH_TOKEN contract (this step reads none of
+# them); it runs in the repository root, whereas these branches are induced
+# through the working tree `git diff` sees, so cwd has to be controllable; and
+# it parses `key=value` out of $GITHUB_OUTPUT, while this step publishes a job
+# summary plus a heredoc-delimited $GITHUB_ENV block. What IS reused is its
+# form: the same bash invocation, so a bashism cannot pass here and fail in CI.
+
+
+def _notice_run_block() -> str:
+    """The notice step's own shell, read out of the parsed workflow."""
+    import yaml
+
+    doc = yaml.safe_load(_read(WORKFLOW_PATH))
+    for step in doc["jobs"]["refresh"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == NOTICE_STEP:
+            return str(step["run"])
+    raise AssertionError(
+        f"{WORKFLOW_PATH.name}: no step named {NOTICE_STEP!r} in job 'refresh'. "
+        "Either it was renamed (update NOTICE_STEP in the same PR) or the "
+        "notice was deleted — in which case a refresh un-attests R1 in silence "
+        "again, and these tests must not report green."
+    )
+
+
+def _attested_roster() -> list[str]:
+    """The roster the step derives, derived the same way for the fixture."""
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
+    return sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
+
+
+def _seed_repo(work: Path) -> Path:
+    """A throwaway git repo holding the attested roster at its real paths.
+
+    The step asks ``git diff --name-only HEAD -- <roster>`` about the tree it
+    runs in. Running that against the developer's own checkout would make the
+    clean branch pass or fail on whatever happens to be edited locally — the
+    state-dependent vacuity #4267 spent a PR removing. A seeded repo makes the
+    diff an input instead of an accident.
+
+    The ROSTER is still the real one: the step imports
+    scripts.smc_r1_rollout_contract from the repository under test, so a target
+    added to the contract shows up here without this fixture being touched.
+    """
+    repo = work / "repo"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    for key, value in (("user.email", "t@example.invalid"), ("user.name", "t")):
+        subprocess.run(["git", "config", key, value], cwd=repo, check=True)
+    for rel in _attested_roster():
+        target = repo / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"// stub for {rel}\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "seed"],
+        cwd=repo,
+        check=True,
+    )
+    return repo
+
+
+class _Notice(NamedTuple):
+    rc: int
+    log: str
+    summary: str
+    pr_body: str
+
+
+def _run_notice(work: Path, *, cwd: Path, floor: int | None = None) -> _Notice:
+    """Execute the step's real `run:` block; return what it published.
+
+    ``floor`` raises MIN_ATTESTED_SOURCES for the short-roster branch via a
+    ``sitecustomize`` shim, which the interpreter imports at startup — so the
+    step's own ``from scripts.smc_r1_rollout_contract import
+    MIN_ATTESTED_SOURCES`` reads the raised value. Nothing in the repository is
+    mutated to induce it, and only that one name is touched: the derivation,
+    the comparison and the reporting are all the shipped code.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    summary = work / "step_summary.md"
+    env_file = work / "github_env"
+    summary.write_text("", encoding="utf-8")
+    env_file.write_text("", encoding="utf-8")
+
+    path_entries = [str(ROOT)]
+    if floor is not None:
+        shim = work / "shim"
+        shim.mkdir()
+        (shim / "sitecustomize.py").write_text(
+            "import scripts.smc_r1_rollout_contract as _m\n"
+            f"_m.MIN_ATTESTED_SOURCES = {floor}\n",
+            encoding="utf-8",
+        )
+        path_entries.insert(0, str(shim))
+
+    result = subprocess.run(
+        # The shell GitHub gives this step: the workflow sets
+        # `defaults.run.shell: bash`, which is `bash --noprofile --norc -eo
+        # pipefail`. Under -e any uncaught non-zero exit fails the step, which
+        # is precisely the property the rc assertions below measure.
+        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", _notice_run_block()],
+        cwd=cwd,
+        env={
+            **os.environ,
+            "SMC_PYTHON_BIN": sys.executable,
+            "GITHUB_STEP_SUMMARY": str(summary),
+            "GITHUB_ENV": str(env_file),
+            "PYTHONPATH": os.pathsep.join(path_entries),
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    raw = env_file.read_text(encoding="utf-8")
+    match = re.search(
+        r"R1_ATTESTATION_NOTICE<<R1_NOTICE_EOF\n(.*)\nR1_NOTICE_EOF\n",
+        raw,
+        re.S,
+    )
+    assert match is not None, (
+        "the step did not write a well-formed heredoc block to $GITHUB_ENV, so "
+        f"the PR body would carry nothing (or garbage): {raw!r}"
+    )
+    return _Notice(
+        result.returncode,
+        result.stdout + result.stderr,
+        summary.read_text(encoding="utf-8"),
+        match.group(1),
+    )
+
+
+# Language that would read as "the attestation is fine". Any branch that did
+# NOT reach that conclusion must contain none of it: an unnoticed drift is the
+# defect, and a false all-clear is an unnoticed drift with reassurance on top.
+_ALL_CLEAR = ("unaffected", "still describes", "none changed")
+
+
+def test_the_notice_step_reports_a_clean_run_as_clean(tmp_path: Path) -> None:
+    """Executed baseline: nothing attested changed, so say so — and exit 0."""
+    work = tmp_path
+    notice = _run_notice(work, cwd=_seed_repo(work))
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation unaffected" in notice.summary
+    for path in _attested_roster():
+        assert path in notice.summary, (
+            f"the all-clear does not name {path}, so it is not a statement "
+            "about the roster it claims to have checked"
+        )
+    assert "::notice::" in notice.log
+    # Nothing to carry into the PR body when there is nothing to report.
+    assert notice.pr_body.strip() == ""
+
+
+def test_the_notice_step_announces_a_drift_it_caused(tmp_path: Path) -> None:
+    """#4371's shape, executed: an attested source changed in this run.
+
+    This is the branch the whole step exists for. #4371 merged green because
+    nothing said this out loud, and a source-text assertion cannot tell a step
+    that says it from a step that would crash, print nothing, or write to the
+    wrong file.
+    """
+    work = tmp_path
+    repo = _seed_repo(work)
+    drifted = _attested_roster()[0]
+    (repo / drifted).write_text("// rewritten by this refresh\n", encoding="utf-8")
+
+    notice = _run_notice(work, cwd=repo)
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation invalidated by this refresh" in notice.summary
+    assert drifted in notice.summary
+    assert "::warning::" in notice.log
+    # The remedy actually renders — the import is not enough, the format() has
+    # to succeed and the {evidence} placeholder has to be substituted.
+    assert "replaces a measurement with a fabrication" in notice.summary
+    assert EXECUTION_EVIDENCE.relative_to(ROOT).as_posix() in notice.summary
+    assert "{evidence}" not in notice.summary
+    # …and all of it reaches the PR body, not only the job summary. That is the
+    # half #4371 proved matters: nobody opens the run.
+    assert notice.pr_body.strip(), "the drift verdict never reached the PR body"
+    assert drifted in notice.pr_body
+    assert "replaces a measurement with a fabrication" in notice.pr_body
+
+
+def test_a_crash_in_the_notice_step_is_reported_and_still_exits_zero(tmp_path: Path) -> None:
+    """The derivation raises: report UNKNOWN, never fail the step.
+
+    Induced by running where ``git diff`` cannot work, so the real
+    ``subprocess.run(..., check=True)`` inside the step's own try block raises —
+    no repository file is mutated to produce it.
+
+    rc==0 is the load-bearing assertion. In job ``refresh``,
+    publish-to-TradingView is step 37, this notice is 45, and ``Commit and push
+    changes`` is 46 with an implied success(). Under ``bash -e`` a non-zero exit
+    here leaves the library PUBLISHED to TradingView with the repository pins
+    never committed — the 2026-07-13 divergence class.
+    """
+    work = tmp_path
+    not_a_repo = work / "loose"
+    not_a_repo.mkdir()
+
+    notice = _run_notice(work, cwd=not_a_repo)
+
+    assert notice.rc == 0, (
+        "the notice step went RED on a crash. That skips 'Commit and push "
+        f"changes' and strands a published library on uncommitted pins:\n{notice.log}"
+    )
+    assert "## R1 attestation check could not run" in notice.summary
+    assert "UNKNOWN, not as intact" in notice.summary
+    assert "::error::" in notice.log
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    assert not leaked, (
+        f"a crashed check published all-clear language {leaked}. Silence and "
+        "reassurance are the same failure here."
+    )
+    # The reviewer must see it without opening the run log.
+    assert "could not run" in notice.pr_body
+
+
+def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) -> None:
+    """A vacuous roster is the one failure that would survive forever.
+
+    "Checked 0 attested source(s) … still describes them" is indistinguishable
+    from success, so it would print green every run for as long as the
+    derivation stayed broken. It must render the same UNKNOWN report as a crash
+    — and, exactly like a crash, without failing the step.
+    """
+    work = tmp_path
+    notice = _run_notice(work, cwd=_seed_repo(work), floor=99)
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation check could not run" in notice.summary
+    assert "vacuous R1 all-clear" in notice.log
+    assert "expected at least 99" in notice.summary
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    assert not leaked, (
+        f"a roster below the floor published all-clear language {leaked}; that "
+        "is the report that would survive indefinitely because it looks like "
+        "success"
+    )
+    assert "could not run" in notice.pr_body
+
+
+def test_the_executed_branches_are_distinguishable_from_each_other(tmp_path: Path) -> None:
+    """Witness: the four runs above are not all producing the same text.
+
+    Without this, a step that wrote one constant string would satisfy every
+    ``in`` assertion that happened to be a substring of it, and the suite would
+    be measuring a fixed output. Four executions, four distinct summaries.
+    """
+    work = tmp_path
+    clean_repo = _seed_repo(work / "a")
+    drift_repo = _seed_repo(work / "b")
+    (drift_repo / _attested_roster()[0]).write_text("// rewritten\n", encoding="utf-8")
+    loose = work / "c"
+    loose.mkdir(parents=True)
+
+    summaries = [
+        _run_notice(work / "ra", cwd=clean_repo).summary,
+        _run_notice(work / "rb", cwd=drift_repo).summary,
+        _run_notice(work / "rc", cwd=loose).summary,
+        _run_notice(work / "rd", cwd=clean_repo, floor=99).summary,
+    ]
+    for summary in summaries:
+        assert summary.strip(), "a branch published an EMPTY job summary"
+    assert len({s.strip() for s in summaries}) == 4, (
+        "two of the four branches published identical text, so at least one "
+        "assertion above is satisfied by a constant rather than by a verdict:\n"
+        + "\n---\n".join(summaries)
+    )
