@@ -134,26 +134,51 @@ class OpraDefinitionRecord:
 
 
 def _side_to_aggressor(side: str | None) -> tuple[str, str]:
-    """Map OPRA ``side`` field to (aggressor_ind, sentiment) strings.
+    """Map OPRA ``side`` field to (aggressor_ind, buy/sell PRESSURE) strings.
 
     Databento ``side`` semantics (trades schema): Ask ('A') = a SELL
-    order / sell aggressor → bearish; Bid ('B') = a BUY order / buy
-    aggressor → bullish; None ('N') = no side specified (cross / unknown).
-    NB: OPRA-consolidated ``trades.side`` is empirically ~uniformly 'N' in prod,
-    so the live feed emits NEUTRAL for ~every print; real directional flow lives
-    in the ADR-0020 signed-UOA shadow feature (``family_signed_uoa_notional_v2``,
-    tcbbo + quote-rule). Sign here is correct when a real 'A'/'B' appears (no
-    #3355 inversion), just rarely populated on the consolidated tape.
+    order / sell aggressor → selling pressure; Bid ('B') = a BUY order / buy
+    aggressor → buying pressure; None ('N') = no side specified (cross /
+    unknown). NB: OPRA-consolidated ``trades.side`` is empirically ~uniformly
+    'N' in prod; the live daemon reconstructs 'A'/'B' from the tcbbo NBBO
+    (``_quote_side``) in this same letter convention. Sign here is correct
+    when a real 'A'/'B' appears (no #3355 inversion).
 
-    The Benzinga-compatible field set uses ``aggressor_ind`` as a free-text
-    label ('A'/'B'/'N') and ``sentiment`` as 'BULLISH'/'BEARISH'/'NEUTRAL'.
+    The second element is the CONTRACT-level pressure (BULLISH = the contract
+    was bought aggressively), NOT the economic direction on the underlying —
+    an aggressively bought put is buying pressure on the put but a bearish
+    bet. The published ``sentiment`` field folds in the option type via
+    :func:`_economic_sentiment`; ``aggressor_ind`` stays the raw pressure
+    label.
     """
     s = (side or "").strip().upper()
     if s == "A":
-        return "A", "BEARISH"  # Ask = sell aggressor
+        return "A", "BEARISH"  # Ask = sell aggressor (contract sold)
     if s == "B":
-        return "B", "BULLISH"  # Bid = buy aggressor
+        return "B", "BULLISH"  # Bid = buy aggressor (contract bought)
     return "N", "NEUTRAL"
+
+
+def _economic_sentiment(pressure: str, option_type: str) -> str:
+    """Economic direction on the UNDERLYING: pressure x contract direction.
+
+    BULLISH = call bought / put sold; BEARISH = put bought / call sold;
+    NEUTRAL when either leg is unknown (side 'N', or a definition without a
+    C/P type). This matches the decommissioned Unusual-Whales adapter's
+    ``sentiment`` semantics (it passed through UW's own economically-defined
+    field, ``ingest_unusual_whales.py`` ~:281) — the aggressor-only mapping
+    used here 2026-05-12..2026-08-04 silently drifted from that contract and
+    reported an aggressive put BUY as BULLISH (same blind-spot class as the
+    ADR-0020 signed-UOA sign fixed in #4369).
+    """
+    if pressure == "NEUTRAL":
+        return "NEUTRAL"
+    opt = (option_type or "").strip().upper()
+    if opt == "CALL":
+        return pressure
+    if opt == "PUT":
+        return "BEARISH" if pressure == "BULLISH" else "BULLISH"
+    return "NEUTRAL"
 
 
 def _premium_of(row: Mapping[str, Any], contract_size: int = _OCC_CONTRACT_MULTIPLIER) -> float:
@@ -358,7 +383,8 @@ def detect_unusual_options_activity(
         is_sweep = len(bucket_exchanges[(inst, bucket_idx)]) >= min_exchanges
         is_multileg = len(multileg_keys.get((defn.underlying, bucket_idx), set())) > 1
         for row in rows:
-            aggressor, sentiment = _side_to_aggressor(row.get("side"))
+            aggressor, pressure = _side_to_aggressor(row.get("side"))
+            sentiment = _economic_sentiment(pressure, defn.option_type)
             ts_iso = _ts_to_iso(int(row.get("_ts_ns") or 0))
             out.append(
                 {
