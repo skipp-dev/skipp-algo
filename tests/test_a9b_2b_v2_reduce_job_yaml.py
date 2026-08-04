@@ -110,7 +110,7 @@ def test_reduce_downloads_all_shard_artifacts_separately() -> None:
     assert matches, "reduce job must include actions/download-artifact"
     # Pin to v7 per repo discipline (matches upload-artifact@v7).
     # Accept the SHA-pinned equivalent produced by the ci/pin-action-shas PR.
-    _DOWNLOAD_V7_SHA = "37930b1c2abaa49bbe596cd826c3c89aef350131"
+    _DOWNLOAD_V7_SHA = "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
     for s in matches:
         assert s["uses"] in {
             "actions/download-artifact@v7",
@@ -222,7 +222,7 @@ def test_reduce_checkout_pinned_v6() -> None:
     # Accept either the mutable tag or the SHA-pinned equivalent (repo enforces SHA pinning).
     _CHECKOUT_V6_REFS = {
         "actions/checkout@v6",
-        "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",  # SHA pin for v6
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",  # SHA pin for v6
     }
     for s in checkouts:
         assert s["uses"] in _CHECKOUT_V6_REFS, (

@@ -623,8 +623,18 @@ def test_verifier_blocks_ambiguous_multi_pane_layouts_before_mutation() -> None:
 
 
 def test_cache_runs_on_native_node24_without_force_override() -> None:
+    """This workflow must not need the Node-24 force override, so its cache
+    action has to declare ``node24`` itself.
+
+    The pin moved v5.0.5 → v6.1.0 on 2026-08-04 with #4425, and the property
+    was re-measured rather than assumed: `action.yml` at
+    55cc8345863c7cc4c66a329aec7e433d2d1c52a9 still declares `using: 'node24'`,
+    and that SHA carries both the `v6` and `v6.1.0` tags upstream. Had v6
+    regressed to node20 this assertion would have had to hold the old pin
+    instead — the bump is only safe BECAUSE that was checked.
+    """
     workflow = _WF_PATH.read_text(encoding="utf-8")
-    assert "actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5" in workflow
+    assert "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6" in workflow
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" not in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in workflow
 

@@ -72,8 +72,18 @@ _APPROVED_ACTION_SHAS: dict[str, frozenset[str]] = {
         {
             # v5 (a26af69be…, Node-20) retired 2026-06-06: Node-20 actions are
             # deprecated (force-disabled 2026-06-16, removed 2026-09-16). All
-            # workflows now pin v6 (Node-24). See the v5→v6 sweep commit.
-            "a309ff8b426b58ec0e2a45f0f869d46889d02405",  # v6 (Node-24)
+            # workflows pinned v6 (Node-24) from then until 2026-08-04.
+            #
+            # v6 (a309ff8b4…, v6.2.0) → v7.0.0 on 2026-08-04 with #4425.
+            # Verified as this ledger's own docstring requires, BEFORE the pin
+            # was written here: `gh api repos/actions/setup-python/commits/
+            # 5fda3b95a4…` resolves, and `git/refs/tags` puts BOTH `v7` and
+            # `v7.0.0` on exactly that commit. `action.yml` at the new SHA still
+            # declares `using: node24`, so the Node-24 property this set was
+            # rebuilt for in June survives the bump. The only input v7 drops is
+            # `pip-install`, which no workflow in this repo passes (measured
+            # across all 68).
+            "5fda3b95a4ea91299a34e894583c3862153e4b97",  # v7 (Node-24)
         }
     ),
 }

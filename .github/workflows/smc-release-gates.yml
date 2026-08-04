@@ -52,7 +52,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -87,7 +87,7 @@ jobs:
           echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
@@ -121,7 +121,7 @@ jobs:
           exit 1
 
       - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
 
@@ -366,6 +366,6 @@ jobs:
 
       - name: Attest release gate report (WP-R20)
         if: always() && hashFiles('artifacts/ci/smc_release_gates_report.json') != ''
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: artifacts/ci/smc_release_gates_report.json

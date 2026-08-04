@@ -115,7 +115,7 @@ def test_release_gates_has_attestation_step() -> None:
     workflow_text = _read(WORKFLOW_PATH)
     assert '- name: Attest release gate report (WP-R20)' in workflow_text
     # Accept both the floating tag and its SHA-pinned equivalent.
-    _ATTEST_V2_SHA = "e8998f949152b193b063cb0ec769d69d929409be"
+    _ATTEST_V2_SHA = "0f67c3f4856b2e3261c31976d6725780e5e4c373"
     assert (
         'actions/attest-build-provenance@v2' in workflow_text
         or f'actions/attest-build-provenance@{_ATTEST_V2_SHA}' in workflow_text

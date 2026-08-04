@@ -133,7 +133,7 @@ def test_deploy_uses_the_sha_stamping_wrapper_with_branch() -> None:
 
 
 def test_checkout_action_is_sha_pinned() -> None:
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in _text()
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in _text()
 
 
 def test_railway_cli_install_is_version_pinned() -> None:
