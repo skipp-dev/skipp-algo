@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import random
 import threading
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,6 +24,36 @@ def _is_definition(record: Any) -> bool:
     return "definition" in name or (
         "instrument_class" in row and ("underlying" in row or "asset" in row)
     )
+
+
+def route_record(state: OpraShadowState, record: Any) -> str:
+    """Dispatch one live record to its path; returns the route taken.
+
+    Order matters: definitions first, then quotes (tcbbo, BBO-bearing), and
+    everything else is a trades-schema record that gets COUNTED. Extracted
+    from the live loop so the routing is unit-testable without a Live client.
+    """
+    if _is_definition(record):
+        row = _mapping(record)
+        state.add_definition(row, ts_ns=int(row.get("ts_recv") or 0))
+        return "definition"
+    if _is_quote(record):
+        state.update_quote(record)
+        return "quote"
+    state.add_trade(record)
+    return "trade"
+
+
+def _is_quote(record: Any) -> bool:
+    """tcbbo (CMBP1) records carry the BBO; trades (TradeMsg) records do not.
+
+    Since #4368 the tcbbo stream is the quote source only — counting happens
+    on the trades stream, whose ``sequence`` field distinguishes genuine
+    identical child fills that tcbbo cannot (it has no sequence field at all).
+    """
+    if isinstance(record, Mapping):
+        return "bid_px_00" in record or "ask_px_00" in record
+    return hasattr(record, "bid_px_00") or hasattr(record, "ask_px_00")
 
 
 def _parent_symbols(hotlist: tuple[str, ...]) -> list[str]:
@@ -68,23 +99,31 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
                 symbols=symbols,
                 stype_in="parent",
             )
+            # Count source (#4368): trades carries the sequence numbers that
+            # distinguish genuine identical child fills; tcbbo above stays
+            # subscribed purely as the BBO-at-trade source. Measured volume:
+            # trades == tcbbo record-for-record, so this doubles the trade
+            # stream — NOT the 91x a cbbo-1s quote subscription would cost.
+            client.subscribe(
+                dataset=config.dataset,
+                schema="trades",
+                symbols=symbols,
+                stype_in="parent",
+            )
             databento_usage.record(
                 dataset=config.dataset,
                 schema=config.schema,
                 mode="live",
                 consumer="opra-shadow",
-                subscriptions=2,
+                subscriptions=3,
                 symbols_requested=len(symbols),
             )
             failures = 0
             for record in client:
                 if stop.is_set():
                     break
-                if _is_definition(record):
-                    row = _mapping(record)
-                    state.add_definition(row, ts_ns=int(row.get("ts_recv") or 0))
+                if route_record(state, record) == "definition":
                     continue
-                state.add_trade(record)
                 pending_records += 1
                 if (
                     pending_records % 1000 == 0

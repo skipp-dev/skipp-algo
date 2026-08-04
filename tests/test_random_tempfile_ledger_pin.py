@@ -42,7 +42,7 @@ _DIR_EXCLUDE = frozenset({
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 117),  # retry-jitter; non-security  # 2026-07-27 (adoption note above): 111->117
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
-    ("services/opra_live_daemon/feed.py", 134),  # reconnect jitter; non-security
+    ("services/opra_live_daemon/feed.py", 173),  # reconnect jitter; non-security. 134->173 (2026-08-04): route_record + trades subscription added above (#4368)
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
     ("governance/magnitude_resolution_gate.py", 204),
