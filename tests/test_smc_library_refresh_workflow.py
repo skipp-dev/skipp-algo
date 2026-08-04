@@ -867,11 +867,42 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
     commit_idx = workflow_text.index("      - name: Commit and push changes")
     assert notice_idx < commit_idx
 
-    # The notice reaches a reviewer who never opens the run log.
+    # The notice reaches a reviewer who never opens the run log — asserted as an
+    # agreement between the two steps, not as three substrings that can all hold
+    # while the wiring is severed. Measured 2026-08-04 on the landed PR: renaming
+    # the variable the guarded branch ASSIGNS (so the augmented body is built and
+    # then dropped, and `--body` still ships the un-augmented one) left every
+    # substring present and all 43 tests green.
     commit_block = _step_block(workflow_text, "Commit and push changes")
-    assert 'R1_ATTESTATION_NOTICE' in block
-    assert 'if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then' in commit_block
-    assert '--body "$PR_BODY"' in commit_block
+
+    written = re.search(r'handle\.write\("(\w+)<<(\w+)\\n"\)', block)
+    assert written, (
+        "the notice step no longer writes a heredoc-delimited variable to "
+        "$GITHUB_ENV, so nothing can carry it into the PR body"
+    )
+    notice_var, _delimiter = written.group(1), written.group(2)
+
+    guard = f'if [ -n "${{{notice_var}:-}}" ]; then'
+    assert guard in commit_block, (
+        f"the commit step does not read {notice_var}, which is the variable the "
+        f"notice step publishes. Expected: {guard}"
+    )
+
+    appended = re.search(
+        rf'^\s*(\w+)=.*\$\{{{notice_var}\}}', commit_block, re.M
+    )
+    assert appended, (
+        f"nothing in the commit step assigns {notice_var} into another variable, "
+        "so the notice is read and discarded"
+    )
+    body_var = appended.group(1)
+
+    assert f'--body "${body_var}"' in commit_block, (
+        f"the commit step appends the notice into ${body_var}, but passes a "
+        f"different variable to `gh pr ... --body`. The augmented body is built "
+        f"and thrown away, and the PR ships without the drift verdict.\n"
+        f"  notice variable : {notice_var}\n  appended into   : {body_var}"
+    )
 
 
 # ── Executing the notice step ────────────────────────────────────────────────
@@ -904,19 +935,75 @@ NOTICE_STEP = "Report R1 attestation drift caused by this refresh"
 # form: the same bash invocation, so a bashism cannot pass here and fail in CI.
 
 
-def _notice_run_block() -> str:
-    """The notice step's own shell, read out of the parsed workflow."""
+def _refresh_step(name: str) -> dict:
+    """One step of job ``refresh``, parsed — not sliced out of the raw text."""
     import yaml
 
     doc = yaml.safe_load(_read(WORKFLOW_PATH))
     for step in doc["jobs"]["refresh"]["steps"]:
-        if isinstance(step, dict) and step.get("name") == NOTICE_STEP:
-            return str(step["run"])
+        if isinstance(step, dict) and step.get("name") == name:
+            return step
     raise AssertionError(
-        f"{WORKFLOW_PATH.name}: no step named {NOTICE_STEP!r} in job 'refresh'. "
-        "Either it was renamed (update NOTICE_STEP in the same PR) or the "
+        f"{WORKFLOW_PATH.name}: no step named {name!r} in job 'refresh'. "
+        "Either it was renamed (update the constant in the same PR) or the "
         "notice was deleted — in which case a refresh un-attests R1 in silence "
         "again, and these tests must not report green."
+    )
+
+
+def _notice_run_block() -> str:
+    """The notice step's own shell, read out of the parsed workflow."""
+    return str(_refresh_step(NOTICE_STEP)["run"])
+
+
+def _conjuncts(condition: str) -> set[str]:
+    """The ``&&``-separated terms of a workflow ``if:`` expression."""
+    return {term.strip() for term in condition.split("&&") if term.strip()}
+
+
+def test_the_notice_step_runs_whenever_the_publish_that_causes_the_drift_runs() -> None:
+    """The step's ``if:`` is load-bearing, and nothing else here reads it.
+
+    Every executed branch below lifts ``step["run"]`` out of the YAML and runs
+    it directly, so the gating condition is invisible to all of them. Measured
+    2026-08-04 on the landed PR: setting this step's ``if:`` to ``false`` — the
+    step can then never run in CI, which is #4371 restored in full — left all 43
+    tests in this file GREEN. A reporting step that cannot execute reports
+    nothing, and the suite could not tell.
+
+    Two relations, both asserted rather than a literal copy of today's
+    expression:
+
+    * **Equal to the publish step's.** ``Publish library to TradingView`` is
+      what pushes the bumped library and therefore what causes the drift this
+      step announces. Any run that can drift R1 must reach the announcement.
+    * **A subset of the commit step's.** ``Commit and push changes`` opens the
+      PR the notice is written into. Were the notice's condition ever the wider
+      one, a run could publish a PR body referring to a notice that never ran.
+    """
+    notice = _refresh_step(NOTICE_STEP)
+    publish = _refresh_step("Publish library to TradingView")
+    commit = _refresh_step("Commit and push changes")
+
+    condition = notice.get("if")
+    assert condition, (
+        f"the {NOTICE_STEP!r} step has no `if:`. It would then run on every "
+        "event this job accepts, including the pull_request runs where nothing "
+        "is published and there is no drift to announce."
+    )
+
+    assert _conjuncts(condition) == _conjuncts(str(publish["if"])), (
+        "the notice no longer runs exactly when the publish that causes the "
+        f"drift runs.\n  notice : {condition}\n  publish: {publish['if']}\n"
+        "A narrower condition here means a refresh can un-attest R1 in silence "
+        "— the defect this step exists to close."
+    )
+
+    missing = _conjuncts(condition) - _conjuncts(str(commit["if"]))
+    assert not missing, (
+        f"the notice step gates on {sorted(missing)}, which 'Commit and push "
+        "changes' does not require. The commit step would then open a PR whose "
+        "body interpolates a notice that never ran."
     )
 
 
@@ -1139,8 +1226,13 @@ def _run_notice(
     )
 
     raw = env_file.read_text(encoding="utf-8")
+    # Variable name and heredoc delimiter DERIVED from the step, not re-typed:
+    # a harness carrying its own copy would keep reading an empty PR body after
+    # a rename and report every branch as "nothing reached the PR body".
+    written = re.search(r'handle\.write\("(\w+)<<(\w+)\\n"\)', _notice_run_block())
+    assert written, "the notice step no longer writes a delimited $GITHUB_ENV block"
     match = re.search(
-        r"R1_ATTESTATION_NOTICE<<R1_NOTICE_EOF\n(.*)\nR1_NOTICE_EOF\n",
+        rf"{written.group(1)}<<{written.group(2)}\n(.*)\n{written.group(2)}\n",
         raw,
         re.S,
     )
@@ -1159,7 +1251,36 @@ def _run_notice(
 # Language that would read as "the attestation is fine". Any branch that did
 # NOT reach that conclusion must contain none of it: an unnoticed drift is the
 # defect, and a false all-clear is an unnoticed drift with reassurance on top.
+#
+# This tuple is hand-typed BY NECESSITY — it states a prohibition on meaning,
+# and no mechanical derivation from the implementation can express "wording a
+# reader would take as reassurance". What it must never be is UNANCHORED:
+# test_the_all_clear_vocabulary_is_anchored_to_the_clean_branch below asserts
+# every phrase really is the clean branch's own language. Measured 2026-08-04
+# on the landed PR, without that anchor: rewording only the clean branch left
+# all 43 tests green, and the tuple then described text that existed nowhere —
+# a prohibition on nothing, which is the vacuity this file is about.
+#
+# Known limit, stated rather than implied: the anchor keeps these phrases
+# honest, it cannot catch a `cannot_run()` that invents NEW reassuring wording
+# ("the evidence still covers them"). That direction needs a reader, and
+# test_the_executed_branches_are_distinguishable_from_each_other is the only
+# mechanical check standing near it.
 _ALL_CLEAR = ("unaffected", "still describes", "none changed")
+
+
+def _unwrapped(text: str) -> str:
+    """``text`` with every run of whitespace collapsed to one space.
+
+    Matched against the UNWRAPPED summary because the step hard-wraps its
+    prose, and a phrase that straddles a line break matches nothing. That is
+    not hypothetical: #4393 reflowed the all-clear to "so it still\ndescribes
+    them", which silently killed "still describes" in all three leak checks
+    below — a third of this vocabulary was dead on `main` and no test said so.
+    Rewrapping is an editing accident, not a decision to allow reassuring
+    language, so it must not be able to disarm the checks.
+    """
+    return " ".join(text.split())
 
 
 def test_the_notice_step_reports_a_clean_run_as_clean(tmp_path: Path) -> None:
@@ -1219,7 +1340,7 @@ def test_a_clean_diff_is_not_an_attestation_the_step_never_measured(
     notice = _run_notice(work, cwd=_seed_repo(work), sources=sources)
 
     assert notice.rc == 0, notice.log
-    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in _unwrapped(notice.summary)]
     assert not leaked, (
         f"the step published all-clear language {leaked} while the registered "
         f"evidence does not attest {target['path']}. `git diff HEAD` came back "
@@ -1233,6 +1354,28 @@ def test_a_clean_diff_is_not_an_attestation_the_step_never_measured(
     assert notice.pr_body.strip(), "the verdict never reached the PR body"
     assert str(target["path"]) in notice.pr_body
     assert "replaces a measurement with a fabrication" in notice.pr_body
+def test_the_all_clear_vocabulary_is_anchored_to_the_clean_branch(tmp_path: Path) -> None:
+    """``_ALL_CLEAR`` must be the clean branch's real language, not a memory of it.
+
+    The leak checks in the crash and floor branches are only as good as this
+    tuple. Re-typed and never compared against anything, it decays into a
+    prohibition on text no branch produces: the step gets reworded, the tuple
+    keeps matching nothing, and both leak assertions pass vacuously forever.
+
+    So: execute the clean branch and require every phrase to be in what it
+    actually published. Reword the step and this fails, in the same PR, naming
+    the phrase that went stale.
+    """
+    clean = _run_notice(tmp_path, cwd=_seed_repo(tmp_path)).summary
+
+    stale = [phrase for phrase in _ALL_CLEAR if phrase not in _unwrapped(clean)]
+    assert not stale, (
+        f"{stale} no longer appear in the clean branch's own summary, so the "
+        "leak checks in the crash and floor branches are searching for text "
+        "that cannot occur. Update _ALL_CLEAR to the step's current all-clear "
+        "wording — the tuple exists to describe THAT text.\n"
+        f"--- clean summary ---\n{clean}"
+    )
 
 
 def test_the_notice_step_announces_a_drift_it_caused(tmp_path: Path) -> None:
@@ -1242,10 +1385,20 @@ def test_the_notice_step_announces_a_drift_it_caused(tmp_path: Path) -> None:
     nothing said this out loud, and a source-text assertion cannot tell a step
     that says it from a step that would crash, print nothing, or write to the
     wrong file.
+
+    Run once PER ATTESTED SOURCE, never for ``roster[0]`` alone. Measured
+    2026-08-04 on the landed PR: with only the first entry exercised, narrowing
+    the step's own ``git diff ... -- <roster>`` to ``<roster>[:1]`` — blind to
+    ``SMC_Exit_Signal.pine`` — left all 43 tests green. A guard that checks one
+    of two sources cannot see the source it does not check.
     """
-    work = tmp_path
+    for drifted in _attested_roster():
+        _assert_drift_is_announced(tmp_path / f"drift-{Path(drifted).stem}", drifted)
+
+
+def _assert_drift_is_announced(work: Path, drifted: str) -> None:
+    """One attested source, rewritten in the sandbox: the step must name it."""
     repo = _seed_repo(work)
-    drifted = _attested_roster()[0]
     (repo / drifted).write_text("// rewritten by this refresh\n", encoding="utf-8")
 
     notice = _run_notice(work, cwd=repo)
@@ -1292,7 +1445,7 @@ def test_a_crash_in_the_notice_step_is_reported_and_still_exits_zero(tmp_path: P
     assert "## R1 attestation check could not run" in notice.summary
     assert "UNKNOWN, not as intact" in notice.summary
     assert "::error::" in notice.log
-    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in _unwrapped(notice.summary)]
     assert not leaked, (
         f"a crashed check published all-clear language {leaked}. Silence and "
         "reassurance are the same failure here."
@@ -1316,7 +1469,7 @@ def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) ->
     assert "## R1 attestation check could not run" in notice.summary
     assert "vacuous R1 all-clear" in notice.log
     assert "expected at least 99" in notice.summary
-    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in _unwrapped(notice.summary)]
     assert not leaked, (
         f"a roster below the floor published all-clear language {leaked}; that "
         "is the report that would survive indefinitely because it looks like "
