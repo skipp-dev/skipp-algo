@@ -51,7 +51,7 @@ def run_calibration_once(
                 "Nightly calibration produced no table (rc=%s) — no events yet?", rc,
             )
     except Exception:  # best-effort — must never break the producer poll loop
-        logger.debug("nightly calibration failed", exc_info=True)
+        logger.warning("nightly calibration failed", exc_info=True)  # debug hid a month of ModuleNotFoundError (2026-08-04)
 
 
 def _log_bucket_readiness(out_path: str) -> None:
