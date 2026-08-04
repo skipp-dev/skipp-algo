@@ -342,12 +342,32 @@ def _bound_names(stmt: ast.AST) -> Iterator[str]:
 
     Used by :func:`_subset_bindings` to count how often a name is written
     in a function, so a name written more than once can be refused. Every
-    binding form counts, not just ``=``: a ``for`` target, a ``with ... as``
-    target, augmented assignment and the walrus all rebind the name and so
-    all destroy the one-binding guarantee the subset rule depends on.
+    binding form counts, not just ``=``, because any second binding
+    destroys the one-binding guarantee the subset rule depends on:
+
+    * ``=``, ``:=``, annotated and augmented assignment;
+    * ``for`` and ``async for`` targets;
+    * ``with ... as`` / ``async with ... as`` targets;
+    * **function parameters** — positional-only, ordinary, keyword-only,
+      ``*args`` and ``**kwargs``. A parameter is the case that made this
+      list exhaustive rather than illustrative: ``def test_rows(subset)``
+      with a later ``subset = [...]`` leaves an ``assert subset`` written
+      between them witnessing the *parameter*, and an uncounted parameter
+      makes the name look singly-bound, so the witness gets credited to a
+      base it says nothing about. A pytest fixture name colliding with a
+      local comprehension name is ordinary code, not a contrived shape;
+    * ``except ... as`` — which binds the name and then unbinds it again;
+    * ``import ... as`` and ``from ... import`` — for a dotted import
+      without an alias the bound name is the first segment, so
+      ``import a.b`` binds ``a``;
+    * ``match`` capture patterns, including ``*rest`` and ``**rest``.
 
     Tuple and starred targets are unpacked, because ``a, b = …`` binds both
     names just as surely as two statements would.
+
+    Comprehension targets are deliberately *not* counted: in Python 3 a
+    comprehension has its own scope, so ``[x for subset in …]`` never
+    rebinds an enclosing ``subset``.
     """
     def names(target: ast.expr | None) -> Iterator[str]:
         if isinstance(target, ast.Name):
@@ -368,6 +388,29 @@ def _bound_names(stmt: ast.AST) -> Iterator[str]:
     elif isinstance(stmt, (ast.With, ast.AsyncWith)):
         for item in stmt.items:
             yield from names(item.optional_vars)
+    elif isinstance(stmt, ast.arguments):
+        for parameter in (
+            *stmt.posonlyargs,
+            *stmt.args,
+            *stmt.kwonlyargs,
+            stmt.vararg,
+            stmt.kwarg,
+        ):
+            if parameter is not None:
+                yield parameter.arg
+    elif isinstance(stmt, ast.ExceptHandler):
+        if stmt.name:
+            yield stmt.name
+    elif isinstance(stmt, (ast.Import, ast.ImportFrom)):
+        for alias in stmt.names:
+            # ``import a.b`` binds ``a``; ``import a.b as c`` binds ``c``.
+            yield (alias.asname or alias.name).split(".")[0]
+    elif isinstance(stmt, (ast.MatchAs, ast.MatchStar)):
+        if stmt.name:
+            yield stmt.name
+    elif isinstance(stmt, ast.MatchMapping):
+        if stmt.rest:
+            yield stmt.rest
 
 
 def _subset_bindings(

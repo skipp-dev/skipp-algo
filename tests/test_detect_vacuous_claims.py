@@ -1207,3 +1207,84 @@ def test_a_nested_subset_credits_only_the_outer_iterable() -> None:
                 assert x
     """
     assert _kinds(source) == {"a.items": "property of a produced object"}
+
+
+def test_a_parameter_shadowed_by_a_later_comprehension_credits_nothing() -> None:
+    """A fixture parameter is a binding, and an uncounted one re-opens the hole.
+
+    ``assert subset`` here witnesses the *parameter* — the comprehension is
+    assigned below it. Unless the parameter is counted as a binding, the
+    name looks singly-bound and the witness is credited to
+    ``profile.rows``, which it says nothing about. A pytest fixture name
+    colliding with a local comprehension name is ordinary code.
+    """
+    source = """
+        def test_rows(subset):
+            profile = compute_volume_profile(bars)
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_starred_or_keyword_parameter_also_counts_as_a_binding() -> None:
+    """``*args``/``**kwargs`` bind names too, and so do keyword-only params."""
+    source = """
+        def test_rows(*subset, **rest):
+            profile = compute_volume_profile(bars)
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+            subset = [row for row in profile.rows if row.ok]
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_an_except_alias_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """``except … as subset`` binds — and unbinds — the same name."""
+    source = """
+        def test_rows():
+            profile = compute_volume_profile(bars)
+            try:
+                run()
+            except ValueError as subset:
+                pass
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_an_import_alias_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """``import x as subset`` is a binding like any other."""
+    source = """
+        def test_rows():
+            import collections as subset
+
+            profile = compute_volume_profile(bars)
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
+
+
+def test_a_match_capture_shadowed_by_a_comprehension_credits_nothing() -> None:
+    """A ``match`` capture pattern binds its name in the enclosing scope."""
+    source = """
+        def test_rows(command):
+            profile = compute_volume_profile(bars)
+            match command:
+                case [subset]:
+                    pass
+            subset = [row for row in profile.rows if row.ok]
+            assert subset
+            for row in profile.rows:
+                assert row.ok
+    """
+    assert _kinds(source) == {"profile.rows": "property of a produced object"}
