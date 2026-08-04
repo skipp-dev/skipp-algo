@@ -79,6 +79,10 @@ import ast
 import re
 from pathlib import Path
 
+import yaml
+
+from tests._fast_gates_gate import run_gate
+
 ROOT = Path(__file__).resolve().parents[1]
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 
@@ -1003,3 +1007,75 @@ def test_gated_ts_tests_trigger_their_own_workflow() -> None:
         f"`paths:` filter: {missing}. A change to the test then does not trigger "
         "the workflow. Add each to both the push and pull_request `paths:` lists."
     )
+
+
+# --- the gate's own skip decision, executed rather than read (2026-08-04) -----
+#
+# Everything above pins which tests the workflow INVOKES. This section pins the
+# step that decides whether the heavy lane runs at all. Measured on 2026-08-04:
+# deleting the `*)` arm that sets `heavy=true` left 2198 tests green across
+# every file that mentions this workflow — a `bot/*` PR touching services/*.py
+# would have merged with no heavy suite, which is verbatim the hole the step's
+# own comment claims to have closed. Nothing executed the step; text was read.
+
+
+def test_the_harness_matches_the_declared_shell() -> None:
+    """The harness's fidelity rests on this declaration; pin it.
+
+    `_fast_gates_gate.SHELL` mirrors what `defaults: run: shell: bash` expands
+    to (`bash --noprofile --norc -eo pipefail`). Actions' implicit default is
+    `bash -e` WITHOUT pipefail, so if that block ever disappears the harness
+    would quietly test a more forgiving shell than CI runs.
+    """
+    workflow = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
+    assert workflow.get("defaults", {}).get("run", {}).get("shell") == "bash", (
+        "smc-fast-pr-gates.yml no longer declares `defaults: run: shell: bash`. "
+        "tests/_fast_gates_gate.py:SHELL claims to reproduce CI's shell flags "
+        "and would now overstate that. Update both together."
+    )
+
+
+def test_a_source_path_on_a_bot_branch_forces_the_heavy_suite(tmp_path: Path) -> None:
+    """Audit P2 HIGH: the branch NAME alone must never buy the skip.
+
+    The step's comment records why: skipping on `bot/*` alone let arbitrary code
+    ride a bot branch to main untested. That protection is one `case` arm, and
+    until now no test ran it.
+    """
+    outputs = run_gate(["services/live_overlay_daemon/state.py"], tmp_path)
+
+    assert outputs["run_heavy"] == "true", (
+        "a bot/* PR touching a source path skipped the heavy suite; the `*)` arm "
+        "of the gate's path check is gone or no longer reached"
+    )
+
+
+def test_a_data_only_bot_pr_still_skips_the_heavy_suite(tmp_path: Path) -> None:
+    """The other half: a `heavy=true` hardcode would pass the test above.
+
+    Without this, the cheap way to make that assertion green is to delete the
+    exemption — which is the whole point of inspecting paths.
+    """
+    outputs = run_gate(["artifacts/monitoring/latest/some_snapshot.json"], tmp_path)
+
+    assert outputs["run_heavy"] == "false"
+
+
+def test_an_unlistable_pr_fails_closed_to_the_heavy_suite(tmp_path: Path) -> None:
+    """`gh` failing must not be read as "nothing risky changed".
+
+    A skip decided from an empty answer is the silent-skip class this file
+    exists for: the gate would report success having inspected nothing.
+    """
+    outputs = run_gate([], tmp_path, gh_exit_code=1)
+
+    assert outputs["run_heavy"] == "true"
+
+
+def test_a_non_bot_branch_never_reaches_the_path_inspection(tmp_path: Path) -> None:
+    """Human PRs are never exempt, whatever they touch."""
+    outputs = run_gate(
+        ["docs/governance/some_note.md"], tmp_path, head_ref="feat/human-branch"
+    )
+
+    assert outputs["run_heavy"] == "true"
