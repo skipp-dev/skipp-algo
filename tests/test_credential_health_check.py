@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
+import scripts.credential_health_check as chc
 from scripts.credential_health_check import (
     COMPOSIO_AUTH_POLICY_PATH,
     DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
@@ -617,6 +618,141 @@ def test_databento_delivery_uses_basic_auth_and_dataset() -> None:
     assert auth is not None and auth.startswith("Basic ")
     assert "metadata.get_dataset_range" in req.full_url
     assert "dataset=EQUS.SUMMARY" in req.full_url
+
+
+# -- Transient-failure retry --------------------------------------------------
+#
+# 2026-08-04 (#4382): hist.databento.com answers its metadata calls with a
+# bimodal time-to-first-byte — sub-second when warm, 17-30s on the first call
+# of the day (measured: conn 0.12s, TLS 0.24s, 14 KB payload, so the wait is
+# server-side, not network or size). With a single 10s attempt a *valid* key
+# produced `warn` and filed a cron issue on four separate days: #4382, #4196,
+# #4075, #3804 — and in every one of them the SECOND Databento probe of the
+# same run came back ok, because it landed warm.
+#
+# So: retry the inconclusive network/timeout class. An HTTP status is a verdict
+# (401 revoked, 402 unpaid, 429 quota) — never retried, never delayed.
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the retry sleep out of the test suite's wall clock."""
+    monkeypatch.setattr(chc, "TRANSIENT_RETRY_SLEEP_SECONDS", 0.0)
+
+
+def _flaky_opener(*, failures: int, exc: Exception, body: dict[str, Any] | None = None):
+    """Opener that raises ``exc`` for the first ``failures`` calls, then answers 200."""
+    good = _fake_opener(status=200, body=body if body is not None else {}).open.return_value
+    opener = MagicMock()
+    opener.open.side_effect = [exc] * failures + [good]
+    return opener
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
+def test_vendor_probe_retries_a_read_timeout_and_reports_the_late_success(probe) -> None:
+    """One slow first byte must not outweigh an HTTP 200 the retry can still reach."""
+    opener = _flaky_opener(failures=1, exc=TimeoutError("The read operation timed out"))
+    r = probe("dummy-key", opener=opener)
+    assert r.severity == "ok"
+    assert opener.open.call_count == 2
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
+def test_vendor_probe_survives_transient_failures_up_to_the_last_attempt(probe) -> None:
+    opener = _flaky_opener(
+        failures=chc.TRANSIENT_RETRY_ATTEMPTS - 1,
+        exc=urllib.error.URLError("connection reset"),
+    )
+    r = probe("dummy-key", opener=opener)
+    assert r.severity == "ok"
+    assert opener.open.call_count == chc.TRANSIENT_RETRY_ATTEMPTS
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_benzinga])
+def test_vendor_probe_still_warns_once_every_attempt_timed_out(probe) -> None:
+    """Retry bounds the noise; it must not silence a vendor that is really unreachable."""
+    opener = _fake_opener(raise_exc=TimeoutError("The read operation timed out"))
+    r = probe("dummy-key", opener=opener)
+    assert r.severity == "warn"
+    assert "inconclusive" in r.message
+    assert opener.open.call_count == chc.TRANSIENT_RETRY_ATTEMPTS
+
+
+@pytest.mark.parametrize("code", [401, 402, 429, 503])
+def test_vendor_probe_never_retries_an_http_verdict(code) -> None:
+    """HTTPError subclasses URLError — a status answer must not be re-rolled."""
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=code,
+        msg="verdict",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    opener = _fake_opener(raise_exc=exc)
+    r = probe_databento("dummy-key", opener=opener)
+    assert r.details["status"] == code
+    assert opener.open.call_count == 1
+
+
+def test_databento_delivery_retries_a_read_timeout_and_reports_the_late_success() -> None:
+    now = datetime(2026, 6, 12, 6, 0, tzinfo=UTC)
+    opener = _flaky_opener(
+        failures=1,
+        exc=TimeoutError("The read operation timed out"),
+        body=_delivery_body(1.0, now),
+    )
+    r = probe_databento_delivery("key", opener=opener, now=now)
+    assert r.severity == "ok"
+    assert opener.open.call_count == 2
+
+
+def test_databento_delivery_still_warns_once_every_attempt_timed_out() -> None:
+    opener = _fake_opener(raise_exc=TimeoutError("The read operation timed out"))
+    r = probe_databento_delivery("key", opener=opener)
+    assert r.severity == "warn"
+    assert opener.open.call_count == chc.TRANSIENT_RETRY_ATTEMPTS
+
+
+def test_databento_delivery_never_retries_an_http_verdict() -> None:
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=402,
+        msg="Payment Required",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    opener = _fake_opener(raise_exc=exc)
+    r = probe_databento_delivery("key", opener=opener)
+    assert r.severity == "error"
+    assert opener.open.call_count == 1
+
+
+def test_github_pat_retries_a_read_timeout_and_reports_the_late_success() -> None:
+    good = _fake_opener().open.return_value
+    opener = MagicMock()
+    opener.open.side_effect = [TimeoutError("The read operation timed out"), good]
+    r = probe_github_pat("ghp_dummy", opener=opener)
+    assert r.severity == "ok"
+    assert opener.open.call_count == 2
+
+
+def test_databento_probes_get_the_longer_measured_timeout() -> None:
+    """The 10s default is what turned a 17-30s answer into a false `warn`."""
+    assert chc.DATABENTO_TIMEOUT_SECONDS > chc.HTTP_TIMEOUT_SECONDS
+    opener = _fake_opener(status=200, body={})
+    probe_databento("dummy-key", opener=opener)
+    assert opener.open.call_args.kwargs["timeout"] == chc.DATABENTO_TIMEOUT_SECONDS
+
+    opener = _fake_opener(status=200, body=_delivery_body(1.0, datetime.now(UTC)))
+    probe_databento_delivery("key", opener=opener)
+    assert opener.open.call_args.kwargs["timeout"] == chc.DATABENTO_TIMEOUT_SECONDS
+
+
+def test_a_non_databento_vendor_keeps_the_short_timeout() -> None:
+    """Only the measured-slow vendor pays the longer wait."""
+    opener = _fake_opener(status=200, body={})
+    probe_fmp("dummy-key", opener=opener)
+    assert opener.open.call_args.kwargs["timeout"] == chc.HTTP_TIMEOUT_SECONDS
 
 
 # -- Composio connected-account probes --------------------------------------

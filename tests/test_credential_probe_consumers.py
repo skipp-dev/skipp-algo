@@ -56,6 +56,16 @@ import ast
 import re
 from pathlib import Path
 
+import yaml
+
+from scripts.credential_health_check import (
+    DATABENTO_TIMEOUT_SECONDS,
+    HTTP_TIMEOUT_SECONDS,
+    TRANSIENT_RETRY_ATTEMPTS,
+    TRANSIENT_RETRY_SLEEP_SECONDS,
+    _composio_declared_pins,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 SCRIPT = REPO_ROOT / "scripts" / "credential_health_check.py"
@@ -166,6 +176,74 @@ def _script_skip_flags() -> set[str]:
     return flags
 
 
+# Wall-clock cost of ONE probed endpoint in the worst case: every attempt
+# burns its full timeout and the gaps in between are slept.
+#
+# HTTP requests per probe. The Databento probe pair (auth + delivery) is the
+# only one on the longer timeout — 2026-08-04, #4382: its endpoint's measured
+# time-to-first-byte is bimodal (0.4s warm, 17-30s cold), which is what the
+# retry and the raised timeout exist for.
+_REQUESTS_PER_PROBE: dict[str, int] = {
+    "gh-pat": 1,
+    "databento": 2,  # probe_databento + probe_databento_delivery
+    "fmp": 1,
+    "benzinga": 1,
+    "finnhub": 1,
+    "newsapi": 1,
+    # composio: one request per declared account pin — counted below.
+}
+# probe_tv_storage_state parses a secret, it opens no socket, so it is absent
+# here on purpose (and --skip-tv therefore changes nothing in this arithmetic).
+
+# Seconds a consumer's job needs for everything that is NOT probing: checkout,
+# pinned-Python setup, report upload, issue filing. Deliberately generous — the
+# point of this guard is margin, not a tight fit.
+JOB_OVERHEAD_RESERVE_SECONDS = 120
+
+
+def _worst_case_seconds(timeout: float) -> float:
+    """Worst-case wall clock for one endpoint, retries included."""
+    return TRANSIENT_RETRY_ATTEMPTS * timeout + (TRANSIENT_RETRY_ATTEMPTS - 1) * (
+        TRANSIENT_RETRY_SLEEP_SECONDS
+    )
+
+
+def _probe_budget_seconds(invocation: str) -> float:
+    """Worst-case probing time for one ``credential_health_check.py`` command."""
+    total = 0.0
+    for probe, requests in _REQUESTS_PER_PROBE.items():
+        if f"--skip-{probe}" in invocation:
+            continue
+        timeout = DATABENTO_TIMEOUT_SECONDS if probe == "databento" else HTTP_TIMEOUT_SECONDS
+        total += requests * _worst_case_seconds(timeout)
+    if "--skip-composio" not in invocation:
+        total += len(_composio_declared_pins()) * _worst_case_seconds(HTTP_TIMEOUT_SECONDS)
+    return total
+
+
+def _job_timeouts(path: Path) -> dict[str, int]:
+    """Map job id -> ``timeout-minutes`` for every job that runs the script."""
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    jobs = document.get("jobs") if isinstance(document, dict) else None
+    if not isinstance(jobs, dict):
+        return {}
+    timeouts: dict[str, int] = {}
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        runs_script = any(
+            isinstance(step, dict)
+            and SCRIPT_REF in "".join(_strip_comment(line) for line in str(step.get("run", "")).splitlines())
+            for step in steps
+        )
+        if runs_script:
+            timeouts[str(job_id)] = job.get("timeout-minutes")
+    return timeouts
+
+
 def test_consumer_scan_is_not_vacuous() -> None:
     """Witness: the derived corpus is non-empty and matches reality."""
     assert SCRIPT.exists(), f"missing probe script: {SCRIPT}"
@@ -212,6 +290,73 @@ def test_every_consumer_handles_the_composio_probe() -> None:
         "credential-health-check.yml does.\n"
         "This is the #4333 regression: 12 failed smc-library-refresh runs on "
         "2026-08-03, every other probe ok."
+    )
+
+
+def test_retry_budget_fits_inside_every_consumer_job_timeout() -> None:
+    """The retry must not convert a vendor outage into a hard job timeout.
+
+    2026-08-04 (#4382): the probes now retry the inconclusive
+    network/timeout class and give Databento a 30s timeout, because a valid
+    key was reported as ``warn`` on four separate days. That buys quiet at the
+    cost of wall clock, and the daily cron probes every endpoint SERIALLY
+    inside one ``timeout-minutes``. Cross a job timeout and the failure mode
+    flips from "warn issue nobody needed" to "red cron with no report at all"
+    — strictly worse. So the arithmetic is a guard, not a comment: raising
+    :data:`TRANSIENT_RETRY_ATTEMPTS` or a timeout without raising the job
+    budget fails here, on the required path, before it fails in production.
+    """
+    checked = 0
+    for name, invocations in _consumers().items():
+        path = WORKFLOW_DIR / name
+        timeouts = _job_timeouts(path)
+        assert timeouts, (
+            f"{name} invokes {SCRIPT_REF} but no job could be matched to it — "
+            "the YAML walk in _job_timeouts broke, so this budget guard is "
+            "vacuous for that consumer. Fix the walk."
+        )
+        for job_id, timeout_minutes in timeouts.items():
+            assert timeout_minutes is not None, (
+                f"{name}:{job_id} runs {SCRIPT_REF} with no timeout-minutes — "
+                "an unbounded job cannot be budgeted. Set one."
+            )
+            budget = max(_probe_budget_seconds(invocation) for invocation in invocations)
+            available = timeout_minutes * 60 - JOB_OVERHEAD_RESERVE_SECONDS
+            assert budget <= available, (
+                f"{name}:{job_id} — worst-case probing needs {budget:.0f}s but the job "
+                f"allows {timeout_minutes}min minus {JOB_OVERHEAD_RESERVE_SECONDS}s "
+                f"overhead = {available:.0f}s. Every vendor being unreachable would "
+                "kill the job before it can report anything. Either raise "
+                f"timeout-minutes on {name}:{job_id}, or lower "
+                "TRANSIENT_RETRY_ATTEMPTS / the probe timeouts."
+            )
+            checked += 1
+    assert checked >= MIN_CONSUMERS, (
+        f"budgeted only {checked} job(s); expected at least {MIN_CONSUMERS} — "
+        "the scan silently lost consumers."
+    )
+
+
+def test_probe_request_map_covers_every_skippable_network_probe() -> None:
+    """Keep the budget arithmetic honest when a probe is added.
+
+    A new vendor probe means a new ``--skip-*`` flag; if it is not accounted
+    for in :data:`_REQUESTS_PER_PROBE` the budget above silently under-counts
+    and the guard degrades into decoration.
+    """
+    skippable = {flag.removeprefix("--skip-") for flag in _script_skip_flags()}
+    # tv parses a secret and composio is counted from the declared pins.
+    network_probes = skippable - {"tv", "composio"}
+    missing = sorted(network_probes - set(_REQUESTS_PER_PROBE))
+    stale = sorted(set(_REQUESTS_PER_PROBE) - network_probes)
+    assert not missing and not stale, (
+        f"_REQUESTS_PER_PROBE drifted from the script's probes: missing={missing} "
+        f"stale={stale}. Add the probe's HTTP request count (and its timeout, if it "
+        "is not the default) so the job-timeout budget stays truthful."
+    )
+    assert _composio_declared_pins(), (
+        "zero Composio pins parsed — the budget would ignore the probe that "
+        "issues the most requests. Check configs/composio_auth_policy.json."
     )
 
 
