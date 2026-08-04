@@ -78,6 +78,15 @@ RESOLUTION: Final = """To resolve, one of:
     Do NOT edit that artifact to match today's hashes. A dated measurement is
     superseded by a NEW artifact, never rewritten -- editing it
     replaces a measurement with a fabrication.
+    Then repoint the registration, or nothing reads the new artifact. Both
+    pointers in scripts/smc_r1_rollout_contract.py move together: set
+    EXECUTION_EVIDENCE to the new artifact and PRIOR_EXECUTION_EVIDENCE to the
+    one it supersedes. Regenerate
+    artifacts/governance/smc_r1_live_rollout_contract.json, which mirrors both
+    as executionEvidence / priorExecutionEvidence.
+    tests/test_smc_r1_rollout_contract.py pins the module and the artifact
+    equal on BOTH pointers, so dropping a new artifact beside the old one and
+    stopping there leaves the repo red -- as does moving only the first.
   * Revert the source change if it was not intended to reach the live account,
     then re-run the tv-save-consumer-source workflow to push the attested
     content back.

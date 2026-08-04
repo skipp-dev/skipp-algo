@@ -752,6 +752,24 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
         "extension — keep the derivation unfiltered, as the coverage guard is"
     )
 
+    # The all-clear must rest on a HASH COMPARISON, not on an empty
+    # `git diff HEAD`. Those answer different questions, and the step used to
+    # publish the answer to the second as if it were the answer to the first.
+    # Imported from the guard that owns it — re-deriving the comparison here
+    # would compare one implementation against another instead of against the
+    # evidence, which is the reason check_tv_unattested_sources exists at all.
+    assert "drifted_attested_targets" in block, (
+        "the notice step reaches its all-clear from `git diff HEAD` alone, so "
+        "it states that the registered evidence still describes sources whose "
+        "hashes it never read. Import drifted_attested_targets from "
+        "scripts/check_tv_unattested_sources and gate the all-clear on it."
+    )
+    assert "sha256" not in block, (
+        "the notice step hashes sources itself; call "
+        "drifted_attested_targets() instead, so one comparison is measured "
+        "against the evidence rather than two against each other"
+    )
+
     # Non-vacuity witness, and it must read the floor from the contract rather
     # than carrying a second unlinked copy of the number.
     assert "refusing to report a vacuous R1 all-clear" in block
@@ -764,7 +782,20 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
 
     # The remedy prose is IMPORTED, not re-typed — a third hand-copy would go
     # stale the first time a resolution path changes.
-    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in block
+    #
+    # Asserted as "imported from that module", not as one exact line: the step
+    # legitimately grew a parenthesised multi-line import when it began pulling
+    # drifted_attested_targets alongside RESOLUTION, and a pin on the one-line
+    # spelling fails on a change that satisfies everything it cares about. What
+    # matters is the source of the name, so both halves are checked separately.
+    assert "from scripts.check_tv_unattested_sources import" in block
+    assert re.search(r"^\s*RESOLUTION,?\s*$", block, re.MULTILINE) or (
+        "import RESOLUTION" in block
+    ), (
+        "the notice step does not import RESOLUTION from "
+        "scripts/check_tv_unattested_sources; the remedy prose has one owner "
+        "and re-typing it is how the four hand-copies drifted apart"
+    )
     assert "RESOLUTION.format(evidence=evidence)" in block
     assert "Re-attest" not in block, (
         "the notice step re-types the resolution prose that "
@@ -896,6 +927,30 @@ def _attested_roster() -> list[str]:
     return sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
 
 
+def _evidence_matching_the_repository() -> dict[str, dict[str, str]]:
+    """An evidence ``sources`` map that attests exactly what the repo holds.
+
+    The step's all-clear is a real comparison of the contract's hashes against
+    the REGISTERED evidence, and it reads that evidence out of the repository
+    under test. A fixture that injected nothing would therefore make the clean
+    branch depend on whether main happens to be attested today: green for the
+    wrong reason while it is, and flipped to the drift branch the next time a
+    refresh lands. That state dependence is the vacuity #4267 spent a PR
+    removing, and it is exactly what the seeded git repo already avoids for the
+    other input.
+
+    Only the EVIDENCE side is injected. ``drifted_attested_targets`` still runs
+    its real comparison against the real ``build_rollout_contract()`` hashes,
+    so a step that stopped comparing fails these tests.
+    """
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
+    return {
+        str(target["scriptName"]): {"repositorySha256": str(target["sha256"])}
+        for target in build_rollout_contract()["targets"]
+    }
+
+
 # Git's own environment variables OUTRANK ``cwd``. A `git commit` launched with
 # cwd=<sandbox> still writes to $GIT_DIR / $GIT_INDEX_FILE when those are set,
 # because git resolves its repository from the environment first and only falls
@@ -1012,15 +1067,28 @@ class _Notice(NamedTuple):
     pr_body: str
 
 
-def _run_notice(work: Path, *, cwd: Path, floor: int | None = None) -> _Notice:
+def _run_notice(
+    work: Path,
+    *,
+    cwd: Path,
+    floor: int | None = None,
+    sources: dict[str, dict[str, str]] | None = None,
+) -> _Notice:
     """Execute the step's real `run:` block; return what it published.
 
-    ``floor`` raises MIN_ATTESTED_SOURCES for the short-roster branch via a
-    ``sitecustomize`` shim, which the interpreter imports at startup — so the
-    step's own ``from scripts.smc_r1_rollout_contract import
-    MIN_ATTESTED_SOURCES`` reads the raised value. Nothing in the repository is
-    mutated to induce it, and only that one name is touched: the derivation,
-    the comparison and the reporting are all the shipped code.
+    Two inputs are injected through a ``sitecustomize`` shim, which the
+    interpreter imports at startup — so the step's own imports read the
+    injected values. Nothing in the repository is mutated to induce any branch,
+    and only these two names are touched: the derivation, the comparison and
+    the reporting are all the shipped code.
+
+    ``floor`` raises MIN_ATTESTED_SOURCES for the short-roster branch.
+
+    ``sources`` is the registered evidence the hash comparison reads. It
+    defaults to a map that attests the repository as it stands (see
+    :func:`_evidence_matching_the_repository`), which is what makes the clean
+    branch a controlled input rather than a property of today's main; pass a
+    map with a wrong hash to drive the already-drifted branch.
     """
     work.mkdir(parents=True, exist_ok=True)
     summary = work / "step_summary.md"
@@ -1028,16 +1096,21 @@ def _run_notice(work: Path, *, cwd: Path, floor: int | None = None) -> _Notice:
     summary.write_text("", encoding="utf-8")
     env_file.write_text("", encoding="utf-8")
 
-    path_entries = [str(ROOT)]
+    if sources is None:
+        sources = _evidence_matching_the_repository()
+    shim_lines = [
+        "import scripts.check_tv_unattested_sources as _c\n",
+        f"_c.attested_sources = lambda: {sources!r}\n",
+    ]
     if floor is not None:
-        shim = work / "shim"
-        shim.mkdir()
-        (shim / "sitecustomize.py").write_text(
+        shim_lines.append(
             "import scripts.smc_r1_rollout_contract as _m\n"
-            f"_m.MIN_ATTESTED_SOURCES = {floor}\n",
-            encoding="utf-8",
+            f"_m.MIN_ATTESTED_SOURCES = {floor}\n"
         )
-        path_entries.insert(0, str(shim))
+    shim = work / "shim"
+    shim.mkdir()
+    (shim / "sitecustomize.py").write_text("".join(shim_lines), encoding="utf-8")
+    path_entries = [str(shim), str(ROOT)]
 
     result = subprocess.run(
         # The shell GitHub gives this step: the workflow sets
@@ -1090,7 +1163,13 @@ _ALL_CLEAR = ("unaffected", "still describes", "none changed")
 
 
 def test_the_notice_step_reports_a_clean_run_as_clean(tmp_path: Path) -> None:
-    """Executed baseline: nothing attested changed, so say so — and exit 0."""
+    """Executed baseline: nothing attested changed AND the hashes still match.
+
+    Both halves are supplied: the seeded repo makes ``git diff HEAD`` empty,
+    and the injected evidence attests the repository's real hashes. The
+    all-clear is only honest when both hold, which is why the fixture now
+    controls both rather than the diff alone.
+    """
     work = tmp_path
     notice = _run_notice(work, cwd=_seed_repo(work))
 
@@ -1101,9 +1180,59 @@ def test_the_notice_step_reports_a_clean_run_as_clean(tmp_path: Path) -> None:
             f"the all-clear does not name {path}, so it is not a statement "
             "about the roster it claims to have checked"
         )
+    # It must name the artifact it claims still describes them — an all-clear
+    # that never mentions the evidence is not a statement about the evidence.
+    assert EXECUTION_EVIDENCE.relative_to(ROOT).as_posix() in notice.summary
     assert "::notice::" in notice.log
     # Nothing to carry into the PR body when there is nothing to report.
     assert notice.pr_body.strip() == ""
+
+
+def test_a_clean_diff_is_not_an_attestation_the_step_never_measured(
+    tmp_path: Path,
+) -> None:
+    """The all-clear must be a MEASUREMENT, not the absence of one.
+
+    The step used to reach its all-clear from a single observation — ``git diff
+    --name-only HEAD -- <roster>`` came back empty — and then publish
+    "``<evidence>`` still describes them". Those are different claims. "Nothing
+    changed in this run" says nothing whatsoever about an attestation that was
+    already dead when the run started.
+
+    Reachable, narrowly but really: it needs (a) an evidence artifact already
+    drifted on main and (b) a refresh whose repin is a no-op for every attested
+    target. (b) is not hypothetical — the bump ``sed``s a version pin, and
+    ``SMC_Exit_Signal.pine`` carries no ``libraryPin`` at all, so a republish at
+    an unchanged ``library.publishedVersion`` touches neither target.
+
+    Driven here by injecting one wrong hash into the registered evidence, over
+    a seeded repo whose diff is empty: exactly (a) plus (b). The real
+    comparison runs against the real contract hashes.
+    """
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
+    work = tmp_path
+    target = sorted(build_rollout_contract()["targets"], key=lambda t: str(t["path"]))[0]
+    sources = _evidence_matching_the_repository()
+    sources[str(target["scriptName"])] = {"repositorySha256": "0" * 64}
+
+    notice = _run_notice(work, cwd=_seed_repo(work), sources=sources)
+
+    assert notice.rc == 0, notice.log
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    assert not leaked, (
+        f"the step published all-clear language {leaked} while the registered "
+        f"evidence does not attest {target['path']}. `git diff HEAD` came back "
+        "empty, which is a different measurement from the one the sentence "
+        f"makes:\n{notice.summary}"
+    )
+    assert "## R1 attestation was already invalid before this refresh" in notice.summary
+    assert str(target["path"]) in notice.summary
+    assert "::warning::" in notice.log
+    # Same reach as a drift this run caused: nobody opens the run log.
+    assert notice.pr_body.strip(), "the verdict never reached the PR body"
+    assert str(target["path"]) in notice.pr_body
+    assert "replaces a measurement with a fabrication" in notice.pr_body
 
 
 def test_the_notice_step_announces_a_drift_it_caused(tmp_path: Path) -> None:
@@ -1197,29 +1326,36 @@ def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) ->
 
 
 def test_the_executed_branches_are_distinguishable_from_each_other(tmp_path: Path) -> None:
-    """Witness: the four runs above are not all producing the same text.
+    """Witness: the five runs above are not all producing the same text.
 
     Without this, a step that wrote one constant string would satisfy every
     ``in`` assertion that happened to be a substring of it, and the suite would
-    be measuring a fixed output. Four executions, four distinct summaries.
+    be measuring a fixed output. Five executions, five distinct summaries.
     """
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
     work = tmp_path
     clean_repo = _seed_repo(work / "a")
     drift_repo = _seed_repo(work / "b")
     (drift_repo / _attested_roster()[0]).write_text("// rewritten\n", encoding="utf-8")
     loose = work / "c"
     loose.mkdir(parents=True)
+    dead = _evidence_matching_the_repository()
+    dead[str(build_rollout_contract()["targets"][0]["scriptName"])] = {
+        "repositorySha256": "0" * 64
+    }
 
     summaries = [
         _run_notice(work / "ra", cwd=clean_repo).summary,
         _run_notice(work / "rb", cwd=drift_repo).summary,
         _run_notice(work / "rc", cwd=loose).summary,
         _run_notice(work / "rd", cwd=clean_repo, floor=99).summary,
+        _run_notice(work / "re", cwd=clean_repo, sources=dead).summary,
     ]
     for summary in summaries:
         assert summary.strip(), "a branch published an EMPTY job summary"
-    assert len({s.strip() for s in summaries}) == 4, (
-        "two of the four branches published identical text, so at least one "
+    assert len({s.strip() for s in summaries}) == 5, (
+        "two of the five branches published identical text, so at least one "
         "assertion above is satisfied by a constant rather than by a verdict:\n"
         + "\n---\n".join(summaries)
     )

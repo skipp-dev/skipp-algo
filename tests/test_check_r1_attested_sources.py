@@ -38,7 +38,6 @@ from scripts.check_r1_attested_sources import attested_sources, find_offenders
 from scripts.smc_r1_rollout_contract import build_rollout_contract
 from tests._fast_gates_gate import run_gate
 
-GUARD = ROOT / "scripts" / "check_r1_attested_sources.py"
 WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 
 _ATTESTED_HASH = "a" * 64
@@ -123,10 +122,41 @@ def test_every_live_target_is_covered_by_the_evidence() -> None:
 
 
 def test_the_remedy_never_says_to_rewrite_the_dated_evidence() -> None:
-    """#4270 pinned this rule for prose; it matters more where a live gate rests on it."""
-    text = GUARD.read_text(encoding="utf-8")
-    assert "Do NOT edit the existing dated evidence artifact" in text
-    assert "falsifies a measurement" in text
+    """#4270 pinned this rule for prose; it matters more where a live gate rests on it.
+
+    Asserted against the CONSTANT the guard prints, not against the file's
+    source text. Source text is satisfied by a docstring, a comment, or a dead
+    string literal — the same gap ``_run_gate`` was written to close one layer
+    up. ``_REMEDY`` is what reaches stderr on the required check, so it is what
+    the operator reads.
+    """
+    from scripts.check_r1_attested_sources import _REMEDY
+
+    assert "Do NOT edit the existing dated evidence artifact" in _REMEDY
+    assert "falsifies a measurement" in _REMEDY
+
+
+def test_the_remedy_names_both_places_the_registration_lives() -> None:
+    """A remedy that repoints one of two pinned copies leaves the repo red.
+
+    The registration is duplicated by construction: ``EXECUTION_EVIDENCE`` in
+    ``scripts/smc_r1_rollout_contract.py`` and ``executionEvidence`` in the
+    generated ``artifacts/governance/smc_r1_live_rollout_contract.json``, held
+    equal by ``tests/test_smc_r1_rollout_contract.py``. An operator who follows
+    a remedy naming only the artifact does the work and stays failing, which is
+    how a correct instruction still costs a cycle.
+    """
+    from scripts.check_r1_attested_sources import _REMEDY
+
+    for site in (
+        "scripts/smc_r1_rollout_contract.py",
+        "artifacts/governance/smc_r1_live_rollout_contract.json",
+    ):
+        assert site in _REMEDY, (
+            f"the remedy does not name {site}, one of the two registration "
+            "sites tests/test_smc_r1_rollout_contract.py pins equal to the "
+            "other. Following it would leave the repository red."
+        )
 
 
 def test_the_guard_is_wired_into_fast_gates() -> None:

@@ -1541,7 +1541,10 @@ jobs:
             )
 
           try:
-            from scripts.check_tv_unattested_sources import RESOLUTION
+            from scripts.check_tv_unattested_sources import (
+              RESOLUTION,
+              drifted_attested_targets,
+            )
             from scripts.smc_r1_rollout_contract import (
               EXECUTION_EVIDENCE,
               MIN_ATTESTED_SOURCES,
@@ -1559,6 +1562,16 @@ jobs:
               check=True,
             )
             stale = sorted(line.strip() for line in diff.stdout.splitlines() if line.strip())
+            # The second, INDEPENDENT question. `stale` answers "did this run
+            # rewrite an attested source"; it says nothing about whether the
+            # registered evidence still describes them, and an empty git diff
+            # was previously published as if it answered both. It cannot: the
+            # rollout can already be un-attested when this run starts — #4371
+            # did exactly that and sat unnoticed for hours. So compare the
+            # hashes too, using the guard that owns the comparison rather than
+            # re-deriving it here, which would measure one implementation
+            # against another instead of against the evidence.
+            drifted = sorted(item["path"] for item in drifted_attested_targets())
           except Exception:
             detail = traceback.format_exc()
             print("::error::R1 attestation check could not run; see the job summary")
@@ -1605,20 +1618,60 @@ jobs:
                 "::warning::R1 attestation invalidated by this refresh: "
                 f"{', '.join(stale)} — see the job summary and the PR body"
               )
+            elif drifted:
+              # Un-attested, but NOT by this run. Reported separately because
+              # the remedy is the same while the blame is not, and because the
+              # previous version of this step published an ALL-CLEAR here: the
+              # roster had not moved in this run, so `stale` was empty, and the
+              # sentence "the evidence still describes them" went out about
+              # hashes nobody had read. Narrow but real — it needs an evidence
+              # artifact already drifted plus a repin that is a no-op for every
+              # attested target, and one of the attested sources carries no
+              # libraryPin at all, so that second half happens on its own.
+              # (Named nowhere here on purpose: the roster is derived, and a
+              # test forbids a filename in this step so it cannot be
+              # hand-maintained back into existence.)
+              listed = "\n".join(f"- `{path}`" for path in drifted)
+              summary = notice = (
+                "## R1 attestation was already invalid before this refresh\n"
+                "\n"
+                "This run rewrote no R1-attested source, but the registered evidence\n"
+                "does not attest the current content of:\n"
+                "\n"
+                f"{listed}\n"
+                "\n"
+                f"`{evidence}` stopped describing what is deployed before this run\n"
+                f"started, so `{GUARD}`\n"
+                "was already failing on main and on every PR branched off it. This\n"
+                "refresh did not cause it and does not fix it.\n"
+                "\n"
+                "```\n"
+                f"{RESOLUTION.format(evidence=evidence)}"
+                "```\n"
+              )
+              print(
+                "::warning::R1 attestation was already invalid before this refresh: "
+                f"{', '.join(drifted)} — see the job summary and the PR body"
+              )
             else:
-              # The ONLY path that reports an all-clear, and it is reached only
-              # after a roster at or above the floor was really compared.
+              # The ONLY path that reports an all-clear, and it is now reached
+              # only after BOTH questions were answered: nothing attested moved
+              # in this run, AND every attested hash still matches the
+              # registered evidence. The second half is what makes the sentence
+              # below true; without it this branch asserted an attestation from
+              # an empty `git diff`, which never looked at a hash.
               notice = ""
               summary = (
                 "## R1 attestation unaffected\n"
                 "\n"
                 f"Checked {len(attested)} attested source(s) "
-                f"({', '.join(attested)}); none changed in this run, so\n"
-                f"`{evidence}` still describes them.\n"
+                f"({', '.join(attested)}); none changed in this run, and every\n"
+                f"one still hashes to what `{evidence}` attests, so it still\n"
+                "describes them.\n"
               )
               print(
-                "::notice::No R1-attested source changed in this refresh; "
-                f"{evidence} still describes them."
+                "::notice::No R1-attested source changed in this refresh and "
+                f"every attested hash still matches {evidence}."
               )
 
           # Called exactly once, outside every branch: the job summary for the
