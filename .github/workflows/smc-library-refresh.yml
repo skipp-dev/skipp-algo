@@ -1520,6 +1520,23 @@ jobs:
       # producers report this same drift and a hand-copy here would go stale the
       # first time a resolution path changes — the defect class this PR exists
       # to close, applied to prose instead of to a file list.
+      # Runs BEFORE the drift report, deliberately. The report answers "did
+      # this run rewrite an attested source"; holding first makes the honest
+      # answer no, so the PR it opens is mergeable and auto-merge fires as it
+      # did before 2026-08-04. Ordering the other way would leave the report
+      # describing a rewrite that no longer reaches the commit.
+      #
+      # Why hold rather than re-attest: evidence costs a mutating TradingView
+      # session, and the export chain fires 9x per weekday. Measured 2026-08-04
+      # -- #4405 (pin /184) and #4429 (/185) both open with a third run
+      # generating /186, none of them mergeable, where the same PRs merged in
+      # ~35s before the guard existed. An attested companion moves only in a
+      # deliberate re-attestation PR; everything else advances here.
+      - name: Hold R1-attested sources at their attested content
+        id: r1_hold
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        run: '"$SMC_PYTHON_BIN" -m scripts.hold_r1_attested_sources'
+
       - name: Report R1 attestation drift caused by this refresh
         id: r1_attestation
         if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
@@ -1787,6 +1804,12 @@ jobs:
           # Empty when the notice step was skipped, which is the same thing the
           # unset variable used to mean.
           R1_ATTESTATION_NOTICE: ${{ steps.r1_attestation.outputs.notice }}
+          R1_HOLD_NOTICE: ${{ steps.r1_hold.outputs.notice }}
+          # Bound here rather than interpolated into the script: an
+          # Actions expression inside `run:` cannot be executed by
+          # tests/_workflow_step_shell.py, which is how this step's
+          # cleanup is tested. Same value, one substitution earlier.
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
           # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
           # so direct `git push origin HEAD:main` is rejected with GH013
@@ -1849,10 +1872,17 @@ jobs:
           if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then
             PR_BODY="${PR_BODY}"$'\n\n'"${R1_ATTESTATION_NOTICE}"
           fi
+          # What the hold step actually held. Carried into the PR body for the
+          # same reason as the drift notice: a consumer pinned one version
+          # behind the manifest is a deliberate state, and a reviewer who finds
+          # it only by diffing two .pine files will read it as a bug.
+          if [ -n "${R1_HOLD_NOTICE:-}" ]; then
+            PR_BODY="${PR_BODY}"$'\n\n'"${R1_HOLD_NOTICE}"
+          fi
 
           BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
-          git commit -m "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
+          git commit -m "chore(pine): library refresh ${REFRESH_DATE} (run ${RUN_NUMBER})"
           git push -u origin "$BRANCH"
           # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
           # with `|| true`, which silently swallowed real PR-creation failures
@@ -1863,7 +1893,7 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --label automated \
-            --title "chore(pine): library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
+            --title "chore(pine): library refresh ${REFRESH_DATE} (run ${RUN_NUMBER})" \
             --body "$PR_BODY"; then
             echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
             exit 1
@@ -1874,6 +1904,33 @@ jobs:
           # than failing the job.
           gh pr merge "$BRANCH" --auto --squash --delete-branch \
             || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
+
+          # Close the siblings this run just superseded.
+          #
+          # The branch name carries the run id, so every run opens a NEW PR and
+          # nothing ever closed an old one. That was invisible while auto-merge
+          # cleared each PR in ~35 seconds (#4371, #4284, #4272 all merged
+          # within a minute of opening). The moment anything blocks the merge
+          # they accumulate at export cadence -- 9 ticks per weekday.
+          #
+          # Every open bot/library-refresh-* PR is fully contained in this one:
+          # same generated file set, later library version. Closing them is
+          # dropping a stale copy, not dropping work. Restricted to this exact
+          # branch prefix and skips the branch just opened.
+          #
+          # Failures here are reported, never fatal: the refresh itself has
+          # already landed in a PR, and losing the cleanup must not lose that.
+          superseded="$(gh pr list --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName | startswith(\"bot/library-refresh-\")) | select(.headRefName != \"${BRANCH}\") | .number" \
+            2>/dev/null || true)"
+          for pr in ${superseded}; do
+            if gh pr close "${pr}" --delete-branch \
+              --comment "Superseded by \`${BRANCH}\` — same generated file set at a later library version. Closed by the refresh that replaced it; nothing to salvage."; then
+              echo "::notice::closed superseded refresh PR #${pr}"
+            else
+              echo "::warning::could not close superseded refresh PR #${pr}"
+            fi
+          done
 
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
