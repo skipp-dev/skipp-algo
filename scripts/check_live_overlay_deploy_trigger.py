@@ -46,12 +46,18 @@ trigger and left the repo association. A guard built on `source.repo` (#4354)
 would have reported drift every day, so it was removed the same day it shipped.
 
 Exit codes:
-  0  no native deploy trigger (healthy)  OR  token not configured (skipped)
+  0  no native deploy trigger (healthy)  OR  the deployment is declared
+     unconfigured (_DEPLOYMENT_IS_CONFIGURED = False) and an input is missing
+     (skipped)
   1  a native deploy trigger exists (drift — remove it, see OPS.md)
-  2  the check could not run (auth/network/API error)
+  2  could not verify: auth/network/API error or unreadable response, OR an
+     input is missing while _DEPLOYMENT_IS_CONFIGURED is True (a deleted or
+     mistyped secret, not a healthy state)
 
-Skipping on an absent token mirrors `deploy-live-overlay-daemon.yml`, which
-no-ops without its Railway secret: an unconfigured guard must not false-fail.
+Skipping on an absent input mirrors `deploy-live-overlay-daemon.yml`, which
+no-ops without its Railway secret — but only while the deployment is declared
+unconfigured. With the declaration True (the production default), a missing
+input cannot false-fail as a healthy skip; it exits 2.
 """
 from __future__ import annotations
 
