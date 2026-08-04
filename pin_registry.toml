@@ -476,6 +476,15 @@ file = "scripts/check_commit_authors.py"
 attr = "run"
 count = 1
 
+# scripts/hold_r1_attested_sources.py: 2026-08-04. Reads `git diff --name-only`
+# and runs `git checkout HEAD --` to hold R1-attested sources at their attested
+# content during an automated library refresh. Constant `git` argv list, paths
+# come from the rollout contract, no shell=True, no user input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/hold_r1_attested_sources.py"
+attr = "run"
+count = 1
+
 # scripts/publish_overlay_dashboard.py: local macOS Keychain read for Grafana
 # token lookup before authenticated dashboard publish.
 [[subprocess_shell_injection_pin.sites]]
