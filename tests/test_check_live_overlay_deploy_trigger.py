@@ -11,8 +11,10 @@ Network is mocked: these pin the exit-code contract, not Railway connectivity.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import importlib.util
 import json
+import ssl
 import urllib.error
 from pathlib import Path
 
@@ -646,6 +648,34 @@ def test_a_well_formed_empty_answer_is_still_healthy(guard, monkeypatch, capsys)
     assert "no native Railway deploy trigger" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "edges",
+    [
+        [{}],
+        [{"node": None}],
+        [1, 2, 3],
+    ],
+    ids=["node_key_missing", "node_is_null", "entries_not_dicts"],
+)
+def test_a_malformed_trigger_edge_is_inconclusive_never_healthy(
+    guard, monkeypatch, capsys, edges
+):
+    """``[e["node"] for e in edges if isinstance(e, dict) and e.get("node")]``
+    (the previous implementation) FILTERED a malformed edge away instead of
+    rejecting it, so all three shapes here silently produced an empty trigger
+    list — rc 0 "no native deploy trigger" without having verified anything,
+    contradicting the fail-closed comment right above `_fetch_triggers`'s
+    outer-shape assertion (same fail-OPEN class, one level deeper). An edge
+    that is not a dict carrying a dict `node` must be unreadable, not evidence
+    of health.
+    """
+    _answer_with(guard, monkeypatch, {"data": {"deploymentTriggers": {"edges": edges}}})
+    rc = guard.main()
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert "no native Railway deploy trigger" not in out
+
+
 def test_a_read_timeout_is_inconclusive_not_drift(guard, monkeypatch, capsys):
     """urllib wraps a CONNECT timeout in URLError, but a timeout during
     resp.read() propagates as a bare TimeoutError. Uncaught it escapes main()
@@ -662,7 +692,39 @@ def test_a_read_timeout_is_inconclusive_not_drift(guard, monkeypatch, capsys):
     assert "DRIFT" not in capsys.readouterr().err
 
 
-def test_the_skip_line_names_only_the_variable_that_is_missing(monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ssl.SSLError("bad record mac"),
+        ConnectionResetError("connection reset by peer"),
+        http.client.IncompleteRead(b"partial"),
+    ],
+    ids=["ssl_error", "connection_reset", "incomplete_read"],
+)
+def test_a_transport_fault_during_read_is_inconclusive_not_drift(guard, monkeypatch, exc):
+    """TimeoutError (tested above) was only one member of this class.
+
+    ssl.SSLError and ConnectionResetError are OSError SIBLINGS, not
+    subclasses of URLError or TimeoutError — a tuple that names only those two
+    (like this guard's did before the 2026-08-04 review) lets both escape.
+    http.client.IncompleteRead is neither an OSError nor a ValueError, so it
+    escaped too. All three are real faults resp.read() can raise; escaping
+    main() exits the process with status 1 — DRIFT — sending the operator to
+    hunt a trigger that does not exist. Patching only ``urlopen`` (not
+    ``_fetch_triggers`` directly) exercises the real call path AND the
+    follow-up diagnosis probe in the except block, which hits the identical
+    widened tuple in ``_diagnose_account_token``.
+    """
+
+    def _raise(*a, **k):
+        raise exc
+
+    monkeypatch.setattr(guard.urllib.request, "urlopen", _raise)
+    rc = guard.main()
+    assert rc == 2
+
+
+def test_the_error_line_names_only_the_variable_that_is_missing(monkeypatch, capsys):
     """Deleting one secret must not read like the designed dormant state.
 
     Superseded from a soft SKIP into the loud ERROR path (2026-08-04): with the
@@ -761,9 +823,11 @@ def test_the_declaration_cannot_be_flipped_to_silence_the_guard():
 
 
 def test_the_ok_summary_prints_structure_not_unknown_values(guard):
-    """`deployments.meta` is Railway-controlled and free-form. Structure and
-    allowlisted leaves are useful; arbitrary values are someone else's data in
-    our log."""
+    """`deployments.meta` is Railway-controlled and free-form: not just its
+    VALUES but its KEY NAMES are third-party content, so the whole subtree
+    collapses to a key count rather than being enumerated (2026-08-04 review:
+    a prior version enumerated key names verbatim below `meta`, which
+    contradicted the comment's own "reported by type only" claim)."""
     body = {
         "data": {
             "deployments": {
@@ -785,13 +849,16 @@ def test_the_ok_summary_prints_structure_not_unknown_values(guard):
     status, detail = guard._classify(body)
     assert status == "OK"
     assert "unaudited-value-42" not in detail
-    assert "commitAuthor=<str>" in detail
+    # Not just the leaf value — the key NAME must not leak either.
+    assert "commitAuthor" not in detail
     # `branch` is inside `meta` here, so it is free-form too — no allowlist
     # exemption just because the name matches. See
     # test_the_allowlist_does_not_reach_inside_the_freeform_meta_object for the
     # contrast with the same name at a trusted position.
     assert "main" not in detail
-    assert "branch=<str>" in detail
+    assert "branch" not in detail
+    # `meta` itself still says HOW MUCH it holds — just not what it's named.
+    assert "meta={<2 keys>}" in detail
     # Allowlisted leaves outside `meta` and the shape must survive — a summary
     # nobody can read would just get replaced by the raw dump again.
     assert "status=" in detail and "SUCCESS" in detail
@@ -803,7 +870,8 @@ def test_the_allowlist_does_not_reach_inside_the_freeform_meta_object(guard):
     inside it must not be trusted just because the same name is safe at a
     position whose shape we define — that would make the allowlist only as
     safe as Railway's naming choices, which is the object this task exists to
-    stop trusting."""
+    stop trusting. That now extends to the KEY NAME too: `meta`'s own
+    `branch` key must not be printed at all, only counted."""
     body = {
         "data": {
             "deployments": {
@@ -821,7 +889,11 @@ def test_the_allowlist_does_not_reach_inside_the_freeform_meta_object(guard):
     detail = guard._classify(body)[1]
     assert "sneaky-value-99" not in detail
     assert 'branch="main"' in detail
-    assert "meta={branch=<str>}" in detail
+    assert "meta={<1 keys>}" in detail
+    # The only occurrence of the word "branch" in the whole summary must be
+    # the trusted top-level one — `meta`'s `branch` key name is gone, not
+    # merely its value.
+    assert detail.count("branch") == 1
 
 
 def test_the_summary_keeps_the_answers_the_probe_exists_for(guard):
@@ -844,14 +916,87 @@ def test_the_summary_keeps_the_answers_the_probe_exists_for(guard):
     assert "image=None" in detail
 
 
-def test_the_summary_is_bounded_in_width_and_depth(guard):
-    deep = {"data": {"a": {"b": {"c": {"d": {"e": {"f": {"g": "deep"}}}}}}}}
+def test_repository_is_allowlisted_like_its_sibling_field_repo(guard):
+    """`deploymentTriggers` selects `repository`, not `repo` (that's a
+    different query's field name for the same fact). Before this fix the
+    allowlist had only `repo`, so a real trigger's repo rendered `<str>` in
+    the probe while main()'s DRIFT path printed it verbatim to stderr on the
+    very same field — redacting it in the probe was inconsistent, not
+    protective."""
+    body = {
+        "data": {
+            "deploymentTriggers": {
+                "edges": [
+                    {
+                        "node": {
+                            "id": "0da78ef2",
+                            "repository": "skipp-dev/skipp-algo",
+                            "branch": "main",
+                            "provider": "github",
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    detail = guard._classify(body)[1]
+    assert 'repository="skipp-dev/skipp-algo"' in detail
+
+
+def test_the_summary_is_bounded_in_depth(guard):
+    """Nested past `_PAYLOAD_MAX_DEPTH` (12, sized from the deepest real
+    `_PROBE_QUERIES` shape — see the constant's comment): 13 single-key levels
+    puts the leaf one level beyond the cap. Shallower than this (measured up
+    to 12 levels) renders in full and would make the assertion vacuous."""
+    deep = {
+        "data": {
+            "a": {
+                "b": {
+                    "c": {
+                        "d": {
+                            "e": {
+                                "f": {
+                                    "g": {
+                                        "h": {
+                                            "i": {
+                                                "j": {"k": {"l": {"m": "deep"}}}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     assert "…" in guard._classify(deep)[1]
 
-    wide = {"data": {"edges": [{"node": {"name": f"svc-{i}"}} for i in range(200)]}}
+
+def test_the_summary_is_bounded_in_width(guard):
+    """The width bound (`_PAYLOAD_MAX` / the `_classify` slice) is a SEPARATE
+    mechanism from the depth bound above and needs its own payload that
+    actually exceeds it pre-truncation.
+
+    ``[{"node": {"name": ...}} for _ in range(200)]`` (the previous payload)
+    does NOT do that: a list only renders ONE representative element (`the
+    shape repeats, the values do not` — see `_summarize`), so the untruncated
+    summary is ~42 chars regardless of how many list items exist, nowhere near
+    the 400-char cap. That made the width assertion pass whether or not the
+    slice in `_classify` (``summary[:_PAYLOAD_MAX] + ("…" if ...)``) was even
+    present — verified 2026-08-04 by deleting the slice: this test still
+    passed. A DICT, not a list, renders every sibling key, so width to
+    exceed the cap needs sibling KEYS. 80 sibling keys is measured (see
+    `_summarize(wide["data"])` with the slice removed) to produce an
+    870-char unsliced summary, truncated by the real code to exactly 401
+    (400 + the ellipsis) — comfortably over the bound, unlike the previous
+    list-based payload's ~42 chars.
+    """
+    wide = {"data": {f"k{i}": "v" for i in range(80)}}
     detail = guard._classify(wide)[1]
     assert len(detail) <= 401  # 400 + the ellipsis
-    assert "[200 items" in detail
+    assert detail.endswith("…")
 
 
 def test_the_summary_survives_shapes_that_are_not_objects(guard):
