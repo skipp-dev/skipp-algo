@@ -1631,3 +1631,49 @@ def test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir(
         f"_isolated_env left {leaked} in place; those override cwd and would "
         "retarget the real repository"
     )
+
+
+def test_an_evidence_artifact_missing_a_hash_never_produces_an_all_clear(
+    tmp_path: Path,
+) -> None:
+    """The step must not attest over a hash the artifact never recorded.
+
+    Found by review of #4393 on 2026-08-04 and reproduced here at the consumer.
+    ``drifted_attested_targets`` used to skip a source whose evidence entry
+    carried no ``repositorySha256``, so all four malformed shapes below reached
+    this step's clean branch and published "every one still hashes to what
+    ``<evidence>`` attests" -- an attestation over sources whose hashes had
+    never been read. The repository's required guard,
+    ``scripts/check_r1_attested_sources.py``, called the same input an offender,
+    so two guards gave two answers to one question.
+
+    Driven through the real ``run:`` block, over a seeded repository whose
+    ``git diff`` is empty -- so the only thing that can produce a verdict here
+    is the hash comparison itself.
+    """
+    attested = _evidence_matching_the_repository()
+    victim = sorted(attested)[0]
+
+    shapes = {
+        "the key was deleted": {k: v for k, v in attested.items() if k != victim},
+        "the entry is an empty object": {**attested, victim: {}},
+        "the hash is explicitly null": {**attested, victim: {"repositorySha256": None}},
+        "the entry itself is null": {**attested, victim: None},
+    }
+
+    for index, (description, sources) in enumerate(shapes.items()):
+        work = tmp_path / f"shape{index}"
+        work.mkdir()
+        notice = _run_notice(work, cwd=_seed_repo(work), sources=sources)
+
+        assert notice.rc == 0, f"{description}: {notice.log}"
+        leaked = [phrase for phrase in _ALL_CLEAR if phrase in _unwrapped(notice.summary)]
+        assert not leaked, (
+            f"{description}: the step published all-clear language {leaked} while "
+            f"the registered evidence records no hash for {victim!r}. Absence of a "
+            f"measurement is not a measurement of agreement:\n{notice.summary}"
+        )
+        assert notice.pr_body.strip(), (
+            f"{description}: the verdict never reached the PR body, which is the "
+            "only surface anyone reads"
+        )
