@@ -275,8 +275,8 @@ Throwaway artifacts of this run live under `~/.local/share/skipp/vpin_followup/`
   order as §3b (6,336/6,352, uniq 5,257). The small event-count delta vs §2
   (10,981 → 10,940) comes from adapter evolution since June, not from the data.
 
-**Plain A/B (the only verdict that can unlock Meta-Label C) — `families_lifted
-= []` on BOTH labels:**
+**Plain A/B (the only verdict that can unlock Meta-Label C) —
+`families_lifted = []` on BOTH labels:**
 
 | Family | n_oos | Direction Δ-res | Magnitude Δ-res | Lift |
 |--------|------:|----------------:|----------------:|------|
