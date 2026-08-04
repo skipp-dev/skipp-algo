@@ -9,6 +9,7 @@
       "evidence": "artifacts/governance/smc_r1_rollback_drill_2026-08-01.json",
       "gate": "rollback drill removing and restoring both companions",
       "note": "The registered evidence still records rollback.status = not_run as of 05:05:15Z, when no implementation existed. The drill ran at 17:23:24Z. Both readings are true of their own moment; the dated measurement is repeated by a new artifact, never rewritten.",
+      "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
       "run": 30710010604,
       "status": "passed"
     },
@@ -17,6 +18,7 @@
       "gate": "alert-condition inventory for both companions",
       "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
       "observer": "preuss_steffen",
+      "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
       "status": "passed"
     },
     {
@@ -24,6 +26,7 @@
       "gate": "Hold Manager exclusivity and Simple Management layout inventory",
       "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
       "observer": "preuss_steffen",
+      "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
       "status": "passed"
     },
     {
@@ -31,6 +34,7 @@
       "gate": "chart-instance compile status after a final reload",
       "note": "Read off the live layout at 19:40Z with screenshots. No automation reports this field, which is why the 05:05:15Z evidence records it as not_run and keeps doing so.",
       "observer": "preuss_steffen",
+      "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
       "status": "passed"
     }
   ],

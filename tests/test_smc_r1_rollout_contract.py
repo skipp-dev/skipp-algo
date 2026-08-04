@@ -339,6 +339,47 @@ def test_the_operator_observation_carries_what_no_run_reports() -> None:
     assert observation["compileStatusAfterFinalReload"] == "passed"
 
 
+def test_status_derives_from_execution_state(tmp_path, monkeypatch) -> None:
+    """pending im Artefakt => pending im Contract, ohne Code-Edit."""
+    import scripts.smc_r1_rollout_contract as contract_mod
+
+    evidence = json.loads(contract_mod.EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
+    evidence["executionState"] = "pending"
+    fake = tmp_path / contract_mod.EXECUTION_EVIDENCE.name
+    fake.write_text(json.dumps(evidence), encoding="utf-8")
+    monkeypatch.setattr(contract_mod, "EXECUTION_EVIDENCE", fake)
+
+    built = contract_mod.build_rollout_contract()
+    assert built["status"] == "authorized_execution_pending"
+    assert built["executionPerformed"] is False
+
+
+def test_missing_execution_state_means_executed() -> None:
+    """Backward-Kompatibilität: das 2026-08-04-Artefakt hat kein Feld."""
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
+    built = build_rollout_contract()
+    assert built["status"] == "authorized_execution_reattested"
+    assert built["executionPerformed"] is True
+
+
+def test_closed_since_is_scoped_to_the_registered_evidence(tmp_path, monkeypatch) -> None:
+    """Einträge für superseded Evidenz fallen ohne Code-Edit heraus."""
+    import scripts.smc_r1_rollout_contract as contract_mod
+
+    evidence = json.loads(contract_mod.EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
+    evidence["executionState"] = "pending"
+    evidence["openGates"] = ["mutating consumer save", "post-save verification"]
+    fake = tmp_path / "smc_r1_live_rollout_evidence_2026-12-31.json"
+    fake.write_text(json.dumps(evidence), encoding="utf-8")
+    monkeypatch.setattr(contract_mod, "EXECUTION_EVIDENCE", fake)
+
+    built = contract_mod.build_rollout_contract()
+    assert built["closedSinceRegisteredEvidence"] == [], (
+        "closures recorded against the superseded artifact must not carry over"
+    )
+
+
 def test_the_repaint_caution_is_disclosed_and_its_unknown_is_named() -> None:
     """TradingView flagged the alerts; the artifact says so rather than omitting it.
 

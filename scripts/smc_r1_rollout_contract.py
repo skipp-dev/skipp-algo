@@ -94,6 +94,49 @@ OPEN_GATES: Final = ()
 # Lower it only together with a reason, in the same PR that shrinks the roster.
 MIN_ATTESTED_SOURCES: Final = 2
 
+# Gates the registered evidence lists as open and that a LATER dated artifact
+# has since closed. This list is the only sanctioned way for a gate to leave
+# openGates: the alternative is editing the registered evidence so it agrees
+# with today, which replaces a measurement with a fabrication. Each entry
+# carries "registeredEvidence" naming the artifact its closure applies
+# against; build_rollout_contract() filters to the entries scoped to
+# whatever EXECUTION_EVIDENCE is registered at call time, so an entry for a
+# superseded artifact does not silently carry over onto a newer one.
+_CLOSED_SINCE: Final = [
+    {
+        "gate": "rollback drill removing and restoring both companions",
+        "status": "passed",
+        "evidence": ROLLBACK_DRILL_EVIDENCE.relative_to(ROOT).as_posix(),
+        "run": 30710010604,
+        "note": (
+            "The registered evidence still records rollback.status = not_run "
+            "as of 05:05:15Z, when no implementation existed. The drill ran at "
+            "17:23:24Z. Both readings are true of their own moment; the dated "
+            "measurement is repeated by a new artifact, never rewritten."
+        ),
+        "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
+    },
+    *(
+        {
+            "gate": gate,
+            "status": "passed",
+            "evidence": OPERATOR_OBSERVATION_EVIDENCE.relative_to(ROOT).as_posix(),
+            "observer": "preuss_steffen",
+            "note": (
+                "Read off the live layout at 19:40Z with screenshots. No automation "
+                "reports this field, which is why the 05:05:15Z evidence records it "
+                "as not_run and keeps doing so."
+            ),
+            "registeredEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
+        }
+        for gate in (
+            "alert-condition inventory for both companions",
+            "Hold Manager exclusivity and Simple Management layout inventory",
+            "chart-instance compile status after a final reload",
+        )
+    ),
+]
+
 
 def _source(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
@@ -118,12 +161,33 @@ def _event_library_pin() -> dict:
 
 
 def build_rollout_contract() -> dict:
+    evidence_doc = json.loads(EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
+    # Absent field == executed: every artifact before 2026-08-04 documents an
+    # executed rollout and is never rewritten to say so.
+    execution_state = evidence_doc.get("executionState", "executed")
+    if execution_state not in ("pending", "executed"):
+        raise RuntimeError(f"unknown executionState: {execution_state!r}")
+    try:
+        registered = EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()
+    except ValueError:
+        # Tests point EXECUTION_EVIDENCE outside the repo tree (tmp_path) to
+        # exercise executionState without touching the checked-in artifact.
+        # Only the real in-repo path can equal a _CLOSED_SINCE entry's
+        # "artifacts/governance/..." literal, so an out-of-tree path degrades
+        # to the bare filename: it can never match one, which is exactly the
+        # "not the registered artifact" outcome the scoping filter exists for.
+        registered = EXECUTION_EVIDENCE.name
+
     return {
         "schemaVersion": 1,
         "gate": "R1-LIVE-ROLLOUT",
-        "status": "authorized_execution_reattested",
-        "executionPerformed": True,
-        "executionEvidence": EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
+        "status": (
+            "authorized_execution_reattested"
+            if execution_state == "executed"
+            else "authorized_execution_pending"
+        ),
+        "executionPerformed": execution_state == "executed",
+        "executionEvidence": registered,
         "priorExecutionEvidence": PRIOR_EXECUTION_EVIDENCE.relative_to(ROOT).as_posix(),
         # Gates the registered evidence lists as open and that a LATER dated
         # artifact has since closed. This list is the only sanctioned way for a
@@ -131,37 +195,11 @@ def build_rollout_contract() -> dict:
         # evidence so it agrees with today, which replaces a measurement with a
         # fabrication. The tests derive openGates from the evidence minus this
         # list, so a gate cannot be dropped without an artifact behind it.
+        # Filtered to the entries scoped to the currently registered evidence
+        # artifact -- a closure recorded against a superseded artifact does
+        # not carry over onto whatever is registered now.
         "closedSinceRegisteredEvidence": [
-            {
-                "gate": "rollback drill removing and restoring both companions",
-                "status": "passed",
-                "evidence": ROLLBACK_DRILL_EVIDENCE.relative_to(ROOT).as_posix(),
-                "run": 30710010604,
-                "note": (
-                    "The registered evidence still records rollback.status = not_run "
-                    "as of 05:05:15Z, when no implementation existed. The drill ran at "
-                    "17:23:24Z. Both readings are true of their own moment; the dated "
-                    "measurement is repeated by a new artifact, never rewritten."
-                ),
-            },
-            *(
-                {
-                    "gate": gate,
-                    "status": "passed",
-                    "evidence": OPERATOR_OBSERVATION_EVIDENCE.relative_to(ROOT).as_posix(),
-                    "observer": "preuss_steffen",
-                    "note": (
-                        "Read off the live layout at 19:40Z with screenshots. No automation "
-                        "reports this field, which is why the 05:05:15Z evidence records it "
-                        "as not_run and keeps doing so."
-                    ),
-                }
-                for gate in (
-                    "alert-condition inventory for both companions",
-                    "Hold Manager exclusivity and Simple Management layout inventory",
-                    "chart-instance compile status after a final reload",
-                )
-            ),
+            entry for entry in _CLOSED_SINCE if entry["registeredEvidence"] == registered
         ],
         "preflight": {
             "config": CONFIG.relative_to(ROOT).as_posix(),
