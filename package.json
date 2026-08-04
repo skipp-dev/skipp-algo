@@ -58,6 +58,6 @@
     "esbuild": "~0.28.0",
     "playwright": "^1.55.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.9.2"
+    "typescript": "^7.0.2"
   }
 }
