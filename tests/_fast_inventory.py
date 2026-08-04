@@ -224,6 +224,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # what pulls the R1 guard onto a pine-only bot PR (2026-08-04,
     # #4284/#4371 aftermath). YAML/source parsing only, <0.5s.
     "test_fast_gates_attested_pine_coverage.py",
+    "test_git_fixture_env_isolation.py",
     # Bus-v3 / context-library contract guards. On the required path because
     # fast-gates is the only merge-gating test job: #3657 landed the
     # smc_profile_engine allowlist exception together with the test enforcing it,
