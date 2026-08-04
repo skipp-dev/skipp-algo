@@ -786,11 +786,42 @@ def test_the_ok_summary_prints_structure_not_unknown_values(guard):
     assert status == "OK"
     assert "unaudited-value-42" not in detail
     assert "commitAuthor=<str>" in detail
-    # Allowlisted leaves and the shape must survive — a summary nobody can read
-    # would just get replaced by the raw dump again.
-    assert "branch=" in detail and "main" in detail
+    # `branch` is inside `meta` here, so it is free-form too — no allowlist
+    # exemption just because the name matches. See
+    # test_the_allowlist_does_not_reach_inside_the_freeform_meta_object for the
+    # contrast with the same name at a trusted position.
+    assert "main" not in detail
+    assert "branch=<str>" in detail
+    # Allowlisted leaves outside `meta` and the shape must survive — a summary
+    # nobody can read would just get replaced by the raw dump again.
     assert "status=" in detail and "SUCCESS" in detail
     assert "id=" in detail
+
+
+def test_the_allowlist_does_not_reach_inside_the_freeform_meta_object(guard):
+    """`meta`'s shape is Railway's, not ours. An allowlisted name occurring
+    inside it must not be trusted just because the same name is safe at a
+    position whose shape we define — that would make the allowlist only as
+    safe as Railway's naming choices, which is the object this task exists to
+    stop trusting."""
+    body = {
+        "data": {
+            "deployments": {
+                "edges": [
+                    {
+                        "node": {
+                            "branch": "main",
+                            "meta": {"branch": "sneaky-value-99"},
+                        }
+                    }
+                ]
+            }
+        }
+    }
+    detail = guard._classify(body)[1]
+    assert "sneaky-value-99" not in detail
+    assert 'branch="main"' in detail
+    assert "meta={branch=<str>}" in detail
 
 
 def test_the_summary_keeps_the_answers_the_probe_exists_for(guard):
@@ -814,7 +845,7 @@ def test_the_summary_keeps_the_answers_the_probe_exists_for(guard):
 
 
 def test_the_summary_is_bounded_in_width_and_depth(guard):
-    deep = {"data": {"a": {"b": {"c": {"d": {"e": {"f": "deep"}}}}}}}
+    deep = {"data": {"a": {"b": {"c": {"d": {"e": {"f": {"g": "deep"}}}}}}}}
     assert "…" in guard._classify(deep)[1]
 
     wide = {"data": {"edges": [{"node": {"name": f"svc-{i}"}} for i in range(200)]}}

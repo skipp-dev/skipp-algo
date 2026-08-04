@@ -373,37 +373,47 @@ _PROBE_QUERIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 # The allowlist is the set of fields that actually answered a question here:
 # `repo`/`image` refuted the source-as-trigger equivalence, `edges` counts
 # answered "is there a trigger", and id/name/status/branch/provider identify
-# WHICH object answered.
+# WHICH object answered. It only applies where WE define the shape: these are
+# exactly the common names Railway's own deployment metadata uses, so once the
+# walk descends into a free-form subtree (`meta`), the allowlist stops
+# applying — a key named `branch` inside `meta` is not the guard's `branch`.
 _PAYLOAD_FIELDS = frozenset(
     {"id", "name", "repo", "image", "status", "branch", "provider", "createdAt"}
 )
+# Keys whose subtree's shape Railway controls, not us. Everything below one of
+# these is reported by type only, allowlist or not.
+_PAYLOAD_FREEFORM_KEYS = frozenset({"meta"})
 _PAYLOAD_MAX = 400
-_PAYLOAD_MAX_DEPTH = 5
+_PAYLOAD_MAX_DEPTH = 6
 
 
-def _summarize(value: object, key: str = "", depth: int = 0) -> str:
-    """Structure in full, allowlisted leaves verbatim, everything else by type."""
+def _summarize(value: object, key: str = "", depth: int = 0, trusted: bool = True) -> str:
+    """Structure in full, allowlisted leaves verbatim, everything else by type.
+
+    `trusted` tracks whether the walk is still inside a subtree whose shape we
+    define. It starts True and latches False for the rest of the recursion
+    once a `_PAYLOAD_FREEFORM_KEYS` key is entered — a free-form object one
+    level down is still free-form five levels down.
+    """
     if depth > _PAYLOAD_MAX_DEPTH:
         return "…"
     if isinstance(value, dict):
         return (
             "{"
             + ", ".join(
-                f"{k}={_summarize(v, k, depth + 1)}" for k, v in sorted(value.items())
+                f"{k}={_summarize(v, k, depth + 1, trusted and k not in _PAYLOAD_FREEFORM_KEYS)}"
+                for k, v in sorted(value.items())
             )
             + "}"
         )
     if isinstance(value, list):
         if not value:
             return "[0 items]"
-        # One representative element at the SAME depth: unwrapping the list
-        # exposes a repeated shape, not a new nesting level the way a dict key
-        # is one — the depth budget must not charge twice for the one hop
-        # `deployments.edges[0].node` needs before reaching real fields.
-        return f"[{len(value)} items: {_summarize(value[0], key, depth)}]"
+        # One representative element: the shape repeats, the values do not.
+        return f"[{len(value)} items: {_summarize(value[0], key, depth + 1, trusted)}]"
     if value is None or isinstance(value, bool):
         return str(value)
-    if key in _PAYLOAD_FIELDS:
+    if trusted and key in _PAYLOAD_FIELDS:
         return json.dumps(value)[:80]
     return f"<{type(value).__name__}>"
 
