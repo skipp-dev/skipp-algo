@@ -20,8 +20,8 @@ Every number below was measured on `origin/main` at **`fe25ad1ce`** on **2026-08
 | Task 2 — non-empty-subset witness clears | exactly **1** would-be false positive (`test_smc_volume_profile.py::test_span_distribution_spreads_volume_beyond_close_row::profile.rows`) |
 | Task 3 — TypeScript equivalent | ~~**4** sites, 3 distinct~~ → **1** site (`tv_r5_session_diagnostics.test.ts:90 result.failures`). **This row was wrong; corrected 2026-08-04 while executing.** The three `tv_shared.test.ts` `capture.lines` occurrences are bare `assert.ok(x.some(f))`, which `vacuousReceiver` excludes by documented design — `[].some(f)` is `false`, so it fails loudly rather than passing vacuously. The measurement script behind this row *approximated* `vacuousReceiver` by collecting `every`/`some` receivers instead of applying it. Apply the rule; do not re-derive it. |
 | Task 4 — the 11 browserless exempt TS tests | **103 tests, 103 pass, 0 fail, 1103 ms** (`npx tsx --test`, wall 1.82 s) |
-| Task 5 — `starlette` | **1.3.1 installed, not pinned anywhere** in `requirements.txt` |
-| Task 5 — `httpx2` | exists on PyPI, latest **2.9.1**; 7 test files use `TestClient` |
+| Task 5 — `starlette` | ~~1.3.1 installed, not pinned anywhere in `requirements.txt`~~ → **incomplete; corrected while executing.** `requirements.lock` — which the heavy `ci.yml` lane installs — pinned **1.0.0**, frozen since 2026-03-22, while the *required* `fast-gates` lane and the production daemon image both install unpinned `requirements.txt` and resolved to **1.3.1**. The defect was not "unpinned"; it was **four install paths disagreeing**, with the required gate and production on one version and the full suite on another. |
+| Task 5 — `httpx2` | exists on PyPI, latest **2.9.1**; **8** test files use `TestClient` (not 7 — one constructs it without a matching import line). **Not adopted**, by measurement — see the corrections section. |
 
 ### Two things measured and deliberately NOT built
 
@@ -1047,7 +1047,7 @@ Do this in a **throwaway** venv. Do not mutate the repo venv.
 ```bash
 /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m venv /tmp/httpx2-probe
 /tmp/httpx2-probe/bin/pip install -q -r requirements.txt httpx2==2.9.1
-/tmp/httpx2-probe/bin/python -m pytest -W error::DeprecationWarning -q \
+/tmp/httpx2-probe/bin/python -m pytest -W error -q \
   tests/test_smc_live_overlay_endpoint.py \
   tests/test_hold_manager_shadow_receiver.py \
   tests/test_smc_live_overlay_metrics_basic_auth.py \
@@ -1118,3 +1118,45 @@ Tasks 4 and 5 share no file with 1-3 and can go in parallel. Confirm this split 
 **2. Placeholder scan.** Every code step carries the actual code. The two places that legitimately cannot be pre-written are the per-site triage verdicts in Tasks 1, 2 and 3 — those are judgement calls with a stated three-way rule, a worked example of each direction, and a named site to apply them to, which is what the first round used successfully. Task 5 Step 4 is a two-branch decision with the measurement that selects the branch, not an open question.
 
 **3. Type consistency.** `classify_iterable(source, node, bindings, helpers)` keeps its four-argument signature across Tasks 1 and 2 — Task 2 reaches it through `bindings`, which is why no caller changes. `witness_keys` gains a third **optional** parameter, so the existing two-argument call in any not-yet-updated caller stays valid. `_render` is the single renderer on both sides; every key produced by `_produced_properties`, `_subset_bindings` and `propertiesReadFrom` goes through it, which is the invariant the first round had to be corrected for. Kind strings are `"empty literal"` (Task 1) and `"property of a produced object"` (Tasks 2 and 3, identical in both languages), each prefixed with `"local "` by the existing binding code where applicable.
+
+---
+
+## Corrections found while executing this plan (2026-08-04)
+
+Every one of these was found by an implementer or reviewer measuring something this document asserted. They are recorded here because the previous round of this work proved that a plan containing reference code gets transcribed, and a plan containing a number gets trusted. **Nine defects, all in text or code written by the plan's author.**
+
+### Defects in the plan's reference code
+
+1. **`_EMPTY_CONSTRUCTORS` ignored keyword arguments.** Task 1's Step 4 snippet tested `not node.args` only, so `dict(a=1)` and `dict(**other)` classified as `"empty literal"`. Over-reporting, so the safe direction — but it burns a triage cycle on a provably non-empty dict. Fix: `and not node.args and not node.keywords`.
+
+2. **Task 2's Step 4 merge order was wrong.** The plan said compute `_bind_assignments` first and merge produced properties in with `setdefault`. Bindings *derived from* a produced property then never form, because `_bind_assignments` classifies each assignment against the dict it is still building. Measured symptom: **44 claims instead of 45**, with exactly one row of this plan's own Step 6 table missing. Seeding before the walk reproduces the table exactly — which also proves the table's measurement came from a correct implementation and only the transcribed code was wrong.
+
+3. **`_subset_bindings` must reject `ast.GeneratorExp`.** A generator object is always truthy, so `assert gen` over a comprehension-derived name would have fabricated a witness for its base. List and set comprehensions are fine.
+
+4. **`_subset_bindings` was flow-insensitive.** The plan's `dict[str, set[str]]` design unions *every* comprehension ever assigned to a name. Three shapes then fabricate a witness. **The plan author's prescribed fix — per-target last-write-wins plus `pop` on a non-comprehension rebind — was itself measured to still fabricate**, and was order-sensitive in `if`/`else`. The implemented rule is: **a name bound more than once anywhere in the function is dropped entirely.** Eight binding forms are counted (assign/annassign/augassign/for/walrus, `with … as`, parameters incl. `*args`/`**kwargs`, `except … as`, `import … as`, `match` captures); comprehension targets deliberately are not, because a comprehension has its own scope.
+
+### Defects in the plan's stated facts
+
+5. **An empty `argvalues` does not silently collect zero tests.** `empty_parameter_set_mark` is unset in this repo, so pytest's default `skip` applies and the run emits `SKIPPED … got empty parameter set` — four such skips in `tests/test_assert_and_open_encoding_pin.py` alone. It is an **unrun check reported as a skip**. The verdict is unchanged; the reasoning written into exemptions is not.
+
+6. **The TypeScript site count was 1, not "4 sites, 3 distinct".** The three `tv_shared.test.ts` `capture.lines` occurrences are bare `assert.ok(x.some(f))`, excluded by documented design because `[].some(f)` is `false` and fails loudly. The measurement script behind that row **approximated `vacuousReceiver` instead of applying it**.
+
+7. **The `starlette` finding was mis-stated.** The plan said "pinned nowhere" and called the pin "a no-op for behaviour by construction". In fact `requirements.lock` — which the heavy `ci.yml` lane installs — pinned **1.0.0** while the *required* `fast-gates` lane and the production daemon image resolved to **1.3.1**. The defect was four install paths disagreeing. Pinning to 1.3.1 is a no-op for three of them and lifts the fourth off a stale version missing three upstream security fixes; pinning *back* to 1.0.0 would have been the unsafe choice.
+
+### Defects in the plan's own verification steps — the plan's own vacuity
+
+Three separate instructions in this document would have reported success without observing what they claimed to check. That is the exact class this plan exists to close, one layer up, and it is the most useful thing the execution produced.
+
+8. **`pytest tests/ -k workflow` does not select the three TS-wiring guards.** `-k` filters by name substring and only one of the three test names contains "workflow"; the other two would have been silently deselected. (They are covered anyway, because `smc-fast-pr-gates.yml` runs the whole file with no `-k` — but not because of this instruction.)
+
+9. **`-W error::DeprecationWarning` cannot catch `StarletteDeprecationWarning`.** That class subclasses `UserWarning`, verified via `__mro__`. The command as written would have "validated" the `httpx2` branch regardless of the outcome. `-W error` is the working form.
+
+### Decisions taken during execution
+
+- **`httpx2` was not adopted.** It is the only real behaviour change the dependency work could have carried — `starlette.testclient` does `import httpx2 as httpx`, swapping the whole HTTP implementation for every `TestClient` request. The warning it silences fires in no *required* lane and cannot fail any lane (there is no `filterwarnings = error`). Three packages and a transport swap are not worth silencing it. Recorded as a dated comment beside the `httpx` pin.
+- **`starlette` was also pinned on the production path** (`services/live_overlay_daemon/requirements.txt`), which the plan did not name and where the stated risk was actually live.
+- **The `push.paths` / `pull_request.paths` guard split** was fixed, and immediately exposed **12 pre-existing tests wired into `push.paths` only** — they ran, but a PR touching only one of them never triggered the workflow that guards it.
+
+### Known limitation, deliberately deferred
+
+In **both** analyzers a witness can be credited to a different object than the one asserted over, via block shadowing (TypeScript only) or via plain reassignment (both languages). Pre-existing, uniform across every rule, reaching no live site in either suite today, and documented in the TypeScript module docstring. Fixing it needs a shadow/generation barrier in shared code, and crediting fewer witnesses risks false positives on the legitimate outer-witness / inner-use pattern — so it wants its own change with its own fixtures, not a fold-in.
