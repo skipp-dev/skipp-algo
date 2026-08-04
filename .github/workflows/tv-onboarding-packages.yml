@@ -244,8 +244,9 @@ jobs:
         # these eleven — actually executes 3x per workflow run, and this is
         # the first time they have run on Windows. Checked for portability
         # before wiring in: tv_producer_refresh_layouts.test.ts and
-        # tv_save_consumer_source.test.ts (the four path/IO call sites in
-        # those two files) use only node:path path.resolve/path.join — never
+        # tv_save_consumer_source.test.ts (all eight path/IO call sites in
+        # those two files — five and three) use only node:path
+        # path.resolve/path.join — never
         # a raw "/"-joined string — plus fileURLToPath for the repo-root
         # lookup, and tv_save_consumer_source.test.ts's own first test
         # explicitly asserts LF/CRLF hash-equivalence. No platform branch
