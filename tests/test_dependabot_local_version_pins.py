@@ -30,7 +30,24 @@ from pathlib import Path
 import yaml
 
 # A pin carrying a PEP 440 local version, e.g. `torch==2.12.1+cu129`.
-_LOCAL_VERSION_PIN = re.compile(r"^(?P<name>[A-Za-z0-9._-]+)\s*==\s*[^\s#]*\+[^\s#]+")
+# The optional bracket group skips extras (`pkg[extra]==1.0+cu129`): they are
+# not part of the name Dependabot ignores, and without the group such a pin
+# would silently escape the guard — review finding on #4436, verified
+# fail-open end-to-end before the fix.
+_LOCAL_VERSION_PIN = re.compile(
+    r"^(?P<name>[A-Za-z0-9._-]+)(?:\[[^\]]*\])?\s*==\s*[^\s#]*\+[^\s#]+"
+)
+
+
+def _normalize(name: str) -> str:
+    """PEP 503 name normalization, applied to both sides of the comparison.
+
+    Dependabot treats `foo_bar` and `foo-bar` as the same package; comparing
+    raw lowercased strings would flag an ignore that actually works. The
+    mismatch direction is fail-closed (a false alarm, not a silent pass), but
+    a guard that cries wolf gets deleted.
+    """
+    return re.sub(r"[-_.]+", "-", name.lower())
 
 # Ecosystems that resolve Python dependencies. github-actions and npm cannot
 # produce a PEP 440 local version, so they are out of scope by construction.
@@ -53,6 +70,13 @@ def _requirements_files(root: Path) -> list[Path]:
 
     A walk would pick up untracked scratch files and virtualenvs; git answers
     about the tree Dependabot actually sees.
+
+    Deliberately NOT scanned: `uv.lock` / `pyproject.toml`, the uv ecosystem's
+    native manifests. Locked versions there are resolver output, not
+    hand-written pins, and the measured failure (#4424/#4427) was Dependabot
+    rewriting requirements files. The uv entry's torch ignore is justified by
+    that measurement — do not "simplify" it away because this scan does not
+    reach uv.lock.
     """
     listing = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -85,7 +109,7 @@ def _local_version_pins(root: Path) -> dict[str, set[str]]:
                 continue
             match = _LOCAL_VERSION_PIN.match(line)
             if match:
-                name = match.group("name").lower()
+                name = _normalize(match.group("name"))
                 found.setdefault(name, set()).add(_dependabot_directory_of(path, root))
     return found
 
@@ -105,8 +129,19 @@ def _python_ecosystem_entries(root: Path) -> list[tuple[str, set[str], set[str]]
         directories = set(update.get("directories") or [])
         if "directory" in update:
             directories.add(update["directory"])
+        # Dependabot also accepts glob patterns here ("/services/*"). The
+        # exact-string intersection below would go EMPTY against a glob and
+        # silently stop seeing the entry as covering anything — the guard
+        # would disarm itself. Fail loudly instead; whoever introduces globs
+        # must teach this guard to expand them.
+        globbed = sorted(d for d in directories if any(c in d for c in "*?["))
+        assert not globbed, (
+            f"dependabot.yml '{ecosystem}' entry uses glob directories "
+            f"{globbed}; this guard matches directories exactly and would "
+            "fail open. Expand the globs here before relying on them."
+        )
         ignored = {
-            str(rule["dependency-name"]).lower()
+            _normalize(str(rule["dependency-name"]))
             for rule in update.get("ignore") or []
             if "dependency-name" in rule
         }
