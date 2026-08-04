@@ -48,11 +48,18 @@ contract, and the gate is asked about each entry.
 The gate is EXECUTED, not read (#4377)
 --------------------------------------
 Source text cannot tell "raises the flag for this path" apart from "publishes
-``run_pine_guard=false`` forever". :func:`_run_gate` — imported from
-``tests/test_check_r1_attested_sources.py`` rather than copied, so there is one
-harness and a rename fails loudly instead of drifting — lifts the gate step's
-own shell out of the workflow YAML, stubs ``gh`` to emit a chosen file list,
-and reads the resulting ``GITHUB_OUTPUT``.
+``run_pine_guard=false`` forever". :func:`tests._fast_gates_gate.run_gate` —
+imported rather than copied, so there is one harness and a rename fails loudly
+instead of drifting — lifts the gate step's own shell out of the workflow YAML,
+stubs ``gh`` to emit a chosen file list, and reads the resulting
+``GITHUB_OUTPUT``.
+
+That loudness is not hypothetical: this file was written against
+``tests/test_check_r1_attested_sources._run_gate`` and merged (#4385) after
+#4383 had already extracted the harness to ``tests/_fast_gates_gate.run_gate``.
+Both PRs were green alone; together they turned ``main`` red on 2026-08-04 with
+an ``ImportError`` — the import is load-bearing exactly as advertised, and the
+repoint (2026-08-04) is the whole repair.
 
 The roster is derived UNFILTERED (see :func:`_attested_source_paths`) and the
 non-vacuity floor is imported from the contract rather than re-typed (see
@@ -81,7 +88,7 @@ from scripts.smc_r1_rollout_contract import (
     ROOT,
     build_rollout_contract,
 )
-from tests.test_check_r1_attested_sources import _run_gate
+from tests._fast_gates_gate import run_gate
 
 FAST_GATES_WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 
@@ -146,11 +153,11 @@ def test_every_attested_source_raises_the_pine_guard_flag(tmp_path: Path) -> Non
     """
     uncovered: list[str] = []
     for path in _attested_source_paths():
-        # _run_gate builds a `bin/` stub directory under the path it is given,
+        # run_gate builds a `bin/` stub directory under the path it is given,
         # so each invocation needs its own.
         work = tmp_path / path.replace("/", "_")
         work.mkdir(parents=True)
-        outputs = _run_gate([path], work)
+        outputs = run_gate([path], work)
         if outputs.get("run_pine_guard") != "true":
             uncovered.append(path)
 
@@ -184,7 +191,7 @@ def test_a_non_attested_data_path_leaves_the_flag_down(tmp_path: Path) -> None:
         "serve as the negative direction. Pick another non-attested data path."
     )
 
-    outputs = _run_gate([NON_PINE_DATA_PATH], tmp_path)
+    outputs = run_gate([NON_PINE_DATA_PATH], tmp_path)
     assert outputs.get("run_pine_guard") == "false", (
         "a data-only bot PR that touches no attested source still raises "
         "run_pine_guard. The flag is then a constant, and the coverage "
