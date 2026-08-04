@@ -94,6 +94,11 @@ on:
         type: boolean
         required: false
         default: false
+      reattest:
+        description: "Automated R1 re-attestation (dispatched by smc-r1-reattest on a bot/r1-reattest branch): write pass, independent verify-only pass, mechanical evidence generation, seeded commit, PR"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -371,8 +376,11 @@ jobs:
           # workflow_run (post-refresh chain) writes with producer refresh +
           # rebind; the rollout script hard-fails on refresh-without-rebind,
           # so both flags flip together here.
-          TV_FORCE_REBIND: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
-          TV_REFRESH_PRODUCER: ${{ github.event_name == 'workflow_run' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
+          # reattest saves a re-pinned companion source, which needs the same
+          # refresh+rebind pair as the post-refresh chain (the rollout script
+          # hard-fails on refresh-without-rebind).
+          TV_FORCE_REBIND: ${{ (github.event_name == 'workflow_run' || github.event.inputs.reattest == 'true') && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.force_rebind || 'false' }}
+          TV_REFRESH_PRODUCER: ${{ (github.event_name == 'workflow_run' || github.event.inputs.reattest == 'true') && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.refresh_producer || 'false' }}
         run: |
           args=()
           if [ "${TV_VERIFY_ONLY}" = "true" ]; then
@@ -498,16 +506,131 @@ jobs:
             echo "::warning::TradingView binding snapshot push failed; uploaded artifact remains available."
           fi
 
+      # ---- Automated R1 re-attestation (smc-r1-reattest proposal chain) ----
+      # Only for reattest dispatches on the bot/r1-reattest proposal branch.
+      # The write pass above saved the re-pinned sources; here an INDEPENDENT
+      # verify-only pass re-reads them, scripts/smc_r1_generate_attestation
+      # turns both reports into a new dated evidence artifact (fail-closed
+      # outside the pin-only diff class -- anything else still needs a human),
+      # the in-run chain self-check re-proves the invariants, and only then
+      # is anything committed. The guard step below then re-MEASURES against
+      # the extended chain instead of trusting any of this succeeded.
+      - name: Preserve the write-pass report for the attestation
+        id: preserve_report
+        if: ${{ !cancelled() && github.event.inputs.reattest == 'true' && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            bot/r1-reattest*) ;;
+            *)
+              echo "::error::reattest mode is only valid on a bot/r1-reattest* proposal branch (got ${GITHUB_REF_NAME})"
+              exit 1
+              ;;
+          esac
+          mv artifacts/monitoring/tradingview_consumer_bindings.json "${RUNNER_TEMP}/report-write.json"
+
+      - name: Independent verify-only pass in a fresh browser session
+        id: reverify
+        if: ${{ !cancelled() && steps.preserve_report.conclusion == 'success' }}
+        env:
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_CONSUMER_MAPPING_JSON: "[]"
+        run: npx tsx scripts/tv_batch_consumer_rollout.ts --verify-only
+
+      - name: Generate the supersession evidence and extend the chain
+        id: attest
+        if: ${{ !cancelled() && steps.reverify.conclusion == 'success' }}
+        env:
+          WRITE_CONCLUSION: ${{ steps.save.conclusion }}
+        run: |
+          set -euo pipefail
+          evidence="$(python3 -m scripts.smc_r1_generate_attestation \
+            --write-report "${RUNNER_TEMP}/report-write.json" \
+            --verify-report artifacts/monitoring/tradingview_consumer_bindings.json \
+            --run-id "${GITHUB_RUN_ID}" \
+            --write-conclusion "${WRITE_CONCLUSION} - at the un-attested-save guard, after the saves completed")"
+          python3 -m scripts.smc_r1_rollout_contract
+          echo "evidence=${evidence}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the evidence to the proposal branch and open the PR
+        id: attest_commit
+        if: ${{ !cancelled() && steps.attest.conclusion == 'success' }}
+        env:
+          # PAT, not github.token: the evidence push must re-trigger the
+          # proposal PR's fast-gates (same rationale as the refresh's bot/*
+          # pushes), and gh pr create/merge need it for auto-merge.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          EVIDENCE_PATH: ${{ steps.attest.outputs.evidence }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # ADR-0024 §5: seed from the remote tip before committing. Only this
+          # run works the proposal branch (workflow-level concurrency on the
+          # proposer + a fixed branch name), but the rule holds regardless: a
+          # moved tip fails the push fast-forward check below instead of being
+          # clobbered.
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch "${remote_url}" "${BRANCH}"
+          git add "${EVIDENCE_PATH}" \
+            artifacts/governance/smc_r1_evidence_chain.json \
+            artifacts/governance/smc_r1_live_rollout_contract.json
+          target="$(EVIDENCE_PATH="${EVIDENCE_PATH}" python3 -c 'import json, os; print(json.load(open(os.environ["EVIDENCE_PATH"]))["libraryReleaseVersion"])')"
+          git commit -m "governance: automated R1 re-attestation to /${target} (run ${GITHUB_RUN_ID})"
+          # Non-main proposal ref; `set -euo pipefail` fails the step loudly on
+          # a rejected push (a moved tip means something else wrote the branch).
+          git push "${remote_url}" "HEAD:${BRANCH}"
+          {
+            echo "Automated R1 re-attestation to micro-profile release /${target}."
+            echo
+            echo "Evidence: \`${EVIDENCE_PATH}\` (write + independent verify pass of run ${GITHUB_RUN_ID});"
+            echo "chain extended and self-checked in-run; contract regenerated."
+            echo "Generated by the smc-r1-reattest chain (operator-authorized 2026-08-04)."
+          } > "${RUNNER_TEMP}/reattest-pr-body.md"
+          # F-V5-F1 pattern: exempt ONLY the literal already-exists answer;
+          # every other create failure (auth, ruleset, rate limit) stays a
+          # hard error instead of a green run with no PR.
+          if ! pr_err="$(gh pr create --repo "${GITHUB_REPOSITORY}" --base main --head "${BRANCH}" \
+            --title "governance: automated R1 re-attestation to /${target}" \
+            --body-file "${RUNNER_TEMP}/reattest-pr-body.md" 2>&1)"; then
+            if printf '%s' "${pr_err}" | grep -qi "already exists"; then
+              echo "::notice::proposal PR already exists; the evidence push refreshed it."
+            else
+              printf '%s\n' "${pr_err}"
+              echo "::error::gh pr create failed for the re-attestation PR — see step log"
+              exit 1
+            fi
+          fi
+          gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --squash --auto
+
       # Last, so the snapshot is uploaded and published first: this run pushed
       # content the registered evidence does not attest, which needs a human,
       # and a green run would say the opposite. Deliberately NOT always() --
       # it reports the un-attestation, not an unrelated failure.
+      #
+      # Reattest carve-out, by re-measurement rather than trust: when the
+      # reattest path above committed new evidence, the SAME module that found
+      # the un-attestation is asked again against the extended chain. Empty
+      # answer -> the save is attested now and the run may end green; anything
+      # else stays a hard failure.
       - name: Fail the run when an R1-attested source was saved un-attested
         if: ${{ steps.attestation.outputs.unattested != '' && steps.attestation.outputs.unattested != '[]' }}
         env:
           TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
+          REATTEST_COMMITTED: ${{ steps.attest_commit.conclusion }}
         run: |
           set -euo pipefail
+          if [ "${REATTEST_COMMITTED}" = "success" ]; then
+            remaining="$(python3 -m scripts.check_tv_unattested_sources \
+              --config automation/tradingview/config/consumer-rollout.json)"
+            if [ -z "${remaining}" ] || [ "${remaining}" = "[]" ]; then
+              echo "R1 sources re-attested in-run: the generated evidence now attests every saved source." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::re-attestation committed but sources remain un-attested: ${remaining}"
+          fi
           # The remedy is RENDERED from
           # scripts/check_tv_unattested_sources.RESOLUTION, never hand-typed.
           # THIS run already prints that same module's stderr from the

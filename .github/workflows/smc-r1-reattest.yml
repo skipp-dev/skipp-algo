@@ -1,0 +1,142 @@
+# live-window: off-hours-only  # Pre-US-open cron; this workflow itself never opens a browser.
+# It proposes the pin bump and dispatches tv-save-consumer-source (reattest
+# mode) on the proposal branch; THAT run does the TradingView writes and still
+# refuses inside a declared operator window (scripts/check_tv_operator_window).
+#
+# The second half of the operator decision of 2026-08-04: the deliberate
+# re-attestation PR that scripts/hold_r1_attested_sources.py defers to is
+# automated. The refresh holds the two R1-attested companions on their
+# attested import pin (9 refresh ticks/day cannot carry an evidence-grade
+# TradingView session each); this workflow moves the pin at most once per
+# weekday, together with fresh evidence, through the guard's sanctioned door:
+# "a PR that lands a fresh rollout with new evidence, passes"
+# (scripts/check_r1_attested_sources.py).
+#
+# Division of labour:
+#   here      - decide (attested pin behind the published library?), force-push
+#               the FIXED proposal branch bot/r1-reattest with the pin bump,
+#               dispatch tv-save-consumer-source on that branch.
+#   tv-save   - write pass (saves + rebind), independent verify-only pass,
+#               scripts/smc_r1_generate_attestation (fail-closed: pin-only
+#               diffs proven by hash reconstruction, else it demands a human),
+#               contract regeneration, in-run chain self-check, seeded
+#               evidence commit, PR + auto-merge.
+#
+# The FIXED branch name is deliberate: a run whose dispatched save was refused
+# (operator window) or failed leaves only this one branch behind, and the next
+# scheduled run force-pushes over it -- no bot/r1-reattest-<run> accumulation,
+# which is the treadmill #4435 closed for the refresh.
+
+name: smc-r1-reattest
+
+on:
+  schedule:
+    # Weekdays 12:07Z: after the morning refresh ticks have moved the
+    # published library (refresh normally completes pre-market ~09-13Z),
+    # before the US open -- the same pre-market posture as the chained save.
+    - cron: "7 12 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# F-V6-A2.1: unbuffered Python in every step, including the inline decide
+# probes -- a buffered failure message is a silent failure message.
+env:
+  PYTHONUNBUFFERED: "1"
+
+concurrency:
+  # One proposal at a time; a second concurrent run would race the fixed
+  # branch and the chain append (which is head-checked and would refuse).
+  group: smc-r1-reattest
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Decide whether the attested pin is behind the published library
+        id: decide
+        run: |
+          set -euo pipefail
+          attested="$(python3 -c '
+          import pathlib, re
+          text = pathlib.Path("SMC_Event_Overlay.pine").read_text(encoding="utf-8")
+          match = re.search(r"import preuss_steffen/smc_micro_profiles_generated/(\d+) as mp", text)
+          if match is None:
+              raise SystemExit("Event Overlay carries no micro-profile import pin")
+          print(match.group(1))
+          ')"
+          published="$(python3 -c '
+          import json
+          manifest = json.load(open("artifacts/tradingview/library_release_manifest.json"))
+          print(int(manifest["library"]["publishedVersion"]))
+          ')"
+          echo "attested=/${attested} published=/${published}"
+          if [ "${attested}" -eq "${published}" ]; then
+            echo "Attested pin already matches the published library; nothing to re-attest."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          elif [ "${attested}" -gt "${published}" ]; then
+            # Fail loudly instead of proposing a DOWNGRADE: an attested pin
+            # ahead of the manifest means the manifest lags reality (the
+            # tv-save drift gate owns that case), not that the pin must move.
+            echo "::error::attested pin /${attested} is AHEAD of the manifest /${published} -- refusing to propose a downgrade"
+            exit 1
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            echo "target=${published}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Force-push the pin-bump proposal branch
+        if: steps.decide.outputs.proceed == 'true'
+        env:
+          # A PAT is required: pushes with the built-in github.token trigger
+          # no workflows, so the proposal PR would never get its fast-gates
+          # run (same rationale as the refresh's bot/* pushes).
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          TARGET: ${{ steps.decide.outputs.target }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}"
+          TARGET="${TARGET}" python3 -c '
+          import os, pathlib, re
+          path = pathlib.Path("SMC_Event_Overlay.pine")
+          text = path.read_text(encoding="utf-8")
+          new = re.sub(
+              r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
+              rf"\g<1>{int(os.environ['TARGET'])}\g<2>",
+              text,
+              count=1,
+          )
+          assert new != text, "pin substitution was a no-op"
+          path.write_text(new, encoding="utf-8")
+          '
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          BRANCH="bot/r1-reattest"
+          git checkout -b "${BRANCH}"
+          git add SMC_Event_Overlay.pine
+          git commit -m "chore(pine): move the R1 Event Overlay pin to /${TARGET} for re-attestation"
+          # Non-main, fixed proposal ref; under `set -euo pipefail` a rejected
+          # push fails this step loudly instead of dispatching against a
+          # branch that never moved.
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
+
+      - name: Dispatch the measuring save on the proposal branch
+        if: steps.decide.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}"
+          gh workflow run tv-save-consumer-source.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref bot/r1-reattest \
+            -f reattest=true
