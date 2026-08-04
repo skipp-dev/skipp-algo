@@ -82,14 +82,15 @@ class Config:
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
     # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
     enable_uw_news: bool = field(default_factory=is_uw_news_enabled)
-    # OPRA UOA replacement (2026-05-12 provider audit). When ON, the
-    # streamlit_monitor options-flow tab consumes ``ingest_opra_options_flow``
-    # (Databento OPRA.PILLAR) instead of the now-defunct UW flow-alerts path.
-    # Flipped 1 (2026-05-12 post-audit follow-up): UW subscription cancelled
-    # and replacement code path is the new canonical route. The downstream
-    # ``_cached_bz_options_op`` selector still requires ``DATABENTO_API_KEY``
-    # to be present, so missing-entitlement environments degrade to an empty
-    # list instead of hitting the dead UW endpoint. Override to 0 DISABLES the
+    # OPRA UOA replacement (2026-05-12 provider audit). Flipped 1 (post-audit
+    # follow-up): UW subscription cancelled; the self-hosted Databento
+    # OPRA.PILLAR detector (``newsstack_fmp.opra_uoa``) is the canonical
+    # route. NB comment corrected 2026-08-04: the streamlit_monitor options
+    # tab no longer consumes ``ingest_opra_options_flow`` (and the
+    # ``_cached_bz_options_op`` selector no longer exists) — the tab reads the
+    # opra_live_daemon's local shadow snapshot instead;
+    # ``ingest_opra_options_flow.fetch_opra_options_flow`` currently has no
+    # in-repo caller (wire-or-remove candidate). Override to 0 DISABLES the
     # options-flow feed entirely (empty feed; no fallback path exists).
     # SSOT: routes through ``open_prep.feature_flags.is_opra_uoa_enabled``
     # (audit-L-1 R4) to keep the four call sites uniform.

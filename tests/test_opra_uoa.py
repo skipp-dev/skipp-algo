@@ -76,7 +76,7 @@ def test_premium_gate_admits_large_block():
     assert rec["ticker"] == "AAPL"
     assert rec["option_activity_type"] == "CALL"
     assert rec["cost_basis"] == pytest.approx(500_000.0)
-    assert rec["sentiment"] == "BEARISH"  # side="A" (Ask) = sell aggressor per Databento
+    assert rec["sentiment"] == "BEARISH"  # call sold (side A = sell aggressor) = economically bearish
     assert rec["aggressor_ind"] == "A"
 
 
@@ -173,23 +173,39 @@ def test_no_multileg_when_only_calls():
 
 
 @pytest.mark.parametrize(
-    "side,expect_aggr,expect_sentiment",
+    "side,opt_type,expect_aggr,expect_sentiment",
     [
-        ("A", "A", "BEARISH"),  # Ask = sell aggressor (Databento)
-        ("B", "B", "BULLISH"),  # Bid = buy aggressor (Databento)
-        ("N", "N", "NEUTRAL"),
-        ("", "N", "NEUTRAL"),
-        ("?", "N", "NEUTRAL"),
-        (None, "N", "NEUTRAL"),
+        # aggressor_ind is the raw pressure label; sentiment is ECONOMIC
+        # (pressure x contract direction, 2026-08-04 — UW-compat semantics).
+        ("A", "C", "A", "BEARISH"),  # call sold  = bearish
+        ("B", "C", "B", "BULLISH"),  # call bought = bullish
+        ("A", "P", "A", "BULLISH"),  # put sold   = bullish
+        ("B", "P", "B", "BEARISH"),  # put BOUGHT = bearish (the fixed blind spot)
+        ("N", "C", "N", "NEUTRAL"),
+        ("", "C", "N", "NEUTRAL"),
+        ("?", "P", "N", "NEUTRAL"),
+        (None, "C", "N", "NEUTRAL"),
     ],
 )
-def test_aggressor_classification(side, expect_aggr, expect_sentiment):
-    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type="C")]
+def test_aggressor_classification(side, opt_type, expect_aggr, expect_sentiment):
+    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type=opt_type)]
     trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side=side or "")]
     out = detect_unusual_options_activity(trades, defs)
     assert len(out) == 1
     assert out[0]["aggressor_ind"] == expect_aggr
     assert out[0]["sentiment"] == expect_sentiment
+
+
+def test_unknown_option_type_yields_neutral_sentiment():
+    """A definition without a C/P type must not guess a direction: the
+    aggressor pressure stays visible in ``aggressor_ind``, but ``sentiment``
+    degrades to NEUTRAL rather than assuming call semantics."""
+    defs = [_defn(instrument_id=1, underlying="AAPL", strike=200, expiration="2026-06-21", option_type="")]
+    trades = [_trade(instrument_id=1, ts_ms=1_700_000_000_000, price=5.0, size=1000, side="B")]
+    out = detect_unusual_options_activity(trades, defs)
+    assert len(out) == 1
+    assert out[0]["aggressor_ind"] == "B"
+    assert out[0]["sentiment"] == "NEUTRAL"
 
 
 # ── Ticker filter ──────────────────────────────────────────────────────
