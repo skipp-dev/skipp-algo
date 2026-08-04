@@ -213,6 +213,11 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_verdict_panel.py",
     "test_run_edge_pipeline.py",
     "test_fast_gates_silent_skip_coverage.py",
+    # Derived coverage guard: every source the R1 rollout contract attests must
+    # be matched by the run_pine_guard arm in smc-fast-pr-gates.yml, which is
+    # what pulls the R1 guard onto a pine-only bot PR (2026-08-04,
+    # #4284/#4371 aftermath). YAML/source parsing only, <0.5s.
+    "test_fast_gates_attested_pine_coverage.py",
     # Bus-v3 / context-library contract guards. On the required path because
     # fast-gates is the only merge-gating test job: #3657 landed the
     # smc_profile_engine allowlist exception together with the test enforcing it,

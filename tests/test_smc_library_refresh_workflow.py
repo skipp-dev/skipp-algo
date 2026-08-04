@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
+from typing import NamedTuple
 
+from scripts.check_tv_unattested_sources import RESOLUTION
+from scripts.smc_r1_rollout_contract import EXECUTION_EVIDENCE
 from smc_integration.release_policy import (
     DRIFT_CLASS_GITIGNORED,
     DRIFT_CLASS_RESTORE_ON_COMMIT,
@@ -703,3 +709,636 @@ def test_refresh_workflow_repins_consumers_from_real_published_version() -> None
     assert "jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json" not in bump_block
     assert 'is not an integer' in bump_block
     assert 'stale-evidence sentinel' in bump_block
+
+
+def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
+    """A refresh that un-attests an R1 source must SAY so — loudly, and in the PR.
+
+    The bump step repins every pine consumer, and ``SMC_Event_Overlay.pine`` is
+    both a consumer and one of the two sources
+    ``scripts/smc_r1_rollout_contract.py`` hashes into the R1 rollout contract.
+    So the refresh can invalidate the registered evidence, and twice did:
+    #4284 (2026-08-01, repaired four hours later by the manual re-attestation
+    PR #4290) and #4371 (2026-08-04, unnoticed — ``main`` stayed red on
+    ``tests/test_check_tv_unattested_sources.py`` for the next unrelated PR).
+
+    The notice is deliberately NOT a hard failure: the library bump is
+    legitimate and must still produce its PR. The ``run_pine_guard`` arm in
+    ``smc-fast-pr-gates.yml`` (#4376, covered by
+    ``tests/test_fast_gates_attested_pine_coverage.py``) is what stops that PR
+    merging silently. This test pins the reporting half, which nothing else
+    reads — a step no guard observes can be deleted in a green PR.
+    """
+    workflow_text = _read(WORKFLOW_PATH)
+    block = _step_block(workflow_text, "Report R1 attestation drift caused by this refresh")
+
+    # Derived, never hand-listed: the roster comes from the contract, so a
+    # third attested source joins the notice automatically.
+    assert "from scripts.smc_r1_rollout_contract import" in block
+    assert "build_rollout_contract" in block
+    assert "EXECUTION_EVIDENCE" in block
+    for literal in ("SMC_Event_Overlay.pine", "SMC_Exit_Signal.pine"):
+        assert literal not in block, (
+            f"{literal} is hard-coded in the notice step; derive it from "
+            "build_rollout_contract() so a third attested source is covered "
+            "automatically"
+        )
+    # Unfiltered, matching tests/test_fast_gates_attested_pine_coverage.py.
+    # Filtering to *.pine here would silently drop a future attested target
+    # under a path the fast-gates data-only exemption already covers.
+    assert ".endswith" not in block, (
+        "the notice step filters the derived roster; every contract target is "
+        "hashed and un-attests the rollout when it changes, whatever its "
+        "extension — keep the derivation unfiltered, as the coverage guard is"
+    )
+
+    # Non-vacuity witness, and it must read the floor from the contract rather
+    # than carrying a second unlinked copy of the number.
+    assert "refusing to report a vacuous R1 all-clear" in block
+    assert "MIN_ATTESTED_SOURCES" in block
+    assert "< 2" not in block, (
+        "the non-vacuity floor is hard-coded in the notice step; import "
+        "MIN_ATTESTED_SOURCES from scripts/smc_r1_rollout_contract.py so a "
+        "legitimate roster change cannot leave this copy behind"
+    )
+
+    # The remedy prose is IMPORTED, not re-typed — a third hand-copy would go
+    # stale the first time a resolution path changes.
+    assert "from scripts.check_tv_unattested_sources import RESOLUTION" in block
+    assert "RESOLUTION.format(evidence=evidence)" in block
+    assert "Re-attest" not in block, (
+        "the notice step re-types the resolution prose that "
+        "scripts/check_tv_unattested_sources.RESOLUTION already owns; import "
+        "it instead"
+    )
+    assert "GITHUB_STEP_SUMMARY" in block
+
+    # …and the imported constant must still carry the semantics the notice
+    # promises. Pinning only the import would let the shared prose lose the
+    # prohibition without any test noticing.
+    resolution = RESOLUTION.format(evidence="EVIDENCE_PATH")
+    assert "Re-attest" in resolution
+    assert "NEW dated evidence artifact" in resolution
+    assert "Revert the source change" in resolution
+    assert "never rewritten" in resolution
+    assert "replaces a measurement with a fabrication" in resolution
+    assert "EVIDENCE_PATH" in resolution, (
+        "the resolution text must name the evidence artifact it is talking about"
+    )
+
+    # Rendered width. The evidence path is ~66 characters, so interpolating it
+    # mid-sentence produced a 189-character line: it broke the 80-column stderr
+    # block on the save path and forced horizontal scrolling inside the fenced
+    # block in this PR body. Measured against the REAL path, not a short stub,
+    # because a stub would not reproduce the defect.
+    real = RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix())
+    widest = max(len(line) for line in real.splitlines())
+    assert widest <= 80, (
+        f"the rendered resolution has a {widest}-character line; keep the "
+        "{evidence} placeholder on a line of its own so both consumers stay "
+        "inside 80 columns"
+    )
+
+    # A notice, not a gate — and now NO verdict fails the step at all. Step
+    # order in job `refresh`: publish-to-TradingView (37) < this notice (45) <
+    # 'Commit and push changes' (46), whose `if:` implies success(). A fatal
+    # exit here would therefore leave the library published with the repo pins
+    # never committed — the 2026-07-13 divergence class, worse than losing the
+    # PR. GitHub runs `run:` under `bash -e`, so the handling is what makes
+    # that true.
+    assert "except Exception:" in block
+    assert "SystemExit" not in block, (
+        "the notice step can still fail on a verdict it reached; route every "
+        "such path through the 'could not run' report instead. A red step here "
+        "skips 'Commit and push changes' and strands a PUBLISHED library on "
+        "uncommitted pins."
+    )
+    assert "could not run" in block, (
+        "a check that reached no verdict must say so in the PR body — silence "
+        "there is indistinguishable from 'no drift'"
+    )
+    # The vacuity floor stays loud, and shares the crash report rather than
+    # printing an all-clear: def + the crash call site + the vacuity call site.
+    assert "refusing to report a vacuous R1 all-clear" in block
+    assert block.count("cannot_run(") >= 3, (
+        "the short-roster path must render the same 'could not run' report as "
+        "a raised exception; printing 'Checked 0 attested source(s)' is a green "
+        "all-clear that would survive indefinitely"
+    )
+    # Written once, outside every branch, so no report path can be skipped —
+    # and counted on the actual write, not on prose that happens to name the
+    # file.
+    assert block.count('os.environ["GITHUB_STEP_SUMMARY"]') == 1
+    assert block.count('os.environ["GITHUB_ENV"]') == 1
+
+    # It must run BEFORE the commit step that consumes its output.
+    notice_idx = workflow_text.index("      - name: Report R1 attestation drift caused by this refresh")
+    commit_idx = workflow_text.index("      - name: Commit and push changes")
+    assert notice_idx < commit_idx
+
+    # The notice reaches a reviewer who never opens the run log.
+    commit_block = _step_block(workflow_text, "Commit and push changes")
+    assert 'R1_ATTESTATION_NOTICE' in block
+    assert 'if [ -n "${R1_ATTESTATION_NOTICE:-}" ]; then' in commit_block
+    assert '--body "$PR_BODY"' in commit_block
+
+
+# ── Executing the notice step ────────────────────────────────────────────────
+# Everything above matches SOURCE TEXT. #4377 settled what that is worth, one
+# day earlier and in this same subsystem: deleting the single line that raised
+# fast-gates' pine flag left all fourteen source-matching tests green while the
+# guard went blind. Its title is "execute the pine gate instead of reading it".
+#
+# The argument binds harder here than it did there. This step's entire job is to
+# SPEAK UP. If it silently stops working, the failure mode is a drift that goes
+# unannounced — which is the exact defect the step was added to fix, restored
+# without a trace and under a green suite. A reporting step nobody executes has
+# the same shape as a guard that observes nothing.
+#
+# So the four branches below run the step's real `run:` block. The source-text
+# assertions are kept, because they pin what execution cannot see: that the step
+# exists at all, that it is ordered before the commit step, that it derives the
+# roster instead of hand-listing it, and that it renders RESOLUTION instead of a
+# hand-typed copy — a re-typed copy of today's prose would execute identically.
+
+NOTICE_STEP = "Report R1 attestation drift caused by this refresh"
+
+# #4377's `_run_gate` was evaluated for reuse and does NOT fit, for three
+# reasons rather than by preference: it stubs `gh` onto PATH and sets the gate's
+# EVENT_NAME/HEAD_REF/PR_NUMBER/REPO/GH_TOKEN contract (this step reads none of
+# them); it runs in the repository root, whereas these branches are induced
+# through the working tree `git diff` sees, so cwd has to be controllable; and
+# it parses `key=value` out of $GITHUB_OUTPUT, while this step publishes a job
+# summary plus a heredoc-delimited $GITHUB_ENV block. What IS reused is its
+# form: the same bash invocation, so a bashism cannot pass here and fail in CI.
+
+
+def _notice_run_block() -> str:
+    """The notice step's own shell, read out of the parsed workflow."""
+    import yaml
+
+    doc = yaml.safe_load(_read(WORKFLOW_PATH))
+    for step in doc["jobs"]["refresh"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == NOTICE_STEP:
+            return str(step["run"])
+    raise AssertionError(
+        f"{WORKFLOW_PATH.name}: no step named {NOTICE_STEP!r} in job 'refresh'. "
+        "Either it was renamed (update NOTICE_STEP in the same PR) or the "
+        "notice was deleted — in which case a refresh un-attests R1 in silence "
+        "again, and these tests must not report green."
+    )
+
+
+def _attested_roster() -> list[str]:
+    """The roster the step derives, derived the same way for the fixture."""
+    from scripts.smc_r1_rollout_contract import build_rollout_contract
+
+    return sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
+
+
+# Git's own environment variables OUTRANK ``cwd``. A `git commit` launched with
+# cwd=<sandbox> still writes to $GIT_DIR / $GIT_INDEX_FILE when those are set,
+# because git resolves its repository from the environment first and only falls
+# back to searching upward from the working directory.
+#
+# Git EXPORTS them into every hook it runs — which is exactly where this repo's
+# guard suite executes (the pre-push hook). Measured 2026-08-04: the first
+# version of these fixtures passed `cwd=` and nothing else, so under the hook
+# `git add -A` + `git commit -qm seed` retargeted the REAL repository. It landed
+# a commit subject "seed", author "t <t@example.invalid>", on the contributor's
+# working branch, with 156 tracked files showing as deleted because the temp
+# tree was committed against the real HEAD. It also broke an unrelated guard
+# (test_mutable_defaults_and_loads_pins.py) by mutating the index underneath it,
+# and recovery needed a manual branch reset. Every contributor who pushed would
+# have hit it: deterministic, not a flake, and worse than the defect these tests
+# guard against.
+#
+# So no git subprocess in this file — and no subprocess that may itself SHELL
+# OUT to git, which includes the workflow step under test — may inherit the
+# ambient environment.
+#
+# The scrub drops the whole GIT_* namespace rather than a curated list, so a
+# variable git adds later cannot reopen this. These are the ones that would do
+# the damage today, named so the intent is greppable and so
+# test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir can assert the
+# scrub actually covers them:
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+    "GIT_INDEX_VERSION",
+)
+
+
+# Identity passed per-invocation with `-c`, never `git config`. `git config`
+# WRITES, and under the hijack above it wrote into the real repository's
+# config — which is what turned a one-off bad commit into persistent damage:
+# the checkout kept the fixture's identity, and every later commit was authored
+# `t <t@example.invalid>`, an address scripts/check_commit_authors.py does not
+# approve. Two real commits on two unrelated branches were stamped that way
+# before it was noticed, one of them already pushed. `-c` writes nothing, so
+# even a total isolation failure could not outlive the process.
+_COMMIT_IDENTITY = (
+    "-c",
+    "user.email=fixture@example.invalid",
+    "-c",
+    "user.name=fixture",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+
+def _isolated_env(sandbox: Path, **extra: str) -> dict[str, str]:
+    """``os.environ`` with git's repository-selecting variables removed.
+
+    ``GIT_CEILING_DIRECTORIES`` is then set POSITIVELY to ``sandbox`` rather
+    than merely cleared: it stops git's upward search at the sandbox, so a
+    fixture that expects "this directory is not a repository" cannot instead
+    discover some real repository above ``$TMPDIR``. That is what the crash
+    branch depends on, and leaving it to the layout of the temp directory would
+    make the branch environment-dependent.
+    """
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env["GIT_CEILING_DIRECTORIES"] = str(sandbox)
+    env.update(extra)
+    return env
+
+
+def _seed_repo(work: Path) -> Path:
+    """A throwaway git repo holding the attested roster at its real paths.
+
+    The step asks ``git diff --name-only HEAD -- <roster>`` about the tree it
+    runs in. Running that against the developer's own checkout would make the
+    clean branch pass or fail on whatever happens to be edited locally — the
+    state-dependent vacuity #4267 spent a PR removing. A seeded repo makes the
+    diff an input instead of an accident.
+
+    The ROSTER is still the real one: the step imports
+    scripts.smc_r1_rollout_contract from the repository under test, so a target
+    added to the contract shows up here without this fixture being touched.
+
+    Every git call below passes ``env=_isolated_env(...)``. ``cwd=`` alone is
+    NOT isolation — see the comment block above.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    env = _isolated_env(work)
+    repo = work / "repo"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+    for rel in _attested_roster():
+        target = repo / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"// stub for {rel}\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
+    subprocess.run(
+        ["git", *_COMMIT_IDENTITY, "commit", "-qm", "seed"],
+        cwd=repo,
+        check=True,
+        env=env,
+    )
+    return repo
+
+
+class _Notice(NamedTuple):
+    rc: int
+    log: str
+    summary: str
+    pr_body: str
+
+
+def _run_notice(work: Path, *, cwd: Path, floor: int | None = None) -> _Notice:
+    """Execute the step's real `run:` block; return what it published.
+
+    ``floor`` raises MIN_ATTESTED_SOURCES for the short-roster branch via a
+    ``sitecustomize`` shim, which the interpreter imports at startup — so the
+    step's own ``from scripts.smc_r1_rollout_contract import
+    MIN_ATTESTED_SOURCES`` reads the raised value. Nothing in the repository is
+    mutated to induce it, and only that one name is touched: the derivation,
+    the comparison and the reporting are all the shipped code.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    summary = work / "step_summary.md"
+    env_file = work / "github_env"
+    summary.write_text("", encoding="utf-8")
+    env_file.write_text("", encoding="utf-8")
+
+    path_entries = [str(ROOT)]
+    if floor is not None:
+        shim = work / "shim"
+        shim.mkdir()
+        (shim / "sitecustomize.py").write_text(
+            "import scripts.smc_r1_rollout_contract as _m\n"
+            f"_m.MIN_ATTESTED_SOURCES = {floor}\n",
+            encoding="utf-8",
+        )
+        path_entries.insert(0, str(shim))
+
+    result = subprocess.run(
+        # The shell GitHub gives this step: the workflow sets
+        # `defaults.run.shell: bash`, which is `bash --noprofile --norc -eo
+        # pipefail`. Under -e any uncaught non-zero exit fails the step, which
+        # is precisely the property the rc assertions below measure.
+        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", _notice_run_block()],
+        cwd=cwd,
+        # The step under test SHELLS OUT TO GIT itself
+        # (`git diff --name-only HEAD -- <roster>`), so it needs the same scrub
+        # as the fixture's own git calls — arguably more, because this one is
+        # the measurement. With an ambient $GIT_DIR the step would diff the
+        # REAL repository instead of the seeded sandbox: the clean and drift
+        # branches would report whatever the contributor happened to have
+        # edited, and the crash branch would find a valid repository and never
+        # crash. Every verdict these tests read would be about the wrong tree.
+        env=_isolated_env(
+            cwd.parent,
+            SMC_PYTHON_BIN=sys.executable,
+            GITHUB_STEP_SUMMARY=str(summary),
+            GITHUB_ENV=str(env_file),
+            PYTHONPATH=os.pathsep.join(path_entries),
+        ),
+        capture_output=True,
+        text=True,
+    )
+
+    raw = env_file.read_text(encoding="utf-8")
+    match = re.search(
+        r"R1_ATTESTATION_NOTICE<<R1_NOTICE_EOF\n(.*)\nR1_NOTICE_EOF\n",
+        raw,
+        re.S,
+    )
+    assert match is not None, (
+        "the step did not write a well-formed heredoc block to $GITHUB_ENV, so "
+        f"the PR body would carry nothing (or garbage): {raw!r}"
+    )
+    return _Notice(
+        result.returncode,
+        result.stdout + result.stderr,
+        summary.read_text(encoding="utf-8"),
+        match.group(1),
+    )
+
+
+# Language that would read as "the attestation is fine". Any branch that did
+# NOT reach that conclusion must contain none of it: an unnoticed drift is the
+# defect, and a false all-clear is an unnoticed drift with reassurance on top.
+_ALL_CLEAR = ("unaffected", "still describes", "none changed")
+
+
+def test_the_notice_step_reports_a_clean_run_as_clean(tmp_path: Path) -> None:
+    """Executed baseline: nothing attested changed, so say so — and exit 0."""
+    work = tmp_path
+    notice = _run_notice(work, cwd=_seed_repo(work))
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation unaffected" in notice.summary
+    for path in _attested_roster():
+        assert path in notice.summary, (
+            f"the all-clear does not name {path}, so it is not a statement "
+            "about the roster it claims to have checked"
+        )
+    assert "::notice::" in notice.log
+    # Nothing to carry into the PR body when there is nothing to report.
+    assert notice.pr_body.strip() == ""
+
+
+def test_the_notice_step_announces_a_drift_it_caused(tmp_path: Path) -> None:
+    """#4371's shape, executed: an attested source changed in this run.
+
+    This is the branch the whole step exists for. #4371 merged green because
+    nothing said this out loud, and a source-text assertion cannot tell a step
+    that says it from a step that would crash, print nothing, or write to the
+    wrong file.
+    """
+    work = tmp_path
+    repo = _seed_repo(work)
+    drifted = _attested_roster()[0]
+    (repo / drifted).write_text("// rewritten by this refresh\n", encoding="utf-8")
+
+    notice = _run_notice(work, cwd=repo)
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation invalidated by this refresh" in notice.summary
+    assert drifted in notice.summary
+    assert "::warning::" in notice.log
+    # The remedy actually renders — the import is not enough, the format() has
+    # to succeed and the {evidence} placeholder has to be substituted.
+    assert "replaces a measurement with a fabrication" in notice.summary
+    assert EXECUTION_EVIDENCE.relative_to(ROOT).as_posix() in notice.summary
+    assert "{evidence}" not in notice.summary
+    # …and all of it reaches the PR body, not only the job summary. That is the
+    # half #4371 proved matters: nobody opens the run.
+    assert notice.pr_body.strip(), "the drift verdict never reached the PR body"
+    assert drifted in notice.pr_body
+    assert "replaces a measurement with a fabrication" in notice.pr_body
+
+
+def test_a_crash_in_the_notice_step_is_reported_and_still_exits_zero(tmp_path: Path) -> None:
+    """The derivation raises: report UNKNOWN, never fail the step.
+
+    Induced by running where ``git diff`` cannot work, so the real
+    ``subprocess.run(..., check=True)`` inside the step's own try block raises —
+    no repository file is mutated to produce it.
+
+    rc==0 is the load-bearing assertion. In job ``refresh``,
+    publish-to-TradingView is step 37, this notice is 45, and ``Commit and push
+    changes`` is 46 with an implied success(). Under ``bash -e`` a non-zero exit
+    here leaves the library PUBLISHED to TradingView with the repository pins
+    never committed — the 2026-07-13 divergence class.
+    """
+    work = tmp_path
+    not_a_repo = work / "loose"
+    not_a_repo.mkdir()
+
+    notice = _run_notice(work, cwd=not_a_repo)
+
+    assert notice.rc == 0, (
+        "the notice step went RED on a crash. That skips 'Commit and push "
+        f"changes' and strands a published library on uncommitted pins:\n{notice.log}"
+    )
+    assert "## R1 attestation check could not run" in notice.summary
+    assert "UNKNOWN, not as intact" in notice.summary
+    assert "::error::" in notice.log
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    assert not leaked, (
+        f"a crashed check published all-clear language {leaked}. Silence and "
+        "reassurance are the same failure here."
+    )
+    # The reviewer must see it without opening the run log.
+    assert "could not run" in notice.pr_body
+
+
+def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) -> None:
+    """A vacuous roster is the one failure that would survive forever.
+
+    "Checked 0 attested source(s) … still describes them" is indistinguishable
+    from success, so it would print green every run for as long as the
+    derivation stayed broken. It must render the same UNKNOWN report as a crash
+    — and, exactly like a crash, without failing the step.
+    """
+    work = tmp_path
+    notice = _run_notice(work, cwd=_seed_repo(work), floor=99)
+
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation check could not run" in notice.summary
+    assert "vacuous R1 all-clear" in notice.log
+    assert "expected at least 99" in notice.summary
+    leaked = [phrase for phrase in _ALL_CLEAR if phrase in notice.summary]
+    assert not leaked, (
+        f"a roster below the floor published all-clear language {leaked}; that "
+        "is the report that would survive indefinitely because it looks like "
+        "success"
+    )
+    assert "could not run" in notice.pr_body
+
+
+def test_the_executed_branches_are_distinguishable_from_each_other(tmp_path: Path) -> None:
+    """Witness: the four runs above are not all producing the same text.
+
+    Without this, a step that wrote one constant string would satisfy every
+    ``in`` assertion that happened to be a substring of it, and the suite would
+    be measuring a fixed output. Four executions, four distinct summaries.
+    """
+    work = tmp_path
+    clean_repo = _seed_repo(work / "a")
+    drift_repo = _seed_repo(work / "b")
+    (drift_repo / _attested_roster()[0]).write_text("// rewritten\n", encoding="utf-8")
+    loose = work / "c"
+    loose.mkdir(parents=True)
+
+    summaries = [
+        _run_notice(work / "ra", cwd=clean_repo).summary,
+        _run_notice(work / "rb", cwd=drift_repo).summary,
+        _run_notice(work / "rc", cwd=loose).summary,
+        _run_notice(work / "rd", cwd=clean_repo, floor=99).summary,
+    ]
+    for summary in summaries:
+        assert summary.strip(), "a branch published an EMPTY job summary"
+    assert len({s.strip() for s in summaries}) == 4, (
+        "two of the four branches published identical text, so at least one "
+        "assertion above is satisfied by a constant rather than by a verdict:\n"
+        + "\n---\n".join(summaries)
+    )
+
+
+def _git_out(args: list[str], *, cwd: Path, sandbox: Path) -> str:
+    """Read-only git, isolated the same way everything else here is."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        env=_isolated_env(sandbox),
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    """Isolation is PROVEN here, not asserted in a comment.
+
+    This is the regression test for the incident described above
+    ``_GIT_ENV_OVERRIDES``: fixtures that passed ``cwd=`` and nothing else
+    wrote a commit into the real repository when run from the pre-push hook,
+    because git exports ``GIT_DIR``/``GIT_INDEX_FILE`` into hook environments
+    and those OUTRANK ``cwd``.
+
+    So: poison the environment exactly the way a hook does, run the fixtures,
+    and check both directions — the work landed in the sandbox AND the decoy
+    was never touched. Checking only the first would pass even if the fixture
+    had written to both.
+
+    The decoy is a POPULATED repository with a commit of its own, and the
+    poison sets ``GIT_DIR``/``GIT_INDEX_FILE`` but deliberately NOT
+    ``GIT_WORK_TREE`` — which is the shape a pre-push hook actually exports.
+    That combination is what made the incident destructive rather than merely
+    noisy: with the git dir pointing at the real repository and the work tree
+    defaulting to ``cwd``, ``git add -A`` staged every real tracked file as
+    DELETED and the commit landed on the contributor's branch. An empty decoy
+    would only reproduce a failed commit, which is the symptom, not the damage.
+    """
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    # Built BEFORE the environment is poisoned, and itself isolated — this
+    # helper has to work under the hook too, which is the whole point.
+    decoy_env = _isolated_env(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=decoy, check=True, env=decoy_env)
+    (decoy / "tracked.txt").write_text("real content\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=decoy, check=True, env=decoy_env)
+    subprocess.run(
+        ["git", *_COMMIT_IDENTITY, "commit", "-qm", "decoy base"],
+        cwd=decoy,
+        check=True,
+        env=decoy_env,
+    )
+    before = _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path)
+    assert before, "the decoy has no HEAD, so it cannot witness an unwanted write"
+
+    for name, value in (
+        ("GIT_DIR", str(decoy / ".git")),
+        ("GIT_INDEX_FILE", str(decoy / ".git" / "index")),
+    ):
+        monkeypatch.setenv(name, value)  # type: ignore[attr-defined]
+
+    work = tmp_path / "work"
+    repo = _seed_repo(work)
+
+    # 1. The decoy was NOT written to — the direction that actually catches the
+    #    bug. HEAD must be the commit it had before, and its tree must be
+    #    clean: the incident's signature was a new commit whose parent was the
+    #    real HEAD, with every real tracked file staged as deleted.
+    assert _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path) == before, (
+        "the fixture committed into the repository named by $GIT_DIR instead "
+        "of its sandbox. Under the pre-push hook that IS the contributor's "
+        "checkout: this is the 2026-08-04 incident reproducing."
+    )
+    assert _git_out(["rev-list", "--count", "--all"], cwd=decoy, sandbox=tmp_path) == "1", (
+        "the decoy gained commits it did not have before"
+    )
+    assert _git_out(["status", "--porcelain"], cwd=decoy, sandbox=tmp_path) == "", (
+        "the fixture dirtied the working tree / index of the repository named "
+        "by $GIT_DIR — the collateral that broke an unrelated ledger guard in "
+        "the same run"
+    )
+
+    # 2. The seed landed in the sandbox instead. Checked second, because a
+    #    fixture that wrote to BOTH would satisfy this one — it is the decoy
+    #    above that carries the safety claim.
+    assert (repo / ".git").is_dir(), "the fixture did not create its own repository"
+    assert _git_out(["log", "--oneline", "-1"], cwd=repo, sandbox=tmp_path).endswith("seed"), (
+        "the sandbox repo has no seed commit, so the commit went somewhere else"
+    )
+
+    # 3. …and the executed step, which runs `git diff` itself, is isolated too.
+    #    Pointed at the decoy it would diff a tree that has none of the
+    #    attested sources, and report drift or a crash instead of the truth
+    #    about the sandbox.
+    notice = _run_notice(work / "run", cwd=repo)
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation unaffected" in notice.summary, (
+        "the executed step did not reach a clean verdict under a poisoned "
+        f"$GIT_DIR, so it diffed the wrong repository:\n{notice.summary}"
+    )
+    assert _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path) == before
+    assert _git_out(["status", "--porcelain"], cwd=decoy, sandbox=tmp_path) == ""
+
+    # Finally the composition itself, as a supplement to the behaviour above —
+    # deliberately LAST, so that removing the scrub fails this test on the
+    # observable hijack (a commit in the decoy) rather than on an assertion
+    # about a dictionary. The behaviour is the claim; this only names which
+    # variable would have carried it.
+    built = _isolated_env(tmp_path)
+    leaked = [
+        name
+        for name in _GIT_ENV_OVERRIDES
+        if name in built and name != "GIT_CEILING_DIRECTORIES"
+    ]
+    assert not leaked, (
+        f"_isolated_env left {leaked} in place; those override cwd and would "
+        "retarget the real repository"
+    )

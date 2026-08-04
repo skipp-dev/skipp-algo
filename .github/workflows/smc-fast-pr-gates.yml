@@ -444,6 +444,21 @@ jobs:
         # scripts/credential_health_check.py and NO workflow file — so the
         # diff-driven selection would have picked nothing. It must sit on the
         # required path unconditionally. Source parsing only, <0.5s.
+        #
+        # test_fast_gates_attested_pine_coverage.py (2026-08-04) is pinned for
+        # exactly the same reason, one level up: it asserts that every source
+        # scripts/smc_r1_rollout_contract.py attests is matched by the
+        # run_pine_guard arm in the "Determine if heavy gates should run" step
+        # above — the flag that pulls the checkout and "Guard R1-attested
+        # sources" onto a pine-only bot PR. That arm is PATH-shaped
+        # (*.pine|pine/generated/*) while the attested roster is DERIVED, so an
+        # attested target registered outside those globs would be invisible to
+        # the guard again. Registering it touches only that Python module — no
+        # workflow file — so the diff-driven step below would select nothing,
+        # which is the same blind spot #4284 and #4371 went through. Note the
+        # recursion: this guard reads the same workflow it is listed in, so if
+        # the arm is ever deleted, the very PR that deletes it fails the
+        # required check. YAML/source parsing only, <0.5s.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -595,7 +610,8 @@ jobs:
             tests/test_update_overlay_dashboard.py \
             tests/test_detect_vacuous_claims.py \
             tests/test_vacuous_claim_guard.py \
-            tests/test_credential_probe_consumers.py
+            tests/test_credential_probe_consumers.py \
+            tests/test_fast_gates_attested_pine_coverage.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,

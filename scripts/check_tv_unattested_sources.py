@@ -38,6 +38,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Final
 
 from scripts.smc_r1_rollout_contract import (
     EXECUTION_EVIDENCE,
@@ -47,24 +48,53 @@ from scripts.smc_r1_rollout_contract import (
 
 DEFAULT_CONFIG = ROOT / "automation" / "tradingview" / "config" / "consumer-rollout.json"
 
+#: The resolution paths for a dead R1 attestation, held exactly ONCE.
+#:
+#: Two producers report this same drift and must not be able to describe it
+#: differently: this script (the automated-save path, via :data:`_REMEDY`
+#: below) and the "Report R1 attestation drift caused by this refresh" step in
+#: ``.github/workflows/smc-library-refresh.yml`` (the library-refresh path,
+#: which IMPORTS this constant instead of re-typing the prose). A hand-copy in
+#: the workflow would be the same defect class that
+#: ``tests/test_fast_gates_attested_pine_coverage.py`` exists to close and that
+#: cost 12 production runs in #4333 -- a hand-maintained duplicate going stale
+#: -- applied to prose rather than to a file list. The failure would be that
+#: someone adds a resolution path here, both scripts follow, and the refresh PR
+#: body keeps telling operators the old thing.
+#:
+#: Carries an ``{evidence}`` placeholder; format it before emitting.
+#:
+#: The placeholder sits on a line of its own. It renders to a ~66-character
+#: repository path, so interpolating it mid-sentence produced a 189-character
+#: line -- which broke the 80-column stderr block on the save path and forced
+#: horizontal scrolling inside the fenced block in the refresh PR body. One
+#: break fixes both consumers; the rendered width is pinned by
+#: tests/test_smc_library_refresh_workflow.py.
+RESOLUTION: Final = """To resolve, one of:
+
+  * Re-attest: run the rollout against the R1 layout, measure it, and register a
+    NEW dated evidence artifact alongside the registered one:
+      {evidence}
+    Do NOT edit that artifact to match today's hashes. A dated measurement is
+    superseded by a NEW artifact, never rewritten -- editing it
+    replaces a measurement with a fabrication.
+  * Revert the source change if it was not intended to reach the live account,
+    then re-run the tv-save-consumer-source workflow to push the attested
+    content back.
+"""
+
 _REMEDY = """
 This save replaces an R1-attested source on TradingView with repository content
 the registered evidence does not attest.
 
 The save is NOT blocked -- the sources below are pushed like every other
 consumer, so the deployment stays consistent with the repository. What changes
-is that {evidence} stops describing what is deployed the moment this run
-finishes. The run ends red for exactly that reason.
+is that
+  {evidence}
+stops describing what is deployed the moment this run finishes. The run ends
+red for exactly that reason.
 
-To resolve, one of:
-
-  * Re-attest: run the rollout against the R1 layout, measure it, and register a
-    NEW dated evidence artifact. Do NOT edit the existing dated artifact to
-    match today's hashes -- that falsifies a measurement rather than repeating
-    it.
-  * Revert the source change if it was not intended to reach the live account,
-    then re-run this workflow to push the attested content back.
-
+{resolution}
 Saved without attestation:
 """
 
@@ -120,7 +150,8 @@ def unattested_save_targets(config_path: Path, drifted: list[dict]) -> list[str]
 
 
 def _render(drifted: list[dict], unattested: list[str]) -> str:
-    lines = [_REMEDY.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix())]
+    evidence = EXECUTION_EVIDENCE.relative_to(ROOT).as_posix()
+    lines = [_REMEDY.format(evidence=evidence, resolution=RESOLUTION.format(evidence=evidence))]
     by_name = {item["scriptName"]: item for item in drifted}
     for name in unattested:
         item = by_name[name]

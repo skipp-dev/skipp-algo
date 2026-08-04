@@ -144,6 +144,15 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_family_returns.py",
     "tests/test_family_verdict.py",
     "tests/test_family_walkforward_config.py",
+    # 2026-08-04: derived coverage guard for the run_pine_guard arm in
+    # smc-fast-pr-gates.yml. That arm's trigger is PATH-shaped
+    # (*.pine|pine/generated/*) while the attested roster is DERIVED from
+    # scripts/smc_r1_rollout_contract.py, so an attested target registered
+    # outside those globs would be invisible to the R1 guard again — the hole
+    # #4284 and #4371 went through. Registering such a target touches only that
+    # Python module, no workflow file, so the diff-driven guard selection could
+    # not catch it. Pinned to the required path unconditionally.
+    "tests/test_fast_gates_attested_pine_coverage.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
