@@ -896,6 +896,80 @@ def _attested_roster() -> list[str]:
     return sorted({str(t["path"]) for t in build_rollout_contract()["targets"]})
 
 
+# Git's own environment variables OUTRANK ``cwd``. A `git commit` launched with
+# cwd=<sandbox> still writes to $GIT_DIR / $GIT_INDEX_FILE when those are set,
+# because git resolves its repository from the environment first and only falls
+# back to searching upward from the working directory.
+#
+# Git EXPORTS them into every hook it runs — which is exactly where this repo's
+# guard suite executes (the pre-push hook). Measured 2026-08-04: the first
+# version of these fixtures passed `cwd=` and nothing else, so under the hook
+# `git add -A` + `git commit -qm seed` retargeted the REAL repository. It landed
+# a commit subject "seed", author "t <t@example.invalid>", on the contributor's
+# working branch, with 156 tracked files showing as deleted because the temp
+# tree was committed against the real HEAD. It also broke an unrelated guard
+# (test_mutable_defaults_and_loads_pins.py) by mutating the index underneath it,
+# and recovery needed a manual branch reset. Every contributor who pushed would
+# have hit it: deterministic, not a flake, and worse than the defect these tests
+# guard against.
+#
+# So no git subprocess in this file — and no subprocess that may itself SHELL
+# OUT to git, which includes the workflow step under test — may inherit the
+# ambient environment.
+#
+# The scrub drops the whole GIT_* namespace rather than a curated list, so a
+# variable git adds later cannot reopen this. These are the ones that would do
+# the damage today, named so the intent is greppable and so
+# test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir can assert the
+# scrub actually covers them:
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_WORK_TREE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+    "GIT_INDEX_VERSION",
+)
+
+
+# Identity passed per-invocation with `-c`, never `git config`. `git config`
+# WRITES, and under the hijack above it wrote into the real repository's
+# config — which is what turned a one-off bad commit into persistent damage:
+# the checkout kept the fixture's identity, and every later commit was authored
+# `t <t@example.invalid>`, an address scripts/check_commit_authors.py does not
+# approve. Two real commits on two unrelated branches were stamped that way
+# before it was noticed, one of them already pushed. `-c` writes nothing, so
+# even a total isolation failure could not outlive the process.
+_COMMIT_IDENTITY = (
+    "-c",
+    "user.email=fixture@example.invalid",
+    "-c",
+    "user.name=fixture",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+
+def _isolated_env(sandbox: Path, **extra: str) -> dict[str, str]:
+    """``os.environ`` with git's repository-selecting variables removed.
+
+    ``GIT_CEILING_DIRECTORIES`` is then set POSITIVELY to ``sandbox`` rather
+    than merely cleared: it stops git's upward search at the sandbox, so a
+    fixture that expects "this directory is not a repository" cannot instead
+    discover some real repository above ``$TMPDIR``. That is what the crash
+    branch depends on, and leaving it to the layout of the temp directory would
+    make the branch environment-dependent.
+    """
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env["GIT_CEILING_DIRECTORIES"] = str(sandbox)
+    env.update(extra)
+    return env
+
+
 def _seed_repo(work: Path) -> Path:
     """A throwaway git repo holding the attested roster at its real paths.
 
@@ -908,21 +982,25 @@ def _seed_repo(work: Path) -> Path:
     The ROSTER is still the real one: the step imports
     scripts.smc_r1_rollout_contract from the repository under test, so a target
     added to the contract shows up here without this fixture being touched.
+
+    Every git call below passes ``env=_isolated_env(...)``. ``cwd=`` alone is
+    NOT isolation — see the comment block above.
     """
+    work.mkdir(parents=True, exist_ok=True)
+    env = _isolated_env(work)
     repo = work / "repo"
     repo.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    for key, value in (("user.email", "t@example.invalid"), ("user.name", "t")):
-        subprocess.run(["git", "config", key, value], cwd=repo, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
     for rel in _attested_roster():
         target = repo / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(f"// stub for {rel}\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, env=env)
     subprocess.run(
-        ["git", "-c", "commit.gpgsign=false", "commit", "-qm", "seed"],
+        ["git", *_COMMIT_IDENTITY, "commit", "-qm", "seed"],
         cwd=repo,
         check=True,
+        env=env,
     )
     return repo
 
@@ -968,13 +1046,21 @@ def _run_notice(work: Path, *, cwd: Path, floor: int | None = None) -> _Notice:
         # is precisely the property the rc assertions below measure.
         ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", _notice_run_block()],
         cwd=cwd,
-        env={
-            **os.environ,
-            "SMC_PYTHON_BIN": sys.executable,
-            "GITHUB_STEP_SUMMARY": str(summary),
-            "GITHUB_ENV": str(env_file),
-            "PYTHONPATH": os.pathsep.join(path_entries),
-        },
+        # The step under test SHELLS OUT TO GIT itself
+        # (`git diff --name-only HEAD -- <roster>`), so it needs the same scrub
+        # as the fixture's own git calls — arguably more, because this one is
+        # the measurement. With an ambient $GIT_DIR the step would diff the
+        # REAL repository instead of the seeded sandbox: the clean and drift
+        # branches would report whatever the contributor happened to have
+        # edited, and the crash branch would find a valid repository and never
+        # crash. Every verdict these tests read would be about the wrong tree.
+        env=_isolated_env(
+            cwd.parent,
+            SMC_PYTHON_BIN=sys.executable,
+            GITHUB_STEP_SUMMARY=str(summary),
+            GITHUB_ENV=str(env_file),
+            PYTHONPATH=os.pathsep.join(path_entries),
+        ),
         capture_output=True,
         text=True,
     )
@@ -1136,4 +1222,123 @@ def test_the_executed_branches_are_distinguishable_from_each_other(tmp_path: Pat
         "two of the four branches published identical text, so at least one "
         "assertion above is satisfied by a constant rather than by a verdict:\n"
         + "\n---\n".join(summaries)
+    )
+
+
+def _git_out(args: list[str], *, cwd: Path, sandbox: Path) -> str:
+    """Read-only git, isolated the same way everything else here is."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        env=_isolated_env(sandbox),
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir(
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    """Isolation is PROVEN here, not asserted in a comment.
+
+    This is the regression test for the incident described above
+    ``_GIT_ENV_OVERRIDES``: fixtures that passed ``cwd=`` and nothing else
+    wrote a commit into the real repository when run from the pre-push hook,
+    because git exports ``GIT_DIR``/``GIT_INDEX_FILE`` into hook environments
+    and those OUTRANK ``cwd``.
+
+    So: poison the environment exactly the way a hook does, run the fixtures,
+    and check both directions — the work landed in the sandbox AND the decoy
+    was never touched. Checking only the first would pass even if the fixture
+    had written to both.
+
+    The decoy is a POPULATED repository with a commit of its own, and the
+    poison sets ``GIT_DIR``/``GIT_INDEX_FILE`` but deliberately NOT
+    ``GIT_WORK_TREE`` — which is the shape a pre-push hook actually exports.
+    That combination is what made the incident destructive rather than merely
+    noisy: with the git dir pointing at the real repository and the work tree
+    defaulting to ``cwd``, ``git add -A`` staged every real tracked file as
+    DELETED and the commit landed on the contributor's branch. An empty decoy
+    would only reproduce a failed commit, which is the symptom, not the damage.
+    """
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    # Built BEFORE the environment is poisoned, and itself isolated — this
+    # helper has to work under the hook too, which is the whole point.
+    decoy_env = _isolated_env(tmp_path)
+    subprocess.run(["git", "init", "-q"], cwd=decoy, check=True, env=decoy_env)
+    (decoy / "tracked.txt").write_text("real content\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=decoy, check=True, env=decoy_env)
+    subprocess.run(
+        ["git", *_COMMIT_IDENTITY, "commit", "-qm", "decoy base"],
+        cwd=decoy,
+        check=True,
+        env=decoy_env,
+    )
+    before = _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path)
+    assert before, "the decoy has no HEAD, so it cannot witness an unwanted write"
+
+    for name, value in (
+        ("GIT_DIR", str(decoy / ".git")),
+        ("GIT_INDEX_FILE", str(decoy / ".git" / "index")),
+    ):
+        monkeypatch.setenv(name, value)  # type: ignore[attr-defined]
+
+    work = tmp_path / "work"
+    repo = _seed_repo(work)
+
+    # 1. The decoy was NOT written to — the direction that actually catches the
+    #    bug. HEAD must be the commit it had before, and its tree must be
+    #    clean: the incident's signature was a new commit whose parent was the
+    #    real HEAD, with every real tracked file staged as deleted.
+    assert _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path) == before, (
+        "the fixture committed into the repository named by $GIT_DIR instead "
+        "of its sandbox. Under the pre-push hook that IS the contributor's "
+        "checkout: this is the 2026-08-04 incident reproducing."
+    )
+    assert _git_out(["rev-list", "--count", "--all"], cwd=decoy, sandbox=tmp_path) == "1", (
+        "the decoy gained commits it did not have before"
+    )
+    assert _git_out(["status", "--porcelain"], cwd=decoy, sandbox=tmp_path) == "", (
+        "the fixture dirtied the working tree / index of the repository named "
+        "by $GIT_DIR — the collateral that broke an unrelated ledger guard in "
+        "the same run"
+    )
+
+    # 2. The seed landed in the sandbox instead. Checked second, because a
+    #    fixture that wrote to BOTH would satisfy this one — it is the decoy
+    #    above that carries the safety claim.
+    assert (repo / ".git").is_dir(), "the fixture did not create its own repository"
+    assert _git_out(["log", "--oneline", "-1"], cwd=repo, sandbox=tmp_path).endswith("seed"), (
+        "the sandbox repo has no seed commit, so the commit went somewhere else"
+    )
+
+    # 3. …and the executed step, which runs `git diff` itself, is isolated too.
+    #    Pointed at the decoy it would diff a tree that has none of the
+    #    attested sources, and report drift or a crash instead of the truth
+    #    about the sandbox.
+    notice = _run_notice(work / "run", cwd=repo)
+    assert notice.rc == 0, notice.log
+    assert "## R1 attestation unaffected" in notice.summary, (
+        "the executed step did not reach a clean verdict under a poisoned "
+        f"$GIT_DIR, so it diffed the wrong repository:\n{notice.summary}"
+    )
+    assert _git_out(["rev-parse", "HEAD"], cwd=decoy, sandbox=tmp_path) == before
+    assert _git_out(["status", "--porcelain"], cwd=decoy, sandbox=tmp_path) == ""
+
+    # Finally the composition itself, as a supplement to the behaviour above —
+    # deliberately LAST, so that removing the scrub fails this test on the
+    # observable hijack (a commit in the decoy) rather than on an assertion
+    # about a dictionary. The behaviour is the claim; this only names which
+    # variable would have carried it.
+    built = _isolated_env(tmp_path)
+    leaked = [
+        name
+        for name in _GIT_ENV_OVERRIDES
+        if name in built and name != "GIT_CEILING_DIRECTORIES"
+    ]
+    assert not leaked, (
+        f"_isolated_env left {leaked} in place; those override cwd and would "
+        "retarget the real repository"
     )
