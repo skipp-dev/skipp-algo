@@ -58,8 +58,23 @@ SHELL = ("bash", "--noprofile", "--norc", "-e", "-o", "pipefail")
 BOT_BRANCH = "bot/library-refresh-30861895594-1"
 
 
-def gate_run_block() -> str:
-    """The ``gate`` step's shell, read structurally out of the workflow.
+# Everything the harness feeds the step besides PATH and GITHUB_OUTPUT. Kept as
+# a module constant so a test can compare it against the step's own `env:` block
+# -- the step runs under `-e` but NOT `-u`, so a variable the workflow adds and
+# this dict does not expands to "" in silence, and a shape like
+# `[[ -n "$NEW_FLAG" ]]` would then classify differently here than in CI without
+# anything going red.
+HARNESS_ENV: dict[str, str] = {
+    "EVENT_NAME": "pull_request",
+    "HEAD_REF": BOT_BRANCH,
+    "PR_NUMBER": "4371",
+    "REPO": "skipp-dev/skipp-algo",
+    "GH_TOKEN": "stub-token",
+}
+
+
+def gate_step() -> dict:
+    """The whole ``gate`` step, read structurally out of the workflow.
 
     Loaded through the YAML rather than sliced out of the text, so indentation,
     comment and ordering churn cannot break it -- and a missing step id is a
@@ -68,8 +83,13 @@ def gate_run_block() -> str:
     workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     for step in workflow["jobs"]["fast-gates"]["steps"]:
         if step.get("id") == "gate":
-            return str(step["run"])
+            return dict(step)
     raise AssertionError("fast-gates has no step with id 'gate'")
+
+
+def gate_run_block() -> str:
+    """The ``gate`` step's shell."""
+    return str(gate_step()["run"])
 
 
 def run_gate(
@@ -110,13 +130,11 @@ def run_gate(
         # what this measures. PATH is kept (with the stub in front) because the
         # step legitimately needs to find `gh` and bash itself.
         env={
+            **HARNESS_ENV,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
             "GITHUB_OUTPUT": str(github_output),
             "EVENT_NAME": event_name,
             "HEAD_REF": head_ref,
-            "PR_NUMBER": "4371",
-            "REPO": "skipp-dev/skipp-algo",
-            "GH_TOKEN": "stub-token",
         },
         capture_output=True,
         text=True,
