@@ -47,7 +47,11 @@ _DEP_LINE_BUDGETS = {
     # exact-pinned) already present on main; budget bump was missing.
     # 2026-07-20: 29 → 30 for cisco-aidefense-sdk==2.1.2, the official
     # fail-closed request/response inspection boundary for LLM egress.
-    "requirements.txt": 30,
+    # 2026-08-04: 30 → 31 for starlette==1.3.1. Previously unpinned and
+    # floating to 1.x transitively via fastapi; pinned at the version
+    # fast-gates and the deployed daemon already resolve to (confirmed
+    # behaviour-neutral: 170 tests pass identically under both versions).
+    "requirements.txt": 31,
     "requirements-gpu.txt": 1,
 }
 
