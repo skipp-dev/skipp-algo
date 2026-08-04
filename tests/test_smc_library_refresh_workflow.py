@@ -19,7 +19,7 @@ from smc_integration.release_policy import (
     VOLATILE_ARTIFACT_POLICY,
     classify_artifact_drift,
 )
-from tests._workflow_step_shell import run_step, step_by_name
+from tests._workflow_step_shell import Stub, run_step, step_by_name
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"
@@ -1940,3 +1940,137 @@ def test_the_override_announces_itself(tmp_path) -> None:
     assert "Operator override active" not in plain.stdout, (
         "a refresh with no breaking change must not claim an override was used"
     )
+
+
+# --- three more decisions of this workflow, executed ------------------------
+#
+# Measured 2026-08-04 with a value-preserving arm swap (the true/false token
+# multiset left unchanged, so any substring assertion is blind by construction):
+# each of these three left all 597 tests across the 32 files that name this
+# workflow green.
+
+_DIFF_STEP = "Detect library changes"
+_BUNDLE_STEP = "Verify Databento production export bundle is present"
+_DATE_STEP = "Set refresh date"
+_BUNDLE_GLOB = "artifacts/smc_microstructure_exports"
+
+
+def _refresh_decision(tmp_path, step, *, env=None, stubs=None):
+    return run_step(
+        "smc-library-refresh.yml",
+        step,
+        tmp_path,
+        env={"REFRESH_DATE": "2026-08-04", **(env or {})},
+        stubs=stubs,
+    )
+
+
+def test_an_unchanged_library_is_not_republished(tmp_path) -> None:
+    """`diff` reporting "same" must not proceed to publish.
+
+    ``diff`` is stubbed rather than run for real: the decision under test is
+    which arm maps to which value, not whether GNU diff works. That mapping is
+    exactly what the arm swap inverts, and what no assertion here saw.
+    """
+    result = _refresh_decision(tmp_path, _DIFF_STEP, stubs={"diff": 0})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["changed"] == "false", (
+        f"an identical library must not be republished; got {result.outputs}"
+    )
+
+
+def test_a_changed_library_proceeds_to_publish(tmp_path) -> None:
+    """The control direction: a real change must reach the publish path."""
+    result = _refresh_decision(tmp_path, _DIFF_STEP, stubs={"diff": 1})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["changed"] == "true", (
+        f"a changed library must proceed to publish; got {result.outputs}"
+    )
+
+
+def test_a_present_producer_bundle_lets_the_refresh_continue(tmp_path) -> None:
+    manifest_dir = tmp_path / _BUNDLE_GLOB
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "databento_volatility_production_20260804_manifest.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    result = _refresh_decision(tmp_path, _BUNDLE_STEP)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["bundle_present"] == "true"
+
+
+def test_a_missing_producer_bundle_aborts_rather_than_publishing_stale(tmp_path) -> None:
+    """F-V5-D1: no publish against a missing producer bundle.
+
+    Hard-fail is the point. Reporting ``bundle_present=false`` and continuing
+    would generate the library from whatever happened to be on disk.
+    """
+    result = _refresh_decision(tmp_path, _BUNDLE_STEP)
+    assert result.returncode != 0, "a missing producer bundle must abort the refresh"
+    assert result.outputs["bundle_present"] == "false"
+
+
+def _date_stub(hour: str):
+    """`date` answering per format string, the way the step queries it."""
+    return {
+        "date": Stub(
+            script=(
+                'case "$*" in\n'
+                f"  *%H) printf '%s\\n' '{hour}' ;;\n"
+                "  *T%H:%M:%SZ) printf '%s\\n' '2026-08-04T{h}:00:00Z' ;;\n".replace("{h}", hour)
+                + "  *) printf '%s\\n' '2026-08-04' ;;\n"
+                "esac\n"
+            )
+        )
+    }
+
+
+def test_the_stale_guard_arms_only_once_the_producer_is_due(tmp_path) -> None:
+    """F-V8-C4.3, executed: the cross-midnight false-red guard.
+
+    The producer's earliest daily tick is 08:00 UTC. Before it, a missing
+    same-date bundle is normal and the reject-stale guard must stay disarmed --
+    that is the whole fix for the 00:02 UTC Saturday run that demanded a bundle
+    the producer could never have made. From 08:00 on, a stale fallback is a
+    real outage and the guard must arm.
+
+    The boundary is asserted from both sides; asserting only one leaves a guard
+    that is always armed (or never) indistinguishable from a correct one.
+    """
+    for hour, expected in (("00", "false"), ("07", "false"), ("08", "true"), ("23", "true")):
+        result = run_step(
+            "smc-library-refresh.yml", _DATE_STEP, tmp_path,
+            env={}, stubs=_date_stub(hour),
+        )
+        assert result.returncode == 0, f"hour {hour}: {result.stderr}"
+        assert result.outputs["stale_guard_active"] == expected, (
+            f"at {hour}:00 UTC the stale guard must be {expected}; got {result.outputs}"
+        )
+
+
+def test_the_hour_is_read_as_base_ten(tmp_path) -> None:
+    """`08` and `09` are not octal.
+
+    The step forces base ten with ``$((10#$REFRESH_UTC_HOUR))``. Without it,
+    ``date -u +%H`` returning ``08`` makes the arithmetic a syntax error and the
+    step dies -- every morning between 08:00 and 09:59 UTC, which is precisely
+    the window the guard was added to arm in.
+    """
+    for hour in ("08", "09"):
+        result = run_step(
+            "smc-library-refresh.yml", _DATE_STEP, tmp_path,
+            env={}, stubs=_date_stub(hour),
+        )
+        assert result.returncode == 0, (
+            f"the step died on hour {hour!r} — the base-ten guard is gone: {result.stderr}"
+        )
+        assert result.outputs["stale_guard_active"] == "true"
+
+
+def test_the_refresh_date_reaches_later_steps(tmp_path) -> None:
+    """The stamped date goes to $GITHUB_ENV, which every later step reads."""
+    result = run_step(
+        "smc-library-refresh.yml", _DATE_STEP, tmp_path, env={}, stubs=_date_stub("12")
+    )
+    assert result.env_file["REFRESH_DATE"] == "2026-08-04"
+    assert result.env_file["REFRESH_TS"].startswith("2026-08-04T")

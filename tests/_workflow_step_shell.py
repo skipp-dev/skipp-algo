@@ -60,6 +60,7 @@ class Stub:
     exit_code: int = 0
     stdout: str = ""
     passthrough: str = ""
+    script: str = ""  # raw shell, receives "$@"; for tools answering per-argument
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,7 @@ class StepRun:
     stderr: str
     calls: tuple[str, ...]  # one line per stubbed-executable invocation, argv joined
     outputs: dict[str, str]  # whatever it wrote to $GITHUB_OUTPUT
+    env_file: dict[str, str]  # whatever it wrote to $GITHUB_ENV, for later steps
 
     def called_with(self, *fragments: str) -> tuple[str, ...]:
         """Every recorded call containing all of ``fragments``."""
@@ -154,7 +156,9 @@ def run_step(
         # beginning with `-e` would otherwise be eaten by echo instead of
         # recorded, and this harness's whole job is to have no blind spots.
         body = "#!/bin/sh\n" f'{{ printf "%s " "$@"; printf "\\n"; }} >> "{call_log}"\n'
-        if stub_spec.passthrough:
+        if stub_spec.script:
+            body += stub_spec.script.rstrip() + "\n"
+        elif stub_spec.passthrough:
             body += f'exec {shlex.quote(stub_spec.passthrough)} "$@"\n'
         else:
             if stub_spec.stdout:
@@ -165,6 +169,11 @@ def run_step(
 
     github_output = tmp_path / "github_output"
     github_output.write_text("", encoding="utf-8")
+    # Steps that stamp a value for LATER steps write to $GITHUB_ENV, not
+    # $GITHUB_OUTPUT. Without it they die on an unset variable under `-u`, and
+    # the decision they also publish would never be measured.
+    github_env = tmp_path / "github_env"
+    github_env.write_text("", encoding="utf-8")
 
     result = subprocess.run(
         [*BASH, "-c", _expand(str(step_by_name(workflow, step_name)["run"]), expressions)],
@@ -176,6 +185,7 @@ def run_step(
             **env,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
             "GITHUB_OUTPUT": str(github_output),
+            "GITHUB_ENV": str(github_env),
         },
         capture_output=True,
         text=True,
@@ -197,6 +207,11 @@ def run_step(
         outputs=dict(
             line.split("=", 1)
             for line in github_output.read_text(encoding="utf-8").splitlines()
+            if "=" in line
+        ),
+        env_file=dict(
+            line.split("=", 1)
+            for line in github_env.read_text(encoding="utf-8").splitlines()
             if "=" in line
         ),
     )
