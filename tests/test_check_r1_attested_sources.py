@@ -22,6 +22,7 @@ moment the repo is repaired — the vacuity #4267 spent a PR removing.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -29,6 +30,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -282,3 +284,127 @@ def test_the_gate_leaves_the_pine_flag_down_without_pine(tmp_path: Path) -> None
 
     assert outputs["run_pine_guard"] == "false"
     assert outputs["run_heavy"] == "false"
+
+
+# --- the pine lane runs this guard with nothing installed (2026-08-04) --------
+
+
+def _module_level_imports(path: Path) -> set[str]:
+    """Imports that execute when the module is imported.
+
+    Excludes two kinds that cannot break a bare interpreter: everything inside
+    ``if TYPE_CHECKING:`` (deferred to strings by ``from __future__ import
+    annotations``) and everything inside a function or class body (only paid if
+    that code runs). ``try:`` blocks ARE descended into — a module-level
+    ``try: import x`` still executes.
+    """
+    imported: set[str] = set()
+
+    def visit(body: list[ast.stmt]) -> None:
+        for node in body:
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                # `level > 0` is a relative import: repo-local by construction.
+                if node.module and node.level == 0:
+                    imported.add(node.module)
+            elif isinstance(node, ast.If):
+                test = node.test
+                name = getattr(test, "id", None) or getattr(test, "attr", None)
+                if name != "TYPE_CHECKING":
+                    visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, ast.Try):
+                visit(node.body)
+                visit(node.orelse)
+                visit(node.finalbody)
+                for handler in node.handlers:
+                    visit(handler.body)
+
+    visit(ast.parse(path.read_text(encoding="utf-8")).body)
+    return imported
+
+
+def _repo_module_path(dotted: str) -> Path | None:
+    candidates = (
+        ROOT / f"{dotted.replace('.', '/')}.py",
+        ROOT / dotted.replace(".", "/") / "__init__.py",
+    )
+    return next((c for c in candidates if c.exists()), None)
+
+
+def test_the_guard_import_chain_needs_nothing_installed() -> None:
+    """The pine-only lane runs this guard with no dependencies installed.
+
+    `run_heavy=false` skips "Set up pinned Python", "Resolve Python 3.12
+    interpreter" AND "Install dependencies", yet the guard step still shells
+    `python -m scripts.check_r1_attested_sources`. It therefore works only while
+    every module it imports at import time is stdlib or repo-local — a
+    load-bearing condition that, until this test, nothing enforced.
+
+    The repo has already paid for this class once: `scripts/smc_atomic_write.py`
+    carries a comment (Bug-Hunt F-05, 2026-05-01) explaining why its `pandas`
+    import sits under TYPE_CHECKING — a cron that deliberately does not install
+    pandas was crashing at import time. That module is in THIS chain.
+
+    A single top-level `import pandas` anywhere below would not fail a review;
+    it would fail every pine-only bot PR, which is the lane the library-refresh
+    bot depends on.
+    """
+    pending = ["scripts.check_r1_attested_sources"]
+    seen: set[str] = set()
+    third_party: dict[str, str] = {}
+
+    while pending:
+        dotted = pending.pop()
+        if dotted in seen:
+            continue
+        seen.add(dotted)
+        path = _repo_module_path(dotted)
+        if path is None:
+            continue
+        for imported in _module_level_imports(path):
+            if _repo_module_path(imported) is not None:
+                pending.append(imported)
+            elif imported.split(".")[0] not in sys.stdlib_module_names:
+                third_party[imported] = dotted
+
+    assert not third_party, (
+        "the R1 guard's runtime import chain left stdlib+repo: "
+        + ", ".join(f"{mod} (imported by {by})" for mod, by in sorted(third_party.items()))
+        + ". The pine-only fast-gates lane installs nothing, so this breaks "
+        "every pine-touching bot PR. Move the import under TYPE_CHECKING, make "
+        "it function-local, or give that lane a dependency install."
+    )
+
+
+def test_the_pine_lane_really_does_install_nothing() -> None:
+    """Pins WHY the purity test above is load-bearing, not merely tidy.
+
+    If the pine lane ever gains a dependency install, the constraint stops being
+    real and the test above becomes a rule without a reason — the kind of pin
+    this repo removes. If instead the guard stops running on the pine lane, the
+    hole #4376 closed is back. Either way this should be read, not silently
+    diverge.
+    """
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps = {
+        step["name"]: str(step.get("if", ""))
+        for step in workflow["jobs"]["fast-gates"]["steps"]
+        if "name" in step
+    }
+
+    assert "run_pine_guard" in steps["Guard R1-attested sources"], (
+        "the guard no longer runs on the pine-only lane — that is the hole "
+        "#4376 closed (the library-refresh bot merged un-attested)"
+    )
+    for installer in (
+        "Set up pinned Python (GitHub-hosted)",
+        "Resolve Python 3.12 interpreter",
+        "Install dependencies",
+    ):
+        assert "run_pine_guard" not in steps[installer], (
+            f"{installer!r} now also runs on the pine-only lane. The import-"
+            "purity constraint above is no longer load-bearing; either drop that "
+            "test with this change, or drop this one."
+        )

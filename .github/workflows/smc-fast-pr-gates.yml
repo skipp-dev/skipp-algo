@@ -184,6 +184,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # On the pine-only lane (run_heavy=false) none of the Python setup
+          # steps run, so this `python` is whatever the runner image ships and
+          # the import chain must be stdlib+repo only. That lane had never
+          # executed once as of 2026-08-04 -- measured across 45 fast-gates
+          # runs, every one is guard+setup both-ran or both-skipped -- so print
+          # what it resolved. The first pine-touching bot PR is the observation;
+          # tests/test_check_r1_attested_sources.py enforces the purity half.
+          python -VV
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
 
