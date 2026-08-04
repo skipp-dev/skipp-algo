@@ -261,6 +261,16 @@ Throwaway artifacts of this run live under `~/.local/share/skipp/vpin_followup/`
 (`enrich_bars_tcbbo_v2.py`, `<SYM>_15m_tcbbo_v2.json`, `events_v5_tcbbo_signfix.json`,
 `ab_*_v2.json`) — like the June run, intentionally not promoted to the repo.
 
+> **Correction 2026-08-04 (post-run, review finding):** §9's "same 15m bar
+> grids and structure events as §2 (`<SYM>_15m.json` payloads reused; only the
+> embedded `uoa_*` keys are recomputed)" overstates the reuse. The bar payloads
+> and structure inputs WERE reused byte-identically, but the FamilyEvent list
+> was **regenerated through the current adapter** (`make_events_opra.py` →
+> `family_events_from_structure`), which has evolved since June — hence §9a's
+> 10,940 events vs §2's 10,981 (6,318 vs 6,352 non-null). Same window, grids
+> and structure; not byte-identical events. Disclosed deviation, conservative
+> for the NULL verdict; the §9 text above stays as registered.
+
 ### 9a. Results (run executed 2026-08-04, after the §9 registration commit)
 
 **Vacuity gates — both PASS:**
