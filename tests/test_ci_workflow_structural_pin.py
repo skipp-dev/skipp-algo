@@ -132,11 +132,11 @@ def test_timeout_minutes_45(validate_job: dict) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Bot-PR short-circuit gate
+# Event gate (which events run the heavy suite)
 # ─────────────────────────────────────────────────────────────────────
 
 
-def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
+def test_event_gate_present_and_fails_closed(validate_job: dict) -> None:
     steps = validate_job.get("steps")
     assert isinstance(steps, list) and steps, "validate MUST declare steps"
     gate = next(
@@ -162,17 +162,19 @@ def test_bot_pr_short_circuit_gate_present(validate_job: dict) -> None:
         "gate step MUST distinguish main pushes from PR branch pushes via ref_name."
     )
     assert "run_heavy=false" in run, "pull_request gate MUST emit run_heavy=false"
-    assert "bot/*" in run, "gate step MUST match the `bot/*` head_ref pattern"
-    # Audit P2 HIGH: the legacy bot fallback must verify changed PATHS (not
-    # just the branch name), emitting run_heavy from the per-file allow-list
-    # check and failing closed to run_heavy=true.
-    assert "run_heavy=$heavy" in run, (
-        "gate step MUST emit run_heavy from the per-file path check"
+    # The gate MUST fail closed: its last word is run_heavy=true, so an event no
+    # arm above claims runs the full suite instead of skipping it silently.
+    #
+    # Until 2026-08-04 this spot also pinned `bot/*`, `.filename` and
+    # `run_heavy=$heavy` -- a path allow-list that was UNREACHABLE under ci.yml's
+    # own triggers (push / pull_request / workflow_dispatch all exit in the four
+    # arms above; measured before and after removal, identical verdicts). Pinning
+    # it made this file claim ci.yml path-checks bot PRs. It does not: here every
+    # pull request is status-only. What the gate actually decides is witnessed by
+    # execution in tests/test_fast_gates_silent_skip_coverage.py.
+    assert run.rstrip().endswith('echo "run_heavy=true" >> "$GITHUB_OUTPUT"'), (
+        "gate step MUST fail closed to run_heavy=true as its final fallback"
     )
-    assert ".filename" in run, (
-        "gate step MUST enumerate the PR's changed files for the allow-list"
-    )
-    assert "run_heavy=true" in run, "gate step MUST fail closed to run_heavy=true"
     assert 'EVENT_NAME' in run and "pull_request" in run, (
         "gate step MUST branch on pull_request events explicitly"
     )
