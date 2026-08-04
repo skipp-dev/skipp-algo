@@ -89,8 +89,10 @@ from pathlib import Path
 import yaml
 
 from tests._fast_gates_gate import (
+    CI_HARNESS_ENV,
     HARNESS_ENV,
     SHELL,
+    ci_gate_step,
     gate_step,
     run_ci_gate,
     run_gate,
@@ -128,9 +130,12 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # like the R1 contract test itself, nothing would notice until after a
     # merge — which is the hole #4272 and #4284 went through.
     "tests/test_check_r1_attested_sources.py",
-    # Added 2026-08-04: ci.yml is status-only on pull requests and these two
-    # were slow-lane only, so a regression to the gate deciding whether the
-    # full suite ever runs was invisible until after the merge.
+    # Added 2026-08-04. The reason first given here was wrong — see the
+    # correction in tests/_fast_inventory.py: the diff-driven step already ran
+    # both files on any PR touching ci.yml, measured. These two entries hold the
+    # cases that step does not cover: it is pull_request-gated (so absent in a
+    # merge_group batch) and it depends on select_workflow_guards.py staying
+    # correct.
     "tests/test_ci_workflow_contract.py",
     "tests/test_ci_workflow_structural_pin.py",
     # 2026-08-03: derived cross-consumer guard for
@@ -1294,6 +1299,29 @@ def test_the_harness_supplies_every_variable_the_gate_step_reads() -> None:
     )
 
 
+def test_the_ci_harness_supplies_every_variable_the_ci_gate_step_reads() -> None:
+    """The same pin, one workflow over. It was missing until 2026-08-04.
+
+    #4387 pinned the allowlist for smc-fast-pr-gates' harness and #4392 added a
+    second harness for ci.yml without the matching pin -- so ci.yml could grow an
+    `env:` key the harness never supplies, and the four witnesses below would go
+    on measuring a gate that no longer exists.
+
+    One-directional on purpose: the harness may supply MORE than the step reads
+    (that is how a workflow shrinks without breaking the tests), never less.
+    """
+    declared = set(ci_gate_step().get("env", {}))
+    missing = declared - set(CI_HARNESS_ENV)
+
+    assert not missing, (
+        f"ci.yml's gate step reads {sorted(missing)}, which "
+        "tests/_fast_gates_gate.py does not supply. Under `-e` without `-u` those "
+        "expand to '' instead of failing, so the ci witnesses would silently stop "
+        "reproducing CI. Add them to CI_HARNESS_ENV (with a value that exercises "
+        "the real path)."
+    )
+
+
 # --- ci.yml's gate: the same shape, and the same blind spot (2026-08-04) ------
 #
 # `ci.yml`'s `validate` job has its own `id: gate`, and ELEVEN steps hang on its
@@ -1301,20 +1329,27 @@ def test_the_harness_supplies_every_variable_the_gate_step_reads() -> None:
 # execution. Its contract is pinned in test_ci_workflow_contract.py, by source
 # text, and a mutation sweep measured what that cannot see:
 #
-#     delete the unreachable bot-path block  -> 2 tests die
 #     delete the pull_request arm            -> 2 tests die
 #     delete the non-main-push arm           -> 2 tests die
 #     delete the workflow_dispatch arm       -> 1 test dies
 #     flip the MAIN-PUSH arm true -> false   -> NOTHING dies
 #
+# (A fifth row stood here: "delete the unreachable bot-path block -> 2 tests
+# die". #4396 deleted that block from ci.yml, because it could not run under any
+# declared trigger, so the mutation is no longer performable. The two tests that
+# died were pinning dead code.)
+#
 # Deletions are caught because the pinned substring disappears; the inversion is
 # not, because `run_heavy=true` still occurs in another arm. The full suite would
 # stop running on main and every gate assertion would stay green.
 #
-# These witnesses live here rather than beside those assertions because
-# test_ci_workflow_contract.py is NOT on the fast-gates list, and ci.yml is
-# status-only on pull requests -- so on a PR its own contract tests do not run at
-# all. A regression there is visible only after the merge.
+# These witnesses live here rather than beside those assertions for one reason
+# only: this is where the harness that EXECUTES a gate step lives. An earlier
+# version of this paragraph gave a second reason -- that
+# test_ci_workflow_contract.py was off the fast list and therefore never ran on a
+# PR. That was wrong on both halves. It is on the list since #4398, and before
+# that the diff-driven step in smc-fast-pr-gates.yml already ran it on any PR
+# touching ci.yml (measured 2026-08-04).
 
 
 def test_ci_gate_runs_the_full_suite_on_a_main_push(tmp_path: Path) -> None:
