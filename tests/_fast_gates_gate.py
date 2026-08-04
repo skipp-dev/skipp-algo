@@ -92,6 +92,60 @@ def gate_run_block() -> str:
     return str(gate_step()["run"])
 
 
+# --- ci.yml's own gate ------------------------------------------------------
+#
+# The same shape, one workflow over: `validate` has an `id: gate` step whose
+# run_heavy output every later step hangs on -- including the full pytest run.
+# Its contract is pinned in test_ci_workflow_contract.py by source text, and a
+# mutation sweep on 2026-08-04 showed what that cannot see: flipping the
+# main-push arm from `run_heavy=true` to `false` killed NO test, because the
+# string `run_heavy=true` still appears in another arm. Deletions are caught,
+# inversions are not.
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+
+CI_HARNESS_ENV: dict[str, str] = {
+    "EVENT_NAME": "push",
+    "REF_NAME": "main",
+    "HEAD_REF": "",
+    "PR_NUMBER": "4371",
+    "REPO": "skipp-dev/skipp-algo",
+    "GH_TOKEN": "stub-token",
+}
+
+
+def ci_gate_step() -> dict:
+    """The ``gate`` step of ci.yml's ``validate`` job."""
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    for step in workflow["jobs"]["validate"]["steps"]:
+        if step.get("id") == "gate":
+            return dict(step)
+    raise AssertionError("ci.yml's validate job has no step with id 'gate'")
+
+
+def run_ci_gate(
+    tmp_path: Path,
+    *,
+    event_name: str,
+    ref_name: str,
+    head_ref: str = "",
+    changed_files: list[str] | None = None,
+    gh_exit_code: int = 0,
+) -> dict[str, str]:
+    """Execute ci.yml's gate and return what it wrote to GITHUB_OUTPUT."""
+    return _run_step_shell(
+        str(ci_gate_step()["run"]),
+        tmp_path,
+        env={
+            **CI_HARNESS_ENV,
+            "EVENT_NAME": event_name,
+            "REF_NAME": ref_name,
+            "HEAD_REF": head_ref,
+        },
+        changed_files=changed_files or [],
+        gh_exit_code=gh_exit_code,
+    )
+
+
 def run_gate(
     changed_files: list[str],
     tmp_path: Path,
@@ -100,12 +154,30 @@ def run_gate(
     event_name: str = "pull_request",
     gh_exit_code: int = 0,
 ) -> dict[str, str]:
-    """Execute the gate against a stubbed ``gh``; return what it wrote.
+    """Execute the fast-gates gate against a stubbed ``gh``; return its outputs.
 
     ``gh_exit_code`` drives the fail-closed path: the step must fall back to the
     heavy suite when it cannot list the PR's files, rather than skip on a branch
     name alone.
     """
+    return _run_step_shell(
+        gate_run_block(),
+        tmp_path,
+        env={**HARNESS_ENV, "EVENT_NAME": event_name, "HEAD_REF": head_ref},
+        changed_files=changed_files,
+        gh_exit_code=gh_exit_code,
+    )
+
+
+def _run_step_shell(
+    run_block: str,
+    tmp_path: Path,
+    *,
+    env: dict[str, str],
+    changed_files: list[str],
+    gh_exit_code: int,
+) -> dict[str, str]:
+    """Run one workflow step's shell with a stubbed ``gh``; return its outputs."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "gh"
@@ -124,17 +196,15 @@ def run_gate(
     github_output.write_text("", encoding="utf-8")
 
     result = subprocess.run(
-        [*SHELL, "-c", gate_run_block()],
+        [*SHELL, "-c", run_block],
         # Deliberately not `{**os.environ, ...}`: `bash -c` sources BASH_ENV
         # even under --noprofile --norc, so a developer's shell could change
         # what this measures. PATH is kept (with the stub in front) because the
         # step legitimately needs to find `gh` and bash itself.
         env={
-            **HARNESS_ENV,
+            **env,
             "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
             "GITHUB_OUTPUT": str(github_output),
-            "EVENT_NAME": event_name,
-            "HEAD_REF": head_ref,
         },
         capture_output=True,
         text=True,
