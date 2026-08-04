@@ -19,6 +19,7 @@ from smc_integration.release_policy import (
     VOLATILE_ARTIFACT_POLICY,
     classify_artifact_drift,
 )
+from tests._workflow_step_shell import Stub, run_step, step_by_name
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"
@@ -993,7 +994,7 @@ def test_every_pytest_node_id_the_workflow_prints_actually_resolves() -> None:
             cwd=ROOT,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTEST_ADDOPTS": ""},
+            env={**os.environ, "PYTEST_ADDOPTS": "", "PY_COLORS": "0", "NO_COLOR": "1"},
         )
         assert result.returncode == 0, (
             f"{WORKFLOW_PATH.name} prints {node_id!r} as the command to run, and "
@@ -1784,3 +1785,381 @@ def test_the_git_fixtures_cannot_be_hijacked_by_an_ambient_git_dir(
         f"_isolated_env left {leaked} in place; those override cwd and would "
         "retarget the real repository"
     )
+
+
+def test_an_evidence_artifact_missing_a_hash_never_produces_an_all_clear(
+    tmp_path: Path,
+) -> None:
+    """The step must not attest over a hash the artifact never recorded.
+
+    Found by review of #4393 on 2026-08-04 and reproduced here at the consumer.
+    ``drifted_attested_targets`` used to skip a source whose evidence entry
+    carried no ``repositorySha256``, so all four malformed shapes below reached
+    this step's clean branch and published "every one still hashes to what
+    ``<evidence>`` attests" -- an attestation over sources whose hashes had
+    never been read. The repository's required guard,
+    ``scripts/check_r1_attested_sources.py``, called the same input an offender,
+    so two guards gave two answers to one question.
+
+    Driven through the real ``run:`` block, over a seeded repository whose
+    ``git diff`` is empty -- so the only thing that can produce a verdict here
+    is the hash comparison itself.
+    """
+    attested = _evidence_matching_the_repository()
+    victim = sorted(attested)[0]
+
+    shapes = {
+        "the key was deleted": {k: v for k, v in attested.items() if k != victim},
+        "the entry is an empty object": {**attested, victim: {}},
+        "the hash is explicitly null": {**attested, victim: {"repositorySha256": None}},
+        "the entry itself is null": {**attested, victim: None},
+    }
+
+    for index, (description, sources) in enumerate(shapes.items()):
+        work = tmp_path / f"shape{index}"
+        work.mkdir()
+        notice = _run_notice(work, cwd=_seed_repo(work), sources=sources)
+
+        assert notice.rc == 0, f"{description}: {notice.log}"
+        leaked = [phrase for phrase in _ALL_CLEAR if phrase in _unwrapped(notice.summary)]
+        assert not leaked, (
+            f"{description}: the step published all-clear language {leaked} while "
+            f"the registered evidence records no hash for {victim!r}. Absence of a "
+            f"measurement is not a measurement of agreement:\n{notice.summary}"
+        )
+        assert notice.pr_body.strip(), (
+            f"{description}: the verdict never reached the PR body, which is the "
+            "only surface anyone reads"
+        )
+
+
+# --- the publish gate, executed rather than described ------------------------
+#
+# `publish_gate` decides `publish_allowed`, and twelve later steps hang on it --
+# including the one that publishes to the live TradingView account. Its contract
+# above (test_publish_gate_combines_breaking_with_operator_override) pins the
+# four env keys and the warning string; none of that constrains the logic.
+#
+# Measured 2026-08-04 with a value-preserving arm swap (the multiset of
+# `name=value` tokens left unchanged, so every substring assertion is blind by
+# construction): swapping the two `PUBLISH_ALLOWED=` arms left all 597 tests
+# across the 32 files that name this workflow green -- while a breaking change
+# would publish without an operator override, and a clean refresh would not
+# publish at all.
+
+
+PUBLISH_GATE_STEP = "Compute publish gate"
+
+
+def _publish_gate(tmp_path, *, breaking, is_dispatch, is_main, allow_breaking):
+    """Run the real step; return its outputs."""
+    return run_step(
+        "smc-library-refresh.yml",
+        PUBLISH_GATE_STEP,
+        tmp_path,
+        env={
+            "BREAKING": breaking,
+            "IS_DISPATCH": is_dispatch,
+            "IS_MAIN": is_main,
+            "ALLOW_BREAKING": allow_breaking,
+        },
+    )
+
+
+def test_publish_gate_harness_feeds_exactly_the_step_env(tmp_path) -> None:
+    """The harness env must mirror the step's ``env:`` block, and nothing more.
+
+    The step runs under ``-u``, but a future variable the workflow adds and this
+    harness does not would still be the dangerous shape: the tests below would
+    keep passing against a gate that no longer behaves as they describe. Pinning
+    the key set makes that a named failure instead.
+    """
+    declared = set(step_by_name("smc-library-refresh.yml", PUBLISH_GATE_STEP)["env"])
+    assert declared == {"BREAKING", "IS_DISPATCH", "IS_MAIN", "ALLOW_BREAKING"}
+
+
+def test_a_clean_refresh_publishes(tmp_path) -> None:
+    """No breaking change: publishing is the normal outcome, override irrelevant."""
+    result = _publish_gate(
+        tmp_path, breaking="false", is_dispatch="false", is_main="true", allow_breaking="false"
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["publish_allowed"] == "true"
+    assert result.outputs["override_active"] == "false"
+
+
+def test_a_breaking_change_does_not_publish_on_its_own(tmp_path) -> None:
+    """The gate's reason for existing: breaking changes stop here."""
+    result = _publish_gate(
+        tmp_path, breaking="true", is_dispatch="false", is_main="true", allow_breaking="false"
+    )
+    assert result.outputs["publish_allowed"] == "false"
+    assert result.outputs["override_active"] == "false"
+
+
+def test_the_override_needs_all_three_conditions(tmp_path) -> None:
+    """Defence in depth, checked exhaustively rather than by example.
+
+    A breaking change may publish only on a manual dispatch, against main, with
+    the operator input set. Any one of the three missing must block -- so all
+    eight combinations are enumerated instead of trusting the happy path and one
+    counter-example.
+    """
+    seen_allowed = 0
+    for dispatch in ("true", "false"):
+        for main in ("true", "false"):
+            for allow in ("true", "false"):
+                result = _publish_gate(
+                    tmp_path,
+                    breaking="true",
+                    is_dispatch=dispatch,
+                    is_main=main,
+                    allow_breaking=allow,
+                )
+                expected = "true" if dispatch == main == allow == "true" else "false"
+                seen_allowed += expected == "true"
+                assert result.outputs["publish_allowed"] == expected, (
+                    f"breaking change with dispatch={dispatch} main={main} "
+                    f"allow_breaking={allow} must be publish_allowed={expected}"
+                )
+                assert result.outputs["override_active"] == expected
+    # Without this the loop could assert eight identical "false"s and still pass
+    # against a gate that never honours the override at all.
+    assert seen_allowed == 1, "exactly one of the eight combinations may publish"
+
+
+def test_the_override_announces_itself(tmp_path) -> None:
+    """An override that publishes silently is the one nobody reviews."""
+    overridden = _publish_gate(
+        tmp_path, breaking="true", is_dispatch="true", is_main="true", allow_breaking="true"
+    )
+    assert "Operator override active" in overridden.stdout
+    plain = _publish_gate(
+        tmp_path, breaking="false", is_dispatch="true", is_main="true", allow_breaking="true"
+    )
+    assert "Operator override active" not in plain.stdout, (
+        "a refresh with no breaking change must not claim an override was used"
+    )
+
+
+# --- three more decisions of this workflow, executed ------------------------
+#
+# Measured 2026-08-04 with a value-preserving arm swap (the true/false token
+# multiset left unchanged, so any substring assertion is blind by construction):
+# each of these three left all 597 tests across the 32 files that name this
+# workflow green.
+
+_DIFF_STEP = "Detect library changes"
+_BUNDLE_STEP = "Verify Databento production export bundle is present"
+_DATE_STEP = "Set refresh date"
+_BUNDLE_GLOB = "artifacts/smc_microstructure_exports"
+
+
+def _refresh_decision(tmp_path, step, *, env=None, stubs=None):
+    return run_step(
+        "smc-library-refresh.yml",
+        step,
+        tmp_path,
+        env={"REFRESH_DATE": "2026-08-04", **(env or {})},
+        stubs=stubs,
+    )
+
+
+def test_an_unchanged_library_is_not_republished(tmp_path) -> None:
+    """`diff` reporting "same" must not proceed to publish.
+
+    ``diff`` is stubbed rather than run for real: the decision under test is
+    which arm maps to which value, not whether GNU diff works. That mapping is
+    exactly what the arm swap inverts, and what no assertion here saw.
+    """
+    result = _refresh_decision(tmp_path, _DIFF_STEP, stubs={"diff": 0})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["changed"] == "false", (
+        f"an identical library must not be republished; got {result.outputs}"
+    )
+
+
+def test_a_changed_library_proceeds_to_publish(tmp_path) -> None:
+    """The control direction: a real change must reach the publish path."""
+    result = _refresh_decision(tmp_path, _DIFF_STEP, stubs={"diff": 1})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["changed"] == "true", (
+        f"a changed library must proceed to publish; got {result.outputs}"
+    )
+
+
+def test_a_present_producer_bundle_lets_the_refresh_continue(tmp_path) -> None:
+    manifest_dir = tmp_path / _BUNDLE_GLOB
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "databento_volatility_production_20260804_manifest.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    result = _refresh_decision(tmp_path, _BUNDLE_STEP)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["bundle_present"] == "true"
+
+
+def test_a_missing_producer_bundle_aborts_rather_than_publishing_stale(tmp_path) -> None:
+    """F-V5-D1: no publish against a missing producer bundle.
+
+    Hard-fail is the point. Reporting ``bundle_present=false`` and continuing
+    would generate the library from whatever happened to be on disk.
+    """
+    result = _refresh_decision(tmp_path, _BUNDLE_STEP)
+    assert result.returncode != 0, "a missing producer bundle must abort the refresh"
+    assert result.outputs["bundle_present"] == "false"
+
+
+def _date_stub(hour: str):
+    """`date` answering per format string, the way the step queries it."""
+    return {
+        "date": Stub(
+            script=(
+                'case "$*" in\n'
+                f"  *%H) printf '%s\\n' '{hour}' ;;\n"
+                "  *T%H:%M:%SZ) printf '%s\\n' '2026-08-04T{h}:00:00Z' ;;\n".replace("{h}", hour)
+                + "  *) printf '%s\\n' '2026-08-04' ;;\n"
+                "esac\n"
+            )
+        )
+    }
+
+
+def test_the_stale_guard_arms_only_once_the_producer_is_due(tmp_path) -> None:
+    """F-V8-C4.3, executed: the cross-midnight false-red guard.
+
+    The producer's earliest daily tick is 08:00 UTC. Before it, a missing
+    same-date bundle is normal and the reject-stale guard must stay disarmed --
+    that is the whole fix for the 00:02 UTC Saturday run that demanded a bundle
+    the producer could never have made. From 08:00 on, a stale fallback is a
+    real outage and the guard must arm.
+
+    The boundary is asserted from both sides; asserting only one leaves a guard
+    that is always armed (or never) indistinguishable from a correct one.
+    """
+    for hour, expected in (("00", "false"), ("07", "false"), ("08", "true"), ("23", "true")):
+        result = run_step(
+            "smc-library-refresh.yml", _DATE_STEP, tmp_path,
+            env={}, stubs=_date_stub(hour),
+        )
+        assert result.returncode == 0, f"hour {hour}: {result.stderr}"
+        assert result.outputs["stale_guard_active"] == expected, (
+            f"at {hour}:00 UTC the stale guard must be {expected}; got {result.outputs}"
+        )
+
+
+def test_the_hour_is_read_as_base_ten(tmp_path) -> None:
+    """`08` and `09` are not octal.
+
+    The step forces base ten with ``$((10#$REFRESH_UTC_HOUR))``. Without it,
+    ``date -u +%H`` returning ``08`` makes the arithmetic a syntax error and the
+    step dies -- every morning between 08:00 and 09:59 UTC, which is precisely
+    the window the guard was added to arm in.
+    """
+    for hour in ("08", "09"):
+        result = run_step(
+            "smc-library-refresh.yml", _DATE_STEP, tmp_path,
+            env={}, stubs=_date_stub(hour),
+        )
+        assert result.returncode == 0, (
+            f"the step died on hour {hour!r} — the base-ten guard is gone: {result.stderr}"
+        )
+        assert result.outputs["stale_guard_active"] == "true"
+
+
+def test_the_refresh_date_reaches_later_steps(tmp_path) -> None:
+    """The stamped date goes to $GITHUB_ENV, which every later step reads."""
+    result = run_step(
+        "smc-library-refresh.yml", _DATE_STEP, tmp_path, env={}, stubs=_date_stub("12")
+    )
+    assert result.env_file["REFRESH_DATE"] == "2026-08-04"
+    assert result.env_file["REFRESH_TS"].startswith("2026-08-04T")
+
+
+# --- the breaking-change gate, executed -------------------------------------
+#
+# `breaking` decides whether a version bump is a breaking change, and
+# publish_gate turns that into publish_allowed. Measured 2026-08-04 with a
+# value-preserving arm swap on BREAKING (the true/false token multiset left
+# unchanged, so any substring assertion is blind by construction): all 601
+# assertions across the 32 files naming this workflow stayed green.
+#
+# Swapped, a breaking bump publishes to the live TradingView account without an
+# operator override, and a clean refresh never publishes at all.
+
+_BREAKING_STEP = "Evaluate version governance"
+
+_CLEAN_DECISION = '{"reasons": [], "schema_version_old": "3", "schema_version_new": "3", ' \
+                  '"field_version_old": "7", "field_version_new": "7"}'
+_BREAKING_DECISION = '{"reasons": ["schema_version bumped", "field dropped: rvol"], ' \
+                     '"schema_version_old": "3", "schema_version_new": "4", ' \
+                     '"field_version_old": "7", "field_version_new": "8"}'
+
+
+def _governance(tmp_path, decision: str, exit_code: int):
+    """Run the real step with the governance script shadowed.
+
+    The script's own verdict is its exit code plus a JSON document; both are
+    supplied here so the step's handling of them is what gets measured, not
+    scripts/smc_version_governance.py (which has its own tests).
+    """
+    return run_step(
+        "smc-library-refresh.yml",
+        _BREAKING_STEP,
+        tmp_path,
+        env={"REFRESH_DATE": "2026-08-04", "SMC_PYTHON_BIN": "governance-stub"},
+        stubs={"governance-stub": Stub(stdout=decision, exit_code=exit_code)},
+    )
+
+
+def test_a_clean_bump_is_not_breaking(tmp_path) -> None:
+    result = _governance(tmp_path, _CLEAN_DECISION, 0)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["breaking"] == "false"
+    assert result.outputs["reason"] == ""
+    assert "::error" not in result.stdout, (
+        "a clean refresh must not raise a blocking annotation"
+    )
+    assert not (tmp_path / "artifacts/ci/release_pending.flag").exists(), (
+        "a clean refresh must not leave a release-pending flag for operators to chase"
+    )
+
+
+def test_a_breaking_bump_blocks_the_publish(tmp_path) -> None:
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert result.returncode == 0, (
+        f"the step must report the verdict, not fail on it: {result.stderr}"
+    )
+    assert result.outputs["breaking"] == "true"
+
+
+def test_the_blocking_reason_comes_from_the_verdict_not_from_a_constant(tmp_path) -> None:
+    """The reason must survive the round trip out of the decision document.
+
+    ``reason`` is what the operator reads on a blocked publish. A hardcoded or
+    empty one looks identical in the source and useless in the run UI.
+    """
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert result.outputs["reason"] == "schema_version bumped; field dropped: rvol", (
+        f"the reasons must be joined out of the verdict; got {result.outputs.get('reason')!r}"
+    )
+
+
+def test_a_blocked_publish_is_visible_to_an_operator(tmp_path) -> None:
+    """F-V8-N1: a blocked publish must be a red marker, not a silent skip.
+
+    Three surfaces, all asserted on what was actually emitted: the annotation
+    on the run, the summary table, and the sticky artifact that survives
+    scrolling the Actions list.
+    """
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert "::error" in result.stdout and "Breaking change blocks publish" in result.stdout
+    assert "Library publish blocked" in result.summary, (
+        f"the operator's summary never got the block notice: {result.summary!r}"
+    )
+    assert "| `3` | `4` |" in result.summary, (
+        "the summary must show the real before/after versions from the verdict, "
+        f"not a template: {result.summary!r}"
+    )
+    assert (tmp_path / "artifacts/ci/release_pending.flag").read_text(encoding="utf-8").strip() \
+        == _BREAKING_DECISION, "the sticky flag must carry the verdict itself"

@@ -123,6 +123,22 @@ def drifted_attested_targets(
     ``targets``/``sources`` are injectable so the tests can drive real drift and
     real agreement instead of skipping when the checked-in state happens to be
     clean. A guard whose tests skip is the vacuity #4267 removed.
+
+    An attested target the evidence records NO hash for is reported, not
+    skipped. It used to be skipped -- ``if attested is None or attested ==
+    ...`` -- which reads "no hash recorded" as "the hash matches". That is the
+    one answer the evidence cannot support: it is the absence of a measurement,
+    not a measurement of agreement. Consumers act on it. The refresh workflow's
+    notice step gates its all-clear on this list, so a registered evidence
+    artifact with a deleted key, an empty object, or an explicit ``null``
+    produced "every one still hashes to what <evidence> attests" over sources
+    whose hashes had never been read (measured 2026-08-04, all four shapes).
+
+    Reported entries carry ``attestedSha256: None`` in that case, so a caller
+    can tell "moved away from a recorded hash" from "never had one". The two
+    need different remedies -- one is a re-attestation, the other means the
+    artifact itself is malformed -- and ``scripts/check_r1_attested_sources.py``
+    already treated the second as an offender, so the two guards disagreed.
     """
     if targets is None:
         targets = build_rollout_contract()["targets"]
@@ -132,8 +148,11 @@ def drifted_attested_targets(
     drifted: list[dict] = []
     for target in targets:
         script_name = target["scriptName"]
-        attested = sources.get(script_name, {}).get("repositorySha256")
-        if attested is None or attested == target["sha256"]:
+        # `or {}` rather than a default: a source registered as an explicit
+        # `null` makes .get() return None, and None has no .get().
+        recorded = sources.get(script_name) or {}
+        attested = recorded.get("repositorySha256")
+        if attested == target["sha256"]:
             continue
         drifted.append(
             {
@@ -165,7 +184,18 @@ def _render(drifted: list[dict], unattested: list[str]) -> str:
     for name in unattested:
         item = by_name[name]
         lines.append(f"  {name}  ({item['path']})")
-        lines.append(f"      evidence attests: {item['attestedSha256']}")
+        attested = item["attestedSha256"]
+        lines.append(
+            "      evidence attests: "
+            + (
+                attested
+                if attested is not None
+                # Not a hash mismatch: the artifact records no hash for this
+                # source at all, so no re-attestation can reconcile it until
+                # the artifact itself is repaired.
+                else "NOTHING — the registered evidence records no hash for this source"
+            )
+        )
         lines.append(f"      being saved now : {item['repositorySha256']}")
     return "\n".join(lines)
 

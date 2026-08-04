@@ -23,14 +23,20 @@ So execute the step. This module is the shared harness; the assertions live in
 ``test_fast_gates_silent_skip_coverage.py`` (the silent-skip contract) and in
 ``test_check_r1_attested_sources.py`` (the R1 half).
 
-What it does NOT cover: GitHub's ``if:`` expression evaluation. Whether the
-Checkout and guard steps actually consume these outputs is still pinned by
-source-text assertions, because that evaluation has no local equivalent.
+What it does NOT cover: GitHub's ``if:`` expression evaluation. That is no
+longer for want of a local equivalent — ``_evaluate_condition`` in
+``tests/test_fast_gates_attested_pine_coverage.py`` evaluates a step's ``if:``
+against real gate outputs, and ``tests/test_ci_workflow_contract.py`` pins
+ci.yml's two lane conditions by normalised equality. Both live outside this
+module. If a third consumer appears, lift the evaluator in here rather than
+copying it: a private helper imported across test modules is exactly what broke
+``main`` on 2026-08-04, when #4383 moved ``_run_gate`` out from under #4385.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -219,3 +225,156 @@ def _run_step_shell(
         for line in github_output.read_text(encoding="utf-8").splitlines()
         if "=" in line
     )
+
+
+# --- the `if:` half ---------------------------------------------------------
+#
+# Executing a `run:` block says what the step COMPUTES. It says nothing about
+# whether the step runs at all -- that is the `if:`, and it is a separate blind
+# spot with its own history: #4376's finding was that the R1 guard was skipped
+# because the CHECKOUT was skipped, and the test that was supposed to catch it
+# read `"run_pine_guard" in condition`, which any mention satisfies.
+#
+# Lifted here from tests/test_fast_gates_attested_pine_coverage.py on
+# 2026-08-04 when a second consumer appeared, exactly as this module's own
+# docstring instructs -- copying it would have left two evaluators to drift
+# apart, and a private helper imported across test modules is what broke `main`
+# earlier the same day.
+
+def step_conditions() -> dict[str, str]:
+    """Every ``fast-gates`` step's ``if:`` expression, keyed by step name."""
+    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return {
+        str(step.get("name")): str(step.get("if", ""))
+        for step in doc["jobs"]["fast-gates"]["steps"]
+        if isinstance(step, dict)
+    }
+
+
+# The subset of GitHub's expression grammar the two conditions below use:
+# parentheses, `&&`, `||`, `==`/`!=`, single-quoted literals, and context
+# references. Anything else raises rather than evaluating to something —
+# a step condition this cannot read is a condition this test cannot vouch for,
+# and reporting green on it would be the vacuity being removed here.
+# The trailing `-` in the identifier class is load-bearing: GitHub job ids may
+# contain hyphens, and this workflow has one (`needs.select-runner.outputs.…`).
+# Without it the tokenizer stops mid-reference and the condition is rejected as
+# unreadable rather than evaluated.
+_EXPRESSION_TOKEN = re.compile(r"\s*(\(|\)|&&|\|\||==|!=|'[^']*'|[A-Za-z_][A-Za-z0-9_.-]*)")
+
+
+def evaluate_condition(
+    expression: str,
+    outputs: dict[str, str],
+    *,
+    event_name: str = "pull_request",
+    contexts: dict[str, str] | None = None,
+) -> bool:
+    """Evaluate a step's ``if:`` against real gate outputs.
+
+    Deliberately does NOT short-circuit: both sides of every ``&&`` / ``||``
+    are evaluated, so an operand this evaluator does not understand raises even
+    when the other side already decided the verdict. A silent skip is what is
+    being tested for; it must not be how the test itself behaves.
+
+    ``contexts`` supplies values for references outside ``steps.gate.outputs``
+    -- currently only ``needs.select-runner.outputs.runner_environment``. An
+    unlisted reference raises rather than defaulting, for the same reason: a
+    reference this evaluator guesses at is a verdict it cannot vouch for.
+    """
+    contexts = contexts or {}
+    tokens: list[str] = []
+    position = 0
+    expression = expression.strip()
+    assert expression, (
+        "the step carries no `if:` at all, so it runs unconditionally. That "
+        "passes the coverage direction below for the wrong reason and fails "
+        "the control direction; give it a condition or drop it from this test."
+    )
+    while position < len(expression):
+        match = _EXPRESSION_TOKEN.match(expression, position)
+        assert match is not None, (
+            f"cannot read the step condition from offset {position}: "
+            f"{expression[position:]!r}. This evaluator covers the expression "
+            "shapes fast-gates uses today; extend it in the PR that introduces "
+            "a new one rather than letting this assertion pass unparsed."
+        )
+        tokens.append(match.group(1))
+        position = match.end()
+
+    index = 0
+
+    def peek() -> str | None:
+        return tokens[index] if index < len(tokens) else None
+
+    def take() -> str:
+        nonlocal index
+        assert index < len(tokens), f"the condition ends mid-expression: {expression!r}"
+        token = tokens[index]
+        index += 1
+        return token
+
+    def operand() -> str:
+        token = take()
+        if token.startswith("'"):
+            return token[1:-1]
+        if token.startswith("steps.gate.outputs."):
+            # An output the gate never wrote is "" in GitHub too, which is what
+            # makes `== 'true'` false for a flag the gate stopped publishing.
+            return outputs.get(token.rsplit(".", 1)[1], "")
+        if token == "github.event_name":
+            return event_name
+        if token in contexts:
+            return contexts[token]
+        raise AssertionError(
+            f"the step condition reads {token!r}, which this evaluator cannot "
+            "resolve. Teach it that context in the same PR — an unresolved "
+            "operand silently decides the verdict otherwise."
+        )
+
+    def comparison() -> bool:
+        # `always()` is a bare boolean term, not the left side of a comparison.
+        # Steps that render or upload the gate report carry `always() && …` so
+        # they still run after a failure; without this the evaluator would raise
+        # on them and they could never be asserted about at all.
+        if peek() == "always":
+            take()
+            assert take() == "(" and take() == ")", (
+                f"expected `always()` in {expression!r}"
+            )
+            return True
+        if peek() == "(":
+            take()
+            value = disjunction()
+            closing = take()
+            assert closing == ")", f"unbalanced parentheses in {expression!r}"
+            return value
+        left = operand()
+        operator = take()
+        right = operand()
+        if operator == "==":
+            return left == right
+        if operator == "!=":
+            return left != right
+        raise AssertionError(f"unsupported operator {operator!r} in {expression!r}")
+
+    def conjunction() -> bool:
+        value = comparison()
+        while peek() == "&&":
+            take()
+            value = comparison() and value
+        return value
+
+    def disjunction() -> bool:
+        value = conjunction()
+        while peek() == "||":
+            take()
+            value = conjunction() or value
+        return value
+
+    verdict = disjunction()
+    assert index == len(tokens), (
+        f"trailing tokens {tokens[index:]} in {expression!r}; the condition was "
+        "only partly evaluated"
+    )
+    return verdict

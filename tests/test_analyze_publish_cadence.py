@@ -7,6 +7,7 @@ tests run entirely off synthetic commit timelines.
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -275,7 +276,11 @@ def test_end_to_end_against_real_git_repo(tmp_path: Path) -> None:
     # even a total isolation failure cannot outlive the process.
     # Same contract as tests/test_smc_library_refresh_workflow.py.
     env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    env["GIT_CEILING_DIRECTORIES"] = str(tmp_path)
+    # A STRICT ancestor: git stops its upward search *below* a ceiling entry,
+    # so naming tmp_path itself (the repo directory) is a no-op — measured
+    # 2026-08-04. The sibling fixture in test_smc_library_refresh_workflow.py
+    # uses the parent for the same reason.
+    env["GIT_CEILING_DIRECTORIES"] = str(tmp_path.parent)
     identity = (
         "-c", "user.email=fixture@example.invalid",
         "-c", "user.name=fixture",
@@ -318,27 +323,65 @@ def test_end_to_end_against_real_git_repo(tmp_path: Path) -> None:
     assert r2.status == "missing"
 
 
+def _persisted_identity(config_path: Path) -> dict[str, str]:
+    """Identity keys really stored in a git config file, asked of git itself.
+
+    NOT a substring search. ``git config user.email x`` writes::
+
+        [user]
+            email = x
+
+    so the literal ``"user.email"`` never appears in the file, and
+    ``assert "user.email" not in config_text`` can never fail. That assertion
+    shipped in this file on 2026-08-04 and was caught the same day by executing
+    the mutation it claimed to catch — the file stayed green with a real
+    ``git config`` call restored. Ask git, which knows the section syntax.
+    """
+    import subprocess
+
+    found = {}
+    for key in ("user.email", "user.name"):
+        result = subprocess.run(
+            ["git", "config", "--file", str(config_path), "--get", key],
+            capture_output=True,
+            text=True,
+            env={"PATH": os.environ.get("PATH", "")},
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            found[key] = result.stdout.strip()
+    return found
+
+
 def test_the_real_git_fixture_cannot_escape_into_an_ambient_repository(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Prove the isolation above instead of asserting it in a comment.
 
     ``test_end_to_end_against_real_git_repo`` is the only test in this file that
-    shells out to a real git, and it used to pass ``cwd=`` with no ``env=``.
-    That is not isolation: git resolves its repository from ``$GIT_DIR`` /
-    ``$GIT_INDEX_FILE`` BEFORE the working directory, and git exports both into
-    every hook it runs -- which is where this suite executes, under the pre-push
-    hook. On 2026-08-04 that combination committed a temporary tree into the
-    real repository and wrote ``user.email`` into the ``.git/config`` shared by
-    every worktree, so later commits were authored by an address
-    ``scripts/check_commit_authors.py`` rejects. The suite reported ``1 passed``
-    throughout.
+    shells out to a real git, and it used to pass ``cwd=`` with no ``env=``. On
+    2026-08-04 that fixture committed a temporary tree into the real repository
+    and left ``user.email`` in the ``.git/config`` every worktree shares, so
+    later commits were authored by an address
+    ``scripts/check_commit_authors.py`` rejects -- while the suite reported
+    passing throughout.
 
-    A comment cannot fail. This test re-runs that fixture under exactly the
-    hostile environment -- a decoy repository wired into ``GIT_DIR``,
-    ``GIT_WORK_TREE`` and ``GIT_INDEX_FILE`` -- and then asserts the decoy is
-    untouched: no commits, and no identity written into its config. Delete the
-    ``env=`` scrub or put ``git config`` back, and this goes red.
+    An ambient ``$GIT_DIR`` / ``$GIT_INDEX_FILE`` reproduces that damage
+    exactly, and this test drives it: a decoy repository is wired into both, the
+    fixture is re-run, and the decoy must come out with no commits. Remove the
+    ``env=`` scrub and it goes red on that assertion.
+
+    **What this test does NOT establish, stated rather than implied.** An
+    earlier version of this docstring claimed "put ``git config`` back, and this
+    goes red". That is false, and measured: with the scrub in place ``git
+    config`` writes into the sandbox, never into the decoy, so restoring it
+    leaves this file green. The ``-c`` discipline is worth keeping -- it is what
+    makes even a total isolation failure survivable -- so it gets its own
+    witness below, against the sandbox rather than the decoy.
+
+    ``GIT_WORK_TREE`` is deliberately NOT set. Setting it made ``git add`` fail
+    with exit 128 before either assertion was reached: the test was red under
+    the mutation, but for the wrong reason, which is indistinguishable from a
+    guard that works until the day the error message changes.
     """
     import contextlib
     import os
@@ -354,7 +397,6 @@ def test_the_real_git_fixture_cannot_escape_into_an_ambient_repository(
 
     for name, value in (
         ("GIT_DIR", str(decoy / ".git")),
-        ("GIT_WORK_TREE", str(decoy)),
         ("GIT_INDEX_FILE", str(decoy / ".git" / "index")),
     ):
         monkeypatch.setenv(name, value)
@@ -382,9 +424,52 @@ def test_the_real_git_fixture_cannot_escape_into_an_ambient_repository(
         "test_end_to_end_against_real_git_repo must pass a GIT_*-scrubbed env="
     )
 
-    config = (decoy / ".git" / "config").read_text(encoding="utf-8")
-    assert "user.email" not in config and "fixture@example.invalid" not in config, (
+    assert _persisted_identity(decoy / ".git" / "config") == {}, (
         "the fixture wrote an identity into a foreign .git/config; use "
         "`git -c user.email=...` per invocation, never `git config`, which "
-        f"persists:\n{config}"
+        f"persists:\n{(decoy / '.git' / 'config').read_text(encoding='utf-8')}"
+    )
+
+
+def test_the_real_git_fixture_never_persists_an_identity(tmp_path: Path) -> None:
+    """The identity goes in per invocation, so nothing outlives the process.
+
+    Separate from the decoy test above, and asserted against the SANDBOX,
+    because that is where the difference is observable: with the ``GIT_*``
+    scrub in place a stray ``git config`` writes into the sandbox's own config,
+    not into any ambient repository, so the decoy cannot witness it.
+
+    Why keep the discipline at all if the scrub already contains the damage:
+    ``git config`` PERSISTS and ``-c`` does not. The scrub is one line that a
+    future edit can drop; ``-c`` means that even then the blast radius is a
+    single command rather than every commit made in that repository afterwards.
+    Defence in depth, and this is the layer that measures it.
+    """
+    import subprocess
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    test_end_to_end_against_real_git_repo(workspace)
+
+    persisted = _persisted_identity(workspace / ".git" / "config")
+    assert persisted == {}, (
+        "the fixture persisted an identity into its own .git/config, so it "
+        "used `git config` rather than `git -c user.email=...`. Under an "
+        "isolation failure that write lands in the real repository and outlives "
+        f"the test. Found: {persisted}"
+    )
+
+    # ...and the commits it made really do carry the intended identity, so the
+    # assertion above cannot be satisfied by a fixture that stopped committing.
+    log = subprocess.run(
+        ["git", "log", "--format=%an <%ae>"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+        env={"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)},
+    )
+    authors = set(log.stdout.split("\n")) - {""}
+    assert authors == {"fixture <fixture@example.invalid>"}, (
+        f"expected every commit authored by the per-invocation identity; got {authors}"
     )

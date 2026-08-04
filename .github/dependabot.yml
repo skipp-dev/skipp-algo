@@ -1,0 +1,81 @@
+# Dependabot version updates — added 2026-08-04 (#4407), narrowed the same
+# day after the initial wave measured the design against reality.
+#
+# What the first config got wrong, measured 2026-08-04 14:13-14:28Z: groups
+# covered only minor+patch, so every MAJOR update escaped the group and
+# became its own PR — 9 PRs in 15 minutes (typescript 7, pyarrow 25, tzdata
+# 2026.3 twice, a setuptools range widening, plus the 4 intended grouped
+# PRs). github-actions was the control group: its group covered all update
+# types and produced exactly one PR. On top of that, Dependabot rebases every
+# open PR on every main merge — main moved 6+ times that day, so 9 open PRs
+# meant a standing rebase-and-CI cascade.
+#
+# The shape now: ONE grouped PR per ecosystem per week, majors included
+# (open-pull-requests-limit: 1 enforces it), and rebase-strategy: disabled so
+# a busy main does not turn open update PRs into CI load. Security updates
+# are unaffected by these limits and still open immediately.
+#
+# Surfaces covered (measured 2026-08-04):
+#   uv.lock            — locks the pyproject set; consumed by no workflow
+#                        (nothing runs `uv sync`), but it is the manifest
+#                        Dependabot scans, and 8 workflows install the same
+#                        set unpinned via `pip install -e .`. Deliberate
+#                        decision: scan-only, not wired into CI.
+#   requirements*.txt  — what CI actually installs (fast-gates et al.)
+#   package-lock.json  — root + smc_tv_bridge (source of 4 of the 6
+#                        historical alerts)
+#   github-actions     — 68 workflows pin actions by tag
+
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
+    groups:
+      uv-all:
+        update-types: ["major", "minor", "patch"]
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/services/a0_fast_detector"
+      - "/services/live_overlay_daemon"
+      - "/services/mlflow_tracking"
+      - "/services/opra_live_daemon"
+      - "/services/signals_producer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
+    groups:
+      pip-all:
+        update-types: ["major", "minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+      - "/smc_tv_bridge"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
+    groups:
+      npm-all:
+        update-types: ["major", "minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+    rebase-strategy: "disabled"
+    groups:
+      actions-all:
+        update-types: ["major", "minor", "patch"]
