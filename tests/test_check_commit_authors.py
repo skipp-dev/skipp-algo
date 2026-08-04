@@ -22,6 +22,29 @@ def test_approved_identities_pass() -> None:
     assert mod._offenders(rows) == []
 
 
+def test_dependabot_grouped_update_passes() -> None:
+    # Measured on PR #4424 (2026-08-04): author is dependabot's numbered
+    # no-reply, committer is GitHub's web-flow identity. All four grouped
+    # update PRs (#4424-#4427) failed "Enforce approved commit authors" on
+    # exactly this pair, so the Dependabot pipeline built in #4407/#4421 was
+    # dead on arrival: no update PR could ever go green, regardless of content.
+    rows = [
+        ("d" * 40, "49699333+dependabot[bot]@users.noreply.github.com", "noreply@github.com"),
+    ]
+    assert mod._offenders(rows) == []
+
+
+def test_an_unapproved_bot_is_still_flagged() -> None:
+    # Negative control for the dependabot approval above: bot-ness alone must
+    # not pass the gate — only the named identity does.
+    rows = [
+        ("e" * 40, "29139614+renovate[bot]@users.noreply.github.com", "noreply@github.com"),
+    ]
+    offenders = mod._offenders(rows)
+    assert len(offenders) == 1
+    assert "renovate" in offenders[0]
+
+
 def test_corporate_author_is_flagged() -> None:
     rows = [
         ("c" * 40, "227788186+spreuss_cisco@users.noreply.github.com", "221361569+skipp-dev@users.noreply.github.com"),

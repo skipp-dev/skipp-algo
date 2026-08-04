@@ -28,6 +28,11 @@ _APPROVED_EMAILS: frozenset[str] = frozenset(
         "preuss.steffen@yahoo.com",
         "github-actions[bot]@users.noreply.github.com",
         "41898282+github-actions[bot]@users.noreply.github.com",
+        # Dependabot version updates (#4407/#4421). Measured on PR #4424: the
+        # bot authors as this numbered no-reply (committer is web-flow
+        # noreply@github.com, approved committer-only below). Without this
+        # entry every update PR failed this gate regardless of content.
+        "49699333+dependabot[bot]@users.noreply.github.com",
     }
 )
 
