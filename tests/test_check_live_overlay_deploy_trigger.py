@@ -55,7 +55,10 @@ def test_native_trigger_is_drift(guard, monkeypatch):
 
 
 def test_missing_token_skips_without_failing(monkeypatch):
+    """Dormancy is now DECLARED (_DEPLOYMENT_IS_CONFIGURED), not inferred from a
+    missing token — so a truly dormant deployment must say so explicitly."""
     mod = _load()
+    monkeypatch.setattr(mod, "_DEPLOYMENT_IS_CONFIGURED", False)
     # BOTH token variables: with the project-token path added, deleting only
     # RAILWAY_API_TOKEN would let an ambient RAILWAY_PROJECT_ACCESS_TOKEN keep
     # the guard live and this test would assert the wrong thing.
@@ -519,7 +522,12 @@ def test_probe_never_asserts_so_it_cannot_redden_the_daily_guard(guard, monkeypa
 def test_a_project_token_alone_still_skips_rather_than_asserting(guard, monkeypatch):
     """RAILWAY_TOKEN reaches the step's env for the probe. The assert path must
     not silently adopt it: project tokens are measured to be denied
-    deploymentTriggers (#4345), so adopting one would turn a SKIP into a red."""
+    deploymentTriggers (#4345), so adopting one would turn a SKIP into a red.
+
+    Declared dormant here so the missing-account-token case exercises the SKIP
+    path this test targets, rather than the now-separate declared-configured
+    ERROR path (dormancy is declared, not inferred, since 2026-08-04)."""
+    monkeypatch.setattr(guard, "_DEPLOYMENT_IS_CONFIGURED", False)
     monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
     monkeypatch.setenv("RAILWAY_TOKEN", "proj-tok")
 
@@ -655,18 +663,23 @@ def test_a_read_timeout_is_inconclusive_not_drift(guard, monkeypatch, capsys):
 
 
 def test_the_skip_line_names_only_the_variable_that_is_missing(monkeypatch, capsys):
-    """Deleting one secret must not read like the designed dormant state."""
+    """Deleting one secret must not read like the designed dormant state.
+
+    Superseded from a soft SKIP into the loud ERROR path (2026-08-04): with the
+    deployment declared configured (the default), a single missing secret is no
+    longer a silent green — it names only what is actually missing and refuses
+    to claim health."""
     mod = _load()
     monkeypatch.delenv("RAILWAY_PROJECT_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("RAILWAY_API_TOKEN", "t")
     monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
 
-    assert mod.main() == 0
-    out = capsys.readouterr().out
-    assert "RAILWAY_ENVIRONMENT_ID not set" in out
-    assert "RAILWAY_API_TOKEN" not in out
-    assert "deleted secret" in out
+    assert mod.main() == 2
+    err = capsys.readouterr().err
+    assert "RAILWAY_ENVIRONMENT_ID not set" in err
+    assert "RAILWAY_API_TOKEN" not in err
+    assert "deleted or mistyped secret" in err
 
 
 def test_a_schema_error_is_not_swallowed_by_a_denial_in_the_same_body(guard):
@@ -688,3 +701,57 @@ def test_classify_survives_shapes_that_carry_no_message(guard):
     status, detail = guard._classify({"errors": [{"extensions": {"code": "UNAUTH"}}]})
     assert status == "ERROR"
     assert detail  # a verdict with no evidence behind it is not a verdict
+
+
+# --- dormancy must be declared, not inferred (2026-08-04) --------------------
+
+
+def test_the_inconclusive_message_names_the_missing_secret_and_denies_health(
+    monkeypatch, capsys
+):
+    mod = _load()
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "t")
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "")
+
+    rc = mod.main()
+
+    out, err = capsys.readouterr()
+    assert rc == 2
+    assert "RAILWAY_ENVIRONMENT_ID" in err
+    assert "RAILWAY_API_TOKEN" not in err  # only what is actually missing
+    assert "verified NOTHING" in err
+    assert "no native Railway deploy trigger" not in out
+
+
+def test_an_undeclared_deployment_still_skips_green(monkeypatch):
+    """The dormant case stays legitimate — but only when the repo says so."""
+    mod = _load()
+    monkeypatch.setattr(mod, "_DEPLOYMENT_IS_CONFIGURED", False)
+    monkeypatch.delenv("RAILWAY_API_TOKEN", raising=False)
+    monkeypatch.setenv("RAILWAY_PROJECT_ID", "p")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "e")
+
+    def _boom(*a, **k):
+        raise AssertionError("must not reach the network while dormant")
+
+    monkeypatch.setattr(mod, "_fetch_triggers", _boom)
+    assert mod.main() == 0
+
+
+def test_the_declaration_cannot_be_flipped_to_silence_the_guard():
+    """Anti-arbitrariness coupling. The declaration is only honest while the
+    deployment exists, so flipping it requires ALSO retiring the deploy
+    workflow — which is a reviewable change, not a quiet one."""
+    mod = _load()
+    deploy_workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "deploy-live-overlay-daemon.yml"
+    )
+    assert deploy_workflow.exists(), (
+        "the daemon's deploy workflow is gone — if the deployment was retired, "
+        "flip _DEPLOYMENT_IS_CONFIGURED to False in the same PR and update this test"
+    )
+    assert mod._DEPLOYMENT_IS_CONFIGURED is True

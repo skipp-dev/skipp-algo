@@ -72,6 +72,20 @@ _GRAPHQL_ENDPOINT = (
 # Production live_overlay_daemon service (skipp-dev's Projects / skipp-algo).
 _DEFAULT_SERVICE_ID = "705582c5-ba8b-4c6e-848c-33bffe0a61b0"
 
+# Does the deployment this guard watches exist? This is a DECLARATION, not a
+# probe — the guard cannot ask "am I supposed to be configured?" of an API it
+# needs the missing credential to reach.
+#
+# It exists because exit 0 meant two different things: "verified, no drift" and
+# "not configured, did not run". A deleted Actions secret therefore produced a
+# permanent green whose message reads exactly like the designed dormant state.
+# With this, a missing input is exit 2 while the daemon is deployed, and the
+# dormant state requires a reviewed repo change instead of a quiet one in the
+# GitHub settings UI. `test_the_declaration_cannot_be_flipped_to_silence_the
+# _guard` couples it to the deploy workflow's existence so it cannot be used
+# as a mute button.
+_DEPLOYMENT_IS_CONFIGURED = True
+
 _QUERY = (
     "query($projectId: String!, $environmentId: String!, $serviceId: String!) {"
     " deploymentTriggers(projectId: $projectId, environmentId: $environmentId,"
@@ -459,12 +473,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not value
     ]
+    if missing and _DEPLOYMENT_IS_CONFIGURED:
+        print(
+            f"ERROR: {', '.join(missing)} not set, but this repo declares the "
+            "live_overlay_daemon deployment as configured "
+            "(_DEPLOYMENT_IS_CONFIGURED). A deleted or mistyped secret is not a "
+            "healthy state — the guard has verified NOTHING. Restore the secret, "
+            "or retire the deployment and flip the declaration in a reviewed PR.",
+            file=sys.stderr,
+        )
+        return 2
     if missing:
         print(
-            f"SKIP: {', '.join(missing)} not set — deploy-trigger drift guard "
-            "did not run. (Dormant by design only while the deployment itself "
-            "is unconfigured; if the daemon IS deployed, this is a deleted "
-            "secret, not a healthy state.)",
+            f"SKIP: {', '.join(missing)} not set and the deployment is declared "
+            "unconfigured — deploy-trigger drift guard did not run.",
         )
         return 0
 
