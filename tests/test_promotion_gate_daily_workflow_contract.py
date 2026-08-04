@@ -196,3 +196,186 @@ def test_bundle_step_passes_universe_manifest() -> None:
     text = _WF_PATH.read_text(encoding="utf-8")
     assert "databento_volatility_production_*_manifest.json" in text
     assert "--universe-manifest" in text
+
+
+# --- the two decisions, executed rather than described -----------------------
+#
+# `download` decides status (ready/skipped) and `gates` decides produced; the
+# ADR-0031 artifact steps hang on them. Measured 2026-08-04 with a
+# value-preserving arm swap and a comparison inversion (the token multiset left
+# unchanged in the first case, so any substring assertion is blind by
+# construction): all 137 assertions across the 12 files that name this workflow
+# stayed green for both.
+
+import sys
+from pathlib import Path
+
+from tests._workflow_step_shell import Stub, run_step
+
+_WF = "promotion-gate-daily.yml"
+_DOWNLOAD_STEP = "Download rolling-benchmark artifact"
+_GATES_STEP = "Build returns series + track-record gate + regime report (ADR-0031)"
+_DATE = "2026-08-04"
+
+
+def _gh(run_ids: str, succeeds_on_attempt: int) -> Stub:
+    """`gh` answering per subcommand.
+
+    The attempt counter lives in the step's own working directory, not /tmp:
+    two xdist workers sharing one counter would make this test's verdict depend
+    on scheduling.
+    """
+    return Stub(script=f"""
+case "$1 $2" in
+  "run list") printf '%s\\n' {run_ids or "''"} ;;
+  "run download")
+     n=$(cat ./_dl_attempts 2>/dev/null || echo 0); n=$((n+1)); echo $n > ./_dl_attempts
+     if [ "$n" -ge {succeeds_on_attempt} ]; then exit 0; else exit 1; fi ;;
+esac
+exit 0
+""")
+
+
+def _download(tmp_path: Path, *, run_ids: str, succeeds_on_attempt: int = 1):
+    return run_step(
+        _WF, _DOWNLOAD_STEP, tmp_path,
+        env={"DATE": _DATE, "GH_REPO": "skipp-dev/skipp-algo", "GH_TOKEN": "stub-token"},
+        stubs={"gh": _gh(run_ids, succeeds_on_attempt)},
+    )
+
+
+def test_a_fetched_artifact_is_ready(tmp_path: Path) -> None:
+    result = _download(tmp_path, run_ids="111 222 333")
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["status"] == "ready"
+    assert result.outputs["run_id"] == "111"
+    assert result.outputs["scoring_root"].endswith(_DATE)
+
+
+def test_the_download_keeps_trying_older_runs(tmp_path: Path) -> None:
+    """Audit H7: the newest completed run may not carry the artifact.
+
+    Stopping at the first run whose download fails is what H7 fixed. A test
+    that only ever lets the first attempt succeed cannot tell the fix from its
+    absence -- so here the first two fail and the third must still be found.
+    """
+    result = _download(tmp_path, run_ids="111 222 333", succeeds_on_attempt=3)
+    assert result.outputs["status"] == "ready", (
+        f"the step gave up before reaching an older run: {result.outputs}"
+    )
+    assert result.outputs["run_id"] == "333"
+
+
+def test_no_recent_run_is_reported_as_such(tmp_path: Path) -> None:
+    result = _download(tmp_path, run_ids="")
+    assert result.outputs["status"] == "skipped"
+    assert result.outputs["reason"] == "no_recent_run"
+
+
+def test_an_unfindable_artifact_is_distinguished_from_no_run_at_all(tmp_path: Path) -> None:
+    """Two different skips, two different reasons.
+
+    Collapsing them loses the only signal that tells "the producer never ran"
+    apart from "the producer ran and produced nothing" -- which are different
+    outages with different owners.
+    """
+    result = _download(tmp_path, run_ids="111 222 333", succeeds_on_attempt=99)
+    assert result.outputs["status"] == "skipped"
+    assert result.outputs["reason"] == "artifact_not_found"
+
+
+_PY_STUB = Stub(script='''
+case "$1" in
+  -c) exec "$REAL_PYTHON" "$@" ;;
+esac
+out=""; prev=""
+for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; prev="$a"; done
+case "$2" in
+  scripts.build_returns_series)
+     mkdir -p "$(dirname "$out")"
+     printf '{"n_trades": %s}' "$N_TRADES" > "$out" ;;
+  *) [ -n "$out" ] && { mkdir -p "$(dirname "$out")"; printf '{}' > "$out"; } ;;
+esac
+exit 0
+''')
+
+
+# `head -n -90` (drop the last 90 lines) is a GNU extension. CI runs Ubuntu and
+# has it; BSD head on macOS exits "illegal line count", which would fail this
+# step for a reason that has nothing to do with its decision. This shim gives
+# the step GNU semantics locally so the test measures the workflow rather than
+# the developer's coreutils. It is NOT a claim about the workflow: on the real
+# runner the real head does this natively.
+_GNU_HEAD = Stub(script='''
+exec "$REAL_PYTHON" -c '
+import sys
+args = sys.argv[1:]
+n = 10
+if args and args[0] == "-n":
+    n = int(args[1])
+elif args and args[0].startswith("-") and args[0][1:].lstrip("-").isdigit():
+    n = int(args[0][1:])
+lines = sys.stdin.read().splitlines(True)
+sys.stdout.write("".join(lines[:n] if n >= 0 else lines[:len(lines) + n]))
+' "$@"
+''')
+
+
+def _gates(tmp_path: Path, *, events_pool: bool, n_trades: int):
+    # Mirror production: docs/calibration/gates/ is a COMMITTED drop-zone and
+    # carries prior files for all three families. That matters, because the
+    # retention loop at the end of the step is not fail-safe -- `ls` on a glob
+    # that matches nothing exits non-zero, and under `set -euo pipefail` that
+    # kills the step before it writes `produced`. Measured 2026-08-04; latent
+    # today (5 committed files per family, retention keeps 90) and left alone
+    # rather than hardened, since nothing reaches it.
+    gates_dir = tmp_path / "docs/calibration/gates"
+    gates_dir.mkdir(parents=True, exist_ok=True)
+    for prefix in ("returns_series", "track_record_gate", "regime_stratified"):
+        (gates_dir / f"{prefix}_2026-01-01.json").write_text("{}", encoding="utf-8")
+    if events_pool:
+        pool = tmp_path / "artifacts/ci/scored_family_events_accumulated"
+        pool.mkdir(parents=True)
+        (pool / "accumulated_family_events.json").write_text("[]", encoding="utf-8")
+    return run_step(
+        _WF, _GATES_STEP, tmp_path,
+        env={"REAL_PYTHON": sys.executable, "N_TRADES": str(n_trades)},
+        stubs={"python": _PY_STUB, "head": _GNU_HEAD},
+        expressions={"steps.date.outputs.value": _DATE},
+    )
+
+
+def test_a_populated_events_pool_produces_the_artifacts(tmp_path: Path) -> None:
+    result = _gates(tmp_path, events_pool=True, n_trades=12)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["produced"] == "true"
+    gates_dir = tmp_path / "docs/calibration/gates"
+    assert (gates_dir / f"track_record_gate_{_DATE}.json").exists()
+    assert (gates_dir / f"regime_stratified_{_DATE}.json").exists()
+
+
+def test_no_events_pool_produces_nothing_and_says_so(tmp_path: Path) -> None:
+    result = _gates(tmp_path, events_pool=False, n_trades=0)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["produced"] == "false"
+    assert not (tmp_path / "docs/calibration/gates" / f"returns_series_{_DATE}.json").exists()
+
+
+def test_a_zero_trade_series_emits_no_verdict_file(tmp_path: Path) -> None:
+    """The broken-feed tripwire, by design.
+
+    A zero-trade series must NOT get a track_record_gate file -- the absence is
+    the honest state, and a gate that emitted a verdict over zero trades would
+    be scored as a real one. The regime report is still written, so this is not
+    a blanket skip.
+    """
+    result = _gates(tmp_path, events_pool=True, n_trades=0)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["produced"] == "true"
+    gates_dir = tmp_path / "docs/calibration/gates"
+    assert not (gates_dir / f"track_record_gate_{_DATE}.json").exists(), (
+        "a zero-trade series must not produce a track-record verdict"
+    )
+    assert (gates_dir / f"regime_stratified_{_DATE}.json").exists(), (
+        "the regime report is not gated on n_trades and must still be written"
+    )
