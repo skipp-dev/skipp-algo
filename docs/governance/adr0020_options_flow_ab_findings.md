@@ -260,3 +260,45 @@ invocation of this run; the protocol is the §2–§4 protocol unchanged:
 Throwaway artifacts of this run live under `~/.local/share/skipp/vpin_followup/`
 (`enrich_bars_tcbbo_v2.py`, `<SYM>_15m_tcbbo_v2.json`, `events_v5_tcbbo_signfix.json`,
 `ab_*_v2.json`) — like the June run, intentionally not promoted to the repo.
+
+### 9a. Results (run executed 2026-08-04, after the §9 registration commit)
+
+**Vacuity gates — both PASS:**
+
+- *(a) option-type parse:* **0.000% unknown on all five symbols** — AAPL
+  9,695,856 prints (C 5,985,051 / P 3,710,805), AMZN 8,854,546 (C 5,662,205 /
+  P 3,192,341), MSFT 8,975,641 (C 5,939,699 / P 3,035,942), NVDA 21,532,532
+  (C 13,002,920 / P 8,529,612), TSLA 32,145,679 (C 18,468,846 / P 13,676,833).
+  Print counts and signed-able shares (51.0–70.4%) match the §3b run.
+- *(b) non-degeneracy:* 10,940 events, 6,318 non-null, **6,302 non-zero,
+  uniq 5,230**, range [−1, +1], balanced sign (3,181 pos / 3,121 neg) — same
+  order as §3b (6,336/6,352, uniq 5,257). The small event-count delta vs §2
+  (10,981 → 10,940) comes from adapter evolution since June, not from the data.
+
+**Plain A/B (the only verdict that can unlock Meta-Label C) — `families_lifted
+= []` on BOTH labels:**
+
+| Family | n_oos | Direction Δ-res | Magnitude Δ-res | Lift |
+|--------|------:|----------------:|----------------:|------|
+| BOS | 1,385 | −0.00447 | −0.01791 (regresses calibration) | none |
+| FVG | 995 | −0.00021 | −0.00457 | none |
+| OB | 1,090 | +0.00002 | −0.00813 (regresses calibration) | none |
+| SWEEP | 216 | −0.00737 | −0.02940 (regresses calibration) | none |
+
+Direction stratify: `families_conditioned = []` (no regime effect in any
+family). Magnitude stratify: a single `regime_conditions_resolution` on SWEEP
+(spread +0.0447, n = 108/stratum, favouring the high-activity stratum) — the
+**same thin-SWEEP-regime pattern as §3c/§4** (June: spread +0.0152,
+n ≈ 135/stratum), and regime verdicts are pre-registered-excluded from the
+promotion trigger.
+
+### 9b. Verdict
+
+**NO promotion — the §4 NULL is sign-robust.** With the call/put direction
+folded in (the sign the June run could not see), `signed_uoa_notional` still
+lifts resolution in no family on either label; the corrected sign did not
+uncover a signal that call/put netting had been hiding. Meta-Label C stays
+LOCKED, the feature stays recorded-only, and the options-flow axis is closed
+again — this time fairly tested under the economically correct sign. The next
+honest reopening of this axis requires new information (a different feature
+definition or data source), not a re-run.
