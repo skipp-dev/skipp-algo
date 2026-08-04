@@ -408,9 +408,8 @@ def _bound_names(stmt: ast.AST) -> Iterator[str]:
     elif isinstance(stmt, (ast.MatchAs, ast.MatchStar)):
         if stmt.name:
             yield stmt.name
-    elif isinstance(stmt, ast.MatchMapping):
-        if stmt.rest:
-            yield stmt.rest
+    elif isinstance(stmt, ast.MatchMapping) and stmt.rest:
+        yield stmt.rest
 
 
 def _subset_bindings(
