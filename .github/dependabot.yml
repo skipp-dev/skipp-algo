@@ -25,6 +25,22 @@
 #   package-lock.json  — root + smc_tv_bridge (source of 4 of the 6
 #                        historical alerts)
 #   github-actions     — 68 workflows pin actions by tag
+#
+# Why torch is ignored in both Python ecosystems (measured 2026-08-04, #4424
+# and #4427 produced the SAME change): torch is pinned across two deliberately
+# different lanes in the root directory. requirements-rl.txt is the PyPI lane
+# and pins a plain `torch==2.12.1`; requirements-rl-gpu.txt is the CUDA lane,
+# carries the repo's only approved non-PyPI index (the PyTorch CDN, SC-03
+# allowlist) and pins `torch==2.12.1+cu129`. Dependabot resolves torch through
+# that index and then writes the resolved string into BOTH files — so the PyPI
+# lane got `torch==2.13.0+cu129`, a PEP 440 local version that cannot exist on
+# PyPI (verified: 49 torch releases there, zero with a local version), and
+# `pip install -r requirements-rl.txt` could no longer resolve. The two-lane
+# split collapses silently in the process. requirements-rl.txt says it itself:
+# "Runner type therefore determines the *effective* torch build; compatibility
+# must be validated against both lanes." That validation is a human decision,
+# so torch moves by hand. tests/test_dependabot_local_version_pins.py holds
+# this open for any future locally-versioned pin, not just torch.
 
 version: 2
 updates:
@@ -35,6 +51,8 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      - dependency-name: "torch"
     groups:
       uv-all:
         update-types: ["major", "minor", "patch"]
@@ -52,6 +70,8 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      - dependency-name: "torch"
     groups:
       pip-all:
         update-types: ["major", "minor", "patch"]
@@ -65,6 +85,31 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      # typescript majors move by hand. Measured 2026-08-04 against the real
+      # 7.0.2 wheel, after #4426 proposed 5.9.3 -> 7.0.2 and turned fast-gates,
+      # Windows x64, macOS Intel and macOS Apple Silicon red at once:
+      #
+      # TypeScript 7 removes the compiler API from the package root. Its
+      # `exports` map resolves "." to `./lib/version.cjs` — the version string,
+      # nothing else — so `import ts from "typescript"` in
+      # scripts/detect_vacuous_claims_ts.ts yields a module with no
+      # `ScriptTarget` (hence the runtime "Cannot read properties of undefined
+      # (reading 'Latest')") and tsc reports every `ts.*` as missing from
+      # namespace `typescript/lib/version`.
+      #
+      # The API moved to `typescript/unstable/*`, and it does not carry this
+      # script: `forEachChild` exists in NO subpath (only
+      # `forEachChildOfJSDoc*` under unstable/ast/visitor), and the only
+      # `createSourceFile` is the FACTORY one in unstable/ast/factory, which
+      # builds a node rather than parsing text. Porting the vacuity detector
+      # would mean rewriting it onto a surface upstream itself labels
+      # "unstable" — for a guard that gates merges, the wrong trade.
+      #
+      # Minor/patch updates are unaffected and still flow. Revisit when
+      # TypeScript ships a stable replacement for the parse+walk API.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-all:
         update-types: ["major", "minor", "patch"]

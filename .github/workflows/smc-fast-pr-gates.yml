@@ -44,7 +44,7 @@ jobs:
       matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
@@ -154,7 +154,7 @@ jobs:
       # was built to stop.
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # Audit P2 MED: enforce the single-maintainer authorship mandate. Every
       # commit in the PR range must be authored AND committed by an approved
@@ -328,7 +328,7 @@ jobs:
       # itself under a second against 55 files.
       - name: Set up Node for the TypeScript vacuity guard
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
           cache: npm
@@ -343,7 +343,7 @@ jobs:
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -670,7 +670,9 @@ jobs:
             tests/test_credential_probe_consumers.py \
             tests/test_fast_gates_attested_pine_coverage.py \
             tests/test_git_fixture_env_isolation.py \
-            tests/test_ts_vacuity_guard_is_required.py
+            tests/test_ts_vacuity_guard_is_required.py \
+            tests/test_dependabot_local_version_pins.py \
+            tests/test_workflow_pine_library_publish_handlibs_contract.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,

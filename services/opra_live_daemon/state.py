@@ -11,6 +11,10 @@ from typing import Any
 import databento_usage
 from newsstack_fmp.opra_uoa import OpraDefinitionRecord, detect_unusual_options_activity
 
+# Sentinel for "attribute absent" — getattr's default must be distinguishable
+# from a genuine None value on the record.
+_MISSING = object()
+
 
 def _mapping(record: Any) -> dict[str, Any]:
     if isinstance(record, Mapping):
@@ -20,24 +24,26 @@ def _mapping(record: Any) -> dict[str, Any]:
         value = method()
         if isinstance(value, Mapping):
             return dict(value)
-    return {
-        "instrument_id": getattr(record, "instrument_id", None),
-        "ts_event": getattr(record, "ts_event", None),
-        "ts_recv": getattr(record, "ts_recv", None),
-        "sequence": getattr(record, "sequence", None),
-        "price": getattr(record, "price", None),
-        "size": getattr(record, "size", None),
-        "side": getattr(record, "side", None),
-        "publisher_id": getattr(record, "publisher_id", None),
-        "bid_px_00": getattr(record, "bid_px_00", None),
-        "ask_px_00": getattr(record, "ask_px_00", None),
-        "underlying": getattr(record, "underlying", None),
-        "asset": getattr(record, "asset", None),
-        "strike_price": getattr(record, "strike_price", None),
-        "expiration": getattr(record, "expiration", None),
-        "instrument_class": getattr(record, "instrument_class", None),
-        "raw_symbol": getattr(record, "raw_symbol", None),
-    }
+    # Only attributes the record actually HAS. The previous fixed-key version
+    # fabricated every key (value None) for live DBN objects, which made
+    # feed._is_definition's membership test true for EVERY record — the whole
+    # live stream routed into the definition sink and the daemon counted
+    # nothing (129,617 records -> zero counters, measured in-container
+    # 2026-08-04). Dict inputs pass through above, so the dict-based tests
+    # never saw it: presence must mean presence. A _MISSING sentinel keeps the
+    # probe on the single (ledgered) dynamic getattr instead of adding a
+    # dynamic hasattr surface (that ledger is zero-surface by design).
+    keys = (
+        "instrument_id", "ts_event", "ts_recv", "sequence", "price", "size",
+        "side", "publisher_id", "bid_px_00", "ask_px_00", "underlying",
+        "asset", "strike_price", "expiration", "instrument_class", "raw_symbol",
+    )
+    row: dict[str, Any] = {}
+    for k in keys:
+        value = getattr(record, k, _MISSING)
+        if value is not _MISSING:
+            row[k] = value
+    return row
 
 
 def _price(value: Any) -> float | None:

@@ -69,13 +69,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 1
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
           cache: "npm"
@@ -95,7 +95,7 @@ jobs:
 
       - name: Restore Playwright browsers cache
         id: pw_cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
@@ -135,10 +135,46 @@ jobs:
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
+          # `set +e` FIRST, and it is load-bearing. The `defaults:` block near
+          # the top of this file sets `run: shell: bash`, so Actions runs this
+          # block as `bash --noprofile --norc -eo pipefail {0}` — -e is already
+          # on before the first line executes, and `set -uo pipefail` below adds
+          # -u without clearing it. The failing pipeline would then end the step
+          # immediately.
+          #
+          # Measured 2026-08-04 under that exact invocation: with -e left on and
+          # the publish failing, the step exits with the publish's own rc and
+          # $GITHUB_OUTPUT stays EMPTY. Neither rc= nor changed= is ever
+          # written, so `Open repin PR` reads an empty `changed`, skips, and the
+          # repins that already succeeded are lost. The partial-progress
+          # behaviour the comment below promises could not run on a single one
+          # of the runs it exists for.
+          #
+          # This step must never fail on a verdict it reached. Failing the run
+          # is the job of `Fail the run if a publish failed` at the end, which
+          # reads BOTH statuses this step publishes.
+          # silent-skip-ok: -e is off only so the two pipeline statuses reach
+          # $GITHUB_OUTPUT; the dedicated final step ends the run red on a
+          # non-zero rc, a non-zero log_rc, and on an empty rc.
+          set +e
           set -uo pipefail
           npm run tv:publish-handlibs | tee /tmp/handlib_publish.log
-          rc=${PIPESTATUS[0]}
+          # ONE capture, both members. A plain assignment resets PIPESTATUS to
+          # (0) — measured 2026-08-04 — so reading [1] on the line after
+          # `rc=${PIPESTATUS[0]}` yields nothing at all, and under `set -u` that
+          # unbound reference would end the step at exactly the point this fix
+          # exists to keep alive.
+          status=("${PIPESTATUS[@]}")
+          rc=${status[0]}
+          log_rc=${status[1]}
           echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          # With -e off, a `tee` that dies (unwritable or full /tmp) no longer
+          # ends the step — and its status is NOT the publish's. Unpublished it
+          # would finish the run GREEN with no log, while every error message
+          # here points at a `handlib-publish-log` artifact that was never
+          # written. Under -e that case failed the run; publishing log_rc is
+          # what keeps it failing.
+          echo "log_rc=${log_rc}" >> "$GITHUB_OUTPUT"
           # A non-zero rc means a publish/verify failed mid-chain; still capture
           # any repins already made so the PR shows partial progress, but mark
           # the run failed at the end.
@@ -161,11 +197,25 @@ jobs:
         if: steps.publish.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          PUBLISH_RC: ${{ steps.publish.outputs.rc }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::GH_PAT not configured; cannot open the repin PR. The publishes happened but the repins are not captured — run tv:publish-handlibs locally and commit."
+            echo "::warning::GH_PAT not configured; cannot open the repin PR. The publishes that succeeded happened but their repins are not captured — run tv:publish-handlibs locally and commit."
             exit 0
+          fi
+          # Since 2026-08-04 this step also runs when the publish FAILED
+          # mid-chain, which is the whole point of the partial-progress path.
+          # The reviewer of that PR must not be told the chain completed: the
+          # helper stops at the first failure and only repins what it published
+          # AND verified, so the diff is consistent but PARTIAL, and the run
+          # that produced it is red.
+          if [ "${PUBLISH_RC:-}" = "0" ]; then
+            _title="chore(pine): repin consumers after scheduled hand-lib publish"
+            _summary="The ordered publish+repin helper published the changed hand-authored SMC++ libraries (facade-verified) and repinned their consumers to the real published versions."
+          else
+            _title="chore(pine): PARTIAL repin — hand-lib publish exited ${PUBLISH_RC:-<empty>}"
+            _summary="**PARTIAL — the run that produced this is RED.** \`tv:publish-handlibs\` exited \`${PUBLISH_RC:-<empty>}\`: a publish or its facade verification failed mid-chain. The helper stops at the first failure and repins only libraries it published AND verified, so this diff is consistent but INCOMPLETE — the libraries after the failure point are untouched and the monitor's drift alert will stay lit for them. Fix the failure and re-run before treating the chain as reconciled."
           fi
           branch="bot/handlib-repin-${GITHUB_RUN_ID}"
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -185,8 +235,8 @@ jobs:
             if ! gh pr create \
               --base main \
               --head "${branch}" \
-              --title "chore(pine): repin consumers after scheduled hand-lib publish" \
-              --body "Automated by \`pine-library-publish-handlibs.yml\` (run ${GITHUB_RUN_ID}). The ordered publish+repin helper published the changed hand-authored SMC++ libraries (facade-verified) and repinned their consumers to the real published versions. Review the pin diff, then merge to clear the monitor drift alert. See the run's \`handlib-publish-log\` artifact for the publish output."; then
+              --title "${_title}" \
+              --body "Automated by \`pine-library-publish-handlibs.yml\` (run ${GITHUB_RUN_ID}). ${_summary} Review the pin diff, then merge to clear the monitor drift alert. See the run's \`handlib-publish-log\` artifact for the publish output."; then
               echo "::error file=.github/workflows/pine-library-publish-handlibs.yml::gh pr create failed for ${branch} — see step log for stderr. The publishes happened; open the PR manually from ${branch}."
               exit 1
             fi
@@ -197,10 +247,43 @@ jobs:
 
       - name: Fail the run if a publish failed
         if: always()
+        # Through `env:`, not expanded into the `run:` block. Both values are
+        # step outputs and the repo already fixed this class twice for the same
+        # reason (smc-r4-context-readback.yml, smc-library-refresh.yml): an
+        # expansion becomes CODE before bash parses the line, while an env var
+        # is only ever data. Measured 2026-08-04 with the pinned zizmor 1.25.2:
+        # this file reports two `template-injection` findings on the expanded
+        # form and none on this one. They are informational, so the fast-gates
+        # ratchet (high/medium only) never counted them — which is exactly how
+        # a known-bad pattern spreads.
+        env:
+          RC: ${{ steps.publish.outputs.rc }}
+          LOG_RC: ${{ steps.publish.outputs.log_rc }}
         run: |
-          rc="${{ steps.publish.outputs.rc }}"
+          rc="${RC:-}"
+          log_rc="${LOG_RC:-}"
+          # An EMPTY rc is a different failure from a non-zero one, and saying
+          # so is the difference between a legible run and "exited " with no
+          # number. It means the publish step never reached its output writes —
+          # the shape this workflow shipped with until 2026-08-04, where -e
+          # ended that step on the failing pipeline. `${rc:-1}` below already
+          # fails the run in that case, so this only names it; the gate was
+          # never fail-open.
+          if [ -z "${rc}" ]; then
+            echo "::error::the publish step produced no rc at all — it exited before writing its outputs, so any repins it made were not captured. Check the handlib-publish-log artifact and the 'Ordered publish + repin' step log."
+            exit 1
+          fi
           if [ "${rc:-1}" != "0" ]; then
             echo "::error::tv:publish-handlibs exited ${rc} — a publish/verify failed. See the handlib-publish-log artifact."
+            exit 1
+          fi
+          # The publish succeeded but its LOG pipeline did not. Under the old
+          # -e this ended the step; with -e off it would otherwise finish green
+          # while `Upload publish log` warns (if-no-files-found: warn) and every
+          # message above points at an artifact that does not exist. A run whose
+          # evidence was never written is not a green run.
+          if [ "${log_rc:-1}" != "0" ]; then
+            echo "::error::the publish succeeded but the log pipeline (tee) exited ${log_rc:-<empty>} — /tmp/handlib_publish.log was not written or is truncated, so the handlib-publish-log artifact this run points at is missing its evidence."
             exit 1
           fi
           echo "All hand-authored libraries published/verified in order."

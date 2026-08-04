@@ -133,9 +133,60 @@ def test_deploy_uses_the_sha_stamping_wrapper_with_branch() -> None:
 
 
 def test_checkout_action_is_sha_pinned() -> None:
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in _text()
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in _text()
 
 
 def test_railway_cli_install_is_version_pinned() -> None:
     # SC-02: exact pin, no floating range.
     assert "@railway/cli@5.23.3" in _text()
+
+
+# --- the gate, executed rather than described --------------------------------
+#
+# `Check Railway token presence` decides `run`, and the deploy step hangs on it.
+# Measured 2026-08-04 with a value-preserving arm swap (the `true`/`false` token
+# multiset left unchanged, so any substring assertion is blind by construction):
+# swapping the two arms left all 72 tests across the two files that name this
+# workflow green -- while a run WITH the secret would skip the deploy and a run
+# WITHOUT it would attempt one.
+#
+# The empty-secret direction is the one with history: an absent GitHub Actions
+# secret arrives as "", never as an unset variable, so `-z` is the only test
+# that sees it. The same shape produced a Railway `Not Authorized` that took
+# four wrong diagnoses to pin down.
+
+from tests._workflow_step_shell import run_step
+
+_GATE_STEP = "Check Railway token presence"
+
+
+def _gate(tmp_path: Path, token: str):
+    return run_step(
+        "deploy-live-overlay-daemon.yml", _GATE_STEP, tmp_path, env={"RAILWAY_TOKEN": token}
+    )
+
+
+def test_the_deploy_runs_when_the_token_is_present(tmp_path: Path) -> None:
+    result = _gate(tmp_path, "railway-token")
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["run"] == "true", (
+        f"a configured RAILWAY_TOKEN must let the deploy run; got {result.outputs}"
+    )
+
+
+def test_a_missing_secret_skips_the_deploy_instead_of_attempting_it(tmp_path: Path) -> None:
+    """An unset Actions secret is the empty string, and must skip, not deploy.
+
+    Skipping is the safe direction: an attempted deploy without credentials
+    fails somewhere inside Railway, where the error reads as an outage rather
+    than as a missing secret.
+    """
+    result = _gate(tmp_path, "")
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["run"] == "false", (
+        f"a missing RAILWAY_TOKEN must not arm the deploy; got {result.outputs}"
+    )
+    assert "Missing secret RAILWAY_TOKEN" in result.stdout, (
+        "the skip must say why, or an unconfigured repository looks identical "
+        "to a repository with nothing to deploy"
+    )

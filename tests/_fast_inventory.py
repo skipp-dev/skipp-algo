@@ -236,6 +236,18 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # tv-onboarding-packages.yml, which is not required, so it gated
     # nothing (2026-08-04). YAML/source parsing only, <0.5s.
     "test_ts_vacuity_guard_is_required.py",
+    # Dependabot's PRs touch no workflow, so the diff-driven step below cannot
+    # select this guard on the PRs it exists for (#4424/#4427, 2026-08-04).
+    # Explicit registration is the only way it runs on them. YAML + requirements
+    # parsing only, <0.5s.
+    "test_dependabot_local_version_pins.py",
+    # Executes the hand-lib publish step: the only guard that would notice its
+    # `set +e` being reverted, which would make the partial-progress path
+    # unreachable again. It carries no pins of its own — the allowlist entry is
+    # in pin_registry.toml — but naming that file in a docstring is what
+    # test_fast_gates_silent_skip_coverage's substring fallback classifies it
+    # by, so it must be gated either way (2026-08-04).
+    "test_workflow_pine_library_publish_handlibs_contract.py",
     # Bus-v3 / context-library contract guards. On the required path because
     # fast-gates is the only merge-gating test job: #3657 landed the
     # smc_profile_engine allowlist exception together with the test enforcing it,

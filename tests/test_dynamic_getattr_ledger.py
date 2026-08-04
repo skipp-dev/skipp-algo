@@ -185,6 +185,12 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int, str]] = {
     # module-level constant _FEATURE_FIELDS tuple — the valid name set is statically
     # visible there, and it must accept both dataclass and SimpleNamespace signals.
     ("open_prep/signal_events.py", 66, "const-loop"),  # 2026-07-10 truth-audit docstring: 63->66
+    # 2026-08-04 OPRA definition-sink fix: state._mapping's object fallback
+    # iterates the literal `keys` tuple defined directly above and includes an
+    # attribute only when the record actually has it — the valid name set is
+    # statically visible, and the hasattr guard is the fix (the previous
+    # fixed-dict getattr(..., None) fabricated presence for every DBN object).
+    ("services/opra_live_daemon/state.py", 43, "loop"),
     # 2026-06-22 (ingest-stop sentinel wakeup): helper block growth shifted
     # _record_to_bar dynamic getattr site 81 -> 82.
     # 2026-07-03 correctness lane: _feed_connected_at global shifted

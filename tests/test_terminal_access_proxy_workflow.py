@@ -15,6 +15,6 @@ def test_terminal_access_proxy_workflow_is_bounded_and_pinned() -> None:
     assert workflow["permissions"] == {"contents": "read"}
     assert job["runs-on"] == "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
     assert job["defaults"]["run"]["working-directory"] == "services/terminal_access_proxy"
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd" in raw
-    assert "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16" in raw
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in raw
+    assert "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e" in raw
     assert job["steps"][-2:] == [{"run": "go test ./..."}, {"run": "go build ./..."}]

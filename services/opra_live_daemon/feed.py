@@ -26,13 +26,31 @@ def _is_definition(record: Any) -> bool:
     )
 
 
+# Non-market-data record types a parent-symbology live session interleaves
+# with the data: 123,294 SymbolMappingMsg arrived in a 20s five-parent sample
+# (2026-08-04). They carry instrument_id + timestamps but no prices, so
+# without this sink they would flow into add_trade as phantom activity.
+_CONTROL_TYPE_FRAGMENTS = ("symbolmapping", "system", "error", "stat")
+
+
+def _is_control(record: Any) -> bool:
+    if isinstance(record, Mapping):
+        return False
+    name = type(record).__name__.lower()
+    return any(fragment in name for fragment in _CONTROL_TYPE_FRAGMENTS)
+
+
 def route_record(state: OpraShadowState, record: Any) -> str:
     """Dispatch one live record to its path; returns the route taken.
 
-    Order matters: definitions first, then quotes (tcbbo, BBO-bearing), and
-    everything else is a trades-schema record that gets COUNTED. Extracted
-    from the live loop so the routing is unit-testable without a Live client.
+    Order matters: control messages are dropped first, then definitions, then
+    quotes (tcbbo, BBO-bearing), and everything else is a trades-schema record
+    that gets COUNTED. Extracted from the live loop so the routing is
+    unit-testable without a Live client — and tested against OBJECT fakes,
+    not only dicts: the 2026-08-04 outage lived exactly in that gap.
     """
+    if _is_control(record):
+        return "control"
     if _is_definition(record):
         row = _mapping(record)
         state.add_definition(row, ts_ns=int(row.get("ts_recv") or 0))
@@ -60,8 +78,72 @@ def _parent_symbols(hotlist: tuple[str, ...]) -> list[str]:
     return [f"{ticker}.OPT" for ticker in hotlist]
 
 
+# Poll cadence of the connection-supervision loop below (seconds). It only
+# paces stop/hotlist/disconnect checks — records never wait on it, they are
+# dispatched by the session's own thread via the callback.
+_WAIT_TICK_SECONDS = 1.0
+
+
+def _hotlist_changed(config: Config, state: OpraShadowState) -> bool:
+    """Reload the hotlist file; True (and state updated) when it differs.
+
+    Checked from the supervision loop, NOT per-record: the old per-1000-records
+    check both did file I/O on the hot path and could never fire on a quiet
+    feed. A change tears the connection down for a resubscribe.
+    """
+    if config.hotlist_path is None or not config.hotlist_path.exists():
+        return False
+    updated = read_hotlist_file(config.hotlist_path)
+    if updated and frozenset(updated) != state.hotlist:
+        state.update_hotlist(updated)
+        return True
+    return False
+
+
+class _UsageBatcher:
+    """Thread-safe batcher for the usage ledger (flushes every 1000 records).
+
+    The callback runs on the session's thread while the supervision loop
+    drains the remainder from the feed thread — hence the lock, and hence a
+    class rather than closure-mutated ``nonlocal`` state (which the repo's
+    nonlocal-budget guard rejects for exactly this shape).
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending = 0
+
+    def bump(self) -> int:
+        """Count one record; returns the batch to flush now, else 0."""
+        with self._lock:
+            self._pending += 1
+            if self._pending >= 1000:
+                flushed, self._pending = self._pending, 0
+                return flushed
+            return 0
+
+    def drain(self) -> int:
+        """Take whatever is pending (connection teardown flush)."""
+        with self._lock:
+            remainder, self._pending = self._pending, 0
+            return remainder
+
+
 def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
-    """Run until stopped; reconnect with bounded exponential backoff and jitter."""
+    """Run until stopped; reconnect with bounded exponential backoff and jitter.
+
+    Records are consumed via the callback API (``add_callback`` + ``start``),
+    NEVER the ``Live`` iterator. The iterator path stalled twice in production
+    on 2026-08-04 (the #4370 live acceptance): databento-python 0.79.0 pauses
+    the transport when its DBNQueue fills during the subscribe-time burst
+    (~40k OPRA definition-snapshot records) and the resume in
+    ``LiveIterator.__next__`` silently no-ops once ``_transport`` is gone —
+    the feed thread then starves in ``DBNQueue.get`` on an empty queue while
+    the asyncio thread idles with reading paused (py-spy-verified; exactly one
+    "record queue is full" warning per boot, ``records_in_window`` frozen at 0
+    for 90+ minutes). Callbacks are dispatched by the session directly and
+    never touch the DBNQueue, so that pause/resume mechanic cannot strand them.
+    """
     if not config.enabled:
         logger.info("OPRA live daemon is off; no provider connection opened")
         return
@@ -84,7 +166,41 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
     while not stop.is_set():
         symbols = _parent_symbols(tuple(sorted(state.hotlist)))
         client = None
-        pending_records = 0
+        batcher = _UsageBatcher()
+
+        def _on_record(record: Any, *, _batcher: _UsageBatcher = batcher) -> None:
+            """Session-thread dispatch: route, count, batch the usage ledger.
+
+            Must stay cheap (dict ops only) — it runs on the network loop.
+            A poison record is logged and skipped rather than allowed to tear
+            the connection down; the record is lost either way, the session
+            need not be.
+            """
+            if stop.is_set():
+                return
+            try:
+                if route_record(state, record) in ("definition", "control"):
+                    return
+            except Exception:
+                logger.warning("OPRA record dispatch failed; record skipped", exc_info=True)
+                databento_usage.record(
+                    dataset=config.dataset,
+                    schema=config.schema,
+                    mode="live",
+                    consumer="opra-shadow",
+                    errors=1,
+                )
+                return
+            flush = _batcher.bump()
+            if flush:
+                databento_usage.record(
+                    dataset=config.dataset,
+                    schema=config.schema,
+                    mode="live",
+                    consumer="opra-shadow",
+                    records=flush,
+                )
+
         try:
             client = db.Live(key=config.api_key)
             client.subscribe(
@@ -118,32 +234,17 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
                 subscriptions=3,
                 symbols_requested=len(symbols),
             )
+            client.add_callback(_on_record)
+            client.start()
             failures = 0
-            for record in client:
-                if stop.is_set():
+            # Supervision only: records arrive via _on_record on the session's
+            # thread. NOTE deliberately not block_for_close(timeout=...) — that
+            # TERMINATES the session on timeout in databento 0.79.0.
+            while not stop.is_set() and client.is_connected():
+                if _hotlist_changed(config, state):
+                    logger.info("OPRA hotlist changed; reconnecting subscriptions")
                     break
-                if route_record(state, record) == "definition":
-                    continue
-                pending_records += 1
-                if (
-                    pending_records % 1000 == 0
-                    and config.hotlist_path is not None
-                    and config.hotlist_path.exists()
-                ):
-                    updated = read_hotlist_file(config.hotlist_path)
-                    if updated and frozenset(updated) != state.hotlist:
-                        state.update_hotlist(updated)
-                        logger.info("OPRA hotlist changed; reconnecting subscriptions")
-                        break
-                if pending_records >= 1000:
-                    databento_usage.record(
-                        dataset=config.dataset,
-                        schema=config.schema,
-                        mode="live",
-                        consumer="opra-shadow",
-                        records=pending_records,
-                    )
-                    pending_records = 0
+                stop.wait(_WAIT_TICK_SECONDS)
         except Exception:
             failures += 1
             databento_usage.record(
@@ -156,13 +257,14 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
             )
             logger.warning("OPRA live connection failed", exc_info=True)
         finally:
-            if pending_records:
+            remainder = batcher.drain()
+            if remainder:
                 databento_usage.record(
                     dataset=config.dataset,
                     schema=config.schema,
                     mode="live",
                     consumer="opra-shadow",
-                    records=pending_records,
+                    records=remainder,
                 )
             if client is not None:
                 try:

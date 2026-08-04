@@ -93,9 +93,11 @@ from tests._fast_gates_gate import (
     HARNESS_ENV,
     SHELL,
     ci_gate_step,
+    evaluate_condition,
     gate_step,
     run_ci_gate,
     run_gate,
+    step_conditions,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -171,6 +173,8 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_fast_gates_attested_pine_coverage.py",
     "tests/test_git_fixture_env_isolation.py",
     "tests/test_ts_vacuity_guard_is_required.py",
+    "tests/test_dependabot_local_version_pins.py",
+    "tests/test_workflow_pine_library_publish_handlibs_contract.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_fcntl_flock_zero_surface.py",
     "tests/test_field_preference_chain_ledger.py",
@@ -1400,3 +1404,131 @@ def test_ci_gate_stays_status_only_on_a_non_main_push(tmp_path: Path) -> None:
     outputs = run_ci_gate(tmp_path, event_name="push", ref_name="feature/x")
 
     assert outputs["run_heavy"] == "false"
+
+
+# --- the `if:` half of the same silence -------------------------------------
+#
+# Everything above pins WHAT the drift-guard step invokes: the roster of
+# tripwire tests must stay in its pytest call. None of it asks WHETHER the step
+# runs. That is the `if:`, and on 2026-08-04 a sweep measured what it costs:
+# flipping
+#
+#     if: steps.gate.outputs.run_heavy == 'true'    ->    == 'false'
+#
+# on the "Run pin / ledger drift guard" step leaves the roster textually
+# complete and every assertion in this file green, while ~55 ledger and
+# security test files stop running on every real code PR -- and `fast-gates`,
+# the only required check (ADR-0011), reports success.
+#
+# That is this file's own subject matter arriving through the door it did not
+# watch. So the conditions are EVALUATED against the outputs the real gate step
+# really publishes, in both directions.
+#
+# `tests/test_fast_gates_attested_pine_coverage.py` does this for the two steps
+# on the R1 path. This does it for the whole job.
+
+
+# The runner the gate's own `select-runner` job resolves to. Only one step's
+# condition reads it; supplied explicitly so the evaluator never has to guess.
+_GITHUB_HOSTED = {"needs.select-runner.outputs.runner_environment": "github-hosted"}
+
+# A PR that changes real code. Not a bot branch: this is the ordinary case the
+# heavy suite exists for, and the one the inverted `if:` would silence.
+_CODE_PR_FILE = "services/live_overlay_daemon/main.py"
+
+# Steps whose silent skip would be worst, named so a rename is a loud failure
+# rather than a shrinking roster. Not the whole list -- the floor below covers
+# the rest.
+_MUST_RUN_ON_A_CODE_PR: tuple[str, ...] = (
+    "Run pin / ledger drift guard",
+    "Ruff lint",
+    "Run fast SMC integration tests",
+    "Layer violation guard (F-08)",
+    "Run every guard that reads a workflow this PR changed",
+)
+
+# 32 steps carry a run_heavy condition today. The floor is deliberately below
+# that so adding steps stays free, while a wholesale un-gating shows up here.
+_MIN_GATED_STEPS = 28
+
+
+def _gated_steps() -> dict[str, str]:
+    """Every fast-gates step whose `if:` consults the gate's run_heavy output."""
+    return {
+        name: condition
+        for name, condition in step_conditions().items()
+        if "steps.gate.outputs.run_heavy" in condition
+    }
+
+
+def test_the_gated_step_roster_is_real_before_anything_is_asserted_about_it() -> None:
+    """Witness for the two tests below, which both iterate this roster.
+
+    An empty or shrunken roster would let them report green while observing
+    nothing -- the exact failure mode this file is named after.
+    """
+    gated = _gated_steps()
+    assert len(gated) >= _MIN_GATED_STEPS, (
+        f"only {len(gated)} fast-gates steps consult run_heavy, expected at "
+        f"least {_MIN_GATED_STEPS}. Either the job was gutted, or the steps no "
+        "longer read the gate — in which case the two tests below iterate a "
+        f"roster that no longer describes the required lane. Found: "
+        f"{sorted(gated)}"
+    )
+    missing = [name for name in _MUST_RUN_ON_A_CODE_PR if name not in gated]
+    assert not missing, (
+        f"these steps no longer consult run_heavy: {missing}. If one was "
+        "renamed, rename it here in the same PR; if it was removed, say so in "
+        "the PR body — it is a check this lane used to run."
+    )
+
+
+def test_every_gated_step_actually_runs_on_a_real_code_pr(tmp_path: Path) -> None:
+    """The check that was missing: does the required lane run at all?
+
+    The gate step is executed (not read) for a PR that changes a service
+    module, and each step's own `if:` is then evaluated against the outputs it
+    really published. A condition inverted to `== 'false'`, replaced by
+    `false`, or pointed at an output the gate stopped writing all fail here,
+    and none of them fail anything else in this file.
+    """
+    code_dir = tmp_path / "code"
+    code_dir.mkdir()
+    outputs = run_gate([_CODE_PR_FILE], code_dir, head_ref="feat/some-change")
+    assert outputs.get("run_heavy") == "true", (
+        f"the gate did not ask for the heavy suite on a PR changing "
+        f"{_CODE_PR_FILE!r}: {outputs}. Every assertion below would then hold "
+        "for the wrong reason."
+    )
+    for name, condition in _gated_steps().items():
+        assert evaluate_condition(condition, outputs, contexts=_GITHUB_HOSTED), (
+            f"the {name!r} step does NOT run on a PR that changes "
+            f"{_CODE_PR_FILE!r}: the gate published {outputs} and "
+            f"`if: {condition}` evaluates false against it. On the only "
+            "required check, that is a check silently not happening."
+        )
+
+
+def test_the_data_only_exemption_is_real(tmp_path: Path) -> None:
+    """The control direction.
+
+    Without it, a condition hardcoded to true would satisfy the test above
+    while running the whole heavy suite on every documentation-only bot PR --
+    and the assertion would be measuring the constant, not the gate.
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    outputs = run_gate(["artifacts/governance/some_measurement.json"], data_dir)
+    assert outputs.get("run_heavy") == "false", (
+        f"the gate asked for the heavy suite on a data-only bot PR: {outputs}"
+    )
+    still_running = [
+        name
+        for name, condition in _gated_steps().items()
+        if evaluate_condition(condition, outputs, contexts=_GITHUB_HOSTED)
+    ]
+    assert not still_running, (
+        f"these steps run even though the gate exempted the PR: {still_running}. "
+        "Their conditions are then effectively constants, and the coverage "
+        "assertion above measures nothing."
+    )
