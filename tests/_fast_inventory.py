@@ -38,6 +38,12 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_broad_except_silent_budget.py",
     "test_builtin_open_encoding_ledger.py",
     "test_check_r1_attested_sources.py",
+    # ci.yml's own contract + structural pin (2026-08-04). They were slow-lane
+    # only, and ci.yml is status-only on pull requests — so a regression to the
+    # gate that decides whether the full suite EVER runs was invisible until
+    # after the merge. 20 tests, 2.6s.
+    "test_ci_workflow_contract.py",
+    "test_ci_workflow_structural_pin.py",
     # Derived cross-consumer guard for scripts/credential_health_check.py
     # (2026-08-03, #4333 aftermath). Source parsing only, <0.5s.
     "test_credential_probe_consumers.py",

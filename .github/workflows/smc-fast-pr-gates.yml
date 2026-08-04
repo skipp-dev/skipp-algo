@@ -589,6 +589,8 @@ jobs:
             tests/test_verdict_panel.py \
             tests/test_run_edge_pipeline.py \
             tests/test_fast_gates_silent_skip_coverage.py \
+            tests/test_ci_workflow_contract.py \
+            tests/test_ci_workflow_structural_pin.py \
             tests/test_lint_debt_no_regression.py \
             tests/test_pytest_marker_bucket_discipline.py \
             tests/test_smc_bus_v2_freeze.py \
