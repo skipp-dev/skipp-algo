@@ -115,7 +115,28 @@ updates:
         update-types: ["major", "minor", "patch"]
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # `/` means `.github/workflows/` for this ecosystem and NOTHING else —
+    # measured 2026-08-04 by what #4425 did and did not touch. It bumped
+    # setup-python to v7 in all 64 workflows and left
+    # .github/actions/setup-python-pinned/action.yml on v6, the canonical
+    # composite that several jobs run via `uses: ./.github/actions/...`. Two
+    # setup-python versions in one CI, and nothing was red.
+    #
+    # The same blind spot let .github/workflow-templates/ keep
+    # astral-sh/setup-uv v3.2.4 (2024-11-23) while the workflows moved to
+    # v8.2.0 (2026-06-03) — five majors, twenty months, in files that are
+    # copied verbatim into new workflows.
+    #
+    # Grouping still yields ONE PR across the added directories: this repo's
+    # own #4426 is titled "across 2 directories", so the multi-directory shape
+    # does not re-open the PR storm this config was narrowed to prevent.
+    #
+    # tests/test_action_pin_surfaces_agree.py is the actual safety net and does
+    # not depend on this entry: it fails the moment two surfaces disagree, so a
+    # partial bump is caught even if Dependabot never learns about a surface.
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
       day: "monday"

@@ -18,9 +18,58 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 
+COMPOSITE_ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
+WORKFLOW_TEMPLATES_DIR = REPO_ROOT / ".github" / "workflow-templates"
+
+
 def iter_workflow_files() -> list[Path]:
-    """Return the sorted list of all ``.github/workflows/*.yml`` files."""
+    """Return the sorted list of all ``.github/workflows/*.yml`` files.
+
+    Deliberately NOT widened to composite actions or templates: most callers
+    walk ``jobs:``, which only a workflow has. Use
+    :func:`iter_action_pin_surfaces` for guards that reason about ``uses:``
+    pins rather than about job structure.
+    """
     return sorted(WORKFLOWS_DIR.glob("*.yml")) + sorted(WORKFLOWS_DIR.glob("*.yaml"))
+
+
+def iter_composite_action_files() -> list[Path]:
+    """Every ``action.yml`` under ``.github/actions/``.
+
+    These are real CI code — ``uses: ./.github/actions/<name>`` runs them — but
+    they are not workflows, so the workflow corpus above never saw them.
+    """
+    if not COMPOSITE_ACTIONS_DIR.is_dir():
+        return []
+    return sorted(COMPOSITE_ACTIONS_DIR.rglob("action.yml")) + sorted(
+        COMPOSITE_ACTIONS_DIR.rglob("action.yaml")
+    )
+
+
+def iter_workflow_template_files() -> list[Path]:
+    """Every workflow template offered for creating new workflows.
+
+    Not executed by CI, but copied verbatim into new workflows, so a rotten pin
+    here is a rotten pin in whatever gets created from it tomorrow.
+    """
+    if not WORKFLOW_TEMPLATES_DIR.is_dir():
+        return []
+    return sorted(WORKFLOW_TEMPLATES_DIR.glob("*.yml")) + sorted(
+        WORKFLOW_TEMPLATES_DIR.glob("*.yaml")
+    )
+
+
+def iter_action_pin_surfaces() -> list[Path]:
+    """Every file in this repo that pins a GitHub Action by ``uses:``.
+
+    Three surfaces, and until 2026-08-04 only the first was guarded — which is
+    how ``.github/workflow-templates/`` came to pin
+    ``astral-sh/setup-uv@caf0cab7a…`` (v3.2.4, 2024-11-23) while every workflow
+    ran v8.2.0 (2026-06-03), unnoticed for twenty months.
+    """
+    return (
+        iter_workflow_files() + iter_composite_action_files() + iter_workflow_template_files()
+    )
 
 
 def load_workflow(path: Path) -> dict[str, Any]:
