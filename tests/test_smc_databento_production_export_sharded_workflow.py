@@ -253,3 +253,85 @@ def test_compat_publish_is_independent_job() -> None:
     reduce_step_names = [str(s.get("name") or "") for s in jobs["reduce"]["steps"]]
     assert "Stage compat export bundle (legacy artifact name)" not in reduce_step_names
     assert "Upload compat export bundle (legacy artifact name)" not in reduce_step_names
+
+
+# --- the compat gate, executed rather than described -------------------------
+#
+# `Stage compat export bundle` decides `skip_compat`, which gates the legacy
+# artifact upload. Measured 2026-08-04 with a value-preserving arm swap (the
+# `true`/`false` token multiset left unchanged, so any substring assertion is
+# blind by construction): all 157 tests across the 15 files that name this
+# workflow stayed green -- while an incomplete day would have been published to
+# legacy consumers that have no partial-run handling, and a complete one would
+# have been withheld.
+
+import json
+import sys
+from pathlib import Path
+
+from tests._workflow_step_shell import Stub, run_step
+
+_COMPAT_STEP = "Stage compat export bundle (legacy artifact name)"
+_MANIFEST = "artifacts/merged/databento_volatility_production_merged_manifest.json"
+
+
+def _compat(tmp_path: Path, manifest: dict | None):
+    """Run the real step against a merged manifest of our choosing.
+
+    `python` is passed through to the real interpreter rather than stubbed: the
+    step's decision IS the manifest read, and faking its answer would move the
+    thing under test into the test.
+    """
+    if manifest is not None:
+        path = tmp_path / _MANIFEST
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        (path.parent / "databento_volatility_production_merged__1m.parquet").write_bytes(b"")
+    return run_step(
+        "smc-databento-production-export-sharded.yml",
+        _COMPAT_STEP,
+        tmp_path,
+        env={},
+        stubs={"python": Stub(passthrough=sys.executable)},
+        expressions={"needs.plan.outputs.artifact_scope": "smc-databento-production-export"},
+    )
+
+
+def test_a_complete_day_is_published_to_legacy_consumers(tmp_path: Path) -> None:
+    """The direction that must not be lost: a whole day reaches the old name."""
+    result = _compat(tmp_path, {"partial_run": False, "export_date": "2026-08-04"})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["skip_compat"] == "false", (
+        f"a complete export must reach the legacy artifact; got {result.outputs}"
+    )
+    assert result.outputs["export_date"] == "2026-08-04"
+
+
+def test_a_partial_day_is_withheld(tmp_path: Path) -> None:
+    """The reason the gate exists: legacy consumers cannot see a partial day."""
+    result = _compat(tmp_path, {"partial_run": True, "export_date": "2026-08-04"})
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["skip_compat"] == "true", (
+        f"a partial run must not be published under the legacy name; got {result.outputs}"
+    )
+
+
+def test_a_partial_flag_nested_under_manifest_is_honoured_too(tmp_path: Path) -> None:
+    """Both shapes the reader accepts, because only one of them is exercised.
+
+    The step reads `d.get('partial_run') or d.get('manifest', {}).get('partial_run')`.
+    A test that only ever writes the top-level key would leave the second half
+    of that expression unmeasured.
+    """
+    result = _compat(tmp_path, {"manifest": {"partial_run": True}})
+    assert result.outputs["skip_compat"] == "true", (
+        f"a nested partial_run must withhold the upload too; got {result.outputs}"
+    )
+
+
+def test_a_missing_manifest_withholds_rather_than_guesses(tmp_path: Path) -> None:
+    """No manifest is not evidence of a complete day."""
+    result = _compat(tmp_path, None)
+    assert result.returncode == 0, "a missing manifest must not fail the job"
+    assert result.outputs["skip_compat"] == "true"
+    assert result.outputs["export_date"] == ""
