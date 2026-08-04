@@ -85,6 +85,31 @@ updates:
       day: "monday"
     open-pull-requests-limit: 1
     rebase-strategy: "disabled"
+    ignore:
+      # typescript majors move by hand. Measured 2026-08-04 against the real
+      # 7.0.2 wheel, after #4426 proposed 5.9.3 -> 7.0.2 and turned fast-gates,
+      # Windows x64, macOS Intel and macOS Apple Silicon red at once:
+      #
+      # TypeScript 7 removes the compiler API from the package root. Its
+      # `exports` map resolves "." to `./lib/version.cjs` — the version string,
+      # nothing else — so `import ts from "typescript"` in
+      # scripts/detect_vacuous_claims_ts.ts yields a module with no
+      # `ScriptTarget` (hence the runtime "Cannot read properties of undefined
+      # (reading 'Latest')") and tsc reports every `ts.*` as missing from
+      # namespace `typescript/lib/version`.
+      #
+      # The API moved to `typescript/unstable/*`, and it does not carry this
+      # script: `forEachChild` exists in NO subpath (only
+      # `forEachChildOfJSDoc*` under unstable/ast/visitor), and the only
+      # `createSourceFile` is the FACTORY one in unstable/ast/factory, which
+      # builds a node rather than parsing text. Porting the vacuity detector
+      # would mean rewriting it onto a surface upstream itself labels
+      # "unstable" — for a guard that gates merges, the wrong trade.
+      #
+      # Minor/patch updates are unaffected and still flow. Revisit when
+      # TypeScript ships a stable replacement for the parse+walk API.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-all:
         update-types: ["major", "minor", "patch"]
