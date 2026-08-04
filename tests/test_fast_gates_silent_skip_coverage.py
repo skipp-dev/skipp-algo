@@ -880,43 +880,31 @@ def test_every_monitoring_artifact_guard_is_on_the_required_path() -> None:
 # What actually forces exemption is needing a pinned browser at RUNTIME, and
 # that accounts for two members, not thirteen: tv_shared.test.ts (25
 # launchTradingViewChromium call sites; 133 tests, 21.5s locally) and
-# tv_pine_editor_close.test.ts (4 sites, 2.6s). The remaining 11 exempt tests
-# launch no browser and each finished green in ~330ms when run locally on
-# 2026-08-03 — they are exempt for history, not for a technical obstacle, and
-# wiring them is an open question for a follow-up rather than a claim made
-# here. (The converse also exists: tv_chart_error_probe.test.ts does launch a
-# real headless Chromium and runs in the hermetic step anyway. Verified here by
-# reading the file, not by pointing at the workflow's own comment — that
-# comment is corrected in a separate PR, and a cross-reference into a change
-# that can be reverted on its own would go stale the moment it is.)
+# tv_pine_editor_close.test.ts (4 sites, 2.6s). The eleven that used to sit
+# here launched no browser and were exempt for history, not for a technical
+# obstacle — they were wired into the run step on 2026-08-04 after measuring
+# them together at 103 tests / 0 fail / 808ms. (The converse also exists:
+# tv_chart_error_probe.test.ts does launch a real headless Chromium and runs
+# in the hermetic step anyway. Verified here by reading the file, not by
+# pointing at the workflow's own comment — that comment is corrected in a
+# separate PR, and a cross-reference into a change that can be reverted on its
+# own would go stale the moment it is.)
 #
-# Counts, re-derived 2026-08-03: 55 *.test.ts total = 42 run (1 + 1 + 40
-# across the three `npx tsx --test` steps) + 13 exempt.
+# Counts, re-derived 2026-08-04: 55 *.test.ts total = 53 run (1 + 1 + 51
+# across the three `npx tsx --test` steps) + 2 exempt.
 TV_ONBOARDING_WORKFLOW = ROOT / ".github" / "workflows" / "tv-onboarding-packages.yml"
 _TV_TEST_DIR = ROOT / "automation" / "tradingview" / "tests"
 
-#: TS tests that do not run in tv-onboarding-packages.yml. Two of them cannot
-#: (tv_shared.test.ts, tv_pine_editor_close.test.ts launch a pinned browser);
-#: the other eleven are inherited, not forced — see the measurement above.
-#: Adding a member is a deliberate edit (audit trail), the same contract as the
-#: *_INTENTIONALLY_UNGATED sets above. Reducing it means a browserless test was
-#: wired into CI (the 10 hermetic pins were, 2026-07-24).
+#: TS tests that do not run in tv-onboarding-packages.yml. Both need a pinned
+#: browser at RUNTIME — tv_shared.test.ts (25 launchTradingViewChromium call
+#: sites; 133 tests, 21.5s locally) and tv_pine_editor_close.test.ts (4 sites,
+#: 2.6s). The eleven that were exempt for history were wired in on 2026-08-04
+#: after measuring them at 103 tests / 0 fail / 808ms with no browser launch.
+#: Adding a member is a deliberate edit (audit trail); reducing it means a
+#: browserless test was wired into CI.
 _TS_TESTS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
     {
-        "tv_auth_probe_precedence.test.ts",
-        "tv_binding_repair.test.ts",
-        "tv_launch_options.test.ts",
         "tv_pine_editor_close.test.ts",
-        # tv_preflight_add_to_chart_floor.test.ts is NOT here — it is wired into
-        # the run step (#3970) and gates.
-        "tv_preflight_identity_assertion.test.ts",
-        "tv_producer_refresh_layouts.test.ts",
-        "tv_publish_draw_library.test.ts",
-        "tv_publish_micro_library.test.ts",
-        "tv_publish_openprep_panel.test.ts",
-        "tv_publish_overlay_library.test.ts",
-        "tv_read_editor_content.test.ts",
-        "tv_save_consumer_source.test.ts",
         "tv_shared.test.ts",
     }
 )
