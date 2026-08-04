@@ -12,10 +12,12 @@ That is not hypothetical. Measured 2026-08-04, twice on this one step:
   ``test_check_r1_attested_sources.py`` green while the R1 guard went blind
   again — the defect #4376 had just fixed, reintroduced under a passing suite
   (closed by #4377);
-* deleting the ``*)`` arm that sets ``heavy=true`` left **2198** tests green
-  across every file that mentions this workflow, while a ``bot/*`` PR touching
-  ``services/*.py`` would merge without the heavy suite at all — verbatim the
-  hole the step's own comment claims to have closed.
+* deleting the ``*)`` arm that sets ``heavy=true`` left 2198 tests green under
+  ``-k "fast_gates or workflow or r1_attested"``, and 202 green across the 14
+  test files that name this workflow — while a ``bot/*`` PR touching
+  ``services/*.py`` would merge without the heavy suite at all, verbatim the
+  hole the step's own comment claims to have closed. (Two selections, two
+  numbers, both measured; neither is "the whole suite".)
 
 So execute the step. This module is the shared harness; the assertions live in
 ``test_fast_gates_silent_skip_coverage.py`` (the silent-skip contract) and in
@@ -29,6 +31,7 @@ source-text assertions, because that evaluation has no local equivalent.
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -40,8 +43,14 @@ WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 # The shell GitHub really gives this block. smc-fast-pr-gates.yml declares
 # `defaults: run: shell: bash`, which Actions expands to
 # `bash --noprofile --norc -eo pipefail {0}` -- NOT the implicit default
-# (`bash -e {0}`, no pipefail). test_the_harness_matches_the_declared_shell
-# pins that declaration, so this list cannot quietly stop matching CI.
+# (`bash -e {0}`, no pipefail). test_the_harness_matches_the_declared_shell pins
+# BOTH sides -- the workflow's declaration and this tuple -- because pinning only
+# the declaration leaves the tuple free to drift, and a review measured exactly
+# that: gutting it to ("bash", "-e") killed no test.
+#
+# `bash` resolves through PATH, so locally this is the developer's bash (3.2 on
+# stock macOS) while CI runs 5.x. Every construct in the block is 3.2-safe; the
+# skew can only cause a local false alarm, never a green local run that fails CI.
 SHELL = ("bash", "--noprofile", "--norc", "-e", "-o", "pipefail")
 
 # The path-inspection branch is unreachable for anything else, and this is the
@@ -80,12 +89,13 @@ def run_gate(
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     stub = bin_dir / "gh"
+    # printf over the list rather than a heredoc: a heredoc delimiter can be
+    # collided with by a changed path that happens to equal it, and this
+    # harness's whole job is to not have blind spots of that shape.
+    quoted = " ".join(shlex.quote(path) for path in changed_files)
     stub.write_text(
-        "#!/bin/sh\n"
-        + "cat <<'PR_FILES'\n"
-        + "\n".join(changed_files)
-        + "\nPR_FILES\n"
-        + f"exit {gh_exit_code}\n",
+        f"#!/bin/sh\nprintf '%s\\n' {quoted}\nexit {gh_exit_code}\n" if changed_files
+        else f"#!/bin/sh\nexit {gh_exit_code}\n",
         encoding="utf-8",
     )
     stub.chmod(0o755)
