@@ -241,12 +241,18 @@ def _run_step_shell(
 # apart, and a private helper imported across test modules is what broke `main`
 # earlier the same day.
 
-def step_conditions() -> dict[str, str]:
-    """Every ``fast-gates`` step's ``if:`` expression, keyed by step name."""
-    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+def step_conditions(workflow: Path | None = None, job: str = "fast-gates") -> dict[str, str]:
+    """Every step's ``if:`` expression in one job, keyed by step name.
+
+    Defaults to ``fast-gates`` so the two callers that predate the second
+    workflow keep reading unchanged. ``c13-daily-cron.yml`` needs the same
+    thing for a six-step advisory chain, and reproducing this four-line read
+    beside it is how two copies start drifting.
+    """
+    doc = yaml.safe_load((workflow or WORKFLOW).read_text(encoding="utf-8"))
     return {
         str(step.get("name")): str(step.get("if", ""))
-        for step in doc["jobs"]["fast-gates"]["steps"]
+        for step in doc["jobs"][job]["steps"]
         if isinstance(step, dict)
     }
 
@@ -277,10 +283,15 @@ def evaluate_condition(
     when the other side already decided the verdict. A silent skip is what is
     being tested for; it must not be how the test itself behaves.
 
-    ``contexts`` supplies values for references outside ``steps.gate.outputs``
-    -- currently only ``needs.select-runner.outputs.runner_environment``. An
-    unlisted reference raises rather than defaulting, for the same reason: a
-    reference this evaluator guesses at is a verdict it cannot vouch for.
+    ``outputs`` accepts either shape: bare keys (``{"run_heavy": "true"}``) for
+    a condition that names one step, or step-qualified keys
+    (``{"backfill.rc": "0", "drift.outcome": "failure"}``) for a chain whose
+    conditions name several. Qualified wins where both exist.
+
+    ``contexts`` supplies values for references outside ``steps.*`` -- currently
+    only ``needs.select-runner.outputs.runner_environment``. An unlisted
+    reference raises rather than defaulting, for the same reason: a reference
+    this evaluator guesses at is a verdict it cannot vouch for.
     """
     contexts = contexts or {}
     tokens: list[str] = []
@@ -318,10 +329,27 @@ def evaluate_condition(
         token = take()
         if token.startswith("'"):
             return token[1:-1]
-        if token.startswith("steps.gate.outputs."):
-            # An output the gate never wrote is "" in GitHub too, which is what
-            # makes `== 'true'` false for a flag the gate stopped publishing.
-            return outputs.get(token.rsplit(".", 1)[1], "")
+        if token.startswith("steps.") and ".outputs." in token:
+            # An output the step never wrote is "" in GitHub too, which is what
+            # makes `== 'true'` false for a flag the step stopped publishing.
+            #
+            # Two key shapes, because there are now two kinds of caller. A
+            # single-step gate passes `{"run_heavy": "true"}` and its condition
+            # only ever names one step. A chain — c13's six advisory steps —
+            # has conditions that name several, so it passes
+            # `{"backfill.rc": "0", "drift.rc": "4"}` and the bare name would be
+            # ambiguous. The qualified key wins; the bare one stays for the
+            # single-step callers.
+            _, step_id, _, key = token.split(".", 3)
+            if f"{step_id}.{key}" in outputs:
+                return outputs[f"{step_id}.{key}"]
+            return outputs.get(key, "")
+        if token.startswith("steps.") and token.endswith(".outcome"):
+            # `outcome` is not an output — it is whether the step's shell
+            # exited non-zero, which is exactly what running the block
+            # measures. c13's six warn steps are gated on nothing else, so
+            # without this they could not be asserted about at all.
+            return outputs.get(token.split(".", 1)[1], "")
         if token == "github.event_name":
             return event_name
         if token in contexts:
