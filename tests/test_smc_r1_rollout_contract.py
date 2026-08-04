@@ -204,21 +204,38 @@ def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() ->
     assert set(drill["remainingOpenGates"]) - still_open <= closed_since
 
 
-def test_the_registered_evidence_still_says_not_run_and_stays_that_way() -> None:
+def test_the_drill_reading_moves_forward_by_a_new_artifact_never_by_an_edit() -> None:
     """The divergence is deliberate, and it is the whole point of dating evidence.
 
-    The registered R1 evidence was captured at 05:05:15Z, when the drill had no
-    implementation, and it records ``rollback: not_run``. The drill ran at
-    17:23:24Z. Editing the earlier artifact so the two agree would replace a
-    measurement with a fabrication -- the same move that keeps the 2026-07-29
-    artifact byte-exact. The later artifact carries the later reading.
+    On 2026-08-01 the registered evidence was captured at 05:05:15Z, before the
+    drill had an implementation, and it records ``rollback: not_run``. The drill
+    ran at 17:23:24Z. That artifact still says not_run and must keep saying it.
+
+    The 2026-08-04 re-attestation was captured after the drill, so ``not_run``
+    would be false there -- it carries the drill's own dated artifact forward
+    instead, and says in the same breath that it did not re-run it. Both
+    readings are true of their own date, which is exactly what editing the
+    earlier one to agree would have destroyed.
     """
     evidence = _evidence()
     drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
+    prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
 
-    assert evidence["rollback"]["status"] == "not_run"
-    assert evidence["capturedAt"] < drill["capturedAt"]
+    # The artifact captured BEFORE the drill keeps its pre-drill reading, for
+    # good. This is the assertion that forbids the edit.
+    assert prior["rollback"]["status"] == "not_run"
+    assert prior["capturedAt"] < drill["capturedAt"]
     assert "not_run" in drill["supersedesNothing"]
+
+    # The current attestation was captured after the drill, so it may not claim
+    # not_run -- and it may not claim to have run it either. It carries the
+    # drill's own dated artifact and says so.
+    assert evidence["capturedAt"] > drill["capturedAt"]
+    assert evidence["rollback"]["status"] == "carried_over"
+    assert evidence["rollback"]["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
+        DEFAULT_OUTPUT.parents[2]
+    ).as_posix()
+    assert "NOT re-run" in evidence["rollback"]["justification"]
     assert contract_note_names_the_divergence(build_rollout_contract())
 
 
@@ -267,8 +284,14 @@ def test_the_superseded_dated_evidence_is_kept_verbatim() -> None:
     superseded = evidence["reattestationTrigger"]["attestedEventOverlaySha256"]
     assert prior["sources"]["SMC Event Overlay"]["repositorySha256"] == superseded
     assert prior["sources"]["SMC Event Overlay"]["savedSourceReadbackSha256"] == superseded
-    assert prior["capturedAt"].startswith("2026-07-29")
-    assert prior["rollback"]["status"] == "passed"
+    assert prior["capturedAt"].startswith("2026-08-01")
+    # Its own pre-drill reading, unedited. The 2026-07-29 artifact it in turn
+    # superseded is still in the tree with ITS reading -- the chain is kept, not
+    # collapsed onto the newest state.
+    assert prior["rollback"]["status"] == "not_run"
+    oldest = DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-07-29.json"
+    assert oldest.exists()
+    assert json.loads(oldest.read_text(encoding="utf-8"))["rollback"]["status"] == "passed"
 
     assert evidence["supersedes"] == PRIOR_EXECUTION_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
