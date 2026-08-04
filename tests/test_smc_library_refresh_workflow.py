@@ -860,7 +860,16 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
     # and counted on the actual write, not on prose that happens to name the
     # file.
     assert block.count('os.environ["GITHUB_STEP_SUMMARY"]') == 1
-    assert block.count('os.environ["GITHUB_ENV"]') == 1
+    assert block.count('os.environ["GITHUB_OUTPUT"]') == 1
+    assert 'os.environ["GITHUB_ENV"]' not in block, (
+        "the notice publishes through $GITHUB_ENV again. An env write leaks "
+        "into every later step in the job, while an output is addressed; "
+        "tv-save-consumer-source.yml documents the same rule, and zizmor "
+        "rates the env form a github-env HIGH — one it cannot see here, "
+        "because the write sits inside a Python heredoc (measured 2026-08-04 "
+        "with the pinned zizmor 1.25.2: four github-env HIGHs in this file, "
+        "none of them this step)."
+    )
 
     # It must run BEFORE the commit step that consumes its output.
     notice_idx = workflow_text.index("      - name: Report R1 attestation drift caused by this refresh")
@@ -875,12 +884,33 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
     # substring present and all 43 tests green.
     commit_block = _step_block(workflow_text, "Commit and push changes")
 
-    written = re.search(r'handle\.write\("(\w+)<<(\w+)\\n"\)', block)
+    # The chain has FOUR links now that the notice travels as a step output
+    # rather than as an env var, and every one of them is derived from the
+    # workflow rather than re-typed here. Any single break makes the PR ship
+    # without the drift verdict, which is the thing #4371 proved matters.
+    written = re.search(r'handle\.write\(f"(\w+)<<\{(\w+)\}\\n"\)', block)
     assert written, (
-        "the notice step no longer writes a heredoc-delimited variable to "
-        "$GITHUB_ENV, so nothing can carry it into the PR body"
+        "the notice step no longer writes a heredoc-delimited step OUTPUT, so "
+        "nothing can carry it into the PR body"
     )
-    notice_var, _delimiter = written.group(1), written.group(2)
+    output_name = written.group(1)
+
+    step_id = re.search(r"^        id: (\S+)$", block, re.M)
+    assert step_id, (
+        "the notice step has no `id:`, so no later step can address its output"
+    )
+
+    bound = re.search(
+        rf"^\s*(\w+): \$\{{\{{ steps\.{step_id.group(1)}\.outputs\.{output_name} \}}\}}$",
+        commit_block,
+        re.M,
+    )
+    assert bound, (
+        f"the commit step does not bind steps.{step_id.group(1)}.outputs."
+        f"{output_name} into its `env:` block, so the notice never reaches the "
+        "shell that builds the PR body"
+    )
+    notice_var = bound.group(1)
 
     guard = f'if [ -n "${{{notice_var}:-}}" ]; then'
     assert guard in commit_block, (
@@ -925,13 +955,65 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
 
 NOTICE_STEP = "Report R1 attestation drift caused by this refresh"
 
+
+def test_every_pytest_node_id_the_workflow_prints_actually_resolves() -> None:
+    """A remedy naming a test that no longer exists is worse than no remedy.
+
+    The notice step prints `GUARD` — a hand-typed pytest node ID — into the job
+    summary AND the PR body on all three non-clean branches: "Run <GUARD>
+    against this branch before merging." Nothing anywhere asserted that it
+    resolves. It is a re-typed reference to a moving target, which is the
+    defect class this whole seam exists to close, one line above an IMPORTED
+    `RESOLUTION`.
+
+    Not hypothetical in this repository, and not slow-moving either: on
+    2026-08-04 a test harness was renamed and moved (#4383), a PR written
+    against its old location merged (#4385), and `main` went red on the
+    ImportError. Under that kind of churn a hand-typed node ID is a promise
+    nobody keeps. The operator reading it is, by construction, someone who has
+    just been told the attestation is broken — handing them a command that
+    errors with "no tests ran" is the worst possible moment for it.
+
+    So COLLECT it. `--collect-only` resolves the file, the class and the test
+    name without executing anything, and fails loudly on any of the three.
+    """
+    node_ids = sorted(
+        set(re.findall(r"tests/[\w/]+\.py::[\w:]+", _read(WORKFLOW_PATH)))
+    )
+    assert node_ids, (
+        "no pytest node ID found in the workflow. If the notice step stopped "
+        "naming the guard to run, an operator told the attestation is UNKNOWN "
+        "is left without the command that checks it — and this test is now "
+        "observing nothing, which is the failure it was written against."
+    )
+
+    for node_id in node_ids:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider", node_id],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTEST_ADDOPTS": ""},
+        )
+        assert result.returncode == 0, (
+            f"{WORKFLOW_PATH.name} prints {node_id!r} as the command to run, and "
+            f"pytest cannot collect it (rc={result.returncode}). The workflow "
+            "publishes that string into the job summary and the PR body, so the "
+            "operator it is written for would get an error instead of a check.\n"
+            f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+        )
+        assert " 1 test collected" in result.stdout or "\n1 test" in result.stdout, (
+            f"{node_id!r} collected something other than exactly one test:\n"
+            f"{result.stdout}"
+        )
+
 # #4377's `_run_gate` was evaluated for reuse and does NOT fit, for three
 # reasons rather than by preference: it stubs `gh` onto PATH and sets the gate's
 # EVENT_NAME/HEAD_REF/PR_NUMBER/REPO/GH_TOKEN contract (this step reads none of
 # them); it runs in the repository root, whereas these branches are induced
 # through the working tree `git diff` sees, so cwd has to be controllable; and
 # it parses `key=value` out of $GITHUB_OUTPUT, while this step publishes a job
-# summary plus a heredoc-delimited $GITHUB_ENV block. What IS reused is its
+# summary plus a heredoc-delimited output block. What IS reused is its
 # form: the same bash invocation, so a bashism cannot pass here and fail in CI.
 
 
@@ -1160,6 +1242,7 @@ def _run_notice(
     cwd: Path,
     floor: int | None = None,
     sources: dict[str, dict[str, str]] | None = None,
+    roster: list[str] | None = None,
 ) -> _Notice:
     """Execute the step's real `run:` block; return what it published.
 
@@ -1179,9 +1262,9 @@ def _run_notice(
     """
     work.mkdir(parents=True, exist_ok=True)
     summary = work / "step_summary.md"
-    env_file = work / "github_env"
+    output_file = work / "github_output"
     summary.write_text("", encoding="utf-8")
-    env_file.write_text("", encoding="utf-8")
+    output_file.write_text("", encoding="utf-8")
 
     if sources is None:
         sources = _evidence_matching_the_repository()
@@ -1193,6 +1276,14 @@ def _run_notice(
         shim_lines.append(
             "import scripts.smc_r1_rollout_contract as _m\n"
             f"_m.MIN_ATTESTED_SOURCES = {floor}\n"
+        )
+    if roster is not None:
+        # Replaces the contract's TARGET LIST, which is what the step derives
+        # its roster from. Used to drive the collapsed-roster branch without
+        # editing the contract, the only way to reach the empty pathspec.
+        shim_lines.append(
+            "import scripts.smc_r1_rollout_contract as _r\n"
+            f"_r.build_rollout_contract = lambda: {{'targets': [{{'path': p}} for p in {roster!r}]}}\n"
         )
     shim = work / "shim"
     shim.mkdir()
@@ -1218,33 +1309,37 @@ def _run_notice(
             cwd.parent,
             SMC_PYTHON_BIN=sys.executable,
             GITHUB_STEP_SUMMARY=str(summary),
-            GITHUB_ENV=str(env_file),
+            GITHUB_OUTPUT=str(output_file),
             PYTHONPATH=os.pathsep.join(path_entries),
         ),
         capture_output=True,
         text=True,
     )
 
-    raw = env_file.read_text(encoding="utf-8")
-    # Variable name and heredoc delimiter DERIVED from the step, not re-typed:
-    # a harness carrying its own copy would keep reading an empty PR body after
-    # a rename and report every branch as "nothing reached the PR body".
-    written = re.search(r'handle\.write\("(\w+)<<(\w+)\\n"\)', _notice_run_block())
-    assert written, "the notice step no longer writes a delimited $GITHUB_ENV block"
-    match = re.search(
-        rf"{written.group(1)}<<{written.group(2)}\n(.*)\n{written.group(2)}\n",
-        raw,
-        re.S,
-    )
+    raw = output_file.read_text(encoding="utf-8")
+    # Name and delimiter DERIVED from the step, never re-typed here: the
+    # delimiter is grown at run time until it cannot occur in the value, so a
+    # harness carrying a fixed copy would silently stop finding the block on
+    # exactly the inputs that made growing it necessary.
+    match = re.search(r"^(\w+)<<(\S+)$", raw, re.M)
     assert match is not None, (
-        "the step did not write a well-formed heredoc block to $GITHUB_ENV, so "
-        f"the PR body would carry nothing (or garbage): {raw!r}"
+        "the step did not write a well-formed heredoc block to $GITHUB_OUTPUT, "
+        f"so the PR body would carry nothing (or garbage): {raw!r}"
+    )
+    body = re.search(
+        rf"^{match.group(1)}<<{re.escape(match.group(2))}\n(.*)\n{re.escape(match.group(2))}$",
+        raw,
+        re.S | re.M,
+    )
+    assert body is not None, (
+        f"the {match.group(1)!r} block is never terminated by its own "
+        f"delimiter {match.group(2)!r}: {raw!r}"
     )
     return _Notice(
         result.returncode,
         result.stdout + result.stderr,
         summary.read_text(encoding="utf-8"),
-        match.group(1),
+        body.group(1),
     )
 
 
@@ -1452,6 +1547,20 @@ def test_a_crash_in_the_notice_step_is_reported_and_still_exits_zero(tmp_path: P
     )
     # The reviewer must see it without opening the run log.
     assert "could not run" in notice.pr_body
+    # …but the TRACEBACK stays out of the PR body. It carries the runner's
+    # absolute checkout path and whatever a frame interpolated, and the PR body
+    # is public and unbounded in width, while the summary and the run log are
+    # neither. The verdict travels; the internals do not.
+    assert "Traceback (most recent call last)" in notice.summary, (
+        "the job summary lost the traceback, which is where it belongs and the "
+        "only place an operator can debug this from"
+    )
+    assert "Traceback (most recent call last)" not in notice.pr_body, (
+        "the traceback reached the PUBLIC PR body:\n" + notice.pr_body
+    )
+    assert "/home/runner" not in notice.pr_body and str(ROOT) not in notice.pr_body, (
+        "an absolute runner path reached the PR body:\n" + notice.pr_body
+    )
 
 
 def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) -> None:
@@ -1476,6 +1585,50 @@ def test_a_roster_below_the_floor_never_reads_as_an_all_clear(tmp_path: Path) ->
         "success"
     )
     assert "could not run" in notice.pr_body
+
+
+def test_a_collapsed_roster_never_asks_git_about_the_whole_repository(
+    tmp_path: Path,
+) -> None:
+    """An empty pathspec is "every file", not "no files".
+
+    ``git diff --name-only HEAD -- *attested`` with an empty ``attested``
+    degenerates to ``git diff --name-only HEAD --``, and git then answers about
+    the entire working tree. The step would publish every modified file in the
+    repository as an R1-attested source this refresh rewrote — a drift report
+    made of noise, on the one run where the derivation had already failed.
+
+    Reachable only with the floor at 0, which is why it was left alone once:
+    the floor branch wins first. That is a guarantee held by a constant someone
+    can lower, not by this step, so the guard is on ``attested`` itself.
+
+    Driven with a genuinely dirty tree, or the assertion would hold for the
+    wrong reason.
+    """
+    work = tmp_path
+    repo = _seed_repo(work)
+    # TRACKED files, modified. `git diff HEAD` never reports untracked ones, so
+    # seeding new files here would make this test pass without the empty
+    # pathspec ever being able to fail it — measured: with untracked files the
+    # guard mutation below stayed green, which is the vacuity this file is
+    # about, committed into its own regression test.
+    dirtied = _attested_roster()
+    assert dirtied, "the fixture needs at least one tracked file to dirty"
+    for rel in dirtied:
+        (repo / rel).write_text("// rewritten\n", encoding="utf-8")
+
+    notice = _run_notice(work, cwd=repo, roster=[], floor=0)
+
+    assert notice.rc == 0, notice.log
+    for path in dirtied:
+        assert path not in notice.summary, (
+            f"the step named {path!r} as an R1-attested source while its "
+            "roster was EMPTY. It asked git about the whole repository instead "
+            f"of about nothing:\n{notice.summary}"
+        )
+        assert path not in notice.pr_body, (
+            f"{path!r} reached the PR body as an attested source"
+        )
 
 
 def test_the_executed_branches_are_distinguishable_from_each_other(tmp_path: Path) -> None:

@@ -1160,6 +1160,18 @@ def test_the_un_attestation_remedy_is_rendered_from_the_shared_constant() -> Non
         f"${variable} is assigned from a substitution that never renders "
         f"RESOLUTION:\n{substitution}"
     )
+    # The render must not be able to abort the step. The block runs under
+    # `set -euo pipefail`, so a bare `x="$(...)"` that fails ends the step right
+    # there — before the job summary naming the un-attested sources and before
+    # the `::error::` line. The run stays red either way, so the gate holds; what
+    # would be lost is the report, exactly when rendering the remedy is the thing
+    # that broke.
+    assert re.search(rf'{variable}="\$\(.*?\)"\s*\\?\s*\n?\s*\|\|\s*{variable}=', code, re.S), (
+        f"${variable} is assigned from a command substitution with no `||` "
+        "fallback. Under `set -euo pipefail` a failure there kills the step "
+        "before it reports WHICH sources were saved un-attested."
+    )
+
     assert f'"${{{variable}}}"' in code, (
         f"the step renders the remedy into ${variable} and then never publishes "
         "it; the fenced block in the job summary would be empty or carry "
