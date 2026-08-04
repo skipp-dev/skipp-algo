@@ -12,5 +12,5 @@
 # torch build; compatibility must be validated against both lanes.
 gymnasium==1.2.3
 stable-baselines3==2.8.0
-torch==2.12.1
+torch==2.13.0+cu129
 optuna==4.9.0
