@@ -34,6 +34,7 @@ from scripts.smc_r1_generate_attestation import (
     build_attestation,
     classify_event_overlay_change,
     evidence_filename,
+    verify_chain,
     write_attestation,
 )
 
@@ -439,3 +440,54 @@ def test_evidence_filename_is_collision_free_within_a_day() -> None:
     assert a.startswith("smc_r1_live_rollout_evidence_2026-08-05T")
     assert a.endswith("Z.json")
     assert ":" not in a
+
+
+def _seeded_chain(tmp_path: Path, evidence: dict) -> tuple[Path, Path]:
+    """A tmp chain whose head is a REAL prior artifact, plus the new one appended."""
+    governance = tmp_path / "artifacts" / "governance"
+    governance.mkdir(parents=True)
+    prior_path = governance / "smc_r1_live_rollout_evidence_2026-08-04.json"
+    prior_path.write_text(json.dumps(_prior_evidence()), encoding="utf-8")
+    index = governance / "smc_r1_evidence_chain.json"
+    index.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "chain": [
+                    {
+                        "path": prior_path.relative_to(tmp_path).as_posix(),
+                        "capturedAt": "2026-08-04T02:54:45.085Z",
+                        "sha256": hashlib.sha256(prior_path.read_bytes()).hexdigest(),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = write_attestation(evidence, tmp_path)
+    append_chain(index, out, evidence, repo_root=tmp_path)
+    return index, out
+
+
+def test_verify_chain_passes_a_freshly_appended_chain(tmp_path: Path) -> None:
+    """The in-run self-check: a bot data-only PR never runs the heavy suite,
+    so the workflow must be able to prove the chain invariants it just
+    extended -- stdlib-only, before committing anything."""
+    index, _ = _seeded_chain(tmp_path, _build())
+    verify_chain(index, repo_root=tmp_path)  # must not raise
+
+
+def test_verify_chain_refuses_a_tampered_artifact(tmp_path: Path) -> None:
+    index, out = _seeded_chain(tmp_path, _build())
+    out.write_text(out.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="SHA-256"):
+        verify_chain(index, repo_root=tmp_path)
+
+
+def test_verify_chain_refuses_a_broken_link(tmp_path: Path) -> None:
+    index, _ = _seeded_chain(tmp_path, _build())
+    payload = json.loads(index.read_text(encoding="utf-8"))
+    payload["chain"][0]["path"] = "artifacts/governance/somewhere_else.json"
+    index.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        verify_chain(index, repo_root=tmp_path)

@@ -457,6 +457,45 @@ def append_chain(
     atomic_write_text(json.dumps(payload, indent=2) + "\n", index_path)
 
 
+def verify_chain(index_path: Path, *, repo_root: Path) -> None:
+    """Re-prove the chain invariants, stdlib-only, before anything is committed.
+
+    A ``bot/r1-reattest`` PR is data-only for fast-gates, so the heavy suite
+    (and with it tests/test_smc_r1_evidence_chain.py) first runs on main AFTER
+    the merge. This is the same set of invariants, run inside the workflow run
+    that just extended the chain -- fail-closed while the evidence commit can
+    still simply not happen.
+    """
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    chain = payload["chain"]
+    _require(len(chain) >= 2, "chain needs at least a head and its predecessor")
+    previous_entry: dict | None = None
+    for entry in chain:
+        artifact_path = repo_root / entry["path"]
+        _require(artifact_path.is_file(), f"chain names a missing artifact: {entry['path']}")
+        digest = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+        _require(
+            digest == entry["sha256"],
+            f"{entry['path']} no longer matches its registered SHA-256 -- a "
+            "dated measurement was rewritten",
+        )
+        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        _require(
+            artifact["capturedAt"] == entry["capturedAt"],
+            f"{entry['path']} capture time disagrees with its chain entry",
+        )
+        if previous_entry is not None:
+            _require(
+                artifact.get("supersedes") == previous_entry["path"],
+                f"{entry['path']} does not supersede the previous chain entry",
+            )
+            _require(
+                entry["capturedAt"] > previous_entry["capturedAt"],
+                "chain capture times do not strictly increase",
+            )
+        previous_entry = entry
+
+
 def main() -> int:
     # Imported here so the module surface above stays import-light for tests;
     # main() is the only consumer of the repository-bound constants.
@@ -501,6 +540,7 @@ def main() -> int:
     )
     out = write_attestation(evidence, ROOT)
     append_chain(EVIDENCE_CHAIN_INDEX, out, evidence, repo_root=ROOT)
+    verify_chain(EVIDENCE_CHAIN_INDEX, repo_root=ROOT)
     print(out.relative_to(ROOT).as_posix())
     return 0
 
