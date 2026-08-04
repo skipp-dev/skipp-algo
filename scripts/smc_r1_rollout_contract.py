@@ -29,16 +29,18 @@ EXECUTION_EVIDENCE: Final = (
     ROOT
     / "artifacts"
     / "governance"
-    / "smc_r1_live_rollout_evidence_2026-08-01.json"
+    / "smc_r1_live_rollout_evidence_2026-08-04.json"
 )
-# The 2026-07-29 artifact stays checked in and unmodified. It is a dated
-# measurement and remains true of that day; it is superseded as the CURRENT
-# attestation, never rewritten to match today's state.
+# Every superseded artifact stays checked in and unmodified. Each is a dated
+# measurement and remains true of its day; it is superseded as the CURRENT
+# attestation, never rewritten to match today's state. 2026-07-29 -> 2026-08-01
+# -> 2026-08-04, each step driven by a library refresh moving the Event Overlay
+# import pin and the chained consumer save pushing the new source live.
 PRIOR_EXECUTION_EVIDENCE: Final = (
     ROOT
     / "artifacts"
     / "governance"
-    / "smc_r1_live_rollout_evidence_2026-07-29.json"
+    / "smc_r1_live_rollout_evidence_2026-08-01.json"
 )
 
 # The rollback gate, and ONLY that gate, is closed by a later run on the same
