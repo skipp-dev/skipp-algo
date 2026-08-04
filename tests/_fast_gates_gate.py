@@ -23,9 +23,14 @@ So execute the step. This module is the shared harness; the assertions live in
 ``test_fast_gates_silent_skip_coverage.py`` (the silent-skip contract) and in
 ``test_check_r1_attested_sources.py`` (the R1 half).
 
-What it does NOT cover: GitHub's ``if:`` expression evaluation. Whether the
-Checkout and guard steps actually consume these outputs is still pinned by
-source-text assertions, because that evaluation has no local equivalent.
+What it does NOT cover: GitHub's ``if:`` expression evaluation. That is no
+longer for want of a local equivalent — ``_evaluate_condition`` in
+``tests/test_fast_gates_attested_pine_coverage.py`` evaluates a step's ``if:``
+against real gate outputs, and ``tests/test_ci_workflow_contract.py`` pins
+ci.yml's two lane conditions by normalised equality. Both live outside this
+module. If a third consumer appears, lift the evaluator in here rather than
+copying it: a private helper imported across test modules is exactly what broke
+``main`` on 2026-08-04, when #4383 moved ``_run_gate`` out from under #4385.
 """
 
 from __future__ import annotations

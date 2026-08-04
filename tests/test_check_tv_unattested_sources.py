@@ -88,10 +88,70 @@ def test_every_attested_source_can_drift_independently() -> None:
     ]
 
 
-def test_a_source_the_evidence_does_not_attest_is_not_this_guard_s_business() -> None:
-    drifted = drifted_attested_targets(targets=_TARGETS, sources={})
+def test_an_evidence_artifact_that_records_no_hash_is_unknown_not_agreement() -> None:
+    """A missing measurement may never be reported as a matching one.
 
-    assert drifted == []
+    This test used to assert the opposite -- ``sources={}`` returned ``[]``
+    under the name "a source the evidence does not attest is not this guard's
+    business". That reading is unsupportable: every contract target is required
+    to appear in the evidence (``test_every_live_target_is_covered_by_the_
+    evidence`` pins exactly that), so an absent hash means the artifact is
+    malformed, not that the source agrees with it.
+
+    It had a consumer. ``smc-library-refresh.yml``'s notice step gates its
+    all-clear on this function, and measured on 2026-08-04 all four shapes below
+    produced "every one still hashes to what <evidence> attests" -- an
+    attestation asserted over hashes that were never read. The required guard
+    ``scripts/check_r1_attested_sources.py`` disagreed on the same input, which
+    is how one repository held two answers to one question.
+    """
+    shapes = {
+        "evidence has no sources at all": {},
+        "the key for this source was deleted": {"SMC Exit Signal": {"repositorySha256": _ATTESTED}},
+        "the source is registered as an empty object": {
+            "SMC Event Overlay": {},
+            "SMC Exit Signal": {"repositorySha256": _ATTESTED},
+        },
+        "the hash is explicitly null": {
+            "SMC Event Overlay": {"repositorySha256": None},
+            "SMC Exit Signal": {"repositorySha256": _ATTESTED},
+        },
+        "the whole source entry is null": {
+            "SMC Event Overlay": None,
+            "SMC Exit Signal": {"repositorySha256": _ATTESTED},
+        },
+    }
+
+    for description, sources in shapes.items():
+        drifted = drifted_attested_targets(targets=_TARGETS, sources=sources)
+        reported = {item["scriptName"] for item in drifted}
+        assert "SMC Event Overlay" in reported, (
+            f"{description}: the source was reported as agreeing with an evidence "
+            "artifact that records no hash for it. Absence of a measurement is "
+            "not a measurement of agreement."
+        )
+        entry = next(i for i in drifted if i["scriptName"] == "SMC Event Overlay")
+        assert entry["attestedSha256"] is None, (
+            f"{description}: a fabricated attested hash was reported. Callers "
+            "distinguish 'moved away from a recorded hash' from 'never had one' "
+            "by this field being None."
+        )
+
+
+def test_the_report_says_no_hash_was_recorded_rather_than_printing_none(
+    tmp_path: Path,
+) -> None:
+    """The rendered remedy must not read as if ``None`` were the attested hash."""
+    sources = {"SMC Event Overlay": {}, "SMC Exit Signal": {"repositorySha256": _ATTESTED}}
+    drifted = drifted_attested_targets(targets=_TARGETS, sources=sources)
+    rendered = _render(drifted, ["SMC Event Overlay"])
+
+    assert "records no hash for this source" in rendered, rendered
+    assert "evidence attests: None" not in rendered, (
+        "the report printed the literal None as though it were a hash; an "
+        "operator would go looking for a re-attestation when the artifact "
+        "itself is what needs repairing"
+    )
 
 
 def test_the_report_is_intersected_with_what_this_config_would_actually_save(

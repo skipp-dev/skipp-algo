@@ -26,6 +26,32 @@ def _load() -> dict:
     return yaml.safe_load(_WF_PATH.read_text(encoding="utf-8"))
 
 
+def _condition(raw: object) -> str:
+    """A step condition, normalised for the differences that carry no meaning.
+
+    Collapses whitespace (so a YAML fold cannot fail a pin) and strips an
+    optional ``${{ }}`` wrapper, which GitHub accepts either way on ``if:`` and
+    requires on ``cancel-in-progress``. Both were measured on 2026-08-04 to
+    break a raw-equality pin without changing what the workflow does.
+
+    What is NOT normalised: the order and the presence of operands. Those carry
+    the meaning, and an equality pin over them is the point — a substring pin
+    here survived ``&& false`` appended to the coverage lane and ``|| true``
+    appended to ``cancel-in-progress``, both of which change the workflow
+    materially while leaving every test in this file green.
+
+    The remaining false-positive is a semantically equal REORDERING of
+    conjuncts. That is rare enough to accept the failure and cheap enough to
+    fix in the same commit; the durable answer is evaluating the expression the
+    way ``tests/test_fast_gates_attested_pine_coverage.py`` does, which belongs
+    in the shared harness rather than a third copy here.
+    """
+    text = " ".join(str(raw).split())
+    if text.startswith("${{") and text.endswith("}}"):
+        text = text[3:-2].strip()
+    return text
+
+
 def _on(data: dict) -> dict:
     # PyYAML parses bare ``on`` as boolean True.
     return data.get("on") or data.get(True)
@@ -67,8 +93,8 @@ def test_concurrency_cancel_only_for_pr() -> None:
     data = _load()
     concurrency = data["concurrency"]
     assert concurrency["group"].startswith("ci-")
-    cancel = " ".join(str(concurrency["cancel-in-progress"]).split())
-    assert cancel == "${{ github.event_name == 'pull_request' }}", (
+    cancel = _condition(concurrency["cancel-in-progress"])
+    assert cancel == "github.event_name == 'pull_request'", (
         "cancel-in-progress must remain exactly the PR-only expression; push "
         f"runs are audit trail. Found: {cancel!r}. If this is being changed on "
         "purpose, change it here in the same commit — an added disjunct is how "
@@ -167,7 +193,7 @@ def test_coverage_lane_gated_on_main_push_only() -> None:
     """
     steps = _load()["jobs"]["validate"]["steps"]
     cov_step = next(s for s in steps if "--cov" in s.get("run", ""))
-    cond = " ".join(str(cov_step["if"]).split())
+    cond = _condition(cov_step["if"])
     assert cond == (
         "steps.gate.outputs.run_heavy == 'true' && github.event_name == 'push' "
         "&& github.ref == 'refs/heads/main'"
@@ -181,7 +207,7 @@ def test_coverage_lane_gated_on_main_push_only() -> None:
         for s in steps
         if "pytest" in s.get("run", "") and "--cov" not in s.get("run", "")
     )
-    other = " ".join(str(no_cov["if"]).split())
+    other = _condition(no_cov["if"])
     assert other == (
         "steps.gate.outputs.run_heavy == 'true' && (github.event_name == "
         "'pull_request' || github.ref != 'refs/heads/main')"
