@@ -129,6 +129,49 @@ def _expand(run_block: str, expressions: dict[str, str] | None) -> str:
     return expanded
 
 
+def _parse_github_kv(text: str) -> dict[str, str]:
+    """Read ``$GITHUB_OUTPUT`` / ``$GITHUB_ENV`` the way Actions does.
+
+    Two formats, not one: ``name=value`` per line, and the multiline form
+
+    .. code-block:: text
+
+        name<<DELIMITER
+        first line
+        second line
+        DELIMITER
+
+    Splitting on ``=`` alone drops the second kind without a word, because none
+    of its lines contain one. ``ml-family-research.yml`` publishes
+    ``fallback_reasons`` that way and a gating ``if:`` reads it, so a parser
+    that skips it reports the step as publishing nothing and every assertion
+    about that decision would pass for the wrong reason.
+    """
+    values: dict[str, str] = {}
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        heredoc = re.match(r"^([^=<]+)<<(\S+)$", line)
+        if heredoc:
+            name, delimiter = heredoc.group(1), heredoc.group(2)
+            body: list[str] = []
+            index += 1
+            while index < len(lines) and lines[index] != delimiter:
+                body.append(lines[index])
+                index += 1
+            assert index < len(lines), (
+                f"unterminated {name}<<{delimiter} block; Actions rejects the "
+                "whole file in that case rather than reading a partial value"
+            )
+            values[name] = "\n".join(body)
+        elif "=" in line:
+            key, value = line.split("=", 1)
+            values[key] = value
+        index += 1
+    return values
+
+
 def run_step(
     workflow: str,
     step_name: str,
@@ -211,15 +254,7 @@ def run_step(
             for line in call_log.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ),
-        outputs=dict(
-            line.split("=", 1)
-            for line in github_output.read_text(encoding="utf-8").splitlines()
-            if "=" in line
-        ),
+        outputs=_parse_github_kv(github_output.read_text(encoding="utf-8")),
         summary=step_summary.read_text(encoding="utf-8"),
-        env_file=dict(
-            line.split("=", 1)
-            for line in github_env.read_text(encoding="utf-8").splitlines()
-            if "=" in line
-        ),
+        env_file=_parse_github_kv(github_env.read_text(encoding="utf-8")),
     )
