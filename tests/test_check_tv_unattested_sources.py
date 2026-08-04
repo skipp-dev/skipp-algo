@@ -160,6 +160,40 @@ def test_stdout_is_only_the_machine_value_so_the_shell_can_append_it_verbatim() 
     assert result.stderr.strip(), "the human-readable line must still be emitted, on stderr"
 
 
+def test_the_shared_resolution_names_both_registration_sites() -> None:
+    """The consolidated prose must not be less actionable than the copies it replaced.
+
+    ``RESOLUTION`` is the ONE remedy two producers render — this script's
+    stderr and the refresh PR body. It told the operator to register a NEW
+    dated artifact "alongside the registered one" and stopped there, so the
+    guard stayed red after the work was done: nothing reads an artifact the
+    registration does not point at.
+
+    And the registration is duplicated by construction. ``EXECUTION_EVIDENCE``
+    in ``scripts/smc_r1_rollout_contract.py`` is the source; the generated
+    ``artifacts/governance/smc_r1_live_rollout_contract.json`` carries
+    ``executionEvidence``; ``tests/test_smc_r1_rollout_contract.py`` pins them
+    equal. Prose that names one of the two is prose that ends in a red repo.
+    """
+    from scripts.smc_r1_rollout_contract import DEFAULT_OUTPUT
+
+    rendered = RESOLUTION.format(evidence=EXECUTION_EVIDENCE.relative_to(ROOT).as_posix())
+
+    for site in (
+        "scripts/smc_r1_rollout_contract.py",
+        DEFAULT_OUTPUT.relative_to(ROOT).as_posix(),
+    ):
+        assert site in rendered, (
+            f"the shared resolution does not name {site}. Both registration "
+            "sites have to be named, or an operator repoints one, watches "
+            "tests/test_smc_r1_rollout_contract.py stay red, and has no text "
+            "telling them why."
+        )
+    # Named as a pair, not as an alternative: editing either one alone is red.
+    assert "EXECUTION_EVIDENCE" in rendered
+    assert "tests/test_smc_r1_rollout_contract.py" in rendered
+
+
 def test_the_rendered_remedy_stays_inside_eighty_columns() -> None:
     """The evidence path is ~66 chars; interpolating it mid-sentence overflows.
 

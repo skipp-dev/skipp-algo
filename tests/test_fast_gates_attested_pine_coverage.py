@@ -81,6 +81,7 @@ selection would pick nothing — which is the same blind spot this test closes.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from scripts.smc_r1_rollout_contract import (
@@ -199,24 +200,152 @@ def test_a_non_attested_data_path_leaves_the_flag_down(tmp_path: Path) -> None:
     )
 
 
+def _step_conditions() -> dict[str, str]:
+    """Every ``fast-gates`` step's ``if:`` expression, keyed by step name."""
+    import yaml
+
+    doc = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
+    return {
+        str(step.get("name")): str(step.get("if", ""))
+        for step in doc["jobs"]["fast-gates"]["steps"]
+        if isinstance(step, dict)
+    }
+
+
+# The subset of GitHub's expression grammar the two conditions below use:
+# parentheses, `&&`, `||`, `==`/`!=`, single-quoted literals, and context
+# references. Anything else raises rather than evaluating to something —
+# a step condition this cannot read is a condition this test cannot vouch for,
+# and reporting green on it would be the vacuity being removed here.
+_EXPRESSION_TOKEN = re.compile(r"\s*(\(|\)|&&|\|\||==|!=|'[^']*'|[A-Za-z_][A-Za-z0-9_.]*)")
+
+
+def _evaluate_condition(
+    expression: str,
+    outputs: dict[str, str],
+    *,
+    event_name: str = "pull_request",
+) -> bool:
+    """Evaluate a step's ``if:`` against real gate outputs.
+
+    Deliberately does NOT short-circuit: both sides of every ``&&`` / ``||``
+    are evaluated, so an operand this evaluator does not understand raises even
+    when the other side already decided the verdict. A silent skip is what is
+    being tested for; it must not be how the test itself behaves.
+    """
+    tokens: list[str] = []
+    position = 0
+    expression = expression.strip()
+    assert expression, (
+        "the step carries no `if:` at all, so it runs unconditionally. That "
+        "passes the coverage direction below for the wrong reason and fails "
+        "the control direction; give it a condition or drop it from this test."
+    )
+    while position < len(expression):
+        match = _EXPRESSION_TOKEN.match(expression, position)
+        assert match is not None, (
+            f"cannot read the step condition from offset {position}: "
+            f"{expression[position:]!r}. This evaluator covers the expression "
+            "shapes fast-gates uses today; extend it in the PR that introduces "
+            "a new one rather than letting this assertion pass unparsed."
+        )
+        tokens.append(match.group(1))
+        position = match.end()
+
+    index = 0
+
+    def peek() -> str | None:
+        return tokens[index] if index < len(tokens) else None
+
+    def take() -> str:
+        nonlocal index
+        assert index < len(tokens), f"the condition ends mid-expression: {expression!r}"
+        token = tokens[index]
+        index += 1
+        return token
+
+    def operand() -> str:
+        token = take()
+        if token.startswith("'"):
+            return token[1:-1]
+        if token.startswith("steps.gate.outputs."):
+            # An output the gate never wrote is "" in GitHub too, which is what
+            # makes `== 'true'` false for a flag the gate stopped publishing.
+            return outputs.get(token.rsplit(".", 1)[1], "")
+        if token == "github.event_name":
+            return event_name
+        raise AssertionError(
+            f"the step condition reads {token!r}, which this evaluator cannot "
+            "resolve. Teach it that context in the same PR — an unresolved "
+            "operand silently decides the verdict otherwise."
+        )
+
+    def comparison() -> bool:
+        if peek() == "(":
+            take()
+            value = disjunction()
+            closing = take()
+            assert closing == ")", f"unbalanced parentheses in {expression!r}"
+            return value
+        left = operand()
+        operator = take()
+        right = operand()
+        if operator == "==":
+            return left == right
+        if operator == "!=":
+            return left != right
+        raise AssertionError(f"unsupported operator {operator!r} in {expression!r}")
+
+    def conjunction() -> bool:
+        value = comparison()
+        while peek() == "&&":
+            take()
+            value = comparison() and value
+        return value
+
+    def disjunction() -> bool:
+        value = conjunction()
+        while peek() == "||":
+            take()
+            value = conjunction() or value
+        return value
+
+    verdict = disjunction()
+    assert index == len(tokens), (
+        f"trailing tokens {tokens[index:]} in {expression!r}; the condition was "
+        "only partly evaluated"
+    )
+    return verdict
+
+
 def test_the_flag_reaches_the_steps_that_make_it_mean_something(tmp_path: Path) -> None:
     """A raised flag that gates nothing is the same skip with extra output.
 
     #4376's own finding: the guard step was skipped because the CHECKOUT was
-    skipped. Both conditions therefore have to honour ``run_pine_guard``, and
-    this file asserts it alongside the coverage rather than trusting that the
-    roster reaching a flag is the end of the story.
+    skipped. Both conditions therefore have to honour ``run_pine_guard``.
+
+    EXECUTED, not matched — #4377's discipline applied to the ``if:`` instead
+    of the ``run:``. This assertion used to be ``"run_pine_guard" in
+    condition``, which any condition mentioning the token satisfied. Measured
+    2026-08-04: rewriting the Checkout condition to ``run_heavy == 'true' &&
+    run_pine_guard == 'never-true-sentinel'`` — #4371's hole, verbatim, with a
+    pine-only bot PR never checked out again — left this test green. So the
+    real gate step is run for a pine-only bot PR, its real outputs are fed to
+    the real condition, and the VERDICT is what is asserted.
     """
-    import yaml
+    attested = _attested_source_paths()
+    pine_dir = tmp_path / "pine"
+    data_dir = tmp_path / "data"
+    pine_dir.mkdir()
+    data_dir.mkdir()
 
-    doc = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
-    steps = doc["jobs"]["fast-gates"]["steps"]
-    conditions = {
-        str(step.get("name")): str(step.get("if", ""))
-        for step in steps
-        if isinstance(step, dict)
-    }
+    # One attested source and nothing else: #4371's own shape.
+    pine_only = run_gate([attested[0]], pine_dir)
+    # The control. Without it a condition hardcoded true would satisfy every
+    # assertion below while checking out the repository on every bot PR.
+    data_only = run_gate([NON_PINE_DATA_PATH], data_dir)
 
+    conditions = _step_conditions()
     for name in ("Checkout", "Guard R1-attested sources"):
         assert name in conditions, (
             f"{FAST_GATES_WORKFLOW.name} has no step named {name!r} in job "
@@ -224,9 +353,15 @@ def test_the_flag_reaches_the_steps_that_make_it_mean_something(tmp_path: Path) 
             "PR) or the R1 guard path was removed — in which case the roster "
             "coverage above is about a flag nobody reads."
         )
-        assert "run_pine_guard" in conditions[name], (
-            f"the {name!r} step does not consider steps.gate.outputs."
-            "run_pine_guard, so a pine-only bot PR raises the flag and is "
-            "skipped anyway. That is #4371 verbatim: the guard was skipped "
-            "because the checkout was."
+        assert _evaluate_condition(conditions[name], pine_only), (
+            f"the {name!r} step does NOT run for a bot PR that changes only "
+            f"{attested[0]}: the gate published {pine_only} and "
+            f"`if: {conditions[name]}` evaluates false against it. That is "
+            "#4371 verbatim — the guard was skipped because the checkout was."
+        )
+        assert not _evaluate_condition(conditions[name], data_only), (
+            f"the {name!r} step runs for a data-only bot PR touching no "
+            f"attested source (gate published {data_only}). Its condition is "
+            "then effectively a constant, and the assertion above measures "
+            "nothing."
         )

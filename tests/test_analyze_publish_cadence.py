@@ -254,25 +254,51 @@ def test_end_to_end_against_real_git_repo(tmp_path: Path) -> None:
     """Smoke test: build a tiny git repo with one commit touching a
     path and one that doesn't. Verify _run_git_log returns the right
     shape without stubbing."""
+    import os
     import subprocess
 
-    def run(*args: str) -> None:
-        subprocess.run(args, cwd=tmp_path, check=True, capture_output=True)
+    # `cwd=` is NOT isolation. Git resolves its repository from the environment
+    # FIRST — $GIT_DIR / $GIT_INDEX_FILE outrank the working directory — and
+    # git EXPORTS both into every hook it runs, which is where this suite
+    # executes (the pre-push hook). Measured 2026-08-04 against a decoy repo:
+    # under that environment this fixture committed twice into the decoy and
+    # staged its tracked files as deleted, while reporting `1 passed`. The
+    # scrub drops the whole GIT_* namespace so a variable git adds later cannot
+    # reopen it; GIT_CEILING_DIRECTORIES is then set POSITIVELY so `git init`
+    # cannot discover a repository above $TMPDIR either.
+    #
+    # And the identity goes in per invocation with `-c`, never `git config`.
+    # `git config` WRITES: under the hijack above it wrote `user.email` into
+    # the REAL repository's config, which is what turned one bad commit into
+    # every later commit being authored by an address
+    # scripts/check_commit_authors.py does not approve. `-c` writes nothing, so
+    # even a total isolation failure cannot outlive the process.
+    # Same contract as tests/test_smc_library_refresh_workflow.py.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env["GIT_CEILING_DIRECTORIES"] = str(tmp_path)
+    identity = (
+        "-c", "user.email=fixture@example.invalid",
+        "-c", "user.name=fixture",
+        "-c", "commit.gpgsign=false",
+    )
 
-    run("git", "init", "-q")
-    run("git", "config", "user.email", "t@t.t")
-    run("git", "config", "user.name", "t")
+    def run(*args: str) -> None:
+        subprocess.run(
+            ("git", *identity, *args),
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+
+    run("init", "-q")
     (tmp_path / "pine").mkdir()
     (tmp_path / "pine" / "x.txt").write_text("v1", encoding="utf-8")
-    run("git", "add", "pine/x.txt")
-    run(
-        "git",
-        "-c", "commit.gpgsign=false",
-        "commit", "-q", "-m", "first",
-    )
+    run("add", "pine/x.txt")
+    run("commit", "-q", "-m", "first")
     (tmp_path / "other.txt").write_text("o", encoding="utf-8")
-    run("git", "add", "other.txt")
-    run("git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "unrelated")
+    run("add", "other.txt")
+    run("commit", "-q", "-m", "unrelated")
 
     r = analyze_path(
         path="pine",
@@ -290,3 +316,75 @@ def test_end_to_end_against_real_git_repo(tmp_path: Path) -> None:
         now=NOW,
     )
     assert r2.status == "missing"
+
+
+def test_the_real_git_fixture_cannot_escape_into_an_ambient_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove the isolation above instead of asserting it in a comment.
+
+    ``test_end_to_end_against_real_git_repo`` is the only test in this file that
+    shells out to a real git, and it used to pass ``cwd=`` with no ``env=``.
+    That is not isolation: git resolves its repository from ``$GIT_DIR`` /
+    ``$GIT_INDEX_FILE`` BEFORE the working directory, and git exports both into
+    every hook it runs -- which is where this suite executes, under the pre-push
+    hook. On 2026-08-04 that combination committed a temporary tree into the
+    real repository and wrote ``user.email`` into the ``.git/config`` shared by
+    every worktree, so later commits were authored by an address
+    ``scripts/check_commit_authors.py`` rejects. The suite reported ``1 passed``
+    throughout.
+
+    A comment cannot fail. This test re-runs that fixture under exactly the
+    hostile environment -- a decoy repository wired into ``GIT_DIR``,
+    ``GIT_WORK_TREE`` and ``GIT_INDEX_FILE`` -- and then asserts the decoy is
+    untouched: no commits, and no identity written into its config. Delete the
+    ``env=`` scrub or put ``git config`` back, and this goes red.
+    """
+    import contextlib
+    import os
+    import subprocess
+
+    clean = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    subprocess.run(
+        ["git", "init", "-q"], cwd=decoy, check=True, capture_output=True, env=clean
+    )
+
+    for name, value in (
+        ("GIT_DIR", str(decoy / ".git")),
+        ("GIT_WORK_TREE", str(decoy)),
+        ("GIT_INDEX_FILE", str(decoy / ".git" / "index")),
+    ):
+        monkeypatch.setenv(name, value)
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    # The analyzer under test legitimately honours $GIT_DIR — it is a git tool,
+    # and one that ignored the environment would itself be the bug. So its
+    # verdict about the workspace may differ under the hijack, and that is not
+    # what is being witnessed here. What must hold no matter what: the fixture
+    # WROTE nothing into a repository it was never pointed at.
+    with contextlib.suppress(AssertionError):
+        test_end_to_end_against_real_git_repo(workspace)
+
+    log = subprocess.run(
+        ["git", "log", "--oneline"],
+        cwd=decoy,
+        capture_output=True,
+        text=True,
+        env=clean,
+    )
+    assert log.stdout.strip() == "", (
+        "the fixture committed into a repository it was never pointed at: "
+        f"{log.stdout.strip()!r}. $GIT_DIR outranks cwd=, so the git calls in "
+        "test_end_to_end_against_real_git_repo must pass a GIT_*-scrubbed env="
+    )
+
+    config = (decoy / ".git" / "config").read_text(encoding="utf-8")
+    assert "user.email" not in config and "fixture@example.invalid" not in config, (
+        "the fixture wrote an identity into a foreign .git/config; use "
+        "`git -c user.email=...` per invocation, never `git config`, which "
+        f"persists:\n{config}"
+    )

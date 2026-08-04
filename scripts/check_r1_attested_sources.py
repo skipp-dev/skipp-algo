@@ -65,7 +65,12 @@ attests to the previous content.
      --execution-mode mutating; the smc-r4-context-readback workflow runs the
      TradingView session from CI).
   2. Record a NEW dated evidence artifact for that run.
-  3. Point artifacts/governance/smc_r1_live_rollout_contract.json at it.
+  3. Repoint the registration at it. It lives in TWO places, and
+     tests/test_smc_r1_rollout_contract.py pins them equal: set
+     EXECUTION_EVIDENCE in scripts/smc_r1_rollout_contract.py, then re-run
+     `python -m scripts.smc_r1_rollout_contract` to regenerate
+     artifacts/governance/smc_r1_live_rollout_contract.json. One without the
+     other stays red.
 
 Do NOT edit the existing dated evidence artifact to match. It records what was
 measured on that date; rewriting it falsifies a measurement rather than fixing
