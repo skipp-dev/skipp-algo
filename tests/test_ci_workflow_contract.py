@@ -16,6 +16,8 @@ from pathlib import Path
 
 import yaml
 
+from tests._fast_gates_gate import run_ci_gate
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _WF_PATH = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
@@ -55,11 +57,22 @@ def test_triggers_pinned() -> None:
 
 
 def test_concurrency_cancel_only_for_pr() -> None:
+    """Push runs are the audit trail and must never be cancelled.
+
+    Asserted by EQUALITY, not by substring. ``"… == 'pull_request'" in cond``
+    is satisfied by ``… == 'pull_request' || true``, which cancels every push
+    run. Measured 2026-08-04: that mutation left every test in this file green
+    while the audit trail became interruptible.
+    """
     data = _load()
     concurrency = data["concurrency"]
     assert concurrency["group"].startswith("ci-")
-    assert "github.event_name == 'pull_request'" in concurrency["cancel-in-progress"], (
-        "cancel-in-progress must remain PR-only; push runs are audit trail"
+    cancel = " ".join(str(concurrency["cancel-in-progress"]).split())
+    assert cancel == "${{ github.event_name == 'pull_request' }}", (
+        "cancel-in-progress must remain exactly the PR-only expression; push "
+        f"runs are audit trail. Found: {cancel!r}. If this is being changed on "
+        "purpose, change it here in the same commit — an added disjunct is how "
+        "it would silently start cancelling pushes."
     )
 
 
@@ -83,11 +96,14 @@ def test_single_validate_job_with_event_gate() -> None:
         (s for s in job["steps"] if s.get("id") == "gate"), None
     )
     assert gate_step is not None, "validate gate step missing"
-    assert "Pull request CI is status-only" in gate_step["run"]
-    assert "Non-main push CI is status-only" in gate_step["run"]
-    assert "workflow_dispatch" in gate_step["run"]
-    assert "REF_NAME" in gate_step["run"]
-    assert "run_heavy=false" in gate_step["run"]
+    # What the gate DECIDES is asserted by executing it, in
+    # test_the_gate_decides_by_event_not_by_the_words_in_its_source below.
+    # Matching phrases in its source cannot tell "returns false for a pull
+    # request" from "contains the sentence 'Pull request CI is status-only'".
+    # The fall-through below stays a source assertion on purpose: it is a claim
+    # about the step's SHAPE — that no arm was appended after the last one —
+    # and executing it could only ever cover the events the test thought to try.
+    #
     # The gate's LAST word must be the expensive one. Anything the arms above do
     # not claim — an event this workflow does not declare today, or a trigger
     # added later — has to run the full suite rather than skip it in silence.
@@ -142,12 +158,110 @@ def test_two_pytest_invocation_lanes_present() -> None:
 
 
 def test_coverage_lane_gated_on_main_push_only() -> None:
+    """Coverage runs on main push only — pinned by EQUALITY, not by substring.
+
+    ``"… == 'push'" in cond`` survives ``cond && false``, which disables the
+    lane outright. Measured 2026-08-04: that mutation left every test in this
+    file green while coverage stopped running anywhere. Both lanes are pinned
+    whole, so a lost conjunct, an added one, or a swapped comparison all fail.
+    """
     steps = _load()["jobs"]["validate"]["steps"]
-    cov_step = next(
-        s for s in steps if "--cov" in s.get("run", "")
+    cov_step = next(s for s in steps if "--cov" in s.get("run", ""))
+    cond = " ".join(str(cov_step["if"]).split())
+    assert cond == (
+        "steps.gate.outputs.run_heavy == 'true' && github.event_name == 'push' "
+        "&& github.ref == 'refs/heads/main'"
+    ), (
+        "coverage must only run on main push; otherwise the PR feedback loop "
+        f"slows. Found: {cond!r}"
     )
-    cond = cov_step["if"]
-    assert "github.event_name == 'push'" in cond
-    assert "github.ref == 'refs/heads/main'" in cond, (
-        "coverage must only run on main push; otherwise PR feedback loop slows"
+
+    no_cov = next(
+        s
+        for s in steps
+        if "pytest" in s.get("run", "") and "--cov" not in s.get("run", "")
+    )
+    other = " ".join(str(no_cov["if"]).split())
+    assert other == (
+        "steps.gate.outputs.run_heavy == 'true' && (github.event_name == "
+        "'pull_request' || github.ref != 'refs/heads/main')"
+    ), (
+        "the no-coverage lane must stay the exact complement of the coverage "
+        f"lane, or some event runs both lanes or neither. Found: {other!r}"
+    )
+
+
+def test_the_gate_decides_by_event_not_by_the_words_in_its_source(
+    tmp_path: Path,
+) -> None:
+    """Execute the gate for every pinned trigger and pin the verdict it writes.
+
+    This replaces a block of substring assertions on the step's source. Those
+    could not distinguish "makes this decision" from "contains this sentence";
+    measured 2026-08-04, three separate mutations to what this file claims to
+    guard each left all nine of its tests green.
+
+    The policy pinned here: pull requests and non-main pushes are status-only,
+    main pushes and manual dispatches run the heavy suite. Executed through the
+    shared harness in ``tests/_fast_gates_gate.py`` rather than a second local
+    copy — one gate, one harness.
+    """
+    cases = {
+        ("pull_request", "feature"): "false",
+        ("push", "feature"): "false",
+        ("push", "main"): "true",
+        ("workflow_dispatch", "main"): "true",
+    }
+    for index, ((event, ref), expected) in enumerate(cases.items()):
+        work = tmp_path / f"case{index}"
+        work.mkdir()
+        outputs = run_ci_gate(work, event_name=event, ref_name=ref)
+        assert outputs["run_heavy"] == expected, (
+            f"{event} on {ref!r} wrote run_heavy={outputs['run_heavy']!r}, "
+            f"expected {expected!r}"
+        )
+
+
+def test_a_bot_pull_request_is_status_only_like_any_other(tmp_path: Path) -> None:
+    """No branch name buys a different verdict, and nothing calls ``gh``.
+
+    Until #4396 this gate carried a ``bot/*`` path allow-list that inspected the
+    PR's changed files. It was UNREACHABLE — every declared event returned at an
+    earlier arm — and the previous version of this file pinned its presence as
+    an "Audit P2 HIGH" invariant, which read as evidence of a check that could
+    not run. #4396 deleted the arm; this pins the behaviour that replaced it, so
+    the allow-list cannot return unexamined.
+
+    The second half needs no log text: were any path inspection reintroduced, a
+    ``gh`` that cannot list the PR's files would take a fail-closed branch and
+    write ``run_heavy=true``. Still ``false`` means the gate returned before it
+    ever called ``gh``.
+    """
+    source_path = tmp_path / "source"
+    source_path.mkdir()
+    bot_pr = run_ci_gate(
+        source_path,
+        event_name="pull_request",
+        ref_name="feature",
+        head_ref="bot/library-refresh-1094-1",
+        changed_files=["src/smc_integration/engine.py"],
+    )
+    assert bot_pr["run_heavy"] == "false", (
+        "a bot/* pull request was handed a non-data path and did not come back "
+        "status-only; a path allow-list is deciding pull requests again"
+    )
+
+    broken_gh = tmp_path / "broken_gh"
+    broken_gh.mkdir()
+    fail_closed = run_ci_gate(
+        broken_gh,
+        event_name="pull_request",
+        ref_name="feature",
+        head_ref="bot/library-refresh-1094-1",
+        changed_files=["src/smc_integration/engine.py"],
+        gh_exit_code=1,
+    )
+    assert fail_closed["run_heavy"] == "false", (
+        "a failing `gh` changed the verdict, so the gate is calling `gh` on "
+        "pull requests again; see above"
     )
