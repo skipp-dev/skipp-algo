@@ -2074,3 +2074,92 @@ def test_the_refresh_date_reaches_later_steps(tmp_path) -> None:
     )
     assert result.env_file["REFRESH_DATE"] == "2026-08-04"
     assert result.env_file["REFRESH_TS"].startswith("2026-08-04T")
+
+
+# --- the breaking-change gate, executed -------------------------------------
+#
+# `breaking` decides whether a version bump is a breaking change, and
+# publish_gate turns that into publish_allowed. Measured 2026-08-04 with a
+# value-preserving arm swap on BREAKING (the true/false token multiset left
+# unchanged, so any substring assertion is blind by construction): all 601
+# assertions across the 32 files naming this workflow stayed green.
+#
+# Swapped, a breaking bump publishes to the live TradingView account without an
+# operator override, and a clean refresh never publishes at all.
+
+_BREAKING_STEP = "Evaluate version governance"
+
+_CLEAN_DECISION = '{"reasons": [], "schema_version_old": "3", "schema_version_new": "3", ' \
+                  '"field_version_old": "7", "field_version_new": "7"}'
+_BREAKING_DECISION = '{"reasons": ["schema_version bumped", "field dropped: rvol"], ' \
+                     '"schema_version_old": "3", "schema_version_new": "4", ' \
+                     '"field_version_old": "7", "field_version_new": "8"}'
+
+
+def _governance(tmp_path, decision: str, exit_code: int):
+    """Run the real step with the governance script shadowed.
+
+    The script's own verdict is its exit code plus a JSON document; both are
+    supplied here so the step's handling of them is what gets measured, not
+    scripts/smc_version_governance.py (which has its own tests).
+    """
+    return run_step(
+        "smc-library-refresh.yml",
+        _BREAKING_STEP,
+        tmp_path,
+        env={"REFRESH_DATE": "2026-08-04", "SMC_PYTHON_BIN": "governance-stub"},
+        stubs={"governance-stub": Stub(stdout=decision, exit_code=exit_code)},
+    )
+
+
+def test_a_clean_bump_is_not_breaking(tmp_path) -> None:
+    result = _governance(tmp_path, _CLEAN_DECISION, 0)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["breaking"] == "false"
+    assert result.outputs["reason"] == ""
+    assert "::error" not in result.stdout, (
+        "a clean refresh must not raise a blocking annotation"
+    )
+    assert not (tmp_path / "artifacts/ci/release_pending.flag").exists(), (
+        "a clean refresh must not leave a release-pending flag for operators to chase"
+    )
+
+
+def test_a_breaking_bump_blocks_the_publish(tmp_path) -> None:
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert result.returncode == 0, (
+        f"the step must report the verdict, not fail on it: {result.stderr}"
+    )
+    assert result.outputs["breaking"] == "true"
+
+
+def test_the_blocking_reason_comes_from_the_verdict_not_from_a_constant(tmp_path) -> None:
+    """The reason must survive the round trip out of the decision document.
+
+    ``reason`` is what the operator reads on a blocked publish. A hardcoded or
+    empty one looks identical in the source and useless in the run UI.
+    """
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert result.outputs["reason"] == "schema_version bumped; field dropped: rvol", (
+        f"the reasons must be joined out of the verdict; got {result.outputs.get('reason')!r}"
+    )
+
+
+def test_a_blocked_publish_is_visible_to_an_operator(tmp_path) -> None:
+    """F-V8-N1: a blocked publish must be a red marker, not a silent skip.
+
+    Three surfaces, all asserted on what was actually emitted: the annotation
+    on the run, the summary table, and the sticky artifact that survives
+    scrolling the Actions list.
+    """
+    result = _governance(tmp_path, _BREAKING_DECISION, 3)
+    assert "::error" in result.stdout and "Breaking change blocks publish" in result.stdout
+    assert "Library publish blocked" in result.summary, (
+        f"the operator's summary never got the block notice: {result.summary!r}"
+    )
+    assert "| `3` | `4` |" in result.summary, (
+        "the summary must show the real before/after versions from the verdict, "
+        f"not a template: {result.summary!r}"
+    )
+    assert (tmp_path / "artifacts/ci/release_pending.flag").read_text(encoding="utf-8").strip() \
+        == _BREAKING_DECISION, "the sticky flag must carry the verdict itself"

@@ -73,6 +73,7 @@ class StepRun:
     calls: tuple[str, ...]  # one line per stubbed-executable invocation, argv joined
     outputs: dict[str, str]  # whatever it wrote to $GITHUB_OUTPUT
     env_file: dict[str, str]  # whatever it wrote to $GITHUB_ENV, for later steps
+    summary: str  # whatever it wrote to $GITHUB_STEP_SUMMARY -- the operator's surface
 
     def called_with(self, *fragments: str) -> tuple[str, ...]:
         """Every recorded call containing all of ``fragments``."""
@@ -174,6 +175,11 @@ def run_step(
     # the decision they also publish would never be measured.
     github_env = tmp_path / "github_env"
     github_env.write_text("", encoding="utf-8")
+    # The run UI. A step that blocks something and says so only here is still
+    # saying it: asserting on the source text of that block cannot tell an
+    # emitted explanation from a never-reached one.
+    step_summary = tmp_path / "step_summary"
+    step_summary.write_text("", encoding="utf-8")
 
     result = subprocess.run(
         [*BASH, "-c", _expand(str(step_by_name(workflow, step_name)["run"]), expressions)],
@@ -186,6 +192,7 @@ def run_step(
             "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
             "GITHUB_OUTPUT": str(github_output),
             "GITHUB_ENV": str(github_env),
+            "GITHUB_STEP_SUMMARY": str(step_summary),
         },
         capture_output=True,
         text=True,
@@ -209,6 +216,7 @@ def run_step(
             for line in github_output.read_text(encoding="utf-8").splitlines()
             if "=" in line
         ),
+        summary=step_summary.read_text(encoding="utf-8"),
         env_file=dict(
             line.split("=", 1)
             for line in github_env.read_text(encoding="utf-8").splitlines()
