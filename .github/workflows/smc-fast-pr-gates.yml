@@ -409,7 +409,19 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           # Drift guard: verify daemon Dockerfile still builds from repository root context.
-          docker build -f services/live_overlay_daemon/Dockerfile .
+          # Tagged so the start-up probe below can run the SAME image.
+          docker build -f services/live_overlay_daemon/Dockerfile -t live-overlay-daemon:ci .
+
+      - name: Probe that the built image can actually start
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          # `docker build` proves the image BUILDS, never that it STARTS. From
+          # 2026-07-23 to 2026-08-05 the declared image raised
+          # ModuleNotFoundError('databento_usage') on import and the build step
+          # stayed green throughout. Importing the entrypoint module is the
+          # cheapest check that covers the whole module-level import graph.
+          docker run --rm --entrypoint python live-overlay-daemon:ci \
+            -c "import services.live_overlay_daemon.main; import holidays; print('start-up imports OK')"
 
       # Guard: ruff must pass clean (exit 0) on every PR. ruff comes from the
       # venv just installed above (pinned in requirements.txt — single source

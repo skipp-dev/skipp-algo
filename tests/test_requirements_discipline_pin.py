@@ -51,7 +51,13 @@ _DEP_LINE_BUDGETS = {
     # floating to 1.x transitively via fastapi; pinned at the version
     # fast-gates and the deployed daemon already resolve to (confirmed
     # behaviour-neutral: 170 tests pass identically under both versions).
-    "requirements.txt": 31,
+    # 2026-08-05: 31 → 32 for holidays==0.101. Not new supply-chain surface —
+    # the live_overlay_daemon already imported it and its own requirements file
+    # already pinned it. But production installs THIS file, not the service one
+    # (measured on the container: pip reports the fastapi pin from here), so the
+    # daemon ran without it and market_hours silently read every US market
+    # holiday as an open session.
+    "requirements.txt": 32,
     "requirements-gpu.txt": 1,
 }
 
