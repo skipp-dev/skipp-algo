@@ -109,19 +109,25 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN}"
-          TARGET="${TARGET}" python3 -c '
+          # The heredoc keeps the body free of single quotes: inside a
+          # `python3 -c '...'` string, an inner `os.environ['TARGET']` closes
+          # the shell quote and Python sees a bare name (NameError -- run
+          # 31007122044, the first non-no-op day). `<<'PY'` is unexpanded, so
+          # the value still arrives only through the environment.
+          TARGET="${TARGET}" python3 <<'PY'
           import os, pathlib, re
+          target = int(os.environ["TARGET"])
           path = pathlib.Path("SMC_Event_Overlay.pine")
           text = path.read_text(encoding="utf-8")
           new = re.sub(
               r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
-              rf"\g<1>{int(os.environ['TARGET'])}\g<2>",
+              rf"\g<1>{target}\g<2>",
               text,
               count=1,
           )
           assert new != text, "pin substitution was a no-op"
           path.write_text(new, encoding="utf-8")
-          '
+          PY
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           BRANCH="bot/r1-reattest"
