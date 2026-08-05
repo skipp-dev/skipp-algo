@@ -22,10 +22,25 @@ re-attestation PR.
 
 Holding is safe for the published library. Pine imports are pinned per script
 and TradingView keeps every published version, so a companion importing ``/183``
-keeps resolving after ``/186`` ships. Nothing in the repo requires consumers to
-share one pin -- verified 2026-08-04: no gate compares consumer pins to the
-manifest version, and ``check_library_release_manifest_drift.py`` checks that
-the manifest's ``consumers[]`` paths exist, not what they import.
+keeps resolving after ``/186`` ships.
+
+CORRECTION 2026-08-05. This docstring claimed "nothing in the repo requires
+consumers to share one pin -- verified 2026-08-04". That verification read the
+*scripts* (``check_library_release_manifest_drift.py`` checks that the
+manifest's ``consumers[]`` paths exist, not what they import) and generalised
+from them to the whole repo without reading the pytest suite. Three tests did
+require it, and `main` went red the moment the hold first lagged a companion by
+a real version -- ``SMC_Event_Overlay.pine`` on ``/183`` against fourteen
+consumers on ``/190``:
+
+* ``tests/test_pine_library_version_consistency.py``
+* ``tests/test_pine_function_definition_order.py``
+* ``tests/test_smc_event_overlay.py``
+
+All three now exempt the attested sources by reading :func:`attested_paths`
+rather than by listing them, and each keeps a companion from pinning a version
+*ahead* of its neighbours -- a hold keeps a source behind, never in front, so
+anything in front is an escaped bump rather than a hold.
 """
 
 from __future__ import annotations

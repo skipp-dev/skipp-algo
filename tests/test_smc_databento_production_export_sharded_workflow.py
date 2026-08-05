@@ -266,6 +266,7 @@ def test_compat_publish_is_independent_job() -> None:
 # have been withheld.
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -275,12 +276,13 @@ _COMPAT_STEP = "Stage compat export bundle (legacy artifact name)"
 _MANIFEST = "artifacts/merged/databento_volatility_production_merged_manifest.json"
 
 
-def _compat(tmp_path: Path, manifest: dict | None):
+def _compat(tmp_path: Path, manifest: dict | None, *, extra_stubs: dict | None = None):
     """Run the real step against a merged manifest of our choosing.
 
     `python` is passed through to the real interpreter rather than stubbed: the
     step's decision IS the manifest read, and faking its answer would move the
-    thing under test into the test.
+    thing under test into the test. `extra_stubs` supplies the clock for the
+    one assertion that needs a fixed one.
     """
     if manifest is not None:
         path = tmp_path / _MANIFEST
@@ -292,19 +294,60 @@ def _compat(tmp_path: Path, manifest: dict | None):
         _COMPAT_STEP,
         tmp_path,
         env={},
-        stubs={"python": Stub(passthrough=sys.executable)},
+        stubs={"python": Stub(passthrough=sys.executable), **(extra_stubs or {})},
         expressions={"needs.plan.outputs.artifact_scope": "smc-databento-production-export"},
     )
 
 
 def test_a_complete_day_is_published_to_legacy_consumers(tmp_path: Path) -> None:
     """The direction that must not be lost: a whole day reaches the old name."""
-    result = _compat(tmp_path, {"partial_run": False, "export_date": "2026-08-04"})
+    result = _compat(tmp_path, {"partial_run": False})
     assert result.returncode == 0, result.stderr
     assert result.outputs["skip_compat"] == "false", (
         f"a complete export must reach the legacy artifact; got {result.outputs}"
     )
-    assert result.outputs["export_date"] == "2026-08-04"
+
+
+def test_the_export_date_is_the_clock_not_the_manifest(tmp_path: Path) -> None:
+    """`EXPORT_DATE=$(date -u +%Y-%m-%d)` — today in UTC, whatever the manifest says.
+
+    2026-08-05: the assertion this replaces wrote `export_date: "2026-08-04"`
+    into the manifest and required that value back. It passed on 2026-08-04 --
+    because that happened to be the day it ran, not because the manifest was
+    ever read. The step ignores that key entirely. The next day it failed with
+    `'2026-08-05' == '2026-08-04'`, which is the only reason anyone found out.
+
+    So supply the clock and assert both halves: the value comes from `date`,
+    and a manifest key of the same name does not influence it.
+    """
+    result = _compat(
+        tmp_path,
+        {"partial_run": False, "export_date": "2026-08-04"},
+        # Answers `+%Y-%m-%d` only; anything else is a change in what the step
+        # asks the clock for, and must fail here rather than be guessed at.
+        extra_stubs={
+            "date": Stub(script='''
+for a in "$@"; do
+  case "$a" in
+    +%Y-%m-%d) echo "2019-01-02"; exit 0 ;;
+  esac
+done
+echo "unexpected date invocation: $*" >&2
+exit 64
+'''),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["export_date"] == "2019-01-02", (
+        f"the export date must come from the clock, not the manifest; got {result.outputs}"
+    )
+    # ISO, not YYYYMMDD: the step's own comment says a compact form breaks the
+    # consumer's `smc-databento-production-export-<date>-*` prefix match in
+    # smc-library-refresh.yml and silently falls back to the previous day.
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", result.outputs["export_date"])
+    assert result.called_with("-u", "+%Y-%m-%d"), (
+        f"the date must be read in UTC, not the runner's local zone; asked: {result.calls}"
+    )
 
 
 def test_a_partial_day_is_withheld(tmp_path: Path) -> None:
