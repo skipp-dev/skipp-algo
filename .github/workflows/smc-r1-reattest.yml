@@ -40,6 +40,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 # F-V6-A2.1: unbuffered Python in every step, including the inline decide
 # probes -- a buffered failure message is a silent failure message.
 env:
