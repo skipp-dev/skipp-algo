@@ -437,8 +437,12 @@ def test_force_rebind_is_opt_in_and_reaches_the_rollout_script() -> None:
     # ON — refreshChartScriptInstance replaces the parent instance, which
     # invalidates every child BUS parent id. Dispatch stays opt-in; schedule
     # stays read-only 'false'.
+    # 2026-08-04 (reattest chain): the automated re-attestation saves a
+    # re-pinned companion source and therefore needs the same refresh+rebind
+    # pair as the workflow_run chain; the dispatch/schedule arms are unchanged.
     assert rollout["env"]["TV_FORCE_REBIND"] == (
-        "${{ github.event_name == 'workflow_run' && 'true' || "
+        "${{ (github.event_name == 'workflow_run' || "
+        "github.event.inputs.reattest == 'true') && 'true' || "
         "github.event_name == 'workflow_dispatch' && "
         "github.event.inputs.force_rebind || 'false' }}"
     )
@@ -725,9 +729,13 @@ def test_refresh_triggered_save_enables_producer_refresh_and_rebind() -> None:
     rollout script itself hard-fails on refresh-without-rebind. The cron
     stays read-only-verify and the dispatch inputs keep working."""
     text = _save_workflow_text()
-    assert "github.event_name == 'workflow_run' && 'true'" in text, (
+    assert (
+        "(github.event_name == 'workflow_run' || "
+        "github.event.inputs.reattest == 'true') && 'true'" in text
+    ), (
         "both TV_FORCE_REBIND and TV_REFRESH_PRODUCER must resolve to 'true' "
-        "on the workflow_run path"
+        "on the workflow_run path (and on a reattest dispatch, which saves a "
+        "re-pinned companion source)"
     )
     force_rebind_line = next(
         line for line in text.splitlines() if "TV_FORCE_REBIND:" in line
@@ -736,9 +744,16 @@ def test_refresh_triggered_save_enables_producer_refresh_and_rebind() -> None:
         line for line in text.splitlines() if "TV_REFRESH_PRODUCER:" in line
     )
     for line in (force_rebind_line, refresh_producer_line):
-        assert "github.event_name == 'workflow_run' && 'true'" in line, line
+        # 2026-08-04: workflow_run OR a reattest dispatch -- both save a
+        # source whose parent instance must be refreshed and re-bound.
+        assert (
+            "(github.event_name == 'workflow_run' || "
+            "github.event.inputs.reattest == 'true') && 'true'" in line
+        ), line
         # dispatch inputs must still be honoured after the workflow_run branch
-        assert "github.event.inputs" in line, line
+        assert "github.event.inputs.force_rebind" in line or (
+            "github.event.inputs.refresh_producer" in line
+        ), line
     # The read-only cron contract stays: schedule keeps the empty mapping.
     assert "github.event_name == 'schedule' && '[]'" in text
 
@@ -1159,17 +1174,26 @@ def test_the_un_attestation_remedy_is_rendered_from_the_shared_constant() -> Non
     # The variable the summary interpolates must be the one assigned from the
     # command substitution that renders RESOLUTION — an agreement between the
     # two, so neither half can be severed while the other keeps the test green.
-    assigned = re.search(r'(\w+)="\$\((.*?)\)"', code, re.S)
-    assert assigned, (
+    # 2026-08-04: the reattest carve-out prepended its own command
+    # substitution (re-running check_tv_unattested_sources against the
+    # extended chain), so the RESOLUTION render is no longer the FIRST
+    # assignment in the step -- find it among all of them; the agreement
+    # itself is unchanged.
+    assignments = re.findall(r'(\w+)="\$\((.*?)\)"', code, re.S)
+    assert assignments, (
         "nothing in this step assigns a variable from a command substitution, "
         "so the remedy cannot be rendered at run time"
     )
-    variable, substitution = assigned.group(1), assigned.group(2)
-
-    assert "RESOLUTION.format(evidence=" in substitution, (
-        f"${variable} is assigned from a substitution that never renders "
-        f"RESOLUTION:\n{substitution}"
+    rendering = [
+        (var, sub)
+        for var, sub in assignments
+        if "RESOLUTION.format(evidence=" in sub
+    ]
+    assert rendering, (
+        "no substitution in this step renders RESOLUTION -- the remedy would "
+        f"be hand-typed or missing. Substitutions seen: {assignments}"
     )
+    variable, _substitution = rendering[0]
     # The render must not be able to abort the step. The block runs under
     # `set -euo pipefail`, so a bare `x="$(...)"` that fails ends the step right
     # there — before the job summary naming the un-attested sources and before
