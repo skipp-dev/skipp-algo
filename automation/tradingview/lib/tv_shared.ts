@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { NobleCryptoPlugin, ScureBase32Plugin, generateSync } from "otplib";
 import {
   chromium,
   type Browser,
@@ -861,6 +862,38 @@ export function totpTimeStep(nowMs: number, periodSeconds = 30): number {
     throw new Error("TOTP time-step inputs must be finite and periodSeconds must be positive");
   }
   return Math.floor(nowMs / (periodSeconds * 1_000));
+}
+
+/** Generate the current 6-digit TOTP for a Base32 secret.
+ *
+ * Lives here rather than at the call site so it can be pinned against the
+ * RFC 6238 vectors. It was inline in `scripts/create_tradingview_storage_state.ts`
+ * as `authenticator.generate(secret)` until 2026-08-05, when the otplib 12 -> 13
+ * bump (#4445, an npm-all group update) removed the `authenticator` export
+ * outright. The next scheduled `tradingview-storage-refresh` run died on the
+ * import before a browser ever started, and its failure issue asked for a manual
+ * cookie refresh -- a fix for a problem that did not exist.
+ *
+ * Two things about v13 that a naive migration gets wrong, both pinned by
+ * `tv_totp_token.test.ts`:
+ *   - the plugins are classes, so they must be instantiated, not called;
+ *   - `epoch` is SECONDS here and was MILLISECONDS in v12. Passing ms yields
+ *     confident, well-formed, wrong codes -- which against a live 2FA prompt
+ *     looks exactly like a bad secret.
+ */
+export function generateTotpToken(
+  secret: string,
+  options: { epochSeconds?: number; digits?: number } = {},
+): string {
+  const { epochSeconds, digits = 6 } = options;
+  return generateSync({
+    strategy: "totp",
+    secret,
+    base32: new ScureBase32Plugin(),
+    crypto: new NobleCryptoPlugin(),
+    digits,
+    ...(epochSeconds === undefined ? {} : { epoch: epochSeconds }),
+  });
 }
 
 /** A TOTP may be entered/submitted at most once in a given time-step. */
