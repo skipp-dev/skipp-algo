@@ -12,6 +12,7 @@ twice, 2026-08-04).
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -79,30 +80,64 @@ def test_proposer_pushes_the_fixed_branch_and_dispatches_reattest_on_it() -> Non
     assert dispatch["env"]["GH_TOKEN"] == "${{ secrets.GH_PAT }}"
 
 
-def test_proposer_pin_substitution_bumps_exactly_the_import_line() -> None:
-    """Executed, not string-matched: the same regex the proposer ships must
-    rewrite the REAL Event Overlay source to a target pin and change nothing
-    else -- the pin-only diff class is what the generator later re-proves by
-    hash reconstruction."""
-    push = _step(_reattest()["jobs"]["propose"]["steps"], "Force-push the pin-bump")
-    match = re.search(r'r"\(import preuss_steffen[^"]+"', push["run"])
-    assert match is not None, "the pin substitution regex left the proposer"
+def _pin_substitution_fragment() -> str:
+    """The proposer's pin-rewrite command, sliced out of the step verbatim.
 
+    Re-implementing the regex here is what made the earlier version of this
+    test vacuous: on 2026-08-05, the first day the proposer had real work to
+    do, the shipped command died with ``NameError: name 'TARGET' is not
+    defined`` (run 31007122044) because an inner single quote closed the
+    ``python3 -c '...'`` shell string -- a defect no string match and no
+    re-implementation of the regex can see. Run what ships.
+    """
+    push = _step(_reattest()["jobs"]["propose"]["steps"], "Force-push the pin-bump")
+    run = push["run"]
+    # Sliced by its neighbours, not by the quoting form, so a revert to any
+    # other spelling of the command is still EXECUTED (and still fails here)
+    # instead of merely failing to be located.
+    start = run.index('TARGET="${TARGET}"')
+    end = run.index("git config user.email")
+    return "set -euo pipefail\n" + run[start:end]
+
+
+def test_proposer_pin_substitution_bumps_exactly_the_import_line(
+    tmp_path: Path,
+) -> None:
+    """EXECUTED, not string-matched: the command the proposer actually ships
+    must rewrite the REAL Event Overlay source to the target pin and change
+    nothing else -- the pin-only diff class is what the generator later
+    re-proves by hash reconstruction."""
     source = (_REPO_ROOT / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
-    new = re.sub(
-        r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
-        r"\g<1>99999\g<2>",
-        source,
-        count=1,
+    (tmp_path / "SMC_Event_Overlay.pine").write_text(source, encoding="utf-8")
+
+    done = subprocess.run(
+        ["/bin/bash", "-c", _pin_substitution_fragment()],
+        cwd=tmp_path,
+        env={"PATH": os.environ["PATH"], "TARGET": "99999"},
+        capture_output=True,
+        text=True,
     )
-    assert new != source
+    assert done.returncode == 0, done.stdout + done.stderr
+
+    new = (tmp_path / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
     changed = [
-        (a, b)
-        for a, b in zip(source.splitlines(), new.splitlines())
-        if a != b
+        (a, b) for a, b in zip(source.splitlines(), new.splitlines()) if a != b
     ]
     assert len(changed) == 1
     assert changed[0][1].endswith("/99999 as mp")
+
+
+def test_proposer_pin_substitution_refuses_a_target_it_cannot_apply() -> None:
+    """The fragment is fail-closed in both arms: no import line to bump means
+    a non-zero exit, never a silent no-op commit of an unchanged pin."""
+    empty = subprocess.run(
+        ["/bin/bash", "-c", _pin_substitution_fragment()],
+        cwd=_REPO_ROOT / "tests",  # no SMC_Event_Overlay.pine here
+        env={"PATH": os.environ["PATH"], "TARGET": "99999"},
+        capture_output=True,
+        text=True,
+    )
+    assert empty.returncode != 0
 
 
 def test_proposer_refuses_to_downgrade_an_ahead_pin() -> None:
