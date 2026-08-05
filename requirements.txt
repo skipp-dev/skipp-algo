@@ -61,3 +61,10 @@ pytest-split==0.11.0
 pytest-testmon==2.2.0
 pyyaml==6.0.3
 ruff==0.15.16
+# 2026-08-05: the live_overlay_daemon needs this, and THIS file is what its
+# container installs (measured: /app carries the repo root and pip reports the
+# fastapi pin from here, not the one in services/live_overlay_daemon/). Without
+# it market_hours falls back to an EMPTY holiday set and reports every US market
+# holiday as an open regular session — which arms the self-heal supervisor's
+# stall detection on a day that legitimately has no bars.
+holidays==0.101
