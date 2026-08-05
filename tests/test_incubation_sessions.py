@@ -9,10 +9,14 @@ time and rewritten in place by the daily reconciler.
 This adapter is the bridge, and every rule below exists because the honest
 answer differs from the convenient one:
 
-* a day the reconciler never touched is **unknown**, not unfilled — counting
-  its submissions as misses would fabricate a fill-rate denominator;
+* a day with no ``reconciled_at`` anywhere is NOT provably unreconciled — the
+  reconciler stamps only records whose entry filled — so dropping such days
+  would remove misses only and inflate the fill rate; that is an explicit
+  operator choice, never a default;
 * ``submit_failed`` never reached the market at all;
-* a stop exit has no limit reference, so it is a fee-only leg;
+* a stop exit has no limit reference, so it is a fee-only leg, while a
+  take-profit exit carries one and is measured;
+* an action the adapter was not taught is refused, never silently dropped;
 * the direction is derived from the bracket and **refused** when the bracket
   does not describe a long, rather than assumed.
 """
@@ -100,32 +104,6 @@ def test_an_unfilled_submission_on_a_reconciled_day_is_a_missed_entry(
 
     _legs, n_entry_orders, n_entry_filled = extract_leg_costs(sessions)
     assert (n_entry_orders, n_entry_filled) == (2, 1)
-
-
-def test_a_day_the_reconciler_never_touched_is_skipped_not_counted_as_missed(
-    tmp_path: Path,
-) -> None:
-    """Unknown is not unfilled: no reconciliation evidence, no denominator."""
-    path = _write(
-        tmp_path,
-        "incubation_2026-07-07.jsonl",
-        [
-            _row(
-                action="paper_submitted",
-                intent_id=f"smc-X{i}-2026-07-07-port7497",
-                fill_price=None,
-                filled_shares=None,
-                reconciled_at=None,
-            )
-            for i in range(5)
-        ],
-    )
-
-    sessions, report = build_sessions(load_incubation_rows([path]))
-
-    assert sessions == []
-    assert report.sessions_skipped_unreconciled == 1
-    assert report.rows_skipped_unreconciled == 5
 
 
 def test_a_failed_submission_never_becomes_an_order(tmp_path: Path) -> None:
@@ -263,3 +241,119 @@ def test_every_order_ref_is_unique_across_a_session(tmp_path: Path) -> None:
         for order in placement["orders"]
     ]
     assert len(refs) == len(set(refs))
+
+
+def test_a_take_profit_exit_is_a_limit_bearing_leg(tmp_path: Path) -> None:
+    """`tp_hit` is what the reconciler writes when the winner closes.
+
+    It was silently dropped by the first cut — matching neither the submitted
+    nor the never-submitted vocabulary, so it vanished from the sessions AND
+    from the exclusion report, taking the fill-rate numerator with it. It is
+    also the only exit the estimator can measure slippage on (`-tp` is its one
+    limit-bearing exit suffix).
+    """
+    path = _write(
+        tmp_path,
+        "incubation_2026-07-13.jsonl",
+        [_row(action="tp_hit", close_price=219.0)],
+    )
+
+    sessions, report = build_sessions(load_incubation_rows([path]))
+
+    legs, n_entry_orders, n_entry_filled = extract_leg_costs(sessions)
+    exit_leg = next(leg for leg in legs if leg.order_ref.endswith("-tp"))
+    assert (n_entry_orders, n_entry_filled) == (1, 1)
+    assert exit_leg.side == "SLD"
+    assert exit_leg.limit_price == 220.0  # the take_profit the order carried
+    assert exit_leg.slippage_bps is not None
+    assert report.exit_fills == 1
+
+
+def test_an_action_it_does_not_know_is_refused_not_ignored(tmp_path: Path) -> None:
+    """A vocabulary the adapter has not been taught must never vanish."""
+    path = _write(tmp_path, "incubation_2026-07-13.jsonl", [_row(action="flattened")])
+
+    with pytest.raises(IncubationConversionError, match="unknown action"):
+        build_sessions(load_incubation_rows([path]))
+
+
+def test_days_without_fill_evidence_count_as_misses_by_default(tmp_path: Path) -> None:
+    """"No `reconciled_at`" does NOT mean "never reconciled".
+
+    The reconciler stamps only records whose ENTRY filled, so a day it
+    processed with zero fills is indistinguishable from a day it never saw.
+    Skipping such days silently removes only misses and inflates the fill
+    rate — the one bar the real data has to clear — so the default counts
+    them, and dropping them is an explicit operator choice.
+    """
+    rows = [
+        _row(
+            action="paper_submitted",
+            intent_id=f"smc-X{i}-2026-07-07-port7497",
+            ts="2026-07-07T13:28:06+00:00",
+            fill_price=None,
+            filled_shares=None,
+            reconciled_at=None,
+        )
+        for i in range(5)
+    ]
+    path = _write(tmp_path, "incubation_2026-07-07.jsonl", rows)
+
+    sessions, report = build_sessions(load_incubation_rows([path]))
+
+    _legs, n_entry_orders, n_entry_filled = extract_leg_costs(sessions)
+    assert (n_entry_orders, n_entry_filled) == (5, 0)
+    assert report.rows_without_fill_evidence == 5
+    assert report.sessions_skipped_unreconciled == 0
+
+    skipped_sessions, skipped_report = build_sessions(
+        load_incubation_rows([path]), unreconciled_days="skip"
+    )
+    assert skipped_sessions == []
+    assert skipped_report.sessions_skipped_unreconciled == 1
+
+
+def test_the_report_counts_what_it_actually_emitted(tmp_path: Path) -> None:
+    """The report is the published artefact; it must not drift from the data."""
+    path = _write(
+        tmp_path,
+        "incubation_2026-07-13.jsonl",
+        [
+            _row(intent_id="smc-A-2026-07-13-port7497"),
+            _row(action="tp_hit", intent_id="smc-B-2026-07-13-port7497", close_price=219.0),
+            _row(
+                action="paper_submitted",
+                intent_id="smc-C-2026-07-13-port7497",
+                fill_price=None,
+                filled_shares=None,
+                reconciled_at=None,
+            ),
+            _row(action="submit_failed", intent_id="smc-D-2026-07-13-port7497"),
+        ],
+    )
+
+    _sessions, report = build_sessions(load_incubation_rows([path]))
+
+    assert report.entry_orders == 3
+    assert report.entry_fills == 2
+    assert report.exit_fills == 1
+    assert report.rows_used == 3
+    assert report.rows_skipped_never_submitted == 1
+
+
+def test_a_fill_discloses_which_timestamp_it_carries(tmp_path: Path) -> None:
+    path = _write(tmp_path, "incubation_2026-07-13.jsonl", [_row()])
+
+    sessions, _report = build_sessions(load_incubation_rows([path]))
+
+    (fill,) = sessions[0]["supervisor"]["final"]["fills"]
+    assert fill["time"] == "2026-07-13T21:05:05+00:00"
+    assert fill["time_source"] == "reconciled_at"
+
+
+def test_a_ts_that_is_not_a_date_is_refused(tmp_path: Path) -> None:
+    """The session date becomes a filename; it never leaves its directory."""
+    path = _write(tmp_path, "incubation_bad.jsonl", [_row(ts="../../../etc/passwd")])
+
+    with pytest.raises(IncubationConversionError, match="session date"):
+        build_sessions(load_incubation_rows([path]))

@@ -326,26 +326,32 @@ def calibrate_costs(
         reasons.append("min_fill_samples")
     if fill_rate < min_fill_rate:
         reasons.append("min_fill_rate")
-    if point <= 0.0:
-        # A round-turn "cost" that pays you is not a cost. The §5 gate
-        # substitutes conservative_cost_bps for the flat default after
-        # checking only `measurable` and finiteness, so a negative figure
-        # would enter E[PnL] as a credit and flatter every candidate. It
-        # means the limit reference does not describe the intended execution
-        # price (measured 2026-08-05: the C8 ledger's limits are signal
-        # levels, so its fills "improve" by the size of the opening gap),
-        # which is a modelling question for a human, not a bar to clear.
-        reasons.append("non_positive_cost")
-    measurable = not reasons
 
-    if measurable:
+    if reasons:
+        # Too thin to bound: the CI would be meaningless, so do not compute it.
+        ci_low, ci_high = 0.0, 0.0
+    else:
         rng = random.Random(seed)
         ci_low_side, ci_high_side = _bootstrap_mean_ci(
             per_side, n_bootstrap=n_bootstrap, rng=rng
         )
         ci_low, ci_high = 2.0 * ci_low_side, 2.0 * ci_high_side
-    else:
-        ci_low, ci_high = 0.0, 0.0
+        if ci_high <= 0.0:
+            # A round-turn "cost" that pays you is not a cost. The §5 gate
+            # substitutes conservative_cost_bps — this CI HIGH, not the point
+            # estimate — for the flat default after checking only `measurable`
+            # and finiteness, so a non-positive bound would enter E[PnL] as a
+            # credit and flatter every candidate. Judging the point estimate
+            # instead would also discard usable calibrations whose mean merely
+            # dips below zero, which marketable limits do routinely.
+            #
+            # A whole sample above zero means the limit reference does not
+            # describe the intended execution price (measured 2026-08-05: the
+            # C8 ledger's limits are signal LEVELS, so its fills "improve" by
+            # the opening gap) — a modelling question for a human, not a bar.
+            reasons.append("non_positive_cost")
+            ci_low, ci_high = 0.0, 0.0
+    measurable = not reasons
 
     return CostCalibration(
         n_sessions=len(sessions),

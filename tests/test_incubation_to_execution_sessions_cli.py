@@ -54,25 +54,50 @@ def test_it_writes_one_session_file_per_trading_day(tmp_path: Path) -> None:
 def test_the_report_names_what_was_excluded(tmp_path: Path) -> None:
     ledger = _write(
         tmp_path,
-        "incubation_2026-07-07.jsonl",
+        "incubation_2026-07-16.jsonl",
         [
+            _row(ts="2026-07-16T13:28:06+00:00"),
             _row(
-                action="paper_submitted",
-                ts="2026-07-07T13:28:06+00:00",
+                action="submit_failed",
+                intent_id="smc-AMD-2026-07-16-port7497",
+                ts="2026-07-16T13:28:06+00:00",
                 fill_price=None,
                 filled_shares=None,
                 reconciled_at=None,
-            )
+            ),
+            _row(
+                action="paper_submitted",
+                intent_id="smc-META-2026-07-16-port7497",
+                ts="2026-07-16T13:28:06+00:00",
+                fill_price=None,
+                filled_shares=None,
+                reconciled_at=None,
+            ),
         ],
     )
     report_path = tmp_path / "report.json"
 
     rc = main([str(ledger), "--out-dir", str(tmp_path / "s"), "--report", str(report_path)])
 
-    assert rc == 2, "nothing usable must not look like success"
+    assert rc == 0
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["sessions_skipped_unreconciled"] == 1
-    assert report["skipped_session_dates"] == ["2026-07-07"]
+    assert report["rows_skipped_never_submitted"] == 1
+    assert report["rows_without_fill_evidence"] == 1
+    assert report["entry_orders"] == 2
+    assert report["entry_fills"] == 1
+    assert report["unreconciled_days"] == "count"
+
+
+def test_nothing_usable_does_not_look_like_success(tmp_path: Path) -> None:
+    ledger = _write(
+        tmp_path,
+        "incubation_2026-07-16.jsonl",
+        [_row(action="submit_failed", fill_price=None, filled_shares=None, reconciled_at=None)],
+    )
+
+    rc = main([str(ledger), "--out-dir", str(tmp_path / "s")])
+
+    assert rc == 2
 
 
 def test_a_row_it_cannot_convert_fails_loudly(
@@ -114,3 +139,65 @@ def test_the_written_sessions_feed_the_calibrator(tmp_path: Path) -> None:
     assert calibration.fill_rate == 1.0
     assert calibration.measurable is True
     assert calibration.round_turn_cost_bps > 0  # commission is never free
+
+
+def test_stale_session_files_do_not_survive_a_rerun(tmp_path: Path) -> None:
+    """The documented consumer globs the out-dir; leftovers get re-pooled."""
+    out_dir = tmp_path / "sessions"
+    out_dir.mkdir()
+    (out_dir / "execution_session_2020-01-01.json").write_text("{}", encoding="utf-8")
+    ledger = _write(tmp_path, "incubation_2026-07-13.jsonl", [_row()])
+
+    rc = main([str(ledger), "--out-dir", str(out_dir), "--report", str(tmp_path / "r.json")])
+
+    assert rc == 0
+    assert sorted(p.name for p in out_dir.glob("*.json")) == [
+        "execution_session_2026-07-13.json"
+    ]
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert report["stale_files_removed"] == 1
+
+
+def test_a_non_numeric_ledger_value_is_an_error_not_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ledger = _write(tmp_path, "incubation_2026-07-13.jsonl", [_row(entry_price="n/a")])
+
+    rc = main([str(ledger), "--out-dir", str(tmp_path / "s")])
+
+    assert rc == 1
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_skipping_unreconciled_days_is_opt_in_and_recorded(tmp_path: Path) -> None:
+    ledger = _write(
+        tmp_path,
+        "incubation_2026-07-07.jsonl",
+        [
+            _row(
+                action="paper_submitted",
+                ts="2026-07-07T13:28:06+00:00",
+                fill_price=None,
+                filled_shares=None,
+                reconciled_at=None,
+            )
+        ],
+    )
+    report_path = tmp_path / "report.json"
+
+    rc = main(
+        [
+            str(ledger),
+            "--out-dir",
+            str(tmp_path / "s"),
+            "--report",
+            str(report_path),
+            "--unreconciled-days",
+            "skip",
+        ]
+    )
+
+    assert rc == 2
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["unreconciled_days"] == "skip"
+    assert report["skipped_session_dates"] == ["2026-07-07"]

@@ -424,3 +424,28 @@ def test_a_cost_that_pays_you_is_not_measurable():
     assert cal.measurable is False
     assert "non_positive_cost" in cal.fail_reasons
     assert cal.conservative_cost_bps == 0.0
+
+
+def test_the_guard_judges_the_figure_the_gate_would_actually_use():
+    """It is ``conservative_cost_bps`` (the CI high) that reaches the gate.
+
+    Rejecting on the point estimate would throw away a perfectly usable
+    conservative bound whenever the mean sits just below zero — ordinary for
+    marketable limits, where price improvement can slightly exceed a small
+    commission. The fail-closed intent is that no CREDIT reaches E[PnL]; a
+    positive upper bound is not a credit.
+    """
+    orders, fills = [], []
+    for i in range(MIN_FILL_SAMPLES + 10):
+        ref = f"M{i}-entry"
+        orders.append(_order(ref, lmt=200.0))
+        # Half capture a little improvement, half pay a little: mean slightly
+        # negative, CI comfortably straddling zero.
+        price = 199.968 if i % 2 else 200.02
+        fills.append(_fill(ref, side="BOT", shares=500, price=price))
+    cal = calibrate_costs([_session(orders, fills)], n_bootstrap=400, seed=3)
+
+    assert cal.round_turn_cost_bps < 0, "the point estimate is negative"
+    assert cal.round_turn_ci_high > 0
+    assert cal.measurable is True
+    assert cal.conservative_cost_bps == cal.round_turn_ci_high
