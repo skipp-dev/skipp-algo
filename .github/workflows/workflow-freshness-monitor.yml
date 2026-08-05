@@ -97,7 +97,8 @@ jobs:
             sweep-trap-shadow-daily.yml=72:any:weekday \
             adr0023-magnitude-stage1-weekly.yml=192 \
             g23-ab-watchdog.yml=72:any:weekday \
-            smc-live-news-refresh.yml=72:weekday
+            smc-live-news-refresh.yml=72:weekday \
+            smc-r1-reattest.yml=72:any:weekday
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

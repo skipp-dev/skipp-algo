@@ -71,6 +71,12 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         "adr0023-magnitude-stage1-weekly.yml=192",
         "g23-ab-watchdog.yml=72:any:weekday",
         "smc-live-news-refresh.yml=72:weekday",
+        # The 12:07Z R1 re-attestation proposer (#4454). `:any` because a
+        # correct no-op day (pin already at published) and a refused downgrade
+        # both end the run without a "success we'd count" -- what must never
+        # happen silently is the cron NOT FIRING, which is exactly the failure
+        # mode this monitor exists for (post-mortem #2415).
+        "smc-r1-reattest.yml=72:any:weekday",
     ]
     for spec in must_monitor:
         assert spec in text, f"freshness monitor is no longer probing {spec}"
