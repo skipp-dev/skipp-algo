@@ -38,9 +38,13 @@ def _pine_squeeze(bars: list[dict[str, Any]], length: int = 20) -> bool | None:
     bb_dev = pop_std * 2.0
     bb_upper, bb_lower = bb_basis + bb_dev, bb_basis - bb_dev
 
-    alpha_ema = 2.0 / (length + 1)  # Pine ta.ema, seed = first value
-    ema = closes[0]
-    for c in closes[1:]:
+    # Pine ta.ema, seed = SMA of first `length` (pine_ema: na(sum[1]) ?
+    # ta.sma(src, length) : ...). Until 2026-08-05 this transcription used
+    # closes[0] — the SAME wrong seed as the implementation it claims to check
+    # independently, which made the whole file a mirror instead of a gate.
+    alpha_ema = 2.0 / (length + 1)
+    ema = sum(closes[:length]) / length
+    for c in closes[length:]:
         ema = alpha_ema * c + (1.0 - alpha_ema) * ema
 
     trs: list[float] = []
@@ -85,13 +89,16 @@ def _old_width_squeeze(bars: list[dict[str, Any]], length: int = 20) -> bool | N
 # squeeze threshold, where the estimator + centre differences flip the result:
 # the pre-fix width method reports False while Pine reports True.
 _SERIES = {
-    "uptrend": ([100.0 + i * 0.5 for i in range(40)], 1.0),
-    "downtrend": ([140.0 - i * 0.5 for i in range(40)], 1.0),
-    "tight_range": ([100.0 + 0.15 * ((i % 4) - 1.5) for i in range(40)], 1.0),
-    "expanding": ([100.0 + (i - 20) * 0.05 * i for i in range(40)], 1.0),
-    "gap": ([100.0 + i * 0.1 for i in range(20)] + [110.0 + i * 0.1 for i in range(20)], 1.0),
-    "boundary_a": ([100.0 + i * 0.10 + 0.20 * ((i % 3) - 1) for i in range(40)], 0.4),
-    "boundary_b": ([100.0 + i * 0.14 + 0.60 * ((i % 3) - 1) for i in range(40)], 0.4),
+    "uptrend": ([100.0 + i * 0.5 for i in range(120)], 1.0),
+    "downtrend": ([140.0 - i * 0.5 for i in range(120)], 1.0),
+    "tight_range": ([100.0 + 0.15 * ((i % 4) - 1.5) for i in range(120)], 1.0),
+    "expanding": ([100.0 + (i - 20) * 0.05 * i for i in range(120)], 1.0),
+    "gap": ([100.0 + i * 0.1 for i in range(60)] + [110.0 + i * 0.1 for i in range(60)], 1.0),
+    # 2026-08-05: re-tuned for the warmed series length. The old (slope,
+    # jitter) pairs were fitted to 40 bars, where ta.ema/ta.atr had not
+    # warmed up; at 120 bars they no longer sit on the containment edge.
+    "boundary_a": ([100.0 + i * 0.10 + 0.10 * ((i % 3) - 1) for i in range(120)], 0.4),
+    "boundary_b": ([100.0 + i * 0.10 + 0.15 * ((i % 3) - 1) for i in range(120)], 0.4),
 }
 
 

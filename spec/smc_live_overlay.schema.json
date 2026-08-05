@@ -124,7 +124,7 @@
       "minimum": 0
     },
     "squeeze_on": {
-      "description": "B1. Volatility-squeeze flag from a price-volatility read (Bollinger-band width < Keltner-channel width; no volume input) (1=on, 0=off). Null when not served fresh.",
+      "description": "B1. Volatility-squeeze flag from a price-volatility read: the Bollinger Bands sit FULLY INSIDE the Keltner Channel (Pine _sqOn: bbLower > kcLower and bbUpper < kcUpper), not a bare width comparison — the BB centre (SMA) and KC centre (EMA) differ, so equal widths do not imply the same channel. No volume input. (1=on, 0=off). Null when not served fresh, or when the cached history is too short for the Keltner half to warm up (ta.ema/ta.atr are recursive).",
       "type": [
         "integer",
         "null"

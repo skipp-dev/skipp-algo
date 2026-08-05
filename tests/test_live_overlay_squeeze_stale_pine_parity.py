@@ -32,7 +32,8 @@ def test_kc_mult_is_pine_1_5_not_1_0() -> None:
     """A window whose BB width sits between the old KC (2xATR) and the Pine KC
     (3xATR) must now read as a squeeze.
 
-    20 bars, close ramps by 0.2/bar (step <= intrabar range so True Range ==
+    120 bars (warmed; the per-bar shape is uniform so the
+    arithmetic below is unchanged), close ramps by 0.2/bar (step <= intrabar range so True Range ==
     high-low == 2.0 for every bar), high=close+1, low=close-1.
       ATR_true = 2.0
       BB width = 4 * stdev(close) = 4 * 0.2 * 5.9161 = 4.733
@@ -41,7 +42,7 @@ def test_kc_mult_is_pine_1_5_not_1_0() -> None:
     """
     bars = [
         {"close": i * 0.2, "high": i * 0.2 + 1.0, "low": i * 0.2 - 1.0}
-        for i in range(20)
+        for i in range(120)
     ]
     assert compute.compute_squeeze_on(bars, period=20) is True
 
@@ -60,7 +61,7 @@ def test_true_range_uses_prior_close_gap() -> None:
             "high": (100.0 if i % 2 == 0 else 110.0) + 0.1,
             "low": (100.0 if i % 2 == 0 else 110.0) - 0.1,
         }
-        for i in range(20)
+        for i in range(120)
     ]
     assert compute.compute_squeeze_on(bars, period=20) is True
 
@@ -75,7 +76,7 @@ def test_wide_bb_still_not_squeeze_under_pine_kc() -> None:
             "high": 100.0 + (30.0 if i % 2 == 0 else -30.0) + 0.05,
             "low": 100.0 + (30.0 if i % 2 == 0 else -30.0) - 0.05,
         }
-        for i in range(20)
+        for i in range(120)
     ]
     # BB width = 4*stdev(~30) ~= 123; ATR_true ~= 60 -> KC ~= 180? check margin.
     # Intrabar 0.1, gaps 60 -> TR ~= 60.1, KC = 3*60 = 180 > 123 -> True.

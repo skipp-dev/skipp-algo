@@ -987,12 +987,28 @@ def _population_std(vals: list[float]) -> float:
 
 
 def _ema_last(vals: list[float], length: int) -> float | None:
-    """Last value of Pine ``ta.ema``: seed = first value, alpha = 2/(length+1)."""
+    """Last value of Pine ``ta.ema``: seed = SMA of first ``length``, alpha = 2/(length+1).
+
+    Pine's own reference implementation seeds with the SMA, not the first bar::
+
+        sum := na(sum[1]) ? ta.sma(src, length) : alpha*src + (1-alpha)*nz(sum[1])
+
+    Until 2026-08-05 this used ``vals[0]`` and its docstring asserted that WAS
+    Pine's convention. With the 20 samples the daemon had, that left 14.9 % of
+    the Keltner centre on the seed bar and suppressed squeezes Pine would fire
+    (the divergence is one-sided). ``open_prep/technical_analysis._ema`` had
+    already corrected the identical defect (eval-findings B7, 2026-06-11).
+
+    Fewer than ``length`` values yields the mean of what exists — the SMA seed
+    over the available window, matching that sibling implementation.
+    """
     if not vals:
         return None
+    if len(vals) <= length:
+        return sum(vals) / len(vals)
     alpha = 2.0 / (length + 1)
-    ema = vals[0]
-    for v in vals[1:]:
+    ema = sum(vals[:length]) / length
+    for v in vals[length:]:
         ema = alpha * v + (1.0 - alpha) * ema
     return ema
 
@@ -1056,17 +1072,29 @@ _TF_TO_MINUTES: dict[str, int] = {
     "4H": 240,
 }
 
-# Raw 1-minute history required to make a 20-bar rolling window available.
-# The RTH-anchored hourly views retain enough liquid extended-session minutes
-# to span the required number of regular sessions instead of assuming that
-# every cached minute contributes to an RTH candle.
+# Recursion warm-up for the Keltner half of compute_squeeze_on. Pine computes
+# ta.ema and ta.atr over the whole chart; the daemon only has what it cached,
+# and the seed's weight decays as (1-alpha)**n — 47 steps for the EMA
+# (alpha=2/21) and 90 for the Wilder RMA (alpha=1/20) to fall under 1 %.
+# Until 2026-08-05 the table below provisioned exactly `period`, i.e. ZERO
+# warm-up: the RMA ran no recursion at all (a plain mean of true ranges) and
+# 14.9 % of the Keltner centre came from the seed bar.
+_SQUEEZE_MIN_WARMUP_BARS = 47
+
+# Raw 1-minute history required to make a 20-bar rolling window available WITH
+# that warm-up. The RTH-anchored hourly views retain enough liquid
+# extended-session minutes to span the required number of regular sessions
+# instead of assuming that every cached minute contributes to an RTH candle.
+# 4H stays at the cache's hard per-symbol bound (cache._MAX_EXPANDED_BAR_CAP);
+# a warmed 4H squeeze is simply not reachable within it, so compute_squeeze_on
+# reports null there rather than a mis-warmed boolean.
 _TF_RAW_BAR_REQUIREMENTS: dict[str, int] = {
-    "1m": 20,
-    "5m": 100,
-    "10m": 200,
-    "15m": 300,
-    "30m": 600,
-    "1H": 2_880,
+    "1m": 120,
+    "5m": 600,
+    "10m": 1_200,
+    "15m": 1_800,
+    "30m": 3_600,
+    "1H": 9_600,
     "4H": 9_600,
 }
 
@@ -1316,7 +1344,12 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
             continue
         triples.append((close, high, low))
 
-    if len(triples) < period:
+    # Fail closed on too little history. The Bollinger half needs `period`
+    # bars, but the Keltner half is RECURSIVE: without warm-up its ATR is a
+    # plain mean of true ranges and its centre carries the seed bar. A null
+    # here means "no verdict", which the wire contract already allows;
+    # a mis-warmed boolean would be a wrong verdict.
+    if len(triples) < period + _SQUEEZE_MIN_WARMUP_BARS:
         return None
 
     closes_all = [t[0] for t in triples]
