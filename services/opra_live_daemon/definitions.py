@@ -12,6 +12,10 @@ from newsstack_fmp.opra_uoa import OpraDefinitionRecord
 
 _MAX_LOOKBACK_DAYS = 7
 
+# Consecutive failures past which counting stops: 2**32 * any sane base delay
+# is far beyond the cap already, and the doubling overflows around 1024.
+_MAX_TRACKED_FAILURES = 32
+
 
 @dataclass
 class BootstrapPlanner:
@@ -41,6 +45,17 @@ class BootstrapPlanner:
         grown = self.retry_seconds * 2.0 ** (self._consecutive_failures - 1)
         return min(grown, self.max_retry_seconds)
 
+    def _bounded(self, failures: int) -> int:
+        """Stop counting failures long after the delay has hit its cap.
+
+        Unbounded counting overflows the doubling: at ~1025 consecutive
+        failures ``2.0 ** 1024`` raises OverflowError out of ``due()``, which
+        runs OUTSIDE the caller's try — the feed would mistake it for a
+        connection fault and churn reconnects forever, never bootstrapping
+        again. Ten days of continuous failure reaches that count.
+        """
+        return min(failures, _MAX_TRACKED_FAILURES)
+
     def due(self, now: float, *, session_date: str | None, definition_count: int) -> bool:
         """True when a bootstrap attempt should run at *now*."""
         rolled = (
@@ -62,7 +77,7 @@ class BootstrapPlanner:
             self._satisfied = True
             self._satisfied_session = session_date
         else:
-            self._consecutive_failures += 1
+            self._consecutive_failures = self._bounded(self._consecutive_failures + 1)
             self._satisfied = False
 
 

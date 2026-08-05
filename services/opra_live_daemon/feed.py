@@ -101,9 +101,10 @@ def _bootstrap_if_due(
 ) -> bool:
     """Run one bootstrap attempt when the planner says it is owed; else no-op.
 
-    Returns whether an attempt ran. Called from the supervision loop, which
-    tolerates the blocking HTTP range request: records arrive on the session's
-    own thread and never wait on this one.
+    Returns whether an attempt ran. Runs on its own thread (see
+    :func:`_bootstrap_loop`) because the range request has no overall deadline:
+    databento's per-read timeout is 100 s and the client retries three times,
+    so a gateway outage blocks the caller for ~10 minutes.
     """
     session = state.session_date or datetime.now(UTC).date().isoformat()
     if not planner.due(
@@ -129,11 +130,49 @@ def _bootstrap_if_due(
             "OPRA definition bootstrap failed; live updates remain active, retrying",
             exc_info=True,
         )
+    # Success means state HOLDS definitions, not that the provider returned
+    # rows: `add_definition` silently drops anything whose underlying is not in
+    # the hotlist, so counting returned rows would let a schema drift (empty
+    # `underlying` -> every row rejected) look like success. That would reset
+    # the backoff on every attempt while the daemon stays at zero definitions —
+    # a permanent 30 s poll the growing delay could never engage against.
+    #
     # The session captured BEFORE the request is what this attempt satisfied:
     # if the UTC day rolled while it ran, state cleared what we just loaded and
     # the new session is still owed a bootstrap.
-    planner.record_attempt(time.monotonic(), ok=loaded > 0, session_date=session)
+    planner.record_attempt(
+        time.monotonic(),
+        ok=loaded > 0 and state.definition_count > 0,
+        session_date=session,
+    )
     return True
+
+
+def _bootstrap_loop(
+    planner: BootstrapPlanner,
+    make_provider: Any,
+    state: OpraShadowState,
+    stop: threading.Event,
+    *,
+    tick: float,
+) -> None:
+    """Own thread for the bootstrap retries; the supervision loop must not block.
+
+    The range request can hold its caller for ~10 minutes during a gateway
+    outage (100 s read timeout x 3 client attempts). On the supervision thread
+    that would stop ``client.is_connected()`` from being polled for the whole
+    window — a dropped session would go unnoticed, and every record in it lost,
+    exactly while the daemon is already degraded. The hotlist is re-read here
+    rather than captured so a resubscribe bootstraps the new symbols.
+    """
+    while not stop.is_set():
+        _bootstrap_if_due(
+            planner,
+            make_provider,
+            state,
+            symbols=_parent_symbols(tuple(sorted(state.hotlist))),
+        )
+        stop.wait(tick)
 
 
 def _hotlist_changed(config: Config, state: OpraShadowState) -> bool:
@@ -204,6 +243,7 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
 
     db = _import_databento()
     symbols = _parent_symbols(tuple(sorted(state.hotlist)))
+
     def make_provider() -> Any:
         return DabentoProvider(config.api_key)
 
@@ -211,7 +251,17 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
         retry_seconds=_BOOTSTRAP_RETRY_SECONDS,
         max_retry_seconds=_BOOTSTRAP_MAX_RETRY_SECONDS,
     )
+    # First attempt before connecting, as it always was: definitions ahead of
+    # records. Every retry after it belongs to its own thread.
     _bootstrap_if_due(planner, make_provider, state, symbols=symbols)
+    bootstrapper = threading.Thread(
+        target=_bootstrap_loop,
+        args=(planner, make_provider, state, stop),
+        kwargs={"tick": _WAIT_TICK_SECONDS},
+        name="opra-definition-bootstrap",
+        daemon=True,
+    )
+    bootstrapper.start()
 
     failures = 0
     while not stop.is_set():
@@ -295,7 +345,6 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
                 if _hotlist_changed(config, state):
                     logger.info("OPRA hotlist changed; reconnecting subscriptions")
                     break
-                _bootstrap_if_due(planner, make_provider, state, symbols=symbols)
                 stop.wait(_WAIT_TICK_SECONDS)
         except Exception:
             failures += 1
