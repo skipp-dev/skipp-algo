@@ -124,6 +124,19 @@ def _require_long(row: dict[str, Any]) -> None:
         )
 
 
+def _fill_time(row: dict[str, Any]) -> tuple[Any, str]:
+    """The fill's timestamp and which ledger field it came from.
+
+    ``reconciled_at`` is when the reconciler observed the fill; ``ts`` is when
+    the intent was submitted. They are different events, so the source is
+    disclosed rather than collapsed into one anonymous value.
+    """
+    reconciled = row.get("reconciled_at")
+    if reconciled is not None:
+        return reconciled, "reconciled_at"
+    return row.get("ts"), "submitted_ts"
+
+
 def _positive(value: Any, *, field_name: str, intent: Any) -> float:
     if value is None:
         raise IncubationConversionError(f"{intent!r}: missing {field_name}")
@@ -188,6 +201,7 @@ def build_sessions(
                 shares = _positive(
                     row.get("filled_shares"), field_name="filled_shares", intent=intent
                 )
+                fill_time, fill_time_source = _fill_time(row)
                 fills.append(
                     {
                         "order_ref": entry_ref,
@@ -196,7 +210,8 @@ def build_sessions(
                         "side": "BOT",
                         "shares": shares,
                         "price": price,
-                        "time": row.get("reconciled_at") or row.get("ts"),
+                        "time": fill_time,
+                        "time_source": fill_time_source,
                     }
                 )
                 report.entry_fills += 1
@@ -219,7 +234,8 @@ def build_sessions(
                             "side": "SLD",
                             "shares": shares,
                             "price": close,
-                            "time": row.get("reconciled_at") or row.get("ts"),
+                            "time": fill_time,
+                            "time_source": fill_time_source,
                         }
                     )
                     report.exit_fills += 1
