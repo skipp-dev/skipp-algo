@@ -36,20 +36,32 @@ wrapper lives in ``scripts/incubation_to_execution_sessions.py``.
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
-# Ledger actions that mean an order really went to the broker.
-_SUBMITTED_ACTIONS = frozenset({"paper_submitted", "filled", "stop_hit"})
-# Ledger actions the reconciler writes only after it has seen a fill.
-_FILLED_ACTIONS = frozenset({"filled", "stop_hit"})
+# Ledger actions that mean an order really went to the broker. `tp_hit` and
+# `stop_hit` are what reconcile_incubation_fills writes when the take-profit
+# or the stop/trail leg fills (_EXIT_LEG_ACTIONS there).
+_SUBMITTED_ACTIONS = frozenset({"paper_submitted", "filled", "stop_hit", "tp_hit"})
+# Ledger actions the reconciler writes only after it has seen an entry fill.
+_FILLED_ACTIONS = frozenset({"filled", "stop_hit", "tp_hit"})
 # Ledger actions where no order ever reached the market.
 _NEVER_SUBMITTED_ACTIONS = frozenset({"submit_failed", "audit_only"})
 
+# Order-ref suffixes as scripts/execute_ibkr_watchlist.py assigns them; the
+# estimator reads `-entry` and `-tp` as limit-bearing and everything else as
+# fee-only.
 ENTRY_REF_SUFFIX = "-entry"
-STOP_REF_SUFFIX = "-stop"
+# Exit action -> (ref suffix, whether the exit order carried a limit level).
+_EXIT_LEGS: Final = {
+    "tp_hit": ("-tp", "take_profit"),
+    "stop_hit": ("-sl", None),
+}
+
+_SESSION_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 class IncubationConversionError(ValueError):
@@ -68,6 +80,7 @@ class ConversionReport:
     sessions_skipped_unreconciled: int = 0
     rows_skipped_unreconciled: int = 0
     rows_skipped_never_submitted: int = 0
+    rows_without_fill_evidence: int = 0
     skipped_session_dates: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> dict[str, Any]:
@@ -80,6 +93,7 @@ class ConversionReport:
             "sessions_skipped_unreconciled": self.sessions_skipped_unreconciled,
             "rows_skipped_unreconciled": self.rows_skipped_unreconciled,
             "rows_skipped_never_submitted": self.rows_skipped_never_submitted,
+            "rows_without_fill_evidence": self.rows_without_fill_evidence,
             "skipped_session_dates": list(self.skipped_session_dates),
         }
 
@@ -103,10 +117,18 @@ def load_incubation_rows(paths: list[Path] | list[str]) -> list[dict[str, Any]]:
 
 
 def _session_date(row: dict[str, Any]) -> str:
+    """The trading day this row belongs to, validated.
+
+    It becomes a filename in the CLI, so anything that is not a plain ISO date
+    is refused rather than written somewhere unexpected.
+    """
     ts = str(row.get("ts") or "")
-    if len(ts) < 10:
-        raise IncubationConversionError(f"row without a usable ts: {row.get('intent_id')!r}")
-    return ts[:10]
+    candidate = ts[:10]
+    if not _SESSION_DATE_RE.fullmatch(candidate):
+        raise IncubationConversionError(
+            f"{row.get('intent_id')!r}: session date not derivable from ts {ts!r}"
+        )
+    return candidate
 
 
 def _require_long(row: dict[str, Any]) -> None:
@@ -148,6 +170,8 @@ def _positive(value: Any, *, field_name: str, intent: Any) -> float:
 
 def build_sessions(
     rows: list[dict[str, Any]],
+    *,
+    unreconciled_days: str = "count",
 ) -> tuple[list[dict[str, Any]], ConversionReport]:
     """Group *rows* into one execution session per trading day.
 
@@ -165,17 +189,29 @@ def build_sessions(
 
     for session_date in sorted(by_day):
         day_rows = by_day[session_date]
+        for row in day_rows:
+            action = row.get("action")
+            if action not in _SUBMITTED_ACTIONS and action not in _NEVER_SUBMITTED_ACTIONS:
+                raise IncubationConversionError(
+                    f"{row.get('intent_id')!r}: unknown action {action!r}; "
+                    "teach the adapter rather than letting the row vanish"
+                )
         market_rows = [r for r in day_rows if r.get("action") in _SUBMITTED_ACTIONS]
         report.rows_skipped_never_submitted += sum(
             1 for r in day_rows if r.get("action") in _NEVER_SUBMITTED_ACTIONS
         )
         if not market_rows:
             continue
-        # Reconciliation evidence is per DAY, because the reconciler stamps
-        # only the rows it resolved: a day with no stamp at all was never
-        # reconciled, so its submissions have an UNKNOWN outcome — not a
-        # missed fill. Dropping them keeps the fill rate honest.
-        if not any(r.get("reconciled_at") for r in market_rows):
+        report.rows_without_fill_evidence += sum(
+            1 for r in market_rows if not r.get("reconciled_at")
+        )
+        # A day with no `reconciled_at` anywhere is NOT provably unreconciled:
+        # reconcile_incubation_fills stamps the field only inside its entry-fill
+        # branch, so a day it processed with zero fills looks exactly the same
+        # as a day it never saw. Dropping such days would remove misses only —
+        # and the fill rate is the bar the real data has to clear — so the
+        # default counts them and skipping is the operator's explicit call.
+        if unreconciled_days == "skip" and not any(r.get("reconciled_at") for r in market_rows):
             report.sessions_skipped_unreconciled += 1
             report.rows_skipped_unreconciled += len(market_rows)
             skipped_dates.append(session_date)
@@ -216,20 +252,27 @@ def build_sessions(
                 )
                 report.entry_fills += 1
 
-                if row.get("action") == "stop_hit":
-                    # A stop exit fills at the market, with no limit level to
-                    # measure against: fee-only by the estimator's contract
-                    # (no lmt_price, and the ref is not one of its limit-
-                    # bearing suffixes).
-                    stop_ref = f"{intent}{STOP_REF_SUFFIX}"
+                exit_leg = _EXIT_LEGS.get(str(row.get("action")))
+                if exit_leg is not None:
+                    # A stop fills at the market with no level to measure
+                    # against (fee-only by the estimator's contract); a
+                    # take-profit is a limit order, and `-tp` is the one exit
+                    # suffix the estimator measures slippage on.
+                    suffix, limit_field = exit_leg
+                    exit_ref = f"{intent}{suffix}"
                     close = _positive(
                         row.get("close_price"), field_name="close_price", intent=intent
                     )
-                    orders.append({"order_ref": stop_ref, "action": "SELL"})
+                    exit_order: dict[str, Any] = {"order_ref": exit_ref, "action": "SELL"}
+                    if limit_field is not None:
+                        exit_order["lmt_price"] = _positive(
+                            row.get(limit_field), field_name=limit_field, intent=intent
+                        )
+                    orders.append(exit_order)
                     fills.append(
                         {
-                            "order_ref": stop_ref,
-                            "perm_id": stop_ref,
+                            "order_ref": exit_ref,
+                            "perm_id": exit_ref,
                             "symbol": symbol,
                             "side": "SLD",
                             "shares": shares,
