@@ -23,6 +23,7 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
+from starlette.concurrency import run_in_threadpool
 
 from . import config, observability
 
@@ -522,8 +523,10 @@ def build_router(compare_token: TokenCompare) -> APIRouter:
             )
         ledger_path = _ledger_path()
         try:
-            contract = _load_contract(
-                config.hold_manager_shadow_contract_path()
+            # Off the event loop: stat + read + json.loads on every request.
+            # This coroutine shares its loop with /{token}/smc_live.
+            contract = await run_in_threadpool(
+                _load_contract, config.hold_manager_shadow_contract_path()
             )
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -534,7 +537,13 @@ def build_router(compare_token: TokenCompare) -> APIRouter:
         event_id = _event_id(payload)
         received_at = _canonical_time(now)
         try:
-            inserted = _persist(
+            # Off the event loop: sqlite3 connect + PRAGMA synchronous=FULL
+            # + BEGIN IMMEDIATE + commit is an fsync on the Railway volume,
+            # with a 5 s busy timeout under lock contention. Measured
+            # 2026-08-05: on the loop this pushed /smc_live median latency
+            # x9.4; the identical disk work threadpooled costs x2.0.
+            inserted = await run_in_threadpool(
+                _persist,
                 ledger_path,
                 payload,
                 event_id=event_id,
