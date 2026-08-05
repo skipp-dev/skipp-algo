@@ -4,8 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { authenticator } from "otplib";
-
 import { inspectTradingViewStorageState } from "../automation/tradingview/lib/tv_validation_model.js";
 import {
   acquireExclusiveFileLock,
@@ -15,6 +13,7 @@ import {
   resolveTradingViewHeadlessDefault,
   resolveTradingViewLaunchOptions,
   extractErrorLines,
+  generateTotpToken,
   isOtpEntryComplete,
   planOtpEntry,
   revealEmailLoginField,
@@ -207,7 +206,7 @@ async function assistTwoFactorSubmission(
     // error cannot make the polling loop submit the same code repeatedly.
     state.lastAttemptedStep = retry.step;
     try {
-      const token = authenticator.generate(totpSecret);
+      const token = generateTotpToken(totpSecret);
       const shapes = await codeFields.evaluateAll(
         (nodes) => nodes.map((node) => ({ maxLength: (node as HTMLInputElement).maxLength })),
       ).catch(() => [] as { maxLength: number }[]);
