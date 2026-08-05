@@ -98,6 +98,13 @@ _fatal_config_error = threading.Event()
 _SUPERVISOR_INTERVAL_SECS = 30.0
 _STALL_MAX_BAR_AGE_SECS = 180.0   # 3 min without a bar during RTH = stall
 _SELF_HEAL_MAX_ATTEMPTS = 3
+# After a heal the feed CANNOT clear the stall for _RECONNECT_DELAY_SECS (to
+# reconnect) plus up to one full ohlcv-1m interval (Databento emits at minute
+# close), because `stalled` is derived from bar recency. Re-breaking inside
+# that window destroys the very recovery the heal started — measured
+# 2026-08-05: a single transient stall escalated to os._exit(1) whenever the
+# first bar landed >20 s after the reconnect, i.e. ~2 times in 3.
+_POST_HEAL_GRACE_SECS = _RECONNECT_DELAY_SECS + 60.0 + 15.0
 
 
 # ---------------------------------------------------------------------------
@@ -603,6 +610,7 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
         escalates to a process restart.
     """
     heal_attempts = 0
+    last_heal_at = 0.0
     while not stop.wait(_SUPERVISOR_INTERVAL_SECS):
         if _fatal_config_error.is_set():
             logger.critical(
@@ -625,6 +633,23 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         if all(workers.values()) and not stalled:
             heal_attempts = 0
+            last_heal_at = 0.0
+            continue
+
+        # Wait out a recovery we started ourselves. The heal counter is NOT
+        # reset here: a feed that stays stalled past the grace window still
+        # walks up to _SELF_HEAL_MAX_ATTEMPTS and escalates, just later.
+        if (
+            stalled
+            and all(workers.values())
+            and last_heal_at > 0.0
+            and (time.monotonic() - last_heal_at) < _POST_HEAL_GRACE_SECS
+        ):
+            logger.info(
+                "Supervisor: stall persists %.0fs into the post-heal grace "
+                "window (%.0fs) — the feed is still reconnecting, not re-breaking.",
+                time.monotonic() - last_heal_at, _POST_HEAL_GRACE_SECS,
+            )
             continue
 
         heal_attempts += 1
@@ -645,6 +670,7 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
         if stalled:
             # Break the blocked iterator → feed loop enters its reconnect path.
             _supervisor_break_stalled_client()
+            last_heal_at = time.monotonic()
         if not all(workers.values()):
             if stop.is_set():
                 return
