@@ -86,8 +86,35 @@ class TestOverlayStructure:
         assert "overlay = true" in src
 
     def test_imports_library(self):
+        """The overlay is R1-attested, so it lags the published version by design.
+
+        2026-08-05: this asserted the *published* import line and failed on
+        `main` for a state the repo produces on purpose. #4435's hold step
+        freezes attested companions at their attested content -- an attested
+        source may only move together with new evidence, and evidence costs a
+        mutating TradingView session that a nine-per-weekday refresh cannot
+        carry. So the overlay sat on v183 while fourteen consumers went to v190.
+
+        Asserted instead: it imports that library at a version at or behind the
+        published one, never ahead. TradingView keeps every published version,
+        so the older pin resolves; a pin *ahead* of the publisher would not, and
+        no hold could explain it.
+        """
         src = _read(OVERLAY_PATH)
-        assert published_micro_profiles_import_line() in src
+        published = re.search(
+            r"/(\d+)\s+as\s+mp", published_micro_profiles_import_line()
+        )
+        assert published, "the published import line stopped carrying a version"
+        pinned = re.search(
+            r"^import preuss_steffen/smc_micro_profiles_generated/(\d+)\s+as\s+mp",
+            src,
+            re.MULTILINE,
+        )
+        assert pinned, "the overlay stopped importing smc_micro_profiles_generated"
+        assert int(pinned.group(1)) <= int(published.group(1)), (
+            f"overlay pins v{pinned.group(1)}, ahead of the published "
+            f"v{published.group(1)} -- a hold keeps it behind, never in front"
+        )
         assert "import preuss_steffen/smc_utils/4 as u" in src
 
     def test_bus_lean_pack_a_input(self):

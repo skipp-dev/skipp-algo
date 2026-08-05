@@ -91,6 +91,14 @@ def test_consumer_library_imports_pin_one_real_version() -> None:
     repin step read the generator manifest's HARDCODED `library_version: 1` and
     rewrote all imports back to the 2026-03 first publish. All consumers must
     pin the SAME version and never the stale-sentinel 1."""
+    from scripts.hold_r1_attested_sources import attested_paths
+
+    # R1-attested companions are held at their attested content by #4435's
+    # hold step and only move with a deliberate re-attestation PR, so they lag
+    # by design between a refresh and that PR. The stale-v1 half of this test
+    # still covers them: v1 is the 2026-03 sentinel the CE10272 incident wrote
+    # everywhere, and no evidence attests it.
+    attested = frozenset(Path(p).name for p in attested_paths())
     versions: dict[str, int] = {}
     for path in sorted(REPO_ROOT.glob(CONSUMER_PINE_GLOB)):
         match = _IMPORT_RE.search(path.read_text(encoding="utf-8"))
@@ -101,7 +109,12 @@ def test_consumer_library_imports_pin_one_real_version() -> None:
         f"consumers pinned to the stale v1 March library: "
         f"{[n for n, v in versions.items() if v == 1]}"
     )
-    assert len(set(versions.values())) == 1, f"consumers pin diverging library versions: {versions}"
+    unheld = {name: v for name, v in versions.items() if name not in attested}
+    assert unheld, "every consumer is attested -- the check below would be vacuous"
+    assert len(set(unheld.values())) == 1, (
+        f"consumers pin diverging library versions: {unheld} "
+        f"(attested and therefore exempt: {sorted(attested & versions.keys())})"
+    )
 
 
 def test_root_pine_shorttitles_within_tradingview_limit() -> None:
