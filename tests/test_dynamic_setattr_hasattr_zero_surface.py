@@ -91,7 +91,7 @@ DYNAMIC_SETATTR_ALLOWED: set[tuple[str, int]] = {
     ("terminal_live_story_state.py", 48),  # 2026-07-11: shifted 49->48 by #3416 cooldown-branch removal
     # 2026-07-11 (#3302): bounded write of trade_context() output keys onto the
     # signal object; keys come from a controlled ctx.items() dict, fail-soft.
-    ("open_prep/trade_context.py", 85),  # 2026-07-28 (ATR quality import/guard): 83->85
+    ("open_prep/trade_context.py", 98),  # 2026-07-28 (ATR quality import/guard): 83->85; 2026-08-05 (all-or-nothing bracket guard): 85->98
 }
 
 
