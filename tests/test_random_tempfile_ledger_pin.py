@@ -42,7 +42,7 @@ _DIR_EXCLUDE = frozenset({
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 117),  # retry-jitter; non-security  # 2026-07-27 (adoption note above): 111->117
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
-    ("services/opra_live_daemon/feed.py", 327),  # reconnect jitter; non-security. 257->275 (2026-08-04): control-sink routing added above (definition-sink outage fix). 275->327 (2026-08-05): bootstrap retry planner added above
+    ("services/opra_live_daemon/feed.py", 376),  # reconnect jitter; non-security. 257->275 (2026-08-04): control-sink routing added above (definition-sink outage fix). 275->327 (2026-08-05): bootstrap retry planner added above; 327->376 when the retry moved to its own thread
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
     ("governance/magnitude_resolution_gate.py", 204),
