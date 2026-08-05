@@ -293,13 +293,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 646->652, 745->751.
         # 2026-07-22 (F-3 VIX bounded retry): +1 constant, +18 poll lines shifted
         # every anchor: 235->254, 489->508, 652->671, 751->770.
-        ("services/live_overlay_daemon/feed.py", 254, ("_feed_connected_at",)),
+        ("services/live_overlay_daemon/feed.py", 261, ("_feed_connected_at",)),  # 2026-08-05 supervisor post-heal grace: 254->261
         # 2026-07-25 (fix/live-overlay-feed-stream-circuit): the recovery
         # comment is deliberately local to the iterator success boundary,
         # shifting these existing singleton anchors by three lines.
-        ("services/live_overlay_daemon/feed.py", 513, ("_last_bar_at",)),  # 2026-07-26 preserve TF history across feed restart: 511->513
-        ("services/live_overlay_daemon/feed.py", 676, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 674->676
-        ("services/live_overlay_daemon/feed.py", 775, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 773->775
+        ("services/live_overlay_daemon/feed.py", 520, ("_last_bar_at",)),  # 2026-07-26 preserve TF history across feed restart: 511->513; 2026-08-05 supervisor post-heal grace: 513->520
+        ("services/live_overlay_daemon/feed.py", 702, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 674->676; 2026-08-05 supervisor post-heal grace: 676->702
+        ("services/live_overlay_daemon/feed.py", 801, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-07-26 preserve TF history across feed restart: 773->775; 2026-08-05 supervisor post-heal grace: 775->801
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,
