@@ -150,6 +150,8 @@ _MONITORED_WORKFLOWS = (
     "adr0023-magnitude-stage1-weekly.yml",
     "g23-ab-watchdog.yml",
     "smc-live-news-refresh.yml",
+    # 12:07Z R1 re-attestation proposer (#4454) -- roster row added 2026-08-05.
+    "smc-r1-reattest.yml",
     "smc-measurement-benchmark-rolling.yml",
     # WS4a sweep-trap shadow eval — same silent-skip risk as the magnitude
     # shadow: if it stops running, the promotion evidence silently stops
