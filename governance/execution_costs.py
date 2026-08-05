@@ -326,6 +326,16 @@ def calibrate_costs(
         reasons.append("min_fill_samples")
     if fill_rate < min_fill_rate:
         reasons.append("min_fill_rate")
+    if point <= 0.0:
+        # A round-turn "cost" that pays you is not a cost. The §5 gate
+        # substitutes conservative_cost_bps for the flat default after
+        # checking only `measurable` and finiteness, so a negative figure
+        # would enter E[PnL] as a credit and flatter every candidate. It
+        # means the limit reference does not describe the intended execution
+        # price (measured 2026-08-05: the C8 ledger's limits are signal
+        # levels, so its fills "improve" by the size of the opening gap),
+        # which is a modelling question for a human, not a bar to clear.
+        reasons.append("non_positive_cost")
     measurable = not reasons
 
     if measurable:
