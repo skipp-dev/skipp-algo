@@ -17,8 +17,13 @@ from scripts import run_r1_reattestation
 from scripts.run_r1_reattestation import PENDING_GATES, _open_gates_literal, measure
 from tests.test_run_r1_reattestation_prepare import _skeleton
 
+# SAME day, deliberately: prepare -> merge -> dispatch -> measure within one
+# day is the NORMAL operator flow. The measure artifact carries a `-measure`
+# suffix precisely so this does not collide with prepare's artifact -- the
+# pre-fix driver aborted here and forced the operator to falsify --date.
 _PREPARE_DATE = "2026-08-05"
-_MEASURE_DATE = "2026-08-06"
+_MEASURE_DATE = "2026-08-05"
+_MEASURE_ARTIFACT = f"smc_r1_live_rollout_evidence_{_MEASURE_DATE}-measure.json"
 
 
 def _skeleton_after_pr1(tmp_path: Path) -> Path:
@@ -46,17 +51,42 @@ def test_green_runs_produce_an_executed_artifact(tmp_path: Path) -> None:
     )
     assert rc == 0
     artifact = json.loads(
-        (root / f"artifacts/governance/smc_r1_live_rollout_evidence_{_MEASURE_DATE}.json")
-        .read_text(encoding="utf-8")
+        (root / "artifacts" / "governance" / _MEASURE_ARTIFACT).read_text(encoding="utf-8")
     )
     assert artifact["executionState"] == "executed"
     assert {r["runId"] for r in artifact["evidenceRuns"]} == {"111", "222"}
     assert artifact["supersedes"].endswith(f"{_PREPARE_DATE}.json")
     assert artifact["openGates"] == []
+    # v2 sources dict: a green pair is what makes the readback hash equal the
+    # repository hash -- and the artifact must say HOW it knows (run-derived,
+    # not read back by this driver).
+    event = artifact["sources"]["SMC Event Overlay"]
+    assert event["savedSourceReadbackSha256"] == event["repositorySha256"]
+    assert event["compileStatus"] == "passed"
+    assert event["savedSourceReadbackRun"] == "222"
+    bindings = artifact["tradingView"]["bindings"]
+    assert bindings == {"status": "verified_by_run", "run": "222"}
     contract_text = (root / "scripts/smc_r1_rollout_contract.py").read_text(encoding="utf-8")
     assert "OPEN_GATES: Final = ()" in contract_text
-    assert f'{_MEASURE_DATE}.json"' in contract_text
-    assert f'{_PREPARE_DATE}.json"' in contract_text  # rotated into PRIOR_EXECUTION_EVIDENCE
+    assert f'{_MEASURE_ARTIFACT}"' in contract_text
+    # The checked-in contract JSON must be regenerated from the ROTATED module,
+    # or test_checked_in_rollout_contract_is_current goes red on exactly the
+    # PR2 tree this subcommand builds (re-review finding on the fix wave).
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "_pr2_contract", root / "scripts" / "smc_r1_rollout_contract.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    checked_in = json.loads(
+        (root / "artifacts/governance/smc_r1_live_rollout_contract.json")
+        .read_text(encoding="utf-8")
+    )
+    assert checked_in == module.build_rollout_contract()
+    assert checked_in["status"] == "authorized_execution_reattested"
+    # prepare's artifact rotated into PRIOR_EXECUTION_EVIDENCE:
+    assert f'smc_r1_live_rollout_evidence_{_PREPARE_DATE}.json"' in contract_text
     compile(contract_text, "contract", "exec")
 
 
@@ -76,15 +106,24 @@ def test_red_save_still_writes_an_artifact_but_stays_pending(tmp_path: Path) -> 
     )
     assert rc != 0
     artifact = json.loads(
-        (root / f"artifacts/governance/smc_r1_live_rollout_evidence_{_MEASURE_DATE}.json")
-        .read_text(encoding="utf-8")
+        (root / "artifacts" / "governance" / _MEASURE_ARTIFACT).read_text(encoding="utf-8")
     )
     assert artifact["executionState"] == "pending"
     assert "failure" in json.dumps(artifact["evidenceRuns"])
+    # The artifact's gate roster stays BOTH pending gates -- identical to the
+    # contract's untouched OPEN_GATES tuple, or the invariant
+    # OPEN_GATES == evidence.openGates - closedSince breaks on exactly this
+    # red-path PR2. WHICH run failed lives in evidenceRuns, not in the roster.
+    assert artifact["openGates"] == list(PENDING_GATES)
+    # Red pair: nothing about the live state is attested.
+    event = artifact["sources"]["SMC Event Overlay"]
+    assert event["savedSourceReadbackSha256"] is None
+    assert event["compileStatus"] == "pending"
+    assert artifact["tradingView"]["observed"] is False
     contract_text = (root / "scripts/smc_r1_rollout_contract.py").read_text(encoding="utf-8")
     assert "OPEN_GATES: Final = ()" not in contract_text, "rote Messung darf keine Gates schließen"
     # the contract's constants still rotate -- the failure itself is registered
-    assert f'{_MEASURE_DATE}.json"' in contract_text
+    assert f'{_MEASURE_ARTIFACT}"' in contract_text
 
 
 def test_incomplete_runs_write_nothing(tmp_path: Path) -> None:
@@ -104,7 +143,7 @@ def test_incomplete_runs_write_nothing(tmp_path: Path) -> None:
     )
     assert rc != 0
     assert not (
-        root / f"artifacts/governance/smc_r1_live_rollout_evidence_{_MEASURE_DATE}.json"
+        root / "artifacts" / "governance" / _MEASURE_ARTIFACT
     ).exists(), "keine vakuöse Messung: unfertige Läufe schreiben nichts"
     assert (
         root / "scripts/smc_r1_rollout_contract.py"
@@ -131,7 +170,7 @@ def test_stray_unbalanced_paren_in_open_gates_raises_before_write(tmp_path: Path
     contract_text = contract_text.replace(original_open_gates_block, poisoned_block, 1)
     contract_path.write_text(contract_text, encoding="utf-8")
     contract_before = contract_text
-    artifact_path = root / f"artifacts/governance/smc_r1_live_rollout_evidence_{_MEASURE_DATE}.json"
+    artifact_path = root / "artifacts" / "governance" / _MEASURE_ARTIFACT
 
     with pytest.raises(RuntimeError, match="OPEN_GATES"):
         measure(
@@ -149,6 +188,55 @@ def test_stray_unbalanced_paren_in_open_gates_raises_before_write(tmp_path: Path
 
     assert not artifact_path.exists(), "guard must fire before any write, not sneak one through"
     assert contract_path.read_text(encoding="utf-8") == contract_before, "contract must stay untouched"
+
+
+def test_a_green_run_from_the_wrong_workflow_is_refused(tmp_path: Path) -> None:
+    """Run IDENTITY: any two green runs must NOT attest the pin move.
+
+    Without the workflow-name check a lint run and a docs build -- both green --
+    would close OPEN_GATES. That is the vacuous attestation this whole
+    apparatus exists to prevent.
+    """
+    root = _skeleton_after_pr1(tmp_path)
+    contract_before = (root / "scripts/smc_r1_rollout_contract.py").read_text(encoding="utf-8")
+    rc = measure(
+        root=root,
+        date=_MEASURE_DATE,
+        save_run_id="111",
+        verify_run_id="222",
+        fetch_run=lambda run_id: {
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-08-05T21:00:00Z",
+            "name": "smc-fast-pr-gates" if run_id == "111" else "tv-save-consumer-source",
+        },
+    )
+    assert rc != 0
+    assert not (root / "artifacts" / "governance" / _MEASURE_ARTIFACT).exists()
+    assert (
+        root / "scripts/smc_r1_rollout_contract.py"
+    ).read_text(encoding="utf-8") == contract_before
+
+
+def test_a_verify_run_created_before_the_save_is_refused(tmp_path: Path) -> None:
+    """The re-verify chains off the save; it cannot predate it."""
+    root = _skeleton_after_pr1(tmp_path)
+    rc = measure(
+        root=root,
+        date=_MEASURE_DATE,
+        save_run_id="111",
+        verify_run_id="222",
+        fetch_run=lambda run_id: {
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": (
+                "2026-08-05T21:00:00Z" if run_id == "111" else "2026-08-05T20:00:00Z"
+            ),
+            "name": "tv-save-consumer-source",
+        },
+    )
+    assert rc != 0
+    assert not (root / "artifacts" / "governance" / _MEASURE_ARTIFACT).exists()
 
 
 @pytest.mark.parametrize(

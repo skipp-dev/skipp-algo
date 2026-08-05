@@ -106,6 +106,9 @@ def main(argv: list[str] | None = None) -> int:
         with Path(args.github_output).open("a", encoding="utf-8") as handle:
             handle.write(f"drifted={'true' if report['drifted'] else 'false'}\n")
             handle.write(f"max_lag={report['maxLag']}\n")
+            # The issue step interpolates this into the alert text -- exported
+            # so the workflow never hardcodes a number that this script owns.
+            handle.write(f"threshold={report['threshold']}\n")
     return 0
 
 

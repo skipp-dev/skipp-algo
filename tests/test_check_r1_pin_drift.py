@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from scripts.check_r1_pin_drift import compute_pin_drift
 
 
@@ -80,3 +81,17 @@ def test_live_tree_smoke() -> None:
     report = compute_pin_drift(None, targets=None, threshold=3)
     assert report["maxLag"] >= 0
     assert any(t["driftCapable"] for t in report["targets"])
+
+
+def test_main_writes_all_three_github_outputs(tmp_path: Path) -> None:
+    """The workflow's issue step consumes exactly these keys -- drifted,
+    max_lag, threshold. A dropped key surfaces as an empty env var under
+    `set -u` only at 06:30 UTC; this catches it at test time."""
+    from scripts.check_r1_pin_drift import main
+
+    out = tmp_path / "gh_output"
+    rc = main(["--out", str(tmp_path / "report.json"), "--github-output", str(out)])
+    assert rc == 0
+    lines = out.read_text(encoding="utf-8").splitlines()
+    keys = {line.split("=", 1)[0] for line in lines}
+    assert keys == {"drifted", "max_lag", "threshold"}

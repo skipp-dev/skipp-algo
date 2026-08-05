@@ -116,6 +116,17 @@ def test_uploads_freshness_artifact(text: str) -> None:
     assert "retention-days: 30" in text
 
 
+def test_uploads_r1_pin_drift_artifact(text: str) -> None:
+    """The drift issue points operators at this artifact -- final-review
+    finding: without the upload, that reference is false on every drifted
+    run."""
+    assert "name: r1-pin-drift-report" in text
+    assert "path: artifacts/ci/r1_pin_drift.json" in text
+    # Interpolated from the watcher's own output, never hardcoded in the body:
+    assert "R1_THRESHOLD: ${{ steps.r1drift.outputs.threshold }}" in text
+    assert "(threshold 3)" not in text
+
+
 def test_uses_pinned_action_shas(text: str) -> None:
     # Pin checks defend against tag-mutation supply-chain risk —
     # same SHA discipline as the credential-health workflow.
@@ -193,6 +204,7 @@ def test_r1_drift_issue_step_opens_when_drifted(tmp_path: Path) -> None:
             "GH_REPO": "o/r",
             "R1_DRIFTED": "true",
             "R1_MAX_LAG": "3",
+            "R1_THRESHOLD": "3",
         },
         stubs={"gh": _gh_stub(issues_enabled=True, existing_issue="")},
     )
@@ -210,6 +222,7 @@ def test_r1_drift_issue_step_closes_when_healed(tmp_path: Path) -> None:
             "GH_REPO": "o/r",
             "R1_DRIFTED": "false",
             "R1_MAX_LAG": "0",
+            "R1_THRESHOLD": "3",
         },
         stubs={"gh": _gh_stub(issues_enabled=True, existing_issue="17")},
     )

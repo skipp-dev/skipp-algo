@@ -74,11 +74,19 @@ def test_prepare_writes_a_pending_artifact_with_new_shas(tmp_path: Path) -> None
     )
     assert artifact["executionState"] == "pending"
     assert artifact["supersedes"].endswith("2026-08-04.json")
-    event = next(s for s in artifact["sources"] if s["path"] == "SMC_Event_Overlay.pine")
+    # v2 schema: `sources` is a DICT keyed by scriptName -- the shape
+    # `check_r1_attested_sources` indexes (`sources[name]["repositorySha256"]`).
+    # The list shape prepare wrote before the final-review fix crashed that
+    # guard on PR1's own fast-gates run.
+    event = artifact["sources"]["SMC Event Overlay"]
     expected = hashlib.sha256(
         (root / "SMC_Event_Overlay.pine").read_text(encoding="utf-8").encode()
     ).hexdigest()
-    assert event["sha256"] == expected, "artifact must hash the BUMPED source"
+    assert event["repositorySha256"] == expected, "artifact must hash the BUMPED source"
+    # Pending honesty: fields only a TradingView session can fill say so.
+    assert event["savedSourceReadbackSha256"] is None
+    assert event["compileStatus"] == "pending"
+    assert artifact["tradingView"]["observed"] is False
     assert artifact["openGates"] == list(PENDING_GATES)
 
 
@@ -101,6 +109,66 @@ def test_prepare_is_idempotent(tmp_path: Path) -> None:
     root = _skeleton(tmp_path)
     assert prepare(root=root, date="2026-08-05") == 0
     assert prepare(root=root, date="2026-08-05") != 0  # pin already at target -> abort
+
+
+def test_pr1_tree_passes_the_attested_sources_guard_and_contract_invariants(
+    tmp_path: Path,
+) -> None:
+    """The seam the final whole-branch review found broken, now proven.
+
+    Per-task tests ran prepare in a skeleton and the contract tests against the
+    LIVE tree -- nobody ever ran the contract machinery against the tree PR1
+    actually produces. This does exactly that: build the PR1 tree, load the
+    ROTATED contract module from it, and assert the three things PR1's own
+    fast-gates run depends on:
+
+    1. `check_r1_attested_sources.find_offenders` passes (the pending artifact
+       registers the bumped hash under the dict shape the guard indexes);
+    2. the derived contract status is pending;
+    3. the openGates invariant the contract tests pin
+       (OPEN_GATES == evidence.openGates - closedSince) holds.
+    """
+    import importlib.util
+
+    from scripts.check_r1_attested_sources import find_offenders
+
+    root = _skeleton(tmp_path)
+    assert prepare(root=root, date="2026-08-05") == 0
+
+    module_path = root / "scripts" / "smc_r1_rollout_contract.py"
+    spec = importlib.util.spec_from_file_location("_pr1_contract", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    contract = module.build_rollout_contract()
+    assert contract["status"] == "authorized_execution_pending"
+    assert contract["executionPerformed"] is False
+
+    evidence = json.loads(
+        (root / "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-05.json")
+        .read_text(encoding="utf-8")
+    )
+    closed = {e["gate"] for e in contract["closedSinceRegisteredEvidence"]}
+    assert set(module.OPEN_GATES) == set(evidence["openGates"]) - closed
+
+    checked_in = json.loads(
+        (root / "artifacts/governance/smc_r1_live_rollout_contract.json")
+        .read_text(encoding="utf-8")
+    )
+    assert checked_in == contract, (
+        "the regenerated contract JSON must equal the rotated module's output"
+    )
+
+    offenders = find_offenders(
+        {"SMC_Event_Overlay.pine"},
+        targets=contract["targets"],
+        sources=evidence["sources"],
+    )
+    assert offenders == [], (
+        "PR1 touches an attested source and registers new evidence in the same "
+        "diff -- the guard must pass, not crash and not flag"
+    )
 
 
 def test_prepare_aborts_when_pin_already_current(tmp_path: Path) -> None:

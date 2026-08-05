@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -49,12 +50,34 @@ PENDING_GATES: Final = (
     "post-save verification (auto-re-verify) green for the bumped pin",
 )
 
-# The two R1-attested sources every evidence artifact re-hashes. Kept as a
-# tuple here rather than derived from the rollout contract's `targets`:
-# `prepare` runs BEFORE the contract's own constants are rotated, so reading
-# `build_rollout_contract()` at this point would still be describing the
+# The two R1-attested sources every evidence artifact re-hashes, as
+# ``repo-relative path -> scriptName``. The scriptName is the KEY the v2
+# evidence schema files each source under, and it is what
+# `scripts/check_r1_attested_sources.py` indexes by
+# (``sources[scriptName]["repositorySha256"]``) -- an artifact that keyed them
+# any other way would crash that guard rather than fail it.
+#
+# Kept as a literal here rather than derived from the rollout contract's
+# `targets`: `prepare` runs BEFORE the contract's own constants are rotated, so
+# reading `build_rollout_contract()` at this point would still be describing the
 # artifact this call is about to supersede.
-_TARGET_SOURCES: Final = ("SMC_Event_Overlay.pine", "SMC_Exit_Signal.pine")
+_TARGET_SOURCES: Final = {
+    "SMC_Event_Overlay.pine": "SMC Event Overlay",
+    "SMC_Exit_Signal.pine": "SMC Exit Signal",
+}
+
+# `measure`'s artifact carries this suffix so a prepare and a measure on the
+# SAME day cannot collide. The one-day PR1 -> dispatch -> PR2 round trip is the
+# NORMAL operator flow, and the pre-#4453 driver aborted on it -- which forced
+# the operator to pass a `--date` that was not the measurement's date, i.e. to
+# falsify the one field a dated artifact exists to carry.
+_MEASURE_SUFFIX: Final = "-measure"
+
+# The workflow BOTH runs must belong to. The mutating consumer save and the
+# auto-re-verify it triggers run in the same workflow (the re-verify is a
+# `workflow_run` chain onto itself), so this is one name, not two. Without it
+# `measure` attests the pin move from ANY two green runs in the repository.
+_SAVE_WORKFLOW_NAME: Final = "tv-save-consumer-source"
 
 # `scripts/smc_r1_rollout_contract.py` carries its two evidence-path
 # constants as fixed four-line blocks:
@@ -70,16 +93,25 @@ _TARGET_SOURCES: Final = ("SMC_Event_Overlay.pine", "SMC_Exit_Signal.pine")
 # Final = (` (MULTILINE) so `PRIOR_EXECUTION_EVIDENCE` -- which contains
 # `EXECUTION_EVIDENCE` as a substring -- never matches the `EXECUTION_EVIDENCE`
 # pattern.
+#
+# The name pattern spells the date out (``YYYY-MM-DD``) with an OPTIONAL
+# ``-measure`` suffix rather than the older, laxer ``[0-9-]+``: `measure` now
+# writes ``..._<date>-measure.json`` (see `_MEASURE_SUFFIX`), which ``[0-9-]+``
+# would not have matched -- the rotation would then have silently found no
+# EXECUTION_EVIDENCE block to swap.
+_EVIDENCE_NAME_PATTERN: Final = (
+    r"smc_r1_live_rollout_evidence_[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-measure)?\.json"
+)
 _EXECUTION_BLOCK_RE = re.compile(
     r'^EXECUTION_EVIDENCE: Final = \(\s*'
     r'ROOT\s*/\s*"artifacts"\s*/\s*"governance"\s*/\s*'
-    r'"(?P<name>smc_r1_live_rollout_evidence_[0-9-]+\.json)"\s*\)',
+    rf'"(?P<name>{_EVIDENCE_NAME_PATTERN})"\s*\)',
     re.MULTILINE,
 )
 _PRIOR_BLOCK_RE = re.compile(
     r'^PRIOR_EXECUTION_EVIDENCE: Final = \(\s*'
     r'ROOT\s*/\s*"artifacts"\s*/\s*"governance"\s*/\s*'
-    r'"(?P<name>smc_r1_live_rollout_evidence_[0-9-]+\.json)"\s*\)',
+    rf'"(?P<name>{_EVIDENCE_NAME_PATTERN})"\s*\)',
     re.MULTILINE,
 )
 
@@ -141,9 +173,224 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _source_entry(root: Path, relpath: str) -> dict:
-    text = (root / relpath).read_text(encoding="utf-8")
-    return {"path": relpath, "sha256": hashlib.sha256(text.encode()).hexdigest()}
+def _parse_run_timestamp(value: str) -> datetime:
+    """GitHub's ``created_at`` (ISO 8601, ``Z``-suffixed) as an aware datetime.
+
+    Python 3.11+ ``fromisoformat`` accepts the ``Z`` suffix directly; parsed
+    rather than compared as strings so a future format drift fails loudly
+    instead of ordering lexically.
+    """
+    return datetime.fromisoformat(value)
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _repository_hashes(root: Path, *, event_text: str) -> dict[str, str]:
+    """``scriptName -> sha256`` of the sources as this call will leave them.
+
+    ``event_text`` is passed in rather than re-read so `prepare` can hash the
+    BUMPED Event Overlay before it has written anything at all -- every read
+    happens before the first write.
+    """
+    hashes: dict[str, str] = {}
+    for relpath, script_name in _TARGET_SOURCES.items():
+        text = event_text if relpath == "SMC_Event_Overlay.pine" else (
+            (root / relpath).read_text(encoding="utf-8")
+        )
+        hashes[script_name] = _sha256(text)
+    return hashes
+
+
+def _pending_sources(hashes: dict[str, str]) -> dict:
+    """The v2 ``sources`` map for an artifact that has NOT been saved live.
+
+    Same shape and same keys as an executed artifact -- ``check_r1_attested_sources``
+    indexes ``sources[scriptName]["repositorySha256"]`` and must not have to
+    know which kind of artifact is registered -- but every field that only a
+    TradingView session can fill says so instead of carrying a value:
+    ``savedSourceReadbackSha256: null`` and ``compileStatus: "pending"``. That
+    is the same honesty the 2026-08-01 artifact showed with
+    ``rollback.status: "not_run"``: a field that was not measured reads as not
+    measured, rather than being omitted or filled with the repository's own
+    hash (which would assert that the repo content is live on TradingView --
+    precisely the claim `measure` exists to make and `prepare` may not).
+    """
+    return {
+        script_name: {
+            "path": relpath,
+            "repositorySha256": hashes[script_name],
+            "savedSourceReadbackSha256": None,
+            "compileStatus": "pending",
+            "compileDiagnostics": [],
+            "compileEvidenceMechanism": (
+                "Nothing was saved to TradingView by this step. The saved source and "
+                "its compile status are unknown until the mutating consumer save and "
+                "its auto-re-verify have run -- both are listed in openGates."
+            ),
+        }
+        for relpath, script_name in _TARGET_SOURCES.items()
+    }
+
+
+def _measured_sources(
+    hashes: dict[str, str], *, green: bool, save_run_id: str, verify_run_id: str
+) -> dict:
+    """The v2 ``sources`` map for an artifact backed by the save + verify pair.
+
+    On GREEN, ``savedSourceReadbackSha256`` equals the repository hash and
+    ``compileStatus`` is ``passed`` -- and ``compileEvidenceMechanism`` says
+    exactly how that is known, because this driver never opened a browser: the
+    save step throws unless the post-save compile settles clean, and the
+    auto-re-verify re-reads every saved source and fails on any drift. A green
+    pair therefore MEANS "saved == repository, compiled clean"; the field
+    carries that derivation and the two run IDs rather than a hash transcript
+    this process did not read. That is the same mechanism the 2026-08-04
+    artifact recorded by hand.
+
+    On RED nothing of the sort is known, so both fields fall back to the
+    pending reading and the failing pair is still named.
+    """
+    if not green:
+        pending = _pending_sources(hashes)
+        for entry in pending.values():
+            entry["compileEvidenceMechanism"] = (
+                f"The save run {save_run_id} and/or the auto-re-verify run {verify_run_id} "
+                "completed RED, so nothing about the saved source or its compile status "
+                "is attested. See evidenceRuns for the conclusions."
+            )
+            entry["saveRun"] = save_run_id
+            entry["savedSourceReadbackRun"] = verify_run_id
+        return pending
+    return {
+        script_name: {
+            "path": relpath,
+            "repositorySha256": hashes[script_name],
+            "savedSourceReadbackSha256": hashes[script_name],
+            "compileStatus": "passed",
+            "compileDiagnostics": [],
+            "compileEvidenceMechanism": (
+                f"Derived from two green runs, not from a hash this tool read back: "
+                f"run {save_run_id} saves each consumer source and throws unless the "
+                f"post-save compile settles without a visible error, and run "
+                f"{verify_run_id} re-reads every saved source and fails on any drift "
+                "from the repository. Both concluded success, which is what makes "
+                "savedSourceReadbackSha256 equal to repositorySha256 here. No attended "
+                "observation of the compile badge was made."
+            ),
+            "saveRun": save_run_id,
+            "savedSourceReadbackRun": verify_run_id,
+        }
+        for relpath, script_name in _TARGET_SOURCES.items()
+    }
+
+
+def _carry_forward(superseded: dict, supersedes: str, *, accounted: tuple[str, ...]) -> dict:
+    """The measurements a new artifact inherits instead of re-running.
+
+    Three sections, all derived from the artifact being superseded rather than
+    invented:
+
+    * ``rollback`` / ``replay`` -- carried over with the SAME evidence path the
+      predecessor named (or the predecessor itself, if it ran the measurement),
+      plus a justification that says it was not re-run here.
+    * ``carriedOverGates`` -- every gate the predecessor listed as open that
+      this artifact neither lists as open itself nor measured (``accounted``).
+      Without it those gates would simply cease to exist the moment a new
+      artifact is registered: the contract's ``closedSinceRegisteredEvidence``
+      entries are scoped to a NAMED registered artifact, so they drop out on
+      rotation, and the predecessor's openGates are not inherited by default.
+      Four gates would have vanished silently on the first `prepare`.
+    """
+    rollback = superseded.get("rollback", {})
+    replay = superseded.get("replay", {})
+    carried_gates = [dict(entry) for entry in superseded.get("carriedOverGates", [])]
+    known = {entry["gate"] for entry in carried_gates}
+    for gate in superseded.get("openGates", []):
+        if gate in accounted or gate in known:
+            continue
+        carried_gates.append(
+            {
+                "gate": gate,
+                "status": "not_measured_here",
+                "priorArtifact": supersedes,
+                "note": (
+                    "Listed as open by the artifact this one supersedes and NOT "
+                    "measured by this step. Whatever dated artifact closed it "
+                    "did so against the superseded registration; re-registering "
+                    "that closure requires a closedSinceRegisteredEvidence entry "
+                    "scoped to THIS artifact."
+                ),
+            }
+        )
+    return {
+        "rollback": {
+            "status": "carried_over",
+            "evidence": rollback.get("evidence", supersedes),
+            "justification": (
+                "The companion rollback drill was NOT re-run here. Its own dated "
+                "artifact carries it, exactly as it did for the artifact this one "
+                f"supersedes ({supersedes})."
+            ),
+        },
+        "replay": {
+            "status": "carried_over",
+            "passedLogicalCases": replay.get("passedLogicalCases"),
+            "evidence": replay.get("evidence", supersedes),
+            "justification": (
+                "The single-edge replay covers SMC Exit Signal, whose source is "
+                "byte-identical to the value the superseded artifact attests. "
+                "Nothing the replay measured changed, so it is carried rather "
+                "than re-run."
+            ),
+        },
+        "carriedOverGates": carried_gates,
+    }
+
+
+def _replay_not_carried(supersedes: str) -> dict:
+    """Exit Signal moved, so the older replay no longer describes it."""
+    return {
+        "status": "not_carried_over",
+        "evidence": None,
+        "justification": (
+            "SMC Exit Signal is NOT byte-identical to the value the superseded "
+            f"artifact ({supersedes}) attests, so the earlier replay describes a "
+            "source nobody replayed. It is deliberately not carried forward."
+        ),
+    }
+
+
+def _regenerate_contract_json(root: Path) -> Path:
+    """Re-run the contract generator IN ``root`` after rotating its constants.
+
+    ``artifacts/governance/smc_r1_live_rollout_contract.json`` is a GENERATED
+    file, and ``test_checked_in_rollout_contract_is_current`` asserts it equals
+    ``build_rollout_contract()`` exactly. Rotating the module's constants
+    without regenerating it leaves the checked-in JSON pointing at the previous
+    evidence -- red on the main-push job, in a PR whose entire purpose is to
+    move that pointer.
+
+    Loaded from ``root`` by file location rather than imported as
+    ``scripts.smc_r1_rollout_contract``: the module derives every path from its
+    OWN ``__file__``, so this is what makes the regeneration apply to the tree
+    being operated on (and lets the tests prove it against a throwaway tree).
+    Its own imports still resolve through ``sys.path`` -- they are behavior
+    (atomic writes, the BUS label roster), not paths.
+    """
+    module_path = root / "scripts" / "smc_r1_rollout_contract.py"
+    spec = importlib.util.spec_from_file_location("_r1_rollout_contract_at_root", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load the rollout contract module from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output: Path = module.DEFAULT_OUTPUT
+    atomic_write_text(
+        json.dumps(module.build_rollout_contract(), indent=2, sort_keys=True) + "\n",
+        output,
+    )
+    return output
 
 
 def _execution_and_prior_names(contract_text: str) -> tuple[str, str]:
@@ -328,15 +575,33 @@ def prepare(*, root: Path, date: str) -> int:
     supersedes = _current_registered_relpath(contract_text)
     execution_name = supersedes.rsplit("/", 1)[-1]
 
-    # Bump the pin FIRST: the artifact hashes the working tree AFTER the
-    # bump, never the pre-bump content.
-    atomic_write_text(
-        PIN_RE.sub(
-            f"import preuss_steffen/smc_micro_profiles_generated/{published} as mp",
-            text,
-        ),
-        event,
+    superseded_path = root / supersedes
+    if not superseded_path.exists():
+        print(
+            f"::error::the registered evidence {supersedes} is not in this tree -- "
+            "refusing to write an artifact that claims to supersede something it "
+            "never read",
+            file=sys.stderr,
+        )
+        return 1
+    superseded = json.loads(superseded_path.read_text(encoding="utf-8"))
+
+    # Everything below is still read-only. The BUMPED source is hashed from
+    # this string, so the artifact describes the tree this call is about to
+    # leave behind -- never the pre-bump content, and never a file that has
+    # been written before the last guard has run.
+    bumped_text = PIN_RE.sub(
+        f"import preuss_steffen/smc_micro_profiles_generated/{published} as mp",
+        text,
     )
+    hashes = _repository_hashes(root, event_text=bumped_text)
+    superseded_sources = superseded["sources"]
+    exit_unchanged = (
+        superseded_sources["SMC Exit Signal"]["repositorySha256"] == hashes["SMC Exit Signal"]
+    )
+    carried = _carry_forward(superseded, supersedes, accounted=PENDING_GATES)
+    if not exit_unchanged:
+        carried["replay"] = _replay_not_carried(supersedes)
 
     new_execution_name = f"smc_r1_live_rollout_evidence_{date}.json"
     # The name EXECUTION_EVIDENCE held before this edit becomes the new
@@ -347,8 +612,9 @@ def prepare(*, root: Path, date: str) -> int:
         prior_execution_name=execution_name,
         open_gates_replacement=_open_gates_literal(PENDING_GATES),
     )
-    ast.parse(contract_text)  # syntax guard: never write a broken file
-    atomic_write_text(contract_text, contract_path)
+    # Syntax guard: never write a broken file. `filename=` so a SyntaxError
+    # names the contract instead of "<unknown>".
+    ast.parse(contract_text, filename=str(contract_path))
 
     artifact = {  # honest: repo measured, TradingView not observed
         "schemaVersion": 2,
@@ -362,17 +628,68 @@ def prepare(*, root: Path, date: str) -> int:
             "expected intermediate state."
         ),
         "supersedes": supersedes,
+        "supersessionKind": "source_change",
         "supersessionNote": "Superseded as the CURRENT attestation, not corrected.",
-        "sources": [_source_entry(root, rel) for rel in _TARGET_SOURCES],
-        "tradingView": {"observed": False, "note": "not yet observed -- see openGates"},
+        "reattestationTrigger": {
+            "reason": (
+                "Deliberate re-attestation of the R1 companion library pin. Since the "
+                "library refresh HOLDS the attested companions, the pin only moves here, "
+                "by an operator acting on the r1-pin-drift watcher."
+            ),
+            "attestedEventOverlaySha256": superseded_sources["SMC Event Overlay"][
+                "repositorySha256"
+            ],
+            "supersededByRepositorySha256": hashes["SMC Event Overlay"],
+            "sourceDiffCharacter": (
+                f"library pin {current} -> {published} in the import line; "
+                + (
+                    "SMC Exit Signal is byte-identical to the superseded attested value "
+                    "and is re-attested unchanged."
+                    if exit_unchanged
+                    else "SMC Exit Signal ALSO differs from the superseded attested "
+                    "value -- see the replay section."
+                )
+            ),
+        },
+        "sources": _pending_sources(hashes),
+        "tradingView": {
+            "observed": False,
+            "note": (
+                "Repository-only preparation: nothing was saved to, read from, or "
+                "otherwise observed on TradingView here -- see openGates."
+            ),
+            "bindings": "not_observed",
+            "bindingsChecked": "not_observed",
+            "bindingMismatches": "not_observed",
+            "unknownParentRuntimeError": "not_observed",
+            "suitePresence": "not_observed",
+            "alertConditionInventory": "not_run",
+            "holdManagerPresent": "not_run",
+            "forbiddenConcurrentScriptsPresent": "not_run",
+            "finalInventory": "not_run",
+            "compileStatusAfterFinalReload": "not_run",
+        },
+        **carried,
         "openGates": list(PENDING_GATES),
         "evidenceRuns": [],
         "repoCommitSha": _git_head(root),
+        # The library release this attestation COVERS -- i.e. the pin the
+        # sources above carry, not whatever the manifest happens to publish
+        # later. `prepare` sets it to `published` because it has just bumped
+        # the pin to exactly that; `measure` reads it back off the pin line.
         "libraryReleaseVersion": published,
     }
+
+    # Every guard above has passed. Writes start here, in dependency order:
+    # source, then the contract module that registers the artifact, then the
+    # artifact, then the generated contract JSON (which reads both).
+    atomic_write_text(bumped_text, event)
+    atomic_write_text(contract_text, contract_path)
     atomic_write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n", artifact_path)
+    contract_json = _regenerate_contract_json(root)
 
     print("PR1 prepared. Next steps:")
+    print(f"  0. regenerated {contract_json.relative_to(root).as_posix()} -- include it in PR1")
     print("  1. review the diff, commit, push, open PR1, merge it")
     print("  2. dispatch the mutating save:")
     print(
@@ -405,15 +722,19 @@ def measure(
     Ordering (every read happens before the first write, so a guard failure
     anywhere below never leaves partial state on disk):
 
-    1. Fetch both runs and require ``status == "completed"`` on each --
-       return 1 before touching the filesystem otherwise.
+    1. Fetch both runs, require ``status == "completed"`` on each, and prove
+       they are the RIGHT runs (both from the ``tv-save-consumer-source``
+       workflow, verify not created before save) -- return 1 before touching
+       the filesystem otherwise.
     2. Resolve the artifact-exists guard, the current contract text, the
-       ``supersedes`` path, and the old/new EXECUTION_EVIDENCE names.
+       ``supersedes`` path, the superseded artifact itself, and the old/new
+       EXECUTION_EVIDENCE names.
     3. Compute the fully rotated contract text (constants + OPEN_GATES, the
        latter only on a green result) and syntax-check it with
        ``ast.parse`` -- still nothing written.
     4. Read the pin and hash the sources -- still nothing written.
-    5. Only now: write the new evidence artifact, then the rotated contract.
+    5. Only now: write the new evidence artifact, then the rotated contract,
+       then regenerate the contract JSON.
     """
     if fetch_run is None:
         fetch_run = _default_fetch_run(root)
@@ -428,11 +749,46 @@ def measure(
         )
         return 1
 
+    # Run IDENTITY, before anything is derived from the pair. Without this,
+    # `measure` attests "the pin move is live on TradingView" from ANY two
+    # completed green runs in the repository -- a lint run and a docs build
+    # would do. The mutating save and the auto-re-verify it chains both run in
+    # `tv-save-consumer-source`, so the workflow name is one value for both,
+    # and the verify can never predate the save that triggered it.
+    for label, run_id, run in (
+        ("save", save_run_id, save_run),
+        ("verify", verify_run_id, verify_run),
+    ):
+        if run.get("name") != _SAVE_WORKFLOW_NAME:
+            print(
+                f"::error::{label} run {run_id} belongs to workflow {run.get('name')!r}, "
+                f"not {_SAVE_WORKFLOW_NAME!r} -- nothing written; an R1 attestation may "
+                "only be built from the consumer-save workflow's own runs",
+                file=sys.stderr,
+            )
+            return 1
+    if _parse_run_timestamp(verify_run["created_at"]) < _parse_run_timestamp(
+        save_run["created_at"]
+    ):
+        print(
+            f"::error::verify run {verify_run_id} was created "
+            f"({verify_run['created_at']}) BEFORE save run {save_run_id} "
+            f"({save_run['created_at']}) -- it cannot be the re-verify of that save; "
+            "nothing written",
+            file=sys.stderr,
+        )
+        return 1
+
     save_ok = save_run["conclusion"] == "success"
     verify_ok = verify_run["conclusion"] == "success"
     green = save_ok and verify_ok
 
-    artifact_path = root / "artifacts" / "governance" / f"smc_r1_live_rollout_evidence_{date}.json"
+    artifact_path = (
+        root
+        / "artifacts"
+        / "governance"
+        / f"smc_r1_live_rollout_evidence_{date}{_MEASURE_SUFFIX}.json"
+    )
     if artifact_path.exists():
         print(
             f"{artifact_path.name} exists -- same-day rerun is an operator special case",
@@ -445,21 +801,37 @@ def measure(
     supersedes = _current_registered_relpath(contract_text)
     execution_name, _prior_name = _execution_and_prior_names(contract_text)
 
-    new_execution_name = f"smc_r1_live_rollout_evidence_{date}.json"
+    superseded_path = root / supersedes
+    if not superseded_path.exists():
+        print(
+            f"::error::the registered evidence {supersedes} is not in this tree -- "
+            "refusing to write an artifact that claims to supersede something it "
+            "never read",
+            file=sys.stderr,
+        )
+        return 1
+    superseded = json.loads(superseded_path.read_text(encoding="utf-8"))
+
+    new_execution_name = f"smc_r1_live_rollout_evidence_{date}{_MEASURE_SUFFIX}.json"
     new_contract_text = _rotate_evidence_constants(
         contract_text,
         new_execution_name=new_execution_name,
         prior_execution_name=execution_name,
-        open_gates_replacement=_open_gates_literal(()) if green else None,
+        open_gates_replacement=_open_gates_literal(() if green else PENDING_GATES),
     )
-    ast.parse(new_contract_text)  # syntax guard: never write a broken file
+    # Syntax guard: never write a broken file. `filename=` so a SyntaxError
+    # names the contract instead of "<unknown>".
+    ast.parse(new_contract_text, filename=str(contract_path))
 
     event_text = (root / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
     pin_match = PIN_RE.search(event_text)
     if pin_match is None:
         print("::error::pin line not found in SMC_Event_Overlay.pine", file=sys.stderr)
         return 1
-    published = int(pin_match.group(1))
+    # The pin PR1 moved the source to. Not "the version published right now":
+    # the manifest may have moved on since PR1 merged, and this attestation
+    # covers the pin the measured save actually pushed.
+    pin_version = int(pin_match.group(1))
 
     evidence_runs = [
         {
@@ -475,7 +847,15 @@ def measure(
             "name": verify_run["name"],
         },
     ]
-    remaining_gates = [gate for gate, ok in zip(PENDING_GATES, (save_ok, verify_ok)) if not ok]
+    hashes = _repository_hashes(root, event_text=event_text)
+    # On RED the artifact's openGates stay BOTH pending gates, exactly like the
+    # contract's OPEN_GATES tuple that `measure` deliberately does not touch:
+    # the contract tests pin OPEN_GATES == evidence.openGates - closedSince, and
+    # a per-failed-gate subset here would break that invariant on precisely the
+    # red-path PR2 whose whole content is "the gates are still open". Which run
+    # failed lives in evidenceRuns, not in the gate roster.
+    open_gates = [] if green else list(PENDING_GATES)
+    carried = _carry_forward(superseded, supersedes, accounted=PENDING_GATES)
     repo_commit_sha = _git_head(root)
 
     artifact = {
@@ -494,16 +874,63 @@ def measure(
             )
         ),
         "supersedes": supersedes,
+        "supersessionKind": "execution_measurement",
         "supersessionNote": "Superseded as the CURRENT attestation, not corrected.",
-        "sources": [_source_entry(root, rel) for rel in _TARGET_SOURCES],
-        "tradingView": {
-            "observed": True,
-            "note": "observed via the dispatched save + auto-re-verify run pair",
-        },
-        "openGates": remaining_gates,
+        "sources": _measured_sources(
+            hashes, green=green, save_run_id=save_run_id, verify_run_id=verify_run_id
+        ),
+        "tradingView": (
+            {
+                "observed": True,
+                "note": (
+                    "Observed via the dispatched save + auto-re-verify run pair; "
+                    "no attended browser session was opened by this driver."
+                ),
+                # No per-label inventory was READ here -- the verify run fails
+                # on any binding mismatch, so a green pair proves the bindings
+                # without this process holding the label map. The reference
+                # must point at a run recorded green in evidenceRuns; the
+                # contract tests enforce exactly that shape.
+                "bindings": {"status": "verified_by_run", "run": verify_run_id},
+                "bindingsChecked": {"status": "verified_by_run", "run": verify_run_id},
+                "bindingMismatches": {"status": "verified_by_run", "run": verify_run_id},
+                "unknownParentRuntimeError": {
+                    "status": "verified_by_run",
+                    "run": verify_run_id,
+                },
+                "suitePresence": "inferred",
+                "alertConditionInventory": "not_run",
+                "holdManagerPresent": "not_run",
+                "forbiddenConcurrentScriptsPresent": "not_run",
+                "finalInventory": "not_run",
+                "compileStatusAfterFinalReload": "not_run",
+            }
+            if green
+            else {
+                "observed": False,
+                "note": (
+                    "The dispatched pair completed RED -- nothing about the live "
+                    "TradingView state is attested by this artifact; see "
+                    "evidenceRuns for the conclusions."
+                ),
+                "bindings": "not_observed",
+                "bindingsChecked": "not_observed",
+                "bindingMismatches": "not_observed",
+                "unknownParentRuntimeError": "not_observed",
+                "suitePresence": "not_observed",
+                "alertConditionInventory": "not_run",
+                "holdManagerPresent": "not_run",
+                "forbiddenConcurrentScriptsPresent": "not_run",
+                "finalInventory": "not_run",
+                "compileStatusAfterFinalReload": "not_run",
+            }
+        ),
+        **carried,
+        "openGates": open_gates,
         "evidenceRuns": evidence_runs,
         "repoCommitSha": repo_commit_sha,
-        "libraryReleaseVersion": published,
+        # The pin PR1 moved the source to -- see the comment at `pin_version`.
+        "libraryReleaseVersion": pin_version,
     }
 
     # Every read-only check above passed -- write the artifact, THEN the
@@ -513,6 +940,7 @@ def measure(
     # an EXECUTION_EVIDENCE file that does not exist on disk yet).
     atomic_write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n", artifact_path)
     atomic_write_text(new_contract_text, contract_path)
+    _regenerate_contract_json(root)
 
     if not green:
         print(

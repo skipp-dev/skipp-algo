@@ -36,13 +36,32 @@ def _evidence() -> dict:
     return json.loads(EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
 
 
+def _registered_state() -> str:
+    """``"pending"`` or ``"executed"`` -- what the registered artifact declares.
+
+    Absent field means executed: every artifact before 2026-08-04 documents an
+    executed rollout and is never rewritten to say so. The tests below branch
+    on this so they hold on BOTH kinds of tree: today's (executed) and the one
+    a re-attestation PR1 produces (pending). Each branch asserts the exact
+    honesty that state demands -- neither branch is a skip.
+    """
+    return _evidence().get("executionState", "executed")
+
+
 def test_checked_in_rollout_contract_is_current() -> None:
     expected = build_rollout_contract()
     actual = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
 
     assert actual == expected
-    assert actual["status"] == "authorized_execution_reattested"
-    assert actual["executionPerformed"] is True
+    # State-conditional, not hardcoded: on a PR1 tree the registered artifact
+    # is pending and the derived status must SAY so -- pinning "reattested"
+    # here would make every re-attestation PR1 red by construction.
+    if _registered_state() == "executed":
+        assert actual["status"] == "authorized_execution_reattested"
+        assert actual["executionPerformed"] is True
+    else:
+        assert actual["status"] == "authorized_execution_pending"
+        assert actual["executionPerformed"] is False
     assert actual["executionEvidence"] == EXECUTION_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
     ).as_posix()
@@ -88,10 +107,21 @@ def test_execution_evidence_attests_the_currently_deployed_sources() -> None:
 
     for script_name, target in targets.items():
         source = evidence["sources"][script_name]
+        # BOTH states register the repository hash -- that is what lets the
+        # attested-sources guard pass a PR1 that moves source and evidence in
+        # one diff.
         assert source["repositorySha256"] == target["sha256"]
-        assert source["savedSourceReadbackSha256"] == target["sha256"]
-        assert source["compileStatus"] == "passed"
-        assert source["compileDiagnostics"] == []
+        if _registered_state() == "executed":
+            assert source["savedSourceReadbackSha256"] == target["sha256"]
+            assert source["compileStatus"] == "passed"
+            assert source["compileDiagnostics"] == []
+        else:
+            # Pending honesty: nothing was saved yet, so the readback and the
+            # compile status must SAY unknown -- a value here would claim the
+            # repo content is live, which is exactly what `measure` exists to
+            # prove and `prepare` may not.
+            assert source["savedSourceReadbackSha256"] is None
+            assert source["compileStatus"] == "pending"
 
 
 def test_execution_evidence_attests_all_ten_bus_bindings() -> None:
@@ -101,6 +131,28 @@ def test_execution_evidence_attests_all_ten_bus_bindings() -> None:
         target["scriptName"]: target for target in build_rollout_contract()["targets"]
     }
 
+    if _registered_state() == "pending":
+        # Nothing was observed -- the artifact must refuse the claim outright,
+        # and the unproven bindings must be held open by the gate roster.
+        assert bindings == "not_observed"
+        assert evidence["openGates"], "unobserved bindings with no open gate is vacuity"
+        return
+
+    if isinstance(bindings, dict) and bindings.get("status") == "verified_by_run":
+        # A `measure`-built artifact: the bindings were proven by the
+        # auto-re-verify run, not read back as a label map by the driver.
+        # Anti-vacuity: the reference must point at a run this same artifact
+        # records as GREEN and as belonging to the consumer-save workflow --
+        # a bare run number with nothing behind it attests nothing.
+        run_id = bindings["run"]
+        runs = {r["runId"]: r for r in evidence["evidenceRuns"]}
+        assert run_id in runs, "verified_by_run names a run the artifact does not record"
+        assert runs[run_id]["conclusion"] == "success"
+        assert runs[run_id]["name"] == "tv-save-consumer-source"
+        return
+
+    # A hand/preflight-attested artifact (the 2026-08-04 shape): the full
+    # label map with parents.
     for script_name, target in targets.items():
         attested = bindings[script_name]
         assert sorted(attested) == sorted(target["bindingLabels"])
@@ -151,8 +203,12 @@ def test_open_gates_are_named_and_the_evidence_refuses_to_claim_them() -> None:
     assert trading_view["finalInventory"] == "not_run"
     assert trading_view["compileStatusAfterFinalReload"] == "not_run"
 
-    # The producer was never counted, only inferred from resolved BUS parents.
-    assert trading_view["suitePresence"] == "inferred"
+    # The producer was never counted: inferred from resolved BUS parents on an
+    # executed artifact, and flatly not observed on a pending one.
+    if _registered_state() == "executed":
+        assert trading_view["suitePresence"] == "inferred"
+    else:
+        assert trading_view["suitePresence"] == "not_observed"
 
 
 def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() -> None:
@@ -167,17 +223,35 @@ def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() ->
     contract = build_rollout_contract()
     drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
     verdict = drill["drill"]["verdict"]
+    rollback_gate = "rollback drill removing and restoring both companions"
+
+    assert rollback_gate not in OPEN_GATES
+    assert drill["status"] == "passed"
 
     entry = next(
-        e for e in contract["closedSinceRegisteredEvidence"]
-        if e["gate"] == "rollback drill removing and restoring both companions"
+        (e for e in contract["closedSinceRegisteredEvidence"] if e["gate"] == rollback_gate),
+        None,
     )
-    assert "rollback drill removing and restoring both companions" not in OPEN_GATES
-    assert drill["status"] == "passed"
-    assert entry["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
-        DEFAULT_OUTPUT.parents[2]
-    ).as_posix()
-    assert entry["run"] == drill["drill"]["run"]
+    if entry is not None:
+        # Registered evidence predating the drill: the closure lives in the
+        # contract's scoped closure list.
+        assert entry["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
+            DEFAULT_OUTPUT.parents[2]
+        ).as_posix()
+        assert entry["run"] == drill["drill"]["run"]
+    else:
+        # Registered evidence postdating the drill (any driver-built artifact):
+        # closures scoped to a superseded registration have dropped out, so the
+        # gate may not simply vanish -- the registered artifact must carry it
+        # forward by name, pointing back into the dated chain.
+        carried = {
+            g["gate"] for g in _evidence().get("carriedOverGates", [])
+        }
+        assert rollback_gate in carried, (
+            "the rollback closure left closedSinceRegisteredEvidence on "
+            "rotation and is not carried by the registered artifact either -- "
+            "a measured gate just vanished"
+        )
 
     # Both halves, each across a reload, plus the part that makes it a ROLLBACK
     # rather than a teardown: the producer stayed, alone.
@@ -186,22 +260,18 @@ def test_the_rollback_gate_is_closed_by_a_measurement_not_by_a_deleted_line() ->
     assert verdict["suiteOnlyInventoryAfterReload"] == [drill["chart"]["producerName"]]
     assert verdict["companionsRestoredFromSavedScripts"] is True
     assert verdict["finalReloadStatus"] == "passed"
-    assert verdict["bindingsRestored"] == _evidence()["tradingView"]["bindingsChecked"]
+    assert verdict["bindingsRestored"] == 10
 
     # NOT equality. ``remainingOpenGates`` says what was still open at
-    # 17:23:24Z, and three gates were -- the operator closed them at 19:40Z.
-    # Pinning it to the live roster would force an edit to a dated artifact the
-    # first time anything else closed, which is the move this whole file exists
-    # to prevent. I wrote that equality four hours ago and it was wrong then
-    # too; it only looked right because nothing had moved yet.
-    #
-    # What must hold instead: the artifact may not UNDERSTATE what was open.
-    # Everything it listed is either still open or has since acquired its own
-    # dated evidence.
-    still_open = set(OPEN_GATES)
-    closed_since = {entry["gate"] for entry in contract["closedSinceRegisteredEvidence"]}
-    assert still_open <= set(drill["remainingOpenGates"])
-    assert set(drill["remainingOpenGates"]) - still_open <= closed_since
+    # 17:23:24Z. The live roster may since have shrunk (gates acquired their
+    # own dated evidence) and may since have GROWN (a re-attestation opens new
+    # gates the drill never knew). What must hold: nothing the drill listed as
+    # open may simply vanish -- each is still open, closed by a scoped entry,
+    # or carried forward by the registered artifact.
+    closed_since = {e["gate"] for e in contract["closedSinceRegisteredEvidence"]}
+    carried_forward = {g["gate"] for g in _evidence().get("carriedOverGates", [])}
+    accounted = set(OPEN_GATES) | closed_since | carried_forward
+    assert set(drill["remainingOpenGates"]) <= accounted
 
 
 def test_the_drill_reading_moves_forward_by_a_new_artifact_never_by_an_edit() -> None:
@@ -219,24 +289,36 @@ def test_the_drill_reading_moves_forward_by_a_new_artifact_never_by_an_edit() ->
     """
     evidence = _evidence()
     drill = json.loads(ROLLBACK_DRILL_EVIDENCE.read_text(encoding="utf-8"))
-    prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
+    # The pre-drill artifact is a HISTORICAL fact, pinned by name -- not via
+    # the PRIOR pointer, which moves with every rotation and stops meaning
+    # "the artifact captured before the drill" the moment a re-attestation
+    # registers a newer chain.
+    pre_drill = json.loads(
+        (DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-08-01.json")
+        .read_text(encoding="utf-8")
+    )
 
     # The artifact captured BEFORE the drill keeps its pre-drill reading, for
     # good. This is the assertion that forbids the edit.
-    assert prior["rollback"]["status"] == "not_run"
-    assert prior["capturedAt"] < drill["capturedAt"]
+    assert pre_drill["rollback"]["status"] == "not_run"
+    assert pre_drill["capturedAt"] < drill["capturedAt"]
     assert "not_run" in drill["supersedesNothing"]
 
     # The current attestation was captured after the drill, so it may not claim
     # not_run -- and it may not claim to have run it either. It carries the
-    # drill's own dated artifact and says so.
+    # drill's own dated artifact forward (directly, or through the chain of
+    # artifacts it supersedes) and says so.
     assert evidence["capturedAt"] > drill["capturedAt"]
     assert evidence["rollback"]["status"] == "carried_over"
     assert evidence["rollback"]["evidence"] == ROLLBACK_DRILL_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
     ).as_posix()
     assert "NOT re-run" in evidence["rollback"]["justification"]
-    assert contract_note_names_the_divergence(build_rollout_contract())
+    if build_rollout_contract()["closedSinceRegisteredEvidence"]:
+        # Only a registration whose closures live in the contract needs the
+        # divergence note there; a driver-built artifact names the divergence
+        # in its own carried sections instead.
+        assert contract_note_names_the_divergence(build_rollout_contract())
 
 
 def contract_note_names_the_divergence(contract: dict) -> bool:
@@ -281,24 +363,46 @@ def test_the_superseded_dated_evidence_is_kept_verbatim() -> None:
     prior = json.loads(PRIOR_EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
     evidence = _evidence()
 
-    superseded = evidence["reattestationTrigger"]["attestedEventOverlaySha256"]
-    assert prior["sources"]["SMC Event Overlay"]["repositorySha256"] == superseded
-    assert prior["sources"]["SMC Event Overlay"]["savedSourceReadbackSha256"] == superseded
-    assert prior["capturedAt"].startswith("2026-08-01")
-    # Its own pre-drill reading, unedited. The 2026-07-29 artifact it in turn
-    # superseded is still in the tree with ITS reading -- the chain is kept, not
-    # collapsed onto the newest state.
-    assert prior["rollback"]["status"] == "not_run"
+    # HISTORICAL pins, by literal filename -- immutable facts of the dated
+    # chain, asserted regardless of which artifact is registered today. (The
+    # PRIOR pointer moves with every rotation, so it stops meaning "the
+    # 2026-08-01 artifact" the moment a re-attestation registers a newer one.)
+    aug01 = json.loads(
+        (DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-08-01.json")
+        .read_text(encoding="utf-8")
+    )
+    assert aug01["capturedAt"].startswith("2026-08-01")
+    assert aug01["rollback"]["status"] == "not_run"
+    aug04 = json.loads(
+        (DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-08-04.json")
+        .read_text(encoding="utf-8")
+    )
+    assert (
+        aug04["reattestationTrigger"]["attestedEventOverlaySha256"]
+        == aug01["sources"]["SMC Event Overlay"]["repositorySha256"]
+    )
     oldest = DEFAULT_OUTPUT.parent / "smc_r1_live_rollout_evidence_2026-07-29.json"
     assert oldest.exists()
     assert json.loads(oldest.read_text(encoding="utf-8"))["rollback"]["status"] == "passed"
 
+    # CHAIN invariants, via the pointers -- these must hold for whatever is
+    # registered, driver-built artifacts included.
     assert evidence["supersedes"] == PRIOR_EXECUTION_EVIDENCE.relative_to(
         DEFAULT_OUTPUT.parents[2]
     ).as_posix()
-    # The superseded hash must differ from today's, or the artifact is claiming
-    # a supersession that never happened.
-    assert superseded != evidence["sources"]["SMC Event Overlay"]["repositorySha256"]
+    if evidence.get("supersessionKind", "source_change") == "source_change":
+        # A supersession that changes the source must SAY which hash it
+        # replaced, and that hash must genuinely differ from today's.
+        superseded = evidence["reattestationTrigger"]["attestedEventOverlaySha256"]
+        assert prior["sources"]["SMC Event Overlay"]["repositorySha256"] == superseded
+        assert superseded != evidence["sources"]["SMC Event Overlay"]["repositorySha256"]
+    else:
+        # An execution_measurement supersession (PR2 over PR1) changes no
+        # source: the measured tree must be exactly the one PR1 registered.
+        assert (
+            evidence["sources"]["SMC Event Overlay"]["repositorySha256"]
+            == prior["sources"]["SMC Event Overlay"]["repositorySha256"]
+        ), "an execution measurement may not change the source it measures"
 
 
 def test_the_operator_observation_carries_what_no_run_reports() -> None:
@@ -354,11 +458,23 @@ def test_status_derives_from_execution_state(tmp_path, monkeypatch) -> None:
     assert built["executionPerformed"] is False
 
 
-def test_missing_execution_state_means_executed() -> None:
-    """Backward-Kompatibilität: das 2026-08-04-Artefakt hat kein Feld."""
-    from scripts.smc_r1_rollout_contract import build_rollout_contract
+def test_missing_execution_state_means_executed(tmp_path, monkeypatch) -> None:
+    """Backward-Kompatibilität, als echter Fixture-Test.
 
-    built = build_rollout_contract()
+    Ein Artefakt OHNE ``executionState``-Feld (jedes vor 2026-08-04) muss als
+    executed gelesen werden. Vorher pinnte dieser Test schlicht den Live-Baum
+    -- was auf einem PR1-Baum falsch würde, ohne je das fehlende Feld getestet
+    zu haben.
+    """
+    import scripts.smc_r1_rollout_contract as contract_mod
+
+    evidence = json.loads(contract_mod.EXECUTION_EVIDENCE.read_text(encoding="utf-8"))
+    evidence.pop("executionState", None)
+    fake = tmp_path / contract_mod.EXECUTION_EVIDENCE.name
+    fake.write_text(json.dumps(evidence), encoding="utf-8")
+    monkeypatch.setattr(contract_mod, "EXECUTION_EVIDENCE", fake)
+
+    built = contract_mod.build_rollout_contract()
     assert built["status"] == "authorized_execution_reattested"
     assert built["executionPerformed"] is True
 
