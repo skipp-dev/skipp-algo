@@ -254,8 +254,8 @@ def test_the_evidence_commit_is_seeded_scoped_and_arms_auto_merge() -> None:
 
 
 def test_the_unattested_guard_remeasures_instead_of_trusting_the_flag() -> None:
-    """The carve-out may only turn the run green by asking the SAME module
-    that found the un-attestation again, against the extended chain."""
+    """The carve-out may only exit 0 by asking the SAME module that found the
+    un-attestation again, against the extended chain."""
     guard = _step(_save_steps(), "Fail the run when an R1-attested")
     run = guard["run"]
 
@@ -269,6 +269,36 @@ def test_the_unattested_guard_remeasures_instead_of_trusting_the_flag() -> None:
     assert 'if [ -z "${remaining}" ] || [ "${remaining}" = "[]" ]' in run
     assert "re-attestation committed but sources remain un-attested" in run
     assert run.rstrip().endswith("exit 1")
+
+
+def test_the_unattested_guard_survives_the_save_failure_it_reports_on() -> None:
+    """The guard's own trigger is what makes the save step fail.
+
+    A step whose ``if`` names no status function is ANDed with an implicit
+    ``success()``, so it is skipped the moment any earlier step failed. This
+    guard fires on a NON-EMPTY un-attested list -- and that same list is what
+    ``scripts/tv_batch_consumer_rollout.ts`` fails the save on. Its condition
+    was therefore true only in runs where it could no longer execute.
+
+    Measured 2026-08-06 over the last 20 tv-save-consumer-source runs: the
+    step appeared 12 times and was ``skipped`` all 12, never once executed.
+    The re-measurement it exists for -- "re-attestation committed but sources
+    remain un-attested" -- had never run, so a re-attestation that committed
+    without resolving the un-attestation would have merged unremarked (the
+    chain reached exactly that step for the first time in run 31106318082).
+    """
+    guard = _step(_save_steps(), "Fail the run when an R1-attested")
+    condition = str(guard["if"])
+
+    assert re.search(r"!\s*cancelled\(\)", condition), (
+        "without a status function this guard is suppressed by the very save "
+        f"failure it reports on (condition: {condition!r})"
+    )
+    # Not always(): a cancelled run measured nothing worth reporting on.
+    assert "always()" not in condition
+    # Still gated on there being something to re-measure: a run with nothing
+    # un-attested must not pay for this step.
+    assert "steps.attestation.outputs.unattested" in condition
 
 
 # ---- the proposal must be rebuilt at MEASURE time, not at proposal time ----
