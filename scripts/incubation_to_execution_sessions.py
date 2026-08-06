@@ -33,7 +33,6 @@ import sys
 from pathlib import Path
 
 from governance.incubation_sessions import (
-    IncubationConversionError,
     build_sessions,
     load_incubation_rows,
 )
@@ -48,6 +47,18 @@ def main(argv: list[str] | None = None) -> int:
         help="directory for the per-day execution-session JSON files",
     )
     parser.add_argument(
+        "--unreconciled-days",
+        choices=("count", "skip"),
+        default="count",
+        help=(
+            "days where no row carries reconciled_at: 'count' (default) treats "
+            "their submissions as missed entries; 'skip' drops them. The ledger "
+            "cannot tell 'reconciler saw no fill' from 'reconciler never ran', "
+            "and skipping removes misses only — so it inflates the fill rate and "
+            "must be an explicit choice."
+        ),
+    )
+    parser.add_argument(
         "--report",
         default="-",
         help="path for the conversion report, or '-' for stdout (default: stdout)",
@@ -56,14 +67,23 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rows = load_incubation_rows(list(args.ledgers))
-        sessions, report = build_sessions(rows)
-    except (OSError, IncubationConversionError) as exc:
+        sessions, report = build_sessions(rows, unreconciled_days=args.unreconciled_days)
+    except (OSError, ValueError) as exc:
+        # ValueError covers IncubationConversionError and the bare float()
+        # failures a non-numeric ledger value raises underneath it.
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     out_dir = Path(args.out_dir).expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
     from scripts.smc_atomic_write import atomic_write_text
+
+    # The documented consumer globs this directory, so a session file left by
+    # an earlier run would be re-pooled into the calibration even after its day
+    # stopped qualifying. Only this tool's own filenames are removed.
+    stale = sorted(out_dir.glob("execution_session_*.json"))
+    for path in stale:
+        path.unlink()
 
     written: list[str] = []
     for session in sessions:
@@ -73,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = report.as_dict()
     payload["session_paths"] = written
+    payload["stale_files_removed"] = len(stale)
+    payload["unreconciled_days"] = args.unreconciled_days
     rendered = json.dumps(payload, indent=2, sort_keys=True)
     if args.report == "-":
         print(rendered)
