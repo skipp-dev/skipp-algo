@@ -49,13 +49,15 @@ permissions:
 
 env:
   PYTHONUNBUFFERED: '1'
-  # libfaketime's README documents CLOCK_MONOTONIC hangs, and the reported real
-  # cases (#142, #469) are condition-variable / timed-wait primitives -- exactly
-  # what CPython locks and execnet's xdist worker waits sit on. Leaving the
-  # monotonic clock real is both the documented mitigation and what we want:
-  # nothing here is trying to fake ELAPSED time, only the wall date.
-  FAKETIME_DONT_FAKE_MONOTONIC: '1'
   PROBE_DIR: /tmp/clockprobe
+  # Pinned to the first tagged release that carries the clock_nanosleep fix for
+  # wolfcw/libfaketime#426. Lightweight tag v0.9.12 -> this commit.
+  FT_COMMIT: 3ccdd344aadf1e317156fa5fb7c881f2c4404778
+
+# NOTE on FAKETIME_DONT_FAKE_MONOTONIC: it is deliberately NOT set here at
+# workflow scope. Gate 1 measures the clock with the switch both on and off, and
+# a workflow-level env would make the "off" cell unmeasurable. Every later step
+# sets it explicitly per invocation.
 
 jobs:
   probe:
@@ -103,13 +105,32 @@ jobs:
           extra-packages: pytest
           runner-environment: github-hosted
 
-      - name: Install libfaketime
+      # The distribution package cannot do this job. Ubuntu ships libfaketime
+      # 0.9.10 (released 2022-03-04); the fix for wolfcw/libfaketime#426 landed
+      # 2023-06-06 and first shipped in v0.9.11 (2025-05-25). On 0.9.10 the
+      # clock_nanosleep TIMER_ABSTIME branch rewrites a CLOCK_MONOTONIC deadline
+      # unconditionally, so CPython >= 3.11's time.sleep() -- which sleeps
+      # against an absolute CLOCK_MONOTONIC deadline since gh-65501 -- gets a
+      # negative deadline and raises OSError(EINVAL). Building the fixed release
+      # costs ~10 s; there is no env-var workaround on 0.9.10.
+      - name: Build libfaketime (pinned, fixed release)
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq faketime
-          faketime --version | head -1
+          git clone --quiet https://github.com/wolfcw/libfaketime.git "$RUNNER_TEMP/libfaketime"
+          cd "$RUNNER_TEMP/libfaketime"
+          git checkout --quiet "$FT_COMMIT"
+          make -s -j"$(nproc)"
+          lib="$RUNNER_TEMP/libfaketime/src/libfaketime.so.1"
+          test -f "$lib"
+          echo "FT_LIB=$lib" >> "$GITHUB_ENV"
+          echo "built $lib from $FT_COMMIT"
+          # Prove the pin actually carries the fix rather than trusting the tag.
+          grep -q 'get_fake_monotonic_setting(&fake_monotonic_clock)' src/libfaketime.c \
+            && grep -A6 'else if (clock_id == CLOCK_MONOTONIC)' src/libfaketime.c \
+            | grep -q 'if (fake_monotonic_clock)' \
+            || { echo "::error::pinned source lacks the #426 fix in clock_nanosleep"; exit 1; }
 
       - name: 'Gate 0: the anchor is not today'
         shell: bash
@@ -126,32 +147,146 @@ jobs:
           fi
           echo "ANCHOR_DATE=$anchor_date" >> "$GITHUB_ENV"
 
-      - name: 'Gate 1: faketime shifts a bare interpreter, and the clock still advances'
+      # The previous revision of this step asserted one configuration and died on
+      # the first cell, which measured nothing: the failure was OSError(EINVAL)
+      # at time.sleep(), so the date check never even ran. Separating the date
+      # check from the sleep check, and running the monotonic switch both ways,
+      # is what makes the outcome interpretable either way.
+      - name: 'Gate 1: measure the clock-shift configuration matrix'
+        timeout-minutes: 6
         shell: bash
         run: |
-          set -euo pipefail
-          out="$(faketime -f "$ANCHOR" python - <<'PY'
+          set -uo pipefail
+          mkdir -p "$PROBE_DIR"
+          cat > "$PROBE_DIR/cell.py" <<'PY'
+          """One matrix cell: does the date shift, does sleep survive, do timed waits return?
+
+          Each probe is independent and reported even when a later one fails, so a
+          cell that breaks still says WHERE it broke.
+          """
+          import threading
           import time
           from datetime import UTC, date, datetime
 
-          first = time.time()
-          time.sleep(1.2)
-          second = time.time()
-          print(date.today().isoformat(), datetime.now(UTC).date().isoformat(), round(second - first, 2))
+          print(f"today={date.today().isoformat()}", flush=True)
+          print(f"utc={datetime.now(UTC).date().isoformat()}", flush=True)
+          print(f"monotonic={time.monotonic():.1f}", flush=True)
+
+          before = time.time()
+          try:
+              time.sleep(1.2)
+              status = "ok"
+          except OSError as exc:
+              status = f"OSError{exc.errno}"
+          print(f"sleep={status} wall_delta={time.time() - before:.2f}", flush=True)
+
+          # The documented CLOCK_MONOTONIC hazard (libfaketime#142) lives in
+          # condition-variable waits, which is what xdist workers and CPython
+          # locks sit on. A hang here is the finding.
+          before = time.perf_counter()
+          threading.Event().wait(0.5)
+          print(f"event_wait={time.perf_counter() - before:.2f}", flush=True)
           PY
-          )"
-          echo "faketime says: $out"
-          read -r today now_utc delta <<<"$out"
-          if [ "$today" != "$ANCHOR_DATE" ]; then
-            echo "::error::date.today()=$today != $ANCHOR_DATE"
+
+          run_cell() {
+            local label="$1" dont_fake="$2" rc=0 out
+            out="$(timeout -s KILL 30 env \
+              LD_PRELOAD="$FT_LIB" FAKETIME="$ANCHOR" \
+              ${dont_fake:+FAKETIME_DONT_FAKE_MONOTONIC=1} \
+              python -u "$PROBE_DIR/cell.py" 2>&1)" || rc=$?
+            if [ "$rc" -eq 137 ] || [ "$rc" -eq 124 ]; then
+              out="${out}"$'\n'"VERDICT=HANG (killed after 30s)"
+            fi
+            printf '%s|%s|%s\n' "$label" "$rc" "$(echo "$out" | tr '\n|' '  ')" \
+              >> "$PROBE_DIR/matrix.txt"
+            echo "--- $label (rc=$rc) ---"
+            echo "$out"
+          }
+
+          : > "$PROBE_DIR/matrix.txt"
+          run_cell "DONT_FAKE_MONOTONIC=1" 1
+          run_cell "DONT_FAKE_MONOTONIC unset" ""
+          echo "matrix written to $PROBE_DIR/matrix.txt"
+
+      - name: 'Gate 1b: the chosen configuration is actually usable'
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          out="$(timeout -s KILL 60 env \
+            LD_PRELOAD="$FT_LIB" FAKETIME="$ANCHOR" FAKETIME_DONT_FAKE_MONOTONIC=1 \
+            python -u "$PROBE_DIR/cell.py" 2>&1)" || rc=$?
+          echo "$out"
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::chosen configuration exited rc=$rc (137/124 means it HUNG)"
             exit 1
           fi
-          if [ "$now_utc" != "$ANCHOR_DATE" ]; then
-            echo "::error::datetime.now(UTC)=$now_utc != $ANCHOR_DATE"
-            exit 1
-          fi
-          # An advancing clock, not a frozen one: two reads 1.2 s apart must differ.
-          python -c "import sys; raise SystemExit(0 if float(sys.argv[1]) > 0.5 else 'clock did not advance -- this is a FROZEN clock, not a shifted one')" "$delta"
+          value_of() { echo "$out" | tr ' ' '\n' | grep "^$1=" | cut -d= -f2; }
+          today="$(value_of today)"
+          now_utc="$(value_of utc)"
+          [ "$today" = "$ANCHOR_DATE" ] || { echo "::error::date.today()=$today != $ANCHOR_DATE"; exit 1; }
+          [ "$now_utc" = "$ANCHOR_DATE" ] || { echo "::error::datetime.now(UTC)=$now_utc != $ANCHOR_DATE"; exit 1; }
+          [ "$(value_of sleep)" = "ok" ] || { echo "::error::time.sleep() raised $(value_of sleep)"; exit 1; }
+          # An advancing clock, not a frozen one, and timed waits that still return.
+          python - "$(value_of wall_delta)" "$(value_of event_wait)" <<'PY'
+          import sys
+          slept, waited = float(sys.argv[1]), float(sys.argv[2])
+          if slept <= 0.5:
+              raise SystemExit("clock did not advance -- this is a FROZEN clock, not a shifted one")
+          if not 0.3 <= waited <= 5.0:
+              raise SystemExit(f"Event.wait(0.5) took {waited}s -- the monotonic domain is corrupted")
+          PY
+
+      # Not a gate. A shifted wall clock breaks things that have nothing to do
+      # with date bombs, and the full-suite diff below is unreadable unless we
+      # know which classes those are up front. It reports rather than fails --
+      # note the absence of `set -e` and the trailing `|| true`, so no
+      # continue-on-error flag is needed to keep an expected TLS failure from
+      # stopping the probe.
+      - name: 'Gate 1c: inventory the collateral damage (advisory)'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -uo pipefail
+          timeout -s KILL 90 env \
+            LD_PRELOAD="$FT_LIB" FAKETIME="$ANCHOR" FAKETIME_DONT_FAKE_MONOTONIC=1 \
+            python -u - > "$PROBE_DIR/collateral.txt" 2>&1 <<'PY'
+          import os
+          import socket
+          import sqlite3
+          import ssl
+          import subprocess
+          import sys
+          import time
+
+          def report(label, fn):
+              try:
+                  print(f"{label}: {fn()}", flush=True)
+              except Exception as exc:
+                  print(f"{label}: {type(exc).__name__}: {str(exc)[:90]}", flush=True)
+
+          report("subprocess child date", lambda: subprocess.run(
+              [sys.executable, "-c", "from datetime import date; print(date.today())"],
+              capture_output=True, text=True, timeout=30).stdout.strip())
+          report("sqlite CURRENT_TIMESTAMP", lambda: sqlite3.connect(":memory:")
+                 .execute("select current_timestamp").fetchone()[0])
+
+          def mtime_skew():
+              open("/tmp/_clockprobe_mtime", "w").close()
+              return f"{time.time() - os.path.getmtime('/tmp/_clockprobe_mtime'):+.0f}s"
+
+          report("time.time() minus file mtime", mtime_skew)
+
+          def tls():
+              ctx = ssl.create_default_context()
+              with socket.create_connection(("pypi.org", 443), timeout=15) as raw:
+                  with ctx.wrap_socket(raw, server_hostname="pypi.org") as tls_sock:
+                      return f"OK {tls_sock.version()}"
+
+          report("TLS handshake to pypi.org", tls)
+          PY
+          cat "$PROBE_DIR/collateral.txt" || true
 
       - name: Write the worker-propagation control test
         shell: bash
@@ -184,6 +319,7 @@ jobs:
           echo "CLOCKPROBE_EXPECTED_DATE=$ANCHOR_DATE" >> "$GITHUB_ENV"
 
       - name: 'Gate 2: the control test FAILS without faketime (it is not vacuous)'
+        timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
@@ -197,15 +333,19 @@ jobs:
           echo "control correctly fails unshifted (rc=$rc)"
 
       - name: 'Gate 3: the shifted clock reaches xdist workers at -n 4'
+        timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
-          faketime -f "$ANCHOR" python -m pytest "$PROBE_DIR" -q --no-header \
+          timeout -s KILL 300 env \
+            LD_PRELOAD="$FT_LIB" FAKETIME="$ANCHOR" FAKETIME_DONT_FAKE_MONOTONIC=1 \
+            python -m pytest "$PROBE_DIR" -q --no-header \
             -n 4 --dist=loadscope -p no:cacheprovider 2>&1 | tee /tmp/pos.log
           tail -3 /tmp/pos.log
 
       - name: 'Measure A: full suite on the REAL clock (baseline)'
         if: env.RUN_FULL == 'true'
+        timeout-minutes: 45
         shell: bash
         run: |
           set -euo pipefail
@@ -229,7 +369,8 @@ jobs:
           set -euo pipefail
           rc=0
           start=$(date +%s)
-          faketime -f "$ANCHOR" python -m pytest tests/ -q --no-header -n 4 \
+          env LD_PRELOAD="$FT_LIB" FAKETIME="$ANCHOR" FAKETIME_DONT_FAKE_MONOTONIC=1 \
+            python -m pytest tests/ -q --no-header -n 4 \
             -p no:cacheprovider > /tmp/shift.log 2>&1 || rc=$?
           {
             echo "SHIFT_SECONDS=$(( $(date +%s) - start ))"
@@ -250,9 +391,27 @@ jobs:
             echo "| what | value |"
             echo "|---|---|"
             echo "| anchor | \`$ANCHOR\` (${ANCHOR_DATE:-n/a}) |"
+            echo "| libfaketime | built from \`${FT_COMMIT:0:12}\` (v0.9.12) |"
             echo "| baseline (real clock, -n 4) | ${BASE_LINE:-not run} — ${BASE_SECONDS:-?}s (rc=${BASE_RC:-?}) |"
             echo "| shifted (-n 4) | ${SHIFT_LINE:-not run} — ${SHIFT_SECONDS:-?}s (rc=${SHIFT_RC:-?}) |"
             echo
+            if [ -s "${PROBE_DIR}/matrix.txt" ]; then
+              echo "### configuration matrix"
+              echo
+              echo "| config | rc | observed |"
+              echo "|---|---|---|"
+              while IFS='|' read -r label rc observed; do
+                echo "| \`$label\` | $rc | $observed |"
+              done < "$PROBE_DIR/matrix.txt"
+              echo
+            fi
+            if [ -s "${PROBE_DIR}/collateral.txt" ]; then
+              echo "### collateral damage (not date bombs — expect these to go red)"
+              echo '```'
+              cat "$PROBE_DIR/collateral.txt"
+              echo '```'
+              echo
+            fi
             if [ -f /tmp/shift.log ] && [ -f /tmp/base.log ]; then
               echo "### tests that fail ONLY under the shifted clock"
               echo '```'
@@ -268,6 +427,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: shifted-clock-probe-logs
-          path: /tmp/*.log
+          path: |
+            /tmp/*.log
+            /tmp/clockprobe/*.txt
           if-no-files-found: warn
           retention-days: 7
