@@ -193,7 +193,13 @@ class TestAtsFieldsPriceDeltaAlignment:
 # ============================================================
 
 class TestSqueezeAlignedWindow:
-    """B22: TR must always use high and low from the same bar."""
+    """B22: TR must always use high and low from the same bar.
+
+    2026-08-05 (#4477): the series here grew because compute_squeeze_on now
+    fails closed below `period` + recursion warm-up. The per-bar shapes are
+    unchanged, so the arithmetic each test reasons about still holds; only
+    the history in front of the 20-bar Bollinger window is longer.
+    """
 
     def test_squeeze_on_rejects_negative_true_range_bar(self):
         """B10: malformed bar with high<low must not emit squeeze=True."""
@@ -206,7 +212,7 @@ class TestSqueezeAlignedWindow:
                 "low": 99.0 + i * 0.1,
                 "volume": 100,
             }
-            for i in range(19)
+            for i in range(119)
         ]
         bars.append(
             {
@@ -218,9 +224,17 @@ class TestSqueezeAlignedWindow:
             }
         )
 
+        # 2026-08-05: asserted as an INVARIANT, not as `is not True`. With the
+        # old 20-bar series compute_squeeze_on returned None for want of
+        # history, so `is not True` held vacuously and this test never
+        # exercised its own premise. The real claim is that the malformed bar
+        # is dropped from the aligned triples, i.e. it cannot change the
+        # verdict either way.
+        without_malformed = compute.compute_squeeze_on(bars[:-1], period=20)
         result = compute.compute_squeeze_on(bars, period=20)
-        assert result is not True, (
-            "B10: malformed bar with high<low must not create a squeeze signal"
+        assert result == without_malformed, (
+            "B10: a bar with high<low must be excluded from the aligned "
+            f"triples, but it moved the verdict {without_malformed} -> {result}"
         )
 
     def test_result_is_correct_when_bar_in_window_missing_high(self):
@@ -235,7 +249,7 @@ class TestSqueezeAlignedWindow:
         """
         compute = _compute()
         bars = []
-        for i in range(25):
+        for i in range(125):
             b: dict[str, Any] = {"close": 100.0, "low": 90.0}
             if i != 5:
                 b["high"] = 110.0
@@ -251,7 +265,7 @@ class TestSqueezeAlignedWindow:
         """Missing field in oldest bar (outside window) must not affect result."""
         compute = _compute()
         bars = []
-        for i in range(25):
+        for i in range(125):
             b: dict[str, Any] = {"close": 100.0, "low": 90.0, "high": 110.0}
             if i == 0:
                 del b["high"]  # Only bar[0] is missing high — outside [-20:] window
@@ -267,7 +281,7 @@ class TestSqueezeAlignedWindow:
         compute = _compute()
         # 25 bars but 10 are missing `high` → only 15 complete bars < period=20
         bars = []
-        for i in range(25):
+        for i in range(125):
             b: dict[str, Any] = {"close": 100.0, "low": 90.0}
             if i % 2 == 0:  # 13 bars have high (indices 0,2,4,...,24)
                 b["high"] = 110.0
@@ -283,7 +297,7 @@ class TestSqueezeAlignedWindow:
         compute = _compute()
         # high std_c (wide BB) with small ATR → not in squeeze
         import math
-        closes = [100.0 + (10.0 * math.sin(i)) for i in range(20)]
+        closes = [100.0 + (10.0 * math.sin(i)) for i in range(120)]
         bars = [
             {"close": c, "high": c + 0.5, "low": c - 0.5}
             for c in closes
