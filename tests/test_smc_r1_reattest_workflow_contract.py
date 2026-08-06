@@ -12,6 +12,7 @@ twice, 2026-08-04).
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -268,3 +269,143 @@ def test_the_unattested_guard_remeasures_instead_of_trusting_the_flag() -> None:
     assert 'if [ -z "${remaining}" ] || [ "${remaining}" = "[]" ]' in run
     assert "re-attestation committed but sources remain un-attested" in run
     assert run.rstrip().endswith("exit 1")
+
+
+# ---- the proposal must be rebuilt at MEASURE time, not at proposal time ----
+#
+# Measured 2026-08-06: the proposer built bot/r1-reattest at 19:31Z on 08-05
+# from a manifest that said 190. By the time a tv-save run reached the front of
+# the one-slot TradingView queue, TradingView listed 192, and the rollout tool
+# refused every save -- "the manifest says ... 190, but TradingView lists 192".
+# The library moves several times a day; a snapshot branch ages out before it
+# is ever measured.
+
+
+def _rebuild_step() -> dict:
+    return _step(_save_steps(), "Rebuild the proposal on current main")
+
+
+def _rebuild_decision_fragment() -> str:
+    """The rebuild's decide-and-apply logic, sliced before the push.
+
+    Executed rather than string-matched, for the same reason the proposer's own
+    fragment is: what fails in production is the shipped shell, never a
+    re-implementation of it.
+    """
+    run = _rebuild_step()["run"]
+    return run[: run.index("git push")]
+
+
+def _origin_with(tmp_path: Path, *, pin: int, published: int) -> Path:
+    """A real origin whose main carries `pin` in the source and `published` in
+    the manifest, plus a STALE proposal clone to run the fragment in."""
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=origin, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=origin, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=origin, check=True)
+    source = re.sub(
+        r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
+        rf"\g<1>{pin}\g<2>",
+        (_REPO_ROOT / "SMC_Event_Overlay.pine").read_text(encoding="utf-8"),
+        count=1,
+    )
+    (origin / "SMC_Event_Overlay.pine").write_text(source, encoding="utf-8")
+    manifest_dir = origin / "artifacts" / "tradingview"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "library_release_manifest.json").write_text(
+        json.dumps({"library": {"publishedVersion": published}}), encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=origin, check=True)
+    subprocess.run(["git", "commit", "-qm", "main"], cwd=origin, check=True)
+
+    work = tmp_path / "work"
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=work, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=work, check=True)
+    # The snapshot the proposer left behind: an older pin AND an older
+    # manifest -- exactly the shape that made the rollout tool refuse.
+    stale = (work / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
+    (work / "SMC_Event_Overlay.pine").write_text(
+        stale.replace(f"/{pin} as mp", "/183 as mp"), encoding="utf-8"
+    )
+    (work / "artifacts" / "tradingview" / "library_release_manifest.json").write_text(
+        json.dumps({"library": {"publishedVersion": 190}}), encoding="utf-8"
+    )
+    subprocess.run(["git", "commit", "-qam", "stale proposal"], cwd=work, check=True)
+    return work
+
+
+def _run_rebuild(work: Path, tmp_path: Path) -> subprocess.CompletedProcess:
+    outputs = tmp_path / "gh-output"
+    outputs.write_text("", encoding="utf-8")
+    return subprocess.run(
+        ["/bin/bash", "-c", _rebuild_decision_fragment()],
+        cwd=work,
+        env={
+            "PATH": os.environ["PATH"],
+            "HOME": str(tmp_path),
+            "GITHUB_REF_NAME": "bot/r1-reattest",
+            "GITHUB_OUTPUT": str(outputs),
+            "GITHUB_REPOSITORY": "skipp-dev/skipp-algo",
+            "GH_TOKEN": "test-token",
+        },
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_the_reattest_run_rebuilds_its_proposal_from_current_main(
+    tmp_path: Path,
+) -> None:
+    """The measuring run must carry the manifest and the pin that are current
+    WHEN IT RUNS, not the ones that were current when the proposal was made."""
+    work = _origin_with(tmp_path, pin=183, published=192)
+
+    done = _run_rebuild(work, tmp_path)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    manifest = json.loads(
+        (
+            work / "artifacts" / "tradingview" / "library_release_manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert manifest["library"]["publishedVersion"] == 192, "the stale manifest survived"
+    source = (work / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
+    assert "smc_micro_profiles_generated/192 as mp" in source
+
+
+def test_the_rebuild_no_ops_when_main_already_carries_the_published_pin(
+    tmp_path: Path,
+) -> None:
+    work = _origin_with(tmp_path, pin=192, published=192)
+    outputs = tmp_path / "gh-output"
+
+    done = _run_rebuild(work, tmp_path)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "skip=true" in outputs.read_text(encoding="utf-8")
+
+
+def test_the_rebuild_refuses_a_pin_ahead_of_the_manifest(tmp_path: Path) -> None:
+    """Never a downgrade: a pin ahead of the manifest is the drift gate's
+    business, not a reason to move the pin backwards."""
+    work = _origin_with(tmp_path, pin=200, published=192)
+
+    done = _run_rebuild(work, tmp_path)
+
+    assert done.returncode == 1
+    assert "AHEAD" in done.stdout + done.stderr
+
+
+def test_the_rebuild_runs_before_anything_is_measured() -> None:
+    names = [str(step.get("name", "")) for step in _save_steps()]
+    rebuild = next(
+        i for i, n in enumerate(names) if n.startswith("Rebuild the proposal")
+    )
+    save = next(
+        i for i, n in enumerate(names) if n.startswith("Save or read-only verify")
+    )
+    assert rebuild < save, "the rebuild must precede the write pass"
+    assert "reattest" in str(_rebuild_step().get("if", "")), "reattest-only"
+    assert "-f" in _rebuild_step()["run"], "the fixed proposal branch is force-pushed"

@@ -237,6 +237,88 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # The proposal branch is a SNAPSHOT. The proposer builds it at 12:07Z
+      # from main's manifest, but this measuring run may only reach the front
+      # of the one-slot TradingView queue hours later, and the library moves
+      # several times a day. Measured 2026-08-06: a branch proposed at 19:31Z
+      # on 08-05 carried manifest 190 while TradingView already listed 192, so
+      # the rollout tool refused every save ("the manifest says ... 190, but
+      # TradingView lists 192"). The run therefore rebuilds its own proposal
+      # from CURRENT main before it measures anything, and force-pushes it so
+      # the later evidence commit still fast-forwards onto the same branch.
+      - name: Rebuild the proposal on current main
+        id: rebuild
+        if: ${{ github.event.inputs.reattest == 'true' }}
+        env:
+          # PAT, not github.token: the rebuilt proposal must re-trigger the
+          # branch's own gates, same rationale as the proposer's push.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            bot/r1-reattest*) ;;
+            *)
+              echo "::error::reattest mode is only valid on a bot/r1-reattest* proposal branch (got ${GITHUB_REF_NAME})"
+              exit 1
+              ;;
+          esac
+          test -n "${GH_TOKEN}"
+          # Bound to the ref the case-guard above just proved is a proposal
+          # branch, so the push below can never address main.
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch --depth=1 origin main
+          git reset --hard FETCH_HEAD
+          attested="$(python3 <<'PY'
+          import pathlib, re
+          text = pathlib.Path("SMC_Event_Overlay.pine").read_text(encoding="utf-8")
+          match = re.search(r"import preuss_steffen/smc_micro_profiles_generated/(\d+) as mp", text)
+          if match is None:
+              raise SystemExit("Event Overlay carries no micro-profile import pin")
+          print(match.group(1))
+          PY
+          )"
+          published="$(python3 <<'PY'
+          import json
+          manifest = json.load(open("artifacts/tradingview/library_release_manifest.json"))
+          print(int(manifest["library"]["publishedVersion"]))
+          PY
+          )"
+          echo "attested=/${attested} published=/${published}"
+          if [ "${attested}" -eq "${published}" ]; then
+            # Main moved between the proposal and this run (another
+            # re-attestation landed). Nothing to re-attest; the save below
+            # then behaves exactly like the nightly one.
+            echo "::notice::current main already carries the published pin; nothing to re-attest"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${attested}" -gt "${published}" ]; then
+            echo "::error::attested pin /${attested} is AHEAD of the manifest /${published} -- refusing to propose a downgrade"
+            exit 1
+          fi
+          # Same heredoc discipline as the proposer: an inner single quote
+          # inside `python3 -c '...'` closes the shell string (run
+          # 31007122044 died on exactly that), so the value arrives only
+          # through the environment and the body stays unexpanded.
+          TARGET="${published}" python3 <<'PY'
+          import os, pathlib, re
+          target = int(os.environ["TARGET"])
+          path = pathlib.Path("SMC_Event_Overlay.pine")
+          text = path.read_text(encoding="utf-8")
+          new = re.sub(
+              r"(import preuss_steffen/smc_micro_profiles_generated/)\d+( as mp)",
+              rf"\g<1>{target}\g<2>",
+              text,
+              count=1,
+          )
+          assert new != text, "pin substitution was a no-op"
+          path.write_text(new, encoding="utf-8")
+          PY
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -qam "chore(pine): move the R1 Event Overlay pin to /${published} for re-attestation"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
+
       # The operator's browser is the normal production writer on this account
       # and automation is the guest; the tradingview-session group serialises
       # CI against CI only. This is the one direction that can be excluded
