@@ -167,7 +167,7 @@ Returns **404** on wrong token (does not leak route existence).
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
 | `flow_delta_proxy_pct` | float \| null | deprecated | Compatibility name for `(close−open)/open × 100`; not order-flow delta. |
 | `price_candle_body_return_pct` | float \| null | canonical | `(close−open)/open × 100`; no order-flow claim |
-| `squeeze_on` | int \| null | `0` \| `1` | 1 if the Bollinger Bands sit fully inside the Keltner Channel (Pine `_sqOn` edge containment, not a width comparison); null when unfresh or the history is too short to warm up ta.ema/ta.atr |
+| `squeeze_on` | int \| null | `0` \| `1` | 1 if the Bollinger Bands sit fully inside the Keltner Channel (Pine `_sqOn` edge containment, not a width comparison); null when unfresh or the history is too short to warm up ta.ema/ta.atr — **always null at `4H`**: the per-symbol cap of 9,600 retained 1m bars yields at most 49 RTH 4H candles, and the warm-up needs 67 |
 | `ats_state` | str \| null | deprecated | Compatibility name for accumulation/distribution, not average trade size |
 | `volume_accumulation_distribution_state` | str \| null | canonical | Price direction × current-bar volume z-score |
 | `ats_zscore` | float \| null | deprecated | Compatibility name for current-bar volume z-score, not average trade size |
