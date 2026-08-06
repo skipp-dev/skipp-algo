@@ -42,6 +42,7 @@ costs a red main after the merge.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
 from pathlib import Path
@@ -54,6 +55,35 @@ WORKFLOW_DIR = "workflows"
 # every guard in the repo builds the path that way.
 _READS_WORKFLOWS = (".github", WORKFLOW_DIR)
 _ENUMERATES = re.compile(r"\b(?:r?glob|iterdir)\s*\(")
+
+# CI surfaces that are not workflows but that guards read the same way.
+#
+# Measured 2026-08-06, after a PR editing `.github/dependabot.yml` selected
+# nothing: the mechanism above handles any `.yml`, but `_reads_workflows`
+# demands the literal token `workflows`, which a dependabot guard has no reason
+# to contain. So the gap was two-sided — the step fed only
+# `.github/workflows/`, AND the readability test was wired to workflows.
+#
+# A surface list, NOT a guard roster. The module docstring's objection stands:
+# a roster of guards cannot close the class, because it goes stale silently
+# every time someone adds one. A roster of SURFACES is bounded by what CI reads
+# and changes maybe twice a year. And it has to be a list rather than "any
+# changed file", because matching by bare filename makes `README.md` select 17
+# tests (measured) and destroys the cost model that a PR touching no CI surface
+# pays nothing.
+#
+# Deliberately absent, both measured the same day:
+#   * `pin_registry.toml` — 14 readers, all already pinned on the required
+#     path, so selecting them again buys runtime and no signal.
+#   * `.pre-commit-config.yaml` — zero tests read it. An entry here would
+#     select nothing and merely look like coverage.
+_CONFIG_SURFACES = (
+    ".github/dependabot.yml",
+    ".github/actions/*/action.yml",
+    "package.json",
+    "pyproject.toml",
+    "requirements.txt",
+)
 
 
 def _reads_workflows(text: str) -> bool:
@@ -76,17 +106,48 @@ def _names(text: str, stem: str) -> bool:
     return bool(re.search(pattern, text))
 
 
+def _is_config_surface(path: str) -> bool:
+    return any(fnmatch.fnmatch(path, pattern) for pattern in _CONFIG_SURFACES)
+
+
+def _names_file(text: str, path: str) -> bool:
+    """A guard reads a config surface by spelling its name or its whole path.
+
+    Deliberately plainer than :func:`_names`: there is no bare-stem form to
+    catch here (nobody stores ``"dependabot"`` and appends ``.yml``), and a
+    stem match would be far looser — ``package`` occurs in most files that
+    mention packaging at all.
+    """
+    return Path(path).name in text or path in text
+
+
 def select_guards(changed: list[str], tests_dir: Path | None = None) -> list[str]:
     """Test files that read any of ``changed``, as repository-relative paths."""
     tests_dir = TESTS if tests_dir is None else tests_dir
-    stems = [Path(path).stem for path in changed if Path(path).suffix in {".yml", ".yaml"}]
-    if not stems:
+    # Only files under .github/workflows/ produce a workflow stem. Measured
+    # 2026-08-06: without that restriction `.github/dependabot.yml` is a `.yml`
+    # like any other, so it yielded the stem `dependabot` and dragged in all 38
+    # guards that merely ENUMERATE the workflow directory — none of which read
+    # it. The early return used to hide this, because the step fed nothing but
+    # workflows.
+    stems = [
+        Path(path).stem
+        for path in changed
+        if path.startswith(".github/workflows/") and Path(path).suffix in {".yml", ".yaml"}
+    ]
+    configs = [path for path in changed if _is_config_surface(path)]
+    if not stems and not configs:
         return []
 
     selected: set[Path] = set()
     for candidate in sorted(tests_dir.glob("test_*.py")):
         text = candidate.read_text(encoding="utf-8", errors="ignore")
-        if not _reads_workflows(text):
+        if any(_names_file(text, path) for path in configs):
+            selected.add(candidate)
+            continue
+        # `stems` gates the whole workflow branch: enumeration means "any
+        # workflow changed", which is false when none did.
+        if not stems or not _reads_workflows(text):
             continue
         if _enumerates_workflows(text) or any(_names(text, stem) for stem in stems):
             selected.add(candidate)

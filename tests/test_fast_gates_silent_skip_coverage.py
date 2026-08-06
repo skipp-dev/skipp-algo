@@ -1447,7 +1447,10 @@ _MUST_RUN_ON_A_CODE_PR: tuple[str, ...] = (
     "Ruff lint",
     "Run fast SMC integration tests",
     "Layer violation guard (F-08)",
-    "Run every guard that reads a workflow this PR changed",
+    # Renamed 2026-08-06 from "...reads a workflow this PR changed" when the
+    # step's diff pathspec was widened past .github/workflows/ to the other CI
+    # surfaces guards read.
+    "Run every guard that reads a CI surface this PR changed",
 )
 
 # 32 steps carry a run_heavy condition today. The floor is deliberately below
