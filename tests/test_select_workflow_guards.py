@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.select_workflow_guards import ROOT, select_guards
+from scripts.select_workflow_guards import _CONFIG_SURFACES, ROOT, select_guards
 
 # (changed workflow, guard that reads it, what shipped past it)
 _REGRESSIONS = [
@@ -120,8 +120,9 @@ def test_the_gate_actually_runs_the_selection() -> None:
     gates = (ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml").read_text(encoding="utf-8")
 
     assert "python -m scripts.select_workflow_guards" in gates
-    # Diff-scoped: a PR that changes no workflow must not pay for this.
-    assert 'git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- .github/workflows/' in gates
+    # Diff-scoped: a PR that changes no CI surface must not pay for this.
+    assert 'git diff --name-only "${BASE_SHA}..${HEAD_SHA}" --' in gates
+    assert ".github/workflows/" in gates
     # And the selection has to be executed, not merely printed.
     assert "python -m pytest ${guards}" in gates
 
@@ -129,5 +130,86 @@ def test_the_gate_actually_runs_the_selection() -> None:
     # which needs only the standard library, and died on "No module named
     # pytest" (run 30697585385) -- the selection was correct and unusable.
     install = gates.index("- name: Install dependencies")
-    step = gates.index("- name: Run every guard that reads a workflow this PR changed")
+    step = gates.index("- name: Run every guard that reads a CI surface this PR changed")
     assert install < step, "the selection runs pytest, so it must follow the dependency install"
+
+
+def test_the_diff_feeds_every_surface_the_selector_knows() -> None:
+    """The superset relation, which is where this mechanism actually breaks.
+
+    The selector and the step are two halves of one gate, and they fail
+    silently in OPPOSITE directions. A surface the selector knows but the diff
+    never hands it selects nothing and looks exactly like "no guard reads
+    this" -- which is how a PR editing ``.github/dependabot.yml`` came to run
+    its own guard only after merge, on 2026-08-06.
+
+    Asserted against the step's real pathspec, sliced out of the workflow, so
+    the check cannot be satisfied by the surface appearing somewhere else in
+    the file (the ``ignore:`` block names ``dependabot`` too).
+    """
+    gates = (ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml").read_text(encoding="utf-8")
+    start = gates.index('git diff --name-only "${BASE_SHA}..${HEAD_SHA}" --')
+    pathspec = gates[start : gates.index(")", start)]
+
+    missing = [
+        surface
+        for surface in _CONFIG_SURFACES
+        # `.github/actions/*/action.yml` is fed as the directory `.github/actions/`
+        if surface.split("*")[0] not in pathspec
+    ]
+    assert not missing, (
+        f"scripts/select_workflow_guards.py knows {missing} but the fast-gates diff "
+        "never hands them over, so their guards are selected by nothing. Add them to "
+        "the pathspec of the 'Run every guard that reads a CI surface this PR changed' "
+        "step, or drop them from _CONFIG_SURFACES."
+    )
+
+
+@pytest.mark.parametrize("surface", _CONFIG_SURFACES)
+def test_every_declared_surface_selects_at_least_one_guard(surface: str) -> None:
+    """No surface may be listed that nothing reads.
+
+    Without this, ``_CONFIG_SURFACES`` accumulates entries that look like
+    coverage and select nothing -- the failure mode this repo calls vacuity.
+    Measured 2026-08-06 while choosing the list: ``.pre-commit-config.yaml``
+    has zero readers and was left out for exactly this reason.
+    """
+    probe = surface.replace("*", "setup-python-pinned")
+    # THIS file does not count as a reader. It discusses the surfaces by name --
+    # including the ones deliberately left out -- so counting itself would let
+    # any surface satisfy the check on the strength of the prose explaining why
+    # it should not. Measured: a mutation adding `.pre-commit-config.yaml`
+    # (zero real readers) stayed GREEN until this line existed.
+    selected = [s for s in select_guards([probe]) if not s.endswith(Path(__file__).name)]
+    assert selected, (
+        f"{surface} is declared a config surface but no test under tests/ names it, "
+        "so changing it selects nothing. Either a guard is missing, or the surface "
+        "does not belong in _CONFIG_SURFACES."
+    )
+
+
+def test_a_config_surface_does_not_drag_in_the_workflow_enumerators() -> None:
+    """Over-selection is cheap; THIS over-selection was not.
+
+    ``.github/dependabot.yml`` is a ``.yml`` like any other, so before the
+    stems were restricted to ``.github/workflows/`` it produced the stem
+    ``dependabot`` and selected all 38 guards that merely enumerate the
+    workflow directory -- none of which read it. Measured 2026-08-06.
+    """
+    dependabot = select_guards([".github/dependabot.yml"])
+    workflow = select_guards([".github/workflows/ci.yml"])
+
+    assert len(dependabot) < len(workflow) / 4, (
+        f"a dependabot-only change selected {len(dependabot)} guards against "
+        f"{len(workflow)} for a workflow change — the workflow enumerators are "
+        "being dragged in by a stem that is not a workflow"
+    )
+    # Named, not merely counted: a count alone would pass on any four files.
+    assert {
+        "tests/test_dependabot_local_version_pins.py",
+        "tests/test_dependabot_typescript_major_hold.py",
+    } <= set(dependabot), f"the dependabot guards themselves were not selected: {dependabot}"
+    # This file is in the selection too, and belongs there: it names the surface
+    # in the tests above, so a change to that surface should re-run the guard
+    # that decides which guards run. Self-selection is the mechanism working.
+    assert "tests/test_select_workflow_guards.py" in dependabot

@@ -710,7 +710,7 @@ jobs:
       # workflow and 484 are unlisted. So the selection follows the DIFF. A PR
       # that touches no workflow pays nothing; one that touches a workflow runs
       # every guard that reads it, listed or not.
-      - name: Run every guard that reads a workflow this PR changed
+      - name: Run every guard that reads a CI surface this PR changed
         if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -718,12 +718,24 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- .github/workflows/)"
+          # The pathspec must stay a superset of _CONFIG_SURFACES in
+          # scripts/select_workflow_guards.py — a surface the selector knows but
+          # the diff never hands it is a guard nobody runs. Widened 2026-08-06:
+          # this fed only .github/workflows/, so a PR editing .github/dependabot.yml
+          # selected nothing and the guard for the change it made ran after merge.
+          # tests/test_select_workflow_guards.py pins the superset relation.
+          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}" -- \
+            .github/workflows/ \
+            .github/dependabot.yml \
+            .github/actions/ \
+            package.json \
+            pyproject.toml \
+            requirements.txt)"
           if [ -z "${changed}" ]; then
-            echo "No workflow changed in this pull request."
+            echo "No CI surface changed in this pull request."
             exit 0
           fi
-          echo "Changed workflows:"
+          echo "Changed CI surfaces:"
           echo "${changed}" | sed 's/^/  /'
           # shellcheck disable=SC2086
           guards="$(python -m scripts.select_workflow_guards ${changed})"
