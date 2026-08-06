@@ -105,17 +105,23 @@ user/question + market context
        cache and UI
 ```
 
-`cisco_ai_defense.py` uses the official `cisco-aidefense-sdk==2.1.2`.
+`cisco_ai_defense.py` uses the official `cisco-aidefense-sdk==2.1.3`.
 The wrapper adds two intentional hardening rules around the SDK:
 
 1. A decision is trusted only when both `is_safe` and `action` are present and
-   consistent.  This compensates for SDK 2.1.2 parsing a missing `is_safe`
-   value as `True`.
+   consistent.  This compensates for the SDK parsing a missing `is_safe`
+   value as `True` — still the case on 2.1.3, measured 2026-08-06 in a
+   throwaway venv: `runtime/inspection_client.py` builds the response with
+   `is_safe=response_data.get("is_safe", True)`, so an answer that omits the
+   field reads as *safe*.
 2. Logs contain decision metadata only.  Prompt text, response text, Cisco
    explanations, and keys are never logged by the application boundary.
-3. The optional `Metadata.created_at` field is omitted.  SDK 2.1.2 accepts a
+3. The optional `Metadata.created_at` field is omitted.  The SDK accepts a
    Python `datetime` in that field but fails to JSON-serialize it on a real
-   inspection request.  Cisco timestamps the event server-side; a regression
+   inspection request — re-measured on 2.1.3 (2026-08-06):
+   `Metadata(created_at=datetime.now(UTC))` still constructs, and serializing
+   it still raises `TypeError: Object of type datetime is not JSON
+   serializable`.  Cisco timestamps the event server-side; a regression
    assertion pins this workaround until the SDK contract changes.
 
 ## Verified rollout state (2026-07-20)
