@@ -96,6 +96,17 @@ class OpraShadowState:
         self.started_at = datetime.now(UTC)
         self.session_date: str | None = None
 
+    @property
+    def definition_count(self) -> int:
+        """How many definitions are currently held (cheap; no snapshot build).
+
+        The bootstrap supervision in :mod:`services.opra_live_daemon.feed`
+        polls this every tick, so it must not walk the trade window the way
+        ``build_snapshot`` does.
+        """
+        with self._lock:
+            return len(self._definitions)
+
     def update_hotlist(self, hotlist: tuple[str, ...]) -> None:
         """Apply an operator hotlist change and purge removed underlyings."""
         normalized = frozenset(ticker.strip().upper() for ticker in hotlist if ticker.strip())

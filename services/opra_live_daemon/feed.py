@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import random
 import threading
+import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -12,7 +13,7 @@ from typing import Any
 import databento_usage
 
 from .config import Config, read_hotlist_file
-from .definitions import bootstrap_definitions
+from .definitions import BootstrapPlanner, bootstrap_definitions
 from .state import OpraShadowState, _mapping
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,96 @@ def _parent_symbols(hotlist: tuple[str, ...]) -> list[str]:
 # dispatched by the session's own thread via the callback.
 _WAIT_TICK_SECONDS = 1.0
 
+# Bootstrap retry pacing. The delay doubles per consecutive failure up to the
+# cap, so the 2026-08-04 Databento Historical outage (504 for hours) costs a
+# handful of requests instead of one per supervision tick — and the daemon
+# still recovers on its own within the cap once the gateway answers again.
+_BOOTSTRAP_RETRY_SECONDS = 30.0
+_BOOTSTRAP_MAX_RETRY_SECONDS = 900.0
+
+
+def _bootstrap_if_due(
+    planner: BootstrapPlanner,
+    make_provider: Any,
+    state: OpraShadowState,
+    *,
+    symbols: list[str],
+) -> bool:
+    """Run one bootstrap attempt when the planner says it is owed; else no-op.
+
+    Returns whether an attempt ran. Runs on its own thread (see
+    :func:`_bootstrap_loop`) because the range request has no overall deadline:
+    databento's per-read timeout is 100 s and the client retries three times,
+    so a gateway outage blocks the caller for ~10 minutes.
+    """
+    session = state.session_date or datetime.now(UTC).date().isoformat()
+    if not planner.due(
+        time.monotonic(), session_date=session, definition_count=state.definition_count
+    ):
+        return False
+    loaded = 0
+    try:
+        # Constructing the provider inside the attempt keeps a client-side
+        # failure (TLS env, bad key at boot) on the same retry path as a
+        # gateway failure instead of killing the feed thread outright.
+        for definition in bootstrap_definitions(
+            make_provider(), symbols=symbols, instant=datetime.now(UTC)
+        ):
+            state.add_definition(definition)
+            loaded += 1
+        if loaded:
+            logger.info("OPRA definition bootstrap loaded %d definitions", loaded)
+        else:
+            logger.warning("OPRA definition bootstrap returned no definitions")
+    except Exception:
+        logger.warning(
+            "OPRA definition bootstrap failed; live updates remain active, retrying",
+            exc_info=True,
+        )
+    # Success means state HOLDS definitions, not that the provider returned
+    # rows: `add_definition` silently drops anything whose underlying is not in
+    # the hotlist, so counting returned rows would let a schema drift (empty
+    # `underlying` -> every row rejected) look like success. That would reset
+    # the backoff on every attempt while the daemon stays at zero definitions —
+    # a permanent 30 s poll the growing delay could never engage against.
+    #
+    # The session captured BEFORE the request is what this attempt satisfied:
+    # if the UTC day rolled while it ran, state cleared what we just loaded and
+    # the new session is still owed a bootstrap.
+    planner.record_attempt(
+        time.monotonic(),
+        ok=loaded > 0 and state.definition_count > 0,
+        session_date=session,
+    )
+    return True
+
+
+def _bootstrap_loop(
+    planner: BootstrapPlanner,
+    make_provider: Any,
+    state: OpraShadowState,
+    stop: threading.Event,
+    *,
+    tick: float,
+) -> None:
+    """Own thread for the bootstrap retries; the supervision loop must not block.
+
+    The range request can hold its caller for ~10 minutes during a gateway
+    outage (100 s read timeout x 3 client attempts). On the supervision thread
+    that would stop ``client.is_connected()`` from being polled for the whole
+    window — a dropped session would go unnoticed, and every record in it lost,
+    exactly while the daemon is already degraded. The hotlist is re-read here
+    rather than captured so a resubscribe bootstraps the new symbols.
+    """
+    while not stop.is_set():
+        _bootstrap_if_due(
+            planner,
+            make_provider,
+            state,
+            symbols=_parent_symbols(tuple(sorted(state.hotlist))),
+        )
+        stop.wait(tick)
+
 
 def _hotlist_changed(config: Config, state: OpraShadowState) -> bool:
     """Reload the hotlist file; True (and state updated) when it differs.
@@ -152,15 +243,25 @@ def run(config: Config, state: OpraShadowState, stop: threading.Event) -> None:
 
     db = _import_databento()
     symbols = _parent_symbols(tuple(sorted(state.hotlist)))
-    try:
-        for definition in bootstrap_definitions(
-            DabentoProvider(config.api_key),
-            symbols=symbols,
-            instant=datetime.now(UTC),
-        ):
-            state.add_definition(definition)
-    except Exception:
-        logger.warning("OPRA definition bootstrap failed; live updates remain active", exc_info=True)
+
+    def make_provider() -> Any:
+        return DabentoProvider(config.api_key)
+
+    planner = BootstrapPlanner(
+        retry_seconds=_BOOTSTRAP_RETRY_SECONDS,
+        max_retry_seconds=_BOOTSTRAP_MAX_RETRY_SECONDS,
+    )
+    # First attempt before connecting, as it always was: definitions ahead of
+    # records. Every retry after it belongs to its own thread.
+    _bootstrap_if_due(planner, make_provider, state, symbols=symbols)
+    bootstrapper = threading.Thread(
+        target=_bootstrap_loop,
+        args=(planner, make_provider, state, stop),
+        kwargs={"tick": _WAIT_TICK_SECONDS},
+        name="opra-definition-bootstrap",
+        daemon=True,
+    )
+    bootstrapper.start()
 
     failures = 0
     while not stop.is_set():

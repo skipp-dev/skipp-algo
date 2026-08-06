@@ -43,7 +43,12 @@ The service bootstraps definitions from the most recent available complete UTC
 weekday and also subscribes to definition updates. It searches backwards for
 up to seven days so weekend and provider-unavailable holiday windows do not
 prevent a live restart. Errors other than the provider's explicit
-`data_start_after_available_end` response remain fail-closed. Trades whose
+`data_start_after_available_end` response remain fail-closed. The bootstrap is
+not one-shot: the supervision loop re-attempts it while it is unsatisfied —
+after a failure (Databento Historical answered 504 for hours on 2026-08-04,
+leaving the replica definition-less for a whole trading day) with a delay that
+doubles from 30 s to a 15 min cap, and after the UTC session roll, which clears
+the held definitions. Trades whose
 instrument is still unknown are held temporarily and counted; they are never
 guessed. Reconnects use exponential backoff with jitter. The local snapshot is
 written atomically and marked `shadow_only: true`.
