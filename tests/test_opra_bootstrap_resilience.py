@@ -20,6 +20,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,33 @@ from tests.test_opra_live_daemon import (
     _run_watched,
     _state,
 )
+
+# Two sessions that differ BY CONSTRUCTION, and neither of them is today.
+#
+# A date comparison needs BOTH sides supplied. `feed._bootstrap_if_due` falls back to
+# `datetime.now(UTC).date()` when the state carries no session yet, so leaving one
+# side implicit compares a literal against the wall clock. This file shipped exactly
+# that: the rolled-to date was written as the literal "2026-08-06" while the session
+# before the roll came from the clock. The planner reads a roll as
+# `session_date != self._satisfied_session`; on 2026-08-06 the two sides were the same
+# string, so nothing rolled and the test failed. Authored 08-05 green, merged 08-06
+# already red.
+#
+# It is NOT an annually recurring failure -- the literal carries a year, so the two
+# sides coincide on exactly one day in history. Measured by shifting the module's
+# clock: 08-04 pass, 08-05 pass, 08-06 FAIL, 08-07 pass, 2027-08-06 pass. That is
+# worse, not better: a yearly red eventually gets looked at, while this one goes green
+# the next morning and stays green forever, leaving the pattern as a template.
+#
+# Same class as #4472's "Cause 2", where a manifest carried `export_date:
+# "2026-08-04"` and the assertion passed only because that was the day it ran.
+#
+# These two constants serve the pure planner tests below, where both sides of every
+# comparison are arguments. The end-to-end roll test deliberately uses NO literal at
+# all -- see `test_run_rebootstraps_after_a_utc_session_roll`, which derives its roll
+# from the session the daemon actually settled on.
+_SESSION = date(2019, 1, 2).isoformat()
+_NEXT_SESSION = (date(2019, 1, 2) + timedelta(days=1)).isoformat()
 
 
 def _planner(**kwargs: Any) -> BootstrapPlanner:
@@ -74,36 +102,36 @@ def test_the_backoff_grows_with_consecutive_failures_and_is_capped() -> None:
 
 def test_a_successful_bootstrap_settles_the_planner() -> None:
     planner = _planner()
-    planner.record_attempt(0.0, ok=True, session_date="2026-08-05")
+    planner.record_attempt(0.0, ok=True, session_date=_SESSION)
 
-    assert planner.due(10_000.0, session_date="2026-08-05", definition_count=40_180) is False
+    assert planner.due(10_000.0, session_date=_SESSION, definition_count=40_180) is False
 
 
 def test_a_success_that_produced_no_definitions_stays_due() -> None:
     """Zero definitions is a broken bootstrap, whatever the call returned."""
     planner = _planner()
-    planner.record_attempt(0.0, ok=True, session_date="2026-08-05")
+    planner.record_attempt(0.0, ok=True, session_date=_SESSION)
 
-    assert planner.due(30.0, session_date="2026-08-05", definition_count=0) is True
+    assert planner.due(30.0, session_date=_SESSION, definition_count=0) is True
 
 
 def test_the_utc_session_roll_makes_the_bootstrap_due_again() -> None:
     """The roll clears state's definitions; a partially re-learned set is not
     a bootstrap. Definitions present must NOT mask the new session."""
     planner = _planner()
-    planner.record_attempt(0.0, ok=True, session_date="2026-08-05")
+    planner.record_attempt(0.0, ok=True, session_date=_SESSION)
 
-    assert planner.due(86_400.0, session_date="2026-08-06", definition_count=17) is True
+    assert planner.due(86_400.0, session_date=_NEXT_SESSION, definition_count=17) is True
 
 
 def test_a_success_after_failures_resets_the_backoff() -> None:
     planner = _planner()
     planner.record_attempt(0.0, ok=False, session_date=None)
     planner.record_attempt(30.0, ok=False, session_date=None)
-    planner.record_attempt(90.0, ok=True, session_date="2026-08-05")
+    planner.record_attempt(90.0, ok=True, session_date=_SESSION)
 
     # New session one tick later: back to the base delay, not the grown one.
-    assert planner.due(120.0, session_date="2026-08-06", definition_count=0) is True
+    assert planner.due(120.0, session_date=_NEXT_SESSION, definition_count=0) is True
 
 
 # ---- feed.run wiring: the outage and the roll, end to end -------------------
@@ -172,21 +200,40 @@ def test_run_rebootstraps_after_a_utc_session_roll(
     _FakeLive.reset(scripts=[[]], stay_connected=True, on_iter=stop.set)
     _patch_feed(monkeypatch)
     _patch_definition_source(monkeypatch, provider)
+    # Filled by the roller thread, read by the assertions after the run.
+    settled: dict[str, Any] = {}
 
     def _roll_then_stop() -> None:
-        for _ in range(500):
-            if provider.calls >= 1:
-                break
-            stop.wait(0.01)
-        # Midnight UTC, plus the live stream immediately re-learning ONE
-        # instrument. Definitions are therefore non-zero, so only the session
-        # change itself can make the bootstrap due again — without this the
-        # test would pass on the zero-definitions clause and never touch the
-        # mechanism it is named for.
-        state.session_date = "2026-08-06"
-        assert state.definition_count > 0
+        # Let the daemon settle on a session of ITS OWN choosing first. It does
+        # not sit still on a pre-set value: the bootstrap's definitions carry no
+        # ``ts_event``, so ``add_definition`` stamps them with the wall clock
+        # (state.py) and ``_roll_session`` moves the state to today -- a roll the
+        # planner honours like any other, worth one extra attempt on its own.
+        #
+        # Measured, not assumed: with the session pre-set to a fixed date, this
+        # thread observed ``session_date == <today>`` and ``calls == 2`` before
+        # touching anything. An absolute ``calls >= 2`` at the end would be
+        # satisfied by that incidental roll alone, and deleting the scripted roll
+        # below left the test green -- it would then observe nothing.
         for _ in range(500):
             if provider.calls >= 2:
+                break
+            stop.wait(0.01)
+        settled["calls"] = provider.calls
+        settled["session"] = state.session_date
+
+        # Roll one day past wherever it settled: different by construction, from
+        # any clock, on any date. No literal can collide with the wall clock here
+        # because no literal is involved.
+        rolled_to = (date.fromisoformat(state.session_date) + timedelta(days=1)).isoformat()
+        state.session_date = rolled_to
+        settled["rolled_to"] = rolled_to
+        # Definitions are non-zero across the roll, so only the session change
+        # itself can make the bootstrap due again -- otherwise the test would
+        # pass on the zero-definitions clause and never touch its own mechanism.
+        assert state.definition_count > 0
+        for _ in range(500):
+            if provider.calls > settled["calls"]:
                 break
             stop.wait(0.01)
         stop.set()
@@ -196,8 +243,78 @@ def test_run_rebootstraps_after_a_utc_session_roll(
     _run_watched(_config(tmp_path), state, stop)
     roller.join(timeout=5.0)
 
-    assert provider.calls >= 2, "the session roll did not trigger a re-bootstrap"
+    assert settled.get("session"), "the daemon never settled; the roll proves nothing"
+    assert settled["rolled_to"] != settled["session"], "the scripted roll was not a roll"
+    assert provider.calls > settled["calls"], (
+        "the scripted session roll did not trigger a re-bootstrap "
+        f"(settled at {settled['calls']} attempt(s) on {settled['session']}, "
+        f"rolled to {settled['rolled_to']}, still {provider.calls})"
+    )
     assert state.build_snapshot()["metrics"]["definition_count"] == 1
+
+
+# ---- the clock fallback the roll test must not lean on ---------------------
+
+
+class _SessionRecorder:
+    """A planner that records the session it was asked about and owes nothing."""
+
+    def __init__(self) -> None:
+        self.sessions: list[str | None] = []
+
+    def due(self, _now: float, *, session_date: str | None, definition_count: int) -> bool:
+        self.sessions.append(session_date)
+        return False
+
+    def record_attempt(self, *_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("due() said no; no attempt may run")
+
+
+class _FixedClock:
+    """A clock whose UTC date and naive-local date deliberately disagree.
+
+    23:30 on 2019-01-02 at UTC-5 is already 2019-01-03 in UTC. Asserting the UTC
+    answer therefore fails if the production call ever loses its ``UTC``: a naive
+    ``datetime.now()`` would land a day earlier. A window of two real ``now()``
+    readings cannot make that distinction at all on a UTC-configured runner.
+    """
+
+    _INSTANT = datetime(2019, 1, 3, 4, 30, tzinfo=UTC)
+    _LOCAL = timezone(timedelta(hours=-5))
+
+    UTC_DATE = "2019-01-03"
+    NAIVE_LOCAL_DATE = "2019-01-02"
+
+    @classmethod
+    def now(cls, tz: Any = None) -> datetime:
+        if tz is None:
+            return cls._INSTANT.astimezone(cls._LOCAL).replace(tzinfo=None)
+        return cls._INSTANT.astimezone(tz)
+
+
+def test_a_state_without_a_session_bootstraps_against_todays_utc_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the ``feed.py`` fallback that a roll test must never lean on.
+
+    The fallback is correct production behaviour: a replica that has not seen a
+    record yet still owes the current UTC session a bootstrap, and the clock is the
+    only source available. It was untested, which is how a roll test could quietly
+    build on it. It is pinned HERE, beside that test, because it is the trap.
+    """
+    state = _state()
+    assert state.session_date is None, "the fallback below is only reached without a session"
+    monkeypatch.setattr(feed, "datetime", _FixedClock)
+
+    recorder = _SessionRecorder()
+    ran = feed._bootstrap_if_due(recorder, object, state, symbols=["SPY"])
+
+    assert ran is False
+    assert recorder.sessions == [_FixedClock.UTC_DATE], (
+        f"the bootstrap asked about {recorder.sessions!r}. Expected "
+        f"{_FixedClock.UTC_DATE!r} -- today's date in UTC. "
+        f"{_FixedClock.NAIVE_LOCAL_DATE!r} means the call lost its timezone."
+    )
 
 
 def test_the_backoff_survives_a_week_of_failures() -> None:
@@ -244,7 +361,7 @@ def test_definitions_the_state_rejects_are_not_a_successful_bootstrap(
     # The discriminator: a recorded SUCCESS would leave the planner satisfied,
     # so it would answer False here once definitions exist. It must not be.
     now = time.monotonic()
-    assert planner.due(now + 31.0, session_date="2026-08-05", definition_count=5) is True
+    assert planner.due(now + 31.0, session_date=_SESSION, definition_count=5) is True
 
 
 def test_definition_count_reports_what_the_state_holds() -> None:
