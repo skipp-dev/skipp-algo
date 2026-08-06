@@ -700,6 +700,7 @@ jobs:
             tests/test_git_fixture_env_isolation.py \
             tests/test_ts_vacuity_guard_is_required.py \
             tests/test_dependabot_local_version_pins.py \
+            tests/test_dependabot_typescript_major_hold.py \
             tests/test_workflow_pine_library_publish_handlibs_contract.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a

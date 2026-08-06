@@ -103,17 +103,76 @@ updates:
       # `forEachChild` "exists in NO subpath", which a review disproved against
       # the real 7.0.2 install. Re-measured: the exported free function is gone,
       # but it survives as a Node METHOD (`dist/ast/ast.d.ts:40`), so every
-      # `ts.forEachChild(node, cb)` becomes `node.forEachChild(cb)`; parsing
-      # text moves from `ts.createSourceFile` to `unstable/sync`'s API ->
-      # Project -> program.getSourceFile() (the `createSourceFile` in
-      # unstable/ast/factory is the FACTORY, which builds a node from parts);
-      # and `isStringLiteralLike` is renamed `isStringLiteralLikeNode`. That is
-      # 34 relocated members plus three shape changes, onto a surface upstream
-      # itself labels "unstable" — for a guard that gates merges, the wrong
-      # trade. The decision is unchanged; only the reason is stated correctly.
+      # `ts.forEachChild(node, cb)` becomes `node.forEachChild(cb)`; and
+      # `isStringLiteralLike` is renamed `isStringLiteralLikeNode`. A surface
+      # upstream itself labels "unstable" is, for a guard that gates merges,
+      # the wrong trade. The decision is unchanged; only the reason is stated
+      # correctly.
+      #
+      # Corrected again 2026-08-05, this time by unpacking the 7.0.2 tarball
+      # rather than reasoning about it. The earlier wording here said parsing
+      # "moves to `unstable/sync`'s API -> Project -> program.getSourceFile()".
+      # That skipped a mandatory step and named no source: there is no
+      # `getSourceFile` on `API` at all. `dist/api/sync/api.d.ts` declares
+      # API -> updateSnapshot() -> Snapshot -> getProject(configFileName) |
+      # getDefaultProjectForFile() -> Project -> .program ->
+      # Program.getSourceFile(). Five hops, anchored on a config file, over an
+      # out-of-process client. And there is no lighter route: grepping every
+      # `.d.ts` in the wheel finds NO free-standing parse function, and
+      # `unstable/ast` (dist/ast/index.d.ts) re-exports ast, astnav, clone, is,
+      # jsdoc, scanner, utils and visitor — no parser module exists. The
+      # `createSourceFile` in unstable/ast/factory is the FACTORY, taking
+      # already-parsed statements. So the rewrite is larger than "swap the
+      # import", which is the whole basis of this hold.
+      #
+      # WHY 6.0.3 AND NOT 5.9: moved 2026-08-05 to the version the vendor
+      # designates as the bridge. TypeScript 6.0 is the last release built on
+      # the JavaScript codebase (the repo entered maintenance mode 2026-01-08,
+      # `npm view typescript@6.1` is a 404, and no 6.1 milestone exists), and
+      # it still ships the classic API at the package root — no `exports` map,
+      # `main: ./lib/typescript.js`, `bin: {tsc, tsserver}`. Verified before
+      # the bump: the 28-test guard suite and `tsc --noEmit` both pass on
+      # 6.0.3, and the analyzer returns byte-identical findings across 15
+      # probe sources (11 with real hits) on 5.9.3 and 6.0.3.
+      #
+      # KNOWN, UNRESOLVED RISK of that bridge: Microsoft has published no LTS
+      # policy, no security-fix window and no end-of-support date for 6.x. The
+      # December-2025 progress post scopes 6.0 servicing to security issues,
+      # high-severity regressions against 5.9 and 6.0/7.0 compatibility, and
+      # says patches "will be infrequent". Searched 2026-08-05 and found no
+      # date — so how long this bridge holds is genuinely unknown, not merely
+      # unlooked-up. Note also that the absence of a 6.1 does NOT bound it:
+      # patch releases continued (6.0.3 on 2026-04-16).
+      #
+      # NOT the `@typescript/typescript6` alias the release notes suggest —
+      # but not because it would break anything. An earlier draft of this
+      # comment claimed its `bin: {tsc6}` would take `tsc`/`tsserver` away and
+      # break `tsc:check`. That was reasoned from the manifest and is FALSE;
+      # installing the alias and running the script disproves it (rc=0).
+      #
+      # What it actually is, measured 2026-08-05 by installing it: a 44 KB
+      # shim whose ONLY dependency is `@typescript/old: "npm:typescript@^6"`.
+      # It resolves to the very same `typescript@6.0.3` this repo now pins
+      # directly — `.bin/tsc` links into `@typescript/old`, `tsc --version`
+      # prints 6.0.3, and the root import yields the classic API
+      # (`ScriptTarget.Latest === 99`, `createSourceFile`, `forEachChild`,
+      # `isStringLiteralLike` all present).
+      #
+      # So the alias is an indirection to identical bytes. It earns its keep
+      # only when a project installs TypeScript 7 for `tsc` AND needs the 6.0
+      # API under the `typescript` specifier at the same time — the
+      # typescript-eslint / Volar case the release notes address. This repo
+      # does not install 7, so the layer buys nothing and adds a package whose
+      # own version (6.0.2) floats independently of the compiler it resolves
+      # to. Plain `typescript@6` is the same compiler, one layer fewer.
       #
       # Minor/patch updates are unaffected and still flow. Revisit when
-      # TypeScript ships a stable replacement for the parse+walk API.
+      # TypeScript ships a stable replacement for the parse+walk API — as of
+      # 2026-08-05 there is no date. The 7.0 Beta (2026-04-21), RC (2026-06-18)
+      # and GA (2026-07-08) posts all say 7.0 ships without a supported API and
+      # target a "new (and different)" one at 7.1; the 7.1 milestone is open
+      # with no due date. The "October 2026" figure in secondary write-ups is
+      # arithmetic on the GA post's "every 3-4 months" line, not a commitment.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:

@@ -252,6 +252,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # Explicit registration is the only way it runs on them. YAML + requirements
     # parsing only, <0.5s.
     "test_dependabot_local_version_pins.py",
+    "test_dependabot_typescript_major_hold.py",
     # Executes the hand-lib publish step: the only guard that would notice its
     # `set +e` being reverted, which would make the partial-progress path
     # unreachable again. It carries no pins of its own — the allowlist entry is

@@ -4,6 +4,12 @@ Measured 2026-08-04. #4426 proposed ``typescript`` 5.9.3 -> 7.0.2 as part of the
 grouped npm update and turned four checks red at once — fast-gates, Windows x64,
 macOS Intel, macOS Apple Silicon.
 
+The repo runs ``typescript@^6.0.3`` since 2026-08-05 — the last release built on
+the JavaScript codebase, and the version upstream designates as the bridge to 7.
+It still exposes the classic API at the package root, so this hold is what keeps
+the 7.x major out; see ``.github/dependabot.yml`` for why the bridge is plain
+``typescript@6`` rather than the ``@typescript/typescript6`` alias.
+
 TypeScript 7 removes the compiler API from the package root. Its ``exports`` map
 resolves ``"."`` to ``./lib/version.cjs`` — the version string and nothing else —
 so ``import ts from "typescript"`` in ``scripts/detect_vacuous_claims_ts.ts``
@@ -24,15 +30,55 @@ actually true, re-measured:
   is a function — so every ``ts.forEachChild(node, cb)`` call site becomes
   ``node.forEachChild(cb)``.
 * ``createSourceFile`` under ``unstable/ast/factory`` is the FACTORY, which
-  builds a node from parts. Parsing text goes through ``unstable/sync``'s
-  ``API`` → ``Project`` → ``program.getSourceFile()`` instead, so the
-  entrypoint changes shape, not merely its import path.
+  builds a node from parts.
 * ``isStringLiteralLike`` is renamed ``isStringLiteralLikeNode``.
 
-So: 34 relocated members plus three genuine shape changes, onto a surface
-upstream itself labels "unstable", for a guard that gates merges. The decision
-to hold is unchanged — it is better supported than the original wording, not
-worse — but the reason is a rewrite, not an absence.
+How parsing actually works in 7.0.2, corrected 2026-08-05 by unpacking the
+wheel. An earlier revision of this docstring asserted ``API`` → ``Project`` →
+``program.getSourceFile()`` as if it were sourced; it was an inference from the
+type declarations, it skipped a mandatory step, and ``API`` has no
+``getSourceFile`` on it at all. ``dist/api/sync/api.d.ts`` declares:
+
+    API → updateSnapshot() → Snapshot → getProject(configFileName)
+        | getDefaultProjectForFile() → Project → .program
+        → Program.getSourceFile()
+
+Five hops, anchored on a config file, over an out-of-process client. There is
+also no lighter route, which is the part that decides the size of a port: no
+free-standing parse function is declared in ANY ``.d.ts`` in the wheel, and
+``unstable/ast`` (``dist/ast/index.d.ts``) re-exports ast, astnav, clone, is,
+jsdoc, scanner, utils and visitor — there is no parser module. ``scanner``
+tokenises; it does not return a ``SourceFile``.
+
+So the hold rests on a rewrite, not an absence. Re-proved 2026-08-05 by
+installing 7.0.2 over the working tree: 25 of the 28 tests in
+``automation/tradingview/tests/vacuous_claims_ts.test.ts`` fail with
+``Cannot read properties of undefined (reading 'Latest')``, and
+``tsc --noEmit`` reports 111 ``TS2694`` errors against namespace
+``typescript/lib/version``.
+
+Two measurements that bound how long this stays true, so nobody re-derives
+them:
+
+* The ``unstable/*`` key set is IDENTICAL across 7.0.1-rc, 7.0.2 and the
+  7.1.0-dev.20260805.1 nightly (eleven subpaths — ``ast/clone`` is easy to
+  miss). But ``exports["."]`` was ADDED between 7.0.1-rc and 7.0.2, a patch
+  bump: the map is demonstrably edited at patch level, and upstream has
+  published no semver promise about these subpaths in either direction.
+* No migration aid exists to lean on. Searched 2026-08-05: upstream publishes
+  no migration notes, no codemod and no shim for any of the three shape
+  changes above, and ``microsoft/typescript-go#4393`` — a user reporting
+  exactly this breakage against 7.0.1-rc — was closed as *Not planned*. The
+  ``typescript-go`` README rates the API "not ready ... you shouldn't bother
+  messing with it yet". So a port would be unassisted, which is the other half
+  of why the bridge is the cheaper move.
+* Nobody in the ecosystem has ported. ``@typescript-eslint/typescript-estree``
+  8.66.0 declares ``peerDependencies: typescript ">=4.8.4 <6.1.0"`` — 7 is
+  excluded. ``@microsoft/api-extractor`` 7.58.12 pins ``typescript: "5.9.3"``
+  exactly. ``ts-morph`` 28.0.0 and ``@ts-morph/common`` 0.29.0 declare no
+  ``typescript`` dependency at all — they vendor it. ``jscodeshift`` parses via
+  ``@babel/preset-typescript``, and Biome and oxc-parser carry no
+  ``typescript`` dependency, so all three are unaffected rather than migrated.
 
 DERIVED, not hand-maintained: the hold is only demanded while something in the
 repo actually imports the compiler API. Delete or rewrite that import and this
