@@ -92,24 +92,32 @@
 
 | Datei | Zweck |
 |-------|-------|
-| `services/live_overlay_daemon/railway.toml` | Build- und Deploy-Config |
-| `services/live_overlay_daemon/Dockerfile` | Container-Image |
+| `services/live_overlay_daemon/railway.toml` | Build- und Deploy-Config — **derzeit nicht wirksam**, siehe unten |
+| `services/live_overlay_daemon/Dockerfile` | Container-Image — **nicht** das Produktions-Image, gebaut wird das Root-`Dockerfile` |
 | `services/live_overlay_daemon/infra/alloy/config.alloy` | Alloy-Config des `metrics-collector` |
 
-**`railway.toml` (`live_overlay_daemon`):**
+**`railway.toml` (`live_overlay_daemon`)** — die Datei wird aktuell nicht gelesen,
+weil für diesen Service kein Config-Pfad gesetzt ist (gemessen 2026-08-06:
+`propertyFileMapping = {}`). Die Geschwister-Services `opra-live-shadow`,
+`smc-signals-producer` und `metrics-collector` lesen ihre jeweilige
+`services/<name>/railway.toml` sehr wohl. Der Inhalt unten ist deshalb
+deskriptiv und spiegelt die effektiven Service-Settings:
 ```toml
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "services/live_overlay_daemon/Dockerfile"
+dockerfilePath = "/Dockerfile"
 
 [deploy]
-startCommand = "uvicorn services.live_overlay_daemon.main:app \
-  --host 0.0.0.0 --port $PORT --workers 1 --http h11 --loop asyncio"
+startCommand = "sh -c \"uvicorn services.live_overlay_daemon.main:app \
+  --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --http h11\""
 healthcheckPath = "/health"
-healthcheckTimeout = 60
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 ```
+
+Effektive Werte jederzeit nachmessen mit
+`railway deployment list -s live_overlay_daemon --json`.
 
 Railway deployed automatisch, sobald ein Commit auf dem verknüpften Branch landet.
 
