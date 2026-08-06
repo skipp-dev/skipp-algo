@@ -394,6 +394,115 @@ def test_publish_step_seeds_the_shared_directory_before_adding_its_own_file() ->
     assert "tradingview_r4_context_bindings.json" not in run
 
 
+def _publish_fragment() -> str:
+    """The snapshot publish step's shell, verbatim and COMPLETE — push included.
+
+    Executed rather than string-matched, because what this step does wrong is
+    invisible in its text: on 2026-08-06 the automated R1 re-attestation
+    (run 31088757063) measured a clean write pass and a clean independent
+    verify pass and was then refused by ``scripts/smc_r1_generate_attestation``
+    with "write and verify passes ran on different commits". The two passes
+    disagreed because THIS step ran between them and its ``git commit`` moved
+    the job's HEAD — the published commit ec6f61bde is literally the child of
+    c8a33f92f, the commit the write pass reported. A step that pushes a
+    snapshot to its own branch must give the checkout back as it found it.
+    """
+    step = next(
+        s for s in _steps() if s.get("name") == "Publish latest binding snapshot"
+    )
+    return step["run"]
+
+
+def _sandbox_env(home: Path, **extra: str) -> dict[str, str]:
+    """An environment with NO ambient git state in it.
+
+    Inheriting ``os.environ`` here is not a style question. The pre-push hook
+    runs this suite with ``GIT_DIR`` pointing at the developer's own
+    repository, so an inherited environment sends every fixture command there
+    instead of into ``tmp_path``: measured 2026-08-06, ``git init --bare``
+    flipped ``core.bare=true`` on the real checkout and the fixture's seed
+    commit landed on the branch under test.
+    """
+    return {"PATH": os.environ["PATH"], "HOME": str(home), **extra}
+
+
+def _git(*args: str, cwd: Path, env: dict[str, str]) -> str:
+    done = subprocess.run(
+        ["git", *args], cwd=cwd, env=env, capture_output=True, text=True
+    )
+    assert done.returncode == 0, f"git {' '.join(args)}: {done.stderr}"
+    return done.stdout.strip()
+
+
+def test_publishing_the_snapshot_leaves_the_jobs_head_where_it_found_it(
+    tmp_path: Path,
+) -> None:
+    """EXECUTED: publish a snapshot twice and prove HEAD never moves.
+
+    The second call also exercises the seed-and-lease path (a non-empty
+    ``expected_sha``), so a "fix" that keeps HEAD still by breaking the
+    publish itself cannot pass here.
+    """
+    env = _sandbox_env(tmp_path)
+    origin = tmp_path / "origin"
+    work = tmp_path / "work"
+    origin.mkdir()
+    work.mkdir()
+    _git("init", "--bare", "-b", "main", ".", cwd=origin, env=env)
+    _git("init", "-b", "main", ".", cwd=work, env=env)
+    _git("config", "user.email", "t@example.invalid", cwd=work, env=env)
+    _git("config", "user.name", "t", cwd=work, env=env)
+    (work / "README.md").write_text("proposal\n", encoding="utf-8")
+    # Tracked, exactly as in the repo: this run's freshly measured report is an
+    # UNCOMMITTED modification of a tracked file, so a restore that reached the
+    # working tree would silently swap the measurement for a stale one.
+    snapshot = work / "artifacts" / "monitoring" / "tradingview_consumer_bindings.json"
+    snapshot.parent.mkdir(parents=True)
+    snapshot.write_text('{"stale": true}', encoding="utf-8")
+    _git("add", "README.md", str(snapshot.relative_to(work)), cwd=work, env=env)
+    _git(
+        "commit", "-m", "the proposal commit the passes must agree on",
+        cwd=work, env=env,
+    )
+    head_before = _git("rev-parse", "HEAD", cwd=work, env=env)
+
+    for attempt, payload in enumerate(('{"ok": true}', '{"ok": false}')):
+        snapshot.write_text(payload, encoding="utf-8")
+        done = subprocess.run(
+            ["/bin/bash", "-c", _publish_fragment()],
+            cwd=work,
+            env=_sandbox_env(
+                tmp_path,
+                GH_TOKEN="test-token",
+                GITHUB_REPOSITORY="skipp-dev/skipp-algo",
+                TV_SNAPSHOT_REMOTE=str(origin),
+            ),
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode == 0, done.stdout + done.stderr
+
+        assert _git("rev-parse", "HEAD", cwd=work, env=env) == head_before, (
+            "the publish step moved the job's HEAD — the re-attestation chain "
+            "compares its write and verify passes BY COMMIT, and its evidence "
+            "step pushes HEAD to the proposal branch, so a stray commit here "
+            "both refuses the attestation and contaminates the PR "
+            f"(attempt {attempt + 1})"
+        )
+        published = _git(
+            "show",
+            "refs/heads/bot/live-tradingview-bindings:"
+            "artifacts/monitoring/latest/tradingview_consumer_bindings.json",
+            cwd=origin,
+            env=env,
+        )
+        assert published == payload, "the snapshot must still reach its branch"
+        assert snapshot.read_text(encoding="utf-8") == payload, (
+            "restoring HEAD must not reach the working tree: the attestation "
+            "reads this run's measured report right after this step"
+        )
+
+
 def test_snapshot_steps_only_run_when_the_rollout_step_actually_executed() -> None:
     """2026-08-03: a gate-blocked run publishes a stale GREEN snapshot.
 

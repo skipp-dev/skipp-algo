@@ -577,7 +577,14 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # This step borrows the job's checkout to build ONE commit for a
+          # foreign branch; everything after it still expects the checkout it
+          # was handed. Remembered here, restored below.
+          head_before="$(git rev-parse HEAD)"
+          # TV_SNAPSHOT_REMOTE is unset in Actions and exists so the contract
+          # test can execute this fragment WHOLE -- push included -- against a
+          # local repository, the same seam the reattest rebuild step uses.
+          remote_url="${TV_SNAPSHOT_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
           remote_ref="refs/heads/bot/live-tradingview-bindings"
           tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
           zero_sha="0000000000000000000000000000000000000000"
@@ -596,6 +603,16 @@ jobs:
           else
             echo "::warning::TradingView binding snapshot push failed; uploaded artifact remains available."
           fi
+          # Give the checkout back. The snapshot commit belongs to
+          # bot/live-tradingview-bindings and to nothing else: the reattest
+          # chain compares its write and verify passes BY COMMIT, and its
+          # evidence step pushes HEAD to the proposal branch. Leaving this
+          # commit on HEAD refused the 2026-08-06 re-attestation ("write and
+          # verify passes ran on different commits", run 31088757063) and
+          # would have dragged artifacts/monitoring/latest into the PR.
+          # Mixed, not hard: the working tree still holds this run's freshly
+          # measured reports, which the attestation reads next.
+          git reset -q "${head_before}"
 
       # ---- Automated R1 re-attestation (smc-r1-reattest proposal chain) ----
       # Only for reattest dispatches on the bot/r1-reattest proposal branch.
