@@ -107,6 +107,32 @@ _SELF_HEAL_MAX_ATTEMPTS = 3
 _POST_HEAL_GRACE_SECS = _RECONNECT_DELAY_SECS + 60.0 + 15.0
 
 
+def _grace_deadline(last_heal_at: float, reconnect_wait_until: float) -> float:
+    """Monotonic time until which a persisting stall must NOT be re-broken.
+
+    The constant above is built from ``_RECONNECT_DELAY_SECS`` (10 s). The feed
+    loop does not always wait that long: from ``_MAX_RECONNECT_ATTEMPTS``
+    consecutive failures onward it waits ``_RECONNECT_BACKOFF_SECS`` (120 s), so
+    a reconnect really costs up to 120 + 60 = 180 s. #4476 closed the 10 s path
+    and left that one open, and inside it the supervisor cannot even act — there
+    is no active client to break while the feed sleeps — yet it counted the
+    attempt, and three counted no-ops call ``_escalate_to_platform_restart()``.
+    With ``restartPolicyMaxRetries = 3`` in railway.toml that budget is spent in
+    about four process lives and the daemon stays down after the upstream
+    recovers.
+
+    Deliberately a deadline derived from what the feed announced rather than a
+    wider constant: raising ``_POST_HEAL_GRACE_SECS`` to the worst case would
+    delay every legitimate escalation by ~110 s, including the common fast path.
+    ``reconnect_wait_until <= 0`` means no reconnect is pending and the measured
+    85 s window applies unchanged.
+    """
+    deadline = last_heal_at + _POST_HEAL_GRACE_SECS
+    if reconnect_wait_until > 0.0:
+        deadline = max(deadline, reconnect_wait_until + 60.0 + 15.0)
+    return deadline
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -479,6 +505,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 consumer="live-overlay-daemon",
                 reconnects=1,
             )
+            # Tell the supervisor how long this wait really is; its fixed
+            # 85 s grace was built for the 10 s path only.
+            with _active_client_lock:
+                _runtime["reconnect_wait_until"] = time.monotonic() + delay
             logger.info("Feed reconnecting in %ds …", delay)
             stop.wait(delay)
 
@@ -581,17 +611,25 @@ def _escalate_to_platform_restart(code: int = 1) -> None:
     os._exit(code)
 
 
-def _supervisor_break_stalled_client() -> None:
+def _supervisor_break_stalled_client() -> bool:
     """Break a blocked ``for record in client:`` loop so the feed thread runs
-    into its reconnect path. Safe no-op when no client is currently active."""
+    into its reconnect path.
+
+    Returns whether a client was actually broken. The caller counts heal
+    attempts against a budget that escalates to a process restart, so a no-op —
+    which is exactly what happens while the feed sleeps out a reconnect, because
+    the active client is cleared for the duration — must not be counted as an
+    attempt.
+    """
     with _active_client_lock:
         client = _runtime.get("active_client")
     if client is None:
-        return
+        return False
     try:
         client.stop()
     except Exception:
         logger.debug("supervisor client.stop() failed", exc_info=True)
+    return True
 
 
 def _run_supervisor_loop(stop: threading.Event) -> None:
@@ -639,16 +677,20 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
         # Wait out a recovery we started ourselves. The heal counter is NOT
         # reset here: a feed that stays stalled past the grace window still
         # walks up to _SELF_HEAL_MAX_ATTEMPTS and escalates, just later.
+        with _active_client_lock:
+            reconnect_wait_until = float(_runtime.get("reconnect_wait_until") or 0.0)
+        now_monotonic = time.monotonic()
         if (
             stalled
             and all(workers.values())
-            and last_heal_at > 0.0
-            and (time.monotonic() - last_heal_at) < _POST_HEAL_GRACE_SECS
+            and (last_heal_at > 0.0 or reconnect_wait_until > 0.0)
+            and now_monotonic < _grace_deadline(last_heal_at, reconnect_wait_until)
         ):
             logger.info(
-                "Supervisor: stall persists %.0fs into the post-heal grace "
-                "window (%.0fs) — the feed is still reconnecting, not re-breaking.",
-                time.monotonic() - last_heal_at, _POST_HEAL_GRACE_SECS,
+                "Supervisor: stall persists %.0fs into the grace window "
+                "(ends in %.0fs) — the feed is still reconnecting, not re-breaking.",
+                now_monotonic - last_heal_at if last_heal_at > 0.0 else 0.0,
+                _grace_deadline(last_heal_at, reconnect_wait_until) - now_monotonic,
             )
             continue
 
@@ -669,8 +711,16 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         if stalled:
             # Break the blocked iterator → feed loop enters its reconnect path.
-            _supervisor_break_stalled_client()
-            last_heal_at = time.monotonic()
+            # A break with no active client changes nothing; counting it would
+            # spend the escalation budget on no remediation at all.
+            if _supervisor_break_stalled_client():
+                last_heal_at = time.monotonic()
+            else:
+                heal_attempts -= 1
+                logger.info(
+                    "Supervisor: no active client to break (feed is between "
+                    "connections) — not counting this as a heal attempt."
+                )
         if not all(workers.values()):
             if stop.is_set():
                 return
