@@ -53,9 +53,10 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # of the empirical round-turn cost (deterministic); non-security.
     # 2026-06-11 (#2697 review findings): 322→329 after the fee-only-leg
     # comment block above the call site, then 329→332 after the
-    # non-finite cost-input guard landed three lines above it, then 332→342
-    # after the non-positive-cost fail reason (2026-08-05).
-    ("governance/execution_costs.py", 342),
+    # non-finite cost-input guard landed three lines above it, then 332→334
+    # (2026-08-05) when the CI moved above the fail-reason list so the
+    # non-positive-cost guard could judge the bound the gate actually uses.
+    ("governance/execution_costs.py", 334),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
