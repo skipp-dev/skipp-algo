@@ -120,8 +120,8 @@ The wrapper adds two intentional hardening rules around the SDK:
    Python `datetime` in that field but fails to JSON-serialize it on a real
    inspection request — re-measured on 2.1.3 (2026-08-06):
    `Metadata(created_at=datetime.now(UTC))` still constructs, and serializing
-   it still raises `TypeError: Object of type datetime is not JSON
-   serializable`.  Cisco timestamps the event server-side; a regression
+   it still raises a `TypeError` naming an unserializable `datetime`.
+   Cisco timestamps the event server-side; a regression
    assertion pins this workaround until the SDK contract changes.
 
 ## Verified rollout state (2026-07-20)
