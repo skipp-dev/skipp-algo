@@ -399,7 +399,7 @@ def smc_live(
             # them. Before this, a warming daemon (fresh deploy) served the
             # sidecar an all-null payload and the panel's Chart-Kontext card
             # read "keine Daten" although both were known.
-            cache_miss_vix = cache.get_vix()
+            cache_miss_vix = cache.get_vix_fresh()
             return JSONResponse(
                 {
                     **library_context_bridge.context_for_symbol(sym),

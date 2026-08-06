@@ -1611,7 +1611,7 @@ def build_payload(
     # dynamically shortened volatility contract.
     squeeze = compute_squeeze_on(aggregated, period=20)
     ats = compute_ats_fields(aggregated)
-    vix = cache.get_vix()
+    vix = cache.get_vix_fresh()  # stale VIX must read as unknown, not as a quote
     events = _event_fields_for(symbol)
     signal_fields = _get_signal_fields(symbol)
 
@@ -1688,7 +1688,7 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
     with observability.trace_span("live_overlay.flow_patch_cycle"):
         all_bars = cache.get_all_symbols_snapshot()
-        vix = cache.get_vix()
+        vix = cache.get_vix_fresh()  # stale VIX must read as unknown, not as a quote
         count = 0
         for sym, bars in all_bars.items():
             if not bars:

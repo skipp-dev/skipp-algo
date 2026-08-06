@@ -446,3 +446,22 @@ def vix_age_secs() -> float:
     with _vix_lock:
         ts = _vix_updated_at.get("ts")
     return float("inf") if ts is None else time.monotonic() - ts
+
+
+# Same threshold the lo-vix-unavailable Grafana alert fires on: the FMP ^VIX
+# poll runs on OVERLAY_REFRESH_SECS (default 1800s), so 5400s is three
+# consecutive missed polls.
+VIX_MAX_AGE_SECS = 5400.0
+
+
+def get_vix_fresh(max_age_secs: float = VIX_MAX_AGE_SECS) -> float | None:
+    """VIX level, or ``None`` once it is older than ``max_age_secs``.
+
+    Wire consumers only ever see ``vix_level``, never ``vix_age_seconds``, so a
+    frozen level is indistinguishable from a live quote for them. ``get_vix()``
+    stays deliberately un-gated for the /metrics export, which publishes the age
+    next to the level and lets the dashboard gate on it.
+    """
+    if vix_age_secs() > max_age_secs:
+        return None
+    return get_vix()
