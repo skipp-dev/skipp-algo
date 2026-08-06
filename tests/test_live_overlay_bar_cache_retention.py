@@ -129,9 +129,14 @@ def test_requested_bar_depth_is_zero_without_a_cached_consumer() -> None:
 
 
 def test_timeframe_requirements_cover_twenty_aggregated_bars() -> None:
-    assert compute.raw_bars_required("1m") == 20
-    assert compute.raw_bars_required("5m") == 100
-    assert compute.raw_bars_required("1H") == 2_880
+    # 2026-08-05 (#4477): the numbers grew because 20 aggregated bars is the
+    # Bollinger window only. ta.ema and ta.atr are RECURSIVE, and with exactly
+    # `period` values the Wilder RMA runs zero recursion steps. The table now
+    # carries period + warm-up; 4H stays at the cache's per-symbol cap, where
+    # a warmed 4H squeeze is unreachable, so compute_squeeze_on reports null.
+    assert compute.raw_bars_required("1m") == 120
+    assert compute.raw_bars_required("5m") == 600
+    assert compute.raw_bars_required("1H") == 9_600
     assert compute.raw_bars_required("4H") == 9_600
     with pytest.raises(ValueError, match="unsupported timeframe"):
         compute.raw_bars_required("1D")
