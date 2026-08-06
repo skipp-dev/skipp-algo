@@ -1,0 +1,273 @@
+name: shifted-clock-probe
+# live-window: any-trigger  # F-V6-F2.1 (2026-05-02)
+#
+# A MEASUREMENT, not a gate. It answers one question before anyone commits to a
+# nightly shifted-clock job: does libfaketime survive this repo's pytest setup on
+# a GitHub-hosted runner, and what does it cost?
+#
+# The `push:` trigger below is deliberately scoped to the probe branch so the
+# measurement can run WITHOUT first merging scaffolding into main
+# (`workflow_dispatch` only works from the default branch). If the answer is
+# "adopt", `push` becomes `schedule` and this comment goes with it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      anchor:
+        description: 'libfaketime "start at" instant (advancing, absolute)'
+        required: false
+        default: '@2028-02-29 12:00:00'
+      run_full_suite:
+        description: 'Run the two full-suite measurements (adds ~30-60 min)'
+        required: false
+        default: 'true'
+  push:
+    branches:
+      - 'probe/shifted-clock-measurement'
+
+# Why it cannot be measured on the operator's laptop: libfaketime injects via
+# LD_PRELOAD on Linux and DYLD_INSERT_LIBRARIES on macOS, and SIP blocks the
+# macOS path. A local run would measure a different mechanism than the one that
+# would ship.
+#
+# Why an ADVANCING clock and not a frozen one: libfaketime's README says
+# "Whenever possible, you should use relative offsets or 'start at' dates, and
+# not use absolute dates", because a frozen clock returns the same value on
+# repeated reads and "is likely to break programs which measure the time passing
+# by". The `@` prefix is the "start at" form: an absolute instant that still
+# advances. It is deterministic and re-runnable, which a `+1d` offset is not --
+# a `+1d` job is itself calendar-coupled, so a failure could never be re-run
+# identically.
+#
+# Why midday on a leap day and not 23:59: a boundary-crossing anchor is
+# desirable for finding month/year-roll bugs, but it makes every date assertion
+# in the suite racy, which would drown the signal this probe exists to produce.
+# Crossing the boundary is a separate decision to take AFTER this measurement.
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+  # libfaketime's README documents CLOCK_MONOTONIC hangs, and the reported real
+  # cases (#142, #469) are condition-variable / timed-wait primitives -- exactly
+  # what CPython locks and execnet's xdist worker waits sit on. Leaving the
+  # monotonic clock real is both the documented mitigation and what we want:
+  # nothing here is trying to fake ELAPSED time, only the wall date.
+  FAKETIME_DONT_FAKE_MONOTONIC: '1'
+  PROBE_DIR: /tmp/clockprobe
+
+jobs:
+  probe:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 120
+    env:
+      ANCHOR: ${{ inputs.anchor || '@2028-02-29 12:00:00' }}
+      RUN_FULL: ${{ inputs.run_full_suite || 'true' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
+
+      - name: Resolve Python 3.12 interpreter
+        shell: bash
+        run: |
+          python -c "import sys; raise SystemExit('did not resolve Python 3.12' if sys.version_info[:2] != (3, 12) else 0)"
+          echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+
+      - name: Cache venv
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-python3.12-${{ hashFiles('requirements.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-python3.12-
+
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-persistent-venv
+        with:
+          python-bin: ${{ env.SMC_PYTHON_BIN }}
+          requirements-file: requirements.lock
+          extra-packages: pytest
+          runner-environment: github-hosted
+
+      - name: Install libfaketime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq faketime
+          faketime --version | head -1
+
+      - name: 'Gate 0: the anchor is not today'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Without this the whole probe could pass for the wrong reason on one
+          # calendar day -- the exact class of bug it exists to help find.
+          anchor_date="$(echo "$ANCHOR" | sed 's/^@//' | cut -d' ' -f1)"
+          real_date="$(date -u +%Y-%m-%d)"
+          echo "anchor=$anchor_date real=$real_date"
+          if [ "$anchor_date" = "$real_date" ]; then
+            echo "::error::anchor equals today; every gate below would be vacuous"
+            exit 1
+          fi
+          echo "ANCHOR_DATE=$anchor_date" >> "$GITHUB_ENV"
+
+      - name: 'Gate 1: faketime shifts a bare interpreter, and the clock still advances'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(faketime -f "$ANCHOR" python - <<'PY'
+          import time
+          from datetime import UTC, date, datetime
+
+          first = time.time()
+          time.sleep(1.2)
+          second = time.time()
+          print(date.today().isoformat(), datetime.now(UTC).date().isoformat(), round(second - first, 2))
+          PY
+          )"
+          echo "faketime says: $out"
+          read -r today now_utc delta <<<"$out"
+          if [ "$today" != "$ANCHOR_DATE" ]; then
+            echo "::error::date.today()=$today != $ANCHOR_DATE"
+            exit 1
+          fi
+          if [ "$now_utc" != "$ANCHOR_DATE" ]; then
+            echo "::error::datetime.now(UTC)=$now_utc != $ANCHOR_DATE"
+            exit 1
+          fi
+          # An advancing clock, not a frozen one: two reads 1.2 s apart must differ.
+          python -c "import sys; raise SystemExit(0 if float(sys.argv[1]) > 0.5 else 'clock did not advance -- this is a FROZEN clock, not a shifted one')" "$delta"
+
+      - name: Write the worker-propagation control test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROBE_DIR"
+          cat > "$PROBE_DIR/test_clock_reaches_workers.py" <<'PY'
+          """Does the shifted clock reach the pytest-xdist WORKERS, not just the parent?
+
+          Deliberately kept out of tests/: it is scaffolding for one measurement, it
+          would fail every ordinary run, and the repo's ledgers should not have to
+          carry a file that exists for an afternoon.
+          """
+          import os
+          from datetime import UTC, date, datetime
+
+          import pytest
+
+          EXPECTED = os.environ["CLOCKPROBE_EXPECTED_DATE"]
+
+
+          @pytest.mark.parametrize("shard", range(8))
+          def test_the_shifted_clock_reaches_this_worker(shard: int) -> None:
+              worker = os.environ.get("PYTEST_XDIST_WORKER", "<no-worker>")
+              today = date.today().isoformat()
+              now_utc = datetime.now(UTC).date().isoformat()
+              assert today == EXPECTED, f"{worker}: date.today()={today} expected={EXPECTED}"
+              assert now_utc == EXPECTED, f"{worker}: datetime.now(UTC)={now_utc} expected={EXPECTED}"
+          PY
+          echo "CLOCKPROBE_EXPECTED_DATE=$ANCHOR_DATE" >> "$GITHUB_ENV"
+
+      - name: 'Gate 2: the control test FAILS without faketime (it is not vacuous)'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          python -m pytest "$PROBE_DIR" -q --no-header -p no:cacheprovider > /tmp/neg.log 2>&1 || rc=$?
+          tail -3 /tmp/neg.log
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::the control test passed on the REAL clock -- it proves nothing"
+            exit 1
+          fi
+          echo "control correctly fails unshifted (rc=$rc)"
+
+      - name: 'Gate 3: the shifted clock reaches xdist workers at -n 4'
+        shell: bash
+        run: |
+          set -euo pipefail
+          faketime -f "$ANCHOR" python -m pytest "$PROBE_DIR" -q --no-header \
+            -n 4 --dist=loadscope -p no:cacheprovider 2>&1 | tee /tmp/pos.log
+          tail -3 /tmp/pos.log
+
+      - name: 'Measure A: full suite on the REAL clock (baseline)'
+        if: env.RUN_FULL == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          start=$(date +%s)
+          python -m pytest tests/ -q --no-header -n 4 -p no:cacheprovider > /tmp/base.log 2>&1 || rc=$?
+          {
+            echo "BASE_SECONDS=$(( $(date +%s) - start ))"
+            echo "BASE_RC=$rc"
+            echo "BASE_LINE=$(grep -E '^[0-9]+ (passed|failed)' /tmp/base.log | tail -1)"
+          } >> "$GITHUB_ENV"
+          tail -3 /tmp/base.log
+
+      - name: 'Measure B: full suite under the shifted clock at -n 4'
+        if: env.RUN_FULL == 'true'
+        # A hang here is a RESULT, not an accident: it is the documented
+        # xdist + LD_PRELOAD hazard. Bound it so the job still reports.
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -euo pipefail
+          rc=0
+          start=$(date +%s)
+          faketime -f "$ANCHOR" python -m pytest tests/ -q --no-header -n 4 \
+            -p no:cacheprovider > /tmp/shift.log 2>&1 || rc=$?
+          {
+            echo "SHIFT_SECONDS=$(( $(date +%s) - start ))"
+            echo "SHIFT_RC=$rc"
+            echo "SHIFT_LINE=$(grep -E '^[0-9]+ (passed|failed)' /tmp/shift.log | tail -1)"
+          } >> "$GITHUB_ENV"
+          echo "--- failures under the shifted clock (rc=$rc) ---"
+          grep -E '^(FAILED|ERROR)' /tmp/shift.log | head -60 || echo "(none)"
+
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## shifted-clock probe"
+            echo
+            echo "| what | value |"
+            echo "|---|---|"
+            echo "| anchor | \`$ANCHOR\` (${ANCHOR_DATE:-n/a}) |"
+            echo "| baseline (real clock, -n 4) | ${BASE_LINE:-not run} — ${BASE_SECONDS:-?}s (rc=${BASE_RC:-?}) |"
+            echo "| shifted (-n 4) | ${SHIFT_LINE:-not run} — ${SHIFT_SECONDS:-?}s (rc=${SHIFT_RC:-?}) |"
+            echo
+            if [ -f /tmp/shift.log ] && [ -f /tmp/base.log ]; then
+              echo "### tests that fail ONLY under the shifted clock"
+              echo '```'
+              comm -13 \
+                <(grep -E '^(FAILED|ERROR)' /tmp/base.log | sort -u) \
+                <(grep -E '^(FAILED|ERROR)' /tmp/shift.log | sort -u) | head -80
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: shifted-clock-probe-logs
+          path: /tmp/*.log
+          if-no-files-found: warn
+          retention-days: 7
