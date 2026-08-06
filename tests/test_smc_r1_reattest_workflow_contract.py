@@ -285,15 +285,17 @@ def _rebuild_step() -> dict:
     return _step(_save_steps(), "Rebuild the proposal on current main")
 
 
-def _rebuild_decision_fragment() -> str:
-    """The rebuild's decide-and-apply logic, sliced before the push.
+def _rebuild_fragment() -> str:
+    """The rebuild step's shell, verbatim and complete -- push included.
 
-    Executed rather than string-matched, for the same reason the proposer's own
-    fragment is: what fails in production is the shipped shell, never a
-    re-implementation of it.
+    Executed rather than string-matched, and executed WHOLE: the first
+    production run of this step (31086697823) died on its very first git
+    command, because the checkout leaves `origin` without credentials while
+    only the push carried a token URL. A fragment sliced before the push
+    hides exactly that class, so the tests point both directions at a real
+    local repository through the same override the step reads.
     """
-    run = _rebuild_step()["run"]
-    return run[: run.index("git push")]
+    return _rebuild_step()["run"]
 
 
 def _origin_with(tmp_path: Path, *, pin: int, published: int) -> Path:
@@ -340,7 +342,7 @@ def _run_rebuild(work: Path, tmp_path: Path) -> subprocess.CompletedProcess:
     outputs = tmp_path / "gh-output"
     outputs.write_text("", encoding="utf-8")
     return subprocess.run(
-        ["/bin/bash", "-c", _rebuild_decision_fragment()],
+        ["/bin/bash", "-c", _rebuild_fragment()],
         cwd=work,
         env={
             "PATH": os.environ["PATH"],
@@ -349,6 +351,7 @@ def _run_rebuild(work: Path, tmp_path: Path) -> subprocess.CompletedProcess:
             "GITHUB_OUTPUT": str(outputs),
             "GITHUB_REPOSITORY": "skipp-dev/skipp-algo",
             "GH_TOKEN": "test-token",
+            "REATTEST_REMOTE": str(tmp_path / "origin"),
         },
         capture_output=True,
         text=True,
@@ -373,6 +376,17 @@ def test_the_reattest_run_rebuilds_its_proposal_from_current_main(
     assert manifest["library"]["publishedVersion"] == 192, "the stale manifest survived"
     source = (work / "SMC_Event_Overlay.pine").read_text(encoding="utf-8")
     assert "smc_micro_profiles_generated/192 as mp" in source
+    # The rebuilt proposal really reached the remote: the later evidence
+    # commit fast-forwards onto this, so a push that silently failed would
+    # strand the whole chain.
+    pushed = subprocess.run(
+        ["git", "show", "bot/r1-reattest:SMC_Event_Overlay.pine"],
+        cwd=tmp_path / "origin",
+        capture_output=True,
+        text=True,
+    )
+    assert pushed.returncode == 0, pushed.stderr
+    assert "smc_micro_profiles_generated/192 as mp" in pushed.stdout
 
 
 def test_the_rebuild_no_ops_when_main_already_carries_the_published_pin(
@@ -409,3 +423,22 @@ def test_the_rebuild_runs_before_anything_is_measured() -> None:
     assert rebuild < save, "the rebuild must precede the write pass"
     assert "reattest" in str(_rebuild_step().get("if", "")), "reattest-only"
     assert "-f" in _rebuild_step()["run"], "the fixed proposal branch is force-pushed"
+
+
+def test_the_rebuild_authenticates_both_directions_the_same_way() -> None:
+    """`persist-credentials: false` leaves `origin` credential-less.
+
+    Run 31086697823 died on `git fetch origin main` while the push beside it
+    carried a token URL -- the fetch and the push must go through the same
+    authenticated remote, and neither may address the bare `origin`.
+    """
+    run = _rebuild_step()["run"]
+    assert 'git fetch --depth=1 "${remote_url}" main' in run
+    assert 'git push -f "${remote_url}"' in run
+    assert "x-access-token:${GH_TOKEN}@github.com" in run, "no default token URL"
+    # Executable lines only: the step's own comment names the broken form.
+    executable = "\n".join(
+        line for line in run.splitlines() if not line.lstrip().startswith("#")
+    )
+    for direction in ("git fetch origin", "git push origin"):
+        assert direction not in executable, f"{direction} has no credentials here"
