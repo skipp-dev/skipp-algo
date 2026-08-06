@@ -264,9 +264,18 @@ jobs:
           esac
           test -n "${GH_TOKEN}"
           # Bound to the ref the case-guard above just proved is a proposal
-          # branch, so the push below can never address main.
+          # branch, so the writes below can never address main.
           BRANCH="${GITHUB_REF_NAME}"
-          git fetch --depth=1 origin main
+          # The checkout runs with persist-credentials:false, so the `origin`
+          # remote carries NO credentials: a bare `git fetch origin` dies with
+          # "could not read Username for https://github.com" (run 31086697823,
+          # the first run of this step). Both directions therefore go through
+          # the same explicit token URL, exactly as the evidence commit below
+          # already does. The override exists so the tests can execute this
+          # fragment end to end -- fetch, reset, bump, commit, push -- against
+          # a real local repository instead of proving only half of it.
+          remote_url="${REATTEST_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
+          git fetch --depth=1 "${remote_url}" main
           git reset --hard FETCH_HEAD
           attested="$(python3 <<'PY'
           import pathlib, re
@@ -317,7 +326,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git commit -qam "chore(pine): move the R1 Event Overlay pin to /${published} for re-attestation"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${BRANCH}"
+          git push -f "${remote_url}" "HEAD:${BRANCH}"
 
       # The operator's browser is the normal production writer on this account
       # and automation is the guest; the tradingview-session group serialises
