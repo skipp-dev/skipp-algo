@@ -715,16 +715,27 @@ jobs:
 
       # Last, so the snapshot is uploaded and published first: this run pushed
       # content the registered evidence does not attest, which needs a human,
-      # and a green run would say the opposite. Deliberately NOT always() --
-      # it reports the un-attestation, not an unrelated failure.
+      # and a silent run would say the opposite.
       #
       # Reattest carve-out, by re-measurement rather than trust: when the
       # reattest path above committed new evidence, the SAME module that found
-      # the un-attestation is asked again against the extended chain. Empty
-      # answer -> the save is attested now and the run may end green; anything
-      # else stays a hard failure.
+      # the un-attestation is asked again against the extended chain. An empty
+      # answer means the save is attested now; anything else is a hard failure.
+      #
+      # `!cancelled()`, added 2026-08-06: a condition naming no status function
+      # is ANDed with an implicit success(), and the un-attested list this step
+      # fires on is the SAME list tv_batch_consumer_rollout.ts fails the save
+      # on -- so the step was skipped in exactly the runs it was written for.
+      # Measured over the last 20 runs of this workflow: present 12 times,
+      # skipped 12 times, executed never. Run 31106318082 was the first
+      # re-attestation to reach it, and it skipped there too.
+      #
+      # It is NOT always(): a cancelled run measured nothing worth reporting.
+      # It still needs a non-empty list below, so a clean run never pays for
+      # it, and it can only ADD a failure -- the failing save step above
+      # already fails the job on its own, both before and after this change.
       - name: Fail the run when an R1-attested source was saved un-attested
-        if: ${{ steps.attestation.outputs.unattested != '' && steps.attestation.outputs.unattested != '[]' }}
+        if: ${{ !cancelled() && steps.attestation.outputs.unattested != '' && steps.attestation.outputs.unattested != '[]' }}
         env:
           TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
           REATTEST_COMMITTED: ${{ steps.attest_commit.conclusion }}
