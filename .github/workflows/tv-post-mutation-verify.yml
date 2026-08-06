@@ -56,6 +56,11 @@ concurrency:
   # drop a pending re-verify whose mutation still deserves its +15min look.
   group: tv-post-mutation-verify
   cancel-in-progress: false
+  # 2026-08-06: and cancel-in-progress alone never delivered that. Under the
+  # default `queue: single` the group holds exactly one pending run and a newer
+  # entrant CANCELS it -- the pending re-verify was dropped anyway, just by the
+  # queue rule rather than by pre-emption. `queue: max` is what keeps it alive.
+  queue: max
 
 env:
   PYTHONUNBUFFERED: "1"
