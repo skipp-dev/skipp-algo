@@ -50,7 +50,7 @@ from pathlib import Path
 
 DEFAULT_INPUT = "artifacts/open_prep/latest/latest_realtime_signals.json"
 DEFAULT_BRANCH = "bot/live-signals-snapshot"
-DEFAULT_REPO = "skippALGO/skipp-algo"
+DEFAULT_REPO = "skipp-dev/skipp-algo"
 # Path the snapshot lives at *inside* the bot branch. Keep it identical to the
 # local layout so SIGNALS_SNAPSHOT_URL mirrors the on-host path 1:1.
 DEST_PATH = "artifacts/open_prep/latest/latest_realtime_signals.json"

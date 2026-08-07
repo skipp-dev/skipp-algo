@@ -78,6 +78,9 @@ def test_the_wait_happens_outside_the_shared_session_group() -> None:
     # cancelling a sleeping instance on an unrelated verify completion would
     # silently drop a pending re-verify.
     assert concurrency["cancel-in-progress"] is False
+    # ...and cancel-in-progress alone never delivered that: under the default
+    # `queue: single` a newer entrant cancels the one pending run regardless.
+    assert concurrency["queue"] == "max"
 
 
 def test_the_loop_terminates_by_measurement_not_convention() -> None:
