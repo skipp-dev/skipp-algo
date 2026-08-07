@@ -272,7 +272,7 @@ the deployment itself is retired.
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | no | `artifacts/monitoring/tradingview_consumer_bindings.json` | Local snapshot of saved-source SHA-256 checks and measured TradingView dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | no | canonical bot-branch URL | HTTPS URL for the `bot/live-tradingview-bindings` snapshot; explicit empty disables remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
-| `EXPERIMENT_HISTORY_PATH` | no | — | Local daily experiment history JSONL path |
+| `EXPERIMENT_HISTORY_PATH` | no | `artifacts/live_overlay/plan_2_8_history.jsonl` | Local daily experiment history JSONL path |
 | `EXPERIMENT_HISTORY_URL` | no | canonical bot-branch URL | HTTPS URL for experiment history JSONL; explicit empty disables remote loading |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | no | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | no | — | Experiment rollup/history cache TTL |
