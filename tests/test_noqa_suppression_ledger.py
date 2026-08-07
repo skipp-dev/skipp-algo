@@ -203,19 +203,19 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/grafana_alert_rules_upsert.py": 2,
 
     # 2026-06-22: keychain hardening in publish script adds one
-    # deliberate ``# noqa: S603`` on subprocess.run with fixed argv.
+    # deliberate ``noqa: S603`` on subprocess.run with fixed argv.
     "scripts/publish_overlay_dashboard.py": 1,
     # 2026-06-23: host-run helper that force-updates the rolling
     # ``bot/live-signals-snapshot`` branch so the hosted overlay daemon can
     # fetch the realtime-signals snapshot via SIGNALS_SNAPSHOT_URL. All git
     # calls go through one ``_git`` wrapper (git resolved via shutil.which,
-    # fixed argv, no shell), which carries a single ``# noqa: S603``.
+    # fixed argv, no shell), which carries a single ``noqa: S603``.
     "scripts/publish_signals_snapshot.py": 1,
     # 2026-07-20: generic rolling bot-snapshot publisher uses the same
     # explicitly-resolved git argv pattern (no shell).
     "scripts/publish_bot_snapshot.py": 1,
     # 2026-07-11 (truth-audit #5): universe-snapshot publisher's single ``_git``
-    # wrapper (git resolved via shutil.which, fixed argv, no shell) carries one ``# noqa: S603``.
+    # wrapper (git resolved via shutil.which, fixed argv, no shell) carries one ``noqa: S603``.
     "scripts/publish_universe_snapshots.py": 1,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
