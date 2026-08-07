@@ -37,10 +37,12 @@ consumers on ``/190``:
 * ``tests/test_pine_function_definition_order.py``
 * ``tests/test_smc_event_overlay.py``
 
-All three now exempt the attested sources by reading :func:`attested_paths`
-rather than by listing them, and each keeps a companion from pinning a version
-*ahead* of its neighbours -- a hold keeps a source behind, never in front, so
-anything in front is an escaped bump rather than a hold.
+Two of them -- ``test_pine_library_version_consistency.py`` and
+``test_pine_function_definition_order.py`` -- exempt the attested sources by
+reading :func:`attested_paths`. ``test_smc_event_overlay.py`` needs no list: it
+asserts the companion pins at or behind the published version, never ahead --
+anything in front is an escaped bump rather than a hold. (Until 2026-08-07 this
+said all three read :func:`attested_paths`; an AST sweep counts two.)
 """
 
 from __future__ import annotations
