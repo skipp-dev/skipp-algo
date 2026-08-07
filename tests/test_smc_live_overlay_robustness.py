@@ -934,6 +934,80 @@ class TestVixFiniteContract:
         assert payload["vix_level"] == 19.0
 
 
+class TestVixWireAgeGate:
+    """A stale VIX must reach the wire as ``None``, not as a frozen quote.
+
+    Wire consumers see only ``vix_level``; ``vix_age_seconds`` is a /metrics
+    export they never read. Before the gate, a dead FMP ^VIX poll left the last
+    good level being served indefinitely as if it were live.
+    """
+
+    def test_fresh_level_passes_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_vix_level", None)
+        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
+        cache_mod.set_vix(20.5)
+
+        assert cache_mod.get_vix_fresh() == 20.5
+
+    def test_stale_level_reads_as_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_vix_level", 20.5)
+        monkeypatch.setattr(cache_mod, "vix_age_secs", lambda: cache_mod.VIX_MAX_AGE_SECS + 1)
+
+        assert cache_mod.get_vix_fresh() is None
+        # get_vix() stays raw so /metrics can publish level and age together.
+        assert cache_mod.get_vix() == 20.5
+
+    def test_never_fetched_reads_as_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_vix_level", None)
+        monkeypatch.setattr(cache_mod, "_vix_updated_at", {})
+
+        assert cache_mod.vix_age_secs() == float("inf")
+        assert cache_mod.get_vix_fresh() is None
+
+    def test_threshold_is_pinned_to_the_alert(self) -> None:
+        """Cross-artifact pin lives in test_live_overlay_dashboard_contract.py.
+
+        That file is already on the fast-gates required path for monitoring
+        artifacts; reading the shipped Grafana files from here would pull this
+        whole module onto it too.
+        """
+        import services.live_overlay_daemon.cache as cache_mod
+
+        assert cache_mod.VIX_MAX_AGE_SECS == 5400.0
+
+    def test_no_wire_path_reads_the_ungated_level(self) -> None:
+        """Only /metrics may call ``get_vix()``; every wire path must gate.
+
+        Runs over the whole daemon package rather than the three known call
+        sites, so a newly added serving path cannot silently reintroduce the
+        frozen-quote bug.
+        """
+        import re
+
+        pkg = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+        allowed = {"cache.py", "metrics.py"}
+        offenders: list[str] = []
+
+        for path in sorted(pkg.rglob("*.py")):
+            if path.name in allowed:
+                continue
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                code = line.split("#", 1)[0]
+                if re.search(r"\bget_vix\s*\(", code):
+                    offenders.append(f"{path.relative_to(pkg)}:{lineno}")
+
+        assert offenders == [], (
+            "these read the un-gated VIX level; use cache.get_vix_fresh() so a "
+            f"stale quote serves as None: {offenders}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # N1/N2: stop() and circuit-breaker clear _feed_ready
 # ---------------------------------------------------------------------------

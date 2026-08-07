@@ -1998,6 +1998,25 @@ def test_vix_panel_gates_on_age_known_and_matches_alert_sentinel() -> None:
     )
 
 
+def test_vix_wire_gate_matches_the_alert_threshold() -> None:
+    """``cache.VIX_MAX_AGE_SECS`` and lo-vix-unavailable must not drift apart.
+
+    The gate decides when a stale level stops reaching the wire; the alert
+    decides when a human is told. If they diverge, clients keep being served a
+    frozen quote for the gap between the two.
+    """
+    from services.live_overlay_daemon import cache
+
+    rule = _alert_rule("lo-vix-unavailable")
+    threshold_node = next(n for n in rule["data"] if n.get("refId") == rule["condition"])
+    threshold = threshold_node["model"]["conditions"][0]["evaluator"]["params"][0]
+
+    assert threshold == cache.VIX_MAX_AGE_SECS, (
+        f"wire gate ({cache.VIX_MAX_AGE_SECS}s) and lo-vix-unavailable "
+        f"({threshold}s) disagree on when a VIX level is stale"
+    )
+
+
 def test_feed_down_critical_covers_silent_stall_via_bar_age_ladder() -> None:
     """The critical feed-down rule must fire on a silent stall, not only a loud one.
 
