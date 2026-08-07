@@ -82,6 +82,11 @@ concurrency:
   # stops being timely. Read-only or secret-writing, never layout-mutating.
   group: tradingview-storage-refresh
   cancel-in-progress: false
+  # 2026-08-06: cancel-in-progress protects only the RUNNING run. The default
+  # `queue: single` cancels the one pending run as soon as a newer tick enters
+  # the group, so a refresh could be dropped without ever running. `queue: max`
+  # lets up to 100 ticks queue instead of displacing each other.
+  queue: max
 
 defaults:
   run:
