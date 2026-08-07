@@ -66,6 +66,13 @@ jobs:
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
             --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || '' }}"
 
+      # THROWAWAY — never merge. Forces select-runner to fail so fast-gates is
+      # skipped, which is the state GitHub reports to branch protection as
+      # Success. Exists to observe whether `gate` still refuses. Branch is
+      # deleted after the observation.
+      - name: Force a select-runner failure
+        run: exit 1
+
   fast-gates:
     needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
