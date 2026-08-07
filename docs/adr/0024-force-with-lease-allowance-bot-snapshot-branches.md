@@ -82,6 +82,23 @@ Constraints that must hold for the allowance to remain valid:
    current `main`, keeping the cache branch to one snapshot commit beyond the
    base instead of accumulating a chain of historical snapshots.
 
+6. **Leaseless `--force` is permitted only on disposable proposal refs**
+   (amendment 2026-08-07, repo audit). A ref that every run recreates from
+   scratch — branched off current `main`, one commit, pushed — has no remote
+   history to protect and no meaningful expected tip to lease against; a lease
+   would only compare against the previous run's throwaway commit. Such a push
+   may use plain `git push -f`, provided the ref is in `bot/*`, is never read
+   as a source of truth, and its producing workflow holds a `concurrency` group
+   that serialises writers. This covers `bot/r1-reattest`, written by
+   `smc-r1-reattest.yml` (the proposer) and by `tv-save-consumer-source.yml`
+   when dispatched in reattest mode. It does **not** extend to any branch that
+   carries state across runs — those remain bound by constraints 2 and 5.
+
+   Both sites predate this amendment: they were invisible to the constraint-4
+   inventory because its detector matched only the long `--force` spelling and
+   both use `-f`. The detector was widened in the same change that added this
+   section, which is what surfaced them for review.
+
 ---
 
 ## Consequences

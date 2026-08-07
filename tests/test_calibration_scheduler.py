@@ -3,7 +3,30 @@
 import json
 import logging
 
-from open_prep import calibration_scheduler
+from open_prep import calibration_lookup, calibration_scheduler
+
+
+def test_readiness_floor_is_the_consumers_floor(tmp_path, caplog, monkeypatch):
+    """The readiness count must track rt_notify's floor, not a copy of it.
+
+    2026-08-07 (repo audit): the scheduler hardcoded ``20`` while the consumer
+    read ``calibration_lookup._DEFAULT_MIN_SAMPLES``. Both existing tests set
+    RT_CALIBRATION_MIN_SAMPLES explicitly, so the default path — the only one
+    production uses — was never exercised and the two could diverge silently.
+    The docstring promises "the floor the consumer needs to trust a bucket's
+    measured P"; this pins that promise.
+    """
+    monkeypatch.delenv("RT_CALIBRATION_MIN_SAMPLES", raising=False)
+    monkeypatch.setattr(calibration_lookup, "_DEFAULT_MIN_SAMPLES", 37)
+    out = tmp_path / "calibration_latest.json"
+    out.write_text(json.dumps({"table": {
+        "A1|2.0-3.0": {"n": 40, "hit_target_rate": 0.58},
+        "A1|1.0-1.5": {"n": 25, "hit_target_rate": 0.40},
+    }}), encoding="utf-8")
+    with caplog.at_level(logging.INFO):
+        calibration_scheduler._log_bucket_readiness(str(out))
+    assert "1/2 buckets have n>=37" in caplog.text, caplog.text
+    assert "A1|1.0-1.5" not in caplog.text  # 25 < the consumer's 37
 
 
 def test_bucket_readiness_counts_and_details(tmp_path, caplog, monkeypatch):

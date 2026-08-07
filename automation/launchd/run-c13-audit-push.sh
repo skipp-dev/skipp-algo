@@ -57,15 +57,18 @@ if [[ ! -f "${AUDIT}" ]]; then
 fi
 
 # Publish the audit artefacts onto data/phase-a-audit via the shared
-# isolated-worktree helper (audit pass-3 finding A1). The helper owns the
-# hardened push pipeline — stale-worktree prune (R1), detached checkout so
-# the branch ref is never contended, fail-loud markers on every exit path
-# (R4), push-stderr capture (R5), and a one-shot non-fast-forward retry —
-# so this driver no longer duplicates (and silently drifts from) that
-# logic. fetch/worktree failures return non-zero and ``set -e`` surfaces
-# them; push failures are soft (marker degraded:push-failed, retried on
-# the next run). The primary working tree's checked-out branch is never
-# touched.
+# publishing-clone helper (audit pass-3 finding A1). The helper owns the
+# hardened push pipeline — a dedicated hook-free clone under
+# ~/.cache/skippalgo/c13-data-clone with a self-healing re-clone on
+# corruption, fail-loud markers on every exit path (R4), push-stderr
+# capture (R5), and a one-shot non-fast-forward retry — so this driver no
+# longer duplicates (and silently drifts from) that logic. clone/fetch
+# failures return non-zero and ``set -e`` surfaces them; push failures are
+# soft (marker degraded:push-failed, retried on the next run). The primary
+# working tree's checked-out branch is never touched.
+# NOTE: this was a ``git worktree`` of the dev clone until 2026-07-06 — if
+# you are debugging a frozen data branch, the state lives in the cache dir
+# above, not in ``git worktree list``. See lib_c13_data_push.sh's header.
 # shellcheck source=automation/launchd/lib_c13_data_push.sh
 source "$(dirname "$0")/lib_c13_data_push.sh"
 push_to_data_branch \

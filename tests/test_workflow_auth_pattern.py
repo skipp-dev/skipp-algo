@@ -157,7 +157,9 @@ def test_inventory_contains_known_workflows() -> None:
 # below, which are explicitly approved by ADR-0024 (2026-06-10).
 #
 # To add a new approved use:
-#   1. Update _FORCE_LEASE_ALLOWLIST with (workflow_filename, branch_glob).
+#   1. Add the workflow filename to _FORCE_LEASE_ALLOWLIST (the set is keyed by
+#      filename only — it does not discriminate between push sites in the same
+#      file, so review every force push in a listed workflow).
 #   2. Open an ADR or amend ADR-0024 explaining why it is necessary.
 # ---------------------------------------------------------------------------
 
@@ -197,9 +199,22 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # from the fetched tip before adding its own file — the ADR-0024 §5
     # "replace only their owned paths" case. See ADR-0024.
     "smc-r4-context-readback.yml",
+    # smc-r1-reattest.yml (2026-08-07, repo audit): recreates the disposable
+    # bot/r1-reattest proposal ref from scratch on every run (checkout -b off
+    # the current main, one commit, push). There is no history to protect and
+    # no expected-tip to lease against, so this is the leaseless case in
+    # ADR-0024 §6. It became visible only when _FORCE_RE learned the ``-f``
+    # short form; it had been running unreviewed since the workflow landed.
+    # tv-save-consumer-source.yml pushes the same ref the same way when it is
+    # dispatched in reattest mode (already listed above for its lease publish).
+    "smc-r1-reattest.yml",
 })
 
-_FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
+# Matches both spellings of a force push. The ``-f`` alternative is bounded on
+# both sides so ``--force`` / ``--follow-tags`` cannot satisfy it accidentally.
+# 2026-08-07 (repo audit): this used to be ``--force`` only, which made the
+# allowlist blind to the two ``git push -f`` sites in the tree.
+_FORCE_RE = re.compile(r"git\s+push\b[^\n]*(?:--force|(?<![\w-])-f(?![\w-]))")
 
 
 def test_workflow_force_push_is_allowlisted() -> None:
@@ -243,6 +258,25 @@ def test_workflow_force_push_is_allowlisted() -> None:
         "(see docs/adr/0024-force-with-lease-allowance-bot-snapshot-branches.md).\n"
         "Offenders:\n" + "\n".join(offenders)
     )
+
+
+def test_force_push_detector_sees_both_spellings() -> None:
+    """Regression guard for the 2026-08-07 repo audit.
+
+    ``_FORCE_RE`` matched only the long ``--force``. Two workflows force-pushed
+    with ``git push -f``, so neither reached the allowlist check at all:
+    ``test_workflow_force_push_is_allowlisted`` reported clean while the pushes
+    it exists to gate were invisible to it. A guard that cannot see the thing
+    it forbids is worse than no guard, because it also reports success.
+    """
+    assert _FORCE_RE.search('git push -f "${remote_url}" "HEAD:${BRANCH}"')
+    assert _FORCE_RE.search("git push origin HEAD -f")
+    assert _FORCE_RE.search(
+        'git push "--force-with-lease=${_remote_ref}:${_lease}" "${url}" HEAD:x'
+    )
+    # Long flags that merely begin with ``f`` must not read as a force push.
+    assert not _FORCE_RE.search("git push --follow-tags origin main")
+    assert not _FORCE_RE.search("git push origin main")
 
 
 # ---------------------------------------------------------------------------

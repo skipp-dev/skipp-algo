@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+
+from open_prep.calibration_lookup import _min_samples
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,9 @@ def _log_bucket_readiness(out_path: str) -> None:
     only consumer (rt_notify's near-A0 star) reads A1|* buckets exclusively — for
     the arming decision check the A1|* keys in the detail string, not the
     headline count. Best-effort; never raises."""
-    try:
-        min_n = int(os.environ.get("RT_CALIBRATION_MIN_SAMPLES", 20))
-    except (TypeError, ValueError):
-        min_n = 20
+    # Resolved through the consumer's own helper so this readiness count can
+    # never report against a floor rt_notify no longer uses.
+    min_n = _min_samples()
     try:
         with open(out_path, encoding="utf-8") as fh:
             table = (json.load(fh) or {}).get("table", {}) or {}
