@@ -84,6 +84,75 @@ def test_the_workflow_still_declares_the_shell_this_harness_runs() -> None:
 
 
 # --------------------------------------------------------------------------
+# Step 1b — backfill_progress: a stalled backfill is an alert, not a banner
+# --------------------------------------------------------------------------
+
+BACKFILL_PROGRESS = "Step 1b — assert backfill made progress (advisory)"
+
+
+def _progress(tmp_path: Path, *, backfilled: int, pending: int, audit_only: int):
+    """Run step 1b with both of its external readers stubbed.
+
+    ``grep`` supplies the summary line the backfill printed and ``jq`` answers
+    the field reads. Stubbing both keeps the test off the fixed
+    ``/tmp/backfill_live_outcomes.stdout`` path, which parallel workers share.
+    """
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    jq = Stub(script=(
+        'case "$2" in\n'
+        f"  *records_backfilled*) echo {backfilled} ;;\n"
+        f"  *records_pending_close*) echo {pending} ;;\n"
+        f"  *records_audit_only*) echo {audit_only} ;;\n"
+        "  *) echo 0 ;;\n"
+        "esac"
+    ))
+    return run_step(
+        WORKFLOW, BACKFILL_PROGRESS, tmp_path,
+        env={"REAL_PYTHON": sys.executable},
+        stubs={"grep": Stub(stdout='{"backfill": {}}'), "jq": jq},
+        expressions={"steps.date.outputs.date": DATE},
+    )
+
+
+def test_a_stalled_backfill_publishes_a_failing_rc_and_opens_the_issue(
+    tmp_path: Path,
+) -> None:
+    """F-V3-15 phase 2 (2026-08-07 audit).
+
+    For 98 days this printed a ``::warning::`` and published nothing, in a job
+    that stays green either way — so a quota/auth/input-path regression on the
+    outcome-close path was invisible. The alert is the issue, and the issue
+    only fires on a published ``rc``.
+    """
+    result = _progress(tmp_path, backfilled=0, pending=5, audit_only=1)
+    assert result.outputs["rc"] == "1", result.outputs
+    assert result.returncode != 0, "the step itself must fail, not just narrate"
+    assert evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "1"}
+    ), "a stalled backfill must open the issue"
+
+
+def test_a_progressing_backfill_stays_quiet(tmp_path: Path) -> None:
+    """The control direction: real progress must not alert."""
+    result = _progress(tmp_path, backfilled=3, pending=5, audit_only=1)
+    assert result.outputs["rc"] == "0"
+    assert result.returncode == 0
+    assert not evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "0"}
+    )
+
+
+def test_an_audit_only_day_is_not_a_backfill_regression(tmp_path: Path) -> None:
+    """audit_only intents never reached a broker (C13 T1 NO-GO) and can never
+    close. Counting them as closable would alert every single paper day."""
+    result = _progress(tmp_path, backfilled=0, pending=2, audit_only=2)
+    assert result.outputs["rc"] == "0", result.outputs
+    assert not evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "0"}
+    )
+
+
+# --------------------------------------------------------------------------
 # Step 2 — drift_input: `rc` is the exit code, not a constant
 # --------------------------------------------------------------------------
 

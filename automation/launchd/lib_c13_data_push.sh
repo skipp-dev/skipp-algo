@@ -38,7 +38,8 @@
 #     is detectable (``ok:pushed:*`` / ``ok:no-change:*`` / ``degraded:*``).
 #   * Returns 0 for success / no-change / soft push failure (retried next run);
 #     returns non-zero only for a hard precondition failure (no files, clone/
-#     fetch failed) so ``set -e`` surfaces it to the LaunchAgent exit status.
+#     fetch failed) or a failed stage/commit, so ``set -e`` surfaces it to the
+#     LaunchAgent exit status.
 #
 # Repo policy: never ``--force``, never ``--no-verify``.
 

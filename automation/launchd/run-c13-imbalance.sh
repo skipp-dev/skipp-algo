@@ -58,8 +58,8 @@ if [[ ! -x "${PY}" ]]; then
     exit 1
 fi
 
-# Publish to the dedicated data branch via an isolated worktree so the push
-# never lands on (or diverges) the primary tree's checked-out branch.
+# Publish to the dedicated data branch via the hook-free publishing clone so
+# the push never lands on (or diverges) the primary tree's checked-out branch.
 # shellcheck source=automation/launchd/lib_c13_data_push.sh
 source "$(dirname "$0")/lib_c13_data_push.sh"
 # Catch-up helper: replay business days missed while the machine was asleep.

@@ -89,8 +89,8 @@ else
     _write_marker "${FEED_MARKER}" "ok:events:${TS}"
 fi
 
-# Publish to the dedicated data branch via an isolated worktree so the push
-# never lands on (or diverges) the primary tree's checked-out branch.
+# Publish to the dedicated data branch via the hook-free publishing clone so
+# the push never lands on (or diverges) the primary tree's checked-out branch.
 # shellcheck source=automation/launchd/lib_c13_data_push.sh
 source "$(dirname "$0")/lib_c13_data_push.sh"
 push_to_data_branch \
