@@ -213,3 +213,28 @@ def test_a_config_surface_does_not_drag_in_the_workflow_enumerators() -> None:
     # in the tests above, so a change to that surface should re-run the guard
     # that decides which guards run. Self-selection is the mechanism working.
     assert "tests/test_select_workflow_guards.py" in dependabot
+
+
+def test_a_service_pin_bump_selects_the_root_alignment_guard() -> None:
+    """The concrete diff that broke main, replayed against the selector.
+
+    Dependabot scopes a bump to ONE directory. #4492 (merged 2026-08-06)
+    therefore touched only ``services/signals_producer/requirements.txt``, and
+    the two surfaces that decide what a PR pays for were both blind to it: this
+    selector answered "no workflow guards selected", and the heavy CI lane
+    skipped its test steps for the light bot diff, so ``validate (1..4)``
+    reported success having run nothing. The guard that compares the service
+    pin against the root pin thus ran for the first time on main -- red, with
+    ``assert '2.1.3' == '2.1.2'``, blocking every push until the pins were
+    aligned.
+
+    Named rather than counted: dropping ``services/*/requirements.txt`` from
+    ``_CONFIG_SURFACES`` makes the parametrized vacuity check above simply not
+    run for it, so nothing else here would notice the regression.
+    """
+    selected = select_guards(["services/signals_producer/requirements.txt"])
+
+    assert "tests/test_signals_producer_service_contract.py" in selected, (
+        "a service requirements bump must select the guard that compares its "
+        f"pins against the root requirements; selected: {selected}"
+    )

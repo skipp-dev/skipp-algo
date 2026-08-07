@@ -83,6 +83,15 @@ _CONFIG_SURFACES = (
     "package.json",
     "pyproject.toml",
     "requirements.txt",
+    # Added 2026-08-06 after measuring how #4492 broke main. Dependabot scopes
+    # a bump to ONE directory, so that PR touched only
+    # services/signals_producer/requirements.txt -- which selected nothing here
+    # ("no workflow guards selected"), while the heavy CI lane skipped its test
+    # steps for the light bot diff. Both selection surfaces were blind to a
+    # service pin, so the contract test that compares it against the root pin
+    # ran for the first time on main, red. With this entry that same diff
+    # selects tests/test_signals_producer_service_contract.py.
+    "services/*/requirements.txt",
 )
 
 

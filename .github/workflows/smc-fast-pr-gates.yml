@@ -730,7 +730,8 @@ jobs:
             .github/actions/ \
             package.json \
             pyproject.toml \
-            requirements.txt)"
+            requirements.txt \
+            services/*/requirements.txt)"
           if [ -z "${changed}" ]; then
             echo "No CI surface changed in this pull request."
             exit 0
