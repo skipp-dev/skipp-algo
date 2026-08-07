@@ -813,3 +813,63 @@ jobs:
             artifacts/ci/terminal_coverage.txt
             artifacts/ci/terminal_coverage.xml
           if-no-files-found: ignore
+
+  # The required status check of the `main-governance` ruleset.
+  #
+  # It cannot be `fast-gates` itself. That job carries `needs: select-runner`,
+  # and GitHub is explicit about what that means: "A job that is skipped will
+  # report its status as 'Success'. It will not prevent a pull request from
+  # merging, even if it is a required check" -- with "A job depends on a failed
+  # job" listed as a way in. So a failing `select-runner` skipped `fast-gates`,
+  # the skip reported Success, and the pull request was mergeable with no gate
+  # having run. Measured 2026-08-06; over the preceding 60 runs `select-runner`
+  # never failed, so this was structural rather than realised.
+  #
+  # GitHub's prescribed remedy is this shape: "Use `always()` with `needs` for
+  # required checks that depend on other jobs" -- plus an explicit test of
+  # `needs.*.result`, because `always()` alone only makes the job RUN; it does
+  # not make it fail.
+  #
+  # `always()` and not `!cancelled()`: a gate skipped on cancellation reports
+  # Success and reopens the hole. The usual argument against `always()` -- a run
+  # that hangs to its timeout -- is about jobs that fetch sources or talk to a
+  # network. This one checks out nothing and reads two strings.
+  gate:
+    name: gate
+    needs: [select-runner, fast-gates]
+    if: always()
+    # Deliberately NOT select-runner's chosen runner: a failed selection must
+    # not take the job that reports the failure down with it. Same operator
+    # override as select-runner itself, which is the form the runner-pinning
+    # guard accepts.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Refuse anything that is not a real pass
+        env:
+          SELECT_RUNNER_RESULT: ${{ needs.select-runner.result }}
+          FAST_GATES_RESULT: ${{ needs.fast-gates.result }}
+        run: |
+          set -uo pipefail
+          select="${SELECT_RUNNER_RESULT:-empty}"
+          gates="${FAST_GATES_RESULT:-empty}"
+          echo "select-runner=${select} fast-gates=${gates}"
+          if [ "${select}" = "success" ] && [ "${gates}" = "success" ]; then
+            echo "Gates passed: select-runner=${select}, fast-gates=${gates}." \
+              >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            exit 0
+          fi
+          {
+            echo "## Merge gate refused"
+            echo
+            echo "| job | result |"
+            echo "| --- | --- |"
+            echo "| select-runner | \`${select}\` |"
+            echo "| fast-gates | \`${gates}\` |"
+            echo
+            echo "A \`skipped\` here is not a pass: GitHub reports a skipped job"
+            echo "as Success to branch protection, which is the hole this job"
+            echo "exists to close."
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          echo "::error::merge gate refused — select-runner=${select}, fast-gates=${gates}"
+          exit 1
