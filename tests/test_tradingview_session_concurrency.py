@@ -102,6 +102,28 @@ def test_exempt_workflows_stay_out_of_the_shared_group(name: str) -> None:
     )
 
 
+@pytest.mark.parametrize("name", sorted(MUTATING | EXEMPT))
+def test_the_group_actually_queues_instead_of_dropping(name: str) -> None:
+    """``cancel-in-progress: false`` was never the thing that made runs wait.
+
+    It governs only the RUNNING run. Under the default ``queue: single`` a
+    concurrency group holds exactly one PENDING run, and the next entrant
+    cancels that pending run and takes its place -- so with eleven producers on
+    one group, ticks 3..N were being dropped, not delayed. Observed 2026-08-05
+    and 2026-08-06 as ``cancelled`` refresh and tv-save runs that never started.
+
+    ``queue: max`` (GitHub Actions, 2026-05-07) raises the cap to 100 pending
+    runs. It is mutually exclusive with ``cancel-in-progress: true``, which the
+    assertion above already forbids for every mutating workflow.
+    """
+    concurrency = load_workflow(_tradingview_workflows()[name])["concurrency"]
+    assert concurrency.get("queue") == "max", (
+        f"{name} runs on the default `queue: single`: one pending run per group, "
+        "cancelled by the next entrant. Set `queue: max` so overlapping "
+        "dispatches queue instead of displacing each other."
+    )
+
+
 @pytest.mark.parametrize("name", sorted(MUTATING))
 def test_the_group_does_not_claim_to_serialise_the_operator(name: str) -> None:
     """The comment used to say "one browser session at a time". False.

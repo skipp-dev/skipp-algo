@@ -51,6 +51,11 @@ concurrency:
   # publish scripts, so a queued run must wait, never pre-empt.
   group: tradingview-session
   cancel-in-progress: false
+  # 2026-08-06: cancel-in-progress governs only the RUNNING run, so `false`
+  # never protected the waiter. Under the default `queue: single` a group holds
+  # exactly one pending run and the next entrant CANCELS it -- that is what
+  # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
+  queue: max
 
 # Top-level env so PYTHONUNBUFFERED / PYTHONPATH propagate to every step,
 # including setup-python and the direct python scripts/bake_overlay_library.py
