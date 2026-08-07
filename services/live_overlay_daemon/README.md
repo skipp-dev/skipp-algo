@@ -241,7 +241,7 @@ missing symbol cache entry.
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/monitoring/tradingview_consumer_bindings.json` | Last measured saved-source SHA-256 comparisons and `input.source` dropdown assignments |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL` | ❌ | canonical `bot/live-tradingview-bindings` URL | HTTPS URL for the binding snapshot; set explicitly empty to disable remote loading |
 | `TRADINGVIEW_BINDINGS_SNAPSHOT_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for the binding snapshot URL |
-| `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
+| `EXPERIMENT_HISTORY_PATH` | ❌ | *(repo root)*`/artifacts/live_overlay/plan_2_8_history.jsonl` | Local per-day experiment history JSONL |
 | `EXPERIMENT_HISTORY_URL` | ❌ | canonical `bot/live-experiment-snapshot` URL | HTTPS URL for per-day experiment history JSONL; set explicitly empty to disable remote loading |
 | `EXPERIMENT_HISTORY_URL_TOKEN` | ❌ | repo monitor token for canonical URL | Optional explicit bearer token for `EXPERIMENT_HISTORY_URL` |
 | `OVERLAY_EXPERIMENT_CACHE_TTL_SECS` | ❌ | `900` | Experiment snapshot/history cache TTL in seconds (range 60–7200) |
