@@ -16,7 +16,7 @@ Replaces the inline heredoc previously embedded in
 logic can be linted / type-checked / unit-tested.
 
 Required env vars:
-  GITHUB_REPOSITORY   – e.g. ``skippALGO/skipp-algo``
+  GITHUB_REPOSITORY   – e.g. ``skipp-dev/skipp-algo``
   GH_TOKEN            – token with ``actions:read`` on the repo
   RUN_DATE            – today's UTC date as ``YYYY-MM-DD``
   GITHUB_OUTPUT       – path to the step-outputs file (provided by Actions)
