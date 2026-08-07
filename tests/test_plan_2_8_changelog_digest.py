@@ -110,8 +110,18 @@ def test_render_markdown_populated_has_headings() -> None:
 def test_cli_json_with_lookback(
     tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # `main()` filters against the wall clock, so FIXTURE's fixed dates would
+    # eventually fall outside every lookback window and empty this assertion.
+    recent = (_dt.datetime.now(_dt.UTC).date() - _dt.timedelta(days=3)).isoformat()
     ch = tmp_path / "CHANGELOG.md"
-    ch.write_text(FIXTURE, encoding="utf-8")
+    ch.write_text(
+        FIXTURE.replace(
+            "## [Unreleased]\n\n",
+            f"## [Unreleased]\n\n### Added ({recent}) - recent item\n\nbody\n\n",
+            1,
+        ),
+        encoding="utf-8",
+    )
     rc = cl.main([
         "--changelog", str(ch),
         "--lookback-days", "365",
