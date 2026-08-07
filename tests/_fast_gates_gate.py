@@ -19,18 +19,23 @@ That is not hypothetical. Measured 2026-08-04, twice on this one step:
   hole the step's own comment claims to have closed. (Two selections, two
   numbers, both measured; neither is "the whole suite".)
 
-So execute the step. This module is the shared harness; the assertions live in
-``test_fast_gates_silent_skip_coverage.py`` (the silent-skip contract) and in
-``test_check_r1_attested_sources.py`` (the R1 half).
+So execute the step. This module is the shared harness; the assertions live
+next to the workflow they describe — ``test_fast_gates_silent_skip_coverage.py``
+(the silent-skip contract), ``test_check_r1_attested_sources.py`` and
+``test_fast_gates_attested_pine_coverage.py`` (the R1 half), and
+``test_ci_workflow_contract.py`` for ci.yml's gate.
 
-What it does NOT cover: GitHub's ``if:`` expression evaluation. That is no
-longer for want of a local equivalent — ``_evaluate_condition`` in
-``tests/test_fast_gates_attested_pine_coverage.py`` evaluates a step's ``if:``
-against real gate outputs, and ``tests/test_ci_workflow_contract.py`` pins
-ci.yml's two lane conditions by normalised equality. Both live outside this
-module. If a third consumer appears, lift the evaluator in here rather than
-copying it: a private helper imported across test modules is exactly what broke
-``main`` on 2026-08-04, when #4383 moved ``_run_gate`` out from under #4385.
+GitHub's ``if:`` expression evaluation is covered too, by
+:func:`evaluate_condition` below. It was lifted in here from
+``tests/test_fast_gates_attested_pine_coverage.py`` on 2026-08-04 when a second
+consumer appeared; ten test modules import it today. Copying it would have left
+two evaluators to drift apart, and a private helper imported across test modules
+is exactly what broke ``main`` that same day, when #4383 moved ``_run_gate`` out
+from under #4385.
+
+(Until 2026-08-07 the two paragraphs above said the evaluator lives OUTSIDE this
+module and invited a third consumer to lift it in. Both were already false when
+written: the file that supposedly owned it imports it from here.)
 """
 
 from __future__ import annotations
@@ -112,7 +117,9 @@ CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 # Mirrors the `env:` block of that step, and nothing more. It once also carried
 # HEAD_REF/PR_NUMBER/REPO/GH_TOKEN, for the bot-path arm #4396 removed as
 # unreachable; keeping scaffolding named after deleted logic is how a harness
-# starts describing a workflow that no longer exists.
+# starts describing a workflow that no longer exists. `run_ci_gate` still ACCEPTS
+# a head_ref and a file list, but as probe input rather than as scaffolding — see
+# its docstring.
 CI_HARNESS_ENV: dict[str, str] = {
     "EVENT_NAME": "push",
     "REF_NAME": "main",
@@ -137,7 +144,17 @@ def run_ci_gate(
     changed_files: list[str] | None = None,
     gh_exit_code: int = 0,
 ) -> dict[str, str]:
-    """Execute ci.yml's gate and return what it wrote to GITHUB_OUTPUT."""
+    """Execute ci.yml's gate and return what it wrote to GITHUB_OUTPUT.
+
+    ``head_ref``, ``changed_files`` and ``gh_exit_code`` describe inputs this
+    gate does NOT read: #4396 deleted its ``bot/*`` path allow-list as
+    unreachable. They are kept as probe input, not as leftover scaffolding —
+    ``test_a_bot_pull_request_is_status_only_like_any_other`` feeds a bot branch,
+    a source path and a failing ``gh``, and the verdict staying ``false`` is what
+    proves the allow-list has not come back. Pass them only to make that point;
+    a test that supplies them incidentally implies a path check that ci.yml does
+    not perform.
+    """
     return _run_step_shell(
         str(ci_gate_step()["run"]),
         tmp_path,
@@ -185,7 +202,7 @@ def _run_step_shell(
 ) -> dict[str, str]:
     """Run one workflow step's shell with a stubbed ``gh``; return its outputs."""
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(exist_ok=True)
     stub = bin_dir / "gh"
     # printf over the list rather than a heredoc: a heredoc delimiter can be
     # collided with by a changed path that happens to equal it, and this
@@ -218,7 +235,11 @@ def _run_step_shell(
         # a hang here would burn the job's whole timeout instead of failing.
         timeout=60,
     )
-    assert result.returncode == 0, result.stderr
+    # The step names the arm it took on stdout; stderr alone identifies nothing.
+    assert result.returncode == 0, (
+        f"the step exited {result.returncode}\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
 
     return dict(
         line.split("=", 1)
