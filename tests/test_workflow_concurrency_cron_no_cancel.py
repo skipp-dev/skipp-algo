@@ -13,6 +13,12 @@ The rule we enforce here:
   with ``cancel-in-progress: false``.
 * PR-triggered workflows are deliberately excluded — fast feedback there
   is preferred over preservation of a soon-to-be-stale run.
+* Workflows listed in ``_QUEUE_MAX_WORKFLOWS`` must additionally set
+  ``queue: max``.  2026-08-06: ``cancel-in-progress: false`` governs only the
+  RUNNING run.  A group still holds exactly one PENDING run under the default
+  ``queue: single``, and the next tick CANCELS that waiter — so the guard above
+  alone never delivered the queueing this module promises.  ``queue: max``
+  raises the waiting room to 100 runs, served FIFO (best-effort).
 
 If you add a new pure-cron workflow, make sure it follows the pattern
 documented in `.github/workflows/c13-daily-cron.yml`:
@@ -21,6 +27,7 @@ documented in `.github/workflows/c13-daily-cron.yml`:
 concurrency:
   group: <workflow-filename-without-yml>
   cancel-in-progress: false
+  queue: max
 ```
 """
 
@@ -100,4 +107,40 @@ def test_audit_finds_at_least_one_cron_workflow() -> None:
     """Sanity check: regression guard against an over-eager glob filter."""
     assert _pure_cron_workflows(), (
         "Did not discover any pure-cron workflows — the audit filter is broken."
+    )
+
+
+# 2026-08-06: workflows that COMMIT, PUSH or OPEN A PR.  For these a dropped
+# pending tick is a lost day of data, not a skipped poll, so they must queue.
+# Extending this set to the remaining pure-cron workflows is tracked separately.
+_QUEUE_MAX_WORKFLOWS = frozenset(
+    {
+        "adr0023-magnitude-shadow-daily.yml",
+        "adr0023-magnitude-stage1-weekly.yml",
+        "ats-baseline-daily.yml",
+        "c13-daily-cron.yml",
+        "edge-pipeline-real-run.yml",
+        "evidence-freshness-snapshot.yml",
+        "f2-frozen-artifact-bootstrap.yml",
+        "fvg-quality-quartile-gate.yml",
+        "g23-ab-watchdog.yml",
+        "open-prep-outcome-backfill.yml",
+        "promotion-gate-daily.yml",
+        "run-open-prep-daily.yml",
+        "sweep-trap-shadow-daily.yml",
+    }
+)
+
+
+@pytest.mark.parametrize("name", sorted(_QUEUE_MAX_WORKFLOWS))
+def test_writing_workflow_queues_pending_runs(name: str) -> None:
+    """F-V5-C2: `cancel-in-progress: false` guards the running run only."""
+    path = WORKFLOWS_DIR / name
+    assert path.is_file(), f"{name}: listed in _QUEUE_MAX_WORKFLOWS but not on disk."
+    concurrency = _load_yaml(path).get("concurrency")
+    assert isinstance(concurrency, dict), f"{name}: missing top-level `concurrency:`."
+    assert concurrency.get("queue") == "max", (
+        f"{name}: needs `queue: max`. Without it the group holds exactly one "
+        "pending run and the next tick cancels that waiter, silently dropping "
+        "a run that writes to the repo. Got: {!r}.".format(concurrency.get("queue"))
     )

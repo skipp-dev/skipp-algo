@@ -51,6 +51,7 @@ permissions:
 concurrency:
   group: adr0023-magnitude-stage1-weekly
   cancel-in-progress: false
+  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"

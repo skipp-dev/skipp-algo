@@ -42,6 +42,7 @@ permissions:
 concurrency:
   group: g23-ab-watchdog
   cancel-in-progress: false
+  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)

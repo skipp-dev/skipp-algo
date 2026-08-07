@@ -95,6 +95,7 @@ permissions:
 concurrency:
   group: edge-pipeline-real-run-${{ github.ref }}
   cancel-in-progress: false
+  queue: max  # F-V5-C2: without this the next dispatch cancels the PENDING run
 
 env:
   PYTHONUNBUFFERED: "1"
