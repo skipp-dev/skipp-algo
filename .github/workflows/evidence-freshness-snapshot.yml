@@ -34,6 +34,7 @@ permissions:
 concurrency:
   group: evidence-freshness-snapshot
   cancel-in-progress: false
+  queue: max  # F-V5-C2: without this the next tick cancels the PENDING run
 
 defaults:
   run:
