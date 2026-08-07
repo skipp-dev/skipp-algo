@@ -101,6 +101,14 @@ artifacts/ops_run_measure.py
 # artifacts/research/ensemble_2026-07/README for provenance.
 artifacts/research/
 
+# Local working scratch (added 2026-08-07): `.tmp/` holds talk material such as
+# the Cisco Live PQC decks (~130 MB of pptx + per-slide layout JSON) and
+# `scratchpad/` holds sweep prompts and ORIGIN copies pulled aside while
+# reviewing. Both are working state, not repo content — kept local, never
+# committed. Presentation output meant to survive lives under `docs/demos/`.
+.tmp/
+scratchpad/
+
 # Editable-install metadata (added 2026-04-23 with pyproject [tool.setuptools] block)
 *.egg-info/
 

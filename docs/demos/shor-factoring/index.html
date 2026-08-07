@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="An interactive, presentation-ready walkthrough of Shor's factoring algorithm for two-digit numbers."
+    >
+    <title>Shor's Algorithm — Interactive Factoring Walkthrough</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="demo-shell">
+      <header class="hero">
+        <p class="eyebrow">SHOR'S ALGORITHM · INTERACTIVE WALKTHROUGH</p>
+        <h1 id="hero-title">Factor 21 with Shor's algorithm</h1>
+        <p class="lede">
+          First find the hidden period of a modular function. Then turn that
+          period into factors with ordinary greatest-common-divisor calculations.
+        </p>
+      </header>
+
+      <section class="input-area" aria-label="Factoring controls">
+        <form id="number-form" class="number-form" novalidate>
+          <label for="number-input">Two-digit number <span aria-hidden="true">N</span></label>
+          <div class="input-action">
+            <input
+              id="number-input"
+              name="number"
+              type="number"
+              inputmode="numeric"
+              min="10"
+              max="99"
+              step="1"
+              value="21"
+              aria-describedby="input-help input-error"
+            >
+            <button type="submit" class="primary-button">Factor this number</button>
+          </div>
+          <p id="input-help" class="helper-text">Enter any whole number from 10 to 99.</p>
+          <p id="input-error" class="error-text" role="alert" hidden></p>
+        </form>
+
+        <div class="example-group" aria-label="Example numbers">
+          <span class="control-label">Try an example</span>
+          <div class="example-buttons">
+            <button type="button" class="example-button" data-example="15" aria-pressed="false">15</button>
+            <button type="button" class="example-button is-selected" data-example="21" aria-pressed="true">21</button>
+            <button type="button" class="example-button" data-example="35" aria-pressed="false">35</button>
+          </div>
+        </div>
+
+        <label class="detail-toggle">
+          <input id="detail-toggle" type="checkbox">
+          <span>Show advanced quantum details</span>
+        </label>
+      </section>
+
+      <section class="walkthrough" aria-labelledby="step-title">
+        <div class="step-header">
+          <div>
+            <p id="phase-label" class="eyebrow">STEP 1</p>
+            <h2 id="step-title">Choose a candidate base a</h2>
+          </div>
+          <p id="step-count" class="step-count">Step 1 of 8</p>
+        </div>
+
+        <div
+          class="progress-track"
+          role="progressbar"
+          aria-label="Walkthrough progress"
+          aria-valuemin="1"
+          aria-valuemax="8"
+          aria-valuenow="1"
+        >
+          <span id="progress-fill"></span>
+        </div>
+
+        <div id="step-visual" class="step-visual" aria-live="polite"></div>
+
+        <div class="presenter-controls" aria-label="Presentation controls">
+          <button id="previous-button" type="button" class="secondary-button">← Previous</button>
+          <button id="auto-button" type="button" class="secondary-button" aria-pressed="false">Auto play</button>
+          <button id="next-button" type="button" class="primary-button">Next →</button>
+        </div>
+      </section>
+
+      <footer class="demo-footer">
+        <p>
+          Educational simulation: all arithmetic is exact; quantum period
+          finding is illustrated deterministically for a clear presentation.
+        </p>
+        <p class="keyboard-hint">Presenter keys: ← previous · → next · Space auto play</p>
+      </footer>
+    </main>
+
+    <script src="shor-math.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
