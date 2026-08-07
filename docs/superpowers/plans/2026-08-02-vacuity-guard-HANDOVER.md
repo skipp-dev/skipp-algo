@@ -67,9 +67,10 @@ Die echte Klasse sind Mengen, die zur Laufzeit leer werden können:
 - Namen, die im selben Scope an eines von beiden gebunden sind
 - Helper-Funktionen, die eines von beiden zurückgeben
 
-Aufschlüsselung der 29: 12 `local filtered-comprehension (all/any)`, 9 `helper returns
-filtered set`, 5 `discovery call`, 1 `helper returns discovery (all/any)`,
-1 `local discovery-call`, 1 `local filtered-comprehension`.
+Aufschlüsselung der 29: 12 `local filtered-comprehension (all/any)`,
+9 `helper returns filtered set`, 5 `discovery call`,
+1 `helper returns discovery (all/any)`, 1 `local discovery-call`,
+1 `local filtered-comprehension`.
 
 Die Prototypen liegen unter
 `/private/tmp/claude-501/-Users-spreuss/f3e74ddd-.../scratchpad/vacuity_probe.py` und
@@ -158,8 +159,8 @@ Fix-Idiom: ein `test_<ledger>_roster_is_not_empty`.
 ⇒ Es fehlt **nicht die Einsicht und nicht das Idiom**, sondern die Durchsetzung. Der Guard
 kodifiziert eine bereits gelebte Konvention; das ist der Rahmen für die PR-Beschreibung.
 
-Ein Vakuitäts-Guard existiert noch nicht (`grep -rln 'vacuo|vacuit|Vakuit'` über `*.py *.ts
-*.yml *.md` zeigt nur Doku/Kommentare, keinen Prüfer).
+Ein Vakuitäts-Guard existiert noch nicht (`grep -rln 'vacuo|vacuit|Vakuit'`
+über `*.py *.ts *.yml *.md` zeigt nur Doku/Kommentare, keinen Prüfer).
 
 ---
 
