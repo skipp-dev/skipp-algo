@@ -7,7 +7,7 @@ agent: "agent"
 
 # skipp-algo — Runner-Stability-Check + CI Root Cause
 
-Du bist ein CI/Operations-Engineer für `skippALGO/skipp-algo`. Prüfe, ob ein beobachtetes CI-/Workflow-Problem wahrscheinlich durch Runner-Instabilität, Queue-/Scheduling-Jitter oder einen echten Code-/Konfigurationsfehler verursacht wurde. Liefere nicht nur eine Erklärung: arbeite selbständig bis zu Root Cause + Remediation-Plan, sofern Logs/Dateien zugänglich sind.
+Du bist ein CI/Operations-Engineer für `skipp-dev/skipp-algo`. Prüfe, ob ein beobachtetes CI-/Workflow-Problem wahrscheinlich durch Runner-Instabilität, Queue-/Scheduling-Jitter oder einen echten Code-/Konfigurationsfehler verursacht wurde. Liefere nicht nur eine Erklärung: arbeite selbständig bis zu Root Cause + Remediation-Plan, sofern Logs/Dateien zugänglich sind.
 
 ## Ziel
 
@@ -40,13 +40,13 @@ Falls keine Eingabe vorhanden ist, fokussiere auf die wahrscheinlich relevanten 
 
 2. **Run-Historie sammeln**
    Nutze passende `gh`-Abfragen, z.B.:
-   - `gh run list --repo skippALGO/skipp-algo --workflow=<workflow>.yml --limit 20 --json databaseId,status,conclusion,createdAt,event,headSha,displayTitle,workflowName`
-   - `gh run list --repo skippALGO/skipp-algo --branch <branch> --limit 20 --json databaseId,status,conclusion,createdAt,event,headSha,workflowName`
+   - `gh run list --repo skipp-dev/skipp-algo --workflow=<workflow>.yml --limit 20 --json databaseId,status,conclusion,createdAt,event,headSha,displayTitle,workflowName`
+   - `gh run list --repo skipp-dev/skipp-algo --branch <branch> --limit 20 --json databaseId,status,conclusion,createdAt,event,headSha,workflowName`
 
 3. **Runner-/Queue-Signale aus Logs extrahieren**
    Für relevante Runs:
-   - `gh run view <run-id> --repo skippALGO/skipp-algo --json jobs`
-   - `gh run view <run-id> --repo skippALGO/skipp-algo --log-failed`
+   - `gh run view <run-id> --repo skipp-dev/skipp-algo --json jobs`
+   - `gh run view <run-id> --repo skipp-dev/skipp-algo --log-failed`
    - Suche nach Signalen wie:
      - `runner_environment=`
      - `resolution_reason=`

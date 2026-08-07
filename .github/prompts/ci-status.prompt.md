@@ -2,7 +2,7 @@
 description: "Prüfe CI-Status aller offenen PRs und melde Merge-Readiness"
 agent: "agent"
 ---
-Prüfe den CI-Status aller offenen PRs im Repository skippALGO/skipp-algo in einem Durchlauf:
+Prüfe den CI-Status aller offenen PRs im Repository skipp-dev/skipp-algo in einem Durchlauf:
 
 1. Liste alle offenen PRs: `gh pr list --json number,title,headRefName,mergeable,mergeStateStatus`
 2. Für jeden PR: `gh pr checks <nr> --json name,state --jq '.[] | select(.state != "SUCCESS" and .state != "SKIPPED" and .state != "CANCELLED")'`
