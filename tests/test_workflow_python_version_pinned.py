@@ -80,6 +80,33 @@ def test_hosted_only_merge_critical_workflow_uses_pinned_bootstrap(workflow_path
     assert not any(str(step.get("uses", "")).startswith("actions/setup-python@") for step in validate.get("steps", []) or [])
 
 
+#: Tokens that mean a step needs the interpreter, so the job must bootstrap the
+#: pinned one. Narrow on purpose: `uses:` counts unconditionally because a
+#: third-party action may run Python without ever spelling it.
+_PYTHON_TOKENS = ("python", "pytest", "pip ", "pip3", "uv ", "coverage")
+
+
+def _runs_python(job: dict) -> bool:
+    """Does this job execute any Python at all?
+
+    Added 2026-08-06 for the `gate` job, whose whole point is to be the one
+    thing that cannot fail for an unrelated reason: it checks out nothing,
+    installs nothing and reads two `needs.*.result` strings in bash. Requiring
+    it to bootstrap an interpreter it never calls would hand the required merge
+    check extra ways to break.
+
+    Scoped so a job that DOES touch Python can never slip through: any `uses:`
+    at all, or any Python token in a `run:` body, puts the job back in scope.
+    """
+    for step in job.get("steps", []) or []:
+        if step.get("uses"):
+            return True
+        body = str(step.get("run", "")).lower()
+        if any(token in body for token in _PYTHON_TOKENS):
+            return True
+    return False
+
+
 @pytest.mark.parametrize("workflow_path", _ROUTED_MERGE_CRITICAL_WORKFLOWS, ids=lambda p: p.name)
 def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(workflow_path: Path) -> None:
     """Merge-critical workflow must use hosted-only composite bootstrap and a self-hosted resolver."""
@@ -91,7 +118,7 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
     worker_jobs = {
         job_name: job
         for job_name, job in jobs.items()
-        if isinstance(job, dict) and job_name != "select-runner"
+        if isinstance(job, dict) and job_name != "select-runner" and _runs_python(job)
     }
     assert worker_jobs, f"{workflow_path.name} must have at least one worker job"
 
