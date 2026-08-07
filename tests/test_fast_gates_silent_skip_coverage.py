@@ -1286,6 +1286,21 @@ def test_a_non_bot_branch_never_reaches_the_path_inspection(tmp_path: Path) -> N
     assert outputs["run_heavy"] == "true"
 
 
+def test_the_harness_runs_two_gates_in_one_directory(tmp_path: Path) -> None:
+    """Two verdicts from one ``tmp_path``, so callers need no scaffold subdirs.
+
+    ``bin_dir.mkdir()`` carried no ``exist_ok`` until 2026-08-07 and raised
+    FileExistsError on the second run. Seven call sites across three files work
+    around it with a per-run subdirectory; nothing said why, so the next caller
+    rediscovers it. The two paths differ so a harness that returned a stale
+    answer instead of re-running would fail here too.
+    """
+    source = run_gate(["services/live_overlay_daemon/state.py"], tmp_path)
+    data_only = run_gate(["artifacts/monitoring/latest/snapshot.json"], tmp_path)
+
+    assert (source["run_heavy"], data_only["run_heavy"]) == ("true", "false")
+
+
 def test_the_harness_supplies_every_variable_the_gate_step_reads() -> None:
     """A variable the workflow adds and the harness omits expands to "".
 
@@ -1376,9 +1391,10 @@ def test_ci_gate_runs_the_full_suite_on_manual_dispatch(tmp_path: Path) -> None:
 
     This pins the OUTCOME, not the arm that produces it. Measured 2026-08-04:
     deleting the `workflow_dispatch` arm changes nothing — a dispatch still
-    resolves to true further down, on either `REF_NAME == main` or the
-    `HEAD_REF != bot/*` fallback. The arm is redundant; the guarantee is not,
-    which is why the assertion is on what an operator gets.
+    resolves to true further down: on `REF_NAME == main`, or on the catch-all
+    that closes the block. (This sentence named a `HEAD_REF != bot/*` fallback
+    until 2026-08-07; #4396 had deleted it.) The arm is redundant; the guarantee
+    is not, which is why the assertion is on what an operator gets.
     """
     outputs = run_ci_gate(tmp_path, event_name="workflow_dispatch", ref_name="feature/x")
 
@@ -1390,15 +1406,10 @@ def test_ci_gate_stays_status_only_on_a_pull_request(tmp_path: Path) -> None:
 
     PR CI being status-only is deliberate (fast-gates is the required check,
     ADR-0011). Pinning it keeps the pair honest AND documents that the heavy
-    lane genuinely does not run here.
+    lane genuinely does not run here — for every PR, whatever it changes. The
+    gate never looks at the paths, so no file list is passed.
     """
-    outputs = run_ci_gate(
-        tmp_path,
-        event_name="pull_request",
-        ref_name="feature/x",
-        head_ref="feature/x",
-        changed_files=["services/live_overlay_daemon/state.py"],
-    )
+    outputs = run_ci_gate(tmp_path, event_name="pull_request", ref_name="feature/x")
 
     assert outputs["run_heavy"] == "false"
 
