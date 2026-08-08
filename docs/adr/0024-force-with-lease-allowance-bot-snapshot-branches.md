@@ -110,6 +110,11 @@ Constraints that must hold for the allowance to remain valid:
   seeds from the real branch tip, so a transient restore failure cannot replace
   cumulative state and the two experiment producers cannot delete each
   other's stable paths.
+  *(2026-08-08, #4549: `plan-2-8-evaluation.yml` was deleted for publishing
+  synthetic data, leaving three consumers of the helper and a single experiment
+  producer on `bot/live-experiment-snapshot`. The carve-out itself is unchanged,
+  and `_FORCE_LEASE_ALLOWLIST` carries no entry for the removed workflow, so
+  nothing was orphaned.)*
 * The `smc-live-news-refresh.yml` snapshot mechanism continues to work
   without accumulating unbounded history on `bot/live-news-snapshot`.
 * `run-open-prep-daily.yml` reuses the same carve-out to publish
