@@ -147,6 +147,13 @@ def check_intents_against_limits(
     explicit kill-switch contract and the only field that overrides
     everything else.
     """
+    from governance.portfolio_contract import PortfolioIntent, PortfolioSnapshotV1, Side
+    from governance.portfolio_risk import (
+        PortfolioRiskLimitsV1,
+        PortfolioRiskMode,
+        evaluate_portfolio_risk,
+    )
+
     rejections: list[str] = []
     if limits.manual_halt:
         rejections.append("manual_halt is engaged; rejecting entire batch")
@@ -154,13 +161,51 @@ def check_intents_against_limits(
     if account_equity_usd <= 0:
         raise ValueError("account_equity_usd must be positive for exposure check")
 
-    open_positions = len(intents)
-    if open_positions > limits.max_open_positions:
-        rejections.append(f"open_positions={open_positions} exceeds max_open_positions={limits.max_open_positions}")
-
-    gross_usd = sum(abs(int(i.quantity)) * float(i.entry_limit) for i in intents)
-    gross_pct = (gross_usd / account_equity_usd) * 100.0
-    if gross_pct > limits.max_gross_exposure_pct:
+    instant = datetime.now(UTC)
+    snapshot = PortfolioSnapshotV1.build(
+        captured_at=instant,
+        account="SMOKE",
+        base_currency="USD",
+        equity=account_equity_usd,
+        available_funds=account_equity_usd,
+        source="smoke_fixture",
+        complete=True,
+    )
+    portfolio_intents = tuple(
+        PortfolioIntent(
+            intent_id=str(item.order_ref),
+            symbol=str(item.symbol),
+            account="SMOKE",
+            side=Side.BUY,
+            quantity=float(item.quantity),
+            entry_price=float(item.entry_limit),
+            stop_price=float(item.stop_loss),
+        )
+        for item in intents
+    )
+    decision = evaluate_portfolio_risk(
+        snapshot,
+        portfolio_intents,
+        PortfolioRiskLimitsV1(
+            mode=PortfolioRiskMode.ENFORCE,
+            max_snapshot_age_seconds=60.0,
+            max_open_positions=limits.max_open_positions,
+            max_gross_exposure_pct=limits.max_gross_exposure_pct,
+            max_single_position_pct=limits.max_gross_exposure_pct,
+            max_pending_entry_exposure_pct=limits.max_gross_exposure_pct,
+            max_single_trade_risk_pct=1_000_000.0,
+            max_known_portfolio_risk_at_stop_pct=1_000_000.0,
+            min_risk_at_stop_coverage_pct=0.0,
+        ),
+        now=instant,
+    )
+    open_positions = decision.projection.projected_open_positions
+    gross_pct = decision.projection.projected_gross_pct
+    if "projected_open_positions" in decision.reasons:
+        rejections.append(
+            f"open_positions={open_positions} exceeds max_open_positions={limits.max_open_positions}"
+        )
+    if "projected_gross_exposure" in decision.reasons:
         rejections.append(
             f"gross_exposure_pct={gross_pct:.2f} exceeds max_gross_exposure_pct={limits.max_gross_exposure_pct:.2f}"
         )
