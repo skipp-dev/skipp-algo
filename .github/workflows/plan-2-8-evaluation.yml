@@ -75,8 +75,46 @@ jobs:
             echo "files_scanned=0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Append to history JSONL
+      # The history lives on bot/live-experiment-snapshot, not on main, so a
+      # fresh checkout starts with no file at all. Appending to that and
+      # publishing it REPLACES the accumulated history with a single row —
+      # measured 2026-08-07: the published file had 1 row while the sibling
+      # producer's had 133. Restore first, and fail closed if we cannot.
+      - name: Restore Plan 2.8 history from the published snapshot
+        id: restore_history
         if: steps.evaluate.outputs.status == 'success' && !inputs.skip_history_append
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          out_history="artifacts/evaluation/plan_2_8_history.jsonl"
+          remote_ref="refs/heads/bot/live-experiment-snapshot"
+          tracking_ref="refs/remotes/origin/bot/live-experiment-snapshot"
+          remote_path="artifacts/experiment/latest/plan_2_8_history.jsonl"
+          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          mkdir -p "$(dirname "${out_history}")"
+          fetch_error="$(mktemp)"
+          if git fetch "${remote_url}" "+${remote_ref}:${tracking_ref}" 2>"${fetch_error}"; then
+            :
+          elif grep -Eqi "could(n't| not) find remote ref" "${fetch_error}"; then
+            echo "::notice::no experiment snapshot branch yet — bootstrapping history"
+            rm -f "${fetch_error}"
+            exit 0
+          else
+            echo "::error::failed to restore Plan 2.8 history; refusing to replace the published history with one run"
+            rm -f "${fetch_error}"
+            exit 1
+          fi
+          rm -f "${fetch_error}"
+          if git cat-file -e "${tracking_ref}:${remote_path}" 2>/dev/null; then
+            git show "${tracking_ref}:${remote_path}" > "${out_history}"
+            echo "Restored $(wc -l < "${out_history}") Plan 2.8 history rows."
+          else
+            echo "::notice::snapshot branch carries no history yet — bootstrapping"
+          fi
+
+      - name: Append to history JSONL
+        if: steps.evaluate.outputs.status == 'success' && !inputs.skip_history_append && steps.restore_history.outcome == 'success'
         run: |
           set -euo pipefail
 
@@ -87,28 +125,52 @@ jobs:
           # Extract per_tf data and add captured_at timestamp
           python - <<'PY'
           import json
+          import os
           from datetime import datetime, timezone
+          from pathlib import Path
 
+          path = Path("artifacts/evaluation/plan_2_8_history.jsonl")
           snapshot = json.load(open("artifacts/evaluation/plan_2_8_tf_family_rollup.json"))
+          now = datetime.now(timezone.utc)
           history_entry = {
-              "captured_at": datetime.now(timezone.utc).isoformat(),
-              "per_tf": snapshot["per_tf"]
+              "captured_at": now.isoformat(),
+              "per_tf": snapshot["per_tf"],
           }
 
-          # Append to history (create if doesn't exist)
-          with open("artifacts/evaluation/plan_2_8_history.jsonl", "a") as f:
-              f.write(json.dumps(history_entry) + "\n")
+          # One row per UTC day: a re-run (manual dispatch, retry) replaces the
+          # day's row instead of adding a second one, so the trend cannot
+          # double-count a day.
+          today = now.date().isoformat()
+          kept: list[str] = []
+          if path.exists():
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      row = json.loads(line)
+                  except json.JSONDecodeError:
+                      kept.append(line)  # never drop a row we cannot parse
+                      continue
+                  if str(row.get("captured_at", ""))[:10] == today:
+                      continue
+                  kept.append(json.dumps(row))
+          kept.append(json.dumps(history_entry))
 
-          print(f"Appended snapshot to history at {history_entry['captured_at']}")
+          tmp = path.with_suffix(".jsonl.tmp")
+          tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
+          os.replace(tmp, path)
+
+          print(f"History now {len(kept)} row(s); today's entry at {history_entry['captured_at']}")
           PY
 
-          # Trim history to last 30 days to prevent unbounded growth
+          # Trim to the newest 30 entries (one per day) to prevent unbounded growth
           if [ -f "${history_file}" ]; then
             line_count=$(wc -l < "${history_file}")
             if [ "$line_count" -gt 30 ]; then
               tail -n 30 "${history_file}" > "${history_file}.tmp"
               mv "${history_file}.tmp" "${history_file}"
-              echo "Trimmed history to last 30 days"
+              echo "Trimmed history to the newest 30 entries"
             fi
           fi
 
