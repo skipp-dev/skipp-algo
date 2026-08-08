@@ -27,7 +27,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -67,12 +67,7 @@ _DATE_ONLY_COLUMN_NAMES: frozenset[str] = frozenset({
 
 
 def _iter_python_files() -> list[Path]:
-    out: list[Path] = []
-    for path in REPO_ROOT.rglob("*.py"):
-        if any(part in _EXCLUDE_DIR_NAMES for part in path.relative_to(REPO_ROOT).parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_production_py_files(_EXCLUDE_DIR_NAMES)
 
 
 def _is_to_datetime_call(node: ast.AST) -> bool:

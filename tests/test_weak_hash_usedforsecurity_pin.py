@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -62,11 +62,7 @@ def _is_weak_hash_call(node: ast.AST) -> bool:
 
 
 def _iter_first_party_py():
-    for p in REPO.rglob("*.py"):
-        rel_parts = p.relative_to(REPO).parts
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        yield p
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _collect_weak_hash_calls() -> list[tuple[str, int, ast.Call]]:
