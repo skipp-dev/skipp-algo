@@ -43,7 +43,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scripts.execute_ibkr_watchlist import (
     PAPER_PORT,
@@ -401,6 +401,9 @@ def run_live_incubation(
     submit_fn: SubmitFn = _no_op_submit,
     now: datetime | None = None,
     earnings_filter: EarningsFilter | None = None,
+    portfolio_snapshot: PortfolioSnapshotV1 | None = None,
+    portfolio_limits: PortfolioRiskLimitsV1 | None = None,
+    portfolio_context: PortfolioRiskContextV1 | None = None,
 ) -> dict[str, Any]:
     """Execute one orchestration round and return a structured summary.
 
@@ -484,12 +487,68 @@ def run_live_incubation(
                 allowed.append(intent)
         intents = allowed
 
-    submission_results = submit_fn(intents)
+    if (portfolio_snapshot is None) != (portfolio_limits is None):
+        raise ValueError(
+            "portfolio_snapshot and portfolio_limits must be supplied together"
+        )
+    portfolio_decision = None
+    if portfolio_snapshot is not None and portfolio_limits is not None:
+        from governance.portfolio_contract import PortfolioIntent, Side
+        from governance.portfolio_risk import evaluate_portfolio_risk
+
+        portfolio_intents = tuple(
+            PortfolioIntent(
+                intent_id=intent.order_ref,
+                symbol=intent.symbol,
+                account=portfolio_snapshot.account,
+                side=Side.BUY,
+                quantity=float(intent.quantity),
+                entry_price=float(intent.entry_limit),
+                stop_price=float(intent.stop_loss),
+                strategy_family=variant_by_order_ref.get(intent.order_ref),
+            )
+            for intent in intents
+        )
+        portfolio_decision = evaluate_portfolio_risk(
+            portfolio_snapshot,
+            portfolio_intents,
+            portfolio_limits,
+            now=now,
+            context=portfolio_context,
+        )
+        if portfolio_decision.enforced and phase != "paper":
+            raise ValueError(
+                "portfolio enforcement is currently restricted to phase='paper'"
+            )
+
+    if portfolio_decision is not None and not portfolio_decision.permits_submission:
+        intents_handed_to_submitter = 0
+        submission_results = [
+            {
+                "intent_id": intent.order_ref,
+                "action": "portfolio_blocked",
+                "fill_price": None,
+            }
+            for intent in intents
+        ]
+    else:
+        intents_handed_to_submitter = len(intents)
+        submission_results = submit_fn(intents)
     submission_by_intent = {
         result.get("intent_id"): result for result in submission_results
     }
 
     audit_records: list[dict[str, Any]] = []
+    if portfolio_decision is not None:
+        audit_records.append(
+            {
+                "ts": timestamp,
+                "phase": phase,
+                "action": "portfolio_risk_evaluated",
+                "kill_switch_triggered": False,
+                "portfolio_risk": portfolio_decision.to_dict(),
+            }
+        )
     # First, emit one audit row per earnings-blocked intent (those were
     # filtered out of ``intents`` above and therefore never seen by
     # ``submit_fn``). Variant key still resolved from variant_by_order_ref.
@@ -510,6 +569,15 @@ def run_live_incubation(
         )
     for intent in intents:
         result = submission_by_intent.get(intent.order_ref, {})
+        portfolio_audit = None
+        if portfolio_decision is not None:
+            portfolio_audit = {
+                "snapshot_id": portfolio_decision.projection.snapshot_id,
+                "mode": portfolio_decision.mode.value,
+                "verdict": portfolio_decision.verdict.value,
+                "reasons": list(portfolio_decision.reasons),
+                "recommended_scale": portfolio_decision.recommended_scale,
+            }
         audit_records.append(
             {
                 "ts": timestamp,
@@ -525,6 +593,7 @@ def run_live_incubation(
                 "size_scale": float(size_scale),
                 "fill_price": _coerce_optional_float(result.get("fill_price")),
                 "kill_switch_triggered": False,
+                "portfolio_risk": portfolio_audit,
             }
         )
 
@@ -540,9 +609,15 @@ def run_live_incubation(
         # Count of intents HANDED to submit_fn (post earnings-gate), NOT confirmed
         # transmitted — a batch that IB error-110'd is action="submit_failed" in the
         # per-row audit log, but still counts here. See audit rows for real outcomes.
-        "intents_passed_to_submitter": len(intents),
+        "intents_passed_to_submitter": intents_handed_to_submitter,
+        "intents_portfolio_blocked": (
+            len(intents) - intents_handed_to_submitter
+        ),
         "intents_earnings_blocked": earnings_blocked,
         "audit_records_written": len(audit_records),
+        "portfolio_risk": (
+            portfolio_decision.to_dict() if portfolio_decision is not None else None
+        ),
     }
 
 
@@ -673,6 +748,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "outright. Default off — no orders are placed."
         ),
     )
+    _add_portfolio_arguments(parser)
     return parser
 
 
@@ -884,6 +960,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
 
+    portfolio_snapshot = None
+    portfolio_limits = None
+    portfolio_context = None
+    if args.portfolio_snapshot_json is not None:
+        from governance.portfolio_contract import (
+            PortfolioRiskContextV1,
+            PortfolioSnapshotV1,
+        )
+        from governance.portfolio_risk import PortfolioRiskLimitsV1, PortfolioRiskMode
+
+        portfolio_snapshot_payload = json.loads(
+            args.portfolio_snapshot_json.read_text(encoding="utf-8")
+        )
+        portfolio_snapshot = PortfolioSnapshotV1.from_dict(portfolio_snapshot_payload)
+        portfolio_limits = PortfolioRiskLimitsV1.from_json(args.portfolio_risk_limits_json)
+        if portfolio_limits.mode is PortfolioRiskMode.ENFORCE and args.phase != "paper":
+            raise SystemExit(
+                "portfolio enforcement is currently paper-only; use mode=shadow "
+                f"for phase={args.phase!r}"
+            )
+        if args.portfolio_context_json is not None:
+            context_payload = json.loads(
+                args.portfolio_context_json.read_text(encoding="utf-8")
+            )
+            portfolio_context = PortfolioRiskContextV1.from_dict(context_payload)
+
     # Default to the audit-only no-op submitter. Only when the operator
     # explicitly opts in (guarded to --phase paper above) do we build a
     # submitter that actually transmits bracket orders to the paper TWS;
@@ -915,15 +1017,51 @@ def main(argv: Sequence[str] | None = None) -> int:
         size_scale=size_scale,
         earnings_filter=earnings_filter,
         submit_fn=submit_fn,
+        portfolio_snapshot=portfolio_snapshot,
+        portfolio_limits=portfolio_limits,
+        portfolio_context=portfolio_context,
     )
     print(json.dumps(summary, sort_keys=True))
     return 0
+
+
+if TYPE_CHECKING:
+    from governance.portfolio_contract import PortfolioRiskContextV1, PortfolioSnapshotV1
+    from governance.portfolio_risk import PortfolioRiskLimitsV1
 
 
 __all__ = [
     "main",
     "run_live_incubation",
 ]
+
+
+def _add_portfolio_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--portfolio-snapshot-json",
+        type=Path,
+        default=None,
+        help=(
+            "Optional PortfolioSnapshotV1 captured immediately before this run. "
+            "When supplied, every surviving intent receives a shadow/enforced "
+            "projected-portfolio decision before submit_fn."
+        ),
+    )
+    parser.add_argument(
+        "--portfolio-risk-limits-json",
+        type=Path,
+        default=Path("configs/portfolio_risk_limits.json"),
+        help="Versioned PortfolioRiskLimitsV1 config (default: shadow mode).",
+    )
+    parser.add_argument(
+        "--portfolio-context-json",
+        type=Path,
+        default=None,
+        help=(
+            "Optional PIT-safe sector/correlation context. Its thresholds remain "
+            "inactive while the configured caps are null."
+        ),
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - script entry point
