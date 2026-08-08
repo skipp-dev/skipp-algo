@@ -199,7 +199,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-17 (F1 lint fix): remove unused import sys → 585→584.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 585→590.
-    ("open_prep/outcome_backfill.py", 953),  # 2026-07-28 (invalid ATR quarantine): 948->953
+    ("open_prep/outcome_backfill.py", 966),  # 2026-08-08 (backfill keeps a horizon's earlier label): 953->966
     # 2026-06-25: AsyncNewsstackPoller telemetry additions shifted
     # 2913 -> 2992; feature-flag helper additions shifted run_open_prep
     # 6059 -> 6063.
