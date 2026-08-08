@@ -249,24 +249,25 @@ jobs:
           backfilled=$(echo "$summary" | jq -r '.backfill.records_backfilled // 0')
           pending=$(echo "$summary" | jq -r '.backfill.records_pending_close // 0')
           audit_only=$(echo "$summary" | jq -r '.backfill.records_audit_only // 0')
+          submit_failed=$(echo "$summary" | jq -r '.backfill.records_submit_failed // 0')
           already=$(echo "$summary" | jq -r '.backfill.records_already_resolved // 0')
           total=$(echo "$summary" | jq -r '.backfill.records_total // 0')
-          # F-V3-15 follow-up (2026-06-10): audit_only intents never reached
-          # a broker (C13 T1 NO-GO) and can structurally never close — they
-          # are NOT "stuck pending" and firing on them mislabels the known
-          # NO-GO condition as an auth/quota regression. Only closable
-          # pending records (pending minus audit_only) indicate a real
-          # backfill stall.
-          closable=$(( pending - audit_only ))
-          echo "backfill summary: total=$total backfilled=$backfilled already_resolved=$already pending_close=$pending audit_only=$audit_only"
+          # audit_only and submit_failed intents never reached a broker and
+          # can structurally never close. Only broker-reachable pending
+          # records indicate a missing reconcile/close-event update.
+          closable=$(( pending - audit_only - submit_failed ))
+          echo "backfill summary: total=$total backfilled=$backfilled already_resolved=$already pending_close=$pending audit_only=$audit_only submit_failed=$submit_failed"
           if [ "$backfilled" -eq 0 ] && [ "$closable" -gt 0 ]; then
             echo "rc=1" >> "$GITHUB_OUTPUT"
-            echo "::error::F-V3-15: backfill_live_outcomes resolved 0 of $closable closable pending records on ${{ steps.date.outputs.date }} — likely auth/quota/input-path regression."
+            echo "::error::F-V3-15: backfill_live_outcomes resolved 0 outcomes while $closable broker-reachable record(s) still lack a terminal close event on ${{ steps.date.outputs.date }} — inspect the C13 reconcile/close-event data path."
             exit 1
           fi
           echo "rc=0" >> "$GITHUB_OUTPUT"
           if [ "$backfilled" -eq 0 ] && [ "$audit_only" -gt 0 ]; then
             echo "::notice::F-V3-15: all $audit_only pending records are audit_only intents (no broker connectivity, C13 T1 NO-GO) — nothing closable; not a backfill regression."
+          fi
+          if [ "$backfilled" -eq 0 ] && [ "$submit_failed" -gt 0 ]; then
+            echo "::notice::F-V3-15: $submit_failed terminal submit_failed record(s) never reached the market — excluded from closable pending; submit-failure monitoring owns this condition."
           fi
 
       - name: "⚠️ Warn: Step 1b — assert backfill made progress (advisory)"

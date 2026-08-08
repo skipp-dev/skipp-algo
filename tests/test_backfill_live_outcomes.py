@@ -176,6 +176,24 @@ def test_backfill_counts_audit_only_separately(tmp_path: Path) -> None:
     assert summary["records_backfilled"] == 0
 
 
+def test_backfill_counts_submit_failed_as_non_closable_pending(tmp_path: Path) -> None:
+    """A rejected submission never entered the market and cannot close later."""
+    path = tmp_path / "x.jsonl"
+    records = [
+        {"intent_id": f"i-{index}", "action": "submit_failed", "fill_price": None}
+        for index in range(5)
+    ]
+    _write_jsonl(path, records)
+
+    summary = backfill_live_outcomes(path)
+
+    assert summary["records_pending_close"] == 5
+    assert summary["records_audit_only"] == 0
+    assert summary["records_submit_failed"] == 5
+    assert summary["records_backfilled"] == 0
+    assert _read_jsonl(path) == records
+
+
 def test_backfill_is_idempotent(tmp_path: Path) -> None:
     path = tmp_path / "x.jsonl"
     _write_jsonl(path, [_closed_record()])
