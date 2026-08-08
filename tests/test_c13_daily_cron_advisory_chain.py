@@ -90,7 +90,14 @@ def test_the_workflow_still_declares_the_shell_this_harness_runs() -> None:
 BACKFILL_PROGRESS = "Step 1b — assert backfill made progress (advisory)"
 
 
-def _progress(tmp_path: Path, *, backfilled: int, pending: int, audit_only: int):
+def _progress(
+    tmp_path: Path,
+    *,
+    backfilled: int,
+    pending: int,
+    audit_only: int,
+    submit_failed: int = 0,
+):
     """Run step 1b with both of its external readers stubbed.
 
     ``grep`` supplies the summary line the backfill printed and ``jq`` answers
@@ -103,6 +110,7 @@ def _progress(tmp_path: Path, *, backfilled: int, pending: int, audit_only: int)
         f"  *records_backfilled*) echo {backfilled} ;;\n"
         f"  *records_pending_close*) echo {pending} ;;\n"
         f"  *records_audit_only*) echo {audit_only} ;;\n"
+        f"  *records_submit_failed*) echo {submit_failed} ;;\n"
         "  *) echo 0 ;;\n"
         "esac"
     ))
@@ -149,6 +157,24 @@ def test_an_audit_only_day_is_not_a_backfill_regression(tmp_path: Path) -> None:
     assert result.outputs["rc"] == "0", result.outputs
     assert not evaluate_condition(
         _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "0"}
+    )
+
+
+def test_submit_failed_day_is_not_a_backfill_regression(tmp_path: Path) -> None:
+    """Issue #4538: failed submissions are terminal and can never close."""
+    result = _progress(
+        tmp_path,
+        backfilled=0,
+        pending=5,
+        audit_only=0,
+        submit_failed=5,
+    )
+    assert result.outputs["rc"] == "0", result.outputs
+    assert result.returncode == 0
+    assert "excluded from closable pending" in result.stdout
+    assert not evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP],
+        {"backfill.rc": "0", "backfill_progress.rc": "0"},
     )
 
 
