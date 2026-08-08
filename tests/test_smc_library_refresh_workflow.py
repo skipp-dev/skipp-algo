@@ -647,6 +647,19 @@ def _earliest_producer_cron_hour() -> int:
     return min(hours)
 
 
+def _producer_cron_weekday_specs() -> set[str]:
+    """Return the DOW field from every scheduled producer tick."""
+    specs = {
+        weekday
+        for weekday in re.findall(
+            r"-\s*cron:\s*[\"']?\d+\s+\d+\s+\S+\s+\S+\s+([^\s\"']+)",
+            _read(_PRODUCER_PATH),
+        )
+    }
+    assert specs, "producer workflow has no parseable cron weekdays"
+    return specs
+
+
 def test_stale_fallback_guard_disarmed_before_producer_first_tick() -> None:
     """Cross-midnight false-red guard (F-V8-C4.3, 2026-07-11).
 
@@ -660,12 +673,16 @@ def test_stale_fallback_guard_disarmed_before_producer_first_tick() -> None:
     """
     workflow_text = _read(WORKFLOW_PATH)
 
-    # 'Set refresh date' computes the arm flag from the current UTC hour.
+    # 'Set refresh date' computes the arm flag from UTC weekday and hour.
     date_block = _step_block(workflow_text, "Set refresh date")
     assert "id: set_refresh_date" in date_block
     assert 'echo "stale_guard_active=${GUARD}" >> "$GITHUB_OUTPUT"' in date_block
     # 10#-prefixed arithmetic so zero-padded 08/09 don't trip bash octal parsing.
     assert "10#$REFRESH_UTC_HOUR" in date_block
+    assert "10#$REFRESH_UTC_WEEKDAY" in date_block
+    assert _producer_cron_weekday_specs() == {"1-5"}, (
+        "the refresh weekday boundary must be updated when the producer schedule changes"
+    )
 
     # The reject-stale guard fires only when armed.
     stale_guard_block = _step_block(
@@ -679,9 +696,12 @@ def test_stale_fallback_guard_disarmed_before_producer_first_tick() -> None:
     assert "github.event_name != 'workflow_dispatch'" in stale_guard_block
     assert "Refusing to generate from a stale producer bundle" in stale_guard_block
 
-    # The disarmed (overnight) path is auditable, not silent.
-    note_block = _step_block(workflow_text, "Note tolerated overnight Databento fallback")
+    # The disarmed (overnight/weekend) path is auditable, not silent.
+    note_block = _step_block(
+        workflow_text, "Note tolerated not-yet-due Databento fallback"
+    )
     assert "stale_guard_active != 'true'" in note_block
+    assert "during the weekend" in note_block
     assert "::notice::" in note_block
 
     # The arm hour must equal the producer's earliest daily tick so the window
@@ -2010,15 +2030,16 @@ def test_a_missing_producer_bundle_aborts_rather_than_publishing_stale(tmp_path)
     assert result.outputs["bundle_present"] == "false"
 
 
-def _date_stub(hour: str):
+def _date_stub(hour: str, *, weekday: str = "2", date: str = "2026-08-04"):
     """`date` answering per format string, the way the step queries it."""
     return {
         "date": Stub(
             script=(
                 'case "$*" in\n'
                 f"  *%H) printf '%s\\n' '{hour}' ;;\n"
-                "  *T%H:%M:%SZ) printf '%s\\n' '2026-08-04T{h}:00:00Z' ;;\n".replace("{h}", hour)
-                + "  *) printf '%s\\n' '2026-08-04' ;;\n"
+                f"  *%u) printf '%s\\n' '{weekday}' ;;\n"
+                f"  *T%H:%M:%SZ) printf '%s\\n' '{date}T{hour}:00:00Z' ;;\n"
+                f"  *) printf '%s\\n' '{date}' ;;\n"
                 "esac\n"
             )
         )
@@ -2028,11 +2049,11 @@ def _date_stub(hour: str):
 def test_the_stale_guard_arms_only_once_the_producer_is_due(tmp_path) -> None:
     """F-V8-C4.3, executed: the cross-midnight false-red guard.
 
-    The producer's earliest daily tick is 08:00 UTC. Before it, a missing
+    The producer's earliest weekday tick is 08:00 UTC. Before it, a missing
     same-date bundle is normal and the reject-stale guard must stay disarmed --
     that is the whole fix for the 00:02 UTC Saturday run that demanded a bundle
-    the producer could never have made. From 08:00 on, a stale fallback is a
-    real outage and the guard must arm.
+    the producer could never have made. On a producer weekday, a stale fallback
+    is a real outage from 08:00 onward and the guard must arm.
 
     The boundary is asserted from both sides; asserting only one leaves a guard
     that is always armed (or never) indistinguishable from a correct one.
@@ -2045,6 +2066,28 @@ def test_the_stale_guard_arms_only_once_the_producer_is_due(tmp_path) -> None:
         assert result.returncode == 0, f"hour {hour}: {result.stderr}"
         assert result.outputs["stale_guard_active"] == expected, (
             f"at {hour}:00 UTC the stale guard must be {expected}; got {result.outputs}"
+        )
+
+
+def test_the_stale_guard_stays_disarmed_all_weekend(tmp_path) -> None:
+    """The producer has no weekend ticks, even after the weekday arm hour."""
+    cases = (
+        ("6", "2026-08-08", "09"),
+        ("6", "2026-08-08", "23"),
+        ("7", "2026-08-09", "12"),
+    )
+    for weekday, date, hour in cases:
+        result = run_step(
+            "smc-library-refresh.yml",
+            _DATE_STEP,
+            tmp_path,
+            env={},
+            stubs=_date_stub(hour, weekday=weekday, date=date),
+        )
+        assert result.returncode == 0, f"weekday {weekday}, hour {hour}: {result.stderr}"
+        assert result.outputs["stale_guard_active"] == "false", (
+            f"weekday {weekday} at {hour}:00 UTC must tolerate the latest "
+            f"weekday bundle; got {result.outputs}"
         )
 
 
