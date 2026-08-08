@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,13 +44,7 @@ _DIR_EXCLUDE = frozenset({
 
 
 def _iter_prod_py() -> list[Path]:
-    out: list[Path] = []
-    for p in sorted(ROOT.rglob("*.py")):
-        rel_parts = p.relative_to(ROOT).parts
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        out.append(p)
-    return out
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _parse(p: Path) -> ast.AST | None:
