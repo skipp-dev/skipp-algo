@@ -175,12 +175,14 @@ class FMPDataLoader:
             candles = []
             for candle in ordered:
                 try:
-                    o = float(candle.get("open", 0))
-                    h = float(candle.get("high", 0))
-                    lo = float(candle.get("low", 0))
-                    c = float(candle.get("close", 0))
+                    # Indexed, not .get(default): a missing key coerced to 0.0
+                    # is finite, so it would pass the check below as a real bar.
+                    o = float(candle["open"])
+                    h = float(candle["high"])
+                    lo = float(candle["low"])
+                    c = float(candle["close"])
                     vol = int(candle.get("volume", 0) or 0)
-                except (TypeError, ValueError):
+                except (KeyError, TypeError, ValueError):
                     continue
                 if not all(math.isfinite(v) for v in (o, h, lo, c)):
                     continue
