@@ -19,7 +19,7 @@
 
 indicator("SMC Liquidity Context", overlay = true, max_labels_count = 50, max_lines_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/195 as mp
+import preuss_steffen/smc_micro_profiles_generated/199 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
