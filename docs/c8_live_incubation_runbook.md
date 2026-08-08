@@ -236,3 +236,65 @@ the drift artifacts, and the calibration report — none of which can be
 fully automated without re-introducing curve-fit risk.  All
 phase-promotions are therefore signed off manually by the account
 owner.
+## Portfolio aggregation and projected risk (ADR-0032)
+
+The account kill-switch remains the first guard. An optional second guard can
+now consume a freshly captured `PortfolioSnapshotV1` and evaluate the existing
+positions, working entry orders and surviving candidate intents as one
+projected portfolio.
+
+```bash
+python -m scripts.ibkr_portfolio_snapshot \
+  --account DU1234567 \
+  --output cache/live/portfolio_snapshot.json
+
+python -m scripts.run_smc_live_incubation \
+  --phase paper \
+  --setups path/to/setups.json \
+  --gate-statuses path/to/gates.json \
+  --audit-output cache/live/incubation.jsonl \
+  --portfolio-snapshot-json cache/live/portfolio_snapshot.json \
+  --portfolio-risk-limits-json configs/portfolio_risk_limits.json
+```
+
+The checked-in portfolio configuration is **shadow-only**. It records
+`portfolio_risk_evaluated` but does not block submission. A separate,
+explicitly reviewed configuration may use `mode: enforce` for the paper phase;
+non-paper enforcement is refused. Generate the evidence summary with:
+
+```bash
+python -m scripts.summarize_portfolio_shadow \
+  cache/live/incubation.jsonl \
+  --reconciliations artifacts/portfolio/reconciliation_*.json \
+  --output artifacts/portfolio/shadow_summary.json
+```
+
+`ready_for_human_review` means only that at least 20 clean paper sessions and a
+passing broker reconciliation for every observed session exist. It never
+changes a configuration or promotes sector/correlation limits.
+
+Sector/correlation context is built independently from completed-session closes;
+it is not the intraday SMT payload:
+
+```bash
+python -m scripts.build_portfolio_risk_context \
+  --closes-jsonl cache/reference/completed_closes.jsonl \
+  --sectors-json cache/reference/sectors.json \
+  --symbols AAPL,MSFT \
+  --as-of 2026-08-08T13:25:00+00:00 \
+  --output cache/live/portfolio_context.json
+```
+
+After paper fills, capture a second broker snapshot and reconcile the signed
+position changes against deduplicated execution IDs:
+
+```bash
+python -m scripts.reconcile_portfolio_shadow \
+  --before cache/live/portfolio_before.json \
+  --after cache/live/portfolio_after.json \
+  --fills cache/live/portfolio_fills.json \
+  --output artifacts/portfolio/reconciliation.json
+```
+
+An unexplained quantity delta or duplicate execution ID makes reconciliation
+non-passing. It must not be hidden by increasing the tolerance.
