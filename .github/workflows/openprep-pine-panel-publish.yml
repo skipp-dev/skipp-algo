@@ -238,6 +238,6 @@ jobs:
           name: openprep-panel-publish-report
           path: |
             automation/tradingview/reports/publish-openprep-panel-*.json
-            automation/tradingview/reports/screenshots/**
+            automation/tradingview/reports/screenshots/*Open-Prep*.png
           if-no-files-found: ignore
           retention-days: 14
