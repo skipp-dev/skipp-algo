@@ -2610,6 +2610,66 @@ def test_render_metrics_includes_daily_experiment_snapshot(
     assert 'live_overlay_experiment_day_family_hit_rate{run_date="2026-06-21",timeframe="5m",family="FVG"} 0.7' in body
 
 
+def _experiment_rollup(*, synthetic: bool) -> dict:
+    rollup = {
+        "schema_version": "1",
+        "scoring_root": "/x/artifacts/ci/measurement_benchmark_rolling/2026-06-21",
+        "files_scanned": 500,
+        "per_tf": {"5m": {"n_events": 200, "hit_rate": 0.61}},
+        "phase_e2_verdict": {
+            "fvg_ttf_5m_vs_baseline": {"status": "measured", "delta_hr": 0.08},
+            "bos_stability_4h_vs_baseline": {"status": "measured", "delta_hr": 0.07},
+        },
+    }
+    if synthetic:
+        rollup["synthetic"] = True
+    return rollup
+
+
+@pytest.mark.parametrize("synthetic", [True, False])
+def test_synthetic_rollup_cannot_export_a_measured_verdict(
+    monkeypatch: pytest.MonkeyPatch, synthetic: bool
+) -> None:
+    """F-6 (2026-08-08): scripts/plan_2_8_evaluate.py is a placeholder whose
+    hit rates and verdicts come from ``random``, and it labels them
+    ``"measured"``. The exporter must publish the flag and refuse the measured
+    status code, so no dashboard can render dice as evidence.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setattr(
+        metrics_mod.compute,
+        "_load_experiment_snapshot",
+        lambda: _experiment_rollup(synthetic=synthetic),
+    )
+    monkeypatch.setattr(metrics_mod.compute, "_load_experiment_history", lambda: [])
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    expected_flag = "1.0" if synthetic else "0.0"
+    assert f"live_overlay_experiment_snapshot_synthetic {expected_flag}" in body
+
+    expected_status = "missing" if synthetic else "measured"
+    for hypothesis in ("fvg_5m", "bos_4h"):
+        assert (
+            "live_overlay_experiment_verdict_status_code"
+            f'{{hypothesis="{hypothesis}",status="{expected_status}"}}' in body
+        ), (hypothesis, synthetic, expected_status)
+
+    if synthetic:
+        assert 'status="measured"' not in body, (
+            "a fabricated rollup must not surface a measured verdict anywhere"
+        )
+
+
 def test_experiment_date_accepts_current_results_prefixed_scoring_root() -> None:
     import services.live_overlay_daemon.metrics as metrics_mod
 

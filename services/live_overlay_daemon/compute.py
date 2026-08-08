@@ -1704,8 +1704,11 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                     "volume_current_bar_zscore": ats["ats_zscore"],
                 }
             )
-            if (vix_value := _coerce_finite_float(vix)) is not None:
-                updates["vix_level"] = round(vix_value, 4)
+            vix_value = _coerce_finite_float(vix)
+            # Set even when None: leaving the previous level in place would keep
+            # re-serving a VIX that already crossed its freshness gate until the
+            # next FULL cycle nulls it (up to OVERLAY_REFRESH_SECS later).
+            updates["vix_level"] = round(vix_value, 4) if vix_value is not None else None
             patched = cache.patch_overlay(
                 sym,
                 {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},
@@ -1717,6 +1720,7 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                     "volume_accumulation_distribution_state",
                     "ats_zscore",
                     "volume_current_bar_zscore",
+                    "vix_level",
                 },
             )
             if patched:

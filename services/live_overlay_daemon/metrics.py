@@ -649,6 +649,7 @@ def _experiment_snapshot() -> dict[str, object]:
     """
     raw = compute._load_experiment_snapshot()
     loaded = 0.0
+    synthetic = 0.0
     run_date = ""
     age_known = 0.0
     age_seconds = 0.0
@@ -659,6 +660,7 @@ def _experiment_snapshot() -> dict[str, object]:
 
     if isinstance(raw, dict) and raw:
         loaded = 1.0
+        synthetic = 1.0 if raw.get("synthetic") is True else 0.0
         run_date = _experiment_date_from_root(raw.get("scoring_root"))
         age_known, age_seconds = _experiment_run_age(run_date)
         files_value = raw.get("files_scanned", 0)
@@ -673,6 +675,12 @@ def _experiment_snapshot() -> dict[str, object]:
                 if not isinstance(verdict, dict):
                     continue
                 status = str(verdict.get("status", "missing"))
+                # F-6 (2026-08-08): scripts/plan_2_8_evaluate.py is still a
+                # placeholder that draws its verdicts from `random`, and it
+                # labels them "measured". Downgrade to "missing" so no panel
+                # can render dice as evidence; the synthetic gauge says why.
+                if synthetic:
+                    status = "missing"
                 p_value = verdict.get("delta_hr_p_value")
                 verdicts.append(
                     {
@@ -691,6 +699,7 @@ def _experiment_snapshot() -> dict[str, object]:
 
     return {
         "loaded": loaded,
+        "synthetic": synthetic,
         "run_date": run_date,
         "age_known": age_known,
         "age_seconds": age_seconds,
@@ -1839,6 +1848,11 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     experiment = _experiment_snapshot()
     lines.append("# TYPE live_overlay_experiment_loaded gauge")
     lines.append(f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}")
+    # 1 while the rollup is the scripts/plan_2_8_evaluate.py placeholder output.
+    lines.append("# TYPE live_overlay_experiment_snapshot_synthetic gauge")
+    lines.append(
+        f"live_overlay_experiment_snapshot_synthetic {_prom_numeric_value(experiment['synthetic'])}"
+    )
     lines.append("# TYPE live_overlay_experiment_snapshot_age_known gauge")
     lines.append(f"live_overlay_experiment_snapshot_age_known {_prom_numeric_value(experiment['age_known'])}")
     lines.append("# TYPE live_overlay_experiment_snapshot_age_seconds gauge")
