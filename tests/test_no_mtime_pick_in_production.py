@@ -26,6 +26,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPTS_DIR = _REPO_ROOT / "scripts"
 
@@ -79,7 +81,9 @@ def _iter_violations(path: Path) -> list[str]:
 
 def test_no_mtime_pick_in_production_scripts() -> None:
     violations: list[str] = []
-    for path in sorted(_SCRIPTS_DIR.rglob("*.py")):
+    for path in iter_production_py_files(
+        frozenset(), root=_SCRIPTS_DIR, minimum=300
+    ):
         violations.extend(_iter_violations(path))
     assert not violations, (
         "Direct st_mtime / getmtime use detected in scripts/. Migrate to "

@@ -27,8 +27,12 @@ import ast
 import re
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SOURCE_DIRS = ("scripts", "services")
+# Kept separate from _SOURCE_DIRS, which a self-test monkeypatches to a tuple.
+_SOURCE_DIR_FLOORS = {"scripts": 300, "services": 15}
 _SECRET_ENV = re.compile(r"^\s*([A-Z][A-Z0-9_]{2,}):\s*\$\{\{\s*secrets\.", re.M)
 
 
@@ -84,7 +88,11 @@ def _default_arg(node: ast.Call) -> ast.expr | None:
 def _offending_reads(mapped: dict[str, set[str]]) -> list[str]:
     offenders = []
     for source_dir in _SOURCE_DIRS:
-        for path in sorted((_ROOT / source_dir).rglob("*.py")):
+        for path in iter_production_py_files(
+            frozenset(),
+            root=_ROOT / source_dir,
+            minimum=_SOURCE_DIR_FLOORS.get(source_dir, 1),
+        ):
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
             except SyntaxError:  # pragma: no cover - not this test's business
@@ -149,6 +157,8 @@ def test_the_detector_catches_the_pattern_it_exists_for(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("tests.test_workflow_env_var_defaults._ROOT", tmp_path)
     monkeypatch.setattr("tests.test_workflow_env_var_defaults._SOURCE_DIRS", ("scripts",))
+    # The production floors would reject this deliberately tiny synthetic repo.
+    monkeypatch.setattr("tests.test_workflow_env_var_defaults._SOURCE_DIR_FLOORS", {})
     offenders = _offending_reads({"RAILWAY_LIVE_OVERLAY_SERVICE_ID": {"guard.yml"}})
     # Exactly the five swallowing forms; the `or`, the honest "", and the
     # unmapped variable must all stay unflagged.

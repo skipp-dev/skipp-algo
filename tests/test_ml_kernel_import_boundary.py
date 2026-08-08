@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ML_ROOT = REPO_ROOT / "ml"
 
@@ -49,12 +51,8 @@ FORBIDDEN_PREFIXES = (
 
 
 def _ml_python_files() -> list[Path]:
-    """Return every ``.py`` file under ``ml/`` (excluding ``__pycache__``)."""
-    return sorted(
-        p
-        for p in ML_ROOT.rglob("*.py")
-        if "__pycache__" not in p.parts
-    )
+    """Return every tracked ``.py`` file under ``ml/``."""
+    return iter_production_py_files({"__pycache__"}, root=ML_ROOT, minimum=12)
 
 
 def _collect_imported_roots(source: str) -> set[str]:

@@ -32,8 +32,13 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE_PREFIXES = ("open_prep", "newsstack_fmp")
+# Roughly half of each package's current size: enough to catch a collapsed
+# corpus, loose enough to survive ordinary shrinkage.
+_PREFIX_FLOORS = {"open_prep": 30, "newsstack_fmp": 10}
 
 # Entry-point modules whose top-level executes CLI bootstrap (argparse
 # wired into __main__-style invocation). These are excluded from the
@@ -68,9 +73,9 @@ def _discover_modules() -> list[str]:
         pkg_root = _REPO_ROOT / prefix
         if not pkg_root.is_dir():
             continue
-        for py in sorted(pkg_root.rglob("*.py")):
-            if "__pycache__" in py.parts:
-                continue
+        for py in iter_production_py_files(
+            {"__pycache__"}, root=pkg_root, minimum=_PREFIX_FLOORS.get(prefix, 1)
+        ):
             rel = py.relative_to(_REPO_ROOT).with_suffix("")
             mod = ".".join(rel.parts)
             if mod.endswith(".__init__"):

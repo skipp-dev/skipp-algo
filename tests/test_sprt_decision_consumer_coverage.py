@@ -22,6 +22,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
@@ -81,9 +83,8 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
 
 
 def _scripts_python_files() -> list[Path]:
-    if not SCRIPTS_DIR.is_dir():
-        return []
-    return sorted(p for p in SCRIPTS_DIR.rglob("*.py") if p.is_file())
+    # A missing scripts/ used to return [] and pass vacuously; the floor says so.
+    return iter_production_py_files(frozenset(), root=SCRIPTS_DIR, minimum=300)
 
 
 def _consumer_files_with_sentinels() -> dict[Path, set[str]]:
