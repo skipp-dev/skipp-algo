@@ -12,17 +12,17 @@ import {
 // body text (the CE10271 class). The body-text channel cannot see those, which
 // is why `getVisibleChartScriptError` walks the legend row instead.
 //
-// It resolved to `string | null` — with no third state for "I could not look".
+// Before PR #4357 it resolved to `string | null` — with no third state for
+// "I could not look".
 // `findLegendRowWrappers` returns `[]` on three pure non-observation paths
 // (`buttons.count().catch(() => 0)`, the single hardcoded
 // `data-qa-id="legend-settings-action"` anchor not matching, and a 300 ms
 // `innerText` timeout per ancestor depth), and an empty list makes the `for`
-// loop body never run, so the function returns `null` = "clean".
+// loop body never run, so the function returned `null` = "clean".
 //
-// The body-text sibling already solved exactly this with the
-// COMPILE_PROBE_UNREADABLE sentinel and the comment "so a crashed body read
-// fails the smoke gate CLOSED instead of masquerading as a clean compile". The
-// chart side never got it.
+// PR #4357 added the explicit unreadable sentinel and fail-closed gate. The
+// tests below preserve that tri-state while allowing bounded, observable
+// text-first recovery from hover-only and more-action-only legend rows.
 
 test("a missing legend anchor must not read as a clean compile", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
@@ -87,8 +87,8 @@ test("an observed, genuinely clean legend row still passes", async () => {
 // `getVisibleChartScriptError`, whose own docstring says not to use it for
 // gating: that view maps "could not look" to `null`, so an unreadable legend
 // (button renamed, row not yet painted, etc.) certified a clean compile. The
-// three tests below pin the tri-state at the one caller that actually gates
-// a publish on it.
+// tests below pin the tri-state and its bounded recovery at the caller that
+// actually gates a publish on it.
 
 test("assertNoVisibleChartScriptError rejects when the legend cannot be read", async () => {
   // Same DOM shape as the probe-level test above (no
@@ -147,6 +147,49 @@ test("assertNoVisibleChartScriptError resolves on a readable, error-free legend"
         <div class="legend-row">
           <span>SMC Live Overlay v2</span>
           <button data-qa-id="legend-settings-action">Settings</button>
+        </div>
+      </div>
+    `);
+
+    await assert.doesNotReject(() =>
+      assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("assertNoVisibleChartScriptError observes a settings action rendered only after hover", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <style>.legend-row button { display: none } .legend-row:hover button { display: block }</style>
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <button data-qa-id="legend-settings-action">Settings</button>
+        </div>
+      </div>
+    `);
+
+    await assert.doesNotReject(() =>
+      assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("assertNoVisibleChartScriptError accepts a tight more-action-only legend row", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container">
+        <div class="legend-row">
+          <span>SMC Live Overlay v2</span>
+          <button data-qa-id="legend-more-action">More</button>
         </div>
       </div>
     `);

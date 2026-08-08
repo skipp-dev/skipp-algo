@@ -13,6 +13,7 @@ import {
 const SCRIPT_NAME = "Open-Prep Daily Panel";
 const _dir = path.dirname(fileURLToPath(import.meta.url));
 const _publisherPath = path.resolve(_dir, "..", "..", "..", "scripts", "tv_publish_openprep_panel.ts");
+const _workflowPath = path.resolve(_dir, "..", "..", "..", ".github", "workflows", "openprep-pine-panel-publish.yml");
 
 const VALID_PANEL_TEXT = [
   "//@version=6",
@@ -77,5 +78,33 @@ test("panel publisher delegates the chart gate to publishPrivateScript", () => {
     source.slice(compileGate, publishCall),
     /addCurrentScriptToChart\(/,
     "the panel must not run a redundant chart probe before publishPrivateScript handles TradingView's hard chart gate",
+  );
+});
+
+test("panel publisher captures current evidence when the legend gate rejects", () => {
+  const source = fs.readFileSync(_publisherPath, "utf-8");
+  const legendGate = source.indexOf("await assertNoVisibleChartScriptError(");
+  const failureScreenshot = source.indexOf("legend-gate-failure", legendGate);
+  const rethrow = source.indexOf("throw legendGateError", failureScreenshot);
+
+  assert.ok(legendGate >= 0, "the hard legend gate must remain present");
+  assert.ok(
+    failureScreenshot > legendGate && rethrow > failureScreenshot,
+    "a rejected legend gate must capture its current chart before rethrowing",
+  );
+});
+
+test("workflow artifact excludes unrelated historical screenshots", () => {
+  const source = fs.readFileSync(_workflowPath, "utf-8");
+
+  assert.match(
+    source,
+    /automation\/tradingview\/reports\/screenshots\/\*Open-Prep\*\.png/,
+    "the artifact must include current Open-Prep screenshots",
+  );
+  assert.doesNotMatch(
+    source,
+    /automation\/tradingview\/reports\/screenshots\/\*\*/,
+    "the artifact must not sweep unrelated checked-in library screenshots",
   );
 });

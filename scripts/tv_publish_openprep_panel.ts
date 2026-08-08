@@ -195,7 +195,14 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
-      await assertNoVisibleChartScriptError(session.page, details.scriptName);
+      try {
+        await assertNoVisibleChartScriptError(session.page, details.scriptName);
+      } catch (legendGateError) {
+        await takeScreenshot(
+          session.page, runId, `${details.scriptName}-legend-gate-failure`, screenshots,
+        ).catch(() => "");
+        throw legendGateError;
+      }
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;
