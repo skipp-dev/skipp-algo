@@ -229,3 +229,25 @@ def test_iter_production_py_files_catches_an_over_broad_exclude(tmp_path: Path) 
     assert len(iter_production_py_files(frozenset(), root=tmp_path, minimum=1)) == 1
     with pytest.raises(AssertionError, match="production corpus collapsed"):
         iter_production_py_files(frozenset({"pkg"}), root=tmp_path, minimum=1)
+
+
+#: Guards still discovering files by walking the working tree instead of asking
+#: git. A walk sees whatever happens to sit on disk, so an untracked local
+#: directory joins the corpus and the guard judges a different population
+#: locally than in CI. Migrating a guard lowers this; it must never rise.
+_MAX_WALKING_GUARDS = 109
+_WALK_MARKER = ".rg" + "lob("  # split so this guard never counts itself
+
+
+def test_working_tree_walking_does_not_spread() -> None:
+    walkers = sorted(
+        path.name
+        for path in (repo_root() / "tests").glob("*.py")
+        if _WALK_MARKER in path.read_text(encoding="utf-8", errors="ignore")
+    )
+    assert len(walkers) <= _MAX_WALKING_GUARDS, (
+        f"{len(walkers)} guards discover files by walking the working tree, up "
+        f"from {_MAX_WALKING_GUARDS}. Use iter_production_py_files() or "
+        f"iter_tracked_files() so the corpus is git-derived and identical in "
+        f"CI. Walking guards: {walkers}"
+    )

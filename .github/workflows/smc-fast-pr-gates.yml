@@ -627,6 +627,7 @@ jobs:
             tests/test_atexit_register_zero_surface.py \
             tests/test_dangerous_builtins_zero_surface.py \
             tests/test_datetime_tz_safety_zero_surface.py \
+            tests/test_market_timezone_contract.py \
             tests/test_dynamic_exec_and_pickle_zero_surface.py \
             tests/test_exec_mktemp_shelltrue_zero_surface.py \
             tests/test_library_discipline_zero_surface.py \

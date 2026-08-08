@@ -4,19 +4,25 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files, iter_tracked_files
+
 ROOT = Path(__file__).resolve().parent.parent
-PRODUCTION_SUFFIXES = {".py", ".ts", ".js", ".mjs"}
 SKIP_PARTS = {".git", ".venv", "node_modules", "tests", "artifacts", "docs"}
+#: Scanned alongside ``*.py``; only the Python corpus carries the collapse floor.
+_EXTRA_PRODUCTION_PATTERNS = ("*.ts", "*.js", "*.mjs")
 
 
 def _production_sources() -> list[Path]:
-    return [
-        path
-        for path in ROOT.rglob("*")
-        if path.is_file()
-        and path.suffix in PRODUCTION_SUFFIXES
-        and not SKIP_PARTS.intersection(path.relative_to(ROOT).parts)
-    ]
+    """Tracked production sources.
+
+    Git-derived rather than an ``rglob`` walk: the walk counted whatever
+    happened to sit in the working tree, so untracked local directories joined
+    the corpus and the guard judged a different population locally than in CI.
+    """
+    sources = list(iter_production_py_files(SKIP_PARTS))
+    for pattern in _EXTRA_PRODUCTION_PATTERNS:
+        sources.extend(iter_tracked_files(pattern, SKIP_PARTS))
+    return sorted(sources)
 
 
 def test_market_time_code_has_no_fixed_offset_timezone_objects() -> None:
