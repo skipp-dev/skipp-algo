@@ -235,7 +235,7 @@ def test_iter_production_py_files_catches_an_over_broad_exclude(tmp_path: Path) 
 #: git. A walk sees whatever happens to sit on disk, so an untracked local
 #: directory joins the corpus and the guard judges a different population
 #: locally than in CI. Migrating a guard lowers this; it must never rise.
-_MAX_WALKING_GUARDS = 79
+_MAX_WALKING_GUARDS = 77
 _WALK_MARKER = ".rg" + "lob("  # split so this guard never counts itself
 
 

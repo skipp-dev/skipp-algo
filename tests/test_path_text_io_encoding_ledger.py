@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -72,15 +72,11 @@ _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
 
 def _iter_python_files() -> list[Path]:
-    out: list[Path] = []
-    for path in _ROOT.rglob("*.py"):
-        rel_parts = path.relative_to(_ROOT).parts
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        if path.name.startswith("mutation_"):
-            continue
-        out.append(path)
-    return out
+    return [
+        path
+        for path in iter_production_py_files(_DIR_EXCLUDE)
+        if not path.name.startswith("mutation_")
+    ]
 
 
 @functools.cache
