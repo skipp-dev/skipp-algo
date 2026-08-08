@@ -46,7 +46,6 @@ def test_stateful_snapshot_workflows_use_fail_closed_remote_tip_publisher() -> N
             "rolling-benchmark",
             "bot/live-experiment-snapshot",
         ),
-        "plan-2-8-evaluation.yml": ("evaluate", "bot/live-experiment-snapshot"),
     }
     for workflow, (job, branch) in expected.items():
         runs = "\n".join(str(step.get("run") or "") for step in _steps(workflow, job))
@@ -64,11 +63,6 @@ def test_stateful_snapshot_workflows_use_fail_closed_remote_tip_publisher() -> N
 # ---------------------------------------------------------------------------
 
 _HISTORY_PUBLISHERS = {
-    "plan-2-8-evaluation.yml": (
-        "evaluate",
-        "restore_history",
-        "Append to history JSONL",
-    ),
     "smc-measurement-benchmark-rolling.yml": (
         "rolling-benchmark",
         "restore_history",

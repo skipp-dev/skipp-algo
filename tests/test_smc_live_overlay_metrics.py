@@ -2630,10 +2630,11 @@ def _experiment_rollup(*, synthetic: bool) -> dict:
 def test_synthetic_rollup_cannot_export_a_measured_verdict(
     monkeypatch: pytest.MonkeyPatch, synthetic: bool
 ) -> None:
-    """F-6 (2026-08-08): scripts/plan_2_8_evaluate.py is a placeholder whose
-    hit rates and verdicts come from ``random``, and it labels them
-    ``"measured"``. The exporter must publish the flag and refuse the measured
-    status code, so no dashboard can render dice as evidence.
+    """Tripwire (F-6, 2026-08-08): a rollup that declares itself synthetic must
+    publish the flag and must not export a measured verdict code, so no
+    dashboard can render fabricated input as evidence. Introduced when
+    scripts/plan_2_8_evaluate.py was still drawing verdicts from ``random``;
+    kept after its removal so the next fabricated producer cannot go unnoticed.
     """
     import services.live_overlay_daemon.metrics as metrics_mod
 

@@ -67,13 +67,6 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
         "emits own TV-preflight retry-verdict vocab; 'inconclusive' is a "
         "homonym, not the SPRT sentinel"
     ),
-    # plan_2_8_evaluate.py: placeholder synthetic report emits an
-    # "inconclusive" verdict label for Phase E2 display only; it does not
-    # import or consume SPRT decision payloads.
-    "scripts/plan_2_8_evaluate.py": (
-        "synthetic Plan 2.8 report uses 'inconclusive' as a homonym, not an "
-        "SPRT decision consumer"
-    ),
     # grafana_notification_routing_upsert.py: builds Grafana alert
     # notification-routing trees. Its only vocab hit is the Grafana route
     # `continue:` field — "continue": bool(route.get("continue", False)) —

@@ -1705,10 +1705,13 @@ def run_flow_patch_cycle(tf: str = "5m") -> int:
                 }
             )
             vix_value = _coerce_finite_float(vix)
-            # Set even when None: leaving the previous level in place would keep
-            # re-serving a VIX that already crossed its freshness gate until the
-            # next FULL cycle nulls it (up to OVERLAY_REFRESH_SECS later).
-            updates["vix_level"] = round(vix_value, 4) if vix_value is not None else None
+            if vix_value is not None:
+                updates["vix_level"] = round(vix_value, 4)
+            elif cache.vix_age_secs() > cache.VIX_MAX_AGE_SECS:
+                # Stale: stop re-serving a quote that already crossed its age
+                # gate (F-7). A merely non-finite reading is a corrupt sample,
+                # not an expiry, and must leave the last good value alone.
+                updates["vix_level"] = None
             patched = cache.patch_overlay(
                 sym,
                 {**updates, "price_candle_body_return_pct": updates["flow_delta_proxy_pct"]},

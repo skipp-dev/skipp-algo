@@ -628,7 +628,9 @@ jobs:
           mkdir -p "${stable_dir}"
           [ -s "${rollup}" ]  && cp "${rollup}"  "${stable_dir}/plan_2_8_tf_family_rollup.json"
           [ -s "${history}" ] && cp "${history}" "${stable_dir}/plan_2_8_history.jsonl"
-          # This branch has a second producer (plan-2-8-evaluation). Publish
+          # Sole producer on this branch since plan-2-8-evaluation was retired
+          # (2026-08-08); the seed-then-replace shape stays, because dropping it
+          # would silently delete any sibling path a future producer adds. Publish
           # from the real remote tip so the two workflows preserve each
           # other's stable paths instead of force-replacing the whole branch.
           "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
