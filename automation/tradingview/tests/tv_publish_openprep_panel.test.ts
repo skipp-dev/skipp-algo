@@ -76,21 +76,26 @@ test("panel publisher delegates the chart gate to publishPrivateScript", () => {
   );
   assert.doesNotMatch(
     source.slice(compileGate, publishCall),
-    /addCurrentScriptToChart\(/,
-    "the panel must not run a redundant chart probe before publishPrivateScript handles TradingView's hard chart gate",
+    /addCurrentScriptToChart\(|assertNoVisibleChartScriptError\(/,
+    "the panel must not probe an absent chart row before publishPrivateScript materializes it",
+  );
+  assert.match(
+    source.slice(publishCall, publishCall + 500),
+    /requireCleanChartBeforePublish:\s*true/,
+    "the delegated publish must require chart materialization followed by the hard legend gate",
   );
 });
 
-test("panel publisher captures current evidence when the legend gate rejects", () => {
+test("panel publisher captures current evidence when the delegated publish gate rejects", () => {
   const source = fs.readFileSync(_publisherPath, "utf-8");
-  const legendGate = source.indexOf("await assertNoVisibleChartScriptError(");
-  const failureScreenshot = source.indexOf("legend-gate-failure", legendGate);
-  const rethrow = source.indexOf("throw legendGateError", failureScreenshot);
+  const publishCall = source.indexOf("publishResult = await publishPrivateScript(");
+  const failureScreenshot = source.indexOf("publish-failed", publishCall);
+  const rethrow = source.indexOf("throw publishError", failureScreenshot);
 
-  assert.ok(legendGate >= 0, "the hard legend gate must remain present");
+  assert.ok(publishCall >= 0, "the delegated publish call must remain present");
   assert.ok(
-    failureScreenshot > legendGate && rethrow > failureScreenshot,
-    "a rejected legend gate must capture its current chart before rethrowing",
+    failureScreenshot > publishCall && rethrow > failureScreenshot,
+    "a rejected materialization or legend gate must capture its current chart before rethrowing",
   );
 });
 

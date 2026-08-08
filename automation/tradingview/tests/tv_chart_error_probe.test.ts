@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertNoVisibleChartScriptError,
+  ensureCleanChartScriptForPublish,
   launchTradingViewChromium,
   probeRuntimeSmoke,
 } from "../lib/tv_shared.js";
@@ -196,6 +197,55 @@ test("assertNoVisibleChartScriptError accepts a tight more-action-only legend ro
 
     await assert.doesNotReject(() =>
       assertNoVisibleChartScriptError(page, "SMC Live Overlay"),
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish preparation materializes an absent script before checking its legend", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container" id="chart"></div>
+      <button id="add" onclick="
+        const row = document.createElement('div');
+        row.className = 'legend-row';
+        row.innerHTML = '<span>Open-Prep Daily Panel</span><button data-qa-id=&quot;legend-settings-action&quot;>Settings</button>';
+        document.getElementById('chart').appendChild(row);
+        this.remove();
+      ">Add to chart</button>
+    `);
+
+    await assert.doesNotReject(() =>
+      ensureCleanChartScriptForPublish(page, "Open-Prep Daily Panel"),
+    );
+    assert.equal(await page.locator(".legend-row").count(), 1);
+    assert.equal(await page.getByRole("button", { name: /add to chart/i }).count(), 0);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish preparation still rejects a chart error after materialization", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div class="chart-container" id="chart"></div>
+      <button onclick="
+        const row = document.createElement('div');
+        row.className = 'legend-row';
+        row.innerHTML = '<span>Open-Prep Daily Panel</span><span title=&quot;Compilation error: CE10271&quot;>!</span><button data-qa-id=&quot;legend-settings-action&quot;>Settings</button>';
+        document.getElementById('chart').appendChild(row);
+        this.remove();
+      ">Add to chart</button>
+    `);
+
+    await assert.rejects(
+      () => ensureCleanChartScriptForPublish(page, "Open-Prep Daily Panel"),
+      /CE10271/,
     );
   } finally {
     await browser.close();

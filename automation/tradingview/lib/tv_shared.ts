@@ -8315,6 +8315,26 @@ export async function assertNoVisibleChartScriptError(page: Page, scriptName: st
   }
 }
 
+/**
+ * Materialize an indicator that is absent from the chart, then require a
+ * readable, error-free legend row before its publish flow can continue.
+ *
+ * The Open-Prep publisher updates a saved script that is not necessarily
+ * attached to the active layout.  A chart-error assertion before this step is
+ * therefore impossible to satisfy: the publish helper has not yet had a chance
+ * to add the script.  Keep the materialization inside the publish helper so the
+ * caller records an attempted publish and so every exit remains fail-closed.
+ */
+export async function ensureCleanChartScriptForPublish(page: Page, scriptName: string): Promise<void> {
+  const initialProbe = await probeVisibleChartScriptError(page, scriptName);
+  if (initialProbe === CHART_ERROR_PROBE_UNREADABLE) {
+    tracePageEvent(page, "publish-chart-prepare", `materialize:${scriptName}`);
+    await addCurrentScriptToChart(page, scriptName);
+  }
+
+  await assertNoVisibleChartScriptError(page, scriptName);
+}
+
 export async function hasAddToChartClickEffect(page: Page, scriptName?: string): Promise<boolean> {
   const updateOnChartVisible = await hasVisibleLocatorFast([
     page.getByRole("button", { name: /update on chart/i }),
@@ -8893,6 +8913,7 @@ export async function publishPrivateScript(
     scriptName?: string;
     title?: string;
     description?: string;
+    requireCleanChartBeforePublish?: boolean;
   } = {},
 ): Promise<{
   noChangeDetected: boolean;
@@ -8903,6 +8924,12 @@ export async function publishPrivateScript(
 }> {
   await dismissSignInModal(page).catch(() => undefined);
   await dismissSymbolSearchDialog(page).catch(() => undefined);
+  if (options.requireCleanChartBeforePublish) {
+    if (!options.scriptName) {
+      throw new Error("requireCleanChartBeforePublish requires scriptName");
+    }
+    await ensureCleanChartScriptForPublish(page, options.scriptName);
+  }
   await ensurePineEditor(page).catch(() => undefined);
   let noChangeDetected = false;
 
