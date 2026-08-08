@@ -24,7 +24,7 @@ import ast
 from collections.abc import Iterable
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -48,13 +48,9 @@ _DIR_EXCLUDE = frozenset(
 
 
 def _iter_prod_py() -> Iterable[Path]:
-    for p in sorted(ROOT.rglob("*.py")):
-        # Filter on repo-relative parts: an absolute ancestor whose name is in
-        # _DIR_EXCLUDE (e.g. a ``venv/`` or ``docs/`` parent) must not exclude
-        # every file and silently disable this tripwire.
-        if any(part in _DIR_EXCLUDE for part in p.relative_to(ROOT).parts):
-            continue
-        yield p
+    # Repo-relative filtering: an absolute ancestor named like a _DIR_EXCLUDE
+    # entry must not exclude every file and silently disable this tripwire.
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _parse(p: Path) -> ast.AST | None:
