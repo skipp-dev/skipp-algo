@@ -356,6 +356,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_sprt_decision_consumer_coverage.py",
     "tests/test_workflow_env_var_defaults.py",
     "tests/test_workflow_invoked_scripts_import_order.py",
+    "tests/test_documented_env_vars_are_read.py",
 )
 
 
