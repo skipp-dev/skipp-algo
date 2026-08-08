@@ -315,20 +315,22 @@ jobs:
           # a 2026-07-11 Saturday bundle).
           #
           # Arm the reject-stale guard only once a same-date producer bundle is
-          # actually *due*, i.e. the producer's earliest daily tick (08:00 UTC)
-          # has come around. Before that, a missing same-date bundle is normal,
-          # so the guard stays disarmed and the run proceeds from the freshest
-          # bundle (mirroring the workflow_dispatch lane). A genuine daytime
-          # outage (>=08:00 UTC with only a stale fallback) still hard-fails.
+          # actually *due*: on a producer weekday (Mon-Fri) after its earliest
+          # daily tick (08:00 UTC). Before that, or throughout the weekend, a
+          # missing same-date bundle is normal, so the run proceeds from the
+          # freshest bundle (mirroring the workflow_dispatch lane). A genuine
+          # weekday outage still hard-fails.
           PRODUCER_FIRST_TICK_UTC_HOUR=8   # keep == earliest producer cron hour
           REFRESH_UTC_HOUR=$(date -u +%H)
-          if [ "$((10#$REFRESH_UTC_HOUR))" -ge "$PRODUCER_FIRST_TICK_UTC_HOUR" ]; then
+          REFRESH_UTC_WEEKDAY=$(date -u +%u)  # 1=Monday ... 7=Sunday
+          if [ "$((10#$REFRESH_UTC_WEEKDAY))" -le 5 ] \
+             && [ "$((10#$REFRESH_UTC_HOUR))" -ge "$PRODUCER_FIRST_TICK_UTC_HOUR" ]; then
             GUARD=true
           else
             GUARD=false
           fi
           echo "stale_guard_active=${GUARD}" >> "$GITHUB_OUTPUT"
-          echo "::notice::REFRESH_DATE=$(date -u +%Y-%m-%d), UTC hour=${REFRESH_UTC_HOUR}, stale-fallback guard active=${GUARD} (producer earliest tick ${PRODUCER_FIRST_TICK_UTC_HOUR}:00 UTC)."
+          echo "::notice::REFRESH_DATE=$(date -u +%Y-%m-%d), UTC weekday=${REFRESH_UTC_WEEKDAY}, hour=${REFRESH_UTC_HOUR}, stale-fallback guard active=${GUARD} (producer schedule Mon-Fri from ${PRODUCER_FIRST_TICK_UTC_HOUR}:00 UTC)."
 
       - name: Emit runner selection
         run: |
@@ -482,7 +484,7 @@ jobs:
       - name: Reject stale Databento fallback on automated refresh
         id: reject_stale_export_fallback
         # F-V8-C4.3 (2026-07-11): only arm when a same-date producer bundle is
-        # actually due (>=08:00 UTC). The `stale_guard_active` gate suppresses
+        # actually due (Mon-Fri, >=08:00 UTC). The `stale_guard_active` gate suppresses
         # the cross-midnight false red where a late `0 23 * * 1-5` tick slipped
         # past 00:00 UTC and REFRESH_DATE rolled to a day the producer has not
         # (and, on a Fri->Sat crossing, cannot) build yet. See the "Set refresh
@@ -496,9 +498,9 @@ jobs:
           echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to generate from a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
           exit 1
 
-      - name: Note tolerated overnight Databento fallback
+      - name: Note tolerated not-yet-due Databento fallback
         # Companion to the reject-stale guard: when the guard is disarmed
-        # (overnight, before the producer's earliest daily tick) and only a
+        # (overnight or weekend, when no same-date producer tick is due) and only a
         # fallback bundle resolved, generation proceeds from the most recent
         # producer bundle instead of hard-failing. Emit a truthful notice so
         # the tolerated path is auditable rather than silent.
@@ -507,7 +509,7 @@ jobs:
           && steps.restore_export_bundle.outputs.artifact_mode == 'fallback'
           && steps.set_refresh_date.outputs.stale_guard_active != 'true'
         run: |
-          echo "::notice::No same-date producer bundle for REFRESH_DATE=${REFRESH_DATE} yet (overnight tick before the producer's first daily 08:00 UTC run). Proceeding from the most recent producer bundle instead of hard-failing; a genuine daytime staleness (>=08:00 UTC) is still rejected. Root cause: a late nightly consumer tick crossed midnight UTC under GitHub scheduler lag."
+          echo "::notice::No same-date producer bundle is due for REFRESH_DATE=${REFRESH_DATE} yet (before the first weekday tick or during the weekend). Proceeding from the most recent producer bundle instead of hard-failing; genuine weekday staleness after 08:00 UTC is still rejected."
 
       # The restore helper extracts beneath `<path>/<artifact-name>/...`.
       # Consumer
