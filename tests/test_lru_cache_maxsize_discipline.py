@@ -28,6 +28,8 @@ import ast
 import re
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Directories that must NEVER be scanned (vendored / generated).
@@ -73,13 +75,7 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
 
 
 def _iter_python_files() -> list[Path]:
-    out: list[Path] = []
-    for path in REPO_ROOT.rglob("*.py"):
-        # Skip excluded directories anywhere in the path.
-        if any(part in _EXCLUDE_DIR_NAMES for part in path.relative_to(REPO_ROOT).parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_production_py_files(_EXCLUDE_DIR_NAMES)
 
 
 def _is_lru_cache_decorator(node: ast.expr) -> bool:

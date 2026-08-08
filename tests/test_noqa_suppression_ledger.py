@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 _DIR_EXCLUDE = {
@@ -272,14 +274,11 @@ _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
 def _iter_python_files() -> list[Path]:
-    out: list[Path] = []
-    for path in _ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in path.relative_to(_ROOT).parts):
-            continue
-        if path.name.startswith("mutation_"):
-            continue
-        out.append(path)
-    return out
+    return [
+        path
+        for path in iter_production_py_files(_DIR_EXCLUDE)
+        if not path.name.startswith("mutation_")
+    ]
 
 
 def _observed_counts() -> dict[str, int]:

@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -91,16 +93,7 @@ _ALLOWED_OP_KINDS = frozenset({_OP_WRITE, _OP_SDFLT, _OP_POP})
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    out: list[Path] = []
-    for path in ROOT.rglob("*.py"):
-        try:
-            rel_parts = path.relative_to(ROOT).parts
-        except ValueError:
-            continue
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _is_os_environ(node: ast.AST) -> bool:
