@@ -99,7 +99,7 @@ analog zu `docs/c8_phase_a_signoff_2026-05-14.md`):
 | Unique paths pro Run (Sanity) | …, … | `baseline_cache_probe.py` |
 
 **Decision:**
-- Hit-Rate ≥ 60 % → Phase C starten (ADR 0010 + `actions/cache@v4`-Wiring + `prune_stale_cache_files` + `scripts/cache_probe_analyze.py`).
+- Hit-Rate ≥ 60 % → Phase C starten (ADR 0010 + `actions/cache@v4`-Wiring + `prune_stale_cache_files` + `scripts/analyze_cache_probe.py`).
 - Hit-Rate < 60 % → Phase C **nicht** starten; stattdessen Plan-Postmortem (warum hat das Probe-Modell überschätzt?) und Cache-Idee deprecaten.
 
 ---
