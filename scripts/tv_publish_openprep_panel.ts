@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 
 import {
   assertNoVisibleCompileError,
-  assertNoVisibleChartScriptError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   ensurePineEditor,
@@ -195,22 +194,23 @@ export async function runPublishOpenPrepPanelCli(): Promise<number> {
       await saveScript(session.page, details.scriptName);
       await waitForPostSaveCompileSettlement(session.page, details.scriptName);
       await assertNoVisibleCompileError(session.page);
-      try {
-        await assertNoVisibleChartScriptError(session.page, details.scriptName);
-      } catch (legendGateError) {
-        await takeScreenshot(
-          session.page, runId, `${details.scriptName}-legend-gate-failure`, screenshots,
-        ).catch(() => "");
-        throw legendGateError;
-      }
       await takeScreenshot(session.page, runId, `${details.scriptName}-compiled`, screenshots);
 
       publishAttempted = true;
-      const publishResult = await publishPrivateScript(session.page, {
-        scriptName: details.scriptName,
-        title: details.scriptName,
-        description: cli.description,
-      });
+      let publishResult: Awaited<ReturnType<typeof publishPrivateScript>>;
+      try {
+        publishResult = await publishPrivateScript(session.page, {
+          scriptName: details.scriptName,
+          title: details.scriptName,
+          description: cli.description,
+          requireCleanChartBeforePublish: true,
+        });
+      } catch (publishError) {
+        await takeScreenshot(
+          session.page, runId, `${details.scriptName}-publish-failed`, screenshots,
+        ).catch(() => "");
+        throw publishError;
+      }
       noChangeDetected = publishResult.noChangeDetected;
       publishBodyText = publishResult.bodyText;
       const publishCompileError = detectPineCompileErrorMarker(publishBodyText);
