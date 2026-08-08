@@ -50,6 +50,14 @@ fills" was wrong.
   §5 reads the **same 1D FamilyEvent pool** as the §2 AUC (not the C13 paper
   fills) and needs 40 triggered samples/family — so §5 and the 1D AUC become
   measurable at the same time, from the same data.
+  Since 2026-08-08, `promotion-gate-daily.yml` executes the §5 gate on that
+  explicitly filtered 1D pool and persists `epnl_after_cost_<date>.json` even
+  for a measured FAIL or an inconclusive sample count. A configuration/load
+  failure remains a hard workflow error.
+  Until a measurable calibration artifact is available to this workflow, the
+  report explicitly records `cost_source=flat_default` and the pre-registered
+  5 bps round-trip haircut; it does not present that placeholder as empirical
+  thin-cap execution cost.
 - **C13 paper trading = Phase-B, orthogonal to this gate.** It promotes the
   open-prep `smc_orb_vwap_hold` *execution* from paper to real capital
   (`evaluate_phase_criteria.py`). Valuable, but it does **not** advance

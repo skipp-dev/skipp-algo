@@ -214,7 +214,7 @@ from tests._workflow_step_shell import Stub, run_step
 
 _WF = "promotion-gate-daily.yml"
 _DOWNLOAD_STEP = "Download rolling-benchmark artifact"
-_GATES_STEP = "Build returns series + track-record gate + regime report (ADR-0031)"
+_GATES_STEP = "Build returns series + economic gates + regime report (ADR-0023/0031)"
 _DATE = "2026-08-04"
 
 
@@ -289,11 +289,18 @@ case "$1" in
   -c) exec "$REAL_PYTHON" "$@" ;;
 esac
 out=""; prev=""
-for a in "$@"; do [ "$prev" = "--output" ] && out="$a"; prev="$a"; done
+for a in "$@"; do
+  { [ "$prev" = "--output" ] || [ "$prev" = "--out" ]; } && out="$a"
+  prev="$a"
+done
 case "$2" in
   scripts.build_returns_series)
      mkdir -p "$(dirname "$out")"
      printf '{"n_trades": %s}' "$N_TRADES" > "$out" ;;
+  scripts.run_epnl_after_cost_gate)
+     mkdir -p "$(dirname "$out")"
+     printf '{}' > "$out"
+     exit "${STUB_EPNL_RC:-0}" ;;
   *) [ -n "$out" ] && { mkdir -p "$(dirname "$out")"; printf '{}' > "$out"; } ;;
 esac
 exit 0
@@ -321,7 +328,7 @@ sys.stdout.write("".join(lines[:n] if n >= 0 else lines[:len(lines) + n]))
 ''')
 
 
-def _gates(tmp_path: Path, *, events_pool: bool, n_trades: int):
+def _gates(tmp_path: Path, *, events_pool: bool, n_trades: int, epnl_rc: int = 0):
     # Mirror production: docs/calibration/gates/ is a COMMITTED drop-zone and
     # carries prior files for all three families. That matters, because the
     # retention loop at the end of the step is not fail-safe -- `ls` on a glob
@@ -331,7 +338,12 @@ def _gates(tmp_path: Path, *, events_pool: bool, n_trades: int):
     # rather than hardened, since nothing reaches it.
     gates_dir = tmp_path / "docs/calibration/gates"
     gates_dir.mkdir(parents=True, exist_ok=True)
-    for prefix in ("returns_series", "track_record_gate", "regime_stratified"):
+    for prefix in (
+        "returns_series",
+        "epnl_after_cost",
+        "track_record_gate",
+        "regime_stratified",
+    ):
         (gates_dir / f"{prefix}_2026-01-01.json").write_text("{}", encoding="utf-8")
     if events_pool:
         pool = tmp_path / "artifacts/ci/scored_family_events_accumulated"
@@ -339,7 +351,11 @@ def _gates(tmp_path: Path, *, events_pool: bool, n_trades: int):
         (pool / "accumulated_family_events.json").write_text("[]", encoding="utf-8")
     return run_step(
         _WF, _GATES_STEP, tmp_path,
-        env={"REAL_PYTHON": sys.executable, "N_TRADES": str(n_trades)},
+        env={
+            "REAL_PYTHON": sys.executable,
+            "N_TRADES": str(n_trades),
+            "STUB_EPNL_RC": str(epnl_rc),
+        },
         stubs={"python": _PY_STUB, "head": _GNU_HEAD},
         expressions={"steps.date.outputs.value": _DATE},
     )
@@ -351,6 +367,7 @@ def test_a_populated_events_pool_produces_the_artifacts(tmp_path: Path) -> None:
     assert result.outputs["produced"] == "true"
     gates_dir = tmp_path / "docs/calibration/gates"
     assert (gates_dir / f"track_record_gate_{_DATE}.json").exists()
+    assert (gates_dir / f"epnl_after_cost_{_DATE}.json").exists()
     assert (gates_dir / f"regime_stratified_{_DATE}.json").exists()
 
 
@@ -379,3 +396,36 @@ def test_a_zero_trade_series_emits_no_verdict_file(tmp_path: Path) -> None:
     assert (gates_dir / f"regime_stratified_{_DATE}.json").exists(), (
         "the regime report is not gated on n_trades and must still be written"
     )
+    assert (gates_dir / f"epnl_after_cost_{_DATE}.json").exists(), (
+        "the §5 report must record the honest below-floor state"
+    )
+
+
+def test_epnl_negative_and_inconclusive_verdicts_are_persisted(tmp_path: Path) -> None:
+    for rc in (2, 3):
+        run_root = tmp_path / str(rc)
+        run_root.mkdir()
+        result = _gates(run_root, events_pool=True, n_trades=12, epnl_rc=rc)
+        assert result.returncode == 0, result.stderr
+        assert (
+            run_root
+            / "docs/calibration/gates"
+            / f"epnl_after_cost_{_DATE}.json"
+        ).exists()
+
+
+def test_epnl_configuration_error_fails_the_workflow_step(tmp_path: Path) -> None:
+    result = _gates(tmp_path, events_pool=True, n_trades=12, epnl_rc=1)
+    assert result.returncode == 1
+    assert "§5 gate failed with rc=1" in result.stdout
+
+
+def test_epnl_gate_uses_the_same_1d_plane_as_the_returns_series() -> None:
+    body = next(
+        step["run"]
+        for step in _load()["jobs"]["promotion-gate"]["steps"]
+        if step.get("id") == "gates"
+    )
+    invocation = body.split("python -m scripts.run_epnl_after_cost_gate", 1)[1]
+    invocation = invocation.split("case ", 1)[0]
+    assert "--plane 1D" in invocation

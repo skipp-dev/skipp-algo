@@ -470,6 +470,13 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    pool holds 40 BOS samples; SWEEP is too rare on the daily plane for either,
    hence `proof_of_concept_15m` — see
    [adr0023_plane_and_gate_clarification.md](adr0023_plane_and_gate_clarification.md).
+   *Operational wiring 2026-08-08:* `promotion-gate-daily.yml` now runs the
+   gate on the same explicitly filtered 1D FamilyEvent pool and persists its
+   verdict as `docs/calibration/gates/epnl_after_cost_<date>.json`; rc 2/3 are
+   honest FAIL/inconclusive evidence, while configuration errors fail the job.
+   The scheduled run honestly identifies its current 5 bps haircut as
+   `cost_source=flat_default`; empirical cost remains unavailable until a
+   measurable calibration artifact is supplied to the workflow.
 
 2. **The pipeline step that fills the snapshot fields.**
    *Status 2026-06-11: wired, twice over.* The Stage-1 runner

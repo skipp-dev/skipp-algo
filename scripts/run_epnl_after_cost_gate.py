@@ -49,7 +49,10 @@ from governance.family_returns import (
     extract_family_calibration_samples,
 )
 from scripts.run_magnitude_resolution_gate import _load_events
-from scripts.run_magnitude_shadow_ledger import CANDIDATE_FAMILIES
+from scripts.run_magnitude_shadow_ledger import (
+    CANDIDATE_FAMILIES,
+    event_measurement_plane,
+)
 
 
 def build_report(
@@ -158,6 +161,14 @@ def main(argv: list[str] | None = None) -> int:
         default="-",
         help="path to write the JSON report, or '-' for stdout (default: stdout)",
     )
+    parser.add_argument(
+        "--plane",
+        default=None,
+        help=(
+            "governed measurement plane (for example 1D); filters each event "
+            "by its own modal bar cadence before evaluation"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -171,6 +182,17 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     cost_bps = args.cost_bps
+    events_total = len(events)
+    if args.plane:
+        events = [
+            event for event in events if event_measurement_plane(event) == args.plane
+        ]
+        print(
+            f"plane filter: kept {len(events)}/{events_total} pool events "
+            f"on plane {args.plane}",
+            file=sys.stderr,
+        )
+
     calibration: dict[str, Any] | None = None
     if args.cost_calibration is not None:
         try:
@@ -214,6 +236,9 @@ def main(argv: list[str] | None = None) -> int:
         cost_calibration=calibration,
     )
 
+    report["measurement_plane"] = args.plane
+    report["events_total"] = events_total
+    report["events_on_plane"] = len(events)
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if args.out == "-":
         print(rendered)
