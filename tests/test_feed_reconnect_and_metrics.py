@@ -10,7 +10,7 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -37,10 +37,41 @@ def _reload_feed_module() -> ModuleType:
     return feed
 
 
-def _patch_reconnect_delays(feed: ModuleType) -> None:
-    """Shrink reconnect delays so tests run in milliseconds, not minutes."""
-    feed._RECONNECT_DELAY_SECS = 0.05
-    feed._RECONNECT_BACKOFF_SECS = 0.05
+def _patch_reconnect_delays(feed: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Shrink reconnect delays so tests run in milliseconds, not minutes.
+
+    Via ``monkeypatch`` rather than plain assignment: ``_reload_feed_module()``
+    reloads ``feed`` in place, so these writes land on the *shared* module
+    object in ``sys.modules`` and outlive this file. An unrestored 0.05 makes
+    ``tests/test_live_overlay_heal_grace_backoff.py`` fail its premise check
+    (``assert 60.05 > 85.0``) whenever xdist happens to schedule it into this
+    worker afterwards -- a failure that moves with the shard layout, not with
+    the code under test.
+    """
+    monkeypatch.setattr(feed, "_RECONNECT_DELAY_SECS", 0.05)
+    monkeypatch.setattr(feed, "_RECONNECT_BACKOFF_SECS", 0.05)
+
+
+@pytest.fixture(autouse=True)
+def _no_reconnect_constant_leaks() -> Iterator[None]:
+    """Fail here, not in whichever file xdist schedules next.
+
+    Autouse, and it requests no other fixture, so it is set up first and torn
+    down last -- after ``monkeypatch`` has already put the constants back. A
+    reintroduced plain assignment therefore fails in the file that caused it,
+    deterministically, instead of surfacing as an unrelated red test somewhere
+    downstream.
+    """
+    import services.live_overlay_daemon.feed as feed
+
+    before = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
+    yield
+    after = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
+    assert after == before, (
+        "this test left feed's reconnect constants at "
+        f"{after} instead of {before}; shrink them with monkeypatch.setattr, "
+        "not by assigning onto the reloaded module"
+    )
 
 
 def _run_feed_loop_until(
@@ -147,7 +178,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         failure = db.BentoError("connection reset")
         sequence = [failure]
@@ -167,7 +198,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         failure = db.BentoError("persistent failure")
 
@@ -193,7 +224,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         failure = db.BentoError("stream disconnected")
 
@@ -218,7 +249,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "3")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
         failure = db.BentoError("stream disconnected before first bar")
 
         with patch.object(
@@ -240,7 +271,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         failure = RuntimeError("boom")
         sequence = [failure]
@@ -261,7 +292,7 @@ class TestFeedReconnectAndCircuitBreaker:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         # Queue-based architecture: feed loop enqueues, ingest loop applies to cache.
         feed._runtime["ingest_queue"] = queue.Queue(maxsize=32)
@@ -415,7 +446,7 @@ class TestFeedDropCounters:
         monkeypatch.setenv("DATABENTO_API_KEY", "dummy-key")
         monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "5")
         feed = _reload_feed_module()
-        _patch_reconnect_delays(feed)
+        _patch_reconnect_delays(feed, monkeypatch)
 
         sequence = [
             SymbolMappingMsg(),
