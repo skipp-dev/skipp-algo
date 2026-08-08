@@ -22,6 +22,7 @@ and are a no-op under explicit/fallback FMP mode.
 
 from __future__ import annotations
 
+import threading
 import time
 import types
 from typing import Any
@@ -437,7 +438,9 @@ def test_sigterm_handler_raises_keyboard_interrupt() -> None:
         rs._raise_keyboard_interrupt_on_sigterm(15, None)
 
 
-def _minimal_engine_for_reload(monkeypatch, watchlist, *, feed, quote_source):
+def _minimal_engine_for_reload(
+    monkeypatch, watchlist, *, feed, quote_source, active_signals=None
+):
     """A ``RealtimeEngine`` skeleton with just the attributes
     ``reload_watchlist`` touches, and ``_load_watchlist`` stubbed to a no-op
     (its file/network work is out of scope here)."""
@@ -453,6 +456,11 @@ def _minimal_engine_for_reload(monkeypatch, watchlist, *, feed, quote_source):
     engine._hysteresis = types.SimpleNamespace(_state={})
     engine._dynamic_cooldown = types.SimpleNamespace(prune_stale=lambda keep: None)
     engine._technical_scorer = types.SimpleNamespace(clear=lambda: None)
+    # Added 2026-08-08: reload_watchlist retracts signals for dropped symbols
+    # (#4545) and takes the lock guarding _active_signals. __new__ skips
+    # __init__, so the skeleton has to supply both or the rotation raises.
+    engine._active_signals = list(active_signals or [])
+    engine._lock = threading.Lock()
     engine._databento_feed = feed
     engine._quote_source = quote_source
     return engine
@@ -475,6 +483,41 @@ def test_reload_watchlist_resubscribes_feed_and_reloads_reference(monkeypatch) -
 
     assert calls.get("symbols") == ["AAPL", "MSFT"]  # normalized + sorted
     assert calls.get("reloaded") is True
+
+
+def test_reload_watchlist_retracts_signals_for_dropped_symbols(monkeypatch) -> None:
+    """#4545's retraction, which had no passing coverage until 2026-08-08: the
+    skeleton lacked ``_lock``/``_active_signals``, so the block raised
+    AttributeError before ever reaching an assertion."""
+    kept = types.SimpleNamespace(symbol="AAPL")
+    dropped = types.SimpleNamespace(symbol="TSLA")
+    engine = _minimal_engine_for_reload(
+        monkeypatch, [{"symbol": "AAPL"}],
+        feed=None, quote_source=None,
+        active_signals=[kept, dropped],
+    )
+
+    engine.reload_watchlist()
+
+    assert engine._active_signals == [kept], (
+        "a symbol dropped by the rotation must lose its published signal; "
+        "expiry alone keeps it live for up to MAX_SIGNAL_AGE_SECONDS"
+    )
+
+
+def test_reload_watchlist_keeps_signals_when_the_watchlist_comes_back_empty(
+    monkeypatch,
+) -> None:
+    """The control direction: a degraded/empty snapshot must not clear the
+    active set, or one bad reload silently retracts everything."""
+    live = types.SimpleNamespace(symbol="AAPL")
+    engine = _minimal_engine_for_reload(
+        monkeypatch, [], feed=None, quote_source=None, active_signals=[live],
+    )
+
+    engine.reload_watchlist()
+
+    assert engine._active_signals == [live]
 
 
 def test_reload_watchlist_is_noop_for_explicit_fmp_rollback(monkeypatch) -> None:
