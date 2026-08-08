@@ -447,7 +447,7 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
-| `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
+| `TERMINAL_POLL_INTERVAL_S` | No | Poll interval in seconds (default: `10`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
 
 When both private Producer settings and direct-provider keys are present, the

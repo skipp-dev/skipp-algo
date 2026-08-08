@@ -308,6 +308,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_sprt_decision_consumer_coverage.py",
     "test_workflow_env_var_defaults.py",
     "test_workflow_invoked_scripts_import_order.py",
+    "test_documented_env_vars_are_read.py",
 })
 
 # Glob patterns covered by the fast lane. fast-gates expands
