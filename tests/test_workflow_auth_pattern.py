@@ -172,7 +172,7 @@ _FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
     # evidence-freshness-snapshot.yml: rolling bot/live-evidence-freshness
     # refresh for the ADR-0023 evidence-chain freshness gauges the daemon
     # serves; force-with-lease with prior fetch (same pattern as
-    # plan-2-8-evaluation). See ADR-0024.
+    # smc-measurement-benchmark-rolling). See ADR-0024.
     "evidence-freshness-snapshot.yml",
     # sweep-trap-shadow-daily.yml (WS4a, #3414): rolling
     # bot/live-sweep-trap-shadow refresh of the sweep-trap shadow monitoring

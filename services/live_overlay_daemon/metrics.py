@@ -675,10 +675,10 @@ def _experiment_snapshot() -> dict[str, object]:
                 if not isinstance(verdict, dict):
                     continue
                 status = str(verdict.get("status", "missing"))
-                # F-6 (2026-08-08): scripts/plan_2_8_evaluate.py is still a
-                # placeholder that draws its verdicts from `random`, and it
-                # labels them "measured". Downgrade to "missing" so no panel
-                # can render dice as evidence; the synthetic gauge says why.
+                # Tripwire (F-6, 2026-08-08): a rollup that declares itself
+                # synthetic must never surface as a measured verdict, whatever
+                # produced it. Downgrade to "missing" so no panel can render
+                # fabricated input as evidence; the synthetic gauge says why.
                 if synthetic:
                     status = "missing"
                 p_value = verdict.get("delta_hr_p_value")
@@ -1848,7 +1848,8 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     experiment = _experiment_snapshot()
     lines.append("# TYPE live_overlay_experiment_loaded gauge")
     lines.append(f"live_overlay_experiment_loaded {_prom_numeric_value(experiment['loaded'])}")
-    # 1 while the rollup is the scripts/plan_2_8_evaluate.py placeholder output.
+    # 1 if a producer ever declares its rollup synthetic. Expected 0 since the
+    # daemon reads the measuring producer (config.experiment_snapshot_url).
     lines.append("# TYPE live_overlay_experiment_snapshot_synthetic gauge")
     lines.append(
         f"live_overlay_experiment_snapshot_synthetic {_prom_numeric_value(experiment['synthetic'])}"

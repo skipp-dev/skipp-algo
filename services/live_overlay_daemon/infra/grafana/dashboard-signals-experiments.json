@@ -1021,7 +1021,7 @@
     {
       "title": "Daily Experiment — Data Provenance",
       "type": "stat",
-      "description": "1 while the Plan 2.8 rollup is the scripts/plan_2_8_evaluate.py placeholder, whose hit rates, event counts and files_scanned are drawn from random. Every panel in this row is then fabricated and must not be read as evidence. The exporter additionally downgrades both Phase E2 verdicts to 'missing' while this is 1, so a green 'measured' cannot appear on synthetic input (audit finding F-6, 2026-08-08).",
+      "description": "1 if the Plan 2.8 rollup the daemon is reading declares itself synthetic. Expected 0: the daemon reads the rolling benchmark, which measures over the day's scoring_<symbol>_<tf>.json artifacts. While this is 1 the exporter downgrades both Phase E2 verdicts to 'missing', so a green 'measured' cannot appear on fabricated input (audit finding F-6, 2026-08-08).",
       "gridPos": {
         "h": 3,
         "w": 24,

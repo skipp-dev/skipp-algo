@@ -326,10 +326,19 @@ def experiment_snapshot_url() -> str:
 
     When set it takes precedence over :func:`experiment_snapshot_path`; on any
     fetch failure the daemon falls back to the local path.
+
+    Points at the rolling benchmark's output, which is the only producer that
+    actually measures: it runs scripts/plan_2_8_tf_family_rollup.py over the
+    day's ``scoring_<symbol>_<tf>.json`` artifacts. Until 2026-08-08 this
+    defaulted to ``artifacts/experiment/latest/``, written by the
+    scripts/plan_2_8_evaluate.py placeholder that drew its hit rates, event
+    counts and verdicts from ``random`` -- contradicting
+    :func:`experiment_snapshot_path`'s own docstring, which already named the
+    rolling path as the fresh one.
     """
     return _snapshot_url(
         "EXPERIMENT_SNAPSHOT_URL",
-        path="artifacts/experiment/latest/plan_2_8_tf_family_rollup.json",
+        path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_tf_family_rollup.json",
         ref="bot/live-experiment-snapshot",
     )
 
@@ -611,10 +620,15 @@ def experiment_history_path() -> Path:
 
 
 def experiment_history_url() -> str:
-    """Optional https URL the daemon fetches the per-day history JSONL from."""
+    """Optional https URL the daemon fetches the per-day history JSONL from.
+
+    Same producer as :func:`experiment_snapshot_url`. The rolling history is the
+    one that accumulates: measured 2026-08-07 it held 133 rows against the
+    placeholder path's 1.
+    """
     return _snapshot_url(
         "EXPERIMENT_HISTORY_URL",
-        path="artifacts/experiment/latest/plan_2_8_history.jsonl",
+        path="artifacts/ci/measurement_benchmark_rolling/latest/plan_2_8_history.jsonl",
         ref="bot/live-experiment-snapshot",
     )
 

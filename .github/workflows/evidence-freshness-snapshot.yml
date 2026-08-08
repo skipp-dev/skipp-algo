@@ -10,7 +10,7 @@ name: evidence-freshness-snapshot
 # of staying green for weeks.
 #
 # Publishes to the rolling bot/live-evidence-freshness branch (mirrors
-# plan-2-8-evaluation.yml) so the daemon can fetch via
+# smc-measurement-benchmark-rolling.yml) so the daemon can fetch via
 # EVIDENCE_FRESHNESS_SNAPSHOT_URL without a persistent volume.
 #
 # Self-covering: if THIS workflow stops, the daemon's snapshot-age gauge keeps
@@ -100,7 +100,7 @@ jobs:
           retention-days: 14
 
       - name: Publish snapshot to rolling bot branch
-        # Mirrors plan-2-8-evaluation.yml: publish to bot/live-evidence-freshness
+        # Mirrors smc-measurement-benchmark-rolling.yml: publish to bot/live-evidence-freshness
         # so the daemon fetches via EVIDENCE_FRESHNESS_SNAPSHOT_URL.
         if: steps.build.outputs.status == 'success'
         env:
