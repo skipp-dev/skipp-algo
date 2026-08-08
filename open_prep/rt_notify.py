@@ -34,16 +34,21 @@ Config (env):
   RT_SIGNAL_NOTIFY_COOLDOWN_SECS  re-notify a still-active signal only after this
                                   many seconds (default 1800 = 30 min)
   RT_SIGNAL_WEBHOOK_SYNC     "1" to POST inline instead of on a thread (tests)
+  RT_SIGNAL_NOTIFY_STATE_PATH  where the dedup marks are persisted so a restart
+                             does not re-arm every signal (default
+                             artifacts/open_prep/state/rt_notify_dedup.json)
   RT_SIGNAL_TELEGRAM_BOT_TOKEN / RT_SIGNAL_TELEGRAM_CHAT_ID
   RT_SIGNAL_TWILIO_SID / _AUTH / _FROM / _TO       (FROM/TO like "whatsapp:+49…")
   RT_SIGNAL_META_TOKEN / _PHONE_ID / _TO
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 # Calibrated follow-through P (fail-soft; returns None unless RT_CALIBRATION_ARMED
@@ -90,6 +95,16 @@ _BEARISH_DIRECTIONS = frozenset({"SHORT", "B_DOWN", "DOWN"})
 _NOTIFIED: dict[tuple[str, str], tuple[int, float]] = {}
 _STATE_TTL_SECS = 2 * 3600.0
 _LOCK = threading.Lock()
+# The marks outlive the process. A redeploy is far more frequent than the
+# 30-minute cooldown, so an empty map on boot re-pushed every still-active
+# signal — the duplicate storm the cooldown exists to prevent. Loaded lazily
+# (never at import: see tests/test_import_safety.py) and rewritten atomically
+# only when a mark actually changes.
+_STATE_SCHEMA = 1
+_DEFAULT_STATE_PATH = "artifacts/open_prep/state/rt_notify_dedup.json"
+_KEY_SEP = "\x1f"  # not a legal character in a symbol or a direction
+# Mutated in place → no `global` needed, same as _WARNED below.
+_LOADED: set[str] = set()
 # Keys of one-shot config warnings already emitted. _levels()/_cooldown() run on
 # every poll, so an unconditional warning on a misconfig would flood the log
 # (the very thing we avoid elsewhere). Mutated in place → no `global` needed.
@@ -97,10 +112,78 @@ _WARNED: set[str] = set()
 
 
 def reset_state() -> None:
-    """Clear the dedup state (tests / a manual re-arm)."""
+    """Clear the dedup state (tests / a manual re-arm).
+
+    Drops the persisted copy too — otherwise a "re-arm" would be undone by the
+    next load and would not re-arm anything.
+    """
     with _LOCK:
         _NOTIFIED.clear()
+        _LOADED.clear()
+        try:
+            _state_path().unlink(missing_ok=True)
+        except OSError:
+            logger.debug("rt_notify state file could not be removed", exc_info=True)
     _WARNED.clear()
+
+
+def _state_path() -> Path:
+    return Path(_env("RT_SIGNAL_NOTIFY_STATE_PATH", _DEFAULT_STATE_PATH))
+
+
+def _load_state_locked(ts: float, horizon: float) -> None:
+    """Restore marks left by an earlier process. Caller holds ``_LOCK``.
+
+    Entries already older than ``horizon`` are dropped rather than loaded, so a
+    long downtime cannot resurrect a mark the running process would have
+    evicted. Any unreadable or foreign-shaped file leaves the state empty —
+    exactly the old behaviour, never an exception into the poll loop.
+    """
+    if _LOADED:
+        return
+    _LOADED.add("done")
+    try:
+        raw = json.loads(_state_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(raw, dict) or raw.get("version") != _STATE_SCHEMA:
+        return
+    entries = raw.get("entries")
+    if not isinstance(entries, dict):
+        return
+    for flat, value in entries.items():
+        symbol, sep, direction = str(flat).partition(_KEY_SEP)
+        if not sep:
+            continue
+        try:
+            strength, marked_at = int(value[0]), float(value[1])
+        except (TypeError, ValueError, IndexError, KeyError):
+            continue
+        if ts - marked_at <= horizon:
+            _NOTIFIED[(symbol, direction)] = (strength, marked_at)
+
+
+def _save_state_locked() -> None:
+    """Persist the marks atomically. Caller holds ``_LOCK``. Never raises."""
+    from scripts.smc_atomic_write import atomic_write_json
+
+    try:
+        path = _state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(
+            {
+                "version": _STATE_SCHEMA,
+                "entries": {
+                    f"{symbol}{_KEY_SEP}{direction}": [strength, marked_at]
+                    for (symbol, direction), (strength, marked_at) in _NOTIFIED.items()
+                },
+            },
+            path,
+            # A hard kill between POST and rewrite is the case this exists for.
+            fsync=True,
+        )
+    except (OSError, ValueError, TypeError):
+        logger.debug("rt_notify state save failed", exc_info=True)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -411,6 +494,7 @@ def _post_and_mark(url: str, *, marks: list[tuple[tuple[str, str], int]],
         with _LOCK:
             for key, strength in marks:
                 _NOTIFIED[key] = (strength, ts)
+            _save_state_locked()
     return ok
 
 
@@ -475,6 +559,9 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     levels = _levels()
     early_levels = _early_levels() if early_active else frozenset()
     cooldown = _cooldown()
+    # The horizon is max(TTL, cooldown): evicting at the bare TTL silently capped
+    # any cooldown > 2h (entry evicted -> prev is None -> premature re-push).
+    eviction_horizon = max(_STATE_TTL_SECS, cooldown)
 
     # Partition candidates by destination WITHOUT touching _NOTIFIED — the state
     # advances only after _dispatch confirms delivery, so a failed POST re-fires
@@ -485,6 +572,7 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
     early_fresh: list[Any] = []
     early_marks: list[tuple[tuple[str, str], int]] = []
     with _LOCK:
+        _load_state_locked(ts, eviction_horizon)
         for s in signals or ():
             lvl = str(getattr(s, "level", "") or "")
             if early_active and lvl in early_levels:
@@ -501,12 +589,12 @@ def notify_fresh_signals(signals: list[Any], *, now: float | None = None) -> lis
                 bucket_marks.append((key, strength))
         # Evict stale dedup entries so the map cannot grow unbounded. Runs even
         # when `signals` is empty, so a stale entry can't outlive its TTL merely
-        # because no new signal happened to arrive on later polls. The horizon
-        # is max(TTL, cooldown): evicting at the bare TTL silently capped any
-        # cooldown > 2h (entry evicted -> prev is None -> premature re-push).
-        eviction_horizon = max(_STATE_TTL_SECS, cooldown)
-        for k in [k for k, (_st, t) in _NOTIFIED.items() if ts - t > eviction_horizon]:
+        # because no new signal happened to arrive on later polls.
+        stale = [k for k, (_st, t) in _NOTIFIED.items() if ts - t > eviction_horizon]
+        for k in stale:
             _NOTIFIED.pop(k, None)
+        if stale:
+            _save_state_locked()
 
     delivered_keys: list[str] = []
     for bucket, bucket_marks, dst, noun, emoji in (

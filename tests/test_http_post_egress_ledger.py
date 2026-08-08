@@ -135,9 +135,9 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # for user-configured realtime signal alerts (generic/slack/discord/ntfy/
     # telegram/twilio_whatsapp/meta_whatsapp). Opt-in via RT_SIGNAL_WEBHOOK_*;
     # fail-soft; destination + auth are user-supplied. See open_prep/rt_notify.py.
-    ("open_prep/rt_notify.py", 388),  # 2026-07-16 transport-log redaction shifted site: 370->374; 2026-07-24 (RN-1 _a1_volume_pace helper) 374->388
+    ("open_prep/rt_notify.py", 471),  # 2026-07-16 transport-log redaction shifted site: 370->374; 2026-07-24 (RN-1 _a1_volume_pace helper) 374->388; 2026-08-08 (dedup persistence) 388->471
     # Notification webhook fan-out (Discord/Slack-style).
-    ("terminal_notifications.py", 279),
+    ("terminal_notifications.py", 345),  # 2026-08-08 (throttle persistence): 279->345
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
     # SSRF-guarded via _is_safe_webhook_url). Line shifted 912 → 916
     # (deep-audit fallback-buffer lock refresh).
@@ -163,9 +163,10 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
 # sites that bypass the .post(...) attribute-call detector above.
 URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Generic POST webhook helper (Slack/Discord-shape).
-    ("terminal_notifications.py", 251),
+    # 2026-08-08 (throttle persistence): 251->317, 316->382
+    ("terminal_notifications.py", 317),
     # Pushover messages API.
-    ("terminal_notifications.py", 316),
+    ("terminal_notifications.py", 382),
     # Open-prep alerts dispatcher (Slack/webhook).
     # 2026-07-01: alert candidate/throttle hardening + payload/url guards
     # shifted 439 -> 476.

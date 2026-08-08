@@ -446,6 +446,7 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
 | `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
+| `TERMINAL_NOTIFY_STATE_PATH` | No | Where the throttle is persisted so a restart keeps it (default: `artifacts/terminal/notify_throttle.json`) |
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
 | `TERMINAL_POLL_INTERVAL_S` | No | Poll interval in seconds (default: `10`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |

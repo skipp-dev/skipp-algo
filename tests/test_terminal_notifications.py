@@ -25,8 +25,11 @@ from terminal_notifications import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_throttle():
+def _clear_throttle(monkeypatch: pytest.MonkeyPatch, tmp_path):
     """Reset throttle state before each test."""
+    # Redirect the persisted throttle BEFORE resetting: reset_throttle() now
+    # deletes that file, and it must never be the repo's real one.
+    monkeypatch.setenv("TERMINAL_NOTIFY_STATE_PATH", str(tmp_path / "throttle.json"))
     reset_throttle()
     yield
     reset_throttle()
@@ -425,3 +428,62 @@ class TestNotifyHighScoreItems:
         result = notify_high_score_items([item], config=cfg)
         assert result == []
         mock_send.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Restart survival
+# ---------------------------------------------------------------------------
+
+
+def _restart_throttle() -> None:
+    """Simulate a redeploy: in-memory throttle gone, persisted copy kept.
+
+    Deliberately not reset_throttle(), which also drops the file — that is the
+    manual re-arm, the opposite of what a restart must do.
+    """
+    import terminal_notifications as tn
+
+    tn._last_notified.clear()
+    tn._loaded.clear()
+
+
+def test_throttle_survives_a_restart() -> None:
+    """A redeploy must not let every ticker alert again inside its window."""
+    import os
+    from pathlib import Path
+
+    _mark_notified("AAPL")
+    assert Path(os.environ["TERMINAL_NOTIFY_STATE_PATH"]).exists()
+
+    _restart_throttle()
+
+    assert _is_throttled("AAPL", 600) is True
+
+
+def test_a_restart_after_the_window_does_not_throttle() -> None:
+    """A mark older than the retention horizon must not be restored."""
+    import terminal_notifications as tn
+
+    tn._last_notified["AAPL"] = time.time() - (tn._STATE_MAX_AGE_SECS + 60)
+    with tn._throttle_lock:
+        tn._save_state_locked()
+
+    _restart_throttle()
+
+    assert _is_throttled("AAPL", 600) is False
+
+
+def test_reset_throttle_drops_the_persisted_copy() -> None:
+    import os
+    from pathlib import Path
+
+    from terminal_notifications import reset_throttle
+
+    _mark_notified("AAPL")
+    state_file = Path(os.environ["TERMINAL_NOTIFY_STATE_PATH"])
+    assert state_file.exists()
+
+    reset_throttle()
+
+    assert not state_file.exists()
+    assert _is_throttled("AAPL", 600) is False

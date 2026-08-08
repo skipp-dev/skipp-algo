@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -19,12 +21,15 @@ def _sig(symbol: str, level: str, direction: str = "LONG") -> Any:
 
 
 @pytest.fixture(autouse=True)
-def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
-    rt_notify.reset_state()
+def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Clear every RT_SIGNAL_* var so a developer's real .env cannot leak in.
-    for k in list(__import__("os").environ):
+    for k in list(os.environ):
         if k.startswith("RT_SIGNAL_"):
             monkeypatch.delenv(k, raising=False)
+    # Redirect the persisted dedup state BEFORE resetting: reset_state() now
+    # deletes that file, and it must never be the repo's real one.
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_STATE_PATH", str(tmp_path / "dedup.json"))
+    rt_notify.reset_state()
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_SYNC", "1")  # POST inline for capture
 
 
@@ -513,3 +518,99 @@ def test_http_post_exception_log_contains_type_not_secret_url(
     assert "ConnectError" in caplog.text
     assert secret_url not in caplog.text
     assert "SECRET/TOKEN" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Restart survival
+# ---------------------------------------------------------------------------
+# The dedup map used to live only in the process. A redeploy happens far more
+# often than the 30-minute cooldown, so every still-active signal was pushed
+# again on boot — the duplicate storm the cooldown exists to prevent.
+
+
+def _restart() -> None:
+    """Simulate the process dying and coming back: memory empty, file kept.
+
+    Deliberately not reset_state(), which also drops the file — that is the
+    manual re-arm, the opposite of what a restart must do.
+    """
+    rt_notify._NOTIFIED.clear()
+    rt_notify._LOADED.clear()
+
+
+def test_dedup_marks_survive_a_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    sig = _sig("AAPL", "A0")
+
+    assert rt_notify.notify_fresh_signals([sig])
+    assert len(calls) == 1
+    assert Path(os.environ["RT_SIGNAL_NOTIFY_STATE_PATH"]).exists(), (
+        "a confirmed delivery must persist its mark"
+    )
+
+    _restart()
+
+    assert rt_notify.notify_fresh_signals([sig]) == []
+    assert len(calls) == 1, "restart re-armed a signal inside its cooldown"
+
+
+def test_a_restart_still_lets_a_strengthened_signal_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistence must not freeze the upgrade path (A2 -> A1 -> A0)."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    monkeypatch.setenv("RT_SIGNAL_NOTIFY_LEVELS", "A0,A1,A2")
+    calls = _capture(monkeypatch)
+
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A1")])
+    _restart()
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")])
+    assert len(calls) == 2
+
+
+def test_a_restart_after_the_horizon_does_not_resurrect_a_stale_mark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long downtime must not suppress: the mark is past its eviction age."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    sig = _sig("AAPL", "A0")
+
+    assert rt_notify.notify_fresh_signals([sig], now=1_000.0)
+    _restart()
+
+    beyond = 1_000.0 + max(rt_notify._STATE_TTL_SECS, rt_notify._cooldown()) + 1
+    assert rt_notify.notify_fresh_signals([sig], now=beyond)
+    assert len(calls) == 2
+
+
+def test_reset_state_drops_the_persisted_copy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A manual re-arm that a reload would undo would not be a re-arm."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    sig = _sig("AAPL", "A0")
+
+    assert rt_notify.notify_fresh_signals([sig])
+    state_file = Path(os.environ["RT_SIGNAL_NOTIFY_STATE_PATH"])
+    assert state_file.exists()
+
+    rt_notify.reset_state()
+
+    assert not state_file.exists()
+    assert rt_notify.notify_fresh_signals([sig])
+    assert len(calls) == 2
+
+
+def test_a_corrupt_state_file_is_ignored_rather_than_raised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail-soft is the module's contract: never break the poll loop."""
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    Path(os.environ["RT_SIGNAL_NOTIFY_STATE_PATH"]).write_text(
+        "{not json at all", encoding="utf-8"
+    )
+
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")])
+    assert len(calls) == 1
