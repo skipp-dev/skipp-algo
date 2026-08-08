@@ -22,7 +22,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,13 +44,7 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    out: list[Path] = []
-    for path in ROOT.rglob("*.py"):
-        rel = path.relative_to(ROOT)
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
-            continue
-        out.append(path)
-    return out
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _dynamic_builtin_sites(builtin: str) -> set[tuple[str, int]]:

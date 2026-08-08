@@ -24,7 +24,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -97,16 +97,7 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> list[Path]:
-    out: list[Path] = []
-    for p in ROOT.rglob("*.py"):
-        rel_parts = p.relative_to(ROOT).parts
-        # Exclude dot-directories and any path segment matching an
-        # excluded directory name. Single check covers both nested
-        # and top-level cases.
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel_parts):
-            continue
-        out.append(p)
-    return out
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _hmac_calls() -> set[tuple[str, int, str]]:
