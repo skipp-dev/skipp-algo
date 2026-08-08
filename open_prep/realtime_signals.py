@@ -2665,6 +2665,16 @@ class RealtimeEngine:
         # Clear technical indicator cache for removed symbols
         self._technical_scorer.clear()
 
+        # A rotation that drops a symbol must retract its signal too — expiry
+        # alone keeps it published for up to MAX_SIGNAL_AGE_SECONDS. Skipped on
+        # an empty reload so a degraded snapshot cannot clear the active set.
+        if wl_syms:
+            with self._lock:
+                self._active_signals = [
+                    s for s in self._active_signals
+                    if str(getattr(s, "symbol", "")).strip().upper() in wl_syms
+                ]
+
         # Databento feed lifecycle on watchlist rotation (no-op for the FMP
         # default). Both calls are duck-typed and internally fail-soft, so they
         # never touch the FMP path and never break the reload cycle:

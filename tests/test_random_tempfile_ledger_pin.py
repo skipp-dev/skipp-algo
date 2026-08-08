@@ -127,8 +127,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-28 (semantic monitoring): shifted +80/+82 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the two reviewed temp-file sites.
-    ("open_prep/realtime_signals.py", 3971, "mkstemp"),  # 2026-07-28 (ATR restore/live guards): 3967->3971
-    ("open_prep/realtime_signals.py", 4027, "mkstemp"),  # 2026-07-28 (ATR restore/live guards): 4023->4027
+    ("open_prep/realtime_signals.py", 3981, "mkstemp"),  # 2026-08-08 (watchlist retraction): 3971->3981
+    ("open_prep/realtime_signals.py", 4037, "mkstemp"),  # 2026-08-08 (watchlist retraction): 4027->4037
 
     ("open_prep/watchlist.py", 69, "mkstemp"),  # 2026-07-27 (persistence note above): 63->69
     ("smc_core/benchmark.py", 30, "mkstemp"),

@@ -140,8 +140,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-28 (semantic monitoring): shifted +80/+80 lines by readiness metrics.
     # 2026-07-26 (merge Databento source after re-qual fixes):
     # combined branch additions shifted the two reviewed cleanup sites.
-    ("open_prep/realtime_signals.py", 3986, "unlink"),  # 2026-07-28 (ATR restore/live guards): 3982->3986
-    ("open_prep/realtime_signals.py", 4040, "unlink"),  # 2026-07-28 (ATR restore/live guards): 4036->4040
+    ("open_prep/realtime_signals.py", 3996, "unlink"),  # 2026-08-08 (watchlist retraction): 3986->3996
+    ("open_prep/realtime_signals.py", 4050, "unlink"),  # 2026-08-08 (watchlist retraction): 4040->4050
 
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
