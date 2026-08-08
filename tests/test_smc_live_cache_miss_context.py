@@ -43,6 +43,9 @@ def cache_miss(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(main_mod.cache, "get_overlay", lambda _sym: None)
     monkeypatch.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: [])
     monkeypatch.setattr(main_mod.cache, "get_vix", lambda: 16.8123)
+    # The cache-miss path reads get_vix_fresh() (main.py:402); patching only the
+    # un-gated get_vix left the real accessor in place, so "warm VIX" was None.
+    monkeypatch.setattr(main_mod.cache, "get_vix_fresh", lambda: 16.8123)
     monkeypatch.setattr(
         main_mod.library_context_bridge,
         "context_for_symbol",

@@ -195,10 +195,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifted cache.py globals 49/71/148/218 -> 70/92/185/255. The throttle
         # uses in-place attribute mutation, NOT a new `global`, so the inventory
         # count is unchanged.
-        ("services/live_overlay_daemon/cache.py", 111, ("_max_symbols", "_rolling_bars_cap")),  # 2026-07-26 preserve TF history across feed restart: 109->111
-        ("services/live_overlay_daemon/cache.py", 138, ("_last_eviction_at",)),  # 2026-07-26 preserve TF history across feed restart: 132->138
-        ("services/live_overlay_daemon/cache.py", 345, ("_overlay_computed_at",)),  # 2026-07-26 preserve TF history across feed restart: 339->345
-        ("services/live_overlay_daemon/cache.py", 419, ("_vix_level",)),  # 2026-07-26 preserve TF history across feed restart: 413->419
+        ("services/live_overlay_daemon/cache.py", 112, ("_max_symbols", "_rolling_bars_cap")),  # 2026-08-08 reject future-dated bars at ingest: 111->112
+        ("services/live_overlay_daemon/cache.py", 139, ("_last_eviction_at",)),  # 2026-08-08 reject future-dated bars at ingest: 138->139
+        ("services/live_overlay_daemon/cache.py", 368, ("_overlay_computed_at",)),  # 2026-08-08 reject future-dated bars at ingest: 345->368
+        ("services/live_overlay_daemon/cache.py", 442, ("_vix_level",)),  # 2026-08-08 reject future-dated bars at ingest: 419->442
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.

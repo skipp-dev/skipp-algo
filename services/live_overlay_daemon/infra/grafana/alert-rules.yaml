@@ -3579,6 +3579,46 @@ groups:
       runbook: Compare live_overlay_bar_symbols with the cap and watch bars_per_symbol.
         Sustained protected evictions precede the depth collapse that lo-bar-cache-depth-low
         alerts on; raising the cap or trimming the requested universe resolves both.
+  - uid: lo-bar-future-dated-rejected
+    title: Provider is sending future-dated bars
+    condition: C
+    # A bar dated ahead of now used to enter the cache and make
+    # _latest_bar_age_secs() return None for the WHOLE symbol, which every
+    # caller reads as stale. That is indistinguishable from "no data at all",
+    # so a single bad tick looked exactly like a dead feed. Ingest now drops
+    # such bars; this counter is the only place the drop is visible.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: increase(live_overlay_bar_future_dated_rejected_total{job="live_overlay"}[30m])
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Market bars are arriving with timestamps beyond the accepted clock skew
+        and are being dropped at ingest.
+      runbook: Sustained increase means the upstream feed or the host clock is wrong, not
+        the cache. Check the provider's ts_event against UTC and the container clock;
+        BAR_MAX_FUTURE_SKEW_SECS (default 120s) sets the tolerance. Symbols whose only
+        recent bars are rejected will read stale, so pair this with lo-bar-cache-depth-low.
   - uid: lo-pine-library-payload-empty
     title: SMC micro-profile library published with an empty payload
     condition: C
