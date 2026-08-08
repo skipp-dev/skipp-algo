@@ -1887,7 +1887,45 @@ jobs:
 
           BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
-          git commit -m "chore(pine): library refresh ${REFRESH_DATE} (run ${RUN_NUMBER})"
+          COMMIT_MSG="chore(pine): library refresh ${REFRESH_DATE} (run ${RUN_NUMBER})"
+          git commit -m "$COMMIT_MSG"
+
+          # Re-anchor on CURRENT main before opening the PR.
+          #
+          # This job branched from whatever main was at checkout. If an earlier
+          # refresh merges in between -- which is the normal case at export
+          # cadence -- main now carries a different library version, and since
+          # every one of the staged files is regenerated wholesale, EVERY
+          # version-pinned line collides. The PR lands DIRTY and a human has to
+          # rebuild it by hand (#4528, #4543, #4556 were all this, three days
+          # running). The supersede step below does not cover it: that closes
+          # rival OPEN PRs, while this is main moving underneath a single one.
+          #
+          # Resolution is per FILE, never per hunk — and the reason is the
+          # case that does NOT conflict. Measured on a scratch repo: main
+          # changes a generated file's import line, this run regenerates its
+          # footer, `git rebase` returns 0 with no conflict at all and leaves
+          # one file carrying main's import next to this run's footer. Neither
+          # version, no marker, nothing for a human to notice. The loud DIRTY
+          # case is the harmless one. `git checkout <commit> -- <paths>` takes
+          # the regenerated set as whole files, which is the only state the
+          # generator vouches for; `-X theirs` would not fix the silent case
+          # because there is no conflict for it to resolve.
+          REFRESH_COMMIT="$(git rev-parse HEAD)"
+          REFRESH_PATHS="$(git diff --name-only "${REFRESH_COMMIT}^" "${REFRESH_COMMIT}")"
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$(git rev-parse "${REFRESH_COMMIT}^")" ]; then
+            echo "::notice::main advanced since checkout — re-anchoring ${BRANCH} on $(git rev-parse --short origin/main)"
+            git checkout -B "$BRANCH" origin/main
+            # Unquoted on purpose: one argument per path.
+            # shellcheck disable=SC2086
+            git checkout "${REFRESH_COMMIT}" -- ${REFRESH_PATHS}
+            if git diff --cached --quiet; then
+              echo "::notice::current main already carries this regeneration — no PR to open."
+              exit 0
+            fi
+            git commit -m "$COMMIT_MSG"
+          fi
           git push -u origin "$BRANCH"
           # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
           # with `|| true`, which silently swallowed real PR-creation failures
