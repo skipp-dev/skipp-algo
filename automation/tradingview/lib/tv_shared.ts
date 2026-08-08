@@ -5135,12 +5135,12 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
       }
       // Tight row only — a pane container carries the text of every study
       // below it and exactly this over-match is why the wrapper probe grew
-      // its one-settings-action rule. Mirror it.
-      const settingsActionCount = await wrapper
-        .locator('button[data-qa-id="legend-settings-action"]')
+      // its one-legend-action rule. Mirror it for either current TV action.
+      const legendActionCount = await wrapper
+        .locator('button[data-qa-id="legend-settings-action"], button[data-qa-id="legend-more-action"]')
         .count()
         .catch(() => 0);
-      if (settingsActionCount !== 1) {
+      if (legendActionCount !== 1) {
         continue;
       }
       const box = await wrapper.boundingBox().catch(() => null);
@@ -8235,25 +8235,35 @@ export const CHART_ERROR_PROBE_UNREADABLE = Symbol("chart-error-probe-unreadable
  *
  * This channel exists for errors that live ONLY in the legend badge's
  * `title`/`aria-label` (the CE10271 class); the body-text channel cannot see
- * them. `findLegendRowWrappers` returns `[]` on three pure non-observation
- * paths — `buttons.count().catch(() => 0)`, the single hardcoded
- * `data-qa-id="legend-settings-action"` anchor no longer matching, and a 300 ms
- * `innerText` timeout per ancestor depth — and an empty list used to make the
- * loop body never run, so the function returned `null`, which every caller read
- * as "clean". A chart carrying a red compile badge therefore certified green.
+ * them. The button-first finder can return `[]` while TradingView keeps legend
+ * actions hidden until hover, so the hard gate follows it with the bounded
+ * text-first hover probe already used by removal/refresh. Both finders require
+ * one tight legend row with exactly one known action; if neither can observe
+ * that row, the result remains explicitly unreadable rather than "clean".
  *
- * One bounded re-look before giving up: a gate that flakes red gets switched
- * off by the humans it protects, and the legend row is the one element here
- * that is genuinely still painting right after an insert.
+ * One bounded re-look of both strategies remains before giving up: a gate that
+ * flakes red gets switched off by the humans it protects, and the legend row
+ * is genuinely still painting right after an insert.
  */
 export async function probeVisibleChartScriptError(
   page: Page,
   scriptName: string,
 ): Promise<string | typeof CHART_ERROR_PROBE_UNREADABLE | null> {
-  let wrappers = await findLegendRowWrappers(page, scriptName);
+  const discoverReadableWrappers = async (): Promise<Locator[]> => {
+    const buttonFirst = await findLegendRowWrappers(page, scriptName);
+    if (buttonFirst.length > 0) return buttonFirst;
+
+    const textFirst = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
+    if (textFirst.length > 0) {
+      tracePageEvent(page, "chart-error-probe", `text-fallback:${scriptName}:${textFirst.length}`);
+    }
+    return textFirst;
+  };
+
+  let wrappers = await discoverReadableWrappers();
   if (wrappers.length === 0) {
     await page.waitForTimeout(750).catch(() => undefined);
-    wrappers = await findLegendRowWrappers(page, scriptName);
+    wrappers = await discoverReadableWrappers();
   }
   if (wrappers.length === 0) {
     tracePageEvent(page, "chart-error-probe", `unreadable:${scriptName}`);
