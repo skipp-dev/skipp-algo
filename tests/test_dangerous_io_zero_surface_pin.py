@@ -28,7 +28,7 @@ import ast
 from collections.abc import Iterator
 from pathlib import Path
 
-from tests._guard_corpus import parse_module
+from tests._guard_corpus import iter_production_py_files, parse_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,11 +49,7 @@ _DIR_EXCLUDE = {
 
 
 def _iter_py_files() -> Iterator[Path]:
-    for path in ROOT.rglob("*.py"):
-        rel = path.relative_to(ROOT)
-        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
-            continue
-        yield path
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
