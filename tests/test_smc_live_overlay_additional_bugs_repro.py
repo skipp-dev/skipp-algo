@@ -432,7 +432,11 @@ class TestVolumeTypeDriftRobustness:
                 ]
             },
         )
-        monkeypatch.setattr(cache_mod, "get_vix", lambda: 21.0)
+        # set_vix also stamps the freshness clock, which get_vix_fresh() gates
+        # on. Patching the un-gated get_vix left this test depending on a
+        # sibling test's leftover timestamp: in isolation it failed on both
+        # sides of the F-7 fix (20.0 before, None after).
+        cache_mod.set_vix(21.0)
 
         compute_mod.run_flow_patch_cycle()
 
@@ -441,6 +445,37 @@ class TestVolumeTypeDriftRobustness:
         assert payload["flow_rel_vol"] is None
         assert payload["flow_delta_proxy_pct"] == 0.5
         assert payload["vix_level"] == 21.0
+
+    def test_flow_patch_cycle_nulls_a_stale_vix_instead_of_freezing_it(
+        self, monkeypatch
+    ) -> None:
+        """F-7 (2026-08-08): the fast patch used to skip ``vix_level`` whenever
+        ``get_vix_fresh()`` returned None, so an expired VIX kept being served
+        until the next FULL cycle nulled it — up to OVERLAY_REFRESH_SECS later.
+        That is the exact class PR #4508 closed on the wire path."""
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        cache_mod.set_overlay({"AAPL": {"vix_level": 20.0}})
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
+                ]
+            },
+        )
+        # Fresh underlying level, but past its age budget: must read as unknown.
+        cache_mod.set_vix(21.0)
+        monkeypatch.setattr(cache_mod, "vix_age_secs", lambda: cache_mod.VIX_MAX_AGE_SECS + 1)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["vix_level"] is None, "a stale VIX must not stay frozen at 20.0"
 
     def test_flow_patch_cycle_clears_stale_delta_when_last_open_missing(
         self, monkeypatch: pytest.MonkeyPatch

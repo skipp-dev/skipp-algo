@@ -1019,6 +1019,76 @@
       "panels": []
     },
     {
+      "title": "Daily Experiment — Data Provenance",
+      "type": "stat",
+      "description": "1 while the Plan 2.8 rollup is the scripts/plan_2_8_evaluate.py placeholder, whose hit rates, event counts and files_scanned are drawn from random. Every panel in this row is then fabricated and must not be read as evidence. The exporter additionally downgrades both Phase E2 verdicts to 'missing' while this is 1, so a green 'measured' cannot appear on synthetic input (audit finding F-6, 2026-08-08).",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_experiment_snapshot_synthetic{job=~\"$job\"}",
+          "instant": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "no snapshot",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "real measured snapshot",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "SYNTHETIC PLACEHOLDER — the numbers below are random, not evidence",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "id": 1927313820
+    },
+    {
       "title": "Daily Experiment — Snapshot Age",
       "type": "stat",
       "description": "Age of the latest Plan 2.8 family rollup (scripts/plan_2_8_tf_family_rollup.py). The rolling benchmark runs Mon-Fri; green < 72h, yellow < 96h, red beyond 96h — the daemon's OVERLAY_EXPERIMENT_MAX_AGE_SECS staleness budget, where lo-experiment-snapshot-stale fires — means a run was skipped (Friday's rollup is legitimately ~89.5h old by Monday). N/A when the run date cannot be derived.",
@@ -1026,7 +1096,7 @@
         "h": 5,
         "w": 6,
         "x": 0,
-        "y": 53
+        "y": 56
       },
       "targets": [
         {
@@ -1088,7 +1158,7 @@
         "h": 5,
         "w": 6,
         "x": 6,
-        "y": 53
+        "y": 56
       },
       "targets": [
         {
@@ -1146,7 +1216,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 53
+        "y": 56
       },
       "targets": [
         {
@@ -1231,7 +1301,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 53
+        "y": 56
       },
       "targets": [
         {
@@ -1316,7 +1386,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 61
       },
       "targets": [
         {
@@ -1442,7 +1512,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 67
+        "y": 70
       },
       "targets": [
         {
@@ -1502,7 +1572,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 75
+        "y": 78
       },
       "targets": [
         {
@@ -1630,7 +1700,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 88
       },
       "id": 3000,
       "panels": []
@@ -1643,7 +1713,7 @@
         "h": 5,
         "w": 5,
         "x": 0,
-        "y": 86
+        "y": 89
       },
       "targets": [
         {
@@ -1718,7 +1788,7 @@
         "h": 5,
         "w": 5,
         "x": 5,
-        "y": 86
+        "y": 89
       },
       "targets": [
         {
@@ -1780,7 +1850,7 @@
         "h": 5,
         "w": 5,
         "x": 10,
-        "y": 86
+        "y": 89
       },
       "targets": [
         {
@@ -1842,7 +1912,7 @@
         "h": 5,
         "w": 5,
         "x": 15,
-        "y": 86
+        "y": 89
       },
       "targets": [
         {
@@ -1904,7 +1974,7 @@
         "h": 5,
         "w": 4,
         "x": 20,
-        "y": 86
+        "y": 89
       },
       "targets": [
         {
@@ -1966,7 +2036,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 94
       },
       "targets": [
         {
@@ -2048,7 +2118,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 99
+        "y": 102
       },
       "id": 3100,
       "panels": []
@@ -2061,7 +2131,7 @@
         "h": 5,
         "w": 5,
         "x": 0,
-        "y": 100
+        "y": 103
       },
       "targets": [
         {
@@ -2136,7 +2206,7 @@
         "h": 5,
         "w": 6,
         "x": 5,
-        "y": 100
+        "y": 103
       },
       "targets": [
         {
@@ -2198,7 +2268,7 @@
         "h": 5,
         "w": 4,
         "x": 11,
-        "y": 100
+        "y": 103
       },
       "targets": [
         {
@@ -2260,7 +2330,7 @@
         "h": 5,
         "w": 5,
         "x": 15,
-        "y": 100
+        "y": 103
       },
       "targets": [
         {
@@ -2322,7 +2392,7 @@
         "h": 5,
         "w": 4,
         "x": 20,
-        "y": 100
+        "y": 103
       },
       "targets": [
         {
@@ -2392,7 +2462,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 105
+        "y": 108
       },
       "targets": [
         {
