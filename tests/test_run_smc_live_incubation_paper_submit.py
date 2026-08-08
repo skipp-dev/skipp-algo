@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from governance.portfolio_contract import PortfolioSnapshotV1
 from scripts.execute_ibkr_watchlist import (
     PAPER_PORT,
     IBKRConnectionConfig,
@@ -261,10 +263,30 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     return setups, statuses, audit
 
 
+def _write_portfolio_snapshot(tmp_path: Path) -> Path:
+    snapshot = tmp_path / "portfolio-snapshot.json"
+    snapshot.write_text(
+        json.dumps(
+            PortfolioSnapshotV1.build(
+                captured_at=datetime.now(UTC),
+                account="DU1",
+                base_currency="USD",
+                equity=10_000,
+                available_funds=10_000,
+                source="test",
+                complete=True,
+            ).to_dict()
+        ),
+        encoding="utf-8",
+    )
+    return snapshot
+
+
 def test_cli_place_paper_orders_invokes_executor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setups, statuses, audit = _write_inputs(tmp_path)
+    portfolio_snapshot = _write_portfolio_snapshot(tmp_path)
     placer = _FakePlacer()
     monkeypatch.setattr(
         "scripts.run_smc_live_incubation.place_order_intents", placer
@@ -281,6 +303,8 @@ def test_cli_place_paper_orders_invokes_executor(
             "--audit-output",
             str(audit),
             "--place-paper-orders",
+            "--portfolio-snapshot-json",
+            str(portfolio_snapshot),
         ]
     )
 
@@ -289,7 +313,30 @@ def test_cli_place_paper_orders_invokes_executor(
     assert placer.calls[0]["connection_cfg"].port == PAPER_PORT
     audit_records = _read_audit(audit)
     assert audit_records
-    assert all(rec["action"] == "paper_submitted" for rec in audit_records)
+    assert audit_records[0]["action"] == "portfolio_risk_evaluated"
+    assert [row["action"] for row in audit_records[1:]] == ["paper_submitted"]
+
+
+def test_cli_refuses_place_paper_orders_without_portfolio_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setups, statuses, audit = _write_inputs(tmp_path)
+    monkeypatch.setattr("scripts.run_smc_live_incubation.place_order_intents", _boom)
+
+    with pytest.raises(SystemExit, match="portfolio-snapshot-json"):
+        main(
+            [
+                "--phase",
+                "paper",
+                "--setups",
+                str(setups),
+                "--gate-statuses",
+                str(statuses),
+                "--audit-output",
+                str(audit),
+                "--place-paper-orders",
+            ]
+        )
 
 
 def test_cli_refuses_place_paper_orders_on_live_phase(

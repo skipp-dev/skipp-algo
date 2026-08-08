@@ -54,8 +54,8 @@ order roles are never interpreted as zero exposure.
   recommendation, not an automatic order mutation.
 
 Checked-in configuration stays `shadow`. `enforce` is restricted to the paper
-phase. Promotion remains a separate human decision after at least 20 clean
-paper sessions.
+phase. Promotion remains a separate human decision after at least 20 clean,
+risk-relevant paper sessions.
 
 ### 4. Deterministic limits
 
@@ -82,8 +82,10 @@ orders until a later evidence-backed configuration change.
 Every evaluated run emits one `portfolio_risk_evaluated` record with its
 snapshot ID, verdict, reasons, current/projected metrics and context coverage.
 The shadow summarizer reports session coverage and never promotes a limit; it
-only becomes `ready_for_human_review` after 20 clean sessions with a passing
-broker position reconciliation for every observed session.
+only becomes `ready_for_human_review` after 20 clean, risk-relevant sessions.
+A session is risk-relevant only when at least one evaluated decision has positive
+candidate gross exposure, and every such session must have a passing broker
+position reconciliation for the same date.
 
 ## Failure semantics
 
@@ -111,7 +113,8 @@ broker position reconciliation for every observed session.
 
 Before changing checked-in mode from `shadow` to `enforce`:
 
-1. At least 20 distinct paper sessions are present.
+1. At least 20 distinct paper sessions with positive candidate gross exposure
+   are present.
 2. No stale/future/incomplete snapshot decision remains unexplained.
 3. Projected state reconciles to subsequent IBKR position/order snapshots.
 4. Every working-order role is classified.

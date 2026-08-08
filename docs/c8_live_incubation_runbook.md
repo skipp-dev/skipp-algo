@@ -262,6 +262,10 @@ The checked-in portfolio configuration is **shadow-only**. It records
 explicitly reviewed configuration may use `mode: enforce` for the paper phase;
 non-paper enforcement is refused. Generate the evidence summary with:
 
+Actual `--place-paper-orders` execution requires `--portfolio-snapshot-json`;
+the limits file still decides whether the recorded decision is shadow-only or
+enforced.
+
 ```bash
 python -m scripts.summarize_portfolio_shadow \
   cache/live/incubation.jsonl \
@@ -269,9 +273,11 @@ python -m scripts.summarize_portfolio_shadow \
   --output artifacts/portfolio/shadow_summary.json
 ```
 
-`ready_for_human_review` means only that at least 20 clean paper sessions and a
-passing broker reconciliation for every observed session exist. It never
-changes a configuration or promotes sector/correlation limits.
+`ready_for_human_review` means only that at least 20 clean paper sessions with
+positive candidate gross exposure and a passing broker reconciliation for each
+matching session date exist. Zero-intent sessions remain reported but do not
+count toward readiness. The status never changes a configuration or promotes
+sector/correlation limits.
 
 Sector/correlation context is built independently from completed-session closes;
 it is not the intraday SMT payload:

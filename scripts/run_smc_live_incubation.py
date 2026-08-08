@@ -889,6 +889,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"(got --phase {args.phase!r}). This flag intentionally cannot "
             "transmit live orders; refusing to run."
         )
+    if args.place_paper_orders and args.portfolio_snapshot_json is None:
+        raise SystemExit(
+            "--place-paper-orders requires --portfolio-snapshot-json so every "
+            "transmitted paper order receives a projected-portfolio decision. "
+            "The configured --portfolio-risk-limits-json still controls whether "
+            "that decision is shadow-only or enforced."
+        )
 
     setup_records = json.loads(args.setups.read_text(encoding="utf-8"))
     gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
@@ -1042,9 +1049,10 @@ def _add_portfolio_arguments(parser: argparse.ArgumentParser) -> None:
         type=Path,
         default=None,
         help=(
-            "Optional PortfolioSnapshotV1 captured immediately before this run. "
-            "When supplied, every surviving intent receives a shadow/enforced "
-            "projected-portfolio decision before submit_fn."
+            "PortfolioSnapshotV1 captured immediately before this run. Required "
+            "with --place-paper-orders; otherwise optional. When supplied, every "
+            "surviving intent receives a shadow/enforced projected-portfolio "
+            "decision before submit_fn."
         ),
     )
     parser.add_argument(

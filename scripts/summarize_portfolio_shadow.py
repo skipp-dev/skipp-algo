@@ -12,7 +12,7 @@ from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_text
 
-PORTFOLIO_SHADOW_REPORT_SCHEMA_VERSION = "1.0"
+PORTFOLIO_SHADOW_REPORT_SCHEMA_VERSION = "1.1"
 MIN_SHADOW_SESSIONS_FOR_REVIEW = 20
 
 
@@ -33,6 +33,8 @@ def summarize_portfolio_shadow(
     verdicts: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     sessions: set[str] = set()
+    risk_relevant_sessions: set[str] = set()
+    risk_relevant_decision_count = 0
     projected_gross: list[float] = []
     correlation_coverage: list[float] = []
     incomplete_decisions = 0
@@ -41,9 +43,16 @@ def summarize_portfolio_shadow(
         verdicts[str(risk.get("verdict", "unknown"))] += 1
         reasons.update(str(item) for item in risk.get("reasons", []))
         raw_ts = row.get("ts")
+        session_id = None
         if raw_ts:
-            sessions.add(datetime.fromisoformat(str(raw_ts)).date().isoformat())
+            session_id = datetime.fromisoformat(str(raw_ts)).date().isoformat()
+            sessions.add(session_id)
         projection = risk.get("projection") or {}
+        candidate_gross_pct = float(projection.get("candidate_gross_pct", 0.0))
+        if candidate_gross_pct > 0.0:
+            risk_relevant_decision_count += 1
+            if session_id is not None:
+                risk_relevant_sessions.add(session_id)
         projected_gross.append(float(projection.get("projected_gross_pct", 0.0)))
         correlation_coverage.append(float(projection.get("correlation_coverage_pct", 0.0)))
         if any(
@@ -66,11 +75,12 @@ def summarize_portfolio_shadow(
     reconciliation_failures = sum(
         not bool(row.get("reconciled", False)) for row in reconciliation_rows
     )
+    missing_reconciliation = risk_relevant_sessions - reconciliation_sessions
     review_ready = (
-        len(sessions) >= MIN_SHADOW_SESSIONS_FOR_REVIEW
+        len(risk_relevant_sessions) >= MIN_SHADOW_SESSIONS_FOR_REVIEW
         and incomplete_decisions == 0
-        and bool(decisions)
-        and len(reconciliation_sessions) >= len(sessions)
+        and risk_relevant_decision_count > 0
+        and not missing_reconciliation
         and reconciliation_failures == 0
     )
     return {
@@ -79,11 +89,14 @@ def summarize_portfolio_shadow(
         "promotion": "manual_only",
         "min_shadow_sessions_for_review": MIN_SHADOW_SESSIONS_FOR_REVIEW,
         "sessions_observed": len(sessions),
+        "risk_relevant_sessions_observed": len(risk_relevant_sessions),
+        "risk_relevant_decision_count": risk_relevant_decision_count,
         "decision_count": len(decisions),
         "verdict_counts": dict(sorted(verdicts.items())),
         "reason_counts": dict(sorted(reasons.items())),
         "incomplete_decisions": incomplete_decisions,
         "reconciliation_sessions": len(reconciliation_sessions),
+        "risk_relevant_sessions_missing_reconciliation": len(missing_reconciliation),
         "reconciliation_failures": reconciliation_failures,
         "max_projected_gross_pct": max(projected_gross, default=0.0),
         "min_correlation_coverage_pct": min(correlation_coverage, default=0.0),
