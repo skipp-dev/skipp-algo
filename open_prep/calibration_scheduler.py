@@ -15,10 +15,32 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, time
 
 from open_prep.calibration_lookup import _min_samples
 
 logger = logging.getLogger(__name__)
+
+
+def parse_calibration_hhmm(raw: str) -> time | None:
+    """Parse ``RT_CALIBRATION_UTC_HHMM`` into a UTC wall-clock time.
+
+    ``None`` for an empty or unparseable value, so the caller can leave
+    calibration off and *say so* instead of appearing scheduled.
+
+    A non-padded hour is accepted deliberately: an operator who types "9:30"
+    into Railway means 09:30. The scheduler used to compare the raw string
+    against ``datetime.strftime("%H:%M")``, which is only chronological while
+    both sides are zero-padded — "9:30" never fired at all (no zero-padded
+    hour sorts >= "9"), and "0:05" first fired at 10:00.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%H:%M").time()
+    except ValueError:
+        return None
 
 
 def run_calibration_once(
