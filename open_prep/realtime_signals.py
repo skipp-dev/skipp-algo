@@ -4225,11 +4225,25 @@ def main() -> None:
     # on THIS service's Railway volume and a separate cron cannot share it; fires
     # once per UTC day on a throwaway thread so the poll loop never blocks.
     cal_hhmm = os.environ.get("RT_CALIBRATION_UTC_HHMM", "").strip()
+    from open_prep.calibration_scheduler import parse_calibration_hhmm
+
+    cal_at = parse_calibration_hhmm(cal_hhmm)
     cal_ev_dir = os.environ.get("RT_SIGNAL_EVENT_LOG_DIR", "")
     cal_out = str(Path(cal_ev_dir).parent / "calibration_latest.json") if cal_ev_dir else ""
     cal_last_day: str | None = None
-    if cal_hhmm and event_logger is not None:
-        logger.info("Nightly calibration scheduled (%s UTC -> %s)", cal_hhmm, cal_out)
+    if cal_hhmm and cal_at is None:
+        # Never log a schedule we cannot honour: this used to accept any string
+        # and then silently never fire.
+        logger.warning(
+            "RT_CALIBRATION_UTC_HHMM=%r is not a valid HH:MM UTC time — "
+            "nightly calibration stays OFF", cal_hhmm,
+        )
+    elif cal_at is not None and event_logger is not None:
+        # Log the PARSED time, so "9:30" reads back as 09:30.
+        logger.info(
+            "Nightly calibration scheduled (%s UTC -> %s)",
+            cal_at.strftime("%H:%M"), cal_out,
+        )
 
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
     top_label = str(args.top_n) if args.top_n > 0 else "ALL"
@@ -4286,10 +4300,10 @@ def main() -> None:
 
             # Nightly follow-through calibration — once per UTC day, off-thread
             # (the poll loop must never block on the calibrator's FMP fetches).
-            if cal_hhmm and event_logger is not None:
+            if cal_at is not None and event_logger is not None:
                 _now = datetime.now(UTC)
                 _today = _now.strftime("%Y-%m-%d")
-                if cal_last_day != _today and _now.strftime("%H:%M") >= cal_hhmm:
+                if cal_last_day != _today and _now.time() >= cal_at:
                     cal_last_day = _today
                     from open_prep.calibration_scheduler import run_calibration_once
                     threading.Thread(

@@ -48,6 +48,11 @@ variables below in the Railway dashboard for BOTH instances.
 `RT_CALIBRATION_UTC_HHMM`, `RT_SIGNAL_EVENT_LOG_DIR`, `LOG_LEVEL`,
 `OPENAI_API_KEY` (optional judge features).
 
+`RT_CALIBRATION_UTC_HHMM` is a UTC wall-clock `HH:MM` (e.g. `21:30` ≈ 17:30 ET)
+and sets when the in-process nightly follow-through calibration runs. A value
+that is not a valid time leaves calibration OFF and logs a warning saying so —
+check for `nightly calibration stays OFF` after changing it.
+
 ## Local smoke
 
 `bash services/signals_producer/e2e/smoke.sh` boots the engine with shadowed
