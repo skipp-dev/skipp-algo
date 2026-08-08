@@ -399,12 +399,12 @@ def compute_hit_rates(
     buckets: dict[str, dict[str, Any]] = {}
     for rec in records:
         gap_pct = _safe_float(rec.get("gap_pct"))
-        # rvol is None when the ratio was unavailable at scoring time (RVOL
-        # fix 2026-07-23). Skip the record — _safe_float's 0.0 default would
-        # silently pool it into the "low" bucket, mixing missing-data records
-        # with genuine low-RVOL signals and inflating the apparent edge of
-        # the high buckets. Legacy records always carry a numeric rvol.
-        if rec.get("rvol") is None:
+        # gap_pct/rvol are None when unavailable at scoring time. Skip the
+        # record — _safe_float's 0.0 default would silently pool missing data
+        # into a real low bucket, mixing it with genuinely low signals and
+        # distorting the bucket statistics. Legacy records carry both values.
+        # A measured numeric 0.0 remains a valid low-bucket observation.
+        if rec.get("gap_pct") is None or rec.get("rvol") is None:
             continue
         rvol = _safe_float(rec.get("rvol"))
         # Direction-signed label when present, falling back to the legacy

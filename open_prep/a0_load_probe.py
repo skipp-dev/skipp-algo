@@ -140,6 +140,8 @@ def _run_scenario(
     restarts = 0
     max_depth = 0
     dropped_total = 0
+    overflow_dropped = 0
+    restart_flushed = 0
     try:
         for second in range(scenario.duration_seconds):
             if second == scenario.disconnect_at_second:
@@ -149,7 +151,9 @@ def _run_scenario(
             if second == scenario.restart_at_second:
                 restarts += 1
                 pending_resync.update(symbols)
-                dropped_total += buffer.snapshot().depth
+                flushed = buffer.snapshot().depth
+                restart_flushed += flushed
+                dropped_total += flushed
                 buffer = BoundedBarBuffer(scenario.buffer_capacity)
 
             multiplier = (
@@ -170,6 +174,7 @@ def _run_scenario(
                     ))
                     produced += 1
                     if offer.dropped is not None:
+                        overflow_dropped += 1
                         dropped_total += 1
                         pending_resync.add(offer.dropped.symbol)
 
@@ -199,7 +204,7 @@ def _run_scenario(
         "drop_policy_observable": (
             dropped_total == 0 or resyncs > 0 or bool(pending_resync)
         ),
-        "slow_reader_expectation": (dropped_total > 0) == scenario.expect_drops,
+        "slow_reader_expectation": (overflow_dropped > 0) == scenario.expect_drops,
         "disconnect_observable": (
             scenario.disconnect_at_second is None or disconnects == 1
         ),
@@ -220,6 +225,8 @@ def _run_scenario(
         "records_remaining": final_snapshot.depth,
         "queue_high_watermark": max_depth,
         "records_dropped": dropped_total,
+        "records_overflow_dropped": overflow_dropped,
+        "records_restart_flushed": restart_flushed,
         "drop_fraction": round(drop_fraction, 6),
         "resyncs_completed": resyncs,
         "resync_symbols_outstanding": len(pending_resync),
