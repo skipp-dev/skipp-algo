@@ -118,7 +118,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
     # 2026-07-05 (bug-hunt round 7): import math + non-finite entry/exit
     # price guard → 724→729.
-    ("open_prep/outcome_backfill.py", 1115, "unlink"),  # 2026-07-28 (invalid ATR quarantine): 1110->1115
+    ("open_prep/outcome_backfill.py", 1128, "unlink"),  # 2026-08-08 (backfill keeps a horizon's earlier label): 1115->1128
     ("open_prep/outcomes.py", 222, "unlink"),  # 2026-07-23 (A1 horizons: module docstring above): 218->222
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

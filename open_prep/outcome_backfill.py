@@ -709,9 +709,22 @@ def backfill_outcomes(
 
             # Per-horizon labels. Unresolved horizons write back None, never
             # a substitute value — the reader must be able to tell "measured
-            # flat" from "not measurable".
+            # flat" from "not measurable". But only over a horizon THIS run
+            # also left unmeasured: a record stays pending while
+            # profitable_30m is None, so a row an earlier run could resolve
+            # only on a longer horizon comes back through here on every
+            # subsequent run, and a shorter bar window would silently null
+            # that label. Failing to reproduce a measurement is not evidence
+            # against it. Decided per horizon, not per field, so a horizon
+            # never ends up half this run's and half the last one's.
             for key in keys:
-                for name in horizon_fields(key).values():
+                fields = horizon_fields(key)
+                if (
+                    result[fields["profitable"]] is None
+                    and rec.get(fields["profitable"]) is not None
+                ):
+                    continue
+                for name in fields.values():
                     rec[name] = result[name]
             # Triple-barrier labels (eval B1/B2) + anchor disclosure.
             rec["label_tb"] = result["label_tb"]

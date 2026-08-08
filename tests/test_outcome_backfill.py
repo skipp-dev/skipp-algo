@@ -263,6 +263,48 @@ class TestBackfillOutcomes:
         # Should NOT call get_range when nothing is pending.
         mock_provider.get_range.assert_not_called()
 
+    def test_a_horizon_this_run_cannot_measure_keeps_its_earlier_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A None from this run must not erase a label an earlier run measured.
+
+        A record stays pending while ``profitable_30m`` is None, so a row that
+        an earlier run could only resolve on a longer horizon is re-measured on
+        every subsequent run. Re-measuring it against a window that stops at
+        09:59 resolves 30m but not 60m — and this run has no evidence against
+        the 60m label, only an inability to reproduce it.
+        """
+        d = date(2026, 4, 17)
+        records = [
+            {
+                "date": d.isoformat(),
+                "symbol": "NVDA",
+                "profitable_30m": None,
+                "pnl_30m_pct": None,
+                "profitable_60m": True,
+                "pnl_60m_pct": 1.234,
+            },
+        ]
+        outcome_path = _make_outcome_file(tmp_path, d, records)
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.OUTCOMES_DIR", outcome_path.parent,
+        )
+
+        # 09:30–09:59 only: enough for the 30m horizon, never for the 60m one.
+        mock_store = MagicMock()
+        mock_store.to_df.return_value = _make_bars_df(
+            "NVDA", d, open_price=100.0, close_price=104.0,
+        )
+        mock_provider = MagicMock()
+        mock_provider.get_range.return_value = mock_store
+
+        backfill_outcomes(target_dates=[d], provider=mock_provider)
+
+        updated = json.loads(outcome_path.read_text())[0]
+        assert updated["profitable_30m"] is True  # this run's new evidence
+        assert updated["profitable_60m"] is True  # the earlier measurement
+        assert updated["pnl_60m_pct"] == pytest.approx(1.234)
+
     def test_dry_run_does_not_write(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         d = date(2026, 4, 17)
         records = [
