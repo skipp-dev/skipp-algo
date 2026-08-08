@@ -78,6 +78,12 @@ def _drive(
         state["streaming"] = False
         state["bar_due"] = None
         state["reconnect_at"] = state["now"] + feed_mod._RECONNECT_DELAY_SECS
+        # Mirrors _supervisor_break_stalled_client() -> bool. Returning None
+        # reads as "no client was broken", which makes the supervisor refund the
+        # heal attempt (`heal_attempts -= 1`) — the counter never grows, nothing
+        # ever escalates, and last_heal_at stays 0 so the grace window never
+        # arms either. This stub breaks a client, so it must say so.
+        return True
 
     monkeypatch.setattr(feed_mod, "time", types.SimpleNamespace(monotonic=lambda: state["now"]))
     monkeypatch.setattr(feed_mod, "last_bar_age_secs", lambda: state["now"] - state["last_bar"])
