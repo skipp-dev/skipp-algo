@@ -31,6 +31,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -199,11 +200,67 @@ _last_notified: dict[str, float] = {}
 _throttle_lock = threading.Lock()
 _THROTTLE_DICT_MAX = 500
 _WEBHOOK_TIMEOUT = 10  # seconds; baseline for one-shot notification webhooks
+# The throttle outlives the process: a redeploy is far more frequent than the
+# 600 s window, and an empty map on boot lets every ticker alert again at once.
+# Loaded lazily, never at import (see tests/test_import_safety.py).
+_STATE_SCHEMA = 1
+_DEFAULT_STATE_PATH = "artifacts/terminal/notify_throttle.json"
+_STATE_MAX_AGE_SECS = 3600.0  # same horizon the in-memory eviction uses
+_loaded: set[str] = set()
+
+
+def _state_path() -> Path:
+    return Path(os.getenv("TERMINAL_NOTIFY_STATE_PATH", _DEFAULT_STATE_PATH))
+
+
+def _load_state_locked() -> None:
+    """Restore the throttle left by an earlier process. Caller holds the lock.
+
+    Anything unreadable or foreign-shaped leaves the map empty, which is exactly
+    the pre-persistence behaviour.
+    """
+    if _loaded:
+        return
+    _loaded.add("done")
+    try:
+        raw = json.loads(_state_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(raw, dict) or raw.get("version") != _STATE_SCHEMA:
+        return
+    entries = raw.get("entries")
+    if not isinstance(entries, dict):
+        return
+    now = time.time()
+    for symbol, marked_at in entries.items():
+        try:
+            when = float(marked_at)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= now - when <= _STATE_MAX_AGE_SECS:
+            _last_notified[str(symbol)] = when
+
+
+def _save_state_locked() -> None:
+    """Persist the throttle atomically. Caller holds the lock. Never raises."""
+    from scripts.smc_atomic_write import atomic_write_json
+
+    try:
+        path = _state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(
+            {"version": _STATE_SCHEMA, "entries": dict(_last_notified)},
+            path,
+            fsync=True,
+        )
+    except (OSError, ValueError, TypeError):
+        logger.debug("terminal notification throttle save failed", exc_info=True)
 
 
 def _is_throttled(symbol: str, throttle_s: int) -> bool:
     now = time.time()
     with _throttle_lock:
+        _load_state_locked()
         last = _last_notified.get(symbol, 0.0)
     return (now - last) < throttle_s
 
@@ -217,12 +274,21 @@ def _mark_notified(symbol: str) -> None:
             stale = [k for k, v in _last_notified.items() if (now - v) > 3600]
             for k in stale:
                 del _last_notified[k]
+        _save_state_locked()
 
 
 def reset_throttle() -> None:
-    """Clear the throttle state (used on session reset)."""
+    """Clear the throttle state (used on session reset).
+
+    Drops the persisted copy too — a reset a later load would undo is not one.
+    """
     with _throttle_lock:
         _last_notified.clear()
+        _loaded.clear()
+        try:
+            _state_path().unlink(missing_ok=True)
+        except OSError:
+            logger.debug("throttle state file could not be removed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
