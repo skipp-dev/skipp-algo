@@ -130,7 +130,7 @@ async def webhook(request: Request, token: str = ApiPath(...)) -> dict[str, Any]
     expected = os.getenv("COMPOSIO_CHATOPS_WEBHOOK_TOKEN", "").strip()
     if not expected:
         raise HTTPException(status_code=503, detail="Composio ChatOps is not configured")
-    if not hmac.compare_digest(token, expected):
+    if not hmac.compare_digest(token.encode(), expected.encode()):  # bytes: a non-ASCII path token would make the str form raise
         raise HTTPException(status_code=401, detail="invalid webhook token")
     try:
         payload = await request.json()
