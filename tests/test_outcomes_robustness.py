@@ -66,3 +66,28 @@ def test_non_finite_record_field_is_nulled_not_crash(monkeypatch, tmp_path, capl
     assert data[0]["gap_pct"] is None and data[0]["rvol"] is None
     assert data[0]["ok"] == 1.5  # finite value preserved
     assert any("non-finite float" in r.getMessage() for r in caplog.records)
+
+
+def test_compute_hit_rates_excludes_missing_gap_from_real_zero_bucket(monkeypatch):
+    records = [
+        {
+            "symbol": "MISSING",
+            "gap_pct": None,
+            "rvol": 2.0,
+            "profitable_30m": False,
+            "pnl_30m_pct": -1.0,
+        },
+        {
+            "symbol": "ZERO",
+            "gap_pct": 0.0,
+            "rvol": 2.0,
+            "profitable_30m": True,
+            "pnl_30m_pct": 1.0,
+        },
+    ]
+    monkeypatch.setattr(outcomes, "_load_outcomes_range", lambda _days: records)
+
+    buckets = outcomes.compute_hit_rates(lookback_days=20)
+
+    assert sum(bucket["total"] for bucket in buckets.values()) == 1
+    assert sum(bucket["profitable"] for bucket in buckets.values()) == 1
