@@ -281,3 +281,40 @@ def test_validation_endpoint_fails_closed_for_bad_config_input_and_backend(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_non_ascii_bearer_token_is_a_clean_401_not_a_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrong token must be rejected, whatever bytes it is made of.
+
+    ``hmac.compare_digest`` raises ``TypeError`` on str arguments that are not
+    pure ASCII, and ``BaseHTTPRequestHandler`` parses header values as latin-1 —
+    so a raw non-ASCII byte in ``Authorization`` reached the comparison as a
+    non-ASCII str. That escaped ``do_GET`` unhandled: the connection was dropped
+    without a response and the traceback landed in the log, all reachable by an
+    unauthenticated client. Comparing the UTF-8 bytes makes it an ordinary
+    mismatch, which is what ``terminal_auth._constant_time_compare`` already did.
+    """
+    monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "shared-secret")
+    server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=0, host="127.0.0.1")
+    assert server is not None
+    base = f"http://127.0.0.1:{server.server_port}"
+
+    try:
+        for path in ("/signals.json", "/metrics"):
+            request = urllib.request.Request(base + path, method="GET")
+            request.add_header("Authorization", "Bearer t\u00f6ken")
+            with pytest.raises(urllib.error.HTTPError) as rejected:
+                urllib.request.urlopen(request, timeout=2)
+            assert rejected.value.code == 401, path
+
+        with pytest.raises(urllib.error.HTTPError) as ai_rejected:
+            urllib.request.urlopen(
+                _request(base + "/ai-insights", token="t\u00f6ken", question="q"),
+                timeout=2,
+            )
+        assert ai_rejected.value.code == 401
+    finally:
+        server.shutdown()
+        server.server_close()

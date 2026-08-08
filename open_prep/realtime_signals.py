@@ -1372,7 +1372,7 @@ def _start_telemetry_server(
                     _hdr = self.headers.get("Authorization", "")
                     _parts = _hdr.split(" ", 1)
                     _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
-                    if not hmac.compare_digest(_supplied, _auth_token):
+                    if not hmac.compare_digest(_supplied.encode(), _auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -1406,7 +1406,7 @@ def _start_telemetry_server(
                     _hdr = self.headers.get("Authorization", "")
                     _parts = _hdr.split(" ", 1)
                     _supplied = _parts[1].strip() if len(_parts) == 2 and _parts[0].lower() == "bearer" else ""
-                    if not hmac.compare_digest(_supplied, _auth_token):
+                    if not hmac.compare_digest(_supplied.encode(), _auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
                         self.send_response(401)
                         self.end_headers()
                         return
@@ -4561,7 +4561,7 @@ def _authorize_private_request(
         else ""
     )
     constant_time_equals = hmac.compare_digest
-    if not constant_time_equals(supplied, auth_token):
+    if not constant_time_equals(supplied.encode(), auth_token.encode()):  # bytes: a non-ASCII header would make the str form raise
         handler.send_response(401)
         handler.end_headers()
         return False
