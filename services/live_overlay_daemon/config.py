@@ -961,6 +961,16 @@ def hold_manager_shadow_max_future_skew_secs() -> int:
     )
 
 
+def bar_max_future_skew_secs() -> int:
+    """Maximum accepted positive clock skew of an ingested market bar."""
+    return _clamped_int(
+        "BAR_MAX_FUTURE_SKEW_SECS",
+        120,
+        0,
+        3_600,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Railway container metrics bridge
 # ---------------------------------------------------------------------------

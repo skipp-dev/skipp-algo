@@ -670,7 +670,16 @@ def _experiment_snapshot() -> dict[str, object]:
 
         phase_e2 = raw.get("phase_e2_verdict")
         if isinstance(phase_e2, dict):
-            for key, hypothesis in _EXPERIMENT_VERDICT_KEYS.items():
+            # Known keys first, in their declared order, then anything the
+            # producer has added since: iterating the consumer's own map would
+            # drop a new hypothesis silently, which is exactly what a staggered
+            # deploy produces.
+            unknown_keys = sorted(set(phase_e2) - set(_EXPERIMENT_VERDICT_KEYS))
+            ordered = [
+                *_EXPERIMENT_VERDICT_KEYS.items(),
+                *((key, key) for key in unknown_keys),
+            ]
+            for key, hypothesis in ordered:
                 verdict = phase_e2.get(key)
                 if not isinstance(verdict, dict):
                     continue
@@ -1402,6 +1411,10 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")
     lines.append(
         f"live_overlay_bar_requested_symbols_evicted_total {cache.evicted_protected_total()}"
+    )
+    lines.append("# TYPE live_overlay_bar_future_dated_rejected_total counter")
+    lines.append(
+        f"live_overlay_bar_future_dated_rejected_total {cache.future_dated_bars_rejected_total()}"
     )
 
     overlay_age = cache.overlay_age_secs()
