@@ -540,6 +540,15 @@ jobs:
         # scripts/select_workflow_guards.py — a pin that depends on the selector
         # cannot catch the selector regressing. ci.yml carries the repo's only
         # full-suite execution, so both gaps are worth a sub-second entry.
+        #
+        # 2026-08-08: the fifteen entries at the end of the list are repo-wide
+        # source guards that were advisory only — they ran in `validate`, after
+        # the merge they exist to block. Each reads a production surface where a
+        # NEW violation would have merged green: LLM egress bypassing AI
+        # Defense, a secret-backed env var read with a fallback argument, the
+        # ml/ kernel importing a domain package, POSIX-only imports in
+        # cross-platform code, float equality in smc_core/, unpinned deps in the
+        # file production installs. 150 tests, ~31 s serial.
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
@@ -703,7 +712,22 @@ jobs:
             tests/test_ts_vacuity_guard_is_required.py \
             tests/test_dependabot_local_version_pins.py \
             tests/test_dependabot_typescript_major_hold.py \
-            tests/test_workflow_pine_library_publish_handlibs_contract.py
+            tests/test_workflow_pine_library_publish_handlibs_contract.py \
+            tests/test_ai_defense_egress_guard.py \
+            tests/test_feature_flag_centralization.py \
+            tests/test_import_safety.py \
+            tests/test_live_overlay_daemon_deploy_artifact_contract.py \
+            tests/test_lru_cache_bounded_sweep.py \
+            tests/test_ml_kernel_import_boundary.py \
+            tests/test_no_direct_to_csv_in_production.py \
+            tests/test_no_eager_format_in_logger_calls.py \
+            tests/test_no_mtime_pick_in_production.py \
+            tests/test_pine_legacy_path_centralization.py \
+            tests/test_posix_only_import_guard.py \
+            tests/test_smc_core_float_equality_discipline.py \
+            tests/test_sprt_decision_consumer_coverage.py \
+            tests/test_workflow_env_var_defaults.py \
+            tests/test_workflow_invoked_scripts_import_order.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,
