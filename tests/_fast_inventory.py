@@ -162,6 +162,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # costs ~62s — nearly all of it that first parse.)
     "test_dangerous_builtins_zero_surface.py",
     "test_datetime_tz_safety_zero_surface.py",
+    "test_market_timezone_contract.py",
     "test_dynamic_exec_and_pickle_zero_surface.py",
     "test_exec_mktemp_shelltrue_zero_surface.py",
     "test_library_discipline_zero_surface.py",

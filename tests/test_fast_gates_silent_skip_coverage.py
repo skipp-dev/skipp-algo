@@ -150,6 +150,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_datetime_tz_safety_zero_surface.py",
+    "tests/test_market_timezone_contract.py",
     "tests/test_detect_vacuous_claims.py",
     "tests/test_division_site_baseline.py",
     "tests/test_dynamic_exec_and_pickle_zero_surface.py",
