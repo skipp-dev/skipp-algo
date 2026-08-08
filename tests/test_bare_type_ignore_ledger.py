@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -76,12 +78,7 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
 
 
 def _iter_prod_py() -> list[Path]:
-    out: list[Path] = []
-    for p in _REPO_ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in p.relative_to(_REPO_ROOT).parts):
-            continue
-        out.append(p)
-    return sorted(out)
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _measured_sites() -> set[tuple[str, int]]:

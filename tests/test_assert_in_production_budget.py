@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -26,16 +28,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset()
 
 
 def _iter_first_party_py_files() -> list[Path]:
-    out: list[Path] = []
-    for path in REPO_ROOT.rglob("*.py"):
-        try:
-            rel_parts = path.relative_to(REPO_ROOT).parts
-        except ValueError:
-            continue
-        if any(part in _DIR_EXCLUDE for part in rel_parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _collect_assert_sites(path: Path) -> list[tuple[str, int]]:
