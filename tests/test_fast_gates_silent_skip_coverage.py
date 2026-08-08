@@ -338,6 +338,24 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_tv_post_mutation_verify_contract.py",
     "tests/test_workflow_upload_artifact_uniform_version.py",
     "tests/test_yaml_xml_zero_surface.py",
+    # 2026-08-08: repo-wide source guards promoted from advisory to required.
+    # Each reads a production surface where a new violation used to merge green
+    # and was only reported afterwards by `validate`.
+    "tests/test_ai_defense_egress_guard.py",
+    "tests/test_feature_flag_centralization.py",
+    "tests/test_import_safety.py",
+    "tests/test_live_overlay_daemon_deploy_artifact_contract.py",
+    "tests/test_lru_cache_bounded_sweep.py",
+    "tests/test_ml_kernel_import_boundary.py",
+    "tests/test_no_direct_to_csv_in_production.py",
+    "tests/test_no_eager_format_in_logger_calls.py",
+    "tests/test_no_mtime_pick_in_production.py",
+    "tests/test_pine_legacy_path_centralization.py",
+    "tests/test_posix_only_import_guard.py",
+    "tests/test_smc_core_float_equality_discipline.py",
+    "tests/test_sprt_decision_consumer_coverage.py",
+    "tests/test_workflow_env_var_defaults.py",
+    "tests/test_workflow_invoked_scripts_import_order.py",
 )
 
 

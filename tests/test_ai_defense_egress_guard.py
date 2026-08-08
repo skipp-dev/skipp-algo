@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 ROOT = Path(__file__).resolve().parents[1]
 _EXCLUDED_PARTS = {".git", ".venv", "artifacts", "docs", "node_modules", "tests"}
 _GENERATION_ENDPOINTS = (
@@ -19,11 +21,7 @@ _EXPECTED_DIRECT_EGRESS = {
 
 
 def _production_python() -> list[Path]:
-    return [
-        path
-        for path in ROOT.rglob("*.py")
-        if not any(part in _EXCLUDED_PARTS or part.startswith(".") for part in path.relative_to(ROOT).parts)
-    ]
+    return iter_production_py_files(_EXCLUDED_PARTS)
 
 
 def test_direct_llm_egress_inventory_is_exact_and_guarded():

@@ -290,6 +290,24 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # partition is validated before merge, not only post-merge in
     # `validate`.
     "test_pytest_marker_bucket_discipline.py",
+    # Repo-wide source guards moved onto the required path 2026-08-08: each
+    # reads a production surface where a new violation used to merge green,
+    # caught only afterwards by `validate`.
+    "test_ai_defense_egress_guard.py",
+    "test_feature_flag_centralization.py",
+    "test_import_safety.py",
+    "test_live_overlay_daemon_deploy_artifact_contract.py",
+    "test_lru_cache_bounded_sweep.py",
+    "test_ml_kernel_import_boundary.py",
+    "test_no_direct_to_csv_in_production.py",
+    "test_no_eager_format_in_logger_calls.py",
+    "test_no_mtime_pick_in_production.py",
+    "test_pine_legacy_path_centralization.py",
+    "test_posix_only_import_guard.py",
+    "test_smc_core_float_equality_discipline.py",
+    "test_sprt_decision_consumer_coverage.py",
+    "test_workflow_env_var_defaults.py",
+    "test_workflow_invoked_scripts_import_order.py",
 })
 
 # Glob patterns covered by the fast lane. fast-gates expands
