@@ -122,6 +122,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_asyncio_event_loop_zero_surface.py",
     "tests/test_atexit_register_zero_surface.py",
     "tests/test_atomic_write_call_sites.py",
+    "tests/test_atr_split_calendar_wiring.py",
     "tests/test_bare_type_ignore_ledger.py",
     "tests/test_bundle_loader_frame_discipline.py",
     "tests/test_broad_except_silent_budget.py",

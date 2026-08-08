@@ -28,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import iter_production_py_files
 from tests._pin_registry import noqa_sites
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -56,12 +57,7 @@ _NOQA_RE = re.compile(r"#\s*noqa(?::\s*([A-Z0-9, ]+))?")
 
 
 def _iter_prod_files() -> list[Path]:
-    out: list[Path] = []
-    for path in _REPO_ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
-            continue
-        out.append(path)
-    return sorted(out)
+    return iter_production_py_files(_DIR_EXCLUDE)
 
 
 def _parse_codes(raw: str | None) -> tuple[str, ...]:

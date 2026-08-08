@@ -16,9 +16,11 @@ accumulates history; the churn is visible in metrics.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 
-from services.live_overlay_daemon import cache, compute, request_hotspots
+from services.live_overlay_daemon import cache, compute, main, request_hotspots
 
 
 def _bar(i: int) -> dict[str, float]:
@@ -171,3 +173,41 @@ def test_expanded_history_is_bounded_to_recent_symbols() -> None:
     assert cache.get_bars_snapshot("S0")
     assert cache._bars["S0"].maxlen == 60
     assert len(cache._expanded_retention.caps) == cache._MAX_EXPANDED_BAR_SYMBOLS
+
+
+def test_a_future_dated_bar_never_reaches_the_cache() -> None:
+    """One bad timestamp used to make the whole symbol read as ageless.
+
+    ``_latest_bar_age_secs`` takes ``max(ts_event)`` and returns None for a bar
+    dated ahead of now, and None means stale to every caller. A single
+    future-dated tick therefore hid every valid bar behind it for as long as it
+    stayed in the deque.
+    """
+    before = cache.future_dated_bars_rejected_total()
+    bar = _bar(1) | {"ts_event": int((time.time() + 3_600) * 1_000_000_000)}
+
+    cache.push_bar("FUT", bar)
+
+    assert cache.get_bars_snapshot("FUT") == []
+    assert cache.future_dated_bars_rejected_total() == before + 1
+
+
+def test_a_valid_bar_keeps_its_age_when_a_future_bar_was_offered() -> None:
+    """The point of the rejection: fresh data stays readable."""
+    now = time.time()
+    cache.push_bar("MIX", _bar(1) | {"ts_event": int((now + 3_600) * 1_000_000_000)})
+    cache.push_bar("MIX", _bar(2) | {"ts_event": int((now - 90) * 1_000_000_000)})
+
+    age = main._latest_bar_age_secs(cache.get_bars_snapshot("MIX"))
+
+    assert age is not None, "a valid recent bar was masked by a rejected one"
+    assert age == pytest.approx(30.0, abs=5.0)
+
+
+def test_a_bar_inside_the_accepted_skew_is_kept() -> None:
+    """Counter-test, so the fix cannot degrade into rejecting everything."""
+    ts = int((time.time() + 1) * 1_000_000_000)
+
+    cache.push_bar("SKEW", _bar(3) | {"ts_event": ts})
+
+    assert len(cache.get_bars_snapshot("SKEW")) == 1

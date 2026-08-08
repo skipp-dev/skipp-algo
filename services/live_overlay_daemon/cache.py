@@ -94,6 +94,7 @@ _overlay_computed_at: float = 0.0
 # Mutated in place under `_bar_lock` — no ``global`` statement (statement-budget
 # guard) and trivially resettable in tests.
 _evict_counters: dict[str, int] = {"total": 0, "protected": 0}
+_rejected_bar_counters: dict[str, int] = {"future_ts": 0}
 
 
 # VIX level (updated separately since it's a single value)
@@ -136,6 +137,18 @@ def init_bar_cache(
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     """Append a 1-min OHLCV bar for symbol, evicting stale entries."""
     global _last_eviction_at
+    ts = bar.get("ts_event")
+    if (
+        isinstance(ts, int)
+        and not isinstance(ts, bool)
+        and ts / 1_000_000_000 > time.time() + config.bar_max_future_skew_secs()
+    ):
+        # Keeping one of these would make _latest_bar_age_secs() return None for
+        # the whole symbol, masking the valid bars behind it for as long as it
+        # stays in the deque.
+        with _bar_lock:
+            _rejected_bar_counters["future_ts"] += 1
+        return
     with _bar_lock:
         now = time.monotonic()
         # Seed the eviction clock on first push so periodic eviction can fire
@@ -228,6 +241,16 @@ def evicted_protected_total() -> int:
     """Evictions that hit a REQUESTED symbol — the cap is too small when >0."""
     with _bar_lock:
         return _evict_counters["protected"]
+
+
+def future_dated_bars_rejected_total() -> int:
+    """Bars dropped at ingest for being dated beyond the accepted clock skew.
+
+    Separates "the provider sent an impossible timestamp" from "no data at all";
+    both otherwise surface only as a stale symbol.
+    """
+    with _bar_lock:
+        return _rejected_bar_counters["future_ts"]
 
 
 def total_bar_count() -> int:
