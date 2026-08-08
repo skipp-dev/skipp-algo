@@ -152,7 +152,7 @@ curl https://liveoverlaydaemon-production.up.railway.app/ready
 | `UPTIMEROBOT_API_KEY` | live_overlay_daemon | optional | API-Key für UptimeRobot-Bridge |
 | `UPTIMEROBOT_MONITOR_IDS` | live_overlay_daemon | optional | Kommagetrennte Monitor-IDs; Production-Allowlist: `803309701,803341452,803343155,803343156,803362511,803555263,803555264` |
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | live_overlay_daemon | optional | GitHub PAT für Workflow-Bridge |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skippALGO/skipp-algo` |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | live_overlay_daemon | optional | `owner/repo`, default `skipp-dev/skipp-algo` |
 | `NEWS_SNAPSHOT_PATH` | live_overlay_daemon | optional | Pfad zum News-Snapshot-JSON |
 | `OVERLAY_SERVICE_URL` | metrics-collector | ✅ | Scrape target ohne Scheme, production: `${{live_overlay_daemon.RAILWAY_PRIVATE_DOMAIN}}:8080` |
 | `SIGNALS_SERVICE_URL` | live_overlay_daemon, metrics-collector | ✅ | `${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080` — internal host:port of the signals producer; Alloy scrapes `/metrics`, live_overlay_daemon fetches `/signals` |
@@ -467,7 +467,7 @@ CI-Workflows und exportiert ihn als Prometheus-Gauges.
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | — | GitHub PAT mit `actions:read` |
-| `GITHUB_WORKFLOW_MONITOR_REPO` | `skippALGO/skipp-algo` | `owner/repo` |
+| `GITHUB_WORKFLOW_MONITOR_REPO` | `skipp-dev/skipp-algo` | `owner/repo`. Leave unset in production: the code default is already the canonical slug. `skippALGO` is the org's pre-rename name and resolves only through GitHub's rename redirect, so pinning it here would send `GITHUB_WORKFLOW_MONITOR_TOKEN` to a redirect target. |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | — | Kommagetrennte Workflow-IDs |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | 5 | HTTP-Timeout |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | 30 | Cache-TTL in Sekunden |
