@@ -25,6 +25,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
@@ -97,7 +99,9 @@ def test_first_party_imports_follow_sys_path_insert() -> None:
     """If a script mutates ``sys.path`` for REPO_ROOT, every first-party
     import in that script must appear *after* the mutation."""
     violations: list[str] = []
-    for path in sorted(SCRIPTS_DIR.rglob("*.py")):
+    for path in iter_production_py_files(
+        frozenset(), root=SCRIPTS_DIR, minimum=300
+    ):
         if path.name == "__init__.py":
             continue
         try:

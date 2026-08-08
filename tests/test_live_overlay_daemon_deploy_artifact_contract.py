@@ -27,6 +27,8 @@ import ast
 import sys
 from pathlib import Path
 
+from tests._guard_corpus import iter_production_py_files
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PKG = _REPO_ROOT / "services" / "live_overlay_daemon"
 _ROOT_REQUIREMENTS = _REPO_ROOT / "requirements.txt"
@@ -75,7 +77,7 @@ class _ModuleLevelImports(ast.NodeVisitor):
 
 def _daemon_third_party_imports() -> set[str]:
     names: set[str] = set()
-    for path in sorted(_PKG.rglob("*.py")):
+    for path in iter_production_py_files(frozenset(), root=_PKG, minimum=12):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         _ModuleLevelImports(names).visit(tree)
     return {n for n in names if n not in sys.stdlib_module_names}
