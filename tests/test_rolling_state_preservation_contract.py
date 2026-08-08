@@ -52,3 +52,57 @@ def test_stateful_snapshot_workflows_use_fail_closed_remote_tip_publisher() -> N
         runs = "\n".join(str(step.get("run") or "") for step in _steps(workflow, job))
         assert "scripts/publish_bot_snapshot.py" in runs, workflow
         assert f"--branch {branch}" in runs, workflow
+
+
+# ---------------------------------------------------------------------------
+# The publisher being fail-closed says nothing about its INPUT being complete.
+# plan-2-8-evaluation.yml appended to a history that a fresh checkout of main
+# never contains, then published the result — so every run replaced the
+# accumulated history with a single row. Measured 2026-08-07: the published
+# file carried 1 row while the sibling producer's carried 133, and the
+# publisher test above was green the whole time.
+# ---------------------------------------------------------------------------
+
+_HISTORY_PUBLISHERS = {
+    "plan-2-8-evaluation.yml": (
+        "evaluate",
+        "restore_history",
+        "Append to history JSONL",
+    ),
+    "smc-measurement-benchmark-rolling.yml": (
+        "rolling-benchmark",
+        "restore_history",
+        "Plan 2.8 history archive (snapshot append)",
+    ),
+}
+
+
+def test_history_publishers_restore_before_they_append() -> None:
+    """A history that lives on a bot branch must be read back into the checkout
+    before anything appends to it, and the append must not run if that failed."""
+    for workflow, (job, restore_id, append_name) in _HISTORY_PUBLISHERS.items():
+        steps = _steps(workflow, job)
+        ids = [step.get("id") for step in steps]
+        names = [step.get("name") for step in steps]
+        assert restore_id in ids, f"{workflow}: no {restore_id!r} step"
+        assert ids.index(restore_id) < names.index(append_name), (
+            f"{workflow}: {restore_id!r} must run before {append_name!r}"
+        )
+        condition = str(_step(steps, append_name).get("if") or "")
+        assert f"steps.{restore_id}.outcome == 'success'" in condition, (
+            f"{workflow}: {append_name!r} must not append onto a failed restore"
+        )
+
+
+def test_history_restore_fails_closed_on_an_unexplained_fetch_error() -> None:
+    """A missing branch bootstraps; anything else must stop the run. Continuing
+    here is what turns a transient fetch error into a truncated history."""
+    for workflow, (job, restore_id, _) in _HISTORY_PUBLISHERS.items():
+        steps = _steps(workflow, job)
+        matches = [step for step in steps if step.get("id") == restore_id]
+        assert matches, f"{workflow}: no {restore_id!r} step"
+        run = str(matches[0].get("run") or "")
+        assert "exit 1" in run, f"{workflow}: restore must be able to fail the run"
+        assert "refusing to replace" in run, (
+            f"{workflow}: restore failure must say why it refuses to continue"
+        )
