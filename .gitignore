@@ -134,7 +134,12 @@ cache/*/.ibkr_smoke_status_*
 docs/audit-*.md
 
 # Continue IDE config (machine-local, contains absolute paths)
-.continue/
+.continue/*
+# EXCEPTION: the curated project guide is team-shareable -- it contains no
+# absolute paths or machine-local state, so every clone/agent gets the same
+# onboarding doc. Everything else under .continue/ stays ignored.
+!.continue/rules/
+!.continue/rules/CONTINUE.md
 
 # Claude Code + Cursor local state (agent worktrees, settings.local.json,
 # .mdc rules) — machine-local tooling, never project files.
