@@ -159,7 +159,12 @@ def _load_state_locked(ts: float, horizon: float) -> None:
             strength, marked_at = int(value[0]), float(value[1])
         except (TypeError, ValueError, IndexError, KeyError):
             continue
-        if ts - marked_at <= horizon:
+        if (
+            symbol
+            and direction
+            and strength in _STRENGTH.values()
+            and 0.0 <= ts - marked_at <= horizon
+        ):
             _NOTIFIED[(symbol, direction)] = (strength, marked_at)
 
 
@@ -285,9 +290,10 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     """Coerce to float, never raising — a single corrupt signal field (None,
     ``"n/a"``, …) must not blow up the whole batch notification."""
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return default
+    return parsed if float("-inf") < parsed < float("inf") else default
 
 
 def _a1_volume_pace(s: Any) -> float:
@@ -305,9 +311,8 @@ def _a1_volume_pace(s: Any) -> float:
 
 
 # P(follow-through) at/above which a calibrated A1 earns the ⭐ (armed only).
-try:
-    _CALIBRATION_P_THRESHOLD = float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"))
-except (TypeError, ValueError):
+_CALIBRATION_P_THRESHOLD = _safe_float(_env("RT_CALIBRATION_P_THRESHOLD", "0.5"), 0.5)
+if not 0.0 <= _CALIBRATION_P_THRESHOLD <= 1.0:
     _CALIBRATION_P_THRESHOLD = 0.5
 
 
@@ -382,15 +387,20 @@ def _fmt_trade_context(s: Any) -> str:
     """Indented trade-context line (ATR bracket from open_prep/trade_context.py),
     or "" when the signal carries no usable context — the alert line stays as-is.
     Rendered as its own line so the level line above never gets pushed off-screen."""
-    entry = getattr(s, "trade_entry", None)
-    stop = getattr(s, "trade_stop", None)
-    target = getattr(s, "trade_target", None)
-    r_mult = getattr(s, "trade_r", None)
-    if entry is None or stop is None or target is None or not entry:
+    missing = float("nan")
+    entry = _safe_float(getattr(s, "trade_entry", None), missing)
+    stop = _safe_float(getattr(s, "trade_stop", None), missing)
+    target = _safe_float(getattr(s, "trade_target", None), missing)
+    r_mult = _safe_float(getattr(s, "trade_r", None), missing)
+    if not all(value > 0.0 for value in (entry, stop, target, r_mult)):
+        return ""
+    direction = str(getattr(s, "direction", "")).upper()
+    bullish = direction in _BULLISH_DIRECTIONS
+    bearish = direction in _BEARISH_DIRECTIONS
+    if not ((bullish and stop < entry < target) or (bearish and target < entry < stop)):
         return ""
     stop_pct = (stop - entry) / entry * 100.0
     target_pct = (target - entry) / entry * 100.0
-    bullish = str(getattr(s, "direction", "")).upper() in ("LONG", "B_UP", "UP")
     entry_op = "≤" if bullish else "≥"
     return (
         f"\n   ↳ entry {entry_op}{entry:.2f} · stop {stop:.2f} ({stop_pct:+.1f}%) · "

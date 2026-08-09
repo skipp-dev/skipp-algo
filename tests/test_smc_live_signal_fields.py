@@ -127,7 +127,42 @@ def test_non_finite_trade_field_is_rejected(monkeypatch: pytest.MonkeyPatch) -> 
     _patch_snapshot(monkeypatch, [_row("NVDA", "A0", trade_entry=float("inf"))])
     fields = compute._get_signal_fields("NVDA")
     assert fields["trade_entry"] is None
-    assert fields["trade_stop"] == 192.01
+    assert fields["trade_stop"] is None
+    assert fields["trade_target"] is None
+    assert fields["trade_r"] is None
+
+
+def test_partial_trade_bracket_is_rejected_as_a_unit(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", trade_target=None)])
+
+    fields = compute._get_signal_fields("NVDA")
+
+    assert fields["signal_level"] == "A0"
+    assert fields["trade_entry"] is None
+    assert fields["trade_stop"] is None
+    assert fields["trade_target"] is None
+    assert fields["trade_r"] is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"trade_stop": 210.0, "trade_target": 190.0},
+        {"direction": "SIDEWAYS"},
+    ],
+)
+def test_incoherent_trade_bracket_is_rejected_as_a_unit(
+    monkeypatch: pytest.MonkeyPatch, overrides: dict[str, object],
+) -> None:
+    _patch_snapshot(monkeypatch, [_row("NVDA", "A0", **overrides)])
+
+    fields = compute._get_signal_fields("NVDA")
+
+    assert fields["signal_level"] == "A0"
+    assert fields["trade_entry"] is None
+    assert fields["trade_stop"] is None
+    assert fields["trade_target"] is None
+    assert fields["trade_r"] is None
 
 
 def test_boolean_direction_and_trade_fields_are_not_coerced(
