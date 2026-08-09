@@ -2517,6 +2517,56 @@ def _render_evidence_freshness_metrics() -> list[str]:
     for metric_name, raw_value in portfolio_metrics.items():
         lines.append(f"# TYPE {metric_name} gauge")
         lines.append(f"{metric_name} {_prom_numeric_value(raw_value)}")
+
+    snapshot_age_known = _prom_numeric_value(
+        portfolio.get("latest_snapshot_age_known", 0)
+    )
+    snapshot_max_age_known = _prom_numeric_value(
+        portfolio.get("latest_snapshot_max_age_known", 0)
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_age_known gauge")
+    lines.append(f"live_overlay_portfolio_snapshot_age_known {snapshot_age_known}")
+    lines.append("# TYPE live_overlay_portfolio_snapshot_age_seconds gauge")
+    lines.append(
+        "live_overlay_portfolio_snapshot_age_seconds "
+        f"{_prom_numeric_value(portfolio.get('latest_snapshot_age_seconds'))}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_known gauge")
+    lines.append(
+        f"live_overlay_portfolio_snapshot_max_age_known {snapshot_max_age_known}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_portfolio_snapshot_max_age_seconds "
+        f"{_prom_numeric_value(portfolio.get('latest_snapshot_max_age_seconds'))}"
+    )
+
+    verdict_counts = portfolio.get("verdict_counts") or {}
+    lines.append("# TYPE live_overlay_portfolio_risk_decisions_total counter")
+    for verdict in ("allow", "resize", "reject"):
+        lines.append(
+            "live_overlay_portfolio_risk_decisions_total{"
+            f'verdict="{verdict}"'
+            f"}} {_prom_numeric_value(verdict_counts.get(verdict, 0))}"
+        )
+
+    lines.append("# TYPE live_overlay_portfolio_reconciliation_known gauge")
+    lines.append(
+        "live_overlay_portfolio_reconciliation_known "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_known', 0))}"
+    )
+    lines.append(
+        "# TYPE live_overlay_portfolio_reconciliation_max_abs_quantity_delta gauge"
+    )
+    lines.append(
+        "live_overlay_portfolio_reconciliation_max_abs_quantity_delta "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_max_abs_quantity_delta'))}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_reconciliation_reconciled gauge")
+    lines.append(
+        "live_overlay_portfolio_reconciliation_reconciled "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_reconciled', 0))}"
+    )
     _emit_age(
         "live_overlay_portfolio_shadow_newest_risk_relevant_session_age",
         str(portfolio.get("newest_risk_relevant_session", "")),

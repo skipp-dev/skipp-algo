@@ -95,7 +95,12 @@ IDs locally, capture the after-session snapshot, and reconcile signed position
 deltas. Only the incubation audit and a sanitized reconciliation summary are
 published to the evidence branch; account IDs, positions, raw snapshots and
 execution IDs remain local. Grafana reports readiness/progress and alerts on a
-missing decision, missing/failed reconciliation or incomplete snapshot evidence.
+missing decision, snapshot age outside the evaluated limit, new reject verdicts,
+missing/failed reconciliation and non-zero reconciliation drift. The exporter
+publishes the latest decision-time snapshot age, cumulative decisions labelled
+by verdict, and the latest sanitized maximum absolute quantity delta plus its
+reconciled state. Unknown evidence has an explicit `*_known=0` companion and is
+never interpreted as a measured zero.
 None of these signals changes the configured mode.
 
 ## Failure semantics
@@ -130,8 +135,10 @@ Before changing checked-in mode from `shadow` to `enforce`:
 3. Projected state reconciles to subsequent IBKR position/order snapshots.
 4. Every working-order role is classified.
 5. Limit calibration and any resize policy receive explicit human approval.
-6. Grafana/alert wiring for snapshot age, rejections and reconciliation drift is
-   deployed with the configuration change.
+6. Grafana/alert wiring for `live_overlay_portfolio_snapshot_age_seconds`,
+   `live_overlay_portfolio_risk_decisions_total{verdict=...}` and
+   `live_overlay_portfolio_reconciliation_max_abs_quantity_delta` / `_reconciled`
+   is deployed with the configuration change.
 
 Correlation/sector caps additionally require coverage and false-positive
 evidence of their own; deterministic-limit promotion does not promote them.

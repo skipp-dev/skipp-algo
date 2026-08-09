@@ -129,6 +129,9 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
                 "min_shadow_sessions_for_review": 20,
                 "risk_relevant_sessions_observed": 4,
                 "risk_relevant_decision_count": 6,
+                "verdict_counts": {"allow": 3, "resize": 2, "reject": 1},
+                "latest_snapshot_age_seconds": 7.5,
+                "latest_snapshot_max_age_seconds": 120.0,
                 "newest_risk_relevant_session": "2026-08-08",
                 "submission_attempt_count": 6,
                 "submission_attempts_without_prior_evaluation": 0,
@@ -136,6 +139,9 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
                 "reconciliation_sessions": 4,
                 "risk_relevant_sessions_missing_reconciliation": 0,
                 "reconciliation_failures": 0,
+                "latest_reconciliation_at": "2026-08-08T21:05:00+00:00",
+                "latest_reconciliation_max_abs_quantity_delta": 0.25,
+                "latest_reconciliation_reconciled": True,
                 "evidence_complete": False,
             },
         },
@@ -152,6 +158,20 @@ def test_valid_snapshot_is_normalized(monkeypatch, tmp_path):
     assert snap["portfolio_shadow"]["known"] == 1.0
     assert snap["portfolio_shadow"]["risk_relevant_sessions_observed"] == 4.0
     assert snap["portfolio_shadow"]["newest_risk_relevant_session"] == "2026-08-08"
+    assert snap["portfolio_shadow"]["verdict_counts"] == {
+        "allow": 3.0,
+        "resize": 2.0,
+        "reject": 1.0,
+    }
+    assert snap["portfolio_shadow"]["latest_snapshot_age_known"] == 1.0
+    assert snap["portfolio_shadow"]["latest_snapshot_age_seconds"] == 7.5
+    assert snap["portfolio_shadow"]["latest_snapshot_max_age_known"] == 1.0
+    assert snap["portfolio_shadow"]["latest_reconciliation_known"] == 1.0
+    assert (
+        snap["portfolio_shadow"]["latest_reconciliation_max_abs_quantity_delta"]
+        == 0.25
+    )
+    assert snap["portfolio_shadow"]["latest_reconciliation_reconciled"] == 1.0
 
 
 def test_submitter_section_defaults_when_absent(monkeypatch, tmp_path):

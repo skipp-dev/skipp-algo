@@ -79,6 +79,8 @@ def test_shadow_records_would_block_but_still_calls_submitter(tmp_path: Path) ->
     assert summary["portfolio_risk"]["verdict"] == "resize"
     rows = _read(audit)
     assert rows[0]["action"] == "portfolio_risk_evaluated"
+    assert rows[0]["portfolio_risk"]["snapshot_age_seconds"] == 0.0
+    assert rows[0]["portfolio_risk"]["max_snapshot_age_seconds"] == 120.0
     assert rows[1]["portfolio_risk"]["verdict"] == "resize"
     serialized = json.dumps(rows)
     assert "DU1" not in serialized

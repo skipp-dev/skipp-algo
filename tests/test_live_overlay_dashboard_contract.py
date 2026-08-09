@@ -2168,12 +2168,17 @@ def test_dashboard_exposes_portfolio_shadow_evidence_without_auto_promotion() ->
     assert any("missing_reconciliation_sessions" in expr for expr in progress_exprs)
     assert any("newest_risk_relevant_session_age_seconds" in expr for expr in progress_exprs)
     assert any("newest_risk_relevant_session_age_known" in expr for expr in progress_exprs)
+    assert any("portfolio_snapshot_age_seconds" in expr for expr in progress_exprs)
+    assert any('verdict="reject"' in expr for expr in progress_exprs)
+    assert any('verdict="resize"' in expr for expr in progress_exprs)
 
     integrity_exprs = {target["expr"] for target in integrity["targets"]}
     assert any("without_prior_evaluation" in expr for expr in integrity_exprs)
     assert any("submission_attempts_total" in expr for expr in integrity_exprs)
     assert any("incomplete_decisions" in expr for expr in integrity_exprs)
     assert any("reconciliation_failures" in expr for expr in integrity_exprs)
+    assert any("reconciliation_max_abs_quantity_delta" in expr for expr in integrity_exprs)
+    assert any("reconciliation_reconciled" in expr for expr in integrity_exprs)
 
 
 @pytest.mark.parametrize(
@@ -2190,13 +2195,23 @@ def test_dashboard_exposes_portfolio_shadow_evidence_without_auto_promotion() ->
             "critical",
         ),
         (
+            "lo-portfolio-snapshot-age-invalid",
+            "live_overlay_portfolio_snapshot_age_seconds",
+            "critical",
+        ),
+        (
+            "lo-portfolio-risk-rejection",
+            "live_overlay_portfolio_risk_decisions_total",
+            "warning",
+        ),
+        (
             "lo-portfolio-reconcile-missing",
             "live_overlay_portfolio_shadow_missing_reconciliation_sessions",
             "warning",
         ),
         (
             "lo-portfolio-reconciliation-failed",
-            "live_overlay_portfolio_shadow_reconciliation_failures_total",
+            "live_overlay_portfolio_reconciliation_max_abs_quantity_delta",
             "critical",
         ),
         (

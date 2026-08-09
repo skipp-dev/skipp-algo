@@ -12,6 +12,8 @@ def _row(day: int, *, reasons=(), candidate_gross_pct: float = 5.0) -> dict:
         "portfolio_risk": {
             "verdict": "allow" if not reasons else "reject",
             "reasons": list(reasons),
+            "snapshot_age_seconds": 12.0 + day,
+            "max_snapshot_age_seconds": 120.0,
             "projection": {
                 "candidate_gross_pct": candidate_gross_pct,
                 "projected_gross_pct": 10 + day,
@@ -26,6 +28,7 @@ def _reconciliation(day: int, *, reconciled: bool = True) -> dict:
         "after_captured_at": (
             datetime(2026, 7, 1, 20, tzinfo=UTC) + timedelta(days=day)
         ).isoformat(),
+        "max_abs_quantity_delta": 0.0 if reconciled else 2.0,
         "reconciled": reconciled,
     }
 
@@ -41,6 +44,11 @@ def test_report_requires_twenty_clean_sessions() -> None:
     assert report["sessions_observed"] == 20
     assert report["risk_relevant_sessions_observed"] == 20
     assert report["risk_relevant_decision_count"] == 20
+    assert report["verdict_counts"] == {"allow": 20}
+    assert report["latest_snapshot_age_seconds"] == 31.0
+    assert report["latest_snapshot_max_age_seconds"] == 120.0
+    assert report["latest_reconciliation_max_abs_quantity_delta"] == 0.0
+    assert report["latest_reconciliation_reconciled"] is True
     assert report["evidence_complete"] is True
 
 
@@ -134,3 +142,14 @@ def test_missing_or_failed_reconciliation_prevents_review_ready() -> None:
     )
     assert report["status"] == "observing"
     assert report["reconciliation_failures"] == 1
+    assert report["latest_reconciliation_max_abs_quantity_delta"] == 2.0
+    assert report["latest_reconciliation_reconciled"] is False
+
+
+def test_latest_operational_metrics_are_unknown_without_evidence() -> None:
+    report = summarize_portfolio_shadow([])
+
+    assert report["latest_snapshot_age_seconds"] is None
+    assert report["latest_snapshot_max_age_seconds"] is None
+    assert report["latest_reconciliation_max_abs_quantity_delta"] is None
+    assert report["latest_reconciliation_reconciled"] is None

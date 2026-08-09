@@ -522,6 +522,20 @@ def _ensure_portfolio_evidence_panels(data: dict[str, Any]) -> bool:
                     "reconciled",
                 ),
                 (
+                    'live_overlay_portfolio_snapshot_age_seconds{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_snapshot_age_known{job=~"$job"} == 1)',
+                    "snapshot age at decision (s)",
+                ),
+                (
+                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="reject"}',
+                    "reject decisions",
+                ),
+                (
+                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="resize"}',
+                    "resize decisions",
+                ),
+                (
                     'live_overlay_portfolio_shadow_missing_reconciliation_sessions{job=~"$job"}',
                     "missing",
                 ),
@@ -550,6 +564,18 @@ def _ensure_portfolio_evidence_panels(data: dict[str, Any]) -> bool:
                 (
                     'live_overlay_portfolio_shadow_reconciliation_failures_total{job=~"$job"}',
                     "reconciliation failures",
+                ),
+                (
+                    'live_overlay_portfolio_reconciliation_max_abs_quantity_delta{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
+                    "latest max quantity delta",
+                ),
+                (
+                    'live_overlay_portfolio_reconciliation_reconciled{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
+                    "latest reconciled",
                 ),
             ),
         ),

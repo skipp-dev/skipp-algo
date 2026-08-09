@@ -224,6 +224,8 @@ def test_build_snapshot_includes_portfolio_shadow_integrity_and_reconciliation()
             "portfolio_risk": {
                 "verdict": "allow",
                 "reasons": [],
+                "snapshot_age_seconds": 3.5,
+                "max_snapshot_age_seconds": 120.0,
                 "projection": {
                     "candidate_gross_pct": 5.0,
                     "projected_gross_pct": 15.0,
@@ -233,7 +235,13 @@ def test_build_snapshot_includes_portfolio_shadow_integrity_and_reconciliation()
         },
         {"ts": ts, "phase": "paper", "action": "paper_submitted"},
     ]
-    reconciliations = [{"after_captured_at": "2026-08-08T21:05:00+00:00", "reconciled": True}]
+    reconciliations = [
+        {
+            "after_captured_at": "2026-08-08T21:05:00+00:00",
+            "max_abs_quantity_delta": 0.0,
+            "reconciled": True,
+        }
+    ]
 
     snap = build_snapshot(
         ledger_rows=[],
@@ -251,6 +259,11 @@ def test_build_snapshot_includes_portfolio_shadow_integrity_and_reconciliation()
     assert portfolio["risk_relevant_sessions_missing_reconciliation"] == 0
     assert portfolio["submission_attempts_without_prior_evaluation"] == 0
     assert portfolio["newest_risk_relevant_session"] == "2026-08-08"
+    assert portfolio["verdict_counts"] == {"allow": 1}
+    assert portfolio["latest_snapshot_age_seconds"] == 3.5
+    assert portfolio["latest_snapshot_max_age_seconds"] == 120.0
+    assert portfolio["latest_reconciliation_max_abs_quantity_delta"] == 0.0
+    assert portfolio["latest_reconciliation_reconciled"] is True
 
 
 def test_build_snapshot_submitter_behind_commits():

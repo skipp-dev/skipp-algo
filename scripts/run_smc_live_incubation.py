@@ -546,7 +546,9 @@ def run_live_incubation(
                 "phase": phase,
                 "action": "portfolio_risk_evaluated",
                 "kill_switch_triggered": False,
-                "portfolio_risk": portfolio_decision.to_audit_dict(),
+                "portfolio_risk": portfolio_decision.to_audit_dict(
+                    max_snapshot_age_seconds=portfolio_limits.max_snapshot_age_seconds,
+                ),
             }
         )
     # First, emit one audit row per earnings-blocked intent (those were

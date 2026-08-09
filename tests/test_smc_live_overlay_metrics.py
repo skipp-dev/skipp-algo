@@ -221,6 +221,10 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_portfolio_shadow_ready_for_human_review gauge" in body
     assert "# TYPE live_overlay_portfolio_shadow_missing_reconciliation_sessions gauge" in body
     assert "# TYPE live_overlay_portfolio_shadow_reconciliation_failures_total gauge" in body
+    assert "# TYPE live_overlay_portfolio_snapshot_age_seconds gauge" in body
+    assert "# TYPE live_overlay_portfolio_risk_decisions_total counter" in body
+    assert "# TYPE live_overlay_portfolio_reconciliation_max_abs_quantity_delta gauge" in body
+    assert "# TYPE live_overlay_portfolio_reconciliation_reconciled gauge" in body
     # Newest-incubation age powers lo-evidence-incubation-fills-stalled: it
     # distinguishes "submitting but nothing fills" from "no trading at all".
     assert "# TYPE live_overlay_evidence_fills_newest_incubation_age_seconds gauge" in body
@@ -264,6 +268,38 @@ def test_render_metrics_emits_submit_failed_and_stale_checkout_values(
     assert "live_overlay_evidence_fills_submit_failed_total 4.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits 7.0" in body
     assert "live_overlay_evidence_c13_submit_code_behind_commits_known 1.0" in body
+
+
+def test_render_metrics_emits_portfolio_operational_values_by_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    snap = {
+        "loaded": 1.0,
+        "generated_at_unix": 1_783_000_000.0,
+        "portfolio_shadow": {
+            "known": 1.0,
+            "verdict_counts": {"allow": 8.0, "resize": 2.0, "reject": 1.0},
+            "latest_snapshot_age_seconds": 17.5,
+            "latest_snapshot_age_known": 1.0,
+            "latest_snapshot_max_age_seconds": 120.0,
+            "latest_snapshot_max_age_known": 1.0,
+            "latest_reconciliation_max_abs_quantity_delta": 0.25,
+            "latest_reconciliation_reconciled": 0.0,
+            "latest_reconciliation_known": 1.0,
+        },
+    }
+    monkeypatch.setattr(metrics_mod.evidence_freshness_bridge, "snapshot", lambda: snap)
+
+    body = "\n".join(metrics_mod._render_evidence_freshness_metrics())
+    assert "live_overlay_portfolio_snapshot_age_seconds 17.5" in body
+    assert "live_overlay_portfolio_snapshot_max_age_seconds 120.0" in body
+    assert 'live_overlay_portfolio_risk_decisions_total{verdict="allow"} 8.0' in body
+    assert 'live_overlay_portfolio_risk_decisions_total{verdict="resize"} 2.0' in body
+    assert 'live_overlay_portfolio_risk_decisions_total{verdict="reject"} 1.0' in body
+    assert "live_overlay_portfolio_reconciliation_max_abs_quantity_delta 0.25" in body
+    assert "live_overlay_portfolio_reconciliation_reconciled 0.0" in body
 
 
 def _sweep_trap_snap(**overrides: object) -> dict:

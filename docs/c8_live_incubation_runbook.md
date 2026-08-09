@@ -320,7 +320,22 @@ Prometheus. The main Grafana dashboard exposes:
 - **Portfolio Evidence Progress** — clean risk sessions toward the 20-session
   floor and reconciliation coverage;
 - **Portfolio Audit Integrity** — submit-before-evaluation, incomplete-decision
-  and reconciliation-failure counters, all of which must remain zero.
+  and reconciliation-failure counters, plus the latest maximum absolute
+  reconciliation delta and reconciled state. All integrity faults must remain
+  zero; the reconciled state must be one when known.
+
+The live-overlay Prometheus endpoint also exposes the direct promotion-gate
+inputs:
+
+- `live_overlay_portfolio_snapshot_age_seconds` and its recorded maximum age;
+- `live_overlay_portfolio_risk_decisions_total{verdict="allow|resize|reject"}`;
+- `live_overlay_portfolio_reconciliation_max_abs_quantity_delta` and
+  `live_overlay_portfolio_reconciliation_reconciled`.
+
+Snapshot age is the age at the time of the latest risk decision, not wall-clock
+time since that decision. This avoids turning normal overnight inactivity into
+a stale-snapshot incident while still proving which broker state the decision
+actually evaluated.
 
 Readiness is evidence, not a switch. Checked-in mode remains `shadow`; neither
 the workflow nor Grafana can promote it to enforcement.

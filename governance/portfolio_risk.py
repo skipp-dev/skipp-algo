@@ -145,7 +145,11 @@ class PortfolioRiskDecision:
             "projection": self.projection.to_dict(),
         }
 
-    def to_audit_dict(self) -> dict[str, Any]:
+    def to_audit_dict(
+        self,
+        *,
+        max_snapshot_age_seconds: float | None = None,
+    ) -> dict[str, Any]:
         """Return monitoring evidence without broker/account position details."""
         projection = self.projection
         return {
@@ -157,6 +161,7 @@ class PortfolioRiskDecision:
             "reasons": list(self.reasons),
             "recommended_scale": self.recommended_scale,
             "snapshot_age_seconds": self.snapshot_age_seconds,
+            "max_snapshot_age_seconds": max_snapshot_age_seconds,
             "context_available": self.context_available,
             "projection": {
                 "current_open_positions": projection.current_open_positions,

@@ -1397,8 +1397,10 @@ The evidence snapshot is rebuilt daily from C13 incubation rows and sanitized
 |---|---|
 | `lo-portfolio-evidence-section-missing` | Inspect `evidence-freshness-snapshot.yml`; confirm the published JSON contains `portfolio_shadow`. |
 | `lo-portfolio-submit-no-risk-eval` | Stop the C13 submit schedule and verify the same timestamp/phase has an earlier `portfolio_risk_evaluated` row before any `paper_submitted` or `submit_failed` row. |
+| `lo-portfolio-snapshot-age-invalid` | Inspect the latest risk audit row. The recorded decision-time snapshot age must be non-negative and no greater than its recorded maximum. Repair IBKR capture or workstation clock sync. |
+| `lo-portfolio-risk-rejection` | Inspect the new reject verdict and its reason counts. It remains shadow evidence and must not be bypassed or treated as an automatic promotion decision. |
 | `lo-portfolio-reconcile-missing` | Check the 23:05 reconcile LaunchAgent, TWS paper port 7497 and the sanitized monitoring report on the audit branch. |
-| `lo-portfolio-reconciliation-failed` | Keep enforcement disabled; compare the local raw before/after snapshots and individual execution fills. Do not publish those raw files. |
+| `lo-portfolio-reconciliation-failed` | Keep enforcement disabled when the latest sanitized report says `reconciled=0` or has a non-zero maximum absolute quantity delta; compare the local raw before/after snapshots and individual execution fills. Do not publish those raw files. |
 | `lo-portfolio-decision-incomplete` | Inspect decision reasons for stale/future/incomplete snapshots or unknown working-order roles; rebuild a clean evidence window. |
 
 On the C13 workstation the private diagnostic files are:
@@ -1411,6 +1413,16 @@ On the C13 workstation the private diagnostic files are:
 Only `artifacts/portfolio/reconciliation_<DATE>.monitoring.json` and the
 incubation audit are copied to the data branch. If TWS exposes multiple managed
 accounts, set `C13_IBKR_ACCOUNT`; never select one implicitly.
+
+The corresponding Prometheus contract is:
+
+| Metric | Meaning |
+|---|---|
+| `live_overlay_portfolio_snapshot_age_seconds` | Broker snapshot age at the latest portfolio decision; evaluate only with `live_overlay_portfolio_snapshot_age_known=1`. |
+| `live_overlay_portfolio_snapshot_max_age_seconds` | Maximum age recorded alongside that same decision. |
+| `live_overlay_portfolio_risk_decisions_total{verdict}` | Cumulative shadow decisions split into `allow`, `resize` and `reject`. |
+| `live_overlay_portfolio_reconciliation_max_abs_quantity_delta` | Latest sanitized reconciliation's maximum absolute position-quantity drift. |
+| `live_overlay_portfolio_reconciliation_reconciled` | One only when that latest reconciliation passed; evaluate only with `live_overlay_portfolio_reconciliation_known=1`. |
 
 ---
 
