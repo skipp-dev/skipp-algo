@@ -9070,9 +9070,45 @@ export async function publishPrivateScript(
     if (!selectedUpdateMode) {
       throw new Error("Could not select Update existing script in TradingView publish flow");
     }
+    if (!options.scriptName) {
+      throw new Error("Update existing script publish mode requires scriptName");
+    }
+
+    const chooser = tvSelectors.publishExistingScriptChooser(page);
+    let selectedExistingScript = false;
+    for (const candidate of chooser) {
+      const count = await candidate.count().catch(() => 0);
+      for (let index = 0; index < count; index += 1) {
+        const control = candidate.nth(index);
+        if (!(await control.isVisible().catch(() => false))) {
+          continue;
+        }
+        if ((await control.evaluate((element) => element.tagName.toLowerCase()).catch(() => "")) === "select") {
+          selectedExistingScript = await control.selectOption({ label: options.scriptName }).then(() => true).catch(() => false);
+        } else {
+          await control.click().catch(() => undefined);
+          selectedExistingScript = await clickVisibleWithFallback(
+            page,
+            tvSelectors.publishExistingScriptOption(page, options.scriptName),
+            "publish-existing-script-option",
+            2_000,
+            350,
+          );
+        }
+        if (selectedExistingScript) {
+          break;
+        }
+      }
+      if (selectedExistingScript) {
+        break;
+      }
+    }
+    if (!selectedExistingScript) {
+      throw new Error(`Could not select existing TradingView script: ${options.scriptName}`);
+    }
   }
 
-  if (options.title) {
+  if (options.title && options.publishMode !== "update_existing") {
     const titleFilled = await fillFirstAndVerify(options.title, tvSelectors.publishTitleInput(page), 1_000);
     if (!titleFilled) {
       throw new Error("Could not fill and verify the TradingView publish title");
