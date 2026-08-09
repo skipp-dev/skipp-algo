@@ -212,17 +212,17 @@ def test_provider_modes_build_correct_request(
 @pytest.mark.parametrize(
     "mode,allowed",
     [
-        ("generic", {"GENERIC_SECRET"}),
-        ("slack", set()),
-        ("discord", set()),
-        ("ntfy", set()),
-        ("telegram", {"TELEGRAM_SECRET", "TELEGRAM_CHAT"}),
-        ("twilio_whatsapp", {"TWILIO_SID", "TWILIO_SECRET", "TWILIO_FROM", "TWILIO_TO"}),
-        ("meta_whatsapp", {"META_SECRET", "META_PHONE", "META_TO"}),
+        ("generic", ("GENERIC_SECRET",)),
+        ("slack", ()),
+        ("discord", ()),
+        ("ntfy", ()),
+        ("telegram", ("TELEGRAM_SECRET", "TELEGRAM_CHAT")),
+        ("twilio_whatsapp", ("TWILIO_SID", "TWILIO_SECRET", "TWILIO_FROM", "TWILIO_TO")),
+        ("meta_whatsapp", ("META_SECRET", "META_PHONE", "META_TO")),
     ],
 )
 def test_provider_credentials_are_isolated_to_the_selected_mode(
-    monkeypatch: pytest.MonkeyPatch, mode: str, allowed: set[str],
+    monkeypatch: pytest.MonkeyPatch, mode: str, allowed: tuple[str, ...],
 ) -> None:
     secrets = {
         "RT_SIGNAL_WEBHOOK_TOKEN": "GENERIC_SECRET",
