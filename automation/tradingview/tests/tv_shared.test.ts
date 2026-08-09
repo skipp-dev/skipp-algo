@@ -1649,6 +1649,7 @@ test("publish description selector fills and verifies TradingView's rich-text ed
   try {
     await page.setContent(`
       <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
         <div class="description-field"><div role="textbox" contenteditable="true" data-placeholder="Description"></div></div>
       </div></div></body></html>
     `);
@@ -1658,6 +1659,104 @@ test("publish description selector fills and verifies TradingView's rich-text ed
       true,
     );
     assert.equal(await page.locator('[contenteditable="true"]').innerText(), description);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish controls stay scoped to the outer dialog when nested data-id nodes follow them", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root">
+        <div role="dialog" class="publish-dialog">
+          <h2>Publish script</h2>
+          <div class="mode-tabs">
+            <div>Publish new script</div>
+            <div>Update existing script</div>
+          </div>
+          <input placeholder="Title" value="Open-Prep Daily Panel">
+          <div data-id="rich-editor-toolbar"><button>Bold</button></div>
+          <div data-id="rich-editor-body"><div contenteditable="true">Describe your script...</div></div>
+          <button>Continue</button>
+        </div>
+      </div></body></html>
+    `);
+
+    let updateModeMatches = 0;
+    for (const locator of tvSelectors.publishUpdateExistingMode(page)) {
+      updateModeMatches += await locator.count().catch(() => 0);
+    }
+    assert.ok(updateModeMatches > 0, "the enclosing publish dialog must retain the update-mode control");
+
+    assert.equal(
+      await fillFirstAndVerify(
+        "Private Open-Prep decision panel.",
+        tvSelectors.publishDescriptionInput(page),
+        500,
+      ),
+      true,
+      "nested rich-editor data-id nodes must not replace the publish-dialog scope",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish surface ignores a stale hidden dialog before the active dialog", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root">
+        <div role="dialog" style="display:none"><h2>Publish script</h2><div>Update existing script</div></div>
+        <div role="dialog"><h2>Publish script</h2><div>Update existing script</div><button>Continue</button></div>
+      </div></body></html>
+    `);
+    let matchedVisibleModes = 0;
+    for (const locator of tvSelectors.publishUpdateExistingMode(page)) {
+      const count = await locator.count().catch(() => 0);
+      for (let index = 0; index < count; index += 1) {
+        if (await locator.nth(index).isVisible().catch(() => false)) {
+          matchedVisibleModes += 1;
+        }
+      }
+    }
+    assert.ok(matchedVisibleModes > 0, "the active visible dialog must win over stale hidden publish surfaces");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish surface keeps the class-based private-library fallback", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root">
+        <section class="library-dialog-container">
+          <h2>Publish private library</h2>
+          <input aria-label="Title" value="smc_utils">
+          <label><input type="radio" checked>Private</label>
+          <button>Publish library</button>
+          <div data-id="nested-library-editor"></div>
+        </section>
+      </div></body></html>
+    `);
+
+    assert.ok(
+      (await Promise.all(tvSelectors.publishTitleInput(page).map((locator) => locator.count()))).some((count) => count > 0),
+      "class-based library dialogs must retain title-field discovery",
+    );
+    assert.ok(
+      (await Promise.all(tvSelectors.privateVisibility(page).map((locator) => locator.count()))).some((count) => count > 0),
+      "class-based library dialogs must retain private-visibility discovery",
+    );
+    assert.ok(
+      (await Promise.all(tvSelectors.confirmPublish(page).map((locator) => locator.count()))).some((count) => count > 0),
+      "class-based library dialogs must retain their final publish action",
+    );
   } finally {
     await browser.close();
   }

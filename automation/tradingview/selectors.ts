@@ -40,7 +40,24 @@ function publishedVersionContextPattern(scriptName: string): RegExp {
 }
 
 function publishSurface(page: Page): Locator {
-  return page.locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]').last();
+  const publishFingerprint = /publish script|publish private library|publish new script|update existing script|final touches|privacy settings|tags & signature|script is not on the chart|nothing to update/i;
+
+  // The publish dialog contains many nested `[data-id]` nodes. Treating those
+  // as peer surfaces and taking `.last()` scoped the controls to an inner
+  // editor node in run 31299194493, even though "Update existing script" was
+  // visibly rendered in the enclosing dialog. Resolve only dialog-shaped,
+  // visible containers and take the first DOM match so the outermost active
+  // publish surface owns every wizard step.
+  return page
+    .locator([
+      '#overlap-manager-root [role="dialog"]:visible',
+      '#overlap-manager-root [aria-modal="true"]:visible',
+      '#overlap-manager-root [data-name*="dialog" i]:visible',
+      '#overlap-manager-root [class*="dialog" i]:visible',
+      '#overlap-manager-root [class*="modal" i]:visible',
+    ].join(", "))
+    .filter({ hasText: publishFingerprint })
+    .first();
 }
 
 export type ScriptRowLocatorSpec = {
