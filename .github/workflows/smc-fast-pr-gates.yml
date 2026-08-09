@@ -790,6 +790,15 @@ jobs:
             tests/test_stale_batch_guard.py \
             tests/test_smc_trust_state.py
 
+      # Keep test collection deterministic before merge. The full validate
+      # suite also runs this guard, but that lane is status-only on pull
+      # requests and therefore cannot protect main by itself.
+      - name: Run pytest-xdist parametrization determinism guard
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          python -m pytest -q --maxfail=1 \
+            tests/test_pytest_xdist_parametrize_determinism.py
+
       # Behavioural notification tests are intentionally separate from the
       # line-pinned ledger guard above. PR validate jobs are status-only, so
       # leaving this suite to the full main-push run would let notification,
