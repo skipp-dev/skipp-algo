@@ -16,6 +16,7 @@ context (``None``), never an exception.
 """
 from __future__ import annotations
 
+import math
 import os
 from typing import Any
 
@@ -32,7 +33,7 @@ def _env_mult(name: str, default: float) -> float:
         value = float(os.environ.get(name, "") or default)
     except ValueError:
         return default
-    return value if value > 0 else default
+    return value if math.isfinite(value) and value > 0 else default
 
 
 def trade_context(
@@ -45,7 +46,7 @@ def trade_context(
     """
     from .atr_quality import actionable_atr_pct
     safe_atr_pct = actionable_atr_pct(atr_pct)
-    if not (price > 0.0 and safe_atr_pct is not None):
+    if not (math.isfinite(price) and price > 0.0 and safe_atr_pct is not None):
         return None
     direction_key = str(direction or "").upper()
     if direction_key in _BULLISH:
@@ -73,7 +74,10 @@ def trade_context(
     # a stop and an unreachable 2:1 reward claim. Refusing the whole context
     # keeps the two consumers (Slack push, Pine overlay) consistent, which is
     # this module's entire premise.
-    if any(bracket[key] <= 0.0 for key in ("trade_entry", "trade_stop", "trade_target")):
+    if any(
+        not math.isfinite(bracket[key]) or bracket[key] <= 0.0
+        for key in ("trade_entry", "trade_stop", "trade_target", "trade_r")
+    ):
         return None
     return bracket
 

@@ -49,6 +49,19 @@ def test_fast_pr_gates_workflow_runs_terminal_coverage_subset() -> None:
     assert 'artifacts/ci/terminal_coverage.xml' in workflow_text
 
 
+def test_fast_pr_gates_run_realtime_notification_contracts() -> None:
+    step = _step("Run realtime notification contract tests")
+    run = step.get("run") or ""
+
+    assert "tests/test_rt_notify.py" in run
+    assert "tests/test_rt_notify_a1_conviction_pace.py" in run
+    assert "tests/test_calibration_lookup.py" in run
+    assert "tests/test_near_a0_repoller.py" in run
+    assert "tests/test_trade_context.py" in run
+    assert "tests/test_trade_context_bracket_coherence.py" in run
+    assert "tests/test_smc_live_signal_fields.py" in run
+
+
 def test_fast_pr_gates_workflow_uploads_terminal_coverage_artifacts() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 

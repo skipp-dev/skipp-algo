@@ -120,13 +120,13 @@ class NotifyConfig:
         default_factory=lambda: os.getenv("TERMINAL_NOTIFY_ENABLED", "0") == "1",
     )
     min_score: float = field(
-        default_factory=lambda: float(os.getenv("TERMINAL_NOTIFY_MIN_SCORE", "0.85")),
+        default_factory=lambda: _env_float("TERMINAL_NOTIFY_MIN_SCORE", 0.85, maximum=1.0),
     )
     throttle_s: int = field(
-        default_factory=lambda: int(os.getenv("TERMINAL_NOTIFY_THROTTLE_S", "600")),
+        default_factory=lambda: _env_int("TERMINAL_NOTIFY_THROTTLE_S", 600),
     )
     max_age_minutes: float = field(
-        default_factory=lambda: float(os.getenv("TERMINAL_NOTIFY_MAX_AGE_MIN", "20")),
+        default_factory=lambda: _env_float("TERMINAL_NOTIFY_MAX_AGE_MIN", 20.0),
     )
     # Telegram
     telegram_bot_token: str = field(
@@ -206,22 +206,23 @@ _WEBHOOK_TIMEOUT = 10  # seconds; baseline for one-shot notification webhooks
 _STATE_SCHEMA = 1
 _DEFAULT_STATE_PATH = "artifacts/terminal/notify_throttle.json"
 _STATE_MAX_AGE_SECS = 3600.0  # same horizon the in-memory eviction uses
-_loaded: set[str] = set()
+_loaded: set[float] = set()
 
 
 def _state_path() -> Path:
     return Path(os.getenv("TERMINAL_NOTIFY_STATE_PATH", _DEFAULT_STATE_PATH))
 
 
-def _load_state_locked() -> None:
+def _load_state_locked(horizon: float = _STATE_MAX_AGE_SECS) -> None:
     """Restore the throttle left by an earlier process. Caller holds the lock.
 
     Anything unreadable or foreign-shaped leaves the map empty, which is exactly
     the pre-persistence behaviour.
     """
-    if _loaded:
+    safe_horizon = _positive_duration(horizon, _STATE_MAX_AGE_SECS)
+    if _loaded and safe_horizon <= max(_loaded):
         return
-    _loaded.add("done")
+    _loaded.add(safe_horizon)
     try:
         raw = json.loads(_state_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -237,7 +238,7 @@ def _load_state_locked() -> None:
             when = float(marked_at)
         except (TypeError, ValueError):
             continue
-        if 0 <= now - when <= _STATE_MAX_AGE_SECS:
+        if str(symbol) and 0 <= now - when <= safe_horizon:
             _last_notified[str(symbol)] = when
 
 
@@ -257,21 +258,30 @@ def _save_state_locked() -> None:
         logger.debug("terminal notification throttle save failed", exc_info=True)
 
 
-def _is_throttled(symbol: str, throttle_s: int) -> bool:
-    now = time.time()
+def _is_throttled(symbol: str, throttle_s: int, channel: str = "") -> bool:
+    window = _positive_duration(throttle_s, 600.0)
     with _throttle_lock:
-        _load_state_locked()
-        last = _last_notified.get(symbol, 0.0)
-    return (now - last) < throttle_s
+        _load_state_locked(max(_STATE_MAX_AGE_SECS, window))
+        key = _throttle_key(symbol, channel)
+        last = max(_last_notified.get(key, 0.0), _last_notified.get(symbol, 0.0))
+    return (time.time() - last) < window
 
 
-def _mark_notified(symbol: str) -> None:
+def _mark_notified(
+    symbol: str,
+    channel: str = "",
+    retention_s: float = _STATE_MAX_AGE_SECS,
+) -> None:
     with _throttle_lock:
-        _last_notified[symbol] = time.time()
+        _last_notified[_throttle_key(symbol, channel)] = time.time()
         # Evict old entries
         if len(_last_notified) > _THROTTLE_DICT_MAX:
             now = time.time()
-            stale = [k for k, v in _last_notified.items() if (now - v) > 3600]
+            horizon = max(
+                _STATE_MAX_AGE_SECS,
+                _positive_duration(retention_s, _STATE_MAX_AGE_SECS),
+            )
+            stale = [k for k, v in _last_notified.items() if (now - v) > horizon]
             for k in stale:
                 del _last_notified[k]
         _save_state_locked()
@@ -394,6 +404,38 @@ def _send_pushover(app_token: str, user_key: str, title: str, message: str, url:
     except Exception as exc:
         logger.warning("Pushover send failed: %s", type(exc).__name__, exc_info=True)
         return False
+
+
+def _positive_duration(value: object, default: float) -> float:
+    """Return a finite positive duration, otherwise the fail-safe default."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return parsed if 0.0 < parsed < float("inf") else default
+
+
+def _env_float(name: str, default: float, *, maximum: float | None = None) -> float:
+    try:
+        parsed = float(os.getenv(name, ""))
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not 0.0 <= parsed < float("inf"):
+        return default
+    return parsed if maximum is None or parsed <= maximum else default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        parsed = int(os.getenv(name, ""))
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _throttle_key(symbol: str, channel: str = "") -> str:
+    """Isolate retries per channel without persisting destination secrets."""
+    return f"{channel}\x1f{symbol}" if channel else symbol
 
 
 # ---------------------------------------------------------------------------
@@ -547,9 +589,6 @@ def notify_high_score_items(
             continue
 
         ticker = item.get("ticker", "UNKNOWN")
-        if _is_throttled(ticker, config.throttle_s):
-            continue
-
         # Dispatch to all configured channels
         sent_any = False
         result: dict[str, Any] = {
@@ -563,19 +602,22 @@ def notify_high_score_items(
             "channels": [],
         }
 
-        if config.telegram_bot_token and config.telegram_chat_id:
+        if (config.telegram_bot_token and config.telegram_chat_id
+                and not _is_throttled(ticker, config.throttle_s, "telegram")):
             msg = _format_message(item)
             ok = _send_telegram(config.telegram_bot_token, config.telegram_chat_id, msg)
             result["channels"].append({"name": "telegram", "ok": ok})
             sent_any = sent_any or ok
 
-        if config.discord_webhook_url:
+        if (config.discord_webhook_url
+                and not _is_throttled(ticker, config.throttle_s, "discord")):
             msg = _format_discord_message(item)
             ok = _send_discord(config.discord_webhook_url, msg)
             result["channels"].append({"name": "discord", "ok": ok})
             sent_any = sent_any or ok
 
-        if config.pushover_app_token and config.pushover_user_key:
+        if (config.pushover_app_token and config.pushover_user_key
+                and not _is_throttled(ticker, config.throttle_s, "pushover")):
             title = f"📡 {ticker} — Score {score:.2f}"
             body = _format_message(item).replace("*", "")  # only strips '*' bold markers; '_…_' italics and '[Article](url)' markdown survive, and no html param is sent to Pushover
             article_url = item.get("url", "")
@@ -590,7 +632,9 @@ def notify_high_score_items(
             sent_any = sent_any or ok
 
         if sent_any:
-            _mark_notified(ticker)
+            for channel in result["channels"]:
+                if channel["ok"]:
+                    _mark_notified(ticker, channel["name"], config.throttle_s)
             results.append(result)
             logger.info(
                 "Push notification sent for %s (score=%.3f) → %s",

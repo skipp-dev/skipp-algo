@@ -274,6 +274,15 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_manifest_preference.py",
     "test_stale_batch_guard.py",
     "test_smc_trust_state.py",
+    # Realtime notification contracts: placement is separate from the
+    # line-pinned drift guard but remains on the required fast-gates path.
+    "test_rt_notify.py",
+    "test_rt_notify_a1_conviction_pace.py",
+    "test_calibration_lookup.py",
+    "test_near_a0_repoller.py",
+    "test_trade_context.py",
+    "test_trade_context_bracket_coherence.py",
+    "test_smc_live_signal_fields.py",
     # Terminal coverage subset
     "test_streamlit_terminal_import.py",
     "test_streamlit_terminal_config.py",

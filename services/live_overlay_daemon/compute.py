@@ -1570,16 +1570,33 @@ def _get_signal_fields(symbol: str) -> dict[str, Any]:
             return None
         return number if (number > 0.0 and math.isfinite(number)) else None  # inf > 0.0 is True
 
+    trade = tuple(
+        _pos_float(best.get(key))
+        for key in ("trade_entry", "trade_stop", "trade_target", "trade_r")
+    )
     direction = best.get("direction")
+    direction_key = direction.strip().upper() if isinstance(direction, str) else ""
+    coherent = (
+        direction_key in {"LONG", "B_UP", "UP"}
+        and all(value is not None for value in trade)
+        and trade[1] < trade[0] < trade[2]
+    ) or (
+        direction_key in {"SHORT", "B_DOWN", "DOWN"}
+        and all(value is not None for value in trade)
+        and trade[2] < trade[0] < trade[1]
+    )
+    if not coherent:
+        trade = (None, None, None, None)
+
     return {
         "signal_level": str(best.get("level")),
         "signal_direction": (
             direction if isinstance(direction, str) and direction.strip() else None
         ),
-        "trade_entry": _pos_float(best.get("trade_entry")),
-        "trade_stop": _pos_float(best.get("trade_stop")),
-        "trade_target": _pos_float(best.get("trade_target")),
-        "trade_r": _pos_float(best.get("trade_r")),
+        "trade_entry": trade[0],
+        "trade_stop": trade[1],
+        "trade_target": trade[2],
+        "trade_r": trade[3],
     }
 
 

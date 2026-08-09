@@ -1,6 +1,7 @@
 """Tests for open_prep.rt_notify — the fresh-breakout push notifier."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -208,6 +209,46 @@ def test_provider_modes_build_correct_request(
     assert check(url, kw), (url, kw)
 
 
+@pytest.mark.parametrize(
+    "mode,allowed",
+    [
+        ("generic", {"GENERIC_SECRET"}),
+        ("slack", set()),
+        ("discord", set()),
+        ("ntfy", set()),
+        ("telegram", {"TELEGRAM_SECRET", "TELEGRAM_CHAT"}),
+        ("twilio_whatsapp", {"TWILIO_SID", "TWILIO_SECRET", "TWILIO_FROM", "TWILIO_TO"}),
+        ("meta_whatsapp", {"META_SECRET", "META_PHONE", "META_TO"}),
+    ],
+)
+def test_provider_credentials_are_isolated_to_the_selected_mode(
+    monkeypatch: pytest.MonkeyPatch, mode: str, allowed: set[str],
+) -> None:
+    secrets = {
+        "RT_SIGNAL_WEBHOOK_TOKEN": "GENERIC_SECRET",
+        "RT_SIGNAL_TELEGRAM_BOT_TOKEN": "TELEGRAM_SECRET",
+        "RT_SIGNAL_TELEGRAM_CHAT_ID": "TELEGRAM_CHAT",
+        "RT_SIGNAL_TWILIO_SID": "TWILIO_SID",
+        "RT_SIGNAL_TWILIO_AUTH": "TWILIO_SECRET",
+        "RT_SIGNAL_TWILIO_FROM": "TWILIO_FROM",
+        "RT_SIGNAL_TWILIO_TO": "TWILIO_TO",
+        "RT_SIGNAL_META_TOKEN": "META_SECRET",
+        "RT_SIGNAL_META_PHONE_ID": "META_PHONE",
+        "RT_SIGNAL_META_TO": "META_TO",
+    }
+    for name, value in secrets.items():
+        monkeypatch.setenv(name, value)
+
+    url, kwargs = rt_notify._build_request(mode, "message", "https://hook.example/x")
+    serialized = f"{url!r} {kwargs!r}"
+
+    for secret in secrets.values():
+        if secret in allowed:
+            assert secret in serialized
+        else:
+            assert secret not in serialized
+
+
 def test_notify_is_fail_soft_when_post_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
 
@@ -301,6 +342,20 @@ def test_corrupt_numeric_field_does_not_kill_the_batch(
     assert "AAPL" in text and "NVDA" in text
 
 
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_signal_numbers_render_as_safe_defaults(bad_value: float) -> None:
+    signal = _sig("AAPL", "A1")
+    signal.price = bad_value
+    signal.volume_ratio = bad_value
+    signal.change_pct = bad_value
+
+    rendered = rt_notify._fmt_signal(signal)
+
+    assert "nan" not in rendered.lower()
+    assert "inf" not in rendered.lower()
+    assert "$0.00" in rendered and "vol×0.0" in rendered and "Δ+0.0%" in rendered
+
+
 def test_ttl_eviction_runs_even_when_signals_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """A stale dedup entry must not outlive its 2h TTL just because later polls
     carry no signals — the eviction sweep now runs on empty polls too."""
@@ -377,6 +432,32 @@ def test_no_trade_context_no_extra_line(monkeypatch: pytest.MonkeyPatch) -> None
     calls = _capture(monkeypatch)
     rt_notify.notify_fresh_signals([_sig("AAPL", "A1")])
     assert len(calls[0][1]["json"]["text"].splitlines()) == 2  # header + one signal line
+
+
+@pytest.mark.parametrize("field", ["trade_entry", "trade_stop", "trade_target", "trade_r"])
+def test_trade_context_is_all_or_none_for_non_finite_fields(field: str) -> None:
+    signal = _sig_with_context("AAPL", "A0")
+    setattr(signal, field, float("inf"))
+
+    assert rt_notify._fmt_trade_context(signal) == ""
+
+
+@pytest.mark.parametrize(
+    "direction,stop,target",
+    [
+        ("LONG", 210.0, 190.0),
+        ("SHORT", 190.0, 210.0),
+        ("SIDEWAYS", 195.0, 210.0),
+    ],
+)
+def test_trade_context_rejects_incoherent_or_unknown_direction(
+    direction: str, stop: float, target: float,
+) -> None:
+    signal = _sig_with_context("AAPL", "A0", direction)
+    signal.trade_stop = stop
+    signal.trade_target = target
+
+    assert rt_notify._fmt_trade_context(signal) == ""
 
 
 def test_early_webhook_routes_a2_to_separate_channel(
@@ -613,4 +694,21 @@ def test_a_corrupt_state_file_is_ignored_rather_than_raised(
     )
 
     assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")])
+    assert len(calls) == 1
+
+
+def test_future_persisted_mark_cannot_suppress_a_current_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RT_SIGNAL_WEBHOOK_URL", "https://hook.example/x")
+    calls = _capture(monkeypatch)
+    Path(os.environ["RT_SIGNAL_NOTIFY_STATE_PATH"]).write_text(
+        json.dumps({
+            "version": rt_notify._STATE_SCHEMA,
+            "entries": {f"AAPL{rt_notify._KEY_SEP}LONG": [3, 2_000.0]},
+        }),
+        encoding="utf-8",
+    )
+
+    assert rt_notify.notify_fresh_signals([_sig("AAPL", "A0")], now=1_000.0)
     assert len(calls) == 1

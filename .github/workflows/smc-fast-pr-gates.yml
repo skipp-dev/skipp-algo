@@ -790,6 +790,22 @@ jobs:
             tests/test_stale_batch_guard.py \
             tests/test_smc_trust_state.py
 
+      # Behavioural notification tests are intentionally separate from the
+      # line-pinned ledger guard above. PR validate jobs are status-only, so
+      # leaving this suite to the full main-push run would let notification,
+      # numeric-boundary and push/sidecar-parity regressions merge first.
+      - name: Run realtime notification contract tests
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          python -m pytest -q --maxfail=1 \
+            tests/test_rt_notify.py \
+            tests/test_rt_notify_a1_conviction_pace.py \
+            tests/test_calibration_lookup.py \
+            tests/test_near_a0_repoller.py \
+            tests/test_trade_context.py \
+            tests/test_trade_context_bracket_coherence.py \
+            tests/test_smc_live_signal_fields.py
+
       - name: Run terminal coverage subset
         if: steps.gate.outputs.run_heavy == 'true'
         run: |

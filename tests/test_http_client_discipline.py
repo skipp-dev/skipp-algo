@@ -171,9 +171,11 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 739),
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
-        # 2026-08-08 (throttle persistence): 255->321, 319->385
-        ("terminal_notifications.py", 321),
-        ("terminal_notifications.py", 385),
+        # 2026-08-08 (throttle persistence): 255->321, 319->385; 2026-08-09
+        # (per-channel throttle isolation and configured-horizon retention):
+        # 321->331, 385->395. Both calls retain explicit ten-second timeouts.
+        ("terminal_notifications.py", 331),
+        ("terminal_notifications.py", 395),
         # 2026-06-21: live-overlay external bridge polling via urllib with
         # explicit timeout discipline.
         ("services/live_overlay_daemon/github_workflow_bridge.py", 126),
