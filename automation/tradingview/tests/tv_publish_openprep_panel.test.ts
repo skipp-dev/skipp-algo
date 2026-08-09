@@ -99,6 +99,16 @@ test("panel publisher captures current evidence when the delegated publish gate 
   );
 });
 
+test("panel publisher requires authoritative publish confirmation before reporting success", () => {
+  const source = fs.readFileSync(_publisherPath, "utf-8");
+
+  assert.match(source, /publishMode:\s*openedExistingScript\s*\?\s*"update_existing"\s*:\s*"auto"/);
+  assert.match(source, /!publishSurfaceClosedAfterConfirm\s*\|\|\s*\(!noChangeDetected\s*&&\s*!publishConfirmed\)/);
+  assert.doesNotMatch(source, /dialogStillVisible:\s*false/);
+  assert.match(source, /publishConfirmed,/);
+  assert.match(source, /publishSurfaceClosedAfterConfirm,/);
+});
+
 test("workflow artifact excludes unrelated historical screenshots", () => {
   const source = fs.readFileSync(_workflowPath, "utf-8");
 
