@@ -66,6 +66,55 @@ def test_reconciliations_must_cover_the_risk_relevant_session_dates() -> None:
     assert report["risk_relevant_sessions_missing_reconciliation"] == 20
 
 
+def test_submission_attempt_requires_a_prior_same_run_portfolio_evaluation() -> None:
+    evaluation = _row(0)
+    evaluation["ts"] = "2026-08-08T13:28:00+00:00"
+    evaluation["phase"] = "paper"
+    rows = [
+        {
+            "ts": "2026-08-08T13:28:00+00:00",
+            "phase": "paper",
+            "action": "paper_submitted",
+        },
+        evaluation,
+        {
+            "ts": "2026-08-08T13:28:00+00:00",
+            "phase": "paper",
+            "action": "submit_failed",
+        },
+    ]
+
+    report = summarize_portfolio_shadow(rows)
+
+    assert report["submission_attempt_count"] == 2
+    assert report["submission_attempts_without_prior_evaluation"] == 1
+    assert report["evidence_complete"] is False
+
+
+def test_submission_integrity_starts_with_first_portfolio_evaluation() -> None:
+    evaluation = _row(0)
+    evaluation["ts"] = "2026-08-08T13:28:00+00:00"
+    evaluation["phase"] = "paper"
+    report = summarize_portfolio_shadow(
+        [
+            {
+                "ts": "2026-08-07T13:28:00+00:00",
+                "phase": "paper",
+                "action": "paper_submitted",
+            },
+            evaluation,
+            {
+                "ts": "2026-08-09T13:28:00+00:00",
+                "phase": "paper",
+                "action": "paper_submitted",
+            },
+        ]
+    )
+
+    assert report["submission_attempt_count"] == 1
+    assert report["submission_attempts_without_prior_evaluation"] == 1
+
+
 def test_stale_snapshot_keeps_report_observing() -> None:
     rows = [_row(day) for day in range(20)]
     rows[-1] = _row(19, reasons=("snapshot_stale",))

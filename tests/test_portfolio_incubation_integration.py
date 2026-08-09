@@ -80,6 +80,16 @@ def test_shadow_records_would_block_but_still_calls_submitter(tmp_path: Path) ->
     rows = _read(audit)
     assert rows[0]["action"] == "portfolio_risk_evaluated"
     assert rows[1]["portfolio_risk"]["verdict"] == "resize"
+    serialized = json.dumps(rows)
+    assert "DU1" not in serialized
+    assert '"equity"' not in serialized
+    assert '"symbols"' not in serialized
+    assert '"snapshot_id"' not in serialized
+    projection = rows[0]["portfolio_risk"]["projection"]
+    assert projection["candidate_gross_pct"] == 10.0
+    assert projection["projected_gross_pct"] == 10.0
+    assert projection["max_single_position_pct"] == 10.0
+    assert projection["unknown_working_order_count"] == 0
 
 
 def test_enforce_blocks_submitter_and_audits_each_intent(tmp_path: Path) -> None:

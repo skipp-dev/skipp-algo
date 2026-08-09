@@ -33,6 +33,7 @@ Snapshot schema (``artifacts/monitoring/evidence_freshness.json``)::
 The pure ``summarize_*`` / ``build_snapshot`` functions take already-loaded
 data so they unit-test without git or network; ``main()`` does the git I/O.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -50,6 +51,7 @@ from governance.magnitude_stage_policy import classification_of
 from scripts.backfill_live_outcomes import _CLOSED_ACTIONS
 from scripts.run_magnitude_shadow_ledger import ALL_FAMILIES, CANDIDATE_FAMILIES
 from scripts.smc_atomic_write import atomic_write_json
+from scripts.summarize_portfolio_shadow import summarize_portfolio_shadow
 
 DEFAULT_OUTPUT = "artifacts/monitoring/evidence_freshness.json"
 DEFAULT_LEDGER = "artifacts/governance/magnitude_resolution_shadow.jsonl"
@@ -99,8 +101,7 @@ def summarize_ledger(rows: list[dict[str, Any]]) -> dict[str, Any]:
     candidate_pass = sum(
         1
         for r in newest_rows
-        if r.get("family") in CANDIDATE_FAMILIES
-        and (r.get("status") == "PASS" or r.get("passes") is True)
+        if r.get("family") in CANDIDATE_FAMILIES and (r.get("status") == "PASS" or r.get("passes") is True)
     )
     # Per-family usable-sample count on the newest date (n_oos): the real
     # distance to §2/§5 measurability (need SAMPLES_TARGET each). Present on
@@ -159,6 +160,7 @@ def build_snapshot(
     wsh_status: str,
     generated_at_unix: float,
     submit_code_behind_commits: int | None = None,
+    portfolio_reconciliations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Assemble the snapshot dict from already-loaded inputs (pure).
 
@@ -194,12 +196,18 @@ def build_snapshot(
             for fam in ALL_FAMILIES
         },
     }
+    portfolio_shadow = summarize_portfolio_shadow(
+        incubation_records,
+        portfolio_reconciliations or [],
+    )
+
     return {
         "generated_at_unix": float(generated_at_unix),
         "ledger": ledger,
         "samples": samples,
         "audit_branch": {"last_commit_date": audit_commit_date},
         "fills": fills,
+        "portfolio_shadow": portfolio_shadow,
         "wsh": {"newest_date": wsh_date, "status": wsh_status},
         "submitter": {
             "submit_code_behind_commits": int(submit_code_behind_commits or 0),
@@ -245,6 +253,18 @@ def _audit_branch_files(branch: str, prefix: str) -> list[str]:
     except subprocess.CalledProcessError:
         return []
     return sorted(p for p in out.splitlines() if p.startswith(prefix) and p.endswith(".jsonl"))
+
+
+def _portfolio_reconciliation_files(branch: str) -> list[str]:
+    try:
+        out = _git(["ls-tree", "-r", "--name-only", branch])
+    except subprocess.CalledProcessError:
+        return []
+    return sorted(
+        path
+        for path in out.splitlines()
+        if path.startswith("artifacts/portfolio/reconciliation_") and path.endswith(".monitoring.json")
+    )
 
 
 def _read_audit_file(branch: str, path: str) -> str:
@@ -297,9 +317,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Audit-branch head commit date (the freeze signal that stayed invisible).
     try:
-        audit_commit_date = _git(
-            ["log", "-1", "--format=%cs", args.audit_branch]
-        ).strip()
+        audit_commit_date = _git(["log", "-1", "--format=%cs", args.audit_branch]).strip()
     except subprocess.CalledProcessError:
         audit_commit_date = ""
 
@@ -331,6 +349,15 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(_behind, int) and not isinstance(_behind, bool) and _behind >= 0:
             submit_code_behind_commits = _behind
 
+    portfolio_reconciliations: list[dict[str, Any]] = []
+    for path in _portfolio_reconciliation_files(args.audit_branch):
+        raw = _read_audit_file(args.audit_branch, path)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            portfolio_reconciliations.append(parsed)
     snapshot = build_snapshot(
         ledger_rows=ledger_rows,
         incubation_records=incubation_records,
@@ -340,6 +367,7 @@ def main(argv: list[str] | None = None) -> int:
         wsh_status=wsh_status,
         generated_at_unix=datetime.now(UTC).timestamp(),
         submit_code_behind_commits=submit_code_behind_commits,
+        portfolio_reconciliations=portfolio_reconciliations,
     )
     atomic_write_json(snapshot, Path(args.output), indent=2, sort_keys=True)
     print(

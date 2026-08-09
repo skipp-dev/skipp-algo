@@ -217,6 +217,10 @@ def test_render_metrics_prometheus_format_and_trailing_newline(monkeypatch: pyte
     assert "# TYPE live_overlay_evidence_fills_submit_failed_total gauge" in body
     assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits gauge" in body
     assert "# TYPE live_overlay_evidence_c13_submit_code_behind_commits_known gauge" in body
+    assert "# TYPE live_overlay_portfolio_shadow_evidence_known gauge" in body
+    assert "# TYPE live_overlay_portfolio_shadow_ready_for_human_review gauge" in body
+    assert "# TYPE live_overlay_portfolio_shadow_missing_reconciliation_sessions gauge" in body
+    assert "# TYPE live_overlay_portfolio_shadow_reconciliation_failures_total gauge" in body
     # Newest-incubation age powers lo-evidence-incubation-fills-stalled: it
     # distinguishes "submitting but nothing fills" from "no trading at all".
     assert "# TYPE live_overlay_evidence_fills_newest_incubation_age_seconds gauge" in body

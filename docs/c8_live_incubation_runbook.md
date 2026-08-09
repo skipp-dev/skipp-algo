@@ -304,3 +304,23 @@ python -m scripts.reconcile_portfolio_shadow \
 
 An unexplained quantity delta or duplicate execution ID makes reconciliation
 non-passing. It must not be hidden by increasing the tolerance.
+
+The installed C13 LaunchAgents perform this sequence automatically for real
+paper submissions: the 09:28 ET job captures the before snapshot and refuses to
+submit if it is missing; the 23:05 local job exports matching executions,
+captures the after snapshot, reconciles the signed delta and publishes a
+sanitized monitoring report. Raw snapshots, positions, account identifiers and
+execution IDs remain on the C13 workstation. `C13_IBKR_ACCOUNT` is required only
+when TWS exposes more than one managed account.
+
+The daily evidence workflow aggregates those audit and monitoring records into
+Prometheus. The main Grafana dashboard exposes:
+
+- **Portfolio Shadow Readiness** — observing versus ready for human review;
+- **Portfolio Evidence Progress** — clean risk sessions toward the 20-session
+  floor and reconciliation coverage;
+- **Portfolio Audit Integrity** — submit-before-evaluation, incomplete-decision
+  and reconciliation-failure counters, all of which must remain zero.
+
+Readiness is evidence, not a switch. Checked-in mode remains `shadow`; neither
+the workflow nor Grafana can promote it to enforcement.

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from scripts.reconcile_incubation_fills import (
     legs_by_intent,
     main,
+    portfolio_fill_rows,
     reconcile_records,
     summarize_fills,
 )
@@ -124,6 +125,34 @@ def test_summarize_fills_is_deterministic_and_aggregates_identical_fills():
     # same input are byte-identical (no ordering / floating accumulation drift).
     assert summarize_fills(fills) == {"smc-A-entry": {"shares": 4.0, "avg_price": 100.0}}
     assert summarize_fills(fills) == summarize_fills(fills)
+
+
+def test_portfolio_fill_rows_preserves_execution_ids_and_signed_sides():
+    def execution_fill(order_ref: str, exec_id: str, side: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            contract=SimpleNamespace(symbol="AAPL"),
+            execution=SimpleNamespace(
+                orderRef=order_ref,
+                execId=exec_id,
+                acctNumber="DU1",
+                side=side,
+                shares=2,
+                price=101.5,
+            ),
+        )
+
+    rows = portfolio_fill_rows(
+        [
+            execution_fill("smc-A-entry", "e1", "BOT"),
+            execution_fill("smc-A-tp", "e2", "SLD"),
+            execution_fill("foreign-entry", "e3", "BOT"),
+        ],
+        {"smc-A"},
+    )
+
+    assert [row["execution_id"] for row in rows] == ["e1", "e2"]
+    assert [row["side"] for row in rows] == ["BUY", "SELL"]
+    assert all(row["account"] == "DU1" for row in rows)
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ from scripts.smc_atomic_write import atomic_write_text
 
 PORTFOLIO_SHADOW_REPORT_SCHEMA_VERSION = "1.1"
 MIN_SHADOW_SESSIONS_FOR_REVIEW = 20
+_SUBMISSION_ATTEMPT_ACTIONS = frozenset({"paper_submitted", "submit_failed"})
 
 
 def _decision_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -29,7 +30,8 @@ def summarize_portfolio_shadow(
     rows: Iterable[dict[str, Any]],
     reconciliations: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
-    decisions = _decision_rows(rows)
+    all_rows = list(rows)
+    decisions = _decision_rows(all_rows)
     verdicts: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     sessions: set[str] = set()
@@ -38,6 +40,7 @@ def summarize_portfolio_shadow(
     projected_gross: list[float] = []
     correlation_coverage: list[float] = []
     incomplete_decisions = 0
+    newest_risk_relevant_session = ""
     for row in decisions:
         risk = row["portfolio_risk"]
         verdicts[str(risk.get("verdict", "unknown"))] += 1
@@ -53,6 +56,10 @@ def summarize_portfolio_shadow(
             risk_relevant_decision_count += 1
             if session_id is not None:
                 risk_relevant_sessions.add(session_id)
+                newest_risk_relevant_session = max(
+                    newest_risk_relevant_session,
+                    session_id,
+                )
         projected_gross.append(float(projection.get("projected_gross_pct", 0.0)))
         correlation_coverage.append(float(projection.get("correlation_coverage_pct", 0.0)))
         if any(
@@ -76,12 +83,30 @@ def summarize_portfolio_shadow(
         not bool(row.get("reconciled", False)) for row in reconciliation_rows
     )
     missing_reconciliation = risk_relevant_sessions - reconciliation_sessions
+    contract_start = min(
+        (str(row.get("ts", "")) for row in decisions if row.get("ts")),
+        default="",
+    )
+    evaluation_keys: set[tuple[str, str]] = set()
+    submission_attempt_count = 0
+    submission_attempts_without_prior_evaluation = 0
+    for row in all_rows:
+        key = (str(row.get("ts", "")), str(row.get("phase", "")))
+        if row.get("action") == "portfolio_risk_evaluated":
+            evaluation_keys.add(key)
+        elif row.get("action") in _SUBMISSION_ATTEMPT_ACTIONS:
+            if not contract_start or key[0] < contract_start:
+                continue
+            submission_attempt_count += 1
+            if key not in evaluation_keys:
+                submission_attempts_without_prior_evaluation += 1
     review_ready = (
         len(risk_relevant_sessions) >= MIN_SHADOW_SESSIONS_FOR_REVIEW
         and incomplete_decisions == 0
         and risk_relevant_decision_count > 0
         and not missing_reconciliation
         and reconciliation_failures == 0
+        and submission_attempts_without_prior_evaluation == 0
     )
     return {
         "schema_version": PORTFOLIO_SHADOW_REPORT_SCHEMA_VERSION,
@@ -91,7 +116,12 @@ def summarize_portfolio_shadow(
         "sessions_observed": len(sessions),
         "risk_relevant_sessions_observed": len(risk_relevant_sessions),
         "risk_relevant_decision_count": risk_relevant_decision_count,
+        "newest_risk_relevant_session": newest_risk_relevant_session,
         "decision_count": len(decisions),
+        "submission_attempt_count": submission_attempt_count,
+        "submission_attempts_without_prior_evaluation": (
+            submission_attempts_without_prior_evaluation
+        ),
         "verdict_counts": dict(sorted(verdicts.items())),
         "reason_counts": dict(sorted(reasons.items())),
         "incomplete_decisions": incomplete_decisions,

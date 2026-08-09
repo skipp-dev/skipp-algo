@@ -14,12 +14,26 @@ from scripts.smc_atomic_write import atomic_write_text
 PORTFOLIO_RECONCILIATION_SCHEMA_VERSION = "1.0"
 
 
+def monitoring_report(report: dict) -> dict:
+    """Return the non-sensitive reconciliation fields safe for monitoring."""
+    return {
+        "schema_version": PORTFOLIO_RECONCILIATION_SCHEMA_VERSION,
+        "before_captured_at": report["before_captured_at"],
+        "after_captured_at": report["after_captured_at"],
+        "fill_count": report["fill_count"],
+        "duplicate_fill_count": len(report["duplicate_fill_ids"]),
+        "max_abs_quantity_delta": report["max_abs_quantity_delta"],
+        "reconciled": report["reconciled"],
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Reconcile portfolio snapshots against fills.")
     parser.add_argument("--before", type=Path, required=True)
     parser.add_argument("--after", type=Path, required=True)
     parser.add_argument("--fills", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--monitoring-output", type=Path)
     parser.add_argument("--quantity-tolerance", type=float, default=1e-9)
     return parser
 
@@ -47,6 +61,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.output,
         fsync=True,
     )
+    if args.monitoring_output is not None:
+        atomic_write_text(
+            json.dumps(monitoring_report(report), sort_keys=True, indent=2) + "\n",
+            args.monitoring_output,
+            fsync=True,
+        )
     print(json.dumps(report, sort_keys=True))
     return 0 if reconciliation.reconciled else 2
 

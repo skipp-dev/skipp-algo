@@ -28,6 +28,11 @@ VENV="${C13_VENV:-${REPO}/.venv}"
 
 DATE="$(date -u +%Y-%m-%d)"
 AUDIT="${REPO}/cache/live/incubation_${DATE}.jsonl"
+PORTFOLIO_BEFORE="${REPO}/cache/live/portfolio_before_${DATE}.json"
+PORTFOLIO_AFTER="${REPO}/cache/live/portfolio_after_${DATE}.json"
+PORTFOLIO_FILLS="${REPO}/cache/live/portfolio_fills_${DATE}.json"
+PORTFOLIO_REPORT="${REPO}/cache/live/portfolio_reconciliation_${DATE}.json"
+PORTFOLIO_MONITORING="${REPO}/artifacts/portfolio/reconciliation_${DATE}.monitoring.json"
 STATUS_MARKER="${REPO}/cache/live/.reconcile_status_${DATE}"
 PUSH_MARKER="${REPO}/cache/live/.reconcile_push_status_${DATE}"
 TS="$(date -u +%FT%TZ)"
@@ -66,16 +71,59 @@ if [[ ! -f "${AUDIT}" ]]; then
 fi
 
 export PYTHONPATH="${REPO}"
-if ! "${PY}" -m scripts.reconcile_incubation_fills --audit "${AUDIT}"; then
+if ! "${PY}" -m scripts.reconcile_incubation_fills \
+    --audit "${AUDIT}" \
+    --portfolio-fills-output "${PORTFOLIO_FILLS}"; then
     echo "reconcile cron: reconcile_incubation_fills FAILED — see above for details" >&2
     _write_marker "DEGRADED" "reconcile-failed:audit=${AUDIT}"
     exit 1
 fi
-_write_marker "SUCCESS" "reconcile-complete:audit=${AUDIT}"
+if [[ ! -s "${PORTFOLIO_BEFORE}" ]]; then
+    echo "reconcile cron: pre-submit portfolio snapshot missing at ${PORTFOLIO_BEFORE}" >&2
+    _write_marker "DEGRADED" "portfolio-before-missing:path=${PORTFOLIO_BEFORE}"
+    exit 1
+fi
+_capture_portfolio_after() {
+    if [[ -n "${C13_IBKR_ACCOUNT:-}" ]]; then
+        "${PY}" -m scripts.ibkr_portfolio_snapshot \
+            --account "${C13_IBKR_ACCOUNT}" \
+            --output "${PORTFOLIO_AFTER}"
+    else
+        "${PY}" -m scripts.ibkr_portfolio_snapshot \
+            --output "${PORTFOLIO_AFTER}"
+    fi
+}
+if ! _capture_portfolio_after; then
+    echo "reconcile cron: post-session portfolio snapshot FAILED" >&2
+    _write_marker "DEGRADED" "portfolio-after-failed:path=${PORTFOLIO_AFTER}"
+    exit 1
+fi
+mkdir -p "$(dirname "${PORTFOLIO_MONITORING}")"
+_portfolio_reconcile_exit=0
+"${PY}" -m scripts.reconcile_portfolio_shadow \
+    --before "${PORTFOLIO_BEFORE}" \
+    --after "${PORTFOLIO_AFTER}" \
+    --fills "${PORTFOLIO_FILLS}" \
+    --output "${PORTFOLIO_REPORT}" \
+    --monitoring-output "${PORTFOLIO_MONITORING}" || _portfolio_reconcile_exit=$?
+if [[ ! -s "${PORTFOLIO_MONITORING}" ]]; then
+    echo "reconcile cron: portfolio monitoring report missing" >&2
+    _write_marker "DEGRADED" "portfolio-monitoring-missing:path=${PORTFOLIO_MONITORING}"
+    exit 1
+fi
 
-# Publish the reconciled audit file so the GH-hosted C13 cron overlays the
-# version WITH fills, not the morning's submit-only snapshot.
+# Publish only the sanitized monitoring report alongside the reconciled audit.
+# Raw portfolio snapshots, account identifiers, positions and execution IDs
+# remain local on C13 and are never copied to the data branch.
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib_c13_data_push.sh"
 push_to_data_branch "chore(c13): reconciled fills ${DATE}" "${PUSH_MARKER}" \
-    "cache/live/incubation_${DATE}.jsonl"
+    "cache/live/incubation_${DATE}.jsonl" \
+    "artifacts/portfolio/reconciliation_${DATE}.monitoring.json"
+
+if [[ "${_portfolio_reconcile_exit}" -ne 0 ]]; then
+    echo "reconcile cron: portfolio position reconciliation FAILED" >&2
+    _write_marker "DEGRADED" "portfolio-reconciliation-failed:report=${PORTFOLIO_REPORT}"
+    exit "${_portfolio_reconcile_exit}"
+fi
+_write_marker "SUCCESS" "reconcile-complete:audit=${AUDIT}"

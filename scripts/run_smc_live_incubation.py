@@ -546,7 +546,7 @@ def run_live_incubation(
                 "phase": phase,
                 "action": "portfolio_risk_evaluated",
                 "kill_switch_triggered": False,
-                "portfolio_risk": portfolio_decision.to_dict(),
+                "portfolio_risk": portfolio_decision.to_audit_dict(),
             }
         )
     # First, emit one audit row per earnings-blocked intent (those were
@@ -572,7 +572,6 @@ def run_live_incubation(
         portfolio_audit = None
         if portfolio_decision is not None:
             portfolio_audit = {
-                "snapshot_id": portfolio_decision.projection.snapshot_id,
                 "mode": portfolio_decision.mode.value,
                 "verdict": portfolio_decision.verdict.value,
                 "reasons": list(portfolio_decision.reasons),

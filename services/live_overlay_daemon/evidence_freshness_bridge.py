@@ -61,6 +61,21 @@ def _empty(loaded: float, error: str) -> dict[str, Any]:
         },
         "wsh": {"newest_date": "", "status": ""},
         "submitter": {"submit_code_behind_commits": 0, "known": 0},
+        "portfolio_shadow": {
+            "known": 0,
+            "status": "observing",
+            "min_shadow_sessions_for_review": 0,
+            "risk_relevant_sessions_observed": 0,
+            "risk_relevant_decision_count": 0,
+            "newest_risk_relevant_session": "",
+            "submission_attempt_count": 0,
+            "submission_attempts_without_prior_evaluation": 0,
+            "incomplete_decisions": 0,
+            "reconciliation_sessions": 0,
+            "risk_relevant_sessions_missing_reconciliation": 0,
+            "reconciliation_failures": 0,
+            "evidence_complete": 0,
+        },
         "error": error,
     }
 
@@ -73,6 +88,8 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
     fills = raw.get("fills") if isinstance(raw.get("fills"), dict) else {}
     wsh = raw.get("wsh") if isinstance(raw.get("wsh"), dict) else {}
     submitter = raw.get("submitter") if isinstance(raw.get("submitter"), dict) else {}
+    portfolio_present = isinstance(raw.get("portfolio_shadow"), dict)
+    portfolio = raw.get("portfolio_shadow") if portfolio_present else {}
 
     def _num(value: Any) -> float:
         return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
@@ -111,6 +128,33 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
         "submitter": {
             "submit_code_behind_commits": _num(submitter.get("submit_code_behind_commits")),
             "known": _num(submitter.get("known")),
+        },
+        "portfolio_shadow": {
+            "known": 1.0 if portfolio_present else 0.0,
+            "status": str(portfolio.get("status", "observing") or "observing"),
+            "min_shadow_sessions_for_review": _num(
+                portfolio.get("min_shadow_sessions_for_review")
+            ),
+            "risk_relevant_sessions_observed": _num(
+                portfolio.get("risk_relevant_sessions_observed")
+            ),
+            "risk_relevant_decision_count": _num(
+                portfolio.get("risk_relevant_decision_count")
+            ),
+            "newest_risk_relevant_session": str(
+                portfolio.get("newest_risk_relevant_session", "") or ""
+            ),
+            "submission_attempt_count": _num(portfolio.get("submission_attempt_count")),
+            "submission_attempts_without_prior_evaluation": _num(
+                portfolio.get("submission_attempts_without_prior_evaluation")
+            ),
+            "incomplete_decisions": _num(portfolio.get("incomplete_decisions")),
+            "reconciliation_sessions": _num(portfolio.get("reconciliation_sessions")),
+            "risk_relevant_sessions_missing_reconciliation": _num(
+                portfolio.get("risk_relevant_sessions_missing_reconciliation")
+            ),
+            "reconciliation_failures": _num(portfolio.get("reconciliation_failures")),
+            "evidence_complete": 1.0 if portfolio.get("evidence_complete") is True else 0.0,
         },
         "error": "",
     }

@@ -2145,3 +2145,72 @@ def test_health_status_panels_map_degraded_code() -> None:
         assert "DEGRADED" in str(panel.get("description", "")), (
             f"{title!r} description no longer names the DEGRADED state"
         )
+
+
+def test_dashboard_exposes_portfolio_shadow_evidence_without_auto_promotion() -> None:
+    dashboard = json.loads(_DASHBOARD_JSON.read_text(encoding="utf-8"))
+    panels = {panel.get("title"): panel for panel in _dashboard_panels(dashboard)}
+    readiness = panels["Portfolio Shadow Readiness"]
+    progress = panels["Portfolio Evidence Progress"]
+    integrity = panels["Portfolio Audit Integrity"]
+
+    readiness_expr = readiness["targets"][0]["expr"]
+    assert "live_overlay_portfolio_shadow_ready_for_human_review" in readiness_expr
+    assert "live_overlay_portfolio_shadow_evidence_known" in readiness_expr
+    mappings = readiness["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert mappings["0"]["text"] == "OBSERVING"
+    assert mappings["1"]["text"] == "REVIEW READY"
+    assert "never enables enforcement automatically" in readiness["description"]
+
+    progress_exprs = {target["expr"] for target in progress["targets"]}
+    assert any("risk_relevant_sessions" in expr for expr in progress_exprs)
+    assert any("min_sessions" in expr for expr in progress_exprs)
+    assert any("missing_reconciliation_sessions" in expr for expr in progress_exprs)
+    assert any("newest_risk_relevant_session_age_seconds" in expr for expr in progress_exprs)
+    assert any("newest_risk_relevant_session_age_known" in expr for expr in progress_exprs)
+
+    integrity_exprs = {target["expr"] for target in integrity["targets"]}
+    assert any("without_prior_evaluation" in expr for expr in integrity_exprs)
+    assert any("submission_attempts_total" in expr for expr in integrity_exprs)
+    assert any("incomplete_decisions" in expr for expr in integrity_exprs)
+    assert any("reconciliation_failures" in expr for expr in integrity_exprs)
+
+
+@pytest.mark.parametrize(
+    ("uid", "metric", "severity"),
+    [
+        (
+            "lo-portfolio-evidence-section-missing",
+            "live_overlay_portfolio_shadow_evidence_known",
+            "warning",
+        ),
+        (
+            "lo-portfolio-submit-no-risk-eval",
+            "live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total",
+            "critical",
+        ),
+        (
+            "lo-portfolio-reconcile-missing",
+            "live_overlay_portfolio_shadow_missing_reconciliation_sessions",
+            "warning",
+        ),
+        (
+            "lo-portfolio-reconciliation-failed",
+            "live_overlay_portfolio_shadow_reconciliation_failures_total",
+            "critical",
+        ),
+        (
+            "lo-portfolio-decision-incomplete",
+            "live_overlay_portfolio_shadow_incomplete_decisions_total",
+            "warning",
+        ),
+    ],
+)
+def test_alert_rules_cover_portfolio_evidence_integrity(
+    uid: str,
+    metric: str,
+    severity: str,
+) -> None:
+    rule = _alert_rule(uid)
+    assert rule["labels"]["severity"] == severity
+    assert metric in rule["data"][0]["model"]["expr"]

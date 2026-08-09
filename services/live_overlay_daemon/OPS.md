@@ -1386,6 +1386,34 @@ are GitHub-workflow-specific detail series.
 
 ---
 
+## Portfolio shadow evidence triage
+
+F4 remains shadow-only. Grafana's **Portfolio Shadow Readiness** tile reports
+whether the evidence is ready for human review; it never promotes the policy.
+The evidence snapshot is rebuilt daily from C13 incubation rows and sanitized
+`reconciliation_<DATE>.monitoring.json` reports on `data/phase-a-audit`.
+
+| Alert | First response |
+|---|---|
+| `lo-portfolio-evidence-section-missing` | Inspect `evidence-freshness-snapshot.yml`; confirm the published JSON contains `portfolio_shadow`. |
+| `lo-portfolio-submit-no-risk-eval` | Stop the C13 submit schedule and verify the same timestamp/phase has an earlier `portfolio_risk_evaluated` row before any `paper_submitted` or `submit_failed` row. |
+| `lo-portfolio-reconcile-missing` | Check the 23:05 reconcile LaunchAgent, TWS paper port 7497 and the sanitized monitoring report on the audit branch. |
+| `lo-portfolio-reconciliation-failed` | Keep enforcement disabled; compare the local raw before/after snapshots and individual execution fills. Do not publish those raw files. |
+| `lo-portfolio-decision-incomplete` | Inspect decision reasons for stale/future/incomplete snapshots or unknown working-order roles; rebuild a clean evidence window. |
+
+On the C13 workstation the private diagnostic files are:
+
+- `cache/live/portfolio_before_<DATE>.json`
+- `cache/live/portfolio_after_<DATE>.json`
+- `cache/live/portfolio_fills_<DATE>.json`
+- `cache/live/portfolio_reconciliation_<DATE>.json`
+
+Only `artifacts/portfolio/reconciliation_<DATE>.monitoring.json` and the
+incubation audit are copied to the data branch. If TWS exposes multiple managed
+accounts, set `C13_IBKR_ACCOUNT`; never select one implicitly.
+
+---
+
 ## Platform Interaction Matrix
 
 | Source | Destination | Protocol | Auth | Direction | Data |
