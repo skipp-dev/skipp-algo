@@ -2731,6 +2731,42 @@ export async function fillFirst(value: string, candidates: Locator[], timeoutMs 
   return false;
 }
 
+function normalizePublishFieldValue(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+export async function fillFirstAndVerify(
+  value: string,
+  candidates: Locator[],
+  timeoutMs = 2_500,
+): Promise<boolean> {
+  const expected = normalizePublishFieldValue(value);
+
+  for (const locator of candidates) {
+    const candidate = await firstVisibleLocator(locator, timeoutMs);
+    if (!candidate) {
+      continue;
+    }
+
+    const filled = await candidate.fill(value).then(() => true).catch(() => false);
+    if (!filled) {
+      continue;
+    }
+
+    const actual = await candidate.evaluate((node) => {
+      if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) {
+        return node.value;
+      }
+      return (node as HTMLElement).innerText || node.textContent || "";
+    }).catch(() => "");
+    if (normalizePublishFieldValue(actual) === expected) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function clickVisibleWithFallback(
   page: Page,
   candidates: Locator[],
@@ -4208,11 +4244,11 @@ async function capturePublishConfirmationEvidence(page: Page, scriptName?: strin
       versionContextTexts = await collectPublishedVersionContextTexts(page, scriptName).catch(() => []);
     }
     bodyText = await page.locator("body").innerText().catch(() => "");
-    publishSurfaceClosed = publishSurfaceClosed || !(await hasPublishSurface(page, 150));
+    publishSurfaceClosed = !(await hasPublishSurface(page, 150));
 
     if (
-      (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
-      || detectPublishedVersionFromBody(bodyText, scriptName) !== null
+      publishSurfaceClosed
+      || (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
     ) {
       break;
     }
@@ -4227,6 +4263,46 @@ async function capturePublishConfirmationEvidence(page: Page, scriptName?: strin
   );
 
   return { versionContextTexts, bodyText, publishSurfaceClosed };
+}
+
+async function visiblePublishValidationMessage(page: Page, timeoutMs = 250): Promise<string | null> {
+  for (const locator of tvSelectors.publishValidationError(page)) {
+    const candidate = await firstVisibleLocatorFast(locator, timeoutMs);
+    if (!candidate) {
+      continue;
+    }
+    const text = await candidate.innerText().catch(() => "");
+    if (text.trim()) {
+      return text.replace(/\s+/g, " ").trim();
+    }
+  }
+  return null;
+}
+
+async function visiblePublishSurfaceFingerprint(page: Page): Promise<string> {
+  const snippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
+  return snippets.map((value) => value.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+}
+
+export function publishStepMadeProgress(options: {
+  beforeStep: string;
+  afterStep: string;
+  continueStillVisible: boolean;
+}): boolean {
+  return !options.continueStillVisible
+    || !options.beforeStep
+    || options.afterStep !== options.beforeStep;
+}
+
+export function publishConfirmationIsAuthoritative(options: {
+  publishSurfaceClosed: boolean;
+  versionContextTexts: string[];
+  scriptName?: string;
+}): boolean {
+  const publishedVersionDetected = options.scriptName
+    ? detectPublishedVersionFromContextTexts(options.versionContextTexts, options.scriptName)
+    : null;
+  return options.publishSurfaceClosed || publishedVersionDetected !== null;
 }
 
 async function handlePublishNoChangeDialog(page: Page, timeoutMs = 500): Promise<boolean> {
@@ -8914,6 +8990,7 @@ export async function publishPrivateScript(
     title?: string;
     description?: string;
     requireCleanChartBeforePublish?: boolean;
+    publishMode?: "auto" | "update_existing";
   } = {},
 ): Promise<{
   noChangeDetected: boolean;
@@ -8982,15 +9059,39 @@ export async function publishPrivateScript(
   await page.waitForTimeout(750);
   const openSurfaceBodyText = await page.locator("body").innerText().catch(() => "");
 
+  if (options.publishMode === "update_existing") {
+    const selectedUpdateMode = await clickVisibleWithFallback(
+      page,
+      tvSelectors.publishUpdateExistingMode(page),
+      "publish-update-existing-mode",
+      2_000,
+      350,
+    );
+    if (!selectedUpdateMode) {
+      throw new Error("Could not select Update existing script in TradingView publish flow");
+    }
+  }
+
   if (options.title) {
-    await fillFirst(options.title, tvSelectors.publishTitleInput(page), 1_000);
+    const titleFilled = await fillFirstAndVerify(options.title, tvSelectors.publishTitleInput(page), 1_000);
+    if (!titleFilled) {
+      throw new Error("Could not fill and verify the TradingView publish title");
+    }
   }
 
   if (options.description) {
-    await fillFirst(options.description, tvSelectors.publishDescriptionInput(page), 1_000);
+    const descriptionFilled = await fillFirstAndVerify(
+      options.description,
+      tvSelectors.publishDescriptionInput(page),
+      1_000,
+    );
+    if (!descriptionFilled) {
+      throw new Error("Could not fill and verify the TradingView publish description");
+    }
   }
 
   for (let stepIndex = 0; stepIndex < 8; stepIndex += 1) {
+    const beforeStep = await visiblePublishSurfaceFingerprint(page);
     const continued = await clickVisibleWithFallback(
       page,
       tvSelectors.publishContinue(page),
@@ -9004,15 +9105,35 @@ export async function publishPrivateScript(
 
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
+      const publishSurfaceClosed = !(await hasPublishSurface(page, 250));
+      if (!publishSurfaceClosed) {
+        throw new Error("TradingView no-change dialog closed without dismissing the publish surface");
+      }
       await ensurePineEditor(page).catch(() => undefined);
       return {
         noChangeDetected,
         publishConfirmed: false,
-        publishSurfaceClosedAfterConfirm: false,
+        publishSurfaceClosedAfterConfirm: true,
         versionContextTexts: [],
         bodyText: await page.locator("body").innerText().catch(() => ""),
       };
     }
+
+    const validationMessage = await visiblePublishValidationMessage(page, 500);
+    if (validationMessage) {
+      throw new Error(`TradingView publish validation blocked Continue: ${validationMessage}`);
+    }
+
+    const afterStep = await visiblePublishSurfaceFingerprint(page);
+    const continueStillVisible = await hasVisibleLocatorFast(tvSelectors.publishContinue(page), 250);
+    if (!publishStepMadeProgress({ beforeStep, afterStep, continueStillVisible })) {
+      throw new Error("TradingView publish Continue had no observable effect");
+    }
+  }
+
+  const validationMessage = await visiblePublishValidationMessage(page, 500);
+  if (validationMessage) {
+    throw new Error(`TradingView publish validation blocked confirmation: ${validationMessage}`);
   }
 
   const confirmed = await clickVisibleWithFallback(
@@ -9051,11 +9172,15 @@ export async function publishPrivateScript(
 
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
+      const publishSurfaceClosed = !(await hasPublishSurface(page, 250));
+      if (!publishSurfaceClosed) {
+        throw new Error("TradingView no-change dialog closed without dismissing the publish surface");
+      }
       await ensurePineEditor(page).catch(() => undefined);
       return {
         noChangeDetected,
         publishConfirmed: false,
-        publishSurfaceClosedAfterConfirm: false,
+        publishSurfaceClosedAfterConfirm: true,
         versionContextTexts: [],
         bodyText: await page.locator("body").innerText().catch(() => ""),
       };
@@ -9064,9 +9189,19 @@ export async function publishPrivateScript(
   }
 
   const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 12_000);
+  const publishConfirmed = publishConfirmationIsAuthoritative({
+    publishSurfaceClosed: evidence.publishSurfaceClosed,
+    versionContextTexts: evidence.versionContextTexts,
+    scriptName: options.scriptName,
+  });
+  if (!publishConfirmed) {
+    const postConfirmValidation = await visiblePublishValidationMessage(page, 500);
+    const suffix = postConfirmValidation ? `: ${postConfirmValidation}` : "";
+    throw new Error(`TradingView publish confirmation produced no authoritative evidence${suffix}`);
+  }
   return {
     noChangeDetected,
-    publishConfirmed: true,
+    publishConfirmed,
     publishSurfaceClosedAfterConfirm: evidence.publishSurfaceClosed,
     versionContextTexts: evidence.versionContextTexts,
     bodyText: evidence.bodyText || openSurfaceBodyText,

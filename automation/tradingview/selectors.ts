@@ -414,6 +414,35 @@ export const tvSelectors = {
       surface.getByRole("textbox", { name: /description/i }),
       surface.getByPlaceholder(/description/i),
       surface.locator("textarea"),
+      surface.locator('[contenteditable="true"][aria-label*="description" i]'),
+      surface.locator('[contenteditable="true"][data-placeholder*="description" i]'),
+      surface.locator('[class*="description" i] [contenteditable="true"]'),
+      surface.locator('[contenteditable="true"][role="textbox"]').last(),
+      surface.locator('[contenteditable="true"]').last(),
+    ];
+  },
+
+  publishUpdateExistingMode(page: Page): Locator[] {
+    const surface = publishSurface(page);
+    const exact = /^update existing script$/i;
+
+    return [
+      surface.getByRole("tab", { name: exact }),
+      surface.getByRole("button", { name: exact }),
+      surface.getByRole("radio", { name: exact }),
+      surface.locator('[role="tab"], [role="button"], button, label').filter({ hasText: exact }),
+      surface.getByText(exact, { exact: true }),
+    ];
+  },
+
+  publishValidationError(page: Page): Locator[] {
+    const surface = publishSurface(page);
+    const knownValidation = /script description is required|script title is required|description is required|title is required/i;
+
+    return [
+      surface.getByRole("alert").filter({ hasText: knownValidation }),
+      surface.getByText(knownValidation),
+      surface.locator('[class*="error" i], [data-name*="error" i]').filter({ hasText: knownValidation }),
     ];
   },
 
@@ -451,17 +480,6 @@ export const tvSelectors = {
       page.locator('#overlap-manager-root').getByRole("button", { name: /^publish$/i }).last(),
       page.locator('#overlap-manager-root button').filter({ hasText: /publish new version|update .*library|publish script|publish private|publish privately|private script|publish library|^publish$/i }).last(),
       page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /publish new version|update .*library|publish script|publish private|publish privately|private script|publish library|^publish$/i }).last(),
-      surface.getByText(/publish new version/i).last(),
-      surface.getByText(/update .*library/i).last(),
-      surface.getByText(/publish script/i).last(),
-      surface.getByText(/publish privately/i).last(),
-      surface.getByText(/private script/i).last(),
-      page.locator('#overlap-manager-root').getByText(/publish new version/i).last(),
-      page.locator('#overlap-manager-root').getByText(/update .*library/i).last(),
-      page.locator('#overlap-manager-root').getByText(/publish script/i).last(),
-      page.locator('#overlap-manager-root').getByText(/publish privately/i).last(),
-      page.locator('#overlap-manager-root').getByText(/private script/i).last(),
-      page.locator('#overlap-manager-root').getByText(/publish library/i).last(),
     ];
   },
 

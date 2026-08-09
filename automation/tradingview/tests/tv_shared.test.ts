@@ -50,6 +50,9 @@ import {
   dismissOverlapManagerOverlay,
   hasAddToChartClickEffect,
   clickVisibleWithFallback,
+  fillFirstAndVerify,
+  publishConfirmationIsAuthoritative,
+  publishStepMadeProgress,
   MAX_VISIBLE_LEGEND_TEXT_TARGETS,
   VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS,
   visibleLegendTextBudgetExceeded,
@@ -1638,6 +1641,99 @@ test("publishContinue selector matches a Continue button with a trailing stepper
   } finally {
     await browser.close();
   }
+});
+
+test("publish description selector fills and verifies TradingView's rich-text editor", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <div class="description-field"><div role="textbox" contenteditable="true" data-placeholder="Description"></div></div>
+      </div></div></body></html>
+    `);
+    const description = "Private Open-Prep decision panel.";
+    assert.equal(
+      await fillFirstAndVerify(description, tvSelectors.publishDescriptionInput(page), 500),
+      true,
+    );
+    assert.equal(await page.locator('[contenteditable="true"]').innerText(), description);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish description verification fails when no writable field exists", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <div>Script description is required</div>
+      </div></div></body></html>
+    `);
+    assert.equal(
+      await fillFirstAndVerify("Required description", tvSelectors.publishDescriptionInput(page), 100),
+      false,
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish confirmation selector does not match non-interactive publish headings", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2><button>Continue</button>
+      </div></div></body></html>
+    `);
+    let matched = 0;
+    for (const locator of tvSelectors.confirmPublish(page)) {
+      matched += await locator.count().catch(() => 0);
+    }
+    assert.equal(matched, 0);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("publish wizard rejects a Continue click that leaves the same step visible", () => {
+  assert.equal(publishStepMadeProgress({
+    beforeStep: "Publish new script Description Continue",
+    afterStep: "Publish new script Description Continue",
+    continueStillVisible: true,
+  }), false);
+  assert.equal(publishStepMadeProgress({
+    beforeStep: "Final touches Continue",
+    afterStep: "Privacy settings Continue",
+    continueStillVisible: true,
+  }), true);
+});
+
+test("publish confirmation requires a closed surface or scoped version evidence", () => {
+  assert.equal(publishConfirmationIsAuthoritative({
+    publishSurfaceClosed: false,
+    versionContextTexts: [],
+    scriptName: "Open-Prep Daily Panel",
+  }), false);
+  assert.equal(publishConfirmationIsAuthoritative({
+    publishSurfaceClosed: true,
+    versionContextTexts: [],
+    scriptName: "Open-Prep Daily Panel",
+  }), true);
+  assert.equal(publishConfirmationIsAuthoritative({
+    publishSurfaceClosed: false,
+    versionContextTexts: ["smc_utils version 4"],
+    scriptName: "smc_utils",
+  }), true);
+  assert.equal(publishConfirmationIsAuthoritative({
+    publishSurfaceClosed: false,
+    versionContextTexts: ["smc_utils version 4"],
+    scriptName: "Open-Prep Daily Panel",
+  }), false);
 });
 
 // --- clickVisibleWithFallback: centralised hover-tooltip dismissal (#2849) ---
