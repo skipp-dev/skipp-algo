@@ -698,9 +698,6 @@ _GUARD_CORPUS_INTENTIONALLY_UNGATED: frozenset[str] = frozenset(
         # rule directly — same surface, already covered.
         "tests/test_no_prod_assert_pin.py",
         "tests/test_open_encoding_discipline.py",
-        # Not a production surface: a pytest-xdist parametrize determinism pin.
-        # It guards the test harness.
-        "tests/test_pytest_xdist_parametrize_determinism.py",
         # test_guard_corpus_tracked_files was exempted here on the same grounds
         # ("the corpus's own tracked-file self-check", #3690). That was true of
         # the file as it stood. It no longer is: the file now also pins
@@ -720,6 +717,31 @@ def _guard_corpus_users() -> set[str]:
     }
 
 
+def _test_harness_determinism_step_text() -> str:
+    """Return the separately gated pytest-xdist determinism step body.
+
+    Keeping the test-harness guard outside the production ledger bundle makes
+    the lane's intent explicit. This assertion still runs from the pinned
+    drift-guard step, so removing or weakening the separate step fails the
+    required check before merge.
+    """
+    workflow = yaml.safe_load(FAST_GATES_WORKFLOW.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["fast-gates"]["steps"]
+    for step in steps:
+        if step.get("name") != "Run pytest-xdist parametrization determinism guard":
+            continue
+        assert step.get("if") == "steps.gate.outputs.run_heavy == 'true'", (
+            "pytest-xdist determinism guard must run on the required heavy "
+            "fast-gates path"
+        )
+        run = step.get("run")
+        assert isinstance(run, str)
+        return _strip_comments(run)
+    raise AssertionError(
+        "fast-gates dropped the pytest-xdist parametrization determinism guard"
+    )
+
+
 def test_every_guard_corpus_user_is_on_the_required_path() -> None:
     """A repo-wide source guard that is not gated cannot block the merge it exists for.
 
@@ -736,7 +758,9 @@ def test_every_guard_corpus_user_is_on_the_required_path() -> None:
         "measuring anything"
     )
 
-    step = _drift_guard_step_text()
+    step = "\n".join(
+        (_drift_guard_step_text(), _test_harness_determinism_step_text())
+    )
     referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
     ungated = sorted(users - referenced - _GUARD_CORPUS_INTENTIONALLY_UNGATED)
     assert not ungated, (
