@@ -452,6 +452,29 @@ export const tvSelectors = {
     ];
   },
 
+  publishExistingScriptChooser(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
+    return [
+      surface.getByRole("combobox", { name: /choose script/i }),
+      surface.getByRole("button", { name: /choose script/i }),
+      surface.locator('select[aria-label*="script" i]'),
+      surface.locator('[role="combobox"]'),
+      surface.getByText(/^choose script$/i, { exact: true }),
+    ];
+  },
+
+  publishExistingScriptOption(page: Page, scriptName: string): Locator[] {
+    const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
+
+    return [
+      page.getByRole("option", { name: exact }),
+      page.getByRole("menuitem", { name: exact }),
+      page.locator('[role="listbox"], [role="menu"]').getByText(exact, { exact: true }),
+      page.locator("#overlap-manager-root").getByText(exact, { exact: true }),
+    ];
+  },
+
   publishValidationError(page: Page): Locator[] {
     const surface = publishSurface(page);
     const knownValidation = /script description is required|script title is required|description is required|title is required/i;

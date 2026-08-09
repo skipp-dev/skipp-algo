@@ -1729,6 +1729,39 @@ test("publish surface ignores a stale hidden dialog before the active dialog", a
   }
 });
 
+test("update-existing selectors find the script chooser and exact target option", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <button>Update existing script</button>
+        <button role="combobox" aria-label="Choose script">Choose script</button>
+        <div role="listbox"><div role="option">Open-Prep Daily Panel</div></div>
+        <div contenteditable="true">Describe the changes you made</div>
+        <button>Continue</button>
+      </div></div></body></html>
+    `);
+
+    assert.ok(
+      (await Promise.all(tvSelectors.publishExistingScriptChooser(page).map((locator) => locator.count()))).some((count) => count > 0),
+      "the update flow must discover TradingView's Choose script control",
+    );
+    assert.ok(
+      (await Promise.all(tvSelectors.publishExistingScriptOption(page, "Open-Prep Daily Panel").map((locator) => locator.count()))).some((count) => count > 0),
+      "the update flow must match the existing script by exact name",
+    );
+    assert.equal(
+      (await Promise.all(tvSelectors.publishTitleInput(page).map((locator) => locator.count()))).some((count) => count > 0),
+      false,
+      "the update flow legitimately has no title input",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
 test("publish surface keeps the class-based private-library fallback", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
