@@ -29,6 +29,7 @@ import {
   openSettingsFromVisibleLegendText,
   settingsDialogTitleMatchesScriptName,
   resolveTradingViewHeadlessDefault,
+  selectExistingPublishScript,
   validateTradingViewStorageState,
   containsAnchoredCodeBlockAfterLine,
   containsOrderedCodeBlock,
@@ -1757,6 +1758,42 @@ test("update-existing selectors find the script chooser and exact target option"
       false,
       "the update flow legitimately has no title input",
     );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("update-existing selection waits for TradingView's delayed chooser", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent('<html><body><div id="overlap-manager-root"><div role="dialog"><h2>Publish script</h2></div></div></body></html>');
+    await page.evaluate(() => {
+      window.setTimeout(() => {
+        const dialog = document.querySelector('[role="dialog"]');
+        if (!dialog) return;
+        const chooser = document.createElement("button");
+        chooser.setAttribute("role", "combobox");
+        chooser.setAttribute("aria-label", "Choose script");
+        chooser.textContent = "Choose script";
+        chooser.addEventListener("click", () => {
+          window.setTimeout(() => {
+            const option = document.createElement("button");
+            option.setAttribute("role", "option");
+            option.textContent = "Open-Prep Daily Panel";
+            option.addEventListener("click", () => {
+              chooser.textContent = "Open-Prep Daily Panel";
+              option.remove();
+            });
+            dialog.appendChild(option);
+          }, 300);
+        });
+        dialog.appendChild(chooser);
+      }, 300);
+    });
+
+    assert.equal(await selectExistingPublishScript(page, "Open-Prep Daily Panel"), true);
+    assert.equal(await page.getByRole("combobox").innerText(), "Open-Prep Daily Panel");
   } finally {
     await browser.close();
   }
