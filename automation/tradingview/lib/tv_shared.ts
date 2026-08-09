@@ -2530,6 +2530,21 @@ async function firstVisibleLocator(locator: Locator, timeoutMs = 2_500): Promise
   return null;
 }
 
+async function waitForFirstVisibleLocator(candidates: Locator[], timeoutMs: number): Promise<Locator | null> {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    for (const locator of candidates) {
+      const candidate = await firstVisibleLocator(locator, 100);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } while (Date.now() < deadline);
+
+  return null;
+}
+
 export async function collectVisibleLocatorMetadata(locator: Locator, timeoutMs = 750): Promise<Array<{
   text: string;
   ariaLabel: string;
@@ -8983,6 +8998,53 @@ async function tracePublishSurfaceAbsence(page: Page, phase: string): Promise<vo
   tracePageEvent(page, "publish-absence-overlays", `${phase}:${JSON.stringify(overlaySnippets).slice(0, 1_200)}`);
 }
 
+export async function selectExistingPublishScript(page: Page, scriptName: string): Promise<boolean> {
+  const nativeChooser = await firstVisibleLocator(
+    page.locator('#overlap-manager-root select[aria-label*="script" i]'),
+    750,
+  );
+  if (nativeChooser) {
+    return nativeChooser
+      .selectOption({ label: scriptName })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  const chooserControl = await waitForFirstVisibleLocator(
+    tvSelectors.publishExistingScriptChooser(page),
+    3_000,
+  );
+  if (!chooserControl) {
+    return false;
+  }
+  const openedChooser = await clickVisibleWithFallback(
+    page,
+    [chooserControl],
+    "publish-existing-script-chooser",
+    3_000,
+    350,
+  );
+  if (!openedChooser) {
+    return false;
+  }
+
+  const scriptOption = await waitForFirstVisibleLocator(
+    tvSelectors.publishExistingScriptOption(page, scriptName),
+    3_000,
+  );
+  if (!scriptOption) {
+    return false;
+  }
+
+  return clickVisibleWithFallback(
+    page,
+    [scriptOption],
+    "publish-existing-script-option",
+    3_000,
+    350,
+  );
+}
+
 export async function publishPrivateScript(
   page: Page,
   options: {
@@ -9074,35 +9136,7 @@ export async function publishPrivateScript(
       throw new Error("Update existing script publish mode requires scriptName");
     }
 
-    const chooser = tvSelectors.publishExistingScriptChooser(page);
-    let selectedExistingScript = false;
-    for (const candidate of chooser) {
-      const count = await candidate.count().catch(() => 0);
-      for (let index = 0; index < count; index += 1) {
-        const control = candidate.nth(index);
-        if (!(await control.isVisible().catch(() => false))) {
-          continue;
-        }
-        if ((await control.evaluate((element) => element.tagName.toLowerCase()).catch(() => "")) === "select") {
-          selectedExistingScript = await control.selectOption({ label: options.scriptName }).then(() => true).catch(() => false);
-        } else {
-          await control.click().catch(() => undefined);
-          selectedExistingScript = await clickVisibleWithFallback(
-            page,
-            tvSelectors.publishExistingScriptOption(page, options.scriptName),
-            "publish-existing-script-option",
-            2_000,
-            350,
-          );
-        }
-        if (selectedExistingScript) {
-          break;
-        }
-      }
-      if (selectedExistingScript) {
-        break;
-      }
-    }
+    const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
     if (!selectedExistingScript) {
       throw new Error(`Could not select existing TradingView script: ${options.scriptName}`);
     }
