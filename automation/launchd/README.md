@@ -15,9 +15,9 @@ is treated as a soft skip.
 | `com.skippalgo.c13.collect-imbalance.plist` | 09:28 ET (Mon-Fri) | `scripts.collect_opening_imbalances` | `cache/imbalance/<DATE>.jsonl` |
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
-| `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` (bracket sets submitted to the PAPER TWS) |
+| `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | portfolio snapshot + `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper --place-paper-orders` | local `cache/live/portfolio_before_<DATE>.json`, setups/gates and `incubation_<DATE>.jsonl`; no submit occurs if the before snapshot cannot be captured |
 | `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
-| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | `scripts.reconcile_incubation_fills` | stamps `fill_price`/`close_price`/`close_action`/`size_usd` + PnL/R onto `cache/live/incubation_<DATE>.jsonl` and publishes it (Phase-B execution-promotion fills — NOT the ADR-0023 §5 gate) |
+| `com.skippalgo.c13.reconcile.plist` | 23:05 local (Mon-Fri) | execution-fill reconcile + after snapshot + portfolio reconcile | updates `incubation_<DATE>.jsonl`; keeps raw before/after snapshots, account IDs and execution fills local; publishes only the audit and sanitized `artifacts/portfolio/reconciliation_<DATE>.monitoring.json` |
 | `com.skippalgo.c13.tws-autostart.plist` | **07:30 ET (Mon-Fri)** | `run-c13-tws-autostart.sh` (IBC + login Keychain `skipp.ibkr.paper`, no venv) | starts the paper TWS 30 min before the 08:00 ET smoke so the day's fills chain has a listening 7497; writes `cache/live/.tws_autostart_status_<DATE>`. Idempotent when TWS is already up. The credentials never reach a command line — see the script header. |
 | `com.skippalgo.c13.tws-reminder.plist` | **07:45 ET** + 22:50 local (Mon-Fri) | `run-c13-tws-reminder.sh` (system tools + ET-gate lib, no venv) | macOS notification 15 min before the day's first TWS-bound window (08:00 ET ibkr-smoke; also covers 09:28 ET phase-a) and before the 23:05 local reconcile — posts ONLY when nothing listens on the paper port |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
@@ -52,6 +52,15 @@ The fills chain requires the paper TWS to be RUNNING at 09:28 ET
 (reconcile); a down TWS surfaces as
 `action="submit_failed"` records resp. a red reconcile job — never
 silently.
+
+Immediately before a real paper submit, the phase-a driver captures
+`portfolio_before_<DATE>.json` from TWS and passes it to the shadow portfolio
+gate. Capture failure or an empty file stops that day's submit. If TWS exposes
+multiple managed accounts, set `C13_IBKR_ACCOUNT` in the LaunchAgent environment;
+the driver does not guess. At 23:05 the reconcile job exports only executions
+belonging to that day's incubation, captures `portfolio_after_<DATE>.json`, and
+proves the signed position delta. A mismatch remains a failed evidence record;
+it does not enable enforcement or get hidden by a larger tolerance.
 
 Known limitation: the WSH earnings filter is structurally empty until
 the watchlist rows carry IBKR conIds (`wsh_earnings_calendar` skips
@@ -156,10 +165,11 @@ rm cache/live/smoke_HALT
 ```
 
 Note: `run-c13-audit-push.sh` pushes only `incubation_<DATE>.jsonl`,
-`setups_<DATE>.jsonl` and `gate_status.json` — the smoke JSONL stays local
-(`cache/live/smoke_<DATE>.jsonl`); inspect it on the workstation when
-triaging a `smoke_HALT`. (Corrected 2026-07-08 — this section previously
-claimed audit-push also shipped the smoke files.)
+`setups_<DATE>.jsonl`, `gate_status.json` and checkout freshness. The 23:05
+reconcile job separately publishes the updated incubation audit plus the
+sanitized portfolio monitoring report. Smoke JSONL, raw portfolio snapshots,
+account identifiers, positions and individual execution IDs stay local; inspect
+them on the workstation during incident triage.
 
 ## Timezone (ET) scheduling
 

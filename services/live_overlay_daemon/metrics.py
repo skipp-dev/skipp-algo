@@ -2480,6 +2480,98 @@ def _render_evidence_freshness_metrics() -> list[str]:
         f"{_prom_numeric_value(submitter.get('known', 0))}"
     )
 
+    portfolio = snap.get("portfolio_shadow") or {}
+    portfolio_metrics = {
+        "live_overlay_portfolio_shadow_evidence_known": portfolio.get("known", 0),
+        "live_overlay_portfolio_shadow_ready_for_human_review": (
+            1 if portfolio.get("status") == "ready_for_human_review" else 0
+        ),
+        "live_overlay_portfolio_shadow_min_sessions": portfolio.get(
+            "min_shadow_sessions_for_review", 0
+        ),
+        "live_overlay_portfolio_shadow_risk_relevant_sessions": portfolio.get(
+            "risk_relevant_sessions_observed", 0
+        ),
+        "live_overlay_portfolio_shadow_risk_relevant_decisions_total": portfolio.get(
+            "risk_relevant_decision_count", 0
+        ),
+        "live_overlay_portfolio_shadow_submission_attempts_total": portfolio.get(
+            "submission_attempt_count", 0
+        ),
+        "live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total": (
+            portfolio.get("submission_attempts_without_prior_evaluation", 0)
+        ),
+        "live_overlay_portfolio_shadow_incomplete_decisions_total": portfolio.get(
+            "incomplete_decisions", 0
+        ),
+        "live_overlay_portfolio_shadow_reconciliation_sessions": portfolio.get(
+            "reconciliation_sessions", 0
+        ),
+        "live_overlay_portfolio_shadow_missing_reconciliation_sessions": portfolio.get(
+            "risk_relevant_sessions_missing_reconciliation", 0
+        ),
+        "live_overlay_portfolio_shadow_reconciliation_failures_total": portfolio.get(
+            "reconciliation_failures", 0
+        ),
+    }
+    for metric_name, raw_value in portfolio_metrics.items():
+        lines.append(f"# TYPE {metric_name} gauge")
+        lines.append(f"{metric_name} {_prom_numeric_value(raw_value)}")
+
+    snapshot_age_known = _prom_numeric_value(
+        portfolio.get("latest_snapshot_age_known", 0)
+    )
+    snapshot_max_age_known = _prom_numeric_value(
+        portfolio.get("latest_snapshot_max_age_known", 0)
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_age_known gauge")
+    lines.append(f"live_overlay_portfolio_snapshot_age_known {snapshot_age_known}")
+    lines.append("# TYPE live_overlay_portfolio_snapshot_age_seconds gauge")
+    lines.append(
+        "live_overlay_portfolio_snapshot_age_seconds "
+        f"{_prom_numeric_value(portfolio.get('latest_snapshot_age_seconds'))}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_known gauge")
+    lines.append(
+        f"live_overlay_portfolio_snapshot_max_age_known {snapshot_max_age_known}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_snapshot_max_age_seconds gauge")
+    lines.append(
+        "live_overlay_portfolio_snapshot_max_age_seconds "
+        f"{_prom_numeric_value(portfolio.get('latest_snapshot_max_age_seconds'))}"
+    )
+
+    verdict_counts = portfolio.get("verdict_counts") or {}
+    lines.append("# TYPE live_overlay_portfolio_risk_decisions_total counter")
+    for verdict in ("allow", "resize", "reject"):
+        lines.append(
+            "live_overlay_portfolio_risk_decisions_total{"
+            f'verdict="{verdict}"'
+            f"}} {_prom_numeric_value(verdict_counts.get(verdict, 0))}"
+        )
+
+    lines.append("# TYPE live_overlay_portfolio_reconciliation_known gauge")
+    lines.append(
+        "live_overlay_portfolio_reconciliation_known "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_known', 0))}"
+    )
+    lines.append(
+        "# TYPE live_overlay_portfolio_reconciliation_max_abs_quantity_delta gauge"
+    )
+    lines.append(
+        "live_overlay_portfolio_reconciliation_max_abs_quantity_delta "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_max_abs_quantity_delta'))}"
+    )
+    lines.append("# TYPE live_overlay_portfolio_reconciliation_reconciled gauge")
+    lines.append(
+        "live_overlay_portfolio_reconciliation_reconciled "
+        f"{_prom_numeric_value(portfolio.get('latest_reconciliation_reconciled', 0))}"
+    )
+    _emit_age(
+        "live_overlay_portfolio_shadow_newest_risk_relevant_session_age",
+        str(portfolio.get("newest_risk_relevant_session", "")),
+    )
+
     wsh = snap.get("wsh") or {}
     _emit_age("live_overlay_evidence_wsh_age", str(wsh.get("newest_date", "")))
     return lines

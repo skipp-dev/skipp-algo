@@ -4208,6 +4208,240 @@ groups:
         been deployed to the box that submits; nothing new takes effect until it is pulled.
       runbook: On the submit Mac, cd to the checkout and `git pull --ff-only` (never --no-verify); confirm
         scripts/execute_ibkr_watchlist.py + run_smc_live_incubation.py match origin/main, then re-run phase-a.
+  - uid: lo-portfolio-evidence-section-missing
+    title: Portfolio shadow evidence section missing
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_evidence_freshness_loaded{job="live_overlay"} * (live_overlay_portfolio_shadow_evidence_known{job="live_overlay"}
+          == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 26h
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The daily evidence snapshot loads but has carried no portfolio_shadow section for more than 26 hours.
+      runbook: Inspect evidence-freshness-snapshot.yml and the published JSON; the builder must read incubation
+        audit rows plus sanitized portfolio reconciliation reports from data/phase-a-audit.
+  - uid: lo-portfolio-submit-no-risk-eval
+    title: Portfolio submit occurred without prior risk evaluation
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total{job="live_overlay"}
+          > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: At least one contract-era paper submit lacks an earlier portfolio_risk_evaluated row for the same run.
+      runbook: Stop the C13 submit schedule, inspect the matching timestamp and phase in incubation_<DATE>.jsonl,
+        and restore the snapshot-before-submit plus fail-closed portfolio evaluation path before resuming.
+  - uid: lo-portfolio-snapshot-age-invalid
+    title: Portfolio snapshot stale or from the future at risk decision
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_portfolio_snapshot_age_known{job="live_overlay"} == bool 1)
+          * (live_overlay_portfolio_snapshot_max_age_known{job="live_overlay"} == bool 1)
+          * (((live_overlay_portfolio_snapshot_age_seconds{job="live_overlay"} < bool 0)
+          + (live_overlay_portfolio_snapshot_age_seconds{job="live_overlay"} > bool
+          live_overlay_portfolio_snapshot_max_age_seconds{job="live_overlay"})) > bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The latest portfolio risk decision used a snapshot older than its recorded limit or timestamped in the future.
+      runbook: Keep portfolio enforcement disabled; inspect the latest portfolio_risk_evaluated audit row and repair
+        IBKR snapshot capture or workstation clock sync before counting another clean session.
+  - uid: lo-portfolio-risk-rejection
+    title: Portfolio risk rejection observed
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(live_overlay_portfolio_risk_decisions_total{job="live_overlay",verdict="reject"}[26h]))
+          > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: At least one new portfolio shadow decision was rejected during the last evidence interval.
+      runbook: Inspect verdict and reason counts in the published portfolio_shadow snapshot. A rejection is evidence,
+        not permission to bypass the gate or promote enforcement.
+  - uid: lo-portfolio-reconcile-missing
+    title: Portfolio session missing reconciliation evidence
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_portfolio_shadow_missing_reconciliation_sessions{job="live_overlay"} > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 6h
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A risk-relevant portfolio shadow session has no matching sanitized after-session reconciliation report.
+      runbook: Check the c13 reconcile launchd job, paper TWS port 7497, the local before/after snapshots, and the
+        reconciliation_<DATE>.monitoring.json publish on data/phase-a-audit.
+  - uid: lo-portfolio-reconciliation-failed
+    title: Portfolio before/after reconciliation failed
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_portfolio_reconciliation_known{job="live_overlay"} == bool 1)
+          * (((live_overlay_portfolio_reconciliation_reconciled{job="live_overlay"} == bool 0)
+          + (live_overlay_portfolio_reconciliation_max_abs_quantity_delta{job="live_overlay"} > bool 0))
+          > bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A portfolio reconciliation report found fill deltas that do not match the captured before/after snapshots.
+      runbook: Keep enforcement disabled; compare the local raw before/after snapshots and execution fills, then repair
+        duplicate execution IDs, side mapping, or snapshot completeness before counting the session as clean evidence.
+  - uid: lo-portfolio-decision-incomplete
+    title: Portfolio decision evidence incomplete
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_portfolio_shadow_incomplete_decisions_total{job="live_overlay"} > bool 0
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Portfolio shadow decisions contain stale, future, incomplete, or unknown-order snapshot evidence.
+      runbook: Inspect portfolio_risk_evaluated reason_counts, verify the before snapshot was captured immediately before
+        submission, and keep the portfolio gate in shadow until a clean evidence window is rebuilt.
   - uid: lo-fmp-bandwidth-approaching
     title: FMP bandwidth approaching monthly quota
     condition: C

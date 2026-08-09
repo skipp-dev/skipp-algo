@@ -42,6 +42,8 @@ SETUPS="${REPO}/cache/live/setups_${DATE}.jsonl"
 GATES="${REPO}/cache/live/gate_status.json"
 AUDIT="${REPO}/cache/live/incubation_${DATE}.jsonl"
 WSH="${REPO}/cache/wsh/${DATE}.jsonl"
+PORTFOLIO_BEFORE="${REPO}/cache/live/portfolio_before_${DATE}.json"
+PORTFOLIO_LIMITS="${REPO}/configs/portfolio_risk_limits.json"
 
 # B2 (audit pass-4, 2026-06-10): every exit path must write a status
 # marker so degraded runs are detectable without reading launchd stderr.
@@ -160,6 +162,32 @@ if [[ -f "${SMOKE_HALT_PATH}" ]]; then
 fi
 # --- end smoke-sentinel guard ---
 
+# Capture broker state immediately before the real paper submit. The runner
+# refuses --place-paper-orders without this file; a stale/incomplete snapshot
+# is recorded as a portfolio rejection in shadow mode rather than silently
+# bypassing the evaluation. C13_IBKR_ACCOUNT is optional because the collector
+# already fails closed when TWS exposes multiple managed accounts.
+_capture_portfolio_before() {
+    if [[ -n "${C13_IBKR_ACCOUNT:-}" ]]; then
+        "${PY}" -m scripts.ibkr_portfolio_snapshot \
+            --account "${C13_IBKR_ACCOUNT}" \
+            --output "${PORTFOLIO_BEFORE}"
+    else
+        "${PY}" -m scripts.ibkr_portfolio_snapshot \
+            --output "${PORTFOLIO_BEFORE}"
+    fi
+}
+if ! _capture_portfolio_before; then
+    echo "phase-a cron: portfolio snapshot FAILED — refusing paper submit" >&2
+    _write_marker "DEGRADED" "portfolio-snapshot-failed:path=${PORTFOLIO_BEFORE}"
+    exit 1
+fi
+if [[ ! -s "${PORTFOLIO_BEFORE}" ]]; then
+    echo "phase-a cron: portfolio snapshot missing/empty — refusing paper submit" >&2
+    _write_marker "DEGRADED" "portfolio-snapshot-empty:path=${PORTFOLIO_BEFORE}"
+    exit 1
+fi
+
 # 3. Run the orchestrator. --place-paper-orders (C13b T1.2, 2026-07-06)
 #    swaps the no-op audit stub for the paper submitter: surviving intents
 #    are transmitted as bracket sets to the IBKR *paper* TWS on 127.0.0.1.
@@ -184,6 +212,8 @@ _run_exit=0
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
+    --portfolio-snapshot-json "${PORTFOLIO_BEFORE}" \
+    --portfolio-risk-limits-json "${PORTFOLIO_LIMITS}" \
     ${WSH_FLAG} || _run_exit=$?
 if [ "${_run_exit}" -ne 0 ]; then
     echo "phase-a cron: run_smc_live_incubation FAILED (exit ${_run_exit}) — see above for details" >&2

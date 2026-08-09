@@ -309,7 +309,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # the github_workflow_bridge snapshot-cache singleton (same TTL pattern).
         # 2026-07-09 (fix/c8-deploy-robust): submit_failed + submitter fields in
         # _empty/_coerce shifted this global anchor +8: 188->196.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 203, ("_cached", "_cached_at_monotonic")),  # 2026-07-16 (last-good cache docstring): 198->203
+        # 2026-08-09 (feat/portfolio-f4-evidence): normalization-only line
+        # shift; the existing cache singleton and names are unchanged.
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 302, ("_cached", "_cached_at_monotonic")),
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
         # _reset_cache_for_tests()).

@@ -583,6 +583,31 @@ def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     )
 
 
+def test_phase_a_captures_portfolio_before_real_paper_submit() -> None:
+    source = (REPO / "automation" / "launchd" / "run-c13-phase-a.sh").read_text()
+    capture = source.index("-m scripts.ibkr_portfolio_snapshot")
+    submit = source.index("-m scripts.run_smc_live_incubation")
+
+    assert capture < submit
+    assert '--portfolio-snapshot-json "${PORTFOLIO_BEFORE}"' in source
+    assert '--portfolio-risk-limits-json "${PORTFOLIO_LIMITS}"' in source
+    assert 'portfolio-snapshot-failed:' in source
+
+
+def test_reconcile_publishes_only_sanitized_portfolio_evidence() -> None:
+    source = (REPO / "automation" / "launchd" / "run-c13-reconcile.sh").read_text()
+
+    assert '--portfolio-fills-output "${PORTFOLIO_FILLS}"' in source
+    assert '-m scripts.reconcile_portfolio_shadow' in source
+    assert '--monitoring-output "${PORTFOLIO_MONITORING}"' in source
+    assert 'artifacts/portfolio/reconciliation_${DATE}.monitoring.json' in source
+    publish = source.rsplit("push_to_data_branch", 1)[1].split("\n\n", 1)[0]
+    assert "PORTFOLIO_BEFORE" not in publish
+    assert "PORTFOLIO_AFTER" not in publish
+    assert "PORTFOLIO_FILLS" not in publish
+    assert "PORTFOLIO_REPORT" not in publish
+
+
 def test_phase_a_sh_runner_failure_writes_degraded_marker_end_to_end(tmp_path):
     """Behavioral SA-02 guard: run the real script with a fake venv whose
     python passes build_phase_a_inputs but fails run_smc_live_incubation —
@@ -603,6 +628,15 @@ def test_phase_a_sh_runner_failure_writes_degraded_marker_end_to_end(tmp_path):
     fake_python.write_text(
         "#!/bin/bash\n"
         'case "$*" in\n'
+        "  *ibkr_portfolio_snapshot*)\n"
+        "    while [ \"$#\" -gt 0 ]; do\n"
+        "      if [ \"$1\" = --output ]; then\n"
+        "        printf '{}\\n' > \"$2\"\n"
+        "        exit 0\n"
+        "      fi\n"
+        "      shift\n"
+        "    done\n"
+        "    exit 9 ;;\n"
         "  *run_smc_live_incubation*) exit 7 ;;\n"
         "  *) exit 0 ;;\n"
         "esac\n"

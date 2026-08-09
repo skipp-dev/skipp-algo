@@ -125,3 +125,23 @@ def test_short_or_offsetting_batch_never_gets_unsafe_linear_resize_advice() -> N
     decision = evaluate_portfolio_risk(_snapshot(), (sell,), limits, now=NOW)
     assert decision.verdict is PortfolioRiskVerdict.REJECT
     assert decision.recommended_scale is None
+
+
+def test_audit_dict_omits_account_and_position_details() -> None:
+    decision = evaluate_portfolio_risk(
+        _snapshot(),
+        (_intent(),),
+        PortfolioRiskLimitsV1(),
+        now=NOW,
+    )
+
+    audit = decision.to_audit_dict(max_snapshot_age_seconds=120.0)
+    serialized = str(audit)
+    assert "DU1" not in serialized
+    assert "equity" not in serialized
+    assert "symbols" not in serialized
+    assert "snapshot_id" not in serialized
+    assert "_usd" not in serialized
+    assert audit["projection"]["candidate_gross_pct"] > 0.0
+    assert audit["projection"]["correlation_coverage_pct"] == 100.0
+    assert audit["max_snapshot_age_seconds"] == 120.0

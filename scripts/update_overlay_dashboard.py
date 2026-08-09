@@ -418,6 +418,186 @@ SIGNAL_SUMMARY_PANELS: tuple[dict[str, Any], ...] = (
 )
 
 
+def _portfolio_evidence_panel(
+    panel_id: int,
+    title: str,
+    x: int,
+    description: str,
+    targets: tuple[tuple[str, str], ...],
+    *,
+    mappings: dict[str, dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    thresholds = {
+        "mode": "absolute",
+        "steps": [
+            {"color": COLOR_OK, "value": None},
+            {"color": COLOR_ERROR, "value": 1},
+        ],
+    }
+    return {
+        "id": panel_id,
+        "title": title,
+        "type": "stat",
+        "description": description,
+        "datasource": PROMETHEUS_DATASOURCE,
+        "gridPos": {"x": x, "y": 28, "w": 4, "h": 6},
+        "links": [],
+        "targets": [
+            {
+                "expr": expr,
+                "legendFormat": legend,
+                "datasource": PROMETHEUS_DATASOURCE,
+                "instant": True,
+                "range": False,
+            }
+            for expr, legend in targets
+        ],
+        "options": {
+            "colorMode": "background" if mappings else "value",
+            "graphMode": "none",
+            "reduceOptions": {
+                "calcs": ["lastNotNull"],
+                "fields": "",
+                "values": False,
+            },
+        },
+        "fieldConfig": {
+            "defaults": {
+                "unit": "short",
+                "mappings": (
+                    [{"type": "value", "options": mappings}] if mappings else []
+                ),
+                "thresholds": thresholds,
+                "noValue": "EVIDENCE UNAVAILABLE",
+            },
+            "overrides": [],
+        },
+    }
+
+
+def _ensure_portfolio_evidence_panels(data: dict[str, Any]) -> bool:
+    """Show F4 portfolio evidence without implying automatic promotion."""
+    if data.get("uid") != "smc-live-overlay-v1":
+        return False
+    ready_expr = (
+        'live_overlay_portfolio_shadow_ready_for_human_review{job=~"$job"} '
+        'and on(job,instance) '
+        '(live_overlay_portfolio_shadow_evidence_known{job=~"$job"} == 1)'
+    )
+    desired = (
+        _portfolio_evidence_panel(
+            950010052,
+            "Portfolio Shadow Readiness",
+            12,
+            "Manual-review gate for the F4 portfolio shadow. OBSERVING is the expected "
+            "state while clean risk-relevant sessions accumulate; this tile never enables "
+            "enforcement automatically.",
+            ((ready_expr, "portfolio shadow"),),
+            mappings={
+                "0": {"text": "OBSERVING", "color": COLOR_WARN},
+                "1": {"text": "REVIEW READY", "color": COLOR_OK},
+            },
+        ),
+        _portfolio_evidence_panel(
+            950010053,
+            "Portfolio Evidence Progress",
+            16,
+            "Risk-relevant shadow sessions toward the 20-session human-review floor, "
+            "plus evaluated decisions and reconciliation coverage. Missing means a "
+            "session has risk evidence but no matching after-session reconciliation.",
+            (
+                ('live_overlay_portfolio_shadow_risk_relevant_sessions{job=~"$job"}', "sessions"),
+                ('live_overlay_portfolio_shadow_min_sessions{job=~"$job"}', "target"),
+                (
+                    'live_overlay_portfolio_shadow_risk_relevant_decisions_total{job=~"$job"}',
+                    "decisions",
+                ),
+                (
+                    '(live_overlay_portfolio_shadow_newest_risk_relevant_session_age_seconds{job=~"$job"} '
+                    'and on(job,instance) (live_overlay_portfolio_shadow_newest_risk_relevant_session_age_known{job=~"$job"} == 1)) / 86400',
+                    "newest session age (d)",
+                ),
+                (
+                    'live_overlay_portfolio_shadow_reconciliation_sessions{job=~"$job"}',
+                    "reconciled",
+                ),
+                (
+                    'live_overlay_portfolio_snapshot_age_seconds{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_snapshot_age_known{job=~"$job"} == 1)',
+                    "snapshot age at decision (s)",
+                ),
+                (
+                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="reject"}',
+                    "reject decisions",
+                ),
+                (
+                    'live_overlay_portfolio_risk_decisions_total{job=~"$job",verdict="resize"}',
+                    "resize decisions",
+                ),
+                (
+                    'live_overlay_portfolio_shadow_missing_reconciliation_sessions{job=~"$job"}',
+                    "missing",
+                ),
+            ),
+        ),
+        _portfolio_evidence_panel(
+            950010054,
+            "Portfolio Audit Integrity",
+            20,
+            "Integrity counters for the F4 evidence contract. Every value must stay zero: "
+            "submit attempts without an earlier same-run risk evaluation, incomplete "
+            "portfolio decisions, and failed before/after reconciliation reports.",
+            (
+                (
+                    'live_overlay_portfolio_shadow_submission_attempts_total{job=~"$job"}',
+                    "submission attempts",
+                ),
+                (
+                    'live_overlay_portfolio_shadow_submission_attempts_without_prior_evaluation_total{job=~"$job"}',
+                    "submit without evaluation",
+                ),
+                (
+                    'live_overlay_portfolio_shadow_incomplete_decisions_total{job=~"$job"}',
+                    "incomplete decisions",
+                ),
+                (
+                    'live_overlay_portfolio_shadow_reconciliation_failures_total{job=~"$job"}',
+                    "reconciliation failures",
+                ),
+                (
+                    'live_overlay_portfolio_reconciliation_max_abs_quantity_delta{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
+                    "latest max quantity delta",
+                ),
+                (
+                    'live_overlay_portfolio_reconciliation_reconciled{job=~"$job"} '
+                    'and on(job,instance) '
+                    '(live_overlay_portfolio_reconciliation_known{job=~"$job"} == 1)',
+                    "latest reconciled",
+                ),
+            ),
+        ),
+    )
+    panels = data.setdefault("panels", [])
+    anchor = next(
+        (index for index, panel in enumerate(panels) if panel.get("title") == "Evidence Chain Age (days)"),
+        len(panels) - 1,
+    )
+    changed = False
+    for offset, wanted in enumerate(desired, start=1):
+        current = _v1_panel_by_title(data, wanted["title"])
+        if current is None:
+            panels.insert(anchor + offset, copy.deepcopy(wanted))
+            changed = True
+        elif current != wanted:
+            current.clear()
+            current.update(copy.deepcopy(wanted))
+            changed = True
+    return changed
+
+
 def _resolve_dashboard_path(argv: list[str] | None = None) -> tuple[Path, bool]:
     parser = argparse.ArgumentParser(description="Update Grafana dashboard UX.")
     parser.add_argument(
@@ -2540,6 +2720,7 @@ def main(argv: list[str] | None = None) -> int:
         changed = _ensure_v1_service_owner_row_descriptions(data) or changed
         changed = _ensure_signal_pipeline_links(data) or changed
         changed = _ensure_signal_summary_panels(data) or changed
+        changed = _ensure_portfolio_evidence_panels(data) or changed
         changed = _fix_triage_guide_signal_path(data) or changed
         changed = _fix_market_traffic_health_description(data) or changed
         changed = _ensure_traffic_alert_armed_panel(data) or changed

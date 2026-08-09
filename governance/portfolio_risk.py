@@ -145,6 +145,46 @@ class PortfolioRiskDecision:
             "projection": self.projection.to_dict(),
         }
 
+    def to_audit_dict(
+        self,
+        *,
+        max_snapshot_age_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        """Return monitoring evidence without broker/account position details."""
+        projection = self.projection
+        return {
+            "mode": self.mode.value,
+            "verdict": self.verdict.value,
+            "enforced": self.enforced,
+            "would_block": self.would_block,
+            "permits_submission": self.permits_submission,
+            "reasons": list(self.reasons),
+            "recommended_scale": self.recommended_scale,
+            "snapshot_age_seconds": self.snapshot_age_seconds,
+            "max_snapshot_age_seconds": max_snapshot_age_seconds,
+            "context_available": self.context_available,
+            "projection": {
+                "current_open_positions": projection.current_open_positions,
+                "projected_open_positions": projection.projected_open_positions,
+                "current_gross_pct": projection.current_gross_pct,
+                "current_net_pct": projection.current_net_pct,
+                "pending_entry_gross_pct": projection.pending_entry_gross_pct,
+                "candidate_gross_pct": projection.candidate_gross_pct,
+                "projected_gross_pct": projection.projected_gross_pct,
+                "projected_net_pct": projection.projected_net_pct,
+                "known_risk_at_stop_pct": projection.known_risk_at_stop_pct,
+                "risk_at_stop_coverage_pct": projection.risk_at_stop_coverage_pct,
+                "max_single_trade_risk_pct": projection.max_single_trade_risk_pct,
+                "max_single_position_pct": projection.max_single_position_pct,
+                "max_sector_exposure_pct": projection.max_sector_exposure_pct,
+                "max_correlated_cluster_exposure_pct": (
+                    projection.max_correlated_cluster_exposure_pct
+                ),
+                "correlation_coverage_pct": projection.correlation_coverage_pct,
+                "unknown_working_order_count": len(projection.unknown_working_orders),
+            },
+        }
+
 
 def _candidate_risk_usd(intents: tuple[PortfolioIntent, ...]) -> float:
     return sum(abs(item.entry_price - item.stop_price) * item.quantity for item in intents)
