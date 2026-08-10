@@ -2530,13 +2530,23 @@ async function firstVisibleLocator(locator: Locator, timeoutMs = 2_500): Promise
   return null;
 }
 
-async function waitForFirstVisibleLocator(candidates: Locator[], timeoutMs: number): Promise<Locator | null> {
+async function waitForFirstVisibleLocator(
+  candidates: Locator[],
+  timeoutMs: number,
+  accept: (candidate: Locator) => Promise<boolean> = async () => true,
+): Promise<Locator | null> {
   const deadline = Date.now() + timeoutMs;
   do {
     for (const locator of candidates) {
-      const candidate = await firstVisibleLocator(locator, 100);
-      if (candidate) {
-        return candidate;
+      const total = await locator.count().catch(() => 0);
+      for (let index = 0; index < total; index += 1) {
+        const candidate = locator.nth(index);
+        if (
+          (await candidate.isVisible({ timeout: 100 }).catch(() => false))
+          && (await accept(candidate).catch(() => false))
+        ) {
+          return candidate;
+        }
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -9004,15 +9014,33 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
     750,
   );
   if (nativeChooser) {
-    return nativeChooser
-      .selectOption({ label: scriptName })
-      .then(() => true)
-      .catch(() => false);
+    const nativeDeadline = Date.now() + 3_000;
+    do {
+      const selectedValues = await nativeChooser
+        .selectOption({ label: scriptName }, { timeout: 250 })
+        .catch(() => [] as string[]);
+      if (selectedValues.length > 0) {
+        tracePageEvent(page, "publish-existing-script-native-selected", scriptName);
+        return true;
+      }
+      await page.waitForTimeout(100);
+    } while (Date.now() < nativeDeadline);
+
+    const nativeOptions = await nativeChooser
+      .locator("option")
+      .evaluateAll((options) => options.map((option) => (option.textContent || "").trim()).filter(Boolean).slice(0, 20))
+      .catch(() => [] as string[]);
+    tracePageEvent(
+      page,
+      "publish-existing-script-native-fallback",
+      `${scriptName}:options=${JSON.stringify(nativeOptions)}`,
+    );
   }
 
   const chooserControl = await waitForFirstVisibleLocator(
     tvSelectors.publishExistingScriptChooser(page),
     3_000,
+    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) !== "select",
   );
   if (!chooserControl) {
     return false;
