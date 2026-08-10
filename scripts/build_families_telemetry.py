@@ -5,7 +5,7 @@ audit JSONL streams into the strict five-key payload consumed by
 :func:`scripts.emit_public_calibration_report._normalise_families`
 and validated by :mod:`scripts.check_c12_trigger`.
 
-Strict contract (Deep-Review 2026-04-27 MAJOR finding mirror):
+Required C12 contract plus additive evidence truth:
 
     families[i] = {
         "name":              EventFamily,   # one of BOS|OB|FVG|SWEEP
@@ -13,6 +13,12 @@ Strict contract (Deep-Review 2026-04-27 MAJOR finding mirror):
         "n_trades":          int >= 0,       # live-phase closed trades only
         "kill_switch_fires": int >= 0,
         "drift_verdict":     str,           # one of pass|acceptable|concerning|fail|...
+        "evidence": {
+            "MODELED_OOS": {"n_outcomes": int >= 0},
+            "PAPER": {"days": int >= 0, "n_closed_outcomes": int >= 0},
+            "LIVE": {"days": int >= 0, "n_closed_outcomes": int >= 0},
+        },
+        "coverage_status":  str,            # missing|partial|complete
     }
 
 Inputs
@@ -26,17 +32,18 @@ Inputs
   :mod:`scripts.compute_live_drift` (``cache/live/drift_*.json``).
   Each variant's ``verdict`` is rolled up into the family-level
   ``drift_verdict`` via the worst-case ordering pinned below.
-* ``--variant-family-map <path>``: required JSON file mapping each
-  ``variant`` string to its EventFamily (``BOS``|``OB``|``FVG``|
-  ``SWEEP``). The map is the single source of truth — no heuristics,
-  no fuzzy matching. Variants not in the map are flagged in the run
-  summary and excluded from the telemetry (strict mode); any unknown
-  variant therefore fails CI rather than silently degrading.
+* ``--variant-family-map <path>``: required JSON registry mapping each
+  commercial ``variant`` string to its EventFamily and explicitly listing
+  known non-family execution variants. The registry is the single source of
+  truth — no heuristics and no fuzzy matching.
+* ``--modeled-returns-json <glob>``: optional modeled-OOS returns-series
+  artifact. These counts are labelled MODELED_OOS and never contribute to
+  ``live_days`` or ``n_trades``.
 
 Output is a JSON payload with two top-level keys:
 
     {
-      "schema_version": "1.0.0",
+      "schema_version": "2.0.0",
       "families": [...]
     }
 
@@ -77,7 +84,7 @@ from typing import Any
 # Pinned by tests/test_build_families_telemetry.py against
 # scripts/emit_public_calibration_report.py:_C12_FAMILY_KEYS so the
 # producer cannot drift from the consumer schema.
-FAMILIES_SCHEMA_VERSION = "1.0.0"
+FAMILIES_SCHEMA_VERSION = "2.0.0"
 
 # EventFamily literal pinned in smc_core/scoring.py:33. Kept as a
 # tuple so test_event_family_alignment can grep both files.
@@ -118,6 +125,7 @@ _CLOSED_TRADE_ACTIONS: frozenset[str] = frozenset({
 # (paper)"). Only records stamped with a live phase count toward those two
 # metrics. Unknown / missing phase fails closed (does NOT count as live).
 _LIVE_PHASES: frozenset[str] = frozenset({"live_small", "live_full"})
+_PAPER_PHASES: frozenset[str] = frozenset({"paper"})
 
 
 def _is_live_phase(rec: dict[str, Any]) -> bool:
@@ -145,6 +153,8 @@ class _FamilyAccumulator:
 
     trade_days: set[str] = field(default_factory=set)
     n_trades: int = 0
+    paper_days: set[str] = field(default_factory=set)
+    n_paper_outcomes: int = 0
     kill_switch_fires: int = 0
     drift_verdicts: list[str] = field(default_factory=list)
 
@@ -157,8 +167,18 @@ class BuildSummary:
     drift_files: int = 0
     audit_records_total: int = 0
     audit_records_with_unknown_variant: int = 0
+    audit_records_non_family: int = 0
     unknown_variants: set[str] = field(default_factory=set)
+    non_family_variants: set[str] = field(default_factory=set)
     families_emitted: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class VariantRegistry:
+    """Explicit commercial-family and non-family variant ownership."""
+
+    family_variants: dict[str, str]
+    non_family_variants: frozenset[str]
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -221,18 +241,27 @@ def _trade_date_from_path(p: Path) -> str | None:
     return None
 
 
-def load_variant_family_map(path: Path) -> dict[str, str]:
-    """Load + validate a {variant: EventFamily} JSON map.
-
-    Strict: every value must be a member of :data:`EVENT_FAMILIES`.
-    """
+def load_variant_registry(path: Path) -> VariantRegistry:
+    """Load a v2 variant registry or a legacy flat family map."""
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(
             f"{path}: variant→family map must be a JSON object",
         )
+    if data.get("schema_version") == 2:
+        family_data = data.get("family_variants")
+        non_family_data = data.get("non_family_variants")
+        if not isinstance(family_data, dict) or not isinstance(non_family_data, dict):
+            raise ValueError(
+                f"{path}: v2 registry requires object-valued family_variants "
+                "and non_family_variants",
+            )
+    else:
+        family_data = data
+        non_family_data = {}
+
     out: dict[str, str] = {}
-    for variant, family in data.items():
+    for variant, family in family_data.items():
         if not isinstance(variant, str) or not variant:
             raise ValueError(
                 f"{path}: keys must be non-empty strings; got {variant!r}",
@@ -243,7 +272,23 @@ def load_variant_family_map(path: Path) -> dict[str, str]:
                 f"{family!r}; expected one of {EVENT_FAMILIES}",
             )
         out[variant] = family
-    return out
+    non_family: set[str] = set()
+    for variant, metadata in non_family_data.items():
+        if not isinstance(variant, str) or not variant:
+            raise ValueError(f"{path}: non-family keys must be non-empty strings")
+        if variant in out:
+            raise ValueError(f"{path}: variant {variant!r} has two ownership classes")
+        if not isinstance(metadata, dict) or not metadata.get("scope"):
+            raise ValueError(
+                f"{path}: non-family variant {variant!r} requires scope metadata",
+            )
+        non_family.add(variant)
+    return VariantRegistry(out, frozenset(non_family))
+
+
+def load_variant_family_map(path: Path) -> dict[str, str]:
+    """Compatibility view returning only commercial family variants."""
+    return load_variant_registry(path).family_variants
 
 
 def _resolve_glob(pattern: str) -> list[Path]:
@@ -257,6 +302,7 @@ def aggregate(
     audit_paths: Iterable[Path],
     drift_paths: Iterable[Path],
     variant_to_family: dict[str, str],
+    non_family_variants: frozenset[str] = frozenset(),
     summary: BuildSummary | None = None,
 ) -> dict[str, _FamilyAccumulator]:
     """Aggregate audit + drift inputs into per-family accumulators."""
@@ -282,10 +328,18 @@ def aggregate(
                 # ``kill_switch_fires == 0`` is hard, so any fire
                 # propagates.
                 if rec.get("kill_switch_triggered") is True:
-                    fam_for_day = {variant_to_family.get(v) for v in
-                                   _variants_in_day(audit_path)}
+                    variants_for_day = _variants_in_day(audit_path)
+                    fam_for_day = {
+                        variant_to_family.get(v) for v in variants_for_day
+                    }
                     fam_for_day.discard(None)
                     if not fam_for_day:
+                        if variants_for_day and variants_for_day.issubset(
+                            non_family_variants
+                        ):
+                            # A known execution-only stream cannot contaminate
+                            # commercial family risk evidence.
+                            continue
                         # No trades that day (halt fired before any
                         # variant traded) — conservative fallback per
                         # the C12 contract: a kill-switch fire must
@@ -300,6 +354,10 @@ def aggregate(
 
             family = variant_to_family.get(variant)
             if family is None:
+                if variant in non_family_variants:
+                    summary.audit_records_non_family += 1
+                    summary.non_family_variants.add(variant)
+                    continue
                 summary.audit_records_with_unknown_variant += 1
                 summary.unknown_variants.add(variant)
                 continue
@@ -310,10 +368,15 @@ def aggregate(
             # regardless of phase (a paper-phase halt is still a real
             # risk event that must not be silently dropped).
             live_rec = _is_live_phase(rec)
+            paper_rec = rec.get("phase") in _PAPER_PHASES
             if date_hint is not None and live_rec:
                 acc.trade_days.add(date_hint)
+            if date_hint is not None and paper_rec:
+                acc.paper_days.add(date_hint)
             if _is_closed_trade(rec) and live_rec:
                 acc.n_trades += 1
+            elif _is_closed_trade(rec) and paper_rec:
+                acc.n_paper_outcomes += 1
             elif rec.get("kill_switch_triggered") is True:
                 acc.kill_switch_fires += 1
 
@@ -335,6 +398,9 @@ def aggregate(
                 continue
             family = variant_to_family.get(variant)
             if family is None:
+                if variant in non_family_variants:
+                    summary.non_family_variants.add(variant)
+                    continue
                 summary.unknown_variants.add(variant)
                 continue
             accs[family].drift_verdicts.append(verdict)
@@ -369,32 +435,64 @@ def rollup_verdict(verdicts: list[str]) -> str:
 
 def to_strict_payload(
     accs: dict[str, _FamilyAccumulator],
+    *,
+    modeled_counts: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
-    """Convert accumulators into the strict five-key family list."""
+    """Convert accumulators into C12 rows with explicit evidence classes."""
+    modeled_counts = modeled_counts or {}
     payload: list[dict[str, Any]] = []
     for family in EVENT_FAMILIES:
-        if family not in accs:
-            # Family never traded in the window; emit a zero-row so
-            # the consumer can still see it and BLOCK on
-            # n_trades < MIN_LIVE_TRADES. This is strict-mode
-            # behaviour: silence is the wrong default for C12.
-            payload.append({
-                "name": family,
-                "live_days": 0,
-                "n_trades": 0,
-                "kill_switch_fires": 0,
-                "drift_verdict": "unknown",
-            })
-            continue
-        acc = accs[family]
+        acc = accs.get(family, _FamilyAccumulator())
+        evidence = {
+            "MODELED_OOS": {"n_outcomes": int(modeled_counts.get(family, 0))},
+            "PAPER": {
+                "days": len(acc.paper_days),
+                "n_closed_outcomes": int(acc.n_paper_outcomes),
+            },
+            "LIVE": {
+                "days": len(acc.trade_days),
+                "n_closed_outcomes": int(acc.n_trades),
+            },
+        }
+        populated = sum(
+            1
+            for block in evidence.values()
+            if any(int(value) > 0 for value in block.values())
+        )
         payload.append({
             "name": family,
             "live_days": len(acc.trade_days),
             "n_trades": int(acc.n_trades),
             "kill_switch_fires": int(acc.kill_switch_fires),
             "drift_verdict": rollup_verdict(acc.drift_verdicts),
+            "evidence": evidence,
+            "coverage_status": (
+                "complete" if populated == len(evidence)
+                else "partial" if populated
+                else "missing"
+            ),
         })
     return payload
+
+
+def load_modeled_counts(pattern: str | None) -> dict[str, int]:
+    """Load per-family counts from the newest modeled returns-series artifact."""
+    if not pattern:
+        return {}
+    paths = _resolve_glob(pattern)
+    if not paths:
+        raise ValueError(f"no modeled returns artifact matched {pattern!r}")
+    payload = json.loads(paths[-1].read_text(encoding="utf-8"))
+    returns = payload.get("returns_by_variant") if isinstance(payload, dict) else None
+    if not isinstance(returns, dict):
+        raise ValueError(f"{paths[-1]}: missing object-valued returns_by_variant")
+    counts: dict[str, int] = {}
+    for family in EVENT_FAMILIES:
+        values = returns.get(family, [])
+        if not isinstance(values, list):
+            raise ValueError(f"{paths[-1]}: returns_by_variant.{family} must be a list")
+        counts[family] = len(values)
+    return counts
 
 
 def build_payload(
@@ -402,28 +500,44 @@ def build_payload(
     audit_glob: str,
     drift_glob: str,
     variant_family_map: Path,
+    modeled_returns_glob: str | None = None,
     summary: BuildSummary | None = None,
 ) -> dict[str, Any]:
     """End-to-end: globs + map → strict payload dict ready to write."""
     if summary is None:
         summary = BuildSummary()
 
-    variant_to_family = load_variant_family_map(variant_family_map)
+    registry = load_variant_registry(variant_family_map)
     audit_paths = _resolve_glob(audit_glob)
     drift_paths = _resolve_glob(drift_glob)
 
     accs = aggregate(
         audit_paths=audit_paths,
         drift_paths=drift_paths,
-        variant_to_family=variant_to_family,
+        variant_to_family=registry.family_variants,
+        non_family_variants=registry.non_family_variants,
         summary=summary,
     )
-    families = to_strict_payload(accs)
+    families = to_strict_payload(
+        accs,
+        modeled_counts=load_modeled_counts(modeled_returns_glob),
+    )
     summary.families_emitted = len(families)
+    paper_ready = [
+        row["name"]
+        for row in families
+        if row["evidence"]["PAPER"]["n_closed_outcomes"] > 0
+    ]
+    paper_missing = [family for family in EVENT_FAMILIES if family not in paper_ready]
 
     return {
         "schema_version": FAMILIES_SCHEMA_VERSION,
         "families": families,
+        "phase1_paper_gate": {
+            "status": "GREEN" if not paper_missing else "BLOCKED",
+            "families_ready": paper_ready,
+            "families_missing_closed_outcome": paper_missing,
+        },
     }
 
 
@@ -457,6 +571,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output JSON path.",
     )
     p.add_argument(
+        "--modeled-returns-json",
+        dest="modeled_returns_glob",
+        help="Glob for modeled-OOS returns_series_*.json evidence.",
+    )
+    p.add_argument(
         "--strict-unknown-variants",
         action="store_true",
         help=(
@@ -475,15 +594,16 @@ def main(argv: list[str] | None = None) -> int:
         audit_glob=args.audit_jsonl,
         drift_glob=args.drift_jsonl,
         variant_family_map=args.variant_family_map,
+        modeled_returns_glob=args.modeled_returns_glob,
         summary=summary,
     )
-    _atomic_write_json(args.output, payload)
 
     print(
         f"families_emitted={summary.families_emitted} "
         f"audit_files={summary.audit_files} "
         f"drift_files={summary.drift_files} "
         f"audit_records={summary.audit_records_total} "
+        f"non_family_records={summary.audit_records_non_family} "
         f"unknown_variants={len(summary.unknown_variants)}",
     )
     if summary.unknown_variants:
@@ -491,6 +611,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  unknown_variant: {v}", file=sys.stderr)
         if args.strict_unknown_variants:
             return 2
+    _atomic_write_json(args.output, payload)
     return 0
 
 

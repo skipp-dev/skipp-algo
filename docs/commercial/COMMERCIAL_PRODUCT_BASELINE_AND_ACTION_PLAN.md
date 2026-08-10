@@ -23,7 +23,7 @@ Current decision:
 | Prior assertion | Verified assessment |
 |---|---|
 | The whole SMC system is explicitly not a commercial product | Too broad. ADR-0030 scopes only the hosted Operator Terminal. SMC product identity and Lite/Pro product documents already exist. |
-| 288 fields with 63 deprecated fields remain | Stale. Current generation produces 203 fields, with 119 consumed by Pine; the old deprecated groups were removed. |
+| 288 fields with 63 deprecated fields remain | Stale. Current generation produces 202 fields, with 119 consumed by Pine; all other generated fields have explicit ownership and the old deprecated groups were removed. |
 | `FVG_NET_IMBALANCE` is orphaned | Stale. It is generated and consumed by current Pine surfaces. |
 | All signal families use permutation tests | Overstated. The framework mixes block permutation, PSR and other family-specific methods. |
 | There is no live track record | Correct. BOS, OB, FVG and SWEEP currently report zero live days and zero live trades. |
@@ -107,6 +107,33 @@ First exit gate: at least one closed paper outcome per family, no unknown
 variant and complete provenance. The later live calibration gate remains at
 least 90 live days and 30 closed live trades for a family, plus acceptable
 drift and no kill switch.
+
+Implementation status on 2026-08-10:
+
+- [x] Variant ownership registry distinguishes commercial family variants
+  from the known `smc_orb_vwap_hold` execution-only stream.
+- [x] Unknown variants fail closed before telemetry is written or a public
+  calibration report can be refreshed.
+- [x] Family telemetry separates MODELED_OOS, PAPER and LIVE. Compatibility
+  live counters must match the LIVE evidence block before C12 can pass.
+- [x] New incubation rows carry an explicit evidence class. Outcome schema v3
+  records gross PnL, entry slippage, fee-known state and net PnL only when
+  fees are actually known.
+- [x] The stale April field audit is marked historical and linked to the
+  executable current contract.
+- [x] The current threshold implementation is documented accurately in-repo:
+  Welch-t and Brown-Forsythe exist; real-live recalibration remains gated by
+  qualifying evidence.
+- [ ] Prospective BOS, OB, FVG and SWEEP commercial setup producers are not
+  yet connected to the paper-incubation ledger. Retrospective modeled events
+  must not be relabelled as paper fills.
+- [ ] Phase-1 paper gate remains **BLOCKED** until every family has at least
+  one correctly classified closed paper outcome with complete provenance.
+- [ ] The later 90-day/30-live-trade calibration gate is calendar-bound and
+  remains **BLOCKED**.
+
+The telemetry artifact exposes `phase1_paper_gate` so this first exit gate is
+machine-readable instead of being inferred from prose.
 
 ### Phase 2 — customer plane and entitlement
 

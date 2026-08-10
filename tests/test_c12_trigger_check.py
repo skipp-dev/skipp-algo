@@ -37,7 +37,35 @@ def _qualified_family(**overrides: object) -> dict:
         "drift_verdict": "pass",
     }
     base.update(overrides)
+    base.setdefault("evidence", {
+        "MODELED_OOS": {"n_outcomes": 0},
+        "PAPER": {"days": 0, "n_closed_outcomes": 0},
+        "LIVE": {
+            "days": base["live_days"],
+            "n_closed_outcomes": base["n_trades"],
+        },
+    })
     return base
+
+
+def test_trigger_blocks_legacy_family_without_live_evidence_class(tmp_path: Path) -> None:
+    report = tmp_path / "legacy.json"
+    family = _qualified_family()
+    family.pop("evidence")
+    report.write_text(json.dumps({"status": "incubating", "families": [family]}))
+    result = check_c12_trigger.evaluate_trigger(report)
+    assert result.status == "BLOCKED"
+    assert result.failure_breakdown["live_evidence_missing"] == 1
+
+
+def test_trigger_blocks_live_counter_evidence_mismatch(tmp_path: Path) -> None:
+    report = tmp_path / "mismatch.json"
+    family = _qualified_family()
+    family["evidence"]["LIVE"]["n_closed_outcomes"] = 44
+    report.write_text(json.dumps({"status": "incubating", "families": [family]}))
+    result = check_c12_trigger.evaluate_trigger(report)
+    assert result.status == "BLOCKED"
+    assert result.failure_breakdown["n_trades_evidence_mismatch"] == 1
 
 
 def test_trigger_blocked_when_awaiting_first_run(tmp_path: Path) -> None:

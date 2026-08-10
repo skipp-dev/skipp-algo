@@ -414,10 +414,10 @@ jobs:
       - name: Step 5a — build families telemetry (advisory)
         id: families
         if: steps.drift.outputs.rc == '0'
-        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) when the
-        # variant→family map is not present in the repo. Phase A keeps
-        # the map outside source-control until C12 promotion gate goes
-        # live; absence must not abort the cron.
+        # CONTINUE-ON-ERROR-INTENTIONAL: keep later diagnostic/upload steps
+        # running, but publish the non-zero rc to the issue gate below.
+        # Missing ownership or unknown variants are evidence-integrity
+        # failures and must prevent the public report from being refreshed.
         continue-on-error: true
         env:
           # Override-able via repo variable so the map can be promoted
@@ -427,16 +427,20 @@ jobs:
           set +e
           DATE="${{ steps.date.outputs.date }}"
           if [ ! -f "${VARIANT_FAMILY_MAP}" ]; then
-            echo "Variant→family map ${VARIANT_FAMILY_MAP} missing — skipping families telemetry (rc=78)."
-            echo "rc=78" >> "$GITHUB_OUTPUT"
-            exit 78
+            echo "::error::Variant→family registry ${VARIANT_FAMILY_MAP} missing."
+            echo "rc=1" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
           python -m scripts.build_families_telemetry \
             --audit-jsonl        "${LIVE_DIR}/incubation_*.jsonl" \
             --drift-jsonl        "${LIVE_DIR}/drift_*.json" \
             --variant-family-map "${VARIANT_FAMILY_MAP}" \
+            --modeled-returns-json "docs/calibration/gates/returns_series_*.json" \
+            --strict-unknown-variants \
             --output             "${LIVE_DIR}/families_telemetry_${DATE}.json"
-          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          rc=$?
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          exit "${rc}"
 
       - name: "⚠️ Warn: Step 5a — build families telemetry (advisory)"
         if: always() && steps.families.outcome == 'failure'
@@ -447,22 +451,24 @@ jobs:
         id: emit_public
         if: steps.drift.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: surfaces failures via the
-        # issue-opener step. Wires --include-families when step 5a
-        # produced a families-telemetry artefact (skipped soft on
-        # missing map → emit runs without families[]).
+        # issue-opener step. A family-less report must never replace the last
+        # complete snapshot, so this step fails closed unless Step 5a produced
+        # a valid telemetry artifact.
         continue-on-error: true
         run: |
           set +e
           DATE="${{ steps.date.outputs.date }}"
           FAMILIES="${LIVE_DIR}/families_telemetry_${DATE}.json"
-          if [ "${{ steps.families.outputs.rc }}" = "0" ] && [ -f "${FAMILIES}" ]; then
-            python -m scripts.emit_public_calibration_report \
-              --include-families "${FAMILIES}"
-          else
-            echo "No families-telemetry artefact for ${DATE} — emit runs without --include-families."
-            python -m scripts.emit_public_calibration_report
+          if [ "${{ steps.families.outputs.rc }}" != "0" ] || [ ! -f "${FAMILIES}" ]; then
+            echo "::error::Refusing family-less public report for ${DATE}."
+            echo "rc=1" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
-          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          python -m scripts.emit_public_calibration_report \
+            --include-families "${FAMILIES}"
+          rc=$?
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          exit "${rc}"
 
       - name: "⚠️ Warn: Step 5b — emit public calibration report (advisory)"
         if: always() && steps.emit_public.outcome == 'failure'
@@ -501,7 +507,7 @@ jobs:
         # this job: a publish that fails silently is what caused #298. A red
         # run is the alarm (c13-daily-cron.yml is on the freshness-monitor
         # watchlist at 72:weekday).
-        if: steps.emit_public.outcome == 'success'
+        if: steps.emit_public.outputs.rc == '0'
         env:
           # GH_PAT (not GITHUB_TOKEN) so the PR triggers the required
           # fast-gates check; a GITHUB_TOKEN-authored PR spawns no child
@@ -548,7 +554,7 @@ jobs:
           (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
           (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '') ||
-          (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '78' && steps.families.outputs.rc != '') ||
+          (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '') ||
           (steps.emit_public.outputs.rc != '0' && steps.emit_public.outputs.rc != '')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

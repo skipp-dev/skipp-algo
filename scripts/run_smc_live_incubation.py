@@ -421,6 +421,7 @@ def run_live_incubation(
     unavailability.
     """
     timestamp = _utc_iso(now)
+    evidence_class = "PAPER" if phase == "paper" else "LIVE"
     kill_decision: KillSwitchDecision = check_risk_limits(
         account_state, risk_limits
     )
@@ -429,6 +430,7 @@ def run_live_incubation(
         halt_record = {
             "ts": timestamp,
             "phase": phase,
+            "evidence_class": evidence_class,
             "action": "halted",
             "kill_switch_triggered": True,
             "kill_reason": (
@@ -544,6 +546,7 @@ def run_live_incubation(
             {
                 "ts": timestamp,
                 "phase": phase,
+                "evidence_class": evidence_class,
                 "action": "portfolio_risk_evaluated",
                 "kill_switch_triggered": False,
                 "portfolio_risk": portfolio_decision.to_audit_dict(
@@ -561,6 +564,7 @@ def run_live_incubation(
             {
                 "ts": timestamp,
                 "phase": phase,
+                "evidence_class": evidence_class,
                 "intent_id": order_ref,
                 "variant": variant_by_order_ref.get(order_ref, ""),
                 "symbol": decision.symbol,
@@ -583,6 +587,7 @@ def run_live_incubation(
             {
                 "ts": timestamp,
                 "phase": phase,
+                "evidence_class": evidence_class,
                 "intent_id": intent.order_ref,
                 "variant": variant_by_order_ref.get(intent.order_ref, ""),
                 "symbol": intent.symbol,

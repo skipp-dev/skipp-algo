@@ -22,6 +22,9 @@ requires **per family** all of:
 3. ``kill_switch_fires == 0`` (Phase-B halt-trigger contract).
 4. ``drift_verdict in {"pass", "acceptable"}`` (drift-watchdog
    verdict surfaced by C9).
+5. The additive ``evidence.LIVE`` counters exist and exactly match the
+   compatibility ``live_days`` / ``n_trades`` fields. Modeled or paper
+   observations can therefore never satisfy the live promotion gate.
 
 Any family that satisfies all four passes the gate. ``UNEVALUABLE``
 is reserved for *schema violations* (file missing, malformed JSON,
@@ -136,6 +139,21 @@ def _evaluate_family(family: dict) -> tuple[bool, list[str]]:
         failures.append("n_trades_missing")
     elif n_trades < MIN_LIVE_TRADES:
         failures.append("n_trades_below_threshold")
+
+    evidence = family.get("evidence")
+    live_evidence = evidence.get("LIVE") if isinstance(evidence, dict) else None
+    if not isinstance(live_evidence, dict):
+        failures.append("live_evidence_missing")
+    else:
+        evidence_days = _coerce_int(live_evidence.get("days"))
+        evidence_trades = _coerce_int(live_evidence.get("n_closed_outcomes"))
+        if evidence_days is None or evidence_trades is None:
+            failures.append("live_evidence_unparseable")
+        else:
+            if live_days is None or evidence_days != live_days:
+                failures.append("live_days_evidence_mismatch")
+            if n_trades is None or evidence_trades != n_trades:
+                failures.append("n_trades_evidence_mismatch")
 
     kill_switch = _coerce_int(family.get("kill_switch_fires"))
     if kill_switch is None:

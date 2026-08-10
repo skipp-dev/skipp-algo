@@ -146,12 +146,29 @@ def test_audit_record_carries_phase_and_size_scale(tmp_path: Path) -> None:
     )
     [record] = _read_audit(audit)
     assert record["phase"] == "live_small"
+    assert record["evidence_class"] == "LIVE"
     assert record["size_scale"] == pytest.approx(0.10)
     assert record["entry_price"] == pytest.approx(102.0)
     assert record["stop_loss"] == pytest.approx(100.0)
     assert record["take_profit"] == pytest.approx(104.0)
     assert record["quantity"] == 10  # 100 × 0.10
     assert record["kill_switch_triggered"] is False
+
+
+def test_paper_audit_record_has_explicit_evidence_class(tmp_path: Path) -> None:
+    audit = tmp_path / "audit.jsonl"
+    run_live_incubation(
+        setup_records=[_setup()],
+        gate_status_by_variant={"smc_breaker_btc": "green"},
+        risk_limits=RiskLimits(),
+        account_state=_healthy_state(),
+        execution_cfg=IBKRExecutionConfig(),
+        audit_path=audit,
+        phase="paper",
+        now=_FROZEN_NOW,
+    )
+    [record] = _read_audit(audit)
+    assert record["evidence_class"] == "PAPER"
 
 
 def test_audit_log_appends_across_runs(tmp_path: Path) -> None:

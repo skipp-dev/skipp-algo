@@ -1,5 +1,21 @@
 # Library Field Audit — WP-A5
 
+> **Current status (2026-08-10, Phase 1 truth refresh):** This document below
+> is the historical WP-A5 snapshot from 2026-04-15, not the current field
+> inventory. The current contract tests discover **202 generated fields**:
+> **119** have at least one Pine consumer and **83** are explicitly classified
+> as Python-only or reserved Pine contracts. There are **zero unclassified
+> generated fields**. `DEPRECATED_FIELD_POLICY.deprecatedGroups` is empty and
+> the sunset action is `removed`. `FVG_NET_IMBALANCE` is generated and has
+> active consumers in `SMC_Imbalance_Context.pine` and
+> `SMC_Long_Dip_Dashboard.pine`; the anomaly recorded below is resolved.
+>
+> Reproducible source of truth: `tests/test_library_field_audit.py` together
+> with `scripts/smc_bus_manifest.py`. Counts may change only with those
+> ownership and consumer-contract tests remaining green.
+
+## Historical WP-A5 snapshot (superseded)
+
 Commit-Basis: `1003cccd` on `origin/main`  
 Date: 2026-04-15
 
