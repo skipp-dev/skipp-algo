@@ -153,6 +153,8 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     assert evidence.details["signal_quality_raw_score_name"] == "SIGNAL_QUALITY_SCORE"
     assert evidence.details["signal_quality_raw_score_count"] == 4
     assert evidence.details["signal_quality_raw_score_complete"] is True
+    assert evidence.details["bias_conviction_score"] == 0.8
+    assert "bias_confidence" not in evidence.details
     assert evidence.details["vol_regime"] == "NORMAL"
     assert evidence.details["vol_regime_confidence"] == 0.91
     assert evidence.details["vol_regime_model_source"] == "arch_garch"

@@ -1255,21 +1255,12 @@ def write_pine_library(
     content.append(
         f"export const float HR_SENTINEL_DEGRADED = {_ZH_HR_SENTINEL:.4f}"
     )
-    content.append(
-        f"export const float ZONE_CAL_CONFIDENCE = "
-        f"{_pine_float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
-    )
-    # Confidence-vocabulary program: ZONE_CAL_RELIABILITY_SCORE is the honest
-    # name for the SAME value — a sample-size x smECE reliability/readiness
-    # HEURISTIC (compute_calibration_confidence), not a statistical confidence
-    # level or a probability. Emitted additively (HR_SENTINEL_DEGRADED
-    # precedent — no field-version bump for additive consts, consumers opt in
-    # by importing the new symbol); ZONE_CAL_CONFIDENCE stays as the legacy
-    # alias until SMC_Long_Dip_Dashboard.pine flips to the new symbol AFTER the
-    # republished library version is live on TradingView.
+    # Sample-size x smECE reliability/readiness heuristic, not a statistical
+    # confidence level or a probability. The legacy ``ZONE_CAL_CONFIDENCE``
+    # export was removed after its four-week consumer-migration window.
     content.append(
         f"export const float ZONE_CAL_RELIABILITY_SCORE = "
-        f"{_pine_float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
+        f"{_pine_float(consumer.get('ZONE_CAL_RELIABILITY_SCORE', _ZH_DEFAULTS['ZONE_CAL_RELIABILITY_SCORE'])):.4f}"
     )
     for fam in _ZH_FAMILIES:
         key = f"ZONE_HR_{fam}"

@@ -4,7 +4,7 @@ This module derives the consumer-facing calibration signals that the
 Pine dashboard surfaces alongside the existing ``ZONE_CAL_<FAM>`` /
 ``ZONE_PRIORITY_*`` exports:
 
-* ``ZONE_CAL_CONFIDENCE`` (H1) — a single 0–1 score combining sample
+* ``ZONE_CAL_RELIABILITY_SCORE`` (H1) — a single 0–1 score combining sample
   size and calibration drift, so the user immediately sees how much
   to trust the calibrated weights.
 * ``ZONE_HR_<FAM>`` (H2) — per-family weighted hit rates lifted
@@ -68,7 +68,7 @@ TREND_VOCAB: frozenset[str] = frozenset(
 HR_SENTINEL_DEGRADED: float = -1.0
 
 DEFAULTS: dict[str, Any] = {
-    "ZONE_CAL_CONFIDENCE": 0.0,
+    "ZONE_CAL_RELIABILITY_SCORE": 0.0,
     "ZONE_HR_OB": 0.0,
     "ZONE_HR_FVG": 0.0,
     "ZONE_HR_BOS": 0.0,
@@ -326,7 +326,7 @@ def build_consumer_exports(
     consumes. Always returns the full key set defined in
     :data:`DEFAULTS`.
 
-    Trust gating: when ``ZONE_CAL_CONFIDENCE < min_confidence`` the
+    Trust gating: when ``ZONE_CAL_RELIABILITY_SCORE < min_confidence`` the
     per-family ``ZONE_HR_<FAM>`` values are replaced with
     :data:`HR_SENTINEL_DEGRADED` and ``ZONE_CAL_TRUST`` is set to
     ``DEGRADED``. This prevents the Pine consumer from displaying a
@@ -338,7 +338,7 @@ def build_consumer_exports(
     confidence = compute_calibration_confidence(
         total_events=total_events, smooth_ece=smooth_ece
     )
-    out["ZONE_CAL_CONFIDENCE"] = confidence
+    out["ZONE_CAL_RELIABILITY_SCORE"] = confidence
     trust = classify_trust_state(confidence, min_confidence=min_confidence)
     out["ZONE_CAL_TRUST"] = trust
     out.update(

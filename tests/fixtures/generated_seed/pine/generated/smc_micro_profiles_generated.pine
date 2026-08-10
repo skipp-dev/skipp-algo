@@ -4,7 +4,7 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into sections (v5.5b Lean, 198 export fields in this build):
+// Fields are grouped into sections (v5.5b Lean, 197 export fields in this build):
 // Deprecated v5-v5.3 compatibility groups removed (sunset 2026-04-14); only v5.5b Lean fields remain.
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_SIZE, REFRESH_COUNT (+ UNIVERSE_ID, LOOKBACK_DAYS in debug mode)
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
@@ -307,7 +307,6 @@ export const float ZONE_CAL_SWEEP_HIGH_VOL = 0.7300
 
 // ── Pine Consumer Maturity (Phase H) ──
 export const float HR_SENTINEL_DEGRADED = -1.0000
-export const float ZONE_CAL_CONFIDENCE = 0.0000
 export const float ZONE_CAL_RELIABILITY_SCORE = 0.0000
 export const float ZONE_HR_OB = -1.0000
 export const float ZONE_HR_FVG = -1.0000

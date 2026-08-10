@@ -71,14 +71,13 @@ def test_smt_divergence_confidence_default(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_smt_divergence_new_env_name_wins(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Preferred new name overrides even when the legacy alias is also set.
     monkeypatch.setenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", "55")
     monkeypatch.setenv("SMC_SMT_DIVERGENCE_CONFIDENCE", "40")
     assert v2_config.smt_divergence_config.confidence == 55
 
 
-def test_smt_divergence_legacy_env_alias_still_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Back-compat: existing ops config on the old env var keeps working.
+def test_smt_divergence_legacy_env_alias_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Close-window contract: the old name must no longer alter runtime config.
     monkeypatch.delenv("SMC_SMT_DIVERGENCE_HEURISTIC_SCORE", raising=False)
     monkeypatch.setenv("SMC_SMT_DIVERGENCE_CONFIDENCE", "42")
-    assert v2_config.smt_divergence_config.confidence == 42
+    assert v2_config.smt_divergence_config.confidence == 70
