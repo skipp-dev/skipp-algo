@@ -9009,31 +9009,54 @@ async function tracePublishSurfaceAbsence(page: Page, phase: string): Promise<vo
 }
 
 export async function selectExistingPublishScript(page: Page, scriptName: string): Promise<boolean> {
-  const nativeChooser = await firstVisibleLocator(
-    page.locator('#overlap-manager-root select[aria-label*="script" i]'),
-    750,
+  const nativeChooser = await waitForFirstVisibleLocator(
+    tvSelectors.publishExistingScriptChooser(page),
+    3_000,
+    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) === "select",
   );
   if (nativeChooser) {
+    const nativeSnapshot = () => nativeChooser
+      .evaluate((element) => {
+        const select = element as HTMLSelectElement;
+        return {
+          tag: select.tagName,
+          role: select.getAttribute("role") || "",
+          ariaLabel: select.getAttribute("aria-label") || "",
+          name: select.getAttribute("name") || "",
+          className: String(select.className || "").slice(0, 120),
+          options: Array.from(select.options)
+            .map((option) => (option.textContent || "").trim())
+            .filter(Boolean)
+            .slice(0, 20),
+        };
+      })
+      .catch(() => null);
+    tracePageEvent(
+      page,
+      "publish-existing-script-native-candidate",
+      JSON.stringify(await nativeSnapshot()),
+    );
+
     const nativeDeadline = Date.now() + 3_000;
     do {
       const selectedValues = await nativeChooser
         .selectOption({ label: scriptName }, { timeout: 250 })
         .catch(() => [] as string[]);
       if (selectedValues.length > 0) {
-        tracePageEvent(page, "publish-existing-script-native-selected", scriptName);
+        tracePageEvent(
+          page,
+          "publish-existing-script-native-selected",
+          `${scriptName}:${JSON.stringify(await nativeSnapshot())}`,
+        );
         return true;
       }
       await page.waitForTimeout(100);
     } while (Date.now() < nativeDeadline);
 
-    const nativeOptions = await nativeChooser
-      .locator("option")
-      .evaluateAll((options) => options.map((option) => (option.textContent || "").trim()).filter(Boolean).slice(0, 20))
-      .catch(() => [] as string[]);
     tracePageEvent(
       page,
       "publish-existing-script-native-fallback",
-      `${scriptName}:options=${JSON.stringify(nativeOptions)}`,
+      `${scriptName}:${JSON.stringify(await nativeSnapshot())}`,
     );
   }
 

@@ -1827,6 +1827,34 @@ test("update-existing selection waits for a delayed native option", async () => 
   }
 });
 
+test("update-existing selection discovers an unlabeled native chooser", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <select><option value="">Choose script</option></select>
+      </div></div></body></html>
+    `);
+    await page.evaluate(() => {
+      window.setTimeout(() => {
+        const chooser = document.querySelector("select");
+        if (!chooser) return;
+        const option = document.createElement("option");
+        option.value = "open-prep";
+        option.textContent = "Open-Prep Daily Panel";
+        chooser.appendChild(option);
+      }, 300);
+    });
+
+    assert.equal(await selectExistingPublishScript(page, "Open-Prep Daily Panel"), true);
+    assert.equal(await page.locator("select").inputValue(), "open-prep");
+  } finally {
+    await browser.close();
+  }
+});
+
 test("update-existing selection falls back when a native chooser lacks the target", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();

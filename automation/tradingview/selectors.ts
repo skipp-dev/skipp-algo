@@ -458,6 +458,7 @@ export const tvSelectors = {
     return [
       surface.getByRole("combobox", { name: /choose script/i }),
       surface.getByRole("button", { name: /choose script/i }),
+      surface.locator("select"),
       surface.locator('select[aria-label*="script" i]'),
       surface.locator('[role="combobox"]'),
       surface.getByText(/^choose script$/i, { exact: true }),
