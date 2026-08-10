@@ -127,9 +127,12 @@ Implementation status on 2026-08-10:
 - [x] A transformation-only producer emits PIT-safe BOS, OB, FVG and SWEEP
   setup artifacts and rejects forward evidence, future/stale observations,
   shorts and unowned variants. It has no broker or ledger side effects.
-- [ ] The prospective producer is not yet connected to the controlled
-  paper-incubation pilot. Retrospective modeled events must never be relabelled
-  as paper fills.
+- [x] Strict audit-only paper-pilot mode connects the producer artifacts to
+  incubation risk and audit stages, rejects evidence/provenance drift and
+  preserves the source fields in every per-intent audit path.
+- [ ] Broker-connected paper submission, fill reconciliation and closed
+  outcomes have not started. Retrospective modeled events must never be
+  relabelled as paper fills.
 - [ ] Phase-1 paper gate remains **BLOCKED** until every family has at least
   one correctly classified closed paper outcome with complete provenance.
 - [ ] The later 90-day/30-live-trade calibration gate is calendar-bound and

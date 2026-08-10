@@ -1,7 +1,7 @@
 # Phase 1 prospective family paper-producer pilot
 
-Status: producer implemented and locally verified; runtime pilot not connected
-or started.
+Status: producer and strict audit-only incubation path implemented and locally
+verified; broker-connected paper pilot not started.
 
 ## Purpose
 
@@ -23,7 +23,10 @@ incubation.
 5. `scripts/build_families_telemetry.py` reads those records without mixing
    them with MODELED_OOS or LIVE evidence.
 
-The producer never calls a broker and is not automatically chained to step 3.
+The producer never calls a broker. The existing incubation runner connects the
+artifacts to step 3 only when invoked with `--prospective-paper-pilot`. That
+mode remains audit-only unless the operator separately supplies
+`--place-paper-orders` and every existing paper-account and portfolio gate.
 
 ## Fail-closed producer contract
 
@@ -42,11 +45,54 @@ For each family it selects the newest valid event and emits at most one setup.
 Malformed newer candidates cannot suppress an older valid candidate inside the
 same freshness window.
 
+Before building an intent, the strict runner additionally requires:
+
+- a variant owned by the four-family producer and a matching `family`;
+- `evidence_class=PAPER` and `producer_mode=prospective_pit`;
+- a stable event ID and anchor no later than `source_asof_ts`;
+- a source snapshot no more than 300 seconds old by default;
+- matching setup/provenance symbol and timeframe plus a named source; and
+- `trade_date` matching the UTC date of the point-in-time snapshot.
+
+The source fields and full provenance object are copied into normal,
+earnings-blocked and portfolio-blocked per-intent audit rows. A commercial
+variant cannot be submitted through `--place-paper-orders` unless strict pilot
+mode is also active.
+
+## Audit-only invocation
+
+First produce artifacts from a fresh point-in-time payload:
+
+```bash
+python -m scripts.build_commercial_family_setups \
+  --input artifacts/commercial/pit_input.json \
+  --setups-output artifacts/commercial/setups.json \
+  --gate-status-output artifacts/commercial/gates.json \
+  --diagnostics-output artifacts/commercial/producer_diagnostics.json \
+  --trade-date YYYY-MM-DD
+```
+
+Then exercise risk, earnings and portfolio-independent incubation without
+placing an order:
+
+```bash
+python -m scripts.run_smc_live_incubation \
+  --phase paper \
+  --setups artifacts/commercial/setups.json \
+  --gate-statuses artifacts/commercial/gates.json \
+  --audit-output artifacts/commercial/incubation_audit.jsonl \
+  --prospective-paper-pilot
+```
+
+This invocation records `action=audit_only`. It does not create a paper fill
+or a closed PAPER outcome and therefore cannot turn the Phase-1 exit gate
+green.
+
 ## Pilot launch gates
 
-Before any automated paper submission:
+Before any broker-connected paper submission:
 
-- run the producer in transformation-only shadow mode across a representative
+- run the producer plus strict audit-only incubation across a representative
   live market window;
 - confirm artifact freshness, deterministic order references and duplicate
   handling through replay/restart tests;

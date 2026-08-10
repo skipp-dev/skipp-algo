@@ -77,17 +77,19 @@ for each commercial family. It:
 - writes amber gate, setup and diagnostic artifacts atomically; and
 - performs no broker, network or incubation-ledger I/O.
 
-This is an evidence-boundary component, not a deployed paper trader. Its output
-must still pass through a separately controlled paper-incubation pilot before
-it can produce PAPER lifecycle records or closed outcomes.
+This is an evidence-boundary component, not a deployed paper trader. A strict
+audit-only incubation mode now validates its evidence class, freshness and
+provenance and preserves those fields in per-intent audit rows. Broker-connected
+paper submission remains a separate opt-in and has not been started.
 
 ## Honest remaining gate
 
 The current family-event benchmark is retrospective/model-based and includes
 forward windows. It must not be transformed into paper fills. The prospective
-producer now creates decision-time setup artifacts, but it is deliberately not
-connected to the incubation submitter or any broker. The controlled pilot must
-connect these existing stages and prove their lifecycle without weakening the
+producer now creates decision-time setup artifacts and the strict audit-only
+pilot connects them to the incubation risk/audit stages. It is deliberately not
+connected to a broker by default. A controlled paper-account run must still
+prove submission, reconciliation and closed outcomes without weakening the
 point-in-time boundary.
 
 Until that producer is connected and the four-family paper gate turns GREEN,

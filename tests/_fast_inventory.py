@@ -234,6 +234,13 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_build_family_metrics.py",
     "test_family_returns.py",
     "test_family_event_adapter.py",
+    # Commercial Phase-1 evidence boundary: the producer, strict audit-only
+    # handoff and paper-submission opt-in must block the same PR that changes
+    # them. Pure local transformations with injected submitters, <3s total.
+    "test_build_commercial_family_setups.py",
+    "test_commercial_family_paper_pipeline.py",
+    "test_run_smc_live_incubation.py",
+    "test_run_smc_live_incubation_paper_submit.py",
     "test_family_verdict.py",
     "test_verdict_panel.py",
     "test_run_edge_pipeline.py",

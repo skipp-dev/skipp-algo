@@ -46,6 +46,30 @@ def _healthy_state() -> AccountState:
     )
 
 
+def _prospective_setup(**overrides) -> dict:
+    asof = _FROZEN_NOW.timestamp()
+    base = _setup(
+        variant="smc_bos_long",
+        symbol="AAPL",
+        trade_date=_FROZEN_NOW.date().isoformat(),
+        family="BOS",
+        evidence_class="PAPER",
+        producer_mode="prospective_pit",
+        source_event_id="bos-aapl-1",
+        source_anchor_ts=asof - 60,
+        source_asof_ts=asof,
+        source_timeframe="15m",
+        source_provenance={
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "source": "databento",
+            "dataset": "XNAS.ITCH",
+        },
+    )
+    base.update(overrides)
+    return base
+
+
 def _read_audit(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -171,6 +195,111 @@ def test_paper_audit_record_has_explicit_evidence_class(tmp_path: Path) -> None:
     assert record["evidence_class"] == "PAPER"
 
 
+def test_prospective_paper_pilot_preserves_complete_source_provenance(
+    tmp_path: Path,
+) -> None:
+    audit = tmp_path / "audit.jsonl"
+    summary = run_live_incubation(
+        setup_records=[_prospective_setup()],
+        gate_status_by_variant={"smc_bos_long": "amber"},
+        risk_limits=RiskLimits(),
+        account_state=_healthy_state(),
+        execution_cfg=IBKRExecutionConfig(),
+        audit_path=audit,
+        phase="paper",
+        now=_FROZEN_NOW,
+        prospective_paper_pilot=True,
+    )
+
+    assert summary["prospective_paper_pilot"] is True
+    [record] = _read_audit(audit)
+    assert record["family"] == "BOS"
+    assert record["producer_mode"] == "prospective_pit"
+    assert record["source_event_id"] == "bos-aapl-1"
+    assert record["source_anchor_ts"] == _FROZEN_NOW.timestamp() - 60
+    assert record["source_asof_ts"] == _FROZEN_NOW.timestamp()
+    assert record["source_timeframe"] == "15m"
+    assert record["source_provenance"]["dataset"] == "XNAS.ITCH"
+
+
+@pytest.mark.parametrize(
+    ("override", "error"),
+    [
+        ({"evidence_class": "MODELED_OOS"}, "evidence_class"),
+        ({"producer_mode": "retrospective"}, "producer_mode"),
+        ({"family": "FVG"}, "family='BOS'"),
+        ({"source_event_id": ""}, "source_event_id"),
+        (
+            {"source_provenance": {
+                "symbol": "MSFT",
+                "timeframe": "15m",
+                "source": "databento",
+            }},
+            "symbol/provenance mismatch",
+        ),
+    ],
+)
+def test_commercial_variant_cannot_cross_evidence_boundary(
+    tmp_path: Path,
+    override: dict,
+    error: str,
+) -> None:
+    with pytest.raises(ValueError, match=error):
+        run_live_incubation(
+            setup_records=[_prospective_setup(**override)],
+            gate_status_by_variant={"smc_bos_long": "amber"},
+            risk_limits=RiskLimits(),
+            account_state=_healthy_state(),
+            execution_cfg=IBKRExecutionConfig(),
+            audit_path=tmp_path / "audit.jsonl",
+            phase="paper",
+            now=_FROZEN_NOW,
+        )
+
+
+def test_commercial_variant_staleness_fails_before_submission(tmp_path: Path) -> None:
+    submitted = False
+
+    def fake_submit(_intents):
+        nonlocal submitted
+        submitted = True
+        return []
+
+    with pytest.raises(ValueError, match="is stale"):
+        run_live_incubation(
+            setup_records=[_prospective_setup(
+                source_anchor_ts=_FROZEN_NOW.timestamp() - 361,
+                source_asof_ts=_FROZEN_NOW.timestamp() - 301,
+            )],
+            gate_status_by_variant={"smc_bos_long": "amber"},
+            risk_limits=RiskLimits(),
+            account_state=_healthy_state(),
+            execution_cfg=IBKRExecutionConfig(),
+            audit_path=tmp_path / "audit.jsonl",
+            phase="paper",
+            now=_FROZEN_NOW,
+            submit_fn=fake_submit,
+        )
+    assert submitted is False
+
+
+def test_prospective_pilot_rejects_noncommercial_tradable_setup(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="only the four owned commercial"):
+        run_live_incubation(
+            setup_records=[_setup(variant="legacy")],
+            gate_status_by_variant={"legacy": "amber"},
+            risk_limits=RiskLimits(),
+            account_state=_healthy_state(),
+            execution_cfg=IBKRExecutionConfig(),
+            audit_path=tmp_path / "audit.jsonl",
+            phase="paper",
+            now=_FROZEN_NOW,
+            prospective_paper_pilot=True,
+        )
+
+
 def test_audit_log_appends_across_runs(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     for sym in ("BTC", "ETH"):
@@ -271,6 +400,62 @@ def test_cli_main_runs_end_to_end(tmp_path: Path, capsys) -> None:
     summary = json.loads(capsys.readouterr().out)
     assert summary["phase"] == "paper"
     assert summary["intents_passed_to_submitter"] == 1
+
+
+def test_cli_prospective_pilot_defaults_to_audit_only(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    now = datetime.now(UTC)
+    setup = _prospective_setup(
+        trade_date=now.date().isoformat(),
+        source_anchor_ts=now.timestamp() - 60,
+        source_asof_ts=now.timestamp(),
+    )
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([setup]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"smc_bos_long": "amber"}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    rc = main([
+        "--phase", "paper",
+        "--setups", str(setups),
+        "--gate-statuses", str(statuses),
+        "--audit-output", str(audit),
+        "--prospective-paper-pilot",
+    ])
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["prospective_paper_pilot"] is True
+    [record] = _read_audit(audit)
+    assert record["action"] == "audit_only"
+    assert record["source_event_id"] == "bos-aapl-1"
+
+
+def test_cli_commercial_paper_submission_requires_strict_pilot_mode(
+    tmp_path: Path,
+) -> None:
+    now = datetime.now(UTC)
+    setup = _prospective_setup(
+        trade_date=now.date().isoformat(),
+        source_anchor_ts=now.timestamp() - 60,
+        source_asof_ts=now.timestamp(),
+    )
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([setup]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"smc_bos_long": "amber"}), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="commercial family paper orders require"):
+        main([
+            "--phase", "paper",
+            "--setups", str(setups),
+            "--gate-statuses", str(statuses),
+            "--audit-output", str(tmp_path / "audit.jsonl"),
+            "--place-paper-orders",
+            "--portfolio-snapshot-json", str(tmp_path / "not-read.json"),
+        ])
 
 
 def test_phase_defaults_table_is_complete() -> None:
