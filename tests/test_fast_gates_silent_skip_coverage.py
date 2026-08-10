@@ -126,6 +126,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_bare_type_ignore_ledger.py",
     "tests/test_bundle_loader_frame_discipline.py",
     "tests/test_broad_except_silent_budget.py",
+    "tests/test_build_commercial_family_setups.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
     # 2026-08-01: guards that the R1-attested-source gate stays wired into
@@ -141,6 +142,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # correct.
     "tests/test_ci_workflow_contract.py",
     "tests/test_ci_workflow_structural_pin.py",
+    "tests/test_commercial_family_paper_pipeline.py",
     # 2026-08-03: derived cross-consumer guard for
     # scripts/credential_health_check.py. #4333 added a probe to that shared
     # script without touching the other two consuming workflows, aborting
@@ -241,6 +243,8 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_realtime_signals_sister_ledger_guardrail.py",
     "tests/test_requirements_discipline_pin.py",
     "tests/test_run_edge_pipeline.py",
+    "tests/test_run_smc_live_incubation.py",
+    "tests/test_run_smc_live_incubation_paper_submit.py",
     "tests/test_schema_version_manifest_alignment.py",
     "tests/test_signals_dashboard_contract.py",
     "tests/test_silent_error_swallow_pin.py",
