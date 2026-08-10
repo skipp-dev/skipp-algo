@@ -5,7 +5,7 @@
 | Status | Accepted — ratified 2026-07-23 by the owner; scope definition written retroactively |
 | Date | 2026-07-23 |
 | Deciders | @preuss_steffen |
-| Related | `docs/BLOOMBERG_TERMINAL_PLAN.md`; `docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md`; `README.md` §Product Positioning |
+| Related | ADR-0033; `docs/BLOOMBERG_TERMINAL_PLAN.md`; `docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md`; `README.md` §Product Positioning |
 
 ## Context
 
@@ -25,6 +25,11 @@ discussion. The absence is the problem this ADR closes: a surface with a public
 hostname, a monitor, and a steady feature cadence (#3906, #3914, #3916 in a
 single week) invites the assumption that it is a product, and that assumption
 silently changes what reviewers, agents, and future-you consider in scope.
+
+On 2026-08-10 the owner accepted ADR-0033 and set a commercial-product goal for
+the wider SMC system. That later decision does not supersede this Terminal
+boundary: the hosted Terminal remains the internal operator plane, while the
+commercial product receives a separate customer plane.
 
 ## Decision
 

@@ -1,5 +1,10 @@
 # SMC Lite + Pro Product Cut
 
+> **Scope note (2026-08-10):** This remains an implementation record for the
+> TradingView surface cut. Commercial customer roles, naming and launch claims
+> are governed by ADR-0033, `docs/SMC_PRODUCT_IDENTITY.md` and the Phase-0
+> commercial documents under `docs/commercial/`.
+
 ## Closure Update 2026-04-06 23:18:29 CEST
 
 Die in diesem Dokument festgehaltenen Repo-Gaps wurden inzwischen auf den

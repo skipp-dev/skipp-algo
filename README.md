@@ -2,11 +2,17 @@
 
 Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Open Briefing Pipeline
 
-SkippALGO is a modular trading intelligence platform combining three core systems:
+The repository contains a modular trading-intelligence system. ADR-0033 sets a
+new goal: develop the SMC surfaces into a commercial decision-support product
+with external users, while keeping the hosted Operator Terminal internal.
+
+The three existing system groups are:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
-2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
-   Purpose, audience, and the six invariants that bound its hosted deployment: [ADR-0030](docs/adr/0030-terminal-purpose-and-audience.md).
+2. **Real-Time News Intelligence Dashboard** — the internal AI-supported
+   **Operator Terminal** for news intelligence, alerting and operational market
+   monitoring. Its single-operator boundary remains governed by
+   [ADR-0030](docs/adr/0030-terminal-purpose-and-audience.md).
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 > New to the codebase? See the [Glossary](docs/GLOSSARY.md) for the sprint
@@ -16,9 +22,15 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 ## Product Positioning & Compliance Notes
 
-- SkippALGO is positioned as a **Research & Monitoring Terminal**.
-- Core value proposition: **News Intelligence + Alerting**.
-- Primary use case: **Workflow/Decision Support** — not direct “Buy/Sell” instructions.
+- The commercial target is the **Skipp SMC** product family described in
+  [ADR-0033](docs/adr/0033-commercial-product-and-customer-plane.md) and the
+  [Phase-0 product brief](docs/commercial/PRODUCT_BRIEF.md).
+- The hosted Operator Terminal remains internal research and operations
+  infrastructure; it is not the customer product.
+- The primary use case remains **workflow and decision support**, not direct
+  personalized “Buy/Sell” instructions.
+- Commercial readiness and customer-facing claims remain gated by the
+  [commercial programme](docs/commercial/README.md).
 
 ### Important Disclaimer
 
