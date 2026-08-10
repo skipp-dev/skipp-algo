@@ -1,7 +1,7 @@
 # Phase 1 evidence-truth contract
 
-Status: technical truth gates implemented; prospective family paper evidence
-not yet accumulated.
+Status: technical truth gates and a transformation-only prospective setup
+producer are implemented; family paper evidence has not yet accumulated.
 
 ## Why this phase exists
 
@@ -64,13 +64,31 @@ The daily C13 workflow:
 The telemetry payload exposes `phase1_paper_gate`. It is GREEN only when BOS,
 OB, FVG and SWEEP each have at least one closed PAPER outcome.
 
+## Prospective setup producer
+
+`scripts/build_commercial_family_setups.py` consumes one confirmed,
+point-in-time market-structure payload and emits at most one current long setup
+for each commercial family. It:
+
+- rejects every nested `forward_*` field, future observation and stale input;
+- requires stable event identity, symbol, timeframe, source and `as_of`;
+- maps only explicit BOS, OB, FVG and sell-side-sweep events to the four owned
+  commercial variants;
+- writes amber gate, setup and diagnostic artifacts atomically; and
+- performs no broker, network or incubation-ledger I/O.
+
+This is an evidence-boundary component, not a deployed paper trader. Its output
+must still pass through a separately controlled paper-incubation pilot before
+it can produce PAPER lifecycle records or closed outcomes.
+
 ## Honest remaining gate
 
 The current family-event benchmark is retrospective/model-based and includes
-forward windows. It must not be transformed into paper fills. A separate
-prospective producer must create commercial family setups at decision time,
-then let the existing incubation, reconciliation and outcome stages observe
-their lifecycle.
+forward windows. It must not be transformed into paper fills. The prospective
+producer now creates decision-time setup artifacts, but it is deliberately not
+connected to the incubation submitter or any broker. The controlled pilot must
+connect these existing stages and prove their lifecycle without weakening the
+point-in-time boundary.
 
 Until that producer is connected and the four-family paper gate turns GREEN,
 Phase 1 remains operationally incomplete. The later live gate remains at least
