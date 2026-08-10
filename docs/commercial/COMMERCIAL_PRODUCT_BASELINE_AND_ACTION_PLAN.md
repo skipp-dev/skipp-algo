@@ -1,7 +1,7 @@
 # Commercial product baseline and action plan
 
-Status: verified internal baseline on `origin/main` at
-`45eaef21ee1a3174e560e8d9bb302d16d205010d`, 2026-08-10.
+Status: verified internal baseline on `origin/main` through Phase 1a at
+`6bb76640be31d6c22a30853e781bbec1aef9e7ca`, 2026-08-10.
 
 ## Executive assessment
 
@@ -124,9 +124,12 @@ Implementation status on 2026-08-10:
 - [x] The current threshold implementation is documented accurately in-repo:
   Welch-t and Brown-Forsythe exist; real-live recalibration remains gated by
   qualifying evidence.
-- [ ] Prospective BOS, OB, FVG and SWEEP commercial setup producers are not
-  yet connected to the paper-incubation ledger. Retrospective modeled events
-  must not be relabelled as paper fills.
+- [x] A transformation-only producer emits PIT-safe BOS, OB, FVG and SWEEP
+  setup artifacts and rejects forward evidence, future/stale observations,
+  shorts and unowned variants. It has no broker or ledger side effects.
+- [ ] The prospective producer is not yet connected to the controlled
+  paper-incubation pilot. Retrospective modeled events must never be relabelled
+  as paper fills.
 - [ ] Phase-1 paper gate remains **BLOCKED** until every family has at least
   one correctly classified closed paper outcome with complete provenance.
 - [ ] The later 90-day/30-live-trade calibration gate is calendar-bound and
