@@ -21,6 +21,11 @@
       "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-06T135124Z.json",
       "capturedAt": "2026-08-06T13:51:24.335Z",
       "sha256": "d960d38ee0fed9dad504615f6bb23a2524f3f9e0dbd857673933b411ac5fe3c0"
+    },
+    {
+      "path": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-10T143424Z.json",
+      "capturedAt": "2026-08-10T14:34:24.275Z",
+      "sha256": "897fff7c42bc58cf7e6b20ce037c667a47707ad7f8ab6b3633b177ace027e0bc"
     }
   ]
 }
