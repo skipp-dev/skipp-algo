@@ -56,6 +56,7 @@ import {
   publishStepMadeProgress,
   MAX_VISIBLE_LEGEND_TEXT_TARGETS,
   VISIBLE_LEGEND_TEXT_SETTINGS_BUDGET_MS,
+  hasDirectUpdatePublishSurface,
   visibleLegendTextBudgetExceeded,
   visibleLegendTextTargetCapReached,
   visibleLegendTextTargetKey,
@@ -1725,6 +1726,58 @@ test("publish surface ignores a stale hidden dialog before the active dialog", a
       }
     }
     assert.ok(matchedVisibleModes > 0, "the active visible dialog must win over stale hidden publish surfaces");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("direct named update surface does not require mode or script selection", () => {
+  const scriptName = "smc_micro_profiles_generated";
+
+  assert.equal(hasDirectUpdatePublishSurface(
+    scriptName,
+    `Chart\nUpdate '${scriptName}' library\nv203\nContinue`,
+  ), true);
+  assert.equal(hasDirectUpdatePublishSurface(
+    scriptName,
+    `Update \u2018${scriptName}\u2019 library Minimize Close`,
+  ), true);
+
+  assert.equal(
+    hasDirectUpdatePublishSurface(scriptName, "Publish script\nUpdate existing script\nChoose script"),
+    false,
+    "the generic update chooser must still use the explicit mode and script controls",
+  );
+  assert.equal(
+    hasDirectUpdatePublishSurface(scriptName, "Update 'smc_micro_profiles_generated_copy' library"),
+    false,
+    "a similarly named library must not bypass exact target selection",
+  );
+  assert.equal(
+    hasDirectUpdatePublishSurface(scriptName, "Update 'other_library' library"),
+    false,
+  );
+});
+
+test("direct named update surface keeps Continue inside publish scope", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Update 'smc_micro_profiles_generated' library</h2>
+        <button>Continue</button>
+      </div></div></body></html>
+    `);
+
+    let continueMatches = 0;
+    for (const locator of tvSelectors.publishContinue(page)) {
+      continueMatches += await locator.count().catch(() => 0);
+    }
+    assert.ok(
+      continueMatches > 0,
+      "the direct update diff must remain a publish surface for Continue and confirmation",
+    );
   } finally {
     await browser.close();
   }
