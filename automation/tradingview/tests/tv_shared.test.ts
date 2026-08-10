@@ -1799,6 +1799,65 @@ test("update-existing selection waits for TradingView's delayed chooser", async 
   }
 });
 
+test("update-existing selection waits for a delayed native option", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <select aria-label="Choose script"><option value="">Choose script</option></select>
+      </div></div></body></html>
+    `);
+    await page.evaluate(() => {
+      window.setTimeout(() => {
+        const chooser = document.querySelector("select");
+        if (!chooser) return;
+        const option = document.createElement("option");
+        option.value = "open-prep";
+        option.textContent = "Open-Prep Daily Panel";
+        chooser.appendChild(option);
+      }, 300);
+    });
+
+    assert.equal(await selectExistingPublishScript(page, "Open-Prep Daily Panel"), true);
+    assert.equal(await page.locator("select").inputValue(), "open-prep");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("update-existing selection falls back when a native chooser lacks the target", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <select aria-label="Choose script"><option value="">Choose script</option></select>
+        <button id="interactive-chooser" role="button">Choose script</button>
+      </div></div></body></html>
+    `);
+    await page.locator("#interactive-chooser").evaluate((chooser) => {
+      chooser.addEventListener("click", () => {
+        const option = document.createElement("button");
+        option.setAttribute("role", "option");
+        option.textContent = "Open-Prep Daily Panel";
+        option.addEventListener("click", () => {
+          chooser.textContent = "Open-Prep Daily Panel";
+          option.remove();
+        });
+        document.querySelector('[role="dialog"]')?.appendChild(option);
+      });
+    });
+
+    assert.equal(await selectExistingPublishScript(page, "Open-Prep Daily Panel"), true);
+    assert.equal(await page.locator("#interactive-chooser").innerText(), "Open-Prep Daily Panel");
+  } finally {
+    await browser.close();
+  }
+});
+
 test("publish surface keeps the class-based private-library fallback", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
