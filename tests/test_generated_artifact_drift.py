@@ -234,12 +234,18 @@ class TestGeneratedArtifactDrift:
         # 5 reserved action exports again while keeping the single
         # existing HERO_ACTION export:
         # 202 → 197.
-        # Confidence-vocabulary program (2026-07-13): +1 additive
-        # ZONE_CAL_RELIABILITY_SCORE (honest alias of ZONE_CAL_CONFIDENCE, which
-        # stays until SMC_Dashboard flips post-republish). 197 → 198.
-        assert len(exports) == 198, (
-            f"Expected 198 export const fields for the current v8 shared-export contract, got {len(exports)}"
+        # Confidence-vocabulary close-window (2026-08-10): the dashboard has
+        # consumed ZONE_CAL_RELIABILITY_SCORE since the flip PR, so the legacy
+        # ZONE_CAL_CONFIDENCE alias is removed. 198 → 197.
+        assert len(exports) == 197, (
+            f"Expected 197 export const fields for the current v8 shared-export contract, got {len(exports)}"
         )
+
+    def test_legacy_zone_cal_confidence_export_is_absent(self, regenerated: Path):
+        pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
+        exports = _extract_export_names(pine)
+        assert "ZONE_CAL_RELIABILITY_SCORE" in exports
+        assert "ZONE_CAL_CONFIDENCE" not in exports
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
