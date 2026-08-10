@@ -17,6 +17,9 @@ import {
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
 
+const _dir = path.dirname(fileURLToPath(import.meta.url));
+const _publisherPath = path.resolve(_dir, "..", "..", "..", "scripts", "tv_publish_micro_library.ts");
+
 test("facade-published version is the authoritative release target", () => {
   assert.deepEqual(resolveAuthoritativeReleaseTarget({
     libraryOwner: "owner_a",
@@ -82,6 +85,17 @@ test("no-open-existing remains an explicit bypass of the pre-mutation open gate"
     allowEditorMutation: true,
     error: null,
   });
+});
+
+test("existing library publishes update the current script instead of requiring a new title", () => {
+  const source = fs.readFileSync(_publisherPath, "utf-8");
+  const updateModePattern = /publishMode:\s*openedExistingScript\s*\?\s*"update_existing"\s*:\s*"auto"/g;
+
+  assert.equal(
+    source.match(updateModePattern)?.length,
+    2,
+    "the initial publish and its retry must both select update_existing after the exact-open gate",
+  );
 });
 
 test("early open gate fail resolves to not_verified instead of manual publish required", () => {

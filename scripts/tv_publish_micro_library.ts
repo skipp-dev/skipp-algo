@@ -878,6 +878,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       const publishResult = await publishPrivateScript(session.page, {
         scriptName: publishLibraryName,
         title: publishLibraryName,
+        publishMode: openedExistingScript ? "update_existing" : "auto",
       }).catch(async (publishError: unknown) => {
         // 2026-07-31 (issue #4238): a failing publish shipped NO screenshot of
         // its own failure. The outer catch cannot take one — the enclosing
@@ -978,6 +979,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
             const retryPublishResult = await publishPrivateScript(session.page, {
               scriptName: details.libraryName,
               title: details.libraryName,
+              publishMode: openedExistingScript ? "update_existing" : "auto",
             });
             publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
             publishConfirmed = publishConfirmed || retryPublishResult.publishConfirmed;
