@@ -1804,6 +1804,22 @@ function publishDialogCompanionMatch(scriptName: string, uiText: string): boolea
   ).test(normalizedCandidate);
 }
 
+export function hasDirectUpdatePublishSurface(scriptName: string, bodyText: string): boolean {
+  const normalizedScriptName = normalizeUiText(scriptName);
+  if (!normalizedScriptName) {
+    return false;
+  }
+
+  const directUpdateTitle = new RegExp(
+    `^update\\s+['\u2018\u2019\u201C\u201D"]?${escapeRegex(normalizedScriptName)}['\u2018\u2019\u201C\u201D"]?\\s+(?:library|script)(?:\\s|$)`,
+    "i",
+  );
+  return bodyText
+    .split(/\r?\n/)
+    .map((line) => normalizeUiText(line))
+    .some((line) => directUpdateTitle.test(line));
+}
+
 function nonIdentityEditorCompanionMatch(uiText: string): boolean {
   const normalizedCandidate = normalizeUiText(uiText);
   if (!normalizedCandidate) {
@@ -9173,23 +9189,33 @@ export async function publishPrivateScript(
   const openSurfaceBodyText = await page.locator("body").innerText().catch(() => "");
 
   if (options.publishMode === "update_existing") {
-    const selectedUpdateMode = await clickVisibleWithFallback(
-      page,
-      tvSelectors.publishUpdateExistingMode(page),
-      "publish-update-existing-mode",
-      2_000,
-      350,
-    );
-    if (!selectedUpdateMode) {
-      throw new Error("Could not select Update existing script in TradingView publish flow");
-    }
     if (!options.scriptName) {
       throw new Error("Update existing script publish mode requires scriptName");
     }
 
-    const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
-    if (!selectedExistingScript) {
-      throw new Error(`Could not select existing TradingView script: ${options.scriptName}`);
+    // Run 31381577126 opened TradingView directly on
+    // "Update '<name>' library" with the side-by-side diff and Continue
+    // button. That is already the exact update surface: it intentionally has
+    // neither the generic mode selector nor a Choose script control.
+    const directUpdateSurface = hasDirectUpdatePublishSurface(options.scriptName, openSurfaceBodyText);
+    if (directUpdateSurface) {
+      tracePageEvent(page, "publish-update-existing-direct-surface", options.scriptName);
+    } else {
+      const selectedUpdateMode = await clickVisibleWithFallback(
+        page,
+        tvSelectors.publishUpdateExistingMode(page),
+        "publish-update-existing-mode",
+        2_000,
+        350,
+      );
+      if (!selectedUpdateMode) {
+        throw new Error("Could not select Update existing script in TradingView publish flow");
+      }
+
+      const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
+      if (!selectedExistingScript) {
+        throw new Error(`Could not select existing TradingView script: ${options.scriptName}`);
+      }
     }
   }
 

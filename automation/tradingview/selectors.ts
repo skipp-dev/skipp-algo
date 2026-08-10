@@ -40,7 +40,7 @@ function publishedVersionContextPattern(scriptName: string): RegExp {
 }
 
 function publishSurface(page: Page): Locator {
-  const publishFingerprint = /publish script|publish private library|publish new script|update existing script|final touches|privacy settings|tags & signature|script is not on the chart|nothing to update/i;
+  const publishFingerprint = /publish script|publish private library|publish new script|update existing script|update\s+['\u2018\u2019\u201C\u201D"][^'\u2018\u2019\u201C\u201D"]+['\u2018\u2019\u201C\u201D"]\s+(?:library|script)|final touches|privacy settings|tags & signature|script is not on the chart|nothing to update/i;
 
   // The publish dialog contains many nested `[data-id]` nodes. Treating those
   // as peer surfaces and taking `.last()` scoped the controls to an inner
