@@ -14,10 +14,10 @@ This module is intentionally I/O-narrow:
   ``action``, ``entry_price``, ``stop_loss``, ``fill_price`` and
   ``size_usd``. Optional ``close_price`` and ``close_action`` come from
   the executor's reconcile-fills stage.
-* **Outputs.** The same JSONL file, atomically rewritten, with
-  ``outcome_pnl_usd`` and ``outcome_r_multiple`` populated on every
-  ``filled``-then-closed pair. Records that have not yet closed are
-  passed through unchanged.
+* **Outputs.** The same JSONL file, atomically rewritten, with explicit
+  evidence class, gross outcome, optional fees/net outcome, entry slippage
+  and R-multiple populated on every closed trade. Unknown fees remain
+  unknown; the backfill never invents a zero-cost execution.
 
 There is no network access, no IBKR client, and no clock. That makes
 the hook fast and trivially testable, and lets us call it from a cron
@@ -99,7 +99,7 @@ def _atomic_write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
 
 
 OUTCOME_SCHEMA_KEY = "outcome_schema_version"
-OUTCOME_SCHEMA_VERSION = 2  # v2 anchors realised outcomes at fill_price, not the submitted limit.
+OUTCOME_SCHEMA_VERSION = 3
 
 
 def compute_trade_outcome(
@@ -163,10 +163,36 @@ def _backfill_record(record: dict[str, Any]) -> dict[str, Any]:
         size_usd=size_usd,
     )
     out = dict(record)
+    evidence_class = "PAPER" if record.get("phase") == "paper" else "LIVE"
+    entry_price = _optional_finite_float(record.get("entry_price"))
+    fees_usd = _optional_finite_float(record.get("fees_usd"))
+    fees_known = fees_usd is not None and fees_usd >= 0
+    entry_slippage_bps = None
+    if entry_price is not None and entry_price > 0:
+        entry_slippage_bps = (fill_price - entry_price) / entry_price * 10_000.0
+
     out[PNL_KEY] = pnl_usd
     out[R_MULTIPLE_KEY] = r_multiple
+    out["evidence_class"] = evidence_class
+    out["outcome_status"] = "closed"
+    out["gross_pnl_usd"] = pnl_usd
+    out["entry_slippage_bps"] = entry_slippage_bps
+    out["fees_known"] = fees_known
+    out["fees_usd"] = fees_usd if fees_known else None
+    out["net_pnl_usd"] = pnl_usd - fees_usd if fees_known else None
     out[OUTCOME_SCHEMA_KEY] = OUTCOME_SCHEMA_VERSION
     return out
+
+
+def _optional_finite_float(value: Any) -> float | None:
+    """Return a finite float or ``None`` without inventing missing values."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def backfill_live_outcomes(path: Path | str) -> dict[str, int]:

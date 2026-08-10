@@ -13,7 +13,9 @@ from scripts.build_families_telemetry import (
     BuildSummary,
     aggregate,
     build_payload,
+    load_modeled_counts,
     load_variant_family_map,
+    load_variant_registry,
     main,
     rollup_verdict,
     to_strict_payload,
@@ -30,7 +32,7 @@ def test_event_families_match_smc_core_scoring() -> None:
 
 
 def test_schema_version_pinned() -> None:
-    assert FAMILIES_SCHEMA_VERSION == "1.0.0"
+    assert FAMILIES_SCHEMA_VERSION == "2.0.0"
 
 
 def test_strict_payload_keys_match_consumer_contract() -> None:
@@ -81,6 +83,20 @@ def test_load_variant_family_map_rejects_non_object(tmp_path: Path) -> None:
     p.write_text("[]")
     with pytest.raises(ValueError):
         load_variant_family_map(p)
+
+
+def test_load_variant_registry_classifies_non_family_variants(tmp_path: Path) -> None:
+    p = tmp_path / "registry.json"
+    p.write_text(json.dumps({
+        "schema_version": 2,
+        "family_variants": {"v_bos_1": "BOS"},
+        "non_family_variants": {
+            "smc_orb_vwap_hold": {"scope": "open_prep_execution"},
+        },
+    }))
+    registry = load_variant_registry(p)
+    assert registry.family_variants == {"v_bos_1": "BOS"}
+    assert registry.non_family_variants == frozenset({"smc_orb_vwap_hold"})
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +238,38 @@ def test_aggregate_counts_unknown_variants(tmp_path: Path) -> None:
     assert accs["BOS"].n_trades == 1
 
 
+def test_aggregate_excludes_explicit_non_family_without_unknown(tmp_path: Path) -> None:
+    a1 = tmp_path / "incubation_2026-04-25.jsonl"
+    _write_audit(a1, [
+        {"variant": "smc_orb_vwap_hold", "action": "closed", "phase": "paper"},
+    ])
+    summary = BuildSummary()
+    aggregate(
+        audit_paths=[a1],
+        drift_paths=[],
+        variant_to_family={},
+        non_family_variants=frozenset({"smc_orb_vwap_hold"}),
+        summary=summary,
+    )
+    assert summary.unknown_variants == set()
+    assert summary.audit_records_non_family == 1
+
+
+def test_non_family_only_halt_does_not_contaminate_family_gate(tmp_path: Path) -> None:
+    a1 = tmp_path / "incubation_2026-04-25.jsonl"
+    _write_audit(a1, [
+        {"variant": "smc_orb_vwap_hold", "action": "audit_only", "phase": "paper"},
+        {"action": "halted", "kill_switch_triggered": True, "phase": "paper"},
+    ])
+    accs = aggregate(
+        audit_paths=[a1],
+        drift_paths=[],
+        variant_to_family={},
+        non_family_variants=frozenset({"smc_orb_vwap_hold"}),
+    )
+    assert all(acc.kill_switch_fires == 0 for acc in accs.values())
+
+
 def test_aggregate_rolls_up_drift_verdicts(tmp_path: Path) -> None:
     d1 = tmp_path / "drift_2026-04-25.json"
     _write_drift(d1, {
@@ -258,6 +306,21 @@ def test_to_strict_payload_emits_zero_rows_for_unseen_families() -> None:
         assert f["n_trades"] == 0
         assert f["kill_switch_fires"] == 0
         assert f["drift_verdict"] == "unknown"
+        assert f["evidence"]["LIVE"] == {"days": 0, "n_closed_outcomes": 0}
+        assert f["coverage_status"] == "missing"
+
+
+def test_modeled_oos_is_labeled_and_does_not_inflate_live(tmp_path: Path) -> None:
+    returns = tmp_path / "returns_series_2026-08-07.json"
+    returns.write_text(json.dumps({
+        "returns_by_variant": {"BOS": [0.1, -0.1], "OB": [], "FVG": [], "SWEEP": []},
+    }))
+    counts = load_modeled_counts(str(tmp_path / "returns_series_*.json"))
+    [bos, *_] = to_strict_payload({}, modeled_counts=counts)
+    assert bos["evidence"]["MODELED_OOS"]["n_outcomes"] == 2
+    assert bos["live_days"] == 0
+    assert bos["n_trades"] == 0
+    assert bos["coverage_status"] == "partial"
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +351,10 @@ def test_build_payload_end_to_end(tmp_path: Path) -> None:
     # Untraded families still emitted as zero rows.
     ob = next(f for f in out["families"] if f["name"] == "OB")
     assert ob["n_trades"] == 0
+    assert out["phase1_paper_gate"]["status"] == "BLOCKED"
+    assert set(out["phase1_paper_gate"]["families_missing_closed_outcome"]) == {
+        "BOS", "OB", "FVG", "SWEEP",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -331,3 +398,4 @@ def test_cli_strict_mode_returns_two_on_unknown_variant(tmp_path: Path) -> None:
         "--strict-unknown-variants",
     ])
     assert rc == 2
+    assert not out.exists(), "strict failure must not leave publishable telemetry"

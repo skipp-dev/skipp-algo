@@ -1,3 +1,12 @@
 {
-  "smc_breaker_btc": "BOS"
+  "schema_version": 2,
+  "family_variants": {
+    "smc_breaker_btc": "BOS"
+  },
+  "non_family_variants": {
+    "smc_orb_vwap_hold": {
+      "scope": "open_prep_execution",
+      "reason": "Execution-promotion bucket; it is not BOS, OB, FVG or SWEEP alpha evidence."
+    }
+  }
 }

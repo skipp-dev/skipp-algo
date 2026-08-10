@@ -86,7 +86,14 @@ def test_backfill_populates_pnl_and_r_for_closed_trades(tmp_path: Path) -> None:
     [record] = _read_jsonl(path)
     assert record[R_MULTIPLE_KEY] == pytest.approx(1.0)
     assert record[PNL_KEY] is not None
-    assert record["outcome_schema_version"] == 2
+    assert record["outcome_schema_version"] == 3
+    assert record["evidence_class"] == "LIVE"
+    assert record["outcome_status"] == "closed"
+    assert record["gross_pnl_usd"] == pytest.approx(record[PNL_KEY])
+    assert record["entry_slippage_bps"] == pytest.approx(0.0)
+    assert record["fees_known"] is False
+    assert record["fees_usd"] is None
+    assert record["net_pnl_usd"] is None
 
 
 def test_backfill_anchors_outcome_at_realised_fill_not_submitted_limit(
@@ -137,7 +144,26 @@ def test_backfill_recomputes_legacy_limit_anchored_outcome(tmp_path: Path) -> No
     assert summary["records_already_resolved"] == 0
     assert record[PNL_KEY] == pytest.approx(-5.0)
     assert record[R_MULTIPLE_KEY] == pytest.approx(-0.5 / 6.0)
-    assert record["outcome_schema_version"] == 2
+    assert record["outcome_schema_version"] == 3
+
+
+def test_backfill_computes_net_only_when_fees_are_known(tmp_path: Path) -> None:
+    path = tmp_path / "incubation_2026-04-26.jsonl"
+    _write_jsonl(path, [_closed_record(
+        phase="paper",
+        entry_price=100.0,
+        fill_price=101.0,
+        fees_usd=1.25,
+    )])
+
+    backfill_live_outcomes(path)
+
+    [record] = _read_jsonl(path)
+    assert record["evidence_class"] == "PAPER"
+    assert record["entry_slippage_bps"] == pytest.approx(100.0)
+    assert record["fees_known"] is True
+    assert record["fees_usd"] == pytest.approx(1.25)
+    assert record["net_pnl_usd"] == pytest.approx(record["gross_pnl_usd"] - 1.25)
 
 
 def test_backfill_skips_pending_trades(tmp_path: Path) -> None:

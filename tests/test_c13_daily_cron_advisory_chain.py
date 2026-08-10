@@ -322,16 +322,16 @@ def test_a_failed_drift_stops_families_and_emit(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------
-# Step 5a — families: the second soft skip
+# Step 5a — families: evidence ownership fails closed
 # --------------------------------------------------------------------------
 
-def test_a_missing_variant_family_map_soft_skips(tmp_path: Path) -> None:
+def test_a_missing_variant_family_map_fails_and_opens_issue(tmp_path: Path) -> None:
     result = _run(FAMILIES, tmp_path, env={"VARIANT_FAMILY_MAP": "configs/absent.json"})
-    assert result.outputs["rc"] == SOFT_SKIP
-    assert result.returncode == 78
+    assert result.outputs["rc"] == "1"
+    assert result.returncode == 1
     assert not result.called_with("build_families_telemetry")
-    assert not evaluate_condition(
-        _CONDITIONS[_ISSUE_STEP], {"families.rc": SOFT_SKIP, "backfill.rc": "0"}
+    assert evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"families.rc": "1", "backfill.rc": "0"}
     )
 
 
@@ -340,6 +340,8 @@ def test_families_builds_when_the_map_is_there(tmp_path: Path) -> None:
     result = _run(FAMILIES, tmp_path, env={"VARIANT_FAMILY_MAP": "map.json"}, rc=0)
     assert result.outputs["rc"] == "0"
     assert result.called_with("scripts.build_families_telemetry", "--variant-family-map")
+    assert result.called_with("--strict-unknown-variants")
+    assert result.called_with("--modeled-returns-json")
 
 
 # --------------------------------------------------------------------------
@@ -360,21 +362,19 @@ def test_emit_includes_families_when_the_telemetry_is_real(tmp_path: Path) -> No
     assert result.called_with("--include-families"), result.calls
 
 
-def test_emit_drops_families_after_a_soft_skip(tmp_path: Path) -> None:
-    """78 from step 5a means there is no telemetry file to include.
-
-    Claiming families coverage the run does not have is the failure this
-    branch exists to prevent, and the two branches differ only in argv.
-    """
-    result = _emit(tmp_path, families_rc=SOFT_SKIP, families_file=False)
+def test_emit_fails_closed_after_families_failure(tmp_path: Path) -> None:
+    result = _emit(tmp_path, families_rc="2", families_file=False)
     assert not result.called_with("--include-families")
-    assert result.called_with("scripts.emit_public_calibration_report")
+    assert not result.called_with("scripts.emit_public_calibration_report")
+    assert result.outputs["rc"] == "1"
+    assert result.returncode == 1
 
 
 def test_emit_drops_families_when_the_file_is_missing_despite_rc_zero(tmp_path: Path) -> None:
-    assert not _emit(tmp_path, families_rc="0", families_file=False).called_with(
-        "--include-families"
-    )
+    result = _emit(tmp_path, families_rc="0", families_file=False)
+    assert not result.called_with("--include-families")
+    assert not result.called_with("scripts.emit_public_calibration_report")
+    assert result.outputs["rc"] == "1"
 
 
 def test_emit_publishes_the_real_exit_code(tmp_path: Path) -> None:

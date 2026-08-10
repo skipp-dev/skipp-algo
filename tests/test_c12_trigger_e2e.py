@@ -35,6 +35,14 @@ def _qualified_family(**overrides: object) -> dict[str, object]:
         "drift_verdict": next(iter(sorted(ACCEPTABLE_DRIFT_VERDICTS))),
     }
     base.update(overrides)
+    base.setdefault("evidence", {
+        "MODELED_OOS": {"n_outcomes": 0},
+        "PAPER": {"days": 0, "n_closed_outcomes": 0},
+        "LIVE": {
+            "days": base["live_days"],
+            "n_closed_outcomes": base["n_trades"],
+        },
+    })
     return base
 
 
