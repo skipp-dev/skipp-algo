@@ -1,7 +1,12 @@
 # SMC Product Map — 2026-04-16
 
-Status: **Active**
+Status: **Historical engineering inventory**
 Feature Freeze: 2026-04-15 — 2026-05-15
+
+This dated map is retained for implementation history. Current runtime roles
+come from `scripts/smc_bus_manifest.py` and its generated manifest. Current
+commercial identity and customer scope come from `docs/SMC_PRODUCT_IDENTITY.md`
+and `docs/adr/0033-commercial-product-and-customer-plane.md`.
 
 ---
 

@@ -1,11 +1,13 @@
-# Live Decision Mesh — public repository boundary
+# Live Decision Mesh — public-release boundary
 
-Status: factual architecture boundary, 2026-07-21.
+Status: factual architecture boundary, updated 2026-08-10.
 
-This public repository contains the Skipp producers, Pine-native calculations,
-library-refresh control plane, and server-side live-overlay services. It does
-not contain the confidential Sidecar lab, private TradingView probes, relay
-credentials, or user-specific browser state.
+This repository is currently private. This document defines the maximum
+boundary of a future public release: producers, Pine-native calculations,
+library-refresh control plane and server-side live-overlay services may be
+publishable only after a separate release decision. The confidential Sidecar
+lab, private TradingView probes, relay credentials and user-specific browser
+state remain outside that boundary.
 
 ## Transport truth
 
@@ -37,3 +39,6 @@ credentials, or user-specific browser state.
 This document is intentionally a boundary, not a product announcement. It
 must not be read as evidence that a TradingView webhook, a public relay, or a
 production Sidecar is deployed.
+
+ADR-0033 establishes the commercial product goal. It does not promote any
+private Sidecar implementation or widen this release boundary.

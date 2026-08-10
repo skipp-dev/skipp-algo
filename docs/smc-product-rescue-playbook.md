@@ -1,5 +1,11 @@
 # SMC Product Rescue Playbook
 
+> **Historical implementation record (2026-08-10):** This playbook documents
+> the April UI rescue and preserves its then-current naming. It is not the
+> canonical commercial identity or current customer-facing copy. Use
+> `docs/SMC_PRODUCT_IDENTITY.md`, `docs/commercial/PRODUCT_BRIEF.md` and
+> `docs/commercial/CLAIMS_REGISTRY.md` for current product decisions.
+
 ## Status
 
 Delivered
