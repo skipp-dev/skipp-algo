@@ -125,6 +125,22 @@ def _order_ref(
     )
 
 
+def commercial_snapshot_id(payload: dict[str, Any]) -> str:
+    """Return a key-order-independent identity for one complete PIT payload."""
+    try:
+        canonical = json.dumps(
+            payload,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("input must be canonical JSON data") from exc
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
+
+
 def _anchor_bar_low(bars: list[dict[str, Any]], anchor_ts: float) -> float:
     matches = [
         bar
@@ -179,6 +195,7 @@ def build_commercial_family_setups(
     if not isinstance(payload, dict):
         raise ValueError("input root must be a JSON object")
     _assert_no_forward_evidence(payload)
+    snapshot_id = commercial_snapshot_id(payload)
     if isinstance(quantity, bool) or quantity <= 0:
         raise ValueError("quantity must be positive")
     if (
@@ -313,6 +330,7 @@ def build_commercial_family_setups(
             "source_anchor_ts": anchor,
             "source_asof_ts": as_of,
             "source_timeframe": timeframe,
+            "source_snapshot_id": snapshot_id,
             "source_provenance": dict(provenance),
         })
 
@@ -322,6 +340,7 @@ def build_commercial_family_setups(
         "symbol": symbol,
         "timeframe": timeframe,
         "source": source,
+        "source_snapshot_id": snapshot_id,
         "as_of_ts": as_of,
         "max_event_age_seconds": max_age,
         "setups_emitted": len(setups),

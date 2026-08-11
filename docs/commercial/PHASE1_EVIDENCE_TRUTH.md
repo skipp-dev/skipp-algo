@@ -1,7 +1,7 @@
 # Phase 1 evidence-truth contract
 
-Status: technical truth gates and a transformation-only prospective setup
-producer are implemented; family paper evidence has not yet accumulated.
+Status: technical truth gates and a replay-safe, broker-free prospective shadow
+path are implemented; family paper execution evidence has not yet accumulated.
 
 ## Why this phase exists
 
@@ -81,6 +81,13 @@ This is an evidence-boundary component, not a deployed paper trader. A strict
 audit-only incubation mode now validates its evidence class, freshness and
 provenance and preserves those fields in per-intent audit rows. Broker-connected
 paper submission remains a separate opt-in and has not been started.
+
+`scripts/run_commercial_family_shadow.py` composes those two stages without
+adding broker or network capability. It assigns a canonical identity to the
+complete point-in-time input, serializes concurrent runs, skips exact completed
+replays, repairs a missing manifest after an audit commit and blocks partial or
+inconsistent replay state. These audit-only rows prove pipeline behavior, not a
+fill or closed PAPER outcome.
 
 ## Honest remaining gate
 

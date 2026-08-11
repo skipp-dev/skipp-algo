@@ -239,6 +239,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # them. Pure local transformations with injected submitters, <3s total.
     "test_build_commercial_family_setups.py",
     "test_commercial_family_paper_pipeline.py",
+    "test_run_commercial_family_shadow.py",
     "test_run_smc_live_incubation.py",
     "test_run_smc_live_incubation_paper_submit.py",
     "test_family_verdict.py",

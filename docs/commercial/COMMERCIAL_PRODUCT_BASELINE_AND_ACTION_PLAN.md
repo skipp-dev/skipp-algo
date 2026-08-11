@@ -1,7 +1,7 @@
 # Commercial product baseline and action plan
 
-Status: verified internal baseline on `origin/main` through Phase 1a at
-`6bb76640be31d6c22a30853e781bbec1aef9e7ca`, 2026-08-10.
+Status: verified implementation baseline through the Phase-1 audit-only shadow
+orchestration, 2026-08-11.
 
 ## Executive assessment
 
@@ -130,6 +130,9 @@ Implementation status on 2026-08-10:
 - [x] Strict audit-only paper-pilot mode connects the producer artifacts to
   incubation risk and audit stages, rejects evidence/provenance drift and
   preserves the source fields in every per-intent audit path.
+- [x] A broker- and network-free shadow orchestrator binds every observation to
+  a canonical PIT snapshot identity, serializes concurrent invocations, skips
+  complete replays and fails closed on partial audit state.
 - [ ] Broker-connected paper submission, fill reconciliation and closed
   outcomes have not started. Retrospective modeled events must never be
   relabelled as paper fills.

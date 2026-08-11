@@ -1,7 +1,7 @@
 # Phase 1 prospective family paper-producer pilot
 
-Status: producer and strict audit-only incubation path implemented and locally
-verified; broker-connected paper pilot not started.
+Status: producer plus restart-/replay-safe audit-only shadow path implemented;
+broker-connected paper pilot not started.
 
 ## Purpose
 
@@ -16,8 +16,9 @@ incubation.
    payload with bars, market structure, `as_of` and provenance.
 2. `scripts/build_commercial_family_setups.py` validates that snapshot and
    writes setup, amber-gate and diagnostic artifacts atomically.
-3. A controlled pilot operator reviews freshness and provenance before passing
-   the artifact to `scripts/run_smc_live_incubation.py` in paper mode.
+3. `scripts/run_commercial_family_shadow.py` runs the producer and strict
+   audit-only incubation as one locked observation, or a controlled pilot
+   operator passes the reviewed artifacts to `scripts/run_smc_live_incubation.py`.
 4. Existing fill reconciliation and outcome generation record lifecycle,
    realized fill, fees-known state, slippage and a closed PAPER outcome.
 5. `scripts/build_families_telemetry.py` reads those records without mixing
@@ -54,6 +55,10 @@ Before building an intent, the strict runner additionally requires:
 - matching setup/provenance symbol and timeframe plus a named source; and
 - `trade_date` matching the UTC date of the point-in-time snapshot.
 
+The producer hashes the complete canonical input as `source_snapshot_id`.
+Every setup and per-intent audit row carries that identity. One strict batch
+cannot mix snapshot identities.
+
 The source fields and full provenance object are copied into normal,
 earnings-blocked and portfolio-blocked per-intent audit rows. A commercial
 variant cannot be submitted through `--place-paper-orders` unless strict pilot
@@ -61,7 +66,28 @@ mode is also active.
 
 ## Audit-only invocation
 
-First produce artifacts from a fresh point-in-time payload:
+The preferred shadow invocation produces all artifacts and the strict audit in
+one broker-free command:
+
+```bash
+python -m scripts.run_commercial_family_shadow \
+  --input artifacts/commercial/pit_input.json \
+  --setups-output artifacts/commercial/setups.json \
+  --gate-status-output artifacts/commercial/gates.json \
+  --diagnostics-output artifacts/commercial/producer_diagnostics.json \
+  --audit-output artifacts/commercial/incubation_audit.jsonl \
+  --manifest-output artifacts/commercial/shadow_manifest.json
+```
+
+This command has no broker or network switch. It uses a per-audit lock to
+serialize concurrent invocations. A complete repeated snapshot is recorded as
+`REPLAY_SKIPPED` without duplicate audit rows. If a restart finds the audit
+complete but the manifest missing, it reconstructs the manifest. A partial or
+inconsistent snapshot audit fails closed for manual review. A stale run lock is
+recoverable after 15 minutes by default.
+
+The equivalent split invocation remains available for inspection. First
+produce artifacts from a fresh point-in-time payload:
 
 ```bash
 python -m scripts.build_commercial_family_setups \
@@ -94,8 +120,8 @@ Before any broker-connected paper submission:
 
 - run the producer plus strict audit-only incubation across a representative
   live market window;
-- confirm artifact freshness, deterministic order references and duplicate
-  handling through replay/restart tests;
+- [x] confirm artifact freshness, deterministic order and snapshot references,
+  concurrency exclusion and duplicate handling through replay/restart tests;
 - verify paper-only account routing and a hard live-order prohibition;
 - verify closed-outcome reconciliation, including nullable unknown fees;
 - confirm every audit row carries `evidence_class=PAPER` plus complete source

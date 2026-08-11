@@ -243,6 +243,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_realtime_signals_sister_ledger_guardrail.py",
     "tests/test_requirements_discipline_pin.py",
     "tests/test_run_edge_pipeline.py",
+    "tests/test_run_commercial_family_shadow.py",
     "tests/test_run_smc_live_incubation.py",
     "tests/test_run_smc_live_incubation_paper_submit.py",
     "tests/test_schema_version_manifest_alignment.py",
