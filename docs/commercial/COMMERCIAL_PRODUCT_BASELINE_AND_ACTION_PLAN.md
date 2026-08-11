@@ -133,6 +133,13 @@ Implementation status on 2026-08-11:
 - [x] A broker- and network-free shadow orchestrator binds every observation to
   a canonical PIT snapshot identity, serializes concurrent invocations, skips
   complete replays and fails closed on partial audit state.
+- [x] A local campaign controller persists immutable attempts and aggregates
+  source freshness, processing latency, failures, four-family coverage and
+  audit integrity. An immutable campaign contract blocks parameter or threshold
+  drift. Its operational observation gate cannot promote the product and
+  remains explicitly separate from execution evidence.
+- [ ] Representative live-market-window observations have not been collected;
+  the controller implementation and synthetic tests are not campaign evidence.
 - [ ] Broker-connected paper submission, fill reconciliation and closed
   outcomes have not started. Retrospective modeled events must never be
   relabelled as paper fills.

@@ -1,7 +1,9 @@
 # Phase 1 evidence-truth contract
 
-Status: technical truth gates and a replay-safe, broker-free prospective shadow
-path are implemented; family paper execution evidence has not yet accumulated.
+Status: technical truth gates, a replay-safe broker-free prospective shadow
+path and local campaign aggregation are implemented; representative
+live-window observations and family paper execution evidence have not yet
+accumulated.
 
 ## Why this phase exists
 
@@ -88,6 +90,17 @@ complete point-in-time input, serializes concurrent runs, skips exact completed
 replays, repairs a missing manifest after an audit commit and blocks partial or
 inconsistent replay state. These audit-only rows prove pipeline behavior, not a
 fill or closed PAPER outcome.
+
+`scripts/run_commercial_shadow_campaign.py` adds a local campaign control
+plane around those one-shot observations. It persists immutable attempt
+records and rebuilds source-freshness, processing-latency, failure, family
+coverage and audit-integrity evidence. An immutable campaign contract prevents
+decision parameters or thresholds from drifting between observations. Its
+technical observation gate is separate from the product promotion gate. Even
+a technical `PASS` leaves promotion at `NO_GO`, because this path has no broker
+capability and therefore no fills or closed PAPER outcomes. Representative
+live-window operation has not started; tests only prove the controller
+contract.
 
 ## Honest remaining gate
 

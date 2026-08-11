@@ -31,7 +31,7 @@ from scripts.smc_to_ibkr_adapter import (
 _LOCK_STALE_SECONDS = 900
 
 
-def _utc_datetime(value: object, *, label: str) -> datetime:
+def parse_utc_datetime(value: object, *, label: str) -> datetime:
     if isinstance(value, bool):
         raise ValueError(f"{label} must be epoch seconds or an ISO timestamp")
     if isinstance(value, (int, float)):
@@ -65,7 +65,7 @@ def _utc_datetime(value: object, *, label: str) -> datetime:
     return instant
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+def read_shadow_audit(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     records: list[dict[str, Any]] = []
@@ -82,7 +82,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-class _ExclusiveRunLock:
+class ExclusiveRunLock:
     """Portable O_EXCL lease with conservative stale-lock recovery."""
 
     def __init__(self, path: Path, *, stale_seconds: int) -> None:
@@ -150,7 +150,7 @@ class _ExclusiveRunLock:
         self.path.unlink(missing_ok=True)
         return True
 
-    def __enter__(self) -> _ExclusiveRunLock:
+    def __enter__(self) -> ExclusiveRunLock:
         try:
             self._create()
         except FileExistsError:
@@ -203,7 +203,7 @@ def _matching_snapshot_rows(
     audit_path: Path,
     snapshot_id: str,
 ) -> list[dict[str, Any]]:
-    return [row for row in _read_jsonl(audit_path) if row.get("source_snapshot_id") == snapshot_id]
+    return [row for row in read_shadow_audit(audit_path) if row.get("source_snapshot_id") == snapshot_id]
 
 
 def _is_complete_replay(
@@ -281,11 +281,11 @@ def run_shadow_once(
         run_now = run_now.replace(tzinfo=UTC)
     else:
         run_now = run_now.astimezone(UTC)
-    source_asof = _utc_datetime(payload.get("as_of"), label="input.as_of")
+    source_asof = parse_utc_datetime(payload.get("as_of"), label="input.as_of")
     trade_date = source_asof.date().isoformat()
     resolved_lock = lock_path or Path(f"{audit_path}.lock")
 
-    with _ExclusiveRunLock(resolved_lock, stale_seconds=lock_stale_seconds):
+    with ExclusiveRunLock(resolved_lock, stale_seconds=lock_stale_seconds):
         setups, diagnostics = build_commercial_family_setups(
             payload,
             trade_date=trade_date,
