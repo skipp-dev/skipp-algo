@@ -1,7 +1,8 @@
 # Phase 1 prospective family paper-producer pilot
 
-Status: producer plus restart-/replay-safe audit-only shadow path implemented;
-broker-connected paper pilot not started.
+Status: producer plus restart-/replay-safe audit-only shadow path and local
+campaign evidence aggregation implemented; representative live-window
+observation and broker-connected paper pilot not started.
 
 ## Purpose
 
@@ -87,6 +88,44 @@ inconsistent snapshot audit fails closed for manual review. This includes a
 changed quantity, stop or target contract for an already audited source
 snapshot. A stale run lock is recoverable after 15 minutes by default.
 
+## Audit-only campaign operation
+
+For repeated observations, the local campaign controller wraps the one-shot
+runner without adding provider, network or broker capability:
+
+```bash
+python -m scripts.run_commercial_shadow_campaign \
+  --input artifacts/commercial/pit_input.json \
+  --campaign-dir artifacts/commercial/shadow_campaign
+```
+
+The caller must supply an already-local, point-in-time payload for every
+invocation. The controller stores immutable attempt records under `attempts/`,
+snapshot-scoped producer artifacts under `snapshots/`, the shared strict audit
+under `audit/`, an immutable `campaign_contract.json` and an atomically rebuilt
+`campaign_report.json`. The contract fixes decision parameters and observation
+thresholds for the campaign; changing either requires a new campaign directory.
+An exact replay creates a `REPLAY_SKIPPED` attempt but no duplicate audit row.
+Replay-only attempts do not dilute the failure-rate or freshness statistics.
+If an existing campaign loses its contract, report rebuilding and further
+observations fail closed instead of silently creating a replacement contract.
+
+The default technical observation gate requires at least 20 unique audited
+snapshots, no missing family, no invalid or duplicate audit row, at most 5%
+failed attempts and a source-age p95 of at most 300 seconds. Before the minimum
+sample is reached, threshold breaches are visible as warnings while the verdict
+remains `PENDING`; an audit-integrity breach fails immediately. These are
+operational campaign thresholds, not evidence that any family has a market
+edge.
+
+The campaign promotion gate is unconditionally `NO_GO`: the controller is
+audit-only, cannot place an order and cannot create fills or closed PAPER
+outcomes. A technical observation `PASS` must never be interpreted as product,
+capital or public-claim approval. A crash after the shared audit commit can be
+recovered by the next replay; consequently attempt records are a durable
+operational history, while the audit remains the canonical setup-submission
+history.
+
 The equivalent split invocation remains available for inspection. First
 produce artifacts from a fresh point-in-time payload:
 
@@ -123,6 +162,10 @@ Before any broker-connected paper submission:
   live market window;
 - [x] confirm artifact freshness, deterministic order and snapshot references,
   concurrency exclusion and duplicate handling through replay/restart tests;
+- [x] aggregate immutable attempts, family coverage, source age, processing
+  latency, failures and audit integrity without enabling network or broker I/O;
+- [ ] collect the required unique observations in representative live market
+  windows and review the resulting technical observation gate;
 - verify paper-only account routing and a hard live-order prohibition;
 - verify closed-outcome reconciliation, including nullable unknown fees;
 - confirm every audit row carries `evidence_class=PAPER` plus complete source

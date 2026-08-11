@@ -240,6 +240,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_build_commercial_family_setups.py",
     "test_commercial_family_paper_pipeline.py",
     "test_run_commercial_family_shadow.py",
+    "test_run_commercial_shadow_campaign.py",
     "test_run_smc_live_incubation.py",
     "test_run_smc_live_incubation_paper_submit.py",
     "test_family_verdict.py",
