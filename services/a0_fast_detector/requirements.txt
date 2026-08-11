@@ -1,6 +1,6 @@
-databento==0.82.0
+databento==0.83.0
 certifi==2026.7.22
-holidays==0.101
+holidays==0.102
 pandas==3.0.5
 pyarrow==25.0.0
 tzdata==2026.3

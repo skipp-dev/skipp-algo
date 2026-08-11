@@ -1,14 +1,14 @@
 fastapi==0.141.1
-starlette==1.3.1  # 2026-08-04: pinned at the version this file already
+starlette==1.4.1  # 2026-08-04: pinned at the version this file already
                   # resolves to (verified via a fresh throwaway-venv
                   # install; a no-op today). Unpinned ASGI-layer majors
                   # are the real risk on the deployed daemon, the
                   # production path with the highest blast radius — see
                   # requirements.txt for the root-cause writeup.
 uvicorn==0.52.1
-databento==0.82.0
+databento==0.83.0
 psutil==7.2.2
-holidays==0.101
+holidays==0.102
 # fmp_data_loader imports httpx at module level for the VIX poll; without it
 # `_ensure_vix_loader` swallows the ImportError and vix_level stays null in the
 # /smc_live payload. Absent here until 2026-08-05.
