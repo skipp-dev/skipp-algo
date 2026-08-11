@@ -59,6 +59,7 @@ def _prospective_setup(**overrides) -> dict:
         source_anchor_ts=asof - 60,
         source_asof_ts=asof,
         source_timeframe="15m",
+        source_snapshot_id="sha256:" + "a" * 64,
         source_provenance={
             "symbol": "AAPL",
             "timeframe": "15m",
@@ -219,6 +220,7 @@ def test_prospective_paper_pilot_preserves_complete_source_provenance(
     assert record["source_anchor_ts"] == _FROZEN_NOW.timestamp() - 60
     assert record["source_asof_ts"] == _FROZEN_NOW.timestamp()
     assert record["source_timeframe"] == "15m"
+    assert record["source_snapshot_id"] == "sha256:" + "a" * 64
     assert record["source_provenance"]["dataset"] == "XNAS.ITCH"
 
 
@@ -229,6 +231,7 @@ def test_prospective_paper_pilot_preserves_complete_source_provenance(
         ({"producer_mode": "retrospective"}, "producer_mode"),
         ({"family": "FVG"}, "family='BOS'"),
         ({"source_event_id": ""}, "source_event_id"),
+        ({"source_snapshot_id": "snapshot-1"}, "source_snapshot_id"),
         (
             {"source_provenance": {
                 "symbol": "MSFT",
@@ -281,6 +284,28 @@ def test_commercial_variant_staleness_fails_before_submission(tmp_path: Path) ->
             submit_fn=fake_submit,
         )
     assert submitted is False
+
+
+def test_commercial_batch_cannot_mix_snapshot_identities(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="mixes source_snapshot_id"):
+        run_live_incubation(
+            setup_records=[
+                _prospective_setup(order_ref="bos-a"),
+                _prospective_setup(
+                    order_ref="bos-b",
+                    source_event_id="bos-aapl-2",
+                    source_snapshot_id="sha256:" + "b" * 64,
+                ),
+            ],
+            gate_status_by_variant={"smc_bos_long": "amber"},
+            risk_limits=RiskLimits(),
+            account_state=_healthy_state(),
+            execution_cfg=IBKRExecutionConfig(),
+            audit_path=tmp_path / "audit.jsonl",
+            phase="paper",
+            now=_FROZEN_NOW,
+            prospective_paper_pilot=True,
+        )
 
 
 def test_prospective_pilot_rejects_noncommercial_tradable_setup(

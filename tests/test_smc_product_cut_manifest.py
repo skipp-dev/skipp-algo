@@ -156,6 +156,7 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
     payload = _load_json('artifacts/tradingview/library_release_manifest.json')
     product_cut = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')
+    generated = _load_json('pine/generated/smc_micro_profiles_generated.json')
 
     assert payload['manifestVersion'] == 2
     assert payload['library']['productivityGate']['publishReady'] is True
@@ -164,12 +165,12 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     # 2026-07-23: the enriched pipeline is restored (#3896 revert landed and the
     # data path is fixed end-to-end), so v162 carries REAL event risk from the
     # builder — not the static-control-plane defaults the old assertions pinned.
-    # placeholderSymbols is non-empty (CCC) but non-blocking, because that only
-    # blocks when paired with fixture input (generator: fixture_input AND
-    # placeholder_symbols), and fixtureInputDetected is False here.
+    # Placeholder membership is refreshed from provider-enriched input, so the
+    # release manifest must mirror the generated source rather than freeze the
+    # transient symbol list from an older refresh.
     assert payload['library']['productivityGate']['defaultEventRiskDetected'] is False
     assert payload['library']['productivityGate']['eventRiskSource'] == 'smc_event_risk_builder'
-    assert payload['library']['productivityGate']['placeholderSymbols'] == ['CCC']
+    assert payload['library']['productivityGate']['placeholderSymbols'] == generated['productivity_gate']['placeholder_symbols']
     assert payload['productCut']['mainlineFiles'] == product_cut['mainlineSurfaceFiles']
     assert payload['productCut']['manifestVersion'] == 3
     assert payload['productCut']['litePrimaryFiles'] == product_cut['litePrimaryFiles']

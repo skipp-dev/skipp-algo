@@ -673,6 +673,7 @@ jobs:
             tests/test_family_event_adapter.py \
             tests/test_build_commercial_family_setups.py \
             tests/test_commercial_family_paper_pipeline.py \
+            tests/test_run_commercial_family_shadow.py \
             tests/test_run_smc_live_incubation.py \
             tests/test_run_smc_live_incubation_paper_submit.py \
             tests/test_family_verdict.py \

@@ -86,6 +86,7 @@ _PROSPECTIVE_AUDIT_FIELDS = (
     "source_anchor_ts",
     "source_asof_ts",
     "source_timeframe",
+    "source_snapshot_id",
 )
 
 # CLI phase → size_scale default mapping.
@@ -385,6 +386,7 @@ def _validate_prospective_commercial_setups(
     expected_evidence = "PAPER" if phase == "paper" else "LIVE"
     now_utc = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
     now_ts = now_utc.astimezone(UTC).timestamp()
+    snapshot_ids: set[str] = set()
 
     for record in _filter_tradable_setups(
         setup_records, gate_status_by_variant
@@ -438,6 +440,18 @@ def _validate_prospective_commercial_setups(
             raise ValueError(
                 f"commercial setup {variant!r} requires source_timeframe"
             )
+        snapshot_id = record.get("source_snapshot_id")
+        if (
+            not isinstance(snapshot_id, str)
+            or not snapshot_id.startswith("sha256:")
+            or len(snapshot_id) != 71
+            or any(char not in "0123456789abcdef" for char in snapshot_id[7:])
+        ):
+            raise ValueError(
+                f"commercial setup {variant!r} requires a canonical "
+                "source_snapshot_id"
+            )
+        snapshot_ids.add(snapshot_id)
         provenance = record.get("source_provenance")
         if not isinstance(provenance, dict):
             raise ValueError(
@@ -462,6 +476,8 @@ def _validate_prospective_commercial_setups(
                 f"commercial setup {variant!r} trade_date does not match "
                 "source_asof_ts UTC date"
             )
+    if len(snapshot_ids) > 1:
+        raise ValueError("commercial setup batch mixes source_snapshot_id values")
 
 
 def _setup_audit_metadata(record: Mapping[str, Any]) -> dict[str, Any]:

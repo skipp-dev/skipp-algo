@@ -10,6 +10,7 @@ import pytest
 from scripts.build_commercial_family_setups import (
     FAMILY_VARIANTS,
     build_commercial_family_setups,
+    commercial_snapshot_id,
     main,
 )
 
@@ -72,6 +73,9 @@ def test_builds_one_fresh_long_setup_per_family() -> None:
     assert {setup["variant"] for setup in setups} == set(FAMILY_VARIANTS.values())
     assert all(setup["evidence_class"] == "PAPER" for setup in setups)
     assert all(setup["producer_mode"] == "prospective_pit" for setup in setups)
+    assert {setup["source_snapshot_id"] for setup in setups} == {
+        diagnostics["source_snapshot_id"]
+    }
     assert all(setup["take_profit"] > setup["entry"] > setup["stop_loss"] for setup in setups)
     assert diagnostics["setups_emitted"] == 4
 
@@ -199,6 +203,25 @@ def test_order_ref_is_replay_stable_and_timeframe_scoped() -> None:
         row["order_ref"] for row in alternate_timeframe
     )
     assert all(len(row["order_ref"]) <= 45 for row in first)
+
+
+def test_snapshot_id_is_canonical_and_change_sensitive() -> None:
+    payload = _payload()
+    reordered = dict(reversed(list(payload.items())))
+    changed = _payload()
+    changed["bars"][0]["close"] = 100.5
+
+    assert commercial_snapshot_id(payload) == commercial_snapshot_id(reordered)
+    assert commercial_snapshot_id(payload).startswith("sha256:")
+    assert commercial_snapshot_id(payload) != commercial_snapshot_id(changed)
+
+
+def test_snapshot_id_rejects_non_json_numbers() -> None:
+    payload = _payload()
+    payload["bars"][0]["close"] = float("nan")
+
+    with pytest.raises(ValueError, match="canonical JSON"):
+        build_commercial_family_setups(payload, trade_date="2027-01-15")
 
 
 def test_cli_writes_atomic_artifacts_without_broker_io(tmp_path: Path) -> None:
