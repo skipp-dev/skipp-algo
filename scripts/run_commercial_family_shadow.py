@@ -22,7 +22,11 @@ from scripts.build_commercial_family_setups import build_commercial_family_setup
 from scripts.live_risk_limits import AccountState, RiskLimits
 from scripts.run_smc_live_incubation import run_live_incubation
 from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
-from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
+from scripts.smc_to_ibkr_adapter import (
+    PHASE_B_RECOMMENDED_SIZE_SCALE,
+    IBKRExecutionConfig,
+    build_ibkr_intents_from_smc_setups,
+)
 
 _LOCK_STALE_SECONDS = 900
 
@@ -204,16 +208,54 @@ def _matching_snapshot_rows(
 
 def _is_complete_replay(
     rows: list[dict[str, Any]],
-    expected_intent_ids: set[str],
+    expected_by_intent_id: dict[str, dict[str, Any]],
 ) -> bool:
-    seen = [row.get("intent_id") for row in rows]
-    return (
-        len(rows) == len(expected_intent_ids)
-        and all(isinstance(intent_id, str) and intent_id for intent_id in seen)
-        and len(seen) == len(set(seen))
-        and set(seen) == expected_intent_ids
-        and all(row.get("action") == "audit_only" for row in rows)
+    if len(rows) != len(expected_by_intent_id):
+        return False
+    seen: set[str] = set()
+    for row in rows:
+        intent_id = row.get("intent_id")
+        if not isinstance(intent_id, str) or not intent_id or intent_id in seen:
+            return False
+        expected = expected_by_intent_id.get(intent_id)
+        if expected is None or any(row.get(key) != value for key, value in expected.items()):
+            return False
+        seen.add(intent_id)
+    return seen == set(expected_by_intent_id)
+
+
+def _expected_audit_contract(
+    setups: list[dict[str, Any]],
+    execution_cfg: IBKRExecutionConfig,
+) -> dict[str, dict[str, Any]]:
+    intents = build_ibkr_intents_from_smc_setups(
+        setups,
+        execution_cfg,
+        size_scale=PHASE_B_RECOMMENDED_SIZE_SCALE,
     )
+    if len(intents) != len(setups):
+        raise ValueError("commercial snapshot did not map one setup to one intent")
+    expected: dict[str, dict[str, Any]] = {}
+    for setup, intent in zip(setups, intents, strict=True):
+        if intent.order_ref in expected:
+            raise ValueError("commercial snapshot emitted duplicate order_ref values")
+        expected[intent.order_ref] = {
+            "action": "audit_only",
+            "variant": setup["variant"],
+            "family": setup["family"],
+            "symbol": intent.symbol,
+            "entry_price": float(intent.entry_limit),
+            "stop_loss": float(intent.stop_loss),
+            "take_profit": float(intent.take_profit),
+            "quantity": int(intent.quantity),
+            "source_event_id": setup["source_event_id"],
+            "source_anchor_ts": setup["source_anchor_ts"],
+            "source_asof_ts": setup["source_asof_ts"],
+            "source_timeframe": setup["source_timeframe"],
+            "source_snapshot_id": setup["source_snapshot_id"],
+            "source_provenance": setup["source_provenance"],
+        }
+    return expected
 
 
 def run_shadow_once(
@@ -268,9 +310,8 @@ def run_shadow_once(
             fsync=True,
         )
 
-        expected = {str(setup["order_ref"]) for setup in setups}
-        if len(expected) != len(setups):
-            raise ValueError("commercial snapshot emitted duplicate order_ref values")
+        execution_cfg = IBKRExecutionConfig()
+        expected = _expected_audit_contract(setups, execution_cfg)
         existing = _matching_snapshot_rows(audit_path, snapshot_id)
         if existing:
             if not _is_complete_replay(existing, expected):
@@ -314,9 +355,10 @@ def run_shadow_once(
             gate_status_by_variant=gates,
             risk_limits=RiskLimits(),
             account_state=account_state,
-            execution_cfg=IBKRExecutionConfig(),
+            execution_cfg=execution_cfg,
             audit_path=audit_path,
             phase="paper",
+            size_scale=PHASE_B_RECOMMENDED_SIZE_SCALE,
             now=run_now,
             prospective_paper_pilot=True,
             max_setup_age_seconds=max_setup_age_seconds,

@@ -75,7 +75,7 @@ Target: 3–5 working days.
 Exit criteria: canonical documents exist, contradicting active claims are
 marked historical or blocked, and later phases have explicit release gates.
 
-Implementation status on 2026-08-10:
+Implementation status on 2026-08-11:
 
 - [x] ADR-0033 accepts the commercial target and separates customer/operator
   planes.
@@ -108,7 +108,7 @@ variant and complete provenance. The later live calibration gate remains at
 least 90 live days and 30 closed live trades for a family, plus acceptable
 drift and no kill switch.
 
-Implementation status on 2026-08-10:
+Implementation status on 2026-08-11:
 
 - [x] Variant ownership registry distinguishes commercial family variants
   from the known `smc_orb_vwap_hold` execution-only stream.

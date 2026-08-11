@@ -146,6 +146,25 @@ def test_partial_snapshot_audit_fails_closed(tmp_path: Path) -> None:
         run_shadow_once(payload=_payload(), now=_NOW, **paths)
 
 
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"quantity": 100},
+        {"stop_buffer_bps": 20.0},
+        {"rr_target": 3.0},
+    ],
+)
+def test_same_snapshot_with_changed_decision_contract_fails_closed(
+    tmp_path: Path,
+    override: dict,
+) -> None:
+    paths = _paths(tmp_path)
+    run_shadow_once(payload=_payload(), now=_NOW, **paths)
+
+    with pytest.raises(ValueError, match="partial or inconsistent audit"):
+        run_shadow_once(payload=_payload(), now=_NOW, **override, **paths)
+
+
 def test_fresh_lock_rejects_concurrent_run(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     lock_path = tmp_path / "shadow.lock"

@@ -83,8 +83,9 @@ This command has no broker or network switch. It uses a per-audit lock to
 serialize concurrent invocations. A complete repeated snapshot is recorded as
 `REPLAY_SKIPPED` without duplicate audit rows. If a restart finds the audit
 complete but the manifest missing, it reconstructs the manifest. A partial or
-inconsistent snapshot audit fails closed for manual review. A stale run lock is
-recoverable after 15 minutes by default.
+inconsistent snapshot audit fails closed for manual review. This includes a
+changed quantity, stop or target contract for an already audited source
+snapshot. A stale run lock is recoverable after 15 minutes by default.
 
 The equivalent split invocation remains available for inspection. First
 produce artifacts from a fresh point-in-time payload:
