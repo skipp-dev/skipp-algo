@@ -43,7 +43,7 @@ SMC Core is the only producer. The remaining two scripts are consumers.
 1. In TradingView, add a second indicator to the same chart.
 2. Select `SMC Dashboard` from the published scripts or the editor.
 3. After adding, open the indicator settings.
-4. Navigate to the six **Operator Only** source-binding groups.
+4. Navigate to the eight **Chart Link** source-binding groups (2-9).
 
 ### Binding order
 

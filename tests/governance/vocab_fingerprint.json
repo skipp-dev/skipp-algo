@@ -264,32 +264,32 @@
   ],
   "C9_STABLE_PRO_BUS_CHANNELS_FINGERPRINT": "sha256:ce4320688a0a739cc7a04361ad5a89f7afd01f3364903fb1d0b65fa3a994fa2a",
   "DASHBOARD_GROUP_TITLES": [
-    "Lifecycle BUS",
-    "Diagnostic Support",
+    "Decision State",
+    "Context Signals",
     "Trade Plan",
-    "Diagnostic Rows",
+    "Context Rows",
     "Blocker Codes",
     "Detail Surface",
     "Lean Surface",
     "Preset Contract"
   ],
-  "DASHBOARD_GROUP_TITLES_FINGERPRINT": "sha256:24b03a8178aef82f88e31a2ed23c92418a5c9b5a1b6e07a9bd989cb0362fa2c5",
+  "DASHBOARD_GROUP_TITLES_FINGERPRINT": "sha256:a8d3f8616f05f56025c3c801f51bde6e04c3ad95880ca73cba3585f0afc18f00",
   "STRATEGY_GROUP_TITLES": [
     "Entry States",
     "Trade Plan"
   ],
   "STRATEGY_GROUP_TITLES_FINGERPRINT": "sha256:782be325fe3c1d8cd455f7ef8ee04757ba222fd59929466e48ce9a46e9f87e12",
   "DASHBOARD_GROUP_TITLES_BY_KEY": {
-    "g_bus_lifecycle": "Lifecycle BUS",
-    "g_bus_diag": "Diagnostic Support",
+    "g_bus_lifecycle": "Decision State",
+    "g_bus_diag": "Context Signals",
     "g_bus_plan": "Trade Plan",
-    "g_bus_diag_rows": "Diagnostic Rows",
+    "g_bus_diag_rows": "Context Rows",
     "g_bus_blockers": "Blocker Codes",
     "g_bus_detail": "Detail Surface",
     "g_bus_lean": "Lean Surface",
     "g_bus_preset": "Preset Contract"
   },
-  "DASHBOARD_GROUP_TITLES_BY_KEY_FINGERPRINT": "sha256:8daacb2aeac550a47e23ef716b0e1c322015d711443685acec7ba1192afb75b2",
+  "DASHBOARD_GROUP_TITLES_BY_KEY_FINGERPRINT": "sha256:efdee9a5fcea0956e04e76df521c341925f70ebfc2e31f329885d1c88c74687c",
   "STRATEGY_GROUP_TITLES_BY_KEY": {
     "g_bus_entry": "Entry States",
     "g_bus_plan": "Trade Plan"
