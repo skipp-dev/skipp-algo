@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
   "total_inputs": 615,
-  "total_hidden": 399,
+  "total_hidden": 402,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -227,7 +227,7 @@
         {
           "varname": "show_arrows",
           "kind": "bool",
-          "label": "Show ▲/▼ markers",
+          "label": "Show \u25b2/\u25bc markers",
           "group": "g_vis",
           "has_display_none": false,
           "visibility": null
@@ -267,7 +267,7 @@
         {
           "varname": "atrMult",
           "kind": "float",
-          "label": "ATR × mult → SL",
+          "label": "ATR \u00d7 mult \u2192 SL",
           "group": "g_sim",
           "has_display_none": false,
           "visibility": null
@@ -1818,7 +1818,7 @@
     {
       "file": "SMC_Long_Dip_Dashboard.pine",
       "input_count": 81,
-      "hidden_count": 67,
+      "hidden_count": 70,
       "inputs": [
         {
           "varname": "tm_enable",
@@ -1912,24 +1912,24 @@
           "varname": "calibration_sha",
           "kind": "string",
           "label": ", ",
-          "group": "g_surface",
-          "has_display_none": false,
+          "group": "g_operator_ops",
+          "has_display_none": true,
           "visibility": null
         },
         {
           "varname": "calibration_breach_banner",
           "kind": "bool",
           "label": "Calibration Breach Banner",
-          "group": "g_surface",
-          "has_display_none": false,
+          "group": "g_operator_ops",
+          "has_display_none": true,
           "visibility": null
         },
         {
           "varname": "fvg_context_health_text",
           "kind": "string",
           "label": ", ",
-          "group": "g_surface",
-          "has_display_none": false,
+          "group": "g_operator_ops",
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -2868,7 +2868,7 @@
         {
           "varname": "mtf_trend_tf0",
           "kind": "timeframe",
-          "label": "Trend TF 0 (optional 2H — scaffold, inactive)",
+          "label": "Trend TF 0 (optional 2H \u2014 scaffold, inactive)",
           "group": "g_mtf",
           "has_display_none": true,
           "visibility": null

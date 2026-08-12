@@ -56,8 +56,8 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     source = _read("SMC_Long_Dip_Dashboard.pine")
 
     assert 'var string g_surface = "1. Product Surface"' in source
-    assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
-    assert 'var string g_local_debug = "10. Operator Only - Local Debug Mirrors"' in source
+    assert 'var string g_bus_lifecycle = "2. Chart Link - Decision State"' in source
+    assert 'var string g_local_debug = "10. Advanced - Debug Mirrors"' in source
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
@@ -608,7 +608,7 @@ def test_dashboard_subscribes_to_preset_bus_contract() -> None:
     """
     source = _read("SMC_Long_Dip_Dashboard.pine")
 
-    assert 'var string g_bus_preset = "9. Operator Only - Preset Contract"' in source
+    assert 'var string g_bus_preset = "9. Chart Link - Preset Contract"' in source
     assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
     assert 'src_preset_rvol_min = input.source(close, "BUS PresetRvolMin"' in source
     assert 'src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin"' in source
@@ -649,7 +649,10 @@ def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
     assert 'compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)' in source
     # Hero Token Order tooltip must document the new SHA token so the
     # surface stays self-explanatory.
-    assert "SHA (calibration SHA, requires Calibration SHA input below)" in source
+    # 2026-08-12: the input moved out of "1. Product Surface" into
+    # "12. Advanced - Manual Overrides", so "below" became false — the tooltip
+    # now names the group it actually lives in.
+    assert "SHA (calibration reference, requires the Calibration SHA input under Manual Overrides)" in source
 
 
 def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:

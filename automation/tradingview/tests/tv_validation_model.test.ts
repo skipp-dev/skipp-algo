@@ -83,7 +83,7 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
         bindingConsumerRole: "dashboard_companion",
         bindingContractLabels: ["BUS ZoneActive", "BUS Trigger", "BUS Invalidation"],
         bindingLabelGroups: [
-          { label: "BUS ZoneActive", group: "g_bus_lifecycle", groupTitle: "Lifecycle BUS" },
+          { label: "BUS ZoneActive", group: "g_bus_lifecycle", groupTitle: "Decision State" },
           { label: "BUS Trigger", group: "g_bus_plan", groupTitle: "Trade Plan" },
           { label: "BUS Invalidation", group: "g_bus_plan", groupTitle: "Trade Plan" },
         ],

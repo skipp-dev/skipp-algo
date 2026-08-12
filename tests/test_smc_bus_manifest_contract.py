@@ -279,7 +279,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert dashboard_target['bindingLabelGroups'][0] == {
         'label': 'BUS SchemaVersion',
         'group': 'g_bus_lifecycle',
-        'groupTitle': 'Lifecycle BUS',
+        'groupTitle': 'Decision State',
         'tier': 'critical',
     }
     assert dashboard_target['bindingLabelGroups'][-1] == {

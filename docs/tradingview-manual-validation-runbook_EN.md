@@ -56,12 +56,12 @@ Workspace refresh: 2026-04-07
 
 ### Binding Convention
 
-1. The dashboard starts with `1. Product Surface`, then binds in six operator-only BUS groups: `2. Operator Only - Lifecycle BUS`, `3. Operator Only - Diagnostic Rows`, `4. Operator Only - Diagnostic Support`, `5. Operator Only - Trade Plan`, `6. Operator Only - Detail Surface`, `7. Operator Only - Lean Surface`.
+1. The dashboard starts with `1. Product Surface`, then binds in eight `Chart Link` groups: `2. Chart Link - Decision State`, `3. Chart Link - Context Signals`, `4. Chart Link - Trade Plan`, `5. Chart Link - Context Rows`, `6. Chart Link - Blocker Codes`, `7. Chart Link - Detail Surface`, `8. Chart Link - Lean Surface`, `9. Chart Link - Preset Contract`.
 2. The strategy starts with `1. Execution Setup` and `2. Trade Plan`; its `source` bindings remain in `3. Expert Mapping - Entry States` and `4. Expert Mapping - Trade Plan`.
 3. The core settings surface now prioritizes `1. Core Setup`, `2. Output`, `3. Trade Plan`, `4. Session Gate`, and `5. Runtime Budget` before the advanced groups.
 4. In TradingView, both consumers are bound top-to-bottom to the matching BUS series from the core.
 5. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py) is the canonical source for names, order, and groups.
-6. The dashboard also has a local `8. Operator Only - Local Debug Mirrors` group without `source` bindings. Set those three booleans manually only when you want `Debug Flags` or `Long Debug` to mirror the core's effective debug configuration.
+6. The dashboard also has a local `10. Advanced - Debug Mirrors` group without `source` bindings. Set those three booleans manually only when you want `Debug Flags` or `Long Debug` to mirror the core's effective debug configuration.
 
 ### Canonical BUS Order
 
