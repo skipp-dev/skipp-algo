@@ -13,6 +13,7 @@ that the product has launched.
 - [Commercial baseline and action plan](COMMERCIAL_PRODUCT_BASELINE_AND_ACTION_PLAN.md)
 - [Phase-0 product brief](PRODUCT_BRIEF.md)
 - [Claims registry](CLAIMS_REGISTRY.md)
+- [Phase-2 customer plane and entitlement](PHASE2_CUSTOMER_PLANE.md)
 - [ADR-0033: commercial product and customer plane](../adr/0033-commercial-product-and-customer-plane.md)
 
 ## Boundary

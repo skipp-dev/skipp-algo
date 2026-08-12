@@ -166,6 +166,29 @@ Target: 3–6 engineering weeks.
 Exit gate: two test customers cannot cross access boundaries, revocation is
 demonstrably prompt, secrets never reach the client and rollback is proven.
 
+Implementation status on 2026-08-11, entered and measured in
+[`PHASE2_CUSTOMER_PLANE.md`](PHASE2_CUSTOMER_PLANE.md):
+
+- [x] Per-user identity, tenant-safe seat binding, revocation and rotation are
+  built and tested in `skipp-dev/skipp-live-lab`. The customer plane lives in
+  that repository, so Phase 2 cannot be closed from this one.
+- [x] Tier entitlement separates "this key is dead" from "this key is not
+  currently paid for the companion": one capability table, fail-closed on
+  unknown tiers, enforced at a single chokepoint including alert ingest and
+  open event streams (lab PR #95, in review).
+- [ ] There is no administrative audit log for issue, revoke, rotate, unbind
+  or tier change anywhere in the customer plane.
+- [ ] Customer isolation is implemented per concern but is not proven by an
+  end-to-end two-customer gate, and no data-minimization inventory exists.
+- [ ] "Secrets never reach the client" is plausible by construction and
+  unproven by execution.
+- [ ] Sidecar signing and notarization exist; capsule signing is optional and
+  no release rollback drill has been recorded.
+- [ ] No customer-plane threat model and no independent review. The bus factor
+  of one makes the review item unservable from inside.
+- [ ] No machine-readable Phase-2 gate exists yet, so this phase cannot block
+  a release automatically the way `phase1_paper_gate` does.
+
 ### Phase 3 — controlled design-partner pilot
 
 Target: 2–4 weeks, overlapping evidence accumulation.
