@@ -18,6 +18,28 @@ Consequence for reviewers: a Phase-2 statement here is only as good as the
 evidence in that repository, and every line below names it. Phase 2 therefore
 cannot be closed from this repository alone.
 
+## "Built" means merged, not running
+
+Measured 2026-08-12: the hosted `lab-worker` serves a deployment created
+**2026-07-24T17:16Z**. It has no GitHub auto-deploy — the record shows a CLI
+redeploy with empty watch patterns — so merging does not ship. **38 pull
+requests merged after that timestamp are not running**, including the entire
+installation-seat model (lab #82–#88), the opaque support reference (#91), the
+no-store fix on refusals (#92) and tier entitlement (#95).
+
+This is proven behaviourally, not only from deployment metadata: a refusal from
+the live service carries no `Cache-Control: no-store` header, which lab #92
+added on 2026-08-07.
+
+Every "built" below therefore means **merged into `skipp-live-lab` main and
+covered by tests**, not observable in production. The gap is an operator
+action — a deliberate deploy of 19 days of accumulated change — and it belongs
+to whoever owns that decision, not to a merge.
+
+Until that deploy happens, the exit gate cannot be evaluated against the
+running system at all, which is a stronger statement than any single missing
+item in the table below.
+
 ## Verified baseline, 2026-08-11
 
 Measured against the seven Phase-2 bullets in the action plan.
