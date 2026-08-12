@@ -150,6 +150,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # diff-driven guard selection could not have caught it — the guard has to
     # be pinned to the required path unconditionally, hence this entry.
     "tests/test_credential_probe_consumers.py",
+    "tests/test_customer_surface_vocabulary.py",
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
     "tests/test_datetime_tz_safety_zero_surface.py",

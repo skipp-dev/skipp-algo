@@ -53,6 +53,11 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # Derived cross-consumer guard for scripts/credential_health_check.py
     # (2026-08-03, #4333 aftermath). Source parsing only, <0.5s.
     "test_credential_probe_consumers.py",
+    # Customer-surface vocabulary guard (2026-08-12). Reads four .pine files,
+    # no imports, ~0.3s. Required rather than validate-only on purpose: the
+    # leaks it pins are edits to customer-facing copy, which is exactly the
+    # class of change that lands without anyone re-reading the settings panel.
+    "test_customer_surface_vocabulary.py",
     "test_dynamic_getattr_ledger.py",
     "test_dynamic_import_and_todo_tripwires.py",
     "test_field_preference_chain_ledger.py",

@@ -115,7 +115,7 @@ Lean Surface:
 
 ### Local Dashboard-Only Debug Mirrors
 
-These controls live under `8. Operator Only - Local Debug Mirrors`. They are
+These controls live under `10. Advanced - Debug Mirrors`. They are
 not `source` bindings and are configured manually only when you want to
 validate the `Debug Flags` or `Long Debug` rows against the core's effective
 debug setup:
