@@ -24,7 +24,7 @@
 indicator("SMC Long-Dip Alerts", overlay = true)
 
 import preuss_steffen/smc_engine_private/2 as eng
-import preuss_steffen/smc_micro_profiles_generated/219 as mp
+import preuss_steffen/smc_micro_profiles_generated/220 as mp
 import preuss_steffen/smc_utils/4 as u
 
 // ── Inputs ───────────────────────────────────────────────────────────────────
@@ -38,12 +38,12 @@ g_struct = 'Structure'
 // letting Pine infer the input's qualifier keeps it simple rather than series.
 swing_len = input.int(50, 'Swing length', minval = 5, group = g_struct, tooltip = 'Pivot length for the recomputed BOS/CHoCH detector. Keep equal to the Suite for matching structure events.')
 
-g_bus = 'Chart Link - SMC Long-Dip Suite'
+g_bus = 'BUS bindings (link to SMC Long-Dip Suite)'
 // Declared in the Suite's BUS plot() order (SchemaVersion, ZoneActive, Armed,
 // StateCode). TradingView lists a source study's outputs in that plot order, so
 // matching it here means the dropdown pick for each row moves strictly downwards
 // — no scrolling back up while binding.
-float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Connected automatically by SMC Onboarding. Each row binds to the hidden SMC Long-Dip Suite output of the same name, in the Suite's dropdown order.')
+float src_schema     = input.source(close, 'BUS SchemaVersion', group = g_bus, display = display.none, tooltip = 'Bind to the SMC Long-Dip Suite hidden BUS outputs of the same name. The rows are ordered exactly like the Suite outputs in the dropdown.')
 float src_zone       = input.source(close, 'BUS ZoneActive',    group = g_bus, display = display.none)
 float src_armed      = input.source(close, 'BUS Armed',         group = g_bus, display = display.none)
 float src_state_code = input.source(close, 'BUS StateCode',     group = g_bus, display = display.none)
