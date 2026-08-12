@@ -631,3 +631,23 @@ def test_the_pin_only_path_still_carries_the_replay_over() -> None:
     evidence = _build()
     assert evidence["replay"]["status"] == "carried_over"
     assert "R1-SOURCE-CHANGE-ATTESTATION" not in evidence["scope"]
+
+
+def test_an_unfilled_template_field_is_refused() -> None:
+    """The costliest failure mode: everything else passes and a placeholder is
+    frozen into the permanent record as though someone had written it."""
+    overlay, exit_text = _moved_pair()
+    lazy = _attestation(overlay_text=overlay, exit_text=exit_text)
+    lazy["sources"]["SMC Exit Signal"]["behaviourReviewed"] = (
+        "<<FILL: was du geprueft hast>>"
+    )
+    with pytest.raises(ValueError, match="template marker"):
+        _build_attested(source_change_attestation=lazy)
+
+
+def test_an_undated_attestation_is_refused() -> None:
+    overlay, exit_text = _moved_pair()
+    undated = _attestation(overlay_text=overlay, exit_text=exit_text)
+    undated["capturedAt"] = "gestern"
+    with pytest.raises(ValueError, match="ISO-8601 instant"):
+        _build_attested(source_change_attestation=undated)

@@ -100,6 +100,35 @@ def _require(condition: bool, message: str) -> None:
 
 SOURCE_CHANGE_GATE: Final = "R1-SOURCE-CHANGE-ATTESTATION"
 
+_ISO_INSTANT_RE: Final = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})"
+)
+
+# Operators fill this artifact from a template. A field left on its marker is
+# the failure mode that costs the most: every other check passes, the run goes
+# green, and the placeholder is frozen into the permanent evidence record where
+# it reads like a statement. Found by filling the template deliberately badly
+# on 2026-08-12 -- an unfilled `behaviourReviewed` sailed through, because a
+# non-empty string is exactly what a placeholder is.
+_PLACEHOLDER_MARKERS: Final = ("<<", ">>", "TODO", "FIXME")
+
+
+def _reject_unfilled_placeholders(node: object, path: str = "attestation") -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _reject_unfilled_placeholders(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            _reject_unfilled_placeholders(value, f"{path}[{index}]")
+    elif isinstance(node, str):
+        for marker in _PLACEHOLDER_MARKERS:
+            _require(
+                marker not in node,
+                f"{path} still carries the template marker {marker!r}: "
+                "an unfilled field would be frozen into the evidence record "
+                "as though someone had written it",
+            )
+
 
 def validate_source_change_attestation(
     attestation: dict, *, overlay_sha: str, exit_sha: str
@@ -120,6 +149,13 @@ def validate_source_change_attestation(
     _require(
         attestation.get("gate") == SOURCE_CHANGE_GATE,
         f"attestation gate is {attestation.get('gate')!r}, expected {SOURCE_CHANGE_GATE!r}",
+    )
+    _reject_unfilled_placeholders(attestation)
+    captured = attestation.get("capturedAt")
+    _require(
+        isinstance(captured, str) and _ISO_INSTANT_RE.fullmatch(captured) is not None,
+        f"attestation capturedAt is {captured!r}, expected an ISO-8601 instant "
+        "like 2026-08-13T09:15:00Z -- an observation without a time is not dated",
     )
     observer = attestation.get("observer")
     _require(
