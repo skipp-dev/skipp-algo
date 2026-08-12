@@ -1416,16 +1416,27 @@ jobs:
           # snapshot flow. Closes the 2026-04-22 gap where only
           # SMC_Long_Dip_Suite.pine was repinned, leaving 13 other
           # consumers stranded on the previous library version.
-          mapfile -t PINE_CONSUMERS < <(grep -lrE "${PIN_PATTERN}" . \
-            --include='*.pine' \
-            --exclude-dir=tests \
-            --exclude-dir=pine \
-            --exclude-dir=node_modules \
-            --exclude-dir=.git | sort -u)
+          #
+          # Vorfall 2026-08-12 (PR #4646, Lauf 1192): Liste UND Inhalt kommen
+          # ab jetzt vom AKTUELLEN main, nicht aus dem Arbeitsbaum. Dieser Lauf
+          # checkt `main` beim Start aus und läuft bis zu einem Tag weiter — er
+          # wartet auf den TradingView-Publish. Committet er die Consumer danach
+          # VOLLSTÄNDIG aus diesem Arbeitsbaum, steht alles, was inzwischen an
+          # ihnen gemergt wurde, als Rücknahme im Commit. Genau so verschwand
+          # die Entfernung des Operator-Vokabulars aus vier Kundenoberflächen
+          # (#4639) 59 Sekunden nach ihrem Merge wieder — ungesehen, weil
+          # bot/*-PRs die schweren Gates überspringen und automatisch mergen.
+          git fetch --quiet origin main
+          mapfile -t PINE_CONSUMERS < <(git grep -lE "${PIN_PATTERN}" FETCH_HEAD -- \
+            '*.pine' \
+            ':(exclude)tests/**' \
+            ':(exclude)pine/**' \
+            ':(exclude)node_modules/**' | sed 's|^FETCH_HEAD:||' | sort -u)
           if [ ${#PINE_CONSUMERS[@]} -eq 0 ]; then
             echo "::error::No pine consumers found for library pin. Refusing to proceed."
             exit 1
           fi
+          git checkout FETCH_HEAD -- "${PINE_CONSUMERS[@]}"
           echo "Pinning ${#PINE_CONSUMERS[@]} pine consumers to library ${NEW_VERSION}:"
           printf '  %s\n' "${PINE_CONSUMERS[@]}"
           for f in "${PINE_CONSUMERS[@]}"; do
@@ -1435,6 +1446,24 @@ jobs:
               exit 1
             fi
           done
+          # Die Zusage, die der Lauf über sich selbst BEWEISEN muss: an einer
+          # Kundenoberfläche ändert er die Pin-Zeile und sonst nichts. Der
+          # Rückgriff auf FETCH_HEAD oben macht das wahr; diese Prüfung macht
+          # es nachweisbar — und lässt den Lauf abbrechen statt still eine
+          # fremde Änderung zu überschreiben, falls je wieder ein Schritt
+          # dazwischen an diesen Dateien schreibt.
+          # Prüflogik und Fälle: scripts/check_pine_consumer_repin.py,
+          # tests/test_pine_consumer_repin_guard.py.
+          PIN_BASE="${RUNNER_TEMP}/pin-base"
+          rm -rf "${PIN_BASE}"
+          for f in "${PINE_CONSUMERS[@]}"; do
+            mkdir -p "${PIN_BASE}/$(dirname "$f")"
+            git show "FETCH_HEAD:$f" > "${PIN_BASE}/$f"
+          done
+          "$SMC_PYTHON_BIN" scripts/check_pine_consumer_repin.py \
+            --base-dir "${PIN_BASE}" \
+            --expected-version "${NEW_VERSION}" \
+            "${PINE_CONSUMERS[@]}"
           # The core-import SNIPPET is a copy-paste example users paste into a
           # chart, so its `import .../N as mp` must track the PUBLISHED version
           # like any consumer. It lives under the excluded pine/ tree (the
