@@ -188,6 +188,10 @@ Implementation status on 2026-08-11, entered and measured in
   of one makes the review item unservable from inside.
 - [ ] No machine-readable Phase-2 gate exists yet, so this phase cannot block
   a release automatically the way `phase1_paper_gate` does.
+- [ ] None of the above is running. The hosted worker serves a 2026-07-24
+  deployment and has no auto-deploy, so 38 merged pull requests — the whole
+  seat model included — are absent from production. Measured 2026-08-12 by
+  probing the live service, not by reading deployment metadata.
 
 ### Phase 3 — controlled design-partner pilot
 
