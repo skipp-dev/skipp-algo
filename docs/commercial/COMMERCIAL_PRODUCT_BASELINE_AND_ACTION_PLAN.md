@@ -193,6 +193,33 @@ Implementation status on 2026-08-11, entered and measured in
   seat model included — are absent from production. Measured 2026-08-12 by
   probing the live service, not by reading deployment metadata.
 
+Delta on 2026-08-12. The list above is left as measured; this is what changed
+in the day that followed.
+
+- [x] The deploy happened, in two steps (09:48Z and 11:51Z). Verified from
+  inside the running container, not from deployment metadata.
+- [x] Administrative audit log for issue, revoke, rotate, unbind and tier
+  change, written in the same transaction as the act it records; a failed
+  attempt writes nothing. The `actor` is recorded but **unverified** — it is
+  what the operator supplied (lab #96).
+- [x] "Secrets never reach the client" is now proven by execution over the
+  whole response surface, with both populations discovered rather than
+  maintained (lab #97).
+- [x] A machine-readable Phase-2 gate exists and runs in CI:
+  `skipp-phase2-customer-plane-gate/1`, verdict **PASSED** (lab #97).
+- [x] A release rollback drill has been executed against production and
+  recorded (lab #97). Capsule signing remains optional and the *signed
+  release* half of that bullet is untouched.
+- [x] A customer-plane threat model exists. The **independent review does
+  not**, and remains unservable from inside — the threat model names this as
+  its own first limitation.
+- [ ] Customer isolation is proven by nine named tests standing behind the
+  gate's `tenant_isolation` condition, but there is still no data-minimization
+  inventory.
+- [ ] There is no proven restore path for the worker's `/data` volume. The
+  drill showed that a rollback takes back code, not data, and that it was safe
+  only because both migrations were additive.
+
 ### Phase 3 — controlled design-partner pilot
 
 Target: 2–4 weeks, overlapping evidence accumulation.
