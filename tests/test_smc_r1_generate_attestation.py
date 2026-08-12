@@ -491,3 +491,143 @@ def test_verify_chain_refuses_a_broken_link(tmp_path: Path) -> None:
     index.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError):
         verify_chain(index, repo_root=tmp_path)
+
+
+# ------------------------------------------- attested non-pin source change
+#
+# The second sanctioned path (2026-08-12). A change the generator cannot
+# reconstruct from the prior bytes may pass, but only behind an artifact that
+# is bound by SHA-256 to the very sources this run reads. These tests exist to
+# prove the door does not widen into "a human said so": every refusal above
+# still fires when the attestation is absent, stale, or unsigned.
+
+
+def _attestation(
+    *,
+    overlay_text: str,
+    exit_text: str,
+    observer: str = "preuss_steffen",
+    replay_status: str = "re-run",
+    replay_exit_sha: str | None = None,
+) -> dict:
+    return {
+        "schemaVersion": 1,
+        "gate": "R1-SOURCE-CHANGE-ATTESTATION",
+        "capturedAt": "2026-08-12T18:00:00Z",
+        "observer": observer,
+        "changeCharacter": "Engine BUS labels renamed to customer-readable names.",
+        "sources": {
+            "SMC Event Overlay": {
+                "attestedSha256": _sha(overlay_text),
+                "behaviourReviewed": "Single binding re-observed on the live layout.",
+            },
+            "SMC Exit Signal": {
+                "attestedSha256": _sha(exit_text),
+                "behaviourReviewed": "All nine bindings re-observed; replay re-run.",
+            },
+        },
+        "replay": {
+            "status": replay_status,
+            "passedLogicalCases": 11,
+            "attestedExitSha256": replay_exit_sha or _sha(exit_text),
+            "evidence": "artifacts/governance/smc_exit_signal_tradingview_replay_2026-08-12.json",
+        },
+    }
+
+
+def _moved_pair() -> tuple[str, str]:
+    return CURRENT_EVENT_TEXT + "// renamed\n", EXIT_TEXT + "// renamed\n"
+
+
+def _build_attested(**overrides):
+    overlay, exit_text = _moved_pair()
+    kwargs = {
+        "event_overlay_text": overlay,
+        "exit_signal_text": exit_text,
+        "write_report": _report_with(overlay_text=overlay, exit_text=exit_text),
+        "source_change_attestation": _attestation(
+            overlay_text=overlay, exit_text=exit_text
+        ),
+        "source_change_attestation_relpath": (
+            "artifacts/governance/smc_r1_source_change_attestation_2026-08-12.json"
+        ),
+    }
+    kwargs.update(overrides)
+    return _build(**kwargs)
+
+
+def test_an_attested_source_change_is_accepted_and_says_so() -> None:
+    evidence = _build_attested()
+
+    assert evidence["replay"]["status"] == "re-run"
+    assert evidence["replay"]["passedLogicalCases"] == 11
+    assert "2026-08-12" in evidence["replay"]["evidence"]
+    # The artifact must name its own provenance rather than imply the machine
+    # proved a change it cannot reconstruct.
+    assert "preuss_steffen" in evidence["reattestationTrigger"]["sourceDiffCharacter"]
+    assert (
+        "smc_r1_source_change_attestation_2026-08-12.json"
+        in evidence["reattestationTrigger"]["sourceDiffCharacter"]
+    )
+    assert "R1-SOURCE-CHANGE-ATTESTATION" in evidence["scope"]
+
+
+def test_the_attested_sources_are_the_ones_this_tree_holds() -> None:
+    overlay, exit_text = _moved_pair()
+    evidence = _build_attested()
+    assert evidence["sources"]["SMC Event Overlay"]["repositorySha256"] == _sha(overlay)
+    assert evidence["sources"]["SMC Exit Signal"]["repositorySha256"] == _sha(exit_text)
+
+
+def test_an_attestation_for_other_bytes_is_refused() -> None:
+    """The whole point of the hash binding: no vouching for unseen sources."""
+    overlay, exit_text = _moved_pair()
+    stale = _attestation(overlay_text=overlay, exit_text=exit_text + "// later\n")
+    with pytest.raises(ValueError, match="a source nobody in this run reviewed"):
+        _build_attested(source_change_attestation=stale)
+
+
+def test_an_attestation_may_not_carry_the_replay_over() -> None:
+    overlay, exit_text = _moved_pair()
+    carried = _attestation(
+        overlay_text=overlay, exit_text=exit_text, replay_status="carried_over"
+    )
+    with pytest.raises(ValueError, match="nobody replayed"):
+        _build_attested(source_change_attestation=carried)
+
+
+def test_a_replay_block_about_a_different_exit_signal_is_refused() -> None:
+    overlay, exit_text = _moved_pair()
+    mismatched = _attestation(
+        overlay_text=overlay, exit_text=exit_text, replay_exit_sha=_sha("something else")
+    )
+    with pytest.raises(ValueError, match="different SMC Exit Signal"):
+        _build_attested(source_change_attestation=mismatched)
+
+
+def test_an_unsigned_attestation_is_refused() -> None:
+    overlay, exit_text = _moved_pair()
+    unsigned = _attestation(overlay_text=overlay, exit_text=exit_text, observer="  ")
+    with pytest.raises(ValueError, match="unsigned attestation attests nothing"):
+        _build_attested(source_change_attestation=unsigned)
+
+
+def test_the_wrong_gate_is_refused() -> None:
+    overlay, exit_text = _moved_pair()
+    wrong = _attestation(overlay_text=overlay, exit_text=exit_text)
+    wrong["gate"] = "R1-OPERATOR-OBSERVATION"
+    with pytest.raises(ValueError, match="attestation gate is"):
+        _build_attested(source_change_attestation=wrong)
+
+
+def test_an_attestation_without_its_repo_path_is_refused() -> None:
+    """The evidence artifact has to cite the attestation it rests on."""
+    with pytest.raises(ValueError, match="repo-relative path"):
+        _build_attested(source_change_attestation_relpath=None)
+
+
+def test_the_pin_only_path_still_carries_the_replay_over() -> None:
+    """The door must not change the mechanical path's behaviour."""
+    evidence = _build()
+    assert evidence["replay"]["status"] == "carried_over"
+    assert "R1-SOURCE-CHANGE-ATTESTATION" not in evidence["scope"]
