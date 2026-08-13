@@ -64,17 +64,17 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
-permissions:
-  contents: write
-  pull-requests: write
-  # Wird von dawidd6/action-download-artifact gebraucht: der Zug der
-  # Uebergabe aus dem ausloesenden Refresh-Lauf geht ueber die Actions-REST-API.
-  actions: read
+# Rechte NUR dort, wo sie gebraucht werden (zizmor excessive-permissions):
+# der Workflow selbst braucht keine.
+permissions: {}
 
 env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
-  REFRESH_DATE: ""   # aus der Uebergabedatei gesetzt
+  # REFRESH_DATE steht NICHT in env: der Wert kommt aus der Uebergabedatei
+  # und wird als steps.handoff.outputs.refresh_date gelesen. Der Umweg
+  # ueber $GITHUB_ENV waere eine zweite Quelle fuer denselben Wert (und
+  # eine zizmor github-env-Feststellung).
 defaults:
   run:
     shell: bash
@@ -114,6 +114,11 @@ jobs:
 
 
   publish:
+    permissions:
+      contents: write        # Commit des Versions-Bumps
+      pull-requests: write   # bot-PR + auto-merge
+      actions: read          # dawidd6/action-download-artifact zieht die
+                             # Uebergabe ueber die Actions-REST-API
     # Bei `workflow_run` nur nach einem erfolgreichen Refresh; ein manueller
     # Aufruf traegt seine eigene Verantwortung.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
@@ -273,16 +278,6 @@ jobs:
               print(f"{key}={value}")
           PY
 
-      - name: Adopt refresh date
-        run: |
-          set -euo pipefail
-          DATE="${{ steps.handoff.outputs.refresh_date }}"
-          if [ -z "$DATE" ]; then
-            echo "::error::refresh_date leer — die Uebergabe ist unbrauchbar."
-            exit 1
-          fi
-          echo "REFRESH_DATE=$DATE" >> "$GITHUB_ENV"
-
       # Ein Refresh ohne Aenderung publiziert nichts. Der Wert steht hier
       # trotzdem nicht als Job-`if`, damit ein fehlgeleiteter Aufruf im Log
       # sichtbar endet statt als "skipped" zu verschwinden.
@@ -296,7 +291,7 @@ jobs:
         id: restore_export_bundle
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_DATE: ${{ env.REFRESH_DATE }}
+          RUN_DATE: ${{ steps.handoff.outputs.refresh_date }}
           DATABENTO_MIN_TRADE_DAYS: "15"
         run: |
           set -euo pipefail
@@ -336,6 +331,8 @@ jobs:
           echo "overwritten_entries=$overwritten" >> "$GITHUB_OUTPUT"
 
       - name: Verify Databento production export bundle is present
+        env:
+          REFRESH_DATE: ${{ steps.handoff.outputs.refresh_date }}
         id: verify_export_bundle
         run: |
           set -euo pipefail
@@ -1155,6 +1152,7 @@ jobs:
         # alert-notifier visibility.
         if: steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && steps.publish.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
+          REFRESH_DATE: ${{ steps.handoff.outputs.refresh_date }}
           # GH_PAT is required so the bot/* push + `gh pr create` below
           # actually trigger downstream workflows (notably fast-gates).
           # PRs/pushes created with the default GITHUB_TOKEN do NOT spawn
@@ -1379,7 +1377,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: smc-publish-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          name: smc-publish-${{ steps.handoff.outputs.refresh_date }}-${{ github.run_number }}
           path: |
             artifacts/ci/
             artifacts/snapshots/
@@ -1390,7 +1388,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: smc-tradingview-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          name: smc-tradingview-${{ steps.handoff.outputs.refresh_date }}-${{ github.run_number }}
           path: |
             artifacts/tradingview/
           if-no-files-found: ignore

@@ -311,7 +311,16 @@ jobs:
           # zizmor rates an unpinned `uses:` High, which is the one thing that
           # would have caught a mutable tag in the composite while the Python
           # guards were blind to it (#4448 follow-up).
-          ZIZMOR_HIGH_BUDGET: "93"
+          # 2026-08-13: 93 -> 97. smc-library-publish.yml traegt vier High-Funde:
+          # dangerous-triggers (workflow_run — die Bauform selbst), sowie
+          # template-injection und github-env x2 aus dem Setup-Block, der
+          # wortgleich aus smc-library-refresh stammt und dort schon in der
+          # Grundlinie steht. Was sich beheben liess, ist behoben: Rechte auf
+          # Job-Ebene statt Workflow-Ebene (-2) und REFRESH_DATE ohne Umweg
+          # ueber $GITHUB_ENV (-1), zusammen 7 -> 4. Der Wert 95 ist auf dem
+          # rebasierten Baum mit derselben gepinnten zizmor-Fassung (1.25.2)
+          # GEMESSEN, nicht aus der CI-Meldung hochgerechnet.
+          ZIZMOR_HIGH_BUDGET: "95"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
