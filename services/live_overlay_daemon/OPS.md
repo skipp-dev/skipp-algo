@@ -299,6 +299,22 @@ the deployment itself is retired.
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | GitHub | Pagination page size |
+| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. Production: `lab-worker-volume=2ffcaeb7-9788-4838-82a6-8604a2fd1dc3` (the hosted customer plane's `/data`, in the **skipp-live-lab** project — cross-project on purpose, see below) |
+| `RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS` | Railway volume backups | Age at which the newest backup counts as stale (default 129600 = 36 h; exported as a gauge so the alert compares against it rather than a second copy) |
+| `RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS` | Railway volume backups | Cache TTL (default 600) |
+| `RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS` | Railway volume backups | HTTP timeout (default 10) |
+
+The volume-backup bridge reuses `RAILWAY_API_TOKEN`; it needs no credential of
+its own. That token is workspace-scoped, which is what lets it read a volume in
+another project — verified 2026-08-13 against
+`volumeInstanceBackupScheduleList` for `lab-worker-volume`.
+
+**Why this lives in the overlay daemon and not in the service that owns the
+volume.** The question the gauges answer is "can the customer plane be restored".
+A worker that exports its own backup health stops exporting it in exactly the
+incident where the answer matters — volume gone, service down, metric absent.
+Watching from a different project and a different service keeps the observer
+alive when the observed is not.
 
 ### Expected market traffic alert rollout
 
@@ -870,6 +886,25 @@ the "fires before 900 s" property, so such an edit fails CI.
 | Stale success | `live_overlay_bridge_last_success_age_seconds` exceeds threshold | Bridge may be failing or unable to refresh successful data. |
 | Slow scrape | `live_overlay_bridge_last_scrape_duration_seconds` rises unexpectedly | Bridge requests are completing but taking longer than normal. |
 | Absent bridge metrics | no `live_overlay_bridge_*` series | Exporter or metrics path may be broken; check `Bridge Metrics Present`, `Core Metrics Present`, and collector targets. |
+
+### Volume-backup alerts (customer plane)
+
+Three rules, deliberately separate because they are three different faults:
+
+| Alert | Fires when | First thing to check |
+|-------|-----------|----------------------|
+| `lo-volume-backup-schedule-missing` | `..._schedule_count < 1` | Railway dashboard → volume → Backups, or `volumeInstanceBackupScheduleUpdate(volumeInstanceId, kinds: [DAILY])`. **The CLI has no backup command at all** — `railway volume update` only renames/remounts. |
+| `lo-volume-backup-never-taken` | a schedule exists but `..._count < 1`, or a backup exists whose timestamp will not parse (`..._age_known == 0`), for 26 h | `volumeInstanceBackupList` for the instance; take one by hand with `volumeInstanceBackupCreate` to see whether the volume can be backed up at all. |
+| `lo-volume-backup-stale` | `..._age_seconds` exceeds `..._max_age_seconds` | schedule still present? volume recreated (a new volume starts with no history)? |
+| `lo-volume-backup-retention-too-short` | `..._retention_seconds` < `..._max_age_seconds` | Backups would expire before the stale alert could fire — the window where the gap is both real and visible never opens. Lengthen retention or shorten the threshold. |
+
+`age_known` is the load-bearing gauge. Without it a volume that has *never*
+been backed up renders as age 0 — the youngest possible backup — and reads
+healthier than one backed up an hour ago. Never alert on `age_seconds` alone.
+
+A failing poll is **not** one of these alerts: it surfaces as
+`lo-bridge-scrape-failed` for `bridge="railway_volume_backups"`, and all three
+rules above are gated so a Railway outage cannot invent a backup verdict.
 
 The alert **`lo-bridge-contract-missing`** fires when any required generic
 bridge contract family disappears for any configured bridge for more than five

@@ -17,6 +17,8 @@ from typing import Any
 
 import pytest
 
+from tests._guard_corpus import live_overlay_bridge_names
+
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "grafana_alert_rules_upsert.py"
 ALERT_RULES = REPO / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
@@ -488,8 +490,11 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
     rule = next(
         r for g in groups for r in g["rules"] if r["uid"] == "lo-bridge-contract-missing"
     )
-    exprs = [d["model"]["expr"] for d in rule["data"] if d.get("refId") in {"A", "B", "C"}]
-    assert exprs, "rule exposes no A/B/C query — every check below would pass vacuously"
+    # 2026-08-13: was pinned to refIds {A, B, C}. A fourth bridge query lands on
+    # refId D, which that set silently dropped — the rule could carry the query
+    # and this test still report it missing. Take every Prometheus leg instead.
+    exprs = [d["model"]["expr"] for d in rule["data"] if "expr" in d.get("model", {})]
+    assert exprs, "rule exposes no query — every check below would pass vacuously"
     unconditional_families = (
         "live_overlay_bridge_enabled",
         "live_overlay_bridge_configured",
@@ -505,7 +510,10 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
         "live_overlay_bridge_last_success_age_seconds",
         "live_overlay_bridge_last_scrape_duration_seconds",
     )
-    for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
+    # 2026-08-13: derived from metrics.py instead of hand-listed. The literal
+    # tuple that stood here covered three bridges and would have passed
+    # unchanged when a fourth (railway_volume_backups) shipped with no rule.
+    for bridge in live_overlay_bridge_names():
         bridge_expr = next((e for e in exprs if f'bridge="{bridge}"' in e), "")
         assert bridge_expr, f"missing bridge {bridge}"
         normalized = " ".join(bridge_expr.split())
@@ -523,7 +531,8 @@ def test_alert_rules_include_bridge_contract_missing() -> None:
             )
             assert expected in normalized, f"missing enabled-gate on {family} for {bridge}"
     assert all(" or vector(0)" not in e for e in exprs)
-    assert sum(e.count("absent(live_overlay_bridge_") for e in exprs) == 18
+    expected_legs = len(live_overlay_bridge_names()) * len(unconditional_families + gated_families)
+    assert sum(e.count("absent(live_overlay_bridge_") for e in exprs) == expected_legs
     assert rule["labels"]["severity"] == "critical"
 
 

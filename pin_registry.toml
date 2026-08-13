@@ -191,7 +191,10 @@
 # endpoint (backboard.railway.com/graphql/v2), explicit timeout= via Request.
 # 2026-07-07: `import math` added for the non-finite guard in _latest_value;
 # urlopen site shifted 85 -> 86.
-"services/live_overlay_daemon/railway_metrics.py" = [86]
+# 2026-08-13 (volume-backup bridge): 86->87, one added import. Still a single
+# site — the new volume-backup query reuses _post_graphql rather than opening a
+# second egress point.
+"services/live_overlay_daemon/railway_metrics.py" = [87]
 
 # ---------------------------------------------------------------------------
 # test_noqa_budget.py — frozen noqa-suppression sites.

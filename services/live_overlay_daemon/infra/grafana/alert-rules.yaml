@@ -309,7 +309,7 @@ groups:
         check the restart-cause panel and Railway logs for an ON_FAILURE crash escalation.
   - uid: lo-bridge-contract-missing
     title: Generic bridge contract missing
-    condition: D
+    condition: E
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
@@ -360,10 +360,26 @@ groups:
           sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_metrics"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_metrics"}) == 1)) or on() vector(0))
         instant: true
     - refId: D
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: |-
+          sum(absent(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_configured{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_scrape_success{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
+          +
+          sum(absent(live_overlay_bridge_error_info{job="live_overlay",bridge="railway_volume_backups"}) or on() vector(0))
+          +
+          sum((absent(live_overlay_bridge_last_success_age_seconds{job="live_overlay",bridge="railway_volume_backups"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) == 1)) or on() vector(0))
+          +
+          sum((absent(live_overlay_bridge_last_scrape_duration_seconds{job="live_overlay",bridge="railway_volume_backups"}) and on() (max(live_overlay_bridge_enabled{job="live_overlay",bridge="railway_volume_backups"}) == 1)) or on() vector(0))
+        instant: true
+    - refId: E
       datasourceUid: __expr__
       model:
         type: math
-        expression: ($A > 0) || ($B > 0) || ($C > 0)
+        expression: ($A > 0) || ($B > 0) || ($C > 0) || ($D > 0)
     for: 5m
     # Structurally unreachable: every leg ends in `or on() vector(0)`, so the
     # queries always return a value whenever Prometheus answers. Declared to
@@ -381,7 +397,7 @@ groups:
       # critical. The four unconditional legs still catch a dead exporter.
       runbook: Verify the live_overlay exporter is running and emitting all required
         live_overlay_bridge_* contract families for all configured bridges (uptimerobot,
-        github_workflow, railway_metrics).
+        github_workflow, railway_metrics, railway_volume_backups).
   - uid: sp-memory-critical
     title: Signals Producer RSS > 3072 MB
     condition: C
@@ -2066,6 +2082,161 @@ groups:
       summary: Railway service memory is above 90% of its configured limit
       runbook: Immediate OOM risk. Inspect service-specific Railway memory, restart
         if growth is monotonic, and check feed/bridge buffers.
+  # Railway native volume backups for the hosted customer plane. Three separate
+  # rules on purpose: "no schedule", "schedule but nothing produced" and "the
+  # newest one is too old" are three different faults with three different
+  # fixes, and a single combined rule would let the middle one hide. Each is
+  # gated on the bridge having actually answered, so a Railway outage pages via
+  # lo-bridge-scrape-failed instead of inventing a backup verdict.
+  - uid: lo-volume-backup-schedule-missing
+    title: Volume backup schedule missing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_bridge_scrape_success{job="live_overlay",bridge="railway_volume_backups"} == bool 1)
+          * on(job) group_right()
+          (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} < bool 1)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    noDataState: OK
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A watched Railway volume has no backup schedule at all
+      runbook: The volume is running unprotected by the platform. Set a schedule via
+        volumeInstanceBackupScheduleUpdate(volumeInstanceId, kinds) or the Railway
+        dashboard; the CLI has no backup surface. This is the exact state the
+        customer plane sat in, unnoticed, until 2026-08-13.
+  - uid: lo-volume-backup-never-taken
+    title: Volume backup schedule has produced nothing usable
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} >= bool 1)
+          * on(job, volume)
+          (live_overlay_railway_volume_backup_count{job="live_overlay"} < bool 1)
+        instant: true
+    - refId: B
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_railway_volume_backup_schedule_count{job="live_overlay"} >= bool 1)
+          * on(job, volume)
+          (live_overlay_railway_volume_backup_age_known{job="live_overlay"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: math
+        # Two ways to have nothing to restore from: no backup at all (A), and a
+        # backup whose timestamp will not parse (B) — the second one still
+        # counts, so counting alone would call it healthy.
+        expression: ($A > 0) || ($B > 0)
+    for: 26h
+    noDataState: OK
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A volume has a backup schedule but no backup has ever appeared
+      runbook: A configured schedule that never fires looks identical to a healthy
+        one in every count-based view. Check volumeInstanceBackupList for the
+        instance and the schedule's cron; take one by hand with
+        volumeInstanceBackupCreate to confirm the volume can be backed up at all.
+        The 26h window is one DAILY cycle plus slack, so a fresh schedule that has
+        not reached its first run does not page.
+  - uid: lo-volume-backup-stale
+    title: Newest volume backup is older than the configured limit
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: (live_overlay_railway_volume_backup_age_known{job="live_overlay"} == bool 1)
+          * on(job, volume)
+          (live_overlay_railway_volume_backup_age_seconds{job="live_overlay"}
+          > bool on() group_left() max(live_overlay_railway_volume_backup_max_age_seconds{job="live_overlay"}))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    noDataState: OK
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The newest Railway volume backup has aged past the daemon's own limit
+      runbook: The threshold is the daemon's exported
+        live_overlay_railway_volume_backup_max_age_seconds, not a number written
+        into this rule, so the two cannot drift apart. Check whether the schedule
+        still exists, whether Railway is retaining backups (retention_seconds), and
+        whether the volume was replaced — a recreated volume starts with no history.
+  - uid: lo-volume-backup-retention-too-short
+    title: Backup retention is shorter than the staleness window
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_railway_volume_backup_retention_seconds{job="live_overlay"}
+          < bool on() group_left() max(live_overlay_railway_volume_backup_max_age_seconds{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 1h
+    noDataState: OK
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Backups expire faster than the alert that would notice them missing
+      runbook: Retention shorter than the staleness threshold means a backup can be
+        gone before lo-volume-backup-stale would have fired — the window in which
+        the gap is both real and visible never opens. Either lengthen retention
+        (Railway sets it per schedule kind; DAILY is 6 days) or shorten
+        RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS to fit inside it.
   - uid: alloy-memory-high
     title: Alloy RSS > 1024 MB
     condition: C

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import live_overlay_bridge_names
+
 
 @pytest.fixture
 def temp_dashboard(tmp_path: Path) -> Path:
@@ -585,16 +587,19 @@ def test_update_script_repairs_bridge_metrics_present_contract_family_coverage(
     expr = next(
         p for p in updated["panels"] if p.get("title") == "Bridge Metrics Present"
     )["targets"][0]["expr"]
-    for family in (
+    families = (
         "enabled",
         "configured",
         "scrape_success",
         "error_info",
         "last_success_age_seconds",
         "last_scrape_duration_seconds",
-    ):
+    )
+    for family in families:
         assert family in expr
-    assert expr.startswith("18 - (")
+    # 2026-08-13: derived from the bridges the daemon exports. The literal 18
+    # went stale the moment a fourth bridge (railway_volume_backups) landed.
+    assert expr.startswith(f"{len(live_overlay_bridge_names()) * len(families)} - (")
     assert "group by (__name__, bridge)" in expr
     assert (
         'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)'
