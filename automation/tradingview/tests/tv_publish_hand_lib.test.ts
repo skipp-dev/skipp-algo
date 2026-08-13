@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { consumerPins, deriveExpectedVersion } from "../lib/tv_publish_hand_lib.js";
+import {
+  consumerPins,
+  deriveExpectedVersion,
+  resolveVersionAcceptance,
+} from "../lib/tv_publish_hand_lib.js";
 
 function scratchRepo(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "handlib-"));
@@ -57,4 +61,32 @@ test("disagreeing pins abort and name every file and version", () => {
       && /SMC_Long_Dip_Suite\.pine pins \/4/.test(e.message)
       && /SMC_Breakout_Overlay\.pine pins \/3/.test(e.message),
   );
+});
+
+test("a facade-verified equal version is accepted", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, facadeAnswered: true });
+  assert.equal(r.accepted, true);
+});
+
+test("a facade-verified bump above the expectation is accepted", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 4, facadeAnswered: true });
+  assert.equal(r.accepted, true);
+  assert.match(r.reason, /advanced/);
+});
+
+test("a version below the expectation is rejected", () => {
+  const r = resolveVersionAcceptance({ expected: 4, published: 3, facadeAnswered: true });
+  assert.equal(r.accepted, false);
+  assert.match(r.reason, /below/);
+});
+
+test("no verified version fails even when the facade answered nothing", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: null, facadeAnswered: false });
+  assert.equal(r.accepted, false);
+  assert.match(r.reason, /not verified/);
+});
+
+test("a bootstrap with no expectation accepts any verified version", () => {
+  const r = resolveVersionAcceptance({ expected: null, published: 1, facadeAnswered: true });
+  assert.equal(r.accepted, true);
 });

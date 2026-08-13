@@ -64,3 +64,36 @@ export function deriveExpectedVersion(
   }
   return { version: distinct.length === 1 ? distinct[0] : null, pins };
 }
+
+/**
+ * Whether a publish counts as verified.
+ *
+ * The pre-existing facade override (#3603/#3606) set acceptance to true
+ * whenever the facade answered, without looking at the direction of the
+ * difference. That kept bumped libraries from exiting rc=1, but it also
+ * accepted a version BELOW every consumer pin — which means the wrong script
+ * was addressed, not that content changed. This states both halves explicitly.
+ */
+export function resolveVersionAcceptance(input: {
+  expected: number | null;
+  published: number | null;
+  facadeAnswered: boolean;
+}): { accepted: boolean; reason: string } {
+  const { expected, published } = input;
+  if (published === null) {
+    return { accepted: false, reason: "published version not verified" };
+  }
+  if (expected === null) {
+    return { accepted: true, reason: `bootstrap: no consumer pin, published /${published}` };
+  }
+  if (published < expected) {
+    return {
+      accepted: false,
+      reason: `published /${published} is below the expected /${expected}`,
+    };
+  }
+  if (published > expected) {
+    return { accepted: true, reason: `publish advanced /${expected} to /${published}` };
+  }
+  return { accepted: true, reason: `published /${published} matches the consumer pin` };
+}
