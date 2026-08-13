@@ -9,7 +9,7 @@
 
 indicator("SMC Long-Dip Dashboard", overlay = true, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/226 as mp
+import preuss_steffen/smc_micro_profiles_generated/227 as mp
 import preuss_steffen/smc_utils/4 as u
 
 var string g_surface = "1. Product Surface"
@@ -19,26 +19,19 @@ var string g_surface = "1. Product Surface"
 // knows nothing about these groups — so any group whose plot range is out of
 // sequence forces the operator to scroll back up in the dropdown. With 64 rows
 // that is the difference between a mechanical top-to-bottom pass and a hunt.
-// The former "Context Signals" group held two disjoint ranges (14-16 and
+// The former "Diagnostic Support" group held two disjoint ranges (14-16 and
 // 40-43) and is therefore split: state codes stay here, blocker/regime codes get
 // their own group.
-// Group LABELS are customer-facing text; the group VARIABLES below are the
-// surface-vs-internal partition that spec/hero_surface_input_map.json and
-// tests/test_customer_surface_vocabulary.py key on. Renaming a label is safe:
-// the TradingView onboarding automation binds by input TITLE, never by group
-// (automation/tradingview/lib/tv_shared.ts). Renaming a TITLE is not — that is
-// the frozen 64-channel binding contract.
-var string g_bus_lifecycle = "2. Chart Link - Decision State"
-var string g_bus_diag = "3. Chart Link - Context Signals"
-var string g_bus_plan = "4. Chart Link - Trade Plan"
-var string g_bus_diag_rows = "5. Chart Link - Context Rows"
-var string g_bus_blockers = "6. Chart Link - Blocker Codes"
-var string g_bus_detail = "7. Chart Link - Detail Surface"
-var string g_bus_lean = "8. Chart Link - Lean Surface"
-var string g_bus_preset = "9. Chart Link - Preset Contract"
-var string g_local_debug = "10. Advanced - Debug Mirrors"
+var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
+var string g_bus_diag = "3. Operator Only - Diagnostic Support"
+var string g_bus_plan = "4. Operator Only - Trade Plan"
+var string g_bus_diag_rows = "5. Operator Only - Diagnostic Rows"
+var string g_bus_blockers = "6. Operator Only - Blocker Codes"
+var string g_bus_detail = "7. Operator Only - Detail Surface"
+var string g_bus_lean = "8. Operator Only - Lean Surface"
+var string g_bus_preset = "9. Operator Only - Preset Contract"
+var string g_local_debug = "10. Operator Only - Local Debug Mirrors"
 var string g_trade_mgmt = "11. Trade Management (optional, mirrors SMC_Hold_Manager)"
-var string g_operator_ops = "12. Advanced - Manual Overrides"
 
 // ── Trade Management mirror inputs ────────────────────────────
 // READ-ONLY mirror of SMC_Hold_Manager.pine state machine. Renders 2 extra
@@ -55,17 +48,12 @@ surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Hero"
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
 show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
-compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
-color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the SMC Long-Dip Suite color theme. Colorblind Safe replaces red/green with orange/blue.")
-hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning), SHA (calibration reference, requires the Calibration SHA input under Manual Overrides). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original order — build your own Hero by reordering or dropping tokens.")
-
-// ── Manual overrides (internal operations) ────────────────────
-// Not part of the customer first-run path: each one is filled by hand from an
-// internal source and stays empty/off for everyone else. They live in their own
-// group so "1. Product Surface" contains only controls a customer can act on.
-calibration_sha = input.string("", "Calibration SHA", group = g_operator_ops, display = display.none, tooltip = "Internal: paste the short reference of the calibration report you trust (e.g. 'a1b2c3d'). When set and the SHA token is present in Hero Token Order, the Hero one-liner appends 'sha:<7chars>' so a screenshot stays anchored. Empty by default → the segment is omitted.")
-calibration_breach_banner = input.bool(false, "Calibration Breach Banner", group = g_operator_ops, display = display.none, tooltip = "Internal: manual switch for the rolling-30-day smECE SLO breach. Flip on when the mitigation pipeline is triggered. Hero one-liner then prepends '⚠CAL-BREACH' to the BLOCKER token.")
-fvg_context_health_text = input.string("", "FVG Context Health", group = g_operator_ops, display = display.none, tooltip = "Internal: paste the current FVG context-health summary line (e.g. '⚠ FVG weak in ETH+HIGH (41% HR, 12 events); OK in RTH+NORMAL (72% HR, 34 events)'). Renders as a tooltip on the FVG Status row and an extra hint row. Empty by default → the tooltip falls back to the single-number summary.")
+compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
+color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
+hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning), SHA (calibration SHA, requires Calibration SHA input below). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
+calibration_sha = input.string("", "Calibration SHA", group = g_surface, tooltip = "Plan §3.1.1 — paste the short git SHA of the calibration_report artifact you trust (e.g. 'a1b2c3d'). When set and the SHA token is present in Hero Token Order, the Hero one-liner appends 'sha:<7chars>' so a screenshot stays SHA-anchored. Empty by default → SHA segment is omitted (no surface change).")
+calibration_breach_banner = input.bool(false, "Calibration Breach Banner", group = g_surface, tooltip = "Plan §3.1.2 — manual operator switch for the rolling-30-day smECE SLO breach. Flip on when docs/slo_calibration.md mitigation pipeline is triggered. Hero one-liner then prepends '⚠CAL-BREACH' to the BLOCKER token. Auto-flip from the daily artifact stream lands once Plan W14–W15 ships the public dashboard.")
+fvg_context_health_text = input.string("", "FVG Context Health (paste from sidecar)", group = g_surface, tooltip = "Plan §D2 — paste the operator-summary line from the latest pine/generated/fvg_context_health.json sidecar (e.g. '⚠ FVG weak in ETH+HIGH (41% HR, 12 events); OK in RTH+NORMAL (72% HR, 34 events)'). Renders as a tooltip on the FVG Status row (line 32) and an extra hint row (32a). Empty by default → tooltip falls back to the legacy single-number summary (no surface change). Auto-flip from the daily artifact stream lands once the smc_micro_profiles_generated library exposes per-context FVG fields (separate library republish PR).")
 
 // ── Dashboard color palette ───────────────────────────────────
 var bool _cb = color_theme == "Colorblind Safe"
