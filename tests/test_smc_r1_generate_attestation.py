@@ -25,15 +25,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from scripts.smc_r1_generate_attestation import (
+    GITHUB_RUN_ORIGIN,
+    LOCAL_SESSION_ORIGIN,
     append_chain,
     build_attestation,
     classify_event_overlay_change,
+    default_authorized_note,
     evidence_filename,
+    github_run_provenance,
+    local_session_provenance,
     verify_chain,
     write_attestation,
 )
@@ -166,8 +173,9 @@ def _build(**overrides):
         "prior_evidence_relpath": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-04.json",
         "event_overlay_text": CURRENT_EVENT_TEXT,
         "exit_signal_text": EXIT_TEXT,
-        "run_id": 31000000001,
-        "workflow": "tv-save-consumer-source",
+        "provenance": github_run_provenance(
+            31000000001, workflow="tv-save-consumer-source"
+        ),
         "write_conclusion": "failure - at the un-attested-save guard, after the saves completed",
         "authorized_note": "automated re-attestation chain, operator-authorized 2026-08-04",
     }
@@ -274,7 +282,10 @@ def test_build_attestation_carries_bindings_gates_rollback_and_replay() -> None:
 
     modes = [run["executionMode"] for run in evidence["evidenceRuns"]]
     assert modes == ["write", "verify-only"]
-    assert all(run["runId"] == 31000000001 for run in evidence["evidenceRuns"])
+    assert all(
+        run["origin"] == "GitHub Actions run 31000000001"
+        for run in evidence["evidenceRuns"]
+    )
     assert "un-attested-save guard" in evidence["evidenceRuns"][0]["conclusion"]
 
 
@@ -651,3 +662,233 @@ def test_an_undated_attestation_is_refused() -> None:
     undated["capturedAt"] = "gestern"
     with pytest.raises(ValueError, match="ISO-8601 instant"):
         _build_attested(source_change_attestation=undated)
+
+
+# ----------------------------------------------------- provenance of the run
+#
+# The generator used to require --run-id as an integer, which is a GitHub
+# Actions run id. An attended session at a workstation has none, and the only
+# way to satisfy that requirement was to invent one -- putting a false claim
+# about where the measurement came from into a permanent evidence record, in
+# the one file whose entire job is to be true. These tests hold the second
+# provenance to the same standard as the first: named, bound, and narrower
+# out loud.
+
+
+def _local_reports(tmp_path: Path) -> tuple[Path, Path]:
+    write_path = tmp_path / "report-write.json"
+    verify_path = tmp_path / "report-verify.json"
+    write_path.write_text(json.dumps(_write_report()), encoding="utf-8")
+    verify_path.write_text(json.dumps(_verify_report()), encoding="utf-8")
+    return write_path, verify_path
+
+
+def _local_provenance(tmp_path: Path, **overrides):
+    write_path, verify_path = _local_reports(tmp_path)
+    kwargs = {
+        "operator": "preuss_steffen",
+        "workflow": "tv-save-consumer-source",
+        "write_report_path": write_path,
+        "verify_report_path": verify_path,
+    }
+    kwargs.update(overrides)
+    return local_session_provenance(**kwargs)
+
+
+def _walk_scalars(node: object, path: str = "$"):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield from _walk_scalars(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _walk_scalars(value, f"{path}[{index}]")
+    else:
+        yield path, node
+
+
+def test_a_workflow_run_names_itself_wherever_the_measurement_is_cited() -> None:
+    evidence = _build()
+    provenance = evidence["provenance"]
+
+    assert provenance["kind"] == GITHUB_RUN_ORIGIN
+    assert provenance["runId"] == 31000000001
+    assert provenance["reference"] == "GitHub Actions run 31000000001"
+
+    reference = provenance["reference"]
+    assert reference in evidence["scope"]
+    assert evidence["tradingView"]["observedBy"].startswith(reference)
+    assert reference in evidence["tradingView"]["layoutSaveNote"]
+    for source in evidence["sources"].values():
+        assert source["saveRun"] == reference
+        assert source["savedSourceReadbackRun"] == reference
+
+
+def test_a_local_session_is_recorded_as_itself_and_borrows_no_run_id(
+    tmp_path: Path,
+) -> None:
+    provenance = _local_provenance(tmp_path)
+    evidence = _build(provenance=provenance)
+
+    assert evidence["provenance"]["kind"] == LOCAL_SESSION_ORIGIN
+    assert evidence["provenance"]["runId"] is None
+    assert evidence["provenance"]["operator"] == "preuss_steffen"
+
+    reference = "the local attended session run by preuss_steffen"
+    assert evidence["provenance"]["reference"] == reference
+    assert reference in evidence["scope"]
+    assert evidence["tradingView"]["observedBy"].startswith(reference)
+    for source in evidence["sources"].values():
+        assert source["saveRun"] == reference
+    for run in evidence["evidenceRuns"]:
+        assert run["origin"] == reference
+        assert "workstation" in run["dispatchedBy"]
+
+    # The failure this exists to prevent, checked over the WHOLE artifact and
+    # not just the fields that used to hold it: nothing anywhere may look like
+    # a GitHub run id, because no such run happened.
+    offenders = [
+        (path, value)
+        for path, value in _walk_scalars(evidence)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 10**9
+    ]
+    assert offenders == []
+
+
+def test_the_local_reports_are_bound_to_the_artifact_by_sha256(
+    tmp_path: Path,
+) -> None:
+    write_path, verify_path = _local_reports(tmp_path)
+    provenance = local_session_provenance(
+        operator="preuss_steffen",
+        workflow="tv-save-consumer-source",
+        write_report_path=write_path,
+        verify_report_path=verify_path,
+    )
+    reports = provenance["reports"]
+    assert reports["write"]["sha256"] == hashlib.sha256(write_path.read_bytes()).hexdigest()
+    assert reports["verify"]["sha256"] == hashlib.sha256(verify_path.read_bytes()).hexdigest()
+    # Outside any repo root, so the artifact must not imply the files survive.
+    assert reports["write"]["retainedInRepo"] is False
+    assert reports["verify"]["retainedInRepo"] is False
+
+
+def test_a_repo_retained_report_is_recorded_by_its_relative_path(
+    tmp_path: Path,
+) -> None:
+    write_path, verify_path = _local_reports(tmp_path)
+    provenance = local_session_provenance(
+        operator="preuss_steffen",
+        workflow="tv-save-consumer-source",
+        write_report_path=write_path,
+        verify_report_path=verify_path,
+        # Deliberately NOT pre-resolved: on macOS tmp_path is /var/... while the
+        # report resolves to /private/var/..., and an unresolved comparison
+        # reports a retained file as unretained. Found by running it, 2026-08-13.
+        repo_root=tmp_path,
+    )
+    assert provenance["reports"]["write"]["path"] == "report-write.json"
+    assert provenance["reports"]["write"]["retainedInRepo"] is True
+
+
+def test_the_local_artifact_says_it_is_narrower_than_a_workflow_run(
+    tmp_path: Path,
+) -> None:
+    evidence = _build(provenance=_local_provenance(tmp_path))
+    narrower = [
+        line for line in evidence["limitations"] if "no GitHub run id" in line
+    ]
+    assert len(narrower) == 1
+    assert "NOT checked in" in narrower[0]
+    assert "preuss_steffen" in narrower[0]
+
+    # And the automated path must not have grown that caveat.
+    assert not [
+        line for line in _build()["limitations"] if "no GitHub run id" in line
+    ]
+
+
+def test_an_unattributed_local_session_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must name the operator"):
+        _local_provenance(tmp_path, operator="   ")
+
+
+def test_a_run_id_that_is_not_a_run_id_is_refused() -> None:
+    with pytest.raises(ValueError, match="positive GitHub Actions run id"):
+        github_run_provenance(0, workflow="tv-save-consumer-source")
+
+
+def test_a_local_session_does_not_inherit_the_chains_authorization(
+    tmp_path: Path,
+) -> None:
+    """The 2026-08-04 decision authorized the automated chain, not a laptop."""
+    local = default_authorized_note(_local_provenance(tmp_path))
+    assert "preuss_steffen" in local
+    assert "automated re-attestation chain" not in local
+    assert "2026-08-04" not in local
+
+    automated = default_authorized_note(
+        github_run_provenance(31000000001, workflow="tv-save-consumer-source")
+    )
+    assert automated == (
+        "automated re-attestation chain, operator-authorized 2026-08-04"
+    )
+
+
+def test_the_authorization_note_reaches_the_artifact(tmp_path: Path) -> None:
+    provenance = _local_provenance(tmp_path)
+    evidence = _build(
+        provenance=provenance,
+        authorized_note=default_authorized_note(provenance),
+    )
+    assert (
+        "attended local session"
+        in evidence["reattestationTrigger"]["reason"]
+    )
+    assert not [
+        line
+        for line in evidence["limitations"]
+        if "operator-authorized 2026-08-04" in line
+    ]
+
+
+def _cli(*extra: str) -> subprocess.CompletedProcess[str]:
+    """The CLI is the surface an operator actually touches -- exercise it."""
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.smc_r1_generate_attestation",
+            "--write-report",
+            "does-not-matter.json",
+            "--verify-report",
+            "does-not-matter.json",
+            *extra,
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_the_cli_refuses_to_run_without_naming_an_origin() -> None:
+    result = _cli()
+    assert result.returncode == 2
+    assert "exactly once" in result.stderr
+
+
+def test_the_cli_refuses_two_conflicting_origins() -> None:
+    result = _cli("--run-id", "31000000001", "--local-session-operator", "someone")
+    assert result.returncode == 2
+    assert "two different things" in result.stderr
+
+
+def test_an_unrecognised_provenance_is_refused() -> None:
+    """No third shape sneaks in without deciding what it may claim."""
+    with pytest.raises(ValueError, match="unknown measurement provenance"):
+        _build(
+            provenance={
+                "kind": "somebody-said-so",
+                "reference": "trust me",
+                "workflow": "tv-save-consumer-source",
+            }
+        )
