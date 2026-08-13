@@ -319,8 +319,10 @@ jobs:
           # Job-Ebene statt Workflow-Ebene (-2) und REFRESH_DATE ohne Umweg
           # ueber $GITHUB_ENV (-1), zusammen 7 -> 4. Der Wert 95 ist auf dem
           # rebasierten Baum mit derselben gepinnten zizmor-Fassung (1.25.2)
-          # GEMESSEN, nicht aus der CI-Meldung hochgerechnet.
-          ZIZMOR_HIGH_BUDGET: "95"
+          # GEMESSEN — und zwar ueber ALLE DREI Verzeichnisse, die dieser
+          # Schritt auditiert. Ein Lauf nur ueber .github/workflows/ zaehlt
+          # 95 und fuehrt zuverlaessig zur falschen Zahl.
+          ZIZMOR_HIGH_BUDGET: "97"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |
           python -m pip install --quiet "zizmor==1.25.2"
@@ -337,10 +339,10 @@ jobs:
           print(f"zizmor: high={high} (budget {hb}), medium={medium} (budget {mb})")
           ok = True
           if high > hb:
-              print(f"::error title=zizmor-ratchet::high-severity findings rose {hb} -> {high}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
+              print(f"::error title=zizmor-ratchet::high-severity findings rose {hb} -> {high}. New workflow code introduced a security finding (run `zizmor --offline .github/workflows/ .github/actions/ .github/workflow-templates/` locally).")
               ok = False
           if medium > mb:
-              print(f"::error title=zizmor-ratchet::medium-severity findings rose {mb} -> {medium}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
+              print(f"::error title=zizmor-ratchet::medium-severity findings rose {mb} -> {medium}. New workflow code introduced a security finding (run `zizmor --offline .github/workflows/ .github/actions/ .github/workflow-templates/` locally).")
               ok = False
           if ok and (high < hb or medium < mb):
               print(f"::notice title=zizmor-ratchet::findings below budget (high {high}/{hb}, medium {medium}/{mb}) — consider lowering ZIZMOR_*_BUDGET in smc-fast-pr-gates.yml to lock in the improvement.")
