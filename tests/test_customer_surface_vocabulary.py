@@ -46,6 +46,7 @@ from scripts.check_customer_surface_vocabulary import (
     main,
     spec_partition_disagreements,
 )
+from tests._fast_gates_gate import step_conditions, third_party_import_chain
 
 
 @pytest.mark.parametrize("pine_file", PINE_FILES)
@@ -111,6 +112,68 @@ def test_the_script_fails_when_a_surface_leaks(monkeypatch) -> None:
 
     monkeypatch.setattr(module, "read_lines", with_leak)
     assert module.main([]) == 1
+
+
+GUARD_STEP = "Guard customer chart surfaces"
+
+
+def test_the_guard_import_chain_needs_nothing_installed() -> None:
+    """Die Bot-Spur installiert NICHTS — hier hängt der Wächter dran.
+
+    `run_heavy=false` überspringt „Set up pinned Python", „Resolve Python 3.12
+    interpreter" und „Install dependencies", der Schritt fährt aber trotzdem
+    `python -m scripts.check_customer_surface_vocabulary`. Das geht nur, solange
+    jedes beim Import ausgeführte Modul stdlib oder repo-lokal ist.
+
+    Der R1-Wächter hat diesen Test seit dem 4.8. — #4668 stellte am 13.8. einen
+    ZWEITEN Wächter auf dieselbe Spur, ohne ihn mitzunehmen. Ein einzelnes
+    `import yaml` weiter unten fiele keinem Review auf; es würde jeden
+    pine-berührenden Bot-PR rot machen, also genau die Spur, auf der der
+    Bibliothekslauf fährt. Und das Repo hat diese Klasse schon einmal bezahlt:
+    `scripts/smc_atomic_write.py` trägt seinen pandas-Import unter
+    TYPE_CHECKING, weil ein Cron ohne pandas beim Import abstürzte.
+    """
+    third_party = third_party_import_chain(
+        "scripts.check_customer_surface_vocabulary"
+    )
+    assert not third_party, (
+        "die Importkette des Oberflächen-Wächters hat stdlib+repo verlassen: "
+        + ", ".join(f"{mod} (importiert von {by})" for mod, by in sorted(third_party.items()))
+        + ". Die Bot-Spur installiert nichts — entweder den Import unter "
+        "TYPE_CHECKING oder in eine Funktion ziehen, oder der Spur eine "
+        "Abhängigkeitsinstallation geben."
+    )
+
+
+def test_the_guard_really_runs_on_the_lane_it_was_built_for() -> None:
+    """Ohne `run_pine_guard` im `if:` ist die ganze Übung wirkungslos.
+
+    Der Schritt existiert genau deshalb, weil `tests/…_vocabulary.py` nur bei
+    `run_heavy=true` läuft — also nie auf der Spur, auf der der Refresh fährt.
+    Stünde hier eines Tages nur noch `run_heavy`, wäre die Lücke zurück und
+    nichts würde es melden: der Schritt bliebe grün, weil er gar nicht liefe.
+    Dieselbe Zusicherung hält `test_check_r1_attested_sources.py` für den
+    R1-Wächter.
+    """
+    conditions = step_conditions()
+    assert GUARD_STEP in conditions, (
+        f"der Schritt {GUARD_STEP!r} steht nicht mehr in smc-fast-pr-gates.yml — "
+        "die Bot-Spur prüft die Kundenoberflächen dann wieder gar nicht"
+    )
+    assert "run_pine_guard" in conditions[GUARD_STEP], (
+        f"{GUARD_STEP!r} läuft nicht mehr auf der pine-Spur ({conditions[GUARD_STEP]!r}). "
+        "Das ist exakt die Lücke, durch die #4646 und #4665 unbeobachtet mergten."
+    )
+    for installer in (
+        "Set up pinned Python (GitHub-hosted)",
+        "Resolve Python 3.12 interpreter",
+        "Install dependencies",
+    ):
+        assert "run_pine_guard" not in conditions[installer], (
+            f"{installer!r} läuft jetzt auch auf der pine-Spur. Damit ist die "
+            "Stdlib-Bedingung oben nicht mehr tragend — entweder jenen Test "
+            "mit dieser Änderung entfernen oder diesen."
+        )
 
 
 def test_every_surface_is_covered_by_both_bounds() -> None:

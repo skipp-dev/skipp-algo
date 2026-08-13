@@ -40,10 +40,12 @@ written: the file that supposedly owned it imports it from here.)
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 import yaml
@@ -442,3 +444,86 @@ def evaluate_condition(
         "only partly evaluated"
     )
     return verdict
+
+
+# --- the "installs nothing" half --------------------------------------------
+#
+# The pine-only lane skips every Python setup step, so a guard it shells must
+# import stdlib and repo-local modules only. `test_check_r1_attested_sources.py`
+# has enforced that for the R1 guard since 2026-08-04. On 2026-08-13 #4668 put
+# a SECOND guard on the same lane (scripts/check_customer_surface_vocabulary.py)
+# with no such test, so the walker is lifted here rather than copied -- same
+# reasoning as evaluate_condition above.
+
+
+def repo_module_path(dotted: str) -> Path | None:
+    """The file a dotted name resolves to inside this repo, or None."""
+    candidates = (
+        ROOT / f"{dotted.replace('.', '/')}.py",
+        ROOT / dotted.replace(".", "/") / "__init__.py",
+    )
+    return next((c for c in candidates if c.exists()), None)
+
+
+def module_level_imports(path: Path) -> set[str]:
+    """Imports that execute when the module is imported.
+
+    Excludes two kinds that cannot break a bare interpreter: everything inside
+    ``if TYPE_CHECKING:`` (deferred to strings by ``from __future__ import
+    annotations``) and everything inside a function or class body (only paid if
+    that code runs). ``try:`` blocks ARE descended into -- a module-level
+    ``try: import x`` still executes.
+    """
+    imported: set[str] = set()
+
+    def visit(body: list[ast.stmt]) -> None:
+        for node in body:
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                # `level > 0` is a relative import: repo-local by construction.
+                if node.module and node.level == 0:
+                    imported.add(node.module)
+            elif isinstance(node, ast.If):
+                test = node.test
+                name = getattr(test, "id", None) or getattr(test, "attr", None)
+                if name != "TYPE_CHECKING":
+                    visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, ast.Try):
+                visit(node.body)
+                visit(node.orelse)
+                visit(node.finalbody)
+                for handler in node.handlers:
+                    visit(handler.body)
+
+    visit(ast.parse(path.read_text(encoding="utf-8")).body)
+    return imported
+
+
+def third_party_import_chain(entry: str) -> dict[str, str]:
+    """Every non-stdlib, non-repo module reachable at import time from ``entry``.
+
+    Empty means the bare-interpreter lane can run it. The mapping is
+    ``imported module -> the repo module that imports it`` so a failure names
+    the edge to fix, not just the offender.
+    """
+    pending = [entry]
+    seen: set[str] = set()
+    third_party: dict[str, str] = {}
+
+    while pending:
+        dotted = pending.pop()
+        if dotted in seen:
+            continue
+        seen.add(dotted)
+        path = repo_module_path(dotted)
+        if path is None:
+            continue
+        for imported in module_level_imports(path):
+            if repo_module_path(imported) is not None:
+                pending.append(imported)
+            elif imported.split(".")[0] not in sys.stdlib_module_names:
+                third_party[imported] = dotted
+
+    return third_party
