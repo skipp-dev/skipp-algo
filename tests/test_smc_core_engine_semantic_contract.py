@@ -336,7 +336,7 @@ def test_support_code_surface_stays_runtime_owned() -> None:
 
     assert "import preuss_steffen/smc_bus_private/3 as bp" in core_source
     assert "import preuss_steffen/smc_context_resolvers/3 as cr" in core_source
-    assert "import preuss_steffen/smc_engine_private/2 as eng" in core_source
+    assert "import preuss_steffen/smc_engine_private/3 as eng" in core_source
     assert "bp.resolve_bus_ready_blocker_code(" not in core_source
     assert "bp.resolve_bus_strict_blocker_code(" not in core_source
     assert "cr.resolve_bus_ltf_delta_state(" in core_source

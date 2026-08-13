@@ -16,7 +16,7 @@ import preuss_steffen/smc_bus_private/3 as bp
 import preuss_steffen/smc_observability_private/4 as obv
 import preuss_steffen/smc_context_resolvers/3 as cr
 import preuss_steffen/smc_profile_engine/3 as pe
-import preuss_steffen/smc_engine_private/2 as eng
+import preuss_steffen/smc_engine_private/3 as eng
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.

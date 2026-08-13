@@ -41,7 +41,7 @@
 indicator("SMC Breakout Overlay", overlay = true,
      max_lines_count = 100, max_labels_count = 200, max_boxes_count = 500, max_bars_back = 500)
 
-import preuss_steffen/smc_engine_private/2 as eng
+import preuss_steffen/smc_engine_private/3 as eng
 
 // ── Inputs ──────────────────────────────────────────────────────
 // Note: input.*() and group-name literals are evaluated once and are const by
