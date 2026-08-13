@@ -23,8 +23,9 @@ Ein `smc-library-refresh`-Lauf hält die Gruppe `tradingview-session` rund
 
 **Warum die Gates keine Sitzung brauchen** — zwei unabhängige Belege:
 
-1. `Run pre-publish strict release gates` läuft **vor** `Write TradingView storage
-   state`. Zu dem Zeitpunkt existiert im Lauf keine TV-Anmeldung.
+1. `Run pre-publish strict release gates` läuft **vor**
+   `Write TradingView storage state`. Zu dem Zeitpunkt existiert im Lauf keine
+   TV-Anmeldung.
 2. In `scripts/run_smc_release_gates.py` sind alle 16 TradingView-Vorkommen
    Fehlercode-Klassifikation eines fertigen JSON-Berichts. Kein Playwright, kein
    Browser, kein Netzaufruf. `verify_structure_artifact_availability.py` erwähnt
@@ -32,8 +33,9 @@ Ein `smc-library-refresh`-Lauf hält die Gruppe `tradingview-session` rund
 
 **Woher die 59 Minuten kommen:** Zwei Tore werten das Kreuzprodukt
 Symbole × Zeitrahmen sequenziell aus — 12 × 7 = 84 Paare je Tor, 168 gesamt.
-Lokal gemessen: 922 s für das ganze Skript, Torbilanz `reference_bundle ok
-Paare=84`, `measurement_lane warn Paare=84`. In CI 59 min, also ~21 s pro Paar
+Lokal gemessen: 922 s für das ganze Skript, Torbilanz
+`reference_bundle ok Paare=84` und `measurement_lane warn Paare=84`.
+In CI 59 min, also ~21 s pro Paar
 gegen ~5,5 s lokal (Runner-Faktor ~4). Der Verfügbarkeits-Prüfer im selben
 Schritt braucht **1 Sekunde** und ist nicht der Kostenpunkt.
 
@@ -148,8 +150,11 @@ Installation — die 5 Minuten Setup zählen mit. Das ist eingerechnet.
 
 ## Prüfregeln für die Umsetzung
 
-- Workflow-Änderungen wählt der Ledger-Guard **nicht** aus: `pytest tests/ -k
-  workflow` vollständig fahren, sonst ist die Prüfung vakuum.
+- Workflow-Änderungen wählt der Ledger-Guard **nicht** aus:
+  `pytest tests/ -k workflow` vollständig fahren, sonst ist die Prüfung vakuum.
+  (Und `-k workflow` ist selbst eine Auswahl: Dateien ohne „workflow" im Namen
+  — etwa `test_tradingview_session_concurrency.py` — fallen heraus. Erst der
+  volle Ledger-Guard hat sie erwischt.)
 - Jeder Schritt im Publisher hängt heute an `diff.changed` bzw.
   `publish_gate.publish_allowed`. Beim Umzug müssen diese Bedingungen erhalten
   bleiben, nur aus der Handoff-Datei gespeist — ein vergessenes `if` würde

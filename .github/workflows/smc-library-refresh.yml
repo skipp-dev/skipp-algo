@@ -1123,12 +1123,10 @@ jobs:
             elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Breaking-change governance | ✅ compatible |"
               if [ "${GIT_REF}" = "refs/heads/main" ]; then
-                echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-                echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-                echo "| TradingView post-release validation | ${{ steps.tv_post_release.outcome == 'success' && '✅ passed' || steps.tv_post_release.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-                echo "| Post-release strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-                echo "| Commit | ${{ steps.commit_push.outcome == 'success' && '✅' || steps.commit_push.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-                echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || steps.alerts.outcome == 'skipped' && '⏭️ skipped' || '⚠️ error (non-blocking)' }} |"
+                # 2026-08-13: Die Veroeffentlichungsphase laeuft in smc-library-publish
+                # und ist hier noch nicht geschehen — eine Zeile darueber waere zum
+                # Zeitpunkt dieser Zusammenfassung eine Behauptung, keine Messung.
+                echo "| Veroeffentlichung | siehe Lauf von smc-library-publish |"
               else
                 echo "| TradingView preflight | ⏭️ skipped (non-main ref) |"
                 echo "| Publish | ⏭️ skipped (non-main ref) |"
@@ -1229,13 +1227,15 @@ jobs:
           fi
 
           GATE="${{ steps.gates.outcome }}"
+          # Publish/Preflight/Commit/Alerts stehen hier nicht mehr: sie
+          # geschehen im nachgelagerten smc-library-publish.
+          PREFLIGHT="not-in-this-workflow"
+          PUBLISH="not-in-this-workflow"
+          POST_RELEASE="not-in-this-workflow"
+          COMMIT_PUSH="not-in-this-workflow"
+          ALERTS="not-in-this-workflow"
           CHANGED="${{ steps.diff.outputs.changed }}"
           BREAKING="${{ steps.breaking.outputs.breaking }}"
-          PREFLIGHT="${{ steps.tv_preflight.outcome }}"
-          PUBLISH="${{ steps.publish.outcome }}"
-          POST_RELEASE="${{ steps.tv_post_release.outcome }}"
-          COMMIT_PUSH="${{ steps.commit_push.outcome }}"
-          ALERTS="${{ steps.alerts.outcome }}"
           ALERT_COUNT="${PROVIDER_DOMAIN_ALERT_COUNT:-0}"
           ALERT_INFO="${PROVIDER_DOMAIN_INFO_COUNT:-0}"
           ALERT_WARN="${PROVIDER_DOMAIN_WARN_COUNT:-0}"
@@ -1337,9 +1337,6 @@ jobs:
         env:
           OUT_GATES: ${{ steps.gates.outcome }}
           OUT_PRE_RELEASE_REFRESH: ${{ steps.pre_release_refresh.outcome }}
-          OUT_TV_POST_RELEASE_RAW: ${{ steps.tv_post_release_raw.outcome }}
-          OUT_TV_POST_RELEASE: ${{ steps.tv_post_release.outcome }}
-          OUT_ALERTS: ${{ steps.alerts.outcome }}
           OUT_NOTIFY_BREAKING: ${{ steps.notify_breaking.outcome }}
           OUT_NOTIFY_END: ${{ steps.notify_end.outcome }}
           RUN_ID: ${{ github.run_id }}
