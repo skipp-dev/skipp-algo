@@ -247,6 +247,61 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # Every checkout of this workflow is a SNAPSHOT, not just the proposal
+      # branch below. GitHub resolves the ref when the run is CREATED, but the
+      # run only reaches the front of the one-slot TradingView queue much
+      # later, and the library moves several times a day. The rollout tool then
+      # compares this stale manifest against live TradingView and refuses:
+      # "Library publish drift: the manifest says smc_micro_profiles_generated
+      # is published at version 227, but TradingView lists 230."
+      #
+      # That refusal is a QUEUE ARTIFACT, not a real drift — and it is
+      # self-sustaining: a refused save uploads no binding snapshot, so
+      # tv-post-mutation-verify reads executionMode "unknown", waits 15
+      # minutes and dispatches another save, which waits even longer and is
+      # therefore even staler. Measured 2026-08-13: 22 runs deep, no
+      # successful save since 02:59Z, ten dispatches inside twelve seconds.
+      #
+      # The reattest path already solved exactly this on 2026-08-06 (see the
+      # rebuild step below) — it was simply never generalised to the ordinary
+      # saves that hit the identical staleness. Fast-forwarding is only safe
+      # when this checkout is on main's line, so that is what decides it:
+      # an ancestor of current main fast-forwards, anything else (a proposal
+      # branch, a PR branch) is left exactly as checked out.
+      - name: Fast-forward to current main before measuring
+        if: ${{ github.event.inputs.reattest != 'true' }}
+        env:
+          # persist-credentials:false above leaves `origin` without
+          # credentials, so the fetch goes through an explicit token URL —
+          # the same seam the rebuild step below already uses.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # FF_REMOTE is the same test seam REATTEST_REMOTE is below: unset in
+          # CI, set by the contract test so the fragment can run end to end
+          # against a real local repository instead of being only read.
+          remote_url="${FF_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
+          # NOT --depth=1. The checkout above is shallow, and a shallow fetch
+          # leaves `merge-base --is-ancestor` with no history to answer from:
+          # it then reports "not on main's line" for a plain main checkout and
+          # the fast-forward silently never happens — the exact defect this
+          # step exists to close, reported as green. Caught by executing the
+          # fragment, not by reading it.
+          git fetch --unshallow "${remote_url}" main 2>/dev/null \
+            || git fetch "${remote_url}" main
+          before="$(git rev-parse HEAD)"
+          target="$(git rev-parse FETCH_HEAD)"
+          if [ "${before}" = "${target}" ]; then
+            echo "::notice::checkout is already current main (${before})"
+            exit 0
+          fi
+          if ! git merge-base --is-ancestor "${before}" "${target}" 2>/dev/null; then
+            echo "::notice::checkout ${before} is not on main's line — leaving it untouched"
+            exit 0
+          fi
+          git reset --hard "${target}"
+          echo "::notice::fast-forwarded ${before} -> ${target} so the manifest matches what TradingView lists now"
+
       # The proposal branch is a SNAPSHOT. The proposer builds it at 12:07Z
       # from main's manifest, but this measuring run may only reach the front
       # of the one-slot TradingView queue hours later, and the library moves
