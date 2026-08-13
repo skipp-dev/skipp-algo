@@ -2100,6 +2100,74 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
                     f'live_overlay_railway_service_network_tx_gb{{service="{service_name}",service_id="{service_id}"}} '
                     f"{_prom_numeric_value(tx_gb)}"
                 )
+
+    # --- Railway native volume backups (customer plane) ---
+    # The licence database of the hosted customer plane lives on a Railway
+    # volume. Railway can back that volume up on a schedule and restore it, but
+    # the schedule was off and nothing said so. These gauges make both the
+    # schedule and its output observable from outside the plane being backed up
+    # — deliberately not from the worker itself, which is down in exactly the
+    # incident where the answer matters.
+    backup_snapshot = railway_metrics.volume_backup_snapshot()
+    backup_enabled = bool(backup_snapshot.get("enabled"))
+    backup_configured = bool(backup_snapshot.get("configured", backup_enabled))
+    backup_error = backup_snapshot.get("error")
+    _append_bridge_metrics(
+        lines,
+        bridge="railway_volume_backups",
+        enabled=backup_enabled,
+        configured=backup_configured,
+        scrape_success=bool(backup_snapshot.get("ok")),
+        last_success_age_seconds=_bridge_last_success_age(
+            _prom_numeric_value(backup_snapshot.get("last_success_fetched_at_unix") or 0.0),
+            enabled=backup_enabled,
+            configured=backup_configured,
+            startup_epoch=startup_epoch,
+        ),
+        scrape_duration_seconds=backup_snapshot.get("scrape_duration_seconds"),
+        error_code=str(backup_error)[:200] if backup_error else None,
+    )
+
+    volumes = backup_snapshot.get("volumes") or []
+    if volumes:
+        now_epoch = time.time()
+        lines.append("# TYPE live_overlay_railway_volume_backup_max_age_seconds gauge")
+        lines.append(
+            "live_overlay_railway_volume_backup_max_age_seconds "
+            f"{_prom_numeric_value(config.railway_volume_backup_max_age_secs())}"
+        )
+        lines.append("# TYPE live_overlay_railway_volume_backup_schedule_count gauge")
+        lines.append("# TYPE live_overlay_railway_volume_backup_count gauge")
+        lines.append("# TYPE live_overlay_railway_volume_backup_age_known gauge")
+        lines.append("# TYPE live_overlay_railway_volume_backup_age_seconds gauge")
+        lines.append("# TYPE live_overlay_railway_volume_backup_retention_seconds gauge")
+        for volume in volumes:
+            label = _escape_label_value(str(volume.get("name", "unknown")))
+            newest = volume.get("newest_created_at_unix")
+            # Unknown age is reported as a separate flag, never as age 0: a
+            # volume that was never backed up must not read younger than one
+            # backed up an hour ago.
+            age_known = 1.0 if isinstance(newest, (int, float)) and newest > 0 else 0.0
+            age_seconds = max(0.0, now_epoch - float(newest)) if age_known else 0.0
+            lines.append(
+                f'live_overlay_railway_volume_backup_schedule_count{{volume="{label}"}} '
+                f"{_prom_numeric_value(volume.get('schedule_count'))}"
+            )
+            lines.append(
+                f'live_overlay_railway_volume_backup_count{{volume="{label}"}} '
+                f"{_prom_numeric_value(volume.get('backup_count'))}"
+            )
+            lines.append(f'live_overlay_railway_volume_backup_age_known{{volume="{label}"}} {age_known}')
+            lines.append(
+                f'live_overlay_railway_volume_backup_age_seconds{{volume="{label}"}} {age_seconds:.1f}'
+            )
+            retention = volume.get("retention_seconds")
+            if retention is not None:
+                lines.append(
+                    f'live_overlay_railway_volume_backup_retention_seconds{{volume="{label}"}} '
+                    f"{_prom_numeric_value(retention)}"
+                )
+
     # ----- Evidence-freshness (ADR-0023 chain output age) ------------------
     # Serves the freshness of the evidence chain that stayed silently frozen
     # in 2026-06/07: magnitude ledger, data/phase-a-audit branch, paper-fills

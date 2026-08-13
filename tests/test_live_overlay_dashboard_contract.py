@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests._guard_corpus import live_overlay_bridge_names
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DASHBOARD_JSON = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
 _ALERT_RULES_YAML = _REPO_ROOT / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
@@ -809,16 +811,22 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
         "last_success_age_seconds",
         "last_scrape_duration_seconds",
     )
-    assert expr.startswith("18 - (")
+    # 2026-08-13: bridges and the expected-series count are derived from
+    # metrics.py. Both were hand-written here, so a newly added bridge left the
+    # panel counting the old number of series and this test still passed.
+    bridges = live_overlay_bridge_names()
+    assert expr.startswith(f"{len(bridges) * len(families)} - (")
     assert "group by (__name__, bridge)" in expr
     assert (
         'live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)'
         in expr
     )
     assert 'job=~"$job"' in expr
-    assert 'bridge=~"uptimerobot|github_workflow|railway_metrics"' in expr
-    for bridge in ("uptimerobot", "github_workflow", "railway_metrics"):
-        assert bridge in expr, f"missing bridge {bridge} in {expr}"
+    selected = re.search(r'bridge=~"([^"]+)"', expr)
+    assert selected, f"no bridge selector in {expr}"
+    assert set(selected.group(1).split("|")) == set(bridges), (
+        f"panel selects {selected.group(1)} but the daemon exports {bridges}"
+    )
     for family in families:
         assert family in expr, f"missing family {family} in {expr}"
     assert "sum(absent(live_overlay_bridge_" not in expr
@@ -828,7 +836,7 @@ def test_dashboard_bridge_metrics_present_counts_generic_contracts() -> None:
     for mapping in mappings:
         options.update(mapping.get("options", {}))
     assert options["0"]["text"] == "PRESENT"
-    assert options["18"]["text"] == "ALL MISSING"
+    assert options[str(len(bridges) * len(families))]["text"] == "ALL MISSING"
     assert "15" not in options
 
 

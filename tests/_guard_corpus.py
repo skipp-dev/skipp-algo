@@ -245,3 +245,45 @@ def iter_production_py_files(
             f"that is not the repo."
         )
     return files
+
+
+MIN_EXPECTED_BRIDGES = 3
+
+
+def live_overlay_bridge_names(*, root: Path | None = None) -> tuple[str, ...]:
+    """Every bridge name the daemon actually exports, read out of ``metrics.py``.
+
+    The alert-rule contract and the dashboard's bridge panel both have to cover
+    *all* bridges. Both used to carry a hand-written tuple of three names, so a
+    fourth bridge would have shipped uncovered by either — and the tests would
+    still have passed, because they only ever asserted about the three names
+    they themselves listed. Deriving the list from the exporter turns that into
+    a failing test the day a bridge is added.
+
+    Raises:
+        AssertionError: if fewer than :data:`MIN_EXPECTED_BRIDGES` are found —
+            an empty or collapsed result would make every caller vacuous.
+    """
+    base = root or _ROOT
+    tree = parse_module(base / "services" / "live_overlay_daemon" / "metrics.py")
+    names: set[str] = set()
+    if tree is not None:
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            called = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            if called != "_append_bridge_metrics":
+                continue
+            for keyword in node.keywords:
+                if keyword.arg == "bridge" and isinstance(keyword.value, ast.Constant):
+                    value = keyword.value.value
+                    if isinstance(value, str) and value:
+                        names.add(value)
+    if len(names) < MIN_EXPECTED_BRIDGES:
+        raise AssertionError(
+            f"bridge inventory collapsed: found {sorted(names)} in metrics.py, "
+            f"expected >= {MIN_EXPECTED_BRIDGES}. Callers would otherwise assert "
+            f"coverage over almost nothing and report green."
+        )
+    return tuple(sorted(names))

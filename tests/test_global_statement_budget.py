@@ -343,8 +343,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # / _failed_snapshot shifted both globals by four more (236->240, 274->278).
         # 2026-07-07 str(id) sort-key rationale comment in _build_services shifted
         # both globals by three more (240->243, 278->281).
-        ("services/live_overlay_daemon/railway_metrics.py", 245, ("_CACHE", "_CACHE_EXPIRES_AT")),  # +2 (2026-07-09): snapshot() docstring truth-fix
-        ("services/live_overlay_daemon/railway_metrics.py", 290, ("_CACHE", "_CACHE_EXPIRES_AT")),  # 2026-07-22 failure-backoff cache write shifted site: 283->290
+        ("services/live_overlay_daemon/railway_metrics.py", 246, ("_CACHE", "_CACHE_EXPIRES_AT")),  # 2026-08-13 (volume-backup bridge, +1 import): 245->246
+        ("services/live_overlay_daemon/railway_metrics.py", 291, ("_CACHE", "_CACHE_EXPIRES_AT")),  # 2026-08-13 (volume-backup bridge, +1 import): 290->291
+        # 2026-08-13: the volume-backup half of the same bridge, deliberately a
+        # SECOND cache rather than a shared one — the two halves have different
+        # TTLs (container metrics 60s, backups 600s) and a failure in one must
+        # not evict the other's last good data.
+        ("services/live_overlay_daemon/railway_metrics.py", 433, ("_BACKUP_CACHE", "_BACKUP_CACHE_EXPIRES_AT")),
+        ("services/live_overlay_daemon/railway_metrics.py", 476, ("_BACKUP_CACHE", "_BACKUP_CACHE_EXPIRES_AT")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted

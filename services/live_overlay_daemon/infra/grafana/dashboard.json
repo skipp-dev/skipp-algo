@@ -4848,7 +4848,7 @@
       },
       "targets": [
         {
-          "expr": "18 - (\n  count(\n    group by (__name__, bridge) (\n      {__name__=~\"live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)\",job=~\"$job\",bridge=~\"uptimerobot|github_workflow|railway_metrics\"}\n    )\n  )\n  or on() vector(0)\n)",
+          "expr": "24 - (\n  count(\n    group by (__name__, bridge) (\n      {__name__=~\"live_overlay_bridge_(enabled|configured|scrape_success|error_info|last_success_age_seconds|last_scrape_duration_seconds)\",job=~\"$job\",bridge=~\"uptimerobot|github_workflow|railway_metrics|railway_volume_backups\"}\n    )\n  )\n  or on() vector(0)\n)",
           "legendFormat": "bridge_contracts_missing",
           "datasource": {
             "type": "prometheus",
@@ -4883,7 +4883,7 @@
                   "text": "1 MISSING",
                   "color": "dark-yellow"
                 },
-                "18": {
+                "24": {
                   "text": "ALL MISSING",
                   "color": "dark-red"
                 }
@@ -9898,6 +9898,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 68,
+  "version": 69,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }

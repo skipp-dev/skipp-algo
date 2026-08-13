@@ -1046,3 +1046,65 @@ def railway_metrics_sample_secs() -> int:
 def railway_metrics_poll_ttl_secs() -> int:
     """Cache TTL for Railway metrics snapshot reuse."""
     return _clamped_int("RAILWAY_METRICS_POLL_TTL_SECS", 60, 10, 600)
+
+
+# ---------------------------------------------------------------------------
+# Railway volume-backup bridge
+# ---------------------------------------------------------------------------
+
+
+def railway_volume_backup_instances() -> dict[str, str]:
+    """Volume instances to watch, as ``{human_name: volume_instance_id}``.
+
+    Format mirrors :func:`railway_service_names` but in the readable direction,
+    because the *name* is what ends up on the Prometheus label::
+
+        RAILWAY_VOLUME_BACKUP_INSTANCES="lab-worker-volume=2ffcaeb7-...,other=..."
+
+    The list is also the opt-in: an empty value disables the bridge. There is no
+    second flag, so there is no way to "enable" it into a state where it watches
+    nothing and still reports green.
+    """
+    raw = _optional_str("RAILWAY_VOLUME_BACKUP_INSTANCES", "")
+    if not raw:
+        return {}
+    mapping: dict[str, str] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        name, _sep, instance_id = pair.partition("=")
+        name = name.strip()
+        instance_id = instance_id.strip()
+        if name and instance_id:
+            mapping[name] = instance_id
+    return mapping
+
+
+def railway_volume_backup_enabled() -> bool:
+    """True iff at least one volume instance is configured and a token exists."""
+    return bool(railway_api_token() and railway_volume_backup_instances())
+
+
+def railway_volume_backup_timeout_secs() -> int:
+    """HTTP timeout for the volume-backup GraphQL requests."""
+    return _clamped_int("RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS", 10, 1, 60)
+
+
+def railway_volume_backup_poll_ttl_secs() -> int:
+    """Cache TTL for the volume-backup snapshot.
+
+    Backups appear at most a few times a day, so the default is far longer than
+    the container-metrics TTL: polling faster buys nothing and spends Railway
+    API budget on every Prometheus scrape.
+    """
+    return _clamped_int("RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS", 600, 30, 3600)
+
+
+def railway_volume_backup_max_age_secs() -> int:
+    """Age at which a newest backup counts as stale (exported as a gauge).
+
+    Exported rather than hard-coded in the alert rule so the threshold the
+    daemon believes in and the one Grafana compares against cannot drift apart.
+    """
+    return _clamped_int("RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS", 129_600, 3600, 1_209_600)

@@ -762,6 +762,11 @@ _DYNAMIC_EMITTED_FAMILIES: tuple[tuple[str, str], ...] = (
     (r"live_overlay_hotspot_[a-z0-9_]+", "metrics.py request-hotspot f-string"),
     # metrics.py railway block: per-service names, bridge disabled in test env.
     (r"live_overlay_railway_service_[a-z0-9_]+", "metrics.py railway per-service"),
+    # metrics.py volume-backup block: per-volume names, emitted only once the
+    # bridge has volumes (RAILWAY_VOLUME_BACKUP_INSTANCES), which the hermetic
+    # render does not set. Family-level presence is guarded by
+    # lo-bridge-contract-missing for bridge="railway_volume_backups".
+    (r"live_overlay_railway_volume_backup_[a-z0-9_]+", "metrics.py volume-backup per-volume"),
     # metrics.py uptimerobot block: per-monitor names, bridge disabled here.
     (r"live_overlay_uptimerobot_[a-z0-9_]+", "metrics.py uptimerobot per-monitor"),
     # metrics.py workflow block: per-workflow labels exist only with the bridge

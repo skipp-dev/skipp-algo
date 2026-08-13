@@ -189,7 +189,9 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     ("services/live_overlay_daemon/uptimerobot_bridge.py", 84),
     # 2026-06-24: Railway GraphQL API for container metrics polling.
     # 2026-07-07: `import math` for the non-finite guard shifted this 74 -> 75.
-    ("services/live_overlay_daemon/railway_metrics.py", 75),
+    # 2026-08-13 (volume-backup bridge, +1 import): 75->76. Still ONE POST site
+    # for two queries — the volume-backup query reuses _post_graphql.
+    ("services/live_overlay_daemon/railway_metrics.py", 76),
     # 2026-07-21 (feat/pre-a0-pilot-sidecar): PRE-A0 pilot tailer — Slack
     # incoming-webhook POST, gated by RT_PRE_A0_PILOT=1 + https env. Mirrors
     # the urlopen pins (pin_registry.toml + http_client_discipline L54).

@@ -89,7 +89,14 @@ COLOR_WARN = "dark-yellow"
 COLOR_DEGRADED = "dark-orange"
 COLOR_NEUTRAL = "gray"
 
-BRIDGE_CONTRACT_BRIDGES = ("uptimerobot", "github_workflow", "railway_metrics")
+# Kept in step with metrics._append_bridge_metrics call sites; the dashboard
+# contract test derives the same list from there and fails if one is missing.
+BRIDGE_CONTRACT_BRIDGES = (
+    "uptimerobot",
+    "github_workflow",
+    "railway_metrics",
+    "railway_volume_backups",
+)
 BRIDGE_CONTRACT_FAMILIES = (
     "live_overlay_bridge_enabled",
     "live_overlay_bridge_configured",
