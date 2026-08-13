@@ -17,7 +17,7 @@
 // and build_context_frame() composes all six domains without running a second
 // structure detector for the dependent ZoneFrame.
 indicator("SMC Context Engine R3 Fixture TEST ONLY", overlay = false)
-// Canonical source SHA-256: ccb472fca7fcbd352ed103180c6393b46d5b1bdc5735f9056cbc097e7dffef51
+// Canonical source SHA-256: e5b8359bbef94ee000bfee9de6dedd92685ac0471bcbc583855d8920f3e66f16
 
 // Pine requires every library referenced by a *used* type's fields to be imported
 // (CE10293), and those libraries must come before the engine that pulls them into
@@ -34,7 +34,7 @@ import preuss_steffen/smc_core_types/5 as ct
 import preuss_steffen/smc_utils/4 as u
 import preuss_steffen/smc_draw/3 as d
 import preuss_steffen/smc_profile_engine/3 as pe
-import preuss_steffen/smc_engine_private/2 as eng
+import preuss_steffen/smc_engine_private/3 as eng
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rule-layer thresholds.
