@@ -22,7 +22,6 @@ moment the repo is repaired — the vacuity #4267 spent a PR removing.
 
 from __future__ import annotations
 
-import ast
 import json
 import os
 import subprocess
@@ -36,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 from scripts.check_r1_attested_sources import attested_sources, find_offenders
 from scripts.smc_r1_rollout_contract import build_rollout_contract
-from tests._fast_gates_gate import run_gate
+from tests._fast_gates_gate import run_gate, third_party_import_chain
 
 WORKFLOW = ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
 
@@ -319,50 +318,6 @@ def test_the_gate_leaves_the_pine_flag_down_without_pine(tmp_path: Path) -> None
 # --- the pine lane runs this guard with nothing installed (2026-08-04) --------
 
 
-def _module_level_imports(path: Path) -> set[str]:
-    """Imports that execute when the module is imported.
-
-    Excludes two kinds that cannot break a bare interpreter: everything inside
-    ``if TYPE_CHECKING:`` (deferred to strings by ``from __future__ import
-    annotations``) and everything inside a function or class body (only paid if
-    that code runs). ``try:`` blocks ARE descended into — a module-level
-    ``try: import x`` still executes.
-    """
-    imported: set[str] = set()
-
-    def visit(body: list[ast.stmt]) -> None:
-        for node in body:
-            if isinstance(node, ast.Import):
-                imported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                # `level > 0` is a relative import: repo-local by construction.
-                if node.module and node.level == 0:
-                    imported.add(node.module)
-            elif isinstance(node, ast.If):
-                test = node.test
-                name = getattr(test, "id", None) or getattr(test, "attr", None)
-                if name != "TYPE_CHECKING":
-                    visit(node.body)
-                visit(node.orelse)
-            elif isinstance(node, ast.Try):
-                visit(node.body)
-                visit(node.orelse)
-                visit(node.finalbody)
-                for handler in node.handlers:
-                    visit(handler.body)
-
-    visit(ast.parse(path.read_text(encoding="utf-8")).body)
-    return imported
-
-
-def _repo_module_path(dotted: str) -> Path | None:
-    candidates = (
-        ROOT / f"{dotted.replace('.', '/')}.py",
-        ROOT / dotted.replace(".", "/") / "__init__.py",
-    )
-    return next((c for c in candidates if c.exists()), None)
-
-
 def test_the_guard_import_chain_needs_nothing_installed() -> None:
     """The pine-only lane runs this guard with no dependencies installed.
 
@@ -381,23 +336,7 @@ def test_the_guard_import_chain_needs_nothing_installed() -> None:
     it would fail every pine-only bot PR, which is the lane the library-refresh
     bot depends on.
     """
-    pending = ["scripts.check_r1_attested_sources"]
-    seen: set[str] = set()
-    third_party: dict[str, str] = {}
-
-    while pending:
-        dotted = pending.pop()
-        if dotted in seen:
-            continue
-        seen.add(dotted)
-        path = _repo_module_path(dotted)
-        if path is None:
-            continue
-        for imported in _module_level_imports(path):
-            if _repo_module_path(imported) is not None:
-                pending.append(imported)
-            elif imported.split(".")[0] not in sys.stdlib_module_names:
-                third_party[imported] = dotted
+    third_party = third_party_import_chain("scripts.check_r1_attested_sources")
 
     assert not third_party, (
         "the R1 guard's runtime import chain left stdlib+repo: "
