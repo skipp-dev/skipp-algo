@@ -22,7 +22,9 @@ import pytest
 
 from tests._workflow_step_shell import BASH, declares_bash_default, run_step, step_by_name
 
-WORKFLOW = "smc-library-refresh.yml"
+# 2026-08-13: Der Schritt gehoert zur Commit-Phase und ist mit ihr nach
+# smc-library-publish gezogen; der Refresh committet nicht mehr.
+WORKFLOW = "smc-library-publish.yml"
 STEP = "Commit and push changes"
 CURRENT_BRANCH = "bot/library-refresh-999-1"
 

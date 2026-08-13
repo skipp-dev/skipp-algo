@@ -28,9 +28,16 @@ def _workflow(name: str) -> str:
 def test_all_four_gate_invocations_pass_the_baseline_flag() -> None:
     deeper = _workflow("smc-deeper-integration-gates.yml")
     refresh = _workflow("smc-library-refresh.yml")
+    publish = _workflow("smc-library-publish.yml")
     release = _workflow("smc-release-gates.yml")
     assert deeper.count(FLAG_LINE) == 1, "deeper measurement lane export must pass the baseline"
-    assert refresh.count(FLAG_LINE) == 2, "pre- AND post-release gates must pass the baseline"
+    # 2026-08-13: Der Split hat die Aufrufe getrennt — das VOR-Tor blieb im
+    # Refresh, das NACH-Tor zog mit der Veroeffentlichung um. Beide muessen
+    # die Grundlinie weiterhin bekommen, deshalb einzeln gepinnt statt als
+    # Summe: eine Summe von 2 waere auch dann erfuellt, wenn ein Workflow
+    # beide traegt und der andere keinen.
+    assert refresh.count(FLAG_LINE) == 1, "pre-release gate must pass the baseline"
+    assert publish.count(FLAG_LINE) == 1, "post-release gate must pass the baseline"
     assert release.count(FLAG_LINE) == 1, "strict release gates must pass the baseline"
 
 
