@@ -13,6 +13,7 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1339,3 +1340,242 @@ def test_the_un_attestation_remedy_is_rendered_from_the_shared_constant() -> Non
     assert "NEW dated evidence artifact" in rendered
     assert "Revert the source change" in rendered
     assert "replaces a measurement with a fabrication" in rendered
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-13: the checkout is a snapshot for EVERY run, not just the proposal
+# branch. Executed, not string-matched — the reattest sibling of this step died
+# on its first production run because `origin` carries no credentials, and a
+# read-only test could never have seen that.
+# ---------------------------------------------------------------------------
+
+
+def _fast_forward_step() -> dict:
+    step = next(
+        s
+        for s in _steps()
+        if s.get("name") == "Fast-forward to current main before measuring"
+    )
+    return step
+
+
+def _fast_forward_fragment() -> str:
+    return _fast_forward_step()["run"]
+
+
+def _origin_and_clone(tmp_path: Path, *, old: int, new: int) -> Path:
+    """An origin whose main advanced from manifest `old` to `new`, plus a clone
+    parked on the OLD commit — the shape a queued run actually has."""
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    manifest = origin / "artifacts" / "tradingview"
+    manifest.mkdir(parents=True)
+    env = _sandbox_env(tmp_path)
+
+    def run(argv: list[str], *, cwd: Path) -> None:
+        subprocess.run(argv, cwd=cwd, env=env, check=True, capture_output=True)
+
+    run(["git", "init", "-q", "-b", "main"], cwd=origin)
+    run(["git", "config", "user.email", "t@t"], cwd=origin)
+    run(["git", "config", "user.name", "t"], cwd=origin)
+    target = manifest / "library_release_manifest.json"
+    target.write_text(f'{{"library": {{"publishedVersion": {old}}}}}', encoding="utf-8")
+    run(["git", "add", "-A"], cwd=origin)
+    run(["git", "commit", "-qm", "old"], cwd=origin)
+
+    work = tmp_path / "work"
+    # --depth=1 mirrors the workflow's own `fetch-depth: 1`. A full clone here
+    # would have hidden the first version of this step outright: shallow is
+    # exactly the condition under which `merge-base --is-ancestor` has nothing
+    # to answer from, and the step then skipped its own fast-forward.
+    run(["git", "clone", "-q", "--depth=1", f"file://{origin}", str(work)], cwd=tmp_path)
+    run(["git", "config", "user.email", "t@t"], cwd=work)
+    run(["git", "config", "user.name", "t"], cwd=work)
+
+    # main moves on AFTER the run was created — the library was republished.
+    target.write_text(f'{{"library": {{"publishedVersion": {new}}}}}', encoding="utf-8")
+    run(["git", "commit", "-qam", "new"], cwd=origin)
+    return work
+
+
+def _run_fast_forward(work: Path, tmp_path: Path) -> subprocess.CompletedProcess:
+    # The fragment ends in `git reset --hard`. Refusing to point it at the real
+    # checkout is cheap; discovering afterwards that it was pointed there is
+    # not.
+    assert work != _REPO_ROOT and _REPO_ROOT not in work.parents, (
+        f"the fast-forward fragment would run against the real repository ({work})"
+    )
+    return subprocess.run(
+        ["/bin/bash", "-c", _fast_forward_fragment()],
+        cwd=work,
+        env=_sandbox_env(
+            tmp_path,
+            GITHUB_REPOSITORY="skipp-dev/skipp-algo",
+            GH_TOKEN="test-token",
+            FF_REMOTE=str(tmp_path / "origin"),
+        ),
+        capture_output=True,
+        text=True,
+    )
+
+
+def _manifest_version(work: Path) -> int:
+    text = (work / "artifacts" / "tradingview" / "library_release_manifest.json").read_text(
+        encoding="utf-8"
+    )
+    return int(re.search(r'"publishedVersion":\s*(\d+)', text).group(1))
+
+
+def test_a_queued_run_measures_against_the_manifest_that_is_current_when_it_runs(
+    tmp_path: Path,
+) -> None:
+    """The 2026-08-13 stall: a run created at 16:07 carried manifest 228 while
+    TradingView already listed 230, so the rollout tool refused every save and
+    the refusal re-armed itself through tv-post-mutation-verify."""
+    work = _origin_and_clone(tmp_path, old=228, new=230)
+    assert _manifest_version(work) == 228, "precondition: the clone starts stale"
+
+    done = _run_fast_forward(work, tmp_path)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert _manifest_version(work) == 230, (
+        "the run still measures against its stale checkout; the publish-drift "
+        "refusal this step exists to remove would fire again"
+    )
+
+
+def test_a_checkout_that_is_not_on_mains_line_is_left_exactly_as_it_was(
+    tmp_path: Path,
+) -> None:
+    """A proposal or PR branch must not be silently reset onto main — the
+    reattest path rebuilds itself deliberately and would lose its own commit."""
+    work = _origin_and_clone(tmp_path, old=228, new=230)
+    # Every git call here goes through _git(..., env=...) for the same reason
+    # _origin_and_clone does: an inherited environment carries the pre-push
+    # hook's GIT_DIR/GIT_WORK_TREE, and `git checkout -b` + `git commit` then
+    # land on the real repository. Measured twice on 2026-08-13 — the second
+    # time from exactly these three lines, because the first fix reached the
+    # helpers and not the call sites.
+    env = _sandbox_env(tmp_path)
+    _git("checkout", "-qb", "bot/side", cwd=work, env=env)
+    (work / "artifacts" / "tradingview" / "library_release_manifest.json").write_text(
+        '{"library": {"publishedVersion": 111}}', encoding="utf-8"
+    )
+    _git("commit", "-qam", "side work", cwd=work, env=env)
+    head_before = _git("rev-parse", "HEAD", cwd=work, env=env)
+
+    done = _run_fast_forward(work, tmp_path)
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    head_after = _git("rev-parse", "HEAD", cwd=work, env=env)
+    assert head_after == head_before, "a side branch was reset onto main"
+    assert _manifest_version(work) == 111, "the branch's own work was discarded"
+
+
+def test_the_step_is_skipped_for_the_reattest_path_that_rebuilds_itself(
+    tmp_path: Path,
+) -> None:
+    """Two steps must never both decide what the tree is."""
+    condition = _fast_forward_step()["if"]
+    assert "reattest != 'true'" in condition, (
+        "the fast-forward must stand down where the reattest rebuild takes over"
+    )
+
+
+def test_the_fast_forward_runs_before_anything_measures_tradingview() -> None:
+    names = [s.get("name") for s in _steps()]
+    assert names.index("Fast-forward to current main before measuring") < names.index(
+        "Save or read-only verify consumers in one browser session"
+    ), "the tree must be current BEFORE the rollout tool reads the manifest"
+
+
+def test_the_helpers_cannot_commit_into_the_repository_that_runs_them(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A pre-push hook exports GIT_DIR/GIT_WORK_TREE, and those beat cwd.
+
+    Measured 2026-08-13: the first version of these helpers inherited that
+    environment, so ``git init`` re-initialised the real checkout and the
+    following ``git add -A``/``git commit`` landed a tree-wide deletion on the
+    very branch under test. The damage was invisible to a plain pytest run and
+    only appeared under the pre-push hook. This pins the fix by REPRODUCING the
+    condition against a stand-in repository.
+    """
+    stand_in = tmp_path / "stand-in"
+    stand_in.mkdir()
+    env = _sandbox_env(tmp_path)
+    for argv in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(argv, cwd=stand_in, env=env, check=True, capture_output=True)
+    (stand_in / "keep.txt").write_text("do not lose me", encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "-A"], cwd=stand_in, env=env, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "commit", "-qm", "the branch under test"],
+        cwd=stand_in,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+
+    def head_of(repo: Path) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    head_before = head_of(stand_in)
+
+    # Exactly what the pre-push hook puts into the environment.
+    monkeypatch.setenv("GIT_DIR", str(stand_in / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(stand_in))
+
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    work = _origin_and_clone(sandbox, old=228, new=230)
+    _run_fast_forward(work, sandbox)
+
+    assert head_of(stand_in) == head_before, (
+        "the helpers committed into the repository that is running them — the "
+        "2026-08-13 defect is back"
+    )
+    assert (stand_in / "keep.txt").is_file(), "the stand-in checkout was wiped"
+
+
+@pytest.fixture(autouse=True)
+def _the_repository_running_these_tests_must_not_move():
+    """No test in this module may touch the checkout it is running from.
+
+    This is a POPULATION guard, deliberately not a per-helper one. Twice on
+    2026-08-13 a git call in this file landed on the real repository, because
+    a pre-push hook exports ``GIT_DIR``/``GIT_WORK_TREE`` and those beat
+    cwd-based discovery. The first repair reached the two helpers I was looking
+    at and missed three inline calls in a test body — the same defect came
+    straight back on the next push, this time committing a branch called
+    ``bot/side`` onto the branch under test.
+
+    Checking every call site by inspection is the approach that already failed.
+    Asserting over the whole module is the one that cannot: any test that moves
+    HEAD, whichever call does it, fails here.
+    """
+    head_file = _REPO_ROOT / ".git"
+    if not head_file.exists():
+        yield
+        return
+    env = _sandbox_env(_REPO_ROOT)
+    before = _git("rev-parse", "HEAD", cwd=_REPO_ROOT, env=env)
+    yield
+    after = _git("rev-parse", "HEAD", cwd=_REPO_ROOT, env=env)
+    assert after == before, (
+        f"this test moved the repository's HEAD ({before[:9]} -> {after[:9]}). A git "
+        "call in it reached the real checkout instead of tmp_path — pass "
+        "env=_sandbox_env(...) to every subprocess call, not only to the helpers."
+    )
