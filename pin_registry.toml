@@ -385,7 +385,10 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # wrapper PR #2418 + breaking/gates capture blocks PR #2415). PR #2762
 # adds one more set+e capture in the provider-credential preflight,
 # so the frozen count is 4.
-"smc-library-refresh.yml" = 4
+# 2026-08-13: 4 -> 3, eine Stelle wanderte mit der Veroeffentlichung in
+# smc-library-publish.yml. Summe unveraendert.
+"smc-library-refresh.yml" = 3
+"smc-library-publish.yml" = 1
 # ADR-0023 Option B (Issue #2706): accumulate_events step uses `set +e` so
 # that a failed accumulation never marks the rolling-bench run failed; the
 # daily scored_family_events.json artifact is still uploaded as fallback.

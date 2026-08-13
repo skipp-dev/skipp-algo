@@ -28,7 +28,10 @@ SHARED_GROUP = "tradingview-session"
 # saved scripts or published sources.
 MUTATING: frozenset[str] = frozenset(
     {
-        "smc-library-refresh.yml",
+        # 2026-08-13: smc-library-refresh fasst TradingView nicht mehr an —
+        # die Veroeffentlichung wurde herausgeloest, damit die Sitzungssperre
+        # nicht 140 Minuten fuer 13 Minuten Browser-Arbeit gehalten wird.
+        "smc-library-publish.yml",
         "smc-overlay-library-publish.yml",
         "openprep-pine-panel-publish.yml",
         "pine-library-publish-handlibs.yml",

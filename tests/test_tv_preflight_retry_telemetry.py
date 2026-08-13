@@ -2,7 +2,8 @@
 
 Bundle B (audit follow-up from PR #2415 / #2418, issue #2422 item #3).
 
-The retry wrapper inside ``.github/workflows/smc-library-refresh.yml``
+The retry wrapper inside ``.github/workflows/smc-library-publish.yml``
+(2026-08-13 aus smc-library-refresh herausgeloest)
 gained per-attempt structured telemetry so that a post-mortem can
 distinguish a transient flake ("attempt 1 failed, attempt 2 passed")
 from a deterministic regression ("all 3 attempts failed identically =
@@ -18,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "smc-library-refresh.yml"
+WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "smc-library-publish.yml"
 
 
 @pytest.fixture(scope="module")

@@ -48,9 +48,6 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
         "refresh": {
             "id:gates",
             "id:pre_release_refresh",
-            "id:tv_post_release_raw",
-            "id:tv_post_release",
-            "id:alerts",
             "id:notify_breaking",
             "id:notify_end",
             # 2026-06-17 (W3, R4b audit): cumulative best-effort failure
@@ -59,6 +56,15 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:dl_best_effort_history",
             "id:best_effort_summary",
             "id:ul_best_effort_history",
+        },
+    },
+    # 2026-08-13: die mit der Veroeffentlichung ausgezogenen best-effort-
+    # Schritte. Summe ueber beide Dateien unveraendert.
+    "smc-library-publish.yml": {
+        "publish": {
+            "id:tv_post_release_raw",
+            "id:tv_post_release",
+            "id:alerts",
         },
     },
     # Deeper integration gates: 2 advisory probes (measurement export + E2E smoke).

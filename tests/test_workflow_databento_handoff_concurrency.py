@@ -59,6 +59,14 @@ _HANDOFF_WORKFLOWS = {
     # F-V8-C3.1-D pins is preserved, not relaxed. cancel-in-progress: false is
     # asserted below either way, and that is the half that must never move.
     "smc-library-refresh": {
+        # 2026-08-13: zurueck auf die eigene per-ref-Gruppe. #4297 zog den
+        # Workflow in die geteilte TradingView-Sitzung; seit der Herausloesung
+        # der Veroeffentlichung fasst er TradingView nicht mehr an und braucht
+        # nur noch den Schutz, den DIESES Modul beschreibt: nicht zwei
+        # Refreshes gleichzeitig. Die Sitzungssperre haelt smc-library-publish.
+        "expected_group": "smc-library-refresh-${{ github.ref }}",
+    },
+    "smc-library-publish": {
         "expected_group": SHARED_GROUP,
     },
 }

@@ -13,7 +13,7 @@ without registering them in the governance surfaces:
    ``tests/test_smc_library_refresh_workflow_sed_coverage.py`` so the
    library-refresh workflow's loop-based pin step actually targets it.
 3. Every such consumer must also appear in the ``git add`` block of
-   ``.github/workflows/smc-library-refresh.yml`` — otherwise the
+   ``.github/workflows/smc-library-publish.yml`` — otherwise the
    workflow's auto-pin sed modifies the file but the modification is
    never staged, which trips the "Unexpected tracked changes remain
    unstaged before refresh commit" guard at the same step and aborts
@@ -81,13 +81,13 @@ def _consumers_of_preuss_library() -> set[str]:
 def test_every_library_consumer_listed_in_workflow_git_add() -> None:
     """Every top-level pine that pins the preuss_steffen library must be
     on the ``git add`` line of the smc-library-refresh workflow."""
-    workflow_path = REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "smc-library-publish.yml"
     workflow_text = workflow_path.read_text(encoding="utf-8")
     consumers = _consumers_of_preuss_library()
     missing = [name for name in sorted(consumers) if name not in workflow_text]
     assert not missing, (
         "Pine consumer(s) of preuss_steffen library are missing from "
-        ".github/workflows/smc-library-refresh.yml `git add` block. "
+        ".github/workflows/smc-library-publish.yml `git add` block. "
         "The workflow's loop-based sed step will modify these files "
         "but the unstaged-changes guard will abort the refresh: "
         f"{missing}"

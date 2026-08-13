@@ -47,6 +47,8 @@ _ROUTED_WORKFLOWS = {
     "rl-research-training.yml": {"worker_jobs": {"research"}},
     "run-open-prep-daily.yml": {"worker_jobs": {"run"}},
     "smc-library-refresh.yml": {"worker_jobs": {"refresh"}},
+    # 2026-08-13: die herausgeloeste Veroeffentlichung, gleiche Routung.
+    "smc-library-publish.yml": {"worker_jobs": {"publish"}},
     "smc-measurement-benchmark.yml": {"worker_jobs": {"measurement-benchmark"}},
     "smc-measurement-benchmark-rolling.yml": {"worker_jobs": {"rolling-benchmark"}},
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},

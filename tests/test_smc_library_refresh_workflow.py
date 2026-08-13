@@ -23,11 +23,33 @@ from tests._workflow_step_shell import Stub, run_step, step_by_name
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"
+# 2026-08-13: Die Veroeffentlichung wurde herausgeloest, damit sie die
+# tradingview-session-Sperre nicht 140 Minuten lang haelt. Jede Zusicherung
+# unten zeigt weiterhin auf DIE Datei, in der ihr Schritt wirklich steht —
+# eine gemeinsame Lesung beider Dateien wuerde genau das aufgeben und einen
+# Schritt im falschen Workflow unbemerkt lassen.
+PUBLISH_WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-publish.yml"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
+
+
+def _read_pipeline() -> str:
+    """Refresh und Publisher als EIN Text, in Ausfuehrungsreihenfolge.
+
+    Nur fuer Zusicherungen, deren Gegenstand die Naht selbst ueberspannt — etwa
+    "der Vor-Bericht und der Nach-Bericht sind verschiedene Dateien" oder "die
+    Nachpruefung laeuft vor dem Commit". Solche Aussagen gelten ueber die
+    Pipeline, nicht ueber eine Datei, und der Publisher laeuft nach dem Refresh,
+    weshalb die Reihenfolge im Text der Reihenfolge in der Zeit entspricht.
+
+    NICHT als bequeme Sammellesung verwenden: Zusicherungen ueber die PLATZIERUNG
+    eines Schritts muessen weiterhin auf genau eine Datei zeigen, sonst faellt ein
+    Schritt im falschen Workflow nicht mehr auf.
+    """
+    return _read(WORKFLOW_PATH) + "\n" + _read(PUBLISH_WORKFLOW_PATH)
 
 def _step_block(workflow_text: str, step_name: str) -> str:
     start = workflow_text.index(f"      - name: {step_name}")
@@ -78,7 +100,7 @@ def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
 
 
 def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
     commit_block = _step_block(workflow_text, "Commit and push changes")
 
     assert 'for runtime_path in \\' in commit_block
@@ -134,7 +156,7 @@ def test_refresh_commit_step_uses_bot_pr_auto_merge_pattern() -> None:
     `open-prep-outcome-backfill.yml`. Pin the new mechanism so the next
     refactor doesn't silently regress us back to direct-push (which would
     fail at runtime with GH013)."""
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     # Bot/* branch naming pinned to run id + attempt for re-run safety.
     assert 'BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow_text
@@ -154,7 +176,7 @@ def test_refresh_commit_step_uses_bot_pr_auto_merge_pattern() -> None:
 
 
 def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notification() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
     assert '- name: Extract provider health signals' in workflow_text
     assert 'PROVIDER_DOMAIN_ALERT_COUNT=' in workflow_text
@@ -168,7 +190,7 @@ def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notifi
 
 
 def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
     assert '--strict-measurement-shadow' not in workflow_text
     assert '- name: Run TradingView post-release validation' in workflow_text
@@ -194,7 +216,7 @@ def test_refresh_workflow_commit_gates_on_policy_not_raw_validation_outcome() ->
     policy-aware strict release gates ONLY; a genuine blocking verdict fails
     release_gates (no continue-on-error) and turns the job red — never a
     silent skip."""
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
     commit_idx = workflow_text.index('- name: Commit and push changes')
     commit_end = workflow_text.index('- name: ', commit_idx + 10)
@@ -203,7 +225,7 @@ def test_refresh_workflow_commit_gates_on_policy_not_raw_validation_outcome() ->
     # Policy-aware gates the commit MUST keep.
     assert "steps.publish.outcome == 'success'" in commit_block
     assert "steps.release_gates.outcome == 'success'" in commit_block
-    assert "steps.publish_gate.outputs.publish_allowed == 'true'" in commit_block
+    assert "outputs.publish_allowed == 'true'" in commit_block
     # Raw/normalizer outcomes must NOT gate the commit (they fail on the
     # tolerated external_tv_drift class that release_gates deliberately allows).
     assert "steps.tv_post_release_raw.outcome == 'success'" not in commit_block
@@ -217,7 +239,7 @@ def test_refresh_workflow_commit_gates_on_policy_not_raw_validation_outcome() ->
 
 def test_refresh_workflow_restores_optional_runtime_artifacts_individually() -> None:
     """One absent optional cache path must not block every tracked restore."""
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
     commit_idx = workflow_text.index('- name: Commit and push changes')
     commit_end = workflow_text.index('- name: ', commit_idx + 10)
     commit_block = workflow_text[commit_idx:commit_end]
@@ -248,7 +270,7 @@ def test_refresh_workflow_prefers_priority_cron_runner_with_portable_python() ->
 
 
 def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     assert '- name: Run strict release gates' in workflow_text
     assert '--post-release-validation-report artifacts/ci/smc_post_release_validation_report.json' in workflow_text
@@ -256,7 +278,7 @@ def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
 
 
 def test_refresh_workflow_normalizes_soft_failed_post_release_validation() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     normalize_idx = workflow_text.index('- name: Best-effort normalize TradingView post-release validation')
     gates_idx = workflow_text.index('- name: Run strict release gates', normalize_idx)
@@ -276,7 +298,7 @@ def test_refresh_workflow_normalizes_soft_failed_post_release_validation() -> No
 
 
 def test_refresh_workflow_separates_pre_and_post_release_gate_reports() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
     assert '--output artifacts/ci/smc_pre_release_gates_report.json' in workflow_text
     assert '--output artifacts/ci/smc_post_release_gates_report.json' in workflow_text
@@ -285,7 +307,10 @@ def test_refresh_workflow_separates_pre_and_post_release_gate_reports() -> None:
 
 
 def test_refresh_workflow_uploads_ci_report_after_post_release() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    # 2026-08-13: Die Reihenfolge gilt innerhalb des Publishers. Der Refresh
+    # laedt seine eigene Evidenz frueher hoch; die Nach-Tor-Evidenz entsteht
+    # erst hier und braucht deshalb ihren eigenen Upload danach.
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     assert '- name: Upload gate evidence + library artifacts' in workflow_text
     assert 'artifacts/ci/' in workflow_text
@@ -293,9 +318,13 @@ def test_refresh_workflow_uploads_ci_report_after_post_release() -> None:
 
 
 def test_refresh_workflow_alert_step_consumes_post_release_report_even_after_failures() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
-    assert "if: always() && steps.diff.outputs.changed == 'true'" in workflow_text
+    # 2026-08-13: Der erzeugende Schritt heisst im Publisher `handoff`
+    # statt `publish_gate`/`diff` — die Entscheidung reist als Datei ueber
+    # die Workflow-Grenze. Geprueft wird deshalb die EIGENSCHAFT (welcher
+    # Wert die Bedingung traegt), nicht der Name des Schritts, der ihn setzt.
+    assert "if: always() && steps.handoff.outputs.changed == 'true'" in workflow_text
 
 
 # -- F-V8-N1: Surface blocked-publish state on breaking-change classification ---
@@ -344,11 +373,15 @@ def test_publish_gate_combines_breaking_with_operator_override() -> None:
 
 
 def test_publish_steps_consume_publish_gate_not_raw_breaking_flag() -> None:
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read_pipeline()
 
     # All publish/bump/commit gates flow through publish_gate so the
     # operator-override path can never be skipped piecemeal.
-    publish_gate_refs = workflow_text.count("steps.publish_gate.outputs.publish_allowed == 'true'")
+    # 2026-08-13: Der erzeugende Schritt heisst im Publisher `handoff`
+    # statt `publish_gate`/`diff` — die Entscheidung reist als Datei ueber
+    # die Workflow-Grenze. Geprueft wird deshalb die EIGENSCHAFT (welcher
+    # Wert die Bedingung traegt), nicht der Name des Schritts, der ihn setzt.
+    publish_gate_refs = workflow_text.count("outputs.publish_allowed == 'true'")
     assert publish_gate_refs >= 9, (
         f"expected >=9 publish-gate references (one per publish/bump/commit/validation step), "
         f"got {publish_gate_refs}"
@@ -400,7 +433,7 @@ def test_readonly_preflight_has_retry_wrapper() -> None:
     and post-release validation must still surface their failures
     immediately (no auto-retry on the mutating step).
     """
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     # Env vars driving the wrapper.
     assert 'TV_PREFLIGHT_MAX_ATTEMPTS: "3"' in workflow_text, (
@@ -489,7 +522,7 @@ def test_restore_on_commit_paths_match_workflow_restore_step() -> None:
 
 def test_stage_only_paths_match_workflow_git_add_step() -> None:
     """Every stage-only path must appear in the workflow's git add step."""
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
     for path in STAGE_ONLY_PATHS:
         assert path in workflow_text, (
             f"STAGE_ONLY path '{path}' not found in workflow git add step"
@@ -720,7 +753,7 @@ def test_refresh_workflow_repins_consumers_from_real_published_version() -> None
     v164. The bump step must read the publisher's facade-verified
     ``library.publishedVersion`` from the release manifest, refuse non-integer
     values, and SKIP (not rewrite) on the stale sentinel 1."""
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
 
     bump_idx = workflow_text.index('- name: Bump library version in all pine consumers')
     bump_end = workflow_text.index('- name: ', bump_idx + 10)
@@ -750,7 +783,7 @@ def test_refresh_reports_r1_attestation_drift_it_causes() -> None:
     merging silently. This test pins the reporting half, which nothing else
     reads — a step no guard observes can be deleted in a green PR.
     """
-    workflow_text = _read(WORKFLOW_PATH)
+    workflow_text = _read(PUBLISH_WORKFLOW_PATH)
     block = _step_block(workflow_text, "Report R1 attestation drift caused by this refresh")
 
     # Derived, never hand-listed: the roster comes from the contract, so a
@@ -999,7 +1032,7 @@ def test_every_pytest_node_id_the_workflow_prints_actually_resolves() -> None:
     name without executing anything, and fails loudly on any of the three.
     """
     node_ids = sorted(
-        set(re.findall(r"tests/[\w/]+\.py::[\w:]+", _read(WORKFLOW_PATH)))
+        set(re.findall(r"tests/[\w/]+\.py::[\w:]+", _read(PUBLISH_WORKFLOW_PATH)))
     )
     assert node_ids, (
         "no pytest node ID found in the workflow. If the notice step stopped "
@@ -1042,12 +1075,19 @@ def _refresh_step(name: str) -> dict:
     """One step of job ``refresh``, parsed — not sliced out of the raw text."""
     import yaml
 
-    doc = yaml.safe_load(_read(WORKFLOW_PATH))
-    for step in doc["jobs"]["refresh"]["steps"]:
+    # 2026-08-13: Der R1-Notice-Schritt ist mit der Veroeffentlichung
+    # umgezogen; dort heisst der Job `publish`. Der Name des Jobs wird hier
+    # NICHT geraten — ein umbenannter Job soll auffallen, nicht durchrutschen.
+    doc = yaml.safe_load(_read(PUBLISH_WORKFLOW_PATH))
+    assert "publish" in doc["jobs"], (
+        f"{PUBLISH_WORKFLOW_PATH.name}: kein Job 'publish' — diese Tests "
+        "wuerden sonst ueber nichts urteilen."
+    )
+    for step in doc["jobs"]["publish"]["steps"]:
         if isinstance(step, dict) and step.get("name") == name:
             return step
     raise AssertionError(
-        f"{WORKFLOW_PATH.name}: no step named {name!r} in job 'refresh'. "
+        f"{PUBLISH_WORKFLOW_PATH.name}: no step named {name!r} in job 'publish'. "
         "Either it was renamed (update the constant in the same PR) or the "
         "notice was deleted — in which case a refresh un-attests R1 in silence "
         "again, and these tests must not report green."
