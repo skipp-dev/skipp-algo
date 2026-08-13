@@ -195,6 +195,22 @@ jobs:
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
 
+      # Der schmale Schnitt (2026-08-13): `bot/*` überspringt weiterhin ALLES
+      # Schwere — nur dieser Wächter läuft mit. Er kostet Bruchteile einer
+      # Sekunde und schliesst die Lücke, durch die der Bibliothekslauf die vier
+      # Kundenoberflächen DREIMAL unbeobachtet auf den Stand vor der
+      # Bereinigung zurückdrehte (#4646, #4665; repariert als #4650, #4652,
+      # #4666 — jedes Mal von Hand, jedes Mal nachdem es gemergt war).
+      # `tests/test_customer_surface_vocabulary.py` steht zwar auf der fast-
+      # Liste, die läuft aber nur bei run_heavy=true — also nie auf genau der
+      # Spur, auf der der Refresh fährt.
+      # Wie die R1-Spur: kein Python-Setup, deshalb Stdlib-only. Verifiziert
+      # 2026-08-13 gegen einen nackten CPython 3.9 ohne installierte Pakete.
+      - name: Guard customer chart surfaces
+        if: steps.gate.outputs.run_heavy == 'true' || steps.gate.outputs.run_pine_guard == 'true'
+        run: |
+          python -m scripts.check_customer_surface_vocabulary
+
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
