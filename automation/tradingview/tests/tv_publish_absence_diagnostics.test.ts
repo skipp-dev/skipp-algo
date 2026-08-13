@@ -119,9 +119,14 @@ test("a failing publish captures its own screenshot while the page is alive", ()
 });
 
 test("publish-step screenshots land in the uploaded artifact tree", () => {
-  const workflow = read(".github/workflows/smc-library-refresh.yml");
+  // 2026-08-13 (#4679): the publish phase moved out of smc-library-refresh.yml
+  // into its own workflow so it stops holding the TradingView session for the
+  // regeneration work. The guard has to follow the step, or it silently stops
+  // watching anything -- which is exactly what it did between that merge and
+  // this fix.
+  const workflow = read(".github/workflows/smc-library-publish.yml");
   const stepStart = workflow.indexOf("- name: Publish library to TradingView");
-  assert.ok(stepStart !== -1, "the publish step was renamed");
+  assert.ok(stepStart !== -1, "the publish step was renamed or moved workflows again");
   const nextStep = workflow.indexOf("\n      - name:", stepStart + 1);
   const step = workflow.slice(stepStart, nextStep === -1 ? undefined : nextStep);
 
