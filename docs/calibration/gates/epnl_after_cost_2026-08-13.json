@@ -1,0 +1,118 @@
+{
+  "candidates_measured": [],
+  "candidates_passed": [],
+  "cost_bps": 5.0,
+  "cost_calibration": null,
+  "cost_source": "flat_default",
+  "epnl_ci_floor": 0.0,
+  "events_on_plane": 36,
+  "events_total": 8451,
+  "families_measured": [
+    "BOS",
+    "FVG",
+    "OB",
+    "SWEEP"
+  ],
+  "measurement_plane": "1D",
+  "min_trades": 40,
+  "n_bootstrap": 1000,
+  "results": {
+    "BOS": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.03397183686141307,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "BOS",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 13,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.03986147511703787,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.005889638255624802,
+      "verdict": "INCONCLUSIVE"
+    },
+    "FVG": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.020407505897176655,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "FVG",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 1,
+      "passes": false,
+      "role": "control",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.020407505897176655,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.0,
+      "verdict": "INCONCLUSIVE"
+    },
+    "OB": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.07739739367248158,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "OB",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 7,
+      "passes": false,
+      "role": "control",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.044700775057282295,
+      "sized_profitable": false,
+      "sizing_non_destructive": false,
+      "sizing_uplift": -0.032696618615199284,
+      "verdict": "INCONCLUSIVE"
+    },
+    "SWEEP": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.03517354434383538,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "SWEEP",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 13,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.041457562837298595,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.006284018493463217,
+      "verdict": "INCONCLUSIVE"
+    }
+  },
+  "seed": 230022
+}
