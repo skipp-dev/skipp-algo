@@ -80,7 +80,7 @@ test("a version below the expectation is rejected", () => {
   assert.match(r.reason, /below/);
 });
 
-test("no verified version fails even when the facade answered nothing", () => {
+test("a null published version is rejected regardless of facade status", () => {
   const r = resolveVersionAcceptance({ expected: 3, published: null, facadeAnswered: false });
   assert.equal(r.accepted, false);
   assert.match(r.reason, /not verified/);
@@ -89,4 +89,10 @@ test("no verified version fails even when the facade answered nothing", () => {
 test("a bootstrap with no expectation accepts any verified version", () => {
   const r = resolveVersionAcceptance({ expected: null, published: 1, facadeAnswered: true });
   assert.equal(r.accepted, true);
+});
+
+test("a version above the expectation is rejected without facade verification", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 4, facadeAnswered: false });
+  assert.equal(r.accepted, false);
+  assert.match(r.reason, /facade/);
 });

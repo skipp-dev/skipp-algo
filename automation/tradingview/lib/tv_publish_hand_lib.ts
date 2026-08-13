@@ -79,7 +79,7 @@ export function resolveVersionAcceptance(input: {
   published: number | null;
   facadeAnswered: boolean;
 }): { accepted: boolean; reason: string } {
-  const { expected, published } = input;
+  const { expected, published, facadeAnswered } = input;
   if (published === null) {
     return { accepted: false, reason: "published version not verified" };
   }
@@ -93,7 +93,13 @@ export function resolveVersionAcceptance(input: {
     };
   }
   if (published > expected) {
-    return { accepted: true, reason: `publish advanced /${expected} to /${published}` };
+    if (facadeAnswered) {
+      return { accepted: true, reason: `publish advanced /${expected} to /${published}` };
+    }
+    return {
+      accepted: false,
+      reason: `published /${published} exceeds the consumer pin /${expected} but the facade did not verify the version`,
+    };
   }
   return { accepted: true, reason: `published /${published} matches the consumer pin` };
 }
