@@ -98,6 +98,115 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+SOURCE_CHANGE_GATE: Final = "R1-SOURCE-CHANGE-ATTESTATION"
+
+_ISO_INSTANT_RE: Final = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})"
+)
+
+# Operators fill this artifact from a template. A field left on its marker is
+# the failure mode that costs the most: every other check passes, the run goes
+# green, and the placeholder is frozen into the permanent evidence record where
+# it reads like a statement. Found by filling the template deliberately badly
+# on 2026-08-12 -- an unfilled `behaviourReviewed` sailed through, because a
+# non-empty string is exactly what a placeholder is.
+_PLACEHOLDER_MARKERS: Final = ("<<", ">>", "TODO", "FIXME")
+
+
+def _reject_unfilled_placeholders(node: object, path: str = "attestation") -> None:
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _reject_unfilled_placeholders(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            _reject_unfilled_placeholders(value, f"{path}[{index}]")
+    elif isinstance(node, str):
+        for marker in _PLACEHOLDER_MARKERS:
+            _require(
+                marker not in node,
+                f"{path} still carries the template marker {marker!r}: "
+                "an unfilled field would be frozen into the evidence record "
+                "as though someone had written it",
+            )
+
+
+def validate_source_change_attestation(
+    attestation: dict, *, overlay_sha: str, exit_sha: str
+) -> None:
+    """Refuse a human attestation that does not describe THIS tree.
+
+    The point of the artifact is to let a change class the machine cannot
+    reconstruct through the chain anyway. That only stays honest if the
+    attestation is bound to the bytes it attests: an operator may vouch for a
+    source they reviewed, never for one they did not see. Every field below is
+    checked against what this generator computed from the working tree, so a
+    stale or copied attestation fails instead of carrying a claim forward.
+
+    It follows the OPERATOR_OBSERVATION_EVIDENCE precedent in
+    scripts/smc_r1_rollout_contract.py -- a dated, checked-in artifact naming
+    its observer -- and adds the hash binding that precedent does not need.
+    """
+    _require(
+        attestation.get("gate") == SOURCE_CHANGE_GATE,
+        f"attestation gate is {attestation.get('gate')!r}, expected {SOURCE_CHANGE_GATE!r}",
+    )
+    _reject_unfilled_placeholders(attestation)
+    captured = attestation.get("capturedAt")
+    _require(
+        isinstance(captured, str) and _ISO_INSTANT_RE.fullmatch(captured) is not None,
+        f"attestation capturedAt is {captured!r}, expected an ISO-8601 instant "
+        "like 2026-08-13T09:15:00Z -- an observation without a time is not dated",
+    )
+    observer = attestation.get("observer")
+    _require(
+        isinstance(observer, str) and observer.strip() != "",
+        "attestation names no observer -- an unsigned attestation attests nothing",
+    )
+    _require(
+        isinstance(attestation.get("changeCharacter"), str)
+        and attestation["changeCharacter"].strip() != "",
+        "attestation does not say what changed (changeCharacter)",
+    )
+
+    sources = attestation.get("sources")
+    _require(isinstance(sources, dict), "attestation carries no sources block")
+    for name, expected_sha in ((_EVENT_NAME, overlay_sha), (_EXIT_NAME, exit_sha)):
+        _require(name in sources, f"attestation does not cover {name}")
+        attested = sources[name].get("attestedSha256")
+        _require(
+            attested == expected_sha,
+            f"attestation for {name} names sha256 {attested} but this tree holds "
+            f"{expected_sha} -- it attests a source nobody in this run reviewed",
+        )
+        reviewed = sources[name].get("behaviourReviewed")
+        _require(
+            isinstance(reviewed, str) and reviewed.strip() != "",
+            f"attestation for {name} does not record what was reviewed",
+        )
+
+    replay = attestation.get("replay")
+    _require(isinstance(replay, dict), "attestation carries no replay block")
+    _require(
+        replay.get("status") == "re-run",
+        "a non-pin change may not carry replay evidence over: the carried "
+        f"replay would describe a source nobody replayed (status is "
+        f"{replay.get('status')!r})",
+    )
+    _require(
+        replay.get("attestedExitSha256") == exit_sha,
+        "the replay block attests a different SMC Exit Signal than this tree holds",
+    )
+    _require(
+        isinstance(replay.get("evidence"), str) and replay["evidence"].strip() != "",
+        "the replay block names no evidence artifact",
+    )
+    cases = replay.get("passedLogicalCases")
+    _require(
+        isinstance(cases, int) and cases > 0,
+        f"the replay block reports {cases!r} passed logical cases",
+    )
+
+
 def _report_sha(write_report: dict, path: str) -> str:
     for source in write_report["repositoryExpected"]["sources"]:
         if source["repoRelativePath"] == path:
@@ -134,8 +243,19 @@ def build_attestation(
     workflow: str,
     write_conclusion: str,
     authorized_note: str,
+    source_change_attestation: dict | None = None,
+    source_change_attestation_relpath: str | None = None,
 ) -> dict:
-    """Build the new evidence artifact, refusing everything unproven."""
+    """Build the new evidence artifact, refusing everything unproven.
+
+    Two sanctioned paths, and nothing else:
+
+    * **pin-only**, proven mechanically by hash reconstruction. No human input.
+    * **attested source change**, where ``source_change_attestation`` is a
+      checked-in artifact bound by SHA-256 to the sources this generator reads.
+      It does not lower the bar; it moves the unprovable part to a named
+      observer and keeps every machine-checkable part machine-checked.
+    """
 
     _require(
         write_report["executionMode"] == "write",
@@ -184,10 +304,12 @@ def build_attestation(
         and _report_sha(write_report, "SMC_Exit_Signal.pine") == exit_sha,
         "report source hashes disagree with the tree this generator reads",
     )
+    exit_moved = exit_sha != prior_exit["repositorySha256"]
     _require(
-        exit_sha == prior_exit["repositorySha256"],
+        not exit_moved or source_change_attestation is not None,
         "SMC Exit Signal moved -- the carried replay would describe a source "
-        "nobody replayed; this needs a human attestation",
+        "nobody replayed; this needs a human attestation. Supply one with "
+        "--source-change-attestation (gate " + SOURCE_CHANGE_GATE + ").",
     )
 
     prior_version = int(prior_evidence["libraryReleaseVersion"])
@@ -196,12 +318,26 @@ def build_attestation(
         prior_version=prior_version,
         prior_sha256=prior_overlay["repositorySha256"],
     )
-    _require(verdict != "identical", "Event Overlay is identical -- nothing to attest")
     _require(
-        verdict == "pin-only",
-        "Event Overlay change is not pin-only -- the automated chain refuses; "
-        "record a human attestation instead",
+        verdict != "identical" or exit_moved,
+        "Event Overlay is identical -- nothing to attest",
     )
+    _require(
+        verdict in ("pin-only", "identical") or source_change_attestation is not None,
+        "Event Overlay change is not pin-only -- the automated chain refuses; "
+        "record a human attestation instead and pass it with "
+        "--source-change-attestation (gate " + SOURCE_CHANGE_GATE + ").",
+    )
+    attested_change = source_change_attestation is not None
+    if attested_change:
+        _require(
+            source_change_attestation_relpath is not None,
+            "an attestation was supplied without the repo-relative path that "
+            "the evidence artifact must cite",
+        )
+        validate_source_change_attestation(
+            source_change_attestation, overlay_sha=overlay_sha, exit_sha=exit_sha
+        )
     new_version = _pin_version(event_overlay_text)
 
     compile_mechanism = (
@@ -230,6 +366,58 @@ def build_attestation(
     attested_bindings = _attested_bindings(write_report)
     bindings_checked = sum(len(v) for v in attested_bindings.values())
 
+    if attested_change:
+        generator_note = (
+            "scripts/smc_r1_generate_attestation.py, which refuses any "
+            "attested-source change beyond the import-pin line unless a "
+            f"hash-bound {SOURCE_CHANGE_GATE} artifact covers it. One did: "
+            f"{source_change_attestation_relpath}."
+        )
+        diff_character = (
+            f"{source_change_attestation['changeCharacter']} Not reconstructible "
+            "from the prior bytes, so it is not machine-provable and is carried "
+            f"by {source_change_attestation_relpath}, observed by "
+            f"{source_change_attestation['observer']} and bound to both source "
+            "hashes in this artifact."
+        )
+        replay_block = {
+            "status": "re-run",
+            "passedLogicalCases": source_change_attestation["replay"][
+                "passedLogicalCases"
+            ],
+            "evidence": source_change_attestation["replay"]["evidence"],
+            "justification": (
+                "SMC Exit Signal moved, so the earlier replay could not be "
+                "carried over: it would have described a source nobody "
+                f"replayed. It was re-run against {exit_sha} and the result is "
+                f"attested by {source_change_attestation_relpath}."
+            ),
+        }
+    else:
+        generator_note = (
+            "scripts/smc_r1_generate_attestation.py, which refuses any "
+            "attested-source change beyond the import-pin line."
+        )
+        diff_character = (
+            f"library pin {prior_version} -> {new_version} in the import "
+            "line, proven by hash reconstruction; SMC Exit Signal is "
+            "byte-identical to the prior attested value and is "
+            "re-attested unchanged."
+        )
+        replay_block = {
+            "status": "carried_over",
+            "passedLogicalCases": prior_evidence["replay"]["passedLogicalCases"],
+            "evidence": prior_evidence["replay"]["evidence"],
+            "justification": (
+                "The replay evidence covers SMC Exit Signal, whose source "
+                "SHA-256 is byte-identical to the prior attested value "
+                f"({exit_sha}). The supersession is confined to the Event "
+                "Overlay import pin. Nothing the replay measured changed, so "
+                "re-running it would produce the same cases against the same "
+                "source."
+            ),
+        }
+
     return {
         "schemaVersion": 2,
         "capturedAt": verify_report["generatedAt"],
@@ -238,8 +426,7 @@ def build_attestation(
             f"a library refresh moved the micro-profile release to "
             f"{new_version}. The write and verify passes of run {run_id} are "
             "the measurement; this artifact records them. Generated by "
-            "scripts/smc_r1_generate_attestation.py, which refuses any "
-            "attested-source change beyond the import-pin line."
+            + generator_note
         ),
         "supersedes": prior_evidence_relpath,
         "supersessionNote": (
@@ -257,12 +444,7 @@ def build_attestation(
             ),
             "attestedEventOverlaySha256": prior_overlay["repositorySha256"],
             "supersededByRepositorySha256": overlay_sha,
-            "sourceDiffCharacter": (
-                f"library pin {prior_version} -> {new_version} in the import "
-                "line, proven by hash reconstruction; SMC Exit Signal is "
-                "byte-identical to the prior attested value and is "
-                "re-attested unchanged."
-            ),
+            "sourceDiffCharacter": diff_character,
         },
         "authorization": {
             "account": "preuss_steffen",
@@ -333,19 +515,7 @@ def build_attestation(
                 "it is not recorded as one."
             ),
         },
-        "replay": {
-            "status": "carried_over",
-            "passedLogicalCases": prior_evidence["replay"]["passedLogicalCases"],
-            "evidence": prior_evidence["replay"]["evidence"],
-            "justification": (
-                "The replay evidence covers SMC Exit Signal, whose source "
-                "SHA-256 is byte-identical to the prior attested value "
-                f"({exit_sha}). The supersession is confined to the Event "
-                "Overlay import pin. Nothing the replay measured changed, so "
-                "re-running it would produce the same cases against the same "
-                "source."
-            ),
-        },
+        "replay": replay_block,
         "openGates": list(prior_evidence["openGates"]),
         "limitations": [
             "No TradingView alert was created, changed, enabled, or disabled.",
@@ -520,7 +690,29 @@ def main() -> int:
         "--authorized-note",
         default="automated re-attestation chain, operator-authorized 2026-08-04",
     )
+    parser.add_argument(
+        "--source-change-attestation",
+        type=Path,
+        default=None,
+        help=(
+            "Repo-relative path to a checked-in "
+            f"{SOURCE_CHANGE_GATE} artifact. Required when an attested source "
+            "changes beyond its import-pin line; refused when it does not "
+            "match the source hashes this generator reads."
+        ),
+    )
     args = parser.parse_args()
+
+    attestation = None
+    attestation_relpath = None
+    if args.source_change_attestation is not None:
+        attestation_path = args.source_change_attestation
+        attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+        attestation_relpath = str(
+            attestation_path.resolve().relative_to(ROOT)
+            if attestation_path.is_absolute()
+            else attestation_path
+        )
 
     chain = load_evidence_chain()
     prior_relpath = chain[-1]["path"]
@@ -537,6 +729,8 @@ def main() -> int:
         workflow=args.workflow,
         write_conclusion=args.write_conclusion,
         authorized_note=args.authorized_note,
+        source_change_attestation=attestation,
+        source_change_attestation_relpath=attestation_relpath,
     )
     out = write_attestation(evidence, ROOT)
     append_chain(EVIDENCE_CHAIN_INDEX, out, evidence, repo_root=ROOT)

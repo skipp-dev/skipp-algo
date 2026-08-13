@@ -99,6 +99,11 @@ on:
         type: boolean
         required: false
         default: false
+      source_change_attestation:
+        description: "Repo-relative path to a checked-in R1-SOURCE-CHANGE-ATTESTATION artifact. Required only when an attested companion changes beyond its import-pin line: the generator refuses such a change without one, and refuses the artifact itself unless its SHA-256 values match the sources this run reads. Leave empty for a pin bump."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -655,12 +660,23 @@ jobs:
         if: ${{ !cancelled() && steps.reverify.conclusion == 'success' }}
         env:
           WRITE_CONCLUSION: ${{ steps.save.conclusion }}
+          SOURCE_CHANGE_ATTESTATION: ${{ github.event.inputs.source_change_attestation }}
         run: |
           set -euo pipefail
+          attestation_args=()
+          if [ -n "${SOURCE_CHANGE_ATTESTATION}" ]; then
+            # Fail before the generator runs if the operator named a path that
+            # is not in the tree: an empty --source-change-attestation would
+            # silently fall back to the pin-only path and refuse for the wrong
+            # reason.
+            test -f "${SOURCE_CHANGE_ATTESTATION}"
+            attestation_args=(--source-change-attestation "${SOURCE_CHANGE_ATTESTATION}")
+          fi
           evidence="$(python3 -m scripts.smc_r1_generate_attestation \
             --write-report "${RUNNER_TEMP}/report-write.json" \
             --verify-report artifacts/monitoring/tradingview_consumer_bindings.json \
             --run-id "${GITHUB_RUN_ID}" \
+            "${attestation_args[@]}" \
             --write-conclusion "${WRITE_CONCLUSION} - at the un-attested-save guard, after the saves completed")"
           python3 -m scripts.smc_r1_rollout_contract
           echo "evidence=${evidence}" >> "$GITHUB_OUTPUT"
