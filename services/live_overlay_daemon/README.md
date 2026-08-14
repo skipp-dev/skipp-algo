@@ -421,13 +421,28 @@ The daemon contains a dedicated, source-pinned receiver for
 `R2-SHADOW-CUTOVER`:
 
 - `POST /tradingview/hold-manager-shadow` accepts only the six registered Hold
-  Manager channels and only when `HOLD_MANAGER_SHADOW_ACCEPTING=1`.
+  Manager channels and only when `HOLD_MANAGER_SHADOW_ACCEPTING=1`. The token
+  travels as `authToken` in the JSON body and the payload names the source by
+  `sourceSha256`. This is the **legacy** shape, kept as the rollback path until
+  `alertWireShape.cutOver` in the contract flips to true.
+- `POST /{token}/tradingview/hold-manager-shadow` accepts the same six channels
+  and the same accepting switch, but the token travels in the path and the
+  payload names the source by `sourceBuild`. A Pine script cannot state its own
+  hash, so the build number is what the source can emit about itself; the
+  receiver resolves the hash from the contract and stores that. Adopted so the
+  alert body stops being a hand-copied duplicate of a value the repository
+  already computes — see
+  `docs/superpowers/specs/2026-08-13-hold-manager-alert-decoupling-design.md`.
 - `GET /tradingview/hold-manager-shadow/state` returns aggregate unique,
   attempted, and duplicate delivery counts. It requires
   `X-Hold-Manager-Shadow-Token`.
-- The webhook token travels as `authToken` in the JSON body, not in the URL, so
-  normal access logs do not capture it. It is excluded from the SQLite row and
-  audit fields.
+- Neither transport puts the token into a log. The body-borne token is invisible
+  to access logs by construction; the path-borne one is protected because
+  `main.py` runs uvicorn with `access_log=False` precisely so that `/{token}/…`
+  paths never reach stdout or the Railway logs, which is the same protection
+  `/{token}/smc_live`, `/{token}/metrics`, `/{token}/composio-chatops` and
+  `/{token}/grafana-webhook` already rely on. In both cases the token is
+  excluded from the SQLite row and the audit fields.
 - The receiver also rejects weak/unconfigured tokens, missing persistent
   storage, stale/future timestamps, unknown fields, and any source, script,
   layout, producer, schema, mode, or channel mismatch.
