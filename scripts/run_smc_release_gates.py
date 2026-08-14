@@ -1183,6 +1183,17 @@ def build_parser() -> argparse.ArgumentParser:
             "reported transparently."
         ),
     )
+    parser.add_argument(
+        "--daily-export-absent",
+        action="store_true",
+        help=(
+            "The producer export for THIS run's date does not exist yet, so "
+            "data-absent gate failures state a schedule, not a defect.  "
+            "Downgrades exactly the same failures --ci-mode does, but stamps "
+            "its own reason so the evidence never claims a CI environment it "
+            "was not run in.  Everything else stays blocking."
+        ),
+    )
     parser.add_argument("--output", default="-", help="Output path for JSON report, or '-' for stdout.")
     return parser
 
@@ -1340,6 +1351,34 @@ def main() -> int:
                 gate["ci_mode_downgrade_reason"] = "external_tv_drift"
                 ci_mode_downgrades.append(gate["name"])
 
+    # --daily-export-absent: the producer export for this run's date does not
+    # exist yet. Measured 2026-08-14: once the TradingView queue stopped being
+    # saturated, the publish chain ran for the first time outside data hours
+    # (00:47, 02:30, 03:39, 04:35 UTC) and every run died here — provider_health
+    # on MISSING_ARTIFACT, reference_bundle because `source="auto"` then falls
+    # back to the top-5 premarket watchlist, which cannot contain the mega-cap
+    # reference symbols. Both state a schedule, not a defect.
+    #
+    # This matters beyond the red run: the consumer re-pin and the commit sit
+    # BEHIND this gate, so a night run left TradingView advancing while the
+    # repository stayed put (230 vs 238 within one night). The gates cannot
+    # protect the publish anyway — it already happened by the time they run —
+    # so blocking here only suppresses the bookkeeping.
+    #
+    # Deliberately NOT reusing --ci-mode: identical downgrade, different truth.
+    # This is production, and the evidence has to say so.
+    daily_export_absent = getattr(args, "daily_export_absent", False)
+    daily_export_downgrades: list[str] = []
+    if daily_export_absent:
+        for gate in gates:
+            if gate.get("status") != "fail" or not gate.get("blocking", True):
+                continue
+            if _gate_failure_is_data_absent(gate):
+                gate["blocking"] = False
+                gate["daily_export_absent_downgraded"] = True
+                gate["daily_export_absent_reason"] = "producer export for this run's date is not published yet"
+                daily_export_downgrades.append(gate["name"])
+
     has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))
     overall_status = "fail" if has_fail else "ok"
     exit_code = 1 if has_fail else 0
@@ -1404,6 +1443,8 @@ def main() -> int:
             "measurement_baseline_summary": args.measurement_baseline_summary,
             "ci_mode": ci_mode,
             "ci_mode_downgrades": ci_mode_downgrades,
+            "daily_export_absent": daily_export_absent,
+            "daily_export_absent_downgrades": daily_export_downgrades,
             "tv_soft_downgrades": tv_soft_downgrades,
             "exit_code": int(exit_code),
         },
