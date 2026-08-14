@@ -98,6 +98,14 @@ PUBLISHERS = sorted(
 
 _FROZEN_VERSION_RE = re.compile(r'getFlag\(\s*"--(?:version|import-path)"')
 
+# For SHARED_MODULE only (never PUBLISHERS): a getFlag("--version"/"--import-path", ...)
+# call is legitimate there — parseArgs uses an EMPTY-string fallback and derives the
+# real default from resolveDefaultVersion/consumer pins. What must never come back is
+# a non-empty literal fallback, i.e. a frozen default one layer below the wrappers.
+_FROZEN_SHARED_DEFAULT_RE = re.compile(
+    r'getFlag\(\s*"--(?:version|import-path)"\s*,\s*"[^"]+"\s*\)'
+)
+
 
 def test_every_smcpp_library_is_in_hand_libs() -> None:
     """A library missing from the table can only be published by hand.
@@ -164,6 +172,45 @@ def test_no_wrapper_freezes_a_library_version() -> None:
     ]
     assert not offenders, (
         "these publishers froze a library version again: " + ", ".join(offenders)
+    )
+
+
+def test_shared_module_derives_version_instead_of_freezing_it() -> None:
+    """The treadmill guard above scans the wrappers; this scans where the logic now lives.
+
+    ``test_no_wrapper_freezes_a_library_version`` iterates ``PUBLISHERS`` — the
+    ten thin wrapper files, derived from ``_hand_libs()`` — for a frozen
+    ``getFlag("--version"/"--import-path", ...)`` default. It cannot see a
+    regression in ``parseArgs``/``resolveDefaultVersion``
+    (tv_publish_hand_lib.ts:293-337) themselves, because ``SHARED_MODULE`` is
+    deliberately not in that population (see the module docstring above).
+    Neither function is referenced by any test in either lane otherwise —
+    mutation-proved (final whole-branch review): replacing
+
+        const version = versionExplicit
+          ? Number(getFlag("--version", ""))
+          : resolveDefaultVersion(descriptor, repoRoot);
+
+    with ``const version = Number(getFlag("--version", "3"));`` — reintroducing
+    the exact frozen-default treadmill this refactor removes, one layer below
+    the wrappers this file already watches — left the required gate at 29
+    passed and the TypeScript guards at 51 passed. Zero signal. This is that
+    seat, proved against the same mutation
+    (scratchpad/sdd/task-7-mutation-proof-transcript.txt).
+    """
+    text = SHARED_MODULE.read_text(encoding="utf-8")
+    frozen = _FROZEN_SHARED_DEFAULT_RE.search(text)
+    assert not frozen, (
+        "the shared module froze a literal --version/--import-path default "
+        f"again ({frozen.group(0) if frozen else ''}) — this reintroduces the "
+        "exact treadmill test_no_wrapper_freezes_a_library_version guards the "
+        "wrappers against, just moved into the module every wrapper delegates to"
+    )
+    assert "resolveDefaultVersion(descriptor, repoRoot)" in text, (
+        "parseArgs no longer derives the default --version via "
+        "resolveDefaultVersion — a frozen literal could stand in unnoticed, "
+        "since neither parseArgs nor resolveDefaultVersion is referenced by "
+        "any other test in either lane"
     )
 
 
@@ -240,12 +287,18 @@ def test_pin_check_runs_across_every_consumer_from_the_shared_module() -> None:
 def test_acceptance_rule_rejects_a_version_below_the_expectation() -> None:
     """A facade-verified version may exceed the expectation but must never fall below it.
 
-    Pre-refactor, engine's publisher pinned exact equality
-    (``exactVersionVerified = facadeVersion === details.version``): a facade
-    answer naming any version other than the exact expectation failed the
-    publish, even one that only advanced further than expected. That equality
-    was itself the treadmill this refactor removes, and was deliberately
-    relaxed (controller ruling, 2026-08-14): a facade-verified version is now
+    Pre-refactor, engine's AND context_engine's publishers pinned exact
+    equality (``exactVersionVerified = facadeVersion === details.version``) —
+    measured over the whole population at ``8a8a9b87a``
+    (``git show 8a8a9b87a:scripts/tv_publish_*_library.ts``): eight of the
+    ten set ``exactVersionVerified = true;`` unconditionally once the facade
+    answered, but ``tv_publish_engine_library.ts`` and
+    ``tv_publish_context_engine_library.ts`` used this stricter comparison
+    instead. For those two, a facade answer naming any version other than
+    the exact expectation failed the publish, even one that only advanced
+    further than expected. That equality was itself the treadmill this
+    refactor removes, and was deliberately relaxed (controller ruling,
+    2026-08-14): a facade-verified version is now
     authoritative and MAY exceed the expectation. What must never happen is
     acceptance of a version BELOW the expectation — that means the wrong
     script, or a stale draft, was addressed, not that content changed.
@@ -310,15 +363,21 @@ def test_shared_module_preflights_before_any_editor_mutation() -> None:
     """The advance-contract's source ordering must never regress.
 
     This is a SOURCE-ORDERING check, not a claim that these steps run on
-    every publish. Both are conditional: the live page-auth probe only runs
-    when the descriptor opts into ``requiresExplicitVersionAdvance``
-    (tv_publish_hand_lib.ts:503), and the pre-mutation facade preflight only
-    runs on top of that when ``--version`` was passed explicitly and the
-    advance contract resolves to ``"enforced"`` (:516). On the
-    orchestrator's own call path (``tv_publish_hand_authored_libraries.ts``
-    passes only ``--out``/``--no-allow-create``; ``--version`` is always
-    derived from consumer pins), neither ever runs, for any hand lib —
-    including smc_context_engine_private.
+    every publish. The two are gated independently, and on different things:
+    the live page-auth probe runs whenever the descriptor opts into
+    ``requiresExplicitVersionAdvance`` (tv_publish_hand_lib.ts:503) — a
+    descriptor-only condition, not ``--version``-dependent — while the
+    pre-mutation facade preflight runs only on top of that, when
+    ``--version`` was passed explicitly AND the advance contract resolves to
+    ``"enforced"`` (:516). On the orchestrator's own call path
+    (``tv_publish_hand_authored_libraries.ts`` passes only
+    ``--out``/``--no-allow-create``; ``--version`` is always derived from
+    consumer pins), the auth probe DOES run for smc_context_engine_private —
+    its condition only inspects the descriptor, which the orchestrator never
+    touches. What is skipped on that path is only the preflight:
+    ``versionAdvanceContract`` resolves to ``"skipped_derived_version"``
+    whenever ``--version`` was not explicit (tv_publish_hand_lib.ts:438-440),
+    which is unconditionally true for every orchestrator-driven publish.
 
     What this protects: WHEN both run, the auth probe must precede the
     preflight, and the preflight must precede the first editor mutation, or
