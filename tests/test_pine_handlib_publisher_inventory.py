@@ -156,6 +156,7 @@ def test_no_wrapper_freezes_a_library_version() -> None:
     absent — see ``resolveDefaultVersion``); only a FROZEN FALLBACK baked
     into a wrapper's own source is the regression this guards against.
     """
+    assert PUBLISHERS, "PUBLISHERS is empty — this test would pass vacuously"
     offenders = [
         p.relative_to(REPO_ROOT).as_posix()
         for p in PUBLISHERS
@@ -164,6 +165,31 @@ def test_no_wrapper_freezes_a_library_version() -> None:
     assert not offenders, (
         "these publishers froze a library version again: " + ", ".join(offenders)
     )
+
+
+def test_every_hand_lib_publisher_is_a_thin_wrapper() -> None:
+    """No wrapper may regrow its own inline publish logic.
+
+    ``fast-gates`` is the ONLY required check on this repo (ADR-0011), and
+    this file is what sits inside it — the TypeScript equivalent
+    (``hand_authored_publisher_facade_authority.test.ts``'s delegation check)
+    runs only in the verification lane. Without a seat *inside* the required
+    gate, a wrapper that regrew ``newTradingViewSession(``/
+    ``publishPrivateScript(``/``addCurrentScriptToChart(`` inline would leave
+    this entire file green: the shared-module assertions above read the
+    shared module, not the wrapper; the frozen-version check only looks for
+    ``getFlag`` literals; and the descriptor checks only look for
+    ``scriptName``/``source`` strings. None of them would notice a wrapper
+    that ALSO still carries its own publish path.
+    """
+    assert PUBLISHERS, "PUBLISHERS is empty — this test would pass vacuously"
+    inline_markers = ("newTradingViewSession(", "publishPrivateScript(", "addCurrentScriptToChart(")
+    fat = [
+        p.relative_to(REPO_ROOT).as_posix()
+        for p in PUBLISHERS
+        if any(marker in p.read_text(encoding="utf-8") for marker in inline_markers)
+    ]
+    assert not fat, "these publishers still contain inline publish logic: " + ", ".join(fat)
 
 
 def test_pin_check_runs_across_every_consumer_from_the_shared_module() -> None:
@@ -243,17 +269,28 @@ def test_acceptance_rule_rejects_a_version_below_the_expectation() -> None:
 
 
 def test_shared_module_preflights_before_any_editor_mutation() -> None:
-    """An intended /3 publish must abort before mutation when TV is already /3.
+    """The advance-contract's source ordering must never regress.
 
-    Migrated from a smc_context_engine_private-only test onto the shared
-    module: this is the one hand lib whose descriptor opts into
-    ``requiresExplicitVersionAdvance``, and the shared module is the ONLY
-    place this sequencing exists — no TypeScript test covers the Playwright
-    ordering. The live page-auth probe must run, then the pre-mutation
-    facade preflight, strictly BEFORE the editor is ever touched, or a stale
-    operator assumption about the current published version could silently
-    turn an intended /3 publish into /4 (or overwrite a newer private
-    release) by mutation.
+    This is a SOURCE-ORDERING check, not a claim that these steps run on
+    every publish. Both are conditional: the live page-auth probe only runs
+    when the descriptor opts into ``requiresExplicitVersionAdvance``
+    (tv_publish_hand_lib.ts:503), and the pre-mutation facade preflight only
+    runs on top of that when ``--version`` was passed explicitly and the
+    advance contract resolves to ``"enforced"`` (:516). On the
+    orchestrator's own call path (``tv_publish_hand_authored_libraries.ts``
+    passes only ``--out``/``--no-allow-create``; ``--version`` is always
+    derived from consumer pins), neither ever runs, for any hand lib —
+    including smc_context_engine_private.
+
+    What this protects: WHEN both run, the auth probe must precede the
+    preflight, and the preflight must precede the first editor mutation, or
+    a stale operator assumption about the current published version could
+    silently turn an intended /3 publish into /4 (or overwrite a newer
+    private release) by mutation. Migrated from a
+    smc_context_engine_private-only test onto the shared module: this is the
+    one hand lib whose descriptor opts into the contract today, and the
+    shared module is the ONLY place this sequencing exists in source — no
+    TypeScript test covers the Playwright ordering.
     """
     text = SHARED_MODULE.read_text(encoding="utf-8")
 
@@ -293,7 +330,7 @@ def test_shared_module_rejects_incoherent_publish_identity() -> None:
 
 @pytest.mark.parametrize("name", sorted(_hand_libs()))
 def test_descriptor_script_name_matches_the_hand_libs_entry(name: str) -> None:
-    """Every HAND_LIBS row's publisher must declare a matching scriptName.
+    """Every HAND_LIBS row's publisher must declare a matching scriptName and source.
 
     The orchestrator dispatches each publisher by spawning its file and
     trusting that the descriptor inside addresses the library HAND_LIBS says
@@ -301,6 +338,15 @@ def test_descriptor_script_name_matches_the_hand_libs_entry(name: str) -> None:
     the WRONG library under the RIGHT row's name, and nothing else here would
     catch it — ``test_hand_lib_source_and_publisher_resolve`` only proves the
     files exist, not that they agree on identity.
+
+    ``source`` is checked too: HAND_LIBS' ``source`` (used by the
+    orchestrator to topo-sort by parsing imports) and the descriptor's own
+    ``source`` (used by the shared module to read the file it actually
+    publishes) are two independent string literals with nothing comparing
+    them. Repointing HAND_LIBS' ``source`` at a different existing SMC++ file
+    would still pass every other assertion in this file while the
+    orchestrator topo-ordered on one file's imports and the publisher
+    published another.
     """
     entry = _hand_libs()[name]
     publisher = entry["publisher"]
@@ -309,4 +355,8 @@ def test_descriptor_script_name_matches_the_hand_libs_entry(name: str) -> None:
     text = (REPO_ROOT / publisher).read_text(encoding="utf-8")
     assert f'scriptName: "{name}"' in text, (
         f"{publisher} does not declare scriptName {name!r}"
+    )
+    assert f'source: "{entry["source"]}"' in text, (
+        f"{publisher} does not declare source {entry['source']!r} — HAND_LIBS and the "
+        "descriptor disagree about which SMC++ file this publisher addresses"
     )
