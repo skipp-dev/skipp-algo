@@ -9024,6 +9024,105 @@ async function tracePublishSurfaceAbsence(page: Page, phase: string): Promise<vo
   tracePageEvent(page, "publish-absence-overlays", `${phase}:${JSON.stringify(overlaySnippets).slice(0, 1_200)}`);
 }
 
+/**
+ * Elements the "Choose script" control could plausibly be, read out by
+ * attribute. No click, no keyboard, nothing that could reach Continue.
+ *
+ * Deliberately scoped to the whole overlay root rather than to
+ * `publishSurface`. If the surface is what mis-resolved, an inventory taken
+ * inside it would report the same emptiness that caused the failure and would
+ * read as proof the control is absent.
+ */
+const PUBLISH_CHOOSER_INVENTORY_SELECTOR = [
+  "select",
+  "input",
+  "[role]",
+  "button",
+  "[data-name]",
+  '[class*="select" i]',
+  '[class*="dropdown" i]',
+  '[class*="combobox" i]',
+  '[class*="chooser" i]',
+].join(", ");
+
+export type PublishChooserInventoryEntry = {
+  i: number;
+  tag: string;
+  role: string;
+  ariaLabel: string;
+  ariaExpanded: string;
+  placeholder: string;
+  dataName: string;
+  title: string;
+  name: string;
+  text: string;
+  cls: string;
+  disabled: boolean;
+  display: string;
+  visibility: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+export async function collectPublishChooserInventory(page: Page): Promise<PublishChooserInventoryEntry[]> {
+  return page
+    .locator("#overlap-manager-root")
+    .first()
+    .evaluate((root: Element, selector: string) =>
+      Array.from(root.querySelectorAll(selector))
+        .slice(0, 60)
+        .map((node, index) => {
+          const element = node as HTMLElement;
+          const box = element.getBoundingClientRect();
+          const style = window.getComputedStyle(element);
+          return {
+            i: index,
+            tag: element.tagName.toLowerCase(),
+            role: element.getAttribute("role") || "",
+            ariaLabel: element.getAttribute("aria-label") || "",
+            ariaExpanded: element.getAttribute("aria-expanded") || "",
+            placeholder: element.getAttribute("placeholder") || "",
+            dataName: element.getAttribute("data-name") || "",
+            title: element.getAttribute("title") || "",
+            name: element.getAttribute("name") || "",
+            text: (element.textContent ?? "").trim().slice(0, 48),
+            cls: (element.getAttribute("class") ?? "").slice(0, 60),
+            disabled: element.hasAttribute("disabled"),
+            display: style.display,
+            visibility: style.visibility,
+            x: Math.round(box.x),
+            y: Math.round(box.y),
+            w: Math.round(box.width),
+            h: Math.round(box.height),
+          };
+        }),
+      PUBLISH_CHOOSER_INVENTORY_SELECTOR,
+    )
+    .catch(() => [] as PublishChooserInventoryEntry[]);
+}
+
+/**
+ * Five selector changes between 2026-08-09 and 2026-08-10 (#4585, #4587,
+ * #4591, #4597, #4606) all aimed at this control and none moved the failure:
+ * eight of the ten runs since carry the byte-identical error
+ * "Could not select existing TradingView script: Open-Prep Daily Panel", and
+ * the only evidence each one left was a screenshot. A sixth guess is not what
+ * is missing -- the DOM is. This reads it out so the next change can be pinned
+ * against what TradingView renders instead of against an assumption about it.
+ */
+async function tracePublishChooserAbsence(
+  page: Page,
+  stage: string,
+): Promise<{ stage: string; surfaceCount: number; controls: PublishChooserInventoryEntry[] }> {
+  const surfaceCount = await tvSelectors.publishSurfaceProbe(page).count().catch(() => -1);
+  const controls = await collectPublishChooserInventory(page);
+  const evidence = { stage, surfaceCount, controls };
+  tracePageEvent(page, "publish-existing-script-absence", JSON.stringify(evidence).slice(0, 6_000));
+  return evidence;
+}
+
 export async function selectExistingPublishScript(page: Page, scriptName: string): Promise<boolean> {
   const nativeChooser = await waitForFirstVisibleLocator(
     tvSelectors.publishExistingScriptChooser(page),
@@ -9082,6 +9181,10 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
     async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) !== "select",
   );
   if (!chooserControl) {
+    // The observed stage. Runs 31805361109 and the seven before it spent
+    // 3s here and 3s in the native branch above, then returned false without
+    // recording anything about what WAS on the page.
+    await tracePublishChooserAbsence(page, "chooser-control-absent");
     return false;
   }
   const openedChooser = await clickVisibleWithFallback(
@@ -9092,6 +9195,7 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
     350,
   );
   if (!openedChooser) {
+    await tracePublishChooserAbsence(page, "chooser-control-not-clickable");
     return false;
   }
 
@@ -9100,6 +9204,7 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
     3_000,
   );
   if (!scriptOption) {
+    await tracePublishChooserAbsence(page, "script-option-absent");
     return false;
   }
 
@@ -9214,7 +9319,15 @@ export async function publishPrivateScript(
 
       const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
       if (!selectedExistingScript) {
-        throw new Error(`Could not select existing TradingView script: ${options.scriptName}`);
+        // The trace already carries the inventory, but the trace lives only in
+        // the run log. The error travels into the publish report, which is the
+        // uploaded artifact -- so put the DOM facts where the evidence is kept.
+        const evidence = await tracePublishChooserAbsence(page, "publish-throw");
+        throw new Error(
+          `Could not select existing TradingView script: ${options.scriptName}`
+          + `; publish surface nodes: ${evidence.surfaceCount}`
+          + `; overlay controls: ${JSON.stringify(evidence.controls).slice(0, 4_000)}`,
+        );
       }
     }
   }
