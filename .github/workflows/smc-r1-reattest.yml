@@ -56,7 +56,15 @@ on:
   #   * The measuring save this workflow dispatches IS a
   #     tv-save-consumer-source run (on bot/r1-reattest); without the
   #     head_branch filter every proposal would re-trigger the proposer.
-  workflow_run:
+  #
+  # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
+  # tv-save-consumer-source (no fork/PR-controlled context reaches it: that
+  # workflow has no pull_request trigger), the same argument its two existing
+  # consumers carry (tv-post-mutation-verify, tv-save-consumer-source). This
+  # job reads only the completed run's conclusion/head_branch from the event,
+  # checks out main, and pushes a fixed bot branch; permissions stay
+  # contents:read with the push authenticated by GH_PAT as before.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: ["tv-save-consumer-source"]
     types: [completed]
 
