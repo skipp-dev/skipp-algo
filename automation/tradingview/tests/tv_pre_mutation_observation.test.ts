@@ -89,3 +89,49 @@ test("a read-only run produces a real verdict from its own verification reading,
   );
   assert.doesNotMatch(SOURCE, /reason: "read-only run: nothing written/);
 });
+
+// ---------------------------------------------------------------------------
+// 2026-08-14: SMC Decision Board — the FIRST target on the FIRST layout — was
+// never read in two consecutive write runs (31831209411, 31833390287). Both
+// went red with out-of-band drift "unknown" while every actual save succeeded
+// and post-save-verified. The observation pass navigated with bare gotoChart,
+// whose fixed 3s wait resolves before the legend is rebuilt; the first
+// target's isScriptVisibleOnChartSurface probe then answered false and
+// verifyConsumerBindings threw "Existing chart instance not found" — into a
+// catch that logged NOTHING, so the cause had to be reconstructed from the
+// absence of trace lines. gotoChartAndAwaitScript exists for exactly this
+// race (its docstring records CI run 30684930443 for the drill, #4295); the
+// observation pass had simply never adopted it.
+// ---------------------------------------------------------------------------
+
+function observeFn(): string {
+  const start = SOURCE.indexOf("async function observeBindingsOnly");
+  const end = SOURCE.indexOf("function loadPublishedBaseline");
+  assert.ok(start > 0 && end > start, "observeBindingsOnly not found where expected");
+  return SOURCE.slice(start, end);
+}
+
+test("the observation pass waits for the layout's first target to surface before reading", () => {
+  const fn = observeFn();
+  assert.match(
+    fn,
+    /await gotoChartAndAwaitScript\(session\.page, layout\.chartUrl, layout\.targets\[0\]\.scriptName\)/,
+    "navigation must wait on the SAME predicate verifyConsumerBindings throws on",
+  );
+  assert.doesNotMatch(
+    fn,
+    /await gotoChart\(session\.page, layout\.chartUrl\)/,
+    "bare gotoChart resolves before the legend is rebuilt — the first target then reads as absent",
+  );
+});
+
+test("an unread target or unreachable layout leaves a log line, never a silent swallow", () => {
+  const fn = observeFn();
+  assert.match(fn, /pre-mutation observation could not read \$\{target\.scriptName\}/);
+  assert.match(fn, /pre-mutation observation could not reach \$\{layout\.chartUrl\}/);
+  assert.doesNotMatch(
+    fn,
+    /catch \{/,
+    "a bodyless catch in this pass is what made the 2026-08-14 misses undiagnosable",
+  );
+});
