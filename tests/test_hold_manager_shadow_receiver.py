@@ -35,6 +35,9 @@ TOKEN = "shadow-receiver-test-token-" + "x" * 32
 SOURCE_SHA256 = (
     "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
 )
+# Pinned, not read from the contract: a test that derives its expectation from
+# the file under test cannot notice that file changing.
+SOURCE_BUILD = 1
 
 
 @pytest.fixture()
@@ -94,6 +97,28 @@ def _state_headers(token: str = TOKEN) -> dict[str, str]:
     return {"X-Hold-Manager-Shadow-Token": token}
 
 
+def _build_payload(
+    *,
+    channel: str = "HM_ENTRY",
+    bar_time: dt.datetime | None = None,
+    source_build: int | None = None,
+) -> dict[str, object]:
+    """The build-pinned shape, derived from the legacy one on purpose.
+
+    Everything describing the event is shared, so a change to those fields
+    cannot silently apply to only one of the two wire shapes.
+    """
+    payload = _payload(channel=channel, bar_time=bar_time)
+    del payload["authToken"]
+    del payload["sourceSha256"]
+    payload["sourceBuild"] = SOURCE_BUILD if source_build is None else source_build
+    return payload
+
+
+def _build_post_url(token: str = TOKEN) -> str:
+    return f"/{token}/tradingview/hold-manager-shadow"
+
+
 def test_production_app_mounts_both_receiver_routes() -> None:
     from services.live_overlay_daemon import main
 
@@ -101,6 +126,126 @@ def test_production_app_mounts_both_receiver_routes() -> None:
 
     assert "/tradingview/hold-manager-shadow" in paths
     assert "/tradingview/hold-manager-shadow/state" in paths
+    assert "/{token}/tradingview/hold-manager-shadow" in paths
+
+
+def test_the_contract_pins_a_build_and_records_it_in_the_history() -> None:
+    """Guards the fixture the tests below stand on.
+
+    If the contract lost its build fields these tests would still pass while
+    proving nothing, because the receiver would 503 on every request and the
+    assertions are about status codes.
+    """
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+
+    assert contract["source"]["build"] == SOURCE_BUILD
+    assert contract["source"]["sha256"] == SOURCE_SHA256
+    assert {
+        "build": SOURCE_BUILD,
+        "sha256": SOURCE_SHA256,
+    } in contract["buildHistory"]
+
+
+def test_build_route_accepts_the_pinned_build(client: TestClient) -> None:
+    response = client.post(_build_post_url(), json=_build_payload())
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "accepted"
+
+
+def test_build_route_stores_the_contract_hash_not_the_build(
+    client: TestClient,
+) -> None:
+    """The payload names a build; the ledger keeps a hash.
+
+    This is the whole point of resolving server-side: the persisted truth
+    stays exactly what it was before the decoupling.
+    """
+    client.post(_build_post_url(), json=_build_payload())
+
+    state = client.get(_state_url(), headers=_state_headers())
+
+    assert state.status_code == 200
+    assert state.json()["uniqueByChannel"]["HM_ENTRY"] == 1
+
+
+def test_build_route_rejects_a_stale_build(client: TestClient) -> None:
+    """A stale script on TradingView emits the previous build number.
+
+    Rejecting it is the same drift detection the hand-typed hash provided.
+    """
+    response = client.post(
+        _build_post_url(),
+        json=_build_payload(source_build=SOURCE_BUILD + 1),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["fields"] == ["sourceBuild"]
+
+
+def test_build_route_rejects_the_legacy_shape(client: TestClient) -> None:
+    """extra="forbid" makes the cutover fail closed without extra code."""
+    response = client.post(_build_post_url(), json=_payload())
+
+    assert response.status_code == 400
+
+
+def test_legacy_route_rejects_the_build_shape(client: TestClient) -> None:
+    """The negative twin of the test above.
+
+    Without it, the assertion that the build route rejects the legacy shape
+    could be satisfied by a receiver that rejects everything.
+    """
+    response = client.post(_post_url(), json=_build_payload())
+
+    assert response.status_code == 400
+
+
+def test_build_route_rejects_a_wrong_path_token(client: TestClient) -> None:
+    response = client.post(
+        _build_post_url("wrong-token-" + "y" * 32),
+        json=_build_payload(),
+    )
+
+    assert response.status_code == 404
+
+
+def test_build_route_authenticates_before_parsing_the_body(
+    client: TestClient,
+) -> None:
+    """An unauthenticated caller must not reach the pydantic parser.
+
+    A malformed body with a wrong token has to answer 404 (auth) and not 400
+    (parse), or the parser is reachable without credentials.
+    """
+    response = client.post(
+        _build_post_url("wrong-token-" + "y" * 32),
+        json={"not": "a payload"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_both_shapes_share_one_event_identity(client: TestClient) -> None:
+    """Duplicate detection must survive the cutover.
+
+    The same bar delivered through both shapes is one event, not two, because
+    _event_id still composes the attested hash — supplied by the payload on
+    the legacy route and by the contract on the build route.
+    """
+    bar_time = dt.datetime.now(dt.UTC)
+
+    legacy = client.post(_post_url(), json=_payload(bar_time=bar_time))
+    build = client.post(
+        _build_post_url(),
+        json=_build_payload(bar_time=bar_time),
+    )
+
+    assert legacy.status_code == 200, legacy.text
+    assert build.status_code == 200, build.text
+    assert legacy.json()["status"] == "accepted"
+    assert build.json()["status"] == "duplicate"
+    assert build.json()["eventId"] == legacy.json()["eventId"]
 
 
 def test_receiver_defaults_fail_closed_when_not_accepting(

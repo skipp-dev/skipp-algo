@@ -1474,7 +1474,8 @@ The corresponding Prometheus contract is:
 | Daemon | GitHub API | HTTPS | `GITHUB_WORKFLOW_MONITOR_TOKEN` | Outbound | Workflow run status |
 | Railway healthcheck | Daemon `/health` | HTTP | none | Inbound | 200 OK liveness |
 | UptimeRobot probe | Daemon `/health` | HTTP/HTTPS | none | Inbound | HEAD/GET probe |
-| Private TradingView alerts | Daemon `/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated body token | Inbound | Six source-pinned Hold Manager edge events |
+| Private TradingView alerts | Daemon `/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated body token | Inbound | Six source-pinned Hold Manager edge events (legacy shape, rollback path) |
+| Private TradingView alert | Daemon `/{token}/tradingview/hold-manager-shadow` | HTTPS/JSON | Dedicated path token | Inbound | One build-pinned alert carrying all six channels |
 
 ### Hold Manager R2 controlled receiver activation
 
@@ -1515,6 +1516,17 @@ implementation.
    the private alert UI by replacing
    `<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>`. The webhook URL contains no secret:
    `https://liveoverlaydaemon-production.up.railway.app/tradingview/hold-manager-shadow`.
+
+   **This step describes the legacy shape, which is being retired.** It stays
+   here because it is the rollback procedure while
+   `alertWireShape.cutOver` is false in the shadow contract. After the cutover
+   there is **one** alert, not six: condition *"Any alert() function call"*, an
+   empty message field because the Pine source writes the whole body, and a
+   webhook URL that *does* carry the token:
+   `https://liveoverlaydaemon-production.up.railway.app/<token>/tradingview/hold-manager-shadow`.
+   That URL is a secret and must be handled like one; it is protected in the
+   same way as the four other `/{token}/…` routes, by `access_log=False` in
+   `main.py`.
 5. Verify the six alert definitions while the receiver still rejects
    deliveries. Immediately before the agreed observation boundary, set
    `HOLD_MANAGER_SHADOW_ACCEPTING=1`, record the activation object and ordered
