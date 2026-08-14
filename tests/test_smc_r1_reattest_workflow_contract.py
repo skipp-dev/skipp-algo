@@ -44,16 +44,55 @@ def _step(steps: list[dict], name_prefix: str) -> dict:
 # ------------------------------------------------------------- the proposer
 
 
-def test_proposer_runs_on_weekday_premarket_schedule_and_dispatch_only() -> None:
+def test_proposer_runs_on_schedule_dispatch_and_save_success_only() -> None:
+    """The cron is the floor; the save-chain completion is the cadence.
+
+    Until 2026-08-14 the cron was the only automatic trigger, and since
+    refreshes land 12:57-17:55Z a 12:07Z-only proposer always re-attested
+    YESTERDAY's final published version -- Event Overlay (whose imports are
+    exclusively event-risk fields) structurally ran ~1 trading day behind its
+    fourteen neighbours. The workflow_run trigger closes that; the guards that
+    keep it from looping live in the job condition and are pinned below.
+    """
     on_block = _reattest().get("on") or _reattest().get(True)
     crons = [entry["cron"] for entry in on_block["schedule"]]
     assert crons == ["7 12 * * 1-5"], (
-        "one weekday pre-US-open proposal per day -- the fixed branch and the "
-        "chain head-check both assume no concurrent proposals"
+        "the weekday pre-US-open floor -- self-healing when an event-driven "
+        "run was displaced or the chain was down"
     )
     assert "workflow_dispatch" in on_block
-    assert set(on_block) == {"schedule", "workflow_dispatch"}, (
-        "no push/PR triggers: the proposer must never run on its own proposal"
+    assert set(on_block) == {"schedule", "workflow_dispatch", "workflow_run"}, (
+        "no push/PR triggers: the proposer must never run on its own proposal "
+        "(that property now lives in the job condition's head_branch filter, "
+        "pinned by test_proposer_event_trigger_cannot_loop_or_fire_on_failure)"
+    )
+    assert on_block["workflow_run"]["workflows"] == ["tv-save-consumer-source"], (
+        "the event trigger must watch exactly the save chain whose success "
+        "means the published library may have moved"
+    )
+    assert on_block["workflow_run"]["types"] == ["completed"]
+
+
+def test_proposer_event_trigger_cannot_loop_or_fire_on_failure() -> None:
+    """workflow_run fires on cancelled/failure too, and the measuring save IS
+    a tv-save-consumer-source run on bot/r1-reattest.
+
+    Without the conclusion guard the proposer would fire on the routinely
+    cancelled completions of the saturated queue (2026-08-13: 44 cancelled in
+    one day) and race a TradingView state nobody verified. Without the
+    head_branch guard every proposal's own measuring save would re-trigger the
+    proposer -- an infinite loop throttled only by the session queue.
+    """
+    condition = _reattest()["jobs"]["propose"]["if"]
+    assert "github.event_name != 'workflow_run'" in condition, (
+        "cron and manual dispatch must pass the condition untouched"
+    )
+    assert "github.event.workflow_run.conclusion == 'success'" in condition, (
+        "a cancelled or failed save-chain completion must not propose"
+    )
+    assert "github.event.workflow_run.head_branch == 'main'" in condition, (
+        "the measuring save completes on bot/r1-reattest; without this filter "
+        "the proposer re-triggers itself in a loop"
     )
 
 
