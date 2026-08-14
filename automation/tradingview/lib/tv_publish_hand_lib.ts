@@ -142,6 +142,66 @@ export function resolveVersionAcceptance(input: {
   return { accepted: true, reason: `published /${published} matches the consumer pin` };
 }
 
+/**
+ * The committed record of what a verified publish observed on TradingView.
+ *
+ * Until 2026-08-14 the hand-authored tier had no equivalent of the generated
+ * library's `library_release_manifest.json`: every publisher verified the
+ * published version via the facade and then threw the number away into a
+ * timestamped, uncommitted report. The repo could therefore prove that every
+ * pin has an owner (tests/test_pine_pin_repin_ownership.py) but never that a
+ * pin is CURRENT — the exact blindness behind the 2026-07 chain
+ * (#3599/#3603, /1 against a live /152 for ~4 months).
+ *
+ * One file for all ten libraries, keyed by script name, rewritten
+ * entry-by-entry as each publish verifies. `git add` in
+ * pine-library-publish-handlibs.yml commits it in the same bot PR as the
+ * repinned consumers, so the record and the pins move together. Entries are
+ * only ever written from a live, facade-or-exact-evidence-verified publish —
+ * never seeded by hand, which would be dated evidence nobody observed
+ * (the vacuous-gates lesson: datierte Evidenz nie nachziehen).
+ */
+export const HANDLIB_RELEASE_MANIFEST = "artifacts/tradingview/handlib_release_manifest.json";
+
+export type HandLibReleaseEntry = {
+  publishedVersion: number;
+  publishedAt: string;
+  versionVerificationMode: string;
+};
+
+export type HandLibReleaseManifest = {
+  schemaVersion: 1;
+  libraries: Record<string, HandLibReleaseEntry>;
+};
+
+/**
+ * Merge one library's verified publish observation into the manifest.
+ *
+ * Keys are sorted so ten publishes in any order produce byte-identical
+ * output — the file is reviewed as a diff in the weekly repin PR, and an
+ * order-dependent serialization would make every run's diff noise.
+ */
+export function recordHandLibRelease(
+  repoRoot: string,
+  scriptName: string,
+  entry: HandLibReleaseEntry,
+): string {
+  const manifestPath = path.join(repoRoot, HANDLIB_RELEASE_MANIFEST);
+  let manifest: HandLibReleaseManifest = { schemaVersion: 1, libraries: {} };
+  if (fs.existsSync(manifestPath)) {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as HandLibReleaseManifest;
+  }
+  manifest.libraries[scriptName] = entry;
+  const sorted: HandLibReleaseManifest = {
+    schemaVersion: 1,
+    libraries: Object.fromEntries(
+      Object.entries(manifest.libraries).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  };
+  writeJson(manifestPath, sorted);
+  return manifestPath;
+}
+
 export type HandLibDescriptor = {
   scriptName: string;
   source: string;
@@ -710,6 +770,19 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       }
     } finally {
       await closeTradingViewSession(session);
+    }
+
+    // Reached only past the acceptance throw above, so this is a VERIFIED
+    // observation of what TradingView holds right now — the one fact the
+    // repo could never state about the hand libs. resolveVersionAcceptance
+    // rejects a null published version, so the guard is for the type system,
+    // not a reachable skip.
+    if (publishedVersion !== null) {
+      recordHandLibRelease(cli.repoRoot, details.scriptName, {
+        publishedVersion,
+        publishedAt: utcNow(),
+        versionVerificationMode,
+      });
     }
 
     const report: HandLibPublishReport = {

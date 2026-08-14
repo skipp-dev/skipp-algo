@@ -180,10 +180,35 @@ jobs:
           # written. Under -e that case failed the run; publishing log_rc is
           # what keeps it failing.
           echo "log_rc=${log_rc}" >> "$GITHUB_OUTPUT"
-          # A non-zero rc means a publish/verify failed mid-chain; still capture
-          # any repins already made so the PR shows partial progress, but mark
-          # the run failed at the end.
-          if git status --porcelain -- '*.pine' | grep -q .; then
+          # The changed-set is measured in the R1-hold step below, AFTER the
+          # attested companions are restored — measured here it would count
+          # diffs the hold is about to take back, and a run whose only edit
+          # was an attested companion would open an empty PR.
+
+      - name: Hold R1-attested sources at their attested content
+        id: r1_hold
+        run: |
+          set -euo pipefail
+          # Same sanctioned door as the refresh (smc-library-publish.yml
+          # step "Hold R1-attested sources"): repinAllConsumers rewrites
+          # every consumer .pine, including the R1-attested companions, and
+          # an attested source may not change while the registered evidence
+          # still describes the previous content. Until 2026-08-14 this
+          # writer path did not know the hold — the next smc_utils bump in
+          # the Sunday run would have killed the R1 evidence exactly the way
+          # #4284/#4371 did from the refresh path before it learned this
+          # step. The module derives the roster from the live rollout
+          # contract (no second list) and fails closed on an empty roster,
+          # and a failure here fails the JOB: better no repin PR at all than
+          # one that de-attests a companion.
+          python3 -m scripts.hold_r1_attested_sources
+          # The changed-set, measured on the tree the PR would actually
+          # carry. The release manifest is part of it on purpose: the FIRST
+          # verified run writes manifest entries even when no library
+          # content changed (idempotent publishes still observe the live
+          # version), and a porcelain check scoped to '*.pine' alone would
+          # read that run as changed=false — no PR, observation lost.
+          if git status --porcelain -- '*.pine' artifacts/tradingview/handlib_release_manifest.json | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -199,10 +224,13 @@ jobs:
           retention-days: 14
 
       - name: Open repin PR
-        if: steps.publish.outputs.changed == 'true'
+        # r1_hold's changed, not publish's: only the post-hold tree tells the
+        # truth about what this PR would carry.
+        if: steps.r1_hold.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PUBLISH_RC: ${{ steps.publish.outputs.rc }}
+          R1_HELD: ${{ steps.r1_hold.outputs.held }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
@@ -222,13 +250,23 @@ jobs:
             _title="chore(pine): PARTIAL repin — hand-lib publish exited ${PUBLISH_RC:-<empty>}"
             _summary="**PARTIAL — the run that produced this is RED.** \`tv:publish-handlibs\` exited \`${PUBLISH_RC:-<empty>}\`: a publish or its facade verification failed mid-chain. The helper stops at the first failure and repins only libraries it published AND verified, so this diff is consistent but INCOMPLETE — the libraries after the failure point are untouched and the monitor's drift alert will stay lit for them. Fix the failure and re-run before treating the chain as reconciled."
           fi
+          # The reviewer must learn that companions were held OUT of this diff
+          # — a repin PR that silently omits two consumers reads as a bug, and
+          # the omission is the R1 policy working as designed.
+          if [ -n "${R1_HELD:-}" ] && [ "${R1_HELD}" != "[]" ]; then
+            _summary="${_summary} **R1 hold:** the attested companion(s) ${R1_HELD} were restored to their attested content and are NOT repinned here; they advance only through the automated re-attestation chain (smc-r1-reattest.yml)."
+          fi
           branch="bot/handlib-repin-${GITHUB_RUN_ID}"
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
-          git add -- '*.pine' 'SMC++'/*.pine
+          # Manifest and pins travel in ONE commit: the manifest claims "TV
+          # holds /N", the pins claim "consumers use /N" — split across two
+          # commits, the currency gate (tests/test_handlib_release_manifest.py)
+          # would be red between them by construction.
+          git add -- '*.pine' 'SMC++'/*.pine artifacts/tradingview/handlib_release_manifest.json
           git commit -m "chore(pine): repin consumers after scheduled hand-lib publish (run ${GITHUB_RUN_ID})"
           # Push to a fresh per-run branch (never main); a unique branch never
           # needs a force-push. Wrap so a push failure warns instead of
