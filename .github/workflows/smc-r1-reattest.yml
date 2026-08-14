@@ -34,8 +34,31 @@ on:
     # Weekdays 12:07Z: after the morning refresh ticks have moved the
     # published library (refresh normally completes pre-market ~09-13Z),
     # before the US open -- the same pre-market posture as the chained save.
+    #
+    # Since 2026-08-14 the cron is the FLOOR, not the cadence. Refreshes land
+    # 12:57-17:55Z, so a cron-only proposer always re-attested YESTERDAY's
+    # final version: SMC_Event_Overlay renders exclusively event-risk fields
+    # (NEXT_EVENT_TIME, EVENT_RISK_LEVEL, SYMBOL_EVENT_BLOCKED, ...) and its
+    # data ran a structural ~1 trading day behind the fourteen neighbouring
+    # consumers -- an overlay whose whole purpose is events showing an older
+    # event table than the Suite beside it. The workflow_run trigger below
+    # closes that gap; the cron remains so one missed event never strands the
+    # pin for good (self-healing floor, watched by the freshness monitor).
     - cron: "7 12 * * 1-5"
   workflow_dispatch: {}
+  # Event-driven: re-attest as soon as a consumer-save chain SUCCEEDS on main.
+  # That moment is exactly when (a) the published library may have moved and
+  # (b) the tradingview-session queue has just freed up for the measuring
+  # save this workflow dispatches. Two known traps, both guarded in the job
+  # condition below rather than here (workflow_run has no conclusion filter):
+  #   * workflow_run also fires on 'cancelled' and 'failure' -- the 2026-08-13
+  #     saturated-queue incident showed cancelled completions are routine.
+  #   * The measuring save this workflow dispatches IS a
+  #     tv-save-consumer-source run (on bot/r1-reattest); without the
+  #     head_branch filter every proposal would re-trigger the proposer.
+  workflow_run:
+    workflows: ["tv-save-consumer-source"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -57,6 +80,17 @@ concurrency:
 
 jobs:
   propose:
+    # The two workflow_run guards (see the `on:` comment): only a SUCCESSFUL
+    # save-chain on MAIN counts. A cancelled/failed completion means the queue
+    # displaced or the save broke -- proposing then would race a TradingView
+    # state nobody verified. And the measuring save this workflow dispatches
+    # completes on bot/r1-reattest; without the head_branch filter every
+    # proposal would re-trigger this proposer in a loop. Cron and manual
+    # dispatch pass untouched: github.event.workflow_run is empty for them.
+    if: >-
+      github.event_name != 'workflow_run'
+      || (github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.head_branch == 'main')
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
