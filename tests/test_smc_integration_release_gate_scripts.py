@@ -1442,3 +1442,130 @@ class TestTvResilienceClassification:
         should_downgrade = gate.get("tv_failure_class") == "external_tv_drift"
         assert should_downgrade is False
         assert gate["blocking"] is True
+
+
+class TestDailyExportAbsent:
+    """`--daily-export-absent`: the producer has not published THIS date yet.
+
+    Measured 2026-08-14. Once the TradingView queue stopped being saturated,
+    the publish chain ran outside data hours for the first time (00:47, 02:30,
+    03:39, 04:35 UTC) and every run died on provider_health/MISSING_ARTIFACT
+    plus reference_bundle -- the latter only because `source="auto"` falls back
+    to the top-5 premarket watchlist, which cannot contain a mega-cap reference
+    symbol. Both state a schedule, not a defect, and the consumer re-pin and the
+    commit sit BEHIND them: TradingView moved 230 -> 238 in one night while the
+    repository stayed on 230.
+    """
+
+    @staticmethod
+    def _args(**overrides) -> Namespace:
+        base = dict(
+            symbols="AAPL",
+            timeframes="15m",
+            stale_after_seconds=3600,
+            fail_on_warn=False,
+            allow_warn=False,
+            skip_publish_contract=True,
+            manifest="pine/generated/smc_micro_profiles_generated.json",
+            core_engine="SMC_Long_Dip_Suite.pine",
+            measurement_output_root=None,
+            measurement_baseline_summary=None,
+            output="-",
+            ci_mode=False,
+            daily_export_absent=False,
+        )
+        base.update(overrides)
+        return Namespace(**base)
+
+    def _wire(self, monkeypatch, captured: list[dict], *, provider: dict, **arg_overrides) -> None:
+        monkeypatch.setattr(
+            release_script, "build_parser", lambda: _Parser(self._args(**arg_overrides))
+        )
+        monkeypatch.setattr(
+            release_script, "run_provider_health_check", lambda **kwargs: provider
+        )
+        monkeypatch.setattr(
+            release_script,
+            "build_snapshot_bundle_for_symbol_timeframe",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                ValueError("symbol AAPL not present in watchlist source")
+            ),
+        )
+        monkeypatch.setattr(
+            release_script,
+            "_run_measurement_gate",
+            lambda symbol, timeframe, output_root, report_output="-", **kwargs: {
+                "name": "measurement_lane",
+                "status": "warn",
+                "blocking": False,
+                "details": {"measurement_manifest_present": False},
+            },
+        )
+        monkeypatch.setattr(release_script, "_render", lambda report, output: captured.append(report))
+
+    @staticmethod
+    def _data_absent_provider() -> dict:
+        return {
+            "overall_status": "fail",
+            "failures": [{"code": "MISSING_ARTIFACT"}],
+            "warnings": [],
+            "domain_alerts": [],
+            "degradations_detected": [],
+            "smoke_test_results": [{"symbol": "AAPL", "timeframe": "15m"}],
+        }
+
+    def test_without_the_flag_a_missing_daily_export_still_blocks(self, monkeypatch) -> None:
+        """The baseline. Without this, the two tests below prove nothing."""
+        captured: list[dict] = []
+        self._wire(monkeypatch, captured, provider=self._data_absent_provider())
+
+        rc = release_script.main()
+
+        assert rc == 1, "a data-absent failure must block when nobody said the export is pending"
+        assert captured[-1]["runner"]["daily_export_absent_downgrades"] == []
+
+    def test_the_flag_downgrades_exactly_the_data_absent_failures(self, monkeypatch) -> None:
+        captured: list[dict] = []
+        self._wire(
+            monkeypatch, captured, provider=self._data_absent_provider(), daily_export_absent=True
+        )
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        downgrades = report["runner"]["daily_export_absent_downgrades"]
+        assert rc == 0, f"still blocking: {[g['name'] for g in report['gates'] if g.get('blocking', True) and g['status'] == 'fail']}"
+        assert "provider_health" in downgrades
+        assert "reference_bundle" in downgrades
+        # The whole point of a separate flag: the evidence must not claim a CI
+        # environment this production run was never in.
+        assert report["runner"]["ci_mode"] is False
+        assert report["runner"]["ci_mode_downgrades"] == []
+        for gate in report["gates"]:
+            if gate["name"] in downgrades:
+                assert gate["daily_export_absent_downgraded"] is True
+                assert "not published yet" in gate["daily_export_absent_reason"]
+                assert "ci_mode_downgraded" not in gate
+
+    def test_the_flag_does_not_excuse_a_real_failure(self, monkeypatch) -> None:
+        """A pending export explains absent data. It explains nothing else."""
+        captured: list[dict] = []
+        self._wire(
+            monkeypatch,
+            captured,
+            provider={
+                "overall_status": "fail",
+                "failures": [{"code": "INVALID_MANIFEST_JSON"}],
+                "warnings": [],
+                "domain_alerts": [],
+                "degradations_detected": [],
+                "smoke_test_results": [{"symbol": "AAPL", "timeframe": "15m"}],
+            },
+            daily_export_absent=True,
+        )
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        assert rc == 1, "a malformed manifest is not a scheduling artefact"
+        assert "provider_health" not in report["runner"]["daily_export_absent_downgrades"]

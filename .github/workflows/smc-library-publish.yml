@@ -340,6 +340,23 @@ jobs:
             echo "bundle_present=true" >> "$GITHUB_OUTPUT"
             NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
             echo "::notice::Restored Databento production manifest: ${NEWEST}"
+            # The glob above carries no date, so it is satisfied by ANY manifest
+            # of any age -- while the message this step prints names
+            # ${REFRESH_DATE}. That gap is what let the 2026-08-14 night runs
+            # pass here on a day-old bundle and then die in the release gates on
+            # MISSING_ARTIFACT. Read the date the manifest actually covers.
+            if jq -e --arg d "${REFRESH_DATE}" \
+                 '(.trade_dates_covered // []) | index($d) != null' \
+                 "${NEWEST}" >/dev/null 2>&1; then
+              echo "bundle_for_date=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "bundle_for_date=false" >> "$GITHUB_OUTPUT"
+              # NOT an error: outside data hours the producer simply has not run
+              # for this date yet. The release gates are told so explicitly and
+              # downgrade their data-absent failures instead of blocking the
+              # consumer re-pin and the commit that sit behind them.
+              echo "::notice::Databento bundle does not cover ${REFRESH_DATE} yet — release gates run with --daily-export-absent."
+            fi
             exit 0
           fi
           # F-V5-D1 (2026-05-01): automated consumers MUST not generate or
@@ -615,10 +632,20 @@ jobs:
       - name: Run strict release gates
         id: release_gates
         if: always() && steps.publish.outcome == 'success' && steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          BUNDLE_FOR_DATE: ${{ steps.verify_export_bundle.outputs.bundle_for_date }}
         run: |
+          # Only when the producer has not published THIS run's date yet. Any
+          # other value -- including an empty one, which means the check above
+          # did not run -- keeps every gate blocking.
+          extra=()
+          if [ "${BUNDLE_FOR_DATE}" = "false" ]; then
+            extra+=(--daily-export-absent)
+          fi
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
             --measurement-baseline-summary reports/smc_measurement_baseline_summary.json \
+            ${extra[@]+"${extra[@]}"} \
             --output artifacts/ci/smc_post_release_gates_report.json
 
       - name: Refresh gate evidence summary after post-release validation
