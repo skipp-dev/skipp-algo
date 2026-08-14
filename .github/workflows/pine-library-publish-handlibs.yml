@@ -183,7 +183,12 @@ jobs:
           # A non-zero rc means a publish/verify failed mid-chain; still capture
           # any repins already made so the PR shows partial progress, but mark
           # the run failed at the end.
-          if git status --porcelain -- '*.pine' | grep -q .; then
+          # The release manifest is part of the changed-set on purpose: the
+          # FIRST verified run writes manifest entries even when no library
+          # content changed (idempotent publishes still observe the live
+          # version), and a porcelain check scoped to '*.pine' alone would
+          # read that run as changed=false — no PR, observation lost.
+          if git status --porcelain -- '*.pine' artifacts/tradingview/handlib_release_manifest.json | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -228,7 +233,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "${branch}"
-          git add -- '*.pine' 'SMC++'/*.pine
+          # Manifest and pins travel in ONE commit: the manifest claims "TV
+          # holds /N", the pins claim "consumers use /N" — split across two
+          # commits, the currency gate (tests/test_handlib_release_manifest.py)
+          # would be red between them by construction.
+          git add -- '*.pine' 'SMC++'/*.pine artifacts/tradingview/handlib_release_manifest.json
           git commit -m "chore(pine): repin consumers after scheduled hand-lib publish (run ${GITHUB_RUN_ID})"
           # Push to a fresh per-run branch (never main); a unique branch never
           # needs a force-push. Wrap so a push failure warns instead of

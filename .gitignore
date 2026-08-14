@@ -90,6 +90,11 @@ reports/open_prep_ranked_candidates_*.csv
 reports/open_prep_trade_cards_*.csv
 artifacts/smc_microstructure_exports/
 artifacts/tradingview/*.json
+# The hand-lib release manifest is COMMITTED evidence (the currency gate in
+# tests/test_handlib_release_manifest.py reads it), not a run artifact like
+# its siblings above. library_release_manifest.json survives the same glob
+# only because it was force-added before this line existed.
+!artifacts/tradingview/handlib_release_manifest.json
 artifacts/ops_run_report.json
 artifacts/ops_run_stdout*.txt
 artifacts/ops_run_time*.txt
