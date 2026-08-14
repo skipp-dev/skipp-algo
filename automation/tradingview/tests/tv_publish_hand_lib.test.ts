@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  assertVersionAdvance,
   consumerPins,
   deriveExpectedVersion,
   resolveVersionAcceptance,
@@ -129,7 +130,9 @@ test("a not_verified mode with a matching version and no facade answer is reject
 // indirectly through a live publish.
 
 /** A minimal library + core pair that satisfies every check except the ones under test. */
-function coherentContractFixture(): { root: string; descriptor: HandLibDescriptor } {
+function coherentContractFixture(
+  opts: { requiresExplicitVersionAdvance?: boolean } = {},
+): { root: string; descriptor: HandLibDescriptor } {
   const root = scratchRepo({
     "SMC++/smc_contract_fixture.pine": 'library("smc_contract_fixture")\nplot(1)\n',
     "SMC_Long_Dip_Suite.pine": "// does not import smc_contract_fixture -- zero pins is a legal bootstrap\n",
@@ -141,11 +144,17 @@ function coherentContractFixture(): { root: string; descriptor: HandLibDescripto
     noun: "Contract fixture",
     reportStem: "publish-contract-fixture-library",
     description: "Fixture only, never published.",
+    ...(opts.requiresExplicitVersionAdvance ? { requiresExplicitVersionAdvance: true as const } : {}),
   };
   return { root, descriptor };
 }
 
-function baseCliFor(root: string, overrides: { importPath: string; version: number }) {
+function baseCliFor(root: string, overrides: {
+  importPath: string;
+  version: number;
+  versionExplicit?: boolean;
+  expectedCurrentVersion?: number;
+}) {
   return {
     library: path.join(root, "SMC++/smc_contract_fixture.pine"),
     core: path.join(root, "SMC_Long_Dip_Suite.pine"),
@@ -198,4 +207,81 @@ test("verifyHandLibPublishContract accepts a correctly-formed import path", () =
   assert.equal(details.scriptName, "smc_contract_fixture");
   assert.equal(details.version, 3);
   assert.equal(details.importPath, "preuss_steffen/smc_contract_fixture/3");
+});
+
+test("a descriptor without requiresExplicitVersionAdvance never sets versionAdvanceContract", () => {
+  const { root, descriptor } = coherentContractFixture();
+  const cli = baseCliFor(root, { importPath: "preuss_steffen/smc_contract_fixture/3", version: 3, versionExplicit: true });
+  const details = verifyHandLibPublishContract(descriptor, cli);
+  assert.equal(details.versionAdvanceContract, undefined);
+  assert.equal(details.expectedCurrentVersion, undefined);
+});
+
+// requiresExplicitVersionAdvance: the advance-exactly-one contract (2026-08-14
+// controller ruling; see HandLibDescriptor's docstring in
+// tv_publish_hand_lib.ts). Only smc_context_engine_private opts in today.
+
+test("assertVersionAdvance rejects a target that is not current + 1", () => {
+  assert.throws(
+    () => assertVersionAdvance({ expectedCurrentVersion: 3, version: 5, noun: "Context engine" }),
+    /must advance exactly one version/,
+  );
+});
+
+test("assertVersionAdvance accepts current + 1", () => {
+  assert.doesNotThrow(
+    () => assertVersionAdvance({ expectedCurrentVersion: 3, version: 4, noun: "Context engine" }),
+  );
+});
+
+test("an explicit version with a correct expected-current is accepted and recorded as enforced", () => {
+  const { root, descriptor } = coherentContractFixture({ requiresExplicitVersionAdvance: true });
+  const cli = baseCliFor(root, {
+    importPath: "preuss_steffen/smc_contract_fixture/4",
+    version: 4,
+    versionExplicit: true,
+    expectedCurrentVersion: 3,
+  });
+  const details = verifyHandLibPublishContract(descriptor, cli);
+  assert.equal(details.versionAdvanceContract, "enforced");
+  assert.equal(details.expectedCurrentVersion, 3);
+});
+
+test("an explicit version with a wrong expected-current is rejected, naming the substring", () => {
+  const { root, descriptor } = coherentContractFixture({ requiresExplicitVersionAdvance: true });
+  const cli = baseCliFor(root, {
+    importPath: "preuss_steffen/smc_contract_fixture/5",
+    version: 5,
+    versionExplicit: true,
+    expectedCurrentVersion: 3,
+  });
+  assert.throws(
+    () => verifyHandLibPublishContract(descriptor, cli),
+    /must advance exactly one version/,
+  );
+});
+
+test("an explicit version with expected-current MISSING is rejected", () => {
+  const { root, descriptor } = coherentContractFixture({ requiresExplicitVersionAdvance: true });
+  const cli = baseCliFor(root, {
+    importPath: "preuss_steffen/smc_contract_fixture/4",
+    version: 4,
+    versionExplicit: true,
+  });
+  assert.throws(
+    () => verifyHandLibPublishContract(descriptor, cli),
+    /requires --expected-current-version/,
+  );
+});
+
+test("a derived version records the skip and does not enforce the advance contract", () => {
+  const { root, descriptor } = coherentContractFixture({ requiresExplicitVersionAdvance: true });
+  const cli = baseCliFor(root, {
+    importPath: "preuss_steffen/smc_contract_fixture/4",
+    version: 4,
+    versionExplicit: false,
+  });
+  const details = verifyHandLibPublishContract(descriptor, cli);
+  assert.equal(details.versionAdvanceContract, "skipped_derived_version");
+  assert.equal(details.expectedCurrentVersion, undefined);
 });

@@ -7,6 +7,7 @@ import {
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   collectPublishedVersionContextTexts,
+  collectTradingViewPageAuthState,
   ensurePineEditor,
   fetchPublishedLibraryVersionViaFacade,
   gotoChart,
@@ -149,13 +150,61 @@ export type HandLibDescriptor = {
   reportStem: string;
   description: string;
   /**
-   * Opt-in to the advance-exactly-one contract that only
-   * smc_context_engine_private has today (see
-   * tv_publish_context_engine_library.ts:218-230): require
-   * --expected-current-version and refuse unless it equals version - 1.
+   * Opt-in to the extra-scrutiny path that only smc_context_engine_private
+   * has today (2026-08-14 controller ruling). It bundles three behaviors
+   * that were unique to the pre-conversion tv_publish_context_engine_library.ts
+   * and have no equivalent for the other nine hand-libs, so this single flag
+   * gates all three rather than inventing three descriptor fields for one
+   * caller:
+   *
+   *   1. The advance-exactly-one contract itself: when `--version` is passed
+   *      EXPLICITLY, `--expected-current-version` becomes required and must
+   *      equal `version - 1` (see `assertVersionAdvance`). When the version
+   *      is instead DERIVED from consumer pins (the orchestrator's actual
+   *      call shape — see tv_publish_hand_authored_libraries.ts, which
+   *      passes only --out and --no-allow-create), the contract does not
+   *      apply; `ContractDetails.versionAdvanceContract` records which of
+   *      the two happened rather than silently assuming either.
+   *   2. A live page-auth probe (`collectTradingViewPageAuthState`) right
+   *      after `gotoChart`, in addition to the static
+   *      `session.authResolution.authReusedOk` check every publisher already
+   *      has. `authReusedOk` only proves a local storage-state/profile file
+   *      exists; it says nothing about whether TradingView still honors that
+   *      session. This catches a locally-valid-looking session TradingView
+   *      has actually expired/logged out server-side.
+   *   3. A preflight fetch of the CURRENTLY published version via the facade
+   *      — before the editor is touched — compared against
+   *      `expectedCurrentVersion` (only meaningful when the advance contract
+   *      is enforced, see (1)). Fails closed: a stale operator assumption
+   *      about the current published version must never turn an intended
+   *      /3 publish into /4, or overwrite a newer private release, by
+   *      mutation.
    */
   requiresExplicitVersionAdvance?: boolean;
 };
+
+/**
+ * The advance-exactly-one contract: `expectedCurrentVersion` must equal
+ * `version - 1`. Thrown message keeps the substring "must advance exactly
+ * one version" — matched by operator runbooks.
+ */
+export function assertVersionAdvance(input: {
+  expectedCurrentVersion: number;
+  version: number;
+  noun: string;
+}): void {
+  const { expectedCurrentVersion, version, noun } = input;
+  if (!Number.isInteger(expectedCurrentVersion) || expectedCurrentVersion < 1) {
+    throw new Error(
+      `${noun} expected current version must be a positive integer, received: ${expectedCurrentVersion}`,
+    );
+  }
+  if (expectedCurrentVersion !== version - 1) {
+    throw new Error(
+      `${noun} publish must advance exactly one version: expected_current=${expectedCurrentVersion}, target=${version}`,
+    );
+  }
+}
 
 type IdentityVerificationMode = "script_context" | "not_verified";
 type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified" | "facade_list";
@@ -169,6 +218,10 @@ type CliArgs = {
   importPath: string;
   alias: string;
   version: number;
+  /** Whether `--version` was passed explicitly, vs. derived from consumer pins. */
+  versionExplicit?: boolean;
+  /** Only meaningful (and only ever set) when `versionExplicit` is true. */
+  expectedCurrentVersion?: number;
   description: string;
   out: string;
   openExisting: boolean;
@@ -182,6 +235,15 @@ type ContractDetails = {
   importPath: string;
   alias: string;
   version: number;
+  /** Ported into the report only when the advance contract is enforced. */
+  expectedCurrentVersion?: number;
+  /**
+   * Whether the advance-exactly-one contract ran ("enforced") or was
+   * skipped because the version came from consumer pins rather than an
+   * explicit --version ("skipped_derived_version"). Absent entirely for
+   * descriptors that do not opt into `requiresExplicitVersionAdvance`.
+   */
+  versionAdvanceContract?: "enforced" | "skipped_derived_version";
 };
 
 type HandLibPublishReport = {
@@ -199,6 +261,14 @@ type HandLibPublishReport = {
   versionVerificationMode: VersionVerificationMode;
   expectedImportPath: string;
   expectedVersion: number;
+  /** Only meaningful for descriptors with requiresExplicitVersionAdvance. */
+  expectedCurrentVersion?: number;
+  versionAdvanceContract?: "enforced" | "skipped_derived_version";
+  /** Live TradingView page-auth probe; only run for requiresExplicitVersionAdvance descriptors. */
+  pageAuthenticated?: boolean;
+  /** Pre-editor-mutation facade read of the currently published version; enforced-contract only. */
+  preflightPublishedVersion?: number | null;
+  preflightVersionOk?: boolean;
   publishedVersion: number | null;
   fallbackPublishedVersion: number | null;
   noChangeDetected: boolean;
@@ -250,12 +320,21 @@ function parseArgs(descriptor: HandLibDescriptor, argv: string[]): CliArgs {
   // still wins. Absent --version, the repo's consumer pins decide it (see
   // resolveDefaultVersion) — disagreement aborts instead of guessing, and
   // zero pins requires --version explicitly rather than inventing one.
-  const version = hasFlag("--version")
+  const versionExplicit = hasFlag("--version");
+  const version = versionExplicit
     ? Number(getFlag("--version", ""))
     : resolveDefaultVersion(descriptor, repoRoot);
   const importPath = hasFlag("--import-path")
     ? getFlag("--import-path", "")
     : `preuss_steffen/${descriptor.scriptName}/${version}`;
+  // Only captured here, not validated: verifyHandLibPublishContract decides
+  // whether it is required (only when the descriptor opts into the advance
+  // contract AND --version was explicit) so that the "missing" error stays
+  // next to every other contract check instead of splitting flag-presence
+  // logic across two functions.
+  const expectedCurrentVersion = hasFlag("--expected-current-version")
+    ? Number(getFlag("--expected-current-version", ""))
+    : undefined;
 
   return {
     library: path.resolve(getFlag("--library", descriptor.source)),
@@ -265,6 +344,8 @@ function parseArgs(descriptor: HandLibDescriptor, argv: string[]): CliArgs {
     importPath,
     alias: getFlag("--alias", descriptor.alias),
     version,
+    versionExplicit,
+    expectedCurrentVersion,
     description: getFlag("--description", descriptor.description),
     out: path.resolve(
       getFlag(
@@ -345,6 +426,33 @@ export function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli:
     );
   }
 
+  // The advance-exactly-one contract (controller ruling, 2026-08-14):
+  // enforced only when --version was passed explicitly. When the version is
+  // derived from consumer pins there is nothing an operator asserted about
+  // "the current version" to check against — inventing expectedCurrentVersion
+  // = derived - 1 would make the check true by construction, a vacuous guard
+  // that looks alive. So the derived path records an explicit skip instead
+  // of a silent pass.
+  let expectedCurrentVersion: number | undefined;
+  let versionAdvanceContract: "enforced" | "skipped_derived_version" | undefined;
+  if (descriptor.requiresExplicitVersionAdvance) {
+    if (!cli.versionExplicit) {
+      versionAdvanceContract = "skipped_derived_version";
+    } else if (cli.expectedCurrentVersion === undefined) {
+      throw new Error(
+        `${descriptor.noun} publish requires --expected-current-version when --version is passed explicitly.`,
+      );
+    } else {
+      assertVersionAdvance({
+        expectedCurrentVersion: cli.expectedCurrentVersion,
+        version: cli.version,
+        noun: descriptor.noun,
+      });
+      expectedCurrentVersion = cli.expectedCurrentVersion;
+      versionAdvanceContract = "enforced";
+    }
+  }
+
   return {
     libraryPath: cli.library,
     corePath: cli.core,
@@ -352,6 +460,8 @@ export function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli:
     importPath: cli.importPath,
     alias: cli.alias,
     version: cli.version,
+    expectedCurrentVersion,
+    versionAdvanceContract,
   };
 }
 
@@ -373,16 +483,13 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
   let identityEvidenceContext: string[] = [];
   let versionEvidenceContext: string[] = [];
   let publishBodyText = "";
+  // Only ever set for descriptors with requiresExplicitVersionAdvance (see
+  // that field's docstring for why these three ride along with it).
+  let pageAuthenticated: boolean | undefined;
+  let preflightPublishedVersion: number | null | undefined;
+  let preflightVersionOk: boolean | undefined;
 
   try {
-    if (descriptor.requiresExplicitVersionAdvance) {
-      throw new Error(
-        `${descriptor.scriptName} sets requiresExplicitVersionAdvance, but runHandLibPublish does not implement ` +
-          "the advance-exactly-one contract yet (see tv_publish_context_engine_library.ts:218-230 for the shape " +
-          "it opts into: --expected-current-version, refuse unless it equals version - 1). Refusing to publish " +
-          "rather than silently skipping that check.",
-      );
-    }
     cli = parseArgs(descriptor, argv);
     details = verifyHandLibPublishContract(descriptor, cli);
     const session = await newTradingViewSession();
@@ -392,6 +499,40 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       }
 
       await gotoChart(session.page);
+
+      if (descriptor.requiresExplicitVersionAdvance) {
+        // Live page-auth probe, in addition to the static authReusedOk check
+        // above: authReusedOk only proves a local storage-state/profile file
+        // exists, not that TradingView still honors that session.
+        const pageAuthState = await collectTradingViewPageAuthState(session.page);
+        pageAuthenticated = pageAuthState.authenticated;
+        if (!pageAuthenticated) {
+          throw new Error(
+            "TradingView rejected the configured auth source as anonymous. " +
+              "Refresh TV_STORAGE_STATE or use an authenticated persistent profile before publishing.",
+          );
+        }
+
+        if (details.versionAdvanceContract === "enforced") {
+          // Fail closed before touching the editor. A stale operator
+          // assumption about the current published version must never turn
+          // an intended /3 publish into /4 (or overwrite a newer private
+          // release).
+          preflightPublishedVersion = await fetchPublishedLibraryVersionViaFacade(
+            session.page,
+            details.scriptName,
+          ).catch(() => null);
+          preflightVersionOk = preflightPublishedVersion === details.expectedCurrentVersion;
+          if (!preflightVersionOk) {
+            throw new Error(
+              `${descriptor.noun} publish predecessor mismatch: expected_current=${details.expectedCurrentVersion}, ` +
+                `detected_current=${preflightPublishedVersion ?? "unknown"}, target=${details.version}. ` +
+                "No editor or publish mutation was attempted.",
+            );
+          }
+        }
+      }
+
       await ensurePineEditor(session.page);
 
       if (cli.openExisting) {
@@ -586,6 +727,11 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       versionVerificationMode,
       expectedImportPath: details.importPath,
       expectedVersion: details.version,
+      expectedCurrentVersion: details.expectedCurrentVersion,
+      versionAdvanceContract: details.versionAdvanceContract,
+      pageAuthenticated,
+      preflightPublishedVersion,
+      preflightVersionOk,
       publishedVersion,
       fallbackPublishedVersion,
       noChangeDetected,
@@ -600,12 +746,12 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
     return 0;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
-    // cli can still be null here: parseArgs itself now runs inside this try
-    // (it calls deriveExpectedVersion, which throws on disagreeing pins or
-    // an underivable bootstrap version) and the requiresExplicitVersionAdvance
-    // guard above it can also throw before parseArgs ever runs. Every other
-    // failure path still writes a report, so fall back instead of crashing
-    // the crash-report itself.
+    // cli can still be null here: parseArgs itself runs inside this try (it
+    // calls deriveExpectedVersion, which throws on disagreeing pins or an
+    // underivable bootstrap version, and verifyHandLibPublishContract's own
+    // advance-contract check can throw before details is assigned). Every
+    // other failure path still writes a report, so fall back instead of
+    // crashing the crash-report itself.
     const out = cli?.out ?? path.resolve(
       `automation/tradingview/reports/${descriptor.reportStem}-${utcNow().replace(/[:.]/g, "-")}.json`,
     );
@@ -624,6 +770,11 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       versionVerificationMode,
       expectedImportPath: details?.importPath ?? cli?.importPath ?? "",
       expectedVersion: details?.version ?? cli?.version ?? NaN,
+      expectedCurrentVersion: details?.expectedCurrentVersion ?? cli?.expectedCurrentVersion,
+      versionAdvanceContract: details?.versionAdvanceContract,
+      pageAuthenticated,
+      preflightPublishedVersion,
+      preflightVersionOk,
       publishedVersion,
       fallbackPublishedVersion,
       noChangeDetected,
