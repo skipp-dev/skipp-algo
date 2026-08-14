@@ -33,7 +33,12 @@ const _dir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(_dir, "..", "..", "..");
 
 function read(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), "utf-8");
+  // Normalize CRLF: the Windows lane checks out with autocrlf, and a source
+  // pin that spans a line break ('page\n    .locator') silently never matches
+  // against 'page\r\n'. Single-line pins prefixed with "\n" kept passing there
+  // because "\n" still matches inside "\r\n" — which is exactly why this bit
+  // only the first multi-line pin (run 31828837765, Windows x64, test 218).
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf-8").replace(/\r\n/g, "\n");
 }
 
 function publishPrivateScriptBody(): string {
