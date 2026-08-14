@@ -1452,9 +1452,21 @@ class TestDailyExportAbsent:
     03:39, 04:35 UTC) and every run died on provider_health/MISSING_ARTIFACT
     plus reference_bundle -- the latter only because `source="auto"` falls back
     to the top-5 premarket watchlist, which cannot contain a mega-cap reference
-    symbol. Both state a schedule, not a defect, and the consumer re-pin and the
-    commit sit BEHIND them: TradingView moved 230 -> 238 in one night while the
-    repository stayed on 230.
+    symbol. The consumer re-pin and the commit sit BEHIND these gates:
+    TradingView moved 230 -> 238 in one night while the repository stayed on
+    230.
+
+    The original diagnosis -- "both state a schedule, not a defect" -- was HALF
+    wrong, and the correction is the point of the second half of this class.
+    reference_bundle's failure really is the schedule. provider_health's
+    MISSING_ARTIFACT was the missing structure-artifact handover (#4692):
+    those files derive from the RESTORED bundle (15 past trade days) and
+    travel with the payload, so today's export has nothing to do with their
+    existence. The downgrade then masked that defect in every green daytime
+    run (84 MISSING_ARTIFACT, non-blocking, in run 31823202979) -- it would
+    have resurfaced only after ~21:30Z as a blocking failure AFTER the
+    TradingView write. A schedule excuses missing bars, never missing files:
+    existence codes are refused the downgrade (_DAILY_EXPORT_NEVER_EXCUSES).
     """
 
     @staticmethod
@@ -1504,7 +1516,22 @@ class TestDailyExportAbsent:
         monkeypatch.setattr(release_script, "_render", lambda report, output: captured.append(report))
 
     @staticmethod
-    def _data_absent_provider() -> dict:
+    def _schedule_absent_provider() -> dict:
+        """A failure shape the pending export genuinely explains: bars for the
+        run's date do not exist yet. No file is missing."""
+        return {
+            "overall_status": "fail",
+            "failures": [{"code": "EMPTY_CONTEXT_BARS"}],
+            "warnings": [],
+            "domain_alerts": [],
+            "degradations_detected": [],
+            "smoke_test_results": [{"symbol": "AAPL", "timeframe": "15m"}],
+        }
+
+    @staticmethod
+    def _handover_absent_provider() -> dict:
+        """The 2026-08-13/14 signature: the structure artifacts themselves are
+        missing. They come from the restored bundle, not from today's export."""
         return {
             "overall_status": "fail",
             "failures": [{"code": "MISSING_ARTIFACT"}],
@@ -1515,19 +1542,19 @@ class TestDailyExportAbsent:
         }
 
     def test_without_the_flag_a_missing_daily_export_still_blocks(self, monkeypatch) -> None:
-        """The baseline. Without this, the two tests below prove nothing."""
+        """The baseline. Without this, the tests below prove nothing."""
         captured: list[dict] = []
-        self._wire(monkeypatch, captured, provider=self._data_absent_provider())
+        self._wire(monkeypatch, captured, provider=self._schedule_absent_provider())
 
         rc = release_script.main()
 
         assert rc == 1, "a data-absent failure must block when nobody said the export is pending"
         assert captured[-1]["runner"]["daily_export_absent_downgrades"] == []
 
-    def test_the_flag_downgrades_exactly_the_data_absent_failures(self, monkeypatch) -> None:
+    def test_the_flag_downgrades_exactly_the_schedule_shaped_failures(self, monkeypatch) -> None:
         captured: list[dict] = []
         self._wire(
-            monkeypatch, captured, provider=self._data_absent_provider(), daily_export_absent=True
+            monkeypatch, captured, provider=self._schedule_absent_provider(), daily_export_absent=True
         )
 
         rc = release_script.main()
@@ -1546,6 +1573,50 @@ class TestDailyExportAbsent:
                 assert gate["daily_export_absent_downgraded"] is True
                 assert "not published yet" in gate["daily_export_absent_reason"]
                 assert "ci_mode_downgraded" not in gate
+
+    def test_the_flag_never_excuses_missing_artifacts(self, monkeypatch) -> None:
+        """Existence beats schedule.
+
+        Green run 31823202979 carried provider_health status=fail with 84
+        MISSING_ARTIFACT, non-blocking solely through this downgrade -- which
+        kept the missing handover (#4692) invisible all day and would have
+        turned it into a post-publish blocker after ~21:30Z, exactly the six-run
+        failure mode of 2026-08-13 21:17Z. The refusal must be recorded on the
+        gate, so the report says WHY the downgrade did not happen.
+        """
+        captured: list[dict] = []
+        self._wire(
+            monkeypatch, captured, provider=self._handover_absent_provider(), daily_export_absent=True
+        )
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        assert rc == 1, "missing structure artifacts are a handover defect, not a schedule"
+        assert "provider_health" not in report["runner"]["daily_export_absent_downgrades"]
+        provider_gate = next(g for g in report["gates"] if g["name"] == "provider_health")
+        assert provider_gate["blocking"] is True
+        assert provider_gate["daily_export_absent_downgrade_refused"] == ["MISSING_ARTIFACT"]
+        assert "daily_export_absent_downgraded" not in provider_gate
+        # reference_bundle's failure IS the schedule (source="auto" falls back
+        # to the premarket watchlist) -- it must still be downgraded, or this
+        # change would recreate the 00:47-04:35 UTC night failures.
+        assert "reference_bundle" in report["runner"]["daily_export_absent_downgrades"]
+
+    def test_ci_mode_still_downgrades_missing_artifacts(self, monkeypatch) -> None:
+        """The two flags now diverge deliberately: CI has no production data at
+        all, so MISSING_ARTIFACT stays downgradable there; only the production
+        flag refuses it. This is the contrast case pinning that divergence."""
+        captured: list[dict] = []
+        self._wire(
+            monkeypatch, captured, provider=self._handover_absent_provider(), ci_mode=True
+        )
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        assert rc == 0, f"ci_mode must keep downgrading: {[g['name'] for g in report['gates'] if g.get('blocking', True) and g['status'] == 'fail']}"
+        assert "provider_health" in report["runner"]["ci_mode_downgrades"]
 
     def test_the_flag_does_not_excuse_a_real_failure(self, monkeypatch) -> None:
         """A pending export explains absent data. It explains nothing else."""
