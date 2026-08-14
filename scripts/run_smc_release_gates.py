@@ -141,6 +141,9 @@ _DATA_ABSENT_CODES = frozenset({
     "STALE_MANIFEST_FILE_MTIME",
     "MISSING_MANIFEST",
     "MISSING_MANIFEST_GENERATED_AT",
+    # ^ In CI legitim: dort gibt es nie Produktionsdaten. Unter
+    # --daily-export-absent gelten die EXISTENZ-Codes darunter NICHT als
+    # Zeitplan — siehe _DAILY_EXPORT_NEVER_EXCUSES.
     # Meta-domain staleness promoted from degradations by strict policy:
     "STALE_META_ASOF_TS",
     "STALE_META_VOLUME_DOMAIN",
@@ -152,6 +155,29 @@ _DATA_ABSENT_CODES = frozenset({
     "META_VOLUME_DOMAIN_STATUS",
     "META_TECHNICAL_DOMAIN_STATUS",
     "META_NEWS_DOMAIN_STATUS",
+})
+
+# Codes, die --daily-export-absent NIE entschuldigt.
+#
+# Das Flag bedeutet: der Producer-Export fuer DIESES Datum ist noch nicht
+# veroeffentlicht. Die Struktur-Artefakte entstehen aber aus dem
+# restaurierten Buendel (DATABENTO_MIN_TRADE_DAYS=15 vergangene Handelstage)
+# und werden vom Refresh mit der Nutzlast uebergeben — ihre Existenz haengt
+# nicht am heutigen Export. Fehlen sie trotzdem, ist die Uebergabe defekt.
+#
+# Gemessen am 2026-08-14: die gruenen Publish-Laeufe ab 12:30Z (z.B.
+# 31823202979) trugen provider_health status=fail mit 84 MISSING_ARTIFACT und
+# 7 MISSING_MANIFEST, nicht-blockierend allein durch dieses Downgrade. Der
+# eigentliche Defekt — reports/smc_structure_artifacts/ wurde nie an den
+# Publisher uebergeben (#4692) — blieb dadurch den ganzen Tag unsichtbar und
+# waere erst nach 21:30Z (Export da, Flag false) wieder blockierend geworden:
+# NACH dem TradingView-Schreibzugriff, wie in den sechs Fehllaeufen ab
+# 2026-08-13 21:17Z. Ein Zeitplan entschuldigt fehlende Bars, nie fehlende
+# Dateien.
+_DAILY_EXPORT_NEVER_EXCUSES = frozenset({
+    "MISSING_ARTIFACT",
+    "MISSING_MANIFEST",
+    "STRUCTURE_INPUT_LOAD_FAILED",
 })
 
 
@@ -458,17 +484,16 @@ def classify_hero_product_state(gate: dict[str, Any]) -> str:
     return "hero_mixed"
 
 
-def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
-    """Return True if *every* failure signal in this gate is caused by absent data files.
+def _gate_failure_signals(gate: dict[str, Any]) -> list[str]:
+    """Every failure/alert code this gate carries, flattened.
 
-    If the gate has no detail signals at all but every pair result shows
-    ``quality_guardrail == "data insufficient"``, we still classify it as
-    data-absent (typical for reference_bundle in CI without production data).
-    Otherwise, with no signals we conservatively return False.
+    Shared between the data-absent classifier below and the
+    --daily-export-absent refusal in main(): both must read the SAME signal
+    set, or a code could count as data-absent for one and be invisible to the
+    other.
     """
     details = gate.get("details", {})
 
-    # Collect all failure/alert codes from the gate details.
     signals: list[str] = []
     for key in ("failures", "warnings", "domain_alerts", "missing_smoke_failures"):
         for item in details.get(key, []):
@@ -482,6 +507,20 @@ def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
                 signals.append(reason)
             elif isinstance(reason, dict):
                 signals.extend(str(v) for v in reason.values())
+
+    return signals
+
+
+def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
+    """Return True if *every* failure signal in this gate is caused by absent data files.
+
+    If the gate has no detail signals at all but every pair result shows
+    ``quality_guardrail == "data insufficient"``, we still classify it as
+    data-absent (typical for reference_bundle in CI without production data).
+    Otherwise, with no signals we conservatively return False.
+    """
+    details = gate.get("details", {})
+    signals = _gate_failure_signals(gate)
 
     if not signals:
         # No explicit failure signals.  Check if all pair_results are
@@ -1373,11 +1412,23 @@ def main() -> int:
         for gate in gates:
             if gate.get("status") != "fail" or not gate.get("blocking", True):
                 continue
-            if _gate_failure_is_data_absent(gate):
-                gate["blocking"] = False
-                gate["daily_export_absent_downgraded"] = True
-                gate["daily_export_absent_reason"] = "producer export for this run's date is not published yet"
-                daily_export_downgrades.append(gate["name"])
+            if not _gate_failure_is_data_absent(gate):
+                continue
+            # Existenz schlaegt Zeitplan: Struktur-Artefakte kommen aus dem
+            # restaurierten Buendel und reisen mit der Nutzlast — ein
+            # ausstehender Tages-Export erklaert ihr Fehlen nicht. Gemessen
+            # 2026-08-14: dieses Downgrade verdeckte 84 MISSING_ARTIFACT in
+            # jedem gruenen Lauf ab 12:30Z (siehe _DAILY_EXPORT_NEVER_EXCUSES).
+            existence = sorted(
+                _DAILY_EXPORT_NEVER_EXCUSES.intersection(_gate_failure_signals(gate))
+            )
+            if existence:
+                gate["daily_export_absent_downgrade_refused"] = existence
+                continue
+            gate["blocking"] = False
+            gate["daily_export_absent_downgraded"] = True
+            gate["daily_export_absent_reason"] = "producer export for this run's date is not published yet"
+            daily_export_downgrades.append(gate["name"])
 
     has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))
     overall_status = "fail" if has_fail else "ok"
