@@ -1075,6 +1075,48 @@ jobs:
       #
       # Durchreichen kostet 1,5 MB. Neu ableiten kostet 45 Minuten in einem
       # Slot, der laut Messung ohnehin 1,75-fach ueberbucht ist.
+
+      # Der Marker sagt dem Publisher, WAS mitgeschickt wurde, und er zaehlt
+      # dabei aus demselben Verzeichnis, das der Upload unten auflistet.
+      # Warum ein Marker und nicht ein Kreuzvergleich gegen
+      # structure_artifact_availability.json: der Publish-Lauf checkt NICHT
+      # den Baum des Refresh aus, der seine Nutzlast erzeugt hat, sondern die
+      # Spitze von main. Gemessen am 2026-08-14 galt das fuer 7 von 7
+      # workflow_run-Publishes; ein Refresh laeuft bis zu drei Stunden, main
+      # zieht derweil weiter. Eine Verweigerung, die nur auf den Bericht
+      # schaut, wuerde deshalb JEDE Nutzlast ablehnen, die von einem Refresh
+      # VOR dieser Aenderung stammt -- und davon sind bei stuendlicher Kadenz
+      # immer mehrere unterwegs. Fehlt der Marker, ist die Nutzlast schlicht
+      # aelter als der Vertrag: warnen, nicht blockieren.
+      - name: Declare the structure-artifact handover
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          "$SMC_PYTHON_BIN" - <<'PY' > artifacts/ci/structure_artifact_handover.json
+          import json
+          from pathlib import Path
+
+          from smc_integration.sources.structure_artifact_json import (
+              REPO_ROOT,
+              STRUCTURE_ARTIFACTS_DIR,
+          )
+
+          # Den RELATIVEN Pfad vom Resolver ableiten, dann gegen das
+          # Arbeitsverzeichnis aufloesen: verschiebt jemand das Verzeichnis,
+          # wandert die Uebergabe mit, ohne dass hier ein zweiter Literal-Pfad
+          # gepflegt werden muesste.
+          relative = STRUCTURE_ARTIFACTS_DIR.relative_to(REPO_ROOT).as_posix()
+          directory = Path(relative)
+          files = [path for path in directory.rglob("*") if path.is_file()] if directory.is_dir() else []
+          print(json.dumps({
+              "handover_version": 1,
+              "directory": relative,
+              "file_count": len(files),
+          }, indent=2, sort_keys=True))
+          PY
+          cat artifacts/ci/structure_artifact_handover.json
+
       - name: Upload refresh payload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
