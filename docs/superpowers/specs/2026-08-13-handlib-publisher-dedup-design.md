@@ -311,9 +311,10 @@ therefore much smaller than first scoped, and what remains of it is mostly a
 review:** the correction above is itself incomplete — it is true for eight of
 the ten, not all ten. Measured over the whole population at `8a8a9b87a`
 (`git show 8a8a9b87a:scripts/tv_publish_*_library.ts` for each of the ten,
-grepping `exactVersionVerified`): eight publishers set `exactVersionVerified
-= true;` unconditionally as the correction above describes, but
-`tv_publish_engine_library.ts` and `tv_publish_context_engine_library.ts` set
+grepping `exactVersionVerified`): eight publishers set
+`exactVersionVerified = true;` unconditionally as the correction above
+describes, but `tv_publish_engine_library.ts` and
+`tv_publish_context_engine_library.ts` set
 `exactVersionVerified = facadeVersion === details.version;` instead — strict
 equality. For those two, a bumped version did **not** already pass today; item
 2 below (acceptance of a version above the expectation) is a **relaxation**
