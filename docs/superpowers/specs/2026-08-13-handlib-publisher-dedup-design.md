@@ -45,6 +45,17 @@ Three mechanisms then bind that constant to reality:
   deliberately in the #3603/#3606 follow-up, because UI-text evidence settles on
   the hardcoded expectation and made libraries past `/1` exit `rc=1`. The
   equality only still bites when the facade returns `null`.
+
+  **Correction, recorded 2026-08-14 during the final whole-branch review:**
+  `draw_library.ts` is representative of only eight of the ten. Measured over
+  the whole population at `8a8a9b87a` (`git show 8a8a9b87a:scripts/tv_publish_*_library.ts`
+  for each of the ten, grepping `exactVersionVerified`): eight publishers set
+  `exactVersionVerified = true;` unconditionally as described above, but
+  `tv_publish_engine_library.ts` and `tv_publish_context_engine_library.ts`
+  instead set `exactVersionVerified = facadeVersion === details.version;` —
+  strict equality, not an unconditional override. For those two, a published
+  version that differs from the declared `--version` did **not** already
+  pass today. See the second correction under Component 3 below.
 - **The orchestrator** `scripts/tv_publish_hand_authored_libraries.ts` invokes
   each publisher with only `--out` and `--no-allow-create` — no `--version`,
   no `--import-path`. The defaults are therefore live in the automated path,
@@ -130,6 +141,27 @@ advance contract as an optional descriptor field, enabled only for
 Unifying the two models is explicitly out of scope — it would change when a
 publish is allowed to run, which is a separate operator decision from
 de-duplication. If the operator later wants one model, that is its own spec.
+
+**Correction, recorded 2026-08-14 during the final whole-branch review:** the
+assumption above ("every library keeps the behavior it has today") did not
+survive implementation for `context_engine`. Pre-refactor,
+`tv_publish_context_engine_library.ts` had frozen `--version` /
+`--expected-current-version` defaults (`"3"` / `"2"`), so the
+advance-exactly-one check ran unconditionally on every invocation, including the
+orchestrator's own call path (`tv_publish_hand_authored_libraries.ts` never
+passes either flag) — it just always passed trivially against that frozen
+pair. Shipped: the advance contract (`tv_publish_hand_lib.ts:436-454`) is
+`"enforced"` only when `--version` was passed explicitly; when the version is
+instead derived from consumer pins — which is unconditionally the case on the
+orchestrator's path post-refactor — it resolves to
+`"skipped_derived_version"` and the check does not run at all. So
+`context_engine` does not keep the behavior it had today: the advance
+contract is live on manual runs that pass `--version` explicitly, and inert
+on the automated orchestrator path, where before it always evaluated
+(vacuously, against a frozen pair). See
+`tests/test_pine_handlib_publisher_inventory.py::test_shared_module_preflights_before_any_editor_mutation`
+for the equivalent, and separate, distinction on the page-auth-probe /
+preflight pair within a single `requiresExplicitVersionAdvance` publish.
 
 ### The guard that freezes the current shape
 
@@ -237,8 +269,8 @@ and becomes the sole source of the expected version. Resolution order:
    operator can still force a value during a bootstrap or a recovery.
 2. Otherwise the module scans every `.pine` in the repo for
    `import <owner>/<scriptName>/(\d+)`, excluding the library's own source.
-3. **Zero pins** — legal bootstrap. The publish proceeds and the published
-   version is whatever the facade reports.
+3. **Zero pins** — legal bootstrap, but only in combination with rule 1: an
+   explicit `--version` is required.
 4. **All pins agree** — that version is the expectation.
 5. **Pins disagree** — abort before any write, naming every file and version
    found. This is a repo inconsistency, and publishing against a guess would
@@ -248,6 +280,21 @@ The pre-publish identity assertion keeps its current strength: the library
 source must carry the matching `library(...)` header, and every existing
 consumer pin must name the version about to be published. What disappears is
 only the frozen literal that made that expectation stale by default.
+
+**Correction, recorded 2026-08-14 during the final whole-branch review:** item
+3 above originally read "legal bootstrap. The publish proceeds and the
+published version is whatever the facade reports." That does not match the
+shipped code. `resolveDefaultVersion` (`tv_publish_hand_lib.ts:293-301`)
+**throws** when zero consumer pins are found and `--version` was not passed,
+naming the library and requiring an explicit `--version`; it does not fall
+through to letting the facade decide. The reason is ordering, not oversight:
+the pre-publish contract check needs a concrete target version *before*
+touching TradingView, and the facade can only answer *after* the write — so
+there is nothing for "whatever the facade reports" to mean at the point this
+resolution runs. An operator publishing a library nothing imports yet must
+therefore pass `--version` explicitly (rule 1); only then does the zero-pins
+case resolve at all, and it resolves to the explicit value, not a facade
+guess.
 
 ## Component 3 — post-publish verification
 
@@ -259,6 +306,21 @@ bump violates. That is wrong. The facade override at
 whenever the facade answers, so a bumped version passes today. This component is
 therefore much smaller than first scoped, and what remains of it is mostly a
 *tightening*.
+
+**Second correction, recorded 2026-08-14 during the final whole-branch
+review:** the correction above is itself incomplete — it is true for eight of
+the ten, not all ten. Measured over the whole population at `8a8a9b87a`
+(`git show 8a8a9b87a:scripts/tv_publish_*_library.ts` for each of the ten,
+grepping `exactVersionVerified`): eight publishers set
+`exactVersionVerified = true;` unconditionally as the correction above
+describes, but `tv_publish_engine_library.ts` and
+`tv_publish_context_engine_library.ts` set
+`exactVersionVerified = facadeVersion === details.version;` instead — strict
+equality. For those two, a bumped version did **not** already pass today; item
+2 below (acceptance of a version above the expectation) is a **relaxation**
+for engine and context_engine, not a tightening. Items 1 and 3 are unaffected
+by this distinction — the silent-facade fallback and the below-expectation
+rejection are new behavior for all ten either way.
 
 Three things change:
 
