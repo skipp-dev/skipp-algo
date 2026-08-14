@@ -277,7 +277,7 @@ function parseArgs(descriptor: HandLibDescriptor, argv: string[]): CliArgs {
   };
 }
 
-function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli: CliArgs): ContractDetails {
+export function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli: CliArgs): ContractDetails {
   if (!fs.existsSync(cli.library)) {
     throw new Error(`Missing ${descriptor.noun} library source: ${cli.library}`);
   }
@@ -325,8 +325,24 @@ function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli: CliArg
         `${cli.scriptName}/${cli.version} (${expectedImportLine}), but ${detail}`,
     );
   }
-  if (!Number.isFinite(cli.version) || cli.version < 1) {
+  if (!Number.isInteger(cli.version) || cli.version < 1) {
     throw new Error(`${descriptor.noun} library version must be a positive integer, received: ${cli.version}`);
+  }
+
+  // Import-path coherence, ported from the pre-conversion smc_engine_private
+  // publisher (the only one of the ten hand-authored publishers that had it;
+  // every other publisher scored zero on this check). The default
+  // --import-path is always coherent by construction (see resolveDefaultVersion
+  // / parseArgs, which derive it from scriptName and version), so this only
+  // bites an operator who explicitly passes --import-path naming the wrong
+  // library or the wrong version -- exactly the case none of the checks above
+  // catch, since the header check, the consumer-pin check, and the
+  // integer-version check never look at the import path's own text.
+  const importIdentity = cli.importPath.match(/^([^/]+)\/([^/]+)\/(\d+)$/);
+  if (!importIdentity || importIdentity[2] !== cli.scriptName || Number(importIdentity[3]) !== cli.version) {
+    throw new Error(
+      `${descriptor.noun} import path must name ${cli.scriptName}/${cli.version}, received: ${cli.importPath}`,
+    );
   }
 
   return {

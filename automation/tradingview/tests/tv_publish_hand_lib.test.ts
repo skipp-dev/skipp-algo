@@ -8,6 +8,8 @@ import {
   consumerPins,
   deriveExpectedVersion,
   resolveVersionAcceptance,
+  verifyHandLibPublishContract,
+  type HandLibDescriptor,
 } from "../lib/tv_publish_hand_lib.js";
 
 function scratchRepo(files: Record<string, string>): string {
@@ -117,4 +119,83 @@ test("a not_verified mode with a matching version and no facade answer is reject
   const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "not_verified", facadeAnswered: false });
   assert.equal(r.accepted, false);
   assert.match(r.reason, /not_verified/);
+});
+
+// verifyHandLibPublishContract: the two checks ported from the pre-conversion
+// smc_engine_private publisher (2026-08-14 fix round, controller ruling) --
+// Number.isInteger instead of Number.isFinite, and the --import-path
+// coherence check. Both must run BEFORE any TradingView write, so they are
+// exercised here directly against the exported contract function rather than
+// indirectly through a live publish.
+
+/** A minimal library + core pair that satisfies every check except the ones under test. */
+function coherentContractFixture(): { root: string; descriptor: HandLibDescriptor } {
+  const root = scratchRepo({
+    "SMC++/smc_contract_fixture.pine": 'library("smc_contract_fixture")\nplot(1)\n',
+    "SMC_Long_Dip_Suite.pine": "// does not import smc_contract_fixture -- zero pins is a legal bootstrap\n",
+  });
+  const descriptor: HandLibDescriptor = {
+    scriptName: "smc_contract_fixture",
+    source: "SMC++/smc_contract_fixture.pine",
+    alias: "cf",
+    noun: "Contract fixture",
+    reportStem: "publish-contract-fixture-library",
+    description: "Fixture only, never published.",
+  };
+  return { root, descriptor };
+}
+
+function baseCliFor(root: string, overrides: { importPath: string; version: number }) {
+  return {
+    library: path.join(root, "SMC++/smc_contract_fixture.pine"),
+    core: path.join(root, "SMC_Long_Dip_Suite.pine"),
+    repoRoot: root,
+    scriptName: "smc_contract_fixture",
+    alias: "cf",
+    description: "Fixture only, never published.",
+    out: path.join(root, "out.json"),
+    openExisting: true,
+    allowCreate: true,
+    ...overrides,
+  };
+}
+
+test("verifyHandLibPublishContract rejects a non-integer version", () => {
+  const { root, descriptor } = coherentContractFixture();
+  const cli = baseCliFor(root, { importPath: "preuss_steffen/smc_contract_fixture/3", version: 3.5 });
+  assert.throws(
+    () => verifyHandLibPublishContract(descriptor, cli),
+    (e: Error) => /Contract fixture library version must be a positive integer, received: 3\.5/.test(e.message),
+  );
+});
+
+test("verifyHandLibPublishContract rejects an import path naming the wrong library", () => {
+  const { root, descriptor } = coherentContractFixture();
+  const cli = baseCliFor(root, { importPath: "preuss_steffen/smc_other_library/3", version: 3 });
+  assert.throws(
+    () => verifyHandLibPublishContract(descriptor, cli),
+    (e: Error) =>
+      /Contract fixture import path must name smc_contract_fixture\/3, received: preuss_steffen\/smc_other_library\/3/
+        .test(e.message),
+  );
+});
+
+test("verifyHandLibPublishContract rejects an import path naming the wrong version", () => {
+  const { root, descriptor } = coherentContractFixture();
+  const cli = baseCliFor(root, { importPath: "preuss_steffen/smc_contract_fixture/2", version: 3 });
+  assert.throws(
+    () => verifyHandLibPublishContract(descriptor, cli),
+    (e: Error) =>
+      /Contract fixture import path must name smc_contract_fixture\/3, received: preuss_steffen\/smc_contract_fixture\/2/
+        .test(e.message),
+  );
+});
+
+test("verifyHandLibPublishContract accepts a correctly-formed import path", () => {
+  const { root, descriptor } = coherentContractFixture();
+  const cli = baseCliFor(root, { importPath: "preuss_steffen/smc_contract_fixture/3", version: 3 });
+  const details = verifyHandLibPublishContract(descriptor, cli);
+  assert.equal(details.scriptName, "smc_contract_fixture");
+  assert.equal(details.version, 3);
+  assert.equal(details.importPath, "preuss_steffen/smc_contract_fixture/3");
 });
