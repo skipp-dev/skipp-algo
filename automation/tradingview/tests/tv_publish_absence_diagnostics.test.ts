@@ -33,7 +33,12 @@ const _dir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(_dir, "..", "..", "..");
 
 function read(relativePath: string): string {
-  return fs.readFileSync(path.join(repoRoot, relativePath), "utf-8");
+  // Normalize CRLF: the Windows lane checks out with autocrlf, and a source
+  // pin that spans a line break ('page\n    .locator') silently never matches
+  // against 'page\r\n'. Single-line pins prefixed with "\n" kept passing there
+  // because "\n" still matches inside "\r\n" — which is exactly why this bit
+  // only the first multi-line pin (run 31828837765, Windows x64, test 218).
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf-8").replace(/\r\n/g, "\n");
 }
 
 function publishPrivateScriptBody(): string {
@@ -136,5 +141,123 @@ test("publish-step screenshots land in the uploaded artifact tree", () => {
     "the publish step must write screenshots into artifacts/tradingview/, which the upload collects; "
     + "the default automation/tradingview/reports/screenshots is never uploaded, so failures ship blind "
     + "(2026-07-13 incident, re-hit by #4238 because only the neighbouring steps were fixed)",
+  );
+});
+
+// 2026-08-14: the same blind state, one step further into the wizard.
+//
+// openprep-pine-panel-publish has not published since 2026-08-08. The green run
+// before that, 31281014931, was a false green — #4581 found its publish surface
+// still open showing "Script description is required" — so the honest count is
+// that this workflow has not published successfully at all since the update-
+// existing path was introduced.
+//
+// Five selector changes followed on 2026-08-09/10 (#4585, #4587, #4591, #4597,
+// #4606). Eight of the ten runs since carry the byte-identical error
+// "Could not select existing TradingView script: Open-Prep Daily Panel", so not
+// one of the five moved the failure. What every one of them had to work from
+// was a screenshot and that sentence: selectExistingPublishScript returned
+// false from three different places without recording anything about the page.
+//
+// The screenshot of run 31805361109 shows the dialog in "Update existing
+// script" mode with a "Choose script" control plainly rendered. A screenshot
+// cannot say whether that control is a native select, a div with role=listbox,
+// or an input carrying the words as a placeholder — and those three want three
+// different selectors. The sixth guess is not what is missing. The DOM is.
+
+test("every chooser dead end records the DOM instead of returning a bare false", () => {
+  const source = read("automation/tradingview/lib/tv_shared.ts");
+  const start = source.indexOf("export async function selectExistingPublishScript(");
+  assert.ok(start !== -1, "selectExistingPublishScript not found in tv_shared.ts");
+  const body = source.slice(start, source.indexOf("\nexport async function publishPrivateScript(", start));
+
+  const bareReturns = body
+    .split("\n")
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter((entry) => entry.line === "return false;");
+
+  assert.ok(bareReturns.length >= 3, "the three dead ends were restructured — re-pin this test");
+
+  const lines = body.split("\n");
+  for (const entry of bareReturns) {
+    const preceding = lines.slice(Math.max(0, entry.index - 6), entry.index).join("\n");
+    assert.match(
+      preceding,
+      /tracePublishChooserAbsence\(page, "[a-z-]+"\)/,
+      `a "return false" at body line ${entry.index} ships no DOM evidence; that is the state five `
+      + "selector changes were made from, and none of them moved the failure",
+    );
+  }
+});
+
+test("the chooser inventory is scoped wider than the lookup it is explaining", () => {
+  const source = read("automation/tradingview/lib/tv_shared.ts");
+  const start = source.indexOf("export async function collectPublishChooserInventory(");
+  assert.ok(start !== -1, "collectPublishChooserInventory not found");
+  const body = source.slice(start, source.indexOf("\n/**", start + 10));
+
+  // Scoping the inventory to publishSurface would inherit its blindness: if the
+  // surface is what mis-resolved, the inventory comes back empty and reads as
+  // proof that TradingView removed the control.
+  assert.ok(
+    body.includes('page\n    .locator("#overlap-manager-root")'),
+    "the inventory must read the whole overlay root, not the publish surface whose lookup failed",
+  );
+  assert.ok(
+    !body.includes("publishSurfaceProbe"),
+    "the inventory must not be filtered by the surface it is diagnosing",
+  );
+
+  // The three shapes a screenshot cannot tell apart, each needing a different
+  // selector. Omit any one and the next change is a guess again.
+  for (const attribute of ["role", "placeholder", "aria-label", "name", "class"]) {
+    assert.ok(
+      body.includes(`getAttribute("${attribute}")`),
+      `the inventory must report ${attribute}: without it a native select, a role-less div and an `
+      + "input whose placeholder reads \"Choose script\" stay indistinguishable",
+    );
+  }
+  assert.ok(body.includes("getComputedStyle"), "report display/visibility so hidden and absent stay distinct");
+  assert.ok(body.includes("getBoundingClientRect"), "report geometry so a zero-size overlay is visible as such");
+});
+
+test("the chooser inventory reads attributes and touches nothing", () => {
+  const source = read("automation/tradingview/lib/tv_shared.ts");
+  const start = source.indexOf("export async function collectPublishChooserInventory(");
+  const body = source.slice(start, source.indexOf("\n/**", start + 10));
+
+  // This runs on a live publish wizard whose Continue button writes to
+  // TradingView. A diagnostic that clicks is not a diagnostic.
+  for (const forbidden of [".click(", ".fill(", ".press(", ".type(", "dispatchEvent"]) {
+    assert.ok(!body.includes(forbidden), `the inventory must not ${forbidden} — it runs on a live publish surface`);
+  }
+});
+
+test("the chooser failure carries its evidence into the uploaded report", () => {
+  const body = publishPrivateScriptBody();
+  const marker = "Could not select existing TradingView script:";
+  const throwIndex = body.indexOf(marker);
+  assert.ok(throwIndex !== -1, "the update-existing failure throw is missing — did the message change?");
+
+  const preceding = body.slice(0, throwIndex);
+  const diagnosticIndex = preceding.lastIndexOf("tracePublishChooserAbsence(page");
+  assert.ok(diagnosticIndex !== -1, "the update-existing failure must dump the DOM before throwing");
+  assert.ok(throwIndex - diagnosticIndex < 400, "the DOM dump must sit immediately before its throw");
+
+  // The trace lives in the run log; the error lives in
+  // publish-openprep-panel-*.json, which is the uploaded artifact. Runs
+  // 31805361109 and its seven predecessors uploaded a report whose entire
+  // account of the failure was one sentence.
+  const throwStatement = body.slice(throwIndex - 200, throwIndex + 500);
+  assert.match(
+    throwStatement,
+    /evidence\.controls/,
+    "the thrown error must carry the control inventory, or the artifact keeps only the sentence",
+  );
+  assert.match(
+    throwStatement,
+    /evidence\.surfaceCount/,
+    "the thrown error must report how many nodes the publish surface resolved to — zero and "
+    + "\"resolved fine but the control is shaped differently\" are different bugs",
   );
 });
