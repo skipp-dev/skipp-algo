@@ -268,6 +268,44 @@ def test_acceptance_rule_rejects_a_version_below_the_expectation() -> None:
     )
 
 
+def test_facade_answer_overrides_ui_text_evidence_before_verification() -> None:
+    """A facade answer must override weaker UI-text evidence, before verification runs.
+
+    Migrated from ``test_engine_publisher_requires_exact_facade_version``'s
+    ``"publishedVersion = facadeVersion;" in text`` assertion. This fell out
+    of the original migration; fix round 1 only recorded that
+    ``hand_authored_publisher_facade_authority.test.ts:138-159`` covers the
+    property functionally in TypeScript. But that is the verification lane,
+    not ``fast-gates`` — the only required check (ADR-0011) — and this file
+    is what sits inside it. By the same reasoning that put
+    ``test_every_hand_lib_publisher_is_a_thin_wrapper`` inside the gate (fix
+    round 1, Edit 1), this property belongs here too: a redundant seat inside
+    the required gate beats a unique seat outside it.
+
+    Chosen anchors: the assignment itself (the pine-facade filter=published
+    listing becomes the recorded ``publishedVersion``, superseding whatever
+    the UI-text evidence guessed) and its position strictly before the
+    verification throw (an override arriving after the throw could never
+    rescue a successful-but-unverified publish, which is the whole reason
+    #3603/#3606 wired it in). The TS test additionally pins the probe target
+    (``details.scriptName``) and the ``"facade_list"`` mode label; those are
+    evidence-provenance details, not "does the override win and does it
+    arrive in time" — the two questions this assertion is chosen to answer.
+    They are not covered elsewhere in this file today; left out here as a
+    deliberate scope choice, not because they are redundant.
+    """
+    text = SHARED_MODULE.read_text(encoding="utf-8")
+    assert "publishedVersion = facadeVersion;" in text, (
+        "the facade override no longer becomes the recorded published version"
+    )
+    facade_override = text.index("publishedVersion = facadeVersion;")
+    verification_throw = text.index("if (!exactScriptVerified || !versionAcceptance.accepted) {")
+    assert facade_override < verification_throw, (
+        "the facade override no longer precedes the verification throw — it could "
+        "no longer rescue a successful-but-unverified publish"
+    )
+
+
 def test_shared_module_preflights_before_any_editor_mutation() -> None:
     """The advance-contract's source ordering must never regress.
 
