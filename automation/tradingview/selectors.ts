@@ -60,6 +60,7 @@ function publishSurface(page: Page): Locator {
     .first();
 }
 
+
 export type ScriptRowLocatorSpec = {
   scope: "dialog" | "menu_inner";
   matchKind: "exact" | "loose";
@@ -450,6 +451,19 @@ export const tvSelectors = {
       surface.locator('[role="tab"], [role="button"], button, label').filter({ hasText: exact }),
       surface.getByText(exact, { exact: true }),
     ];
+  },
+
+  /**
+   * The same scope every publish control is looked up in, exposed so a failing
+   * lookup can report how many nodes that scope actually resolved to.
+   *
+   * Only for counting. A diagnostic scoped to `publishSurface` would inherit
+   * its blindness: if the surface itself is what mis-resolved, an inventory
+   * taken inside it comes back empty and reads as proof that TradingView
+   * removed the control.
+   */
+  publishSurfaceProbe(page: Page): Locator {
+    return publishSurface(page);
   },
 
   publishExistingScriptChooser(page: Page): Locator[] {
