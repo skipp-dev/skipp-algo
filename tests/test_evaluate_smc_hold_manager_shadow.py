@@ -142,6 +142,16 @@ def test_checked_in_shadow_state_is_active_observation_window() -> None:
     assert result["activationStatus"] == "active"
     assert result["completeSessionCount"] == 0
     assert result["blockers"] == [
+        # 2026-08-14 (build 2): the activation evidence of 2026-07-28
+        # describes the build-1 source, the contract now pins build 2. The
+        # evaluator reporting that gap is CORRECT — the observation window
+        # belongs to the build the daemon validates, and the cutover sitting
+        # re-activates with build-2 evidence. Dated evidence is never
+        # rewritten, so this blocker stands until then.
+        "activation.sourceSha256: expected "
+        "'dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a', "
+        "observed "
+        "'1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813'",
         "complete sessions: need 5, observed 0",
         "aggregate HM_ENTRY: need at least 1 expected edge(s), observed 0",
         "aggregate HM_EXIT_ANY: need at least 1 expected edge(s), observed 0",

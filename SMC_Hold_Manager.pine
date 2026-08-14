@@ -473,6 +473,48 @@ alertcondition(_alertGate and time_stop_hit, "HM_TIMESTOP",
 alertcondition(_alertGate and exit_edge, "HM_EXIT_ANY",
      "Hold-Manager: any exit (master)")
 
+// ── 8b. SHADOW-TRANSPORT — dieselben sechs Kanten, zweiter Träger ────────────
+// R2-SHADOW-CUTOVER (Spec 2026-08-13, Schritt 2): alert() baut den kompletten
+// Webhook-Body zur Feuerzeit. Die Quelle benennt sich selbst über
+// HM_SHADOW_BUILD statt über einen von Hand getippten Hash — der Receiver
+// löst den Hash serverseitig aus dem Vertrag auf (buildHistory).
+// Ein TradingView-Alert mit "Any alert() function call" trägt alle sechs
+// Kanäle; der Kanal reist im Payload. Die alertcondition()-Aufrufe oben
+// bleiben BEWUSST stehen: nach dem Cutover liegen sie brach und sind der
+// Rollback-Pfad (sechs Alerts aus den Templates neu anlegen).
+// HM_SHADOW_BUILD bei JEDER semantischen Änderung dieser Datei erhöhen —
+// tests/test_smc_hold_manager_build_history.py macht ein vergessenes
+// Inkrement zu einem roten Test statt zu einer stillen Fehlbindung.
+int HM_SHADOW_BUILD = 2
+
+hm_shadow_payload(string _channel) =>
+    "{\"schemaVersion\":1" +
+     ",\"requirementId\":\"R2-SHADOW-CUTOVER\"" +
+     ",\"channel\":\"" + _channel + "\"" +
+     ",\"mode\":\"hold_manager\"" +
+     ",\"sourceBuild\":" + str.tostring(HM_SHADOW_BUILD) +
+     ",\"scriptName\":\"SMC Hold Manager R2.4 Validation\"" +
+     ",\"layout\":\"SMC Hold R2.4 Validation\"" +
+     ",\"producer\":\"SMC Long-Dip Suite\"" +
+     ",\"busSchema\":7001" +
+     ",\"symbol\":\"" + syminfo.prefix + ":" + syminfo.ticker + "\"" +
+     ",\"timeframe\":\"" + timeframe.period + "\"" +
+     ",\"barTime\":\"" + str.format_time(time, "yyyy-MM-dd'T'HH:mm:ss", "Etc/UTC") + "Z\"" +
+     ",\"price\":\"" + str.tostring(close) + "\"}"
+
+if _alertGate and entry_event
+    alert(hm_shadow_payload("HM_ENTRY"), alert.freq_once_per_bar_close)
+if _alertGate and t1_event
+    alert(hm_shadow_payload("HM_T1"), alert.freq_once_per_bar_close)
+if _alertGate and t2_hit
+    alert(hm_shadow_payload("HM_T2"), alert.freq_once_per_bar_close)
+if _alertGate and stop_hit
+    alert(hm_shadow_payload("HM_STOP"), alert.freq_once_per_bar_close)
+if _alertGate and time_stop_hit
+    alert(hm_shadow_payload("HM_TIMESTOP"), alert.freq_once_per_bar_close)
+if _alertGate and exit_edge
+    alert(hm_shadow_payload("HM_EXIT_ANY"), alert.freq_once_per_bar_close)
+
 // ── 9.  REMAINING PHASE GATES ────────────────────────────────────────────────
 // R2.4 remains operational: execute and retain the full 20-case TradingView
 // replay matrix, including reload, gaps, same-bar precedence, and alert counts.

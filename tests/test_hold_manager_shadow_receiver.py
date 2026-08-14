@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import json
 import secrets
@@ -32,12 +33,41 @@ TEMPLATES_PATH = (
     / "smc_hold_manager_shadow_alert_templates.json"
 )
 TOKEN = "shadow-receiver-test-token-" + "x" * 32
+# 2026-08-14 (build 2, HM_SHADOW_BUILD + alert()): 1761e96a… -> dfec1cc6…
 SOURCE_SHA256 = (
+    "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
+)
+# The build-1 hash stays named here because the six legacy templates restore
+# exactly that build on rollback; see the templates test below.
+BUILD_1_SHA256 = (
     "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
 )
 # Pinned, not read from the contract: a test that derives its expectation from
 # the file under test cannot notice that file changing.
-SOURCE_BUILD = 1
+# 2026-08-14: 1 -> 2 (build advance, same change as SOURCE_SHA256).
+SOURCE_BUILD = 2
+
+
+def _make_client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    contract_path: Path,
+    ledger_name: str = "shadow.sqlite3",
+) -> TestClient:
+    monkeypatch.setenv("HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN", TOKEN)
+    monkeypatch.setenv("HOLD_MANAGER_SHADOW_ACCEPTING", "1")
+    monkeypatch.setenv(
+        "HOLD_MANAGER_SHADOW_LEDGER_PATH",
+        str(tmp_path / ledger_name),
+    )
+    monkeypatch.setenv(
+        "HOLD_MANAGER_SHADOW_CONTRACT_PATH",
+        str(contract_path),
+    )
+    app = FastAPI()
+    app.include_router(build_router(secrets.compare_digest))
+    return TestClient(app)
 
 
 @pytest.fixture()
@@ -45,19 +75,7 @@ def client(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> TestClient:
-    monkeypatch.setenv("HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN", TOKEN)
-    monkeypatch.setenv("HOLD_MANAGER_SHADOW_ACCEPTING", "1")
-    monkeypatch.setenv(
-        "HOLD_MANAGER_SHADOW_LEDGER_PATH",
-        str(tmp_path / "shadow.sqlite3"),
-    )
-    monkeypatch.setenv(
-        "HOLD_MANAGER_SHADOW_CONTRACT_PATH",
-        str(CONTRACT_PATH),
-    )
-    app = FastAPI()
-    app.include_router(build_router(secrets.compare_digest))
-    return TestClient(app)
+    return _make_client(monkeypatch, tmp_path, contract_path=CONTRACT_PATH)
 
 
 def _payload(
@@ -394,9 +412,34 @@ def test_rejects_stale_and_future_events(client: TestClient) -> None:
     assert "newer" in future.json()["detail"]
 
 
-def test_all_six_templates_match_the_receiver_contract(
-    client: TestClient,
+def _render_template(row: dict[str, str]) -> dict[str, object]:
+    rendered = (
+        row["message"]
+        .replace("<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>", TOKEN)
+        .replace("{{exchange}}:{{ticker}}", "NASDAQ:BKNG")
+        .replace("{{interval}}", "5")
+        .replace(
+            "{{time}}",
+            dt.datetime.now(dt.UTC).isoformat(),
+        )
+        .replace("{{close}}", "187.08")
+    )
+    return json.loads(rendered)
+
+
+def test_all_six_templates_restore_build_one_and_only_build_one(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
+    """The templates are the ROLLBACK path, and both directions are executed.
+
+    They recreate the six build-1 alerts, so they name the build-1 hash — not
+    the current one (2026-08-14, build 2: the current hash moved). Against a
+    contract rolled back to build 1 every template must be accepted; against
+    the CURRENT build-2 contract every template must be rejected — that
+    rejection IS the drift detection that catches a stale script after the
+    cutover, so it is asserted rather than assumed.
+    """
     artifact = json.loads(TEMPLATES_PATH.read_text(encoding="utf-8"))
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
     alerts = artifact["alerts"]
@@ -406,33 +449,43 @@ def test_all_six_templates_match_the_receiver_contract(
     )
     assert tuple(row["condition"] for row in alerts) == _CHANNELS
     assert len(alerts) == len(_CHANNELS)
-    assert artifact["source"]["sha256"] == contract["source"]["sha256"]
+    history = {
+        entry["build"]: entry["sha256"] for entry in contract["buildHistory"]
+    }
+    assert artifact["source"]["sha256"] == history[1] == BUILD_1_SHA256
     assert artifact["source"]["hashMode"] == contract["source"]["hashMode"]
     assert artifact["source"]["frozenMicroProfileLibraryPin"] == (
         contract["source"]["frozenMicroProfileLibraryPin"]
     )
 
+    # Direction 1: the current contract REFUSES the build-1 templates.
+    current = _make_client(
+        monkeypatch, tmp_path, contract_path=CONTRACT_PATH, ledger_name="cur.sqlite3"
+    )
+    refused = current.post(_post_url(), json=_render_template(alerts[0]))
+    assert refused.status_code == 409
+    assert "sourceSha256" in refused.json()["detail"]["fields"]
+
+    # Direction 2: a contract rolled back to build 1 accepts all six.
+    rolled_back = copy.deepcopy(contract)
+    rolled_back["source"]["sha256"] = history[1]
+    rolled_back["source"]["build"] = 1
+    rollback_path = tmp_path / "contract_rolled_back.json"
+    rollback_path.write_text(json.dumps(rolled_back), encoding="utf-8")
+    rollback = _make_client(
+        monkeypatch, tmp_path, contract_path=rollback_path, ledger_name="rb.sqlite3"
+    )
+
     observed_hashes: set[str] = set()
     for row in alerts:
-        rendered = (
-            row["message"]
-            .replace("<HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN>", TOKEN)
-            .replace("{{exchange}}:{{ticker}}", "NASDAQ:BKNG")
-            .replace("{{interval}}", "5")
-            .replace(
-                "{{time}}",
-                dt.datetime.now(dt.UTC).isoformat(),
-            )
-            .replace("{{close}}", "187.08")
-        )
-        payload = json.loads(rendered)
+        payload = _render_template(row)
         observed_hashes.add(payload["sourceSha256"])
-        response = client.post(_post_url(), json=payload)
+        response = rollback.post(_post_url(), json=payload)
         assert response.status_code == 200
         assert response.json()["status"] == "accepted"
 
-    assert observed_hashes == {SOURCE_SHA256}
-    state = client.get(_state_url(), headers=_state_headers()).json()
+    assert observed_hashes == {BUILD_1_SHA256}
+    state = rollback.get(_state_url(), headers=_state_headers()).json()
     assert state["uniqueEvents"] == 6
     assert state["duplicateDeliveries"] == 0
     assert state["uniqueByChannel"] == dict.fromkeys(_CHANNELS, 1)
