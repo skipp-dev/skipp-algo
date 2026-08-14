@@ -16,6 +16,7 @@ import {
   collectTradingViewPageAuthState,
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
+  collectPublishChooserInventory,
   editorDiagnosticsSuggestOpenHost,
   indicatorsMyScriptsShowsMatchingPrivateScript,
   openScriptSurfaceLooksReady,
@@ -2734,4 +2735,148 @@ test("facade version helper queries the PUBLISHED listing, not editor save revis
   const helperSlice = source.slice(helperStart, helperStart + 800);
   assert.ok(helperSlice.includes("filter=published"), "helper must query filter=published");
   assert.equal(helperSlice.includes("filter=saved"), false, "helper must not query filter=saved");
+});
+
+// 2026-08-14: which renderings of "Choose script" the update-existing lookup
+// can actually see.
+//
+// Run 31805361109 photographed a dialog in "Update existing script" mode with a
+// "Choose script" control plainly on screen, and selectExistingPublishScript
+// still returned false. A screenshot cannot say what that control IS, and the
+// five selector changes of 2026-08-09/10 each assumed a different answer.
+//
+// This measures instead of assuming: every shape TradingView could plausibly
+// render, run past the real selector set. It is the population, not one sample,
+// and it says exactly which assumption is the survivable one.
+const CHOOSER_SHAPES: Array<{ label: string; html: string; expectedFound: boolean }> = [
+  {
+    label: "native select",
+    html: '<select aria-label="Choose script"><option>Choose script</option><option>Open-Prep Daily Panel</option></select>',
+    expectedFound: true,
+  },
+  {
+    label: "button with combobox role and aria-label",
+    html: '<button role="combobox" aria-label="Choose script">Choose script</button>',
+    expectedFound: true,
+  },
+  {
+    label: "role-less div whose text is the label",
+    html: '<div class="chooser-x1"><span>Choose script</span></div>',
+    expectedFound: true,
+  },
+  {
+    label: "listbox-role div whose text is the label",
+    html: '<div role="listbox"><span>Choose script</span></div>',
+    expectedFound: true,
+  },
+  {
+    label: "input carrying the label as a placeholder",
+    html: '<input class="chooser-x2" placeholder="Choose script" />',
+    expectedFound: false,
+  },
+];
+
+test("the chooser lookup sees every shape except the one that hides its label", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    for (const shape of CHOOSER_SHAPES) {
+      await page.setContent(`
+        <html><body><div id="overlap-manager-root"><div role="dialog">
+          <h2>Publish script</h2>
+          <button>Update existing script</button>
+          ${shape.html}
+        </div></div></body></html>
+      `);
+
+      const counts = await Promise.all(
+        tvSelectors.publishExistingScriptChooser(page).map((locator) => locator.count()),
+      );
+
+      assert.equal(
+        counts.some((count) => count > 0),
+        shape.expectedFound,
+        `"${shape.label}" — expected the chooser selector set to ${shape.expectedFound ? "find" : "miss"} it. `
+        + "If this flipped, the selector set changed and the conclusion below no longer holds.",
+      );
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+test("the chooser inventory reports the shape the lookup cannot see", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    // The one shape the selector set misses, rendered the way TradingView
+    // styles its own selects: a hidden native element under a visible box.
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <button>Update existing script</button>
+        <select style="display:none"><option>Open-Prep Daily Panel</option></select>
+        <input class="chooser-x2" placeholder="Choose script" />
+      </div></div></body></html>
+    `);
+
+    assert.equal(
+      await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
+      false,
+      "premise: this is a shape the current selectors cannot resolve",
+    );
+
+    const inventory = await collectPublishChooserInventory(page);
+    const chooser = inventory.find((entry) => entry.placeholder === "Choose script");
+
+    assert.ok(
+      chooser,
+      "the inventory must surface the control the lookup missed — that is the whole point of it. "
+      + `Got: ${JSON.stringify(inventory)}`,
+    );
+    assert.equal(chooser.tag, "input", "report the tag, so the next selector can be written for it");
+    assert.equal(chooser.role, "", "report the absent role rather than omitting the field");
+    assert.ok(chooser.w > 0 && chooser.h > 0, "report geometry, so present-but-hidden stays distinguishable");
+
+    const hiddenNative = inventory.find((entry) => entry.tag === "select");
+    assert.ok(hiddenNative, "a display:none native select must still appear in the inventory");
+    assert.equal(
+      hiddenNative.display,
+      "none",
+      "and it must say WHY the visible-locator wait skipped it — 'TradingView has no select' and "
+      + "'the select is there but hidden' are different bugs with different fixes",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test("collecting the chooser inventory does not touch the publish surface", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div role="dialog">
+        <h2>Publish script</h2>
+        <input class="chooser-x2" placeholder="Choose script" />
+        <button id="continue">Continue</button>
+      </div></div></body></html>
+    `);
+    // Continue is the control that writes a new version to TradingView. A
+    // diagnostic that reaches it would publish while trying to explain itself.
+    await page.evaluate(`(() => {
+      window.__touched = [];
+      for (const element of document.querySelectorAll("#overlap-manager-root *")) {
+        for (const type of ["click", "mousedown", "keydown", "input", "focus"]) {
+          element.addEventListener(type, () => window.__touched.push(element.tagName + ":" + type));
+        }
+      }
+    })()`);
+
+    await collectPublishChooserInventory(page);
+
+    assert.deepEqual(await page.evaluate("window.__touched"), [], "the inventory must be read-only");
+  } finally {
+    await browser.close();
+  }
 });
