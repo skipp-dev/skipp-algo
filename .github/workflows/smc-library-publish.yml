@@ -785,6 +785,19 @@ jobs:
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in all pine consumers
         if: steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          # The checkout runs with persist-credentials: false, so `origin`
+          # carries NO credentials and a bare `git fetch origin main` dies with
+          # "could not read Username for 'https://github.com'" -- exit 128,
+          # measured 2026-08-14 in run 31793906137. The fetch arrived with
+          # #4653 (read consumers from current main, not from a day-old tree)
+          # and could not run until now: the TradingView queue was saturated,
+          # so this step never once reached a runner after that merge.
+          #
+          # Same explicit-token-URL seam the reattest step and "Commit and push
+          # changes" already use, rather than mutating the remote for the rest
+          # of the job.
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           # Incident 2026-07-13: the generator manifest's library_version is a
           # HARDCODED constant (1) — it never reflected TradingView's real,
@@ -830,7 +843,10 @@ jobs:
           # die Entfernung des Operator-Vokabulars aus vier Kundenoberflächen
           # (#4639) 59 Sekunden nach ihrem Merge wieder — ungesehen, weil
           # bot/*-PRs die schweren Gates überspringen und automatisch mergen.
-          git fetch --quiet origin main
+          # BUMP_REMOTE is a test seam (unset in CI), the same one the reattest
+          # and fast-forward steps use, so the fragment can be executed against
+          # a real local repository instead of only being read.
+          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
           mapfile -t PINE_CONSUMERS < <(git grep -lE "${PIN_PATTERN}" FETCH_HEAD -- \
             '*.pine' \
             ':(exclude)tests/**' \

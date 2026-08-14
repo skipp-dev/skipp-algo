@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "capturedAt": "2026-08-14T06:53:44Z",
+  "verificationMode": "automated_readonly_readback",
+  "supersedes": {
+    "artifact": "artifacts/governance/smc_hold_manager_shadow_alerts_2026-07-28.json",
+    "claim": "no automated readback is recorded because TradingView alert state is not machine-verifiable from this repository",
+    "outcome": "refuted by execution on 2026-08-14"
+  },
+  "tradingView": {
+    "account": "preuss_steffen",
+    "layout": "SMC Hold R2.4 Validation",
+    "savedScript": "SMC Hold Manager R2.4 Validation",
+    "panelOpenedByProbe": false
+  },
+  "expectedChannels": [
+    "HM_ENTRY",
+    "HM_T1",
+    "HM_T2",
+    "HM_STOP",
+    "HM_TIMESTOP",
+    "HM_EXIT_ANY"
+  ],
+  "alerts": [
+    {
+      "channel": "HM_ENTRY",
+      "name": "R2 SHADOW · HM_ENTRY",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    },
+    {
+      "channel": "HM_T1",
+      "name": "R2 SHADOW · HM_T1",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    },
+    {
+      "channel": "HM_T2",
+      "name": "R2 SHADOW · HM_T2",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    },
+    {
+      "channel": "HM_STOP",
+      "name": "R2 SHADOW · HM_STOP",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    },
+    {
+      "channel": "HM_TIMESTOP",
+      "name": "R2 SHADOW · HM_TIMESTOP",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    },
+    {
+      "channel": "HM_EXIT_ANY",
+      "name": "R2 SHADOW · HM_EXIT_ANY",
+      "ticker": "BKNG, 5m",
+      "status": "Active",
+      "running": true
+    }
+  ],
+  "missingChannels": [],
+  "notRunningChannels": [],
+  "foreignAlertCount": 2,
+  "limitations": [
+    "Proves that an alert exists per channel, on which symbol and timeframe, and whether TradingView offers to stop it. Does NOT prove the webhook action is enabled: that lives in the per-alert edit dialog, a mutation surface on live alerts, which this probe refuses to open.",
+    "The alert description field is the full webhook message body and carries the shadow token. It is never read; only its presence is recorded.",
+    "Delivery is proven by the receiver's own state endpoint, not by this probe."
+  ]
+}
