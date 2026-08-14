@@ -368,7 +368,19 @@ def test_shared_module_rejects_incoherent_publish_identity() -> None:
 
 @pytest.mark.parametrize("name", sorted(_hand_libs()))
 def test_descriptor_script_name_matches_the_hand_libs_entry(name: str) -> None:
-    """Every HAND_LIBS row's publisher must declare a matching scriptName and source.
+    """Every HAND_LIBS row must have a publisher, and it must declare a matching scriptName and source.
+
+    "A hand-authored library must be publishable from the repo" is this
+    file's whole premise (see the module docstring). ``entry["publisher"]``
+    being ``None`` is a schema the orchestrator supports ("cannot republish,
+    will only repin" — see ``test_hand_lib_source_and_publisher_resolve``),
+    but no row exercises it today (measured: zero ``publisher: null`` rows in
+    ``scripts/tv_publish_hand_authored_libraries.ts``), and this file should
+    not just skip past that case rather than assert it. A row landing with
+    ``publisher: null`` — accidentally or otherwise — silently strips the
+    library of the one guard this whole file exists to provide: nothing else
+    here checks the descriptor of a library with no publisher, because there
+    is no file to check.
 
     The orchestrator dispatches each publisher by spawning its file and
     trusting that the descriptor inside addresses the library HAND_LIBS says
@@ -388,8 +400,11 @@ def test_descriptor_script_name_matches_the_hand_libs_entry(name: str) -> None:
     """
     entry = _hand_libs()[name]
     publisher = entry["publisher"]
-    if publisher is None:
-        pytest.skip(f"{name} has no publisher by design")
+    assert publisher is not None, (
+        f"{name} has no publisher — a hand-authored library must be publishable "
+        "from the repo (this file's whole premise); add a publisher script, or "
+        "confirm `publisher: null` is intentional before landing it"
+    )
     text = (REPO_ROOT / publisher).read_text(encoding="utf-8")
     assert f'scriptName: "{name}"' in text, (
         f"{publisher} does not declare scriptName {name!r}"
