@@ -287,6 +287,53 @@ jobs:
           echo "::notice::Refresh meldete changed=${{ steps.handoff.outputs.changed }} — nichts zu veroeffentlichen."
           exit 0
 
+      # Fail BEFORE the first TradingView write, not after it.
+      #
+      # Von 2026-08-13 21:17Z bis 2026-08-14 scheiterte dieser Workflow an
+      # sechs Laeufen in Folge, und zwar jedes Mal NACH dem erfolgreichen
+      # "Publish library to TradingView": die Nach-Tore fanden keine
+      # Struktur-Artefakte, also wurde nichts aufgezeichnet. TradingView zog
+      # dem Manifest davon (238 gegen 230 gemessen am 2026-08-14), und jeder
+      # Consumer-Rollout blieb an der Drift-Pruefung haengen.
+      #
+      # Der Refusal-Test ist ein Kreuzvergleich, keine Vermutung: der Refresh
+      # legt structure_artifact_availability.json in dieselbe Uebergabe. Sagt
+      # dieser Bericht "ok" und die Artefakte sind trotzdem nicht angekommen,
+      # ist die Uebergabe defekt und ein Publish waere ein Schreibzugriff, den
+      # niemand aufzeichnen kann.
+      - name: Refuse to publish without the handed-over structure artifacts
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = pathlib.Path("artifacts/ci/structure_artifact_availability.json")
+          artifacts = pathlib.Path("reports/smc_structure_artifacts")
+          present = sorted(artifacts.glob("*")) if artifacts.is_dir() else []
+
+          if not report.exists():
+              print(f"::warning::{report} fehlt in der Uebergabe — Kreuzvergleich nicht moeglich.")
+              sys.exit(0)
+
+          payload = json.loads(report.read_text(encoding="utf-8"))
+          verified = payload.get("verified") or {}
+          expected_pairs = sum(int(count) for count in verified.values())
+
+          print(f"Refresh meldete {expected_pairs} verifizierte Paare; angekommen: {len(present)} Dateien.")
+
+          if payload.get("ok") and not present:
+              print(
+                  "::error::Der Refresh hat Struktur-Artefakte verifiziert, aber "
+                  "reports/smc_structure_artifacts/ ist leer oder fehlt. Ohne sie "
+                  "scheitern die Nach-Tore NACH dem Publish und die Veroeffentlichung "
+                  "waere nicht aufzeichenbar. Siehe den Upload-Kommentar in "
+                  "smc-library-refresh.yml."
+              )
+              sys.exit(1)
+          PY
+
       - name: Restore sufficiently deep Databento production export bundle
         id: restore_export_bundle
         env:
