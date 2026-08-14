@@ -1057,10 +1057,66 @@ jobs:
 
       # Das Artefakt traegt genau das, was die Veroeffentlichung braucht: die
       # erzeugte Bibliothek, die Gate-Evidenz und die Uebergabedatei. Das
-      # Databento-Buendel ist NICHT dabei — der Publisher holt es selbst per
-      # scripts/restore_databento_export_bundle.py, denn seine Nach-Tore
-      # brauchen dieselben Daten und ein Durchreichen waere nur eine zweite
-      # Kopie desselben Zustands.
+      # Das rohe Databento-Buendel ist NICHT dabei — der Publisher holt es
+      # selbst per scripts/restore_databento_export_bundle.py.
+      #
+      # Die ABGELEITETEN Struktur-Artefakte dagegen schon, und das ist der
+      # Unterschied, an dem der Publisher vom 2026-08-13 21:17Z bis zum
+      # 2026-08-14 an sechs Laeufen in Folge gescheitert ist. Der fruehere
+      # Kommentar hier behauptete, die Nach-Tore braeuchten "dieselben Daten"
+      # wie das Buendel. Das stimmt nicht: provider_health loest ueber
+      # smc_integration/sources/structure_artifact_json.py aus
+      # reports/smc_structure_artifacts/ auf, und diese 91 Dateien entstehen
+      # erst durch generate_smc_micro_base_from_databento.py -- ein Schritt mit
+      # 45 Minuten Budget und externen API-Schluesseln, den nur dieser Workflow
+      # faehrt. Der Publisher hatte das Buendel und trotzdem kein einziges
+      # Artefakt: 84 MISSING_ARTIFACT + 7 MISSING_MANIFEST + 84
+      # STRUCTURE_INPUT_LOAD_FAILED, exakt die 84 Paare und 7 Zeitrahmen.
+      #
+      # Durchreichen kostet 1,5 MB. Neu ableiten kostet 45 Minuten in einem
+      # Slot, der laut Messung ohnehin 1,75-fach ueberbucht ist.
+
+      # Der Marker sagt dem Publisher, WAS mitgeschickt wurde, und er zaehlt
+      # dabei aus demselben Verzeichnis, das der Upload unten auflistet.
+      # Warum ein Marker und nicht ein Kreuzvergleich gegen
+      # structure_artifact_availability.json: der Publish-Lauf checkt NICHT
+      # den Baum des Refresh aus, der seine Nutzlast erzeugt hat, sondern die
+      # Spitze von main. Gemessen am 2026-08-14 galt das fuer 7 von 7
+      # workflow_run-Publishes; ein Refresh laeuft bis zu drei Stunden, main
+      # zieht derweil weiter. Eine Verweigerung, die nur auf den Bericht
+      # schaut, wuerde deshalb JEDE Nutzlast ablehnen, die von einem Refresh
+      # VOR dieser Aenderung stammt -- und davon sind bei stuendlicher Kadenz
+      # immer mehrere unterwegs. Fehlt der Marker, ist die Nutzlast schlicht
+      # aelter als der Vertrag: warnen, nicht blockieren.
+      - name: Declare the structure-artifact handover
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          "$SMC_PYTHON_BIN" - <<'PY' > artifacts/ci/structure_artifact_handover.json
+          import json
+          from pathlib import Path
+
+          from smc_integration.sources.structure_artifact_json import (
+              REPO_ROOT,
+              STRUCTURE_ARTIFACTS_DIR,
+          )
+
+          # Den RELATIVEN Pfad vom Resolver ableiten, dann gegen das
+          # Arbeitsverzeichnis aufloesen: verschiebt jemand das Verzeichnis,
+          # wandert die Uebergabe mit, ohne dass hier ein zweiter Literal-Pfad
+          # gepflegt werden muesste.
+          relative = STRUCTURE_ARTIFACTS_DIR.relative_to(REPO_ROOT).as_posix()
+          directory = Path(relative)
+          files = [path for path in directory.rglob("*") if path.is_file()] if directory.is_dir() else []
+          print(json.dumps({
+              "handover_version": 1,
+              "directory": relative,
+              "file_count": len(files),
+          }, indent=2, sort_keys=True))
+          PY
+          cat artifacts/ci/structure_artifact_handover.json
+
       - name: Upload refresh payload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -1072,6 +1128,7 @@ jobs:
             pine/generated/smc_micro_profiles_core_import_snippet.pine
             artifacts/ci/
             artifacts/snapshots/
+            reports/smc_structure_artifacts/
           retention-days: 14
           if-no-files-found: error
           overwrite: true
