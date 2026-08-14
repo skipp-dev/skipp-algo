@@ -96,15 +96,29 @@ export function deriveExpectedVersion(
  * difference. That kept bumped libraries from exiting rc=1, but it also
  * accepted a version BELOW every consumer pin — which means the wrong script
  * was addressed, not that content changed. This states both halves explicitly.
+ *
+ * `mode` restores the whitelist the source enforced alongside the numeric
+ * comparison (`versionVerificationMode === "version_context" ||
+ * "idempotent_no_change"`): without a facade answer, only those two modes
+ * are exact evidence. `body_fallback` can carry a non-null, even
+ * numerically-matching version, but it is a weaker signal that should not
+ * pass on its own — the facade (or a stronger mode) has to back it up.
  */
 export function resolveVersionAcceptance(input: {
   expected: number | null;
   published: number | null;
+  mode: "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified" | "facade_list";
   facadeAnswered: boolean;
 }): { accepted: boolean; reason: string } {
-  const { expected, published, facadeAnswered } = input;
+  const { expected, published, mode, facadeAnswered } = input;
   if (published === null) {
     return { accepted: false, reason: "published version not verified" };
+  }
+  if (!facadeAnswered && mode !== "version_context" && mode !== "idempotent_no_change") {
+    return {
+      accepted: false,
+      reason: `version mode ${mode} is not exact evidence and the facade did not verify the version`,
+    };
   }
   if (expected === null) {
     return { accepted: true, reason: `bootstrap: no consumer pin, published /${published}` };
@@ -195,6 +209,27 @@ type HandLibPublishReport = {
   error?: string;
 };
 
+/**
+ * The default `--version` when the flag is absent: the repo's consumer pins.
+ *
+ * Zero pins is a legal state (see `deriveExpectedVersion`'s docstring), but
+ * it is not a legal *default* here — there is nothing to derive a target
+ * version from, and the facade can only answer after the write while the
+ * pre-publish contract check needs a concrete target before touching
+ * TradingView. So an operator publishing a library nothing imports yet must
+ * pass `--version` explicitly; this only supplies the default when the pins
+ * agree.
+ */
+function resolveDefaultVersion(descriptor: HandLibDescriptor, repoRoot: string): number {
+  const derived = deriveExpectedVersion(repoRoot, descriptor.scriptName).version;
+  if (derived === null) {
+    throw new Error(
+      `No consumer pins found for ${descriptor.scriptName}. Publishing a library nothing imports yet requires passing --version explicitly.`,
+    );
+  }
+  return derived;
+}
+
 function parseArgs(descriptor: HandLibDescriptor, argv: string[]): CliArgs {
   const args = argv;
 
@@ -212,12 +247,12 @@ function parseArgs(descriptor: HandLibDescriptor, argv: string[]): CliArgs {
 
   const repoRoot = path.resolve(getFlag("--repo-root", "."));
   // --version and --import-path have no literal default: an explicit flag
-  // still wins, but absent either one the repo's consumer pins are the
-  // source of truth (see deriveExpectedVersion's docstring on why zero pins
-  // is a legal bootstrap and disagreement aborts instead of guessing).
+  // still wins. Absent --version, the repo's consumer pins decide it (see
+  // resolveDefaultVersion) — disagreement aborts instead of guessing, and
+  // zero pins requires --version explicitly rather than inventing one.
   const version = hasFlag("--version")
     ? Number(getFlag("--version", ""))
-    : (deriveExpectedVersion(repoRoot, descriptor.scriptName).version ?? NaN);
+    : resolveDefaultVersion(descriptor, repoRoot);
   const importPath = hasFlag("--import-path")
     ? getFlag("--import-path", "")
     : `preuss_steffen/${descriptor.scriptName}/${version}`;
@@ -273,10 +308,11 @@ function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli: CliArg
   //      pin at the wrong version would sail through. That is the opposite of
   //      what the check is for.
   //
-  // So: zero pins is a legal bootstrap; any pin that exists must name the
-  // version being published. Repinning itself is not this script's job —
-  // tv_publish_hand_authored_libraries.ts rewrites pins across every consumer
-  // .pine after the ordered publish.
+  // So: zero pins is legal but requires an explicit --version here — there
+  // is nothing to derive a target from (see resolveDefaultVersion) — and any
+  // pin that exists must name the version being published. Repinning itself
+  // is not this script's job — tv_publish_hand_authored_libraries.ts
+  // rewrites pins across every consumer .pine after the ordered publish.
   const mismatched = consumerPins(cli.repoRoot, cli.scriptName).filter(
     (pin) => pin.version !== cli.version,
   );
@@ -304,9 +340,9 @@ function verifyHandLibPublishContract(descriptor: HandLibDescriptor, cli: CliArg
 }
 
 export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: string[]): Promise<number> {
-  const cli = parseArgs(descriptor, argv);
   const runId = utcNow().replace(/[:.]/g, "-");
   const screenshots: string[] = [];
+  let cli: CliArgs | null = null;
   let details: ContractDetails | null = null;
   let publishAttempted = false;
   let openMode: OpenMode = "fresh_draft";
@@ -323,6 +359,15 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
   let publishBodyText = "";
 
   try {
+    if (descriptor.requiresExplicitVersionAdvance) {
+      throw new Error(
+        `${descriptor.scriptName} sets requiresExplicitVersionAdvance, but runHandLibPublish does not implement ` +
+          "the advance-exactly-one contract yet (see tv_publish_context_engine_library.ts:218-230 for the shape " +
+          "it opts into: --expected-current-version, refuse unless it equals version - 1). Refusing to publish " +
+          "rather than silently skipping that check.",
+      );
+    }
+    cli = parseArgs(descriptor, argv);
     details = verifyHandLibPublishContract(descriptor, cli);
     const session = await newTradingViewSession();
     try {
@@ -449,7 +494,7 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       if (
         !noChangeDetected
         || !exactScriptVerified
-        || !resolveVersionAcceptance({ expected: details.version, published: publishedVersion, facadeAnswered: false }).accepted
+        || !resolveVersionAcceptance({ expected: details.version, published: publishedVersion, mode: versionVerificationMode, facadeAnswered: false }).accepted
       ) {
         publishedScriptVerified = await openExistingScript(session.page, details.scriptName).catch(() => false);
         identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.scriptName).catch(() => []);
@@ -497,6 +542,7 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       const versionAcceptance = resolveVersionAcceptance({
         expected: details.version,
         published: publishedVersion,
+        mode: versionVerificationMode,
         facadeAnswered: facadeVersion !== null,
       });
 
@@ -538,6 +584,15 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
     return 0;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.stack || error.message : String(error);
+    // cli can still be null here: parseArgs itself now runs inside this try
+    // (it calls deriveExpectedVersion, which throws on disagreeing pins or
+    // an underivable bootstrap version) and the requiresExplicitVersionAdvance
+    // guard above it can also throw before parseArgs ever runs. Every other
+    // failure path still writes a report, so fall back instead of crashing
+    // the crash-report itself.
+    const out = cli?.out ?? path.resolve(
+      `automation/tradingview/reports/${descriptor.reportStem}-${utcNow().replace(/[:.]/g, "-")}.json`,
+    );
     const report: HandLibPublishReport = {
       generatedAt: utcNow(),
       ok: false,
@@ -545,14 +600,14 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       publishAttempted,
       publishOk: false,
       openMode,
-      openExistingRequested: cli.openExisting,
+      openExistingRequested: cli?.openExisting ?? true,
       openedExistingScript,
       createdFreshDraft,
       publishedScriptVerified,
       identityVerificationMode,
       versionVerificationMode,
-      expectedImportPath: details?.importPath ?? cli.importPath,
-      expectedVersion: details?.version ?? cli.version,
+      expectedImportPath: details?.importPath ?? cli?.importPath ?? "",
+      expectedVersion: details?.version ?? cli?.version ?? NaN,
       publishedVersion,
       fallbackPublishedVersion,
       noChangeDetected,
@@ -562,7 +617,7 @@ export async function runHandLibPublish(descriptor: HandLibDescriptor, argv: str
       screenshots,
       error: message,
     };
-    writeJson(cli.out, report);
+    writeJson(out, report);
     process.stdout.write(JSON.stringify(report, null, 2));
     process.stdout.write("\n");
     return 1;

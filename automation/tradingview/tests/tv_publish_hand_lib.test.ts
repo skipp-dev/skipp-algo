@@ -64,35 +64,57 @@ test("disagreeing pins abort and name every file and version", () => {
 });
 
 test("a facade-verified equal version is accepted", () => {
-  const r = resolveVersionAcceptance({ expected: 3, published: 3, facadeAnswered: true });
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "facade_list", facadeAnswered: true });
   assert.equal(r.accepted, true);
 });
 
 test("a facade-verified bump above the expectation is accepted", () => {
-  const r = resolveVersionAcceptance({ expected: 3, published: 4, facadeAnswered: true });
+  const r = resolveVersionAcceptance({ expected: 3, published: 4, mode: "facade_list", facadeAnswered: true });
   assert.equal(r.accepted, true);
   assert.match(r.reason, /advanced/);
 });
 
 test("a version below the expectation is rejected", () => {
-  const r = resolveVersionAcceptance({ expected: 4, published: 3, facadeAnswered: true });
+  const r = resolveVersionAcceptance({ expected: 4, published: 3, mode: "facade_list", facadeAnswered: true });
   assert.equal(r.accepted, false);
   assert.match(r.reason, /below/);
 });
 
 test("a null published version is rejected regardless of facade status", () => {
-  const r = resolveVersionAcceptance({ expected: 3, published: null, facadeAnswered: false });
+  const r = resolveVersionAcceptance({ expected: 3, published: null, mode: "not_verified", facadeAnswered: false });
   assert.equal(r.accepted, false);
   assert.match(r.reason, /not verified/);
 });
 
-test("a bootstrap with no expectation accepts any verified version", () => {
-  const r = resolveVersionAcceptance({ expected: null, published: 1, facadeAnswered: true });
+test("a bootstrap with no expectation accepts any verified version, even a weak mode, once the facade answers", () => {
+  const r = resolveVersionAcceptance({ expected: null, published: 1, mode: "body_fallback", facadeAnswered: true });
   assert.equal(r.accepted, true);
 });
 
 test("a version above the expectation is rejected without facade verification", () => {
-  const r = resolveVersionAcceptance({ expected: 3, published: 4, facadeAnswered: false });
+  const r = resolveVersionAcceptance({ expected: 3, published: 4, mode: "version_context", facadeAnswered: false });
   assert.equal(r.accepted, false);
   assert.match(r.reason, /facade/);
+});
+
+test("a body_fallback mode with a matching version and no facade answer is rejected", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "body_fallback", facadeAnswered: false });
+  assert.equal(r.accepted, false);
+  assert.match(r.reason, /body_fallback/);
+});
+
+test("a version_context mode with a matching version and no facade answer is accepted", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "version_context", facadeAnswered: false });
+  assert.equal(r.accepted, true);
+});
+
+test("an idempotent_no_change mode with a matching version and no facade answer is accepted", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "idempotent_no_change", facadeAnswered: false });
+  assert.equal(r.accepted, true);
+});
+
+test("a not_verified mode with a matching version and no facade answer is rejected", () => {
+  const r = resolveVersionAcceptance({ expected: 3, published: 3, mode: "not_verified", facadeAnswered: false });
+  assert.equal(r.accepted, false);
+  assert.match(r.reason, /not_verified/);
 });
