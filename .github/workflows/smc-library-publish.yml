@@ -287,6 +287,71 @@ jobs:
           echo "::notice::Refresh meldete changed=${{ steps.handoff.outputs.changed }} — nichts zu veroeffentlichen."
           exit 0
 
+      # Fail BEFORE the first TradingView write, not after it.
+      #
+      # Von 2026-08-13 21:17Z bis 2026-08-14 04:51Z scheiterte dieser Workflow
+      # an sechs Laeufen in Folge, und zwar jedes Mal NACH dem erfolgreichen
+      # "Publish library to TradingView": die Nach-Tore fanden keine
+      # Struktur-Artefakte, also wurde nichts aufgezeichnet. TradingView zog
+      # dem Manifest davon (238 gegen 230 gemessen am 2026-08-14), und jeder
+      # Consumer-Rollout blieb an der Drift-Pruefung haengen.
+      #
+      # Diese Verweigerung hat den Ausfall NICHT beendet — das tat #4693
+      # (fehlende Zugangsdaten im Consumer-Re-Pin). Seit 12:30Z laeuft der
+      # Publish wieder gruen, aber provider_health meldet in genau diesen
+      # gruenen Laeufen weiter 84 MISSING_ARTIFACT; blockierend ist es nur
+      # deshalb nicht, weil `daily_export_absent` das Gate herabstuft
+      # ("producer export for this run's date is not published yet", gemessen
+      # in Lauf 31823202979). Die fehlende Uebergabe ist also unveraendert da
+      # und wird von einer unabhaengigen Bedingung verdeckt. Genau deshalb
+      # steht die Pruefung hier: sie ist an die Uebergabe gebunden, nicht an
+      # das Wetter der Nach-Tore.
+      #
+      # Die Verweigerung haengt am MARKER des Refresh, nicht an einem
+      # Kreuzvergleich gegen structure_artifact_availability.json. Der
+      # Unterschied ist nicht kosmetisch: dieser Job checkt die Spitze von main
+      # aus, nicht den Baum des Refresh, der seine Nutzlast erzeugt hat (7 von
+      # 7 workflow_run-Publishes am 2026-08-14). Eine Verweigerung, die nur auf
+      # den Verfuegbarkeitsbericht schaut, wuerde deshalb jede Nutzlast eines
+      # Refresh VOR dieser Aenderung ablehnen — und bei stuendlicher Kadenz und
+      # bis zu drei Stunden Refresh-Laufzeit sind davon staendig mehrere
+      # unterwegs. Der Marker macht die Uebergabe selbstsynchronisierend:
+      # geschrieben vom selben Schritt, der sie hochlaedt, also koennen Absicht
+      # und Inhalt nicht auseinanderlaufen. Kein Marker = aeltere Nutzlast als
+      # der Vertrag: warnen und weiterfahren.
+      - name: Refuse to publish without the handed-over structure artifacts
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          marker = pathlib.Path("artifacts/ci/structure_artifact_handover.json")
+          if not marker.exists():
+              print(
+                  f"::warning::{marker} fehlt — diese Uebergabe stammt von einem Refresh "
+                  "vor dem Handover-Vertrag. Keine Verweigerung, aber die Nach-Tore "
+                  "koennen die Struktur-Artefakte verfehlen."
+              )
+              sys.exit(0)
+
+          declared = json.loads(marker.read_text(encoding="utf-8"))
+          directory = pathlib.Path(declared["directory"])
+          arrived = [path for path in directory.rglob("*") if path.is_file()] if directory.is_dir() else []
+
+          print(f"Refresh uebergab {declared['file_count']} Dateien in {directory}; angekommen: {len(arrived)}.")
+
+          if len(arrived) < int(declared["file_count"]):
+              print(
+                  f"::error::Der Refresh hat {declared['file_count']} Struktur-Artefakte "
+                  f"uebergeben, angekommen sind {len(arrived)}. Ohne sie scheitern die "
+                  "Nach-Tore NACH dem Publish und die Veroeffentlichung waere nicht "
+                  "aufzeichenbar. Siehe den Upload-Kommentar in smc-library-refresh.yml."
+              )
+              sys.exit(1)
+          PY
+
       - name: Restore sufficiently deep Databento production export bundle
         id: restore_export_bundle
         env:
