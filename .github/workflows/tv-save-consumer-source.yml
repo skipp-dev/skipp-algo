@@ -640,6 +640,28 @@ jobs:
             echo "::warning::Cannot publish TradingView binding snapshot (missing GH_PAT or snapshot)."
             exit 0
           fi
+          # A report that observed nothing must not become the baseline.
+          # steps.save.conclusion above answers "did the rollout step run",
+          # which is NOT the same question: run 31823203037 ran, threw on
+          # library publish drift after ONE second -- before the pre-mutation
+          # observation -- and published its empty reading ("bindings": [],
+          # outOfBandDrift "the pre-mutation observation has not run yet")
+          # over a full one. The next run loaded that baseline, covered zero
+          # verify targets, and reported out-of-band drift as "unknown";
+          # scripts/smc_r1_generate_attestation accepts only "clean", so the
+          # R1 re-attestation (run 31824430346) saved all 11 sources to
+          # TradingView and then could not attest SMC Event Overlay. An empty
+          # reading has nothing to contribute: leave the last real one alone.
+          # Counted, not tested with `if ! jq ...`: that form cannot tell "this
+          # run observed nothing" from "jq is missing or the report is
+          # malformed", and would answer BOTH by silently declining to publish
+          # -- freezing the baseline with no red anywhere. Under set -e a
+          # broken jq or an unparseable report fails this step loudly instead.
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | length' "${snapshot}")"
+          if [ "${observed_bindings}" -eq 0 ]; then
+            echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # This step borrows the job's checkout to build ONE commit for a
