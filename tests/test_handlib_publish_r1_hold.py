@@ -111,9 +111,13 @@ def test_pr_step_reads_the_hold_verdict_and_cannot_outrun_a_failed_hold() -> Non
 
 def test_pr_body_names_the_held_companions() -> None:
     pr = _step(_steps(), "Open repin PR")
-    assert "R1_HELD" in str(pr.get("env", {}).get("R1_HELD", "")) or "r1_hold.outputs.held" in str(
-        pr.get("env", {}).get("R1_HELD", "")
-    ), "the held roster must reach the PR step through env, not expansion into code"
+    # One needle, the right one: the first cut also accepted `"R1_HELD" in
+    # <env value>`, which no real value ever contains — a dead disjunct that
+    # only added noise (2026-08-15 review).
+    assert "r1_hold.outputs.held" in str(pr.get("env", {}).get("R1_HELD", "")), (
+        "the held roster must reach the PR step through env, not expansion "
+        "into code"
+    )
     assert "R1 hold:" in pr["run"], (
         "the PR body must say the companions were held on purpose — a repin "
         "PR silently omitting two consumers reads as a bug"

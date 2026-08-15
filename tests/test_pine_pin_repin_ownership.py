@@ -72,9 +72,15 @@ ORCHESTRATOR = REPO_ROOT / "scripts" / "tv_publish_hand_authored_libraries.ts"
 REFRESH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "smc-library-publish.yml"
 FRESHNESS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pine-library-freshness.yml"
 
-# ``import preuss_steffen/smc_utils/4 as u``
+# ``import preuss_steffen/smc_utils/4 as u`` — and the alias-less form
+# ``import preuss_steffen/smc_utils/4``, which Pine permits. The 2026-08-15
+# review proved the mandatory-alias first cut let an alias-less pin escape the
+# ownership check entirely, while every repin mechanism this guard audits
+# (repinImport, the refresh's PIN_PATTERN) matches without the alias — the
+# guard must not be narrower than the mechanisms it vouches for.
 _IMPORT_RE = re.compile(
-    r"^\s*import\s+(?P<owner>[A-Za-z0-9_]+)/(?P<lib>[A-Za-z0-9_]+)/(?P<ver>\d+)\s+as\s+\w+",
+    r"^\s*import\s+(?P<owner>[A-Za-z0-9_]+)/(?P<lib>[A-Za-z0-9_]+)/(?P<ver>\d+)"
+    r"(?!\S)(?:\s+as\s+\w+)?",
     re.MULTILINE,
 )
 
@@ -169,9 +175,15 @@ def test_the_hand_lib_repin_mechanism_is_actually_invoked() -> None:
         "repinAllConsumers is defined but never called — HAND_LIBS membership "
         "would confer ownership over a mechanism that never runs."
     )
-    assert "write: boolean" in text or ", true)" in text, (
-        "repinAllConsumers is called but the write flag can no longer be seen "
-        "in the orchestrator; a dry-run-only repin moves no pins."
+    # The CALL SITE must pass write=true. The first cut asserted
+    # `"write: boolean" in text or ", true)" in text` — the first disjunct is
+    # permanently satisfied by the function's own signature, so the 2026-08-15
+    # review flipped the sole call site to write=false and all three ownership
+    # tests stayed green. The signature can never witness what the caller does.
+    assert re.search(r"\brepinAllConsumers\([^)]*,\s*true\s*\)", text), (
+        "no call site passes repinAllConsumers write=true — a dry-run-only "
+        "repin moves no pins while every hand-authored library still looks "
+        "owned here."
     )
 
 

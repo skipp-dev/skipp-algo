@@ -33,6 +33,10 @@ It does not check that a list is *complete* — that a consumer which exists is
 actually named. Completeness is per-list domain knowledge and belongs with the
 workflow that owns it. This is the cheap half: a list may be wrong, but it may
 not contradict itself.
+
+It also does not compare flag VALUES against each other: on a flagged command
+line only the trailing enumeration after the last flag is scanned (see
+``_dedupable_tokens`` for the in-place-update case that forces this).
 """
 
 from __future__ import annotations
@@ -56,22 +60,27 @@ def _pathlike(tokens: list[str]) -> list[str]:
     return [t for t in tokens if _PATHLIKE.match(t)]
 
 
-def _is_command_invocation(tokens: list[str]) -> bool:
-    """True for a command line with flags, false for a bare file list.
+def _dedupable_tokens(tokens: list[str]) -> list[str]:
+    """The sublist whose duplication would be a list contradicting itself.
 
-    ``smc-deeper-integration-gates.yml`` runs an in-place baseline update:
+    A bare enumeration (``git add a b c``) is checked whole. Flag VALUES are
+    not: ``smc-deeper-integration-gates.yml`` runs an in-place baseline update
+    where ``--baseline X`` and ``--out X`` name the same file deliberately —
+    it is read and rewritten, two flags sharing a value, not a list.
 
-        python scripts/update_measurement_baseline_summary.py \\
-          --current artifacts/ci/smc_deeper_evidence_summary.json \\
-          --baseline reports/smc_measurement_baseline_summary.json \\
-          --out reports/smc_measurement_baseline_summary.json
-
-    ``--baseline`` and ``--out`` name the same file deliberately — it is read
-    and rewritten. That is not a list contradicting itself, so flagged
-    invocations are out of scope. Only bare enumerations (``git add a b c``)
-    are checked.
+    But the TRAILING enumeration after the LAST flag is still a bare list —
+    ``npx tsx --test a.ts b.ts …`` — and a duplicate there means a test file
+    registered twice. The first cut of this guard excluded flagged lines
+    wholesale while its docstring claimed the tsx lists were covered; the
+    2026-08-15 review proved a duplicated ``.ts`` entry in the real 64-file
+    run step passed silently. Scanning from after the last flag delivers the
+    coverage the docstring promised without re-flagging the in-place update.
     """
-    return any(t.startswith("-") and len(t) > 1 for t in tokens)
+    last_flag = -1
+    for i, token in enumerate(tokens):
+        if token.startswith("-") and len(token) > 1:
+            last_flag = i
+    return tokens[last_flag + 1 :]
 
 
 def _continuation_lists(text: str) -> list[tuple[int, list[str]]]:
@@ -139,9 +148,7 @@ def test_no_workflow_file_list_names_a_path_twice() -> None:
             ("paths block", _yaml_path_blocks(text)),
         ):
             for line_no, tokens in lists:
-                if _is_command_invocation(tokens):
-                    continue
-                paths = _pathlike(tokens)
+                paths = _pathlike(_dedupable_tokens(tokens))
                 duplicated = sorted(
                     name for name, count in collections.Counter(paths).items() if count > 1
                 )

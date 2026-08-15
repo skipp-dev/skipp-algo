@@ -45,8 +45,16 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
-_BRANCH_REF = 'remote_ref="refs/heads/bot/live-tradingview-bindings"'
-_OBSERVATION_GATE = "(.tradingViewObserved.bindings // []) | length"
+_BRANCH_NAME = "bot/live-tradingview-bindings"
+# The force-with-lease idiom both publishers share. Discovery below does NOT
+# key on it (2026-08-15 review finding: an idiom is an implementation choice,
+# and a publisher written differently would silently escape a discovery
+# anchored on it) — it is asserted PER discovered publisher instead, so a
+# divergent one fails loudly rather than dropping out of the population.
+_LEASE_IDIOM = 'remote_ref="refs/heads/bot/live-tradingview-bindings"'
+_OBSERVATION_GATE = (
+    '(.tradingViewObserved.bindings // []) | if type == "array" then length else error'
+)
 
 # The seam each publisher exposes so its body can be executed against a
 # throwaway repository instead of github.com. Keyed by step name so a renamed
@@ -113,20 +121,52 @@ def _baseline_publishers() -> list[tuple[str, str, str]]:
 
     Discovered from the workflow corpus, not listed: a new publisher must be
     covered the moment it lands, and a renamed one must not silently vanish.
+
+    The discovery keys on what makes a step a PUBLISHER — a ``git push`` in
+    the body and the branch name in reach of that body — not on the shared
+    ``remote_ref=…`` idiom. "In reach" means the body OR the step/job/workflow
+    ``env:`` values: this file's own r1-reattest steps already push with
+    ``HEAD:${BRANCH}`` where the branch lives only in ``env`` (2026-08-15
+    review finding), so a bindings publisher written in that house idiom must
+    not escape. Measured over the corpus: the conjunction matches exactly the
+    two publish steps; the two baseline *readers* fetch over the API and carry
+    no ``git push``. A publisher written in a different shape is therefore
+    still discovered, and the idiom is enforced on it separately (see
+    test_every_publisher_carries_the_lease_idiom_and_a_test_seam).
+
+    Boundary of the claim, stated rather than implied: a push spelled without
+    the literal ``git push`` (``git -C <dir> push``, ``git -c k=v push``), or
+    a publisher extracted into a script file the step merely invokes, is
+    outside what static run-body discovery can see. The closure for those is
+    server-side (a ruleset restricting who may push to the branch), not a
+    cleverer grep.
     """
+
+    def _env_values(mapping: object) -> str:
+        if not isinstance(mapping, dict):
+            return ""
+        return " ".join(str(value) for value in mapping.values())
+
     found: list[tuple[str, str, str]] = []
     for path in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(document, dict):
             continue
+        document_env = _env_values(document.get("env"))
         for job in (document.get("jobs") or {}).values():
             if not isinstance(job, dict):
                 continue
+            job_env = _env_values(job.get("env"))
             for step in job.get("steps") or []:
                 if not isinstance(step, dict):
                     continue
                 body = step.get("run")
-                if isinstance(body, str) and _BRANCH_REF in body:
+                if not (isinstance(body, str) and "git push" in body):
+                    continue
+                in_reach = " ".join(
+                    [body, _env_values(step.get("env")), job_env, document_env]
+                )
+                if _BRANCH_NAME in in_reach:
                     found.append((path.name, step.get("name", "<unnamed>"), body))
     return found
 
@@ -151,6 +191,31 @@ def test_the_publisher_corpus_has_not_collapsed() -> None:
     )
 
 
+def test_every_publisher_carries_the_lease_idiom_and_a_test_seam() -> None:
+    """A discovered publisher that diverges from the shared shape fails HERE.
+
+    The executed tests below run each body against a local repository through
+    its ``*_SNAPSHOT_REMOTE`` seam and rely on the force-with-lease idiom for
+    the seed-then-replace dance. Discovery deliberately does not key on either
+    (a divergent publisher must still be found) — so this test is where the
+    divergence surfaces as a named failure instead of a silent drop-out.
+    """
+    for workflow, step_name, body in _baseline_publishers():
+        assert _LEASE_IDIOM in body, (
+            f"{workflow} :: {step_name} pushes to {_BRANCH_NAME} without the "
+            "shared force-with-lease idiom — adopt it (see the two existing "
+            "publishers) so a concurrent publish loses the race instead of "
+            "silently overwriting the other producer's commit"
+        )
+        seam = _REMOTE_SEAM.get(step_name)
+        assert seam is not None and "${" + seam in body, (
+            f"{workflow} :: {step_name} has no functional *_SNAPSHOT_REMOTE test "
+            "seam in its body (the EXPANSION counts, a comment naming it does "
+            "not) — without it the executed tests below would push at github.com "
+            "instead of a throwaway repository"
+        )
+
+
 @pytest.mark.parametrize(
     "workflow, step_name, body",
     [pytest.param(*p, id=f"{p[0]}::{p[1]}") for p in _baseline_publishers()],
@@ -171,11 +236,35 @@ def test_every_publisher_refuses_a_reading_that_observed_nothing(
         "the observation check must run before the snapshot is copied into the "
         "shared directory — checking afterwards still stages the empty reading"
     )
+    # Operator decision 2026-08-15: the same rule extends to PARTIAL readings —
+    # only a complete observation becomes the baseline. `// error`, not `// 0`:
+    # with `// 0` a report that LOST the field (schema rename) would make every
+    # future publish decline quietly forever — green, no page, baseline frozen —
+    # the exact shape the empty-reading gate exists to remove. Absence is "the
+    # check itself broke", and that must be loud. jq treats 0 as truthy, so a
+    # legitimate zero still passes through to the comparison.
+    coverage_index = body.index(".bindings.expectedConsumers // error(")
+    assert gate_index < coverage_index < copy_index, (
+        "the coverage comparison must sit between the non-empty check and the "
+        "copy — a partial reading passing the non-empty check would otherwise "
+        "still become the baseline and re-create the 2026-08-14 failure class"
+    )
 
 
 def _publisher_body(step_name: str) -> str:
     matches = [b for _, name, b in _baseline_publishers() if name == step_name]
     assert len(matches) == 1, f"expected exactly one {step_name!r}, got {len(matches)}"
+    # Checked HERE, immediately before a body is handed to bash: if the seam
+    # ever disappears from the step, the executed tests must fail offline
+    # rather than discover it by pushing at github.com with a dummy token.
+    # The probe is the EXPANSION (`${SEAM`), not the bare name — both steps
+    # mention their seam in a comment, so a name-match stays satisfied after
+    # the functional seam is gone (measured 2026-08-15: exactly that mutation
+    # sailed past a name-match and hit the network before failing).
+    assert "${" + _REMOTE_SEAM[step_name] in matches[0], (
+        f"{step_name} lost its {_REMOTE_SEAM[step_name]} seam — refusing to "
+        "execute a body that would target the real remote"
+    )
     return matches[0]
 
 
@@ -204,15 +293,33 @@ def _published_files(origin: Path, env: dict[str, str]) -> list[str]:
 
 
 _FULL_READING = {
+    # bindings.expectedConsumers mirrors the real report: the constructor
+    # stamps it from config.verifyTargets BEFORE anything can die (measured on
+    # the 2026-08-14 one-second early-death report: expected=9, observed=0).
+    # The coverage gate compares the observation against it, so a payload
+    # without it would read as expected=0 and be declined as partial.
+    "bindings": {"expectedConsumers": 1},
     "tradingViewObserved": {
         "bindings": [{"scriptName": "SMC Event Overlay", "selections": []}]
-    }
+    },
 }
 _EMPTY_READING = {
+    "bindings": {"expectedConsumers": 9},
     "tradingViewObserved": {"bindings": [], "sources": []},
     "outOfBandDrift": {
         "status": "unknown",
         "reason": "the pre-mutation observation has not run yet",
+    },
+}
+_PARTIAL_READING = {
+    # Operator decision 2026-08-15: a session that died mid-read produces a
+    # non-empty observation covering less than every verify target. Publishing
+    # it re-creates the 2026-08-14 failure class (next run: "the baseline does
+    # not cover every verify target" -> "unknown" -> the R1 attestation
+    # refuses), so only a COMPLETE observation may become the baseline.
+    "bindings": {"expectedConsumers": 2},
+    "tradingViewObserved": {
+        "bindings": [{"scriptName": "SMC Event Overlay", "selections": []}]
     },
 }
 
@@ -280,19 +387,50 @@ def test_an_empty_reading_leaves_the_published_baseline_untouched(
         "the step must SAY it declined, or an operator reading the log cannot "
         f"tell a skipped publish from a successful one (stdout: {done.stdout!r})"
     )
+    # 3. A PARTIAL reading (non-empty, but covering less than every verify
+    #    target) must change nothing either — operator decision 2026-08-15.
+    snapshot.write_text(json.dumps(_PARTIAL_READING), encoding="utf-8")
+    done = publish()
+    assert "observed only 1 of 2 TradingView bindings" in done.stdout, (
+        "a partial reading must be declined BY NAME with its counts "
+        f"(stdout: {done.stdout!r})"
+    )
     assert (
         _git("rev-parse", "refs/heads/bot/live-tradingview-bindings", cwd=origin, env=env)
         == good_tip
-    ), "an empty reading advanced the branch"
+    ), "an empty or partial reading advanced the branch"
     assert (
         _git("show", f"refs/heads/bot/live-tradingview-bindings:{published_path}", cwd=origin, env=env)
         == good_content
-    ), "an empty reading replaced the last real observation"
+    ), "an empty or partial reading replaced the last real observation"
 
 
+@pytest.mark.parametrize(
+    "bad_payload",
+    [
+        pytest.param("{not json at all", id="malformed-json"),
+        # 2026-08-15 review finding: a bare `length` accepts non-array garbage
+        # — jq's length of the number 7 is 7, of a string its character count
+        # — and would publish it as an "observation". Unreachable while the
+        # report comes from tv_batch_consumer_rollout.ts (typed as an array),
+        # so the type check exists for the day something else writes the file.
+        pytest.param('{"tradingViewObserved": {"bindings": 7}}', id="non-array-bindings"),
+        # Second 2026-08-15 review round: with `// 0` a report MISSING
+        # bindings.expectedConsumers (schema rename in the script) made every
+        # future publish decline quietly forever — observed >= 1 is never equal
+        # to 0, the step stays green, and the baseline freezes with no red
+        # anywhere. Absence of the field is "the check itself broke", so it
+        # must fail the step, exactly like the non-array case above.
+        pytest.param(
+            '{"bindings": {"checkedConsumers": 1}, '
+            '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}}',
+            id="missing-expectedConsumers",
+        ),
+    ],
+)
 @pytest.mark.parametrize("step_name", sorted(_REMOTE_SEAM))
 def test_an_unreadable_report_fails_loudly_instead_of_declining_quietly(
-    step_name: str, tmp_path: Path
+    step_name: str, bad_payload: str, tmp_path: Path
 ) -> None:
     """"Observed nothing" and "the check itself broke" must not look the same.
 
@@ -315,7 +453,7 @@ def test_an_unreadable_report_fails_loudly_instead_of_declining_quietly(
 
     snapshot = work / _snapshot_path(body)
     snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text("{not json at all", encoding="utf-8")
+    snapshot.write_text(bad_payload, encoding="utf-8")
 
     done = subprocess.run(
         ["/bin/bash", "-c", body],

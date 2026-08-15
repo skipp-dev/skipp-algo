@@ -83,16 +83,22 @@ def test_proposer_event_trigger_cannot_loop_or_fire_on_failure() -> None:
     head_branch guard every proposal's own measuring save would re-trigger the
     proposer -- an infinite loop throttled only by the session queue.
     """
-    condition = _reattest()["jobs"]["propose"]["if"]
-    assert "github.event_name != 'workflow_run'" in condition, (
-        "cron and manual dispatch must pass the condition untouched"
-    )
-    assert "github.event.workflow_run.conclusion == 'success'" in condition, (
-        "a cancelled or failed save-chain completion must not propose"
-    )
-    assert "github.event.workflow_run.head_branch == 'main'" in condition, (
-        "the measuring save completes on bot/r1-reattest; without this filter "
-        "the proposer re-triggers itself in a loop"
+    # Asserted as ONE normalized expression, not three substrings: the
+    # 2026-08-15 review showed an `&&`→`||` swap keeps every substring while
+    # letting a cancelled main run — or a successful bot-branch run — propose.
+    # YAML `>-` folding preserves the more-indented continuation line as a
+    # literal newline inside the string, hence the whitespace normalization.
+    condition = " ".join(str(_reattest()["jobs"]["propose"]["if"]).split())
+    assert condition == (
+        "github.event_name != 'workflow_run' "
+        "|| (github.event.workflow_run.conclusion == 'success' "
+        "&& github.event.workflow_run.head_branch == 'main')"
+    ), (
+        "the event-trigger guard changed shape. It must let cron/dispatch "
+        "pass untouched, refuse any non-success save-chain completion (the "
+        "2026-08-13 queue produced 44 cancelled completions in one day), and "
+        "refuse non-main head branches (the measuring save completes on "
+        f"bot/r1-reattest and would re-trigger the proposer). Got: {condition}"
     )
 
 
