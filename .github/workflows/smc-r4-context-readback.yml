@@ -396,7 +396,7 @@ jobs:
           # Counted rather than `if ! jq ...` for the same reason as the sibling:
           # that form answers "observed nothing" and "jq broke" identically, by
           # not publishing and staying green.
-          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // error("report carries no tradingViewObserved.bindings -- absence is schema drift, the honest empty is [] present")) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
           if [ "${observed_bindings}" -eq 0 ]; then
             echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
             exit 0
@@ -431,7 +431,16 @@ jobs:
           stable_dir="artifacts/monitoring/latest"
           mkdir -p "${stable_dir}"
           if [ "${expected_sha}" != "${zero_sha}" ]; then
-            git checkout "${expected_sha}" -- "${stable_dir}" 2>/dev/null || true
+            # The || true swallow used to cover BOTH "the directory is not in
+            # the tip yet" (legitimate, first publish of a sibling) and "the
+            # restore itself failed" -- and the second case then pushed a
+            # commit MISSING the sibling's baseline, silently (2026-08-15
+            # sweep finding; the #4711 poisoning class one level down).
+            # cat-file separates them: absent path skips quietly, a real
+            # restore failure fails the step loudly under set -e.
+            if git cat-file -e "${expected_sha}:${stable_dir}" 2>/dev/null; then
+              git checkout "${expected_sha}" -- "${stable_dir}"
+            fi
           fi
           cp "${snapshot}" "${stable_dir}/tradingview_r4_context_bindings.json"
           git add -f "${stable_dir}"
