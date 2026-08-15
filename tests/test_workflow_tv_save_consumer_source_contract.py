@@ -467,11 +467,16 @@ def test_publishing_the_snapshot_leaves_the_jobs_head_where_it_found_it(
     )
     head_before = _git("rev-parse", "HEAD", cwd=work, env=env)
 
-    # Both payloads carry a non-empty tradingViewObserved.bindings: since
-    # 2026-08-14 the step refuses to publish a reading that observed nothing
-    # (see tests/test_workflow_binding_baseline_needs_an_observation.py), and a
+    # Both payloads carry a non-empty tradingViewObserved.bindings AND a
+    # matching bindings.expectedConsumers: since 2026-08-14 the step refuses a
+    # reading that observed nothing, and since 2026-08-15 also one that covers
+    # less than every verify target (see
+    # tests/test_workflow_binding_baseline_needs_an_observation.py) — a
     # declined publish would prove nothing about where HEAD ends up.
-    observed = '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}'
+    observed = (
+        '"bindings": {"expectedConsumers": 1}, '
+        '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}'
+    )
     for attempt, payload in enumerate(
         (f'{{"ok": true, {observed}}}', f'{{"ok": false, {observed}}}')
     ):

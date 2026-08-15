@@ -657,9 +657,23 @@ jobs:
           # malformed", and would answer BOTH by silently declining to publish
           # -- freezing the baseline with no red anywhere. Under set -e a
           # broken jq or an unparseable report fails this step loudly instead.
-          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | length' "${snapshot}")"
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
           if [ "${observed_bindings}" -eq 0 ]; then
             echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
+            exit 0
+          fi
+          # Operator decision 2026-08-15: only a COMPLETE observation becomes
+          # the baseline. A partial one (a session that died mid-read) passes
+          # the non-empty check above and would re-create the 2026-08-14
+          # failure class one notch less likely: the next run finds a baseline
+          # covering less than every verify target and reports out-of-band
+          # drift "unknown", which the R1 attestation refuses. The report's
+          # expectedConsumers is stamped from config.verifyTargets by the SAME
+          # run (before anything can die), so the comparison stays
+          # self-consistent when the target set changes.
+          expected_bindings="$(jq '.bindings.expectedConsumers // 0' "${snapshot}")"
+          if [ "${observed_bindings}" -ne "${expected_bindings}" ]; then
+            echo "::notice::This run observed only ${observed_bindings} of ${expected_bindings} TradingView bindings — a partial reading must not become the baseline; the published one is left untouched."
             exit 0
           fi
           git config user.name "github-actions[bot]"

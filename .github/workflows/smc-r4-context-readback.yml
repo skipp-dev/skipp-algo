@@ -396,9 +396,18 @@ jobs:
           # Counted rather than `if ! jq ...` for the same reason as the sibling:
           # that form answers "observed nothing" and "jq broke" identically, by
           # not publishing and staying green.
-          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | length' "${snapshot}")"
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
           if [ "${observed_bindings}" -eq 0 ]; then
             echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
+            exit 0
+          fi
+          # Same operator decision as the sibling publisher in
+          # tv-save-consumer-source.yml (2026-08-15): only a COMPLETE
+          # observation becomes the baseline; a partial one leaves the last
+          # complete one in place.
+          expected_bindings="$(jq '.bindings.expectedConsumers // 0' "${snapshot}")"
+          if [ "${observed_bindings}" -ne "${expected_bindings}" ]; then
+            echo "::notice::This run observed only ${observed_bindings} of ${expected_bindings} TradingView bindings — a partial reading must not become the baseline; the published one is left untouched."
             exit 0
           fi
           git config user.name "github-actions[bot]"
