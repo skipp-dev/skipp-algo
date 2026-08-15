@@ -190,6 +190,26 @@ export function recordHandLibRelease(
   let manifest: HandLibReleaseManifest = { schemaVersion: 1, libraries: {} };
   if (fs.existsSync(manifestPath)) {
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as HandLibReleaseManifest;
+    // Read-merge-rewrite silently DOWNGRADED any future schema to v1 — a v2
+    // manifest touched by one v1-era publisher would lose whatever v2 added,
+    // in a committed evidence file (2026-08-15 review, Minor #7). A schema
+    // this writer does not understand is a stop, not an inconvenience.
+    if (manifest.schemaVersion !== 1) {
+      throw new Error(
+        `${HANDLIB_RELEASE_MANIFEST} carries schemaVersion `
+          + `${JSON.stringify(manifest.schemaVersion)}, but this writer only `
+          + `understands 1. Refusing to rewrite it as v1 — update the `
+          + `publisher before publishing, or the manifest loses whatever the `
+          + `newer schema records.`,
+      );
+    }
+    if (typeof manifest.libraries !== "object" || manifest.libraries === null) {
+      throw new Error(
+        `${HANDLIB_RELEASE_MANIFEST} has no libraries object — the file is `
+          + `damaged. It is committed; restore it with git checkout before `
+          + `publishing.`,
+      );
+    }
   }
   manifest.libraries[scriptName] = entry;
   const sorted: HandLibReleaseManifest = {

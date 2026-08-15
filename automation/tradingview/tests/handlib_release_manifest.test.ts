@@ -81,6 +81,56 @@ test("re-publishing a library overwrites only its own entry", () => {
   assert.equal(manifest.libraries.smc_draw.publishedVersion, 3);
 });
 
+test("a manifest with an unknown schemaVersion is refused, not rewritten as v1", () => {
+  const root = tmpRepo();
+  const manifestPath = path.join(root, HANDLIB_RELEASE_MANIFEST);
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  const v2 = { schemaVersion: 2, libraries: {}, addedInV2: "evidence" };
+  fs.writeFileSync(manifestPath, JSON.stringify(v2, null, 2) + "\n", "utf-8");
+  assert.throws(
+    () => recordHandLibRelease(root, "smc_utils", {
+      publishedVersion: 5,
+      publishedAt: "T",
+      versionVerificationMode: "facade_list",
+    }),
+    /schemaVersion 2.*only.*understands 1/s,
+  );
+  // The refusal must leave the newer file untouched — the whole point.
+  assert.deepEqual(JSON.parse(fs.readFileSync(manifestPath, "utf-8")), v2);
+});
+
+test("a manifest without a libraries object is refused as damaged", () => {
+  const root = tmpRepo();
+  const manifestPath = path.join(root, HANDLIB_RELEASE_MANIFEST);
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, '{"schemaVersion": 1}\n', "utf-8");
+  assert.throws(
+    () => recordHandLibRelease(root, "smc_utils", {
+      publishedVersion: 5,
+      publishedAt: "T",
+      versionVerificationMode: "facade_list",
+    }),
+    /no libraries object.*git checkout/s,
+  );
+});
+
+test("the write leaves no temp file beside the manifest", () => {
+  // writeJson goes through a same-directory `.…tmp` + rename since the
+  // 2026-08-15 review (a torn in-place write would turn the NEXT verified
+  // publish into a parse failure). The observable contract from here: the
+  // directory holds exactly the manifest afterwards, no strays.
+  const root = tmpRepo();
+  recordHandLibRelease(root, "smc_utils", {
+    publishedVersion: 5,
+    publishedAt: "T",
+    versionVerificationMode: "facade_list",
+  });
+  const dir = path.dirname(path.join(root, HANDLIB_RELEASE_MANIFEST));
+  const leftovers = fs.readdirSync(dir).filter((name) => name.endsWith(".tmp"));
+  assert.deepEqual(leftovers, []);
+  assert.equal(readManifest(root).libraries.smc_utils.publishedVersion, 5);
+});
+
 test("serialization is byte-identical regardless of write order", () => {
   const entryA = { publishedVersion: 5, publishedAt: "T", versionVerificationMode: "facade_list" };
   const entryB = { publishedVersion: 3, publishedAt: "T", versionVerificationMode: "facade_list" };
