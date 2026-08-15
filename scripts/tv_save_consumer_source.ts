@@ -24,7 +24,28 @@ import {
   type TradingViewSession,
 } from "../automation/tradingview/lib/tv_shared.js";
 
-export type SaveConsumerTarget = { source: string; scriptName: string };
+export type SaveConsumerTarget = {
+  source: string;
+  scriptName: string;
+  /**
+   * Pine declaration title, when it differs from the saved-document name.
+   *
+   * For every default rollout consumer the two are identical, and the drift
+   * machinery treats a mismatch as repairable contamination. The Hold Manager
+   * validation script is the measured exception (run 31868334987,
+   * 2026-08-15): the saved document is "SMC Hold Manager R2.4 Validation"
+   * while the source declares "SMC Hold Manager", so the name-derived
+   * identity check refused a perfectly correct document. With an explicit
+   * declarationTitle the identity proof stays two-legged -- exact saved-
+   * document title via the picker, buffer declaration STRICTLY against this
+   * value -- but both legs are named instead of assumed equal.
+   */
+  declarationTitle?: string;
+};
+
+export function expectedDeclarationOf(target: SaveConsumerTarget): string {
+  return target.declarationTitle ?? target.scriptName;
+}
 export type SaveConsumerResult = {
   ok: true;
   scriptName: string;
@@ -57,7 +78,7 @@ export function assertConsumerEditorSource(
   actual: string,
   expectedSha256?: string,
 ): string {
-  const declaration = pineDeclarationTitlePattern(target.scriptName);
+  const declaration = pineDeclarationTitlePattern(expectedDeclarationOf(target));
   if (!declaration.test(actual)) {
     throw new Error(
       `${phase} verification failed for ${target.scriptName}: active Pine model has a different declaration`,
@@ -77,8 +98,17 @@ export function assertConsumerPreWriteSource(
   target: SaveConsumerTarget,
   actual: string,
 ): "declaration" | "document_title_model_transition" {
-  if (pineDeclarationTitlePattern(target.scriptName).test(actual)) {
+  if (pineDeclarationTitlePattern(expectedDeclarationOf(target)).test(actual)) {
     return "declaration";
+  }
+  if (target.declarationTitle) {
+    // An explicit declarationTitle is a strict claim: the drift-repair
+    // fallback below exists for name==declaration consumers whose saved
+    // document got contaminated, not for a document whose declared identity
+    // the mapping already states. Failing here is the fix, not drift.
+    throw new Error(
+      `pre-write identity verification failed for ${target.scriptName}: active Pine model does not declare ${target.declarationTitle}`,
+    );
   }
   if (!/\b(?:indicator|strategy|library)\s*\(\s*["']/m.test(actual)) {
     throw new Error(
@@ -108,10 +138,14 @@ export async function saveConsumerSource(
   const code = fs.readFileSync(sourcePath, "utf-8");
   const expectedSha256 = pineSourceSha256(code);
 
+  const nameIsDeclaration = expectedDeclarationOf(target) === target.scriptName;
   const opened = await openExistingScript(session.page, target.scriptName, {
     forceSelection: true,
-    requireVisibleDeclarationIdentity: true,
-    allowDeclarationDriftRepair: true,
+    // With an explicit declarationTitle the name-derived declaration check
+    // would refuse the correct document (measured: run 31868334987); the
+    // strict buffer-declaration assertion below carries that leg instead.
+    requireVisibleDeclarationIdentity: nameIsDeclaration,
+    allowDeclarationDriftRepair: nameIsDeclaration,
   });
   if (!opened) throw new Error(`Could not open existing saved script: ${target.scriptName}`);
 
@@ -134,7 +168,7 @@ export async function saveConsumerSource(
   // invoking TradingView's save command.
   const stagedSource = await readEditorContent(session.page, {
     editorAlreadyOpen: true,
-    expectedDeclarationTitle: target.scriptName,
+    expectedDeclarationTitle: expectedDeclarationOf(target),
     requireVisibleEditor: true,
   });
   assertConsumerEditorSource("staged source", target, stagedSource, expectedSha256);
@@ -148,7 +182,7 @@ export async function saveConsumerSource(
   // so an in-memory edit that did not persist cannot turn the rollout green.
   const postSaveSource = await readEditorContent(session.page, {
     editorAlreadyOpen: true,
-    expectedDeclarationTitle: target.scriptName,
+    expectedDeclarationTitle: expectedDeclarationOf(target),
     requireVisibleEditor: true,
   });
   assertConsumerEditorSource("post-save source", target, postSaveSource, expectedSha256);
@@ -176,7 +210,7 @@ export async function verifyConsumerSource(
   const expected = fs.readFileSync(sourcePath, "utf-8");
   const opened = await openExistingScript(session.page, target.scriptName, {
     forceSelection: true,
-    requireVisibleDeclarationIdentity: true,
+    requireVisibleDeclarationIdentity: expectedDeclarationOf(target) === target.scriptName,
   });
   if (!opened) throw new Error(`Could not open existing saved script for source verification: ${target.scriptName}`);
   // The saved script name IS the Pine declaration title for every rollout
@@ -184,7 +218,7 @@ export async function verifyConsumerSource(
   // the Monaco model of THIS script instead of an arbitrary page buffer.
   const actual = await readEditorContent(session.page, {
     editorAlreadyOpen: true,
-    expectedDeclarationTitle: target.scriptName,
+    expectedDeclarationTitle: expectedDeclarationOf(target),
     requireVisibleEditor: true,
   });
   const expectedSha256 = pineSourceSha256(expected);

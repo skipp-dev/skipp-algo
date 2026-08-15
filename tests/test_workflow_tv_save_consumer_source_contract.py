@@ -78,10 +78,19 @@ def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> Non
     save_index = saver.index("await saveScript(session.page")
     post_save_index = saver.index('assertConsumerEditorSource("post-save source"')
     assert open_index < pre_write_index < paste_index < staged_index < save_index < post_save_index
-    assert saver.count("expectedDeclarationTitle: target.scriptName") >= 3
+    # 2026-08-15 (run 31868334987): the identity leg follows the DECLARED
+    # title, which defaults to the script name but may differ (Hold Manager
+    # validation script). The declaration checks therefore pin
+    # expectedDeclarationOf(target), and the name-derived open checks are
+    # conditional on name==declaration instead of unconditionally true.
+    assert saver.count("expectedDeclarationTitle: expectedDeclarationOf(target)") >= 3
+    assert "expectedDeclarationTitle: target.scriptName" not in saver
     assert saver.count("requireVisibleEditor: true") == 4
-    assert saver.count("requireVisibleDeclarationIdentity: true") == 2
-    assert "allowDeclarationDriftRepair: true" in saver
+    assert saver.count("requireVisibleDeclarationIdentity: nameIsDeclaration") == 1
+    assert "allowDeclarationDriftRepair: nameIsDeclaration" in saver
+    # The strict branch: an explicit declarationTitle must never fall through
+    # to the drift-repair path.
+    assert "does not declare ${target.declarationTitle}" in saver
 
 
 def test_write_rollout_reloads_persisted_state_before_source_verification() -> None:
