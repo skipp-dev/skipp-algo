@@ -283,6 +283,23 @@ jobs:
               echo "::error file=.github/workflows/pine-library-publish-handlibs.yml::gh pr create failed for ${branch} — see step log for stderr. The publishes happened; open the PR manually from ${branch}."
               exit 1
             fi
+            # Operator decision 2026-08-15: the CLEAN weekly observation PR
+            # auto-merges, consistent with the refresh's repin PRs (#4435).
+            # Every Sunday run rewrites publishedAt for all ten verified
+            # libraries, so even a zero-pin-movement week produces this PR —
+            # reviewing a timestamp diff by hand carries no information, and
+            # unmerged observation PRs would pile up on per-run branches.
+            # DELIBERATELY rc-gated: a PARTIAL repin (publish failed
+            # mid-chain, run ends red) keeps requiring human eyes — its diff
+            # is consistent but incomplete, and auto-landing it would clear
+            # half the drift while looking like all of it. Failure to arm
+            # auto-merge only warns: the PR exists either way, and fast-gates
+            # still gates the actual merge.
+            if [ "${PUBLISH_RC:-}" = "0" ]; then
+              if ! gh pr merge "${branch}" --auto --squash; then
+                echo "::warning::auto-merge could not be armed for ${branch}; merge it manually once fast-gates is green."
+              fi
+            fi
           else
             echo "::error::push failed for ${branch}; the publishes happened but repins were not captured — push ${branch} manually."
             exit 1
