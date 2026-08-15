@@ -5,22 +5,26 @@
   "readinessStatus": "shadow_active_observation_window_open",
   "source": {
     "path": "SMC_Hold_Manager.pine",
-    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813",
+    "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a",
     "hashMode": "micro_profile_library_pin_frozen",
     "frozenMicroProfileLibraryPin": 175,
-    "build": 1
+    "build": 2
   },
   "buildHistory": [
     {
       "build": 1,
       "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
+    },
+    {
+      "build": 2,
+      "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
     }
   ],
   "alertWireShape": {
     "current": "legacy_hash_body_token",
     "target": "build_path_token",
     "cutOver": false,
-    "cutOverBlockedBy": "readback evidence that the single build-pinned alert is live on the validation layout"
+    "cutOverBlockedBy": "dated TradingView preconditions + replay evidence for the build-2 source (the 2026-07-28 set describes build 1), then readback evidence that the single build-pinned alert is live on the validation layout"
   },
   "preconditions": {
     "canonicalCompileAndBindings": "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",

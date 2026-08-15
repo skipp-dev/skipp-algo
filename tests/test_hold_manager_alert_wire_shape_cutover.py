@@ -79,6 +79,81 @@ def test_the_repository_state_is_consistent() -> None:
     _verify(_contract()["alertWireShape"], _mounted_paths())
 
 
+def _dated_evidence(name: str) -> dict[str, Any]:
+    return json.loads(
+        (CONTRACT_PATH.parent / name).read_text(encoding="utf-8")
+    )
+
+
+def _verify_cutover_evidence(
+    cut_over: bool, current_sha: str, replay_sha: str, preconditions_sha: str
+) -> None:
+    """cutOver=true demands dated TradingView evidence for the CURRENT hash.
+
+    The other half of the pending-gap pattern (2026-08-14, build 2): the
+    replay/preconditions currency tests allow the repository to carry a source
+    TradingView has not proven yet — but only while the contract says
+    cutOver=false. This side makes the exit condition executable. Between the
+    two, "live" and "proven" cannot diverge.
+    """
+    if not cut_over:
+        return
+    if replay_sha != current_sha or preconditions_sha != current_sha:
+        raise AssertionError(
+            "cutOver=true, but the newest dated TradingView evidence does not "
+            "describe the current source hash -- the switch would go live on "
+            "an unproven build. Capture new preconditions + replay evidence "
+            "in the cutover sitting first."
+        )
+
+
+def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
+    contract = _contract()
+    replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-07-28.json")
+    preconditions = _dated_evidence(
+        "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
+    )
+
+    _verify_cutover_evidence(
+        contract["alertWireShape"]["cutOver"],
+        contract["source"]["sha256"],
+        replay["canonicalSource"]["sha256"],
+        preconditions["source"]["repositorySha256"],
+    )
+
+
+def test_a_cutover_on_todays_evidence_would_be_refused() -> None:
+    """Forward probe with the real artifacts, so the guard cannot be vacuous.
+
+    Today the contract carries build 2 while the dated evidence describes
+    build 1. Flipping cutOver against exactly this state must raise — if it
+    does not, the rule above checks nothing and the pending gap could be
+    declared closed by editing one boolean.
+    """
+    contract = _contract()
+    replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-07-28.json")
+    preconditions = _dated_evidence(
+        "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
+    )
+
+    gap_is_open = (
+        replay["canonicalSource"]["sha256"] != contract["source"]["sha256"]
+    )
+    if not gap_is_open:
+        # After the cutover sitting lands new dated evidence, this probe's
+        # premise disappears and the rule is exercised by the state test.
+        assert contract["source"]["sha256"] == replay["canonicalSource"]["sha256"]
+        return
+
+    with pytest.raises(AssertionError, match="unproven build"):
+        _verify_cutover_evidence(
+            True,
+            contract["source"]["sha256"],
+            replay["canonicalSource"]["sha256"],
+            preconditions["source"]["repositorySha256"],
+        )
+
+
 def test_the_rollback_template_still_matches_the_channels() -> None:
     """The legacy route without its message templates is not a rollback path.
 

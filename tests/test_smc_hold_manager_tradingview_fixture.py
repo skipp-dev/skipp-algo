@@ -33,6 +33,12 @@ REPLAY_EVIDENCE = (
     / "governance"
     / "smc_hold_manager_tradingview_replay_2026-07-28.json"
 )
+SHADOW_CONTRACT = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_shadow_contract.json"
+)
 
 
 def _fixture_and_manifest() -> tuple[str, dict[str, object]]:
@@ -248,7 +254,24 @@ def test_current_tradingview_compile_evidence_is_hash_pinned() -> None:
         evidence["fixture"]["sha256"]
         == replay_evidence["fixture"]["sha256"]
     )
-    assert evidence["fixture"]["sha256"] == manifest["fixture"]["sha256"]
+    # 2026-08-14 (build 2): the dated compile evidence describes the fixture
+    # of the build it was captured for, which is the build the dated replay
+    # evidence names — the two dated artifacts must agree with each other
+    # (asserted above). The CURRENT manifest only has to match while no build
+    # advance is pending; during a declared pending gap the new fixture's
+    # TradingView compile proof is part of the cutover sitting, and the
+    # wire-shape cutover test refuses cutOver=true without it.
+    contract = json.loads(SHADOW_CONTRACT.read_text(encoding="utf-8"))
+    proven_hashes = {e["sha256"] for e in contract["buildHistory"]}
+    assert replay_evidence["canonicalSource"]["sha256"] in proven_hashes
+    pending = (
+        replay_evidence["canonicalSource"]["sha256"]
+        != contract["source"]["sha256"]
+    )
+    if pending:
+        assert contract["alertWireShape"]["cutOver"] is False
+    else:
+        assert evidence["fixture"]["sha256"] == manifest["fixture"]["sha256"]
     assert evidence["fixture"]["savedStatus"] == "saved_private_test_only"
     assert evidence["fixture"]["publicationStatus"] == "not_published"
     assert evidence["tradingView"]["compileStatus"] == "passed"
