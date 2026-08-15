@@ -8,6 +8,7 @@ import { pineDeclarationTitlePattern } from "../lib/tv_shared.js";
 import {
   assertConsumerEditorSource,
   assertConsumerPreWriteSource,
+  expectedDeclarationOf,
   pineSourceSha256,
 } from "../../../scripts/tv_save_consumer_source.js";
 
@@ -99,4 +100,43 @@ test("every rollout consumer's saved script name is its unique Pine declaration 
       );
     }
   }
+});
+
+// 2026-08-15, run 31868334987: the driver refused the Hold Manager validation
+// script because its saved-document name ("SMC Hold Manager R2.4 Validation")
+// is not its declaration ("SMC Hold Manager") — the only rollout target where
+// the two differ. declarationTitle names that split explicitly.
+test("an explicit declarationTitle verifies against the declaration, strictly", () => {
+  const target = {
+    source: "SMC_Hold_Manager.pine",
+    scriptName: "SMC Hold Manager R2.4 Validation",
+    declarationTitle: "SMC Hold Manager",
+  };
+  const buildTwoModel = '//@version=6\nindicator("SMC Hold Manager", overlay = true)\nplot(close)';
+
+  assert.equal(assertConsumerPreWriteSource(target, buildTwoModel), "declaration");
+
+  // The strict claim: a buffer declaring something else must throw instead of
+  // sliding into the drift-repair fallback — the mapping already stated what
+  // the document declares, so a mismatch is the wrong document.
+  const wrongModel = '//@version=6\nindicator("SMC Long-Dip Suite", overlay = true)\nplot(close)';
+  assert.throws(
+    () => assertConsumerPreWriteSource(target, wrongModel),
+    /does not declare SMC Hold Manager/,
+  );
+
+  const sha = pineSourceSha256(buildTwoModel);
+  assert.equal(
+    assertConsumerEditorSource("staged source", target, buildTwoModel, sha),
+    sha,
+    "the staged-source check must accept the declared title",
+  );
+});
+
+test("without declarationTitle the name-equals-declaration behavior is unchanged", () => {
+  const target = { source: "SMC_Long_Dip_Suite.pine", scriptName: "SMC Long-Dip Suite" };
+  const model = '//@version=6\nindicator("SMC Long-Dip Suite", overlay = true)\nplot(close)';
+
+  assert.equal(expectedDeclarationOf(target), "SMC Long-Dip Suite");
+  assert.equal(assertConsumerPreWriteSource(target, model), "declaration");
 });
