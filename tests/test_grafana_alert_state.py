@@ -91,3 +91,25 @@ def test_summarize_rule_states_reports_unhealthy_rules_even_when_inactive() -> N
         "health=error must surface in the active view — an unevaluable rule "
         "is operationally worse than a firing one"
     )
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-15 sweep finding (Population C): schema drift or an empty 200 body
+# read as "0 firing / 0 rules" — indistinguishable from a healthy quiet
+# system, in the exact tool the session-start Betriebszustand check relies
+# on. Absence of the structure is loud now; the honest quiet is a PRESENT
+# empty list from the API.
+# ---------------------------------------------------------------------------
+
+import pytest
+
+
+def test_missing_data_groups_is_loud_not_all_healthy() -> None:
+    for broken in ({}, {"data": None}, {"data": {}}, {"status": "success"}):
+        with pytest.raises(ValueError, match="refusing to report"):
+            summarize_rule_states(broken)
+
+
+def test_a_present_but_empty_groups_list_is_the_honest_quiet() -> None:
+    assert summarize_rule_states({"data": {"groups": []}}) == []
+    assert summarize_rule_states({"data": {"groups": None}}) == []
