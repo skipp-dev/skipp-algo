@@ -49,8 +49,13 @@ MANIFEST = REPO_ROOT / "artifacts" / "tradingview" / "handlib_release_manifest.j
 MODULE = REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_publish_hand_lib.ts"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pine-library-publish-handlibs.yml"
 
+# Alias optional, mirroring test_pine_pin_repin_ownership.py: Pine permits
+# ``import owner/lib/1`` without ``as x``, and the repin mechanisms match that
+# form — a currency gate narrower than the repinner would go blind exactly on
+# the pin the repinner still moves (2026-08-15 review).
 _IMPORT_RE = re.compile(
-    r"^\s*import\s+[A-Za-z0-9_]+/(?P<lib>[A-Za-z0-9_]+)/(?P<ver>\d+)\s+as\s+\w+",
+    r"^\s*import\s+[A-Za-z0-9_]+/(?P<lib>[A-Za-z0-9_]+)/(?P<ver>\d+)"
+    r"(?!\S)(?:\s+as\s+\w+)?",
     re.MULTILINE,
 )
 
