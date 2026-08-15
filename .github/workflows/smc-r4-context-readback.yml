@@ -396,7 +396,7 @@ jobs:
           # Counted rather than `if ! jq ...` for the same reason as the sibling:
           # that form answers "observed nothing" and "jq broke" identically, by
           # not publishing and staying green.
-          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | length' "${snapshot}")"
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | if type == "array" then length else error("tradingViewObserved.bindings is not an array") end' "${snapshot}")"
           if [ "${observed_bindings}" -eq 0 ]; then
             echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
             exit 0
