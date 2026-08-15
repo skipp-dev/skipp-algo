@@ -9047,6 +9047,7 @@ const PUBLISH_CHOOSER_INVENTORY_SELECTOR = [
 
 export type PublishChooserInventoryEntry = {
   i: number;
+  inDialog: boolean;
   tag: string;
   role: string;
   ariaLabel: string;
@@ -9067,18 +9068,66 @@ export type PublishChooserInventoryEntry = {
 };
 
 export async function collectPublishChooserInventory(page: Page): Promise<PublishChooserInventoryEntry[]> {
+  // Run 31850269023 (2026-08-14 23:24Z) proved the first cut of this
+  // inventory blind in practice: FOUR toast stacks ("orders", "alerts",
+  // "alertsFireControl", ...) sit at the front of #overlap-manager-root, and
+  // their expand/close buttons plus counter spans exhausted both the
+  // 60-element cap and the 6000-char trace budget before a single dialog
+  // control appeared. Two corrections, both measured against that run:
+  //
+  // - dialog-shaped containers are walked FIRST, the remaining overlay root
+  //   second, so the publish dialog can never again lose the budget race to
+  //   notification noise;
+  // - toast subtrees ([data-name^="toast-"]) and content-free nodes (no
+  //   text, no role, no label of any kind) are excluded entirely.
+  //
+  // Still deliberately NOT scoped to publishSurface(): if the surface
+  // fingerprint itself mis-resolves, the second phase keeps reporting what
+  // else the overlay holds.
   return page
     .locator("#overlap-manager-root")
     .first()
-    .evaluate((root: Element, selector: string) =>
-      Array.from(root.querySelectorAll(selector))
+    .evaluate((root: Element, selector: string) => {
+      const seen = new Set<Element>();
+      const dialogish = Array.from(
+        root.querySelectorAll('[role="dialog"], [aria-modal="true"], [data-name*="dialog" i]'),
+      );
+      const ordered: Array<{ element: Element; inDialog: boolean }> = [];
+      for (const container of dialogish) {
+        for (const node of Array.from(container.querySelectorAll(selector))) {
+          if (!seen.has(node)) {
+            seen.add(node);
+            ordered.push({ element: node, inDialog: true });
+          }
+        }
+      }
+      for (const node of Array.from(root.querySelectorAll(selector))) {
+        if (!seen.has(node)) {
+          seen.add(node);
+          ordered.push({ element: node, inDialog: false });
+        }
+      }
+      return ordered
+        .filter(({ element }) => !element.closest('[data-name^="toast-"], [class*="toast" i]'))
+        .map(({ element, inDialog }) => ({ element: element as HTMLElement, inDialog }))
+        .filter(({ element }) =>
+          Boolean(
+            (element.textContent ?? "").trim()
+            || element.getAttribute("role")
+            || element.getAttribute("aria-label")
+            || element.getAttribute("placeholder")
+            || element.getAttribute("data-name")
+            || element.getAttribute("title")
+            || element.tagName.toLowerCase() === "select"
+            || element.tagName.toLowerCase() === "input",
+          ))
         .slice(0, 60)
-        .map((node, index) => {
-          const element = node as HTMLElement;
+        .map(({ element, inDialog }, index) => {
           const box = element.getBoundingClientRect();
           const style = window.getComputedStyle(element);
           return {
             i: index,
+            inDialog,
             tag: element.tagName.toLowerCase(),
             role: element.getAttribute("role") || "",
             ariaLabel: element.getAttribute("aria-label") || "",
@@ -9097,9 +9146,8 @@ export async function collectPublishChooserInventory(page: Page): Promise<Publis
             w: Math.round(box.width),
             h: Math.round(box.height),
           };
-        }),
-      PUBLISH_CHOOSER_INVENTORY_SELECTOR,
-    )
+        });
+    }, PUBLISH_CHOOSER_INVENTORY_SELECTOR)
     .catch(() => [] as PublishChooserInventoryEntry[]);
 }
 

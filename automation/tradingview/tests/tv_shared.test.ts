@@ -2880,3 +2880,63 @@ test("collecting the chooser inventory does not touch the publish surface", asyn
     await browser.close();
   }
 });
+
+// 2026-08-15: the first production use of the inventory (run 31850269023)
+// came back all noise. FOUR toast stacks sit at the front of
+// #overlap-manager-root, and their expand/close buttons plus counter spans
+// exhausted the element cap and the 6000-char trace budget before a single
+// dialog control appeared. The publish dialog HAD resolved (surfaceCount=1) —
+// the evidence channel was open and carried nothing but notifications.
+test("the chooser inventory puts the dialog first and drops toast noise", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    // The measured layout: toast groups BEFORE the dialog in DOM order, each
+    // carrying the exact data-name pattern of run 31850269023.
+    const toast = (group: string) => `
+      <div data-name="toast-group-${group}">
+        <button data-name="toast-group-expand-button-${group}">Show more</button>
+        <span role="img" class="counter-Afd6t4Zj"></span>
+        <button data-name="toast-group-close-button-${group}"></button>
+        <div role="log"></div>
+      </div>`;
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root">
+        ${toast("orders")}${toast("alerts")}${toast("alertsFireControl")}${toast("chart")}
+        <button data-name="header-settings">Chart settings</button>
+        <button data-name="header-fullscreen">Fullscreen</button>
+        <button data-name="header-screenshot">Screenshot</button>
+        <button data-name="header-search">Search</button>
+        <button data-name="header-undo">Undo</button>
+        <div role="dialog">
+          <h2>Publish script</h2>
+          <button>Update existing script</button>
+          <input class="chooser-x2" placeholder="Choose script" />
+        </div>
+      </div></body></html>
+    `);
+
+    const inventory = await collectPublishChooserInventory(page);
+
+    assert.ok(
+      !inventory.some((entry) => entry.dataName.startsWith("toast-")),
+      `toast controls must not appear at all: ${JSON.stringify(inventory.slice(0, 6))}`,
+    );
+    const chooserIndex = inventory.findIndex(
+      (entry) => entry.placeholder === "Choose script",
+    );
+    assert.ok(chooserIndex !== -1, "the dialog's chooser control must be in the inventory");
+    assert.ok(
+      chooserIndex < 5,
+      `dialog controls must lead the inventory, not trail the overlay noise (found at ${chooserIndex})`,
+    );
+    assert.equal(inventory[chooserIndex].inDialog, true, "and be marked as dialog-scoped");
+    // Content-free spacer spans must not eat the element budget.
+    assert.ok(
+      !inventory.some((entry) => entry.tag === "span" && !entry.text && !entry.role),
+      "content-free spans must be filtered",
+    );
+  } finally {
+    await browser.close();
+  }
+});
