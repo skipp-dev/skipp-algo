@@ -34,7 +34,7 @@
       "status": "passed"
     }
   ],
-  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-14T194721Z.json",
+  "executionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-15T101837Z.json",
   "executionPerformed": true,
   "gate": "R1-LIVE-ROLLOUT",
   "layoutContract": {
@@ -53,7 +53,7 @@
     "config": "automation/tradingview/preflight-r1-companions.json",
     "scope": "smcR1Companions"
   },
-  "priorExecutionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-10T143424Z.json",
+  "priorExecutionEvidence": "artifacts/governance/smc_r1_live_rollout_evidence_2026-08-14T194721Z.json",
   "requiredEvidence": [
     "authenticated private TradingView account and intended layout identity",
     "post-save compile success for both canonical sources",
@@ -72,7 +72,7 @@
       ],
       "libraryPin": {
         "importPath": "preuss_steffen/smc_micro_profiles_generated",
-        "version": 244
+        "version": 252
       },
       "path": "SMC_Event_Overlay.pine",
       "requiredAlerts": [
@@ -80,7 +80,7 @@
         "Event Restriction Window Started"
       ],
       "scriptName": "SMC Event Overlay",
-      "sha256": "67e8a489ee1e50844a5096bc4718fdfdcb194636b5d69b12f32605ee606b62ad"
+      "sha256": "2009a601a1059107074e70ce614bbb0809e6882766f567147f9a98e7471bdde6"
     },
     {
       "bindingLabels": [
