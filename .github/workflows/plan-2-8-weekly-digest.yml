@@ -185,7 +185,18 @@ jobs:
         run: |
           set +e
           alerts="artifacts/plan_2_8_digest/alerts.json"
-          has=$(python -c "import json;print(json.load(open('${alerts}'))['has_alerts'])" 2>/dev/null || echo False)
+          # `unknown`, nicht `False`: die Digest-/Snooze-Schritte davor sind
+          # set +e fail-soft, alerts.json kann also fehlen oder halb
+          # geschrieben sein. Mit `False` als Fallback SCHLIESST der Schritt
+          # "Close drift-alert issues when alerts cleared" unten offene
+          # Drift-Alerts auf Basis einer kaputten Messung -- eine unlesbare
+          # Datei loeschte den Alarm. `unknown` matcht weder die
+          # Oeffnungs-Bedingung (== 'True') noch die Schliess-Bedingung
+          # (== 'False'): der Lauf laesst den Issue-Stand unangetastet.
+          has=$(python -c "import json;print(json.load(open('${alerts}'))['has_alerts'])" || echo unknown)
+          if [ "${has}" = "unknown" ]; then
+            echo "::warning title=plan-2-8-weekly-digest::alerts.json fehlt oder ist unlesbar -- has_alerts=unknown: Issues werden weder geoeffnet noch geschlossen (eine kaputte Messung darf den Alarm nicht loeschen)."
+          fi
           echo "has_alerts=${has}" >> "$GITHUB_OUTPUT"
           echo "Final has_alerts=${has}"
           true
@@ -13323,8 +13334,14 @@ jobs:
           # threshold, close any still-open drift-alert issues with
           # a short note pointing at this run. Idempotent: a no-op
           # when no matching open issue exists.
+          # Titel-gekoppelt, nicht label-only: `cron-failure` tragen auch
+          # die Standing-Alarme ANDERER Workflows (f2-promotion-gate u. a.).
+          # Eine Digest-Entwarnung darf nur die eigenen Drift-Issues
+          # schliessen -- der Suchfilter nutzt denselben Titel-Praefix, mit
+          # dem der Oeffnungs-Schritt oben sie anlegt.
           numbers="$(gh issue list \
             --label cron-failure \
+            --search 'Plan 2.8 weekly digest: drift alerts in:title' \
             --state open --json number --jq '.[].number' || echo '')"
           if [ -z "${numbers}" ]; then
             echo "No open drift-alert issues to close."
