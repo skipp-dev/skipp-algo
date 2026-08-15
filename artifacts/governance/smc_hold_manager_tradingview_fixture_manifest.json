@@ -1,7 +1,7 @@
 {
   "canonicalSource": {
     "path": "SMC_Hold_Manager.pine",
-    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
+    "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
   },
   "caseCount": 20,
   "cases": [
@@ -798,7 +798,7 @@
   "fixture": {
     "defaultAnchor": "2026-07-20T13:30:00Z",
     "path": "tests/fixtures/pine/smc_hold_manager_r2_4_fixture.pine",
-    "sha256": "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d",
+    "sha256": "e953895f57372e799c428c7e574fdc86757ef139188f0274ef05a63a30113f7b",
     "surfaceClass": "test_only_not_managed_not_publishable"
   },
   "limitations": [

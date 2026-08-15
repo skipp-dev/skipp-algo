@@ -215,6 +215,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # subprocess, <0.5s.
     "test_zizmor_ratchet_mirrors_ci.py",
     "test_pine_alert_bar_close_gate.py",
+    "test_pine_alert_call_bar_close_gate.py",
     "test_workflow_continue_on_error_semantics.py",
     "test_mkdir_makedirs_exist_ok_invariant.py",
     "test_six_zero_tripwires_bundle.py",

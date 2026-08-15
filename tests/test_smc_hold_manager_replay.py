@@ -41,6 +41,12 @@ TRADINGVIEW_REPLAY_PATH = (
     / "governance"
     / "smc_hold_manager_tradingview_replay_2026-07-28.json"
 )
+SHADOW_CONTRACT_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_shadow_contract.json"
+)
 
 EXPECTED_CASES = (
     ("R2.4-01", "arm without entry"),
@@ -219,15 +225,53 @@ def test_historical_tradingview_preconditions_remain_bounded() -> None:
     ]
 
 
+def _tv_proven_build(evidence_sha256: str) -> tuple[int, dict[str, object]]:
+    """Resolve which contract build the dated TV evidence describes.
+
+    2026-08-14 (build 2): the decoupling spec lands semantic Pine edits EARLY
+    while TradingView keeps running the previously proven build — the contract
+    declares that split via buildHistory + alertWireShape.cutOver. The dated
+    evidence therefore no longer pins the CURRENT source unconditionally; it
+    pins the build it was captured for, and the pending gap is only legal
+    while the cutover is explicitly open (cutOver=false). The wire-shape
+    cutover test holds the other half: cutOver=true demands evidence for the
+    current hash. Together nothing can go live unproven, and nothing can
+    drift silently — a hash outside buildHistory still fails here.
+    """
+    contract = json.loads(SHADOW_CONTRACT_PATH.read_text(encoding="utf-8"))
+    by_hash = {
+        entry["sha256"]: entry["build"] for entry in contract["buildHistory"]
+    }
+    assert evidence_sha256 in by_hash, (
+        "the dated TradingView evidence names a hash that no contract build "
+        "ever carried — that is drift, not a pending rollout"
+    )
+    return by_hash[evidence_sha256], contract
+
+
+def _assert_pending_gap_is_declared(
+    proven_build: int, contract: dict[str, object]
+) -> None:
+    current_build = contract["source"]["build"]
+    assert proven_build <= current_build
+    if proven_build < current_build:
+        assert contract["alertWireShape"]["cutOver"] is False, (
+            "the contract claims the cutover happened, but the newest "
+            "TradingView evidence still describes an older build"
+        )
+
+
 def test_current_tradingview_preconditions_match_the_canonical_source() -> None:
-    replay = build_replay_preflight()
     evidence = json.loads(
         CURRENT_TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
     )
 
-    assert evidence["source"]["repositorySha256"] == replay["source"]["sha256"]
+    proven_build, contract = _tv_proven_build(
+        evidence["source"]["repositorySha256"]
+    )
+    _assert_pending_gap_is_declared(proven_build, contract)
     assert evidence["source"]["transferredSourceSha256"] == (
-        replay["source"]["sha256"]
+        evidence["source"]["repositorySha256"]
     )
     assert evidence["source"]["savedSourceReadbackStatus"] == (
         "bounded_visible_match_after_reload"
@@ -283,10 +327,15 @@ def test_current_tradingview_preconditions_match_the_canonical_source() -> None:
 
 
 def test_tradingview_replay_evidence_is_current_and_reports_success() -> None:
-    replay = build_replay_preflight()
     evidence = json.loads(TRADINGVIEW_REPLAY_PATH.read_text(encoding="utf-8"))
 
-    assert evidence["canonicalSource"]["sha256"] == replay["source"]["sha256"]
+    proven_build, contract = _tv_proven_build(
+        evidence["canonicalSource"]["sha256"]
+    )
+    _assert_pending_gap_is_declared(proven_build, contract)
+    # The fixture hash below is the FROZEN content of the dated artifact:
+    # it describes the build-1 fixture and never moves, because dated
+    # evidence is never rewritten in this repository.
     assert evidence["fixture"]["sha256"] == (
         "2dadabfdf400e1adb11b597f609d7cd18a09c0642966fff426171886e4888f1d"
     )

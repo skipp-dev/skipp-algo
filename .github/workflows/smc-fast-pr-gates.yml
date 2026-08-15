@@ -679,6 +679,7 @@ jobs:
             tests/test_action_pin_surfaces_agree.py \
             tests/test_zizmor_ratchet_mirrors_ci.py \
             tests/test_pine_alert_bar_close_gate.py \
+            tests/test_pine_alert_call_bar_close_gate.py \
             tests/test_workflow_continue_on_error_semantics.py \
             tests/test_mkdir_makedirs_exist_ok_invariant.py \
             tests/test_six_zero_tripwires_bundle.py \

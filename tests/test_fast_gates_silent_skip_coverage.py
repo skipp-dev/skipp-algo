@@ -223,6 +223,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pickle_read_and_eval_zero_surface.py",
     "tests/test_pickle_write_and_abs_pathjoin_zero_surface.py",
     "tests/test_pine_alert_bar_close_gate.py",
+    "tests/test_pine_alert_call_bar_close_gate.py",
     "tests/test_pine_alertcondition_and_declaration_pin.py",
     "tests/test_pine_decision_logic_deep_review_regressions.py",
     "tests/test_pine_context_library_contract.py",

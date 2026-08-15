@@ -539,7 +539,7 @@
   "schemaVersion": 1,
   "source": {
     "path": "SMC_Hold_Manager.pine",
-    "sha256": "1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813"
+    "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
   },
   "tradingViewStatus": "pending"
 }
