@@ -485,9 +485,33 @@ export function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
 }
 
+/**
+ * Write JSON via a same-directory temp file + rename, never in place.
+ *
+ * A plain writeFileSync truncates first and fills afterwards: a crash (or the
+ * 30-minute job timeout) between the two leaves a half-written file behind.
+ * For the throwaway reports that is cosmetic — for the COMMITTED hand-lib
+ * release manifest it is not: `recordHandLibRelease` read-merges the file on
+ * every publish, so a torn write turns the next verified publish into a
+ * JSON.parse failure and reports it failed (2026-08-15 review, Minor #7).
+ * rename() within one directory is atomic on POSIX; readers see the old
+ * bytes or the new bytes, never a mix. Same shape as
+ * `writePrivateJsonAtomic` below, without the owner-only permission bits —
+ * these files are committed artifacts, not credentials.
+ */
 export function writeJson(filePath: string, payload: unknown): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + "\n", "utf-8");
+  const parent = path.dirname(filePath);
+  fs.mkdirSync(parent, { recursive: true });
+  const temporaryPath = path.join(parent, `.${path.basename(filePath)}.${randomUUID()}.tmp`);
+  try {
+    fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2) + "\n", {
+      encoding: "utf-8",
+      flag: "wx",
+    });
+    fs.renameSync(temporaryPath, filePath);
+  } finally {
+    fs.rmSync(temporaryPath, { force: true });
+  }
 }
 
 /**
