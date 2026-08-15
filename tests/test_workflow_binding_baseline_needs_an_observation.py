@@ -122,27 +122,51 @@ def _baseline_publishers() -> list[tuple[str, str, str]]:
     Discovered from the workflow corpus, not listed: a new publisher must be
     covered the moment it lands, and a renamed one must not silently vanish.
 
-    The discovery keys on what makes a step a PUBLISHER — a ``git push`` and
-    the branch name in one body — not on the shared ``remote_ref=…`` idiom.
-    Measured 2026-08-15 over the corpus: this conjunction matches exactly the
+    The discovery keys on what makes a step a PUBLISHER — a ``git push`` in
+    the body and the branch name in reach of that body — not on the shared
+    ``remote_ref=…`` idiom. "In reach" means the body OR the step/job/workflow
+    ``env:`` values: this file's own r1-reattest steps already push with
+    ``HEAD:${BRANCH}`` where the branch lives only in ``env`` (2026-08-15
+    review finding), so a bindings publisher written in that house idiom must
+    not escape. Measured over the corpus: the conjunction matches exactly the
     two publish steps; the two baseline *readers* fetch over the API and carry
     no ``git push``. A publisher written in a different shape is therefore
     still discovered, and the idiom is enforced on it separately (see
     test_every_publisher_carries_the_lease_idiom_and_a_test_seam).
+
+    Boundary of the claim, stated rather than implied: a push spelled without
+    the literal ``git push`` (``git -C <dir> push``, ``git -c k=v push``), or
+    a publisher extracted into a script file the step merely invokes, is
+    outside what static run-body discovery can see. The closure for those is
+    server-side (a ruleset restricting who may push to the branch), not a
+    cleverer grep.
     """
+
+    def _env_values(mapping: object) -> str:
+        if not isinstance(mapping, dict):
+            return ""
+        return " ".join(str(value) for value in mapping.values())
+
     found: list[tuple[str, str, str]] = []
     for path in sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml")):
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(document, dict):
             continue
+        document_env = _env_values(document.get("env"))
         for job in (document.get("jobs") or {}).values():
             if not isinstance(job, dict):
                 continue
+            job_env = _env_values(job.get("env"))
             for step in job.get("steps") or []:
                 if not isinstance(step, dict):
                     continue
                 body = step.get("run")
-                if isinstance(body, str) and "git push" in body and _BRANCH_NAME in body:
+                if not (isinstance(body, str) and "git push" in body):
+                    continue
+                in_reach = " ".join(
+                    [body, _env_values(step.get("env")), job_env, document_env]
+                )
+                if _BRANCH_NAME in in_reach:
                     found.append((path.name, step.get("name", "<unnamed>"), body))
     return found
 
@@ -213,8 +237,13 @@ def test_every_publisher_refuses_a_reading_that_observed_nothing(
         "shared directory — checking afterwards still stages the empty reading"
     )
     # Operator decision 2026-08-15: the same rule extends to PARTIAL readings —
-    # only a complete observation becomes the baseline.
-    coverage_index = body.index(".bindings.expectedConsumers // 0")
+    # only a complete observation becomes the baseline. `// error`, not `// 0`:
+    # with `// 0` a report that LOST the field (schema rename) would make every
+    # future publish decline quietly forever — green, no page, baseline frozen —
+    # the exact shape the empty-reading gate exists to remove. Absence is "the
+    # check itself broke", and that must be loud. jq treats 0 as truthy, so a
+    # legitimate zero still passes through to the comparison.
+    coverage_index = body.index(".bindings.expectedConsumers // error(")
     assert gate_index < coverage_index < copy_index, (
         "the coverage comparison must sit between the non-empty check and the "
         "copy — a partial reading passing the non-empty check would otherwise "
@@ -373,7 +402,7 @@ def test_an_empty_reading_leaves_the_published_baseline_untouched(
     assert (
         _git("show", f"refs/heads/bot/live-tradingview-bindings:{published_path}", cwd=origin, env=env)
         == good_content
-    ), "an empty reading replaced the last real observation"
+    ), "an empty or partial reading replaced the last real observation"
 
 
 @pytest.mark.parametrize(
@@ -386,6 +415,17 @@ def test_an_empty_reading_leaves_the_published_baseline_untouched(
         # report comes from tv_batch_consumer_rollout.ts (typed as an array),
         # so the type check exists for the day something else writes the file.
         pytest.param('{"tradingViewObserved": {"bindings": 7}}', id="non-array-bindings"),
+        # Second 2026-08-15 review round: with `// 0` a report MISSING
+        # bindings.expectedConsumers (schema rename in the script) made every
+        # future publish decline quietly forever — observed >= 1 is never equal
+        # to 0, the step stays green, and the baseline freezes with no red
+        # anywhere. Absence of the field is "the check itself broke", so it
+        # must fail the step, exactly like the non-array case above.
+        pytest.param(
+            '{"bindings": {"checkedConsumers": 1}, '
+            '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}}',
+            id="missing-expectedConsumers",
+        ),
     ],
 )
 @pytest.mark.parametrize("step_name", sorted(_REMOTE_SEAM))

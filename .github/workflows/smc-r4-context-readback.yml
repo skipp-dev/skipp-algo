@@ -404,8 +404,13 @@ jobs:
           # Same operator decision as the sibling publisher in
           # tv-save-consumer-source.yml (2026-08-15): only a COMPLETE
           # observation becomes the baseline; a partial one leaves the last
-          # complete one in place.
-          expected_bindings="$(jq '.bindings.expectedConsumers // 0' "${snapshot}")"
+          # complete one in place. Complete is relative to THIS run's config:
+          # rebind_config is operator-supplied per dispatch, so a complete run
+          # against a narrower target set legitimately publishes a narrower
+          # baseline -- the next larger dispatch then reads ONE honest
+          # "unknown" (baseline does not cover every verify target). That
+          # first red is the config change surfacing, not a gate defect.
+          expected_bindings="$(jq '.bindings.expectedConsumers // error("report carries no bindings.expectedConsumers -- the coverage gate cannot tell partial from broken")' "${snapshot}")"
           if [ "${observed_bindings}" -ne "${expected_bindings}" ]; then
             echo "::notice::This run observed only ${observed_bindings} of ${expected_bindings} TradingView bindings — a partial reading must not become the baseline; the published one is left untouched."
             exit 0
