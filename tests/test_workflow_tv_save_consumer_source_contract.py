@@ -467,7 +467,14 @@ def test_publishing_the_snapshot_leaves_the_jobs_head_where_it_found_it(
     )
     head_before = _git("rev-parse", "HEAD", cwd=work, env=env)
 
-    for attempt, payload in enumerate(('{"ok": true}', '{"ok": false}')):
+    # Both payloads carry a non-empty tradingViewObserved.bindings: since
+    # 2026-08-14 the step refuses to publish a reading that observed nothing
+    # (see tests/test_workflow_binding_baseline_needs_an_observation.py), and a
+    # declined publish would prove nothing about where HEAD ends up.
+    observed = '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}'
+    for attempt, payload in enumerate(
+        (f'{{"ok": true, {observed}}}', f'{{"ok": false, {observed}}}')
+    ):
         snapshot.write_text(payload, encoding="utf-8")
         done = subprocess.run(
             ["/bin/bash", "-c", _publish_fragment()],

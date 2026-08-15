@@ -18,6 +18,7 @@ import {
   ensurePineEditor,
   fetchPublishedLibraryVersionViaFacade,
   gotoChart,
+  gotoChartAndAwaitScript,
   isTrackedStepTimeoutError,
   newTradingViewSession,
   refreshChartScriptInstance,
@@ -175,7 +176,18 @@ async function observeBindingsOnly(
       // must degrade to unread targets (which the coverage guard below turns
       // into "unknown"), not a fatal error that reverses that property.
       if (!session.page.url().startsWith(layout.chartUrl)) {
-        await gotoChart(session.page, layout.chartUrl);
+        // gotoChartAndAwaitScript, not gotoChart: the bare navigation resolves
+        // before the legend is rebuilt, and the FIRST target read afterwards
+        // dies on "Existing chart instance not found" against a healthy chart
+        // — the exact race the helper's docstring records for the drill
+        // (#4295). This pass hit it on 2026-08-14 twice in a row (runs
+        // 31831209411 and 31833390287): SMC Decision Board, first target on
+        // the first layout, was never read, the coverage guard answered
+        // "unknown", and a write run whose every save succeeded went red.
+        // The wait is on the SAME predicate verifyConsumerBindings throws on,
+        // so a genuinely absent first target still times out into the catch
+        // below rather than passing here and failing there.
+        await gotoChartAndAwaitScript(session.page, layout.chartUrl, layout.targets[0].scriptName);
       }
       for (const target of layout.targets) {
         try {
@@ -184,14 +196,24 @@ async function observeBindingsOnly(
             scriptName: result.scriptName,
             selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
           });
-        } catch {
-          // Left out deliberately: an unread target must not read as unchanged.
+        } catch (error) {
+          // The target stays absent — an unread target must not read as
+          // unchanged — but never silently: the two 2026-08-14 misses left
+          // ZERO log lines, and the cause had to be reconstructed from the
+          // absence of trace output.
+          console.warn(
+            `[rollout] pre-mutation observation could not read ${target.scriptName}: ${String(error)}`,
+          );
         }
       }
-    } catch {
-      // The layout itself could not be reached (e.g. a page.goto timeout).
-      // Every target on it is simply absent from `observed`, same as a single
-      // unread target above.
+    } catch (error) {
+      // The layout itself could not be reached (e.g. a page.goto timeout, or
+      // the settle wait above ran out). Every target on it is simply absent
+      // from `observed`, same as a single unread target above.
+      console.warn(
+        `[rollout] pre-mutation observation could not reach ${layout.chartUrl} `
+        + `(${layout.targets.map((target) => target.scriptName).join(", ")} stay unread): ${String(error)}`,
+      );
     }
   }
   return observed;

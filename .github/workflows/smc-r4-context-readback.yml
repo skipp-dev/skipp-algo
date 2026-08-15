@@ -386,9 +386,29 @@ jobs:
             echo "::warning::Cannot publish R4 binding snapshot (missing GH_PAT or snapshot)."
             exit 0
           fi
+          # Same rule as tv-save-consumer-source.yml's publish step, same
+          # branch, same reason: steps.rebind.conclusion says the step RAN,
+          # not that it observed anything. Both producers write reports from
+          # scripts/tv_batch_consumer_rollout.ts, so both carry the reading in
+          # tradingViewObserved.bindings, and an empty one replacing a full
+          # one is what left the 2026-08-14 R1 re-attestation unable to attest
+          # (run 31823203037 poisoned the baseline; run 31824430346 paid).
+          # Counted rather than `if ! jq ...` for the same reason as the sibling:
+          # that form answers "observed nothing" and "jq broke" identically, by
+          # not publishing and staying green.
+          observed_bindings="$(jq '(.tradingViewObserved.bindings // []) | length' "${snapshot}")"
+          if [ "${observed_bindings}" -eq 0 ]; then
+            echo "::notice::This run observed no TradingView bindings — the published baseline is left untouched."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # R4_SNAPSHOT_REMOTE is unset in Actions and exists so the contract
+          # test can execute this fragment WHOLE -- push included -- against a
+          # local repository, mirroring TV_SNAPSHOT_REMOTE in the sibling
+          # publisher. Both bodies are proven by round-tripping them against a
+          # throwaway bare repo, not by reading them.
+          remote_url="${R4_SNAPSHOT_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
           remote_ref="refs/heads/bot/live-tradingview-bindings"
           tracking_ref="refs/remotes/origin/bot/live-tradingview-bindings"
           zero_sha="0000000000000000000000000000000000000000"

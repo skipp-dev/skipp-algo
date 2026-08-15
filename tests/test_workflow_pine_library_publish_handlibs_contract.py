@@ -109,6 +109,29 @@ def _publish(tmp_path: Path, *, npm_exit: int = 0, git_status: str = "", tee_exi
     )
 
 
+def _hold(tmp_path: Path, *, git_status: str = "", hold_exit: int = 0):
+    """Run the real R1-hold step with `git` and `python3` shadowed.
+
+    Since 2026-08-14 this step, not the publish step, decides `changed` —
+    measured on the POST-hold tree, after the attested companions were
+    restored. `python3` is stubbed because the real hold module would operate
+    on the actual repository checkout; its behaviour has its own executed
+    suite (tests/test_hold_r1_attested_sources.py). What this file exercises
+    is the step's own shell: the fail-closed propagation and the porcelain
+    branch.
+    """
+    return run_step(
+        "pine-library-publish-handlibs.yml",
+        "Hold R1-attested sources at their attested content",
+        tmp_path,
+        env={},
+        stubs={
+            "python3": Stub(exit_code=hold_exit),
+            "git": Stub(stdout=git_status),
+        },
+    )
+
+
 def _final(tmp_path: Path, *, rc: str, log_rc: str):
     """Run the real `Fail the run if a publish failed` step over given outputs.
 
@@ -126,22 +149,60 @@ def _final(tmp_path: Path, *, rc: str, log_rc: str):
 
 
 def test_a_repin_is_reported_as_changed(tmp_path: Path) -> None:
-    """A publish that rewrote a .pine version must open the repin PR."""
-    result = _publish(tmp_path, git_status=" M pine/skipp_smc_core.pine")
+    """A publish that rewrote a .pine version must open the repin PR.
+
+    MIGRATED 2026-08-14: `changed` moved from the publish step into the
+    R1-hold step, measured on the POST-hold tree — the pre-hold measurement
+    counted diffs the hold takes back, so a run whose only edit was an
+    attested companion opened an empty PR. Same property, new address; the
+    publish half keeps its own `rc` contract below.
+    """
+    result = _hold(tmp_path, git_status=" M SMC_Long_Dip_Suite.pine")
     assert result.returncode == 0, result.stderr
     assert result.outputs["changed"] == "true"
+
+
+def test_a_verified_publish_still_reports_its_rc(tmp_path: Path) -> None:
+    """The publish step's surviving output contract after the migration."""
+    result = _publish(tmp_path, git_status=" M pine/skipp_smc_core.pine")
+    assert result.returncode == 0, result.stderr
     assert result.outputs["rc"] == "0"
+    assert "changed" not in result.outputs, (
+        "the publish step grew a changed= write back; two computations are "
+        "two truths, and this one is measured before the hold"
+    )
 
 
 def test_an_idempotent_publish_opens_no_pr(tmp_path: Path) -> None:
     """Nothing rewritten means nothing to commit -- the control direction.
 
     Without it, `changed=true` hardcoded would satisfy the test above while
-    opening an empty PR after every scheduled run.
+    opening an empty PR after every scheduled run. Runs against the hold step
+    since the migration (see test_a_repin_is_reported_as_changed).
     """
-    result = _publish(tmp_path, git_status="")
+    result = _hold(tmp_path, git_status="")
     assert result.returncode == 0, result.stderr
     assert result.outputs["changed"] == "false"
+
+
+def test_a_failed_hold_publishes_no_verdict(tmp_path: Path) -> None:
+    """Fail closed: a hold that could not run must not decide anything.
+
+    The step runs under the workflow's `-e` default with `set -euo pipefail`
+    re-asserted, so a failing hold module ends the step before the porcelain
+    branch — no `changed` output, the job fails, and `Open repin PR` (gated
+    on `changed == 'true'`, no always()) never runs. The alternative — a PR
+    carrying a de-attested companion — is the #4284/#4371 class from the
+    refresh path.
+    """
+    result = _hold(tmp_path, git_status=" M SMC_Long_Dip_Suite.pine", hold_exit=1)
+    assert result.returncode != 0, (
+        "the step swallowed the hold module's failure; a repin PR could now "
+        "carry a modified attested companion"
+    )
+    assert "changed" not in result.outputs, (
+        f"a failed hold still published a verdict: {result.outputs}"
+    )
 
 
 def test_a_failed_publish_still_publishes_its_outputs(tmp_path: Path) -> None:
@@ -178,10 +239,14 @@ def test_a_failed_publish_still_publishes_its_outputs(tmp_path: Path) -> None:
         "'Fail the run if a publish failed' reports 'exited ' with no number, "
         f"which is how this defect stayed invisible. Got: {result.outputs}"
     )
-    assert result.outputs.get("changed") == "true", (
-        "the step did not report the repins already made, so 'Open repin PR' "
-        "skips and they are lost with the runner -- the exact failure the "
-        f"step's comment promised to prevent. Got: {result.outputs}"
+    # The repins-already-made half of the partial-progress promise moved with
+    # the changed= migration: the hold step runs unconditionally after this
+    # one and reports the post-hold tree (test_a_repin_is_reported_as_changed).
+    hold = _hold(tmp_path, git_status=" M pine/skipp_smc_core.pine")
+    assert hold.outputs.get("changed") == "true", (
+        "the hold step did not report the repins the failed publish already "
+        "made, so 'Open repin PR' skips and they are lost with the runner -- "
+        f"the exact failure the partial-progress path exists for. Got: {hold.outputs}"
     )
 
 

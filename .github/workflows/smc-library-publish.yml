@@ -127,9 +127,52 @@ jobs:
     timeout-minutes: 240
 
     steps:
+      # Dieser Job urteilt ueber eine Nutzlast, die ein ANDERER Lauf erzeugt
+      # hat. Ohne explizite ref checkt er die Spitze von main aus — gemessen am
+      # 2026-08-14 war das bei 7 von 7 workflow_run-Publishes ein ANDERER Baum
+      # als der des Refresh (1 bis 7 Commits Abstand): ein Refresh laeuft bis
+      # zu drei Stunden, main zieht derweil weiter. Einmal traf es eine
+      # Messgrundlage — Publish 31770344682 las ein neueres
+      # reports/smc_measurement_baseline_summary.json als der Refresh
+      # 31752985708, der seine Nutzlast erzeugt hatte. Gates, Skripte und
+      # Vertragsdaten muessen aus dem Baum kommen, den der Refresh vermessen
+      # hat; die Nutzlast wird unten ueber genau diesen Baum entpackt.
+      #
+      # Der Commit-/PR-Schritt am Ende ist darauf vorbereitet: er re-ankert
+      # ausdruecklich auf origin/main, wenn der Checkout dahinter liegt
+      # ("main advanced since checkout"), per File-weisem checkout der
+      # regenerierten Pfade. Diese Aenderung macht den dort dokumentierten
+      # Normalfall zum Regelfall, sie fuehrt keinen neuen Zustand ein.
+      #
+      # Die Aufloesung laeuft VOR dem Checkout und darf den Baum deshalb nicht
+      # brauchen: reine gh-API-Aufloesung. Leerer ref = Default-Verhalten (Spitze von
+      # main) — nur beim manuellen Dispatch ohne source_run_id, der laut
+      # Job-Kommentar ohnehin seine eigene Verantwortung traegt.
+      - name: Resolve the tree this payload was produced from
+        id: source_tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            ref="$WORKFLOW_RUN_HEAD_SHA"
+          elif [ -n "${SOURCE_RUN_ID:-}" ]; then
+            ref="$(gh api "repos/${REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq .head_sha)"
+          else
+            ref=""
+            echo "::warning::manueller Dispatch ohne source_run_id — Checkout faellt auf die Spitze von main zurueck, nicht auf den Baum, der die Nutzlast erzeugt hat."
+          fi
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "resolved ref='${ref}' for event=${EVENT_NAME}"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ steps.source_tree.outputs.ref }}
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
 
