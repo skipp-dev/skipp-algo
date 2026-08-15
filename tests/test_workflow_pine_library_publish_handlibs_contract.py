@@ -388,6 +388,43 @@ def test_a_partial_repin_pr_says_so(tmp_path: Path) -> None:
     assert "7" in body, f"the PR does not report the exit code it was opened for: {body}"
 
 
+def test_a_clean_observation_pr_arms_auto_merge(tmp_path: Path) -> None:
+    """Operator decision 2026-08-15: the clean weekly PR merges itself.
+
+    Every Sunday run rewrites publishedAt for all ten verified libraries, so
+    even a zero-pin-movement week opens this PR — a timestamp diff nobody
+    needs to read. Consistent with the refresh's auto-merging repin PRs
+    (#4435); fast-gates still gates the actual merge.
+    """
+    result = _open_pr(tmp_path, publish_rc="0")
+    assert result.returncode == 0, result.stderr
+    # One contiguous fragment: the create call's BODY contains the word
+    # "merge" ("then merge to clear the monitor drift alert"), so separate
+    # fragments would match the wrong call.
+    assert result.called_with("pr merge", "--auto"), (
+        "the clean-path PR no longer arms auto-merge — the weekly "
+        "observation PR becomes a standing manual chore and unmerged "
+        "observations pile up on per-run branches."
+    )
+
+
+def test_a_partial_repin_pr_never_auto_merges(tmp_path: Path) -> None:
+    """The rc-gate on the decision above: a red chain keeps human eyes.
+
+    A PARTIAL repin's diff is consistent but incomplete — auto-landing it
+    would clear part of the drift while looking like all of it, and the run
+    that produced it is red for a reason a human has to read.
+    """
+    result = _open_pr(tmp_path, publish_rc="7")
+    assert result.called_with("pr", "create"), (
+        "control: the partial-progress PR itself must still be opened"
+    )
+    assert not result.called_with("pr merge"), (
+        "a PARTIAL repin PR armed auto-merge — an incomplete pin state would "
+        "land without anyone reading why the chain broke."
+    )
+
+
 def test_a_complete_repin_pr_does_not_cry_partial(tmp_path: Path) -> None:
     """The control direction: a clean run must not be labelled partial.
 
