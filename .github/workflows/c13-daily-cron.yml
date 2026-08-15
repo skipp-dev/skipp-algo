@@ -246,12 +246,18 @@ jobs:
             echo "::warning::F-V3-15: no {\"backfill\":...} summary line found in stdout; cannot assert progress"
             exit 0
           fi
-          backfilled=$(echo "$summary" | jq -r '.backfill.records_backfilled // 0')
-          pending=$(echo "$summary" | jq -r '.backfill.records_pending_close // 0')
-          audit_only=$(echo "$summary" | jq -r '.backfill.records_audit_only // 0')
-          submit_failed=$(echo "$summary" | jq -r '.backfill.records_submit_failed // 0')
-          already=$(echo "$summary" | jq -r '.backfill.records_already_resolved // 0')
-          total=$(echo "$summary" | jq -r '.backfill.records_total // 0')
+          # `// error`, nicht `// 0`: alle sechs Zaehler werden vom Writer
+          # (scripts/backfill_live_outcomes.py, summary-Dict) UNBEDINGT
+          # emittiert -- ein fehlender Schluessel ist Schema-Drift. Mit `// 0`
+          # haette eine Umbenennung alle Zaehler auf 0 gezogen: closable=0,
+          # rc=0 fuer immer, und genau die Silent-Skip-Klasse, fuer die diese
+          # Assertion gebaut wurde (F-V3-15), waere gruen wieder offen.
+          backfilled=$(echo "$summary" | jq -r '.backfill.records_backfilled // error("backfill summary carries no records_backfilled -- schema drift, not zero progress")')
+          pending=$(echo "$summary" | jq -r '.backfill.records_pending_close // error("backfill summary carries no records_pending_close -- schema drift, not zero progress")')
+          audit_only=$(echo "$summary" | jq -r '.backfill.records_audit_only // error("backfill summary carries no records_audit_only -- schema drift, not zero progress")')
+          submit_failed=$(echo "$summary" | jq -r '.backfill.records_submit_failed // error("backfill summary carries no records_submit_failed -- schema drift, not zero progress")')
+          already=$(echo "$summary" | jq -r '.backfill.records_already_resolved // error("backfill summary carries no records_already_resolved -- schema drift, not zero progress")')
+          total=$(echo "$summary" | jq -r '.backfill.records_total // error("backfill summary carries no records_total -- schema drift, not zero progress")')
           # audit_only and submit_failed intents never reached a broker and
           # can structurally never close. Only broker-reachable pending
           # records indicate a missing reconcile/close-event update.
