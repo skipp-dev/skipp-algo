@@ -70,8 +70,14 @@ def summarize_rule_states(
     ``health != ok`` — an unevaluable rule must never disappear from the
     operational view just because it cannot reach the firing state.
     """
+    data = payload.get("data")
+    if not isinstance(data, dict) or "groups" not in data:  # 2026-08-15: Schema-Drift darf nie als "alles gesund" lesen
+        raise ValueError(
+            "Grafana rules API carries no data.groups -- schema drift or an "
+            f"empty body; refusing to report 'no rules' (got: {str(payload)[:200]!r})"
+        )
     rows = []
-    for group in (payload.get("data", {}) or {}).get("groups", []) or []:
+    for group in data["groups"] or []:
         for rule in group.get("rules", []) or []:
             if rule.get("type") == "recording":
                 continue
@@ -99,14 +105,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     key = _api_key()
-    instances = summarize_active_alerts(
-        _request("GET", "/api/alertmanager/grafana/api/v2/alerts", key) or []
-    )
-    rules = summarize_rule_states(
-        _request("GET", "/api/prometheus/grafana/api/v1/rules", key) or {},
-        only_active=not args.all,
-        name_filter=args.rule,
-    )
+    # `or []`/`or {}` hiess: ein leerer 200-Body (Proxy, Auth-Redirect,
+    # API-Umbau) las als "0 Alerts, 0 Regeln" -- fuer das Werkzeug des
+    # Sitzungsstart-Betriebschecks ist das die gefaehrlichste aller
+    # Antworten. None ist jetzt laut; die ehrliche Ruhe ist eine
+    # VORHANDENE leere Liste vom API.
+    alerts_payload = _request("GET", "/api/alertmanager/grafana/api/v2/alerts", key)
+    rules_payload = _request("GET", "/api/prometheus/grafana/api/v1/rules", key)
+    if alerts_payload is None or rules_payload is None:
+        print(
+            "ERROR: Grafana returned an empty body "
+            f"(alerts={'ok' if alerts_payload is not None else 'EMPTY'}, "
+            f"rules={'ok' if rules_payload is not None else 'EMPTY'}) -- "
+            "refusing to report 'all healthy' on a reading that never happened.",
+            file=sys.stderr,
+        )
+        return 2
+    instances = summarize_active_alerts(alerts_payload)
+    try:
+        rules = summarize_rule_states(
+            rules_payload,
+            only_active=not args.all,
+            name_filter=args.rule,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     if args.as_json:
         print(json.dumps({"active_instances": instances, "rules": rules}, indent=2))
