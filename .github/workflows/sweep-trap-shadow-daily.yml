@@ -283,9 +283,9 @@ jobs:
         # when its snapshot is freshly written (generated_at > 0 — a no_data/
         # stale run leaves the committed seed untouched, the bridge keeps
         # serving age_known=0 and lo-sweep-trap-shadow-age-unknown fires);
-        # the reaction snapshot publishes on presence (untracked, exists only
-        # when this run's eval wrote it) and is NOT swallowed by a seed/stale
-        # sweep day. Runs LAST so the upload step sees the working tree before
+        # the reaction snapshot publishes only when freshly stamped
+        # (updated_at non-empty -- it is a TRACKED seed too) and is NOT
+        # swallowed by a seed/stale sweep day. Runs LAST so the upload step sees the working tree before
         # this step force-resets it onto origin/main.
         if: always()
         env:
@@ -300,13 +300,13 @@ jobs:
           # (ENABLE_SWEEP_TRAP vs ENABLE_REACTION_ZONE_STUDY), so the sweep
           # snapshot being the committed no-data seed must NOT swallow a fresh
           # reaction snapshot (in the reaction-only configuration that would be
-          # EVERY day). Sweep gate = generated_at > 0 (a seed with 0 stays
-          # unpublished); reaction gate = file presence (it is untracked and
-          # only exists when this run's eval wrote it).
+          # EVERY day). Sweep gate = generated_at > 0; reaction gate =
+          # updated_at non-empty. BOTH files are git-tracked seeds, so
+          # presence proves nothing for either.
           snapshot="artifacts/monitoring/sweep_trap_shadow.json"
           sweep_tmp=""
           if [ -s "${snapshot}" ]; then
-            fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1])).get("generated_at", 0)) > 0 else 0)' "${snapshot}")"
+            fresh="$(python -c 'import json,sys; print(1 if float(json.load(open(sys.argv[1]))["generated_at"]) > 0 else 0)' "${snapshot}")"
             if [ "${fresh}" = "1" ]; then
               sweep_tmp="$(mktemp)"
               cp "${snapshot}" "${sweep_tmp}"
@@ -317,8 +317,23 @@ jobs:
           reaction_snapshot="artifacts/monitoring/reaction_zone_shadow.json"
           reaction_tmp=""
           if [ -s "${reaction_snapshot}" ]; then
-            reaction_tmp="$(mktemp)"
-            cp "${reaction_snapshot}" "${reaction_tmp}"
+            # Freshness, not presence: only an rc-0 eval stamps updated_at
+            # (--now-iso); the zero-sample seed carries "". The previous gate
+            # was bare presence, justified by a comment claiming the file is
+            # untracked -- it has been git-TRACKED since #4141 (f74a2ef14),
+            # so presence proves nothing: the day after the armed study's
+            # first real publish, any no-samples day would have re-published
+            # the seed over the last real observation, green. A MISSING key
+            # is "the check itself broke" and fails the step loudly (same
+            # decision as the coverage gate, #4738) -- python raises KeyError
+            # under set -e; the same applies to the sweep gate above.
+            reaction_fresh="$(python -c 'import json,sys; print(1 if json.load(open(sys.argv[1]))["updated_at"] else 0)' "${reaction_snapshot}")"
+            if [ "${reaction_fresh}" = "1" ]; then
+              reaction_tmp="$(mktemp)"
+              cp "${reaction_snapshot}" "${reaction_tmp}"
+            else
+              echo "::notice title=sweep-trap-shadow::reaction snapshot is the zero-sample seed (updated_at empty); not publishing it"
+            fi
           fi
           if [ -z "${sweep_tmp}" ] && [ -z "${reaction_tmp}" ]; then
             echo "::notice title=sweep-trap-shadow::no fresh snapshot from this run; nothing to publish"
@@ -327,12 +342,34 @@ jobs:
 
           # Build the publish commit off a clean origin/main so the ledger PR
           # branch state (from the commit-back step) can never leak into it.
-          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # SWEEP_SNAPSHOT_REMOTE is unset in Actions and exists so the
+          # contract test can execute this fragment WHOLE -- push included --
+          # against a local repository (same seam as TV_SNAPSHOT_REMOTE).
+          _remote_url="${SWEEP_SNAPSHOT_REMOTE:-https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}"
           git fetch "${_remote_url}" main 2>/dev/null || true
           git checkout -f -B _sweep_trap_shadow_publish FETCH_HEAD
 
+          _remote_ref="refs/heads/bot/live-sweep-trap-shadow"
+          _tracking_ref="refs/remotes/origin/bot/live-sweep-trap-shadow"
+          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
+          _zero_sha="0000000000000000000000000000000000000000"
+          _lease_expected="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null || echo "${_zero_sha}")"
           stable_dir="artifacts/monitoring/latest"
           mkdir -p "${stable_dir}"
+          # ADR-0024 par.5, same dance as the two TV-bindings publishers:
+          # latest/ is SHARED between the two study files and main does not
+          # carry the directory at all (measured 2026-08-15: `git ls-tree
+          # origin/main artifacts/monitoring/latest/` is empty). A commit
+          # built off main with only ONE file staged therefore deleted the
+          # sibling from the branch tip: on a no-corpus day the sweep gate
+          # correctly held its seed back, the reaction file still published,
+          # and the branch lost latest/sweep_trap_shadow.json -- the only
+          # serving copy of the WS4a gate evidence. Seed from the fetched
+          # tip first; this run's own files then overlay it.
+          if [ "${_lease_expected}" != "${_zero_sha}" ]; then
+            git checkout "${_lease_expected}" -- "${stable_dir}" 2>/dev/null || true
+            git add -f "${stable_dir}" 2>/dev/null || true
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ -n "${sweep_tmp}" ]; then
@@ -349,11 +386,6 @@ jobs:
           fi
           git commit -m "[skip ci] chore: refresh sweep-trap-shadow snapshot"
 
-          _remote_ref="refs/heads/bot/live-sweep-trap-shadow"
-          _tracking_ref="refs/remotes/origin/bot/live-sweep-trap-shadow"
-          git fetch "${_remote_url}" "+${_remote_ref}:${_tracking_ref}" 2>/dev/null || true
-          _zero_sha="0000000000000000000000000000000000000000"
-          _lease_expected="$(git rev-parse --verify "${_tracking_ref}" 2>/dev/null || echo "${_zero_sha}")"
           if git push "--force-with-lease=${_remote_ref}:${_lease_expected}" "${_remote_url}" "HEAD:${_remote_ref}"; then
             echo "::notice title=sweep-trap-shadow::snapshot published to bot/live-sweep-trap-shadow"
           else
