@@ -212,6 +212,14 @@ def test_every_publisher_refuses_a_reading_that_observed_nothing(
         "the observation check must run before the snapshot is copied into the "
         "shared directory — checking afterwards still stages the empty reading"
     )
+    # Operator decision 2026-08-15: the same rule extends to PARTIAL readings —
+    # only a complete observation becomes the baseline.
+    coverage_index = body.index(".bindings.expectedConsumers // 0")
+    assert gate_index < coverage_index < copy_index, (
+        "the coverage comparison must sit between the non-empty check and the "
+        "copy — a partial reading passing the non-empty check would otherwise "
+        "still become the baseline and re-create the 2026-08-14 failure class"
+    )
 
 
 def _publisher_body(step_name: str) -> str:
@@ -256,15 +264,33 @@ def _published_files(origin: Path, env: dict[str, str]) -> list[str]:
 
 
 _FULL_READING = {
+    # bindings.expectedConsumers mirrors the real report: the constructor
+    # stamps it from config.verifyTargets BEFORE anything can die (measured on
+    # the 2026-08-14 one-second early-death report: expected=9, observed=0).
+    # The coverage gate compares the observation against it, so a payload
+    # without it would read as expected=0 and be declined as partial.
+    "bindings": {"expectedConsumers": 1},
     "tradingViewObserved": {
         "bindings": [{"scriptName": "SMC Event Overlay", "selections": []}]
-    }
+    },
 }
 _EMPTY_READING = {
+    "bindings": {"expectedConsumers": 9},
     "tradingViewObserved": {"bindings": [], "sources": []},
     "outOfBandDrift": {
         "status": "unknown",
         "reason": "the pre-mutation observation has not run yet",
+    },
+}
+_PARTIAL_READING = {
+    # Operator decision 2026-08-15: a session that died mid-read produces a
+    # non-empty observation covering less than every verify target. Publishing
+    # it re-creates the 2026-08-14 failure class (next run: "the baseline does
+    # not cover every verify target" -> "unknown" -> the R1 attestation
+    # refuses), so only a COMPLETE observation may become the baseline.
+    "bindings": {"expectedConsumers": 2},
+    "tradingViewObserved": {
+        "bindings": [{"scriptName": "SMC Event Overlay", "selections": []}]
     },
 }
 
@@ -332,10 +358,18 @@ def test_an_empty_reading_leaves_the_published_baseline_untouched(
         "the step must SAY it declined, or an operator reading the log cannot "
         f"tell a skipped publish from a successful one (stdout: {done.stdout!r})"
     )
+    # 3. A PARTIAL reading (non-empty, but covering less than every verify
+    #    target) must change nothing either — operator decision 2026-08-15.
+    snapshot.write_text(json.dumps(_PARTIAL_READING), encoding="utf-8")
+    done = publish()
+    assert "observed only 1 of 2 TradingView bindings" in done.stdout, (
+        "a partial reading must be declined BY NAME with its counts "
+        f"(stdout: {done.stdout!r})"
+    )
     assert (
         _git("rev-parse", "refs/heads/bot/live-tradingview-bindings", cwd=origin, env=env)
         == good_tip
-    ), "an empty reading advanced the branch"
+    ), "an empty or partial reading advanced the branch"
     assert (
         _git("show", f"refs/heads/bot/live-tradingview-bindings:{published_path}", cwd=origin, env=env)
         == good_content
