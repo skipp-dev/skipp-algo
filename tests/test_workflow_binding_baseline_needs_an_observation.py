@@ -53,7 +53,11 @@ _BRANCH_NAME = "bot/live-tradingview-bindings"
 # divergent one fails loudly rather than dropping out of the population.
 _LEASE_IDIOM = 'remote_ref="refs/heads/bot/live-tradingview-bindings"'
 _OBSERVATION_GATE = (
-    '(.tradingViewObserved.bindings // []) | if type == "array" then length else error'
+    # 2026-08-15 second sweep round: `// []` was the un-fixed sibling of the
+    # #4738 coverage-gate finding -- a schema rename of the field made every
+    # future publish decline quietly forever. Absence is loud now; the honest
+    # "observed nothing" is an [] that is PRESENT.
+    '(.tradingViewObserved.bindings // error'
 )
 
 # The seam each publisher exposes so its body can be executed against a
@@ -206,6 +210,15 @@ def test_every_publisher_carries_the_lease_idiom_and_a_test_seam() -> None:
             "shared force-with-lease idiom — adopt it (see the two existing "
             "publishers) so a concurrent publish loses the race instead of "
             "silently overwriting the other producer's commit"
+        )
+        assert 'git cat-file -e "${expected_sha}:${stable_dir}"' in body, (
+            f"{workflow} :: {step_name} restores the shared directory without "
+            "separating 'path not in tip yet' from 'restore failed' -- the "
+            "second case pushes a commit missing the sibling's baseline, "
+            "silently (2026-08-15 sweep finding)"
+        )
+        assert '-- "${stable_dir}" 2>/dev/null || true' not in body, (
+            f"{workflow} :: {step_name} swallows restore failures again"
         )
         seam = _REMOTE_SEAM.get(step_name)
         assert seam is not None and "${" + seam in body, (
@@ -425,6 +438,13 @@ def test_an_empty_reading_leaves_the_published_baseline_untouched(
             '{"bindings": {"checkedConsumers": 1}, '
             '"tradingViewObserved": {"bindings": [{"scriptName": "SMC Event Overlay"}]}}',
             id="missing-expectedConsumers",
+        ),
+        # 2026-08-15 second round: the same rename class on the OBSERVATION
+        # field itself. With `// []` this read as "observed nothing" and
+        # declined quietly forever; the honest empty is a PRESENT [].
+        pytest.param(
+            '{"bindings": {"expectedConsumers": 9}}',
+            id="missing-observed-bindings",
         ),
     ],
 )
