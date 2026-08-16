@@ -811,6 +811,48 @@ jobs:
           # shellcheck disable=SC2086
           python -m pytest ${guards} -q --no-header
 
+      # 2026-08-16: #4752 removed the Hold-Manager legacy route and merged
+      # green. This gate's pytest lists are fixed smoke sets, and ci.yml is
+      # status-only on pull requests BY DESIGN -- so the test that imports the
+      # changed module and fails deterministically on that tree first ran on
+      # the main push: two red main runs and a cross-session misdiagnosis
+      # before #4755 repaired it. Same class-closure as the guard selector
+      # above, for production Python: a PR that changes no production module
+      # pays nothing; one that changes a module runs every test that imports
+      # it directly. Population measured 2026-08-16 over the last 60 merged
+      # PRs: 55 select nothing, median of the rest 5 files, max 12;
+      # structural worst case (most-imported module, open_prep.realtime_
+      # signals) 26 files. tests/test_select_reverse_import_tests.py pins the
+      # cost model and this wiring.
+      - name: Run every test that imports a production module this PR changed
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          # The whole diff, no pathspec: the selector is the single filter
+          # authority (non-.py and tests/ are excluded there, where the rule
+          # is executable and tested).
+          changed="$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}")"
+          if [ -z "${changed}" ]; then
+            echo "Empty diff; nothing to select."
+            exit 0
+          fi
+          # shellcheck disable=SC2086
+          selected="$(python -m scripts.select_reverse_import_tests ${changed})"
+          if [ -z "${selected}" ]; then
+            echo "No production module changed; no reverse-import tests selected."
+            exit 0
+          fi
+          echo "Tests selected by reverse import:"
+          echo "${selected}" | sed 's/^/  /'
+          # Deliberately NO --maxfail=1 on this stage: the selection is small
+          # (measured above) and a masked second failure is the known trap.
+          # shellcheck disable=SC2086
+          python -m pytest ${selected} -q --no-header
+
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
