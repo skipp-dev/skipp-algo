@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "subject": "SMC_Hold_Manager.pine — commercial family membership",
+  "status": "pending",
+  "dueBy": "2026-08-25",
+  "basis": "The five-complete-session shadow observation window (R2-SHADOW-CUTOVER contract, observationWindow) that starts with the first XNYS session after 2026-08-16. The window's evidence IS the decision input, so the decision is deliberately not taken earlier — and deliberately cannot drift past the window: tests/test_hold_manager_commercial_decision_tripwire.py goes red when the window completes or the due date passes while this record still says pending.",
+  "decidedAt": null,
+  "decision": null,
+  "options": {
+    "commercial": "Hold Manager joins the product family: SMC_PRODUCT_IDENTITY.md entry, claims-registry evidence class, tier assignment in the product cut manifest.",
+    "internal": "Hold Manager stays operator-internal: the shadow observation concludes, effort is capped, the product cut keeps companion_operator_only / rollout_state planned-or-retired."
+  },
+  "authorizedBy": "Operator decision 2026-08-16 (P1: Stichtag ans Fensterende setzen, Entscheidung nicht vorziehen; bis dahin keine neue Hold-Manager-Arbeit)."
+}
