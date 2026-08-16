@@ -143,17 +143,20 @@ def _verify_cutover_evidence(
 
 
 def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
-    """The newest dated evidence set is the 2026-08-16 cutover sitting.
+    """The newest dated evidence set is the build-3 advance of 2026-08-16.
 
-    It names the build-2 hash; the contract carries build 3 with a declared
-    buildAdvancePending(provenBuild=2), so the expected hash resolves to
-    build 2 and the rule holds without weakening: evidence for build 1 or a
-    hash outside the history still fails.
+    It names the build-3 hash and landed together with the removal of the
+    buildAdvancePending declaration (its recorded exit condition), so the
+    expected hash is the current source hash again and the rule holds
+    without weakening: evidence for an older build or a hash outside the
+    history still fails.
     """
     contract = _contract()
-    replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-08-16.json")
+    replay = _dated_evidence(
+        "smc_hold_manager_tradingview_replay_2026-08-16_build3.json"
+    )
     preconditions = _dated_evidence(
-        "smc_hold_manager_tradingview_preconditions_2026-08-16.json"
+        "smc_hold_manager_tradingview_preconditions_2026-08-16_build3.json"
     )
 
     _verify_cutover_evidence(
@@ -199,27 +202,41 @@ def test_a_cutover_on_stale_evidence_is_refused() -> None:
 def test_a_stale_or_boastful_pending_declaration_is_refused() -> None:
     """The pending declaration cannot outlive or precede its build.
 
-    Both raise paths executed against mutated copies of the real contract:
-    a declaration left behind after a further build advance (names build N
-    while the source moved to N+1), and one that claims its own build as
-    already proven.
+    The real build-3 declaration was removed with the build-3 evidence set
+    (2026-08-16), so the probes run on a synthesized declaration grafted onto
+    the real contract — first shown to be ACCEPTED, so the mutations below
+    fail for their declared reason and not because the graft itself is
+    malformed. Then both raise paths: a declaration left behind after a
+    further build advance (names build N while the source moved to N+1), and
+    one that claims its own build as already proven.
     """
     contract = _contract()
-    assert contract["alertWireShape"].get("buildAdvancePending"), (
-        "premise gone: no pending declaration in the contract -- move this "
-        "probe onto a mutated copy that has one"
+    assert contract["alertWireShape"].get("buildAdvancePending") is None, (
+        "the contract carries a real pending declaration again -- point the "
+        "probes back at the real one instead of the synthetic graft"
     )
 
-    stale = copy.deepcopy(contract)
-    stale["source"]["build"] = contract["source"]["build"] + 1
+    by_build = {
+        entry["build"]: entry["sha256"] for entry in contract["buildHistory"]
+    }
+    current_build = contract["source"]["build"]
+    base = copy.deepcopy(contract)
+    base["alertWireShape"]["buildAdvancePending"] = {
+        "build": current_build,
+        "provenBuild": current_build - 1,
+    }
+    assert _expected_evidence_sha(base) == by_build[current_build - 1]
+
+    stale = copy.deepcopy(base)
+    stale["source"]["build"] = current_build + 1
     stale["buildHistory"] = [
         *stale["buildHistory"],
-        {"build": contract["source"]["build"] + 1, "sha256": "f" * 64},
+        {"build": current_build + 1, "sha256": "f" * 64},
     ]
     with pytest.raises(AssertionError, match="stale"):
         _expected_evidence_sha(stale)
 
-    boastful = copy.deepcopy(contract)
+    boastful = copy.deepcopy(base)
     boastful["alertWireShape"]["buildAdvancePending"]["provenBuild"] = (
         boastful["alertWireShape"]["buildAdvancePending"]["build"]
     )

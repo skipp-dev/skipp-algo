@@ -276,7 +276,7 @@ def test_current_tradingview_compile_evidence_is_hash_pinned() -> None:
         current_replay = json.loads(
             (
                 SHADOW_CONTRACT.parent
-                / "smc_hold_manager_tradingview_replay_2026-08-16.json"
+                / "smc_hold_manager_tradingview_replay_2026-08-16_build3.json"
             ).read_text(encoding="utf-8")
         )
         assert current_replay["inheritance"]["basisFrozenSha256"] == (
