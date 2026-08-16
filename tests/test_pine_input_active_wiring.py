@@ -122,7 +122,9 @@ def _active_arg(line: str) -> str | None:
 
 @pytest.mark.parametrize(
     ("master", "dependent"),
-    [(m, d) for m, deps in _WIRING.items() for d in deps],
+    # sorted(): the xdist determinism guard requires an order-stable source
+    # so all workers collect identical test IDs.
+    sorted((m, d) for m, deps in _WIRING.items() for d in deps),
 )
 def test_dependent_is_wired_to_its_master(master: str, dependent: str) -> None:
     decls = _decl_lines()
