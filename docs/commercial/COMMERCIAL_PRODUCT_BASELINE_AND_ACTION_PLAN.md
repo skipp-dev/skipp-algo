@@ -108,6 +108,16 @@ variant and complete provenance. The later live calibration gate remains at
 least 90 live days and 30 closed live trades for a family, plus acceptable
 drift and no kill switch.
 
+2026-08-16 (operator decision, weekly review P1): the commercial family
+story is BOS, OB and SWEEP building evidence, plus FVG in incubation — one
+modeled OOS outcome against its pre-registered minimum of 150, and ADR-0023
+already classifies FVG as a control family. The decision is machine-readable
+in `family_claim_status.json`, travels with every telemetry row as
+`commercial_claim`, and the claimable tier is bound to the pre-registered
+sample by `tests/test_family_claim_status.py` — a family without the sample
+cannot be rendered as equally backed again. FVG keeps its measurement
+pipeline and its Phase-1 paper coverage target; only the claim changed.
+
 Implementation status on 2026-08-11:
 
 - [x] Variant ownership registry distinguishes commercial family variants

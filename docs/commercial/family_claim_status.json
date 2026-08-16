@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "decidedAt": "2026-08-16",
+  "authorizedBy": "Operator decision 2026-08-16 (weekly commercial review, P1): FVG leaves the four-family claim; the story is three families building evidence plus FVG in incubation.",
+  "vocabulary": {
+    "claimable": "May appear in commercial claims as a family WITH evidence. Requires the family's pre-registered minimum sample (governance/edge_hypotheses.json min_sample_n) across closed outcomes -- enforced by tests/test_family_claim_status.py; a family cannot reach this tier by editing this file alone.",
+    "evidence_building": "Part of the commercial evidence program; its numbers are reported per evidence class but no performance claim is made until claimable.",
+    "incubation": "Not part of the commercial family story. Measurement and sample buildup continue unchanged; promotion out of incubation is an explicit dated edit of this record."
+  },
+  "families": {
+    "BOS": {
+      "status": "evidence_building",
+      "basis": "2026-08-16: 12 modeled OOS outcomes of pre-registered 200; PAPER/LIVE pending (Phase 1)."
+    },
+    "OB": {
+      "status": "evidence_building",
+      "basis": "2026-08-16: 7 modeled OOS outcomes of pre-registered 200; PAPER/LIVE pending (Phase 1)."
+    },
+    "SWEEP": {
+      "status": "evidence_building",
+      "basis": "2026-08-16: 13 modeled OOS outcomes of pre-registered 120; PAPER/LIVE pending (Phase 1)."
+    },
+    "FVG": {
+      "status": "incubation",
+      "basis": "2026-08-16: 1 modeled OOS outcome of pre-registered 150, and governance already classifies FVG as a control family (ADR-0023 FAMILY_CLASSIFICATION) -- the four-family story overstated it. Pipeline coverage continues; the sample keeps building."
+    }
+  }
+}

@@ -28,6 +28,7 @@ external review before publication.
 | A named number of automated tests pass | CONDITIONAL | State exact commit, date, test scope and result; never use a historical count as a standing product claim |
 | A calibration metric such as ECE, Brier or hit rate | CONDITIONAL | State date, population, sample size, horizon and evidence class; do not imply live P&L |
 | The current 33 modeled OOS setups are a live track record | BLOCKED | They are modeled triggered-setup returns, not live execution or portfolio P&L |
+| SMC covers four equally-backed event families (BOS, OB, FVG, SWEEP) | BLOCKED | 2026-08-16 operator decision: FVG is in incubation (one modeled outcome against a pre-registered minimum of 150; ADR-0023 classifies it as a control family). The commercial evidence program covers BOS, OB and SWEEP. Machine-readable state: `family_claim_status.json`; the claimable tier is sample-bound by `tests/test_family_claim_status.py` |
 | SMC is profitable, market-beating or has a proven edge | BLOCKED | Requires a separately approved live evidence and claims gate |
 | Sharpe or drawdown as a headline marketing claim | BLOCKED | Current sample and confidence gates do not support it |
 | Institutional-grade | BLOCKED | Undefined comparative superlative without an approved substantiation standard |

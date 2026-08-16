@@ -84,7 +84,22 @@ from typing import Any
 # Pinned by tests/test_build_families_telemetry.py against
 # scripts/emit_public_calibration_report.py:_C12_FAMILY_KEYS so the
 # producer cannot drift from the consumer schema.
-FAMILIES_SCHEMA_VERSION = "2.0.0"
+# 2.1.0 (2026-08-16): additive commercial_claim per family row -- the
+# operator's family-claim decision travels with the data it constrains.
+FAMILIES_SCHEMA_VERSION = "2.1.0"
+
+# The dated operator decision on which families the commercial story may
+# claim (weekly review 2026-08-16: FVG leaves the four-family claim). The
+# telemetry carries it so the public report renders the inequality instead
+# of implying four equal families; tests/test_family_claim_status.py binds
+# the "claimable" tier to the pre-registered minimum sample.
+FAMILY_CLAIM_STATUS_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs"
+    / "commercial"
+    / "family_claim_status.json"
+)
+_CLAIM_VOCABULARY = ("claimable", "evidence_building", "incubation")
 
 # EventFamily literal pinned in smc_core/scoring.py:33. Kept as a
 # tuple so test_event_family_alignment can grep both files.
@@ -433,13 +448,44 @@ def rollup_verdict(verdicts: list[str]) -> str:
     )
 
 
+def load_family_claim_statuses(
+    path: Path = FAMILY_CLAIM_STATUS_PATH,
+) -> dict[str, str]:
+    """Load the dated operator claim decision, fail-closed.
+
+    Every family must be covered with a known vocabulary word -- a family
+    missing here would otherwise render claim-less, which is exactly the
+    silent-equality failure the record exists to prevent.
+    """
+    record = json.loads(path.read_text(encoding="utf-8"))
+    families = record.get("families")
+    if not isinstance(families, dict):
+        raise ValueError(f"{path}: families must be an object")
+    statuses: dict[str, str] = {}
+    for family in EVENT_FAMILIES:
+        entry = families.get(family)
+        if not isinstance(entry, dict) or entry.get("status") not in _CLAIM_VOCABULARY:
+            raise ValueError(
+                f"{path}: families.{family}.status must be one of "
+                f"{_CLAIM_VOCABULARY}"
+            )
+        statuses[family] = entry["status"]
+    unknown = sorted(set(families) - set(EVENT_FAMILIES))
+    if unknown:
+        raise ValueError(f"{path}: unknown families {unknown}")
+    return statuses
+
+
 def to_strict_payload(
     accs: dict[str, _FamilyAccumulator],
     *,
     modeled_counts: dict[str, int] | None = None,
+    claim_statuses: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Convert accumulators into C12 rows with explicit evidence classes."""
     modeled_counts = modeled_counts or {}
+    if claim_statuses is None:
+        claim_statuses = load_family_claim_statuses()
     payload: list[dict[str, Any]] = []
     for family in EVENT_FAMILIES:
         acc = accs.get(family, _FamilyAccumulator())
@@ -471,6 +517,7 @@ def to_strict_payload(
                 else "partial" if populated
                 else "missing"
             ),
+            "commercial_claim": claim_statuses[family],
         })
     return payload
 
