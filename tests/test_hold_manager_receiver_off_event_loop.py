@@ -1,9 +1,9 @@
 """The Hold-Manager receiver must not do blocking I/O on the event loop.
 
-``ingest_hold_manager_shadow`` is an ``async def``, so its body runs ON the
-uvicorn event loop — the same loop that serves ``/{token}/smc_live``. Inside
-it does two blocking things per request: ``_load_contract`` (stat + read +
-json.loads, uncached) and ``_persist`` (sqlite3 connect + ``PRAGMA
+``ingest_hold_manager_shadow_build`` is an ``async def``, so its body runs ON
+the uvicorn event loop — the same loop that serves ``/{token}/smc_live``.
+Inside it does two blocking things per request: ``_load_contract`` (stat +
+read + json.loads, uncached) and ``_persist`` (sqlite3 connect + ``PRAGMA
 synchronous = FULL`` + ``BEGIN IMMEDIATE`` + commit, i.e. an fsync on the
 Railway volume, with a 5 s busy timeout under lock contention).
 
@@ -58,31 +58,33 @@ def test_blocking_work_runs_off_the_event_loop(
     monkeypatch.setattr(receiver, blocking_symbol, _spy)
     monkeypatch.setattr(receiver.config, "hold_manager_shadow_accepting", lambda: True)
     monkeypatch.setattr(receiver, "_ledger_path", lambda: tmp_path / "ledger.sqlite3")
-    # Auth is a real gate before the blocking work; satisfy it rather than
-    # bypass it, so the call actually travels the production route.
+    # Auth is a real gate before the blocking work (on the build route it even
+    # precedes the parser); satisfy it rather than bypass it, so the call
+    # actually travels the production route.
     monkeypatch.setattr(
         receiver.config, "hold_manager_shadow_webhook_token", lambda: "t" * 40
     )
-    monkeypatch.setattr(receiver, "_validate_contract", lambda *a, **k: None)
+    monkeypatch.setattr(receiver, "_validate_build_contract", lambda *a, **k: None)
     monkeypatch.setattr(receiver, "_validate_event_time", lambda *a, **k: None)
 
     router = receiver.build_router(lambda a, b: True)
     endpoint = _find_route(router, "hold-manager-shadow").endpoint
 
+    # The build-pinned wire shape (2026-08-16 cutover, #4752): no body token,
+    # no self-referential hash — the payload names the build instead.
     body = json.dumps(
         {
-            "authToken": "t" * 40,
             "schemaVersion": 1,
-            "requirementId": "R2",
-            "channel": "hold",
-            "mode": "shadow",
-            "sourceSha256": "a" * 64,
-            "scriptName": "SMC_Event_Overlay",
-            "layout": "layout-1",
-            "producer": "tradingview",
-            "busSchema": 1,
+            "requirementId": "R2-SHADOW-CUTOVER",
+            "channel": "HM_ENTRY",
+            "mode": "hold_manager",
+            "sourceBuild": 3,
+            "scriptName": "SMC Hold Manager",
+            "layout": "SMC Hold R2.4 Validation",
+            "producer": "SMC Long-Dip Suite",
+            "busSchema": 7001,
             "symbol": "NASDAQ:NVDA",
-            "timeframe": "5m",
+            "timeframe": "5",
             "barTime": "2026-08-05T14:30:00+00:00",
             "price": "100.5",
         }
@@ -99,7 +101,7 @@ def test_blocking_work_runs_off_the_event_loop(
     async def _drive() -> None:
         loop_thread["id"] = threading.get_ident()
         try:
-            await endpoint(_Request())
+            await endpoint(_Request(), token="t" * 40)
         except Exception:
             # A later rejection is fine: the spy has already recorded which
             # thread the blocking helper ran on, which is all this asserts.
