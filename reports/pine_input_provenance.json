@@ -1,6 +1,6 @@
 {
   "schema": "pine-input-provenance/v2",
-  "total_inputs": 615,
+  "total_inputs": 619,
   "total_hidden": 402,
   "files": [
     {
@@ -227,7 +227,7 @@
         {
           "varname": "show_arrows",
           "kind": "bool",
-          "label": "Show \u25b2/\u25bc markers",
+          "label": "Show ▲/▼ markers",
           "group": "g_vis",
           "has_display_none": false,
           "visibility": null
@@ -267,7 +267,7 @@
         {
           "varname": "atrMult",
           "kind": "float",
-          "label": "ATR \u00d7 mult \u2192 SL",
+          "label": "ATR × mult → SL",
           "group": "g_sim",
           "has_display_none": false,
           "visibility": null
@@ -2868,7 +2868,7 @@
         {
           "varname": "mtf_trend_tf0",
           "kind": "timeframe",
-          "label": "Trend TF 0 (optional 2H \u2014 scaffold, inactive)",
+          "label": "Trend TF 0 (optional 2H — scaffold, inactive)",
           "group": "g_mtf",
           "has_display_none": true,
           "visibility": null
@@ -4565,7 +4565,7 @@
     },
     {
       "file": "SMC_Orderflow_Overlay.pine",
-      "input_count": 7,
+      "input_count": 11,
       "hidden_count": 0,
       "inputs": [
         {
@@ -4621,6 +4621,38 @@
           "kind": "color",
           "label": "Neutral color",
           "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "use_real_footprint",
+          "kind": "bool",
+          "label": "Use real footprint delta",
+          "group": "g_fp",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "fp_ticks_per_row",
+          "kind": "int",
+          "label": "Ticks per row",
+          "group": "g_fp",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "fp_value_area_pct",
+          "kind": "int",
+          "label": "Value area %",
+          "group": "g_fp",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "varname": "fp_imbalance_pct",
+          "kind": "int",
+          "label": "Imbalance %",
+          "group": "g_fp",
           "has_display_none": false,
           "visibility": null
         }

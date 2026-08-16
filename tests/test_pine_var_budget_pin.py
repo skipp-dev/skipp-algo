@@ -83,7 +83,10 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 9 → 16 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows feature added
     # 7 var declarations to track per-row state. Ledger re-frozen.
     "SMC_Long_Dip_Mobile.pine": 16,
-    "SMC_Orderflow_Overlay.pine": 10,
+    # 10 → 15 (2026-08-16): opt-in real footprint delta (Jan-2026
+    # request.footprint) added one group string + four inputs (toggle,
+    # ticks/row, value-area %, imbalance %). Ledger re-frozen.
+    "SMC_Orderflow_Overlay.pine": 15,
     "SMC_Profile_Context.pine": 11,
     # 2026-07-30 R5 rebuild: 17 declarations own confirmed session/range/VWAP/
     # MSS state locally. This replaces, rather than shadows, frozen mp.* data.
