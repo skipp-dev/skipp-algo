@@ -1,4 +1,4 @@
-"""SMC_Long_Dip_Suite.pine — the `active =` master→dependent wiring (2026-08-16).
+"""Root Pine surfaces — the `active =` master→dependent wiring ledger.
 
 Pine's July-2025 ``active`` input parameter greys dependent inputs while
 their master toggle is off. This ledger freezes WHICH inputs hang on WHICH
@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-_SUITE = Path(__file__).resolve().parents[1] / "SMC_Long_Dip_Suite.pine"
+_REPO = Path(__file__).resolve().parents[1]
 
-_WIRING: dict[str, tuple[str, ...]] = {
+_SUITE_WIRING: dict[str, tuple[str, ...]] = {
     "enable_ltf_sampling": (
         "use_ltf_for_strict_entry", "allow_strict_entry_without_ltf",
         "ltf_auto_select", "ltf_timeframe", "ltf_bias_hint",
@@ -94,14 +94,46 @@ _WIRING: dict[str, tuple[str, ...]] = {
 }
 
 
-def _decl_lines() -> dict[str, tuple[int, str]]:
-    """varname -> (lineno, line) for every input declaration in the Suite."""
+# Rollout 2026-08-16, after the exemplar's green deploy (save run 31952519241:
+# 12/12 saved, re-applied, 131 bindings repaired): the siblings carry far
+# fewer parameter dependencies than the Suite — most of their inputs are BUS
+# bindings (NEVER greyed: the binding writer keys on the combobox text) or
+# engine parameters. SMC_Hold_Manager is deliberately absent: an active
+# parallel lane rebuilds it same-day (#4752/#4753/#4759); its two clean pairs
+# (i_use_chand, i_use_tstop) follow once that lane settles.
+_WIRING_BY_FILE: dict[str, dict[str, tuple[str, ...]]] = {
+    "SMC_Long_Dip_Suite.pine": _SUITE_WIRING,
+    "SMC_Long_Dip_Dashboard.pine": {
+        "tm_enable": ("tm_tp1_r", "tm_tp2_r", "tm_be_after_t1"),
+    },
+    "SMC_Long_Dip_Mobile.pine": {
+        "tm_enable": ("tm_tp1_r", "tm_tp2_r", "tm_be_after_t1"),
+    },
+    "SMC_Long_Dip_Strategy.pine": {
+        "use_take_profit": ("take_profit_r",),
+    },
+    "SMC_Breakout_Overlay.pine": {
+        "sim_on": ("rr", "atrLen", "atrMult", "sl_on_close", "show_table"),
+    },
+    # Wired in #4758 (opt-in real footprint delta), ledgered here.
+    "SMC_Orderflow_Overlay.pine": {
+        "use_real_footprint": (
+            "fp_ticks_per_row", "fp_value_area_pct", "fp_imbalance_pct",
+        ),
+    },
+}
+
+_TOTAL_PAIRS = 140  # 125 Suite + 3+3+1+5 rollout + 3 Orderflow (#4758)
+
+
+def _decl_lines(fname: str) -> dict[str, tuple[int, str]]:
+    """varname -> (lineno, line) for every input declaration in ``fname``."""
     pattern = re.compile(
-        r"^\s*(?:var\s+[A-Za-z_][\w.]*\s+|var\s+)?(?P<name>[A-Za-z_]\w*)\s*=\s*input"
+        r"^\s*(?:var\s+)?(?:[A-Za-z_][\w.]*\s+)?(?P<name>[A-Za-z_]\w*)\s*=\s*input"
     )
     result: dict[str, tuple[int, str]] = {}
     for lineno, line in enumerate(
-        _SUITE.read_text(encoding="utf-8").splitlines(), start=1
+        (_REPO / fname).read_text(encoding="utf-8").splitlines(), start=1
     ):
         match = pattern.match(line)
         if match:
@@ -109,49 +141,73 @@ def _decl_lines() -> dict[str, tuple[int, str]]:
     return result
 
 
-_ACTIVE_RE = re.compile(r"active\s*=\s*(?P<master>[A-Za-z_]\w*)")
+# Word boundary on the left: variables named `*_active` (src_zone_active =)
+# must not read as the parameter. Master captured on the right.
+_ACTIVE_RE = re.compile(r"(?<![A-Za-z0-9_])active\s*=\s*(?P<master>[A-Za-z_]\w*)")
+_STRING_RE = re.compile(r"\"[^\"]*\"|'[^']*'")
 
 
 def _active_arg(line: str) -> str | None:
-    # Only the argument list before any tooltip text counts — tooltips are
-    # prose and may legitimately contain the word sequence "active = ".
-    head = line.split("tooltip")[0]
-    match = _ACTIVE_RE.search(head)
+    # Blank out string literals first: tooltip prose may contain the word
+    # sequence "active = ", and the real parameter may sit before OR after
+    # the tooltip in the argument list.
+    match = _ACTIVE_RE.search(_STRING_RE.sub('""', line))
     return match.group("master") if match else None
 
 
 @pytest.mark.parametrize(
-    ("master", "dependent"),
+    ("fname", "master", "dependent"),
     # sorted(): the xdist determinism guard requires an order-stable source
     # so all workers collect identical test IDs.
-    sorted((m, d) for m, deps in _WIRING.items() for d in deps),
+    sorted(
+        (f, m, d)
+        for f, wiring in _WIRING_BY_FILE.items()
+        for m, deps in wiring.items()
+        for d in deps
+    ),
 )
-def test_dependent_is_wired_to_its_master(master: str, dependent: str) -> None:
-    decls = _decl_lines()
-    assert dependent in decls, f"{dependent} has no input declaration"
-    assert master in decls, f"{master} has no input declaration"
+def test_dependent_is_wired_to_its_master(fname: str, master: str, dependent: str) -> None:
+    decls = _decl_lines(fname)
+    assert dependent in decls, f"{fname}: {dependent} has no input declaration"
+    assert master in decls, f"{fname}: {master} has no input declaration"
     assert _active_arg(decls[dependent][1]) == master
     # Pine evaluates top-down: a master declared after its dependent is a
     # compile error on TradingView, which only the save chain would catch.
     assert decls[master][0] < decls[dependent][0]
 
 
-def test_masters_are_never_greyed_themselves() -> None:
-    decls = _decl_lines()
-    greyed = [m for m in _WIRING if _active_arg(decls[m][1]) is not None]
+@pytest.mark.parametrize("fname", sorted(_WIRING_BY_FILE))
+def test_masters_are_never_greyed_themselves(fname: str) -> None:
+    decls = _decl_lines(fname)
+    greyed = [m for m in _WIRING_BY_FILE[fname] if _active_arg(decls[m][1]) is not None]
     assert greyed == []
 
 
-def test_wiring_ledger_covers_every_active_use() -> None:
-    """Population check: every active= in the file is in _WIRING, and vice versa."""
-    wired = {(m, d) for m, deps in _WIRING.items() for d in deps}
-    observed = {
-        (master, name)
-        for name, (_, line) in _decl_lines().items()
-        if (master := _active_arg(line)) is not None
+def test_wiring_ledger_covers_every_active_use_repo_wide() -> None:
+    """Population check over ALL live root/SMC++ Pine files, not a sample.
+
+    A file that gains ``active =`` without a ledger entry — or a ledgered
+    pair the file no longer carries — turns red here, so the wiring can
+    only evolve deliberately.
+    """
+    observed: set[tuple[str, str, str]] = set()
+    scanned = 0
+    for path in sorted(_REPO.glob("*.pine")) + sorted((_REPO / "SMC++").glob("*.pine")):
+        fname = str(path.relative_to(_REPO))
+        scanned += 1
+        for name, (_, line) in _decl_lines(fname).items():
+            master = _active_arg(line)
+            if master is not None:
+                observed.add((fname, master, name))
+    wired = {
+        (f, m, d)
+        for f, wiring in _WIRING_BY_FILE.items()
+        for m, deps in wiring.items()
+        for d in deps
     }
+    assert scanned >= 20, f"only {scanned} files scanned — selection rot?"
     assert observed == wired, (
-        f"only in file: {sorted(observed - wired)[:5]} — "
+        f"only in files: {sorted(observed - wired)[:5]} — "
         f"only in ledger: {sorted(wired - observed)[:5]}"
     )
-    assert len(wired) == 125
+    assert len(wired) == _TOTAL_PAIRS

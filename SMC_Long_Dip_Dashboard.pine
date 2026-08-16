@@ -47,9 +47,9 @@ var string g_operator_ops = "12. Advanced - Manual Overrides"
 // design. For audible alerts, link SMC_Hold_Manager on the same chart.
 // MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE)
 tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",            group = g_trade_mgmt, tooltip = "Adds 2 read-only rows (Trade-State + live Stop) showing the same FLAT/ARMED/IN-TRADE machine SMC_Hold_Manager runs. No alerts; for audible alerts add SMC_Hold_Manager.")
-tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",                  group = g_trade_mgmt, minval = 0.25, step = 0.25)
-tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",                  group = g_trade_mgmt, minval = 0.5,  step = 0.25)
-tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",                  group = g_trade_mgmt, minval = 0.25, step = 0.25, active = tm_enable)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",                  group = g_trade_mgmt, minval = 0.5,  step = 0.25, active = tm_enable)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt, active = tm_enable)
 
 surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Hero", "Explain", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nHero: 7-row decision-first surface (action, market, quality, trust, why now, risk, plan) reading the hero state contract from the generated library.\nExplain: checklist showing why the current zone state holds.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)

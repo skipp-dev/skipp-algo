@@ -139,11 +139,11 @@ bool show_volemoji = input.bool(true, "Show volume sentiment emoji", group = g_v
 
 g_sim = "Win/Loss tracker (ATR-RR sim)"
 bool  sim_on      = input.bool(true,  "Enable tracker",          group = g_sim)
-float rr          = input.float(1.5, "RR ratio",   minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
-int   atrLen      = input.int(14,    "ATR length", minval = 5,   maxval = 50,  group = g_sim)
-float atrMult     = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
-bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim)
-bool  show_table  = input.bool(true, "Show stats table", group = g_sim)
+float rr          = input.float(1.5, "RR ratio",   minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim, active = sim_on)
+int   atrLen      = input.int(14,    "ATR length", minval = 5,   maxval = 50,  group = g_sim, active = sim_on)
+float atrMult     = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim, active = sim_on)
+bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim, active = sim_on)
+bool  show_table  = input.bool(true, "Show stats table", group = g_sim, active = sim_on)
 
 // ── Tier 3 source: local swing pivots (ALWAYS computed) ──
 // ta.* must be evaluated every bar for a correct series, so all three sources
