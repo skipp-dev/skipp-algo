@@ -208,6 +208,14 @@ jobs:
           # carries universe_survivorship_bias_risk so the gate refuses to promote
           # a survivorship-biased run without --universe-trade-date. Fail-soft glob.
           UNIV_MANIFEST="$(ls -1t "${{ steps.download.outputs.scoring_root }}"/databento_volatility_production_*_manifest.json 2>/dev/null | head -1)"
+          if [ -z "${UNIV_MANIFEST}" ]; then
+            # 2026-08-15 sweep: fail-soft ist hier gewollt (der Export kann
+            # legitim fehlen), aber STUMM war er zu viel -- ohne diese Zeile
+            # verschwand der Survivorship-Refusal-Input aus einer
+            # Promote-Entscheidung ohne jede Logzeile, waehrend der
+            # EVENTS_POOL-Zwilling darueber laengst warnt.
+            echo "::warning title=promotion-gate-daily::no databento export manifest in the staged artifact -- the bundle carries no survivorship provenance and the gate cannot refuse a survivorship-biased run on it."
+          fi
           # --plane 1D (issue #3872 follow-up): the accumulated pool is
           # multi-TF since #2667 (5m-dominated by 2026-07-16), so unfiltered
           # Tier-1 direction metrics silently measured a plane governance
