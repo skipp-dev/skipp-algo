@@ -164,6 +164,33 @@ def test_verdict_to_dict_is_json_friendly() -> None:
     assert all(set(c.keys()) == {"name", "status", "value", "threshold", "detail"} for c in back["checks"])
 
 
+def test_red_verdict_says_its_green_checks_are_not_claims() -> None:
+    """2026-08-16 (weekly review P2): the raw JSON is the rendering surface.
+
+    A red gate with green sub-checks (Sharpe 9.44 on 33 trades) must carry
+    the disclaimer itself — the claim_note names every red check so a
+    reader of the dated gate artifact sees WHY the greens do not count.
+    """
+    verdict = evaluate_track_record_gate([0.5] * 5 + [-0.5], bootstrap_B=50)
+    d = verdict_to_dict(verdict)
+
+    assert d["status"] == "red"
+    assert d["claimable"] is False
+    assert "not claimable evidence" in d["claim_note"]
+    for check in d["checks"]:
+        if check["status"] == "red":
+            assert check["name"] in d["claim_note"]
+
+
+def test_green_verdict_is_claimable_without_note() -> None:
+    verdict = evaluate_track_record_gate(_profitable_returns(), bootstrap_B=50)
+    d = verdict_to_dict(verdict)
+
+    assert d["status"] == "green"
+    assert d["claimable"] is True
+    assert d["claim_note"] is None
+
+
 def test_verdict_carries_schema_version() -> None:
     """Deep-Review 2026-04-27: dashboard / public-report consumers must
     be able to detect breaking verdict-schema changes via a semver

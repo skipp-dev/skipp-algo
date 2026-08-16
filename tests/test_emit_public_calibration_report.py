@@ -351,11 +351,13 @@ def test_build_public_report_includes_track_record_gate_on_ok_payload() -> None:
     assert report["track_record_gate"]["status"] == "green"
 
 
-def test_schema_version_is_1_3_0_after_families_addition() -> None:
+def test_schema_version_is_1_4_0_after_phase1_gate_addition() -> None:
     # Deep-Review 2026-04-27: bumped MINOR from 1.2.0 to 1.3.0 with
-    # the additive ``families`` field. Pin renamed accordingly under
-    # docs/calibration/schemas/v1.3.0_public_schema_pin.json.
-    assert PUBLIC_SCHEMA_VERSION == "1.3.0"
+    # the additive ``families`` field. 2026-08-16 (weekly commercial
+    # review): 1.3.0 -> 1.4.0 with the additive ``phase1_paper_gate``
+    # field. Pin renamed accordingly under
+    # docs/calibration/schemas/v1.4.0_public_schema_pin.json.
+    assert PUBLIC_SCHEMA_VERSION == "1.4.0"
 
 
 # ── regime_stratified (schema 1.2.0 additive field) ─────────────────
@@ -462,6 +464,13 @@ def _valid_families_payload() -> dict[str, Any]:
                 "drift_verdict": "acceptable",
             },
         ],
+        # Additive in public schema 1.4.0: main() lifts the gate from the
+        # same telemetry file and refuses payloads without it.
+        "phase1_paper_gate": {
+            "status": "BLOCKED",
+            "families_ready": [],
+            "families_missing_closed_outcome": ["BOS", "OB", "FVG", "SWEEP"],
+        },
     }
 
 
@@ -517,6 +526,59 @@ def test_main_with_include_families_embeds_block(tmp_path: Path) -> None:
     assert "families" in payload
     names = sorted(f["name"] for f in payload["families"])
     assert names == ["BOS", "OB"]
+    # 1.4.0: the Phase-1 gate rides along from the same telemetry file.
+    assert payload["phase1_paper_gate"]["status"] == "BLOCKED"
+    assert payload["phase1_paper_gate"]["families_missing_closed_outcome"] == [
+        "BOS", "OB", "FVG", "SWEEP",
+    ]
+
+
+def test_main_refuses_families_payload_without_phase1_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A telemetry file without the gate is broken, not merely old.
+
+    The producer has emitted phase1_paper_gate since its introduction;
+    silently publishing a gate-less report would recreate exactly the
+    dropped-before-publication gap 1.4.0 closes.
+    """
+    payload = _valid_families_payload()
+    del payload["phase1_paper_gate"]
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text(json.dumps(payload))
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 1
+    assert "phase1_paper_gate" in capsys.readouterr().err
+
+
+def test_main_refuses_malformed_phase1_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = _valid_families_payload()
+    payload["phase1_paper_gate"]["status"] = "MOSTLY_FINE"
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text(json.dumps(payload))
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 1
+    assert "GREEN or BLOCKED" in capsys.readouterr().err
 
 
 def test_main_with_malformed_families_returns_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -563,6 +625,12 @@ def test_main_with_invalid_family_record_returns_one(tmp_path: Path, capsys: pyt
                 "families": [
                     {"name": "BOS"}  # missing required keys
                 ],
+                # Valid gate so the C12 family-contract path is what fails.
+                "phase1_paper_gate": {
+                    "status": "BLOCKED",
+                    "families_ready": [],
+                    "families_missing_closed_outcome": ["BOS"],
+                },
             }
         )
     )
