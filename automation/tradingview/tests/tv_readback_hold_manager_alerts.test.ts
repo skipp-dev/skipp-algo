@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   ALERT_NAME_PREFIX,
+  BUILD_ALERT_DEFAULT_NAME_START,
   READ_ALERT_ROWS,
   assertNoOpaqueTokens,
   assertNoUrls,
   classifyAlerts,
+  classifyBuildAlert,
   isRunning,
   type AlertRow,
 } from "../../../scripts/tv_readback_hold_manager_alerts.js";
@@ -69,6 +71,69 @@ test("an alert whose name merely contains a channel does not match", () => {
   const decoy = shadowRow("HM_ENTRY", { name: "copy of R2 SHADOW · HM_ENTRY" });
 
   assert.deepEqual(classifyAlerts([decoy], ["HM_ENTRY"]).missingChannels, ["HM_ENTRY"]);
+});
+
+test("the post-cutover shape is one build alert, zero legacy, name measured", () => {
+  const rows = [
+    shadowRow("BUILD", { name: `${ALERT_NAME_PREFIX}BUILD`, hasDescription: true }),
+    FOREIGN,
+  ];
+
+  const verdict = classifyBuildAlert(rows, CHANNELS);
+
+  assert.equal(verdict.buildAlert?.name, "R2 SHADOW · BUILD");
+  assert.equal(verdict.buildAlert?.running, true);
+  assert.deepEqual(verdict.extraPrefixAlerts, []);
+  assert.deepEqual(verdict.legacyChannelAlertsRemaining, []);
+  assert.equal(verdict.foreignAlertCount, 1);
+});
+
+test("a surviving legacy channel alert is reported, not counted as the build alert", () => {
+  const rows = [
+    shadowRow("BUILD", { name: `${ALERT_NAME_PREFIX}BUILD` }),
+    shadowRow("HM_STOP"),
+  ];
+
+  const verdict = classifyBuildAlert(rows, CHANNELS);
+
+  assert.equal(verdict.buildAlert?.name, "R2 SHADOW · BUILD");
+  assert.deepEqual(verdict.legacyChannelAlertsRemaining, ["R2 SHADOW · HM_STOP"]);
+});
+
+test("two prefix alerts are ambiguous and surface as extras", () => {
+  const rows = [
+    shadowRow("BUILD", { name: `${ALERT_NAME_PREFIX}BUILD` }),
+    shadowRow("BUILD2", { name: `${ALERT_NAME_PREFIX}BUILD OLD` }),
+  ];
+
+  const verdict = classifyBuildAlert(rows, CHANNELS);
+
+  assert.deepEqual(verdict.extraPrefixAlerts, ["R2 SHADOW · BUILD OLD"]);
+});
+
+test("no prefix alert at all yields a null build alert, not a crash", () => {
+  const verdict = classifyBuildAlert([FOREIGN], CHANNELS);
+
+  assert.equal(verdict.buildAlert, null);
+  assert.equal(verdict.foreignAlertCount, 1);
+});
+
+test("the TradingView default-named build alert is accepted as measured live", () => {
+  // 2026-08-16, operator's alerts panel: the build alert kept TradingView's
+  // default name (condition description), not the R2 SHADOW convention.
+  const rows = [
+    shadowRow("BUILD", {
+      name: `${BUILD_ALERT_DEFAULT_NAME_START}Engine BUS v2, 0,00, 14, 21)`,
+    }),
+    FOREIGN,
+  ];
+
+  const verdict = classifyBuildAlert(rows, CHANNELS);
+
+  assert.ok(verdict.buildAlert?.name.startsWith(BUILD_ALERT_DEFAULT_NAME_START));
+  assert.equal(verdict.buildAlert?.running, true);
+  assert.deepEqual(verdict.legacyChannelAlertsRemaining, []);
+  assert.equal(verdict.foreignAlertCount, 1);
 });
 
 test("assertNoUrls rejects a webhook URL anywhere in the tree", () => {

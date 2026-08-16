@@ -119,6 +119,11 @@ def test_verifies_actual_consumer_source_selections_after_save() -> None:
         "SMC Long-Dip Mobile",
         "SMC Event Overlay",
         "SMC Exit Signal",
+        # 2026-08-16 (R2-SHADOW-CUTOVER): the Hold Manager rides the rollout —
+        # its fresh build-2 instance on the validation layout is bound by the
+        # same force_rebind machinery as every other consumer, replacing the
+        # manual 13-input rebind of the July sitting.
+        "SMC Hold Manager",
     }
     # 2026-07-24: the dedicated Mobile layout (YcGLVHXR) no longer opens; the
     # Mobile consumer now lives on the primary chart alongside the others. With

@@ -45,6 +45,11 @@
     {
       "source": "SMC_HTF_Confluence.pine",
       "scriptName": "SMC HTF Confluence"
+    },
+    {
+      "source": "SMC_Hold_Manager.pine",
+      "scriptName": "SMC Hold Manager R2.4 Validation",
+      "declarationTitle": "SMC Hold Manager"
     }
   ],
   "verifyTargets": [
@@ -94,6 +99,12 @@
       "savedScriptName": "SMC Exit Signal",
       "scriptName": "SMC Exit Signal",
       "chartUrl": "https://www.tradingview.com/chart/hKHTmKhu/"
+    },
+    {
+      "source": "SMC_Hold_Manager.pine",
+      "savedScriptName": "SMC Hold Manager R2.4 Validation",
+      "scriptName": "SMC Hold Manager",
+      "chartUrl": "https://www.tradingview.com/chart/twh98JLB/"
     }
   ],
   "repairE2ETarget": {

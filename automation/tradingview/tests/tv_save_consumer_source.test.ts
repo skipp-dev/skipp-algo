@@ -78,25 +78,28 @@ test("consumer write guard requires staged and post-save hashes to match the rep
   );
 });
 
-test("every rollout consumer's saved script name is its unique Pine declaration title", () => {
-  // verifyConsumerSource passes target.scriptName as the declaration marker;
-  // this contract keeps that assumption true for the whole rollout mapping.
+test("every rollout consumer's declared title is unique across the mapping", () => {
+  // The drivers verify identity against expectedDeclarationOf(target): the
+  // saved name where name==declaration, the explicit declarationTitle where
+  // the two differ (2026-08-15, Hold Manager). This contract keeps every
+  // declared title present in its own source and unambiguous across the set.
   const config = JSON.parse(
     fs.readFileSync(path.join(repoRoot, "automation/tradingview/config/consumer-rollout.json"), "utf-8"),
-  ) as { saveTargets: Array<{ source: string; scriptName: string }> };
+  ) as { saveTargets: Array<{ source: string; scriptName: string; declarationTitle?: string }> };
   assert.ok(config.saveTargets.length >= 8);
   const sources = config.saveTargets.map((target) => ({
     ...target,
     code: fs.readFileSync(path.join(repoRoot, target.source), "utf-8"),
   }));
   for (const target of sources) {
-    const pattern = pineDeclarationTitlePattern(target.scriptName);
-    assert.ok(pattern.test(target.code), `${target.source} must declare its saved name "${target.scriptName}"`);
+    const declared = expectedDeclarationOf(target);
+    const pattern = pineDeclarationTitlePattern(declared);
+    assert.ok(pattern.test(target.code), `${target.source} must declare "${declared}"`);
     for (const other of sources) {
       if (other.source === target.source) continue;
       assert.ok(
         !pattern.test(other.code),
-        `declaration pattern for "${target.scriptName}" must not match ${other.source}`,
+        `declaration pattern for "${declared}" must not match ${other.source}`,
       );
     }
   }
