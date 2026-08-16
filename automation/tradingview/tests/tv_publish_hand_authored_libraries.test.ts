@@ -112,3 +112,22 @@ test("the smc_bus_private publisher descriptor is not a leftover draw-template c
   assert.ok(src.includes('scriptName: "smc_bus_private"'), "descriptor must name smc_bus_private");
   assert.equal(src.includes("smc_draw"), false, "no leftover draw-template identity");
 });
+
+test("an unreadable consumer directory fails loudly instead of shrinking the scan", () => {
+  // 2026-08-15 sweep: `catch { continue; }` on readdirSync swallowed ANY
+  // error, not just ENOENT — a permissions or I/O failure read as "no .pine
+  // consumers there", silently shrinking the population the repin scan
+  // claims to cover. ENOENT (the directory legitimately may not exist)
+  // stays quiet; everything else must throw.
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const rel of [
+    ["..", "..", "..", "scripts", "tv_publish_hand_authored_libraries.ts"],
+    ["..", "lib", "tv_publish_hand_lib.ts"],
+    ["..", "..", "..", "scripts", "build_pine_library_version_snapshot.ts"],
+  ]) {
+    const source = fs.readFileSync(path.join(here, ...rel), "utf-8");
+    const bare = source.match(/readdirSync[^\n]*\n\s*\} catch \{/g) ?? [];
+    assert.deepEqual(bare, [], `${rel.join("/")}: bodyless catch on readdirSync swallows non-ENOENT errors`);
+    assert.match(source, /code === "ENOENT"/, `${rel.join("/")}: the ENOENT-only guard is gone`);
+  }
+});

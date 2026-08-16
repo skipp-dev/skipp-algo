@@ -116,8 +116,13 @@ function collectPineFiles(root: string): string[] {
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
+    } catch (error) {
+    // ENOENT only (2026-08-15 sweep): the directory legitimately may not
+    // exist. Any OTHER readdir error (permissions, I/O) used to read as
+    // "no .pine files there" and silently shrank the population this scan
+    // exists to cover -- sample-vs-population as a runtime bug.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);

@@ -5685,7 +5685,15 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
           continue;
         }
 
-        const stillVisibleAfterDirectDelete = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+        // `=> true`, not `=> false` (2026-08-15 sweep): a CRASHED visibility
+        // probe (dead context, closed page) is not a cleared instance. With
+        // `false` the failure counted as a removal AND emitted the success
+        // trace `script-remove-ok:…:cleared:direct` -- a stale instance left
+        // behind is the known measurement poison (UNIVERSE UNINIT, rebind
+        // into the wrong dialog). The keyboard twin above already maps the
+        // same failure to `true`, and refreshChartScriptInstance deliberately
+        // probes residuals WITHOUT a catch for the same reason.
+        const stillVisibleAfterDirectDelete = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => true);
         if (!stillVisibleAfterDirectDelete) {
           removedCount += 1;
           tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared:direct`);
@@ -5738,7 +5746,9 @@ export async function removeVisibleChartScriptInstances(page: Page, scriptName: 
         continue;
       }
 
-      const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+      // Same decision as the direct-delete probe above: a crashed probe must
+      // not read as "cleared".
+      const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => true);
       if (!stillVisible) {
         removedCount += 1;
         tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared`);
@@ -9172,7 +9182,16 @@ export async function collectPublishChooserInventory(page: Page): Promise<Publis
           };
         });
     }, PUBLISH_CHOOSER_INVENTORY_SELECTOR)
-    .catch(() => [] as PublishChooserInventoryEntry[]);
+    .catch((error) => {
+      // A crashed DOM readout must not read as "TradingView renders no
+      // matching controls" -- that corrupts exactly the inventory this
+      // function exists to collect (#4706/#4723 were built on it after five
+      // blind selector guesses). The empty result stays (the caller's
+      // absence semantics are unchanged) but the failure leaves a trace, so
+      // the next triage reads "probe failed", not "DOM is empty".
+      tracePageEvent(page, "publish-chooser-inventory-probe-failed", String(error).slice(0, 300));
+      return [] as PublishChooserInventoryEntry[];
+    });
 }
 
 /**
