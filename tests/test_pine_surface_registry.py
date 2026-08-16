@@ -121,11 +121,15 @@ def test_every_surface_ships_its_source() -> None:
 # the Hold Manager's registry entry stays rollout_state='planned' by the
 # standing decision of 2026-07-28 (window + drill still open) — but its
 # build-2 validation instance rides the save/force_rebind machinery, replacing
-# the manual July sitting. Its saved TradingView name is not its declaration,
-# so the save target carries an explicit declarationTitle (#4736) and the
-# script_name identity is asserted separately below.
+# the manual July sitting. 2026-08-16 (later the same day): the operator
+# renamed the saved document from 'SMC Hold Manager R2.4 Validation' to its
+# declaration title, restoring the name==declaration convention — the
+# declarationTitle special case (#4736) is no longer needed for this target.
+# The build-2 WIRE label (payload scriptName, contract savedScript) keeps the
+# old string until the next build advance: it is frozen inside the build-2
+# hash and the receiver validates it against the contract, not TradingView.
 VALIDATION_RIDERS = {
-    "SMC_Hold_Manager.pine": "SMC Hold Manager R2.4 Validation",
+    "SMC_Hold_Manager.pine": "SMC Hold Manager",
 }
 
 

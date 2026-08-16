@@ -48,8 +48,7 @@
     },
     {
       "source": "SMC_Hold_Manager.pine",
-      "scriptName": "SMC Hold Manager R2.4 Validation",
-      "declarationTitle": "SMC Hold Manager"
+      "scriptName": "SMC Hold Manager"
     }
   ],
   "verifyTargets": [
@@ -102,7 +101,7 @@
     },
     {
       "source": "SMC_Hold_Manager.pine",
-      "savedScriptName": "SMC Hold Manager R2.4 Validation",
+      "savedScriptName": "SMC Hold Manager",
       "scriptName": "SMC Hold Manager",
       "chartUrl": "https://www.tradingview.com/chart/twh98JLB/"
     }

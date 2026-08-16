@@ -859,7 +859,7 @@ PREFLIGHT_HOLD_MANAGER_SHADOW_TARGETS: tuple[PreflightTarget, ...] = (
         True,
         True,
         13,
-        'SMC Hold Manager R2.4 Validation',
+        None,  # 2026-08-16: operator renamed the saved doc to its declaration
         'holdManagerBindings',
     ),
 )

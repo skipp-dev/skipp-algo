@@ -314,7 +314,8 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'checkInputs': True,
         'addToChart': True,
         'minInputs': 13,
-        'savedScriptName': 'SMC Hold Manager R2.4 Validation',
+        # 2026-08-16: no savedScriptName override — the operator renamed the
+        # saved document to its declaration title (name==declaration again).
         'bindingContractKey': 'holdManagerBindings',
         'bindingContractName': 'Hold Manager BUS bindings',
         'bindingConsumerRole': 'exit_companion',

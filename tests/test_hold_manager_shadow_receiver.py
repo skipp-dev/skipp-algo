@@ -37,8 +37,10 @@ TEMPLATES_PATH = (
 )
 TOKEN = "shadow-receiver-test-token-" + "x" * 32
 # 2026-08-14 (build 2, HM_SHADOW_BUILD + alert()): 1761e96a… -> dfec1cc6…
+# 2026-08-16 (build 3, payload scriptName follows the operator's rename of
+# the saved document to its declaration title): dfec1cc6… -> 88d20484…
 SOURCE_SHA256 = (
-    "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
+    "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048"
 )
 # The build-1 hash stays named here because the six legacy templates restore
 # exactly that build on rollback; see the templates test below.
@@ -48,7 +50,8 @@ BUILD_1_SHA256 = (
 # Pinned, not read from the contract: a test that derives its expectation from
 # the file under test cannot notice that file changing.
 # 2026-08-14: 1 -> 2 (build advance, same change as SOURCE_SHA256).
-SOURCE_BUILD = 2
+# 2026-08-16: 2 -> 3 (payload scriptName rename, see SOURCE_SHA256).
+SOURCE_BUILD = 3
 
 
 def _make_client(
@@ -133,6 +136,10 @@ def _build_payload(
     del payload["authToken"]
     del payload["sourceSha256"]
     payload["sourceBuild"] = SOURCE_BUILD if source_build is None else source_build
+    # 2026-08-16 (build 3): the wire label follows the operator's rename of
+    # the saved document; the legacy shape above keeps the build-1 name its
+    # rollback templates carry.
+    payload["scriptName"] = "SMC Hold Manager"
     return payload
 
 
@@ -478,6 +485,10 @@ def test_all_six_templates_restore_build_one_and_only_build_one(
     rolled_back = copy.deepcopy(contract)
     rolled_back["source"]["sha256"] = history[1]
     rolled_back["source"]["build"] = 1
+    # Rolling back to build 1 restores the whole build-1 contract, including
+    # the saved-document name its templates carry (the operator renamed the
+    # document on 2026-08-16; builds 1 and 2 predate that).
+    rolled_back["tradingView"]["savedScript"] = "SMC Hold Manager R2.4 Validation"
     rollback_path = tmp_path / "contract_rolled_back.json"
     rollback_path.write_text(json.dumps(rolled_back), encoding="utf-8")
     rollback_contract = _load_contract(rollback_path)

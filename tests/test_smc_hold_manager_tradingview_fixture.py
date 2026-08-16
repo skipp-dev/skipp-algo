@@ -282,9 +282,19 @@ def test_current_tradingview_compile_evidence_is_hash_pinned() -> None:
         assert current_replay["inheritance"]["basisFrozenSha256"] == (
             replay_evidence["canonicalSource"]["sha256"]
         )
-        assert current_replay["canonicalSource"]["sha256"] == (
-            contract["source"]["sha256"]
+        # Under a declared build advance the newest replay evidence names the
+        # still-TV-proven build, not the tree's; the wire-shape cutover test
+        # owns the honesty of that declaration.
+        pending = contract["alertWireShape"].get("buildAdvancePending")
+        by_build = {
+            e["build"]: e["sha256"] for e in contract["buildHistory"]
+        }
+        expected_sha = (
+            by_build[pending["provenBuild"]]
+            if pending is not None
+            else contract["source"]["sha256"]
         )
+        assert current_replay["canonicalSource"]["sha256"] == expected_sha
     assert evidence["fixture"]["savedStatus"] == "saved_private_test_only"
     assert evidence["fixture"]["publicationStatus"] == "not_published"
     assert evidence["tradingView"]["compileStatus"] == "passed"

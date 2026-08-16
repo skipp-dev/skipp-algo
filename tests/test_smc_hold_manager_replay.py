@@ -258,12 +258,32 @@ def _tv_proven_build(evidence_sha256: str) -> tuple[int, dict[str, object]]:
 def _assert_pending_gap_is_declared(
     proven_build: int, contract: dict[str, object]
 ) -> None:
+    """proven < current is legal only while the gap is DECLARED.
+
+    Before the wire-shape cutover the declaration was cutOver=false. After it
+    (2026-08-16, build 3) re-mounting the legacy route to declare a gap would
+    destroy step 3, so a build advance declares itself via
+    alertWireShape.buildAdvancePending instead — naming the current build as
+    its target and the newest TV-proven build explicitly. The wire-shape
+    cutover test enforces the declaration's own honesty (not stale, not
+    boastful) and that clearing it requires evidence for the current hash.
+    """
     current_build = contract["source"]["build"]
     assert proven_build <= current_build
     if proven_build < current_build:
-        assert contract["alertWireShape"]["cutOver"] is False, (
+        wire = contract["alertWireShape"]
+        pending = wire.get("buildAdvancePending")
+        if wire["cutOver"] is False:
+            return
+        assert pending is not None, (
             "the contract claims the cutover happened, but the newest "
-            "TradingView evidence still describes an older build"
+            "TradingView evidence still describes an older build and no "
+            "build advance is declared"
+        )
+        assert pending["build"] == current_build
+        assert pending["provenBuild"] == proven_build, (
+            "the declared TV-proven build does not match what the newest "
+            "dated evidence actually proves"
         )
 
 
@@ -404,7 +424,8 @@ def test_current_tradingview_preconditions_describe_the_current_build() -> None:
         evidence["source"]["repositorySha256"]
     )
     _assert_pending_gap_is_declared(proven_build, contract)
-    assert proven_build == contract["source"]["build"] == 2
+    assert proven_build == 2  # newest TV-proven build; the build-3 gap
+    # is declared via buildAdvancePending, checked by the helper above
     assert evidence["source"]["transfer"]["preWriteIdentityMode"] == "declaration"
     assert evidence["source"]["transfer"]["stagedSourceVerified"] is True
     assert evidence["source"]["transfer"]["postSaveSourceVerified"] is True
@@ -439,7 +460,8 @@ def test_current_replay_evidence_describes_the_current_build() -> None:
         evidence["canonicalSource"]["sha256"]
     )
     _assert_pending_gap_is_declared(proven_build, contract)
-    assert proven_build == contract["source"]["build"] == 2
+    assert proven_build == 2  # newest TV-proven build; the build-3 gap
+    # is declared via buildAdvancePending, checked by the helper above
     assert evidence["canonicalSource"]["path"] == "SMC_Hold_Manager.pine"
     assert evidence["inheritance"]["basis"] == (
         "artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json"
@@ -457,32 +479,55 @@ def test_current_replay_evidence_describes_the_current_build() -> None:
 def test_the_structural_bridge_reproduces_build_one_from_the_tree() -> None:
     """The inheritance claim is recomputed, not trusted.
 
-    The artifact records the inserted block verbatim. Removing exactly that
-    block from the FROZEN current source must reproduce the build-1 hash the
-    2026-07-28 TradingView replay executed against — proving byte-identity of
-    every inherited decision path without needing git history. A refresh pin
-    bump cannot move either side (both hands are frozen); any semantic edit
-    to the Pine breaks the reconstruction and fails here.
+    The artifact records the inserted block verbatim. Removing the block at
+    exactly that position from the FROZEN current source must reproduce the
+    build-1 hash the 2026-07-28 TradingView replay executed against — proving
+    byte-identity of every inherited decision path without needing git
+    history. A refresh pin bump cannot move either side (both hands are
+    frozen); a semantic edit OUTSIDE the 8b insert breaks the reconstruction
+    and fails here.
+
+    2026-08-16 (build 3): under a declared build advance the tree already
+    carries the next build, whose insert differs INSIDE while keeping the
+    recorded position and length. The reconstruction to build 1 stays
+    load-bearing in both states; the verbatim-insert equality binds only
+    while the artifact's build is the tree's build.
     """
     evidence = json.loads(TRADINGVIEW_REPLAY_PATH.read_text(encoding="utf-8"))
     bridge = evidence["inheritance"]["structuralBridge"]
+    contract = json.loads(SHADOW_CONTRACT_PATH.read_text(encoding="utf-8"))
+    by_build = {
+        entry["build"]: entry["sha256"] for entry in contract["buildHistory"]
+    }
+    pending = contract["alertWireShape"].get("buildAdvancePending")
 
     frozen = freeze_library_pin(
         replay_module.HOLD_MANAGER_SOURCE.read_text(encoding="utf-8")
     )
-    assert (
-        hashlib.sha256(frozen.encode()).hexdigest()
-        == evidence["canonicalSource"]["sha256"]
-    )
+    tree_sha = hashlib.sha256(frozen.encode()).hexdigest()
 
     lines = frozen.splitlines(keepends=True)
     start = bridge["insertAfterFrozenLine"]
     end = start + bridge["insertLineCount"]
     removed = "".join(lines[start:end])
-    assert removed == bridge["insert"]
-    assert (
-        hashlib.sha256(removed.encode()).hexdigest() == bridge["insertSha256"]
-    )
+
+    if pending is None:
+        assert tree_sha == evidence["canonicalSource"]["sha256"]
+        assert removed == bridge["insert"]
+        assert (
+            hashlib.sha256(removed.encode()).hexdigest()
+            == bridge["insertSha256"]
+        )
+    else:
+        assert tree_sha == by_build[pending["build"]]
+        assert (
+            evidence["canonicalSource"]["sha256"]
+            == by_build[pending["provenBuild"]]
+        )
+        assert removed != bridge["insert"], (
+            "the pending build's insert is byte-identical to the proven "
+            "build's -- then nothing advanced and the declaration is noise"
+        )
 
     remainder = "".join(lines[:start] + lines[end:])
     assert (

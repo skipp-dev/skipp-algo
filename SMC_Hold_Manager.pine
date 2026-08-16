@@ -485,7 +485,7 @@ alertcondition(_alertGate and exit_edge, "HM_EXIT_ANY",
 // HM_SHADOW_BUILD bei JEDER semantischen Änderung dieser Datei erhöhen —
 // tests/test_smc_hold_manager_build_history.py macht ein vergessenes
 // Inkrement zu einem roten Test statt zu einer stillen Fehlbindung.
-int HM_SHADOW_BUILD = 2
+int HM_SHADOW_BUILD = 3
 
 hm_shadow_payload(string _channel) =>
     "{\"schemaVersion\":1" +
@@ -493,7 +493,7 @@ hm_shadow_payload(string _channel) =>
      ",\"channel\":\"" + _channel + "\"" +
      ",\"mode\":\"hold_manager\"" +
      ",\"sourceBuild\":" + str.tostring(HM_SHADOW_BUILD) +
-     ",\"scriptName\":\"SMC Hold Manager R2.4 Validation\"" +
+     ",\"scriptName\":\"SMC Hold Manager\"" +
      ",\"layout\":\"SMC Hold R2.4 Validation\"" +
      ",\"producer\":\"SMC Long-Dip Suite\"" +
      ",\"busSchema\":7001" +

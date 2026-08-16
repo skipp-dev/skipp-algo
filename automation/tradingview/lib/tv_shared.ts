@@ -1733,6 +1733,11 @@ function legacyOpenScriptNames(scriptName: string): string[] {
   switch (normalizeUiText(scriptName).toLowerCase()) {
     case "smc long-dip suite":
       return ["SMC Core", "SMC Core Engine"];
+    case "smc hold manager r2.4 validation":
+      // 2026-08-16: the operator renamed the saved document to its
+      // declaration title. Any caller still holding the pre-rename name
+      // (an unmerged branch, a stale checkout) resolves to the new one.
+      return ["SMC Hold Manager"];
     case "smc core":
       return ["SMC Core Engine"];
     case "smc core engine":

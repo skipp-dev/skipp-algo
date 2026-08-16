@@ -2487,7 +2487,6 @@
         "checkInputs": true,
         "addToChart": true,
         "minInputs": 13,
-        "savedScriptName": "SMC Hold Manager R2.4 Validation",
         "bindingContractKey": "holdManagerBindings",
         "bindingContractName": "Hold Manager BUS bindings",
         "bindingConsumerRole": "exit_companion",
