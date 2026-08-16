@@ -517,12 +517,31 @@ def evaluate_track_record_gate(
 
 
 def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
-    """Stable JSON-serialisable form for dashboard / public report."""
+    """Stable JSON-serialisable form for dashboard / public report.
 
+    ``claimable`` / ``claim_note`` (additive, 2026-08-16, weekly commercial
+    review P2): the raw JSON is the public rendering surface, and a green
+    sub-check inside a red gate (Sharpe 9.44 on 33 trades) reads like a
+    quality claim to anyone who opens the file. The serialised verdict now
+    says itself whether its numbers are claimable, so no reader has to
+    reconstruct that from the aggregate.
+    """
+
+    red_names = [c.name for c in verdict.checks if c.status == RED]
     return {
         "schema_version": verdict.schema_version,
         "status": verdict.status,
         "n_trades": int(verdict.n_trades),
+        "claimable": verdict.status == GREEN,
+        "claim_note": (
+            None
+            if verdict.status == GREEN
+            else (
+                f"aggregate status '{verdict.status}': green sub-checks are "
+                "diagnostics, not claimable evidence; red checks: "
+                + (", ".join(red_names) if red_names else "none")
+            )
+        ),
         "checks": [
             {
                 "name": c.name,

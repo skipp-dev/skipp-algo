@@ -76,7 +76,12 @@ from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_text
 
-PUBLIC_SCHEMA_VERSION = "1.3.0"
+# 1.4.0 (2026-08-16): additive phase1_paper_gate — the machine-readable
+# Phase-1 exit gate existed in the families telemetry since its
+# introduction but was dropped before publication; the weekly commercial
+# review measured that the public report therefore could not show the
+# launch-critical gate at all.
+PUBLIC_SCHEMA_VERSION = "1.4.0"
 HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
@@ -276,6 +281,33 @@ def _normalise_families(
     return out
 
 
+def _normalise_phase1_paper_gate(gate: dict[str, Any]) -> dict[str, Any]:
+    """Validate the Phase-1 paper gate block (additive in schema 1.4.0).
+
+    Producer schema: scripts/build_families_telemetry.py build_payload().
+    Fail-closed like the families block — a malformed gate must never be
+    published as if it were a measured verdict.
+    """
+    if not isinstance(gate, dict):
+        raise TypeError(
+            f"phase1_paper_gate must be a dict, got {type(gate).__name__}",
+        )
+    if gate.get("status") not in ("GREEN", "BLOCKED"):
+        raise ValueError(
+            "phase1_paper_gate.status must be GREEN or BLOCKED, got "
+            f"{gate.get('status')!r}",
+        )
+    for key in ("families_ready", "families_missing_closed_outcome"):
+        value = gate.get(key)
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) for item in value
+        ):
+            raise ValueError(
+                f"phase1_paper_gate.{key} must be a list of family names",
+            )
+    return dict(gate)
+
+
 def build_public_report(
     cal_payload: dict[str, Any] | None,
     *,
@@ -285,8 +317,18 @@ def build_public_report(
     track_record_gate: dict[str, Any] | None = None,
     regime_stratified: dict[str, Any] | None = None,
     families: list[dict[str, Any]] | None = None,
+    phase1_paper_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct the public-report dict from a calibration artifact.
+
+    ``phase1_paper_gate`` (additive in schema 1.4.0; weekly commercial
+    review 2026-08-16): the machine-readable Phase-1 exit gate from
+    :mod:`scripts.build_families_telemetry` (GREEN once every family has a
+    closed PAPER outcome, BLOCKED otherwise). It travelled inside the
+    families telemetry from the start but was dropped before publication,
+    so the public report could not show the launch-critical gate at all.
+    ``main()`` lifts it from the same ``--include-families`` file that
+    supplies ``families``.
 
     A ``None`` payload yields a status=``awaiting_first_run`` shell so the
     dashboard can render a useful "no data yet" panel instead of a 404.
@@ -342,6 +384,10 @@ def build_public_report(
             out["regime_stratified"] = regime_stratified
         if families is not None:
             out["families"] = _normalise_families(families)
+        if phase1_paper_gate is not None:
+            out["phase1_paper_gate"] = _normalise_phase1_paper_gate(
+                phase1_paper_gate
+            )
         return out
 
     metrics = _extract_calibration_metrics(cal_payload)
@@ -374,6 +420,10 @@ def build_public_report(
         out["regime_stratified"] = regime_stratified
     if families is not None:
         out["families"] = _normalise_families(families)
+    if phase1_paper_gate is not None:
+        out["phase1_paper_gate"] = _normalise_phase1_paper_gate(
+            phase1_paper_gate
+        )
     return out
 
 
@@ -563,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     families: list[dict[str, Any]] | None = None
+    phase1_paper_gate: dict[str, Any] | None = None
     if args.include_families is not None:
         try:
             fam_payload = json.loads(args.include_families.read_text(encoding="utf-8"))
@@ -587,6 +638,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         families = fam_payload["families"]
+        # Additive in 1.4.0, fail-closed like families: the producer has
+        # emitted the gate since its introduction, so an absence means a
+        # broken or foreign payload, not an older schema.
+        if "phase1_paper_gate" not in fam_payload:
+            print(
+                f"ERROR: families telemetry at {args.include_families} "
+                "missing top-level 'phase1_paper_gate' key (expected "
+                "producer schema from scripts/build_families_telemetry.py).",
+                file=sys.stderr,
+            )
+            return 1
+        phase1_paper_gate = fam_payload["phase1_paper_gate"]
 
     track_record_gate = _load_latest_gate_artifact(
         args.gates_dir, "track_record_gate", args.track_record_gate
@@ -604,6 +667,7 @@ def main(argv: list[str] | None = None) -> int:
             track_record_gate=track_record_gate,
             regime_stratified=regime_stratified,
             families=families,
+            phase1_paper_gate=phase1_paper_gate,
         )
     except (TypeError, ValueError) as exc:
         print(
