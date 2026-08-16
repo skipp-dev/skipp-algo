@@ -98,10 +98,16 @@ def _publish_verify_fragment() -> str:
     return "\n".join(line[10:] if line.startswith(" " * 10) else line for line in run_block.splitlines())
 
 
-def _run_verify(tmp_path, *, refresh_date: str, covered: list[str] | None):
+def _run_verify(
+    tmp_path, *, refresh_date: str, covered: list[str] | None, raw_manifest: str | None = None
+):
     exports = tmp_path / "artifacts" / "smc_microstructure_exports"
     exports.mkdir(parents=True)
-    if covered is not None:
+    if raw_manifest is not None:
+        (exports / "databento_volatility_production_merged_manifest.json").write_text(
+            raw_manifest, encoding="utf-8"
+        )
+    elif covered is not None:
         (exports / "databento_volatility_production_merged_manifest.json").write_text(
             json.dumps({"trade_dates_covered": covered}), encoding="utf-8"
         )
@@ -156,6 +162,31 @@ def test_no_bundle_at_all_still_hard_fails(tmp_path) -> None:
     assert done.returncode == 1, "a missing producer bundle must still abort"
     assert out["bundle_present"] == "false"
     assert "bundle_for_date" not in out
+
+
+def test_a_manifest_without_the_field_fails_loudly_not_into_night_mode(tmp_path) -> None:
+    """2026-08-15 sweep finding: with `(.trade_dates_covered // [])` behind
+    2>/dev/null, an exporter rename (the writer emits the field
+    UNCONDITIONALLY) read as "does not cover yet" -- and every future run,
+    including mid-data-hours with a good bundle, ran the release gates in
+    --daily-export-absent night mode, forever, green. Absence of the field is
+    schema drift and fails the step; only a PRESENT list that misses the date
+    is the honest pending-export."""
+    done, out = _run_verify(
+        tmp_path, refresh_date="2026-08-15",
+        covered=None, raw_manifest=json.dumps({"dates": ["2026-08-15"]}),
+    )
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "carries no trade_dates_covered" in done.stdout
+    assert "bundle_for_date" not in out, out
+
+
+def test_a_corrupt_manifest_fails_loudly_too(tmp_path) -> None:
+    done, out = _run_verify(
+        tmp_path, refresh_date="2026-08-15", covered=None, raw_manifest="{not json"
+    )
+    assert done.returncode != 0, done.stdout + done.stderr
+    assert "bundle_for_date" not in out, out
 
 
 def test_the_release_gates_step_relaxes_only_on_a_pending_export() -> None:
