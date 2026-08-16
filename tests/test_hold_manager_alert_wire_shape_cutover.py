@@ -18,6 +18,7 @@ See docs/superpowers/specs/2026-08-13-hold-manager-alert-decoupling-design.md.
 
 from __future__ import annotations
 
+import copy
 import json
 import secrets
 from collections.abc import Collection
@@ -85,30 +86,70 @@ def _dated_evidence(name: str) -> dict[str, Any]:
     )
 
 
+def _expected_evidence_sha(contract: dict[str, Any]) -> str:
+    """The hash the newest dated TV evidence must carry, per contract state.
+
+    Without a declared build advance that is the current source hash. With
+    one (`alertWireShape.buildAdvancePending`, introduced 2026-08-16 for
+    build 3), it is exactly the hash of the build the declaration names as
+    still TV-proven — nothing older, nothing else. The declaration must name
+    the CURRENT build as its target, so it cannot linger after the advance
+    completes or be pre-declared for a build that is not in the tree yet.
+    """
+    wire = contract["alertWireShape"]
+    pending = wire.get("buildAdvancePending")
+    by_build = {
+        entry["build"]: entry["sha256"] for entry in contract["buildHistory"]
+    }
+    if pending is None:
+        return contract["source"]["sha256"]
+    if pending["build"] != contract["source"]["build"]:
+        raise AssertionError(
+            "buildAdvancePending names a build that is not the current one -- "
+            "the declaration is stale and must be removed or corrected"
+        )
+    if pending["provenBuild"] >= pending["build"]:
+        raise AssertionError(
+            "buildAdvancePending claims the pending build is already proven"
+        )
+    return by_build[pending["provenBuild"]]
+
+
 def _verify_cutover_evidence(
-    cut_over: bool, current_sha: str, replay_sha: str, preconditions_sha: str
+    cut_over: bool,
+    expected_sha: str,
+    replay_sha: str,
+    preconditions_sha: str,
 ) -> None:
-    """cutOver=true demands dated TradingView evidence for the CURRENT hash.
+    """cutOver=true demands dated TradingView evidence for the expected hash.
 
     The other half of the pending-gap pattern (2026-08-14, build 2): the
     replay/preconditions currency tests allow the repository to carry a source
-    TradingView has not proven yet — but only while the contract says
-    cutOver=false. This side makes the exit condition executable. Between the
-    two, "live" and "proven" cannot diverge.
+    TradingView has not proven yet — but only while the gap is DECLARED:
+    before the wire-shape cutover via cutOver=false, afterwards via
+    buildAdvancePending (which moves the expectation to the declared proven
+    build, see _expected_evidence_sha). This side makes the exit condition
+    executable. Between the two, "live" and "proven" cannot diverge silently.
     """
     if not cut_over:
         return
-    if replay_sha != current_sha or preconditions_sha != current_sha:
+    if replay_sha != expected_sha or preconditions_sha != expected_sha:
         raise AssertionError(
             "cutOver=true, but the newest dated TradingView evidence does not "
-            "describe the current source hash -- the switch would go live on "
+            "describe the expected source hash -- the switch would go live on "
             "an unproven build. Capture new preconditions + replay evidence "
             "in the cutover sitting first."
         )
 
 
 def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
-    """The newest dated evidence set is the 2026-08-16 cutover sitting."""
+    """The newest dated evidence set is the 2026-08-16 cutover sitting.
+
+    It names the build-2 hash; the contract carries build 3 with a declared
+    buildAdvancePending(provenBuild=2), so the expected hash resolves to
+    build 2 and the rule holds without weakening: evidence for build 1 or a
+    hash outside the history still fails.
+    """
     contract = _contract()
     replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-08-16.json")
     preconditions = _dated_evidence(
@@ -117,7 +158,7 @@ def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
 
     _verify_cutover_evidence(
         contract["alertWireShape"]["cutOver"],
-        contract["source"]["sha256"],
+        _expected_evidence_sha(contract),
         replay["canonicalSource"]["sha256"],
         preconditions["source"]["repositorySha256"],
     )
@@ -139,8 +180,9 @@ def test_a_cutover_on_stale_evidence_is_refused() -> None:
         "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
     )
 
-    assert replay["canonicalSource"]["sha256"] != contract["source"]["sha256"], (
-        "the historical build-1 evidence now names the current hash -- "
+    expected_sha = _expected_evidence_sha(contract)
+    assert replay["canonicalSource"]["sha256"] != expected_sha, (
+        "the historical build-1 evidence now names the expected hash -- "
         "buildHistory must have collapsed, investigate before trusting this "
         "guard"
     )
@@ -148,10 +190,41 @@ def test_a_cutover_on_stale_evidence_is_refused() -> None:
     with pytest.raises(AssertionError, match="unproven build"):
         _verify_cutover_evidence(
             True,
-            contract["source"]["sha256"],
+            expected_sha,
             replay["canonicalSource"]["sha256"],
             preconditions["source"]["repositorySha256"],
         )
+
+
+def test_a_stale_or_boastful_pending_declaration_is_refused() -> None:
+    """The pending declaration cannot outlive or precede its build.
+
+    Both raise paths executed against mutated copies of the real contract:
+    a declaration left behind after a further build advance (names build N
+    while the source moved to N+1), and one that claims its own build as
+    already proven.
+    """
+    contract = _contract()
+    assert contract["alertWireShape"].get("buildAdvancePending"), (
+        "premise gone: no pending declaration in the contract -- move this "
+        "probe onto a mutated copy that has one"
+    )
+
+    stale = copy.deepcopy(contract)
+    stale["source"]["build"] = contract["source"]["build"] + 1
+    stale["buildHistory"] = [
+        *stale["buildHistory"],
+        {"build": contract["source"]["build"] + 1, "sha256": "f" * 64},
+    ]
+    with pytest.raises(AssertionError, match="stale"):
+        _expected_evidence_sha(stale)
+
+    boastful = copy.deepcopy(contract)
+    boastful["alertWireShape"]["buildAdvancePending"]["provenBuild"] = (
+        boastful["alertWireShape"]["buildAdvancePending"]["build"]
+    )
+    with pytest.raises(AssertionError, match="already proven"):
+        _expected_evidence_sha(boastful)
 
 
 def test_the_rollback_template_still_matches_the_channels() -> None:

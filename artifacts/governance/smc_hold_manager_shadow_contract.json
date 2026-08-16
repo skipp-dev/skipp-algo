@@ -5,10 +5,10 @@
   "readinessStatus": "shadow_active_observation_window_open",
   "source": {
     "path": "SMC_Hold_Manager.pine",
-    "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a",
+    "sha256": "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048",
     "hashMode": "micro_profile_library_pin_frozen",
     "frozenMicroProfileLibraryPin": 175,
-    "build": 2
+    "build": 3
   },
   "buildHistory": [
     {
@@ -18,6 +18,10 @@
     {
       "build": 2,
       "sha256": "dfec1cc6c8a78e5e095686707a321ee8fa164862b7b3a166189c18a89ae3d15a"
+    },
+    {
+      "build": 3,
+      "sha256": "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048"
     }
   ],
   "alertWireShape": {
@@ -28,7 +32,14 @@
       "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-08-16.json",
       "artifacts/governance/smc_hold_manager_tradingview_replay_2026-08-16.json",
       "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16.json"
-    ]
+    ],
+    "buildAdvancePending": {
+      "build": 3,
+      "provenBuild": 2,
+      "declaredAt": "2026-08-16",
+      "reason": "build 3 renames the payload scriptName to the operator-renamed saved document (SMC Hold Manager); TradingView still runs the build-2 instance and its alert until the rollout transfers the source and the operator recreates the alert",
+      "clearedBy": "dated preconditions + replay + readback evidence naming the build-3 hash, landed together with the removal of this field"
+    }
   },
   "preconditions": {
     "canonicalCompileAndBindings": "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",
@@ -37,7 +48,7 @@
   "tradingView": {
     "account": "preuss_steffen",
     "validationLayout": "SMC Hold R2.4 Validation",
-    "savedScript": "SMC Hold Manager R2.4 Validation",
+    "savedScript": "SMC Hold Manager",
     "producer": "SMC Long-Dip Suite",
     "busSchema": 7001,
     "marketTimezone": "America/New_York"
