@@ -16,6 +16,26 @@ risk — and then say so explicitly ("not verifiable because …"), never as a c
 This applies especially to post-merge ops dependencies (env vars, deploy pickup, secrets) and
 to regression/behavior claims.
 
+**Forward promises need a mechanism.** The rule above covers claims about the present;
+this extends it to the future tense, where the same failure hid (added 2026-08-16 after
+operator escalation). A sentence of the form "when X happens, Y must be done" — in an
+issue, a PR body, a memory note, a report, or a doc — is a **forward promise**. Prose does
+not fire at X: nothing in any flow re-reads it at the right moment, and this repo's
+history shows such promises rot silently (#4756 before #4762 mechanised it; the vacuity
+sweeps dug out a row of dead ones; every stale "verified YYYY-MM-DD"). Before writing a
+forward promise, resolve it into exactly one of:
+
+1. **Mechanism in the same change** — a tripwire on the required path that goes red at X
+   (template: `tests/test_pine_const_getter_migration_tripwire.py`, one test file), a
+   scheduled check, or a gate. The prose then *summarises* the mechanism.
+2. **Live ownership** — Y is happening now: a PR in flight, a cron that does Y itself.
+3. **Explicitly unsecured** — write "UNGESICHERT — verlässt sich auf menschliches
+   Gedächtnis" next to the promise. Allowed, but the label is mandatory, so no reader
+   mistakes prose for protection.
+
+A follow-up **issue alone is not a resolution** — an issue is prose with a number. This
+binds every agent session working in this repo, parallel sessions included.
+
 ## Pine Library Maintenance
 
 **Ownership:** @preuss_steffen  
