@@ -2014,7 +2014,21 @@ if show_table and barstate.islast
                     array.set(_wt_vals,  _wj, _tmp_v)
                     array.set(_wt_names, _wj, _tmp_n)
         string _wt_top3 = array.get(_wt_names, 0) + " " + format_cal_weight(array.get(_wt_vals, 0)) + " · " + array.get(_wt_names, 1) + " " + format_cal_weight(array.get(_wt_vals, 1)) + " · " + array.get(_wt_names, 2) + " " + format_cal_weight(array.get(_wt_vals, 2))
-        string _wt_full = "Why this Tier? Ranked calibrated weights driving the Zone Priority pick:\n  1. " + array.get(_wt_names, 0) + " — " + format_cal_weight(array.get(_wt_vals, 0)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 0)) + ")\n  2. " + array.get(_wt_names, 1) + " — " + format_cal_weight(array.get(_wt_vals, 1)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 1)) + ")\n  3. " + array.get(_wt_names, 2) + " — " + format_cal_weight(array.get(_wt_vals, 2)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 2)) + ")\n  4. " + array.get(_wt_names, 3) + " — " + format_cal_weight(array.get(_wt_vals, 3)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 3)) + ")\nSource: zone_priority_calibration.json · BUS contract: ZONE_CAL_*"
+        // April-2026 multiline template + str.format instead of one giant
+        // \n-concatenation. Leading spaces on the template's inner lines are
+        // LITERAL string content (that is the multiline-string contract),
+        // which is why they sit hard-left of this block's indentation: the
+        // two spaces before each rank ARE the tooltip's list indent.
+        string _wt_full = str.format("""Why this Tier? Ranked calibrated weights driving the Zone Priority pick:
+  1. {0} — {1} ({2})
+  2. {3} — {4} ({5})
+  3. {6} — {7} ({8})
+  4. {9} — {10} ({11})
+Source: zone_priority_calibration.json · BUS contract: ZONE_CAL_*""",
+             array.get(_wt_names, 0), format_cal_weight(array.get(_wt_vals, 0)), calibration_confidence_tier(array.get(_wt_vals, 0)),
+             array.get(_wt_names, 1), format_cal_weight(array.get(_wt_vals, 1)), calibration_confidence_tier(array.get(_wt_vals, 1)),
+             array.get(_wt_names, 2), format_cal_weight(array.get(_wt_vals, 2)), calibration_confidence_tier(array.get(_wt_vals, 2)),
+             array.get(_wt_names, 3), format_cal_weight(array.get(_wt_vals, 3)), calibration_confidence_tier(array.get(_wt_vals, 3)))
         dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights", _wt_top3, status_bg(calibration_confidence_state(array.get(_wt_vals, 0))), txt, _wt_full)
         section_row(smc_dashboard, 76, "[ Universe Status ]", header_bg, txt)
         dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge, status_bg(dashboard_universe_state), txt, dashboard_universe_tt)
