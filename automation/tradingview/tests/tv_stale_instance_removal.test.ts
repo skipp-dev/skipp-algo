@@ -77,3 +77,41 @@ test("the residual throw happens before the insert, not after", () => {
   assert.ok(insertAt > 0, "insert must exist in refreshChartScriptInstance");
   assert.ok(throwAt < insertAt, "a duplicate insert after the throw would recreate the bug");
 });
+
+// ---------------------------------------------------------------------------
+// 2026-08-15 sweep: a CRASHED visibility probe in the removal path mapped to
+// "cleared" (`.catch(() => false)`) and emitted the success trace — a stale
+// instance left behind is the known measurement poison (UNIVERSE UNINIT).
+// The keyboard twin already mapped the same failure to `true`; these pins
+// hold the whole removal path to that doctrine.
+// ---------------------------------------------------------------------------
+
+test("a crashed visibility probe in the removal path never reads as cleared", () => {
+  const sharedSource = fs.readFileSync(SHARED, "utf-8");
+  // Slice from the keyboard helper through the removal loop: the doctrine
+  // covers every visibility probe on the removal path, and the three sit in
+  // two functions (tryKeyboardRemoveScriptInstance + the removal loop).
+  const start = sharedSource.indexOf("async function tryKeyboardRemoveScriptInstance");
+  const end = sharedSource.indexOf("export async function refreshChartScriptInstance");
+  assert.ok(start > 0 && end > start, "removal path not found where expected");
+  const removal = sharedSource.slice(start, end);
+  const probes = removal.match(/isScriptStrictlyVisibleOnChartSurface\(page, scriptName\)\.catch\(\(\) => (true|false)\)/g) ?? [];
+  assert.ok(probes.length >= 3, `expected the three visibility probes, found ${probes.length}`);
+  for (const probe of probes) {
+    assert.ok(probe.endsWith("=> true)"), `${probe} — a crashed probe must fail closed (still visible)`);
+  }
+});
+
+test("a crashed chooser-inventory readout leaves a trace instead of an empty DOM claim", () => {
+  const sharedSource = fs.readFileSync(SHARED, "utf-8");
+  const start = sharedSource.indexOf("export async function collectPublishChooserInventory");
+  const end = sharedSource.indexOf("async function tracePublishChooserAbsence");
+  assert.ok(start > 0 && end > start, "chooser inventory function not found where expected");
+  const inventory = sharedSource.slice(start, end);
+  assert.match(inventory, /publish-chooser-inventory-probe-failed/);
+  assert.doesNotMatch(
+    inventory,
+    /\.catch\(\(\) => \[\] as PublishChooserInventoryEntry\[\]\)/,
+    "a silent [] fallback claims 'TradingView renders no matching controls' on a probe crash",
+  );
+});

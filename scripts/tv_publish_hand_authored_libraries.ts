@@ -148,8 +148,13 @@ function consumerPineFiles(repoRoot: string): string[] {
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
+    } catch (error) {
+    // ENOENT only (2026-08-15 sweep): the directory legitimately may not
+    // exist. Any OTHER readdir error (permissions, I/O) used to read as
+    // "no .pine files there" and silently shrank the population this scan
+    // exists to cover -- sample-vs-population as a runtime bug.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
     }
     for (const e of entries) {
       if (e.isFile() && e.name.endsWith(".pine")) {
