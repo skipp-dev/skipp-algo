@@ -11,6 +11,7 @@ commit — the completeness test measures the WHOLE file, not a sample.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -98,9 +99,11 @@ _SUITE_WIRING: dict[str, tuple[str, ...]] = {
 # 12/12 saved, re-applied, 131 bindings repaired): the siblings carry far
 # fewer parameter dependencies than the Suite — most of their inputs are BUS
 # bindings (NEVER greyed: the binding writer keys on the combobox text) or
-# engine parameters. SMC_Hold_Manager is deliberately absent: an active
-# parallel lane rebuilds it same-day (#4752/#4753/#4759); its two clean pairs
-# (i_use_chand, i_use_tstop) follow once that lane settles.
+# engine parameters. SMC_Hold_Manager is deliberately absent: its build-3
+# source is CONTRACT-FROZEN (five evidence guards pin the sha256 in
+# artifacts/governance/smc_hold_manager_shadow_contract.json) — wiring it
+# from outside would mint a foreign build in that lane's evidence chain.
+# The tripwire test at the bottom fires when the lane mints build 4.
 _WIRING_BY_FILE: dict[str, dict[str, tuple[str, ...]]] = {
     "SMC_Long_Dip_Suite.pine": _SUITE_WIRING,
     "SMC_Long_Dip_Dashboard.pine": {
@@ -211,3 +214,47 @@ def test_wiring_ledger_covers_every_active_use_repo_wide() -> None:
         f"only in ledger: {sorted(wired - observed)[:5]}"
     )
     assert len(wired) == _TOTAL_PAIRS
+
+
+# -- Hold-Manager tripwire: forward promise mechanised (CLAUDE.md doctrine) --
+# Build-3 contract source hash, measured 2026-08-16. The wiring below is
+# ANALYSED AND READY (`atr` is defined once and consumed once, by the
+# chandelier; `i_tstop_min` gates only the time-stop) but must ride the
+# lane's own next build: five evidence guards pin this hash, so wiring from
+# outside would mint a foreign build in that chain.
+_HOLD_MANAGER_BUILD3_SHA = (
+    "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048"
+)
+_HOLD_MANAGER_PENDING_WIRING: dict[str, tuple[str, ...]] = {
+    "i_use_chand": ("i_atr_len", "i_atr_mult"),
+    "i_use_tstop": ("i_tstop_min",),
+}
+_HOLD_MANAGER_CONTRACT = (
+    _REPO / "artifacts" / "governance" / "smc_hold_manager_shadow_contract.json"
+)
+
+
+def test_hold_manager_wiring_rides_the_next_build() -> None:
+    """Sleeps while the shadow contract still pins build 3; fires on build 4.
+
+    Fire semantics: the Hold-Manager lane minted a new build — take the
+    ``active =`` wiring along IN THAT SAME PR (add the three insertions to
+    ``SMC_Hold_Manager.pine``, move ``_HOLD_MANAGER_PENDING_WIRING`` into
+    ``_WIRING_BY_FILE`` and raise ``_TOTAL_PAIRS`` 140 -> 143), or defer
+    DELIBERATELY by updating the frozen hash here with a dated comment.
+    """
+    contract = json.loads(_HOLD_MANAGER_CONTRACT.read_text(encoding="utf-8"))
+    if contract["source"]["sha256"] == _HOLD_MANAGER_BUILD3_SHA:
+        assert "SMC_Hold_Manager.pine" not in _WIRING_BY_FILE, (
+            "the contract still pins build 3 — wiring now would mint a "
+            "foreign build in the shadow lane's evidence chain"
+        )
+        return
+    assert _WIRING_BY_FILE.get("SMC_Hold_Manager.pine") == _HOLD_MANAGER_PENDING_WIRING, (
+        "the Hold-Manager lane minted a new build (contract source.sha256 "
+        f"moved off build 3): take the active= wiring along in this same PR "
+        f"— pairs: {_HOLD_MANAGER_PENDING_WIRING} — move them into "
+        "_WIRING_BY_FILE, raise _TOTAL_PAIRS 140 -> 143, and wire the three "
+        "insertions in SMC_Hold_Manager.pine; or defer deliberately by "
+        "updating _HOLD_MANAGER_BUILD3_SHA with a dated comment."
+    )
