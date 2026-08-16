@@ -165,7 +165,12 @@ Before any broker-connected paper submission:
 - [x] aggregate immutable attempts, family coverage, source age, processing
   latency, failures and audit integrity without enabling network or broker I/O;
 - [ ] collect the required unique observations in representative live market
-  windows and review the resulting technical observation gate;
+  windows and review the resulting technical observation gate — collection is
+  LIVE-OWNED since 2026-08-16: `automation/launchd/run-c13-commercial-shadow.sh`
+  runs ~6 audit-only campaign attempts per RTH session; the broker-connected
+  stage in the same driver stays dormant behind the double interlock
+  (`configs/commercial_paper_submission.json` `enabled` — the recorded review
+  decision — AND `campaign_report.json` `observation_gate.verdict == PASS`);
 - verify paper-only account routing and a hard live-order prohibition;
 - verify closed-outcome reconciliation, including nullable unknown fees;
 - confirm every audit row carries `evidence_class=PAPER` plus complete source
