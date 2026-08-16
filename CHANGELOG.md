@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-08-16) — public calibration report schema 1.4.0 (additive)
+
+- `phase1_paper_gate` now reaches the public report: the machine-readable
+  Phase-1 exit gate (GREEN once every family has a closed PAPER outcome)
+  travelled inside the families telemetry since its introduction but was
+  dropped before publication. `emit_public_calibration_report` lifts it from
+  the same `--include-families` file, fail-closed on absence or malformed
+  content. Schema pin repinned (`v1.4.0_public_schema_pin.json`), sample
+  fixture regenerated.
+- `track_record_gate` serialisation carries `claimable` / `claim_note`: a red
+  gate now states in the artifact itself that its green sub-checks (e.g.
+  Sharpe on 33 trades) are diagnostics, not claimable evidence, naming the
+  red checks (weekly commercial review 2026-08-16, P2).
+
 ### Changed (2026-07-31) — R5-REBUILD complete; SMC HTF Confluence deployed
 
 - Closed the R5-REBUILD exit gate: all 11 manifest cases executed with landed
