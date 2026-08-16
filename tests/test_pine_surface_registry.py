@@ -116,11 +116,25 @@ def test_every_surface_ships_its_source() -> None:
     )
 
 
-def test_rollout_save_targets_are_exactly_the_eleven_deployed_surfaces() -> None:
+# Surfaces that are NOT product-deployed but whose TradingView copy is
+# maintained by the rollout automation anyway. 2026-08-16 (R2-SHADOW-CUTOVER):
+# the Hold Manager's registry entry stays rollout_state='planned' by the
+# standing decision of 2026-07-28 (window + drill still open) — but its
+# build-2 validation instance rides the save/force_rebind machinery, replacing
+# the manual July sitting. Its saved TradingView name is not its declaration,
+# so the save target carries an explicit declarationTitle (#4736) and the
+# script_name identity is asserted separately below.
+VALIDATION_RIDERS = {
+    "SMC_Hold_Manager.pine": "SMC Hold Manager R2.4 Validation",
+}
+
+
+def test_rollout_save_targets_are_exactly_the_deployed_surfaces_plus_riders() -> None:
     # 2026-07-31: 10 -> 11. SMC_HTF_Confluence.pine deployed after R5-REBUILD
     # completed (all 11 cases) and the Pro HTF preset decision (#4257) put it
     # in; owner-ordered rollout. It is a standalone request.security companion
-    # (no engine_v2 dependency), so verifyTargets stays at nine below.
+    # (no engine_v2 dependency), so it is absent from verifyTargets below.
+    # 2026-08-16: 11 -> 12 via VALIDATION_RIDERS (Hold Manager, see above).
     rollout = _rollout()
     save_targets = rollout["saveTargets"]
     deployed = {
@@ -129,19 +143,37 @@ def test_rollout_save_targets_are_exactly_the_eleven_deployed_surfaces() -> None
         if surface.rollout_state == "deployed"
     }
 
-    assert len(save_targets) == 11
-    assert len({target["source"] for target in save_targets}) == 11
-    assert {target["source"] for target in save_targets} == set(deployed)
+    assert len(save_targets) == 12
+    assert len({target["source"] for target in save_targets}) == 12
+    assert {target["source"] for target in save_targets} == (
+        set(deployed) | set(VALIDATION_RIDERS)
+    )
     assert {
         target["source"]: target["scriptName"]
         for target in save_targets
+        if target["source"] in deployed
     } == {
         file: surface.script_name
         for file, surface in deployed.items()
     }
+    assert {
+        target["source"]: target["scriptName"]
+        for target in save_targets
+        if target["source"] in VALIDATION_RIDERS
+    } == VALIDATION_RIDERS
 
 
-def test_rollout_verify_targets_are_exactly_the_nine_deployed_bus_consumers() -> None:
+# The rider's on-chart instance title is its Pine declaration, not its saved
+# name; binding verification and force_rebind find the instance by this title.
+VALIDATION_RIDER_INSTANCES = {
+    "SMC_Hold_Manager.pine": "SMC Hold Manager",
+}
+
+
+def test_rollout_verify_targets_are_the_deployed_bus_consumers_plus_riders() -> None:
+    # 2026-08-16: 9 -> 10 via VALIDATION_RIDERS (Hold Manager binds the same
+    # engine_v2 BUS on its validation layout and is rebound by the same
+    # machinery).
     rollout = _rollout()
     verify_targets = rollout["verifyTargets"]
     deployed_consumers = {
@@ -152,16 +184,24 @@ def test_rollout_verify_targets_are_exactly_the_nine_deployed_bus_consumers() ->
         and surface.consumer_role != "producer"
     }
 
-    assert len(verify_targets) == 9
-    assert len({target["source"] for target in verify_targets}) == 9
-    assert {target["source"] for target in verify_targets} == set(deployed_consumers)
+    assert len(verify_targets) == 10
+    assert len({target["source"] for target in verify_targets}) == 10
+    assert {target["source"] for target in verify_targets} == (
+        set(deployed_consumers) | set(VALIDATION_RIDER_INSTANCES)
+    )
     assert {
         target["source"]: target["scriptName"]
         for target in verify_targets
+        if target["source"] in deployed_consumers
     } == {
         file: surface.chart_instance_name
         for file, surface in deployed_consumers.items()
     }
+    assert {
+        target["source"]: target["scriptName"]
+        for target in verify_targets
+        if target["source"] in VALIDATION_RIDER_INSTANCES
+    } == VALIDATION_RIDER_INSTANCES
 
 
 def test_deployed_engine_bus_consumers_bind_only_published_unique_labels() -> None:
@@ -195,6 +235,12 @@ def test_deployed_engine_bus_consumers_bind_only_published_unique_labels() -> No
 
 
 def test_non_deployed_surfaces_are_absent_from_rollout_targets() -> None:
+    """Nothing undeployed reaches TradingView by automation — riders excepted.
+
+    The rider exception is a named, dated allow-list (VALIDATION_RIDERS
+    above), so this test still refuses any OTHER planned/archived surface
+    quietly joining the rollout.
+    """
     rollout = _rollout()
     rollout_sources = {
         target["source"]
@@ -205,7 +251,7 @@ def test_non_deployed_surfaces_are_absent_from_rollout_targets() -> None:
         surface.file
         for surface in SURFACE_DEFINITIONS
         if surface.rollout_state != "deployed"
-    }
+    } - set(VALIDATION_RIDERS)
 
     assert rollout_sources.isdisjoint(non_deployed)
 

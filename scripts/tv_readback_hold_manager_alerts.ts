@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   closeTradingViewSession,
+  collectTradingViewPageAuthState,
   gotoChart,
   newTradingViewSession,
   type TradingViewSession,
@@ -125,6 +126,63 @@ export function classifyAlerts(rows: AlertRow[], channels: readonly string[]): R
   return { matched, missingChannels, notRunningChannels, foreignAlertCount };
 }
 
+/**
+ * TradingView defaults a new alert's name to its condition description,
+ * "<instance title> (<inputs…>)". The operator created the build-pinned
+ * alert with that default (measured 2026-08-16 from the operator's own
+ * alerts panel), so the probe accepts it alongside the R2 SHADOW naming
+ * convention instead of demanding a manual rename.
+ */
+export const BUILD_ALERT_DEFAULT_NAME_START = "SMC Hold Manager (";
+
+export type BuildAlertVerdict = {
+  buildAlert: ChannelVerdict | null;
+  extraPrefixAlerts: string[];
+  legacyChannelAlertsRemaining: string[];
+  foreignAlertCount: number;
+};
+
+/**
+ * Post-cutover wire shape: ONE build-pinned alert carries all six channels
+ * (the channel travels in the alert() body, not in the alert name), and the
+ * six per-channel legacy alerts must be gone. The alert's name is measured,
+ * not assumed — the operator chooses it and only the two accepted name
+ * shapes are contract.
+ */
+export function classifyBuildAlert(
+  rows: AlertRow[],
+  channels: readonly string[],
+): BuildAlertVerdict {
+  const legacyNames = new Set(channels.map((c) => `${ALERT_NAME_PREFIX}${c}`));
+  const prefixRows = rows.filter(
+    (r) =>
+      r.name.startsWith(ALERT_NAME_PREFIX)
+      || r.name.startsWith(BUILD_ALERT_DEFAULT_NAME_START),
+  );
+  const legacyRemaining = prefixRows
+    .filter((r) => legacyNames.has(r.name))
+    .map((r) => r.name);
+  const candidates = prefixRows.filter((r) => !legacyNames.has(r.name));
+
+  const [first, ...extras] = candidates;
+  const buildAlert = first
+    ? {
+      channel: "ALL_VIA_ALERT_BODY",
+      name: first.name,
+      ticker: first.ticker,
+      status: first.status,
+      running: isRunning(first),
+    }
+    : null;
+
+  return {
+    buildAlert,
+    extraPrefixAlerts: extras.map((r) => r.name),
+    legacyChannelAlertsRemaining: legacyRemaining,
+    foreignAlertCount: rows.length - prefixRows.length,
+  };
+}
+
 const URL_RE = /https?:\/\/\S+/;
 const OPAQUE_RE = /[A-Za-z0-9_\-]{32,}/;
 
@@ -208,6 +266,16 @@ export async function runReadbackCli(): Promise<number> {
   const channels: string[] = contract.activationRequirements.holdAlertChannels;
   const chartUrl = getFlag("--chart-url", "https://www.tradingview.com/chart/twh98JLB/");
   const outPath = getFlag("--out");
+  // The wire shape decides what "the alerts are healthy" means. Default from
+  // the contract; the explicit flag exists for the cutover sitting itself,
+  // where the probe measures the NEW shape before the contract flip merges.
+  const shape = getFlag(
+    "--shape",
+    contract.alertWireShape?.cutOver ? "build" : "channels",
+  );
+  if (shape !== "build" && shape !== "channels") {
+    throw new Error(`unknown --shape: ${shape}`);
+  }
 
   const session = await newTradingViewSession();
   try {
@@ -217,7 +285,67 @@ export async function runReadbackCli(): Promise<number> {
     await gotoChart(session.page, chartUrl);
     await session.page.waitForTimeout(9000);
 
+    // authReusedOk only proves cookies EXISTED; a revoked TradingView session
+    // still loads the chart anonymously ("Ansichtsmodus") with an empty
+    // alerts panel. Measured 2026-08-16: two probe runs wrote zero-row
+    // "evidence" about an account they never saw. The page's own auth state
+    // is the truth, so an anonymous page fails the probe instead of
+    // publishing an empty observation.
+    const pageAuth = await collectTradingViewPageAuthState(session.page);
+    if (!pageAuth.authenticated) {
+      throw new Error(
+        `readback session is anonymous on the page (${pageAuth.reason}); `
+        + "refusing to record an empty alerts panel as evidence",
+      );
+    }
+
     const { rows, clickedToOpen } = await readAlertRows(session);
+
+    if (shape === "build") {
+      const verdict = classifyBuildAlert(rows, channels);
+      const evidence = {
+        schemaVersion: 1,
+        requirementId: contract.requirementId,
+        capturedAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+        verificationMode: "automated_readonly_readback",
+        wireShape: "build_path_token",
+        supersedes: {
+          artifact:
+            "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-14.json",
+          claim: "six per-channel alerts are the live wire shape",
+          outcome:
+            "superseded by the single build-pinned alert of the R2-SHADOW-CUTOVER sitting",
+        },
+        tradingView: {
+          account: contract.tradingView.account,
+          layout: contract.tradingView.validationLayout,
+          savedScript: contract.tradingView.savedScript,
+          panelOpenedByProbe: clickedToOpen,
+        },
+        buildAlert: verdict.buildAlert,
+        extraPrefixAlerts: verdict.extraPrefixAlerts,
+        legacyChannelAlertsRemaining: verdict.legacyChannelAlertsRemaining,
+        foreignAlertCount: verdict.foreignAlertCount,
+        limitations: [
+          "Proves that exactly one build-pinned shadow alert exists, on which symbol and timeframe, whether TradingView offers to stop it, and that the six legacy channel alerts are gone. Does NOT prove the webhook action is enabled: that lives in the per-alert edit dialog, a mutation surface on a live alert, which this probe refuses to open.",
+          "The alert description field is the full webhook message body and carries the shadow token. It is never read; only its presence is recorded.",
+          "Delivery is proven by the receiver's own state endpoint, not by this probe.",
+        ],
+      };
+      assertNoUrls(evidence);
+      if (evidence.buildAlert) assertNoOpaqueTokens(evidence.buildAlert);
+      assertNoOpaqueTokens(evidence.tradingView);
+      const rendered = `${JSON.stringify(evidence, null, 2)}\n`;
+      if (outPath) fs.writeFileSync(path.resolve(outPath), rendered, "utf-8");
+      console.log(rendered);
+
+      return evidence.buildAlert?.running === true
+        && verdict.extraPrefixAlerts.length === 0
+        && verdict.legacyChannelAlertsRemaining.length === 0
+        ? 0
+        : 1;
+    }
+
     const verdict = classifyAlerts(rows, channels);
 
     const evidence = {
