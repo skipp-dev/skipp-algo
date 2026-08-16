@@ -1,0 +1,156 @@
+# live-window: mutating-on-cron  # weekly Pine release-notes watch (snapshot PR + issue)
+name: pine-release-notes-watch
+
+# Announcement bridge for TradingView Pine Script language changes.
+#
+# The weekly hand-lib publish + tv-save chain already compiles the live Pine
+# surface against the real TV compiler, so a BREAKING language change turns
+# that chain red (empirical bridge). What nothing watched until 2026-08-16:
+# the release notes themselves — the WHY behind a breakage, plus every
+# non-breaking change (new built-ins, changed semantics, new parameters)
+# that never fails a compile but may affect or benefit the deployed scripts.
+#
+# scripts/pine_release_notes_watch.py fetches the public release-notes page,
+# diffs it against the committed snapshot (pine/tv_release_notes_snapshot.md),
+# and greps the delta's code tokens over the live Pine surface. This workflow
+# turns that delta into:
+#   * a snapshot PR (auto-merge armed — a pure observation record, same
+#     policy as the Sunday hand-lib observation PR), and
+#   * an operator issue ONLY when delta tokens actually hit live Pine files
+#     (the "does this touch us?" triage, pre-answered with file:line evidence).
+#
+# A fetch failure or a docs redesign that breaks extraction fails THIS job
+# (red run + freshness-monitor escalation after 192h), never a silent skip.
+# The page is served HTML-only (no official GitHub source exists — verified
+# 404 on 2026-08-16), so the parser anchors on the page's semantic structure
+# (h2 year / h3 month / h4 feature) rather than markup cosmetics.
+
+on:
+  schedule:
+    # Monday 05:30 UTC — after the Sunday 04:00 hand-lib publish window and
+    # before the daily 06:30 freshness monitor, so a Monday delta is already
+    # triaged when the operator reads the morning alerts.
+    - cron: "30 5 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pine-release-notes-watch
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  watch:
+    name: diff release notes against snapshot
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          # The PR step pushes through an explicit x-access-token remote URL;
+          # nothing here needs the persisted checkout credential (zizmor
+          # artipacked stays fixed at its ratcheted-down count).
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Detect release-notes delta
+        id: watch
+        run: |
+          set -euo pipefail
+          # Stdout carries the machine-readable outputs; the report file
+          # carries the operator-readable delta. A non-zero exit here (fetch
+          # failure, extraction-sanity refusal) fails the JOB — that is the
+          # alarm path, not an error to swallow.
+          python scripts/pine_release_notes_watch.py \
+            --update \
+            --report /tmp/pine_release_notes_report.md > /tmp/watch.out
+          cat /tmp/watch.out
+          grep -E '^(changed|new_entries|changed_entries|affected_files)=' \
+            /tmp/watch.out >> "$GITHUB_OUTPUT"
+
+      - name: Open snapshot PR
+        if: steps.watch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          NEW_ENTRIES: ${{ steps.watch.outputs.new_entries }}
+          CHANGED_ENTRIES: ${{ steps.watch.outputs.changed_entries }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::GH_PAT not configured; release-notes delta detected but no snapshot PR can be opened. Run 'python scripts/pine_release_notes_watch.py --update' locally and commit pine/tv_release_notes_snapshot.md."
+            exit 0
+          fi
+          branch="bot/pine-release-notes-${GITHUB_RUN_ID}"
+          _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add pine/tv_release_notes_snapshot.md
+          git commit -m "chore(pine): release-notes snapshot — ${NEW_ENTRIES} new, ${CHANGED_ENTRIES} changed"
+          # Push to a fresh per-run branch (never main); a unique branch never
+          # needs a force-push.
+          if git push "${_remote_url}" "HEAD:refs/heads/${branch}"; then
+            # A real PR-creation failure must fail the run — finishing green
+            # without the PR would silently drop the observation.
+            if ! gh pr create \
+              --base main \
+              --head "${branch}" \
+              --title "chore(pine): Pine release-notes delta — ${NEW_ENTRIES} new, ${CHANGED_ENTRIES} changed" \
+              --body-file /tmp/pine_release_notes_report.md; then
+              echo "::error file=.github/workflows/pine-release-notes-watch.yml::gh pr create failed for ${branch} — see step log. Open the PR manually from ${branch}."
+              exit 1
+            fi
+            # The snapshot PR is a pure observation record (no code, no pins)
+            # — auto-merge once fast-gates is green, same policy as the
+            # Sunday hand-lib observation PR (decision 2026-08-15). Fail-soft:
+            # an arming failure downgrades to a manual merge, not a red run.
+            if ! gh pr merge "${branch}" --auto --squash; then
+              echo "::warning::auto-merge could not be armed for ${branch}; merge it manually once fast-gates is green."
+            fi
+          else
+            echo "::warning::push failed for ${branch}; the delta report is preserved in this run's log and the issue step still files the triage."
+          fi
+
+      - name: File affected-surface issue
+        # Only when delta tokens actually hit live Pine files — an entry that
+        # touches nothing needs no operator attention beyond the snapshot PR.
+        if: steps.watch.outputs.changed == 'true' && steps.watch.outputs.affected_files != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Issues can be disabled repo-side; degrade to a warning — the
+          # snapshot PR above still carries the full report.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning::GitHub Issues are disabled on ${GH_REPO}; the delta report lives in the snapshot PR instead."
+            exit 0
+          fi
+          TITLE="pine-release-notes: new entries touch the live Pine surface"
+          existing=$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GH_REPO" \
+              --body-file /tmp/pine_release_notes_report.md
+          else
+            gh issue create --repo "$GH_REPO" \
+              --title "$TITLE" \
+              --body-file /tmp/pine_release_notes_report.md \
+              --label automated
+          fi

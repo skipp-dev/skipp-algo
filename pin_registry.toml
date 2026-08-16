@@ -74,6 +74,12 @@
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
 "scripts/check_workflow_freshness.py" = [72]
+# 2026-08-16: pine-release-notes watcher; weekly GET against the one fixed
+# public TradingView docs URL, explicit 30s timeout, B310 nosec'd at the
+# call site, gzip fallback decoded in-process. No POST, no auth.
+# 430->417 (same day): local tmp+rename helper replaced by the shared
+# scripts.smc_atomic_write.atomic_write_text (atomic-write ledger's answer).
+"scripts/pine_release_notes_watch.py" = [417]
 # PRE-A0 MLflow health probe: HTTPS origin is validated before both calls;
 # each has a fixed 15s timeout. One call checks the unauthenticated boundary,
 # the other reads authenticated alias/run metadata with monitor-only RBAC.
