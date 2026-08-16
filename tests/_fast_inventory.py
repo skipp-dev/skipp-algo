@@ -105,6 +105,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_pine_library_import_permissions.py",
     "test_pine_request_security_htf_pin.py",
     "test_pine_var_budget_pin.py",
+    "test_pine_const_getter_migration_tripwire.py",
     "test_prod_print_ledger.py",
     "test_pytest_skip_budget.py",
     "test_random_tempfile_ledger_pin.py",

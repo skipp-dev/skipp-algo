@@ -610,6 +610,7 @@ jobs:
             tests/test_pine_decision_logic_deep_review_regressions.py \
             tests/test_pine_request_security_htf_pin.py \
             tests/test_pine_var_budget_pin.py \
+            tests/test_pine_const_getter_migration_tripwire.py \
             tests/test_prod_print_ledger.py \
             tests/test_pytest_skip_budget.py \
             tests/test_random_tempfile_ledger_pin.py \
