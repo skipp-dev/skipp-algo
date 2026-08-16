@@ -76,23 +76,30 @@ def test_no_alerts_closes_the_open_issues(tmp_path: Path) -> None:
     assert _routed("False") == {CLOSE_ISSUES}
 
 
-def test_a_missing_alerts_file_closes_rather_than_opens(tmp_path: Path) -> None:
-    """The assertion this file exists for.
+def test_a_missing_alerts_file_routes_nowhere(tmp_path: Path) -> None:
+    """Revised 2026-08-15; the 2026-08-04 decision said "closes rather than
+    opens".
 
-    A digest that failed to produce alerts.json has no evidence of drift. The
-    fallback treats that as "no alerts", which closes stale issues instead of
-    manufacturing a new one every week -- and the two directions are one word
-    apart in the source.
+    That decision's concern stands -- an `|| echo True` fallback would
+    manufacture a drift issue every week on no evidence (measured then:
+    24708 tests stayed green under that mutation). But its chosen direction
+    conflated absence of evidence with evidence of absence: a HEALTHY digest
+    writes alerts.json unconditionally, in both verdicts, so a missing file
+    only ever means the instrument broke -- and the fallback then closed
+    standing alarms on the strength of a measurement that never happened
+    (the upstream digest/snooze steps are set +e fail-soft, so this path is
+    reachable on any of their crashes). `unknown` dominates both concerns:
+    it opens nothing (their worry) and closes nothing (this one).
     """
     result = _resolve(tmp_path, None)
-    assert result.outputs["has_alerts"] == "False", result.outputs
-    assert _routed("False") == {CLOSE_ISSUES}
+    assert result.outputs["has_alerts"] == "unknown", result.outputs
+    assert _routed("unknown") == set()
 
 
 def test_a_corrupt_alerts_file_takes_the_same_fallback(tmp_path: Path) -> None:
     """Not the same case: the file exists, so the read fails rather than the open."""
     result = _resolve(tmp_path, "{not json")
-    assert result.outputs["has_alerts"] == "False", result.outputs
+    assert result.outputs["has_alerts"] == "unknown", result.outputs
     assert result.returncode == 0, "a corrupt digest must not fail the weekly run"
 
 
@@ -104,7 +111,22 @@ def test_the_verdict_reaches_the_run_log_too(tmp_path: Path) -> None:
 
 
 def test_the_two_routes_are_mutually_exclusive(tmp_path: Path) -> None:
-    """Both firing would open and close the same issue in one run."""
-    for body in (json.dumps({"has_alerts": True}), json.dumps({"has_alerts": False}), None):
-        result = _resolve(tmp_path / str(body)[:12], body)
-        assert len(_routed(result.outputs["has_alerts"])) == 1, result.outputs
+    """Both firing would open and close the same issue in one run; a broken
+    measurement (None) routes NOWHERE -- revised 2026-08-15, see above.
+
+    Directory names are index-based on purpose: the previous
+    ``str(body)[:12]`` put a double quote into the work dir, which breaks the
+    harness's generated python wrapper (bash syntax error) -- the old
+    fallback then read as False, which ACCIDENTALLY satisfied the old
+    "exactly one route" assertion, so the harness defect stayed invisible
+    until unknown routed to zero. Measured 2026-08-15.
+    """
+    for index, (body, expected_routes) in enumerate(
+        (
+            (json.dumps({"has_alerts": True}), 1),
+            (json.dumps({"has_alerts": False}), 1),
+            (None, 0),
+        )
+    ):
+        result = _resolve(tmp_path / f"case{index}", body)
+        assert len(_routed(result.outputs["has_alerts"])) == expected_routes, result.outputs
