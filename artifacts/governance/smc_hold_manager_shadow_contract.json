@@ -31,15 +31,11 @@
     "cutOverEvidence": [
       "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-08-16.json",
       "artifacts/governance/smc_hold_manager_tradingview_replay_2026-08-16.json",
-      "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16.json"
-    ],
-    "buildAdvancePending": {
-      "build": 3,
-      "provenBuild": 2,
-      "declaredAt": "2026-08-16",
-      "reason": "build 3 renames the payload scriptName to the operator-renamed saved document (SMC Hold Manager); TradingView still runs the build-2 instance and its alert until the rollout transfers the source and the operator recreates the alert",
-      "clearedBy": "dated preconditions + replay + readback evidence naming the build-3 hash, landed together with the removal of this field"
-    }
+      "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16.json",
+      "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-08-16_build3.json",
+      "artifacts/governance/smc_hold_manager_tradingview_replay_2026-08-16_build3.json",
+      "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16_build3.json"
+    ]
   },
   "preconditions": {
     "canonicalCompileAndBindings": "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",

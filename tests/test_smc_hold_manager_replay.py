@@ -41,11 +41,17 @@ HISTORICAL_TRADINGVIEW_REPLAY_PATH = (
     / "governance"
     / "smc_hold_manager_tradingview_replay_2026-07-28.json"
 )
-TRADINGVIEW_REPLAY_PATH = (
+BUILD_2_TRADINGVIEW_REPLAY_PATH = (
     ROOT
     / "artifacts"
     / "governance"
     / "smc_hold_manager_tradingview_replay_2026-08-16.json"
+)
+TRADINGVIEW_REPLAY_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_replay_2026-08-16_build3.json"
 )
 SHADOW_CONTRACT_PATH = (
     ROOT
@@ -400,21 +406,28 @@ def test_historical_tradingview_replay_evidence_reports_success() -> None:
     assert evidence["serverAlertDelivery"]["status"] == "pending"
 
 
-CURRENT_TRADINGVIEW_PRECONDITIONS_PATH = (
+BUILD_2_TRADINGVIEW_PRECONDITIONS_PATH = (
     ROOT
     / "artifacts"
     / "governance"
     / "smc_hold_manager_tradingview_preconditions_2026-08-16.json"
 )
+CURRENT_TRADINGVIEW_PRECONDITIONS_PATH = (
+    ROOT
+    / "artifacts"
+    / "governance"
+    / "smc_hold_manager_tradingview_preconditions_2026-08-16_build3.json"
+)
 
 
 def test_current_tradingview_preconditions_describe_the_current_build() -> None:
-    """The 2026-08-16 preconditions carry the automated cutover sitting.
+    """The build-3 preconditions carry the build-advance sitting of 2026-08-16.
 
-    Transfer (run 31909864154), 13-input rebinding (run 31942266832), layout
-    save and alert readback — each a CI-run report rather than an operator
-    attestation. The frozen source hash must resolve to the CURRENT contract
-    build, which is what the wire-shape cutover guard consumes.
+    Transfer + 13-input rebinding (run 31946232476), the operator's alert
+    swap onto the build-3 instance, and the post-swap readback + binding
+    re-verification (run 31948499911) — each a CI-run report rather than an
+    operator attestation. The frozen source hash must resolve to the CURRENT
+    contract build, which is what the wire-shape cutover guard consumes.
     """
     evidence = json.loads(
         CURRENT_TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
@@ -424,8 +437,8 @@ def test_current_tradingview_preconditions_describe_the_current_build() -> None:
         evidence["source"]["repositorySha256"]
     )
     _assert_pending_gap_is_declared(proven_build, contract)
-    assert proven_build == 2  # newest TV-proven build; the build-3 gap
-    # is declared via buildAdvancePending, checked by the helper above
+    assert proven_build == 3  # the buildAdvancePending declaration was
+    # removed with this evidence set; proven == current again
     assert evidence["source"]["transfer"]["preWriteIdentityMode"] == "declaration"
     assert evidence["source"]["transfer"]["stagedSourceVerified"] is True
     assert evidence["source"]["transfer"]["postSaveSourceVerified"] is True
@@ -448,7 +461,7 @@ def test_current_tradingview_preconditions_describe_the_current_build() -> None:
 
 
 def test_current_replay_evidence_describes_the_current_build() -> None:
-    """The 2026-08-16 replay evidence closes the build-2 pending gap.
+    """The build-3 replay evidence closes the declared build-3 gap.
 
     Its case results come from structural inheritance (bridge test below) plus
     repository execution of the inserted transport; this test pins the claims
@@ -460,8 +473,8 @@ def test_current_replay_evidence_describes_the_current_build() -> None:
         evidence["canonicalSource"]["sha256"]
     )
     _assert_pending_gap_is_declared(proven_build, contract)
-    assert proven_build == 2  # newest TV-proven build; the build-3 gap
-    # is declared via buildAdvancePending, checked by the helper above
+    assert proven_build == 3  # the buildAdvancePending declaration was
+    # removed with this evidence set; proven == current again
     assert evidence["canonicalSource"]["path"] == "SMC_Hold_Manager.pine"
     assert evidence["inheritance"]["basis"] == (
         "artifacts/governance/smc_hold_manager_tradingview_replay_2026-07-28.json"
@@ -474,6 +487,34 @@ def test_current_replay_evidence_describes_the_current_build() -> None:
     for test_path in evidence["executedForTheDelta"]["tests"]:
         assert (ROOT / test_path).is_file(), test_path
     assert evidence["serverAlertDelivery"]["status"] == "pending"
+
+
+def test_build_two_cutover_evidence_stays_covered_as_history() -> None:
+    """The 2026-08-16 cutover-sitting set stays covered as build-2 history.
+
+    Like the 2026-07-28 build-1 set: once the build-3 evidence became the
+    newest, the pending-gap declaration stopped binding these artifacts, but
+    their hashes must still resolve inside buildHistory — dated evidence
+    naming a hash no build ever carried is drift regardless of age.
+    """
+    replay = json.loads(
+        BUILD_2_TRADINGVIEW_REPLAY_PATH.read_text(encoding="utf-8")
+    )
+    preconditions = json.loads(
+        BUILD_2_TRADINGVIEW_PRECONDITIONS_PATH.read_text(encoding="utf-8")
+    )
+
+    replay_build, _contract = _tv_proven_build(
+        replay["canonicalSource"]["sha256"]
+    )
+    preconditions_build, _contract = _tv_proven_build(
+        preconditions["source"]["repositorySha256"]
+    )
+    assert replay_build == 2
+    assert preconditions_build == 2
+    assert replay["inheritance"]["basisFrozenSha256"] == json.loads(
+        HISTORICAL_TRADINGVIEW_REPLAY_PATH.read_text(encoding="utf-8")
+    )["canonicalSource"]["sha256"]
 
 
 def test_the_structural_bridge_reproduces_build_one_from_the_tree() -> None:
