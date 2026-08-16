@@ -674,22 +674,6 @@ def build_router(compare_token: TokenCompare) -> APIRouter:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         return contract, ledger_path
 
-    async def ingest_hold_manager_shadow(
-        request: Request,
-    ) -> dict[str, Any]:
-        """Legacy route: token in the body, source named by hash.
-
-        Left byte-for-byte in behaviour so the six alerts created on
-        2026-07-28 keep delivering across the merge and the auto-deploy it
-        triggers. Removed in step 3 of the decoupling design, once the
-        readback has proven the cutover.
-        """
-        payload = await _read_payload(request, HoldManagerShadowAlert)
-        _authenticate(payload.auth_token, compare_token)
-        contract, ledger_path = await _accepting_contract_and_ledger()
-        _validate_contract(payload, contract)
-        return await _ingest(payload, contract, ledger_path)
-
     async def ingest_hold_manager_shadow_build(
         request: Request,
         token: str = PathParam(..., min_length=1, max_length=256),
@@ -705,13 +689,14 @@ def build_router(compare_token: TokenCompare) -> APIRouter:
         _validate_build_contract(payload, contract)
         return await _ingest(payload, contract, ledger_path)
 
-    router.add_api_route(
-        "/tradingview/hold-manager-shadow",
-        ingest_hold_manager_shadow,
-        methods=["POST"],
-        include_in_schema=False,
-    )
-
+    # The legacy hash-body-token POST route was removed here on 2026-08-16
+    # (step 3 of the decoupling design); the cutover-sitting readback
+    # (artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16
+    # .json) carries the TradingView side: six 2026-07-28 alerts gone, one
+    # build-pinned alert live. Restoring the legacy shape means reverting
+    # that commit AND the build-1 contract together -- the templates artifact
+    # plus HoldManagerShadowAlert/_validate_contract stay behind as its
+    # executable specification.
     # Token first: main.py runs uvicorn with access_log=False specifically so
     # that /{token}/... paths never reach stdout or the Railway logs, and the
     # daemon already authenticates /{token}/smc_live this way. A route shaped

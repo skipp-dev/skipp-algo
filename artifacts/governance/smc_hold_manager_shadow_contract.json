@@ -21,10 +21,14 @@
     }
   ],
   "alertWireShape": {
-    "current": "legacy_hash_body_token",
+    "current": "build_path_token",
     "target": "build_path_token",
-    "cutOver": false,
-    "cutOverBlockedBy": "dated TradingView preconditions + replay evidence for the build-2 source (the 2026-07-28 set describes build 1), then readback evidence that the single build-pinned alert is live on the validation layout"
+    "cutOver": true,
+    "cutOverEvidence": [
+      "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-08-16.json",
+      "artifacts/governance/smc_hold_manager_tradingview_replay_2026-08-16.json",
+      "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16.json"
+    ]
   },
   "preconditions": {
     "canonicalCompileAndBindings": "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-07-28.json",
