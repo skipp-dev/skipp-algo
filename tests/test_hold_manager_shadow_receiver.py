@@ -10,12 +10,15 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from services.live_overlay_daemon.hold_manager_shadow_receiver import (
     _CHANNELS,
+    HoldManagerShadowAlert,
+    _load_contract,
     _session_breakdown,
+    _validate_contract,
     build_router,
 )
 
@@ -137,12 +140,18 @@ def _build_post_url(token: str = TOKEN) -> str:
     return f"/{token}/tradingview/hold-manager-shadow"
 
 
-def test_production_app_mounts_both_receiver_routes() -> None:
+def test_production_app_mounts_the_build_and_state_routes_only() -> None:
+    """Step 3 of the decoupling design, executed against the mounted app.
+
+    The legacy hash-body-token POST route was removed on 2026-08-16 with the
+    cutover; the state endpoint keeps its unversioned path because it never
+    carried the wire shape.
+    """
     from services.live_overlay_daemon import main
 
     paths = {route.path for route in main.app.routes}
 
-    assert "/tradingview/hold-manager-shadow" in paths
+    assert "/tradingview/hold-manager-shadow" not in paths
     assert "/tradingview/hold-manager-shadow/state" in paths
     assert "/{token}/tradingview/hold-manager-shadow" in paths
 
@@ -208,15 +217,19 @@ def test_build_route_rejects_the_legacy_shape(client: TestClient) -> None:
     assert response.status_code == 400
 
 
-def test_legacy_route_rejects_the_build_shape(client: TestClient) -> None:
-    """The negative twin of the test above.
+def test_the_legacy_route_is_unmounted(client: TestClient) -> None:
+    """Step 3, executed: the legacy path answers 404 for its own old traffic.
 
-    Without it, the assertion that the build route rejects the legacy shape
-    could be satisfied by a receiver that rejects everything.
+    Until 2026-08-16 this test was the negative twin of the shape check above
+    (the legacy route rejected the build shape with 400); with the route
+    removed, the strongest executable statement is that the path no longer
+    exists for either shape.
     """
-    response = client.post(_post_url(), json=_build_payload())
+    legacy_shape = client.post(_post_url(), json=_payload())
+    build_shape = client.post(_post_url(), json=_build_payload())
 
-    assert response.status_code == 400
+    assert legacy_shape.status_code == 404
+    assert build_shape.status_code == 404
 
 
 def test_build_route_rejects_a_wrong_path_token(client: TestClient) -> None:
@@ -244,26 +257,24 @@ def test_build_route_authenticates_before_parsing_the_body(
     assert response.status_code == 404
 
 
-def test_both_shapes_share_one_event_identity(client: TestClient) -> None:
-    """Duplicate detection must survive the cutover.
+def test_the_event_identity_is_the_attested_hash(client: TestClient) -> None:
+    """Duplicate detection survived the cutover because identity never moved.
 
-    The same bar delivered through both shapes is one event, not two, because
-    _event_id still composes the attested hash — supplied by the payload on
-    the legacy route and by the contract on the build route.
+    _event_id composes the attested HASH, which the build route resolves from
+    the contract. The same bar delivered twice is one event — and the ledger
+    keeps exactly what the legacy shape would have persisted, so events
+    ingested before the cutover and after it can never double-count.
     """
     bar_time = dt.datetime.now(dt.UTC)
 
-    legacy = client.post(_post_url(), json=_payload(bar_time=bar_time))
-    build = client.post(
-        _build_post_url(),
-        json=_build_payload(bar_time=bar_time),
-    )
+    first = client.post(_build_post_url(), json=_build_payload(bar_time=bar_time))
+    second = client.post(_build_post_url(), json=_build_payload(bar_time=bar_time))
 
-    assert legacy.status_code == 200, legacy.text
-    assert build.status_code == 200, build.text
-    assert legacy.json()["status"] == "accepted"
-    assert build.json()["status"] == "duplicate"
-    assert build.json()["eventId"] == legacy.json()["eventId"]
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["status"] == "accepted"
+    assert second.json()["status"] == "duplicate"
+    assert second.json()["eventId"] == first.json()["eventId"]
 
 
 def test_receiver_defaults_fail_closed_when_not_accepting(
@@ -272,7 +283,7 @@ def test_receiver_defaults_fail_closed_when_not_accepting(
 ) -> None:
     monkeypatch.setenv("HOLD_MANAGER_SHADOW_ACCEPTING", "0")
 
-    response = client.post(_post_url(), json=_payload())
+    response = client.post(_build_post_url(), json=_build_payload())
 
     assert response.status_code == 503
     assert "not accepting" in response.json()["detail"]
@@ -284,19 +295,9 @@ def test_receiver_rejects_unconfigured_or_weak_token(
 ) -> None:
     monkeypatch.setenv("HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN", "short")
 
-    payload = _payload()
-    payload["authToken"] = "x" * 32
-    response = client.post(_post_url(), json=payload)
+    response = client.post(_build_post_url("x" * 32), json=_build_payload())
 
     assert response.status_code == 503
-
-
-def test_receiver_hides_route_on_wrong_token(client: TestClient) -> None:
-    payload = _payload()
-    payload["authToken"] = "z" * 64
-    response = client.post(_post_url(), json=payload)
-
-    assert response.status_code == 404
 
 
 def test_receiver_requires_persistent_ledger_configuration(
@@ -305,7 +306,7 @@ def test_receiver_requires_persistent_ledger_configuration(
 ) -> None:
     monkeypatch.delenv("HOLD_MANAGER_SHADOW_LEDGER_PATH")
 
-    response = client.post(_post_url(), json=_payload())
+    response = client.post(_build_post_url(), json=_build_payload())
 
     assert response.status_code == 503
     assert "ledger" in response.json()["detail"].lower()
@@ -315,10 +316,10 @@ def test_accepts_once_and_counts_duplicate_delivery(
     client: TestClient,
     tmp_path: Path,
 ) -> None:
-    payload = _payload()
+    payload = _build_payload()
 
-    first = client.post(_post_url(), json=payload)
-    duplicate = client.post(_post_url(), json=payload)
+    first = client.post(_build_post_url(), json=payload)
+    duplicate = client.post(_build_post_url(), json=payload)
     state = client.get(_state_url(), headers=_state_headers())
 
     assert first.status_code == 200
@@ -346,7 +347,7 @@ def test_accepts_once_and_counts_duplicate_delivery(
         ("requirementId", "OTHER"),
         ("channel", "UNKNOWN"),
         ("mode", "exit_signal"),
-        ("sourceSha256", "0" * 64),
+        ("sourceBuild", 99),
         ("scriptName", "Wrong script"),
         ("layout", "Wrong layout"),
         ("producer", "Wrong producer"),
@@ -358,32 +359,32 @@ def test_contract_mismatches_are_rejected(
     field: str,
     value: object,
 ) -> None:
-    payload = _payload()
+    payload = _build_payload()
     payload[field] = value
 
-    response = client.post(_post_url(), json=payload)
+    response = client.post(_build_post_url(), json=payload)
 
     assert response.status_code == 409
     assert field in response.json()["detail"]["fields"]
 
 
 def test_payload_is_strict_and_json_only(client: TestClient) -> None:
-    payload = _payload()
+    payload = _build_payload()
     payload["unexpected"] = True
 
-    extra = client.post(_post_url(), json=payload)
+    extra = client.post(_build_post_url(), json=payload)
     wrong_type = client.post(
-        _post_url(),
+        _build_post_url(),
         content="not-json",
         headers={"content-type": "text/plain"},
     )
     deceptive_type = client.post(
-        _post_url(),
-        content=json.dumps(_payload()),
+        _build_post_url(),
+        content=json.dumps(_build_payload()),
         headers={"content-type": "application/json-malformed"},
     )
     oversized = client.post(
-        _post_url(),
+        _build_post_url(),
         content=b"{" + b"x" * 8_300 + b"}",
         headers={"content-type": "application/json"},
     )
@@ -398,12 +399,12 @@ def test_rejects_stale_and_future_events(client: TestClient) -> None:
     now = dt.datetime.now(dt.UTC)
 
     stale = client.post(
-        _post_url(),
-        json=_payload(bar_time=now - dt.timedelta(seconds=901)),
+        _build_post_url(),
+        json=_build_payload(bar_time=now - dt.timedelta(seconds=901)),
     )
     future = client.post(
-        _post_url(),
-        json=_payload(bar_time=now + dt.timedelta(seconds=121)),
+        _build_post_url(),
+        json=_build_payload(bar_time=now + dt.timedelta(seconds=121)),
     )
 
     assert stale.status_code == 409
@@ -428,17 +429,22 @@ def _render_template(row: dict[str, str]) -> dict[str, object]:
 
 
 def test_all_six_templates_restore_build_one_and_only_build_one(
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     """The templates are the ROLLBACK path, and both directions are executed.
 
     They recreate the six build-1 alerts, so they name the build-1 hash — not
     the current one (2026-08-14, build 2: the current hash moved). Against a
-    contract rolled back to build 1 every template must be accepted; against
-    the CURRENT build-2 contract every template must be rejected — that
-    rejection IS the drift detection that catches a stale script after the
-    cutover, so it is asserted rather than assumed.
+    contract rolled back to build 1 every template must validate; against the
+    CURRENT build-2 contract every template must be rejected — that rejection
+    IS the drift detection that catches a stale script after the cutover, so
+    it is asserted rather than assumed.
+
+    Since step 3 (2026-08-16) the legacy route is unmounted, so both
+    directions run through the receiver's own model and validator instead of
+    HTTP: HoldManagerShadowAlert + _validate_contract ARE the executable
+    specification a rollback would remount (by reverting the route removal
+    together with the contract).
     """
     artifact = json.loads(TEMPLATES_PATH.read_text(encoding="utf-8"))
     contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
@@ -459,36 +465,30 @@ def test_all_six_templates_restore_build_one_and_only_build_one(
     )
 
     # Direction 1: the current contract REFUSES the build-1 templates.
-    current = _make_client(
-        monkeypatch, tmp_path, contract_path=CONTRACT_PATH, ledger_name="cur.sqlite3"
-    )
-    refused = current.post(_post_url(), json=_render_template(alerts[0]))
-    assert refused.status_code == 409
-    assert "sourceSha256" in refused.json()["detail"]["fields"]
+    current_contract = _load_contract(CONTRACT_PATH)
+    with pytest.raises(HTTPException) as refused:
+        _validate_contract(
+            HoldManagerShadowAlert.model_validate(_render_template(alerts[0])),
+            current_contract,
+        )
+    assert refused.value.status_code == 409
+    assert "sourceSha256" in refused.value.detail["fields"]
 
-    # Direction 2: a contract rolled back to build 1 accepts all six.
+    # Direction 2: a contract rolled back to build 1 validates all six.
     rolled_back = copy.deepcopy(contract)
     rolled_back["source"]["sha256"] = history[1]
     rolled_back["source"]["build"] = 1
     rollback_path = tmp_path / "contract_rolled_back.json"
     rollback_path.write_text(json.dumps(rolled_back), encoding="utf-8")
-    rollback = _make_client(
-        monkeypatch, tmp_path, contract_path=rollback_path, ledger_name="rb.sqlite3"
-    )
+    rollback_contract = _load_contract(rollback_path)
 
     observed_hashes: set[str] = set()
     for row in alerts:
-        payload = _render_template(row)
-        observed_hashes.add(payload["sourceSha256"])
-        response = rollback.post(_post_url(), json=payload)
-        assert response.status_code == 200
-        assert response.json()["status"] == "accepted"
+        payload = HoldManagerShadowAlert.model_validate(_render_template(row))
+        observed_hashes.add(payload.source_sha256)
+        _validate_contract(payload, rollback_contract)
 
     assert observed_hashes == {BUILD_1_SHA256}
-    state = rollback.get(_state_url(), headers=_state_headers()).json()
-    assert state["uniqueEvents"] == 6
-    assert state["duplicateDeliveries"] == 0
-    assert state["uniqueByChannel"] == dict.fromkeys(_CHANNELS, 1)
 
 
 def test_state_exposes_per_session_delivery_breakdown(
@@ -499,8 +499,10 @@ def test_state_exposes_per_session_delivery_breakdown(
     fill sessions[*].deliveredServerAlerts from receiver truth instead of a
     manual claim."""
     bar_time = dt.datetime.now(dt.UTC)
-    entry = client.post(_post_url(), json=_payload(bar_time=bar_time))
-    duplicate = client.post(_post_url(), json=_payload(bar_time=bar_time))
+    entry = client.post(_build_post_url(), json=_build_payload(bar_time=bar_time))
+    duplicate = client.post(
+        _build_post_url(), json=_build_payload(bar_time=bar_time)
+    )
     assert entry.status_code == 200
     assert duplicate.json()["status"] == "duplicate"
 

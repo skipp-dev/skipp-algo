@@ -258,20 +258,33 @@ def test_current_tradingview_compile_evidence_is_hash_pinned() -> None:
     # of the build it was captured for, which is the build the dated replay
     # evidence names — the two dated artifacts must agree with each other
     # (asserted above). The CURRENT manifest only has to match while no build
-    # advance is pending; during a declared pending gap the new fixture's
-    # TradingView compile proof is part of the cutover sitting, and the
-    # wire-shape cutover test refuses cutOver=true without it.
+    # advance happened. 2026-08-16 (cutover): the sitting closed the build-2
+    # gap by STRUCTURAL INHERITANCE instead of a physical TV re-replay — no
+    # new fixture compile exists, and the chain to the current build runs
+    # through the inheritance bridge of the 2026-08-16 replay evidence, whose
+    # reconstruction test re-executes it on every run.
     contract = json.loads(SHADOW_CONTRACT.read_text(encoding="utf-8"))
     proven_hashes = {e["sha256"] for e in contract["buildHistory"]}
     assert replay_evidence["canonicalSource"]["sha256"] in proven_hashes
-    pending = (
+    basis_is_current = (
         replay_evidence["canonicalSource"]["sha256"]
-        != contract["source"]["sha256"]
+        == contract["source"]["sha256"]
     )
-    if pending:
-        assert contract["alertWireShape"]["cutOver"] is False
-    else:
+    if basis_is_current:
         assert evidence["fixture"]["sha256"] == manifest["fixture"]["sha256"]
+    else:
+        current_replay = json.loads(
+            (
+                SHADOW_CONTRACT.parent
+                / "smc_hold_manager_tradingview_replay_2026-08-16.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert current_replay["inheritance"]["basisFrozenSha256"] == (
+            replay_evidence["canonicalSource"]["sha256"]
+        )
+        assert current_replay["canonicalSource"]["sha256"] == (
+            contract["source"]["sha256"]
+        )
     assert evidence["fixture"]["savedStatus"] == "saved_private_test_only"
     assert evidence["fixture"]["publicationStatus"] == "not_published"
     assert evidence["tradingView"]["compileStatus"] == "passed"

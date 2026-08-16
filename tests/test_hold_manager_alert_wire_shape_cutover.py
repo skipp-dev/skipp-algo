@@ -108,10 +108,11 @@ def _verify_cutover_evidence(
 
 
 def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
+    """The newest dated evidence set is the 2026-08-16 cutover sitting."""
     contract = _contract()
-    replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-07-28.json")
+    replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-08-16.json")
     preconditions = _dated_evidence(
-        "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
+        "smc_hold_manager_tradingview_preconditions_2026-08-16.json"
     )
 
     _verify_cutover_evidence(
@@ -122,13 +123,15 @@ def test_the_cutover_evidence_rule_holds_for_the_repository_state() -> None:
     )
 
 
-def test_a_cutover_on_todays_evidence_would_be_refused() -> None:
-    """Forward probe with the real artifacts, so the guard cannot be vacuous.
+def test_a_cutover_on_stale_evidence_is_refused() -> None:
+    """Forward probe with real artifacts, so the guard cannot be vacuous.
 
-    Today the contract carries build 2 while the dated evidence describes
-    build 1. Flipping cutOver against exactly this state must raise — if it
-    does not, the rule above checks nothing and the pending gap could be
-    declared closed by editing one boolean.
+    The 2026-07-28 set permanently describes build 1, so flipping cutOver
+    against it must raise for as long as the contract carries anything newer.
+    Before 2026-08-16 this probe used the same artifacts as the state test
+    above; it was moved onto the historical set when the cutover-sitting
+    evidence landed, keeping the raise path executed instead of letting the
+    probe's premise silently disappear.
     """
     contract = _contract()
     replay = _dated_evidence("smc_hold_manager_tradingview_replay_2026-07-28.json")
@@ -136,14 +139,11 @@ def test_a_cutover_on_todays_evidence_would_be_refused() -> None:
         "smc_hold_manager_tradingview_preconditions_2026-07-28.json"
     )
 
-    gap_is_open = (
-        replay["canonicalSource"]["sha256"] != contract["source"]["sha256"]
+    assert replay["canonicalSource"]["sha256"] != contract["source"]["sha256"], (
+        "the historical build-1 evidence now names the current hash -- "
+        "buildHistory must have collapsed, investigate before trusting this "
+        "guard"
     )
-    if not gap_is_open:
-        # After the cutover sitting lands new dated evidence, this probe's
-        # premise disappears and the rule is exercised by the state test.
-        assert contract["source"]["sha256"] == replay["canonicalSource"]["sha256"]
-        return
 
     with pytest.raises(AssertionError, match="unproven build"):
         _verify_cutover_evidence(
