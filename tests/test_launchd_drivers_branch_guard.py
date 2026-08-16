@@ -45,6 +45,9 @@ DRIVERS = [
     # C13 revival (2026-07-06): the reconcile-fills stage publishes the
     # fill-stamped audit file through the same shared helper.
     REPO / "automation" / "launchd" / "run-c13-reconcile.sh",
+    # Phase-1 commercial pilot (2026-08-16, P0): the commercial-shadow
+    # driver publishes the campaign report through the same shared helper.
+    REPO / "automation" / "launchd" / "run-c13-commercial-shadow.sh",
 ]
 
 

@@ -78,6 +78,22 @@ if ! "${PY}" -m scripts.reconcile_incubation_fills \
     _write_marker "DEGRADED" "reconcile-failed:audit=${AUDIT}"
     exit 1
 fi
+
+# Commercial-family paper audit (weekly review 2026-08-16, P0): once the
+# commercial paper stage is live its submissions land in a SEPARATE dated
+# file so the two writers never interleave. Reconcile it with the same
+# machinery when present; absent means the paper stage is still dormant.
+COMMERCIAL_AUDIT="${REPO}/cache/live/incubation_commercial_${DATE}.jsonl"
+COMMERCIAL_FILLS="${REPO}/cache/live/portfolio_fills_commercial_${DATE}.json"
+if [[ -f "${COMMERCIAL_AUDIT}" ]]; then
+    if ! "${PY}" -m scripts.reconcile_incubation_fills \
+        --audit "${COMMERCIAL_AUDIT}" \
+        --portfolio-fills-output "${COMMERCIAL_FILLS}"; then
+        echo "reconcile cron: commercial reconcile FAILED — see above for details" >&2
+        _write_marker "DEGRADED" "commercial-reconcile-failed:audit=${COMMERCIAL_AUDIT}"
+        exit 1
+    fi
+fi
 if [[ ! -s "${PORTFOLIO_BEFORE}" ]]; then
     echo "reconcile cron: pre-submit portfolio snapshot missing at ${PORTFOLIO_BEFORE}" >&2
     _write_marker "DEGRADED" "portfolio-before-missing:path=${PORTFOLIO_BEFORE}"
