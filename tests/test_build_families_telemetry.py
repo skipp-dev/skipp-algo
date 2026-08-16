@@ -32,7 +32,10 @@ def test_event_families_match_smc_core_scoring() -> None:
 
 
 def test_schema_version_pinned() -> None:
-    assert FAMILIES_SCHEMA_VERSION == "2.0.0"
+    # 2026-08-16: 2.0.0 -> 2.1.0, additive commercial_claim per family row
+    # (operator decision: FVG leaves the family claim; see
+    # docs/commercial/family_claim_status.json).
+    assert FAMILIES_SCHEMA_VERSION == "2.1.0"
 
 
 def test_strict_payload_keys_match_consumer_contract() -> None:
