@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "requirementId": "R2-SHADOW-CUTOVER",
+  "kind": "reactivation_after_build_advance",
+  "build": 3,
+  "sourceSha256": "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048",
+  "reactivatedAtUtc": "2026-08-16T13:02:39Z",
+  "authorization": {
+    "record": "artifacts/governance/smc_hold_manager_shadow_activation_2026-07-28.json",
+    "note": "The 2026-07-28 activation (separate authorization, post-close boundary, pre-authorized rollback drill) stands unchanged and is NOT rewritten — dated evidence is immutable. Shadow accepting was never toggled off across the build-2 and build-3 advances; this record re-attests the activation POSTURE for the build the contract now pins, which is exactly the step the evaluator's activation.sourceSha256 blocker demands after a build advance ('the cutover sitting re-activates with current-build evidence')."
+  },
+  "verification": {
+    "transferAndRebind": {
+      "run": 31946232476,
+      "workflow": "tv-save-consumer-source",
+      "conclusion": "success",
+      "claim": "build-3 source saved to the managed private doc 'SMC Hold Manager', force_rebind 13/13"
+    },
+    "alertReadback": {
+      "run": 31948499911,
+      "workflow": "tv-save-consumer-source",
+      "conclusion": "success",
+      "artifact": "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16_build3.json",
+      "capturedAt": "2026-08-16T13:02:39Z",
+      "claim": "exactly one build-pinned alert active (ALL_VIA_ALERT_BODY), zero legacy channel alerts remaining, bindings 13/13, out-of-band drift clean"
+    },
+    "daemonDeploy": {
+      "run": 31952414894,
+      "workflow": "deploy-live-overlay-daemon",
+      "conclusion": "success",
+      "claim": "daemon validates sourceBuild 3 and payload scriptName 'SMC Hold Manager' on merge 15b8b4104"
+    },
+    "datedEvidenceSet": [
+      "artifacts/governance/smc_hold_manager_tradingview_preconditions_2026-08-16_build3.json",
+      "artifacts/governance/smc_hold_manager_tradingview_replay_2026-08-16_build3.json",
+      "artifacts/governance/smc_hold_manager_shadow_alert_readback_2026-08-16_build3.json"
+    ]
+  },
+  "result": {
+    "managedScriptStatus": "managed_saved",
+    "savedScriptVisibility": "private",
+    "externalPublicationPerformed": false,
+    "compileStatus": "passed",
+    "bindingStatus": "passed_after_reload",
+    "activeHoldAlertChannels": [
+      "HM_ENTRY",
+      "HM_T1",
+      "HM_T2",
+      "HM_STOP",
+      "HM_TIMESTOP",
+      "HM_EXIT_ANY"
+    ],
+    "wireShape": "all six channels carried by the single build-pinned alert (build_path_token); channel-level delivery is routed by the receiver from the alert body",
+    "exitSignalActionableAlertsActive": 0,
+    "strategyActionableExitAlertsActive": 0
+  },
+  "nextBuildAdvance": "A future build advance re-opens the evaluator's activation.sourceSha256 blocker BY DESIGN. The documented path is this record's shape: re-attest with a new dated *_build<N> record citing the transfer/rebind run, the alert readback, and the daemon deploy of that build, then point observations.activation at it. Never rewrite this or any earlier dated record."
+}

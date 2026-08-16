@@ -142,18 +142,18 @@ def test_checked_in_shadow_state_is_active_observation_window() -> None:
     assert result["activationStatus"] == "active"
     assert result["completeSessionCount"] == 0
     assert result["blockers"] == [
-        # 2026-08-14 (build 2): the activation evidence of 2026-07-28
-        # describes the build-1 source, the contract now pins build 2. The
-        # evaluator reporting that gap is CORRECT — the observation window
-        # belongs to the build the daemon validates, and the cutover sitting
-        # re-activates with build-2 evidence. Dated evidence is never
-        # rewritten, so this blocker stands until then.
-        # 2026-08-16 (build 3): same gap, one build further — the payload
-        # scriptName followed the operator's rename of the saved document.
-        "activation.sourceSha256: expected "
-        "'88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048', "
-        "observed "
-        "'1761e96aaf5e62412329bb7be10383c36fce4e471b98467f86e1ce63ba360813'",
+        # 2026-08-14 (build 2) / 2026-08-16 (build 3): the activation
+        # evidence of 2026-07-28 described the build-1 source while the
+        # contract moved on — the evaluator reporting that gap was CORRECT,
+        # and the announced resolution ("the cutover sitting re-activates
+        # with current-build evidence") happened on 2026-08-16: the dated
+        # re-activation record smc_hold_manager_shadow_activation_
+        # 2026-08-16_build3.json re-attests the activation posture for
+        # build 3 (transfer+rebind 31946232476, alert readback 31948499911,
+        # daemon deploy 31952414894), and observations.activation points at
+        # it. The 2026-07-28 record is untouched — dated evidence is never
+        # rewritten. A future build advance re-opens this blocker by
+        # design; the record's `nextBuildAdvance` field documents the path.
         "complete sessions: need 5, observed 0",
         "aggregate HM_ENTRY: need at least 1 expected edge(s), observed 0",
         "aggregate HM_EXIT_ANY: need at least 1 expected edge(s), observed 0",
