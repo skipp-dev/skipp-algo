@@ -35,9 +35,9 @@ src_state_code         = input.source(close, "BUS StateCode",      group = g_bus
 
 var string g_trade_mgmt = "Trade Management (optional)"
 tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",        group = g_trade_mgmt, tooltip = "Adds 2 extra rows to the table: Trade-State (FLAT/ARMED/IN-TRADE) and live Stop. Same logic as SMC_Exit_Signal.")
-tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",              group = g_trade_mgmt, minval = 0.25, step = 0.25)
-tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",              group = g_trade_mgmt, minval = 0.5,  step = 0.25)
-tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",              group = g_trade_mgmt, minval = 0.25, step = 0.25, active = tm_enable)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",              group = g_trade_mgmt, minval = 0.5,  step = 0.25, active = tm_enable)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt, active = tm_enable)
 
 // ── BUS Schema Version Check ──
 int expected_bus_version = 7001
