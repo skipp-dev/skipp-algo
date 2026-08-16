@@ -453,9 +453,21 @@ jobs:
             # ${REFRESH_DATE}. That gap is what let the 2026-08-14 night runs
             # pass here on a day-old bundle and then die in the release gates on
             # MISSING_ARTIFACT. Read the date the manifest actually covers.
+            # Schema-Drift laut, Nachtmodus leise: has() zuerst -- der
+            # Exporter emittiert trade_dates_covered UNBEDINGT
+            # (scripts/databento_production_export.py, Manifest-Builder),
+            # Fehlen heisst also Umbenennung oder Korruption, nie "noch kein
+            # Export". Mit `// []` hinter 2>/dev/null liefen die Release-Gates
+            # nach einem Rename fuer immer im --daily-export-absent-Nachtmodus,
+            # gruen -- Sweep-Fund 2026-08-15, dieselbe Klasse wie #4738/#4743.
+            # Ein korruptes Manifest scheitert bereits am has()-Parse, laut.
+            if ! jq -e 'has("trade_dates_covered")' "${NEWEST}" >/dev/null; then
+              echo "::error::${NEWEST} carries no trade_dates_covered -- exporter schema drift or a corrupt manifest, not a pending export; refusing to soften the release gates."
+              exit 1
+            fi
             if jq -e --arg d "${REFRESH_DATE}" \
-                 '(.trade_dates_covered // []) | index($d) != null' \
-                 "${NEWEST}" >/dev/null 2>&1; then
+                 '.trade_dates_covered | index($d) != null' \
+                 "${NEWEST}" >/dev/null; then
               echo "bundle_for_date=true" >> "$GITHUB_OUTPUT"
             else
               echo "bundle_for_date=false" >> "$GITHUB_OUTPUT"
