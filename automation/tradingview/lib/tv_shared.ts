@@ -4238,20 +4238,41 @@ async function waitForDialogByTextToClose(page: Page, pattern: RegExp, timeoutMs
 }
 
 async function dismissPublishCancelConfirmation(page: Page, timeoutMs = 500): Promise<boolean> {
+  // 2026-08-17: TradingView replaced this confirmation. The old dialog read
+  // "Cancel publication?" and confirmed with "Yes"; the new one reads
+  // "Delete this publication? … you will lose everything and will need to
+  // start from scratch" with buttons Cancel / Delete — it discards the
+  // UNSAVED publication draft, which is exactly what the no-change dismissal
+  // wants. Seven publish runs hung on the unanswered modal (surface-close
+  // clicks timing out behind it, identity evidence collapsing on the covered
+  // page) while the refresh treadmill re-published 255 -> 262 unverified.
+  // Both variants stay handled; the matched text decides which affirmative
+  // button this is allowed to press, strictly inside the matched dialog.
   const cancelDialog = await findVisibleDialogByText(page, /cancel publication/i, timeoutMs);
-  if (!cancelDialog) {
+  const dialog = cancelDialog
+    ?? await findVisibleDialogByText(page, /delete this publication/i, timeoutMs);
+  if (!dialog) {
     return false;
   }
+  const isLegacyCancel = cancelDialog !== null;
+  const dialogPattern = isLegacyCancel ? /cancel publication/i : /delete this publication/i;
+  const variant = isLegacyCancel ? "cancel" : "delete";
 
-  tracePageEvent(page, "publish-no-change", "cancel-confirm-visible");
+  tracePageEvent(page, "publish-no-change", `${variant}-confirm-visible`);
+  const affirmatives = isLegacyCancel
+    ? [
+        dialog.getByRole("button", { name: /^yes$/i }),
+        dialog.getByText(/^yes$/i),
+        dialog.locator('button:has-text("Yes")'),
+      ]
+    : [
+        dialog.getByRole("button", { name: /^delete$/i }),
+        dialog.locator('button:has-text("Delete")'),
+      ];
   const confirmed = await clickVisibleWithFallback(
     page,
-    [
-      cancelDialog.getByRole("button", { name: /^yes$/i }),
-      cancelDialog.getByText(/^yes$/i),
-      cancelDialog.locator('button:has-text("Yes")'),
-    ],
-    "publish-no-change-cancel-confirm",
+    affirmatives,
+    `publish-no-change-${variant}-confirm`,
     1_500,
     500,
   ).catch(() => false);
@@ -4260,8 +4281,8 @@ async function dismissPublishCancelConfirmation(page: Page, timeoutMs = 500): Pr
     await page.keyboard.press("Enter").catch(() => undefined);
   }
 
-  const dialogClosed = await waitForDialogByTextToClose(page, /cancel publication/i, 1_500);
-  tracePageEvent(page, "publish-no-change", dialogClosed ? "cancel-confirm-dismissed" : "cancel-confirm-still-visible");
+  const dialogClosed = await waitForDialogByTextToClose(page, dialogPattern, 1_500);
+  tracePageEvent(page, "publish-no-change", dialogClosed ? `${variant}-confirm-dismissed` : `${variant}-confirm-still-visible`);
   return dialogClosed;
 }
 
@@ -4286,6 +4307,16 @@ async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> 
     ).catch(() => false);
     if (!(await hasPublishSurface(page, 150))) {
       tracePageEvent(page, "publish-no-change", `surface-dismissed:close:${attempt}`);
+      return true;
+    }
+
+    // Answer the confirmation the close click just spawned BEFORE pressing
+    // Escape: Escape cancels the confirm modal and hands the stuck publish
+    // surface straight back (the 2026-08-17 loop shape — three attempts,
+    // every close click timing out behind the unanswered modal).
+    await dismissPublishCancelConfirmation(page, 500).catch(() => false);
+    if (!(await hasPublishSurface(page, 150))) {
+      tracePageEvent(page, "publish-no-change", `surface-dismissed:confirm:${attempt}`);
       return true;
     }
 
