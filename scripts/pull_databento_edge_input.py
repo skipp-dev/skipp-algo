@@ -820,6 +820,13 @@ def _coerce_as_of_arg(value: str | None) -> float | str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 2026-08-17: like the sibling databento_* CLIs — under launchd the
+    # environment carries no secrets, so the CLI resolves DATABENTO_API_KEY
+    # from the checkout's .env itself (run-c13-commercial-shadow.sh relies
+    # on this; a bare launchd env otherwise fails every pull).
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     parser = argparse.ArgumentParser(
         description=(
             "EV-13: pull real Databento OHLCV and emit a run_edge_pipeline "

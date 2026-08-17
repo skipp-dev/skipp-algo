@@ -1,0 +1,93 @@
+{
+  "candidates_measured": [],
+  "candidates_passed": [],
+  "cost_bps": 5.0,
+  "cost_calibration": null,
+  "cost_source": "flat_default",
+  "epnl_ci_floor": 0.0,
+  "events_on_plane": 31,
+  "events_total": 9499,
+  "families_measured": [
+    "BOS",
+    "OB",
+    "SWEEP"
+  ],
+  "measurement_plane": "1D",
+  "min_trades": 40,
+  "n_bootstrap": 1000,
+  "results": {
+    "BOS": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.01877872468421935,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "BOS",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 11,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.0402982353650538,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.02151951068083445,
+      "verdict": "INCONCLUSIVE"
+    },
+    "OB": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.03714681781678214,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "OB",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 6,
+      "passes": false,
+      "role": "control",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.013547658526304544,
+      "sized_profitable": false,
+      "sizing_non_destructive": false,
+      "sizing_uplift": -0.023599159290477595,
+      "verdict": "INCONCLUSIVE"
+    },
+    "SWEEP": {
+      "cost_bps": 5.0,
+      "equal_ci_high": 0.0,
+      "equal_ci_low": 0.0,
+      "equal_mean": 0.030494611560566643,
+      "equal_profitable": false,
+      "fail_reasons": [
+        "min_sample"
+      ],
+      "family": "SWEEP",
+      "min_sample_pass": false,
+      "n_bootstrap": 1000,
+      "n_trades": 12,
+      "passes": false,
+      "role": "candidate",
+      "seed": 230022,
+      "sized_ci_high": 0.0,
+      "sized_ci_low": 0.0,
+      "sized_mean": 0.034260457124249605,
+      "sized_profitable": false,
+      "sizing_non_destructive": true,
+      "sizing_uplift": 0.0037658455636829617,
+      "verdict": "INCONCLUSIVE"
+    }
+  },
+  "seed": 230022
+}
