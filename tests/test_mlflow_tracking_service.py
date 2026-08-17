@@ -36,7 +36,7 @@ def test_service_is_pinned_and_separate_from_worker_runtime() -> None:
     assert (SERVICE_DIR / "requirements.txt").read_text(encoding="utf-8").splitlines() == [
         "mlflow[auth]==3.15.1",  # 2026-08-11 (#4596 accepted): 3.15.0/1.43.62 -> below
         "psycopg2-binary==2.9.12",
-        "boto3==1.43.66",
+        "boto3==1.43.71",  # 2026-08-17 (#4778 dependabot): 1.43.66->1.43.71
     ]
     assert "mlflow" not in Path("services/a0_fast_detector/requirements.txt").read_text(
         encoding="utf-8"
