@@ -36,8 +36,12 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 # RTH gate: target 12:45 ET with ±195m tolerance = 09:30–16:00 ET. Unlike
 # the 09:28 order window there is no single correct minute — any RTH
 # snapshot is a valid observation — so the wide window is the point.
+# Scope "hour": one attempt per ET HOUR, not per day — ~6 observations per
+# session is the whole design, and a failed attempt must only burn its own
+# hour slot (2026-08-17: the day-scoped marker let the failed 16:05 fire
+# swallow all five later fires).
 source "$(dirname "$0")/lib_c13_et_gate.sh"
-c13_require_et_window "$REPO" 12 45 195 commercial-shadow || exit 0
+c13_require_et_window "$REPO" 12 45 195 commercial-shadow hour || exit 0
 
 VENV="${C13_VENV:-${REPO}/.venv}"
 DATE="$(date -u +%Y-%m-%d)"
@@ -110,10 +114,19 @@ if [ "${_pull_exit}" -ne 0 ]; then
 fi
 
 # 2. Audit-only campaign attempt (no network/broker I/O by construction).
+#    Freshness budgets 900s (not the 300s defaults): Databento historical
+#    availability trails the wall clock intraday — measured 2026-08-17,
+#    XNAS.ITCH served up to 14:00:00Z at a 14:05:00Z request — so a clamped
+#    point-in-time pull is ~5-7 minutes old by construction and 300s would
+#    fail-close every honest attempt. 900s still catches a genuinely stale
+#    chain (yesterday's payload is hours old). The campaign contract freezes
+#    these numbers immutably; the review before any broker flip sees them.
 _campaign_exit=0
 "${PY}" -m scripts.run_commercial_shadow_campaign \
     --input "${PIT_INPUT}" \
-    --campaign-dir "${CAMPAIGN_DIR}" || _campaign_exit=$?
+    --campaign-dir "${CAMPAIGN_DIR}" \
+    --max-setup-age-seconds 900 \
+    --max-source-age-p95-seconds 900 || _campaign_exit=$?
 if [ "${_campaign_exit}" -ne 0 ]; then
     echo "commercial-shadow cron: campaign attempt FAILED (exit ${_campaign_exit})" >&2
     _write_marker "DEGRADED" "campaign-attempt-failed:input=${PIT_INPUT}"

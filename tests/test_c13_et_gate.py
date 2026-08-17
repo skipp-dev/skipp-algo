@@ -18,11 +18,19 @@ _REPO = Path(__file__).resolve().parents[1]
 _LIB = _REPO / "automation" / "launchd" / "lib_c13_et_gate.sh"
 
 
-def _run_gate(tmp_repo: Path, now_et: str, dow: int, thh: str, tmm: str, tol: str) -> int:
+def _run_gate(
+    tmp_repo: Path,
+    now_et: str,
+    dow: int,
+    thh: str,
+    tmm: str,
+    tol: str,
+    scope: str = "",
+) -> int:
     """Invoke the sourced gate with an injected ET clock; return its exit code."""
     script = (
         f'source "{_LIB}"; '
-        f'c13_require_et_window "{tmp_repo}" {thh} {tmm} {tol} testjob'
+        f'c13_require_et_window "{tmp_repo}" {thh} {tmm} {tol} testjob {scope}'
     )
     proc = subprocess.run(
         ["bash", "-c", script],
@@ -63,6 +71,29 @@ def test_gate_runs_exactly_once_per_et_day(tmp_path: Path) -> None:
     # -- for phase-a that would mean duplicate paper orders.
     assert _run_gate(tmp_path, "09:28", 1, "09", "28", "10") == 0
     assert _run_gate(tmp_path, "09:28", 1, "09", "28", "10") != 0
+
+
+def test_hour_scope_allows_one_run_per_et_hour(tmp_path: Path) -> None:
+    # The intraday observation drivers (commercial-shadow) fire once per RTH
+    # hour BY DESIGN; the day-scoped marker turned their six daily slots into
+    # one (and a failed 16:05 fire burned the whole 2026-08-17 session). Same
+    # hour: second fire skips. Next hour: the fire proceeds again.
+    assert _run_gate(tmp_path, "10:05", 1, "12", "45", "195", scope="hour") == 0
+    assert _run_gate(tmp_path, "10:05", 1, "12", "45", "195", scope="hour") != 0
+    assert _run_gate(tmp_path, "10:35", 1, "12", "45", "195", scope="hour") != 0
+    assert _run_gate(tmp_path, "11:05", 1, "12", "45", "195", scope="hour") == 0
+
+
+def test_hour_scope_still_skips_outside_window_and_on_weekends(tmp_path: Path) -> None:
+    assert _run_gate(tmp_path, "08:05", 1, "12", "45", "195", scope="hour") != 0
+    assert _run_gate(tmp_path, "10:05", 6, "12", "45", "195", scope="hour") != 0
+
+
+def test_default_scope_is_day_when_the_sixth_argument_is_omitted(tmp_path: Path) -> None:
+    # The order-placing chains keep exactly-once-per-day semantics untouched:
+    # a second fire in a LATER hour must still skip without the hour scope.
+    assert _run_gate(tmp_path, "09:28", 1, "09", "28", "60") == 0
+    assert _run_gate(tmp_path, "10:05", 1, "09", "28", "60") != 0
 
 
 def test_concurrent_in_window_fires_let_exactly_one_proceed(tmp_path: Path) -> None:
