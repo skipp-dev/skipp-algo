@@ -156,7 +156,21 @@ def test_production_app_mounts_the_build_and_state_routes_only() -> None:
     """
     from services.live_overlay_daemon import main
 
-    paths = {route.path for route in main.app.routes}
+    # starlette >= 1.6 (dependabot #4778): include_router mounts an
+    # _IncludedRouter carrying no .path; the real APIRoutes live on its
+    # original_router. Older starlette flattens them into app.routes
+    # directly. Collect both shapes so this assertion keeps meaning
+    # "these paths, mounted" across the pin bump.
+    paths = set()
+    for route in main.app.routes:
+        path = getattr(route, "path", None)
+        if path is not None:
+            paths.add(path)
+        original = getattr(route, "original_router", None)
+        for sub in getattr(original, "routes", None) or []:
+            sub_path = getattr(sub, "path", None)
+            if sub_path is not None:
+                paths.add(sub_path)
 
     assert "/tradingview/hold-manager-shadow" not in paths
     assert "/tradingview/hold-manager-shadow/state" in paths

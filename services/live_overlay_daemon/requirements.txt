@@ -1,11 +1,11 @@
 fastapi==0.141.1
-starlette==1.4.1  # 2026-08-04: pinned at the version this file already
+starlette==1.6.0  # 2026-08-04: pinned at the version this file already
                   # resolves to (verified via a fresh throwaway-venv
                   # install; a no-op today). Unpinned ASGI-layer majors
                   # are the real risk on the deployed daemon, the
                   # production path with the highest blast radius — see
                   # requirements.txt for the root-cause writeup.
-uvicorn==0.52.1
+uvicorn==0.52.3
 databento==0.83.0
 psutil==7.2.2
 holidays==0.102
