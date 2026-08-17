@@ -8,6 +8,6 @@
 # surface and do not imply lockstep equality with every corresponding pin in
 # the repo-wide requirements.txt.
 streamlit==1.58.0
-numpy==2.4.6
+numpy==2.5.2
 pandas==3.0.3
 plotly==6.8.0
