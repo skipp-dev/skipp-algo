@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -630,6 +630,10 @@ class TestReconnectAndReplay:
             replay_start=_REPLAY_START,
             reconnect_delay_secs=0.02,
             reconnect_backoff_secs=0.02,
+            # This test pins the cursor-advancement arithmetic against the
+            # fixed fixture timestamps; the gateway-window clamp (its own
+            # tests below) would rewrite them to wall-clock-relative values.
+            replay_start_max_age=None,
         )
         feed.start()
         deadline = time.monotonic() + 3.0
@@ -909,3 +913,49 @@ class TestUpdateSymbols:
         assert feed.telemetry.snapshot()["symbols_filtered"] == {
             "unsupported_symbol": 1,
         }
+
+
+class TestReplayStartGatewayWindow:
+    """The live gateway refuses replay starts older than roughly one UTC day
+    ("Invalid start time. Must be <yesterday 00:00Z> or later"). A cursor
+    stranded behind that window — the weekend case: last committed bar is
+    Friday's close — must be clamped forward at subscribe time, because a
+    refused subscribe delivers no bars and the cursor would otherwise never
+    advance again (the 2026-08-16/17 producer reconnect deadlock)."""
+
+    def test_a_weekend_stale_cursor_is_clamped_into_the_window(self) -> None:
+        feed, _ = _make_feed([])
+        with feed._cache_lock:
+            feed._last_committed_ts_event = (
+                datetime.now(tz=UTC) - timedelta(days=3)
+            ).timestamp()
+
+        start = feed._next_replay_start()
+
+        assert start >= datetime.now(tz=UTC) - timedelta(hours=23, minutes=1)
+
+    def test_a_stale_initial_replay_start_is_clamped_too(self) -> None:
+        # No bar ever committed: the candidate is the constructor value,
+        # which after a long-running process (or a stale fixture date) can
+        # itself lie outside the gateway window.
+        feed, _ = _make_feed([])
+
+        start = feed._next_replay_start()
+
+        assert datetime.now(tz=UTC) - _REPLAY_START > timedelta(days=1)
+        assert start >= datetime.now(tz=UTC) - timedelta(hours=23, minutes=1)
+
+    def test_a_fresh_cursor_is_returned_unclamped(self) -> None:
+        feed, _ = _make_feed([])
+        last = datetime.now(tz=UTC) - timedelta(seconds=60)
+        with feed._cache_lock:
+            feed._last_committed_ts_event = last.timestamp()
+
+        start = feed._next_replay_start()
+
+        assert start == datetime.fromtimestamp(last.timestamp() + 1.0, tz=UTC)
+
+    def test_the_clamp_can_be_disabled_for_fixture_replays(self) -> None:
+        feed, _ = _make_feed([], replay_start_max_age=None)
+
+        assert feed._next_replay_start() == _REPLAY_START

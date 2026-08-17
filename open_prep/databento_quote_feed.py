@@ -550,6 +550,7 @@ class DatabentoQuoteFeed:
         max_reconnect_attempts: int = 5,
         max_consecutive_failures: int = 10,
         supervisor_cooldown_secs: float = 300.0,
+        replay_start_max_age: timedelta | None = timedelta(hours=23),
     ) -> None:
         if not symbols:
             raise ValueError("symbols must not be empty")
@@ -584,6 +585,7 @@ class DatabentoQuoteFeed:
         )
         self._client_or_factory = client_or_factory
         self._replay_start = replay_start
+        self._replay_start_max_age = replay_start_max_age
 
         self._queue: queue.Queue[Any] = queue.Queue(maxsize=max(1, int(queue_max)))
         self._reconnect_delay_secs = float(reconnect_delay_secs)
@@ -887,9 +889,33 @@ class DatabentoQuoteFeed:
     def _next_replay_start(self) -> datetime:
         with self._cache_lock:
             last_ts = self._last_committed_ts_event
-        if last_ts is None:
-            return self._replay_start
-        return datetime.fromtimestamp(last_ts + 1.0, tz=UTC)
+        candidate = (
+            self._replay_start
+            if last_ts is None
+            else datetime.fromtimestamp(last_ts + 1.0, tz=UTC)
+        )
+        if self._replay_start_max_age is None:
+            return candidate
+        # The EQUS live gateway rejects intraday replay starts before the
+        # previous UTC day ("Invalid start time. Must be <yesterday 00:00Z>
+        # or later", observed 2026-08-17; docs say "within the last 24
+        # hours"). After a weekend the cursor — last committed Friday bar —
+        # falls out of that window, every subscribe is refused, and with no
+        # new bars the cursor never advances: a reconnect deadlock (the
+        # 2026-08-16/17 producer outage). 23h satisfies both phrasings of
+        # the gateway rule; the skipped span only covers hours in which the
+        # feed was down anyway (cf. worker._live_replay_start in
+        # services/a0_fast_detector, which clamps the same way).
+        floor = datetime.now(tz=UTC) - self._replay_start_max_age
+        if candidate < floor:
+            logger.warning(
+                "Databento replay start %s predates the live-gateway replay "
+                "window; clamping to %s.",
+                candidate.isoformat(),
+                floor.isoformat(),
+            )
+            return floor
+        return candidate
 
     def _enqueue_bar(self, symbol: str, bar: BarState, *, replay_active: bool) -> None:
         item = (symbol, bar, time.monotonic())
