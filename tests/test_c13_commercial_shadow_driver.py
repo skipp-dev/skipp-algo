@@ -73,6 +73,21 @@ def test_the_submit_flag_appears_only_after_the_interlock() -> None:
     assert "run_commercial_shadow_campaign" in code_before
 
 
+def test_the_campaign_runs_with_the_vendor_honest_freshness_budgets() -> None:
+    # 900s, not the 300s defaults: Databento historical availability trails
+    # the wall clock intraday (measured 2026-08-17: XNAS.ITCH served up to
+    # 14:00:00Z at a 14:05:00Z request), so an honest clamped PIT snapshot is
+    # ~5-7 minutes old by construction and 300s would fail-close every
+    # attempt. The campaign contract freezes whatever the driver passes, so
+    # this pin is what keeps the recorded thresholds intentional.
+    source = _driver()
+    campaign_stage = source.split("run_commercial_shadow_campaign", 1)[1]
+    campaign_stage = campaign_stage.split("# 3. Paper stage", 1)[0]
+
+    assert "--max-setup-age-seconds 900" in campaign_stage
+    assert "--max-source-age-p95-seconds 900" in campaign_stage
+
+
 def test_the_report_push_precedes_the_interlock_decision() -> None:
     source = _driver()
     before = source.split("# 3. Paper stage", 1)[0]
@@ -115,7 +130,10 @@ def test_the_driver_honours_the_smoke_sentinel_and_et_gate() -> None:
 
     assert "smoke_HALT" in source
     assert "lib_c13_et_gate.sh" in source
-    assert "c13_require_et_window" in source
+    # HOUR scope, not the default day scope: ~6 attempts per session is the
+    # campaign design, and a failed attempt must only burn its own hour slot
+    # (2026-08-17: the day marker let the failed 16:05 fire swallow the day).
+    assert "c13_require_et_window \"$REPO\" 12 45 195 commercial-shadow hour" in source
     # `cmd || var=$?` idiom — a bare `cmd; var=$?` is dead code under set -e.
     assert "|| _pull_exit=$?" in source
     assert "|| _campaign_exit=$?" in source

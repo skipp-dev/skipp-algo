@@ -118,6 +118,17 @@ remains `PENDING`; an audit-integrity breach fails immediately. These are
 operational campaign thresholds, not evidence that any family has a market
 edge.
 
+2026-08-17: the launchd driver runs the campaign with
+`--max-setup-age-seconds 900 --max-source-age-p95-seconds 900` instead of the
+300s defaults. Databento historical availability trails the wall clock
+intraday (measured that day: XNAS.ITCH served data up to 14:00:00Z against a
+14:05:00Z request, and the puller now clamps a rejected `end` to the advertised
+available end), so an honest intraday point-in-time snapshot is ~5–7 minutes
+old by construction and 300s would fail-close every attempt. The campaign
+contract freezes the chosen thresholds immutably; the pre-flip review reads
+them there. A sub-300s source would need a live-replay pull path instead of
+the historical API.
+
 The campaign promotion gate is unconditionally `NO_GO`: the controller is
 audit-only, cannot place an order and cannot create fills or closed PAPER
 outcomes. A technical observation `PASS` must never be interpreted as product,
