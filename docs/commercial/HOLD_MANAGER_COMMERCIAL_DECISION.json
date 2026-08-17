@@ -2,7 +2,16 @@
   "schemaVersion": 1,
   "subject": "SMC_Hold_Manager.pine — commercial family membership",
   "status": "pending",
-  "dueBy": "2026-08-25",
+  "dueBy": "2026-08-28",
+  "dueByHistory": [
+    {
+      "from": "2026-08-25",
+      "to": "2026-08-28",
+      "on": "2026-08-17",
+      "authorizedBy": "Operator direction 2026-08-17: extend the window — more session days needed.",
+      "reason": "2026-08-17 was struck as a session day (operator incident day, no capture; recorded as a hole, not an exclusion row — the evaluator requires full TradingView-side attestations in every recorded row). Without the extension the remaining XNYS candidates (18./19./20./21./24.) equalled the five required complete sessions with zero buffer; dueBy 2026-08-28 restores four spare days (25.–28.) while keeping the two-sided tripwire armed."
+    }
+  ],
   "basis": "The five-complete-session shadow observation window (R2-SHADOW-CUTOVER contract, observationWindow) that starts with the first XNYS session after 2026-08-16. The window's evidence IS the decision input, so the decision is deliberately not taken earlier — and deliberately cannot drift past the window: tests/test_hold_manager_commercial_decision_tripwire.py goes red when the window completes or the due date passes while this record still says pending.",
   "decidedAt": null,
   "decision": null,
