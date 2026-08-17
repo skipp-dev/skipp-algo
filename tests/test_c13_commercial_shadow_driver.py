@@ -73,6 +73,17 @@ def test_the_submit_flag_appears_only_after_the_interlock() -> None:
     assert "run_commercial_shadow_campaign" in code_before
 
 
+def test_the_dataset_default_is_the_licensed_feed() -> None:
+    # XNAS.ITCH current-day history requires a live license this account does
+    # not hold (403 measured 2026-08-17 23:42Z); EQUS.MINI is covered by the
+    # account's existing live license. A silent revert would kill every
+    # intraday fire again, so the default is pinned.
+    source = _driver()
+
+    assert 'C13_COMMERCIAL_DATASET:-EQUS.MINI' in source
+    assert 'C13_COMMERCIAL_DATASET:-XNAS.ITCH' not in source
+
+
 def test_the_campaign_runs_with_the_vendor_honest_freshness_budgets() -> None:
     # 900s, not the 300s defaults: Databento historical availability trails
     # the wall clock intraday (measured 2026-08-17: XNAS.ITCH served up to

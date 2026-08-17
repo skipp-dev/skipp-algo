@@ -725,7 +725,16 @@ def _get_range_clamped_to_available_end(
         match = _AVAILABLE_END_PATTERN.search(str(exc))
         if match is None:
             raise
-        clamped_end = match.group(1)
+        # Normalise to a T-separated ISO string before retrying: the 422 text
+        # carries a SPACE separator ('2026-08-17 23:30:00+00:00') and the raw
+        # string loses that space in transit, which the API then rejects as
+        # 400 data_invalid_datetime_string '2026-08-1723:30:00+00:00' (real
+        # first-flight failure, 2026-08-17 23:40Z). Unparseable text re-raises
+        # the original 422 rather than retrying blind into the same 400.
+        try:
+            clamped_end = datetime.fromisoformat(match.group(1)).isoformat()
+        except ValueError:
+            raise exc from None
         logger.warning(
             "Databento end %s is past the intraday available range; "
             "retrying with the advertised available end %s.",
