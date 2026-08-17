@@ -40,6 +40,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import argparse
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -691,6 +692,50 @@ def structure_and_bars_to_pipeline_input(
     return payload
 
 
+_AVAILABLE_END_PATTERN = re.compile(r"available up to '([^']+)'")
+
+
+def _get_range_clamped_to_available_end(
+    get_range: Any,
+    client: Any,
+    *,
+    context: str,
+    **kwargs: Any,
+) -> Any:
+    """Call the retrying ``get_range``, clamping ``end`` once on a 422
+    ``data_end_after_available_end``.
+
+    Intraday, Databento historical availability trails the wall clock by a
+    few minutes (measured 2026-08-17: XNAS.ITCH served up to 14:00:00Z at a
+    14:05:00Z request — while ``metadata.get_dataset_range`` still reported
+    the T-1 04:00Z boundary, so the advertised range is useless as a
+    proactive clamp source). The 422 error text carries the authoritative
+    intraday available end; retry exactly once with that end. ``as_of``
+    stays honest automatically because the payload derives it from the last
+    delivered bar.
+    """
+    # Imported lazily so the pure transform path carries no databento dependency.
+    from databento.common.error import BentoClientError
+
+    try:
+        return get_range(client, context=context, **kwargs)
+    except BentoClientError as exc:
+        if "data_end_after_available_end" not in str(exc):
+            raise
+        match = _AVAILABLE_END_PATTERN.search(str(exc))
+        if match is None:
+            raise
+        clamped_end = match.group(1)
+        logger.warning(
+            "Databento end %s is past the intraday available range; "
+            "retrying with the advertised available end %s.",
+            kwargs.get("end"),
+            clamped_end,
+        )
+        kwargs["end"] = clamped_end
+        return get_range(client, context=context, **kwargs)
+
+
 def fetch_ohlcv_frame(
     symbol: str,
     *,
@@ -716,7 +761,8 @@ def fetch_ohlcv_frame(
     )
 
     client = _make_databento_client(api_key)
-    store = _databento_get_range_with_retry(
+    store = _get_range_clamped_to_available_end(
+        _databento_get_range_with_retry,
         client,
         context="pull_databento_edge_input",
         dataset=dataset,
@@ -750,7 +796,8 @@ def fetch_trades_frame(
     )
 
     client = _make_databento_client(api_key)
-    store = _databento_get_range_with_retry(
+    store = _get_range_clamped_to_available_end(
+        _databento_get_range_with_retry,
         client,
         context="pull_databento_edge_input_trades",
         dataset=dataset,
@@ -791,7 +838,8 @@ def fetch_opra_trades_frame(
 
     client = _make_databento_client(api_key)
     underlying = str(symbol).strip().upper()
-    store = _databento_get_range_with_retry(
+    store = _get_range_clamped_to_available_end(
+        _databento_get_range_with_retry,
         client,
         context="pull_databento_edge_input_opra",
         dataset=_OPRA_DATASET,

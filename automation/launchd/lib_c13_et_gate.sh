@@ -24,11 +24,18 @@
 #   source "$(dirname "$0")/lib_c13_et_gate.sh"
 #   c13_require_et_window "$REPO" 09 28 10 phase-a || exit 0   # 09:28 ET ±10m
 #
+# The optional 6th argument scopes the exactly-once marker: "day" (default,
+# one run per ET weekday — order-placing chains) or "hour" (one run per ET
+# hour — intraday observation drivers that deliberately fire several times a
+# session, e.g. commercial-shadow). Added 2026-08-17 after the day marker ate
+# all retry slots: the 16:05 fire failed AFTER stamping the day, so the five
+# later candidate fires all skipped with "already ran".
+#
 # Returns 0 (proceed) or non-zero (skip — the caller should `|| exit 0`).
 # Tests inject a fixed clock via C13_GATE_NOW_ET="HH:MM" and C13_GATE_NOW_DOW=N.
 
 c13_require_et_window() {
-    local repo="$1" thh="$2" tmm="$3" tol="$4" job="$5"
+    local repo="$1" thh="$2" tmm="$3" tol="$4" job="$5" scope="${6:-day}"
 
     # Bypass for tests that exercise a wrapper's downstream pipeline (venv /
     # collector / marker paths) rather than the gate itself. Production never
@@ -75,7 +82,11 @@ c13_require_et_window() {
     # `noclobber` `>` refuses to open an existing file — so exactly one racer
     # wins the create and the rest fall through to the skip branch. The
     # `set -o noclobber` is scoped to a subshell so it does not leak to callers.
-    local marker="${repo}/cache/live/.c13_gate_${job}_${et_date}"
+    local marker_key="${et_date}"
+    if [ "$scope" = "hour" ]; then
+        marker_key="${et_date}_h${et_hh}"
+    fi
+    local marker="${repo}/cache/live/.c13_gate_${job}_${marker_key}"
     mkdir -p "${repo}/cache/live"
     if (set -o noclobber; printf '%s ET %s:%s (target %s:%s)\n' \
             "$et_date" "$et_hh" "$et_mm" "$thh" "$tmm" > "$marker") 2>/dev/null; then
@@ -87,7 +98,7 @@ c13_require_et_window() {
     # write itself failed (disk full, unwritable cache dir, bad perms) and must
     # be surfaced loudly rather than masqueraded as a benign exactly-once skip.
     if [ -e "$marker" ]; then
-        echo "c13-gate[$job]: already ran for ET ${et_date} — skip." >&2
+        echo "c13-gate[$job]: already ran for ET ${marker_key} — skip." >&2
     else
         echo "c13-gate[$job]: FAILED to write marker ${marker} (disk full / perms?) — skip." >&2
     fi

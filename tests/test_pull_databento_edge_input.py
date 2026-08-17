@@ -777,3 +777,82 @@ def test_payload_omits_signed_volume_without_trades(
 
     assert all("signed_volume" not in b for b in payload["bars"])
     assert payload["provenance"]["with_trades"] is False
+
+
+class TestAvailableEndClamp:
+    """Intraday, Databento historical rejects end=now with a 422
+    ``data_end_after_available_end`` naming the authoritative available end
+    (metadata.get_dataset_range only advertises the T-1 boundary, so there is
+    no proactive clamp source). The wrapper must retry exactly once with the
+    advertised end — the 2026-08-17 16:05 campaign fire died on this."""
+
+    _MESSAGE = (
+        "422 data_end_after_available_end\n"
+        "The dataset XNAS.ITCH has data available up to "
+        "'2026-08-17 14:00:00+00:00'. The `end` in the query "
+        "('2026-08-17 14:05:00+00:00') is after the available range."
+    )
+
+    def _error(self):
+        from databento.common.error import BentoClientError
+
+        return BentoClientError(
+            http_status=422, http_body=None, message=self._MESSAGE
+        )
+
+    def test_a_rejected_end_is_clamped_to_the_advertised_available_end(self) -> None:
+        calls: list[dict] = []
+        sentinel = object()
+
+        def fake_get_range(client, *, context, **kwargs):
+            calls.append(dict(kwargs))
+            if len(calls) == 1:
+                raise self._error()
+            return sentinel
+
+        result = wrapper._get_range_clamped_to_available_end(
+            fake_get_range,
+            object(),
+            context="test",
+            dataset="XNAS.ITCH",
+            end="2026-08-17T14:05:00",
+        )
+
+        assert result is sentinel
+        assert len(calls) == 2
+        assert calls[1]["end"] == "2026-08-17 14:00:00+00:00"
+        assert calls[1]["dataset"] == "XNAS.ITCH"
+
+    def test_a_second_rejection_is_not_retried_forever(self) -> None:
+        from databento.common.error import BentoClientError
+
+        calls: list[int] = []
+
+        def always_reject(client, *, context, **kwargs):
+            calls.append(1)
+            raise self._error()
+
+        with pytest.raises(BentoClientError):
+            wrapper._get_range_clamped_to_available_end(
+                always_reject, object(), context="test", end="x"
+            )
+
+        assert len(calls) == 2
+
+    def test_unrelated_client_errors_pass_through_unclamped(self) -> None:
+        from databento.common.error import BentoClientError
+
+        calls: list[int] = []
+
+        def reject_auth(client, *, context, **kwargs):
+            calls.append(1)
+            raise BentoClientError(
+                http_status=401, http_body=None, message="401 auth_failed"
+            )
+
+        with pytest.raises(BentoClientError):
+            wrapper._get_range_clamped_to_available_end(
+                reject_auth, object(), context="test", end="x"
+            )
+
+        assert len(calls) == 1
