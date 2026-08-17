@@ -93,7 +93,9 @@ Implementation status on 2026-08-11:
   or naming work.
 - [x] 2026-08-16: the Hold-Manager commercial yes/no is scheduled to the end
   of its shadow observation window (five complete XNYS sessions, due by
-  2026-08-25) instead of being taken on zero sessions — recorded in
+  2026-08-28; extended from 2026-08-25 on 2026-08-17 after the operator
+  struck 17.8. as a session day — see dueByHistory in the record) instead
+  of being taken on zero sessions — recorded in
   `HOLD_MANAGER_COMMERCIAL_DECISION.json` and enforced by
   `tests/test_hold_manager_commercial_decision_tripwire.py`, which goes red
   when the window completes or the date passes while the record still says
