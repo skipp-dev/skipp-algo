@@ -96,6 +96,20 @@ def test_every_failure_path_writes_a_degraded_marker() -> None:
         assert f'_write_marker "DEGRADED" "{token}' in source, token
 
 
+def test_the_pull_cli_resolves_its_key_from_the_checkout_env() -> None:
+    """launchd inherits no secrets; the pull must load .env itself.
+
+    Without this every intraday fire fails at step 1 with a missing
+    DATABENTO_API_KEY — measured on 2026-08-17 before the first install.
+    """
+    pull_source = (REPO / "scripts" / "pull_databento_edge_input.py").read_text(
+        encoding="utf-8"
+    )
+    main_body = pull_source.split("def main(", 1)[1]
+
+    assert "load_dotenv(" in main_body
+
+
 def test_the_driver_honours_the_smoke_sentinel_and_et_gate() -> None:
     source = _driver()
 
