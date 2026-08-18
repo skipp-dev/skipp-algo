@@ -477,3 +477,72 @@ def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
     assert report["promotion_gate"]["verdict"] == "NO_GO"
     assert report["network_io"] is False
     assert report["broker_io"] is False
+
+
+def test_partial_family_coverage_is_a_valid_snapshot_and_does_not_poison_the_campaign(
+    tmp_path: Path,
+) -> None:
+    # The producer SKIPS families without a valid long event, so a COMPLETED
+    # attempt routinely carries a subset of the roster. The old validator
+    # demanded the full roster, and because the attempt lands durably on disk
+    # BEFORE the report rebuild, the first partial market hour poisoned every
+    # later observation of the campaign (direction-E finding, 2026-08-18).
+    campaign_dir = tmp_path / "campaign"
+    partial = _payload()
+    partial["structure"]["fvg"] = []
+
+    attempt, report = run_campaign_observation(
+        payload=partial,
+        campaign_dir=campaign_dir,
+        now=_NOW,
+        min_unique_snapshots=2,
+    )
+
+    assert attempt["status"] == "COMPLETED"
+    assert attempt["families"] == ["BOS", "OB", "SWEEP"]
+    assert report["family_snapshot_counts"]["FVG"] == 0
+
+    # The next, complete observation must build on top of the partial one --
+    # this is the exact call that used to die in _load_attempts.
+    second, second_report = run_campaign_observation(
+        payload=_shift_payload(_payload(), 60.0),
+        campaign_dir=campaign_dir,
+        now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+        min_unique_snapshots=2,
+    )
+
+    assert second["status"] == "COMPLETED"
+    assert second_report["audit_integrity"]["unique_audited_snapshots"] == 2
+    assert second_report["family_snapshot_counts"]["FVG"] == 1
+
+
+def test_attempt_with_unknown_or_duplicate_family_still_fails_closed(
+    tmp_path: Path,
+) -> None:
+    campaign_dir = tmp_path / "campaign"
+    attempt, _report = run_campaign_observation(
+        payload=_payload(),
+        campaign_dir=campaign_dir,
+        now=_NOW,
+        min_unique_snapshots=1,
+    )
+    attempt_path = campaign_dir / "attempts" / f"{attempt['attempt_id']}.json"
+    original = attempt_path.read_text(encoding="utf-8")
+
+    tampered = json.loads(original)
+    tampered["families"] = ["BOS", "NOT_A_FAMILY"]
+    attempt_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid families"):
+        build_campaign_report(campaign_dir, min_unique_snapshots=1)
+
+    tampered = json.loads(original)
+    tampered["families"] = ["BOS", "BOS"]
+    attempt_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate families"):
+        build_campaign_report(campaign_dir, min_unique_snapshots=1)
+
+    tampered = json.loads(original)
+    tampered["families"] = []
+    attempt_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid families"):
+        build_campaign_report(campaign_dir, min_unique_snapshots=1)
