@@ -150,6 +150,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # diff-driven guard selection could not have caught it — the guard has to
     # be pinned to the required path unconditionally, hence this entry.
     "tests/test_credential_probe_consumers.py",
+    # 2026-08-18 (Doppelgaenger-Sweep A1): cross-manifest pin drift must block
+    # merge — the diff-driven selection never pairs a service-requirements PR
+    # with this file.
+    "tests/test_cross_manifest_pin_consistency.py",
     "tests/test_customer_surface_vocabulary.py",
     "tests/test_dangerous_builtins_zero_surface.py",
     "tests/test_dangerous_io_zero_surface_pin.py",
