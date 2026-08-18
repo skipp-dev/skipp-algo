@@ -114,7 +114,7 @@ Drei Ja/Nein-Antworten ergeben einen Empfehlungs-Vektor. Konsens → klare Empfe
 
 ## Voraussetzung: Cron-Brücke
 
-Die hier genutzten Analysen brauchen einen aktuellen Event-Ledger. Der tägliche Cron `smc-databento-production-export.yml` ist seit 2026-05-11 in 5 aufeinanderfolgenden Runs an einem Workbook-Write-OOM gescheitert (Profil in `/tmp/prod_export_audit/PROFILE_DATA.md`, 4 offene Fragen beantwortet in `/tmp/prod_export_audit/OPEN_QUESTIONS_ANSWERS.md`). Solange dieser Cron rot ist, kommt kein frisches Daten-Material. **Cron-Brücke wird vor Schritt 1 erledigt** als separater 1-Tages-Eingriff (Lösungsraum dokumentiert in `/tmp/prod_export_audit/SOLUTION_SPACE.md`).
+Die hier genutzten Analysen brauchen einen aktuellen Event-Ledger. *(Historische Beschreibung, korrigiert 2026-08-18 im Verdrahtungs-Sweep: `smc-databento-production-export.yml` ist seit dem F-V8-Cutover 2026-05-18 dispatch-only — der tägliche Cron lebt seither in `smc-databento-production-export-sharded.yml`. Die damals referenzierten Beweisdateien lagen unter `/tmp/` und sind nicht mehr rekonstruierbar; der ursprüngliche Text folgt.)* Der tägliche Cron `smc-databento-production-export.yml` ist seit 2026-05-11 in 5 aufeinanderfolgenden Runs an einem Workbook-Write-OOM gescheitert (Profil in `/tmp/prod_export_audit/PROFILE_DATA.md`, 4 offene Fragen beantwortet in `/tmp/prod_export_audit/OPEN_QUESTIONS_ANSWERS.md`). Solange dieser Cron rot ist, kommt kein frisches Daten-Material. **Cron-Brücke wird vor Schritt 1 erledigt** als separater 1-Tages-Eingriff (Lösungsraum dokumentiert in `/tmp/prod_export_audit/SOLUTION_SPACE.md`).
 
 ---
 
