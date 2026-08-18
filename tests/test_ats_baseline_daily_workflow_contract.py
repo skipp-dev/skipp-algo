@@ -5,8 +5,11 @@ daily job since PR #2613 that was never wired: the committed baseline stayed
 the 1970 seed with ``symbols={}`` and the WP-K /smc_live overlay fail-closed on
 every lookup. These pins keep the wiring honest:
 
-* the schedule stays AFTER Databento same-day finalization (>= 21:00 UTC),
-  otherwise the trailing window silently excludes today's session;
+* the schedule stays AFTER Databento same-day finalization in BOTH halves
+  of the year (winter close is 21:00 UTC + ~1h finalization => >= 22:00
+  UTC), otherwise the trailing window silently excludes today's session
+  every day of the EST half — the old >= 21:00 pin encoded the EDT close
+  only and would have gone stale on 2026-11-01 (Grenzgaenger A5);
 * the empty-baseline publish gate stays in place — without it a provider
   outage would replace a good baseline with an empty one and re-kill exactly
   the fields the job exists to feed;
@@ -26,12 +29,17 @@ def _source() -> str:
 
 
 def test_schedule_runs_after_databento_finalization() -> None:
+    # 2026-08-18 (Grenzgaenger A5): repinned 21 -> 22. GitHub cron is UTC-only
+    # while the US close is ET, so the bound must encode the WINTER (EST)
+    # close: 21:00 UTC + ~1h Databento finalization. The old >= 21 bound was
+    # true only during EDT and would have let the job run pre-finalization
+    # every day from 2026-11-01 on.
     match = re.search(r'cron:\s*"(\d+) (\d+) \* \* 1-5"', _source())
     assert match, "weekday cron missing"
     hour = int(match.group(2))
-    assert hour >= 21, (
-        f"cron hour {hour} runs before Databento same-day finalization "
-        "(>=21:00 UTC per the production-export workflow)"
+    assert hour >= 22, (
+        f"cron hour {hour} runs before Databento same-day finalization in the "
+        "EST half of the year (winter close 21:00 UTC + ~1h finalization)"
     )
 
 
