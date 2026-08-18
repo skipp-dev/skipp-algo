@@ -149,10 +149,13 @@ class FakeIB:
     """Stateful paper-TWS double: positions close when their market order
     fills, working orders drain on reqGlobalCancel."""
 
-    def __init__(self, *, positions=None, orders=(), cancel_works=True) -> None:
+    def __init__(
+        self, *, positions=None, orders=(), cancel_works=True, positions_after_cancel=None
+    ) -> None:
         self._positions = dict(positions or {})
         self._orders = list(orders)
         self._cancel_works = cancel_works
+        self._positions_after_cancel = positions_after_cancel
         self.global_cancels = 0
         self.placed: list = []
         self.reqAllOpenOrders = self._req_all_open_orders
@@ -167,6 +170,8 @@ class FakeIB:
         self.global_cancels += 1
         if self._cancel_works:
             self._orders = []
+        if self._positions_after_cancel is not None:
+            self._positions = dict(self._positions_after_cancel)
 
     def positions(self, account=""):
         return [
@@ -223,6 +228,81 @@ def test_flatten_cancels_then_closes_and_reports_flat() -> None:
         "smc-eod-flatten-2026-08-18-NVDA",
         "smc-eod-flatten-2026-08-18-MSFT",
     }
+
+
+def test_close_plan_is_built_after_the_cancel_barrier() -> None:
+    """CRITICAL (#4848 review): a bracket leg that fills inside the cancel
+    window changes the position; a plan snapshotted BEFORE the barrier then
+    over-sells the stale quantity and turns the long into a naked overnight
+    short. The plan must come from the post-cancel broker state."""
+    ib = FakeIB(
+        positions={"NVDA": 9.0},
+        orders=[_working("NVDA", "smc-NVDA-2026-08-18-port7497-sl")],
+        positions_after_cancel={"NVDA": 8.0},  # sl leg filled 1 lot mid-window
+    )
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert [o.totalQuantity for o in ib.placed] == [8.0]
+    assert report["planned_closes"] == [
+        {"symbol": "NVDA", "quantity": 8.0, "action": "SELL"}
+    ]
+    assert report["flat"] is True
+
+
+def test_partial_fill_stays_in_the_handover() -> None:
+    """Important #5: the reconciliation must see the traded quantity even when
+    the close order did not finish — dropping partials reddens the night."""
+
+    class PartialFakeIB(FakeIB):
+        def _place_order(self, contract, order):
+            self.placed.append(order)
+            self._positions[contract.symbol] = 6.0  # 3 of 9 traded
+            return SimpleNamespace(
+                order=SimpleNamespace(orderRef=order.orderRef, orderId=1),
+                orderStatus=SimpleNamespace(status="Cancelled", filled=3.0, avgFillPrice=100.0),
+            )
+
+    ib = PartialFakeIB(positions={"NVDA": 9.0})
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert report["fills"][0]["quantity"] == 3.0
+    assert report["unfilled"] == [{"symbol": "NVDA", "status": "Cancelled", "filled": 3.0}]
+    assert report["flat"] is False
+
+
+def test_crash_mid_close_keeps_the_fills_already_won() -> None:
+    """Important #6: an exception after the first close order must not lose
+    that order's fill row — and must not escape as a traceback."""
+
+    class CrashFakeIB(FakeIB):
+        def _place_order(self, contract, order):
+            if self.placed:
+                raise RuntimeError("socket dropped")
+            return super()._place_order(contract, order)
+
+    ib = CrashFakeIB(positions={"AMD": 2.0, "NVDA": 9.0})
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert "close loop aborted" in report["error"]
+    assert len(report["fills"]) == 1
+    assert report["flat"] is False
+
+
+def test_cli_refuses_non_paper_account_even_on_gateway_port(monkeypatch, tmp_path) -> None:
+    """Important #3: port 4002 passes assert_paper_account_if_paper_port, so
+    the resolved account itself must be DU* — a live account is refused."""
+    import scripts.c13_eod_flatten as mod
+
+    class LiveFakeIB:
+        def __init__(self) -> None:
+            self.managedAccounts = lambda: ["U1234567"]
+
+        def disconnect(self):
+            return None
+
+    monkeypatch.setattr(mod, "_connect", lambda *a, **k: LiveFakeIB())
+    monkeypatch.setattr(mod, "assert_paper_account_if_paper_port", lambda ib, cfg: None)
+    rc = mod.main(
+        ["--port", "4002", "--date", "2026-08-18", "--fills-output", str(tmp_path / "f.json")]
+    )
+    assert rc == 1
 
 
 def test_flatten_fills_round_trip_through_portfolio_fill() -> None:
