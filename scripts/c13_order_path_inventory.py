@@ -30,6 +30,7 @@ ENTRY_POINTS: tuple[str, ...] = (
     "scripts/run_smc_live_incubation.py",
     "scripts/smc_to_ibkr_adapter.py",
     "scripts/execute_ibkr_watchlist.py",
+    "scripts/c13_eod_flatten.py",
 )
 
 # Order-path files no Python import can reach: the driver itself, every shell
@@ -37,6 +38,7 @@ ENTRY_POINTS: tuple[str, ...] = (
 # and the CLI-referenced risk-limits config.
 NON_PYTHON_ORDER_PATH: tuple[str, ...] = (
     "automation/launchd/run-c13-phase-a.sh",
+    "automation/launchd/run-c13-eod-flatten.sh",
     "automation/launchd/lib_c13_et_gate.sh",
     "automation/launchd/lib_c13_data_push.sh",
     "configs/portfolio_risk_limits.json",

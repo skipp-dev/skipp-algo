@@ -73,6 +73,14 @@ class IBKRExecutionConfig:
     currency: str = "USD"
     exchange: str = "SMART"
     exit_mode: str = "tp-stop"
+    # tif for the EXIT legs (tp/sl/trail) only; the entry keeps ``tif`` so an
+    # unfilled entry still dies at the close. ``None`` = exits inherit ``tif``.
+    # DAY exits orphan any position that survives the session: the bracket
+    # legs expire at the bell while the position stays — measured 2026-08-18,
+    # nine unprotected leftovers accumulated since June. The C13 paper driver
+    # passes "GTC" so protection outlives the session even if the EOD flatten
+    # cron misses a day.
+    exit_tif: str | None = None
     cancel_unfilled_after: str | None = DEFAULT_CANCEL_UNFILLED_AFTER
     time_stop_after: str | None = DEFAULT_TIME_STOP_AFTER
     clock_timezone: str = DEFAULT_SCHEDULE_TIMEZONE
@@ -598,6 +606,21 @@ def _apply_common_order_fields(
         order.account = connection_cfg.account
 
 
+def _apply_exit_tif(orders: Iterable[Any], exit_tif: str | None) -> None:
+    """Override tif on the exit legs (every leg except ``*-entry``).
+
+    Keyed on the orderRef suffix, not the list position, so both bracket
+    builders (tp-stop and tp-trail) are covered even if their leg order
+    changes. ``None`` leaves the legs on the intent tif (pre-2026-08-18
+    behaviour).
+    """
+    if exit_tif is None:
+        return
+    for order in orders:
+        if not str(getattr(order, "orderRef", "")).endswith("-entry"):
+            order.tif = exit_tif
+
+
 def _build_tp_trail_orders(
     *,
     ib: Any,
@@ -973,6 +996,8 @@ def place_order_intents_with_ib(
             )
         else:  # pragma: no cover - parser constrains choices
             raise ValueError(f"Unsupported exit mode: {execution_cfg.exit_mode}")
+
+        _apply_exit_tif(orders, execution_cfg.exit_tif)
 
         symbol_key = intent.symbol.upper()
         trade_dates_by_symbol[symbol_key] = intent.trade_date.isoformat()

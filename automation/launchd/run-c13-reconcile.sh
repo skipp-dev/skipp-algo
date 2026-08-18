@@ -71,6 +71,10 @@ fi
 # out of the telemetry glob forever.
 COMMERCIAL_AUDIT="${REPO}/cache/live/incubation_commercial_${DATE}.jsonl"
 COMMERCIAL_FILLS="${REPO}/cache/live/portfolio_fills_commercial_${DATE}.json"
+# Written by run-c13-eod-flatten.sh (15:45 ET): the market-close fills of the
+# end-of-day flatten. Without them every flattened position shows up as an
+# unexplained delta and the reconciliation reddens on its own cleanup.
+EOD_FLATTEN_FILLS="${REPO}/cache/live/portfolio_fills_eod_${DATE}.json"
 
 # No audit file at all (holiday, phase-a never fired, paper stage dormant)
 # is a quiet no-op — there is nothing to reconcile and nothing to publish.
@@ -133,6 +137,7 @@ mkdir -p "$(dirname "${PORTFOLIO_MONITORING}")"
 FILLS_ARGS=()
 [[ -f "${PORTFOLIO_FILLS}" ]] && FILLS_ARGS+=(--fills "${PORTFOLIO_FILLS}")
 [[ -f "${COMMERCIAL_FILLS}" ]] && FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")
+[[ -f "${EOD_FLATTEN_FILLS}" ]] && FILLS_ARGS+=(--fills "${EOD_FLATTEN_FILLS}")
 if [[ ${#FILLS_ARGS[@]} -eq 0 ]]; then
     echo "reconcile cron: no fills output produced despite an audit file" >&2
     _write_marker "DEGRADED" "no-fills-output"
