@@ -67,11 +67,14 @@ def test_place_order_intents_wires_the_exit_tif_onto_the_legs() -> None:
     class BracketFakeIB:
         def __init__(self) -> None:
             self.placed: list = []
+            self.qualifyContracts = self._qualify_contracts
+            self.bracketOrder = self._bracket_order
+            self.placeOrder = self._place_order
 
-        def qualifyContracts(self, contract):  # noqa: N802 — ib_async API shape
+        def _qualify_contracts(self, contract):
             return [contract]
 
-        def bracketOrder(self, *, action, quantity, limitPrice, takeProfitPrice, stopLossPrice):  # noqa: N802 — ib_async API shape
+        def _bracket_order(self, *, action, quantity, limitPrice, takeProfitPrice, stopLossPrice):
             def _order(order_id, order_type, price_attr):
                 return SimpleNamespace(
                     orderId=order_id,
@@ -88,7 +91,7 @@ def test_place_order_intents_wires_the_exit_tif_onto_the_legs() -> None:
 
             return [_order(1, "LMT", limitPrice), _order(2, "LMT", takeProfitPrice), _order(3, "STP", stopLossPrice)]
 
-        def placeOrder(self, contract, order):  # noqa: N802 — ib_async API shape
+        def _place_order(self, contract, order):
             self.placed.append(order)
             return SimpleNamespace(order=order, orderStatus=SimpleNamespace(status="Submitted"))
 
@@ -152,11 +155,15 @@ class FakeIB:
         self._cancel_works = cancel_works
         self.global_cancels = 0
         self.placed: list = []
+        self.reqAllOpenOrders = self._req_all_open_orders
+        self.reqGlobalCancel = self._req_global_cancel
+        self.qualifyContracts = self._qualify_contracts
+        self.placeOrder = self._place_order
 
-    def reqAllOpenOrders(self):  # noqa: N802 — ib_async API shape
+    def _req_all_open_orders(self):
         return list(self._orders)
 
-    def reqGlobalCancel(self):  # noqa: N802 — ib_async API shape
+    def _req_global_cancel(self):
         self.global_cancels += 1
         if self._cancel_works:
             self._orders = []
@@ -172,10 +179,10 @@ class FakeIB:
             if quantity
         ]
 
-    def qualifyContracts(self, contract):  # noqa: N802 — ib_async API shape
+    def _qualify_contracts(self, contract):
         return [contract]
 
-    def placeOrder(self, contract, order):  # noqa: N802 — ib_async API shape
+    def _place_order(self, contract, order):
         self.placed.append(order)
         symbol = contract.symbol
         filled = abs(self._positions.get(symbol, 0.0))
