@@ -9230,6 +9230,26 @@
           "legendFormat": "Requested cached symbols",
           "instant": true,
           "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_requested_bar_history_symbols{job=\"live_overlay\"})",
+          "legendFormat": "Expanded-history symbols",
+          "instant": true,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "max(live_overlay_requested_bar_history_regressed{job=\"live_overlay\"})",
+          "legendFormat": "History regressed (alerting)",
+          "instant": true,
+          "refId": "H"
         }
       ]
     },

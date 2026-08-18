@@ -1406,6 +1406,14 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(
         f"live_overlay_requested_bar_history_readiness_ratio {history_readiness}"
     )
+    # 2026-08-18 (C1): the alertable re-cut — depth below the symbol's own
+    # post-restart high-water mark (history destroyed), not absolute
+    # readiness (which needs ~160h of stream and false-fired after deploys).
+    lines.append("# TYPE live_overlay_requested_bar_history_regressed gauge")
+    lines.append(
+        "live_overlay_requested_bar_history_regressed "
+        f"{cache.requested_bar_history_regressed()}"
+    )
     lines.append("# TYPE live_overlay_bar_symbols_evicted_total counter")
     lines.append(f"live_overlay_bar_symbols_evicted_total {cache.evicted_symbols_total()}")
     lines.append("# TYPE live_overlay_bar_requested_symbols_evicted_total counter")

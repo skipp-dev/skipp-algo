@@ -62,8 +62,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # ac7a83e5a (the /signals.json|/signals and the /metrics bearer check, each still
     # guarded by `if _auth_token:`), and the file still holds exactly 2 compare_digest
     # sites — the same count as when last reviewed. main.py compare unchanged at 457.
-    ("open_prep/realtime_signals.py", 1375, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1328->1375
-    ("open_prep/realtime_signals.py", 1409, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1362->1409
+    ("open_prep/realtime_signals.py", 1399, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1375->1399 (2026-08-18 railway-token guard)
+    ("open_prep/realtime_signals.py", 1433, "compare_digest"),  # 2026-07-25 (databento-signal-migration): 1409->1433 (2026-08-18 railway-token guard)
     # 2026-07-22 (stale-flag data-freshness helper + 5m block): 457->476
     # 2026-07-22 (SC-LIB-001 library-context payload merge): 476->481
     # 2026-07-22 (cache-miss context+VIX served): 481->489
