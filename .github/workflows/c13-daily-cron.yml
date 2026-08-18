@@ -111,8 +111,11 @@ jobs:
             # Use FETCH_HEAD rather than origin/data/phase-a-audit: the
             # multi-slash remote ref is unambiguous as a refspec only with --
             # but FETCH_HEAD is always set to exactly the fetched commit.
+            # Exclude the commercial-shadow campaign report: it is committed
+            # up to 6x per trading day with no TWS dependency and would keep
+            # this staleness check green while the paper session is idle.
             LAST_COMMIT_DATE=$(git log --max-count=1 --format="%cI" \
-              FETCH_HEAD -- cache/live/ 2>/dev/null || true)
+              FETCH_HEAD -- cache/live/ ':(exclude)cache/live/commercial_campaign' 2>/dev/null || true)
             if [ -n "${LAST_COMMIT_DATE}" ]; then
               # Normalise both timestamps to UTC midnight so GAP_DAYS is an
               # exact calendar-day count regardless of commit time-of-day.

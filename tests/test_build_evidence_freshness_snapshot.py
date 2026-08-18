@@ -292,3 +292,57 @@ def test_build_snapshot_submitter_behind_commits():
         submit_code_behind_commits=0,
     )
     assert snap_zero["submitter"] == {"submit_code_behind_commits": 0, "known": 1}
+
+
+def test_audit_branch_freshness_ignores_commercial_campaign_commits(
+    tmp_path, monkeypatch
+):
+    """A campaign-report commit (Databento-only producer) must NOT refresh the
+    TWS-chain freeze signal — an unscoped `git log -1` re-armed the invisible
+    2026-06-12 freeze once the commercial-shadow driver started committing up
+    to 6x/day (Grenzgänger-Sweep B1, 2026-08-18)."""
+    import subprocess as sp
+
+    from scripts.build_evidence_freshness_snapshot import (
+        _audit_branch_last_commit_date,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def _run(*args, date=None):
+        env = {
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t.invalid",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t.invalid",
+            "PATH": "/usr/bin:/bin",
+        }
+        if date is not None:
+            env["GIT_AUTHOR_DATE"] = f"{date}T12:00:00Z"
+            env["GIT_COMMITTER_DATE"] = f"{date}T12:00:00Z"
+        sp.run(["git", *args], cwd=repo, env=env, check=True, capture_output=True)
+
+    _run("init", "-q", "-b", "audit")
+    incubation = repo / "cache" / "live" / "incubation_2026-08-14.jsonl"
+    incubation.parent.mkdir(parents=True)
+    incubation.write_text("{}\n", encoding="utf-8")
+    _run("add", "-A")
+    _run("commit", "-q", "-m", "chore(c13): phase-a audit", date="2026-08-14")
+
+    report = repo / "cache" / "live" / "commercial_campaign" / "campaign_report.json"
+    report.parent.mkdir(parents=True)
+    report.write_text("{}\n", encoding="utf-8")
+    _run("add", "-A")
+    _run("commit", "-q", "-m", "chore(c13): commercial shadow", date="2026-08-18")
+
+    monkeypatch.chdir(repo)
+    # The newest COMMIT is the campaign report (2026-08-18); the freshness
+    # signal must still report the TWS-session artifact date.
+    assert _audit_branch_last_commit_date("audit") == "2026-08-14"
+
+    fills = repo / "cache" / "live" / "reconciled_fills_2026-08-19.json"
+    fills.write_text("{}\n", encoding="utf-8")
+    _run("add", "-A")
+    _run("commit", "-q", "-m", "chore(c13): reconciled fills", date="2026-08-19")
+    assert _audit_branch_last_commit_date("audit") == "2026-08-19"
