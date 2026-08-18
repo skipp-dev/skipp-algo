@@ -63,4 +63,48 @@ def test_committed_seed_is_loader_compatible() -> None:
     assert isinstance(payload["measurement_history"]["history_by_pair"], dict)
     rows, note = _load_measurement_history_rows(str(REPO / BASELINE), symbol="SPY", timeframe="1D")
     assert note is None, f"seed must parse cleanly for the loader, got note: {note}"
-    assert rows == []
+    # 2026-08-18 (Verdrahtungs-Sweep B/G-1): the previous `rows == []` pinned
+    # the BROKEN state (22/22 rolls transported zero rows) — and would have
+    # turned the first HONEST roll red. Loader compatibility is the contract;
+    # row count is the feed's business.
+    assert isinstance(rows, list)
+
+
+def test_aggregate_pair_results_shape_transports_rows() -> None:
+    """2026-08-18 (Verdrahtungs-Sweep B/G-1): the EDGE pin this file lacked.
+
+    The scheduled release-gate run writes ONE aggregate ``measurement_lane``
+    row (``details`` = ``pairs_checked`` + ``pair_results``); the flat reader
+    silently dropped that shape — every baseline roll since the 2026-07-28
+    wiring carried ``rows_total: 0`` and all six MEASUREMENT_*_REGRESSION
+    codes were constructively dead. The aggregate shape must yield one entry
+    per pair, with the gate's status as the per-pair default.
+    """
+    from scripts.collect_smc_gate_evidence import _extract_measurement_entries
+
+    report = {
+        "gates": [
+            {
+                "name": "measurement_lane",
+                "status": "green",
+                "details": {
+                    "pairs_checked": 2,
+                    "pair_results": [
+                        {"symbol": "SPY", "timeframe": "1D"},
+                        {"symbol": "AAPL", "timeframe": "15m"},
+                    ],
+                },
+            }
+        ],
+    }
+
+    entries, errors = _extract_measurement_entries(
+        report,
+        Path("/nonexistent/report.json"),
+        checked_at=1.0,
+        commit="abc1234",
+    )
+
+    assert errors == []
+    assert sorted(e["pair"] for e in entries) == ["AAPL/15m", "SPY/1D"]
+    assert all(e["status"] == "green" for e in entries)
