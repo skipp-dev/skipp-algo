@@ -45,9 +45,12 @@ name: tradingview-storage-refresh
 
 on:
   schedule:
-    # 03:00 UTC on odd days-of-month (1,3,…,31) — ~every 48 h, worst-case
-    # gap 48 h. The TTL is 72 h, so this keeps a >=24 h safety margin.
-    - cron: "0 3 */2 * *"
+    # 03:00 UTC daily. 2026-08-18 (Grenzgaenger A6, operator decision): the
+    # old */2 cadence had NO retry, so a single failed run (real case 04.08.)
+    # meant a 96 h gap against the 72 h TTL — session dead before the next
+    # tick. Daily keeps a failed run at a 48 h gap (>=24 h margin), and the
+    # in-run retry below absorbs transient capture flakes on top.
+    - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
       force_fresh_login:
@@ -240,7 +243,16 @@ jobs:
             capture_args+=(--input-storage-state automation/tradingview/auth/bootstrap-storage-state.json)
           fi
           capture_args+=(--out automation/tradingview/auth/storage-state.json)
-          npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"
+          # 2026-08-18 (Grenzgaenger A6): one in-run retry for transient
+          # capture flakes (network, slow TV frontend). Attempt 2 overwrites
+          # --out completely, so a torn first attempt cannot leak through.
+          # Persistent failures (CAPTCHA, layout change) still fail the run
+          # after two attempts and reach the failure-notification step.
+          if ! npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"; then
+            echo "::warning::capture attempt 1 failed — retrying once in 60s"
+            sleep 60
+            npx tsx scripts/create_tradingview_storage_state.ts "${capture_args[@]}"
+          fi
 
       - name: Validate captured storage state
         run: |
