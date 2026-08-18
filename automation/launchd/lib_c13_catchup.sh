@@ -126,6 +126,19 @@ c13_run_with_catchup() {
     today="$(date -u +%Y-%m-%d)"
     dates="$(c13_missing_business_dates "${marker_dir}" "${marker_prefix}" "${lookback}" "${ok_prefix}")"
 
+    # 2026-08-18 (Grenzgaenger B6): catch-up-only mode. With
+    # C13_CATCHUP_EXCLUDE_TODAY=1 today is removed from the missing set and
+    # the safety net below is skipped — used by drivers whose "today" work
+    # is bound to an ET window but whose backfill of PAST days is not, so a
+    # wake fire OUTSIDE the window can still repair missed days instead of
+    # exiting before ever reaching this helper.
+    if [[ "${C13_CATCHUP_EXCLUDE_TODAY:-0}" == "1" ]]; then
+        dates="$(printf '%s\n' "${dates}" | grep -v "^${today}\$" || true)"
+        if [[ -z "${dates}" ]]; then
+            return 0
+        fi
+    fi
+
     # Safety net: if every marker is already ``ok`` (nothing missed) still run
     # today's job so a normal on-time wake behaves exactly as before.
     if [[ -z "${dates}" ]]; then

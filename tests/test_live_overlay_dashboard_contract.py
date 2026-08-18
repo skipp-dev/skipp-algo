@@ -449,11 +449,19 @@ def test_bar_cache_panel_and_alert_use_timeframe_specific_readiness() -> None:
     assert "live_overlay_requested_bar_history_readiness_ratio" in expressions
     assert "live_overlay_requested_bars_per_symbol" in expressions
     assert "live_overlay_requested_bar_symbols" in expressions
+    assert "live_overlay_requested_bar_history_symbols" in expressions
+    assert "live_overlay_requested_bar_history_regressed" in expressions
 
+    # 2026-08-18 (Grenzgaenger C1, operator decision): the ALERT is re-cut to
+    # high-water REGRESSION. The absolute readiness ratio needs up to ~160h
+    # of accumulated stream, so the old cut (readiness < 1 past a 15min
+    # warmup) was red for days after every deploy by construction. Readiness
+    # stays a dashboard-only warmup signal (pinned above); the alert fires
+    # only when accumulated history was DESTROYED.
     alert_expr = _alert_rule("lo-bar-cache-depth-low")["data"][0]["model"]["expr"]
-    assert "live_overlay_requested_bar_history_readiness_ratio" in alert_expr
-    assert "< bool 1" in alert_expr
-    assert "live_overlay_requested_bar_history_symbols" in alert_expr
+    assert "live_overlay_requested_bar_history_regressed" in alert_expr
+    assert "> bool 0" in alert_expr
+    assert "live_overlay_requested_bar_history_readiness_ratio" not in alert_expr
 
 
 def test_alert_rules_guard_uptimerobot_monitor_count_and_down_total() -> None:

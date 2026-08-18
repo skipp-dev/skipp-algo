@@ -11,7 +11,10 @@
 #      structure) for ${C13_COMMERCIAL_SYMBOL}
 #   2. run_commercial_shadow_campaign.py → audit-only campaign attempt under
 #      cache/live/commercial_campaign/ (immutable attempts, strict audit,
-#      observation gate PENDING→PASS after >=20 unique snapshots)
+#      observation gate PENDING→PASS after >=20 unique snapshots; verdict
+#      QUIET = only blocker is a family with zero setups — distinct from
+#      FAIL since 2026-08-18 (C4), paper stays dormant on both; failure
+#      budget is a rolling window of the last 20 substantive attempts (C2))
 #   3. DORMANT paper stage — runs ONLY when BOTH interlocks hold:
 #        a. configs/commercial_paper_submission.json says enabled=true
 #           (a dated operator decision, flipped by PR after reviewing the

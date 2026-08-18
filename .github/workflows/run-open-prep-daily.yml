@@ -188,6 +188,23 @@ jobs:
             echo "::error::bot/live-open-prep-snapshot exists but carries no provider-usage snapshot; refusing an implicit counter reset"
             exit 1
           fi
+          # 2026-08-18 (Verdrahtungs-Sweep F3): the diff base
+          # artifacts/open_prep/last_result.json is gitignored and the
+          # checkout cleans it, so every daily run believed it was the FIRST
+          # run ever — compute_diff(None, …) marked every candidate a new
+          # entrant and the realtime 🆕 column was permanently lit for all
+          # symbols (proven on the published snapshot: first_run=true daily).
+          # Restore the previous run's result; absence is the one legitimate
+          # cold start (soft notice, unlike the counter above: a lost diff
+          # base self-heals after one run, lost usage counters do not).
+          if git cat-file -e "origin/bot/live-open-prep-snapshot:artifacts/open_prep/last_result.json" 2>/dev/null; then
+            mkdir -p artifacts/open_prep
+            git show "origin/bot/live-open-prep-snapshot:artifacts/open_prep/last_result.json" \
+              > artifacts/open_prep/last_result.json
+            echo "Restored open-prep diff base (last_result.json) from bot/live-open-prep-snapshot."
+          else
+            echo "::notice::no prior last_result.json on the bot branch — diff legitimately starts as first run"
+          fi
 
       - name: Produce G3 arm-B candidate weight set
         # STRATEGY_2026_Q3 §G2/§G3: Arm B of the scorer A/B. This must run in the
@@ -366,9 +383,14 @@ jobs:
           fi
           "$SMC_PYTHON_BIN" scripts/apply_fmp_adv_reference.py \
             --snapshot "$SNAPSHOT" --reference "$FMP_QUOTE_REF"
+          # F3 (2026-08-18): the diff base rides the same bot branch so the
+          # restore step above can hand it to the NEXT run — without this
+          # copy the first_run=true treadmill returns immediately.
+          LAST_RESULT="artifacts/open_prep/last_result.json"
           "$SMC_PYTHON_BIN" scripts/publish_bot_snapshot.py \
             --branch bot/live-open-prep-snapshot \
             --copy "${SNAPSHOT}=${SNAPSHOT}" \
+            --copy-if-present "${LAST_RESULT}=${LAST_RESULT}" \
             --copy-if-present "${USAGE_SNAPSHOT}=${USAGE_SNAPSHOT}" \
             --copy-if-present "${QUOTE_REF}=${QUOTE_REF}" \
             --copy-if-present "${FMP_QUOTE_REF}=${FMP_QUOTE_REF}"

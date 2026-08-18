@@ -211,3 +211,67 @@ def test_a_bar_inside_the_accepted_skew_is_kept() -> None:
     cache.push_bar("SKEW", _bar(3) | {"ts_event": ts})
 
     assert len(cache.get_bars_snapshot("SKEW")) == 1
+
+
+def test_history_regression_metric_stays_zero_during_warmup() -> None:
+    """2026-08-18 (Grenzgaenger C1): plain warmup must NEVER look like a
+    defect. The old alert cut (readiness < 1 past a 15min warmup) was red for
+    days after every deploy because the largest timeframes need ~160h of
+    accumulated stream; the regression metric is zero the whole way up."""
+    request_hotspots.record_request("WARM", "1d")
+    cache.ensure_bar_capacity("WARM", 2_880)
+    for i in range(50):
+        cache.push_bar("WARM", _bar(i))
+    assert cache.requested_bar_history_regressed() == 0
+    _, readiness = cache.requested_bar_history_readiness()
+    assert readiness < 1.0  # still warming — and still not alertable
+
+
+def test_history_regression_detects_destroyed_history_and_recovery() -> None:
+    """Depth below the symbol's own high-water mark = accumulated history was
+    destroyed. Refilling back to the mark clears the signal."""
+    request_hotspots.record_request("WATCHED", "1d")
+    cache.ensure_bar_capacity("WATCHED", 2_880)
+    for i in range(30):
+        cache.push_bar("WATCHED", _bar(i))
+    assert cache.requested_bar_history_regressed() == 0
+
+    with cache._bar_lock:
+        cache._bars.pop("WATCHED", None)
+        cache._bar_last_update.pop("WATCHED", None)
+    assert cache.requested_bar_history_regressed() == 1
+
+    for i in range(30):
+        cache.push_bar("WATCHED", _bar(i))
+    assert cache.requested_bar_history_regressed() == 0
+
+
+def test_history_regression_survives_a_full_eviction_of_a_requested_symbol() -> None:
+    """The high-water memory must outlive the eviction itself — that loss is
+    exactly what it exists to remember (eviction also drops the expansion
+    cap, so the readiness ratio goes BLIND at the same moment)."""
+    request_hotspots.record_request("WATCHED", "1d")
+    cache.ensure_bar_capacity("WATCHED", 2_880)
+    for i in range(30):
+        cache.push_bar("WATCHED", _bar(i))
+
+    with cache._bar_lock:
+        cache._evict_n_stale_symbols_locked(
+            len(cache._bars), candidates=set(cache._bars)
+        )
+    assert cache.requested_bar_history_regressed() >= 1
+
+
+def test_history_regression_prunes_when_nobody_watches_any_more() -> None:
+    """A consumer that legitimately stopped watching must not pin the count
+    above zero forever."""
+    request_hotspots.record_request("GONE", "1d")
+    cache.ensure_bar_capacity("GONE", 2_880)
+    for i in range(10):
+        cache.push_bar("GONE", _bar(i))
+    with cache._bar_lock:
+        cache._bars.pop("GONE", None)
+        cache._expanded_retention.caps.pop("GONE", None)
+        cache._expanded_retention.seen.pop("GONE", None)
+    request_hotspots.reset()
+    assert cache.requested_bar_history_regressed() == 0
