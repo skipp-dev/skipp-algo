@@ -119,7 +119,14 @@ restartPolicyMaxRetries = 3
 Effektive Werte jederzeit nachmessen mit
 `railway deployment list -s live_overlay_daemon --json`.
 
-Railway deployed automatisch, sobald ein Commit auf dem verknüpften Branch landet.
+Deploys laufen NICHT über Railways nativen GitHub-Trigger (der wurde 2026-07-24
+gelöscht; `live-overlay-deploy-trigger-guard.yml` wird täglich rot, falls er
+wiederauftaucht), sondern über `.github/workflows/deploy-live-overlay-daemon.yml`:
+jeder main-Push, der `services/live_overlay_daemon/**` oder
+`scripts/deploy_live_overlay.sh` berührt, deployt via `railway up`. Deshalb tragen
+diese Deployments in `railway deployment list` KEIN `meta.commitHash` — den
+laufenden Stand am Container messen (`live_overlay_build_info` bzw. Datei-Zeuge),
+nie aus der Deployment-Meta herleiten (gemessen 2026-08-18, Doppelgänger-Sweep).
 
 ### Manuell deployen / testen
 
