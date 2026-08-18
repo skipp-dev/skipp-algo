@@ -125,23 +125,16 @@ up{job="live_overlay"} == 1
 
 ### Service configuration
 
-File: `services/live_overlay_daemon/railway.toml`
+File: `services/live_overlay_daemon/railway.toml` — read the file itself; its
+header explains that it is NOT currently in effect (Railway reads no
+config-as-code for this service; the effective build is the root `Dockerfile`
++ `requirements.lock`, guarded by
+`tests/test_live_overlay_daemon_deploy_artifact_contract.py`).
 
-```toml
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "services/live_overlay_daemon/Dockerfile"
-
-[deploy]
-startCommand = "python -m services.live_overlay_daemon.main"
-healthcheckPath = "/health"
-healthcheckTimeout = 60
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
-
-[[services]]
-name = "live_overlay_daemon"
-```
+Do not mirror the file's contents into this runbook: the copy that used to sit
+here had drifted on 3 of 6 fields (`dockerfilePath`, `startCommand`,
+`healthcheckTimeout`) by 2026-08-18 (Doppelgänger-Sweep) and pointed operators
+at the dead service-local Dockerfile. One truth, one file.
 
 ### Deployment
 
