@@ -133,10 +133,20 @@ fi
 # remain local on C13 and are never copied to the data branch.
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib_c13_data_push.sh"
+_push_exit=0
 push_to_data_branch "chore(c13): reconciled fills ${DATE}" "${PUSH_MARKER}" \
     "cache/live/incubation_${DATE}.jsonl" \
     "cache/live/incubation_commercial_${DATE}.jsonl" \
-    "artifacts/portfolio/reconciliation_${DATE}.monitoring.json"
+    "artifacts/portfolio/reconciliation_${DATE}.monitoring.json" || _push_exit=$?
+if [[ "${_push_exit}" -ne 0 ]]; then
+    # A hard push failure previously killed the script here (set -e) BEFORE
+    # any terminal marker, so the day read "never ran" instead of "degraded"
+    # — the exact R6 shape the push lib's header describes for its own
+    # marker. Record the truth, then keep the non-zero exit.
+    echo "reconcile cron: data-branch push FAILED (exit ${_push_exit})" >&2
+    _write_marker "DEGRADED" "data-push-failed:exit=${_push_exit}"
+    exit "${_push_exit}"
+fi
 
 if [[ "${_portfolio_reconcile_exit}" -ne 0 ]]; then
     echo "reconcile cron: portfolio position reconciliation FAILED" >&2
