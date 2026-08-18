@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 
 R_MULTIPLE_KEY = "outcome_r_multiple"
 PNL_KEY = "outcome_pnl_usd"
+# Documented pre-GTC/EOD-flatten orphans (stamped by
+# scripts/c13_orphan_close_sweep.py, #4848-Nacharbeit): can never close,
+# counted separately instead of inflating records_pending_close forever.
+ORPHANED_STATUS = "orphaned"
 
 # C13/T8.3 — opening-auction imbalance annotation keys (additive). The
 # imbalance loader is a Phase-A passive enrichment; downstream
@@ -225,6 +229,7 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
         "records_pending_close": 0,
         "records_audit_only": 0,
         "records_submit_failed": 0,
+        "records_orphaned": 0,
     }
     out: list[dict[str, Any]] = []
     for record in records:
@@ -235,6 +240,14 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
             out.append(record)
             continue
         if action not in _CLOSED_ACTIONS:
+            if record.get("outcome_status") == ORPHANED_STATUS:
+                # 2026-08-19 (#4848-Nacharbeit): dokumentierte Waisen der
+                # Vor-GTC/EOD-Flatten-Ära (c13_orphan_close_sweep) sind kein
+                # ausstehender Close mehr — sie koennen nie schliessen und
+                # duerfen pending_close/closable nicht ewig aufblaehen.
+                summary["records_orphaned"] += 1
+                out.append(record)
+                continue
             summary["records_pending_close"] += 1
             if action == "audit_only":
                 summary["records_audit_only"] += 1
