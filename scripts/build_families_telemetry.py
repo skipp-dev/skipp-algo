@@ -217,23 +217,42 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
-    """Yield JSONL records, skipping blank lines, raising on bad JSON."""
+    """Yield JSONL records, skipping blank lines, raising on bad JSON.
+
+    One deliberate tolerance (Grenzgänger-Sweep E3, 2026-08-18): a torn
+    TRAILING line — unparseable AND missing its newline — is the classic
+    crash/SIGKILL artifact of an append-only audit stream. It is skipped
+    with a loud warning instead of failing the build: the old fail-closed
+    behaviour let a single torn byte in ONE file block the telemetry (and
+    with it the public report) for ALL four families until a human edited
+    the JSONL. Malformed INTERIOR lines — and complete-but-garbage final
+    lines — still raise: those are corruption, not a crash shape.
+    """
     with path.open("r", encoding="utf-8") as fh:
-        for line_no, raw in enumerate(fh, start=1):
-            stripped = raw.strip()
-            if not stripped:
-                continue
-            try:
-                obj = json.loads(stripped)
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"{path}:{line_no} invalid JSON: {exc.msg}",
-                ) from exc
-            if not isinstance(obj, dict):
-                raise ValueError(
-                    f"{path}:{line_no} expected JSON object, got {type(obj).__name__}",
+        raw_lines = fh.readlines()
+    for line_no, raw in enumerate(raw_lines, start=1):
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            if line_no == len(raw_lines) and not raw.endswith("\n"):
+                logger.warning(
+                    "%s:%d torn trailing line (no newline) — treated as a "
+                    "crash artifact and skipped",
+                    path,
+                    line_no,
                 )
-            yield obj
+                return
+            raise ValueError(
+                f"{path}:{line_no} invalid JSON: {exc.msg}",
+            ) from exc
+        if not isinstance(obj, dict):
+            raise ValueError(
+                f"{path}:{line_no} expected JSON object, got {type(obj).__name__}",
+            )
+        yield obj
 
 
 def _trade_date_from_path(p: Path) -> str | None:
