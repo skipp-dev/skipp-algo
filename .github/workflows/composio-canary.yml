@@ -28,7 +28,15 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}
       COMPOSIO_ENVIRONMENT: prod
       COMPOSIO_PROD_API_KEY: ${{ secrets.COMPOSIO_PROD_API_KEY }}
+      # 2026-08-18 (Verdrahtungs-Sweep B-2): without the WRITE/dev side the
+      # separation audit below was fully vacuous — every check is
+      # "if read and write", so the only caller could never fail it.
+      COMPOSIO_DEV_API_KEY: ${{ secrets.COMPOSIO_DEV_API_KEY }}
       COMPOSIO_PROD_USER_ID: ${{ vars.COMPOSIO_PROD_USER_ID }}
+      COMPOSIO_SLACK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_WRITE_ACCOUNT_ID }}
+      COMPOSIO_GITHUB_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_GITHUB_WRITE_ACCOUNT_ID }}
+      COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_WRITE_ACCOUNT_ID }}
+      COMPOSIO_NOTION_WRITE_ACCOUNT_ID: ${{ vars.COMPOSIO_NOTION_WRITE_ACCOUNT_ID }}
       COMPOSIO_SLACK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_SLACK_READ_ACCOUNT_ID }}
       COMPOSIO_GITHUB_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_GITHUB_READ_ACCOUNT_ID }}
       COMPOSIO_OUTLOOK_READ_ACCOUNT_ID: ${{ vars.COMPOSIO_OUTLOOK_READ_ACCOUNT_ID }}

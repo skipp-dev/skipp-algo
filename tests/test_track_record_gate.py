@@ -182,8 +182,36 @@ def test_red_verdict_says_its_green_checks_are_not_claims() -> None:
             assert check["name"] in d["claim_note"]
 
 
-def test_green_verdict_is_claimable_without_note() -> None:
+def test_green_without_required_evidence_is_not_claimable() -> None:
+    """2026-08-18 (Verdrahtungs-Sweep K4): kein Producer im Repo liefert
+    walk_forward_efficiency/fdr_rate/per_regime_hit_rate_spread, und das
+    Aggregat ignoriert SKIPPED — ein gruenes Gate darf mit drei nie
+    gemessenen Pflicht-Pruefungen nicht claimable werden. Die claim_note
+    benennt, was fehlt. (Ersetzt den frueheren Test, der genau dieses Loch
+    als Erwartung pinnte.)"""
     verdict = evaluate_track_record_gate(_profitable_returns(), bootstrap_B=50)
+    d = verdict_to_dict(verdict)
+
+    assert d["status"] == "green"
+    assert d["claimable"] is False
+    for name in (
+        "walk_forward_efficiency",
+        "fdr_rate",
+        "per_regime_hit_rate_spread",
+    ):
+        assert name in d["claim_note"], name
+
+
+def test_green_with_measured_required_evidence_is_claimable() -> None:
+    # permutation_p bleibt bewusst weg: advisory by design (Schema-B-Caveat)
+    # — ein fehlendes Advisory blockt die Claim nicht.
+    verdict = evaluate_track_record_gate(
+        _profitable_returns(),
+        walk_forward_efficiency=0.7,
+        fdr_rate=0.05,
+        per_regime_hit_rate_spread=0.10,
+        bootstrap_B=50,
+    )
     d = verdict_to_dict(verdict)
 
     assert d["status"] == "green"

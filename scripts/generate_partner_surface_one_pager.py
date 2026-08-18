@@ -36,9 +36,10 @@ def _script_names(manifest: dict, files: list[str]) -> list[str]:
     return [by_file[f] for f in files]
 
 
-def build_one_pager() -> str:
+def build_one_pager(claims: dict | None = None) -> str:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    claims = json.loads(CLAIM_PATH.read_text(encoding="utf-8"))
+    if claims is None:
+        claims = json.loads(CLAIM_PATH.read_text(encoding="utf-8"))
 
     lite = _script_names(manifest, manifest["litePrimaryFiles"])
     pro = _script_names(manifest, manifest["proPrimaryFiles"])
@@ -46,6 +47,26 @@ def build_one_pager() -> str:
     n_internal = len(manifest["internalFiles"])
 
     families = claims["families"]
+    # Fail loud on vocabulary drift (2026-08-18 Verdrahtungs-Sweep K5): the
+    # renderer used to filter two statuses and silently DROP everything else
+    # — the claimable tier, the only one allowed to carry a claim, would
+    # have vanished from the partner sheet without a trace.
+    known_statuses = {"claimable", "evidence_building", "incubation"}
+    unknown = sorted(
+        f"{name}={entry['status']!r}"
+        for name, entry in families.items()
+        if entry["status"] not in known_statuses
+    )
+    if unknown:
+        raise ValueError(
+            "family_claim_status carries statuses this page cannot render — "
+            "the family would silently vanish from the partner sheet: "
+            + ", ".join(unknown)
+        )
+    claimable = sorted(
+        name for name, entry in families.items()
+        if entry["status"] == "claimable"
+    )
     building = sorted(
         name for name, entry in families.items()
         if entry["status"] == "evidence_building"
@@ -92,6 +113,14 @@ def build_one_pager() -> str:
         "- There is **no qualifying live track record today**. The public",
         "  calibration report carries the machine-readable gates",
         "  (`phase1_paper_gate`, `track_record_gate.claimable`) that say so.",
+    ]
+    if claimable:
+        lines += [
+            "- Event families with claimable evidence: "
+            + ", ".join(claimable)
+            + " (exact permitted wording per the claims registry).",
+        ]
+    lines += [
         f"- Event families building evidence: {', '.join(building)}.",
         f"- In incubation (measured, not claimed): {', '.join(incubation)}.",
         "",
