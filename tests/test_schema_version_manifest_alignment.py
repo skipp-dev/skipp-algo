@@ -45,6 +45,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # manifests here if/when new Pine libraries adopt the same pattern.
 TRACKED_MANIFESTS: tuple[Path, ...] = (
     REPO_ROOT / "pine" / "generated" / "smc_micro_profiles_generated.json",
+    # 2026-08-18 (Doppelgaenger-Sweep A6): the overlay library adopted the same
+    # schema_version-stamping pattern (scripts/bake_overlay_library.py copies it
+    # from the source manifest) but was never tracked here — a SCHEMA_VERSION
+    # bump would have left the published overlay manifest behind silently.
+    REPO_ROOT / "pine" / "generated" / "smc_overlay_generated.json",
 )
 
 
