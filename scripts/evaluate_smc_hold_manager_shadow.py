@@ -344,7 +344,30 @@ def evaluate_shadow(
         delivered = _alert_counts(
             row, "deliveredServerAlerts", channels, blockers, prefix
         )
+        # Provenance gate (2026-08-18 Verdrahtungs-Sweep K6): the reconcile
+        # exists so the delivered side comes from the receiver ledger instead
+        # of manual typing, and it stamps exactly these two fields — but the
+        # evaluator never read them, so a hand-typed row passed identically.
+        # Enforced BEFORE the first session row lands, so every row of the
+        # observation window is provable from row one.
+        delivered_source = row.get("deliveredServerAlertsSource")
+        if delivered_source != "receiver_ledger":
+            blockers.append(
+                f"{prefix}.deliveredServerAlertsSource: delivered counts must "
+                "be reconciled from the receiver ledger (run "
+                "scripts/reconcile_smc_hold_manager_shadow_deliveries.py), "
+                f"observed {delivered_source!r}"
+            )
+        receiver_duplicates = _alert_counts(
+            row, "receiverDuplicateDeliveries", channels, blockers, prefix
+        )
         for channel in channels:
+            if receiver_duplicates[channel] != 0:
+                blockers.append(
+                    f"{prefix}.{channel}: receiver ledger measured "
+                    f"{receiver_duplicates[channel]} duplicate deliveries, "
+                    "expected 0"
+                )
             if expected[channel] != delivered[channel]:
                 blockers.append(
                     f"{prefix}.{channel}: expected server delivery "
