@@ -163,3 +163,44 @@ def test_the_reconcile_driver_covers_the_commercial_audit_file() -> None:
     # Guarded on existence: an absent file means the paper stage is dormant,
     # which must stay a quiet no-op, not a DEGRADED day.
     assert '[[ -f "${COMMERCIAL_AUDIT}" ]]' in source
+
+
+def test_the_paper_stage_runs_with_the_vendor_honest_freshness_budget() -> None:
+    # The paper stage submits from the SAME clamped PIT pull as the campaign
+    # stage, so the submitter's 300s default would fail-close every honest
+    # submission (2026-08-18 Verdrahtungs-Sweep K3: the driver had measured
+    # and fixed this for the campaign stage only).
+    source = _driver()
+    paper_stage = source.split("# 3. Paper stage", 1)[1]
+
+    assert "--max-setup-age-seconds 900" in paper_stage
+
+
+def test_the_paper_stage_wires_the_wsh_earnings_filter() -> None:
+    # Without --wsh-events-jsonl the EarningsFilter is None on the commercial
+    # lane and the pilot doc's promised earnings-blocked audit rows can never
+    # exist (2026-08-18 Verdrahtungs-Sweep K7). Mirrors run-c13-phase-a.sh
+    # including the 4-day staleness rule.
+    source = _driver()
+    paper_stage = source.split("# 3. Paper stage", 1)[1]
+
+    assert "--wsh-events-jsonl" in paper_stage
+    assert "${WSH_FLAG}" in paper_stage
+    assert '"${WSH_AGE_DAYS}" -le 4' in paper_stage
+
+
+def test_the_commercial_paper_audit_has_a_data_branch_transport_edge() -> None:
+    # The CI consumer reads cache/live/incubation_*.jsonl from the
+    # data/phase-a-audit overlay (c13-daily-cron.yml); a file that is never
+    # pushed can never reach the families telemetry or the Phase-1 gate.
+    # This pins the transport EDGE the header promised but no driver carried
+    # (2026-08-18 Verdrahtungs-Sweep K1): fresh push after submission in the
+    # commercial driver, reconciled push in the reconcile driver.
+    driver_source = _driver()
+    paper_stage = driver_source.split("# 3. Paper stage", 1)[1]
+    assert 'push_to_data_branch "chore(c13): commercial paper audit' in paper_stage
+    assert '"cache/live/incubation_commercial_${DATE}.jsonl"' in paper_stage
+
+    reconcile_source = RECONCILE.read_text(encoding="utf-8")
+    push_block = reconcile_source.split("push_to_data_branch", 1)[1]
+    assert '"cache/live/incubation_commercial_${DATE}.jsonl"' in push_block
