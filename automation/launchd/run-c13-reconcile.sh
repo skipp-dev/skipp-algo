@@ -116,10 +116,20 @@ if ! _capture_portfolio_after; then
 fi
 mkdir -p "$(dirname "${PORTFOLIO_MONITORING}")"
 _portfolio_reconcile_exit=0
+# 2026-08-18 (Verdrahtungs-Sweep K8): die Commercial-Fills gehen in DIESELBE
+# Positions-Abstimmung — der Broker-Account ist einer; ohne sie erklärt
+# nichts die Commercial-Deltas und die Reconciliation meldet falsch rot.
+# Pre-Flip existiert die Datei nicht (leise, wie der Audit-Zweig oben).
+COMMERCIAL_FILLS_FLAG=""
+if [[ -s "${COMMERCIAL_FILLS}" ]]; then
+    COMMERCIAL_FILLS_FLAG="--fills ${COMMERCIAL_FILLS}"
+fi
+# shellcheck disable=SC2086
 "${PY}" -m scripts.reconcile_portfolio_shadow \
     --before "${PORTFOLIO_BEFORE}" \
     --after "${PORTFOLIO_AFTER}" \
     --fills "${PORTFOLIO_FILLS}" \
+    ${COMMERCIAL_FILLS_FLAG} \
     --output "${PORTFOLIO_REPORT}" \
     --monitoring-output "${PORTFOLIO_MONITORING}" || _portfolio_reconcile_exit=$?
 if [[ ! -s "${PORTFOLIO_MONITORING}" ]]; then
