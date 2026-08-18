@@ -154,16 +154,20 @@ def classify_instrument(price: float, atr_pct: float) -> str:
 def compute_adaptive_gates(
     *,
     base_score_min: float = 0.35,
-    base_trend_z_min: float = 0.3,
-    base_atr_ratio_min: float = 1.5,
     vix_level: float = 20.0,
-    instrument_class: str = "mid_cap",
 ) -> dict[str, float]:
-    """Compute adaptive gate thresholds from VIX and instrument class.
+    """Compute the adaptive score gate threshold from VIX.
 
-    • High VIX (>30)  → relax score/trend gates by 15 % (more opportunities)
-    • Low VIX  (<15)  → tighten score/trend gates by 15 % (the VIX multiplier is NOT applied to the ATR threshold — corrected 2026-07-08)
-    • Instrument class → ATR-ratio threshold from ``atr_table``; ``base_atr_ratio_min`` is only a fallback for unknown classes
+    • High VIX (>30)  → relax the score gate by 15 % (more opportunities)
+    • Low VIX  (<15)  → tighten the score gate by 15 %
+
+    2026-08-18 (Verdrahtungs-Sweep C3): ``trend_z_min`` und ``atr_ratio_min``
+    wurden hier berechnet, an jede publizierte Kandidatenzeile geheftet — und
+    von NIEMANDEM gelesen. Schlimmer: repo-weit existiert kein gemessener
+    ``trend_z``-/``atr_ratio``-Wert auf den Rows, gegen den sie je hätten
+    gaten können (Phantom-Input). Sie standen als „Gates" im Payload, ohne zu
+    gaten. Entfernt statt verdrahtet; ``score_min`` ist das eine echte Gate
+    (Soft-Warn + gate_tracker im Scorer).
     """
     # VIX multiplier
     if vix_level > 30:
@@ -174,20 +178,9 @@ def compute_adaptive_gates(
         vix_mult = 1.0
 
     adapted_score = max(0.20, min(0.50, base_score_min * vix_mult))
-    adapted_trend = max(0.15, min(0.50, base_trend_z_min * vix_mult))
-
-    atr_table = {
-        "penny": 0.5,
-        "small_cap": 1.0,
-        "mid_cap": 1.5,
-        "large_cap": 2.5,
-    }
-    adapted_atr = max(0.5, min(3.0, atr_table.get(instrument_class, base_atr_ratio_min)))
 
     return {
         "score_min": round(adapted_score, 3),
-        "trend_z_min": round(adapted_trend, 3),
-        "atr_ratio_min": round(adapted_atr, 3),
     }
 
 
