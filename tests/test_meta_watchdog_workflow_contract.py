@@ -254,7 +254,13 @@ _DAG_SPECS = (
     "smc-databento-production-export-sharded.yml=14:success:weekday",
     "smc-library-refresh.yml=30:success:weekday",
     "f2-promotion-gate-daily.yml=30:any:weekday",
-    "credential-health-check.yml=30:any:weekday",
+    # 2026-08-18 (Grenzgänger-Sweep A4): credential-health runs SEVEN days a
+    # week (cron "0 6 * * *"), so the :weekday tag subtracted up to 48h of
+    # weekend from its measured age — a Friday death stayed "fresh" until
+    # Tuesday, a blind spot sitting exactly in front of the 72h TV-cookie
+    # TTL this prober guards. The freshness monitor's own watchlist already
+    # carried the correct untagged entry.
+    "credential-health-check.yml=30:any",
 )
 
 

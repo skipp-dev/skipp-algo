@@ -69,7 +69,11 @@ _write_marker() {
     local kind="$1"
     local msg="${2:-}"
     mkdir -p "${REPO}/cache/live"
-    printf '%s|%s\n' "${kind}" "${msg}" > "${STATUS_MARKER}"
+    # Append, never truncate: up to six fires share this day file and a later
+    # fire must not erase an earlier fire's outcome (the old `>` lost five of
+    # six attempts). Operator-inspectable day log; NO automated consumer
+    # reads it (verified 2026-08-18 — nothing greps this marker family).
+    printf '%s %s|%s\n' "$(date -u +%H:%M:%SZ)" "${kind}" "${msg}" >> "${STATUS_MARKER}"
 }
 
 cd "${REPO}"
@@ -102,8 +106,8 @@ fi
 
 # 1. Point-in-time pull: 5 calendar days of 1m bars end at "now", the
 #    producer's freshness guard (max_event_age) does the rest. A failed
-#    pull is a failed ATTEMPT statistic, not a broken chain — but it is a
-#    DEGRADED day marker so the audit-push driver surfaces it.
+#    pull is a failed ATTEMPT statistic, not a broken chain — recorded as a
+#    DEGRADED line in the operator-inspectable day log.
 mkdir -p "${CAMPAIGN_DIR}/inputs"
 START="$(date -u -v-5d +%Y-%m-%d 2>/dev/null || date -u -d '5 days ago' +%Y-%m-%d)"
 END="$(date -u +%Y-%m-%dT%H:%M:%S)"
@@ -146,9 +150,20 @@ fi
 # data branch during the audit-only weeks, not only after the flip.
 # shellcheck disable=SC1091
 source "$(dirname "$0")/lib_c13_data_push.sh"
+_push_exit=0
 push_to_data_branch "chore(c13): commercial shadow ${DATE}" \
     "${REPO}/cache/live/.commercial_shadow_push_status_${DATE}" \
-    "cache/live/commercial_campaign/campaign_report.json"
+    "cache/live/commercial_campaign/campaign_report.json" || _push_exit=$?
+if [ "${_push_exit}" -ne 0 ]; then
+    # Report publishing is best-effort visibility; the attempt itself is
+    # already durably recorded under the campaign dir, and a git/network
+    # hiccup must not abort the fire before the paper-stage decision and
+    # marker run (the old hard exit left the day with no status at all —
+    # and once the flip arms the paper stage, a GitHub outage must never
+    # become a trading outage).
+    echo "commercial-shadow cron: report push failed (exit ${_push_exit}) — continuing" >&2
+    _write_marker "DEGRADED" "report-push-failed:exit=${_push_exit}"
+fi
 
 # 3. Paper stage — double interlock, both sides machine-readable.
 _submission_enabled="$("${PY}" -c "
@@ -210,13 +225,85 @@ if [ "${_producer_exit}" -ne 0 ]; then
     exit "${_producer_exit}"
 fi
 
+# WSH earnings filter — mirrors run-c13-phase-a.sh: newest snapshot wins,
+# at most 4 days old (tolerates a long weekend), otherwise the filter is
+# skipped LOUDLY. Without this flag EarningsFilter is None and the pilot
+# doc's promised earnings-blocked audit rows can never exist (2026-08-18
+# Verdrahtungs-Sweep K7).
+WSH_FLAG=""
+WSH_FILE="${REPO}/cache/wsh/${DATE}.jsonl"
+if [[ ! -f "${WSH_FILE}" ]]; then
+    # ISO-dated filenames sort chronologically; newest wins.
+    WSH_FILE="$(ls -1 "${REPO}"/cache/wsh/*.jsonl 2>/dev/null | sort | tail -n1 || true)"
+fi
+if [[ -n "${WSH_FILE}" && -f "${WSH_FILE}" ]]; then
+    WSH_BASENAME="$(basename "${WSH_FILE}" .jsonl)"
+    _today_epoch="$(date -u -j -f "%Y-%m-%d" "${DATE}" "+%s" 2>/dev/null || echo "")"
+    _file_epoch="$(date -u -j -f "%Y-%m-%d" "${WSH_BASENAME}" "+%s" 2>/dev/null || echo "")"
+    if [[ -n "${_today_epoch}" && -n "${_file_epoch}" ]]; then
+        WSH_AGE_DAYS=$(( (_today_epoch - _file_epoch) / 86400 ))
+    else
+        WSH_AGE_DAYS=-1
+    fi
+    if [[ "${WSH_AGE_DAYS}" -ge 0 && "${WSH_AGE_DAYS}" -le 4 ]]; then
+        echo "commercial-shadow cron: applying WSH earnings filter from ${WSH_FILE} (age ${WSH_AGE_DAYS}d)"
+        WSH_FLAG="--wsh-events-jsonl ${WSH_FILE}"
+    else
+        echo "commercial-shadow cron: newest WSH snapshot ${WSH_FILE} is ${WSH_AGE_DAYS}d old (>4d or unparseable); earnings filter SKIPPED (stale)" >&2
+    fi
+else
+    echo "commercial-shadow cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
+fi
+
+# Snapshot idempotency guard: the audit-only path skips replayed snapshots
+# (REPLAY_SKIPPED), but this split invocation bypasses run_shadow_once and
+# run_smc_live_incubation appends blindly — and a wake-catch-up fire can
+# cross an ET hour boundary and pass the hour-scoped gate twice minutes
+# apart. The same source snapshot must never be submitted twice.
+_snapshot_id="$("${PY}" -c "
+import json
+try:
+    doc = json.load(open('${SETUPS_OUT}'))
+    setups = doc.get('setups', doc) if isinstance(doc, dict) else doc
+    if not setups:
+        print('EMPTY')
+    else:
+        ids = {s.get('source_snapshot_id') for s in setups if isinstance(s, dict)}
+        ids.discard(None)
+        print(next(iter(ids)) if len(ids) == 1 else '')
+except Exception:
+    print('')
+")"
+if [[ "${_snapshot_id}" == "EMPTY" ]]; then
+    echo "commercial-shadow cron: producer emitted no setups — nothing to submit"
+    _write_marker "SUCCESS" "paper-no-setups:setups=${SETUPS_OUT}"
+    exit 0
+fi
+if [[ -z "${_snapshot_id}" ]]; then
+    echo "commercial-shadow cron: no unambiguous source_snapshot_id in setups — refusing paper submit" >&2
+    _write_marker "DEGRADED" "paper-snapshot-id-missing:setups=${SETUPS_OUT}"
+    exit 1
+fi
+if [[ -f "${PAPER_AUDIT}" ]] && grep -qF "${_snapshot_id}" "${PAPER_AUDIT}"; then
+    echo "commercial-shadow cron: snapshot ${_snapshot_id} already in ${PAPER_AUDIT} — skipping duplicate paper submit"
+    _write_marker "SUCCESS" "paper-duplicate-snapshot-skipped:${_snapshot_id}"
+    exit 0
+fi
+
 _run_exit=0
+# Same vendor-honest 900s freshness budget as the campaign stage above: the
+# setups come from the SAME clamped PIT pull (~5-7 minutes old by
+# construction, measured 2026-08-17), so the submitter's 300s default would
+# fail-close every honest submission (2026-08-18 Verdrahtungs-Sweep K3).
+# shellcheck disable=SC2086  # WSH_FLAG is deliberately word-split
 "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --place-paper-orders \
     --prospective-paper-pilot \
     --setups "${SETUPS_OUT}" \
     --gate-statuses "${GATES_OUT}" \
+    --max-setup-age-seconds 900 \
+    ${WSH_FLAG} \
     --audit-output "${PAPER_AUDIT}" \
     --portfolio-snapshot-json "${PORTFOLIO_BEFORE}" \
     --portfolio-risk-limits-json "${PORTFOLIO_LIMITS}" || _run_exit=$?
@@ -224,6 +311,23 @@ if [ "${_run_exit}" -ne 0 ]; then
     echo "commercial-shadow cron: commercial paper submit FAILED (exit ${_run_exit})" >&2
     _write_marker "DEGRADED" "commercial-submit-failed:audit=${PAPER_AUDIT}"
     exit "${_run_exit}"
+fi
+
+# The families-telemetry glob on the CI side reads cache/live/incubation_*.jsonl
+# from data/phase-a-audit — without this push the commercial paper audit never
+# reaches the Phase-1 gate. This mechanises the header's promise ("the
+# families telemetry glob picks that file up"), which had no transport edge
+# (2026-08-18 Verdrahtungs-Sweep K1). Same sanitisation class as the phase-a
+# audit push: per-intent audit rows only, no account state.
+_paper_push_exit=0
+push_to_data_branch "chore(c13): commercial paper audit ${DATE}" \
+    "${REPO}/cache/live/.commercial_paper_push_status_${DATE}" \
+    "cache/live/incubation_commercial_${DATE}.jsonl" || _paper_push_exit=$?
+if [ "${_paper_push_exit}" -ne 0 ]; then
+    # The submission already happened; a git hiccup here must not hide that
+    # from the day log (the reconcile driver pushes the file again at 23:05).
+    echo "commercial-shadow cron: paper-audit push failed (exit ${_paper_push_exit}) — continuing" >&2
+    _write_marker "DEGRADED" "paper-audit-push-failed:exit=${_paper_push_exit}"
 fi
 
 _write_marker "SUCCESS" "commercial-paper-submitted:audit=${PAPER_AUDIT}"

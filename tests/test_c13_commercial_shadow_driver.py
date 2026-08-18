@@ -115,11 +115,55 @@ def test_every_failure_path_writes_a_degraded_marker() -> None:
         "smoke-halt-sentinel",
         "databento-pull-failed",
         "campaign-attempt-failed",
+        "report-push-failed",
         "portfolio-snapshot-failed",
         "producer-failed",
+        "paper-snapshot-id-missing",
         "commercial-submit-failed",
     ):
         assert f'_write_marker "DEGRADED" "{token}' in source, token
+
+
+def test_the_day_marker_appends_instead_of_truncating() -> None:
+    # Up to six fires share one day file; a later fire must not erase an
+    # earlier fire's outcome (the old `>` lost five of six attempts on
+    # 2026-08-17). No automated consumer reads the marker, so the append is
+    # purely additive for the operator.
+    source = _driver()
+
+    assert '>> "${STATUS_MARKER}"' in source
+    assert '> "${STATUS_MARKER}"' not in source.replace('>> "${STATUS_MARKER}"', "")
+
+
+def test_a_report_push_failure_does_not_abort_the_fire() -> None:
+    # Publishing the campaign report is best-effort visibility. The attempt
+    # is already durable under the campaign dir, and once the flip arms the
+    # paper stage a GitHub outage must never become a trading outage.
+    source = _driver()
+    push_block = source.split("push_to_data_branch", 1)[1]
+    push_block = push_block.split("# 3. Paper stage", 1)[0]
+
+    assert "|| _push_exit=$?" in source
+    assert 'exit "${_push_exit}"' not in push_block
+    assert "report-push-failed" in push_block
+
+
+def test_the_paper_stage_never_submits_the_same_snapshot_twice() -> None:
+    # The audit-only path skips replayed snapshots (REPLAY_SKIPPED) but the
+    # split invocation bypasses run_shadow_once, and a wake-catch-up fire can
+    # cross an ET hour boundary and pass the hour-scoped gate twice. The
+    # guard must sit between the setup producer and the real submitter.
+    source = _driver()
+    after_producer = source.split("build_commercial_family_setups", 1)[1]
+    # Split on the module INVOCATION, not the bare name — the guard's own
+    # comment mentions run_smc_live_incubation.
+    guard_block = after_producer.split("scripts.run_smc_live_incubation", 1)[0]
+
+    assert "source_snapshot_id" in guard_block
+    assert 'grep -qF "${_snapshot_id}" "${PAPER_AUDIT}"' in guard_block
+    assert "paper-duplicate-snapshot-skipped" in guard_block
+    # An empty setup list is a clean no-op, not a submit.
+    assert "paper-no-setups" in guard_block
 
 
 def test_the_pull_cli_resolves_its_key_from_the_checkout_env() -> None:
@@ -174,3 +218,44 @@ def test_the_reconcile_driver_covers_the_commercial_audit_file() -> None:
     # Guarded on existence: an absent file means the paper stage is dormant,
     # which must stay a quiet no-op, not a DEGRADED day.
     assert '[[ -f "${COMMERCIAL_AUDIT}" ]]' in source
+
+
+def test_the_paper_stage_runs_with_the_vendor_honest_freshness_budget() -> None:
+    # The paper stage submits from the SAME clamped PIT pull as the campaign
+    # stage, so the submitter's 300s default would fail-close every honest
+    # submission (2026-08-18 Verdrahtungs-Sweep K3: the driver had measured
+    # and fixed this for the campaign stage only).
+    source = _driver()
+    paper_stage = source.split("# 3. Paper stage", 1)[1]
+
+    assert "--max-setup-age-seconds 900" in paper_stage
+
+
+def test_the_paper_stage_wires_the_wsh_earnings_filter() -> None:
+    # Without --wsh-events-jsonl the EarningsFilter is None on the commercial
+    # lane and the pilot doc's promised earnings-blocked audit rows can never
+    # exist (2026-08-18 Verdrahtungs-Sweep K7). Mirrors run-c13-phase-a.sh
+    # including the 4-day staleness rule.
+    source = _driver()
+    paper_stage = source.split("# 3. Paper stage", 1)[1]
+
+    assert "--wsh-events-jsonl" in paper_stage
+    assert "${WSH_FLAG}" in paper_stage
+    assert '"${WSH_AGE_DAYS}" -le 4' in paper_stage
+
+
+def test_the_commercial_paper_audit_has_a_data_branch_transport_edge() -> None:
+    # The CI consumer reads cache/live/incubation_*.jsonl from the
+    # data/phase-a-audit overlay (c13-daily-cron.yml); a file that is never
+    # pushed can never reach the families telemetry or the Phase-1 gate.
+    # This pins the transport EDGE the header promised but no driver carried
+    # (2026-08-18 Verdrahtungs-Sweep K1): fresh push after submission in the
+    # commercial driver, reconciled push in the reconcile driver.
+    driver_source = _driver()
+    paper_stage = driver_source.split("# 3. Paper stage", 1)[1]
+    assert 'push_to_data_branch "chore(c13): commercial paper audit' in paper_stage
+    assert '"cache/live/incubation_commercial_${DATE}.jsonl"' in paper_stage
+
+    reconcile_source = RECONCILE.read_text(encoding="utf-8")
+    push_block = reconcile_source.split("push_to_data_branch", 1)[1]
+    assert '"cache/live/incubation_commercial_${DATE}.jsonl"' in push_block

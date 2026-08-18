@@ -114,6 +114,34 @@ def summarize_fills(fills: list[Any]) -> dict[str, dict[str, float]]:
     }
 
 
+def paper_fills_only(fills: list) -> list:
+    """Drop executions whose account is not a DU* paper account.
+
+    Defense-in-depth behind the S5 paper-port assertion: on a deliberately
+    non-paper port the assertion no-ops, and a TWS managing BOTH a DU* and a
+    live account passes neither cleanly — either way, live executions must
+    never reach the PAPER incubation evidence. Dropped rows are reported
+    loudly so a misconfigured session is visible, not silent.
+    """
+    kept: list = []
+    dropped = 0
+    for fill in fills:
+        account = str(
+            getattr(getattr(fill, "execution", None), "acctNumber", "") or ""
+        ).strip()
+        if account.startswith("DU"):
+            kept.append(fill)
+        else:
+            dropped += 1
+    if dropped:
+        print(
+            f"reconcile: dropping {dropped} execution(s) on non-DU* accounts — "
+            "paper evidence accepts paper fills only",
+            file=sys.stderr,
+        )
+    return kept
+
+
 def portfolio_fill_rows(
     fills: list[Any],
     intent_ids: set[str],
@@ -370,6 +398,11 @@ def main(argv: list[str] | None = None) -> int:
     # Deferred import: no IBKR client at module load time.
     from ib_async import IB, ExecutionFilter
 
+    from scripts.execute_ibkr_watchlist import (
+        IBKRConnectionConfig,
+        assert_paper_account_if_paper_port,
+    )
+
     ib = IB()
     try:
         ib.connect(
@@ -379,12 +412,27 @@ def main(argv: list[str] | None = None) -> int:
             timeout=args.timeout,
             readonly=True,
         )
+        # Same S5 guard as the submitters: port 7497 is only a CONVENTION —
+        # a live TWS behind the paper port would let live executions flow
+        # into the PAPER incubation evidence. readonly=True protects the
+        # orders, not the evidence. SystemExit passes the except below.
+        assert_paper_account_if_paper_port(
+            ib,
+            IBKRConnectionConfig(
+                host=args.host,
+                port=args.port,
+                client_id=args.client_id,
+                readonly=True,
+            ),
+        )
         fills = ib.reqExecutions(ExecutionFilter())
     except Exception as exc:  # connect/API errors: fail loud, launchd shows red
         print(f"error: IBKR executions query failed: {exc}", file=sys.stderr)
         return 1
     finally:
         ib.disconnect()
+
+    fills = paper_fills_only(fills)
 
     if args.portfolio_fills_output is not None:
         intent_ids = {str(record.get("intent_id") or "") for record in records}

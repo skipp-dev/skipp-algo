@@ -31,7 +31,11 @@ try:
 except ImportError:
     _HAS_FCNTL = False
 
-from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
+from databento_client import (
+    _is_retryable_databento_get_range_error,
+    _make_databento_reference_client,
+    _redact_sensitive_error_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,38 @@ _STATE_CACHE_PATH: str | None = None
 _STATE_CACHE_MTIME: float | None = None
 _STATE_CACHE_VALUE: dict[str, Any] | None = None
 _STATE_CACHE_LOCK = threading.Lock()
+
+
+def _corporate_actions_get_range_with_retry(reference_client: Any, **kwargs: Any) -> Any:
+    """``corporate_actions.get_range`` with bounded retry on transient errors.
+
+    F-V4-E1 sibling (Grenzgänger-Sweep D7, 2026-08-18): the timeseries path
+    routes through ``_databento_get_range_with_retry``, but its AST guard only
+    matches ``.timeseries.get_range`` — this Reference surface ran single-shot,
+    so one TLS reset on batch k aborted the whole refresh and cached
+    ``provider_status="error"`` for the failure TTL. The exception net is
+    deliberately narrow (``OSError`` covers requests' ConnectionError family
+    incl. RemoteDisconnected; BentoServerError covers 5xx) so client-side
+    errors still fail immediately.
+    """
+    from databento.common.error import BentoServerError
+
+    attempts = 3
+    last_exc: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return reference_client.corporate_actions.get_range(**kwargs)
+        except (BentoServerError, OSError) as exc:
+            last_exc = exc
+            if attempt >= attempts or not _is_retryable_databento_get_range_error(exc):
+                raise
+            logger.warning(
+                "corporate_actions.get_range transient failure (attempt %d/%d): %s",
+                attempt,
+                attempts,
+                _redact_sensitive_error_text(str(exc)),
+            )
+    raise last_exc  # pragma: no cover - loop always returns or raises
 
 
 def _env_int(name: str, default: int) -> int:
@@ -693,7 +729,8 @@ def maybe_refresh_symbol_reference_cache(
             new_records: list[dict[str, Any]] = []
             for index in range(0, len(target_symbols), CORPORATE_ACTION_BATCH_SIZE):
                 batch = target_symbols[index:index + CORPORATE_ACTION_BATCH_SIZE]
-                frame = reference_client.corporate_actions.get_range(
+                frame = _corporate_actions_get_range_with_retry(
+                    reference_client,
                     start=query_start,
                     end=query_end,
                     symbols=batch,
