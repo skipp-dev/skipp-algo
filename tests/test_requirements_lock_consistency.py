@@ -168,3 +168,64 @@ def test_lock_pin_satisfies_source_specifier(requirement: Requirement) -> None:
         f"satisfy requirements.txt specifier '{requirement.specifier}'. "
         f"Regenerate the lock."
     )
+
+
+# ---------------------------------------------------------------------------
+# Dashboard pair (2026-08-18, Doppelgaenger-Sweep B-K5). Dependabot bumps
+# requirements-dashboard.txt while Dockerfile.dashboard installs the .lock —
+# measured drift before this guard: numpy 2.5.2 declared vs 2.4.6 installed,
+# and nothing forced a regeneration. Same class as the root pair above;
+# regenerate with `python scripts/regenerate_requirements_lock.py --target
+# dashboard`.
+# ---------------------------------------------------------------------------
+
+_DASHBOARD_REQUIREMENTS = _REPO_ROOT / "requirements-dashboard.txt"
+_DASHBOARD_LOCK = _REPO_ROOT / "requirements-dashboard.lock"
+
+
+def _dashboard_lock_pins() -> dict[str, str]:
+    pins: dict[str, str] = {}
+    for raw in _DASHBOARD_LOCK.read_text(encoding="utf-8").splitlines():
+        match = _LOCK_PIN_RE.match(raw)
+        if match:
+            pins[canonicalize_name(match.group(1))] = match.group(2)
+    return pins
+
+
+def _dashboard_direct_requirements() -> list[Requirement]:
+    out: list[Requirement] = []
+    for raw in _DASHBOARD_REQUIREMENTS.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or line.startswith("--"):
+            continue
+        out.append(Requirement(line))
+    return out
+
+
+def test_dashboard_pair_exists_and_is_non_trivial() -> None:
+    assert _DASHBOARD_REQUIREMENTS.is_file()
+    assert _DASHBOARD_LOCK.is_file()
+    pins = _dashboard_lock_pins()
+    direct = _dashboard_direct_requirements()
+    assert direct, "dashboard requirements parsed to nothing — scan went vacuous"
+    assert len(pins) >= len(direct), (
+        f"dashboard lock has only {len(pins)} pins for {len(direct)} direct deps"
+    )
+
+
+def test_every_dashboard_direct_dep_is_pinned_and_satisfied() -> None:
+    pins = _dashboard_lock_pins()
+    problems: list[str] = []
+    for req in _dashboard_direct_requirements():
+        name = canonicalize_name(req.name)
+        if name not in pins:
+            problems.append(f"{req.name}: missing from requirements-dashboard.lock")
+            continue
+        if not req.specifier.contains(Version(pins[name]), prereleases=True):
+            problems.append(
+                f"{req.name}: lock pins {pins[name]}, txt demands {req.specifier}"
+            )
+    assert not problems, (
+        f"requirements-dashboard.{{txt,lock}} drifted: {problems}. Regenerate "
+        "with 'python scripts/regenerate_requirements_lock.py --target dashboard'."
+    )
