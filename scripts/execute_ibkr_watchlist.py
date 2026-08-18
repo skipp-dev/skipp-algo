@@ -983,7 +983,7 @@ def place_order_intents_with_ib(
                 stopLossPrice=intent.stop_loss,
             )
             suffixes = ("entry", "tp", "sl")
-            for order, suffix in zip(orders, suffixes, strict=False):
+            for order, suffix in zip(orders, suffixes, strict=True):  # ein 4. Leg bliebe sonst ref-los und _apply_exit_tif fasste es als Exit an
                 order_ref = f"{intent.order_ref}-{suffix}"
                 _apply_common_order_fields(order, intent, connection_cfg, order_ref=order_ref)
         elif execution_cfg.exit_mode == "tp-trail":
@@ -1258,6 +1258,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--account", default=None)
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--tif", default="DAY", choices=["DAY", "GTC"])
+    parser.add_argument("--exit-tif", default=None, choices=["DAY", "GTC"], help="TIF override for the exit legs (tp/sl/trail) only; the entry keeps --tif. Default keeps the intent tif — with DAY exits, protection dies at the bell (the C13 zombie class) unless a supervisor flattens first.")
     parser.add_argument("--outside-rth", action="store_true", help="Allow orders to work outside regular trading hours.")
     parser.add_argument("--exit-mode", default="tp-stop", choices=["tp-stop", "tp-trail"], help="Choose a standard take-profit + stop bracket or take-profit + trailing-stop bracket.")
     parser.add_argument("--cancel-unfilled-after", default=DEFAULT_CANCEL_UNFILLED_AFTER, help="Cancel unfilled entry orders after HH:MM[:SS] in the configured timezone. Use 'off' to disable.")
@@ -1348,6 +1349,7 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
     )
     execution_cfg = IBKRExecutionConfig(
         tif=args.tif,
+        exit_tif=args.exit_tif,
         outside_rth=args.outside_rth,
         exit_mode=args.exit_mode,
         cancel_unfilled_after=_normalize_schedule_value(args.cancel_unfilled_after),
