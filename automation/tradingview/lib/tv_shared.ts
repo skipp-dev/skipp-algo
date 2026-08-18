@@ -9326,10 +9326,33 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
     return false;
   }
 
-  const scriptOption = await waitForFirstVisibleLocator(
+  let scriptOption = await waitForFirstVisibleLocator(
     tvSelectors.publishExistingScriptOption(page, scriptName),
     3_000,
   );
+  if (!scriptOption) {
+    // 2026-08-18, Lauf 32141943180 (#4772): die Input-Form des Choosers ist
+    // ein Type-ahead — ein Klick allein öffnet keine Optionsliste. Genau
+    // EINE evidenzgedeckte Zusatzstufe (Namen eintippen, Optionssuche
+    // wiederholen); alles Weitere wäre wieder Raterei und wartet auf die
+    // Absenz-Traces des nächsten Laufs.
+    const isTextInput = await chooserControl
+      .evaluate((element) => element.tagName.toLowerCase() === "input")
+      .catch(() => false);
+    if (isTextInput) {
+      const filled = await chooserControl
+        .fill(scriptName, { timeout: 1_000 })
+        .then(() => true)
+        .catch(() => false);
+      tracePageEvent(page, "publish-existing-script-typeahead", `${scriptName}:filled=${filled}`);
+      if (filled) {
+        scriptOption = await waitForFirstVisibleLocator(
+          tvSelectors.publishExistingScriptOption(page, scriptName),
+          3_000,
+        );
+      }
+    }
+  }
   if (!scriptOption) {
     await tracePublishChooserAbsence(page, "script-option-absent");
     return false;

@@ -475,6 +475,12 @@ export const tvSelectors = {
       surface.locator("select"),
       surface.locator('select[aria-label*="script" i]'),
       surface.locator('[role="combobox"]'),
+      // 2026-08-18, Lauf 32141943180 (#4772): das Chooser-Inventar las die
+      // tatsächliche Form aus — ein nacktes Text-Input, dessen EINZIGE
+      // Kennung der Placeholder ist (tag=input, role="", aria-label="",
+      // placeholder="Choose script"). Keiner der Locators oben sieht einen
+      // Placeholder; getByText matcht Textinhalt, nicht Platzhalter.
+      surface.getByPlaceholder(/^choose script$/i),
       surface.getByText(/^choose script$/i, { exact: true }),
     ];
   },
