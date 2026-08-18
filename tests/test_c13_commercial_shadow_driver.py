@@ -218,6 +218,15 @@ def test_the_reconcile_driver_covers_the_commercial_audit_file() -> None:
     # Guarded on existence: an absent file means the paper stage is dormant,
     # which must stay a quiet no-op, not a DEGRADED day.
     assert '[[ -f "${COMMERCIAL_AUDIT}" ]]' in source
+    # 2026-08-18 (Doppelgaenger-Sweep E5): the entry gate must look at BOTH
+    # audit files. The old ORB-only early exit ended a commercial-only trading
+    # day as SUCCESS/no-audit-file before the commercial branch was reached.
+    assert '[[ ! -f "${AUDIT}" && ! -f "${COMMERCIAL_AUDIT}" ]]' in source
+    assert '[[ ! -f "${AUDIT}" ]]' not in source
+    # And the portfolio reconciliation must see the commercial fills too —
+    # they are part of the same position delta.
+    assert 'FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")' in source
+    assert '"${FILLS_ARGS[@]}"' in source
 
 
 def test_the_paper_stage_runs_with_the_vendor_honest_freshness_budget() -> None:
@@ -267,9 +276,12 @@ def test_the_commercial_fills_feed_the_portfolio_reconciliation() -> None:
     # reconcile_portfolio_shadow Positionsdeltas ohne die erklärenden
     # Commercial-Fills und meldete falsche reconciliation_failures. Der
     # Treiber übergibt die Datei jetzt konditional (pre-Flip leise absent).
+    # 2026-08-18 (Doppelgaenger-Sweep E5, Konflikt-Auflösung #4811): die
+    # K8-Flag-Form COMMERCIAL_FILLS_FLAG wich dem FILLS_ARGS-Array — dieselbe
+    # Zusicherung, aber auch der Commercial-only-Tag (kein ORB-Fills-File)
+    # erreicht den identischen Reconcile-Aufruf.
     source = RECONCILE.read_text(encoding="utf-8")
 
-    assert '-s "${COMMERCIAL_FILLS}"' in source
-    assert 'COMMERCIAL_FILLS_FLAG="--fills ${COMMERCIAL_FILLS}"' in source
+    assert '[[ -f "${COMMERCIAL_FILLS}" ]] && FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")' in source
     reconcile_call = source.split("scripts.reconcile_portfolio_shadow", 1)[1]
-    assert "${COMMERCIAL_FILLS_FLAG}" in reconcile_call.split("--output", 1)[0]
+    assert '"${FILLS_ARGS[@]}"' in reconcile_call.split("--output", 1)[0]
