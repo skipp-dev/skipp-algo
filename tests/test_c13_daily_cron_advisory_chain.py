@@ -383,3 +383,54 @@ def test_emit_publishes_the_real_exit_code(tmp_path: Path) -> None:
     assert evaluate_condition(
         _CONDITIONS[_ISSUE_STEP], {"emit_public.rc": "5", "backfill.rc": "0"}
     ), "emit_public has no soft-skip path, so any non-zero rc must open the issue"
+
+
+def test_every_rc_publishing_step_is_wired_into_the_issue_gate() -> None:
+    """The issue gate's step list is DERIVED, not hand-maintained.
+
+    2026-08-18 (Doppelgaenger-Sweep E2): ``slippage_sample`` (step 3b) and
+    ``corpus`` (step 4b) published ``rc=`` to ``$GITHUB_OUTPUT`` but appeared
+    in neither the issue-opening ``if:`` nor the issue body — a permanently
+    failing advisory step stayed green-with-::warning:: forever, exactly the
+    invisibility this workflow already documents (and fixed) for
+    ``backfill_progress``. The two hand-written lists cannot forget the next
+    rc-publishing step while this derivation holds.
+    """
+    import re
+
+    import yaml
+
+    workflow_path = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / WORKFLOW
+    )
+    doc = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    steps = [s for s in doc["jobs"]["daily-pipeline"]["steps"] if isinstance(s, dict)]
+
+    rc_ids = [
+        step["id"]
+        for step in steps
+        if step.get("id")
+        and "GITHUB_OUTPUT" in str(step.get("run", ""))
+        and re.search(r'(?m)^\s*echo "?rc=', str(step.get("run", "")))
+    ]
+    assert len(rc_ids) >= 5, (
+        f"only {rc_ids} rc-publishing steps found — the derivation went vacuous; "
+        "check the run-block pattern against the workflow."
+    )
+
+    issue_steps = [s for s in steps if s.get("name") == _ISSUE_STEP]
+    assert len(issue_steps) == 1, f"issue step not found once: {issue_steps}"
+    gate_condition = str(issue_steps[0].get("if", ""))
+    issue_body = str(issue_steps[0].get("run", ""))
+
+    unmonitored = [
+        sid for sid in rc_ids if f"steps.{sid}.outputs.rc" not in gate_condition
+    ]
+    unreported = [
+        sid for sid in rc_ids if f"steps.{sid}.outputs.rc" not in issue_body
+    ]
+    assert not unmonitored and not unreported, (
+        f"rc-publishing steps missing from the issue gate: if={unmonitored} "
+        f"body={unreported}. Every step that publishes an rc must be listed in "
+        "both, or its permanent failure degrades to an unread ::warning::."
+    )

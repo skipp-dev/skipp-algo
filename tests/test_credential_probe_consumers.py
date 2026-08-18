@@ -389,3 +389,47 @@ def test_script_skip_flag_roster_is_frozen() -> None:
         "from every consumer invocation that still passes it (an unknown flag "
         "makes argparse exit 2)."
     )
+
+
+def test_shell_consumers_skip_every_probe_except_tv() -> None:
+    """Shell consumers live outside the workflow glob — derive them too.
+
+    2026-08-18 (Doppelgaenger-Sweep E4): ``_consumers()`` above derives the
+    consumer set from ``.github/workflows/*.yml`` only. The operator rotation
+    script ``scripts/tv_rotate_storage_state_secret.sh`` is a fourth consumer
+    whose comment claimed it mirrored the CI invocation "verbatim, including
+    every --skip" — measured, it was missing ``--skip-composio``, so the probe
+    class that produced 12 failed runs on 2026-08-03 (#4333/#4363) could veto
+    an unrelated TV rotation. The #4333 shape, one consumer to the right.
+
+    Contract enforced here: a shell consumer of the probe script exists to
+    check exactly ONE probe (the TV cookie), so it must skip every other
+    probe the script grows. A future shell consumer with a different purpose
+    will fail this test — that failure is the forced per-consumer decision
+    this module's docstring demands, not noise; split the assertion by
+    consumer name when that day comes.
+    """
+    shell_paths = sorted((REPO_ROOT / "scripts").glob("*.sh")) + sorted(
+        (REPO_ROOT / "automation" / "launchd").glob("*.sh")
+    )
+    consumers: dict[str, list[str]] = {}
+    for path in shell_paths:
+        invocations = _invocations(path.read_text(encoding="utf-8"))
+        if invocations:
+            consumers[path.name] = invocations
+    assert consumers, (
+        "zero shell consumers of credential_health_check.py found — the glob "
+        "went vacuous (script moved or renamed?); this guard must scan the "
+        "operator scripts, not silently pass on an empty corpus."
+    )
+
+    expected = _script_skip_flags() - {"--skip-tv"}
+    for name, invocations in consumers.items():
+        for invocation in invocations:
+            present = {flag for flag in _script_skip_flags() if flag in invocation}
+            missing = sorted(expected - present)
+            assert not missing, (
+                f"{name} invokes the probe script without {missing}. A shell "
+                "consumer probes ONLY the TV cookie; every other probe must be "
+                "skipped or an unrelated expired key blocks the TV rotation."
+            )
