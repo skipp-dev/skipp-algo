@@ -86,7 +86,11 @@ from typing import Any
 # producer cannot drift from the consumer schema.
 # 2.1.0 (2026-08-16): additive commercial_claim per family row -- the
 # operator's family-claim decision travels with the data it constrains.
-FAMILIES_SCHEMA_VERSION = "2.1.0"
+# 2.2.0 (2026-08-18, Grenzgaenger E4+E5, operator decision): variantless
+# halts count as unattributed_kill_switch_fires (top level) instead of
+# poisoning every family; phase1_paper_gate requires only non-incubation
+# families and reports families_required.
+FAMILIES_SCHEMA_VERSION = "2.2.0"
 
 # The dated operator decision on which families the commercial story may
 # claim (weekly review 2026-08-16: FVG leaves the four-family claim). The
@@ -186,6 +190,9 @@ class BuildSummary:
     unknown_variants: set[str] = field(default_factory=set)
     non_family_variants: set[str] = field(default_factory=set)
     families_emitted: int = 0
+    # 2026-08-18 (E4): variantless halts on days without family trades land
+    # here instead of being fanned out to every family's kill_switch_fires.
+    unattributed_kill_switch_fires: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -355,12 +362,9 @@ def aggregate(
             if not isinstance(variant, str) or not variant:
                 # Halt records and other non-trade entries — count
                 # kill-switch fires under their source family if we
-                # can recover it, otherwise drop. Halt records carry
-                # no variant; we therefore attribute kill-switch
-                # fires *per audit file* to all families that traded
-                # that day. Conservative for the C12 contract:
-                # ``kill_switch_fires == 0`` is hard, so any fire
-                # propagates.
+                # can recover it. Halt records carry no variant; we
+                # attribute fires *per audit file* to the families
+                # that actually traded that day.
                 if rec.get("kill_switch_triggered") is True:
                     variants_for_day = _variants_in_day(audit_path)
                     fam_for_day = {
@@ -374,14 +378,18 @@ def aggregate(
                             # A known execution-only stream cannot contaminate
                             # commercial family risk evidence.
                             continue
-                        # No trades that day (halt fired before any
-                        # variant traded) — conservative fallback per
-                        # the C12 contract: a kill-switch fire must
-                        # never be silently dropped, so attribute it
-                        # to every event family. This keeps the
-                        # ``kill_switch_fires == 0`` Phase-B invariant
-                        # honest even on halt-only days.
-                        fam_for_day = set(EVENT_FAMILIES)
+                        # 2026-08-18 (Grenzgaenger E4, operator decision
+                        # "der Halt gilt pro Familie"): a variantless
+                        # halt on a day with NO family trades is counted
+                        # as UNATTRIBUTED instead of being fanned out to
+                        # every family. The old fallback poisoned
+                        # ``kill_switch_fires == 0`` for ALL families
+                        # forever (the audit glob is unbounded), making
+                        # C12 permanently unreachable after one such
+                        # day. The fire stays visible at the payload
+                        # top level — never silently dropped.
+                        summary.unattributed_kill_switch_fires += 1
+                        continue
                     for fam in fam_for_day:
                         accs[fam].kill_switch_fires += 1
                 continue
@@ -584,9 +592,11 @@ def build_payload(
         non_family_variants=registry.non_family_variants,
         summary=summary,
     )
+    claim_statuses = load_family_claim_statuses()
     families = to_strict_payload(
         accs,
         modeled_counts=load_modeled_counts(modeled_returns_glob),
+        claim_statuses=claim_statuses,
     )
     summary.families_emitted = len(families)
     paper_ready = [
@@ -594,13 +604,26 @@ def build_payload(
         for row in families
         if row["evidence"]["PAPER"]["n_closed_outcomes"] > 0
     ]
-    paper_missing = [family for family in EVENT_FAMILIES if family not in paper_ready]
+    # 2026-08-18 (Grenzgaenger E5, operator decision "FVG faellt aus dem
+    # Phase-1-Pflichtteil"): the gate requires only families that are part
+    # of the commercial claim story (status != "incubation" in
+    # docs/commercial/family_claim_status.json). FVG was demoted there on
+    # 2026-08-16 while this gate still demanded it — the same payload
+    # contradicted itself and could never go GREEN. Promotion out of
+    # incubation is a dated edit of that record and re-enters the gate
+    # here automatically; incubation families keep full telemetry rows.
+    phase1_required = [
+        family for family in EVENT_FAMILIES if claim_statuses.get(family) != "incubation"
+    ]
+    paper_missing = [family for family in phase1_required if family not in paper_ready]
 
     return {
         "schema_version": FAMILIES_SCHEMA_VERSION,
         "families": families,
+        "unattributed_kill_switch_fires": summary.unattributed_kill_switch_fires,
         "phase1_paper_gate": {
             "status": "GREEN" if not paper_missing else "BLOCKED",
+            "families_required": phase1_required,
             "families_ready": paper_ready,
             "families_missing_closed_outcome": paper_missing,
         },
