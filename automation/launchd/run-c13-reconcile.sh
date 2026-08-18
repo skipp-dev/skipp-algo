@@ -135,6 +135,7 @@ fi
 source "$(dirname "$0")/lib_c13_data_push.sh"
 push_to_data_branch "chore(c13): reconciled fills ${DATE}" "${PUSH_MARKER}" \
     "cache/live/incubation_${DATE}.jsonl" \
+    "cache/live/incubation_commercial_${DATE}.jsonl" \
     "artifacts/portfolio/reconciliation_${DATE}.monitoring.json"
 
 if [[ "${_portfolio_reconcile_exit}" -ne 0 ]]; then
