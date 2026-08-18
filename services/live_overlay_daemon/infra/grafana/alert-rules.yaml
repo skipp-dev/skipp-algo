@@ -3673,28 +3673,27 @@ groups:
         Do not treat a green version/pin check as data freshness; refresh and publish the library, then reconcile
         the saved SMC Long-Dip Suite source in TradingView.
   - uid: lo-bar-cache-depth-low
-    title: Bar cache too shallow for the rolling features
+    title: Bar cache losing accumulated history for requested symbols
     condition: C
-    # Below the timeframe-specific raw-history requirement the squeeze,
-    # relative-volume and ATS z-score features degrade SILENTLY — they do not
-    # error, they just stop being computable. Measured on the minimum readiness
-    # ratio of REQUESTED symbols, NOT the global mean: under the ALL_SYMBOLS feed
-    # the cache pins at the cap
-    # with the unrequested majority holding one bar, so `bars_per_symbol` sits
-    # at ~1.0 by design (demand-aware retention, #3903) and firing on it flagged
-    # a healthy system every market-open minute (2026-07-24). Gated on a cached
-    # consumer (`requested_bar_symbols > 0`), market-open, and past warmup: a
-    # shallow cache right after a restart is expected, not a defect; an absent
-    # consumer is left to lo-request-rate-absent-open.
+    # 2026-08-18 (Grenzgaenger C1, operator decision "Metrik wird neu
+    # geschnitten"): re-cut from the absolute readiness ratio to high-water
+    # REGRESSION. The old expr (readiness_ratio < 1 past a 15min warmup)
+    # could not work by construction: the largest timeframes require up to
+    # ~160h of accumulated 1m stream, so after EVERY deploy the rule was
+    # red for days while the cache merely warmed — noise, not a signal.
+    # live_overlay_requested_bar_history_regressed counts expanded symbols
+    # whose depth fell below their OWN post-restart high-water mark, which
+    # can only mean accumulated history was destroyed (eviction/cap churn)
+    # — the defect this rule exists for — and is meaningful from the first
+    # post-restart minute. Warming stays visible (not alertable) on the
+    # readiness_ratio dashboard panel.
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
         expr: live_overlay_market_us_open{job="live_overlay"}
-          * (live_overlay_uptime_seconds{job="live_overlay"} > bool 900)
-          * (live_overlay_requested_bar_history_symbols{job="live_overlay"} > bool 0)
-          * (live_overlay_requested_bar_history_readiness_ratio{job="live_overlay"} < bool 1)
+          * (live_overlay_requested_bar_history_regressed{job="live_overlay"} > bool 0)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -3715,16 +3714,18 @@ groups:
       severity: critical
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
-      summary: At least one requested symbol lacks the raw 1-minute history required
-        by its requested timeframe while the US session is open — rolling fields are
-        still warming or unavailable.
-      runbook: This measures live_overlay_requested_bar_history_readiness_ratio against
-        the timeframe-specific requirement, NOT the global bar_count/bar_symbols, which
-        sits at ~1.0 by design under the ALL_SYMBOLS feed (#3903) and is NOT a health signal.
-        Firing means requested symbols are being evicted before they accumulate history —
-        check live_overlay_bar_requested_symbols_evicted_total (its increase is the
-        leading indicator, lo-bar-cache-protected-evictions). Raise the symbol cap
-        (OVERLAY_MAX_SYMBOLS) so demand fits, or narrow the requested universe.
+      summary: A requested symbol's bar history shrank below its own high-water mark while
+        the US session is open — accumulated rolling-feature history is being destroyed,
+        not merely still warming.
+      runbook: live_overlay_requested_bar_history_regressed counts expanded-retention symbols
+        whose depth fell below their own post-restart high-water mark — that only happens
+        when eviction/cap churn dropped or shrank a requested symbol's deque. Check
+        live_overlay_bar_requested_symbols_evicted_total (leading indicator,
+        lo-bar-cache-protected-evictions). Raise the symbol cap (OVERLAY_MAX_SYMBOLS) so
+        demand fits, or narrow the requested universe. Plain post-deploy warmup does NOT
+        fire this rule (that was the pre-2026-08-18 cut); watch
+        live_overlay_requested_bar_history_readiness_ratio on the dashboard for warmup
+        progress instead.
   - uid: lo-bar-cache-protected-evictions
     title: Requested symbols evicted from the bar cache
     condition: C
@@ -5713,3 +5714,41 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
       runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.
+  - uid: lo-hold-manager-shadow-rejected
+    title: Hold-Manager shadow delivery rejected
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The ledger showed deliveryAttempts:0 for its whole life, so every
+        # rejection class here is a first-of-its-kind event worth a human
+        # look. Age rejections especially: the active layout is 1D while the
+        # default window was 900s, so the FIRST real edge would have 409'd
+        # invisibly (Grenzgaenger A2, operator decision 2026-08-18: window
+        # raised to 86400 via HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the
+        # Railway service + layout move to 5m planned). Counter sum covers
+        # contract mismatches, malformed payloads and event-time rejections.
+        expr: sum(increase({__name__=~"live_overlay_hold_manager_shadow_(contract|payload|event_time)_rejected_total", job="live_overlay"}[30m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 2m
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Hold-Manager shadow receiver rejected a TradingView delivery -- a real edge may
+        have been dropped.
+      runbook: Read the daemon log lines "metric kind=counter name=live_overlay.hold_manager_shadow"
+        for the reason (contract mismatch fields, payload parse, too_old/future_skew age). Age
+        rejections mean the TV layout timeframe and HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS
+        disagree; do NOT replay by hand-posting to the receiver (ledger poisoning).

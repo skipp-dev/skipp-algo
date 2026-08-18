@@ -101,6 +101,9 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # OPS_QUICK_REFERENCE — runtime artifacts produced by the daily run
         # (not committed to git but cited as paths in the operator runbook).
         "open_prep/latest/latest_open_prep_run.json",
+        # F3 (2026-08-18): the diff base is a gitignored runtime artifact by
+        # design — the daily workflow's restore/publish edges cite its path.
+        "open_prep/last_result.json",
         "open_prep/latest/latest_realtime_signals.json",
         "open_prep/latest/latest_vd_signals.json",
         "open_prep/latest/news_result.json",

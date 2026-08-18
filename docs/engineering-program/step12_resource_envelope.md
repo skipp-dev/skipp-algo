@@ -26,6 +26,14 @@ and `run_databento_base_scan_pipeline`:
 
 ### Resource Envelope Summary (added by WP-R2)
 
+> **Korrektur 2026-08-18 (Verdrahtungs-Sweep D4):** Der hier beschriebene
+> Envelope-Write wurde **nie implementiert** — `run_databento_base_scan_pipeline`
+> schreibt kein `resource_envelope.json`, repo-weit existierte weder Producer
+> noch Datei. Der dazugehörige Guard `scripts/check_resource_envelope.py`
+> (validierte ein Artefakt, das nichts je schrieb, aus einem Job, den es nie
+> gab) wurde im selben Sweep entfernt. Der folgende Abschnitt ist die
+> ursprüngliche WP-R2-Planung, kein Ist-Zustand.
+
 At the end of `run_databento_base_scan_pipeline`, a structured JSON artifact
 `resource_envelope.json` is written to the export directory and attached to
 the result dict. Fields:

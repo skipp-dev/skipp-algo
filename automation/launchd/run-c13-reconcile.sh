@@ -62,29 +62,37 @@ if [[ ! -x "${PY}" ]]; then
     exit 1
 fi
 
-# No audit file at all (holiday, phase-a never fired) is a quiet no-op —
-# there is nothing to reconcile and nothing to publish.
-if [[ ! -f "${AUDIT}" ]]; then
-    echo "reconcile cron: no audit file at ${AUDIT}; nothing to reconcile today"
+# Commercial-family paper audit (weekly review 2026-08-16, P0): once the
+# commercial paper stage is live its submissions land in a SEPARATE dated
+# file so the two writers never interleave. Its presence must be part of the
+# entry gate: until 2026-08-18 (Doppelgaenger-Sweep E5) a missing ORB audit
+# alone exited SUCCESS/no-audit-file BEFORE this file was even looked at, so
+# a commercial-only trading day was never reconciled and its fills stayed
+# out of the telemetry glob forever.
+COMMERCIAL_AUDIT="${REPO}/cache/live/incubation_commercial_${DATE}.jsonl"
+COMMERCIAL_FILLS="${REPO}/cache/live/portfolio_fills_commercial_${DATE}.json"
+
+# No audit file at all (holiday, phase-a never fired, paper stage dormant)
+# is a quiet no-op — there is nothing to reconcile and nothing to publish.
+if [[ ! -f "${AUDIT}" && ! -f "${COMMERCIAL_AUDIT}" ]]; then
+    echo "reconcile cron: no audit file at ${AUDIT} or ${COMMERCIAL_AUDIT}; nothing to reconcile today"
     _write_marker "SUCCESS" "no-audit-file"
     exit 0
 fi
 
 export PYTHONPATH="${REPO}"
-if ! "${PY}" -m scripts.reconcile_incubation_fills \
-    --audit "${AUDIT}" \
-    --portfolio-fills-output "${PORTFOLIO_FILLS}"; then
-    echo "reconcile cron: reconcile_incubation_fills FAILED — see above for details" >&2
-    _write_marker "DEGRADED" "reconcile-failed:audit=${AUDIT}"
-    exit 1
+if [[ -f "${AUDIT}" ]]; then
+    if ! "${PY}" -m scripts.reconcile_incubation_fills \
+        --audit "${AUDIT}" \
+        --portfolio-fills-output "${PORTFOLIO_FILLS}"; then
+        echo "reconcile cron: reconcile_incubation_fills FAILED — see above for details" >&2
+        _write_marker "DEGRADED" "reconcile-failed:audit=${AUDIT}"
+        exit 1
+    fi
+else
+    echo "reconcile cron: no ORB audit at ${AUDIT}; reconciling the commercial audit only"
 fi
 
-# Commercial-family paper audit (weekly review 2026-08-16, P0): once the
-# commercial paper stage is live its submissions land in a SEPARATE dated
-# file so the two writers never interleave. Reconcile it with the same
-# machinery when present; absent means the paper stage is still dormant.
-COMMERCIAL_AUDIT="${REPO}/cache/live/incubation_commercial_${DATE}.jsonl"
-COMMERCIAL_FILLS="${REPO}/cache/live/portfolio_fills_commercial_${DATE}.json"
 if [[ -f "${COMMERCIAL_AUDIT}" ]]; then
     if ! "${PY}" -m scripts.reconcile_incubation_fills \
         --audit "${COMMERCIAL_AUDIT}" \
@@ -115,11 +123,26 @@ if ! _capture_portfolio_after; then
     exit 1
 fi
 mkdir -p "$(dirname "${PORTFOLIO_MONITORING}")"
+# The position delta between the two snapshots is caused by ALL fills of the
+# session — ORB and commercial together: der Broker-Account ist einer
+# (Verdrahtungs-Sweep K8). Until 2026-08-18 (Doppelgaenger-Sweep E5)
+# COMMERCIAL_FILLS was computed above and then never handed over, so a
+# commercial fill showed up as an unexplained position delta. Each file is
+# optional on its own (pre-flip has no commercial file, a commercial-only
+# day has no ORB file), but ZERO fills despite an audit file is DEGRADED.
+FILLS_ARGS=()
+[[ -f "${PORTFOLIO_FILLS}" ]] && FILLS_ARGS+=(--fills "${PORTFOLIO_FILLS}")
+[[ -f "${COMMERCIAL_FILLS}" ]] && FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")
+if [[ ${#FILLS_ARGS[@]} -eq 0 ]]; then
+    echo "reconcile cron: no fills output produced despite an audit file" >&2
+    _write_marker "DEGRADED" "no-fills-output"
+    exit 1
+fi
 _portfolio_reconcile_exit=0
 "${PY}" -m scripts.reconcile_portfolio_shadow \
     --before "${PORTFOLIO_BEFORE}" \
     --after "${PORTFOLIO_AFTER}" \
-    --fills "${PORTFOLIO_FILLS}" \
+    "${FILLS_ARGS[@]}" \
     --output "${PORTFOLIO_REPORT}" \
     --monitoring-output "${PORTFOLIO_MONITORING}" || _portfolio_reconcile_exit=$?
 if [[ ! -s "${PORTFOLIO_MONITORING}" ]]; then

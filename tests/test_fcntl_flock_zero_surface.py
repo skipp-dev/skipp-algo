@@ -191,10 +191,12 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
     # 2026-07-15 (reconcile): 151/195/215/227 -> 175/219/239/251. Pure drift -- still
     # exactly 4 legs, still two EX/UN pairs in the same order.
-    ("scripts/ib_client_id.py", 175, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 219, "LOCK_UN"),
-    ("scripts/ib_client_id.py", 239, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 251, "LOCK_UN"),
+    # 2026-08-18 (B7 reaper keeps live pids): 175/219/239/251 -> 188/232/252/264.
+    # Pure drift from the longer _reap_stale body above; legs unchanged.
+    ("scripts/ib_client_id.py", 188, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 232, "LOCK_UN"),
+    ("scripts/ib_client_id.py", 252, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 264, "LOCK_UN"),
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
     # Line numbers updated 2026-06-17: written=0 initialised before the
