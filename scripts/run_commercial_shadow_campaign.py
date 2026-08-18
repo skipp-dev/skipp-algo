@@ -36,7 +36,9 @@ _DEFAULT_MAX_FAILURE_RATE = 0.05
 _DEFAULT_MAX_SOURCE_AGE_P95_SECONDS = 300.0
 _DEFAULT_LOCK_STALE_SECONDS = 900
 _ATTEMPT_SCHEMA_VERSION = 1
-_REPORT_SCHEMA_VERSION = 1
+# 2026-08-18 (C2/C4): 1->2 — failure_rate became a rolling window, QUIET
+# joined the verdict vocabulary, failure_rate_lifetime/_window_size added.
+_REPORT_SCHEMA_VERSION = 2
 _CONTRACT_SCHEMA_VERSION = 1
 _ATTEMPT_STATUSES = frozenset({"COMPLETED", "FAILED", "NO_SETUPS", "REPLAY_SKIPPED"})
 
@@ -323,10 +325,29 @@ def build_campaign_report(
         str(row["source_snapshot_id"]) for row in attempts if isinstance(row.get("source_snapshot_id"), str)
     }
     substantive_attempts = [row for row in attempts if row.get("status") != "REPLAY_SKIPPED"]
+    # 2026-08-18 (Grenzgaenger C2, operator decision): the observation gate
+    # judges a ROLLING window of the last min_unique_snapshots substantive
+    # attempts, not the whole campaign life. Lifetime statistics at n=20 meant
+    # "at most ONE failed attempt EVER" (the second failure FAILed the
+    # campaign permanently), and two early stale attempts poisoned the
+    # source-age p95 for the campaign's whole life the same way. The window
+    # size reuses the frozen contract's min_unique_snapshots, so existing
+    # contracts stay valid unchanged; attempts are chronologically ordered
+    # (timestamp-prefixed attempt IDs, filename sort in _load_attempts).
+    observation_window = substantive_attempts[-min_unique_snapshots:]
+    lifetime_failure_rate = (
+        status_counts["FAILED"] / len(substantive_attempts) if substantive_attempts else 0.0
+    )
+    failure_rate = (
+        sum(1 for row in observation_window if row.get("status") == "FAILED")
+        / len(observation_window)
+        if observation_window
+        else 0.0
+    )
     source_age = _numeric_summary(
         [
             float(row["source_age_seconds"])
-            for row in substantive_attempts
+            for row in observation_window
             if isinstance(row.get("source_age_seconds"), (int, float))
             and not isinstance(row.get("source_age_seconds"), bool)
         ]
@@ -334,7 +355,7 @@ def build_campaign_report(
     processing = _numeric_summary(
         [
             float(row["processing_seconds"])
-            for row in substantive_attempts
+            for row in observation_window
             if isinstance(row.get("processing_seconds"), (int, float))
             and not isinstance(row.get("processing_seconds"), bool)
         ]
@@ -345,7 +366,6 @@ def build_campaign_report(
         family: 100.0 * count / audited_count if audited_count else 0.0
         for family, count in family_snapshot_counts.items()
     }
-    failure_rate = status_counts["FAILED"] / len(substantive_attempts) if substantive_attempts else 0.0
 
     hard_failures: list[str] = []
     if integrity["invalid_audit_rows"]:
@@ -368,15 +388,25 @@ def build_campaign_report(
     if missing_families:
         threshold_failures.append("missing_family_coverage")
 
+    # 2026-08-18 (Grenzgaenger C4, operator decision): a family that simply
+    # never produced a setup (quiet market) is its own verdict QUIET, not
+    # FAIL — previously it flipped PENDING->FAIL at snapshot 20 and was
+    # indistinguishable from a real threshold breach in the driver marker
+    # (which embeds this verdict verbatim). QUIET is deliberately != PASS,
+    # so the paper stage stays dormant exactly as before.
+    real_threshold_failures = [f for f in threshold_failures if f != "missing_family_coverage"]
     if hard_failures:
         observation_verdict = "FAIL"
         observation_reasons = hard_failures
     elif pending_reasons:
         observation_verdict = "PENDING"
         observation_reasons = pending_reasons
-    elif threshold_failures:
+    elif real_threshold_failures:
         observation_verdict = "FAIL"
         observation_reasons = threshold_failures
+    elif missing_families:
+        observation_verdict = "QUIET"
+        observation_reasons = ["missing_family_coverage"]
     else:
         observation_verdict = "PASS"
         observation_reasons = []
@@ -393,7 +423,9 @@ def build_campaign_report(
         "unique_attempted_snapshots": len(attempt_snapshot_ids),
         "first_observed_at": observed_values[0] if observed_values else None,
         "last_observed_at": observed_values[-1] if observed_values else None,
-        "failure_rate": failure_rate,
+        "failure_rate": failure_rate,  # rolling window, see C2 comment above
+        "failure_rate_lifetime": lifetime_failure_rate,
+        "failure_window_size": len(observation_window),
         "failures_by_type": dict(sorted(failure_types.items())),
         "source_age_seconds": source_age,
         "processing_seconds": processing,
