@@ -100,6 +100,10 @@ def _session(contract: dict, sequence: int) -> dict:
         "unclassifiedTransitionDifferenceCount": 0,
         "expectedServerAlerts": expected,
         "deliveredServerAlerts": copy.deepcopy(expected),
+        # 2026-08-18 (Sweep K6): the evaluator now enforces the reconcile's
+        # provenance stamp — hand-typed delivered counts no longer pass.
+        "deliveredServerAlertsSource": "receiver_ledger",
+        "receiverDuplicateDeliveries": _counts(),
     }
 
 
@@ -298,6 +302,26 @@ def test_five_complete_sessions_with_delivery_and_rollback_pass() -> None:
         (
             lambda payload: payload.update(rollbackDrill=None),
             "rollbackDrill",
+        ),
+        # 2026-08-18 (Sweep K6): hand-typed delivered counts are refused —
+        # the reconcile's provenance stamp is now load-bearing.
+        (
+            lambda payload: payload["sessions"][0].pop(
+                "deliveredServerAlertsSource"
+            ),
+            "deliveredServerAlertsSource",
+        ),
+        (
+            lambda payload: payload["sessions"][0].update(
+                deliveredServerAlertsSource="manual"
+            ),
+            "deliveredServerAlertsSource",
+        ),
+        (
+            lambda payload: payload["sessions"][0][
+                "receiverDuplicateDeliveries"
+            ].update(HM_ENTRY=2),
+            "duplicate deliveries",
         ),
         (
             lambda payload: payload["activation"].update(
