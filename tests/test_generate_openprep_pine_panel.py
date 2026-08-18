@@ -364,6 +364,9 @@ def test_publish_workflow_prefers_traded_outcomes_and_runs_evenings() -> None:
                / "openprep-pine-panel-publish.yml")
     wf = wf_path.read_text(encoding="utf-8")
     assert "--outcomes-json" in wf
+    # 2026-08-18 (B5): the panel now PREFERS outcomes_local/ (traded STATIC
+    # universe) and keeps outcomes/ only as legacy fallback — pin both.
+    assert "artifacts/open_prep/outcomes_local/" in wf
     assert "artifacts/open_prep/outcomes/" in wf
     assert 'cron: "15 23 * * 1-5"' in wf  # after US close AND after 17:30 ET audit-push
     assert "github.event_name == 'schedule'" in wf  # schedule runs always regenerate
@@ -376,7 +379,10 @@ def test_audit_push_publishes_traded_outcomes() -> None:
     from pathlib import Path
     sh = (Path(__file__).resolve().parents[1] / "automation" / "launchd"
           / "run-c13-audit-push.sh").read_text(encoding="utf-8")
-    assert 'OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"' in sh
+    # 2026-08-18 (B5): outcomes/ carried the CI screener universe
+    # (FMP_US_MID_LARGE), so Option-a never actually saw traded data; the
+    # driver now pushes the local traded STATIC file from outcomes_local/.
+    assert 'OUTCOMES="artifacts/open_prep/outcomes_local/outcomes_${DATE}.json"' in sh
     assert '"${OUTCOMES}"' in sh
 
 
