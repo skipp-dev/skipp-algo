@@ -204,7 +204,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-07-25 (databento-signal-migration): quote_reference CLI main() sets
     # up the root logger before its live orchestration run, same entry-point
     # pattern as the other CLI tools in this ledger.
-    ("open_prep/quote_reference.py", 610),  # 2026-07-28 (FMP 15-session output CLI): 602->610
+    ("open_prep/quote_reference.py", 619),  # 2026-08-18 (D2 retry routing above): 610->619
 
     # 2026-07-04 (market-microstructure observe-only): import + snapshot
     # block + row-loop fields shifted 6079 -> 6105.
