@@ -50,9 +50,13 @@ REPORT="${REPORT_DIR}/cred-health.json"
 echo "==> Validating ${STATE_PATH} (TTL ${MAX_AGE_HOURS}h) with the same probe CI uses..."
 
 # Mirrors the "Validate captured storage state" step of
-# tradingview-storage-refresh.yml verbatim, including every --skip: the
-# fail-loud contract makes the exit code the gate, so a non-TV probe failing
-# here (e.g. an unrelated expired key) must not block a TV rotation.
+# tradingview-storage-refresh.yml: skip EVERY probe except TV, so a non-TV
+# probe failing here (e.g. an unrelated expired key) can never block a TV
+# rotation. This mirror drifted once already — 2026-08-18 (Doppelgaenger-
+# Sweep E4) it was missing --skip-composio, so the probe class that produced
+# 12 failed runs on 2026-08-03 could veto a rotation. The skip set is now
+# MACHINE-ENFORCED by tests/test_credential_probe_consumers.py
+# (test_shell_consumers_skip_every_probe_except_tv).
 TV_STORAGE_STATE="$(cat "${STATE_PATH}")" \
   "${PYTHON_BIN}" scripts/credential_health_check.py \
     --tv-max-age-hours "${MAX_AGE_HOURS}" \
@@ -62,6 +66,7 @@ TV_STORAGE_STATE="$(cat "${STATE_PATH}")" \
     --skip-benzinga \
     --skip-finnhub \
     --skip-newsapi \
+    --skip-composio \
     --output "${REPORT}" \
   || true  # a non-ok probe exits non-zero; the severity check below is the gate
 
