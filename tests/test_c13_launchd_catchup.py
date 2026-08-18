@@ -196,3 +196,48 @@ def test_business_dates_window_never_includes_weekend(lookback: int) -> None:
     assert result.returncode == 0, result.stderr
     for iso in result.stdout.split():
         assert dt.date.fromisoformat(iso).weekday() < 5
+
+
+def test_run_with_catchup_exclude_today_replays_only_past(tmp_path: Path) -> None:
+    """2026-08-18 (Grenzgaenger B6): catch-up-only mode. Outside the ET
+    window a driver must still repair PAST missed days but never run today
+    (premature pre-open collection). Today is filtered from the missing set
+    and from the safety net."""
+    lookback = 14
+    business = _business_days_in_window(lookback)
+    assert len(business) >= 2
+    out = tmp_path / "processed.log"
+    # Everything ok except the oldest business day and (implicitly) today.
+    for iso in business[1:]:
+        (tmp_path / f".push_status_{iso}").write_text(f"ok:pushed:{iso}\n")
+    today_marker = tmp_path / f".push_status_{_today()}"
+    if today_marker.exists():
+        today_marker.unlink()
+
+    snippet = (
+        f'cb() {{ echo "$1" >> "{out}"; }}\n'
+        f'C13_CATCHUP_EXCLUDE_TODAY=1 c13_run_with_catchup "{tmp_path}" ".push_status_" cb {lookback}'
+    )
+    result = _run_bash(snippet)
+    assert result.returncode == 0, result.stderr
+    processed = out.read_text().split() if out.exists() else []
+    assert _today() not in processed
+    assert business[0] in processed
+
+
+def test_run_with_catchup_exclude_today_is_a_noop_when_nothing_missed(tmp_path: Path) -> None:
+    """Without missed past days the catch-up-only mode does nothing — in
+    particular it must NOT fall through to the run-today safety net."""
+    lookback = 7
+    business = _business_days_in_window(lookback)
+    out = tmp_path / "processed.log"
+    for iso in business:
+        (tmp_path / f".push_status_{iso}").write_text(f"ok:pushed:{iso}\n")
+
+    snippet = (
+        f'cb() {{ echo "$1" >> "{out}"; }}\n'
+        f'C13_CATCHUP_EXCLUDE_TODAY=1 c13_run_with_catchup "{tmp_path}" ".push_status_" cb {lookback}'
+    )
+    result = _run_bash(snippet)
+    assert result.returncode == 0, result.stderr
+    assert not out.exists()

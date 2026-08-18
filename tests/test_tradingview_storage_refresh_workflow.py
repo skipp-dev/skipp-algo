@@ -35,7 +35,11 @@ def test_workflow_name_referenced(workflow_text: str) -> None:
     assert "name: tradingview-storage-refresh" in workflow_text
 
 
-def test_schedule_pinned_48h(workflow: dict[object, object]) -> None:
+def test_schedule_pinned_daily_with_retry(workflow: dict[object, object]) -> None:
+    # 2026-08-18 (Grenzgaenger A6): repinned */2 -> daily. The 48 h cadence
+    # had no retry, so ONE failed run (real case 04.08.) meant a 96 h gap
+    # against the 72 h cookie TTL. Daily + one in-run retry is the decided
+    # contract; pin both halves so neither is dropped silently.
     on = workflow.get("on") if "on" in workflow else workflow.get(True)
     assert isinstance(on, dict), f"expected workflow 'on' mapping, got {type(on).__name__}"
     schedule = on.get("schedule")
@@ -46,7 +50,15 @@ def test_schedule_pinned_48h(workflow: dict[object, object]) -> None:
         cron = entry.get("cron")
         assert isinstance(cron, str), f"expected schedule cron string, got {cron!r}"
         crons.append(cron)
-    assert "0 3 */2 * *" in crons, f"expected 48 h cron, got {crons!r}"
+    assert "0 3 * * *" in crons, f"expected daily cron, got {crons!r}"
+
+
+def test_capture_has_in_run_retry(workflow_text: str) -> None:
+    # Second half of the A6 contract: the capture is attempted twice before
+    # the run fails. Two invocation sites of the capture script = original
+    # attempt + retry; the retry overwrites --out completely.
+    assert workflow_text.count("npx tsx scripts/create_tradingview_storage_state.ts") == 2
+    assert "retrying once" in workflow_text
 
 
 def test_permissions_minimal(workflow: dict) -> None:

@@ -72,6 +72,55 @@ def test_reaps_stale_entry_with_dead_pid(tmp_path: Path) -> None:
     assert cid == 40
 
 
+def test_live_pid_keeps_its_lease_despite_stale_last_seen(tmp_path: Path) -> None:
+    """2026-08-18 (Grenzgaenger B7): a long-running holder allocates once and
+    never refreshes last_seen. The old reaper ANDed liveness with last_seen
+    freshness, so after 5 minutes the LIVE holder's entry was deleted and its
+    id re-handed — IBKR error 326, the collision the registry exists to
+    prevent. A live pid now keeps its lease regardless of last_seen age."""
+    import os
+
+    reg = tmp_path / "reg.json"
+    reg.write_text(
+        json.dumps(
+            {
+                "40": {
+                    "service": "long_running_monitor",
+                    "pid": os.getpid(),  # alive for the whole test
+                    "allocated_at": 0.0,
+                    "last_seen": 0.0,  # ancient — way past any timeout
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    cid = ib_client_id.allocate_ib_client_id("svc_new", registry_path=reg)
+    assert cid != 40
+    registry = json.loads(reg.read_text(encoding="utf-8"))
+    assert "40" in registry, "live holder's lease must survive the reap"
+
+
+def test_entry_without_valid_pid_is_reaped_by_last_seen(tmp_path: Path) -> None:
+    """Liveness-unknowable entries (missing/invalid pid) fall back to the
+    last_seen timeout — and os.kill(-1, 0) is never consulted (it probes the
+    whole process group and used to make such entries look alive)."""
+    reg = tmp_path / "reg.json"
+    reg.write_text(
+        json.dumps(
+            {
+                "40": {
+                    "service": "no_pid_recorded",
+                    "allocated_at": 0.0,
+                    "last_seen": 0.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    cid = ib_client_id.allocate_ib_client_id("svc_new", registry_path=reg)
+    assert cid == 40
+
+
 def test_allocate_falls_back_when_fcntl_unavailable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

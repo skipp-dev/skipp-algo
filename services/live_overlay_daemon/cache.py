@@ -82,6 +82,19 @@ class _ExpandedBarRetention:
 
 _expanded_retention = _ExpandedBarRetention()
 
+# 2026-08-18 (Grenzgaenger C1, operator decision "Metrik wird neu
+# geschnitten"): per-symbol depth high-water marks since process start, for
+# expanded-retention symbols only. The absolute readiness ratio needs up to
+# ~160h of accumulated stream against a 15min warmup gate, so the old
+# depth-low alert fired for DAYS after every deploy while the cache refilled
+# — unactionable by construction. Depth falling below the symbol's OWN
+# high-water mark, however, means accumulated history was destroyed
+# (eviction/cap churn) — the real defect — and is meaningful from the first
+# minute after a restart. Entries survive an eviction on purpose (the loss
+# is what they remember) and are pruned only when nobody requests the
+# symbol any more. Guarded by _bar_lock.
+_history_high_water: dict[str, int] = {}
+
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
 _overlay: dict[str, dict[str, Any]] = {}
@@ -119,6 +132,7 @@ def init_bar_cache(
         _max_symbols = max_symbols
         if not preserve_expanded:
             _expanded_retention.reset()
+            _history_high_water.clear()
         # Apply updated rolling cap to existing symbol deques as well, so a
         # runtime reconfiguration is reflected immediately for already-tracked
         # symbols.
@@ -166,6 +180,10 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _bars[symbol] = deque(maxlen=max(_rolling_bars_cap, retained_cap))
         _bars[symbol].append(bar)
         _bar_last_update[symbol] = now
+        if symbol in _expanded_retention.caps:
+            depth = len(_bars[symbol])
+            if depth > _history_high_water.get(symbol, 0):
+                _history_high_water[symbol] = depth
         # L5: periodic eviction so stale symbols don't linger indefinitely
         if (
             _last_eviction_at > 0
@@ -292,6 +310,36 @@ def requested_bar_history_readiness() -> tuple[int, float]:
     if not ratios:
         return 0, 0.0
     return len(ratios), min(ratios)
+
+
+def requested_bar_history_regressed() -> int:
+    """Count expanded symbols whose depth fell below their own high-water mark.
+
+    2026-08-18 (Grenzgaenger C1): this — not the absolute readiness ratio —
+    is the alertable signal. Readiness needs up to ~160h of accumulated
+    stream to reach 1.0 (the requirement for the largest timeframes), so
+    after every deploy the depth-low alert fired for days while the cache
+    was merely warming. A depth BELOW the symbol's own high-water mark since
+    process start can only mean accumulated history was destroyed
+    (eviction/cap churn shrank or dropped the deque) — the defect the alert
+    exists for — and is meaningful from the first post-restart minute.
+
+    High-water entries deliberately survive an eviction (the loss is what
+    they remember: an evicted-but-still-requested symbol counts as regressed
+    until its depth recovers). Entries are pruned here once the symbol is
+    neither expanded nor requested any more, so a consumer that legitimately
+    stopped watching cannot pin the count above zero forever.
+    """
+    with _bar_lock:
+        requested = request_hotspots.requested_symbols()
+        for sym in list(_history_high_water):
+            if sym not in requested and sym not in _expanded_retention.caps:
+                _history_high_water.pop(sym, None)
+        return sum(
+            1
+            for sym, high_water in _history_high_water.items()
+            if len(_bars.get(sym, ())) < high_water
+        )
 
 
 def _evict_stale_symbols_locked(now: float) -> None:
