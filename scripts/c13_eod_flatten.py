@@ -127,26 +127,31 @@ def flatten_paper_account(
         for t in orders_before
     ]
 
-    positions = _open_positions(ib, account)
-    for position in positions:
-        symbol = str(getattr(position.contract, "symbol", "")).strip().upper()
-        quantity = float(position.position)
-        if abs(quantity) > MAX_ABS_CLOSE_QUANTITY:
-            report["error"] = (
-                f"position {symbol} quantity {quantity} exceeds the close cap "
-                f"{MAX_ABS_CLOSE_QUANTITY}; refusing to trade foreign state"
+    def _plan_closes() -> list[dict[str, Any]] | None:
+        """Close plan from the CURRENT broker state; None if a cap trips."""
+        plans: list[dict[str, Any]] = []
+        for position in _open_positions(ib, account):
+            symbol = str(getattr(position.contract, "symbol", "")).strip().upper()
+            quantity = float(position.position)
+            if abs(quantity) > MAX_ABS_CLOSE_QUANTITY:
+                report["error"] = (
+                    f"position {symbol} quantity {quantity} exceeds the close cap "
+                    f"{MAX_ABS_CLOSE_QUANTITY}; refusing to trade foreign state"
+                )
+                return None
+            plans.append(
+                {
+                    "symbol": symbol,
+                    "quantity": quantity,
+                    "action": "SELL" if quantity > 0 else "BUY",
+                }
             )
-            return report
-        report["planned_closes"].append(
-            {
-                "symbol": symbol,
-                "quantity": quantity,
-                "action": "SELL" if quantity > 0 else "BUY",
-            }
-        )
+        return plans
 
     if dry_run:
-        report["flat"] = not positions
+        plans = _plan_closes()
+        report["planned_closes"] = plans or []
+        report["flat"] = plans == []
         return report
 
     if orders_before:
@@ -161,31 +166,50 @@ def flatten_paper_account(
         report["error"] = f"{len(leftovers)} working order(s) survived reqGlobalCancel"
         return report
 
-    trades = []
-    for plan in report["planned_closes"]:
-        contract = Stock(plan["symbol"], "SMART", "USD")
-        ib.qualifyContracts(contract)
-        order = MarketOrder(plan["action"], abs(plan["quantity"]))
-        order.tif = "DAY"
-        order.outsideRth = False
-        order.orderRef = f"smc-eod-flatten-{trade_date}-{plan['symbol']}"
-        order.account = account
-        trades.append((plan, ib.placeOrder(contract, order)))
+    # Plan from the POST-cancel broker state, never before it. Review 2026-08-18
+    # (#4848 critical): a bracket leg that fills inside the cancel window
+    # changes the position; a plan snapshotted before the barrier then
+    # over-sells the stale quantity and turns a long into a naked overnight
+    # short (or leaves a fresh entry unplanned and unprotected).
+    plans = _plan_closes()
+    if plans is None:
+        return report
+    report["planned_closes"] = plans
 
-    waited = 0.0
-    while waited < ack_timeout_seconds:
-        if all(
-            str(trade.orderStatus.status) in _TERMINAL_ORDER_STATUSES
-            for _, trade in trades
-        ):
-            break
-        ib.sleep(1.0)
-        waited += 1.0
+    trades = []
+    try:
+        for plan in report["planned_closes"]:
+            contract = Stock(plan["symbol"], "SMART", "USD")
+            ib.qualifyContracts(contract)
+            order = MarketOrder(plan["action"], abs(plan["quantity"]))
+            order.tif = "DAY"
+            order.outsideRth = False
+            order.orderRef = f"smc-eod-flatten-{trade_date}-{plan['symbol']}"
+            order.account = account
+            trades.append((plan, ib.placeOrder(contract, order)))
+
+        waited = 0.0
+        while waited < ack_timeout_seconds:
+            if all(
+                str(trade.orderStatus.status) in _TERMINAL_ORDER_STATUSES
+                for _, trade in trades
+            ):
+                break
+            ib.sleep(1.0)
+            waited += 1.0
+    except Exception as exc:  # keep the fills already won — see below
+        # A crash mid-close must not lose the fills of the orders that DID go
+        # out: without their rows the nightly reconciliation sees unexplained
+        # deltas on top of the failure (review 2026-08-18, Important #6).
+        report["error"] = f"close loop aborted: {type(exc).__name__}: {exc}"
 
     for plan, trade in trades:
         status = str(trade.orderStatus.status)
         filled = float(trade.orderStatus.filled or 0.0)
-        if status == "Filled" and filled > 0.0:
+        if filled > 0.0:
+            # Partial fills stay in the handover (review 2026-08-18, Important
+            # #5): the reconciliation must see the quantity that actually
+            # traded, whatever the order status says.
             report["fills"].append(
                 {
                     "execution_id": f"{trade.order.orderRef}-{int(trade.order.orderId)}",
@@ -196,10 +220,12 @@ def flatten_paper_account(
                     "price": float(trade.orderStatus.avgFillPrice or 0.0),
                 }
             )
-        else:
-            report["unfilled"].append({"symbol": plan["symbol"], "status": status})
+        if status != "Filled" or filled < abs(plan["quantity"]):
+            report["unfilled"].append(
+                {"symbol": plan["symbol"], "status": status, "filled": filled}
+            )
 
-    report["flat"] = not _open_positions(ib, account)
+    report["flat"] = not report.get("error") and not _open_positions(ib, account)
     report["finished_at"] = datetime.now(UTC).isoformat()
     return report
 
@@ -236,6 +262,16 @@ def main(argv: list[str] | None = None) -> int:
         if not account or account not in accounts:
             print(
                 f"eod-flatten: cannot resolve account (managed={accounts}, requested={args.account})",
+                file=sys.stderr,
+            )
+            return 1
+        # Unconditional paper guard on the RESOLVED account (review 2026-08-18,
+        # Important #3): assert_paper_account_if_paper_port only bites on port
+        # 7497, but this CLI also accepts Gateway-paper 4002 — a live account
+        # reachable there must be refused here, not traded flat.
+        if not account.startswith("DU"):
+            print(
+                f"eod-flatten: refusing non-paper account {account!r} (DU* required)",
                 file=sys.stderr,
             )
             return 1
