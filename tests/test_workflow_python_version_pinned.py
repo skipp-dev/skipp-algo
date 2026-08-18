@@ -14,6 +14,7 @@ but CI itself is no longer a self-hosted Policy-B example.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -184,3 +185,47 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
             f"{loud_fail_message!r} when Python 3.12 is missing on self-hosted, "
             f"or install it via the '{_COMPOSITE_USES_REF}' composite as a fallback."
         )
+
+
+def test_every_workflow_python_version_literal_matches_the_composite() -> None:
+    """DERIVED population: no workflow may pin a different interpreter.
+
+    2026-08-18 (Doppelgaenger-Sweep A4): the composite declared itself the
+    single source of truth ("3.12") while NINE cron workflows had drifted to a
+    hard "3.13" — two interpreters running against one requirements.lock that
+    was resolved for exactly one of them. The old guard listed 4 workflows by
+    name; this one scans them all, so the next drift fails on the PR that
+    introduces it. Legitimate multi-version testing would use a matrix
+    expression (skipped here), not a divergent literal.
+    """
+    composite = _load(_COMPOSITE_PATH)
+    steps = composite["runs"]["steps"]
+    pinned = next(
+        step["with"]["python-version"]
+        for step in steps
+        if str(step.get("uses", "")).startswith("actions/setup-python@")
+    )
+
+    pattern = re.compile(r"python-version:\s*['\"]?([^\s'\"]+)")
+    offenders: list[str] = []
+    scanned = 0
+    for workflow in sorted((_REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        for lineno, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.split("#")[0]
+            match = pattern.search(stripped)
+            if not match:
+                continue
+            value = match.group(1)
+            if value.startswith("${{"):
+                continue  # expression (matrix/vars) — a deliberate construct, not a drifted literal
+            scanned += 1
+            if value != pinned:
+                offenders.append(f"{workflow.name}:{lineno} -> {value!r}")
+    assert scanned >= 15, (
+        f"only {scanned} python-version literals found — the scan went vacuous."
+    )
+    assert not offenders, (
+        f"workflows pin a different interpreter than the composite ({pinned!r}): "
+        f"{offenders}. Edit the composite to bump the toolchain — never one "
+        "workflow alone."
+    )
