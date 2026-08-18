@@ -1293,6 +1293,23 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _require_internal_token_on_railway() -> None:
+    """Refuse to serve tokenless on Railway — a missing secret arrives as "".
+
+    The tokenless mode is a deliberate LOCAL convenience (documented and
+    tested); on Railway it is indistinguishable from a deleted/renamed secret
+    and would expose ``/signals.json`` + ``/metrics`` unauthenticated on the
+    public domain while the sibling endpoints keep failing closed. Crash at
+    startup instead — loud and immediate (2026-08-18, Doppelgaenger-Sweep).
+    """
+    if os.getenv("RAILWAY_ENVIRONMENT") and not os.getenv("SIGNALS_INTERNAL_TOKEN", "").strip():
+        raise SystemExit(
+            "SIGNALS_INTERNAL_TOKEN is required on Railway: a missing secret is "
+            "served as an empty string and would publish /signals.json and "
+            "/metrics unauthenticated. Set the variable on this service."
+        )
+
+
 def _start_telemetry_server(
     telemetry: ScoreTelemetry,
     port: int = 8099,
@@ -1319,7 +1336,14 @@ def _start_telemetry_server(
     (audit PR #2913 F2; ``/metrics`` token-gate added by audit F6).  The
     private ``/news-feed`` endpoint always fails closed unless that token is
     configured and supplied.
+
+    On Railway the empty-token mode is refused at startup (see
+    ``_require_internal_token_on_railway``): Railway serves a MISSING secret
+    as an empty string, so the tokenless local-dev convenience would silently
+    publish ``/signals.json`` and ``/metrics`` on the public domain
+    (2026-08-18, Doppelgaenger-Sweep D-K1).
     """
+    _require_internal_token_on_railway()
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
