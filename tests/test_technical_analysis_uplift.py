@@ -171,29 +171,30 @@ def test_classify_instrument_band_matrix(
 
 
 def test_compute_adaptive_gates_high_vix_relaxes() -> None:
-    out = compute_adaptive_gates(vix_level=35.0, instrument_class="penny")
+    out = compute_adaptive_gates(vix_level=35.0)
     # vix_mult = 0.85 → score_min decreases vs base 0.35
     assert out["score_min"] < 0.35
-    assert out["atr_ratio_min"] == 0.5  # penny
 
 
 def test_compute_adaptive_gates_low_vix_tightens() -> None:
-    out = compute_adaptive_gates(vix_level=10.0, instrument_class="large_cap")
+    out = compute_adaptive_gates(vix_level=10.0)
     assert out["score_min"] > 0.35
-    assert out["atr_ratio_min"] == 2.5
 
 
 def test_compute_adaptive_gates_normal_vix_unchanged_score() -> None:
-    out = compute_adaptive_gates(vix_level=20.0, instrument_class="mid_cap")
+    out = compute_adaptive_gates(vix_level=20.0)
     assert out["score_min"] == pytest.approx(0.35)
-    assert out["atr_ratio_min"] == 1.5
 
 
-def test_compute_adaptive_gates_unknown_class_falls_back_to_base() -> None:
-    out = compute_adaptive_gates(
-        vix_level=20.0, instrument_class="cosmic", base_atr_ratio_min=1.7
-    )
-    assert out["atr_ratio_min"] == 1.7
+def test_adaptive_gates_emit_only_the_gate_that_gates() -> None:
+    """2026-08-18 (Verdrahtungs-Sweep C3): trend_z_min/atr_ratio_min wurden
+    berechnet, an jede publizierte Zeile geheftet und von niemandem gelesen —
+    und repo-weit existiert kein gemessener trend_z-/atr_ratio-Row-Wert,
+    gegen den sie je hätten gaten können (Phantom-Input). Ein Payload-Feld,
+    das „Gate" heißt und nicht gated, ist eine Falschaussage an jeden Leser.
+    Dieser Pin hält das Dict auf dem einen echten Gate."""
+    out = compute_adaptive_gates(vix_level=20.0)
+    assert set(out) == {"score_min"}
 
 
 # ---------------------------------------------------------------------------

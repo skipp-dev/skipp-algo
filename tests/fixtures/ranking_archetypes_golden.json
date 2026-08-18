@@ -21,9 +21,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -145,9 +143,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.0,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -269,9 +265,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.0,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -390,9 +384,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -511,9 +503,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -635,9 +625,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -758,9 +746,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -881,9 +867,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.0,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -1002,9 +986,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.0,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
@@ -1126,9 +1108,7 @@
     {
       "adaptive_gate_warning": false,
       "adaptive_gates": {
-        "atr_ratio_min": 1.5,
-        "score_min": 0.35,
-        "trend_z_min": 0.3
+        "score_min": 0.35
       },
       "allowed_setups": [
         "orb",
