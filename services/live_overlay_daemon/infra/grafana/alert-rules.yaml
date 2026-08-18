@@ -5714,3 +5714,41 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
       runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.
+  - uid: lo-hold-manager-shadow-rejected
+    title: Hold-Manager shadow delivery rejected
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The ledger showed deliveryAttempts:0 for its whole life, so every
+        # rejection class here is a first-of-its-kind event worth a human
+        # look. Age rejections especially: the active layout is 1D while the
+        # default window was 900s, so the FIRST real edge would have 409'd
+        # invisibly (Grenzgaenger A2, operator decision 2026-08-18: window
+        # raised to 86400 via HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the
+        # Railway service + layout move to 5m planned). Counter sum covers
+        # contract mismatches, malformed payloads and event-time rejections.
+        expr: sum(increase({__name__=~"live_overlay_hold_manager_shadow_(contract|payload|event_time)_rejected_total", job="live_overlay"}[30m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 2m
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Hold-Manager shadow receiver rejected a TradingView delivery -- a real edge may
+        have been dropped.
+      runbook: Read the daemon log lines "metric kind=counter name=live_overlay.hold_manager_shadow"
+        for the reason (contract mismatch fields, payload parse, too_old/future_skew age). Age
+        rejections mean the TV layout timeframe and HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS
+        disagree; do NOT replay by hand-posting to the receiver (ledger poisoning).
