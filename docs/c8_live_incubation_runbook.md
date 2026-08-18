@@ -282,6 +282,16 @@ sector/correlation limits.
 Sector/correlation context is built independently from completed-session closes;
 it is not the intraday SMT payload:
 
+> **Stand 2026-08-18 (Verdrahtungs-Sweep D1):** Diese Kette ist **ungebaut** —
+> weder `cache/reference/completed_closes.jsonl` noch `cache/reference/sectors.json`
+> hat einen Producer, kein Treiber übergibt `--portfolio-context-json`, und die
+> Sektor-/Korrelations-Limits stehen deshalb auf `null`. Das ist SICHER
+> (fail-closed: Limits ohne Kontext blocken laut mit `sector_context_incomplete`
+> statt still zu passieren — der Check selbst ist der Stolperdraht), aber die
+> Promotion-Evidenz für diese Limits kann erst entstehen, wenn die beiden
+> Referenz-Producer gebaut und die Treiber verdrahtet sind. Das ist ein
+> eigenes Bauvorhaben, kein kleiner Draht.
+
 ```bash
 python -m scripts.build_portfolio_risk_context \
   --closes-jsonl cache/reference/completed_closes.jsonl \
