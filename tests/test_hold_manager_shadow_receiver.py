@@ -418,6 +418,14 @@ def test_payload_is_strict_and_json_only(client: TestClient) -> None:
 
 def test_rejects_stale_and_future_events(client: TestClient) -> None:
     now = dt.datetime.now(dt.UTC)
+    # 2026-08-18 (Grenzgaenger A2): the age rejection used to raise WITHOUT a
+    # counter, so the first real 1D edge would have 409'd invisibly. The
+    # lo-hold-manager-shadow-rejected alert reads this counter; pin both
+    # rejections incrementing it.
+    from services.live_overlay_daemon import observability
+
+    counter_name = "live_overlay.hold_manager_shadow.event_time_rejected.total"
+    before = observability._counters.get(counter_name, 0.0)
 
     stale = client.post(
         _build_post_url(),
@@ -432,6 +440,7 @@ def test_rejects_stale_and_future_events(client: TestClient) -> None:
     assert "older" in stale.json()["detail"]
     assert future.status_code == 409
     assert "newer" in future.json()["detail"]
+    assert observability._counters.get(counter_name, 0.0) == before + 2.0
 
 
 def _render_template(row: dict[str, str]) -> dict[str, object]:

@@ -310,11 +310,25 @@ def _validate_event_time(
     event_time = payload.bar_time.astimezone(dt.UTC)
     age_seconds = (now - event_time).total_seconds()
     if age_seconds > config.hold_manager_shadow_max_event_age_secs():
+        # 2026-08-18: this rejection was invisible — no counter, no alert. A 1D
+        # layout sends bar OPEN times ~6.5h old, so the FIRST real edge would
+        # have died here silently (deliveryAttempts was 0 for the ledger's
+        # whole life). lo-hold-manager-shadow-rejected alerts on this counter.
+        observability.metric_counter(
+            "live_overlay.hold_manager_shadow.event_time_rejected.total",
+            reason="too_old",
+            age_seconds=round(age_seconds),
+        )
         raise HTTPException(
             status_code=409,
             detail="barTime is older than the shadow acceptance window",
         )
     if age_seconds < -config.hold_manager_shadow_max_future_skew_secs():
+        observability.metric_counter(
+            "live_overlay.hold_manager_shadow.event_time_rejected.total",
+            reason="future_skew",
+            age_seconds=round(age_seconds),
+        )
         raise HTTPException(
             status_code=409,
             detail="barTime is newer than the allowed clock skew",
