@@ -820,7 +820,10 @@ class TestAvailableEndClamp:
 
         assert result is sentinel
         assert len(calls) == 2
-        assert calls[1]["end"] == "2026-08-17 14:00:00+00:00"
+        # T-separated ISO, NOT the raw space-separated 422 text: the raw
+        # string loses its space in transit and the API rejects it as a 400
+        # (first-flight failure 2026-08-17 23:40Z).
+        assert calls[1]["end"] == "2026-08-17T14:00:00+00:00"
         assert calls[1]["dataset"] == "XNAS.ITCH"
 
     def test_a_second_rejection_is_not_retried_forever(self) -> None:
@@ -838,6 +841,29 @@ class TestAvailableEndClamp:
             )
 
         assert len(calls) == 2
+
+    def test_an_unparseable_available_end_reraises_the_422(self) -> None:
+        from databento.common.error import BentoClientError
+
+        calls: list[int] = []
+
+        def reject_with_garbage_end(client, *, context, **kwargs):
+            calls.append(1)
+            raise BentoClientError(
+                http_status=422,
+                http_body=None,
+                message=(
+                    "422 data_end_after_available_end\n"
+                    "The dataset X has data available up to 'not-a-date'."
+                ),
+            )
+
+        with pytest.raises(BentoClientError, match="data_end_after_available_end"):
+            wrapper._get_range_clamped_to_available_end(
+                reject_with_garbage_end, object(), context="test", end="x"
+            )
+
+        assert len(calls) == 1  # no blind retry into a guaranteed 400
 
     def test_unrelated_client_errors_pass_through_unclamped(self) -> None:
         from databento.common.error import BentoClientError
