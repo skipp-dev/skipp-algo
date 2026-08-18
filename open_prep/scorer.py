@@ -1046,9 +1046,8 @@ def rank_candidates_v2(
     if vix_level is not None:
         for row in scored:
             inst_class = row.get("instrument_class", "mid_cap")
-            gates = compute_adaptive_gates(
+            gates = compute_adaptive_gates(  # 2026-08-18 (Sweep C3): nur noch score_min — trend/atr waren Phantom-Gates
                 vix_level=vix_level,
-                instrument_class=inst_class,
             )
             row["adaptive_gates"] = gates
             # Soft warn-flag when score is below adaptive threshold
