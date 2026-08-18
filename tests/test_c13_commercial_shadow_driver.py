@@ -259,3 +259,17 @@ def test_the_commercial_paper_audit_has_a_data_branch_transport_edge() -> None:
     reconcile_source = RECONCILE.read_text(encoding="utf-8")
     push_block = reconcile_source.split("push_to_data_branch", 1)[1]
     assert '"cache/live/incubation_commercial_${DATE}.jsonl"' in push_block
+
+
+def test_the_commercial_fills_feed_the_portfolio_reconciliation() -> None:
+    # 2026-08-18 (Verdrahtungs-Sweep K8): portfolio_fills_commercial_<DATE>
+    # wurde geschrieben und von nichts gelesen — nach dem Flip sähe
+    # reconcile_portfolio_shadow Positionsdeltas ohne die erklärenden
+    # Commercial-Fills und meldete falsche reconciliation_failures. Der
+    # Treiber übergibt die Datei jetzt konditional (pre-Flip leise absent).
+    source = RECONCILE.read_text(encoding="utf-8")
+
+    assert '-s "${COMMERCIAL_FILLS}"' in source
+    assert 'COMMERCIAL_FILLS_FLAG="--fills ${COMMERCIAL_FILLS}"' in source
+    reconcile_call = source.split("scripts.reconcile_portfolio_shadow", 1)[1]
+    assert "${COMMERCIAL_FILLS_FLAG}" in reconcile_call.split("--output", 1)[0]
