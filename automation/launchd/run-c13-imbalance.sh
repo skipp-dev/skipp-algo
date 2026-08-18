@@ -15,10 +15,17 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 # ET timezone gate: the plist fires at three candidate LOCAL times bracketing
 # the 09:28 ET target across US/EU DST; proceed only in the true ET window
 # (lib_c13_et_gate.sh). Root-caused 2026-07-07: a non-ET Mac fired these ~6h off.
-# Keeps its catch-up: the gate proceeds once per ET day in the window, and
-# lib_c13_catchup backfills any business days missed while asleep from that run.
+# 2026-08-18 (Grenzgaenger B6): outside the window the driver no longer
+# exits — it runs in catch-up-ONLY mode (past missed days, never today).
+# Before, the backfill sat unreachably BEHIND this gate: a wake fire after
+# a slept-through window exited here, and missed days waited for the NEXT
+# in-window fire. Today's collection stays window-bound (premature pre-open
+# data would be wrong); past days are historical replays and idempotent via
+# their per-date markers, so the extra off-window fires are cheap no-ops.
 source "$(dirname "$0")/lib_c13_et_gate.sh"
-c13_require_et_window "$REPO" 09 28 10 collect-imbalance || exit 0
+if ! c13_require_et_window "$REPO" 09 28 10 collect-imbalance; then
+    export C13_CATCHUP_EXCLUDE_TODAY=1
+fi
 VENV="${C13_VENV:-${REPO}/.venv}"
 WATCHLIST="${C13_WATCHLIST:-${REPO}/reports/databento_watchlist_top5_pre1530.csv}"
 
