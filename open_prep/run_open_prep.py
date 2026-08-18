@@ -200,7 +200,7 @@ class OpenPrepConfig:
     gap_mode: str = GAP_MODE_PREMARKET_INDICATIVE
     atr_lookback_days: int = 250
     atr_period: int = 14
-    atr_parallel_workers: int = 5
+    atr_parallel_workers: int = 8  # 2026-08-18 (Sweep C2): an CLI/main() angeglichen; 5 war unerreichbar
     gap_scope: str = GAP_SCOPE_DAILY
     analyst_catalyst_limit: int = DEFAULT_ANALYST_CATALYST_LIMIT
 
