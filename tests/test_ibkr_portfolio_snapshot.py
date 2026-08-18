@@ -11,11 +11,18 @@ NOW = datetime(2026, 8, 8, 14, 0, tzinfo=UTC)
 
 
 class FakeIB:
+    """Orders are served ONLY via ``reqAllOpenOrders``; ``openTrades`` is
+    always empty. This mirrors the broker truth measured 2026-08-18 (bracket
+    legs rest under the submitter's client id, invisible to ``openTrades`` of
+    any other client) and makes every test below fail if the capture path
+    regresses to the client-bound read."""
+
     def __init__(self, *, orders=()) -> None:
         self._orders = tuple(orders)
         self.managedAccounts = self._managed_accounts
         self.accountSummary = self._account_summary
-        self.openTrades = self._open_trades
+        self.openTrades = lambda: []
+        self.reqAllOpenOrders = self._open_trades
 
     def _managed_accounts(self):
         return ["DU123"]
@@ -78,6 +85,29 @@ def test_capture_uses_market_value_and_active_stop() -> None:
     assert snapshot.positions[0].market_price == pytest.approx(200)
     assert snapshot.positions[0].stop_price == pytest.approx(195)
     assert snapshot.working_orders[0].role.value == "exit"
+
+
+def test_other_clients_working_orders_reach_the_snapshot() -> None:
+    """A stop resting under ANOTHER client id must still cover the position.
+
+    2026-08-18: client 73's capture reported ``working_orders: 0`` while ten
+    of client 71's bracket legs were resting — every coverage figure derived
+    from that path was wrong. The capture must read ``reqAllOpenOrders``
+    (all clients), never the client-bound ``openTrades``.
+    """
+    stop = _trade(
+        order_id=2,
+        order_ref="smc-AAPL-2026-08-18-port7497-sl",
+        action="SELL",
+        parent_id=1,
+        order_type="STP",
+        price=195,
+    )
+    ib = FakeIB(orders=(stop,))
+    assert ib.openTrades() == []  # the client-bound view is genuinely blind here
+    snapshot = capture_ibkr_portfolio_snapshot(ib, captured_at=NOW)
+    assert snapshot.positions[0].stop_price == pytest.approx(195)
+    assert len(snapshot.working_orders) == 1
 
 
 def test_unknown_manual_order_marks_snapshot_incomplete() -> None:
