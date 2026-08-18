@@ -17,6 +17,10 @@ from .utils import to_float
 
 logger = logging.getLogger("open_prep.diff")
 
+# IMPORT-TIME constant (documented 2026-08-18, Verdrahtungs-Sweep): the env
+# override is read once at module import — setting it later in-process is a
+# no-op (tests need importlib.reload). No production setter exists; the knob
+# is only operable via process env before the first import.
 try:
     SCORE_CHANGE_THRESHOLD = max(
         float(os.environ.get("OPEN_PREP_DIFF_SCORE_THRESHOLD", "0.5") or "0.5"),

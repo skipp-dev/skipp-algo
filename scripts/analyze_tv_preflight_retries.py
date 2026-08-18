@@ -1,7 +1,13 @@
 """Post-mortem analyzer for the TradingView preflight retry telemetry.
 
+OPERATOR-MANUAL by design (declared 2026-08-18, Verdrahtungs-Sweep D6): no
+workflow invokes this — it is run by hand against downloaded run artifacts
+when a preflight retry chain needs a post-mortem. Do not flag as unwired.
+
 Consumes the per-attempt artifacts emitted by the retry wrapper in
-``.github/workflows/smc-library-refresh.yml`` (Bundle B, PR #2431):
+``.github/workflows/smc-library-publish.yml`` (retry wrapper around the
+preflight step; historically introduced via smc-library-refresh, Bundle B,
+PR #2431 — the producer moved, this pointer was stale until 2026-08-18):
 
   * ``preflight_retry_log.jsonl`` — one record per attempt with
     attempt / exit_code / timing / preserved-output path.
