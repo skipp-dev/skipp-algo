@@ -477,3 +477,76 @@ def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
     assert report["promotion_gate"]["verdict"] == "NO_GO"
     assert report["network_io"] is False
     assert report["broker_io"] is False
+
+
+def test_partial_family_coverage_attempt_does_not_poison_the_campaign(
+    tmp_path: Path,
+) -> None:
+    # 2026-08-18 Verdrahtungs-Sweep K2: partial coverage is the setup
+    # producer's NORMAL output (a family without a valid event is skipped),
+    # but the attempt loader pinned strict equality against all four
+    # variants. The immutable partial attempt file then made every later
+    # report rebuild raise — one honest thin snapshot poisoned the campaign
+    # forever and the 20-unique-snapshot gate became unreachable.
+    campaign_dir = tmp_path / "campaign"
+    partial = _payload()
+    partial["structure"]["fvg"] = []
+    partial["structure"]["liquidity_sweeps"] = []
+
+    first_attempt, first_report = run_campaign_observation(
+        payload=partial,
+        campaign_dir=campaign_dir,
+        now=_NOW,
+        min_unique_snapshots=2,
+    )
+    assert first_attempt["status"] == "COMPLETED"
+    assert first_attempt["families"] == ["BOS", "OB"]
+    assert first_report["family_snapshot_counts"]["FVG"] == 0
+
+    # The poison path: rebuilding the report re-reads the immutable partial
+    # attempt from disk — this raised before the fix.
+    rebuilt = build_campaign_report(campaign_dir, min_unique_snapshots=2)
+    assert rebuilt["observation_gate"]["verdict"] == "PENDING"
+
+    # And the campaign keeps accepting attempts after the partial one.
+    second_attempt, report = run_campaign_observation(
+        payload=_shift_payload(_payload(), 60.0),
+        campaign_dir=campaign_dir,
+        now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+        min_unique_snapshots=2,
+    )
+    assert second_attempt["status"] == "COMPLETED"
+    assert second_attempt["families"] == ["BOS", "OB", "FVG", "SWEEP"]
+    assert report["family_snapshot_counts"]["BOS"] == 2
+    assert report["family_snapshot_counts"]["FVG"] == 1
+
+
+def test_tampered_families_shapes_still_fail_closed(tmp_path: Path) -> None:
+    # The relaxation accepts exactly one shape: a non-empty, duplicate-free
+    # subsequence of FAMILY_VARIANTS in canonical order. Everything else
+    # keeps failing the rebuild closed.
+    campaign_dir = tmp_path / "campaign"
+    attempt, _report = run_campaign_observation(
+        payload=_payload(),
+        campaign_dir=campaign_dir,
+        now=_NOW,
+        min_unique_snapshots=1,
+    )
+    attempt_path = campaign_dir / "attempts" / f"{attempt['attempt_id']}.json"
+    original = attempt_path.read_text(encoding="utf-8")
+
+    for bad_families in (
+        ["BOS", "BOS"],  # duplicate
+        ["BOS", "UNKNOWN"],  # unknown family
+        ["OB", "BOS"],  # non-canonical order
+        [],  # empty despite COMPLETED
+        "BOS",  # not a list
+    ):
+        tampered = json.loads(original)
+        tampered["families"] = bad_families
+        attempt_path.write_text(json.dumps(tampered), encoding="utf-8")
+        with pytest.raises(ValueError, match="invalid families"):
+            build_campaign_report(campaign_dir, min_unique_snapshots=1)
+
+    attempt_path.write_text(original, encoding="utf-8")
+    assert build_campaign_report(campaign_dir, min_unique_snapshots=1)

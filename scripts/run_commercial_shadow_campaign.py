@@ -98,8 +98,23 @@ def _load_attempts(campaign_dir: Path) -> list[dict[str, Any]]:
         if status != "FAILED" and (not isinstance(snapshot_id, str) or not snapshot_id.startswith("sha256:")):
             raise ValueError(f"campaign attempt has invalid source snapshot ID: {path}")
         families = payload.get("families")
-        expected_families = list(FAMILY_VARIANTS) if status in {"COMPLETED", "REPLAY_SKIPPED"} else []
-        if families != expected_families:
+        if status in {"COMPLETED", "REPLAY_SKIPPED"}:
+            # Partial coverage is the NORMAL shape: the setup producer skips
+            # any family without a valid event, and the report aggregates
+            # coverage (family_coverage_pct / missing_families). Strict
+            # equality against all four variants poisoned the campaign on the
+            # first partial snapshot — the immutable attempt file made every
+            # later load raise (2026-08-18 Verdrahtungs-Sweep K2). Accepted
+            # shape: a non-empty, duplicate-free subsequence of
+            # FAMILY_VARIANTS in canonical order.
+            if (
+                not isinstance(families, list)
+                or not families
+                or not all(isinstance(f, str) for f in families)
+                or families != [f for f in FAMILY_VARIANTS if f in set(families)]
+            ):
+                raise ValueError(f"campaign attempt has invalid families: {path}")
+        elif families != []:
             raise ValueError(f"campaign attempt has invalid families: {path}")
         error_type = payload.get("error_type")
         error = payload.get("error")
