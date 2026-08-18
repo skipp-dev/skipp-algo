@@ -2855,6 +2855,37 @@ test("update-existing selection resolves the measured placeholder type-ahead sha
   }
 });
 
+// Ein readonly-Input lässt Playwrights fill() scheitern (nicht editierbar).
+// Der Fluss muss dann sauber false liefern statt zu werfen — und die Absenz
+// läuft über die eigene Stage typeahead-fill-failed, nicht über
+// script-option-absent (der nächste Schritt unterscheidet sich).
+test("a readonly type-ahead chooser fails cleanly instead of throwing", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div class="dialog-x9">
+        <h2>Publish script</h2>
+        <button>Update existing script</button>
+        <input placeholder="Choose script" readonly />
+      </div></div></body></html>
+    `);
+
+    assert.equal(
+      await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
+      false,
+      "a chooser whose fill() fails must resolve to false with absence evidence, not reject",
+    );
+    assert.equal(
+      await page.inputValue('input[placeholder="Choose script"]'),
+      "",
+      "premise: the readonly input swallowed the fill — that is the mechanism this path diagnoses",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
 test("the chooser inventory reports the shape the lookup cannot see", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
@@ -2877,6 +2908,12 @@ test("the chooser inventory reports the shape the lookup cannot see", async () =
       await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
       false,
       "premise: the chooser is found and filled, but no option list ever appears — selection must fail loudly",
+    );
+    assert.equal(
+      await page.inputValue('input[placeholder="Choose script"]'),
+      "Open-Prep Daily Panel",
+      "premise ASSERT (not just prose): the type-ahead really found and filled the chooser — an empty "
+      + "value means the placeholder locator is gone and the stage silently fell back to chooser-control-absent",
     );
 
     const inventory = await collectPublishChooserInventory(page);
