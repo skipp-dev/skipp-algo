@@ -213,7 +213,13 @@ def capture_ibkr_portfolio_snapshot(
         equity = 0.0
         missing.add("equity")
 
-    open_trades = tuple(ib.openTrades() or ())
+    # ``ib.openTrades()`` only returns orders placed by THIS client id, but the
+    # account's protective exits rest under the submitter's client id (71) while
+    # evidence captures run under others (CLI 73, reconcile). Measured
+    # 2026-08-18: the CLI reported ``working_orders: 0`` / stop coverage 0 while
+    # 10 bracket legs were resting. ``reqAllOpenOrders`` reads every client's
+    # working orders (orderRef intact), so account-level risk evidence is whole.
+    open_trades = tuple(ib.reqAllOpenOrders() or ())
     raw_quantities = {
         str(getattr(getattr(item, "contract", None), "symbol", "")).strip().upper(): float(
             getattr(item, "position", 0.0) or 0.0
