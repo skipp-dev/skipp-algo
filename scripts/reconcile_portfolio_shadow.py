@@ -31,7 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Reconcile portfolio snapshots against fills.")
     parser.add_argument("--before", type=Path, required=True)
     parser.add_argument("--after", type=Path, required=True)
-    parser.add_argument("--fills", type=Path, required=True)
+    # 2026-08-18 (Verdrahtungs-Sweep K8): append statt Einzeldatei — nach dem
+    # Paper-Flip schreibt die Commercial-Lane ihre Fills in eine SEPARATE
+    # Datei; ohne sie sieht die Abstimmung Positionsdeltas ohne die
+    # erklärenden Fills und meldet falsche reconciliation_failures.
+    parser.add_argument("--fills", type=Path, required=True, action="append")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--monitoring-output", type=Path)
     parser.add_argument("--quantity-tolerance", type=float, default=1e-9)
@@ -42,9 +46,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     before = PortfolioSnapshotV1.from_dict(json.loads(args.before.read_text(encoding="utf-8")))
     after = PortfolioSnapshotV1.from_dict(json.loads(args.after.read_text(encoding="utf-8")))
-    raw_fills = json.loads(args.fills.read_text(encoding="utf-8"))
-    if not isinstance(raw_fills, list):
-        raise ValueError("fills input must be a JSON list")
+    raw_fills: list = []
+    for fills_path in args.fills:
+        loaded = json.loads(fills_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, list):
+            raise ValueError(f"fills input must be a JSON list: {fills_path}")
+        raw_fills.extend(loaded)
     fills = tuple(PortfolioFill(**row) for row in raw_fills)
     reconciliation = reconcile_portfolio_positions(
         before,

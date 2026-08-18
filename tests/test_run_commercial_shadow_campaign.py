@@ -546,3 +546,97 @@ def test_attempt_with_unknown_or_duplicate_family_still_fails_closed(
     attempt_path.write_text(json.dumps(tampered), encoding="utf-8")
     with pytest.raises(ValueError, match="invalid families"):
         build_campaign_report(campaign_dir, min_unique_snapshots=1)
+
+
+def test_failure_budget_is_a_rolling_window(tmp_path: Path) -> None:
+    """2026-08-18 (Grenzgaenger C2, operator decision): old failures age out.
+
+    Under the lifetime rate, two early FAILED attempts would have FAILed the
+    campaign PERMANENTLY (2/4 = 50% > 5%, and no later success could ever
+    dilute 2/N below 5% before snapshot 40). The budget now looks at the
+    last min_unique_snapshots substantive attempts only.
+    """
+    campaign_dir = tmp_path / "campaign"
+
+    for offset in (0.0, 400.0):
+        with pytest.raises(CampaignObservationError, match="is stale"):
+            run_campaign_observation(
+                payload=_shift_payload(_payload(), offset) if offset else _payload(),
+                campaign_dir=campaign_dir,
+                now=datetime.fromtimestamp(_ANCHOR + offset + 301.0, UTC),
+                min_unique_snapshots=2,
+            )
+    for offset in (800.0, 900.0):
+        run_campaign_observation(
+            payload=_shift_payload(_payload(), offset),
+            campaign_dir=campaign_dir,
+            now=datetime.fromtimestamp(_ANCHOR + offset + 10.0, UTC),
+            min_unique_snapshots=2,
+        )
+
+    report = json.loads((campaign_dir / "campaign_report.json").read_text(encoding="utf-8"))
+    assert report["attempt_status_counts"] == {"COMPLETED": 2, "FAILED": 2}
+    assert report["failure_rate"] == 0.0
+    assert report["failure_rate_lifetime"] == 0.5
+    assert report["failure_window_size"] == 2
+    assert "failure_rate_exceeded" not in report["observation_gate"]["reasons"]
+    assert report["observation_gate"]["verdict"] == "PASS"
+
+
+def test_quiet_family_is_quiet_not_fail(tmp_path: Path) -> None:
+    """2026-08-18 (Grenzgaenger C4, operator decision): a family with zero
+    setups is verdict QUIET, not FAIL. Previously it flipped PENDING->FAIL at
+    the snapshot minimum and was indistinguishable from a real breach in the
+    driver marker. QUIET is deliberately != PASS: paper stays dormant."""
+    campaign_dir = tmp_path / "campaign"
+
+    first = _payload()
+    first["structure"]["fvg"] = []
+    run_campaign_observation(
+        payload=first,
+        campaign_dir=campaign_dir,
+        now=_NOW,
+        min_unique_snapshots=2,
+    )
+    second = _shift_payload(_payload(), 60.0)
+    second["structure"]["fvg"] = []
+    _attempt, report = run_campaign_observation(
+        payload=second,
+        campaign_dir=campaign_dir,
+        now=datetime.fromtimestamp(_ANCHOR + 70.0, UTC),
+        min_unique_snapshots=2,
+    )
+
+    assert report["family_snapshot_counts"]["FVG"] == 0
+    assert report["observation_gate"]["verdict"] == "QUIET"
+    assert report["observation_gate"]["reasons"] == ["missing_family_coverage"]
+    assert report["observation_gate"]["verdict"] != "PASS"
+
+
+def test_real_threshold_breach_beats_quiet(tmp_path: Path) -> None:
+    """A real breach (failure rate in the window) stays FAIL even when a
+    quiet family is also present — QUIET never masks a genuine failure."""
+    campaign_dir = tmp_path / "campaign"
+
+    for offset, now_delta in ((0.0, 10.0), (60.0, 70.0)):
+        payload = _shift_payload(_payload(), offset) if offset else _payload()
+        payload["structure"]["fvg"] = []
+        run_campaign_observation(
+            payload=payload,
+            campaign_dir=campaign_dir,
+            now=datetime.fromtimestamp(_ANCHOR + now_delta, UTC),
+            min_unique_snapshots=2,
+        )
+    with pytest.raises(CampaignObservationError, match="is stale"):
+        run_campaign_observation(
+            payload=_shift_payload(_payload(), 100.0),
+            campaign_dir=campaign_dir,
+            now=datetime.fromtimestamp(_ANCHOR + 401.0, UTC),
+            min_unique_snapshots=2,
+        )
+
+    report = json.loads((campaign_dir / "campaign_report.json").read_text(encoding="utf-8"))
+    gate = report["observation_gate"]
+    assert gate["verdict"] == "FAIL"
+    assert "failure_rate_exceeded" in gate["reasons"]
+    assert "missing_family_coverage" in gate["reasons"]

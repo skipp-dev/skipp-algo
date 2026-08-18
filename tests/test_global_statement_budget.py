@@ -195,10 +195,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifted cache.py globals 49/71/148/218 -> 70/92/185/255. The throttle
         # uses in-place attribute mutation, NOT a new `global`, so the inventory
         # count is unchanged.
-        ("services/live_overlay_daemon/cache.py", 112, ("_max_symbols", "_rolling_bars_cap")),  # 2026-08-08 reject future-dated bars at ingest: 111->112
-        ("services/live_overlay_daemon/cache.py", 139, ("_last_eviction_at",)),  # 2026-08-08 reject future-dated bars at ingest: 138->139
-        ("services/live_overlay_daemon/cache.py", 368, ("_overlay_computed_at",)),  # 2026-08-08 reject future-dated bars at ingest: 345->368
-        ("services/live_overlay_daemon/cache.py", 442, ("_vix_level",)),  # 2026-08-08 reject future-dated bars at ingest: 419->442
+        ("services/live_overlay_daemon/cache.py", 125, ("_max_symbols", "_rolling_bars_cap")),  # 2026-08-18 C1 high-water regression metric: 112->125
+        ("services/live_overlay_daemon/cache.py", 153, ("_last_eviction_at",)),  # 2026-08-18 C1 high-water regression metric: 139->153
+        ("services/live_overlay_daemon/cache.py", 416, ("_overlay_computed_at",)),  # 2026-08-18 C1 high-water regression metric: 368->416
+        ("services/live_overlay_daemon/cache.py", 490, ("_vix_level",)),  # 2026-08-18 C1 high-water regression metric: 442->490
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.

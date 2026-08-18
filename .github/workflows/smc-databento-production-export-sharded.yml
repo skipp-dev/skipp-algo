@@ -28,10 +28,12 @@
 # only (probe workflow); the cron block was added when the monolithic
 # producer was deprecated and this sharded workflow became canonical. The
 # 240-min handoff window to library-refresh (16:00/20:00 UTC) is preserved.
-# The 21:00 UTC cron is a post-market-close safety-net: Databento finalises
-# same-day data only after market close (~20:00 UTC), so the 12:00/16:00 runs
-# cover historical bars + FMP intraday bridge for today; the 21:00 run fetches
-# the complete, authoritative Databento record for the just-closed session.
+# Post-market-close safety-net: Databento finalises same-day data ~1h after
+# the US close, which is 20:00 UTC in EDT but 21:00 UTC in EST (2026-08-18
+# A5 — the close is ET, not a UTC constant). Daytime runs cover historical
+# bars + FMP intraday bridge for today; the first post-finalization tick
+# (21:00Z in summer, 22:00Z year-round) fetches the complete, authoritative
+# Databento record for the just-closed session.
 #
 # Caveat on "FMP intraday bridge for today" (#3649): the bridge only yields rows
 # once the intraday window has opened at 09:20 ET. 12:00 UTC is 08:00 ET in
@@ -71,8 +73,8 @@ on:
     - cron: "0 16 * * 1-5"   # 16:00 UTC – incremental tick
     - cron: "0 18 * * 1-5"   # 18:00 UTC – incremental tick
     - cron: "0 20 * * 1-5"   # 20:00 UTC – incremental tick (Databento finalizing)
-    - cron: "0 21 * * 1-5"   # 21:00 UTC – post-market-close safety net (Databento same-day data finalized after 20:00 UTC)
-    - cron: "0 22 * * 1-5"   # 22:00 UTC – incremental tick (post-close confirmation)
+    - cron: "0 21 * * 1-5"   # 21:00 UTC – post-finalization in EDT only (close 20:00Z); in EST this IS the close
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – post-finalization in BOTH halves of the year (A5: the year-round safety net)
   workflow_dispatch:
     inputs:
       lookback_days:
