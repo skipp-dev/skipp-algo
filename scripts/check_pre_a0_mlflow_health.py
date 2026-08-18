@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError
@@ -18,6 +19,9 @@ DEFAULT_MODEL_NAME = "skipp-pre-a0"
 DEFAULT_ALIAS = "candidate"
 DEFAULT_ARTIFACT_ID = "de97b74e6c6f645a513ece01"
 DEFAULT_RUNTIME_CONTRACT = "local-json-v1"
+DEFAULT_DECLARED_REQUIREMENTS = (
+    Path(__file__).resolve().parents[1] / "services" / "mlflow_tracking" / "requirements.txt"
+)
 
 
 def _tracking_uri(value: str) -> str:
@@ -51,14 +55,50 @@ def _status(request: Request) -> int:
         return int(exc.code)
 
 
-def _json(request: Request) -> dict[str, object]:
+def _body(request: Request) -> bytes:
     with urlopen(request, timeout=15) as response:
         if int(response.status) != 200:
             raise RuntimeError(f"MLflow API returned HTTP {response.status}")
-        payload = json.loads(response.read())
+        return response.read()
+
+
+def _json(request: Request) -> dict[str, object]:
+    payload = json.loads(_body(request))
     if not isinstance(payload, dict):
         raise RuntimeError("MLflow API response must be an object")
     return payload
+
+
+_VERSION_SHAPE = re.compile(r"^\d+\.\d+(\.\d+)?([a-z0-9.]*)$")
+
+
+def _deployed_mlflow_version(origin: str, username: str, password: str) -> str | None:
+    """The running server's version via GET /version, or None if unreadable.
+
+    Format-tolerant on purpose (2026-08-18, Doppelgaenger-Sweep): the endpoint
+    serves the bare version string; should a future MLflow wrap it in JSON,
+    both shapes parse. Anything that does not look like a version yields None
+    so a vendor surprise becomes a visible warning, never a false mismatch.
+    """
+    try:
+        raw = _body(_request(f"{origin}/version", username, password)).decode().strip()
+    except (HTTPError, OSError, RuntimeError, UnicodeDecodeError):
+        return None
+    if raw.startswith('"'):
+        try:
+            raw = str(json.loads(raw))
+        except ValueError:
+            return None
+    return raw if _VERSION_SHAPE.match(raw) else None
+
+
+def declared_mlflow_pin(requirements: Path) -> str:
+    """The mlflow version the repo DECLARES for the tracking service."""
+    for line in requirements.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^mlflow\[auth\]==([A-Za-z0-9.]+)\s*$", line.split("#")[0].strip())
+        if match:
+            return match.group(1)
+    raise RuntimeError(f"no mlflow[auth]== pin found in {requirements}")
 
 
 def _parse_timestamp(value: str) -> datetime:
@@ -78,6 +118,7 @@ def check_health(
     expected_artifact_id: str = DEFAULT_ARTIFACT_ID,
     warn_before_days: float = 14.0,
     now: datetime | None = None,
+    declared_mlflow_version: str | None = None,
 ) -> tuple[int, dict[str, object]]:
     origin = _tracking_uri(tracking_uri)
     if not username or not password:
@@ -92,6 +133,20 @@ def check_health(
         critical.append(f"health_http_{health_status}")
     if unauthenticated_status != 401:
         critical.append(f"authentication_boundary_http_{unauthenticated_status}")
+
+    # Deployed==declared tripwire (2026-08-18, Doppelgaenger-Sweep): the
+    # tracking service only redeploys manually, so Dependabot bumps to
+    # services/mlflow_tracking/requirements.txt change a replica nothing
+    # executes. Measured 2026-08-18: the container ran mlflow 3.14.0 while the
+    # repo declared 3.15.1 — three merged bumps, zero deploys, no alarm. This
+    # hourly probe makes that drift page instead of rot.
+    deployed_version: str | None = None
+    if declared_mlflow_version is not None:
+        deployed_version = _deployed_mlflow_version(origin, username, password)
+        if deployed_version is None:
+            warnings.append("deployed_version_unavailable")
+        elif deployed_version != declared_mlflow_version:
+            critical.append("deployed_version_mismatch")
 
     alias_payload = _json(_request(alias_url, username, password))
     version = alias_payload.get("model_version")
@@ -152,6 +207,8 @@ def check_health(
         "shadow_gate": tags.get("pre_a0.gate.shadow_evaluated"),
         "review_after": review_after_raw,
         "remaining_days": remaining_days,
+        "deployed_mlflow_version": deployed_version,
+        "declared_mlflow_version": declared_mlflow_version,
         "critical": critical,
         "warnings": warnings,
         "overall": "critical" if critical else "warning" if warnings else "healthy",
@@ -169,6 +226,12 @@ def main() -> int:
     parser.add_argument("--expected-artifact-id", default=DEFAULT_ARTIFACT_ID)
     parser.add_argument("--warn-before-days", type=float, default=14.0)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--declared-requirements",
+        type=Path,
+        default=DEFAULT_DECLARED_REQUIREMENTS,
+        help="requirements file carrying the mlflow[auth]== pin the deploy must match",
+    )
     args = parser.parse_args()
     rc, report = check_health(
         tracking_uri=args.tracking_uri,
@@ -178,6 +241,7 @@ def main() -> int:
         alias=args.alias,
         expected_artifact_id=args.expected_artifact_id,
         warn_before_days=args.warn_before_days,
+        declared_mlflow_version=declared_mlflow_pin(args.declared_requirements),
     )
     if args.output:
         atomic_write_json(report, args.output, sort_keys=True)
