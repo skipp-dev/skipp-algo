@@ -1217,7 +1217,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.place_paper_orders:
         submit_fn = _build_paper_submit_fn(
             connection_cfg=IBKRConnectionConfig(),
-            execution_cfg=IBKRWatchlistExecutionConfig(),
+            # exit_tif="GTC": tp/sl legs must survive the session. With DAY
+            # exits every position that outlived the bell lost its protection
+            # and stayed open forever (nine leftovers measured 2026-08-18) —
+            # the client-side time stop in execute_ibkr_watchlist never runs
+            # here because this driver disconnects right after submit. The
+            # same-day close is owned by the EOD flatten cron
+            # (automation/launchd/run-c13-eod-flatten.sh); GTC is the backstop
+            # for the day that cron misses.
+            execution_cfg=IBKRWatchlistExecutionConfig(exit_tif="GTC"),
         )
 
     earnings_filter: EarningsFilter | None = None
