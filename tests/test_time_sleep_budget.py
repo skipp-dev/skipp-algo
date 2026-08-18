@@ -83,6 +83,10 @@ def _all_time_sleep_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
+        # 2026-08-18 (Grenzgänger-Sweep D3): daemon FMP loader retry backoff
+        # — legitimate rate-limit backoff (capped Retry-After), replacing the
+        # 0s instant retry that doubled throttled load.
+        ("services/live_overlay_daemon/fmp_data_loader.py", 151),
         # 2026-06-24 feat/benzinga-rss: REST client retry backoff.
         ("newsstack_fmp/ingest_benzinga.py", 298),  # 284→298 (2026-07-12): fetch_news 429 wire + import block
         ("newsstack_fmp/ingest_benzinga.py", 309),  # 295→309 (2026-07-12): fetch_news 429 wire + import block

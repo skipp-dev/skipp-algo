@@ -230,6 +230,23 @@ def _git(args: list[str]) -> str:
     ).stdout
 
 
+# The freshness signal must track the TWS-session producers (audit-push /
+# reconcile artifacts under cache/live/) and NOT the commercial-shadow
+# campaign report: that driver commits cache/live/commercial_campaign/ up to
+# six times per trading day with no TWS dependency, so an unscoped
+# `git log -1 <branch>` would keep this signal fresh while the whole phase-a
+# chain is dead — re-arming the invisible 2026-06-12 freeze this module
+# exists to catch (Grenzgänger-Sweep B1, 2026-08-18).
+_AUDIT_PRODUCER_PATHSPEC = ("cache/live", ":(exclude)cache/live/commercial_campaign")
+
+
+def _audit_branch_last_commit_date(branch: str) -> str:
+    """``%cs`` of the newest commit touching the TWS-session artifact paths."""
+    return _git(
+        ["log", "-1", "--format=%cs", branch, "--", *_AUDIT_PRODUCER_PATHSPEC]
+    ).strip()
+
+
 def _load_ledger_rows(ledger_path: Path) -> list[dict[str, Any]]:
     if not ledger_path.is_file():
         return []
@@ -315,9 +332,9 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(parsed, dict):
                 incubation_records.append(parsed)
 
-    # Audit-branch head commit date (the freeze signal that stayed invisible).
+    # Audit-branch commit date (the freeze signal that stayed invisible).
     try:
-        audit_commit_date = _git(["log", "-1", "--format=%cs", args.audit_branch]).strip()
+        audit_commit_date = _audit_branch_last_commit_date(args.audit_branch)
     except subprocess.CalledProcessError:
         audit_commit_date = ""
 
