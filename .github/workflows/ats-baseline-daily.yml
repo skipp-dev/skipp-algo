@@ -18,13 +18,17 @@ name: ats-baseline-daily
 # no skipp-algo code), and smc_api itself has no scheduled production runner
 # yet (WP-K runtime wiring pending). The repo copy stays the SSOT.
 #
-# Schedule: 21:30 UTC weekdays — after the Databento same-day finalization
-# (the production-export workflow's own comments put finalized data after
-# 20:00 UTC), so the trailing window includes today's completed session.
+# Schedule: 22:30 UTC weekdays — after the Databento same-day finalization
+# in BOTH halves of the year. 2026-08-18 (Grenzgaenger A5): the old 21:30
+# slot encoded the EDT close (20:00 UTC + ~1h finalization). From the DST
+# end (2026-11-01) US close is 21:00 UTC, so 21:30 would have run BEFORE
+# finalization every winter day and silently dropped the current session
+# from the trailing window. 22:30 keeps >=1.5h margin year-round; the
+# contract test pins the winter bound.
 
 on:
   schedule:
-    - cron: "30 21 * * 1-5"
+    - cron: "30 22 * * 1-5"
   workflow_dispatch: {}
 
 permissions:

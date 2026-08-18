@@ -133,8 +133,9 @@ def _last_measurable_day(*, now_et: datetime, pre_open_minutes: int) -> date:
     """Return the most recent day the producer can actually rank.
 
     Before the intraday window opens, the producer has nothing for the current
-    day: Databento has not finalised it (that happens ~20:00 UTC) and the FMP
-    bridge deliberately returns an empty frame while ``we <= ws``. A shard whose
+    day: Databento has not finalised it (~1h after US close — 20:00Z EDT /
+    21:00Z EST) and the FMP bridge returns an empty frame while ``we <= ws``,
+    deliberately (2026-08-18 A5: close is ET, never a UTC constant). A shard whose
     window is *only* that day therefore ranks zero rows and raises
     ``RuntimeError("No ranked results were returned ...")``.
 
