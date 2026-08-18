@@ -743,6 +743,7 @@ jobs:
             tests/test_detect_vacuous_claims.py \
             tests/test_vacuous_claim_guard.py \
             tests/test_credential_probe_consumers.py \
+            tests/test_cross_manifest_pin_consistency.py \
             tests/test_fast_gates_attested_pine_coverage.py \
             tests/test_git_fixture_env_isolation.py \
             tests/test_ts_vacuity_guard_is_required.py \
