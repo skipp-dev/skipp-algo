@@ -47,7 +47,15 @@ VENV="${C13_VENV:-${REPO}/.venv}"
 DATE="$(date -u +%Y-%m-%d)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 SYMBOL="${C13_COMMERCIAL_SYMBOL:-AAPL}"
-DATASET="${C13_COMMERCIAL_DATASET:-XNAS.ITCH}"
+# EQUS.MINI, not XNAS.ITCH: current-day XNAS.ITCH history is gated on a live
+# data license this account does not hold (measured 2026-08-17 23:42Z: the
+# clamped retry answered "403 license_not_found_unauthorized ... A live data
+# license is required to access XNAS.ITCH data after <T-1 04:00Z>"). The
+# account DOES hold the EQUS.MINI live license — the same feed family the
+# signals producers already consume — so its current-day history is pullable
+# (proven end-to-end same night: 201 bars, clamp engaged, campaign attempt
+# audited into a scratch dir).
+DATASET="${C13_COMMERCIAL_DATASET:-EQUS.MINI}"
 CAMPAIGN_DIR="${REPO}/cache/live/commercial_campaign"
 PIT_INPUT="${CAMPAIGN_DIR}/inputs/pit_${SYMBOL}_${STAMP}.json"
 SUBMISSION_CONFIG="${REPO}/configs/commercial_paper_submission.json"
