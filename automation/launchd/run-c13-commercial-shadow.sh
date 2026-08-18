@@ -210,13 +210,50 @@ if [ "${_producer_exit}" -ne 0 ]; then
     exit "${_producer_exit}"
 fi
 
+# WSH earnings filter — mirrors run-c13-phase-a.sh: newest snapshot wins,
+# at most 4 days old (tolerates a long weekend), otherwise the filter is
+# skipped LOUDLY. Without this flag EarningsFilter is None and the pilot
+# doc's promised earnings-blocked audit rows can never exist (2026-08-18
+# Verdrahtungs-Sweep K7).
+WSH_FLAG=""
+WSH_FILE="${REPO}/cache/wsh/${DATE}.jsonl"
+if [[ ! -f "${WSH_FILE}" ]]; then
+    # ISO-dated filenames sort chronologically; newest wins.
+    WSH_FILE="$(ls -1 "${REPO}"/cache/wsh/*.jsonl 2>/dev/null | sort | tail -n1 || true)"
+fi
+if [[ -n "${WSH_FILE}" && -f "${WSH_FILE}" ]]; then
+    WSH_BASENAME="$(basename "${WSH_FILE}" .jsonl)"
+    _today_epoch="$(date -u -j -f "%Y-%m-%d" "${DATE}" "+%s" 2>/dev/null || echo "")"
+    _file_epoch="$(date -u -j -f "%Y-%m-%d" "${WSH_BASENAME}" "+%s" 2>/dev/null || echo "")"
+    if [[ -n "${_today_epoch}" && -n "${_file_epoch}" ]]; then
+        WSH_AGE_DAYS=$(( (_today_epoch - _file_epoch) / 86400 ))
+    else
+        WSH_AGE_DAYS=-1
+    fi
+    if [[ "${WSH_AGE_DAYS}" -ge 0 && "${WSH_AGE_DAYS}" -le 4 ]]; then
+        echo "commercial-shadow cron: applying WSH earnings filter from ${WSH_FILE} (age ${WSH_AGE_DAYS}d)"
+        WSH_FLAG="--wsh-events-jsonl ${WSH_FILE}"
+    else
+        echo "commercial-shadow cron: newest WSH snapshot ${WSH_FILE} is ${WSH_AGE_DAYS}d old (>4d or unparseable); earnings filter SKIPPED (stale)" >&2
+    fi
+else
+    echo "commercial-shadow cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
+fi
+
 _run_exit=0
+# Same vendor-honest 900s freshness budget as the campaign stage above: the
+# setups come from the SAME clamped PIT pull (~5-7 minutes old by
+# construction, measured 2026-08-17), so the submitter's 300s default would
+# fail-close every honest submission (2026-08-18 Verdrahtungs-Sweep K3).
+# shellcheck disable=SC2086  # WSH_FLAG is deliberately word-split
 "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --place-paper-orders \
     --prospective-paper-pilot \
     --setups "${SETUPS_OUT}" \
     --gate-statuses "${GATES_OUT}" \
+    --max-setup-age-seconds 900 \
+    ${WSH_FLAG} \
     --audit-output "${PAPER_AUDIT}" \
     --portfolio-snapshot-json "${PORTFOLIO_BEFORE}" \
     --portfolio-risk-limits-json "${PORTFOLIO_LIMITS}" || _run_exit=$?
@@ -225,5 +262,15 @@ if [ "${_run_exit}" -ne 0 ]; then
     _write_marker "DEGRADED" "commercial-submit-failed:audit=${PAPER_AUDIT}"
     exit "${_run_exit}"
 fi
+
+# The families-telemetry glob on the CI side reads cache/live/incubation_*.jsonl
+# from data/phase-a-audit — without this push the commercial paper audit never
+# reaches the Phase-1 gate. This mechanises the header's promise ("the
+# families telemetry glob picks that file up"), which had no transport edge
+# (2026-08-18 Verdrahtungs-Sweep K1). Same sanitisation class as the phase-a
+# audit push: per-intent audit rows only, no account state.
+push_to_data_branch "chore(c13): commercial paper audit ${DATE}" \
+    "${REPO}/cache/live/.commercial_paper_push_status_${DATE}" \
+    "cache/live/incubation_commercial_${DATE}.jsonl"
 
 _write_marker "SUCCESS" "commercial-paper-submitted:audit=${PAPER_AUDIT}"
