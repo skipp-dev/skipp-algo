@@ -293,6 +293,54 @@ jobs:
               print(f"| {d.get('family')} | {d.get('promoted')} | {d.get('posture')} | {len(blockers)} |")
           PY
 
+      - name: Calibrate ADR-0023 §5 execution costs from the paper ledgers
+        # 2026-08-18 (Verdrahtungs-Sweep D2): both links of the §5 empirical
+        # cost chain (incubation_to_execution_sessions ->
+        # calibrate_execution_costs) existed with NO scheduler — 6/6 epnl
+        # gate artifacts carried cost_source=flat_default while the ADR-0023
+        # handover described the empirical bar in the present tense. The
+        # incubation ledgers live on data/phase-a-audit (pushed reconciled
+        # by run-c13-reconcile.sh); fetch read-only, convert, calibrate.
+        # Calibrator rc=2 (produced but UNMEASURABLE: too few fills) keeps
+        # the disclosed flat_default path — the flag is only exported on
+        # rc=0, because the gate hard-errors on an unmeasurable calibration
+        # by design (no silent fallback).
+        if: steps.download.outputs.status == 'ready'
+        run: |
+          set -euo pipefail
+          echo "COST_FLAG=" >> "$GITHUB_ENV"
+          if ! git fetch origin data/phase-a-audit 2>/dev/null; then
+            echo "::notice::no data/phase-a-audit branch — §5 stays on flat_default"
+            exit 0
+          fi
+          git checkout origin/data/phase-a-audit -- cache/live 2>/dev/null || true
+          shopt -s nullglob
+          ledgers=(cache/live/incubation_*.jsonl)
+          if [ ${#ledgers[@]} -eq 0 ]; then
+            echo "::notice::no incubation ledgers on the data branch — §5 stays on flat_default"
+            exit 0
+          fi
+          mkdir -p artifacts/execution_sessions
+          python -m scripts.incubation_to_execution_sessions "${ledgers[@]}" \
+            --out-dir artifacts/execution_sessions
+          sessions=(artifacts/execution_sessions/*.json)
+          if [ ${#sessions[@]} -eq 0 ]; then
+            echo "::notice::ledgers carry no reconciled fills yet — §5 stays on flat_default"
+            exit 0
+          fi
+          CAL_RC=0
+          python -m scripts.calibrate_execution_costs "${sessions[@]}" \
+            --out artifacts/cost_calibration.json || CAL_RC=$?
+          if [ "${CAL_RC}" -eq 0 ]; then
+            echo "COST_FLAG=--cost-calibration artifacts/cost_calibration.json" >> "$GITHUB_ENV"
+            echo "ADR-0023 §5: empirical cost calibration is MEASURABLE — the gate consumes it"
+          elif [ "${CAL_RC}" -eq 2 ]; then
+            echo "::notice::§5 cost calibration produced but not yet measurable (thin fills) — flat_default stays disclosed"
+          else
+            echo "::error title=promotion-gate-daily::calibrate_execution_costs failed rc=${CAL_RC}"
+            exit "${CAL_RC}"
+          fi
+
       # ADR-0031: persist the Variant-A per-trade returns series and derive
       # the C6/C7 track-record-gate verdict + the C5 regime-stratified
       # report from it. This is the "persisted returns source" edge the
@@ -323,9 +371,14 @@ jobs:
             --date "${DATE}" \
             --output "${SERIES}"
           EPNL_RC=0
+          # ${COST_FLAG} kommt aus dem §5-Kalibrierungs-Step (leer, solange
+          # keine messbare Kalibrierung existiert — dann flat_default,
+          # ehrlich als cost_source im Artefakt ausgewiesen).
+          # shellcheck disable=SC2086
           python -m scripts.run_epnl_after_cost_gate \
             "${EVENTS_POOL}" \
             --plane 1D \
+            ${COST_FLAG:-} \
             --out "${GATES_DIR}/epnl_after_cost_${DATE}.json" \
             || EPNL_RC=$?
           case "${EPNL_RC}" in
