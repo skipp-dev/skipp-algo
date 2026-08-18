@@ -28,7 +28,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,11 +94,19 @@ def test_a_missing_evidence_entry_fails_loudly_rather_than_passing() -> None:
 
     Silently skipping it would be the vacuous-gate failure mode: the guard would
     report green over a source nothing attests to.
+
+    2026-08-18 (Grenzgänger-Sweep E6): "loudly" is now an OFFENDER verdict,
+    not the old KeyError — a crash gave the PR author a traceback instead of
+    the gate's diagnosis, on exactly the PR that introduces a new consumer.
+    The non-vacuity property this test protects is unchanged: sources={}
+    must never pass.
     """
-    with pytest.raises(KeyError):
-        find_offenders(
-            {"Script_A.pine"}, targets=[_target(_DRIFTED_HASH)], sources={}
-        )
+    offenders = find_offenders(
+        {"Script_A.pine"}, targets=[_target(_DRIFTED_HASH)], sources={}
+    )
+
+    assert len(offenders) == 1
+    assert "MISSING - no evidence entry" in offenders[0]
 
 
 def test_every_live_target_is_covered_by_the_evidence() -> None:
@@ -377,3 +384,32 @@ def test_the_pine_lane_really_does_install_nothing() -> None:
             "purity constraint above is no longer load-bearing; either drop that "
             "test with this change, or drop this one."
         )
+
+
+def test_a_touched_source_with_no_evidence_entry_is_an_offence_not_a_crash() -> None:
+    # Grenzgänger-Sweep E6 (2026-08-18): a newly onboarded consumer (or a
+    # renamed scriptName) has a rollout-contract target but no evidence
+    # entry yet. The gate previously raised KeyError on exactly the PR that
+    # introduces the consumer — a crash instead of a verdict. The sibling
+    # guard's docstring had asserted the offender behaviour all along.
+    offenders = find_offenders(
+        {"Script_A.pine"},
+        targets=[_target(_DRIFTED_HASH)],
+        sources={},  # no evidence entry at all for Script A
+    )
+
+    assert len(offenders) == 1
+    assert "MISSING - no evidence entry" in offenders[0]
+    assert _DRIFTED_HASH in offenders[0]
+
+
+def test_a_retired_consumers_leftover_evidence_entry_does_not_block() -> None:
+    # The inverse direction stays safe: a dead evidence entry with no
+    # matching contract target is simply never iterated.
+    offenders = find_offenders(
+        {"Script_A.pine"},
+        targets=[_target(_ATTESTED_HASH)],
+        sources={**_SOURCES, "SMC Retired Consumer": {"repositorySha256": "dead"}},
+    )
+
+    assert offenders == []

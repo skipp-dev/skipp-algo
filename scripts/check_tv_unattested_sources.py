@@ -137,8 +137,11 @@ def drifted_attested_targets(
     Reported entries carry ``attestedSha256: None`` in that case, so a caller
     can tell "moved away from a recorded hash" from "never had one". The two
     need different remedies -- one is a re-attestation, the other means the
-    artifact itself is malformed -- and ``scripts/check_r1_attested_sources.py``
-    already treated the second as an offender, so the two guards disagreed.
+    artifact itself is malformed. ``scripts/check_r1_attested_sources.py``
+    treats the second as an offender too since 2026-08-18; before that it
+    raised KeyError on a missing evidence entry (contradicting an earlier
+    version of this note), crashing the gate on exactly the PR that
+    introduces a new consumer.
     """
     if targets is None:
         targets = build_rollout_contract()["targets"]

@@ -131,8 +131,8 @@ the historical API.
 
 Same night, the first real end-to-end flight of the chain surfaced a second
 vendor constraint: current-day XNAS.ITCH history is additionally gated on a
-live data license this account does not hold (`403
-license_not_found_unauthorized`, measured 23:42Z — the 422 availability error
+live data license this account does not hold
+(`403 license_not_found_unauthorized`, measured 23:42Z — the 422 availability error
 merely fired first). The campaign therefore pulls `EQUS.MINI`, which the
 account's existing live license covers and which is the same consolidated feed
 family the signals producers already consume. Proven end-to-end that night:
