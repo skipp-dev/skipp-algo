@@ -5208,6 +5208,22 @@ else:
                 st.error(f"Decision-First panel failed: {_panel_exc}")
                 logger.exception("Decision-First panel render error")
 
+        # EV-09 (2026-08-18, Verdrahtungs-Sweep E2): der ehrliche
+        # Verdict-Aufsatz (edge_supported / no_edge / inconclusive /
+        # not_evaluated je Familie) wurde gebaut, getestet — und nie
+        # gerendert. Das Terminal zeigte weiter nur PROMOTED/BLOCKED,
+        # exakt die Fehlleseart, gegen die EV-08/EV-09 gebaut wurden.
+        # Lokaler Import: der Modul-Kopf liegt oberhalb dreier
+        # Lineno-Ledger-Pins (608/2301/2363), diese Stelle nicht.
+        try:
+            from dashboard.verdict_panel import render_panel_from_archive
+
+            _verdict_text = render_panel_from_archive()
+            st.code(_verdict_text, language="text")
+        except Exception as _verdict_exc:
+            st.error(f"Verdict panel failed: {_verdict_exc}")
+            logger.exception("Verdict panel render error")
+
 
 # ── Auto-refresh trigger ───────────────────────────────────────
 
