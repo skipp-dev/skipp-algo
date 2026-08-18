@@ -98,8 +98,23 @@ def _load_attempts(campaign_dir: Path) -> list[dict[str, Any]]:
         if status != "FAILED" and (not isinstance(snapshot_id, str) or not snapshot_id.startswith("sha256:")):
             raise ValueError(f"campaign attempt has invalid source snapshot ID: {path}")
         families = payload.get("families")
-        expected_families = list(FAMILY_VARIANTS) if status in {"COMPLETED", "REPLAY_SKIPPED"} else []
-        if families != expected_families:
+        # A COMPLETED attempt records the families that actually produced a
+        # setup — the producer emits at most one setup per family and SKIPS
+        # families without a valid long event, so any non-empty SUBSET of the
+        # roster is a legitimate snapshot (a partial market hour is the normal
+        # shape). Requiring the full roster here bricked the campaign: the
+        # partial attempt lands durably on disk BEFORE report rebuilding, so
+        # every later observation re-read it and died. REPLAY_SKIPPED mirrors
+        # whatever the replayed attempt carried, including the empty list.
+        if not isinstance(families, list) or any(
+            family not in FAMILY_VARIANTS for family in families
+        ):
+            raise ValueError(f"campaign attempt has invalid families: {path}")
+        if len(set(families)) != len(families):
+            raise ValueError(f"campaign attempt has duplicate families: {path}")
+        if status == "COMPLETED" and not families:
+            raise ValueError(f"campaign attempt has invalid families: {path}")
+        if status not in {"COMPLETED", "REPLAY_SKIPPED"} and families:
             raise ValueError(f"campaign attempt has invalid families: {path}")
         error_type = payload.get("error_type")
         error = payload.get("error")

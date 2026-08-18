@@ -129,6 +129,16 @@ contract freezes the chosen thresholds immutably; the pre-flip review reads
 them there. A sub-300s source would need a live-replay pull path instead of
 the historical API.
 
+Same night, the first real end-to-end flight of the chain surfaced a second
+vendor constraint: current-day XNAS.ITCH history is additionally gated on a
+live data license this account does not hold (`403
+license_not_found_unauthorized`, measured 23:42Z — the 422 availability error
+merely fired first). The campaign therefore pulls `EQUS.MINI`, which the
+account's existing live license covers and which is the same consolidated feed
+family the signals producers already consume. Proven end-to-end that night:
+pull with engaged clamp, campaign attempt audited, contract frozen with the
+900s thresholds.
+
 The campaign promotion gate is unconditionally `NO_GO`: the controller is
 audit-only, cannot place an order and cannot create fills or closed PAPER
 outcomes. A technical observation `PASS` must never be interpreted as product,
