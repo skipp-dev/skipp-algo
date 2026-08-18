@@ -402,3 +402,46 @@ def test_cli_strict_mode_returns_two_on_unknown_variant(tmp_path: Path) -> None:
     ])
     assert rc == 2
     assert not out.exists(), "strict failure must not leave publishable telemetry"
+
+
+class TestTornTrailingLine:
+    """Grenzgänger-Sweep E3 (2026-08-18): a torn TRAILING line — the classic
+    crash artifact of an append-only audit stream — must not block the
+    telemetry (and the public report) for all four families; interior
+    corruption and complete-but-garbage final lines must still fail closed."""
+
+    def test_a_torn_trailing_line_is_skipped_with_a_warning(self, tmp_path, caplog):
+        import logging
+
+        from scripts.build_families_telemetry import _iter_jsonl
+
+        p = tmp_path / "incubation_2026-08-18.jsonl"
+        p.write_text('{"a": 1}\n{"b": 2}\n{"trun', encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING):
+            rows = list(_iter_jsonl(p))
+
+        assert rows == [{"a": 1}, {"b": 2}]
+        assert "torn trailing line" in caplog.text
+
+    def test_a_complete_garbage_final_line_still_fails_closed(self, tmp_path):
+        import pytest as _pytest
+
+        from scripts.build_families_telemetry import _iter_jsonl
+
+        p = tmp_path / "incubation.jsonl"
+        p.write_text('{"a": 1}\nnot-json\n', encoding="utf-8")
+
+        with _pytest.raises(ValueError, match="invalid JSON"):
+            list(_iter_jsonl(p))
+
+    def test_an_interior_malformed_line_still_fails_closed(self, tmp_path):
+        import pytest as _pytest
+
+        from scripts.build_families_telemetry import _iter_jsonl
+
+        p = tmp_path / "incubation.jsonl"
+        p.write_text('{"a": 1}\n{"torn\n{"b": 2}\n', encoding="utf-8")
+
+        with _pytest.raises(ValueError, match="invalid JSON"):
+            list(_iter_jsonl(p))
