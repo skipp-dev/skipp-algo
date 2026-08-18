@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.generate_partner_surface_one_pager import (
     OUTPUT_PATH,
     STATUS,
@@ -35,6 +37,32 @@ def test_the_page_reflects_the_taxonomy_and_claims() -> None:
     # No performance claim vocabulary on a partner-facing sheet.
     for forbidden in ("Sharpe", "win rate", "profitable", "edge is proven"):
         assert forbidden not in page, forbidden
+
+
+def test_a_claimable_family_is_rendered_not_dropped() -> None:
+    # 2026-08-18 (Verdrahtungs-Sweep K5): the renderer filtered only
+    # evidence_building and incubation — the claimable tier, the only one
+    # allowed to carry a claim, silently vanished from the partner sheet.
+    claims = {
+        "families": {
+            "BOS": {"status": "claimable"},
+            "OB": {"status": "evidence_building"},
+            "FVG": {"status": "incubation"},
+        }
+    }
+
+    page = build_one_pager(claims=claims)
+
+    assert "claimable evidence: BOS" in page
+    assert "building evidence: OB" in page
+    assert "not claimed): FVG" in page
+
+
+def test_an_unknown_claim_status_fails_loud_not_silent() -> None:
+    claims = {"families": {"BOS": {"status": "retired"}}}
+
+    with pytest.raises(ValueError, match="silently vanish"):
+        build_one_pager(claims=claims)
 
 
 def test_the_draft_banner_tracks_the_status_constant() -> None:
