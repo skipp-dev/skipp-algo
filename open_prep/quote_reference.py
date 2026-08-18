@@ -449,9 +449,18 @@ def fetch_databento_daily_volume_rows(
         import databento as db  # deferred: only the databento ADV path needs the SDK
 
         client = db.Historical(api_key)
+    # F-V4-E1: route through the canonical retry helper — ~900 symbols x
+    # >=30 days in one stream, and a single transient TLS reset /
+    # RemoteDisconnected otherwise kills the whole daily rebuild while the
+    # workflow keeps last-good silently (Grenzgänger-Sweep D2, 2026-08-18:
+    # this was the only raw get_range call outside the guard's old glob).
+    from databento_client import _databento_get_range_with_retry  # deferred with the SDK
+
     as_of = date.fromisoformat(as_of_session)
     start = as_of - timedelta(days=max(lookback_sessions * 4, 30))
-    store = client.timeseries.get_range(
+    store = _databento_get_range_with_retry(
+        client,
+        context="quote_reference_adv",
         dataset="EQUS.MINI",
         schema="ohlcv-1d",
         symbols=list(symbols),

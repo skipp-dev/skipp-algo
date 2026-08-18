@@ -751,11 +751,17 @@ def run_preopen_fast_refresh(
     available_end = _get_schema_available_end(client, effective_dataset, "ohlcv-1s")
     clamped_end = _clamp_request_end(pd.Timestamp(fetch_end_utc), available_end)
 
-    # metadata.get_dataset_range() reports the historical ingestion frontier
-    # which can lag hours behind live data.  get_range() serves real-time data
-    # for the current day even when the metadata hasn't caught up.  When the
-    # clamp would suppress the fetch entirely but we're already past premarket
-    # start, bypass the clamp and attempt the fetch anyway.
+    # metadata.get_dataset_range() reports the historical ingestion frontier,
+    # which can lag hours (measured 2026-08-17: the T-1 04:00Z boundary all
+    # day) — but get_range() does NOT serve arbitrarily current data either:
+    # it serves up to an intraday frontier a few minutes behind the wall
+    # clock and answers 422 data_end_after_available_end beyond it, naming
+    # the authoritative end in the error text. So: bypass the useless
+    # metadata clamp when it would suppress the fetch entirely, and let the
+    # reactive 422 clamp in the shared fetch wrapper below absorb the true
+    # intraday edge (Grenzgänger-Sweep D1, 2026-08-18 — the old comment
+    # asserted the opposite of the measured behaviour, and every batch died
+    # unclamped at the edge).
     clamp_bypassed = False
     if clamped_end.to_pydatetime() < premarket_start_utc and resolved_now_utc >= premarket_start_utc:
         clamp_bypassed = True
@@ -792,7 +798,19 @@ def run_preopen_fast_refresh(
             try:
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
-                    store = client.timeseries.get_range(
+                    # Reactive 422 clamp + transient retry (F-V4-E1) via the
+                    # shared wrappers — a batch at the intraday availability
+                    # edge retries once with the advertised available end
+                    # instead of failing the whole batch.
+                    from databento_client import _databento_get_range_with_retry
+                    from scripts.pull_databento_edge_input import (
+                        _get_range_clamped_to_available_end,
+                    )
+
+                    store = _get_range_clamped_to_available_end(
+                        _databento_get_range_with_retry,
+                        client,
+                        context="run_preopen_fast_refresh",
                         dataset=effective_dataset,
                         symbols=symbols_batch,
                         schema="ohlcv-1s",
