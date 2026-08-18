@@ -146,7 +146,15 @@ jobs:
           # the silent 90ms death this step died of when the fetch broke.
           committed_latest="$(ls artifacts/open_prep/outcomes/outcomes_*.json 2>/dev/null | sort | tail -1 || true)"
           committed_date="$(basename "${committed_latest:-}" .json | sed 's/^outcomes_//')"
-          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
+          # Prefer outcomes_local/ — the traded STATIC-universe file the
+          # audit-push driver publishes since 2026-08-18. The legacy
+          # outcomes/ fallback only covers branch history from before that
+          # fix, when the pushed file was the CI screener (FMP) universe and
+          # Option-a never took effect (Grenzgänger-Sweep B5).
+          db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes_local/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
+          if [ -z "${db_latest}" ]; then
+            db_latest="$(git ls-tree -r --name-only origin/data/phase-a-audit -- artifacts/open_prep/outcomes/ 2>/dev/null | grep -E 'outcomes_[0-9-]+\.json$' | sort | tail -1 || true)"
+          fi
           db_date="$(basename "${db_latest:-}" .json | sed 's/^outcomes_//')"
           outcomes_args=()
           panel_date="${committed_date}"

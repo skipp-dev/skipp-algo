@@ -2535,9 +2535,9 @@ class RealtimeEngine:
             self.open_prep_snapshot_loaded = 1.0 if data else 0.0
             self.open_prep_snapshot_age_seconds = max(0.0, now - _extract_snapshot_epoch(data))
 
-            # Load new-entrant symbols from diff (for 🆕 column)
+            # 🆕 aus dem Diff — first_run trägt keine Vergleichsinfo (Sweep F3)
             diff = data.get("diff") or {}
-            self._new_entrant_set = {
+            self._new_entrant_set = set() if diff.get("first_run") else {
                 s.upper() for s in (diff.get("new_entrants") or [])
             }
             logger.info(
