@@ -654,3 +654,36 @@ def test_readyz_returns_503_when_client_disabled(monkeypatch: pytest.MonkeyPatch
         assert "client disabled" in body
     finally:
         server.shutdown()
+
+
+class TestRailwayTokenStartupGuard:
+    """On Railway an empty SIGNALS_INTERNAL_TOKEN must refuse to serve.
+
+    2026-08-18 (Doppelgaenger-Sweep D-K1): Railway delivers a MISSING secret
+    as an empty string, and the tokenless local-dev mode would then publish
+    /signals.json and /metrics unauthenticated on the public domain while the
+    sibling endpoints keep failing closed. The guard crashes at startup —
+    loud and immediate — and leaves the documented local mode untouched.
+    """
+
+    def test_railway_with_empty_token_refuses_to_start(self, monkeypatch) -> None:
+        monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+        monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "  ")
+        with pytest.raises(SystemExit, match="SIGNALS_INTERNAL_TOKEN"):
+            rs._require_internal_token_on_railway()
+
+    def test_railway_with_token_passes(self, monkeypatch) -> None:
+        monkeypatch.setenv("RAILWAY_ENVIRONMENT", "production")
+        monkeypatch.setenv("SIGNALS_INTERNAL_TOKEN", "secret")
+        rs._require_internal_token_on_railway()
+
+    def test_local_without_token_stays_permitted(self, monkeypatch) -> None:
+        monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+        monkeypatch.delenv("SIGNALS_INTERNAL_TOKEN", raising=False)
+        rs._require_internal_token_on_railway()
+
+    def test_the_server_start_calls_the_guard(self) -> None:
+        import inspect
+
+        source = inspect.getsource(rs._start_telemetry_server)
+        assert "_require_internal_token_on_railway()" in source
