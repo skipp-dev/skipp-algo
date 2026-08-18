@@ -86,7 +86,63 @@ _c13_ensure_data_clone() {
     return 1
 }
 
+# 2026-08-18 (Grenzgaenger B8): every C13 driver shares ONE publishing clone
+# whose self-heal is ``rm -rf`` — with the commercial campaign a ~6x/day
+# writer next to the nightly chain, two concurrent drivers could interleave
+# (one wiping the clone while the other stages into it). mkdir is the atomic
+# mutual-exclusion primitive available on stock macOS (no flock(1)); the
+# staleness expiry frees a crashed holder so the lock cannot deadlock the
+# chain (a push takes seconds, the expiry is generous).
+_C13_CLONE_LOCK_STALE_SECS="${C13_CLONE_LOCK_STALE_SECS:-1800}"
+_C13_CLONE_LOCK_WAIT_SECS="${C13_CLONE_LOCK_WAIT_SECS:-300}"
+
+_c13_clone_lock_path() {
+    printf '%s' "${C13_DATA_CLONE_DIR}.lock"
+}
+
+_c13_acquire_clone_lock() {
+    local lock; lock="$(_c13_clone_lock_path)"
+    local deadline=$(( $(date +%s) + _C13_CLONE_LOCK_WAIT_SECS ))
+    mkdir -p "$(dirname "${lock}")" 2>/dev/null || true
+    while ! mkdir "${lock}" 2>/dev/null; do
+        local now stamp
+        now="$(date +%s)"
+        stamp="$(cat "${lock}/acquired_at" 2>/dev/null || echo 0)"
+        if [[ "${stamp}" =~ ^[0-9]+$ ]] && (( now - stamp > _C13_CLONE_LOCK_STALE_SECS )); then
+            echo "push_to_data_branch: clone lock stale ($((now - stamp))s > ${_C13_CLONE_LOCK_STALE_SECS}s); breaking it" >&2
+            rm -rf "${lock}" 2>/dev/null || true
+            continue
+        fi
+        if (( now >= deadline )); then
+            return 1
+        fi
+        sleep 2
+    done
+    printf '%s\n' "$(date +%s)" > "${lock}/acquired_at" 2>/dev/null || true
+    printf '%s\n' "$$" > "${lock}/holder_pid" 2>/dev/null || true
+    return 0
+}
+
+_c13_release_clone_lock() {
+    rm -rf "$(_c13_clone_lock_path)" 2>/dev/null || true
+}
+
 push_to_data_branch() {
+    local _lock_marker="$2"
+    if ! _c13_acquire_clone_lock; then
+        local _lock_ts; _lock_ts="$(date -u +%FT%TZ)"
+        echo "push_to_data_branch: DEGRADED — publishing-clone lock not acquired within ${_C13_CLONE_LOCK_WAIT_SECS}s (holder: $(cat "$(_c13_clone_lock_path)/holder_pid" 2>/dev/null || echo unknown))" >&2
+        mkdir -p "$(dirname "${_lock_marker}")" 2>/dev/null || true
+        printf 'degraded:clone-lock-timeout:%s\n' "${_lock_ts}" > "${_lock_marker}" || true
+        return 1
+    fi
+    local _push_rc=0
+    _push_to_data_branch_locked "$@" || _push_rc=$?
+    _c13_release_clone_lock
+    return "${_push_rc}"
+}
+
+_push_to_data_branch_locked() {
     local subject="$1"; shift
     local marker="$1"; shift
     local files=("$@")
