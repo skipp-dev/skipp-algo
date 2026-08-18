@@ -40,7 +40,16 @@ CHECKOUT_FRESHNESS="cache/live/checkout_freshness.json"
 # panel publisher prefers this over the CI screener outcomes committed on
 # main (Option-a decision 2026-07-09). push_to_data_branch skips it quietly
 # when the morning export did not run.
-OUTCOMES="artifacts/open_prep/outcomes/outcomes_${DATE}.json"
+#
+# outcomes_local/, NOT outcomes/: run-c13-phase-a-export.sh redirects the
+# local STATIC writes via OPEN_PREP_OUTCOMES_DIR to outcomes_local/, while
+# outcomes/ is the git-tracked CI screener file (FMP universe) that ALWAYS
+# exists — so the old path published the WRONG universe on every push and
+# the "skip quietly" branch was unreachable. Proven on the branch itself:
+# every published outcomes_*.json carried universe_source=FMP_US_MID_LARGE,
+# and Option-a had never once taken effect (Grenzgänger-Sweep B5,
+# 2026-08-18).
+OUTCOMES="artifacts/open_prep/outcomes_local/outcomes_${DATE}.json"
 
 # Status marker so a degraded run is DETECTABLE rather than silently green.
 # Written on every exit path (degraded:* or ok:*). cache/live is gitignored
