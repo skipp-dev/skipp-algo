@@ -195,8 +195,19 @@ def test_every_workflow_python_version_literal_matches_the_composite() -> None:
     hard "3.13" — two interpreters running against one requirements.lock that
     was resolved for exactly one of them. The old guard listed 4 workflows by
     name; this one scans them all, so the next drift fails on the PR that
-    introduces it. Legitimate multi-version testing would use a matrix
-    expression (skipped here), not a divergent literal.
+    introduces it.
+
+    Scope (2026-08-19, review follow-up to #4823): `${{ … }}` expressions
+    (matrix REFERENCES, vars) are skipped as deliberate constructs. A matrix
+    AXIS that spells versions inline (e.g. ["3.12", "3.13"]) is judged per
+    version and named as such — a second interpreter against the one
+    requirements.lock is exactly this defect class, so even a matrix must
+    arrive via the composite decision. A block-style axis (values on their own
+    `- "…"` lines) is refused outright: this scan is line-based on purpose
+    (immune to YAML's 3.10-as-float trap) and must not grow a shape it cannot
+    read. The vacuity witness counts composite adoptions too, so migrating
+    workflows onto `setup-python-pinned` — the preferred fix — never reads as
+    a vacuous scan.
     """
     composite = _load(_COMPOSITE_PATH)
     steps = composite["runs"]["steps"]
@@ -207,22 +218,51 @@ def test_every_workflow_python_version_literal_matches_the_composite() -> None:
     )
 
     pattern = re.compile(r"python-version:\s*['\"]?([^\s'\"]+)")
+    bare_key = re.compile(r"^\s*python-version:\s*$")
     offenders: list[str] = []
     scanned = 0
-    for workflow in sorted((_REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+    composite_adoptions = 0
+    workflows_dir = _REPO_ROOT / ".github" / "workflows"
+    # *.yml AND *.yaml — GitHub runs both; the sibling population guards
+    # (test_workflow_auth_pattern.py etc.) chain both globs for the same reason.
+    for workflow in sorted([*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]):
         for lineno, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), 1):
             stripped = line.split("#")[0]
+            if _COMPOSITE_USES_REF in stripped:
+                composite_adoptions += 1
+                continue
+            if bare_key.match(stripped.rstrip()):
+                offenders.append(
+                    f"{workflow.name}:{lineno} -> block-style python-version list; "
+                    "use a flow-style axis this scan can read, or the composite"
+                )
+                continue
             match = pattern.search(stripped)
             if not match:
                 continue
             value = match.group(1)
             if value.startswith("${{"):
-                continue  # expression (matrix/vars) — a deliberate construct, not a drifted literal
+                continue  # expression (matrix reference/vars) — a deliberate construct, not a drifted literal
+            if value.startswith("["):
+                axis_raw = stripped.split(":", 1)[1].strip().strip("[]")
+                axis_versions = [
+                    v.strip().strip("'\"") for v in axis_raw.split(",") if v.strip().strip("'\"")
+                ]
+                scanned += len(axis_versions)
+                offenders.extend(
+                    f"{workflow.name}:{lineno} -> matrix axis {version!r}"
+                    for version in axis_versions
+                    if version != pinned
+                )
+                continue
             scanned += 1
             if value != pinned:
                 offenders.append(f"{workflow.name}:{lineno} -> {value!r}")
-    assert scanned >= 15, (
-        f"only {scanned} python-version literals found — the scan went vacuous."
+    witness = scanned + composite_adoptions
+    assert witness >= 15, (
+        f"only {scanned} python-version literals + {composite_adoptions} composite "
+        "adoptions found — either the scan went vacuous (glob/regex broke) or the "
+        "population truly shrank; if so, lower this floor in the same PR and say why."
     )
     assert not offenders, (
         f"workflows pin a different interpreter than the composite ({pinned!r}): "
