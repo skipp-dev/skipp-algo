@@ -78,6 +78,18 @@ KNOWN_GATE_CHECK_NAMES: tuple[str, ...] = (
     "min_trl_within_n",
 )
 
+# 2026-08-18 (Verdrahtungs-Sweep K4): these three checks currently have NO
+# producer in the repo (build_returns_series emits none of their inputs), and
+# _aggregate_status ignores SKIPPED — a green gate could therefore flip
+# claimable=True with three never-measured checks. Required claim evidence
+# that is unmeasured blocks the claim below and names itself in claim_note.
+# permutation_p is deliberately absent: advisory by design (Schema-B caveat).
+REQUIRED_CLAIM_EVIDENCE: tuple[str, ...] = (
+    "walk_forward_efficiency",
+    "fdr_rate",
+    "per_regime_hit_rate_spread",
+)
+
 GREEN = "green"
 YELLOW = "yellow"
 RED = "red"
@@ -528,20 +540,32 @@ def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
     """
 
     red_names = [c.name for c in verdict.checks if c.status == RED]
+    unmeasured_required = [
+        c.name
+        for c in verdict.checks
+        if c.status == SKIPPED and c.name in REQUIRED_CLAIM_EVIDENCE
+    ]
+    if verdict.status != GREEN:
+        claim_note = (
+            f"aggregate status '{verdict.status}': green sub-checks are "
+            "diagnostics, not claimable evidence; red checks: "
+            + (", ".join(red_names) if red_names else "none")
+        )
+    elif unmeasured_required:
+        # Fail-closed claim (2026-08-18, Sweep K4): green with unmeasured
+        # REQUIRED evidence is not a claim — the note names what is missing.
+        claim_note = (
+            "gate is green but required claim evidence is unmeasured: "
+            + ", ".join(unmeasured_required)
+        )
+    else:
+        claim_note = None
     return {
         "schema_version": verdict.schema_version,
         "status": verdict.status,
         "n_trades": int(verdict.n_trades),
-        "claimable": verdict.status == GREEN,
-        "claim_note": (
-            None
-            if verdict.status == GREEN
-            else (
-                f"aggregate status '{verdict.status}': green sub-checks are "
-                "diagnostics, not claimable evidence; red checks: "
-                + (", ".join(red_names) if red_names else "none")
-            )
-        ),
+        "claimable": verdict.status == GREEN and not unmeasured_required,
+        "claim_note": claim_note,
         "checks": [
             {
                 "name": c.name,
