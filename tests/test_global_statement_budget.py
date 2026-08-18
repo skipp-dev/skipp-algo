@@ -73,8 +73,8 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # adding a new global to an already-ledgered line).
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_reference.py", 137, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("databento_reference.py", 145, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 173, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),  # 2026-08-18 (D7): 137->173
+        ("databento_reference.py", 181, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),  # 2026-08-18 (D7): 145->181
         ("newsstack_fmp/pipeline.py", 70, ("_store",)),
         ("newsstack_fmp/pipeline.py", 79, ("_fmp_adapter", "_fmp_adapter_key")),
         ("newsstack_fmp/pipeline.py", 93, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
