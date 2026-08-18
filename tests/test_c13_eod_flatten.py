@@ -68,10 +68,10 @@ def test_place_order_intents_wires_the_exit_tif_onto_the_legs() -> None:
         def __init__(self) -> None:
             self.placed: list = []
 
-        def qualifyContracts(self, contract):
+        def qualifyContracts(self, contract):  # noqa: N802 — ib_async API shape
             return [contract]
 
-        def bracketOrder(self, *, action, quantity, limitPrice, takeProfitPrice, stopLossPrice):
+        def bracketOrder(self, *, action, quantity, limitPrice, takeProfitPrice, stopLossPrice):  # noqa: N802 — ib_async API shape
             def _order(order_id, order_type, price_attr):
                 return SimpleNamespace(
                     orderId=order_id,
@@ -88,7 +88,7 @@ def test_place_order_intents_wires_the_exit_tif_onto_the_legs() -> None:
 
             return [_order(1, "LMT", limitPrice), _order(2, "LMT", takeProfitPrice), _order(3, "STP", stopLossPrice)]
 
-        def placeOrder(self, contract, order):
+        def placeOrder(self, contract, order):  # noqa: N802 — ib_async API shape
             self.placed.append(order)
             return SimpleNamespace(order=order, orderStatus=SimpleNamespace(status="Submitted"))
 
@@ -153,10 +153,10 @@ class FakeIB:
         self.global_cancels = 0
         self.placed: list = []
 
-    def reqAllOpenOrders(self):
+    def reqAllOpenOrders(self):  # noqa: N802 — ib_async API shape
         return list(self._orders)
 
-    def reqGlobalCancel(self):
+    def reqGlobalCancel(self):  # noqa: N802 — ib_async API shape
         self.global_cancels += 1
         if self._cancel_works:
             self._orders = []
@@ -172,10 +172,10 @@ class FakeIB:
             if quantity
         ]
 
-    def qualifyContracts(self, contract):
+    def qualifyContracts(self, contract):  # noqa: N802 — ib_async API shape
         return [contract]
 
-    def placeOrder(self, contract, order):
+    def placeOrder(self, contract, order):  # noqa: N802 — ib_async API shape
         self.placed.append(order)
         symbol = contract.symbol
         filled = abs(self._positions.get(symbol, 0.0))
