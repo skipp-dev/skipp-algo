@@ -19,7 +19,7 @@ called out as MUST.
 - [ ] If this PR changes config defaults in `newsstack_fmp/config.py`, run `python tools/check_defaults_table.py` and update `docs/CONFIG_DEFAULTS_TABLE.md` accordingly.
 - [ ] If this PR adds a new probe under `scripts/probe_*.py`, every exception-formatting site is wrapped in `_redact_sensitive_error_text(...)` or carries a `# noqa: SECLEAK — <reason>` marker.
 - [ ] If this PR changes a workflow cron/cap/timeout, the file header / module docstring / PR template references are updated to match.
-- [ ] If this PR cites an audit retrospective section (e.g. `§R7`), the section actually exists in the cited doc.
+- [ ] If this PR cites an audit retrospective section (e.g. `§R7`), the section actually exists in the cited doc — and if it touches audit docs, run `python tools/check_audit_doc_consistency.py` (manual step, mirrors `check_defaults_table.py`; declared 2026-08-18 — the 2026-05-12 retrospective's "add as CI guard" was never wired, this is its resolution).
 
 ## Linked work
 

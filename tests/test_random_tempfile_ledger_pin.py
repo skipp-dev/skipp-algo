@@ -86,7 +86,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-07-03 (WP-3 holdout rescoring): helper additions shifted mkstemp
     # site from 150 -> 472.
     ("open_prep/candidate_weights.py", 486, "mkstemp"),  # 2026-07-28 (Arm-B eligible-date split): 479->486
-    ("open_prep/diff.py", 60, "mkstemp"),
+    ("open_prep/diff.py", 64, "mkstemp"),  # 2026-08-18 (Sweep-Doku-Kommentar): 60->64
     # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
     #   DEBUG log insertion shifted mkstemp from 249 → 250.
     # 2026-07-15 (ops-digest truth): _DIAGNOSTIC_COUNTERS constant + the top-level
