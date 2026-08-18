@@ -560,6 +560,8 @@ jobs:
           (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
           (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '') ||
+          (steps.slippage_sample.outputs.rc != '0' && steps.slippage_sample.outputs.rc != '') ||
+          (steps.corpus.outputs.rc != '0' && steps.corpus.outputs.rc != '') ||
           (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '') ||
           (steps.emit_public.outputs.rc != '0' && steps.emit_public.outputs.rc != '')
         env:
@@ -589,6 +591,8 @@ jobs:
           - build_backtest_reference (drift-input):     ${{ steps.drift_input.outputs.rc }}
           - build_backtest_reference (backtest-reference): ${{ steps.backtest_ref.outputs.rc }}
           - compute_live_drift:            ${{ steps.drift.outputs.rc }}
+          - build_backtest_slippage_samples (Phase-B ref): ${{ steps.slippage_sample.outputs.rc }}
+          - collect_drift_calibration_corpus (W9-7):       ${{ steps.corpus.outputs.rc }}
           - build_families_telemetry:      ${{ steps.families.outputs.rc }}
           - emit_public_calibration_report: ${{ steps.emit_public.outputs.rc }}
 
