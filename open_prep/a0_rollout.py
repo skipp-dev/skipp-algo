@@ -1,4 +1,13 @@
-"""Independent, fail-closed rollout controls for A0-Fast and PRE-A0."""
+"""Independent, fail-closed rollout controls for A0-Fast and PRE-A0.
+
+2026-08-18 (Verdrahtungs-Sweep C1): ``fmp_a0_enabled`` (hartes True-Literal
+ohne jeden Leser) und ``evaluate_promotion``/``PromotionEvidence`` (null
+Aufrufer; die Promotion-Checkliste lebt im Runbook und ist ein manueller
+Operator-Akt) wurden entfernt. Die Runbook-Invariante "FMP A0 bleibt in
+jedem Modus unabhängig aktiv" ist STRUKTURELL (der FMP-Pfad kennt diese
+Config nicht), kein Flag. Die eigentliche shadow-only-Erzwingung für
+A0-Fast sitzt fail-closed in services/a0_fast_detector/worker.py; das
+Parsing hier degradiert nur und protokolliert ``issues``."""
 
 from __future__ import annotations
 
@@ -31,7 +40,6 @@ class RolloutConfig:
     pre_a0_model_path: Path | None
     pre_a0_allowed_horizons: tuple[int, ...]
     pre_a0_max_alerts_per_hour: int
-    fmp_a0_enabled: bool
     issues: tuple[str, ...]
 
 
@@ -93,7 +101,6 @@ def load_rollout_config(env: Mapping[str, str]) -> RolloutConfig:
         model_path,
         horizons,
         max_alerts,
-        True,
         tuple(issues),
     )
 
@@ -113,33 +120,3 @@ class AlertBudget:
             return False
         self._sent_at.append(now)
         return True
-
-
-@dataclass(frozen=True, slots=True)
-class PromotionEvidence:
-    sessions: int
-    engine_parity: float
-    source_equivalence: float
-    duplicate_decisions: int
-    critical_leakage_findings: int
-    model_beats_base_rate: bool
-    model_beats_eta: bool
-    calibration_valid: bool
-    alert_budget_valid: bool
-    rollback_tested: bool
-
-
-def evaluate_promotion(evidence: PromotionEvidence, *, minimum_sessions: int = 20) -> dict[str, object]:
-    gates = {
-        "minimum_sessions": evidence.sessions >= minimum_sessions,
-        "engine_parity": evidence.engine_parity >= 1.0,
-        "source_equivalence": evidence.source_equivalence >= 0.999,
-        "no_duplicates": evidence.duplicate_decisions == 0,
-        "no_critical_leakage": evidence.critical_leakage_findings == 0,
-        "beats_base_rate": evidence.model_beats_base_rate,
-        "beats_eta": evidence.model_beats_eta,
-        "calibration": evidence.calibration_valid,
-        "alert_budget": evidence.alert_budget_valid,
-        "rollback": evidence.rollback_tested,
-    }
-    return {"passed": all(gates.values()), "gates": gates, "requires_explicit_deployment_approval": True}
