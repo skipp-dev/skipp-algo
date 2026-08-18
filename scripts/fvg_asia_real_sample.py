@@ -146,7 +146,11 @@ def _fetch_bars_5m(
     import databento as db  # local import keeps the module importable offline
 
     client = db.Historical(api_key)
-    store = client.timeseries.get_range(
+    from databento_client import _databento_get_range_with_retry
+
+    store = _databento_get_range_with_retry(
+        client,
+        context="fvg_asia_real_sample",
         dataset=dataset,
         symbols=symbols,
         schema="ohlcv-1m",

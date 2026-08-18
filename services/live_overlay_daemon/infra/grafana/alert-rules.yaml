@@ -2150,7 +2150,14 @@ groups:
         # backup whose timestamp will not parse (B) — the second one still
         # counts, so counting alone would call it healthy.
         expression: ($A > 0) || ($B > 0)
-    for: 26h
+    # 6h, NOT 26h: with noDataState OK a single absent-series evaluation
+    # (Railway API blip, daemon redeploy -- ~15/day on busy days) resets the
+    # pending timer, so 26h of uninterrupted pending was structurally
+    # unreachable and this critical alert could never fire
+    # (Grenzgaenger-Sweep C6, 2026-08-18). Cost: a schedule created >6h
+    # before its first daily backup may page once -- that is a deliberate,
+    # rare operator act and the page self-resolves on the first backup.
+    for: 6h
     noDataState: OK
     labels:
       severity: critical
@@ -3106,7 +3113,13 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # Gated on snapshot_age_known so a missing generated_at (age_seconds=0) does not read as fresh.
-        expr: (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} * live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}) > 86400
+        # 129600 (36h), NOT 86400: the producer cron period is exactly 86400s,
+        # so a budget equal to the period left zero slack -- GitHub cron
+        # delays of >2h are documented in this repo, and the consuming bridge
+        # caches for up to 900s on top. Budget == period paged critical on a
+        # perfectly healthy producer (Grenzgaenger-Sweep C5/A3, 2026-08-18);
+        # 36h matches the credential-health sibling's treatment of a daily cron.
+        expr: (live_overlay_evidence_freshness_snapshot_age_seconds{job="live_overlay"} * live_overlay_evidence_freshness_snapshot_age_known{job="live_overlay"}) > 129600
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -4104,7 +4117,14 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # Gated on _known so an empty last_commit_date (age_seconds=0) does not read as fresh.
-        expr: (live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} * live_overlay_evidence_audit_branch_age_known{job="live_overlay"}) > 345600
+        # 432000 (5d), NOT 345600 (4d): the producer is weekday-only, the
+        # commit DATE is midnight-anchored (Friday's 21:05Z push counts from
+        # Friday 00:00Z) and the snapshot refreshes once daily at 05:00Z --
+        # at 4d that combination breached every week in the Tue 00:00-05:00Z
+        # window and ~29h on Monday US holidays. Same re-sizing the ledger
+        # sibling already carries for the same producer class
+        # (Grenzgaenger-Sweep A1, 2026-08-18).
+        expr: (live_overlay_evidence_audit_branch_age_seconds{job="live_overlay"} * live_overlay_evidence_audit_branch_age_known{job="live_overlay"}) > 432000
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -5627,6 +5647,46 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: PRE-A0 feature missingness, or range violations under a trained (non-bootstrap) model, exceeded the shadow threshold.
       runbook: Range violations under the bootstrap artifact 71831770 are expected by construction and are gated out until a retrained model deploys; compare the live feature distribution with the training manifest before retraining or promotion. See docs/pre_a0_rollout_runbook.md.
+  - uid: pre-a0-shadow-resync-stuck
+    title: A0-Fast resync stuck (evidence blocked)
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The collective forced-resync set drains only per-symbol on bar
+        # arrival; one silent symbol after a reconnect blocks evidence_ready
+        # for the whole detector (13h on 2026-08-17). This rule existed only
+        # in the unpublished services/a0_fast_detector/alert-rules.yml --
+        # nothing deployed it (Grenzgaenger-Sweep E7, 2026-08-18). 30m "for"
+        # rides out the normal post-reconnect recovery.
+        expr: max(a0_fast_resync_required_symbols{job="a0_fast"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: A0-Fast symbols are stuck in forced resync -- evidence_ready is blocked for the whole
+        detector while the stream may look healthy.
+      runbook: Check a0_fast_evidence_status_info reason and last_disconnect_info; a service restart
+        DURING the session (before 00:00Z, so the gateway replay still covers it) re-runs the
+        session replay and clears the set (proven 2026-08-17).
   - uid: pre-a0-shadow-data-missing
     title: PRE-A0 shadow snapshots missing under live load
     condition: C
