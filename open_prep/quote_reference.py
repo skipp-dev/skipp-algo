@@ -6,7 +6,7 @@ two fields FMP's batch-quote endpoint does NOT return (see Task 0.1's
 ``docs/databento_quote_row_contract.md``): ``previousClose`` and
 ``avgVolume``. It is intentionally decoupled from ``services/a0_fast_detector``:
 
-- It does NOT import or touch ``open_prep/a0_reference.py``,
+- It does NOT import ``open_prep.a0_stream_state`` internals,
   ``open_prep/a0_stream_state.py``, or ``services/a0_fast_detector/*``.
 - It writes its own artifact at its own path (``DEFAULT_OUTPUT_PATH``,
   default ``artifacts/open_prep/latest/quote_reference.json``) -- NOT
