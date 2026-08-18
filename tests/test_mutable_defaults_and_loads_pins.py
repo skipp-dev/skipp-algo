@@ -125,11 +125,11 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         # 1707 -> 1788 and 2852 -> 2933.
         # 2026-06-28 (semantic monitoring): shifted +64/+80 lines by readiness metrics.
         # 2026-07-03 (WP-4 holiday gate): shifted +8 below the market-hours gate.
-        ("open_prep/realtime_signals.py", 2461),  # 2026-07-28 (ATR sanitization import): 2460->2461
+        ("open_prep/realtime_signals.py", 2485),  # 2026-07-28 (ATR sanitization import): 2461->2485 (2026-08-18 railway-token guard)
 
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed json.load site to 3991.
-        ("open_prep/realtime_signals.py", 4074),  # 2026-08-08 (watchlist retraction): 4064->4074
+        ("open_prep/realtime_signals.py", 4098),  # 2026-08-08 (watchlist retraction): 4074->4098 (2026-08-18 railway-token guard)
 
         ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 59),  # 2026-07-27 (docstring adoption/persistence note above): 53->59
@@ -207,7 +207,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-07-03 (WP-4 holiday gate): shifted +8.
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed env-write site to 4031.
-        ("open_prep/realtime_signals.py", 4125),  # 2026-08-08 (watchlist retraction): 4115->4125
+        ("open_prep/realtime_signals.py", 4149),  # 2026-08-18 (railway-token guard): 4125->4149
 
         ("open_prep/streamlit_monitor.py", 80),  # 2026-07-18 local OPRA snapshot JSON import
         # 2026-07-17: the isolated A0-Fast entry point must fail closed when
