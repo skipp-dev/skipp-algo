@@ -124,7 +124,7 @@ Konsequenz: ~50% Reuse, neue Module nur für **stationary block bootstrap** und 
 ### T6 — Integration in Calibration-Report (0.5–1 Werktag)
 
 **Akzeptanzkriterien:**
-- ✅ Schema-Erweiterung in ✅ `scripts/emit_public_calibration_report.py` mit Feldern pro Setup:
+- ❌ Schema-Erweiterung in `scripts/emit_public_calibration_report.py` mit Feldern pro Setup (2026-08-18: nie implementiert — repo-weit existiert keiner dieser Keys, siehe Definition-of-Done-Notiz unten):
   - `bootstrap.sharpe_ci_low`, `bootstrap.sharpe_ci_high`
   - `bootstrap.max_dd_ci_low`, `bootstrap.max_dd_ci_high`
   - `bootstrap.win_rate_ci_low`, `bootstrap.win_rate_ci_high`
@@ -160,7 +160,7 @@ Konsequenz: ~50% Reuse, neue Module nur für **stationary block bootstrap** und 
 ## Definition of Done — Sprint C3
 
 - ✅ `scripts/bootstrap_methods.py` und `scripts/performance_inference.py` existieren
-- ✅ Pro Setup-Typ liefern Bootstrap-CIs für Sharpe, MaxDD, Win-Rate, Profit-Factor in `docs/calibration/calibration_report_public.json`
+- ❌ Pro Setup-Typ liefern Bootstrap-CIs für Sharpe, MaxDD, Win-Rate, Profit-Factor in `docs/calibration/calibration_report_public.json` (2026-08-18 Verdrahtungs-Sweep: der Report — Schema 1.4.0 — enthält keinen `bootstrap.*`-Block pro Setup und keine MaxDD/Win-Rate/Profit-Factor-CIs; einziger Bootstrap-Knoten ist `regime_stratified.stratified_bootstrap`. Die Module sind verdrahtet, die Report-Behauptung war Drift — dieselbe Korrektur bekamen C2/C4 am 2026-07-28, C3 wurde damals übersehen)
 - 🧪 Coverage-Test ≥90% in Monte-Carlo-Replikationen
 - ⚙️ Wöchentlicher Cron läuft 1× erfolgreich
 - ⚙️ PR ist gemerged
