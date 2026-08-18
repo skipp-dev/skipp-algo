@@ -198,7 +198,11 @@ def _make_databento_price_fetch(pad_seconds: float = 2.0) -> PriceFetch:
         start = datetime.fromtimestamp(t0 - pad_seconds, tz=UTC)
         end = datetime.fromtimestamp(t1 + pad_seconds, tz=UTC)
         try:
-            data = client.timeseries.get_range(
+            from databento_client import _databento_get_range_with_retry
+
+            data = _databento_get_range_with_retry(
+                client,
+                context="analyze_bz_ws_latency",
                 dataset=dataset,
                 schema="ohlcv-1s",
                 symbols=[symbol],

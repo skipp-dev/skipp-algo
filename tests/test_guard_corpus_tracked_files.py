@@ -236,7 +236,10 @@ def test_iter_production_py_files_catches_an_over_broad_exclude(tmp_path: Path) 
 #: git. A walk sees whatever happens to sit on disk, so an untracked local
 #: directory joins the corpus and the guard judges a different population
 #: locally than in CI. Migrating a guard lowers this; it must never rise.
-_MAX_WALKING_GUARDS = 37
+# 2026-08-18 (Grenzgänger-Sweep D2): +1 — test_databento_safe_fetch_callers
+# now walks the production packages instead of top-level *.py only; the
+# narrow glob had hidden an unguarded ~900-symbol raw get_range for weeks.
+_MAX_WALKING_GUARDS = 38
 
 
 def _walks_the_working_tree(source: str) -> bool:
