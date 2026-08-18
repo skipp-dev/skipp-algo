@@ -59,10 +59,20 @@ again. The durable fix is retraining on live shadow snapshots.
 
 Since 2026-07-24 the `pre-a0-input-drift` Grafana alert gates its
 `pre_a0_feature_out_of_range_total` term on a non-bootstrap `pre_a0_model_info`
-artifact id, so this by-construction range noise no longer pages while
-`71831770…` is deployed; the missingness term still pages, and the range term
-re-arms automatically once the retrained artifact goes live (dashboard panels
+artifact id, so this by-construction range noise no longer paged while
+`71831770…` was deployed; the missingness term still pages, and the range term
+re-armed automatically when the retrained artifact went live (dashboard panels
 are unchanged and still show the raw violations).
+
+**Status 2026-08-18 (Doppelgänger-Sweep): the two paragraphs above are
+history, not the present.** The retrained artifact `de97b74e6c6f645a513ece01`
+(9 sessions, horizons `[30, 60, 180]`, test_rows 56015) replaced the bootstrap
+on 2026-08-03 (#4358); `RT_PRE_A0_ALLOWED_HORIZONS=30,60,180` is set and the
+input-drift range term is armed. The current pin population for the artifact
+id is FIVE files (both bootstrap JSONs, `tests/test_pre_a0_mlflow.py`,
+`scripts/check_pre_a0_mlflow_health.py`, `pre-a0-mlflow-health.yml`) — repin
+all five at the next retrain; the ops-side auto-PR script seds only two of
+them and will land in its staged/manual branch.
 
 **Precondition:** `build_walk_forward_manifest` requires at least three
 complete session days of snapshots. Collection only works since the
