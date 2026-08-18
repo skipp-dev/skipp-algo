@@ -9344,13 +9344,28 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
         .fill(scriptName, { timeout: 1_000 })
         .then(() => true)
         .catch(() => false);
-      tracePageEvent(page, "publish-existing-script-typeahead", `${scriptName}:filled=${filled}`);
-      if (filled) {
-        scriptOption = await waitForFirstVisibleLocator(
-          tvSelectors.publishExistingScriptOption(page, scriptName),
-          3_000,
-        );
+      // Wert-Readback: value=="" trotz filled=true heißt "React hat den
+      // programmatischen Wert verworfen" (nächster Schritt pressSequentially),
+      // value==Name heißt "Wert steht, nur die Optionsliste fehlt" (Debounce/
+      // Keystrokes oder Skript nicht gelistet). Ohne Readback sind diese
+      // Mechanismen im Trace des Live-Laufs ununterscheidbar.
+      const typedValue = await chooserControl.inputValue().catch(() => null);
+      tracePageEvent(
+        page,
+        "publish-existing-script-typeahead",
+        `${scriptName}:filled=${filled}:value=${JSON.stringify(typedValue)}`,
+      );
+      if (!filled) {
+        // Eigene Stage: fehlgeschlagenes fill() (readonly, Re-Render-Detach)
+        // verlangt einen anderen nächsten Schritt als eine ausbleibende
+        // Optionsliste — der Stage-String allein muss den Schritt benennen.
+        await tracePublishChooserAbsence(page, "typeahead-fill-failed");
+        return false;
       }
+      scriptOption = await waitForFirstVisibleLocator(
+        tvSelectors.publishExistingScriptOption(page, scriptName),
+        3_000,
+      );
     }
   }
   if (!scriptOption) {
