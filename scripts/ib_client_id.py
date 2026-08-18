@@ -107,14 +107,27 @@ def _save(path: Path, registry: dict[str, dict]) -> None:
 def _reap_stale(
     registry: dict[str, dict], *, timeout_seconds: int
 ) -> dict[str, dict]:
+    # 2026-08-18 (Grenzgaenger B7): a LIVE pid keeps its lease regardless of
+    # last_seen age. The old AND-condition also demanded a fresh last_seen,
+    # so any long-running holder (allocates once, never refreshes) was
+    # reaped after timeout_seconds and its id re-handed to the next caller —
+    # IBKR error 326, the exact collision this registry exists to prevent
+    # (phase-a and collect-imbalance share identical plist minutes, so
+    # concurrent allocation happens every trading day). last_seen now only
+    # decides entries whose liveness is unknowable (invalid/missing pid).
     now = time.time()
-    return {
-        cid: info
-        for cid, info in registry.items()
-        if isinstance(info, dict)
-        and _process_alive(info.get("pid", -1))
-        and (now - float(info.get("last_seen", 0))) <= timeout_seconds
-    }
+    kept: dict[str, dict] = {}
+    for cid, info in registry.items():
+        if not isinstance(info, dict):
+            continue
+        pid = info.get("pid", -1)
+        if isinstance(pid, int) and pid > 0:
+            if _process_alive(pid):
+                kept[cid] = info
+            continue
+        if (now - float(info.get("last_seen", 0))) <= timeout_seconds:
+            kept[cid] = info
+    return kept
 
 
 # The execution/incubation default clientId is pinned to 71 (the
