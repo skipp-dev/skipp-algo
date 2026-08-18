@@ -19,6 +19,14 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PYTHON_VERSION = "3.12"
+# Every (in, out) lock pair this repo maintains. The dashboard pair joined
+# 2026-08-18 (Doppelgaenger-Sweep B-K5): Dependabot bumps the .txt while
+# Dockerfile.dashboard installs the .lock — numpy had already drifted
+# 2.5.2 (declared) vs 2.4.6 (installed) with no regeneration path.
+_TARGETS = {
+    "root": ("requirements.txt", "requirements.lock"),
+    "dashboard": ("requirements-dashboard.txt", "requirements-dashboard.lock"),
+}
 _REQ_IN = "requirements.txt"
 _REQ_OUT = "requirements.lock"
 
@@ -37,6 +45,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="exit non-zero if the lockfile would change instead of writing it",
     )
+    parser.add_argument(
+        "--target",
+        choices=sorted(_TARGETS),
+        default="root",
+        help="which (requirements, lock) pair to regenerate (default: root)",
+    )
     return parser.parse_args(argv)
 
 
@@ -46,13 +60,14 @@ def main(argv: list[str] | None = None) -> int:
         print("error: 'uv' not found on PATH. Install with 'pipx install uv' or 'pip install uv'.", file=sys.stderr)
         return 2
 
+    req_in, req_out = _TARGETS[args.target]
     cmd = [
         "uv",
         "pip",
         "compile",
-        _REQ_IN,
+        req_in,
         "--output-file",
-        _REQ_OUT,
+        req_out,
         "--python-version",
         _PYTHON_VERSION,
         "--python-platform",
@@ -66,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         # uv has no native --check; diff old vs newly compiled.
-        existing = (_REPO_ROOT / _REQ_OUT).read_text(encoding="utf-8") if (_REPO_ROOT / _REQ_OUT).exists() else ""
+        existing = (_REPO_ROOT / req_out).read_text(encoding="utf-8") if (_REPO_ROOT / req_out).exists() else ""
         result = subprocess.run(
             [*cmd, "--quiet"],
             cwd=_REPO_ROOT,
@@ -77,11 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         if result.returncode != 0:
             sys.stderr.write(result.stderr)
             return result.returncode
-        regenerated = (_REPO_ROOT / _REQ_OUT).read_text(encoding="utf-8")
+        regenerated = (_REPO_ROOT / req_out).read_text(encoding="utf-8")
         if existing != regenerated:
             print("error: requirements.lock is out of date. Re-run without --check to update.", file=sys.stderr)
             # ATOMIC-WRITE-EXEMPT: dev-tooling --check restore of the original lock content after a temp regen overwrote it; not a data write to a downstream consumer.
-            (_REPO_ROOT / _REQ_OUT).write_text(existing, encoding="utf-8")
+            (_REPO_ROOT / req_out).write_text(existing, encoding="utf-8")
             return 1
         return 0
 
