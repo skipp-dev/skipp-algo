@@ -2770,13 +2770,18 @@ const CHOOSER_SHAPES: Array<{ label: string; html: string; expectedFound: boolea
     expectedFound: true,
   },
   {
+    // 2026-08-18, Lauf 32141943180: TradingView rendert GENAU diese Form
+    // (tag=input, role="", placeholder="Choose script") — seither deckt
+    // getByPlaceholder sie ab. Flippt dieser Eintrag zurück auf false, ist
+    // der Placeholder-Locator aus dem Selektor-Satz gefallen und der
+    // openprep-Publisher verliert seine einzige Kennung des Choosers.
     label: "input carrying the label as a placeholder",
     html: '<input class="chooser-x2" placeholder="Choose script" />',
-    expectedFound: false,
+    expectedFound: true,
   },
 ];
 
-test("the chooser lookup sees every shape except the one that hides its label", async () => {
+test("the chooser lookup sees every measured shape, the placeholder input included", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
@@ -2805,12 +2810,60 @@ test("the chooser lookup sees every shape except the one that hides its label", 
   }
 });
 
+// Die real gemessene Publish-Surface aus Lauf 32141943180 (2026-08-18): KEIN
+// role=dialog / aria-modal / data-name*=dialog auf dem Container (alle
+// Inventar-Einträge trugen inDialog:false) — publishSurface() greift hier nur
+// über [class*="dialog"]. Der Chooser ist ein Type-ahead-Input, dessen
+// Optionsliste erst NACH dem Eintippen des Namens im Overlay-Root erscheint.
+test("update-existing selection resolves the measured placeholder type-ahead shape", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div class="dialog-x9">
+        <h2>Publish script</h2>
+        <div role="radiogroup">
+          <button role="radio">Publish new script</button>
+          <button role="radio" aria-checked="true">Update existing script</button>
+        </div>
+        <input placeholder="Choose script" />
+      </div></div></body></html>
+    `);
+    await page.evaluate(() => {
+      const input = document.querySelector('input[placeholder="Choose script"]');
+      if (!input) return;
+      input.addEventListener("input", () => {
+        if (!(input as HTMLInputElement).value.toLowerCase().includes("open-prep")) return;
+        if (document.querySelector('[role="listbox"]')) return;
+        const listbox = document.createElement("div");
+        listbox.setAttribute("role", "listbox");
+        const option = document.createElement("div");
+        option.setAttribute("role", "option");
+        option.textContent = "Open-Prep Daily Panel";
+        listbox.appendChild(option);
+        document.querySelector("#overlap-manager-root")?.appendChild(listbox);
+      });
+    });
+
+    assert.equal(
+      await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
+      true,
+      "the placeholder input must be found via getByPlaceholder and resolved via the type-ahead fill",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
 test("the chooser inventory reports the shape the lookup cannot see", async () => {
   const browser = await launchTradingViewChromium({ headless: true });
   const page = await browser.newPage();
   try {
-    // The one shape the selector set misses, rendered the way TradingView
-    // styles its own selects: a hidden native element under a visible box.
+    // Seit 2026-08-18 sieht der Selektor-Satz das Placeholder-Input (Lauf
+    // 32141943180) und der Type-ahead füllt es — dieses Fixture bietet aber
+    // nirgends eine sichtbare Option an, die Auswahl scheitert also weiterhin
+    // (Stage: script-option-absent statt chooser-control-absent). Das Inventar
+    // muss diesen Zustand genauso auslesbar machen wie die alte Blindstelle.
     await page.setContent(`
       <html><body><div id="overlap-manager-root"><div role="dialog">
         <h2>Publish script</h2>
@@ -2823,7 +2876,7 @@ test("the chooser inventory reports the shape the lookup cannot see", async () =
     assert.equal(
       await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
       false,
-      "premise: this is a shape the current selectors cannot resolve",
+      "premise: the chooser is found and filled, but no option list ever appears — selection must fail loudly",
     );
 
     const inventory = await collectPublishChooserInventory(page);
