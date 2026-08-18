@@ -411,3 +411,45 @@ def test_cli_audit_only_day_exits_zero_without_ibkr(tmp_path: Path, capsys):
     rc = main(["--audit", str(audit)])
     assert rc == 0
     assert "nothing to reconcile" in capsys.readouterr().out
+
+
+def test_paper_fills_only_drops_non_du_accounts(capsys):
+    # S5 defense-in-depth (Grenzgänger-Sweep D5): a live TWS behind the
+    # paper port, or a session managing both a DU* and a live account, must
+    # never leak live executions into the PAPER incubation evidence.
+    from scripts.reconcile_incubation_fills import paper_fills_only
+
+    def _acct_fill(order_ref: str, account: str) -> SimpleNamespace:
+        f = _fill(order_ref, 10.0, 100.0)
+        f.execution.acctNumber = account
+        return f
+
+    fills = [
+        _acct_fill("smc-1-entry", "DU1234567"),
+        _acct_fill("smc-2-entry", "U7654321"),
+        _acct_fill("smc-3-entry", ""),
+        _acct_fill("smc-4-entry", "DU7777777"),
+    ]
+
+    kept = paper_fills_only(fills)
+
+    assert [f.execution.acctNumber for f in kept] == ["DU1234567", "DU7777777"]
+    assert "dropping 2 execution(s)" in capsys.readouterr().err
+
+
+def test_main_asserts_the_paper_account_before_querying_executions():
+    # The call must sit between connect() and reqExecutions() — a live TWS
+    # behind port 7497 aborts BEFORE any execution data is read. Pinned at
+    # source level; the assertion's own behaviour is covered by
+    # tests/ in execute_ibkr_watchlist's suite.
+    from pathlib import Path
+
+    source = Path("scripts/reconcile_incubation_fills.py").read_text(
+        encoding="utf-8"
+    )
+    connect_to_req = source.split("ib.connect(", 1)[1].split(
+        "reqExecutions", 1
+    )[0]
+
+    assert "assert_paper_account_if_paper_port" in connect_to_req
+    assert "paper_fills_only(fills)" in source
