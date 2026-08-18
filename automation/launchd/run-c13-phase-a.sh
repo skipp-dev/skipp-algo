@@ -234,13 +234,21 @@ fi
 _publish_checkout_freshness() {
     local out="${REPO}/cache/live/checkout_freshness.json"
     # Only the order-path files matter — unrelated main churn must not page.
-    local -a paths=(
-        scripts/execute_ibkr_watchlist.py
-        scripts/smc_to_ibkr_adapter.py
-        scripts/run_smc_live_incubation.py
-        scripts/build_phase_a_inputs.py
-        automation/launchd/run-c13-phase-a.sh
-    )
+    # DERIVED, not hand-listed (2026-08-18, Doppelgaenger-Sweep E1): the old
+    # five-file list was blind to the import closure — a fix landing in e.g.
+    # scripts/live_risk_limits.py or the sourced ET gate kept behind=0 and the
+    # stale-checkout alert silent. scripts/c13_order_path_inventory.py walks
+    # the closure of the submit entry points (80+ files) and refuses to emit a
+    # collapsed list; tests/test_c13_order_path_inventory.py pins it.
+    local -a paths=()
+    while IFS= read -r _inv_line; do
+        [[ -n "${_inv_line}" ]] && paths+=("${_inv_line}")
+    done < <("${PY}" -m scripts.c13_order_path_inventory 2>/dev/null)
+    if [[ ${#paths[@]} -eq 0 ]]; then
+        echo "phase-a cron: WARNING — order-path inventory derivation failed;" \
+             "skipping the freshness measurement rather than publishing a blind one." >&2
+        return 0
+    fi
     # Bounded fetch so a dead network cannot hang the launchd slot indefinitely.
     git -C "${REPO}" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 \
         fetch --quiet origin main 2>/dev/null || return 0
