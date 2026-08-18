@@ -3979,11 +3979,11 @@ def run_production_export_pipeline(
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     # Step 6c/10: FMP intraday bridge – fills today's data during trading hours
-    # when Databento same-day data is not yet available (dataset finalized only
-    # after market close ~20:00 UTC).  At 21:00 UTC the safety-net cron runs
-    # with Databento data already present, so `today_et` will already be in
-    # `intraday` and this block is skipped automatically.  No dedup needed:
-    # the bridge only fires for a date that Databento returned no rows for.
+    # when Databento same-day data is not yet available (finalized ~1h after US
+    # close: 20:00Z EDT / 21:00Z EST — 2026-08-18 A5, don't hardcode UTC). The
+    # first post-finalization cron tick (22:00Z covers both halves) sees the
+    # Databento rows, `today_et` is in `intraday`, block skipped automatically.
+    # No dedup needed: the bridge only fires for a date Databento had no rows for.
     if fmp_api_key and trading_days:
         today_et = datetime.now(US_EASTERN_TZ).date()
         if today_et in set(trading_days):
