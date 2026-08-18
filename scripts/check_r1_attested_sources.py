@@ -151,13 +151,21 @@ def find_offenders(
         if path not in changed:
             continue
         script_name = target["scriptName"]
-        attested = sources[script_name]["repositorySha256"]
+        # `or {}` + .get(): a target with NO evidence entry (newly onboarded
+        # consumer, renamed scriptName) must be reported as an OFFENDER, not
+        # crash the gate with a KeyError on exactly the PR that introduces
+        # it. The sibling guard (check_tv_unattested_sources) was hardened
+        # this way on 2026-08-04 and its docstring asserted this gate
+        # already agreed — it did not until 2026-08-18 (Grenzgänger-Sweep E6).
+        recorded = sources.get(script_name) or {}
+        attested = recorded.get("repositorySha256")
         current = target["sha256"]
-        if current == attested:
+        if attested is not None and current == attested:
             continue
         offenders.append(
             f"{path} ({script_name})\n"
-            f"    evidence attests: {attested}\n"
+            f"    evidence attests: "
+            f"{attested if attested is not None else 'MISSING - no evidence entry for this script'}\n"
             f"    checked out now : {current}"
         )
     return offenders
