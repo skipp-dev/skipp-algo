@@ -11,6 +11,7 @@ wiring so the population cannot silently shrink back to a hand list.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import scripts.c13_order_path_inventory as inventory
@@ -33,6 +34,81 @@ WITNESSES = (
     "automation/launchd/lib_c13_et_gate.sh",
     "configs/portfolio_risk_limits.json",
 )
+
+
+LAUNCHD = REPO / "automation" / "launchd"
+
+
+def _drivers_that_submit() -> dict[str, tuple[str, ...]]:
+    """Driver -> submit entry points it invokes, DERIVED from the driver text.
+
+    The entry points are the modules that place orders. Any launchd driver
+    that runs one of them is on the order path, and an import closure cannot
+    see a shell file — so the coupling has to be measured here instead of
+    trusted to a hand list.
+    """
+    tokens = {
+        entry: re.compile(
+            r"scripts[./]" + re.escape(Path(entry).stem) + r"(?![A-Za-z0-9_])"
+        )
+        for entry in inventory.ENTRY_POINTS
+    }
+    out: dict[str, tuple[str, ...]] = {}
+    for driver in sorted(LAUNCHD.glob("run-c13-*.sh")):
+        text = driver.read_text(encoding="utf-8")
+        hits = tuple(entry for entry, rx in tokens.items() if rx.search(text))
+        if hits:
+            out[driver.relative_to(REPO).as_posix()] = hits
+    return out
+
+
+def test_every_launchd_driver_that_submits_is_in_the_inventory() -> None:
+    """The population is derived from the drivers, not from memory.
+
+    2026-08-19 (Geburtsfehler-Sweep): the inventory was born listing the
+    phase-a driver only, while run-c13-commercial-shadow.sh runs the second
+    real paper submitter. Both are order path; a fix in either is a fix the
+    stale-checkout alert must see.
+    """
+    submitting = _drivers_that_submit()
+    # Floor: the detection must not silently collapse to nothing and make the
+    # membership assertion below vacuous.
+    assert len(submitting) >= 3, f"driver detection collapsed to {sorted(submitting)}"
+    files = set(inventory.order_path_files())
+    missing = sorted(driver for driver in submitting if driver not in files)
+    assert not missing, (
+        f"launchd drivers invoke submit entry points but are absent from the "
+        f"order-path inventory: {missing} — a merged fix in exactly these "
+        "files would leave submit_code_behind_commits=0 and the stale-checkout "
+        "alert silent."
+    )
+
+
+def test_the_coupling_catches_a_dropped_driver() -> None:
+    """Mutation proof: restore the pre-sweep list and the coupling goes red."""
+    pre_sweep = (
+        "automation/launchd/run-c13-phase-a.sh",
+        "automation/launchd/run-c13-eod-flatten.sh",
+        "automation/launchd/lib_c13_et_gate.sh",
+        "automation/launchd/lib_c13_data_push.sh",
+        "configs/portfolio_risk_limits.json",
+    )
+    files = set(_files_with_non_python(pre_sweep))
+    missing = sorted(driver for driver in _drivers_that_submit() if driver not in files)
+    assert missing == ["automation/launchd/run-c13-commercial-shadow.sh"], (
+        "the pre-sweep inventory must still look blind to the commercial "
+        f"submitter — got {missing}"
+    )
+
+
+def _files_with_non_python(non_python: tuple[str, ...]) -> tuple[str, ...]:
+    """``order_path_files()`` computed against a substituted non-Python set."""
+    original = inventory.NON_PYTHON_ORDER_PATH
+    inventory.NON_PYTHON_ORDER_PATH = non_python
+    try:
+        return inventory.order_path_files()
+    finally:
+        inventory.NON_PYTHON_ORDER_PATH = original
 
 
 def test_the_derived_population_is_large_real_and_sorted() -> None:
