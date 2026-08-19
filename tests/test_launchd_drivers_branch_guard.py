@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import re
 import shutil
 import subprocess
 import textwrap
@@ -306,13 +307,30 @@ def test_git_available():
 # message and exit non-zero so launchd marks the job red.
 # ---------------------------------------------------------------------------
 
-VENV_GUARD_DRIVERS = [
-    REPO / "automation" / "launchd" / "run-c13-wsh.sh",
-    REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
-    REPO / "automation" / "launchd" / "run-c13-phase-a.sh",
-    REPO / "automation" / "launchd" / "run-c13-phase-a-export.sh",
-    REPO / "automation" / "launchd" / "run-c13-reconcile.sh",
-]
+def _venv_sourcing_drivers() -> list[Path]:
+    """ABGELEITETE Population: jeder Treiber, der ein venv-activate sourct.
+
+    Bis 2026-08-19 stand hier eine HANDGEPFLEGTE Liste mit 5 Eintraegen,
+    waehrend 8 Treiber das activate sourcen (Doppelgaenger-Sweep). Die drei
+    ungelisteten trugen den Guard zwar — aber nichts hielt sie dabei: ein
+    Rueckbau in eod-flatten, commercial-shadow oder ibkr-smoke waere gruen
+    durchgelaufen, und der naechste neue Treiber startet ungeschuetzt.
+    Eine Liste, die man pflegen MUSS, ist genau die Replik, die driftet.
+    """
+    root = REPO / "automation" / "launchd"
+    drivers = sorted(
+        path
+        for path in root.glob("run-*.sh")
+        if 'source "${VENV}/bin/activate"' in path.read_text(encoding="utf-8")
+    )
+    assert len(drivers) >= 8, (
+        f"nur {len(drivers)} venv-sourcende Treiber entdeckt (erwartet >=8) — "
+        "die Erkennung ist gebrochen und jede Zusicherung darunter waere vakuum"
+    )
+    return drivers
+
+
+VENV_GUARD_DRIVERS = _venv_sourcing_drivers()
 
 
 @pytest.mark.parametrize("driver", VENV_GUARD_DRIVERS, ids=lambda p: p.name)
@@ -683,3 +701,70 @@ def test_phase_a_sh_runner_failure_writes_degraded_marker_end_to_end(tmp_path):
         marker_path.unlink(missing_ok=True)
         if saved is not None:
             marker_path.write_text(saved)
+
+
+# ---------------------------------------------------------------------------
+# K14 (Doppelgaenger-Sweep 2026-08-19) — die SCHREIBERSEITE von
+# OPEN_PREP_OUTCOMES_DIR war ungepinnt.
+#
+# Die Leserseite (open_prep/outcomes.py::_outcomes_dir) ist gepinnt und faellt
+# bei leerer Variable auf den kanonischen, CI-committeten Korpus zurueck. Genau
+# dieser Fallback macht den Defekt STILL: verschwindet das export im Wrapper
+# oder wandert der Pfad, schreibt der lokale Export ohne Fehlermeldung in
+# artifacts/open_prep/outcomes/ — der Korpus wird kontaminiert und der naechste
+# `git pull` kollidiert mit dem CI-Commit. Kein Marker, kein Exit-Code, nichts.
+# ---------------------------------------------------------------------------
+
+_EXPORT_DRIVER = REPO / "automation" / "launchd" / "run-c13-phase-a-export.sh"
+_CANONICAL_OUTCOMES = "artifacts/open_prep/outcomes/"
+
+
+def _exported_outcomes_dir() -> str:
+    """Der Pfad, den der Wrapper wirklich exportiert — aus dem Wrapper gelesen."""
+    text = _EXPORT_DRIVER.read_text(encoding="utf-8")
+    match = re.search(
+        r'export\s+OPEN_PREP_OUTCOMES_DIR="\$\{OPEN_PREP_OUTCOMES_DIR:-\$\{REPO\}/(?P<path>[^"}]+)\}"',
+        text,
+    )
+    assert match, (
+        "run-c13-phase-a-export.sh exportiert OPEN_PREP_OUTCOMES_DIR nicht mehr "
+        "in der erwarteten Form — ohne den Export faellt der Leser auf den "
+        f"CI-committeten {_CANONICAL_OUTCOMES} zurueck, still."
+    )
+    return match.group("path")
+
+
+def test_export_driver_redirects_outcomes_off_the_committed_corpus() -> None:
+    path = _exported_outcomes_dir()
+
+    assert not path.rstrip("/").endswith("open_prep/outcomes"), (
+        f"der Wrapper exportiert {path!r} — das IST der kanonische Korpus. "
+        "Lokale Schreibvorgaenge landen dann in den Dateien, die CI taeglich "
+        "committet."
+    )
+    assert path.startswith("artifacts/open_prep/"), (
+        f"unerwarteter Zielpfad {path!r} — der Schattenordner gehoert neben den "
+        "Korpus, sonst greift der .gitignore-Eintrag unten nicht mehr."
+    )
+
+
+def test_the_shadow_dir_is_gitignored() -> None:
+    """Zweite Haelfte: waere der Schattenordner NICHT ignoriert, kaeme die
+    Kollision beim naechsten `git pull` ueber die untracked-Datei zurueck —
+    nur eine Ebene tiefer. Die beiden Zusicherungen greifen nur zusammen."""
+    path = _exported_outcomes_dir().rstrip("/")
+    ignored = (REPO / ".gitignore").read_text(encoding="utf-8")
+
+    assert f"{path}/" in ignored or path in ignored.split(), (
+        f"{path!r} steht nicht in .gitignore — die taeglich geschriebene "
+        "outcomes_<date>.json waere untracked und kollidierte mit dem "
+        "CI-Commit, genau der Zustand, den der Export verhindern soll."
+    )
+
+
+def test_the_reader_still_falls_back_to_the_canonical_corpus() -> None:
+    """Vakuitaets-Gegenprobe: die Tests oben sind nur dann etwas wert, wenn der
+    Fallback wirklich existiert — sonst schuetzten sie vor nichts."""
+    reader = (REPO / "open_prep" / "outcomes.py").read_text(encoding="utf-8")
+    assert 'os.environ.get("OPEN_PREP_OUTCOMES_DIR", "").strip()' in reader
+    assert "return Path(override) if override else OUTCOMES_DIR" in reader
