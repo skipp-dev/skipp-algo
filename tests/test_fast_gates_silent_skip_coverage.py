@@ -133,6 +133,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # fast-gates. Without it the gate could be dropped from the workflow and,
     # like the R1 contract test itself, nothing would notice until after a
     # merge — which is the hole #4272 and #4284 went through.
+    "tests/test_c13_eod_flatten_target_selection.py",
     "tests/test_check_r1_attested_sources.py",
     # Added 2026-08-04. The reason first given here was wrong — see the
     # correction in tests/_fast_inventory.py: the diff-driven step already ran

@@ -37,6 +37,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_bundle_loader_frame_discipline.py",
     "test_broad_except_silent_budget.py",
     "test_builtin_open_encoding_ledger.py",
+    "test_c13_eod_flatten_target_selection.py",
     "test_check_r1_attested_sources.py",
     # ci.yml's own contract + structural pin (2026-08-04). The rationale first
     # written here — "invisible until after the merge" — was FALSE, and measured
