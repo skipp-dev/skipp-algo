@@ -2855,6 +2855,51 @@ test("update-existing selection resolves the measured placeholder type-ahead sha
   }
 });
 
+// 2026-08-19, Lauf 32197059724 (#4772): fill() setzte den Wert (filled=true),
+// die Optionsliste blieb trotzdem leer — die echte Combobox filtert erst auf
+// Tastatur-Events. Diese Form bildet das nach: Listbox erscheint NUR auf
+// keyup (fill dispatcht nur input), die Auswahl muss über die
+// pressSequentially-Eskalationsstufe gelingen.
+test("update-existing selection escalates to real keystrokes when fill leaves the list empty", async () => {
+  const browser = await launchTradingViewChromium({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body><div id="overlap-manager-root"><div class="dialog-x9">
+        <h2>Publish script</h2>
+        <div role="radiogroup">
+          <button role="radio">Publish new script</button>
+          <button role="radio" aria-checked="true">Update existing script</button>
+        </div>
+        <input placeholder="Choose script" />
+      </div></div></body></html>
+    `);
+    await page.evaluate(() => {
+      const input = document.querySelector('input[placeholder="Choose script"]');
+      if (!input) return;
+      input.addEventListener("keyup", () => {
+        if (!(input as HTMLInputElement).value.toLowerCase().includes("open-prep")) return;
+        if (document.querySelector('[role="listbox"]')) return;
+        const listbox = document.createElement("div");
+        listbox.setAttribute("role", "listbox");
+        const option = document.createElement("div");
+        option.setAttribute("role", "option");
+        option.textContent = "Open-Prep Daily Panel";
+        listbox.appendChild(option);
+        document.querySelector("#overlap-manager-root")?.appendChild(listbox);
+      });
+    });
+
+    assert.equal(
+      await selectExistingPublishScript(page, "Open-Prep Daily Panel"),
+      true,
+      "a keystroke-filtered combobox must resolve via the pressSequentially escalation",
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
 // Ein readonly-Input lässt Playwrights fill() scheitern (nicht editierbar).
 // Der Fluss muss dann sauber false liefern statt zu werfen — und die Absenz
 // läuft über die eigene Stage typeahead-fill-failed, nicht über
