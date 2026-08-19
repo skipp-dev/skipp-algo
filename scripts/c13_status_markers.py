@@ -57,8 +57,14 @@ _LINE_TS_PREFIX_RE = re.compile(r"^\d{2}:\d{2}:\d{2}Z\s+")
 # delimiters (colon, pipe, space) or end of line.
 _KIND_RE = re.compile(r"^(?P<kind>[A-Za-z_]+)(?:[:| ]|$)")
 # Any absolute-path token collapses to its basename before the summary leaves
-# the workstation.
-_ABS_PATH_RE = re.compile(r"/(?:[^/:\s]+/)+(?P<base>[^/:\s]+)")
+# the workstation. The lookbehind is load-bearing: without it the pattern also
+# matched INSIDE a repo-relative path, ate the first segment's separator and
+# produced `cache/live/incubation_2026-08-18.jsonl` -> `cacheincubation_...`
+# (observed 2026-08-19 in the real alarm text of every `ok:pushed` marker,
+# whose payload from lib_c13_data_push.sh is relative by construction).
+# An absolute path starts at the beginning of the token, i.e. its leading `/`
+# is never preceded by a path character.
+_ABS_PATH_RE = re.compile(r"(?<![A-Za-z0-9_.\-])/(?:[^/:\s]+/)+(?P<base>[^/:\s]+)")
 
 GREEN_KINDS = frozenset({"ok", "success"})
 SUMMARY_SCHEMA_VERSION = 2
