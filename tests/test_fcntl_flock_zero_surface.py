@@ -193,10 +193,12 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int, str]] = {
     # exactly 4 legs, still two EX/UN pairs in the same order.
     # 2026-08-18 (B7 reaper keeps live pids): 175/219/239/251 -> 188/232/252/264.
     # Pure drift from the longer _reap_stale body above; legs unchanged.
-    ("scripts/ib_client_id.py", 188, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 232, "LOCK_UN"),
-    ("scripts/ib_client_id.py", 252, "LOCK_EX|LOCK_NB"),
-    ("scripts/ib_client_id.py", 264, "LOCK_UN"),
+    # 2026-08-19 (Doppelgaenger K9, Reservierungs-Block +14 Zeilen): 188->202,
+    # 232->246, 252->266, 264->278.
+    ("scripts/ib_client_id.py", 202, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 246, "LOCK_UN"),
+    ("scripts/ib_client_id.py", 266, "LOCK_EX|LOCK_NB"),
+    ("scripts/ib_client_id.py", 278, "LOCK_UN"),
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
     # Line numbers updated 2026-06-17: written=0 initialised before the
