@@ -18,7 +18,10 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.build_commercial_family_setups import build_commercial_family_setups
+from scripts.build_commercial_family_setups import (
+    build_commercial_family_setups,
+    payload_knowledge_ts,
+)
 from scripts.live_risk_limits import AccountState, RiskLimits
 from scripts.run_smc_live_incubation import run_live_incubation
 from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
@@ -282,6 +285,7 @@ def run_shadow_once(
     else:
         run_now = run_now.astimezone(UTC)
     source_asof = parse_utc_datetime(payload.get("as_of"), label="input.as_of")
+    source_knowledge_ts = payload_knowledge_ts(payload)  # 2026-08-19: Bar-CLOSE statt Bar-OPEN
     trade_date = source_asof.date().isoformat()
     resolved_lock = lock_path or Path(f"{audit_path}.lock")
 
@@ -320,7 +324,7 @@ def run_shadow_once(
                 status="REPLAY_SKIPPED",
                 now=run_now,
                 snapshot_id=snapshot_id,
-                source_asof_ts=source_asof.timestamp(),
+                source_asof_ts=source_knowledge_ts,
                 setups=setups,
                 audit_rows=existing,
                 runner_summary=None,
@@ -333,7 +337,7 @@ def run_shadow_once(
                 status="NO_SETUPS",
                 now=run_now,
                 snapshot_id=snapshot_id,
-                source_asof_ts=source_asof.timestamp(),
+                source_asof_ts=source_knowledge_ts,
                 setups=setups,
                 audit_rows=[],
                 runner_summary=None,
@@ -370,7 +374,7 @@ def run_shadow_once(
             status="COMPLETED",
             now=run_now,
             snapshot_id=snapshot_id,
-            source_asof_ts=source_asof.timestamp(),
+            source_asof_ts=source_knowledge_ts,
             setups=setups,
             audit_rows=written,
             runner_summary=runner_summary,

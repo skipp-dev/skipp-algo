@@ -243,3 +243,29 @@ def test_cli_writes_atomic_artifacts_without_broker_io(tmp_path: Path) -> None:
     assert len(json.loads(setups.read_text(encoding="utf-8"))) == 4
     assert set(json.loads(gates.read_text(encoding="utf-8"))) == set(FAMILY_VARIANTS.values())
     assert json.loads(diagnostics.read_text(encoding="utf-8"))["setups_emitted"] == 4
+
+
+def test_source_asof_is_stamped_at_bar_close_not_bar_open() -> None:
+    """19.8.-Incident: Open-Stempel + Wanduhr-Budget roetete jede Setup-Attempt
+    (age=1218s > 900s). Wissenszeit eines BESTAETIGTEN Bars ist sein CLOSE:
+    Payload-as_of (= Open des letzten Bars) + Timeframe-Spanne."""
+    setups, diagnostics = build_commercial_family_setups(
+        _payload(), trade_date="2027-01-15"
+    )
+
+    assert setups, "fixture must emit setups"
+    assert all(s["source_asof_ts"] == _ANCHOR + 900 for s in setups)
+    # Payload-Raum bleibt unberuehrt: Diagnostics echoen das Input-as_of.
+    assert diagnostics["as_of_ts"] == _ANCHOR
+
+
+def test_bar_close_stamp_keeps_measured_incident_inside_budget() -> None:
+    """Messlage 18.8. nachgestellt: Validierung feuert 1218.5s nach dem Open
+    des letzten Bars. Mit Close-Stempel bleibt das Setup-Alter 318.5s und
+    das unveraenderte 900s-Contract-Budget haelt."""
+    setups, _ = build_commercial_family_setups(_payload(), trade_date="2027-01-15")
+
+    validation_now = _ANCHOR + 1218.5
+    age = validation_now - setups[0]["source_asof_ts"]
+    assert age == pytest.approx(318.5)
+    assert age < 900

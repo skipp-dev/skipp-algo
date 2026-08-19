@@ -22,6 +22,7 @@ from typing import Any
 from scripts.build_commercial_family_setups import (
     FAMILY_VARIANTS,
     commercial_snapshot_id,
+    payload_knowledge_ts,
 )
 from scripts.run_commercial_family_shadow import (
     ExclusiveRunLock,
@@ -501,8 +502,7 @@ def run_campaign_observation(
             raise RuntimeError(f"campaign attempt already exists: {attempt_path}")
         try:
             snapshot_id = commercial_snapshot_id(payload)
-            source_asof = parse_utc_datetime(payload.get("as_of"), label="input.as_of")
-            source_asof_ts = source_asof.timestamp()
+            source_asof_ts = payload_knowledge_ts(payload)  # 2026-08-19: Bar-CLOSE statt Bar-OPEN; validiert as_of + provenance.timeframe selbst
             source_age_seconds = run_now.timestamp() - source_asof_ts
             snapshot_dir = campaign_dir / "snapshots" / snapshot_id[7:]
             manifest = run_shadow_once(
