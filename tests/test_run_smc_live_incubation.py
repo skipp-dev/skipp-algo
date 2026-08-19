@@ -757,8 +757,16 @@ def test_earnings_filter_blocks_intent_and_records_audit(tmp_path: Path) -> None
     assert rows[0]["earnings_filter"]["blocked"] is True
 
 
-def test_earnings_filter_missing_jsonl_is_no_op(tmp_path: Path) -> None:
-    """Phase-A invariant: missing WSH JSONL must NOT block any intent."""
+def test_earnings_filter_missing_jsonl_blocks_the_intent(tmp_path: Path) -> None:
+    """Phase-A invariant INVERTED 2026-08-19 (operator decision).
+
+    The old invariant — "missing WSH JSONL must NOT block any intent" — was
+    written when a missing calendar was believed to be visible. It was not:
+    the feed wrote zero-byte snapshots that passed the ``exists()`` check, so
+    the fail-open path never even ran and every candidate was cleared with the
+    positive verdict ``NO_EARNINGS_EVENT``. Not knowing whether a symbol
+    reports today must block; ``on_missing_data="pass"`` remains for replays.
+    """
     from scripts.run_smc_live_incubation import run_live_incubation
     from smc_integration.earnings_filter import EarningsFilter
 
@@ -782,6 +790,6 @@ def test_earnings_filter_missing_jsonl_is_no_op(tmp_path: Path) -> None:
         earnings_filter=EarningsFilter(events_jsonl=tmp_path / "missing.jsonl"),
     )
 
-    assert summary["intents_passed_to_submitter"] == 1
-    assert summary["intents_earnings_blocked"] == 0
-    assert len(submit_calls) == 1
+    assert summary["intents_passed_to_submitter"] == 0
+    assert summary["intents_earnings_blocked"] == 1
+    assert submit_calls == []

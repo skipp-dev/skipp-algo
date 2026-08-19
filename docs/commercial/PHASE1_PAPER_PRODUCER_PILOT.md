@@ -65,6 +65,36 @@ earnings-blocked and portfolio-blocked per-intent audit rows. A commercial
 variant cannot be submitted through `--place-paper-orders` unless strict pilot
 mode is also active.
 
+### Campaign evidence: 2026-06-11 … 2026-08-19 is UNFILTERED for earnings
+
+Every campaign day in that window must be read as **earnings-unfiltered**, not
+as "checked, no earnings found". Do not count it as evidence that the earnings
+gate works, and do not let it carry a paper-flip PASS.
+
+Measured 2026-08-19:
+
+- The WSH feed produced **zero events on 41 of 41 days** since 2026-06-11
+  (21× `no-events`, 20× `feed-error`), leaving 22 zero-byte snapshots under
+  `cache/wsh/`.
+- Root cause is structural, not transient: the production watchlist
+  `reports/databento_watchlist_top5_pre1530.csv` has no `con_id` column, so
+  `wsh_earnings_calendar` assigns the `-1` sentinel and `reqWshEventData`
+  skips every symbol. An IBKR WSH entitlement would not have changed this.
+- `EarningsFilter` checked only that the file *existed*, so those empty
+  snapshots were accepted as a valid calendar and every symbol received the
+  positive verdict `NO_EARNINGS_EVENT` — indistinguishable in the audit from a
+  real all-clear. `WSH_DATA_MISSING`, the state built for this case, never
+  fired. Reproduced against `cache/wsh/2026-08-18.jsonl` (0 bytes):
+  `data_available=True`, `AAPL → blocked=False, NO_EARNINGS_EVENT`.
+
+Closed the same day: an empty calendar now counts as missing data, the filter
+fail-closes by default, and FMP supplies the calendar when IBKR yields nothing
+(`scripts/fmp_earnings_calendar.py`). The first genuine block this repo has
+produced: `NAMM` on 2026-08-27 → `EARNINGS_WINDOW`.
+
+`tests/test_smc_integration_earnings_filter.py` pins this window so the claim
+cannot quietly drift back into "the gate was active all along".
+
 ## Audit-only invocation
 
 The preferred shadow invocation produces all artifacts and the strict audit in
