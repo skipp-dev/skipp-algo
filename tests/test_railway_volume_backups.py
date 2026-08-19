@@ -338,3 +338,37 @@ def test_max_age_default_covers_a_daily_schedule_with_slack(monkeypatch: pytest.
     monkeypatch.delenv("RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS", raising=False)
 
     assert config.railway_volume_backup_max_age_secs() == 129_600
+
+
+def test_docs_do_not_copy_the_deployed_instance_list() -> None:
+    """Die Doku darf die konfigurierte Volume-Liste NICHT replizieren.
+
+    Bis 2026-08-19 nannte OPS.md genau eine Instanz-ID als "Production:".
+    Am selben Tag wurden fuenf weitere Volumes aufgenommen — die Zeile war
+    ab dem Moment falsch, ohne dass irgendetwas es gemerkt haette. Genau die
+    Klasse, die der Doppelgaenger-Sweep jagt: eine zweite Kopie einer Wahrheit,
+    die niemand gleich haelt.
+
+    Wahrheitsquelle ist die deployte Variable; sichtbar ist sie ueber
+    live_overlay_railway_volume_backup_schedule_count (eine Serie pro Volume).
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+    uuid = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
+
+    offenders: list[str] = []
+    for doc in ("OPS.md", "README.md"):
+        for lineno, line in enumerate(
+            (root / doc).read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if "RAILWAY_VOLUME_BACKUP_INSTANCES" in line and uuid.search(line):
+                offenders.append(f"{doc}:{lineno}")
+
+    assert not offenders, (
+        "Die Doku traegt eine Volume-Instanz-ID neben "
+        f"RAILWAY_VOLUME_BACKUP_INSTANCES ({offenders}) — das ist eine zweite "
+        "Kopie der deployten Liste, die beim naechsten Volume still falsch "
+        "wird. Auf die Metrik verweisen statt die Liste abzuschreiben."
+    )
