@@ -190,6 +190,29 @@ test("every chooser dead end records the DOM instead of returning a bare false",
   }
 });
 
+test("the typeahead trace reads the input's live value back", () => {
+  const source = read("automation/tradingview/lib/tv_shared.ts");
+  const start = source.indexOf("export async function selectExistingPublishScript(");
+  assert.ok(start !== -1, "selectExistingPublishScript not found in tv_shared.ts");
+  const body = source.slice(start, source.indexOf("\nexport async function publishPrivateScript(", start));
+
+  const typeaheadIndex = body.indexOf('"publish-existing-script-typeahead"');
+  assert.ok(typeaheadIndex !== -1, "the typeahead trace disappeared — re-pin this test");
+
+  // filled=true allein kann "React hat den programmatischen Wert verworfen"
+  // nicht von "Wert steht, aber die Optionsliste kam nie" trennen — genau die
+  // Unterscheidung, auf die der nächste Live-Lauf seine Antwort stützt.
+  const context = body.slice(Math.max(0, typeaheadIndex - 700), typeaheadIndex + 200);
+  assert.ok(
+    context.includes(".inputValue()"),
+    "the typeahead trace must read the input's value back after fill()",
+  );
+  assert.ok(
+    context.includes("value="),
+    "the readback must travel IN the trace detail, or the live run's evidence stays ambiguous",
+  );
+});
+
 test("the chooser inventory is scoped wider than the lookup it is explaining", () => {
   const source = read("automation/tradingview/lib/tv_shared.ts");
   const start = source.indexOf("export async function collectPublishChooserInventory(");

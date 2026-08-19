@@ -568,6 +568,14 @@ jobs:
         # cannot catch the selector regressing. ci.yml carries the repo's only
         # full-suite execution, so both gaps are worth a sub-second entry.
         #
+        # test_workflow_python_version_pinned.py (2026-08-19, review follow-up
+        # to #4823) is pinned for the first of those two gaps: the diff-driven
+        # step below DOES select it for any workflow or composite edit, but a
+        # merge_group batch skips that step entirely — two independently green
+        # PRs (a composite toolchain bump; a new workflow spelling the old
+        # literal) would land an interpreter drift with no pre-merge run, red
+        # only on the main push. YAML/regex parsing only, ~0.3 s.
+        #
         # 2026-08-08: the fifteen entries at the end of the list are repo-wide
         # source guards that were advisory only — they ran in `validate`, after
         # the merge they exist to block. Each reads a production surface where a
@@ -765,6 +773,7 @@ jobs:
             tests/test_sprt_decision_consumer_coverage.py \
             tests/test_workflow_env_var_defaults.py \
             tests/test_workflow_invoked_scripts_import_order.py \
+            tests/test_workflow_python_version_pinned.py \
             tests/test_documented_env_vars_are_read.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
