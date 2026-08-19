@@ -9,9 +9,11 @@ Covers:
 """
 from __future__ import annotations
 
+import re
 import time
 import urllib.request
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -687,3 +689,96 @@ class TestRailwayTokenStartupGuard:
 
         source = inspect.getsource(rs._start_telemetry_server)
         assert "_require_internal_token_on_railway()" in source
+
+
+# ---------------------------------------------------------------------------
+# Alert-watched FMP endpoint series must exist before the first call
+# (Geburtsfehler-Sweep 2026-08-19)
+# ---------------------------------------------------------------------------
+
+_ALERT_RULES = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "live_overlay_daemon"
+    / "infra"
+    / "grafana"
+    / "alert-rules.yaml"
+)
+
+
+def _alert_watched_fmp_endpoints() -> set[str]:
+    """Endpoint labels the deployed rules select, DERIVED from the rule file."""
+    text = _ALERT_RULES.read_text(encoding="utf-8")
+    watched: set[str] = set()
+    for labels in re.findall(
+        r"signals_producer_fmp_endpoint_\w+\{([^}]*)\}",
+        "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#")),
+    ):
+        for key, value in re.findall(r'(\w+)\s*=\s*"([^"]*)"', labels):
+            if key == "endpoint":
+                watched.add(value)
+    return watched
+
+
+def _usage_engine(usage: dict[str, dict[str, int]]) -> SimpleNamespace:
+    client = SimpleNamespace(get_endpoint_usage_stats=lambda: usage)
+    return SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=1.0,
+        last_poll_success_epoch=1_700_000_000.0,
+        last_poll_duration_seconds=0.1,
+        _avg_vol_retry_after={},
+        _client=client,
+    )
+
+
+def test_every_alert_watched_fmp_endpoint_is_seeded() -> None:
+    """The seed population is derived from the rules, never remembered.
+
+    A rule that starts watching another endpoint by label fails here instead
+    of silently sitting on a series that only appears once the thing it was
+    meant to catch has already happened.
+    """
+    watched = _alert_watched_fmp_endpoints()
+    # Floor: an extraction that finds nothing would make the assertion vacuous.
+    assert watched, "no endpoint-labelled signals_producer rule found — extraction broke"
+    missing = sorted(watched - set(rs.SEEDED_FMP_ENDPOINTS))
+    assert not missing, (
+        f"alert rules select these endpoints by label but nothing seeds their "
+        f"series: {missing} — increase() would swallow the first burst as its "
+        "own baseline (the event the rule exists for)"
+    )
+
+
+def test_watched_endpoint_series_exists_before_the_first_call() -> None:
+    body = rs._collect_process_metrics(
+        _usage_engine({"/stable/quote": {"calls": 42, "errors": 0, "response_bytes": 900}})
+    )
+    for endpoint in _alert_watched_fmp_endpoints():
+        assert (
+            f'signals_producer_fmp_endpoint_requests_total{{endpoint="{endpoint}"}} 0' in body
+        ), f"{endpoint} has no zero-seeded series before its first call"
+
+
+def test_seeding_does_not_overwrite_a_real_measurement() -> None:
+    """Mutation proof in the other direction: real counts must win."""
+    body = rs._collect_process_metrics(
+        _usage_engine({"/stable/profile-bulk": {"calls": 7, "errors": 1, "response_bytes": 42}})
+    )
+    assert (
+        'signals_producer_fmp_endpoint_requests_total{endpoint="/stable/profile-bulk"} 7' in body
+    )
+
+
+def test_an_empty_seed_reopens_the_hole() -> None:
+    """Mutation proof: with the seed removed the watched series disappears."""
+    original = rs.SEEDED_FMP_ENDPOINTS
+    rs.SEEDED_FMP_ENDPOINTS = ()
+    try:
+        body = rs._collect_process_metrics(
+            _usage_engine({"/stable/quote": {"calls": 1, "errors": 0, "response_bytes": 1}})
+        )
+    finally:
+        rs.SEEDED_FMP_ENDPOINTS = original
+    assert "profile-bulk" not in body

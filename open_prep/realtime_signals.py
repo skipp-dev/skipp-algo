@@ -1035,6 +1035,21 @@ class ScoreTelemetry:
 
 _PROCESS_START_TIME = time.time()
 
+# FMP endpoints an alert rule watches by label. A per-endpoint series exists
+# only once that endpoint has been called, so increase(...{endpoint="X"}[15m])
+# takes the FIRST burst as its own baseline and swallows it — precisely the
+# event sp-fmp-profile-bulk-used (for: 0s, threshold > 0, noDataState: OK) was
+# written to catch, and the one that previously burned ~113 MB per six minutes.
+# Seeding at zero mirrors the closed verdict set the daemon exporter already
+# seeds for live_overlay_portfolio_risk_decisions_total. The seed sits inside
+# the usage block on purpose: before the first poll there is no client and
+# nothing can have called profile-bulk either, so the series exists from the
+# first moment the watched event is possible. The population is re-derived from
+# alert-rules.yaml by tests/test_realtime_signals_metrics_endpoint.py::
+# test_every_alert_watched_fmp_endpoint_is_seeded, so a rule that starts
+# watching another endpoint cannot leave it unseeded.
+SEEDED_FMP_ENDPOINTS: tuple[str, ...] = ("/stable/profile-bulk",)
+
 
 def _collect_process_metrics(engine: Any | None = None) -> str:
     """Return Prometheus exposition format metrics for this process.
@@ -1271,7 +1286,7 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_errors_total counter")
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_empty_responses_total counter")
             lines.append(f"# TYPE {_prefix}_fmp_endpoint_response_bytes_total counter")
-            for _path, _stats in sorted(_usage.items()):
+            for _path, _stats in sorted(({e: {} for e in SEEDED_FMP_ENDPOINTS} | _usage).items()):
                 _endpoint = str(_path).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
                 _labels = f'{{endpoint="{_endpoint}"}}'
                 lines.append(f"{_prefix}_fmp_endpoint_requests_total{_labels} {int(_stats.get('calls', 0))}")

@@ -216,6 +216,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_degraded_status_alert_coverage.py",
     "tests/test_github_workflow_expected_presence.py",
     "tests/test_monitoring_metric_alert_coverage.py",
+    "tests/test_realtime_signals_metrics_endpoint.py",
     "tests/test_mutable_defaults_and_loads_pins.py",
     "tests/test_nonlocal_budget.py",
     "tests/test_noqa_budget.py",
