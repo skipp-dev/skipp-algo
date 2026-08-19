@@ -741,6 +741,7 @@ jobs:
             tests/test_live_overlay_alert_rules_publish_workflow.py \
             tests/test_live_overlay_dashboard_contract.py \
             tests/test_live_overlay_dashboard_publish_workflow.py \
+            tests/test_a0_fast_alert_rules.py \
             tests/test_pre_a0_alert_rules.py \
             tests/test_pre_a0_grafana_dashboard.py \
             tests/test_publish_overlay_dashboard.py \

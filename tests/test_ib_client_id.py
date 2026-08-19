@@ -164,3 +164,77 @@ def test_fallback_allocation_never_returns_reserved_71(
     assert cid != 71
     lo, hi = ib_client_id.DEFAULT_PREFERRED_RANGE
     assert lo <= cid <= hi
+
+
+def _fixed_client_id_defaults() -> dict[str, int]:
+    """Feste ``--client-id``-Defaults ABGELEITET aus den argparse-Aufrufen.
+
+    Handlisten sind hier die Bug-Klasse (Doppelgaenger K9, 2026-08-19): die
+    Reservierung war als Einzelfall fuer 71 gebaut, waehrend 73/74/87
+    unreserviert im Allokationsbereich lagen. Dieser Zeuge liest die Wahrheit
+    aus den Skripten, damit ein VIERTER fester Default nicht wieder still
+    danebenliegt.
+    """
+    import ast
+
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    found: dict[str, int] = {}
+    for path in sorted(scripts_dir.glob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:  # pragma: no cover - defekte Datei faellt woanders auf
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Attribute) and node.func.attr == "add_argument"):
+                continue
+            flags = [a.value for a in node.args if isinstance(a, ast.Constant)]
+            if "--client-id" not in flags:
+                continue
+            for kw in node.keywords:
+                if (
+                    kw.arg == "default"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, int)
+                ):
+                    found[path.name] = kw.value.value
+    return found
+
+
+def test_every_fixed_client_id_default_is_reserved_or_out_of_range() -> None:
+    """Ein fester clientId-Default im Allokationsbereich MUSS reserviert sein.
+
+    Sonst vergibt der Allokator ihn an einen nebenlaeufigen Job und IBKR
+    antwortet mit 326 — der Verlierer ist, wer zweiter verbindet, also
+    potenziell der Produktions-Cron. Genau diese Klasse kostete am 2026-08-19
+    beinahe den wsh-earnings-Lauf (Vendor-Probe hatte 79 fest gewaehlt).
+    """
+    defaults = _fixed_client_id_defaults()
+    assert len(defaults) >= 3, f"Zeuge leer/zu klein — AST-Extraktion gebrochen? {defaults}"
+
+    lo, hi = ib_client_id.DEFAULT_PREFERRED_RANGE
+    offenders = {
+        name: cid
+        for name, cid in defaults.items()
+        if lo <= cid <= hi and cid not in ib_client_id._RESERVED_CLIENT_IDS
+    }
+    assert not offenders, (
+        f"Feste clientId-Defaults im Allokationsbereich ({lo}-{hi}) ohne Reservierung: "
+        f"{offenders} — der Allokator kann sie vergeben (IBKR 326)"
+    )
+
+
+def test_reservations_stay_inside_the_allocation_range() -> None:
+    """Eine Reservierung ausserhalb des Bereichs waere wirkungslose Deko —
+    und wuerde den Bereich unnoetig verknappen, wenn er spaeter waechst."""
+    lo, hi = ib_client_id.DEFAULT_PREFERRED_RANGE
+    outside = {cid for cid in ib_client_id._RESERVED_CLIENT_IDS if not lo <= cid <= hi}
+    assert not outside, f"Reservierungen ausserhalb {lo}-{hi}: {sorted(outside)}"
+
+
+def test_candidate_scan_excludes_every_reserved_id() -> None:
+    """Der aufsteigende Scan ueberspringt ALLE reservierten Ids, nicht nur 71."""
+    ids = set(ib_client_id._candidate_ids(ib_client_id.DEFAULT_PREFERRED_RANGE))
+    assert not (ids & ib_client_id._RESERVED_CLIENT_IDS)
+    assert len(ids) >= 50, "Scan-Menge unplausibel klein — Bereich/Filter gebrochen?"
