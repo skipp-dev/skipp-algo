@@ -209,8 +209,17 @@ jobs:
             --date "${DATE}"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      # `outcome` kann hier NIE 'failure' werden: der Run-Block laeuft unter
+      # `set +e` und endet mit `echo "rc=$?" >> $GITHUB_OUTPUT`, der Step
+      # exitet also immer 0 — der Warn-Zweig war ab Geburt vakuum (19.8.).
+      # Auf den ausgegebenen rc gaten, und den LEEREN Wert ausschliessen:
+      # bei uebersprungenem Step ist `outputs.rc` '' und '' != '0' waere wahr,
+      # der Warner also falsch-positiv (C12-Falle).
       - name: "⚠️ Warn: Step 0 — check workstation status markers (advisory)"
-        if: always() && steps.status_markers.outcome == 'failure'
+        if: >-
+          always()
+          && steps.status_markers.outputs.rc != ''
+          && steps.status_markers.outputs.rc != '0'
         run: |
           echo "::warning::Step 'Step 0 — check workstation status markers (advisory)' failed silently (soft-fail step)"
 
@@ -328,7 +337,12 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: "⚠️ Warn: Step 2 — drift-input from audit JSONL (advisory)"
-        if: always() && steps.drift_input.outcome == 'failure'
+        # Selbe Klasse wie status_markers (19.8.): der Step faengt
+        # seinen Exit-Code selbst ab, `outcome` ist nie 'failure'.
+        if: >-
+          always()
+          && steps.drift_input.outputs.rc != ''
+          && steps.drift_input.outputs.rc != '0'
         run: |
           echo "::warning::Step 'Step 2 — drift-input from audit JSONL (advisory)' failed silently (soft-fail step)"
 
@@ -358,7 +372,12 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: "⚠️ Warn: Step 3 — refresh backtest reference (advisory)"
-        if: always() && steps.backtest_ref.outcome == 'failure'
+        # Selbe Klasse wie status_markers (19.8.): der Step faengt
+        # seinen Exit-Code selbst ab, `outcome` ist nie 'failure'.
+        if: >-
+          always()
+          && steps.backtest_ref.outputs.rc != ''
+          && steps.backtest_ref.outputs.rc != '0'
         run: |
           echo "::warning::Step 'Step 3 — refresh backtest reference (advisory)' failed silently (soft-fail step)"
 
@@ -385,7 +404,12 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: "⚠️ Warn: Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)"
-        if: always() && steps.slippage_sample.outcome == 'failure'
+        # Selbe Klasse wie status_markers (19.8.): der Step faengt
+        # seinen Exit-Code selbst ab, `outcome` ist nie 'failure'.
+        if: >-
+          always()
+          && steps.slippage_sample.outputs.rc != ''
+          && steps.slippage_sample.outputs.rc != '0'
         run: |
           echo "::warning::Step 'Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)' failed silently (soft-fail step)"
 
@@ -418,7 +442,12 @@ jobs:
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: "⚠️ Warn: Step 4 — compute live drift (advisory)"
-        if: always() && steps.drift.outcome == 'failure'
+        # Selbe Klasse wie status_markers (19.8.): der Step faengt
+        # seinen Exit-Code selbst ab, `outcome` ist nie 'failure'.
+        if: >-
+          always()
+          && steps.drift.outputs.rc != ''
+          && steps.drift.outputs.rc != '0'
         run: |
           echo "::warning::Step 'Step 4 — compute live drift (advisory)' failed silently (soft-fail step)"
 
