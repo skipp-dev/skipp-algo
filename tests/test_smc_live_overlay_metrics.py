@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 @pytest.fixture(autouse=True)
@@ -3631,3 +3632,53 @@ def test_service_docs_state_the_code_default_for_max_event_age() -> None:
         ]
         assert len(row) == 1, f"{doc}: erwartet genau eine Tabellenzeile, gefunden {len(row)}"
         assert f"`{value}`" in row[0], f"{doc} nennt den Code-Default {value} nicht: {row[0]}"
+
+
+def test_window_change_alert_watches_the_gauge_without_copying_its_value() -> None:
+    """Die Alarmregel zum Fenster darf die Zahl NICHT noch einmal tragen.
+
+    Operator-Entscheid 2026-08-19: Das Fenster bekommt eine Regel, aber weder
+    „weicht vom Code-Default ab" (stuende dauerhaft rot, weil die Abweichung
+    die Entscheidung IST) noch „< 86400" (waere die VIERTE Replik der Zahl,
+    die dieser Branch gerade eliminiert). Gewaehlt wurde ``changes()`` — die
+    einzige Form, die den stillen Bruch meldet und dabei keine Kopie des Werts
+    enthaelt. Dieser Test haelt genau diese Eigenschaft fest.
+    """
+    rules_path = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "live_overlay_daemon"
+        / "infra"
+        / "grafana"
+        / "alert-rules.yaml"
+    )
+    document = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    rules = {
+        rule["uid"]: rule
+        for group in document["groups"]
+        for rule in group["rules"]
+    }
+    uid = "lo-hold-manager-shadow-window-changed"
+    assert uid in rules, (
+        f"{uid} fehlt — ohne sie ist die Gauge sichtbar, aber niemand bemerkt, "
+        "wenn das Fenster zurueckfaellt."
+    )
+    rule = rules[uid]
+    expressions = "\n".join(node["model"].get("expr", "") for node in rule["data"])
+
+    assert "changes(" in expressions, (
+        "die Regel muss auf die AENDERUNG reagieren, nicht auf einen Schwellwert"
+    )
+    assert "live_overlay_hold_manager_shadow_max_event_age_secs" in expressions
+
+    # Der Kern: keine Replik des Werts im Ausdruck. Der Kommentarblock darueber
+    # darf die Zahlen nennen (er begruendet die Wahl) — der AUSDRUCK nicht.
+    numbers = set(re.findall(r"\b\d{3,}\b", expressions))
+    assert not numbers, (
+        f"die Regel traegt Zahlenliteral(e) {sorted(numbers)} im Ausdruck — "
+        "genau die vierte Replik, die dieser Branch beseitigt. Der Ausdruck "
+        "muss ohne den Wert auskommen."
+    )
+    assert rule["labels"]["severity"] == "warning", (
+        "Konfigurationsregression ist kein Ausfall — warning, nicht critical"
+    )
