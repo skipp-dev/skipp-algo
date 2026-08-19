@@ -102,3 +102,59 @@ def test_the_reported_code_is_the_backfills_own_not_tees(tmp_path: Path) -> None
         f"the step must report the backfill's exit code, not the pipe's; "
         f"got {result.outputs}"
     )
+
+
+# ----------------------------------------------------------------------
+# Soft-fail-Steps: `outcome` kann nicht failure werden (Doppelgaenger 19.8.).
+# ----------------------------------------------------------------------
+
+
+def _cron_workflow_text() -> str:
+    return (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "c13-daily-cron.yml"
+    ).read_text(encoding="utf-8")
+
+
+def _soft_fail_step_ids(text: str) -> set[str]:
+    """IDs von Steps, deren run-Block den Exit-Code selbst abfaengt.
+
+    Ein Step, der unter ``set +e`` laeuft und mit ``echo "rc=$?"`` endet,
+    exitet IMMER 0. Sein ``outcome`` ist damit strukturell nie 'failure' —
+    jeder Warn-/Alarm-Zweig, der darauf gatet, ist vakuum ab Geburt.
+    """
+    ids: set[str] = set()
+    current: str | None = None
+    seen_set_plus_e = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- name:"):
+            current, seen_set_plus_e = None, False
+        elif stripped.startswith("id:"):
+            current = stripped.split("id:", 1)[1].strip().strip("\"'")
+        elif stripped == "set +e":
+            seen_set_plus_e = True
+        elif seen_set_plus_e and current and 'rc=$?' in stripped and "GITHUB_OUTPUT" in stripped:
+            ids.add(current)
+    return ids
+
+
+def test_no_gate_reads_outcome_of_a_soft_fail_step() -> None:
+    text = _cron_workflow_text()
+    soft = _soft_fail_step_ids(text)
+
+    # Vakuitaetsboden: die Erkennung darf nicht still leerlaufen.
+    assert soft, "keine soft-fail-Steps erkannt — Muster geaendert?"
+
+    offenders = [
+        step_id
+        for step_id in sorted(soft)
+        if f"steps.{step_id}.outcome" in text
+    ]
+    assert not offenders, (
+        "Diese Steps fangen ihren Exit-Code selbst ab, also ist ihr `outcome` "
+        "immer 'success' — ein Gate darauf feuert nie. Auf `outputs.rc` gaten "
+        f"(und den leeren Wert ausschliessen): {offenders}"
+    )
