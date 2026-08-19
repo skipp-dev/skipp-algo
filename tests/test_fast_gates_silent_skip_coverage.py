@@ -240,6 +240,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_var_budget_pin.py",
     "tests/test_pine_const_getter_migration_tripwire.py",
     "tests/test_point_in_time_integrity.py",
+    "tests/test_a0_fast_alert_rules.py",
     "tests/test_pre_a0_alert_rules.py",
     "tests/test_pre_a0_grafana_dashboard.py",
     "tests/test_prod_print_ledger.py",

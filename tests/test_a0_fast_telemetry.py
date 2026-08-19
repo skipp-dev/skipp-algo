@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
 from http import HTTPStatus
+from pathlib import Path
 from types import SimpleNamespace
 
 from open_prep.a0_stream_buffer import BufferSnapshot
 from open_prep.pre_a0_model import ModelStatus, ShadowScore
 from open_prep.pre_a0_telemetry import PreA0Telemetry
-from services.a0_fast_detector.telemetry import A0FastTelemetry
+from services.a0_fast_detector.telemetry import (
+    SEEDED_REJECTION_REASONS,
+    A0FastTelemetry,
+)
 
 
 def _buffer(*, dirty: tuple[str, ...] = ()) -> BufferSnapshot:
@@ -103,3 +109,57 @@ def test_evidence_readiness_requires_inference_and_persisted_snapshots() -> None
     text = telemetry.render_prometheus()
     assert "a0_fast_evidence_ready 1" in text
     assert 'a0_fast_evidence_status_info{reason="evidence_flowing"} 1' in text
+
+
+def test_rejection_counter_is_seeded_before_the_first_rejection() -> None:
+    """increase() over an unseeded counter eats its own first burst.
+
+    a0_fast_records_rejected_total had zero series in grafanacloud-prom on
+    2026-08-19 while every neighbouring a0_fast_* gauge had one, because the
+    family is rendered per `reason` label out of an empty Counter. The
+    a0-fast-record-rejections rule computes increase(...[5m]) > 0, so the very
+    first rejection would have become the baseline rather than the alert.
+    """
+    telemetry = A0FastTelemetry()
+    telemetry.set_buffer(_buffer())
+    body = telemetry.render_prometheus()
+    for reason in SEEDED_REJECTION_REASONS:
+        assert (
+            f'a0_fast_records_rejected_total{{reason="{reason}"}} 0' in body
+        ), f"reason {reason!r} is not exposed at zero before the first rejection"
+
+
+def test_every_rejection_reason_is_seeded() -> None:
+    """The seed list is re-derived from the call sites, never hand-trusted.
+
+    A new record_rejected("...") anywhere in the tree must appear in
+    SEEDED_REJECTION_REASONS, otherwise its first burst is invisible for
+    exactly the same reason the seed exists.
+    """
+    repo = Path(__file__).resolve().parents[1]
+    tracked = subprocess.run(
+        ["git", "ls-files", "*.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    called: set[str] = set()
+    for relative in tracked:
+        if relative.startswith("tests/"):
+            continue
+        source = (repo / relative).read_text(encoding="utf-8", errors="ignore")
+        called.update(re.findall(r"""record_rejected\(\s*["']([a-z0-9_]+)["']""", source))
+
+    assert called, "no record_rejected() call sites found -- the scan broke"
+    unseeded = sorted(called - set(SEEDED_REJECTION_REASONS))
+    assert not unseeded, (
+        f"rejection reason(s) passed to record_rejected() but never seeded: "
+        f"{unseeded}. Add them to SEEDED_REJECTION_REASONS in "
+        "services/a0_fast_detector/telemetry.py."
+    )
+    stale = sorted(set(SEEDED_REJECTION_REASONS) - called)
+    assert not stale, (
+        f"seeded reason(s) that no call site produces any more: {stale}. "
+        "Remove them so the seed list keeps describing reality."
+    )
