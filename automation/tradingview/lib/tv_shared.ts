@@ -9332,10 +9332,11 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
   );
   if (!scriptOption) {
     // 2026-08-18, Lauf 32141943180 (#4772): die Input-Form des Choosers ist
-    // ein Type-ahead — ein Klick allein öffnet keine Optionsliste. Genau
-    // EINE evidenzgedeckte Zusatzstufe (Namen eintippen, Optionssuche
-    // wiederholen); alles Weitere wäre wieder Raterei und wartet auf die
-    // Absenz-Traces des nächsten Laufs.
+    // ein Type-ahead — ein Klick allein öffnet keine Optionsliste. Stufe 1
+    // (fill + Optionssuche) kam aus dessen Absenz-Trace; Stufe 2 (echte
+    // Keystrokes) aus dem Folge-Lauf 32197059724: fill=true, Liste trotzdem
+    // leer — die Combobox filtert erst auf Tastatur-Events. Jede Stufe ist
+    // durch genau einen Lauf-Trace gedeckt; weitere erst mit neuer Evidenz.
     const isTextInput = await chooserControl
       .evaluate((element) => element.tagName.toLowerCase() === "input")
       .catch(() => false);
@@ -9366,6 +9367,30 @@ export async function selectExistingPublishScript(page: Page, scriptName: string
         tvSelectors.publishExistingScriptOption(page, scriptName),
         3_000,
       );
+      if (!scriptOption) {
+        // Stufe 2 (Lauf 32197059724): Feld leeren, Namen als echte
+        // Keystrokes tippen — fill() dispatcht nur ein input-Event, die
+        // gemessene Combobox reagiert darauf nicht. Readback wieder dabei,
+        // damit der Live-Trace "Keys kamen an, Liste blieb leer" (Skript
+        // nicht gelistet?) von "Keys verworfen" unterscheiden kann.
+        const typed = await chooserControl
+          .fill("", { timeout: 1_000 })
+          .then(() => chooserControl.pressSequentially(scriptName, { delay: 60, timeout: 5_000 }))
+          .then(() => true)
+          .catch(() => false);
+        const keyedValue = await chooserControl.inputValue().catch(() => null);
+        tracePageEvent(
+          page,
+          "publish-existing-script-typeahead-keys",
+          `${scriptName}:typed=${typed}:value=${JSON.stringify(keyedValue)}`,
+        );
+        if (typed) {
+          scriptOption = await waitForFirstVisibleLocator(
+            tvSelectors.publishExistingScriptOption(page, scriptName),
+            3_000,
+          );
+        }
+      }
     }
   }
   if (!scriptOption) {
