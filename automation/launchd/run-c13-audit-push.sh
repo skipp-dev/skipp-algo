@@ -88,7 +88,8 @@ source "$(dirname "$0")/lib_c13_data_push.sh"
 MARKERS_SUMMARY="cache/live/c13_status_markers.json"
 VENV="${C13_VENV:-${REPO}/.venv}"
 "${VENV}/bin/python" -m scripts.c13_status_markers emit \
-    --live-dir cache/live --date "${DATE}" --days-back 3 \
+    --live-dir cache/live --live-dir cache/imbalance --live-dir cache/wsh \
+    --date "${DATE}" --days-back 3 \
     --output "${MARKERS_SUMMARY}" \
     || echo "audit-push: WARN — status-marker summary emit failed; pushing without it" >&2
 push_to_data_branch \

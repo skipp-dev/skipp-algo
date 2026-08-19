@@ -41,13 +41,9 @@ EXCLUDED_SERVICES = frozenset({"live_overlay_daemon"})
 # manifests and delete the line; this test then goes red on the stale entry
 # via the exactness check below.
 ACCEPTED_DRIFT: dict[tuple[str, str], tuple[str, str]] = {
-    ("a0_fast_detector", "certifi"): ("2026.4.22", "2026.7.22"),  # 2026-08-18
-    ("a0_fast_detector", "pandas"): ("3.0.3", "3.0.5"),  # 2026-08-18
-    ("a0_fast_detector", "pyarrow"): ("24.0.0", "25.0.1"),  # 2026-08-18 (#4778)
-    ("opra_live_daemon", "certifi"): ("2026.4.22", "2026.7.22"),  # 2026-08-18
-    ("opra_live_daemon", "pandas"): ("3.0.3", "3.0.5"),  # 2026-08-18
-    ("signals_producer", "certifi"): ("2026.4.22", "2026.7.22"),  # 2026-08-18
-    ("signals_producer", "feedparser"): ("6.0.11", "6.0.14"),  # 2026-08-18
+    # 2026-08-19: leer — der Root-Lock-Regen (#4826-Angleich) hob requirements.txt
+    # auf die Dependabot-Stände der Services (certifi 2026.7.22, pandas 3.0.5,
+    # pyarrow 25.0.1, feedparser 6.0.14); alle 7 Einträge vom 2026-08-18 geschlossen.
 }
 
 _PIN_RE = re.compile(r"^([A-Za-z0-9_.\[\]-]+)==([A-Za-z0-9.]+)")

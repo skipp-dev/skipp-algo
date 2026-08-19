@@ -160,6 +160,21 @@ _MONITORED_WORKFLOWS = (
     # shadow: if it stops running, the promotion evidence silently stops
     # accruing. :any:weekday mirrors the magnitude-shadow sibling.
     "sweep-trap-shadow-daily.yml",
+    # Beobachtungsluecken-Sweep 2026-08-19: neun Crons, deren stiller Ausfall
+    # eine Datenfolge hat (Budget-Begruendung im Kommentarblock des
+    # Probe-Steps). Vorher waren 24 von 46 scheduled Workflows unbeobachtet,
+    # weil beide Inventar-Tests hier nur Ledger und Workflow GEGENEINANDER
+    # pruefen -- die Population deckt jetzt
+    # tests/test_scheduled_workflow_observation_inventory.py.
+    "evidence-freshness-snapshot.yml",
+    "tradingview-storage-refresh.yml",
+    "tv-save-consumer-source.yml",
+    "live-overlay-deploy-trigger-guard.yml",
+    "pre-a0-mlflow-health.yml",
+    "smc-deeper-integration-gates.yml",
+    "vendor-billing-watch.yml",
+    "pine-library-version-monitor.yml",
+    "fvg-quality-quartile-gate.yml",
 )
 
 
