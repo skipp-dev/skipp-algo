@@ -292,7 +292,7 @@ the deployment itself is retired.
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | GitHub | Pagination page size |
-| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. Production: `lab-worker-volume=2ffcaeb7-9788-4838-82a6-8604a2fd1dc3` (the hosted customer plane's `/data`, in the **skipp-live-lab** project — cross-project on purpose, see below) |
+| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. **The deployed list is the truth; this doc does not copy it** — query `live_overlay_railway_volume_backup_schedule_count` for one series per configured volume. It spans projects on purpose (the hosted customer plane's `/data` lives in **skipp-live-lab**), see below |
 | `RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS` | Railway volume backups | Age at which the newest backup counts as stale (default 129600 = 36 h; exported as a gauge so the alert compares against it rather than a second copy) |
 | `RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS` | Railway volume backups | Cache TTL (default 600) |
 | `RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS` | Railway volume backups | HTTP timeout (default 10) |
