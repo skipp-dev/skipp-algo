@@ -14,6 +14,18 @@ from open_prep.pre_a0_telemetry import PreA0Telemetry
 
 DEFAULT_METRICS_HOST = "127.0.0.1"
 
+# Seeded so a0_fast_records_rejected_total EXISTS at zero before the first
+# rejection. Without a seed the family has no series at all until something is
+# rejected, and `increase(...[5m])` then treats that very first burst as its
+# baseline -- swallowing the one event the a0-fast-record-rejections rule was
+# written for. Measured 2026-08-19: the counter had 0 series in
+# grafanacloud-prom while every neighbouring a0_fast_* gauge had 1.
+# The reasons are the closed set passed to record_rejected(); the population is
+# re-derived from the call sites by
+# tests/test_a0_fast_telemetry.py::test_every_rejection_reason_is_seeded, so a
+# new reason cannot quietly go unseeded.
+SEEDED_REJECTION_REASONS: tuple[str, ...] = ("invalid_record", "unmapped_symbol")
+
 
 class A0FastTelemetry:
     def __init__(
@@ -28,7 +40,9 @@ class A0FastTelemetry:
         self._connected = False
         self._records_received = 0
         self._records_processed = 0
-        self._record_rejections: Counter[str] = Counter()
+        self._record_rejections: Counter[str] = Counter(
+            dict.fromkeys(SEEDED_REJECTION_REASONS, 0)
+        )
         self._wire_bytes = 0
         self._disconnects = 0
         self._decisions = 0

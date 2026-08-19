@@ -5689,13 +5689,22 @@ groups:
         DURING the session (before 00:00Z, so the gateway replay still covers it) re-runs the
         session replay and clears the set (proven 2026-08-17).
   - uid: pre-a0-shadow-data-missing
-    title: PRE-A0 shadow snapshots missing under live load
+    title: A0-Fast evidence not flowing under live load
     condition: C
     noDataState: OK
     data:
     - refId: A
       datasourceUid: grafanacloud-prom
       model:
+        # RETITLED 2026-08-19 (Doppelgaenger A#5). The old title claimed
+        # "PRE-A0 shadow snapshots missing", but this expression never looked
+        # at pre_a0_snapshots_recorded_total -- it is the ported
+        # A0FastEvidenceNotFlowing, and evidence_ready is a different signal.
+        # The name promised a guarantee the rule did not give, and
+        # tests/test_pre_a0_alert_rules.py asserted the UID, not the meaning.
+        # The snapshot question now has its own rule:
+        # pre-a0-snapshots-not-recorded. UID kept so the Grafana upsert
+        # updates the deployed rule instead of orphaning it.
         expr: (increase(a0_fast_records_received_total{job="a0_fast"}[15m]) > bool 100) * (a0_fast_evidence_ready{job="a0_fast"} == bool 0)
         instant: true
     - refId: C
@@ -5752,3 +5761,220 @@ groups:
         for the reason (contract mismatch fields, payload parse, too_old/future_skew age). Age
         rejections mean the TV layout timeframe and HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS
         disagree; do NOT replay by hand-posting to the receiver (ledger poisoning).
+  # --- Ported 2026-08-19 from the unpublished Prometheus rule files ---------
+  # services/a0_fast_detector/alert-rules.yml and pre-a0-alert-rules.yml held
+  # 16 rules; 9 had a deployed equivalent here, 7 did not, and NOTHING deployed
+  # those files -- no Prometheus reads them, their only consumers were two
+  # substring tests. That is an alert that exists on paper only, and the class
+  # already cost 13h of blocked evidence on 2026-08-17 (pre-a0-shadow-resync-
+  # stuck, ported 2026-08-18 after the incident). All seven metrics below were
+  # measured live in grafanacloud-prom on 2026-08-19 before porting, so none of
+  # these rules is speculative. The two source files are deleted in the same
+  # commit: a replica nothing deploys is the defect, not the gap.
+  - uid: a0-fast-stream-disconnected
+    title: A0-Fast stream disconnected
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(a0_fast_stream_connected{job="a0_fast"} == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 1m
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: The A0-Fast shadow stream is disconnected -- no Databento bars are arriving.
+      runbook: Check last_disconnect_info and the gateway session; a reconnect inside the session
+        replays, a reconnect after 00:00Z does not and leaves symbols fail-closed (see
+        a0-fast-stream-stale and pre-a0-shadow-resync-stuck).
+  - uid: a0-fast-slow-reader-drops
+    title: A0-Fast queue dropped bars
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(a0_fast_queue_dropped_total{job="a0_fast"}[5m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 0s
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: The A0-Fast bounded queue dropped bars -- the consumer fell behind and forced a resync.
+      runbook: Every drop forces the affected symbols into resync, which blocks evidence_ready for the
+        whole detector until they drain. Compare a0_fast_queue_depth against a0_fast_queue_capacity
+        and check whether the drop coincided with a reconnect.
+  - uid: a0-fast-record-rejections
+    title: A0-Fast rejected inbound records
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The counter is seeded at zero in telemetry.py -- an unseeded counter
+        # would let increase() swallow the very first rejection burst as its
+        # baseline, which is the one event this rule exists for.
+        expr: sum(increase(a0_fast_records_rejected_total{job="a0_fast"}[5m]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 0s
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: A0-Fast rejected Databento bars before decision processing -- inbound data is failing
+        validation.
+      runbook: Read the rejection reason label; a schema or symbol-mapping change upstream shows up
+        here first, before evidence goes missing downstream.
+  - uid: a0-fast-queue-pressure
+    title: A0-Fast queue above 80 percent capacity
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: max(a0_fast_queue_depth{job="a0_fast"} / clamp_min(a0_fast_queue_capacity{job="a0_fast"}, 1))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0.8]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 30s
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: The A0-Fast queue is above 80 percent capacity -- drops and forced resyncs are imminent.
+      runbook: This is the leading indicator for a0-fast-slow-reader-drops. clamp_min guards the
+        capacity gauge against a zero denominator during startup.
+  - uid: a0-fast-stream-stale
+    title: A0-Fast stream connected but stale
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The nastiest of the seven: connected==1 looks healthy on every
+        # dashboard while no bar has arrived. Only the age gauge separates a
+        # live stream from a socket that is merely open.
+        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 8))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 1m
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: The A0-Fast stream reports connected but no fresh bar arrived -- an open socket is not
+        a flowing feed.
+      runbook: Expected outside RTH and on market holidays. During a session this means the gateway
+        stopped delivering without dropping the connection; restart inside the session so the replay
+        still covers the gap.
+  - uid: pre-a0-alert-budget-exceeded
+    title: PRE-A0 alert budget exceeded
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: sum(increase(pre_a0_alert_budget_exceeded_total{job="a0_fast"}[1h]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 0s
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/pre_a0_rollout_runbook.md
+      summary: PRE-A0 hit its own alert budget -- decisions are being suppressed by the budget guard,
+        not by the model.
+      runbook: The budget is the shadow tier's self-limiter. Sustained breaches mean the threshold no
+        longer matches live signal density; re-read the rollout runbook before raising it.
+  - uid: pre-a0-snapshots-not-recorded
+    title: PRE-A0 snapshots not recorded under live load
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # This is the question pre-a0-shadow-data-missing's TITLE used to
+        # claim and its expression never asked. Records flowing in with zero
+        # snapshots written means the evidence base for the PRE-A0 promotion
+        # stops growing -- silently, because every other gauge stays green.
+        expr: (sum(increase(a0_fast_records_processed_total{job="a0_fast"}[15m])) > bool 100) * (sum(increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m])) == bool 0)
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: critical}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/pre_a0_rollout_runbook.md
+      summary: A0-Fast is processing records but PRE-A0 wrote no snapshot for 15 minutes -- the
+        promotion evidence base has stopped growing.
+      runbook: Check the snapshot flush path and the a0-fast-shadow volume (/app/data/pre-a0-snapshots,
+        partitioned by session_date). Lost snapshot days cannot be reconstructed -- they have to be
+        re-accumulated over live market days.
