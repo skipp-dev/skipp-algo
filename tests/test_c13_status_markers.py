@@ -19,7 +19,14 @@ from pathlib import Path
 
 import pytest
 
-from scripts.c13_status_markers import check, collect_markers, emit, main
+from scripts.c13_status_markers import (
+    GREEN_KINDS,
+    _parse_marker_content,
+    check,
+    collect_markers,
+    emit,
+    main,
+)
 
 _TS = "2026-08-18T21:05:04Z"
 
@@ -352,3 +359,130 @@ def test_check_still_reads_a_schema_1_summary(tmp_path: Path) -> None:
     )
 
     assert check(legacy, date="2026-08-18") == 1
+
+
+# --- K4: die Marker-FORMATE der Treiber gegen den Parser ---------------------
+#
+# Doppelgaenger K4 (2026-08-19). Der Konsument versteht vier gemessene
+# Zeilenformen, und bis hierher wurden sie ihm als HANDGESCHRIEBENE Literale
+# vorgesetzt. Die Kopplung fehlte in beide Richtungen: aendert ein Treiber sein
+# printf, merkt es niemand, und aendert der Parser seine Regex, merkt es
+# ebenfalls niemand. Der oben ergaenzte Wächter koppelt die VERZEICHNISSE —
+# dieser hier die FORMATE.
+#
+# Vorgehen: aus jedem Wrapper werden das printf im _write_marker und die
+# Aufrufstellen gelesen, die Zeile daraus gerendert und durch den ECHTEN
+# Parser geschickt. Kein Literal im Test.
+
+_PRINTF_RE = re.compile(r"printf\s+'(?P<fmt>[^']*)'\s+(?P<args>[^>]*?)\s*(?:>>?\s*\"|2>)")
+_LOCAL_RE = re.compile(r'local\s+(?P<name>\w+)="(?P<src>[^"]*)"')
+_CALL_RE = re.compile(r'^\s*_write_marker\s+"(?P<a1>[^"]*)"(?:\s+"(?P<a2>[^"]*)")?', re.M)
+_QUOTED_RE = re.compile(r'"([^"]*)"')
+_STATUS_TOKEN_RE = re.compile(r"^[A-Za-z_]+$")
+_DATE_CALL_RE = re.compile(r"\$\(date\s+-u\s+\+(?P<fmt>[^)]*)\)")
+
+_FIXED = {"%F": "2026-08-19", "%T": "12:00:00", "%H": "12", "%M": "00", "%S": "00"}
+
+
+def _render_date(shell_fmt: str) -> str:
+    """`date -u +%H:%M:%SZ` -> `12:00:00Z`.
+
+    Wichtig genug fuer eine eigene Funktion: beim ersten Wurf wurde hier
+    pauschal ein voller ISO-Stempel eingesetzt, und der Wächter meldete
+    run-c13-commercial-shadow.sh faelschlich als kaputt. Das FORMAT des
+    Praefixes ist Teil der Kopplung — der Parser erkennt genau
+    ``HH:MM:SSZ ``.
+    """
+    out = shell_fmt
+    for token, value in _FIXED.items():
+        out = out.replace(token, value)
+    return out
+
+
+def _resolve_token(token: str, positional: dict[str, str], bindings: dict[str, str]) -> str:
+    """Ein printf-Argument des Wrappers -> der Wert, den es zur Laufzeit traegt."""
+    date_call = _DATE_CALL_RE.fullmatch(token)
+    if date_call:
+        return _render_date(date_call.group("fmt"))
+    named = re.fullmatch(r"\$\{(\w+)(?::-.*)?\}", token) or re.fullmatch(r"\$(\d)", token)
+    if named:
+        key = named.group(1)
+        if key.isdigit():
+            return positional[key]
+        slot = re.search(r"\$\{?(\d)", bindings.get(key, ""))
+        if slot:
+            return positional[slot.group(1)]
+        if key == "TS":
+            return "2026-08-19T12:00:00Z"
+    return "X"
+
+
+def _driver_marker_lines() -> dict[str, list[tuple[str, str]]]:
+    """Pro Wrapper: die real geschriebenen Marker-Zeilen + der gemeinte KIND."""
+    root = Path(__file__).resolve().parents[1] / "automation" / "launchd"
+    wrappers = sorted(root.glob("run-c13-*.sh"))
+    assert wrappers, (
+        "keine C13-Wrapper gefunden — jede Schleife darunter liefe leer und "
+        "jede Zusicherung ginge vakuum durch"
+    )
+    result: dict[str, list[tuple[str, str]]] = {}
+
+    for wrapper in wrappers:
+        text = wrapper.read_text(encoding="utf-8")
+        if "_write_marker() {" not in text:
+            continue
+        body = text.split("_write_marker() {", 1)[1].split("\n}", 1)[0]
+        printf = _PRINTF_RE.search(body)
+        assert printf, f"{wrapper.name}: kein printf im _write_marker gefunden"
+        fmt = printf.group("fmt").replace("\\n", "\n")
+        printf_args = _QUOTED_RE.findall(printf.group("args"))
+        bindings = dict(_LOCAL_RE.findall(body))
+
+        lines: list[tuple[str, str]] = []
+        for arg1, arg2 in _CALL_RE.findall(text):
+            positional = {"1": arg1, "2": arg2}
+            rendered = fmt % tuple(
+                _resolve_token(arg, positional, bindings) for arg in printf_args
+            )
+            # Kind-erst (`_write_marker "DEGRADED" "..."`) vs. Pfad-erst
+            # (`_write_marker "${FEED_MARKER}" "degraded:..."`): im zweiten
+            # Fall traegt der WERT den Status.
+            intended = arg1 if _STATUS_TOKEN_RE.match(arg1) else arg2.split(":")[0]
+            lines.append((rendered, intended))
+        result[wrapper.name] = lines
+    return result
+
+
+def test_every_driver_marker_format_survives_the_parser() -> None:
+    per_driver = _driver_marker_lines()
+
+    # Vakuitaets-Boden: die Entdeckung darf nicht still leerlaufen.
+    assert len(per_driver) >= 8, f"nur {len(per_driver)} Treiber gefunden — Layout geaendert?"
+    total = sum(len(v) for v in per_driver.values())
+    assert total >= 40, f"nur {total} Aufrufstellen gefunden — Erkennung gebrochen?"
+
+    broken: list[str] = []
+    for driver, lines in per_driver.items():
+        for rendered, intended in lines:
+            kind, _message, _ts = _parse_marker_content(rendered)
+            if kind.lower() != intended.lower():
+                broken.append(f"{driver}: {rendered.strip()!r} -> {kind!r} statt {intended!r}")
+
+    assert not broken, (
+        "Der Marker-Konsument liest den Status dieser Treiberzeilen falsch — "
+        "printf-Format und Parser sind auseinandergelaufen. Ein falsch "
+        "gelesener KIND heisst: eine DEGRADED-Meldung erscheint als unbekannter "
+        "Status oder, schlimmer, als gruen.\n" + "\n".join(broken)
+    )
+
+
+def test_green_and_degraded_are_actually_distinguished() -> None:
+    """Gegenprobe zum Boden oben: der Parser darf nicht ALLES gruen lesen."""
+    per_driver = _driver_marker_lines()
+    kinds = {
+        _parse_marker_content(rendered)[0].lower()
+        for lines in per_driver.values()
+        for rendered, _ in lines
+    }
+    assert kinds & GREEN_KINDS, f"kein einziger gruener Treiber-Marker erkannt: {kinds}"
+    assert kinds - GREEN_KINDS, f"kein einziger nicht-gruener Treiber-Marker erkannt: {kinds}"
