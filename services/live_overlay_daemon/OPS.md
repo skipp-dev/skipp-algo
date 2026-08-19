@@ -224,7 +224,7 @@ the deployment itself is retired.
 | `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | no | — | Dedicated random token of at least 32 characters; sent in the private TradingView JSON body, never in the URL |
 | `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the existing service volume |
 | `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | no | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
-| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` | Maximum accepted bar age in seconds |
+| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` (code default), production `86400` | Maximum accepted bar age in seconds. Effective value: metric `live_overlay_hold_manager_shadow_max_event_age_secs` |
 | `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | no | `120` | Maximum accepted future clock skew in seconds |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
@@ -292,7 +292,7 @@ the deployment itself is retired.
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | GitHub | Cache TTL |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | GitHub | HTTP timeout |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | GitHub | Pagination page size |
-| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. Production: `lab-worker-volume=2ffcaeb7-9788-4838-82a6-8604a2fd1dc3` (the hosted customer plane's `/data`, in the **skipp-live-lab** project — cross-project on purpose, see below) |
+| `RAILWAY_VOLUME_BACKUP_INSTANCES` | Railway volume backups | `name=volumeInstanceId` pairs, comma-separated. Also the opt-in — empty disables the bridge. **The deployed list is the truth; this doc does not copy it** — query `live_overlay_railway_volume_backup_schedule_count` for one series per configured volume. It spans projects on purpose (the hosted customer plane's `/data` lives in **skipp-live-lab**), see below |
 | `RAILWAY_VOLUME_BACKUP_MAX_AGE_SECS` | Railway volume backups | Age at which the newest backup counts as stale (default 129600 = 36 h; exported as a gauge so the alert compares against it rather than a second copy) |
 | `RAILWAY_VOLUME_BACKUP_POLL_TTL_SECS` | Railway volume backups | Cache TTL (default 600) |
 | `RAILWAY_VOLUME_BACKUP_TIMEOUT_SECS` | Railway volume backups | HTTP timeout (default 10) |

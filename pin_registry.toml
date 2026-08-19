@@ -17,17 +17,42 @@
 #     instead of silently overwriting.
 
 # ---------------------------------------------------------------------------
-# test_pytest_skip_budget.py — per-file pytest.skip() budget.
+# test_pytest_skip_budget.py — per-file budget over EVERY skip spelling.
+# 2026-08-19 (Geburtsfehler-Sweep): the counter was born blind to `skipif`
+# and to module-level `pytestmark = pytest.mark.skip*`. The 13 entries dated
+# below were already in the tree and reported as 0 — they are recorded here
+# at their MEASURED count, not granted new budget.
 # ---------------------------------------------------------------------------
 [pytest_skip_budget.file_counts]
+# 2026-08-19 (Sweep): skipif on Linux-only VmRSS assertions — runs on the
+# ubuntu-latest gate, skips on the operator Mac.
+"tests/test_a8_rss_instrumentation.py" = 2
+# 2026-08-19 (Sweep): three bash-availability skipifs.
+"tests/test_bootstrap_node_worktree.py" = 3
+# 2026-08-19 (Sweep): module-wide skipif on the jq binary. Present on
+# ubuntu-latest (the only runner today: SMC_FORCE_GH_HOSTED=1, zero
+# self-hosted runners registered), so the coupling test does execute.
+"tests/test_c13_backfill_summary_schema_coupling.py" = 1
 "tests/test_c11_resume_anchor.py" = 2
 "tests/test_c9_threshold_finalisation_anchor.py" = 1
 "tests/test_c9_threshold_lock_status.py" = 1
 "tests/test_credential_health_workflow.py" = 1
 "tests/test_e2e_smoke_ci.py" = 1
 "tests/test_generate_smc_micro_profiles.py" = 2
-"tests/test_guard_corpus_tracked_files.py" = 2
+# 2026-08-19 (Sweep): 2 -> 3, the third is the `_requires_git` skipif marker
+# assigned to a name (never a decorator line) — invisible to the old regex.
+"tests/test_guard_corpus_tracked_files.py" = 3
 "tests/test_hero_surface_input_map.py" = 1
+# 2026-08-19 (Sweep): `_REQUIRES_FCNTL` marker assigned to a name — POSIX
+# registry locking; the Windows fallback is covered separately.
+"tests/test_ib_client_id.py" = 1
+# 2026-08-19 (Sweep): module-wide skipif — needs a reachable paper TWS, which
+# no CI runner has. These assertions run on the operator Mac only.
+"tests/test_ibkr_live_smoke.py" = 1
+# 2026-08-19 (Sweep): two skipifs on an optional generated-showcase fixture dir.
+"tests/test_measurement_plausibility.py" = 2
+# 2026-08-19 (Sweep): chmod-000 semantics, skipped on Windows only.
+"tests/test_publish_signals_snapshot_permission_bug.py" = 1
 # 2026-06-12 (PR #2707): conflict-marker tripwire skips gracefully when git
 # is unavailable (mirrors the other repo tripwires).
 "tests/test_no_merge_conflict_markers.py" = 1
@@ -50,7 +75,23 @@
 # the G3 Experiment-spec test deleted with scripts/smc_ab_experiment.py.
 "tests/test_six_zero_tripwires_bundle.py" = 1
 "tests/test_smc_schema_version_enforcement.py" = 1
+# 2026-08-19 (Sweep): four POSIX-permission skipifs (skip on Windows only).
+"tests/test_smc_atomic_write.py" = 4
+# 2026-08-19 (Sweep): module-wide skipif — python/strategies/smc_mirror has
+# never existed (#2353), so this whole file has been inert since it was
+# written. DECISION OWED: implement the mirror or delete the file; the ledger
+# records the silence instead of hiding it.
+"tests/test_smc_strategy_snapshot.py" = 1
+# 2026-08-19 (Sweep): inverse of the entry above — pins the scaffolding-only
+# state and skips once the mirror exists.
+"tests/test_smc_strategy_snapshot_scaffolding.py" = 1
 "tests/test_smc_trust_badges_dashboard.py" = 1
+# 2026-08-19 (Sweep): 1 module-wide skipif + 10 decorators. The module-wide
+# one requires FMP_API_KEY or NEWSAPI_KEY, and NO workflow that runs pytest
+# exports either — measured 2026-08-19: 39 tests skip on every CI run and the
+# budget reported 0 for this file. DECISION OWED: supply a key to one gate or
+# retire the live-endpoint tests.
+"tests/test_terminal_bitcoin.py" = 11
 "tests/test_workflow_freshness_monitor_workflow_contract.py" = 1
 "tests/test_workflow_live_window_posture.py" = 2
 "tests/test_workflow_pythonpath_for_direct_invoke.py" = 1

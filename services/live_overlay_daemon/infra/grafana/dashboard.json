@@ -9861,6 +9861,65 @@
         },
         "textMode": "auto"
       }
+    },
+    {
+      "id": 1908190001,
+      "title": "Hold-Manager Shadow: effektives max_event_age (s)",
+      "description": "Der WIRKSAME Wert von HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS im laufenden Container. Code-Default ist 900, Produktion faehrt bewusst 86400 (1D-TV-Layout). lo-hold-manager-shadow-rejected rechnet mit diesem Fenster: weicht der Wert ab, ist die Praemisse der Regel still gebrochen (Doppelgaenger K13, 2026-08-19).",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 364,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "targets": [
+        {
+          "expr": "max(live_overlay_hold_manager_shadow_max_event_age_secs{job=~\"$job\"}) or on() vector(-1)",
+          "legendFormat": "max_event_age_secs",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "kein Scrape",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 86400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
     }
   ],
   "schemaVersion": 39,

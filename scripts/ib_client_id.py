@@ -130,14 +130,28 @@ def _reap_stale(
     return kept
 
 
-# The execution/incubation default clientId is pinned to 71 (the
-# IBKRConnectionConfig default used by run_smc_live_incubation's paper submitter
-# and the execute_ibkr_watchlist runners) and is NEVER registered in this
-# cooperative file, so the allocator must never hand it out — otherwise a
-# lock-less random fallback (or an ascending scan that has exhausted 40..70)
-# could return 71 and collide with a concurrently-pinned 71 session (IBKR error
-# 326), the very failure this registry exists to prevent.
-_RESERVED_CLIENT_IDS = frozenset({71})
+# Fixed clientId defaults that live INSIDE DEFAULT_PREFERRED_RANGE and are
+# NEVER registered in this cooperative file, so the allocator must never hand
+# them out — otherwise a lock-less random fallback (or an ascending scan that
+# has exhausted the low end) could return one and collide with a concurrently
+# pinned session (IBKR error 326), the very failure this registry exists to
+# prevent.
+#
+# 71 was the original entry (IBKRConnectionConfig default: run_smc_live_
+# incubation's paper submitter and the execute_ibkr_watchlist runners).
+# 2026-08-19 (Doppelgaenger K9): three more fixed defaults were sitting in the
+# range unreserved — the reservation had been treated as a one-off for 71
+# instead of as the rule for every pinned id. The population is enforced by
+# tests/test_ib_client_id.py, which derives it from the argparse defaults in
+# scripts/ instead of trusting this literal.
+_RESERVED_CLIENT_IDS = frozenset(
+    {
+        71,  # execute_ibkr_watchlist / smoke_smc_to_ibkr_adapter
+        73,  # ibkr_portfolio_snapshot --client-id
+        74,  # c13_eod_flatten --client-id
+        87,  # reconcile_incubation_fills --client-id
+    }
+)
 
 
 def _pick_random_id(preferred_range: tuple[int, int]) -> int:

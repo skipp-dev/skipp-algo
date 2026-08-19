@@ -1,7 +1,11 @@
 """C13 status markers — the missing consumer (#4848 Review-Punkt #4).
 
 Every C13 launchd driver writes a per-day status marker
-(``cache/live/.<agent>_status_<DATE>``, content ``KIND:message:ISO-TS``), and
+(``.<agent>_status_<DATE>``, content ``KIND:message:ISO-TS``) into one of the
+three directories in :data:`MARKER_DIRS` — ``cache/live`` holds nine of the
+twelve, the imbalance collector and the WSH feed use ``cache/imbalance`` and
+``cache/wsh``. Until 2026-08-19 this module scanned ``cache/live`` alone, so
+those three stayed unread despite the promise in this line (K5), and
 until 2026-08-19 exactly ONE of those ten markers had a reader (the reconcile
 consumes the EOD-flatten marker, #4858). Everything else — the reconcile's own
 marker included — was write-only: the 2026-08-18 reconcile ended
@@ -37,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Sequence
 from datetime import date as date_type
 from datetime import timedelta
 from pathlib import Path
@@ -56,7 +61,18 @@ _KIND_RE = re.compile(r"^(?P<kind>[A-Za-z_]+)(?:[:| ]|$)")
 _ABS_PATH_RE = re.compile(r"/(?:[^/:\s]+/)+(?P<base>[^/:\s]+)")
 
 GREEN_KINDS = frozenset({"ok", "success"})
-SUMMARY_SCHEMA_VERSION = 1
+SUMMARY_SCHEMA_VERSION = 2
+
+# The MEASURED marker-directory population (2026-08-19, Doppelgaenger K5): the
+# launchd drivers write into three directories, not one. Kept in lockstep with
+# the drivers by tests/test_c13_status_markers.py, which derives the set from
+# the marker paths in automation/launchd/*.sh instead of trusting this literal.
+# c13-daily-cron.yml overlays exactly these three from the data branch.
+MARKER_DIRS: tuple[Path, ...] = (
+    Path("cache/live"),
+    Path("cache/imbalance"),
+    Path("cache/wsh"),
+)
 
 
 def _parse_marker_line(line: str) -> tuple[str, str, str]:
@@ -99,35 +115,56 @@ def _iso(day: date_type) -> str:
     return day.isoformat()
 
 
-def collect_markers(live_dir: Path, *, date: str, days_back: int) -> list[dict[str, str]]:
-    """Markers for ``[date - days_back + 1, date]``, sorted (date, agent)."""
+def collect_markers(
+    live_dir: Path | Sequence[Path], *, date: str, days_back: int
+) -> list[dict[str, str]]:
+    """Markers for ``[date - days_back + 1, date]``, sorted (dir, date, agent).
+
+    Accepts one directory or several. Several is the production case: the C13
+    drivers do NOT all write into ``cache/live`` — the imbalance collector uses
+    ``cache/imbalance`` and the WSH feed ``cache/wsh`` (measured 2026-08-19,
+    Doppelgaenger-Sweep K5). Scanning only ``cache/live`` made 3 of 12 marker
+    paths invisible to this consumer while its own docstring promised "every
+    driver", so a silent failure in those two chains stayed silent. The
+    directory is carried into each row because two directories can hold the
+    same agent name (``.push_status_`` exists in both non-live dirs).
+    """
+    dirs = [live_dir] if isinstance(live_dir, Path) else list(live_dir)
     end = date_type.fromisoformat(date)
     window = {_iso(end - timedelta(days=offset)) for offset in range(days_back)}
     rows: list[dict[str, str]] = []
-    for path in sorted(live_dir.iterdir()) if live_dir.is_dir() else []:
-        match = _MARKER_NAME_RE.match(path.name)
-        if not match or match.group("date") not in window:
-            continue
-        kind, message, ts = _parse_marker_content(path.read_text(encoding="utf-8", errors="replace"))
-        rows.append(
-            {
-                "agent": match.group("agent"),
-                "date": match.group("date"),
-                "kind": kind,
-                "message": _sanitize(message),
-                "ts": ts,
-            }
-        )
-    rows.sort(key=lambda r: (r["date"], r["agent"]))
+    for directory in dirs:
+        for path in sorted(directory.iterdir()) if directory.is_dir() else []:
+            match = _MARKER_NAME_RE.match(path.name)
+            if not match or match.group("date") not in window:
+                continue
+            kind, message, ts = _parse_marker_content(
+                path.read_text(encoding="utf-8", errors="replace")
+            )
+            rows.append(
+                {
+                    "agent": match.group("agent"),
+                    "dir": directory.as_posix(),
+                    "date": match.group("date"),
+                    "kind": kind,
+                    "message": _sanitize(message),
+                    "ts": ts,
+                }
+            )
+    rows.sort(key=lambda r: (r["date"], r["dir"], r["agent"]))
     return rows
 
 
-def emit(live_dir: Path, *, date: str, days_back: int, output: Path) -> dict[str, object]:
+def emit(
+    live_dir: Path | Sequence[Path], *, date: str, days_back: int, output: Path
+) -> dict[str, object]:
+    dirs = [live_dir] if isinstance(live_dir, Path) else list(live_dir)
     summary = {
         "schema_version": SUMMARY_SCHEMA_VERSION,
         "window_end": date,
         "window_days": days_back,
-        "markers": collect_markers(live_dir, date=date, days_back=days_back),
+        "scanned_dirs": [d.as_posix() for d in dirs],
+        "markers": collect_markers(dirs, date=date, days_back=days_back),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(summary, output, sort_keys=True)
@@ -164,7 +201,17 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     emit_p = sub.add_parser("emit", help="collect markers into a sanitized summary JSON")
-    emit_p.add_argument("--live-dir", type=Path, default=Path("cache/live"))
+    # Repeatable: the marker population spans three directories (K5). A single
+    # default would silently re-create the blind spot for any caller that
+    # forgets the other two, so the default IS the full measured population.
+    emit_p.add_argument(
+        "--live-dir",
+        type=Path,
+        action="append",
+        dest="live_dirs",
+        default=None,
+        help="marker directory; repeatable (default: the full MARKER_DIRS population)",
+    )
     emit_p.add_argument("--date", required=True, help="window end, ISO date (YYYY-MM-DD)")
     emit_p.add_argument("--days-back", type=int, default=3)
     emit_p.add_argument("--output", type=Path, required=True)
@@ -180,9 +227,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "emit":
         summary = emit(
-            args.live_dir, date=args.date, days_back=args.days_back, output=args.output
+            args.live_dirs or list(MARKER_DIRS),
+            date=args.date,
+            days_back=args.days_back,
+            output=args.output,
         )
-        print(json.dumps({"emitted": len(summary["markers"]), "output": str(args.output)}))
+        print(
+            json.dumps(
+                {
+                    "emitted": len(summary["markers"]),
+                    "scanned_dirs": summary["scanned_dirs"],
+                    "output": str(args.output),
+                }
+            )
+        )
         return 0
     return check(args.summary, date=args.date)
 

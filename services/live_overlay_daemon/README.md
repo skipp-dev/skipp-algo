@@ -204,7 +204,7 @@ missing symbol cache entry.
 | `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | ❌ | *(unset)* | Dedicated random token, minimum 32 characters. TradingView sends it as `authToken` in the JSON body; never place it in the URL or tracked templates |
 | `HOLD_MANAGER_SHADOW_LEDGER_PATH` | ❌ | *(unset)* | SQLite delivery ledger. Production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the service's existing persistent volume; an unset path rejects requests |
 | `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | ❌ | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
-| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | ❌ | `900` | Maximum accepted TradingView bar age in seconds (range 60–86400) |
+| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | ❌ | `900` (code default), **production runs `86400`** | Maximum accepted TradingView bar age in seconds (range 60–86400). Production deliberately runs the ceiling so a 1D TV layout stays acceptable; `lo-hold-manager-shadow-rejected` reasons about that window. The effective value is exported as `live_overlay_hold_manager_shadow_max_event_age_secs` — read it there, never from this table |
 | `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | ❌ | `120` | Maximum accepted future clock skew in seconds (range 0–3600) |
 | `PORT` | ✅ (production) | `8000` (code default), production pin `8080` | Pin explicitly in Railway for stable private host:port contracts |
 | `LOG_LEVEL` | ❌ | `info` | Uvicorn-compatible level (`critical`,`error`,`warning`,`info`,`debug`,`trace`) |
