@@ -80,6 +80,17 @@ fi
 # above, not in ``git worktree list``. See lib_c13_data_push.sh's header.
 # shellcheck source=automation/launchd/lib_c13_data_push.sh
 source "$(dirname "$0")/lib_c13_data_push.sh"
+# Status-marker summary (#4848 Review-Punkt #4): sanitized digest of the last
+# three days' .<agent>_status_* markers, consumed by c13-daily-cron's
+# status_markers step. Best-effort BEFORE the primary payload: a summary
+# failure must never block the audit push, and the cron treats a missing
+# summary as its own warning.
+MARKERS_SUMMARY="cache/live/c13_status_markers.json"
+VENV="${C13_VENV:-${REPO}/.venv}"
+"${VENV}/bin/python" -m scripts.c13_status_markers emit \
+    --live-dir cache/live --date "${DATE}" --days-back 3 \
+    --output "${MARKERS_SUMMARY}" \
+    || echo "audit-push: WARN — status-marker summary emit failed; pushing without it" >&2
 push_to_data_branch \
     "chore(c13): phase-a audit ${DATE}" \
     "${STATUS_MARKER}" \
@@ -87,4 +98,5 @@ push_to_data_branch \
     "${SETUPS}" \
     "${GATES}" \
     "${CHECKOUT_FRESHNESS}" \
-    "${OUTCOMES}"
+    "${OUTCOMES}" \
+    "${MARKERS_SUMMARY}"
