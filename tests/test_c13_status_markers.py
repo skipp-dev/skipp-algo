@@ -4,8 +4,11 @@ Bis 19.8. war von zehn ``.<agent>_status_<DATE>``-Markern genau einer gelesen
 (Flatten -> Reconcile, #4858); der DEGRADED-Reconcile vom 18.8. (TWS down,
 Connection refused 7497) blieb unsichtbar. Diese Tests pinnen die neue Kette:
 emit (Workstation, sanitisiert) -> data-branch -> check (Daily-Cron, rc ->
-Issue-Opener). Beide Kasing-Konventionen der Schreiber sind Population
-(SUCCESS/DEGRADED via _write_marker, ok:/degraded: im Push-Helper).
+Issue-Opener). Die Format-Population ist GEMESSEN (19.8., alle 16 realen
+Marker 16.-18.8.), nicht angenommen: KIND:msg:TS, KIND|msg, KIND msg und das
+Append-Format des Commercial-Treibers (eine ``HH:MM:SSZ KIND|msg``-Zeile pro
+Fire, worst line wins). Der erste Wurf parste nur ``KIND:`` und haette jeden
+gruenen Tag alarmiert (prove-over-population-Klasse).
 """
 
 from __future__ import annotations
@@ -102,6 +105,98 @@ def test_check_green_when_all_markers_ok(tmp_path: Path) -> None:
         ],
     )
     assert check(p, date="2026-08-18") == 0
+
+
+def test_collect_parses_the_measured_real_formats(tmp_path: Path) -> None:
+    """Pipe- und Leerzeichen-Trenner der realen Writer (ibkr_smoke stand im
+    ersten Wurf als SUCCESS|smoke-ok-OFFENDER — Falsch-Alarm-Generator)."""
+    d = tmp_path / "live"
+    d.mkdir()
+    _write_marker(d, "ibkr_smoke", "2026-08-18", "SUCCESS|smoke-ok audit=smoke_2026-08-18.jsonl\n")
+    _write_marker(
+        d,
+        "audit_push",
+        "2026-08-18",
+        "ok pushed:2026-08-18T21:30:02Z:/Users/op/cache/live/incubation_2026-08-18.jsonl\n",
+    )
+    _write_marker(
+        d, "reconcile", "2026-08-18", "DEGRADED portfolio-after-failed:path=portfolio_after.json\n"
+    )
+
+    rows = collect_markers(d, date="2026-08-18", days_back=1)
+
+    assert [(r["agent"], r["kind"]) for r in rows] == [
+        ("audit_push", "ok"),
+        ("ibkr_smoke", "SUCCESS"),
+        ("reconcile", "DEGRADED"),
+    ]
+    assert "/Users/" not in rows[0]["message"]
+
+
+def test_append_style_marker_worst_line_wins(tmp_path: Path) -> None:
+    """Commercial-Append-Format: Zeitpraefix-Zeilen, ein Fire pro Zeile.
+    Gruene erste Zeile darf eine rote spaetere nicht verdecken."""
+    d = tmp_path / "live"
+    d.mkdir()
+    _write_marker(
+        d,
+        "commercial_shadow",
+        "2026-08-18",
+        "14:07:00Z SUCCESS|campaign-observed:paper-dormant:verdict=PENDING\n"
+        "15:05:13Z DEGRADED|campaign-attempt-failed:input=pit_AAPL_20260818T150506Z.json\n"
+        "16:05:13Z SUCCESS|campaign-observed:paper-dormant:verdict=PENDING\n",
+    )
+
+    # Rote Zeile in der MITTE: eine Nur-erste-Zeile-Mutante rettet sich sonst
+    # ueber den Letzte-Zeile-Fallback (Mutationsprobe 19.8. deckte das auf).
+    rows = collect_markers(d, date="2026-08-18", days_back=1)
+    assert rows[0]["kind"] == "DEGRADED"
+    assert "campaign-attempt-failed" in rows[0]["message"]
+
+    _write_marker(
+        d,
+        "commercial_shadow",
+        "2026-08-18",
+        "14:07:00Z SUCCESS|campaign-observed:paper-dormant:verdict=PENDING\n"
+        "15:05:13Z SUCCESS|campaign-observed:paper-dormant:verdict=PENDING\n",
+    )
+    rows = collect_markers(d, date="2026-08-18", days_back=1)
+    assert rows[0]["kind"] == "SUCCESS"
+
+
+def test_real_format_green_day_stays_green_end_to_end(tmp_path: Path) -> None:
+    """Der Test, der dem ersten Wurf fehlte: ein komplett gruener Tag in den
+    ECHTEN On-Disk-Formaten muss rc=0 liefern — kein Falsch-Alarm."""
+    d = tmp_path / "live"
+    d.mkdir()
+    _write_marker(d, "ibkr_smoke", "2026-08-18", "SUCCESS|smoke-ok audit=smoke_2026-08-18.jsonl\n")
+    _write_marker(d, "tws_autostart", "2026-08-18", "SUCCESS|already-running\n")
+    _write_marker(
+        d, "audit_push", "2026-08-18", "ok pushed:2026-08-18T21:30:02Z:incubation_2026-08-18.jsonl\n"
+    )
+    _write_marker(
+        d, "reconcile", "2026-08-18", "SUCCESS reconcile-complete:audit=incubation_2026-08-18.jsonl\n"
+    )
+    _write_marker(
+        d,
+        "commercial_shadow",
+        "2026-08-18",
+        "14:07:00Z SUCCESS|campaign-observed:paper-dormant:verdict=PENDING\n",
+    )
+    out = tmp_path / "s.json"
+    emit(d, date="2026-08-18", days_back=1, output=out)
+
+    assert check(out, date="2026-08-18") == 0
+
+
+def test_empty_marker_fails_closed(tmp_path: Path) -> None:
+    d = tmp_path / "live"
+    d.mkdir()
+    _write_marker(d, "reconcile", "2026-08-18", "")
+    out = tmp_path / "s.json"
+    emit(d, date="2026-08-18", days_back=1, output=out)
+
+    assert check(out, date="2026-08-18") == 1
 
 
 def test_check_fails_closed_on_unknown_kind(tmp_path: Path) -> None:
