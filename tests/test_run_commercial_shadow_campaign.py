@@ -17,7 +17,8 @@ from scripts.run_commercial_shadow_campaign import (
 )
 
 _ANCHOR = 1_800_000_000.0
-_NOW = datetime.fromtimestamp(_ANCHOR, UTC)
+_BAR_CLOSE = _ANCHOR + 900.0  # 2026-08-19: source_asof_ts = Bar-CLOSE; now-Fixtures leben in der Close-Welt, relative Alter bleiben identisch
+_NOW = datetime.fromtimestamp(_BAR_CLOSE, UTC)
 
 
 def _payload() -> dict:
@@ -118,7 +119,7 @@ def test_campaign_accumulates_unique_snapshots_and_passes_observation_gate(
     second_attempt, report = run_campaign_observation(
         payload=second_payload,
         campaign_dir=campaign_dir,
-        now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+        now=datetime.fromtimestamp(_BAR_CLOSE + 60.0, UTC),
         min_unique_snapshots=2,
     )
 
@@ -160,7 +161,7 @@ def test_campaign_replay_records_attempt_without_duplicate_audit(
     attempt, report = run_campaign_observation(
         payload=_payload(),
         campaign_dir=campaign_dir,
-        now=datetime.fromtimestamp(_ANCHOR + 1.0, UTC),
+        now=datetime.fromtimestamp(_BAR_CLOSE + 1.0, UTC),
         min_unique_snapshots=1,
     )
 
@@ -208,7 +209,7 @@ def test_failed_observation_is_durable_and_keeps_promotion_blocked(
         run_campaign_observation(
             payload=_payload(),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + 301.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + 301.0, UTC),
             min_unique_snapshots=1,
         )
 
@@ -339,7 +340,7 @@ def test_campaign_contract_blocks_decision_and_threshold_drift(
         run_campaign_observation(
             payload=_shift_payload(_payload(), 60.0),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + 60.0, UTC),
             rr_target=3.0,
             min_unique_snapshots=1,
         )
@@ -347,7 +348,7 @@ def test_campaign_contract_blocks_decision_and_threshold_drift(
         run_campaign_observation(
             payload=_shift_payload(_payload(), 60.0),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + 60.0, UTC),
             min_unique_snapshots=2,
         )
 
@@ -387,7 +388,7 @@ def test_missing_campaign_contract_fails_existing_campaign_closed(
         run_campaign_observation(
             payload=_shift_payload(_payload(), 60.0),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + 60.0, UTC),
             min_unique_snapshots=1,
         )
 
@@ -404,7 +405,7 @@ def test_future_source_timestamp_is_visible_in_observation_gate(
         run_campaign_observation(
             payload=_payload(),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR - 1.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE - 1.0, UTC),
             min_unique_snapshots=1,
         )
 
@@ -454,7 +455,14 @@ def test_campaign_thresholds_fail_closed(
 
 
 def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
-    current_anchor = datetime.now(UTC).timestamp() - 1.0
+    # 2026-08-19 (Close-Stempel): siehe gleichlautenden Kommentar im
+    # family-shadow-CLI-Test — datumssicherer Anker statt Mitternachts-Flake.
+    current_anchor = datetime.now(UTC).timestamp() - 901.0
+    if (
+        datetime.fromtimestamp(current_anchor, UTC).date()
+        != datetime.fromtimestamp(current_anchor + 900.0, UTC).date()
+    ):
+        current_anchor -= 1800.0
     payload = _shift_payload(_payload(), current_anchor - _ANCHOR)
     source = tmp_path / "input.json"
     source.write_text(json.dumps(payload), encoding="utf-8")
@@ -468,6 +476,8 @@ def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
             str(campaign_dir),
             "--min-unique-snapshots",
             "1",
+            "--max-setup-age-seconds",
+            "3600",
         ]
     )
 
@@ -507,7 +517,7 @@ def test_partial_family_coverage_is_a_valid_snapshot_and_does_not_poison_the_cam
     second, second_report = run_campaign_observation(
         payload=_shift_payload(_payload(), 60.0),
         campaign_dir=campaign_dir,
-        now=datetime.fromtimestamp(_ANCHOR + 60.0, UTC),
+        now=datetime.fromtimestamp(_BAR_CLOSE + 60.0, UTC),
         min_unique_snapshots=2,
     )
 
@@ -563,14 +573,14 @@ def test_failure_budget_is_a_rolling_window(tmp_path: Path) -> None:
             run_campaign_observation(
                 payload=_shift_payload(_payload(), offset) if offset else _payload(),
                 campaign_dir=campaign_dir,
-                now=datetime.fromtimestamp(_ANCHOR + offset + 301.0, UTC),
+                now=datetime.fromtimestamp(_BAR_CLOSE + offset + 301.0, UTC),
                 min_unique_snapshots=2,
             )
     for offset in (800.0, 900.0):
         run_campaign_observation(
             payload=_shift_payload(_payload(), offset),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + offset + 10.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + offset + 10.0, UTC),
             min_unique_snapshots=2,
         )
 
@@ -603,7 +613,7 @@ def test_quiet_family_is_quiet_not_fail(tmp_path: Path) -> None:
     _attempt, report = run_campaign_observation(
         payload=second,
         campaign_dir=campaign_dir,
-        now=datetime.fromtimestamp(_ANCHOR + 70.0, UTC),
+        now=datetime.fromtimestamp(_BAR_CLOSE + 70.0, UTC),
         min_unique_snapshots=2,
     )
 
@@ -624,14 +634,14 @@ def test_real_threshold_breach_beats_quiet(tmp_path: Path) -> None:
         run_campaign_observation(
             payload=payload,
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + now_delta, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + now_delta, UTC),
             min_unique_snapshots=2,
         )
     with pytest.raises(CampaignObservationError, match="is stale"):
         run_campaign_observation(
             payload=_shift_payload(_payload(), 100.0),
             campaign_dir=campaign_dir,
-            now=datetime.fromtimestamp(_ANCHOR + 401.0, UTC),
+            now=datetime.fromtimestamp(_BAR_CLOSE + 401.0, UTC),
             min_unique_snapshots=2,
         )
 

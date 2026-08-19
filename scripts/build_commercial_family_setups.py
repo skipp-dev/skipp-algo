@@ -182,6 +182,19 @@ def _levels(
     return tuple(round(value, 6) for value in (entry, stop, take_profit))
 
 
+def payload_knowledge_ts(payload: dict[str, Any]) -> float:
+    """Wissenszeit eines PIT-Payloads: CLOSE seines letzten bestaetigten Bars
+    (Payload-as_of = Bar-OPEN, plus Spanne aus provenance.timeframe). Single
+    Source fuer Setup-Records, Attempt-Statistik und Manifeste — 2026-08-19:
+    der Open-Stempel kostete die volle Bar-Spanne des 900s-Freshness-Budgets
+    (Kampagnen-Incident 18.8., jede Setup-Attempt age=1218s > 900s)."""
+    timeframe = str((payload.get("provenance") or {}).get("timeframe", "")).strip()
+    if timeframe not in _TIMEFRAME_SECONDS:
+        raise ValueError(f"unsupported input.provenance.timeframe {timeframe!r}")
+    as_of = _epoch_seconds(payload.get("as_of"), label="input.as_of")
+    return as_of + _TIMEFRAME_SECONDS[timeframe]
+
+
 def build_commercial_family_setups(
     payload: dict[str, Any],
     *,
@@ -328,7 +341,7 @@ def build_commercial_family_setups(
             "producer_mode": "prospective_pit",
             "source_event_id": event_id or None,
             "source_anchor_ts": anchor,
-            "source_asof_ts": as_of,
+            "source_asof_ts": payload_knowledge_ts(payload),  # 2026-08-19: Bar-CLOSE, siehe Helper
             "source_timeframe": timeframe,
             "source_snapshot_id": snapshot_id,
             "source_provenance": dict(provenance),

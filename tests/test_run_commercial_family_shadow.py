@@ -11,7 +11,8 @@ import pytest
 from scripts.run_commercial_family_shadow import main, run_shadow_once
 
 _ANCHOR = 1_800_000_000.0
-_NOW = datetime.fromtimestamp(_ANCHOR, UTC)
+_BAR_CLOSE = _ANCHOR + 900.0  # 2026-08-19: source_asof_ts = Bar-CLOSE; now-Fixtures leben in der Close-Welt, relative Alter bleiben identisch
+_NOW = datetime.fromtimestamp(_BAR_CLOSE, UTC)
 
 
 def _payload() -> dict:
@@ -235,7 +236,15 @@ def test_cli_has_no_broker_or_network_switch(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     source = tmp_path / "input.json"
     payload = _payload()
-    current_anchor = datetime.now(UTC).timestamp() - 1
+    # 2026-08-19 (Close-Stempel): letzter Bar muss VOR jetzt schliessen; im
+    # Mitternachtsfenster den Bar ganz in den Vortag schieben, sonst reisst
+    # der trade_date-vs-Close-Datum-Check (deterministisch statt 15min-Flake).
+    current_anchor = datetime.now(UTC).timestamp() - 901.0
+    if (
+        datetime.fromtimestamp(current_anchor, UTC).date()
+        != datetime.fromtimestamp(current_anchor + 900.0, UTC).date()
+    ):
+        current_anchor -= 1800.0
     payload["as_of"] = current_anchor
     payload["bars"][0]["timestamp"] = current_anchor
     payload["structure"]["bos"][0]["time"] = current_anchor

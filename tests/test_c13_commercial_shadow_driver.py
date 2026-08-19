@@ -89,7 +89,9 @@ def test_the_campaign_runs_with_the_vendor_honest_freshness_budgets() -> None:
     # the wall clock intraday (measured 2026-08-17: XNAS.ITCH served up to
     # 14:00:00Z at a 14:05:00Z request), so an honest clamped PIT snapshot is
     # ~5-7 minutes old by construction and 300s would fail-close every
-    # attempt. The campaign contract freezes whatever the driver passes, so
+    # attempt. Ages are measured against the BAR-CLOSE stamp since 2026-08-19
+    # (payload_knowledge_ts — the open-stamp burned the whole bar span).
+    # The campaign contract freezes whatever the driver passes, so
     # this pin is what keeps the recorded thresholds intentional.
     source = _driver()
     campaign_stage = source.split("run_commercial_shadow_campaign", 1)[1]

@@ -12,6 +12,7 @@ from scripts.run_smc_live_incubation import run_live_incubation
 from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
 
 _ANCHOR = 1_800_000_000.0
+_BAR_CLOSE = _ANCHOR + 900.0  # 2026-08-19: source_asof_ts = Bar-CLOSE; now-Fixtures leben in der Close-Welt, relative Alter bleiben identisch
 
 
 def test_producer_output_passes_strict_audit_only_incubation(tmp_path: Path) -> None:
@@ -71,7 +72,7 @@ def test_producer_output_passes_strict_audit_only_incubation(tmp_path: Path) -> 
         execution_cfg=IBKRExecutionConfig(),
         audit_path=audit,
         phase="paper",
-        now=datetime.fromtimestamp(_ANCHOR, UTC),
+        now=datetime.fromtimestamp(_BAR_CLOSE, UTC),
         prospective_paper_pilot=True,
     )
 

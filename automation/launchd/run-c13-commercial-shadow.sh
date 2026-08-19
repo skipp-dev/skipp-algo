@@ -129,13 +129,13 @@ if [ "${_pull_exit}" -ne 0 ]; then
 fi
 
 # 2. Audit-only campaign attempt (no network/broker I/O by construction).
-#    Freshness budgets 900s (not the 300s defaults): Databento historical
-#    availability trails the wall clock intraday — measured 2026-08-17,
-#    XNAS.ITCH served up to 14:00:00Z at a 14:05:00Z request — so a clamped
-#    point-in-time pull is ~5-7 minutes old by construction and 300s would
-#    fail-close every honest attempt. 900s still catches a genuinely stale
-#    chain (yesterday's payload is hours old). The campaign contract freezes
-#    these numbers immutably; the review before any broker flip sees them.
+#    Freshness budgets 900s (not the 300s defaults): setup records stamp
+#    source_asof_ts at BAR CLOSE (open + span; fixed 2026-08-19 — the
+#    open-stamp burned the whole 15m span and failed every setup attempt on
+#    2026-08-18 at age ~1218s). An honest pull is then ~5-7 minutes old
+#    (vendor availability lag, measured 2026-08-17: XNAS.ITCH served to
+#    14:00:00Z at 14:05:00Z), so 900s still catches a genuinely stale chain.
+#    The campaign contract freezes these numbers; the flip review sees them.
 _campaign_exit=0
 "${PY}" -m scripts.run_commercial_shadow_campaign \
     --input "${PIT_INPUT}" \
