@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 2,
+    "COMPLETED": 3,
     "FAILED": 4,
     "NO_SETUPS": 4
   },
-  "attempts_total": 10,
+  "attempts_total": 11,
   "audit_integrity": {
-    "audit_rows": 3,
+    "audit_rows": 4,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 3,
-    "unique_audited_snapshots": 2,
-    "valid_audit_rows": 3
+    "unique_audited_intents": 4,
+    "unique_audited_snapshots": 3,
+    "valid_audit_rows": 4
   },
   "broker_io": false,
   "campaign_contract": {
@@ -33,14 +33,14 @@
     "schema_version": 1
   },
   "campaign_mode": "audit_only_shadow",
-  "failure_rate": 0.4,
-  "failure_rate_lifetime": 0.4,
-  "failure_window_size": 10,
+  "failure_rate": 0.36363636363636365,
+  "failure_rate_lifetime": 0.36363636363636365,
+  "failure_window_size": 11,
   "failures_by_type": {
     "ValueError": 4
   },
   "family_coverage_pct": {
-    "BOS": 50.0,
+    "BOS": 33.333333333333336,
     "FVG": 0.0,
     "OB": 0.0,
     "SWEEP": 100.0
@@ -49,11 +49,11 @@
     "BOS": 1,
     "FVG": 0,
     "OB": 0,
-    "SWEEP": 2
+    "SWEEP": 3
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-08-19T18:06:16.995747+00:00",
-  "last_observed_at": "2026-08-19T18:06:16.995747+00:00",
+  "generated_at": "2026-08-19T19:05:37.618337+00:00",
+  "last_observed_at": "2026-08-19T19:05:37.618337+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [
@@ -77,10 +77,10 @@
   },
   "paper_orders_placed": 0,
   "processing_seconds": {
-    "count": 10,
+    "count": 11,
     "max": 0.007071458036080003,
     "min": 0.0033662079949863255,
-    "p50": 0.004989708540961146,
+    "p50": 0.005098000052385032,
     "p95": 0.007071458036080003
   },
   "promotion_gate": {
@@ -93,12 +93,12 @@
   },
   "schema_version": 2,
   "source_age_seconds": {
-    "count": 10,
+    "count": 11,
     "max": 1320.0360629558563,
     "min": 311.91088795661926,
-    "p50": 1211.4518010616302,
+    "p50": 1209.4808130264282,
     "p95": 1320.0360629558563
   },
-  "substantive_attempts_total": 10,
-  "unique_attempted_snapshots": 10
+  "substantive_attempts_total": 11,
+  "unique_attempted_snapshots": 11
 }
