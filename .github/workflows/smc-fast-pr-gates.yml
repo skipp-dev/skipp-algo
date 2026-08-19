@@ -595,6 +595,7 @@ jobs:
             tests/test_bundle_loader_frame_discipline.py \
             tests/test_broad_except_silent_budget.py \
             tests/test_builtin_open_encoding_ledger.py \
+            tests/test_c13_eod_flatten_target_selection.py \
             tests/test_check_r1_attested_sources.py \
             tests/test_customer_surface_vocabulary.py \
             tests/test_dynamic_getattr_ledger.py \
