@@ -282,6 +282,12 @@ def test_the_commercial_fills_feed_the_portfolio_reconciliation() -> None:
     # erreicht den identischen Reconcile-Aufruf.
     source = RECONCILE.read_text(encoding="utf-8")
 
-    assert '[[ -f "${COMMERCIAL_FILLS}" ]] && FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")' in source
+    # 2026-08-19 (#4858, Review Minor #11): geklammerte Flag-Form — die
+    # Commercial-Datei zaehlt zusaetzlich in den E5-Zeugen
+    # _reconcile_fills_present; die Zusicherung (Datei -> FILLS_ARGS) bleibt.
+    assert (
+        '[[ -f "${COMMERCIAL_FILLS}" ]] && { FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}"); _reconcile_fills_present=1; }'
+        in source
+    )
     reconcile_call = source.split("scripts.reconcile_portfolio_shadow", 1)[1]
     assert '"${FILLS_ARGS[@]}"' in reconcile_call.split("--output", 1)[0]
