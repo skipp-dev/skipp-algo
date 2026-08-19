@@ -35,6 +35,8 @@ from datetime import date as date_type
 from datetime import timedelta
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_json
+
 _MARKER_NAME_RE = re.compile(r"^\.(?P<agent>[a-z0-9_]+)_status_(?P<date>\d{4}-\d{2}-\d{2})$")
 _TRAILING_TS_RE = re.compile(r":(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s*$")
 # Any absolute-path token collapses to its basename before the summary leaves
@@ -96,7 +98,7 @@ def emit(live_dir: Path, *, date: str, days_back: int, output: Path) -> dict[str
         "markers": collect_markers(live_dir, date=date, days_back=days_back),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(summary, output, sort_keys=True)
     return summary
 
 
