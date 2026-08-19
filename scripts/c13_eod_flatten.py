@@ -45,12 +45,14 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
     assert_paper_account_if_paper_port,
 )
 from scripts.smc_atomic_write import atomic_write_text
+from scripts.us_equity_early_closes import close_time_et_hhmm
 
 # TWS paper (7497) and IB Gateway paper (4002); everything else is refused.
 PAPER_PORTS = frozenset({7497, 4002})
@@ -60,6 +62,23 @@ PAPER_PORTS = frozenset({7497, 4002})
 MAX_ABS_CLOSE_QUANTITY = 1000.0
 
 _TERMINAL_ORDER_STATUSES = frozenset({"Filled", "Cancelled", "ApiCancelled", "Inactive"})
+
+
+def close_guard_verdict(now_et: datetime) -> str | None:
+    """Ablehnungsgrund, wenn der US-Kassamarkt fuer now_et bereits zu ist.
+
+    Review 2026-08-18, Important #2: Nach dem Close kann der Flatten nichts
+    mehr schliessen — reqGlobalCancel wuerde nur noch den GTC-Schutz toeten
+    und die Positionen ungeschuetzt ueber Nacht legen (Halbtage 13:00 ET,
+    verspaetete manuelle Laeufe). Vor dem Close: None = weitermachen.
+    """
+    close_hh, close_mm = close_time_et_hhmm(now_et.date())
+    if (now_et.hour, now_et.minute) >= (close_hh, close_mm):
+        return (
+            f"market for {now_et.date().isoformat()} closed at "
+            f"{close_hh:02d}:{close_mm:02d} ET — refusing to cancel GTC exits after the bell"
+        )
+    return None
 
 
 def _connect(host: str, port: int, client_id: int, timeout: float) -> Any:
@@ -225,7 +244,14 @@ def flatten_paper_account(
                 {"symbol": plan["symbol"], "status": status, "filled": filled}
             )
 
-    report["flat"] = not report.get("error") and not _open_positions(ib, account)
+    remaining = _open_positions(ib, account)
+    if remaining and not report.get("error"):
+        # Positions-Events koennen dem Terminal-Orderstatus um einen Takt
+        # nachlaufen (Review Minor #9): einmal absetzen und neu lesen, bevor
+        # ein Phantom-Rest ein falsches DEGRADED ausloest.
+        ib.sleep(2.0)
+        remaining = _open_positions(ib, account)
+    report["flat"] = not report.get("error") and not remaining
     report["finished_at"] = datetime.now(UTC).isoformat()
     return report
 
@@ -241,10 +267,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report-output", type=Path, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--ack-timeout-seconds", type=float, default=60.0)
+    # Test-Hook (geborgte Uhr LIEFERN): ISO-Zeitstempel, ueberschreibt die
+    # ET-Wanduhr fuer close_guard_verdict. Produktion laesst ihn weg.
+    parser.add_argument("--now-et", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     if args.port not in PAPER_PORTS:
         print(f"eod-flatten: refusing non-paper port {args.port}", file=sys.stderr)
+        return 1
+
+    now_et = (
+        datetime.fromisoformat(args.now_et)
+        if args.now_et
+        else datetime.now(ZoneInfo("America/New_York"))
+    )
+    verdict = close_guard_verdict(now_et)
+    if verdict and not args.dry_run:
+        print(f"eod-flatten: {verdict}", file=sys.stderr)
         return 1
 
     try:

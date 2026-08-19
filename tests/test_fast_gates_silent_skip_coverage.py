@@ -300,6 +300,11 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_no_fake_push_success.py",
     "tests/test_workflow_orphan_inventory.py",
     "tests/test_workflow_permissions_present.py",
+    # 2026-08-19 (Review-Follow-up #4823): merge_group laeuft ohne den
+    # diff-getriebenen Selektor; der Interpreter-Pin-Waechter muss deshalb
+    # unbedingt auf dem Pflicht-Pfad stehen (Composite-Bump + Alt-Literal in
+    # einer Queue-Batch waere sonst erst auf main rot).
+    "tests/test_workflow_python_version_pinned.py",
     # 2026-08-01: tv-save-consumer-source pushes repository sources onto the
     # live account on schedule, on dispatch, and chained after a library
     # refresh -- none of them a pull request. #4286 guards the diff; this

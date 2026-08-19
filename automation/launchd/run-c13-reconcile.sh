@@ -84,6 +84,19 @@ if [[ ! -f "${AUDIT}" && ! -f "${COMMERCIAL_AUDIT}" ]]; then
     exit 0
 fi
 
+# Konsument fuer den EOD-Flatten-Marker (Review 2026-08-18 Important #4):
+# ein Handelstag (Audit existiert) ohne SUCCESS-Flatten heisst, die Exits
+# koennten am Bell gestorben sein — exakt die Klasse, die die Zombies
+# gebaut hat. Ein still scheiternder Flatten-Cron fiele sonst erst Tage
+# spaeter ueber den ADR-0032-Positions-Drift auf. Die Abstimmung laeuft
+# trotzdem VOLL durch (Telemetrie behalten, R6-Muster) und degradiert am
+# Ende statt SUCCESS zu stempeln.
+EOD_FLATTEN_MARKER="${REPO}/cache/live/.eod_flatten_status_${DATE}"
+_eod_flatten_ok=0
+if [[ -f "${EOD_FLATTEN_MARKER}" ]] && grep -q '^SUCCESS' "${EOD_FLATTEN_MARKER}"; then
+    _eod_flatten_ok=1
+fi
+
 export PYTHONPATH="${REPO}"
 if [[ -f "${AUDIT}" ]]; then
     if ! "${PY}" -m scripts.reconcile_incubation_fills \
@@ -135,11 +148,16 @@ mkdir -p "$(dirname "${PORTFOLIO_MONITORING}")"
 # optional on its own (pre-flip has no commercial file, a commercial-only
 # day has no ORB file), but ZERO fills despite an audit file is DEGRADED.
 FILLS_ARGS=()
-[[ -f "${PORTFOLIO_FILLS}" ]] && FILLS_ARGS+=(--fills "${PORTFOLIO_FILLS}")
-[[ -f "${COMMERCIAL_FILLS}" ]] && FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}")
+_reconcile_fills_present=0
+[[ -f "${PORTFOLIO_FILLS}" ]] && { FILLS_ARGS+=(--fills "${PORTFOLIO_FILLS}"); _reconcile_fills_present=1; }
+[[ -f "${COMMERCIAL_FILLS}" ]] && { FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}"); _reconcile_fills_present=1; }
 [[ -f "${EOD_FLATTEN_FILLS}" ]] && FILLS_ARGS+=(--fills "${EOD_FLATTEN_FILLS}")
-if [[ ${#FILLS_ARGS[@]} -eq 0 ]]; then
-    echo "reconcile cron: no fills output produced despite an audit file" >&2
+if [[ "${_reconcile_fills_present}" -eq 0 ]]; then
+    # E5 nachgeschaerft (Review Minor #11): die EOD-Flatten-Datei existiert
+    # auch an fill-losen Tagen (leere Liste) und darf den "keine Reconcile-
+    # Ausgabe trotz Audit"-Zweig nicht satt machen — er misst die beiden
+    # reconcile_incubation_fills-Ausgaben, nicht den Flatten.
+    echo "reconcile cron: no reconcile fills output produced despite an audit file" >&2
     _write_marker "DEGRADED" "no-fills-output"
     exit 1
 fi
@@ -180,5 +198,10 @@ if [[ "${_portfolio_reconcile_exit}" -ne 0 ]]; then
     echo "reconcile cron: portfolio position reconciliation FAILED" >&2
     _write_marker "DEGRADED" "portfolio-reconciliation-failed:report=${PORTFOLIO_REPORT}"
     exit "${_portfolio_reconcile_exit}"
+fi
+if [[ "${_eod_flatten_ok}" -ne 1 ]]; then
+    echo "reconcile cron: eod-flatten marker missing or not SUCCESS for ${DATE} — exits may have died at the bell" >&2
+    _write_marker "DEGRADED" "eod-flatten-missing-or-degraded"
+    exit 1
 fi
 _write_marker "SUCCESS" "reconcile-complete:audit=${AUDIT}"
