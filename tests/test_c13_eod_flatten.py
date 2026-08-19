@@ -19,7 +19,7 @@ from types import SimpleNamespace
 import pytest
 
 from governance.portfolio_reconciliation import PortfolioFill
-from scripts.c13_eod_flatten import flatten_paper_account, main
+from scripts.c13_eod_flatten import close_guard_verdict, flatten_paper_account, main
 from scripts.execute_ibkr_watchlist import _apply_exit_tif
 
 REPO = Path(__file__).resolve().parents[1]
@@ -149,10 +149,13 @@ class FakeIB:
     """Stateful paper-TWS double: positions close when their market order
     fills, working orders drain on reqGlobalCancel."""
 
-    def __init__(self, *, positions=None, orders=(), cancel_works=True) -> None:
+    def __init__(
+        self, *, positions=None, orders=(), cancel_works=True, positions_after_cancel=None
+    ) -> None:
         self._positions = dict(positions or {})
         self._orders = list(orders)
         self._cancel_works = cancel_works
+        self._positions_after_cancel = positions_after_cancel
         self.global_cancels = 0
         self.placed: list = []
         self.reqAllOpenOrders = self._req_all_open_orders
@@ -167,6 +170,8 @@ class FakeIB:
         self.global_cancels += 1
         if self._cancel_works:
             self._orders = []
+        if self._positions_after_cancel is not None:
+            self._positions = dict(self._positions_after_cancel)
 
     def positions(self, account=""):
         return [
@@ -223,6 +228,81 @@ def test_flatten_cancels_then_closes_and_reports_flat() -> None:
         "smc-eod-flatten-2026-08-18-NVDA",
         "smc-eod-flatten-2026-08-18-MSFT",
     }
+
+
+def test_close_plan_is_built_after_the_cancel_barrier() -> None:
+    """CRITICAL (#4848 review): a bracket leg that fills inside the cancel
+    window changes the position; a plan snapshotted BEFORE the barrier then
+    over-sells the stale quantity and turns the long into a naked overnight
+    short. The plan must come from the post-cancel broker state."""
+    ib = FakeIB(
+        positions={"NVDA": 9.0},
+        orders=[_working("NVDA", "smc-NVDA-2026-08-18-port7497-sl")],
+        positions_after_cancel={"NVDA": 8.0},  # sl leg filled 1 lot mid-window
+    )
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert [o.totalQuantity for o in ib.placed] == [8.0]
+    assert report["planned_closes"] == [
+        {"symbol": "NVDA", "quantity": 8.0, "action": "SELL"}
+    ]
+    assert report["flat"] is True
+
+
+def test_partial_fill_stays_in_the_handover() -> None:
+    """Important #5: the reconciliation must see the traded quantity even when
+    the close order did not finish — dropping partials reddens the night."""
+
+    class PartialFakeIB(FakeIB):
+        def _place_order(self, contract, order):
+            self.placed.append(order)
+            self._positions[contract.symbol] = 6.0  # 3 of 9 traded
+            return SimpleNamespace(
+                order=SimpleNamespace(orderRef=order.orderRef, orderId=1),
+                orderStatus=SimpleNamespace(status="Cancelled", filled=3.0, avgFillPrice=100.0),
+            )
+
+    ib = PartialFakeIB(positions={"NVDA": 9.0})
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert report["fills"][0]["quantity"] == 3.0
+    assert report["unfilled"] == [{"symbol": "NVDA", "status": "Cancelled", "filled": 3.0}]
+    assert report["flat"] is False
+
+
+def test_crash_mid_close_keeps_the_fills_already_won() -> None:
+    """Important #6: an exception after the first close order must not lose
+    that order's fill row — and must not escape as a traceback."""
+
+    class CrashFakeIB(FakeIB):
+        def _place_order(self, contract, order):
+            if self.placed:
+                raise RuntimeError("socket dropped")
+            return super()._place_order(contract, order)
+
+    ib = CrashFakeIB(positions={"AMD": 2.0, "NVDA": 9.0})
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert "close loop aborted" in report["error"]
+    assert len(report["fills"]) == 1
+    assert report["flat"] is False
+
+
+def test_cli_refuses_non_paper_account_even_on_gateway_port(monkeypatch, tmp_path) -> None:
+    """Important #3: port 4002 passes assert_paper_account_if_paper_port, so
+    the resolved account itself must be DU* — a live account is refused."""
+    import scripts.c13_eod_flatten as mod
+
+    class LiveFakeIB:
+        def __init__(self) -> None:
+            self.managedAccounts = lambda: ["U1234567"]
+
+        def disconnect(self):
+            return None
+
+    monkeypatch.setattr(mod, "_connect", lambda *a, **k: LiveFakeIB())
+    monkeypatch.setattr(mod, "assert_paper_account_if_paper_port", lambda ib, cfg: None)
+    rc = mod.main(
+        ["--port", "4002", "--date", "2026-08-18", "--fills-output", str(tmp_path / "f.json")]
+    )
+    assert rc == 1
 
 
 def test_flatten_fills_round_trip_through_portfolio_fill() -> None:
@@ -294,7 +374,10 @@ def test_eod_flatten_cron_is_et_gated_and_writes_markers() -> None:
     source = (REPO / "automation" / "launchd" / "run-c13-eod-flatten.sh").read_text(
         encoding="utf-8"
     )
-    assert 'c13_require_et_window "$REPO" 15 45 10 eod-flatten || exit 0' in source
+    # 2026-08-19 (Review Important #2): 15 45 -> dynamisches Ziel aus dem
+    # Fruehschluss-Kalender; die Ziel-Herkunft pinnt
+    # test_flatten_wrapper_targets_the_days_close_from_the_calendar.
+    assert 'c13_require_et_window "$REPO" "${TARGET_HH}" "${TARGET_MM}" 10 eod-flatten || exit 0' in source
     assert source.count('_write_marker "DEGRADED"') >= 3
     assert '_write_marker "SUCCESS"' in source
     assert "scripts.c13_eod_flatten" in source
@@ -311,12 +394,131 @@ def test_reconcile_cron_hands_the_eod_fills_over() -> None:
     assert '[[ -f "${EOD_FLATTEN_FILLS}" ]] && FILLS_ARGS+=(--fills "${EOD_FLATTEN_FILLS}")' in source
 
 
-def test_eod_flatten_plist_covers_all_three_dst_candidate_hours() -> None:
+def test_eod_flatten_plist_covers_both_dst_candidate_brackets() -> None:
     plist = (REPO / "automation" / "launchd" / "com.skippalgo.c13.eod-flatten.plist").read_text(
         encoding="utf-8"
     )
     assert "<string>/bin/bash</string>" in plist  # TCC: launchd + shebang trap
     assert "run-c13-eod-flatten.sh" in plist
-    for hour in (20, 21, 22):
+    # 2026-08-19 (Review Important #2): 15 -> 30 Eintraege — zweite Kandidaten-
+    # Klammer 17/18/19 Uhr lokal fuer das 12:45-ET-Ziel an Halbtagen.
+    for hour in (17, 18, 19, 20, 21, 22):
         assert f"<integer>{hour}</integer>" in plist
-    assert plist.count("<key>Weekday</key>") == 15  # Mon-Fri x three candidates
+    assert plist.count("<key>Weekday</key>") == 30  # Mon-Fri x six candidates
+
+
+# --- Halbtage / After-Close-Sperre (Review 2026-08-18 Important #2) ---------
+
+
+def test_close_guard_allows_before_and_refuses_after_the_bell() -> None:
+    """Geborgte Uhr geliefert: beide Seiten der Grenze, beide Kalenderfaelle."""
+    from datetime import datetime
+
+    # Normaltag: Close 16:00 ET.
+    assert close_guard_verdict(datetime(2026, 8, 19, 15, 59)) is None
+    verdict_regular = close_guard_verdict(datetime(2026, 8, 19, 16, 0))
+    assert verdict_regular is not None and "16:00" in verdict_regular
+
+    # Halbtag (Freitag nach Thanksgiving): Close 13:00 ET — ein 15:45-Lauf
+    # waere hier genau die Inversion, die der Review beschrieb.
+    assert close_guard_verdict(datetime(2026, 11, 27, 12, 44)) is None
+    verdict_half = close_guard_verdict(datetime(2026, 11, 27, 13, 0))
+    assert verdict_half is not None and "13:00" in verdict_half
+    assert close_guard_verdict(datetime(2026, 11, 27, 15, 45)) is not None
+
+
+def test_main_refuses_after_close_before_touching_the_broker(tmp_path, capsys) -> None:
+    """Nach dem Bell: rc 1 VOR jedem Connect — reqGlobalCancel darf den
+    GTC-Schutz nicht mehr anfassen. Kein FakeIB noetig: der Lauf endet vor
+    dem Broker, sonst wuerde der Connect hier laut scheitern."""
+    rc = main(
+        [
+            "--date",
+            "2026-11-27",
+            "--fills-output",
+            str(tmp_path / "fills.json"),
+            "--now-et",
+            "2026-11-27T13:05:00",
+        ]
+    )
+    assert rc == 1
+    assert "refusing to cancel GTC exits after the bell" in capsys.readouterr().err
+    assert not (tmp_path / "fills.json").exists()
+
+
+def test_flatten_wrapper_targets_the_days_close_from_the_calendar() -> None:
+    """Die Shell fragt die Python-Single-Source nach dem Gate-Ziel, statt
+    Datumslisten zu replizieren (Doppelgaenger-Regel)."""
+    source = (REPO / "automation" / "launchd" / "run-c13-eod-flatten.sh").read_text(
+        encoding="utf-8"
+    )
+    assert '-m scripts.us_equity_early_closes --date "${ET_DATE}"' in source
+    assert 'c13_require_et_window "$REPO" "${TARGET_HH}" "${TARGET_MM}" 10 eod-flatten' in source
+    # Das venv-Preflight MUSS vor dem Gate stehen, sonst gibt es kein Python
+    # fuer den Kalender.
+    assert source.index('source "${VENV}/bin/activate"') < source.index("c13_require_et_window")
+
+
+# --- Marker-Konsument + E5-Nachschaerfung (Review Important #4 / Minor #11) --
+
+
+def test_reconcile_cron_consumes_the_flatten_marker() -> None:
+    """Ein Handelstag ohne SUCCESS-Flatten-Marker degradiert die Abstimmung —
+    vorher konnte der Flatten-Cron tagelang still scheitern (kein Konsument)."""
+    source = (REPO / "automation" / "launchd" / "run-c13-reconcile.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'EOD_FLATTEN_MARKER="${REPO}/cache/live/.eod_flatten_status_${DATE}"' in source
+    assert "grep -q '^SUCCESS' \"${EOD_FLATTEN_MARKER}\"" in source
+    assert "eod-flatten-missing-or-degraded" in source
+    # Die Degradierung faellt am ENDE (Telemetrie + Push laufen durch, R6-
+    # Muster) — nicht als Early-Exit vor der Abstimmung.
+    assert source.index("eod-flatten-missing-or-degraded") > source.index("push_to_data_branch")
+
+
+def test_reconcile_e5_guard_measures_reconcile_outputs_not_the_flatten() -> None:
+    """Minor #11: die (auch leere) EOD-Flatten-Datei darf den 'keine Fills
+    trotz Audit'-Zweig nicht satt machen — der misst die beiden
+    reconcile_incubation_fills-Ausgaben."""
+    source = (REPO / "automation" / "launchd" / "run-c13-reconcile.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "_reconcile_fills_present=0" in source
+    assert '{ FILLS_ARGS+=(--fills "${PORTFOLIO_FILLS}"); _reconcile_fills_present=1; }' in source
+    assert '{ FILLS_ARGS+=(--fills "${COMMERCIAL_FILLS}"); _reconcile_fills_present=1; }' in source
+    assert '[[ "${_reconcile_fills_present}" -eq 0 ]]' in source
+
+
+# --- Settle-Recheck (Review Minor #9) ---------------------------------------
+
+
+def test_flat_verdict_waits_out_a_lagging_position_event() -> None:
+    """Position-Events koennen dem Terminal-Orderstatus nachlaufen: der erste
+    Rest-Read nach dem Close-Loop liefert noch die stale Position, erst nach
+    dem Absetzen die Wahrheit. Ohne Recheck: falsches DEGRADED."""
+
+    class LaggingFakeIB(FakeIB):
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self._stale_final_reads = 1
+
+        def positions(self, account=""):
+            real = super().positions(account)
+            if not real and self.placed and self._stale_final_reads > 0:
+                self._stale_final_reads -= 1
+                return [
+                    SimpleNamespace(
+                        contract=SimpleNamespace(symbol="NVDA"),
+                        position=9.0,
+                        account="DUP862066",
+                    )
+                ]
+            return real
+
+    ib = LaggingFakeIB(positions={"NVDA": 9.0})
+    report = flatten_paper_account(ib, account="DUP862066", trade_date="2026-08-18")
+    assert report["fills"] and report["fills"][0]["symbol"] == "NVDA"
+    assert report["flat"] is True, (
+        "the settle recheck must re-read positions after the lag settles "
+        f"instead of declaring a phantom leftover: {report}"
+    )
