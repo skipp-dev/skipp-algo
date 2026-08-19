@@ -142,6 +142,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # 2026-08-19 (Review-Follow-up #4823): merge_group laeuft ohne den
     # diff-getriebenen Selektor — der Interpreter-Pin-Waechter muss fix gepinnt sein.
     "test_workflow_python_version_pinned.py",
+    "test_scheduled_workflow_observation_inventory.py",
     "test_smc_r4_context_readback_workflow.py",
     "test_scripts_path_as_posix_guard.py",
     "test_select_workflow_guards.py",

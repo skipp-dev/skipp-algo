@@ -78,6 +78,31 @@ jobs:
           # job fails. The final `exit $rc` re-surfaces the failure --
           # this is the explicit-exit-check pattern that Bundle D's
           # global invariant test enforces.
+          # 2026-08-19 (Beobachtungsluecken-Sweep): Neun Crons ergaenzt, deren
+          # stiller Ausfall eine DATENFOLGE hat. Budgets = Kadenz + Jitter-
+          # Reserve (GHA-Cron-Jitter reicht unter Last bis ~5h). Ein eigener
+          # Issue-Opener ersetzt KEINE Zeile hier: er laeuft nicht, wenn der
+          # Workflow nicht laeuft.
+          #   evidence-freshness-snapshot 30h  taeglich; Produkt speist den
+          #     live_overlay_daemon -- eingefroren heisst: die Oberflaeche
+          #     behauptet Frische, die es nicht gibt.
+          #   tradingview-storage-refresh 48:any  taeglich; Inhalt deckt der
+          #     eigene Issue-Opener, hier zaehlt nur das Lebenszeichen. 48h =
+          #     die im Workflow dokumentierte Marge vor der 72h-Cookie-TTL.
+          #   tv-save-consumer-source     30:any  2x taeglich; rote Laeufe sind
+          #     hier by design selbstheilend (savedWithoutAttestation), daher
+          #     :any -- success-only waere Dauer-Rot.
+          #   live-overlay-deploy-trigger-guard 30h  taeglich; Deploy-Gate.
+          #   pre-a0-mlflow-health        12:any  2x/Stunde; 12h toleriert ~24
+          #     verpasste Fires, faengt aber echten Stillstand. Diese Sonde hat
+          #     KEIN issues:write und war gegen beide Ausfallarten blind.
+          #   smc-deeper-integration-gates 30:any  taeglich 03:15.
+          #   vendor-billing-watch        30h  taeglich; stiller Ausfall =
+          #     Kostenueberraschung ohne Vorwarnung.
+          #   pine-library-version-monitor 30h  taeglich; Versionsdrift.
+          #   fvg-quality-quartile-gate   72:weekday  Mo-Fr Gate.
+          # Die Vollstaendigkeit ueber ALLE scheduled Workflows haelt
+          # tests/test_scheduled_workflow_observation_inventory.py.
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
@@ -99,7 +124,16 @@ jobs:
             g23-ab-watchdog.yml=72:any:weekday \
             smc-live-news-refresh.yml=72:weekday \
             smc-r1-reattest.yml=72:any:weekday \
-            pine-release-notes-watch.yml=192
+            pine-release-notes-watch.yml=192 \
+            evidence-freshness-snapshot.yml=30 \
+            tradingview-storage-refresh.yml=48:any \
+            tv-save-consumer-source.yml=30:any \
+            live-overlay-deploy-trigger-guard.yml=30 \
+            pre-a0-mlflow-health.yml=12:any \
+            smc-deeper-integration-gates.yml=30:any \
+            vendor-billing-watch.yml=30 \
+            pine-library-version-monitor.yml=30 \
+            fvg-quality-quartile-gate.yml=72:weekday
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
