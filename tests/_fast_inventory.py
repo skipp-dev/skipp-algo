@@ -81,6 +81,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_live_overlay_dashboard_contract.py",
     "test_live_overlay_dashboard_publish_workflow.py",
     "test_library_field_audit.py",
+    "test_a0_fast_alert_rules.py",
     "test_pre_a0_alert_rules.py",
     "test_pre_a0_grafana_dashboard.py",
     "test_publish_overlay_dashboard.py",
