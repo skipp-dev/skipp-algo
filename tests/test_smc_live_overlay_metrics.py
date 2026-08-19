@@ -3682,3 +3682,37 @@ def test_window_change_alert_watches_the_gauge_without_copying_its_value() -> No
     assert rule["labels"]["severity"] == "warning", (
         "Konfigurationsregression ist kein Ausfall — warning, nicht critical"
     )
+
+
+def test_no_range_function_over_a_multi_metric_name_selector() -> None:
+    """`increase()`/`rate()` ueber `{__name__=~"...(a|b)..."}` ist nicht evaluierbar.
+
+    Die Range-Funktionen verwerfen `__name__`. Passen MEHRERE Metriknamen auf
+    den Selector, tragen die Ergebnisse danach identische Labelsets und
+    Prometheus bricht mit "vector cannot contain metrics with the same
+    labelset" ab — die Regel ist dann dauerhaft `health=error` und feuert nie.
+
+    Gemeine Eigenschaft: solange nur EINE der Serien existiert, funktioniert
+    alles. Erst das Seeding aller Counter (#4880) machte die Kollision
+    sichtbar, d.h. der Defekt schlaeft genau so lange, wie der Alarm ohnehin
+    keine Daten haette. Gemessen 19.8.: `sum by (__name__)` repariert es NICHT,
+    nur die explizite Summe je Metrik.
+    """
+    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
+
+    offenders: list[str] = []
+    for match in re.finditer(
+        r"(?:increase|rate|irate|delta|idelta)\(\s*\{[^}]*__name__\s*=~\s*\"(?P<pat>[^\"]+)\"",
+        rules,
+    ):
+        pattern = match.group("pat")
+        # Mehrere Namen entstehen durch eine Alternative im Regex.
+        if "|" in pattern:
+            offenders.append(pattern)
+
+    assert not offenders, (
+        "Range-Funktion ueber einen Selector, der MEHRERE Metriknamen matcht — "
+        "die Query bricht mit doppeltem Labelset ab und die Regel feuert nie. "
+        "Je Metrik einzeln summieren:\n  " + "\n  ".join(offenders)
+    )
