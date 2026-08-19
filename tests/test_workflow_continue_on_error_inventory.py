@@ -92,10 +92,13 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     "adr0023-magnitude-shadow-daily.yml": {
         "magnitude-shadow": {"id:ledger_metrics"},
     },
-    # C13 daily-cron: 9 best-effort steps so partial failures still upload
+    # C13 daily-cron: 10 best-effort steps so partial failures still upload
     # artefacts and the issue-opener can report which step failed.
+    # 2026-08-19 (#4848 R#4): + status_markers — der Marker-Konsument ist
+    # advisory wie die Steps 1-5b, Alarm läuft über rc + Issue-Opener.
     "c13-daily-cron.yml": {
         "daily-pipeline": {
+            "id:status_markers",
             "id:backfill",
             "id:backfill_progress",
             "id:drift_input",

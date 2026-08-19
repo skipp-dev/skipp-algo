@@ -186,6 +186,34 @@ jobs:
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
           echo "Trade date: ${DATE}"
 
+      # #4848 Review-Punkt #4 (2026-08-19): the workstation drivers write
+      # per-day status markers and nothing consumed them — a DEGRADED
+      # reconcile (18.8.: TWS down at 23:05 local) stayed invisible. The
+      # audit push ships a sanitized summary (cache/live/c13_status_markers
+      # .json, overlaid above); this step alarms on any non-green marker of
+      # the trade date or the day before, so a silent failure lives at most
+      # one day. Missing summary / empty window stay soft (no-audit days and
+      # staleness already have owners: rc=78 + the freshness guards).
+      - name: Step 0 — check workstation status markers (advisory)
+        id: status_markers
+        # CONTINUE-ON-ERROR-INTENTIONAL: advisory like steps 1-5b — the alarm
+        # travels via the published rc into the issue-opener gate; the data
+        # pipeline itself must still run on a degraded workstation marker
+        # (it reads the audit log, not the marker).
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          python -m scripts.c13_status_markers check \
+            --summary "${LIVE_DIR}/c13_status_markers.json" \
+            --date "${DATE}"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: "⚠️ Warn: Step 0 — check workstation status markers (advisory)"
+        if: always() && steps.status_markers.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 0 — check workstation status markers (advisory)' failed silently (soft-fail step)"
+
       - name: Step 1 — backfill live outcomes (advisory)
         id: backfill
         # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) on missing audit
@@ -558,6 +586,7 @@ jobs:
         # weekend), '' = step skipped via `if:` gate (treat as no-op, NOT a
         # failure). Anything else is a hard failure worth opening an issue.
         if: |
+          (steps.status_markers.outputs.rc != '0' && steps.status_markers.outputs.rc != '') ||
           (steps.backfill.outputs.rc != '0' && steps.backfill.outputs.rc != '78' && steps.backfill.outputs.rc != '') ||
           (steps.backfill_progress.outputs.rc != '0' && steps.backfill_progress.outputs.rc != '') ||
           (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
@@ -589,6 +618,7 @@ jobs:
           C13 daily cron failed for trade date ${DATE}.
 
           Step return codes (78 = soft-skip due to missing input):
+          - workstation status markers (#4848 R#4): ${{ steps.status_markers.outputs.rc }}
           - backfill_live_outcomes:        ${{ steps.backfill.outputs.rc }}
           - backfill progress assertion (F-V3-15): ${{ steps.backfill_progress.outputs.rc }}
           - build_backtest_reference (drift-input):     ${{ steps.drift_input.outputs.rc }}
