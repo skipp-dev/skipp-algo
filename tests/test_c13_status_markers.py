@@ -22,6 +22,7 @@ import pytest
 from scripts.c13_status_markers import (
     GREEN_KINDS,
     _parse_marker_content,
+    _sanitize,
     check,
     collect_markers,
     emit,
@@ -486,3 +487,85 @@ def test_green_and_degraded_are_actually_distinguished() -> None:
     }
     assert kinds & GREEN_KINDS, f"kein einziger gruener Treiber-Marker erkannt: {kinds}"
     assert kinds - GREEN_KINDS, f"kein einziger nicht-gruener Treiber-Marker erkannt: {kinds}"
+
+
+# ----------------------------------------------------------------------
+# Marker-Formate der PUSH-BIBLIOTHEK (Doppelgaenger, 19.8.).
+# ----------------------------------------------------------------------
+#
+# ``_driver_marker_lines`` globt nur ``run-c13-*.sh`` und ueberspringt zudem
+# jede Datei ohne ``_write_marker() {``. ``lib_c13_data_push.sh`` schreibt die
+# Marker ALLER Push-Ketten (audit_push, reconcile_push, commercial_*_push,
+# wsh-push, imbalance-push) mit EIGENEN printf-Formaten direkt nach
+# ``${marker}`` — und lag damit vollstaendig ausserhalb der Kopplung.
+# Gemessen 19.8.: Trenner in ``degraded:push-failed`` von ``:`` auf ``|``
+# gebrochen ⇒ 19 passed. Genau dieser Bruch haette den Konsumenten den KIND
+# nicht mehr erkennen lassen.
+
+_LIB_MARKER_RE = re.compile(
+    r"printf\s+'(?P<fmt>[^']*)'\s+[^>]*>\s*\"\$\{marker\}\"|"
+    r"printf\s+'(?P<fmt2>[^']*)'\s+[^>]*>\s*\"\$\{_lock_marker\}\""
+)
+
+
+def _library_marker_formats() -> list[tuple[str, str]]:
+    """(gerendertes Beispiel, gemeinter KIND) je Marker-printf der Bibliothek."""
+    lib = (
+        Path(__file__).resolve().parents[1]
+        / "automation"
+        / "launchd"
+        / "lib_c13_data_push.sh"
+    )
+    text = lib.read_text(encoding="utf-8")
+    out: list[tuple[str, str]] = []
+    for match in _LIB_MARKER_RE.finditer(text):
+        fmt = (match.group("fmt") or match.group("fmt2")).replace("\\n", "\n")
+        rendered = fmt % tuple(
+            ["2026-08-19T00:00:00Z", "cache/live/example.jsonl"][: fmt.count("%s")][i]
+            for i in range(fmt.count("%s"))
+        )
+        intended = fmt.split(":", 1)[0]
+        out.append((rendered, intended))
+    return out
+
+
+def test_every_library_marker_format_survives_the_parser() -> None:
+    formats = _library_marker_formats()
+
+    # Vakuitaetsboden: gemessen 10 Schreibstellen (Zeilen 136-237).
+    assert len(formats) >= 8, (
+        f"nur {len(formats)} Marker-printf in lib_c13_data_push.sh gefunden — "
+        "Erkennung gebrochen oder Layout geaendert?"
+    )
+
+    broken: list[str] = []
+    for rendered, intended in formats:
+        kind, _message, _ts = _parse_marker_content(rendered)
+        if kind.lower() != intended.lower():
+            broken.append(f"{rendered.strip()!r} -> {kind!r} statt {intended!r}")
+    assert not broken, "Bibliotheks-Marker, die der Konsument falsch liest:\n" + "\n".join(broken)
+
+
+def test_library_marker_kinds_are_known_to_the_consumer() -> None:
+    """Jeder KIND der Bibliothek muss gruen ODER bewusst degraded sein."""
+    kinds = {intended.lower() for _rendered, intended in _library_marker_formats()}
+    assert kinds, "keine KINDs extrahiert — der Zeuge liefe vakuum"
+    unknown = kinds - set(GREEN_KINDS) - {"degraded"}
+    assert not unknown, f"unbekannte Marker-KINDs der Push-Bibliothek: {sorted(unknown)}"
+
+
+def test_sanitize_keeps_repo_relative_paths_intact() -> None:
+    """Der Alarmtext trug systematisch verstuemmelte Dateinamen.
+
+    ``_ABS_PATH_RE`` hatte keinen Anker und griff mitten in einen relativen
+    Pfad: der reale ``ok:pushed``-Marker aus lib_c13_data_push.sh:218 wurde zu
+    ``cacheincubation_2026-08-18.jsonl``. Absolute Pfade muessen weiter auf den
+    Basisnamen kollabieren — die Privacy-Zusage haengt daran.
+    """
+    relativ = "ok:pushed:2026-08-18T21:30:02Z:cache/live/incubation_2026-08-18.jsonl"
+    assert _sanitize(relativ) == relativ
+
+    absolut = "portfolio-after-failed:/Users/spreuss/Documents/skipp-algo/cache/live/x.json"
+    gekuerzt = _sanitize(absolut)
+    assert "/Users/" not in gekuerzt
+    assert gekuerzt.endswith("x.json")
