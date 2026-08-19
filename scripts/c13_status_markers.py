@@ -17,10 +17,16 @@ This module closes the loop with two subcommands:
   ``data/phase-a-audit`` push.
 * ``check`` — runs in ``c13-daily-cron`` after the data-branch overlay:
   exits 1 if any marker of the processed trade date or the day before is not
-  green. Green means ``ok``/``success`` (case-insensitive; the drivers use
-  two casing conventions) — every other kind, unknown ones included, alarms
-  via the cron's existing rc -> issue-opener gate. A DEGRADED cron can now be
+  green. Green means every line's kind is ``ok``/``success``
+  (case-insensitive) — every other kind, unknown ones included, alarms via
+  the cron's existing rc -> issue-opener gate. A DEGRADED cron can now be
   silent for at most one day, not "tagelang".
+
+Marker formats are the MEASURED population on C13, not an assumed convention
+(all 16 real markers of 2026-08-16..18, sampled 2026-08-19 — the first cut
+parsed only ``KIND:msg`` and would have alarmed on every green day):
+``KIND:msg:ISO-TS``, ``KIND|msg``, ``KIND msg``, and the commercial driver's
+append file with one ``HH:MM:SSZ KIND|msg`` line per fire — worst line wins.
 
 Both sides take their dates as explicit arguments — no clock is read here,
 the drivers and the workflow own the calendar.
@@ -39,6 +45,12 @@ from scripts.smc_atomic_write import atomic_write_json
 
 _MARKER_NAME_RE = re.compile(r"^\.(?P<agent>[a-z0-9_]+)_status_(?P<date>\d{4}-\d{2}-\d{2})$")
 _TRAILING_TS_RE = re.compile(r":(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s*$")
+# Append-style markers (commercial_shadow) prefix each fired line with a bare
+# clock time; the kind follows it.
+_LINE_TS_PREFIX_RE = re.compile(r"^\d{2}:\d{2}:\d{2}Z\s+")
+# The kind is the leading word, terminated by any of the three measured
+# delimiters (colon, pipe, space) or end of line.
+_KIND_RE = re.compile(r"^(?P<kind>[A-Za-z_]+)(?:[:| ]|$)")
 # Any absolute-path token collapses to its basename before the summary leaves
 # the workstation.
 _ABS_PATH_RE = re.compile(r"/(?:[^/:\s]+/)+(?P<base>[^/:\s]+)")
@@ -48,15 +60,35 @@ SUMMARY_SCHEMA_VERSION = 1
 
 
 def _parse_marker_line(line: str) -> tuple[str, str, str]:
-    """Split ``KIND:message:ISO-TS`` (message may itself contain colons)."""
+    """One marker line -> (kind, message, ts) across the measured formats."""
     body = line.strip()
     ts = ""
     ts_match = _TRAILING_TS_RE.search(body)
     if ts_match:
         ts = ts_match.group("ts")
         body = body[: ts_match.start()]
-    kind, _, message = body.partition(":")
-    return kind.strip(), message.strip(), ts
+    body = _LINE_TS_PREFIX_RE.sub("", body)
+    kind_match = _KIND_RE.match(body)
+    if not kind_match:
+        # Unparseable head: surface it verbatim as the kind so the alarm text
+        # shows the junk — unknown kinds fail closed downstream.
+        return body, "", ts
+    kind = kind_match.group("kind")
+    message = body[kind_match.end("kind") :].lstrip(":| ")
+    return kind, message.strip(), ts
+
+
+def _parse_marker_content(text: str) -> tuple[str, str, str]:
+    """Whole marker file -> worst line wins (append-style markers carry one
+    line per fire; any single non-green fire must alarm)."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "EMPTY-MARKER", "", ""
+    parsed = [_parse_marker_line(line) for line in lines]
+    for kind, message, ts in parsed:
+        if kind.lower() not in GREEN_KINDS:
+            return kind, message, ts
+    return parsed[-1]
 
 
 def _sanitize(message: str) -> str:
@@ -76,7 +108,7 @@ def collect_markers(live_dir: Path, *, date: str, days_back: int) -> list[dict[s
         match = _MARKER_NAME_RE.match(path.name)
         if not match or match.group("date") not in window:
             continue
-        kind, message, ts = _parse_marker_line(path.read_text(encoding="utf-8", errors="replace"))
+        kind, message, ts = _parse_marker_content(path.read_text(encoding="utf-8", errors="replace"))
         rows.append(
             {
                 "agent": match.group("agent"),
