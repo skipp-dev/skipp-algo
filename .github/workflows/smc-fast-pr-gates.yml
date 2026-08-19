@@ -774,6 +774,7 @@ jobs:
             tests/test_workflow_env_var_defaults.py \
             tests/test_workflow_invoked_scripts_import_order.py \
             tests/test_workflow_python_version_pinned.py \
+            tests/test_scheduled_workflow_observation_inventory.py \
             tests/test_documented_env_vars_are_read.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
