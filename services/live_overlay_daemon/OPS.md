@@ -224,7 +224,7 @@ the deployment itself is retired.
 | `HOLD_MANAGER_SHADOW_WEBHOOK_TOKEN` | no | — | Dedicated random token of at least 32 characters; sent in the private TradingView JSON body, never in the URL |
 | `HOLD_MANAGER_SHADOW_LEDGER_PATH` | no | — | Persistent SQLite ledger path; production uses `/app/data/smc-hold-manager-shadow.sqlite3` on the existing service volume |
 | `HOLD_MANAGER_SHADOW_CONTRACT_PATH` | no | `artifacts/governance/smc_hold_manager_shadow_contract.json` | Source-pinned R2 shadow contract |
-| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` | Maximum accepted bar age in seconds |
+| `HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS` | no | `900` (code default), production `86400` | Maximum accepted bar age in seconds. Effective value: metric `live_overlay_hold_manager_shadow_max_event_age_secs` |
 | `HOLD_MANAGER_SHADOW_MAX_FUTURE_SKEW_SECS` | no | `120` | Maximum accepted future clock skew in seconds |
 | `PORT` | yes | `8080` (production pin) | HTTP listen port |
 | `LIVE_OVERLAY_EXPECT_MARKET_TRAFFIC` | no | `0` (production: `1` since 2026-07-23) | Arms first-zero traffic alerts for a verified external `/smc_live` consumer. Keep `0` while none exists; see [Expected market traffic alert rollout](#expected-market-traffic-alert-rollout). |
