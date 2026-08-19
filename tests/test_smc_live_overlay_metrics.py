@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 @pytest.fixture(autouse=True)
@@ -3494,3 +3495,190 @@ def test_render_metrics_hotspot_name_collisions_are_aggregated(
     assert "live_overlay_hotspot_symbol_brk_a_requests_total 5.0" in body
     assert body.count("# TYPE live_overlay_hotspot_tf__5m_requests_total counter") == 1
     assert "live_overlay_hotspot_tf__5m_requests_total 5.0" in body
+
+
+def test_hold_manager_shadow_rejection_counters_are_seeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Die drei Rejection-Counter existieren vor der ersten Ablehnung.
+
+    2026-08-19 (Doppelgaenger K12): ``lo-hold-manager-shadow-rejected`` matcht
+    sie per ``increase(...[30m])`` und begruendet sich selbst damit, dass jede
+    Rejection-Klasse ein "first-of-its-kind event" ist — genau die Probe, die
+    ein lazy erzeugter Counter als Baseline verschluckt. Dieselbe Falle kostete
+    schon einmal den ersten Fehler-Burst der Compute-Zyklen (Seed-Kommentar in
+    metrics.py); die Lehre war nicht generalisiert worden.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+    import services.live_overlay_daemon.observability as obs
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+
+    with obs._counter_lock:
+        obs._counters.clear()
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_hold_manager_shadow_contract_rejected_total 0.0" in body
+    assert "live_overlay_hold_manager_shadow_payload_rejected_total 0.0" in body
+    assert "live_overlay_hold_manager_shadow_event_time_rejected_total 0.0" in body
+
+
+def test_every_increase_consumed_counter_family_is_seeded() -> None:
+    """ABGELEITET: jede Counter-Familie, ueber die eine Alarmregel ``increase()``
+    rechnet, muss in der Seed-Liste stehen.
+
+    Handliste gegen Handliste war die Bug-Klasse: die Seed-Liste wuchs pro
+    Vorfall, die Alarmregeln wuchsen unabhaengig. Dieser Zeuge liest BEIDE
+    Seiten aus den echten Dateien. Die Regex-Alarmform
+    (``{__name__=~"..._(a|b|c)_total"}``) wird mit expandiert — sie entzieht
+    sich einem naiven ``grep increase(live_overlay_``.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
+    metrics_src = (root / "metrics.py").read_text(encoding="utf-8")
+
+    consumed: set[str] = set()
+    # Direkte Form: increase(live_overlay_foo_total[5m])
+    consumed.update(re.findall(r"increase\((live_overlay_[a-z0-9_]+)\s*[\[{]", rules))
+    # Regex-Form: {__name__=~"live_overlay_x_(a|b)_total"} -> expandieren
+    for stem, alts, tail in re.findall(
+        r'__name__=~"(live_overlay_[a-z0-9_]*?)\(([a-z0-9_|]+)\)([a-z0-9_]*)"', rules
+    ):
+        consumed.update(f"{stem}{alt}{tail}" for alt in alts.split("|"))
+    assert len(consumed) >= 10, f"Zeuge zu klein — Alarm-Parsing gebrochen? {sorted(consumed)}"
+
+    # Seed-Liste: Punkt-Keys -> Prometheus-Namen (metrics.py ersetzt '.' durch '_')
+    # Auf die schliessende Klammer IN IHRER EINRUECKUNG schneiden, nicht auf
+    # das erste "):" — ein Kommentar im Block ("(Doppelgaenger K12): ...")
+    # enthaelt die Sequenz sonst und kappt die Liste still (hier passiert).
+    seed_block = metrics_src.split("for traffic_counter in (", 1)[1].split("\n    ):", 1)[0]
+    seeded = {
+        name.replace(".", "_") for name in re.findall(r'"(live_overlay\.[^"]+)"', seed_block)
+    }
+    assert len(seeded) >= 9, f"Seed-Liste unplausibel klein: {sorted(seeded)}"
+
+    # Nur Counter, die dieser Prozess selbst emittiert, koennen geseedet werden;
+    # Bridge-/Fremdmetriken (evidence, workflow, railway, uptimerobot ...) nicht.
+    own = {name for name in consumed if "hold_manager_shadow" in name or "smc_live" in name}
+    missing = own - seeded
+    assert not missing, (
+        f"Alarmregeln rechnen increase() ueber ungeseedete Counter: {sorted(missing)} — "
+        "der erste Burst pro Prozess-Lebenszeit wird als Baseline verschluckt"
+    )
+
+
+def test_effective_max_event_age_is_exported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Der WIRKSAME Config-Wert steht im Scrape, nicht nur in der Doku.
+
+    2026-08-19 (Doppelgaenger K13): Railway laeuft mit 86400, README/OPS
+    dokumentierten 900, und ``lo-hold-manager-shadow-rejected`` behauptete die
+    86400 in PROSA. Drei Repliken, keine Messung. Als Gauge ist der deployte
+    Wert eine Query entfernt — "deployed == declared" wird pruefbar, statt
+    geglaubt zu werden.
+    """
+    import services.live_overlay_daemon.metrics as metrics_mod
+
+    _patch_common(
+        monkeypatch,
+        feed_ready=True,
+        market_open=True,
+        bar_count=10,
+        overlay_symbols=5,
+        overlay_age=60.0,
+    )
+    monkeypatch.setenv("HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS", "86400")
+
+    body = metrics_mod.render_metrics(startup_ts=100.0)
+
+    assert "live_overlay_hold_manager_shadow_max_event_age_secs 86400" in body
+    # Der Wert FOLGT der Umgebung — eine hartkodierte Zahl waere eine vierte
+    # Replik statt einer Messung (Gegenprobe mit dem Code-Default).
+    monkeypatch.setenv("HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS", "900")
+    assert (
+        "live_overlay_hold_manager_shadow_max_event_age_secs 900"
+        in metrics_mod.render_metrics(startup_ts=100.0)
+    )
+
+
+def test_service_docs_state_the_code_default_for_max_event_age() -> None:
+    """README und OPS muessen den Code-Default nennen — beide Repliken.
+
+    Sie duerfen zusaetzlich die Produktions-Abweichung nennen (tun sie), aber
+    der Default darf nicht driften: sonst liest ein Operator 900, waehrend
+    config.py etwas anderes klemmt.
+    """
+    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+    src = (root / "config.py").read_text(encoding="utf-8")
+    block = src.split("def hold_manager_shadow_max_event_age_secs", 1)[1].split("def ", 1)[0]
+    code_default = re.search(r'"HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS",\s*(\d+)', block)
+    assert code_default, "Default in config.py nicht gefunden — Struktur geaendert?"
+    value = code_default.group(1)
+
+    for doc in ("README.md", "OPS.md"):
+        row = [
+            line
+            for line in (root / doc).read_text(encoding="utf-8").splitlines()
+            if "`HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS`" in line
+        ]
+        assert len(row) == 1, f"{doc}: erwartet genau eine Tabellenzeile, gefunden {len(row)}"
+        assert f"`{value}`" in row[0], f"{doc} nennt den Code-Default {value} nicht: {row[0]}"
+
+
+def test_window_change_alert_watches_the_gauge_without_copying_its_value() -> None:
+    """Die Alarmregel zum Fenster darf die Zahl NICHT noch einmal tragen.
+
+    Operator-Entscheid 2026-08-19: Das Fenster bekommt eine Regel, aber weder
+    „weicht vom Code-Default ab" (stuende dauerhaft rot, weil die Abweichung
+    die Entscheidung IST) noch „< 86400" (waere die VIERTE Replik der Zahl,
+    die dieser Branch gerade eliminiert). Gewaehlt wurde ``changes()`` — die
+    einzige Form, die den stillen Bruch meldet und dabei keine Kopie des Werts
+    enthaelt. Dieser Test haelt genau diese Eigenschaft fest.
+    """
+    rules_path = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "live_overlay_daemon"
+        / "infra"
+        / "grafana"
+        / "alert-rules.yaml"
+    )
+    document = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    rules = {
+        rule["uid"]: rule
+        for group in document["groups"]
+        for rule in group["rules"]
+    }
+    uid = "lo-hold-manager-shadow-window-changed"
+    assert uid in rules, (
+        f"{uid} fehlt — ohne sie ist die Gauge sichtbar, aber niemand bemerkt, "
+        "wenn das Fenster zurueckfaellt."
+    )
+    rule = rules[uid]
+    expressions = "\n".join(node["model"].get("expr", "") for node in rule["data"])
+
+    assert "changes(" in expressions, (
+        "die Regel muss auf die AENDERUNG reagieren, nicht auf einen Schwellwert"
+    )
+    assert "live_overlay_hold_manager_shadow_max_event_age_secs" in expressions
+
+    # Der Kern: keine Replik des Werts im Ausdruck. Der Kommentarblock darueber
+    # darf die Zahlen nennen (er begruendet die Wahl) — der AUSDRUCK nicht.
+    numbers = set(re.findall(r"\b\d{3,}\b", expressions))
+    assert not numbers, (
+        f"die Regel traegt Zahlenliteral(e) {sorted(numbers)} im Ausdruck — "
+        "genau die vierte Replik, die dieser Branch beseitigt. Der Ausdruck "
+        "muss ohne den Wert auskommen."
+    )
+    assert rule["labels"]["severity"] == "warning", (
+        "Konfigurationsregression ist kein Ausfall — warning, nicht critical"
+    )

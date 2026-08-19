@@ -1083,6 +1083,24 @@ def _collect_process_metrics(startup_ts: float, startup_epoch: float = 0.0) -> l
         f'branch="{_escape_label_value(branch)}"}} 1'
     )
 
+    # Effective config — the values an ALERT RULE reasons about must be
+    # readable from outside the container, or "deployed" and "declared" drift
+    # in silence. Measured 2026-08-19 (Doppelgaenger K13): the Railway service
+    # runs HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS=86400 while README/OPS
+    # document the 900 default, and lo-hold-manager-shadow-rejected asserts the
+    # 86400 window in PROSE. Nothing compared the three. Reset the variable (or
+    # stand up a second environment) and the rule's premise breaks with the
+    # docs confirming the wrong number. Exposed as a gauge, the deployed truth
+    # is one query away and the alert can gate on it.
+    # Literal namespace like live_overlay_build_info above — NOT the local
+    # ``prefix`` (that is live_overlay_process_*), because the alert rule
+    # matches the live_overlay_hold_manager_shadow_* family.
+    lines.append("# TYPE live_overlay_hold_manager_shadow_max_event_age_secs gauge")
+    lines.append(
+        "live_overlay_hold_manager_shadow_max_event_age_secs "
+        f"{config.hold_manager_shadow_max_event_age_secs()}"
+    )
+
     # Python GC collections
     gc_stats = gc.get_stats()
     lines.append(f"# TYPE {prefix}_python_gc_collections_total counter")
@@ -1198,6 +1216,15 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
         # lifetime never fired the alert. Seed 0 like the traffic counters.
         "live_overlay.full_compute_cycle.errors",
         "live_overlay.flow_patch_cycle.errors",
+        # 2026-08-19 (Doppelgaenger K12): same lazy-creation trap, one alert
+        # later. lo-hold-manager-shadow-rejected matches these three via
+        # increase(...[30m]) and its own comment calls every rejection class
+        # here "a first-of-its-kind event" — which is exactly the sample the
+        # unseeded counter swallows as its baseline. Seeded, the first
+        # rejection is a step from 0 and the alert fires.
+        "live_overlay.hold_manager_shadow.contract_rejected.total",
+        "live_overlay.hold_manager_shadow.payload_rejected.total",
+        "live_overlay.hold_manager_shadow.event_time_rejected.total",
     ):
         counters.setdefault(traffic_counter, 0.0)
 
