@@ -305,6 +305,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # unbedingt auf dem Pflicht-Pfad stehen (Composite-Bump + Alt-Literal in
     # einer Queue-Batch waere sonst erst auf main rot).
     "tests/test_workflow_python_version_pinned.py",
+    # 2026-08-19 (Beobachtungsluecken-Sweep): Populations-Waechter ueber ALLE
+    # scheduled Workflows -- 24 von 46 waren unbeobachtet, weil die beiden
+    # Freshness-Inventare nur Ledger und Workflow gegeneinander pruefen.
+    "tests/test_scheduled_workflow_observation_inventory.py",
     # 2026-08-01: tv-save-consumer-source pushes repository sources onto the
     # live account on schedule, on dispatch, and chained after a library
     # refresh -- none of them a pull request. #4286 guards the diff; this
