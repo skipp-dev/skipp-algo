@@ -160,7 +160,12 @@ def test_reader_accepts_real_databento_ohlcv_without_receive_timestamp() -> None
     assert item is not None
     assert item.bar.ts_event == event_ns / 1_000_000_000
     assert item.bar.ts_recv == item.bar.ts_event
-    assert telemetry.snapshot()["record_rejections"] == {}
+    # Seit dem Seeding (SEEDED_REJECTION_REASONS in
+    # services/a0_fast_detector/telemetry.py) existiert die Familie ab Start
+    # mit 0 je Grund, damit increase() den ersten Burst nicht als Baseline
+    # frisst. "Nichts abgelehnt" ist deshalb die SUMME 0, nicht das leere
+    # Dict -- die Absicht des Tests bleibt, nur seine Form aendert sich.
+    assert sum(telemetry.snapshot()["record_rejections"].values()) == 0
 
 
 def test_reader_counts_unmapped_and_invalid_records() -> None:

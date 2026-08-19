@@ -128,9 +128,16 @@ fail-closed Zustand über den Mid-session-Bootstrap.
   erfolgreich auf das persistente Volume gespült hat. Ein erfolgreiches
   Railway-Deployment oder `/healthz=200` allein belegt ausdrücklich **nicht**,
   dass die Messperiode läuft.
-- `alert-rules.yml`: Regeln für Disconnect, Slow-Reader-Drops, festhängenden
-  Resync, Queue-Druck, stale Daten und empfangenen Markttraffic ohne
-  persistierten PRE-A0-Evidenzfluss.
+- **Alarmregeln** (Disconnect, Slow-Reader-Drops, festhängender Resync,
+  Queue-Druck, stale Daten, Markttraffic ohne persistierten
+  PRE-A0-Evidenzfluss) stehen in
+  `services/live_overlay_daemon/infra/grafana/alert-rules.yaml`, Gruppe
+  `pre-a0-shadow`. Die früheren lokalen `alert-rules.yml` /
+  `pre-a0-alert-rules.yml` wurden am 2026-08-19 gelöscht: sie hatten **keinen
+  Deploy-Pfad** (kein Prometheus liest sie), sieben ihrer Regeln existierten
+  nirgends sonst, und zwei Tests bescheinigten „Abdeckung“ über eine Datei, die
+  nichts ausführt. Publiziert wird ausschließlich über
+  `.github/workflows/live-overlay-alert-rules-publish.yml`.
 
 ## Verbindlicher Deployment-Nachweis
 
