@@ -407,6 +407,59 @@ def test_eod_flatten_plist_covers_both_dst_candidate_brackets() -> None:
     assert plist.count("<key>Weekday</key>") == 30  # Mon-Fri x six candidates
 
 
+def test_every_plist_candidate_reaches_the_gate_for_both_calendar_cases() -> None:
+    """Die 30 Feuerzeiten der Plist gegen das ET-Ziel + die Gate-Toleranz rechnen.
+
+    2026-08-19 (Doppelgaenger K2): gepinnt waren nur die sechs STUNDEN. Die
+    Minute (30x ``45``) haing an keinem Waechter, obwohl sie mit
+    ``_FLATTEN_LEAD_MINUTES`` (Ziel = Close - 15) und der Gate-Toleranz (10 min
+    in run-c13-eod-flatten.sh) EINE Wahrheit bildet: setzt jemand das Lead auf
+    30, wird das Ziel 15:30 ET, die Plist feuert weiter :45, ``diff=15 > tol=10``
+    — und das Gate no-optet JEDEN Tag stumm (nur stderr, kein Marker, kein
+    DEGRADED). Der Flatten faellt lautlos aus, der Zombie-Generator ist zurueck.
+
+    Dieser Test leitet die Wahrheit ab statt sie zu wiederholen: er liest die
+    Minuten aus der Plist, das Ziel aus ``flatten_target_et_hhmm`` und die
+    Toleranz aus dem Wrapper, und verlangt fuer BEIDE Kalenderfaelle (Regeltag
+    und 13:00-ET-Halbtag), dass mindestens eine Kandidaten-Minute im Fenster
+    liegt — und zwar in jeder der drei DST-Verschiebungen (+5/+6/+7 h).
+    """
+    import re
+    from datetime import date as date_type
+
+    from scripts.us_equity_early_closes import EARLY_CLOSES_ET_1300, flatten_target_et_hhmm
+
+    plist = (REPO / "automation" / "launchd" / "com.skippalgo.c13.eod-flatten.plist").read_text(
+        encoding="utf-8"
+    )
+    wrapper = (REPO / "automation" / "launchd" / "run-c13-eod-flatten.sh").read_text(
+        encoding="utf-8"
+    )
+
+    gate = re.search(r'c13_require_et_window\s+"\$REPO"\s+\S+\s+\S+\s+(\d+)\s+eod-flatten', wrapper)
+    assert gate, "Gate-Aufruf in run-c13-eod-flatten.sh nicht gefunden"
+    tolerance = int(gate.group(1))
+
+    minutes = {int(m) for m in re.findall(r"<key>Minute</key>\s*<integer>(\d+)</integer>", plist)}
+    assert minutes, "Keine Minute in der Plist gefunden — Regex gebrochen?"
+
+    regular_day = date_type(2026, 8, 19)
+    assert regular_day not in EARLY_CLOSES_ET_1300
+    assert EARLY_CLOSES_ET_1300, "Halbtags-Kalender leer — Fall waere unbelegt"
+    early_day = sorted(EARLY_CLOSES_ET_1300)[0]
+
+    for day, label in ((regular_day, "Regeltag"), (early_day, "Halbtag")):
+        target_hh, target_mm = flatten_target_et_hhmm(day)
+        # Die lokale Stunde ist DST-abhaengig (+5/+6/+7), die MINUTE nicht —
+        # deshalb entscheidet allein sie ueber |now - target| des Gates.
+        hits = [mm for mm in minutes if abs(mm - target_mm) <= tolerance]
+        assert hits, (
+            f"{label}: Ziel {target_hh:02d}:{target_mm:02d} ET, Toleranz {tolerance} min, "
+            f"Plist-Minuten {sorted(minutes)} — keine Kandidaten-Minute im Fenster: "
+            "das Gate no-optet jeden Tag stumm"
+        )
+
+
 # --- Halbtage / After-Close-Sperre (Review 2026-08-18 Important #2) ---------
 
 

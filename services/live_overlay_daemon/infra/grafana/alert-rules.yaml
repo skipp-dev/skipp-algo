@@ -5723,6 +5723,45 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: A0-Fast receives market records but verified PRE-A0 evidence is not flowing.
       runbook: Check normalization, resync/replay, PRE-A0 inference, snapshot flushes, volume files, and /evidencez before claiming that measurement is active.
+  - uid: lo-hold-manager-shadow-window-changed
+    title: Hold-Manager shadow event-age window changed
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # Deliberately WITHOUT the number. Two obvious forms are both wrong:
+        # "differs from the code default (900)" would stand red forever,
+        # because the deviation IS the operator decision of 2026-08-18; and
+        # "< 86400" would write that value into a FOURTH place, re-creating
+        # the replica this branch removes (K13: service 86400, config default
+        # 900, README/OPS 900, alert comment 86400 -- none of them measured).
+        # changes() asks the only question that matters: did the window move?
+        # It carries no copy of the value, cannot go stale, and resolves
+        # itself an hour after a deliberate change.
+        expr: max(changes(live_overlay_hold_manager_shadow_max_event_age_secs{job="live_overlay"}[1h]))
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 0s
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: The Hold-Manager shadow event-age window changed -- lo-hold-manager-shadow-rejected
+        reasons about deliveries against this window.
+      runbook: Warning, not paging - a config regression is not an outage. Confirm the new value is
+        intended (HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the Railway service); if it dropped back
+        toward the 900s code default, TradingView deliveries from a slower layout start being rejected
+        as too_old and the rejection rule's own premise is gone. The gauge is the truth, not the docs.
   - uid: lo-hold-manager-shadow-rejected
     title: Hold-Manager shadow delivery rejected
     condition: C
