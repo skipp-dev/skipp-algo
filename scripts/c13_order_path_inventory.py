@@ -33,15 +33,30 @@ ENTRY_POINTS: tuple[str, ...] = (
     "scripts/c13_eod_flatten.py",
 )
 
-# Order-path files no Python import can reach: the driver itself, every shell
-# library it sources (the ET gate decides WHETHER orders are placed at all),
-# and the CLI-referenced risk-limits config.
+# Order-path files no Python import can reach: every launchd driver that
+# invokes a submit entry point, every shell library they source (the ET gate
+# decides WHETHER orders are placed at all), and the CLI-referenced configs
+# that decide whether and how large an order goes out.
+#
+# 2026-08-19 (Geburtsfehler-Sweep A): born with the phase-a driver only. The
+# commercial pilot is the SECOND paper submitter — run-c13-commercial-shadow.sh
+# runs the real submitter (--place-paper-orders --prospective-paper-pilot)
+# behind its double interlock — and neither its driver nor its interlock config
+# was in the population. Measured that day: five merged commits that changed
+# exactly that submitter (#4769 which created it, #4785, #4790, #4792, #4799
+# "harden against duplicate submits", #4833, #4870) each counted as 0, so a Mac
+# sitting on any of them kept submit_code_behind_commits=0 and the
+# "C13 submitter on stale checkout" alert silent — the #3297 gap one driver
+# over. tests/test_c13_order_path_inventory.py now DERIVES the driver set, so
+# a future submitting driver cannot be forgotten here.
 NON_PYTHON_ORDER_PATH: tuple[str, ...] = (
     "automation/launchd/run-c13-phase-a.sh",
     "automation/launchd/run-c13-eod-flatten.sh",
+    "automation/launchd/run-c13-commercial-shadow.sh",
     "automation/launchd/lib_c13_et_gate.sh",
     "automation/launchd/lib_c13_data_push.sh",
     "configs/portfolio_risk_limits.json",
+    "configs/commercial_paper_submission.json",
 )
 
 

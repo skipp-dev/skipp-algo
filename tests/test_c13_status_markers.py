@@ -14,11 +14,19 @@ gruenen Tag alarmiert (prove-over-population-Klasse).
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from scripts.c13_status_markers import check, collect_markers, emit, main
+from scripts.c13_status_markers import (
+    GREEN_KINDS,
+    _parse_marker_content,
+    check,
+    collect_markers,
+    emit,
+    main,
+)
 
 _TS = "2026-08-18T21:05:04Z"
 
@@ -70,9 +78,13 @@ def test_emit_writes_schema_and_is_deterministic(live_dir: Path, tmp_path: Path)
 
     assert out.read_bytes() == first
     data = json.loads(first)
-    assert data["schema_version"] == 1
+    # 2026-08-19 (K5): 1->2, jede Zeile traegt jetzt "dir", die Summary
+    # "scanned_dirs" — der Konsument urteilt sonst ueber eine Teilmenge.
+    assert data["schema_version"] == 2
     assert data["window_end"] == "2026-08-18"
+    assert data["scanned_dirs"] == [live_dir.as_posix()]
     assert len(data["markers"]) == 4
+    assert all(m["dir"] == live_dir.as_posix() for m in data["markers"])
 
 
 def _summary(tmp_path: Path, markers: list[dict]) -> Path:
@@ -252,3 +264,225 @@ def test_audit_push_emits_and_ships_the_summary() -> None:
     assert "-m scripts.c13_status_markers emit" in source
     push_call = source.split("push_to_data_branch \\", 1)[1]
     assert '"${MARKERS_SUMMARY}"' in push_call
+
+
+def _driver_marker_dirs() -> set[str]:
+    """Marker-Verzeichnisse ABGELEITET aus den launchd-Treibern.
+
+    Handlisten sind hier die Bug-Klasse (Doppelgaenger K5): der Konsument
+    scannte ``cache/live``, waehrend drei Marker in ``cache/imbalance`` und
+    ``cache/wsh`` liegen. Deshalb liest dieser Zeuge die Wahrheit aus den
+    Schreibern statt sie zu wiederholen.
+    """
+    launchd = Path(__file__).resolve().parents[1] / "automation" / "launchd"
+    pattern = re.compile(r'(?:STATUS_MARKER|MARKER)="(?:\$\{REPO\}/)?([^"]*)/\.[^"/]*_status_')
+    dirs: set[str] = set()
+    for script in sorted(launchd.glob("run-c13-*.sh")):
+        dirs.update(pattern.findall(script.read_text(encoding="utf-8")))
+    return dirs
+
+
+def test_marker_dirs_cover_every_directory_a_driver_writes_into() -> None:
+    """MARKER_DIRS ist die volle gemessene Population, nicht cache/live allein."""
+    from scripts.c13_status_markers import MARKER_DIRS
+
+    derived = _driver_marker_dirs()
+    assert len(derived) >= 3, f"Zeuge leer/zu klein — Regex gebrochen? {derived}"
+    configured = {d.as_posix() for d in MARKER_DIRS}
+    assert derived <= configured, (
+        f"Treiber schreiben nach {sorted(derived - configured)}, "
+        f"MARKER_DIRS kennt nur {sorted(configured)}"
+    )
+
+
+def test_cron_overlay_and_emit_scan_the_same_directories() -> None:
+    """Der Cron holt genau die Verzeichnisse aus der Datenbranch, die emit scannt.
+
+    Driftet eine Seite, sammelt emit Marker, die der Cron nie ueberlagert
+    (oder umgekehrt) — und der Konsument urteilt ueber eine Teilmenge.
+    """
+    from scripts.c13_status_markers import MARKER_DIRS
+
+    cron = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "c13-daily-cron.yml"
+    ).read_text(encoding="utf-8")
+    overlay = re.search(r"for d in ([^\n;]*cache/live[^\n;]*)", cron)
+    assert overlay, "Overlay-Schleife in c13-daily-cron.yml nicht gefunden"
+    overlaid = set(overlay.group(1).split())
+    assert overlaid == {d.as_posix() for d in MARKER_DIRS}
+
+
+def test_audit_push_emit_call_covers_the_full_population() -> None:
+    """Der Treiber darf emit nicht auf ein Verzeichnis verengen.
+
+    Gegenprobe zur alten Form ``--live-dir cache/live``: entweder alle
+    Verzeichnisse explizit, oder gar kein --live-dir (dann greift der
+    Default MARKER_DIRS).
+    """
+    from scripts.c13_status_markers import MARKER_DIRS
+
+    source = (
+        Path(__file__).resolve().parents[1] / "automation" / "launchd" / "run-c13-audit-push.sh"
+    ).read_text(encoding="utf-8")
+    emit_call = source.split("-m scripts.c13_status_markers emit", 1)[1].split("push_to_data")[0]
+    passed = set(re.findall(r"--live-dir\s+(\S+)", emit_call))
+    if passed:
+        assert passed == {d.as_posix() for d in MARKER_DIRS}, (
+            f"emit-Aufruf verengt auf {sorted(passed)}"
+        )
+
+
+def test_check_still_reads_a_schema_1_summary(tmp_path: Path) -> None:
+    """Uebergangsfenster: der Cron (neuer Code) liest eine Summary, die die
+    Workstation noch mit Schema 1 (ohne ``dir``/``scanned_dirs``) geschrieben
+    hat — bis der op-Baum den Pull hat. check() darf daran nicht scheitern
+    und muss weiter rot werden, wenn ein Marker nicht gruen ist."""
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "window_end": "2026-08-18",
+                "window_days": 3,
+                "markers": [
+                    {
+                        "agent": "reconcile",
+                        "date": "2026-08-18",
+                        "kind": "DEGRADED",
+                        "message": "portfolio-after-failed",
+                        "ts": "2026-08-18T21:05:00Z",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert check(legacy, date="2026-08-18") == 1
+
+
+# --- K4: die Marker-FORMATE der Treiber gegen den Parser ---------------------
+#
+# Doppelgaenger K4 (2026-08-19). Der Konsument versteht vier gemessene
+# Zeilenformen, und bis hierher wurden sie ihm als HANDGESCHRIEBENE Literale
+# vorgesetzt. Die Kopplung fehlte in beide Richtungen: aendert ein Treiber sein
+# printf, merkt es niemand, und aendert der Parser seine Regex, merkt es
+# ebenfalls niemand. Der oben ergaenzte Wächter koppelt die VERZEICHNISSE —
+# dieser hier die FORMATE.
+#
+# Vorgehen: aus jedem Wrapper werden das printf im _write_marker und die
+# Aufrufstellen gelesen, die Zeile daraus gerendert und durch den ECHTEN
+# Parser geschickt. Kein Literal im Test.
+
+_PRINTF_RE = re.compile(r"printf\s+'(?P<fmt>[^']*)'\s+(?P<args>[^>]*?)\s*(?:>>?\s*\"|2>)")
+_LOCAL_RE = re.compile(r'local\s+(?P<name>\w+)="(?P<src>[^"]*)"')
+_CALL_RE = re.compile(r'^\s*_write_marker\s+"(?P<a1>[^"]*)"(?:\s+"(?P<a2>[^"]*)")?', re.M)
+_QUOTED_RE = re.compile(r'"([^"]*)"')
+_STATUS_TOKEN_RE = re.compile(r"^[A-Za-z_]+$")
+_DATE_CALL_RE = re.compile(r"\$\(date\s+-u\s+\+(?P<fmt>[^)]*)\)")
+
+_FIXED = {"%F": "2026-08-19", "%T": "12:00:00", "%H": "12", "%M": "00", "%S": "00"}
+
+
+def _render_date(shell_fmt: str) -> str:
+    """`date -u +%H:%M:%SZ` -> `12:00:00Z`.
+
+    Wichtig genug fuer eine eigene Funktion: beim ersten Wurf wurde hier
+    pauschal ein voller ISO-Stempel eingesetzt, und der Wächter meldete
+    run-c13-commercial-shadow.sh faelschlich als kaputt. Das FORMAT des
+    Praefixes ist Teil der Kopplung — der Parser erkennt genau
+    ``HH:MM:SSZ ``.
+    """
+    out = shell_fmt
+    for token, value in _FIXED.items():
+        out = out.replace(token, value)
+    return out
+
+
+def _resolve_token(token: str, positional: dict[str, str], bindings: dict[str, str]) -> str:
+    """Ein printf-Argument des Wrappers -> der Wert, den es zur Laufzeit traegt."""
+    date_call = _DATE_CALL_RE.fullmatch(token)
+    if date_call:
+        return _render_date(date_call.group("fmt"))
+    named = re.fullmatch(r"\$\{(\w+)(?::-.*)?\}", token) or re.fullmatch(r"\$(\d)", token)
+    if named:
+        key = named.group(1)
+        if key.isdigit():
+            return positional[key]
+        slot = re.search(r"\$\{?(\d)", bindings.get(key, ""))
+        if slot:
+            return positional[slot.group(1)]
+        if key == "TS":
+            return "2026-08-19T12:00:00Z"
+    return "X"
+
+
+def _driver_marker_lines() -> dict[str, list[tuple[str, str]]]:
+    """Pro Wrapper: die real geschriebenen Marker-Zeilen + der gemeinte KIND."""
+    root = Path(__file__).resolve().parents[1] / "automation" / "launchd"
+    wrappers = sorted(root.glob("run-c13-*.sh"))
+    assert wrappers, (
+        "keine C13-Wrapper gefunden — jede Schleife darunter liefe leer und "
+        "jede Zusicherung ginge vakuum durch"
+    )
+    result: dict[str, list[tuple[str, str]]] = {}
+
+    for wrapper in wrappers:
+        text = wrapper.read_text(encoding="utf-8")
+        if "_write_marker() {" not in text:
+            continue
+        body = text.split("_write_marker() {", 1)[1].split("\n}", 1)[0]
+        printf = _PRINTF_RE.search(body)
+        assert printf, f"{wrapper.name}: kein printf im _write_marker gefunden"
+        fmt = printf.group("fmt").replace("\\n", "\n")
+        printf_args = _QUOTED_RE.findall(printf.group("args"))
+        bindings = dict(_LOCAL_RE.findall(body))
+
+        lines: list[tuple[str, str]] = []
+        for arg1, arg2 in _CALL_RE.findall(text):
+            positional = {"1": arg1, "2": arg2}
+            rendered = fmt % tuple(
+                _resolve_token(arg, positional, bindings) for arg in printf_args
+            )
+            # Kind-erst (`_write_marker "DEGRADED" "..."`) vs. Pfad-erst
+            # (`_write_marker "${FEED_MARKER}" "degraded:..."`): im zweiten
+            # Fall traegt der WERT den Status.
+            intended = arg1 if _STATUS_TOKEN_RE.match(arg1) else arg2.split(":")[0]
+            lines.append((rendered, intended))
+        result[wrapper.name] = lines
+    return result
+
+
+def test_every_driver_marker_format_survives_the_parser() -> None:
+    per_driver = _driver_marker_lines()
+
+    # Vakuitaets-Boden: die Entdeckung darf nicht still leerlaufen.
+    assert len(per_driver) >= 8, f"nur {len(per_driver)} Treiber gefunden — Layout geaendert?"
+    total = sum(len(v) for v in per_driver.values())
+    assert total >= 40, f"nur {total} Aufrufstellen gefunden — Erkennung gebrochen?"
+
+    broken: list[str] = []
+    for driver, lines in per_driver.items():
+        for rendered, intended in lines:
+            kind, _message, _ts = _parse_marker_content(rendered)
+            if kind.lower() != intended.lower():
+                broken.append(f"{driver}: {rendered.strip()!r} -> {kind!r} statt {intended!r}")
+
+    assert not broken, (
+        "Der Marker-Konsument liest den Status dieser Treiberzeilen falsch — "
+        "printf-Format und Parser sind auseinandergelaufen. Ein falsch "
+        "gelesener KIND heisst: eine DEGRADED-Meldung erscheint als unbekannter "
+        "Status oder, schlimmer, als gruen.\n" + "\n".join(broken)
+    )
+
+
+def test_green_and_degraded_are_actually_distinguished() -> None:
+    """Gegenprobe zum Boden oben: der Parser darf nicht ALLES gruen lesen."""
+    per_driver = _driver_marker_lines()
+    kinds = {
+        _parse_marker_content(rendered)[0].lower()
+        for lines in per_driver.values()
+        for rendered, _ in lines
+    }
+    assert kinds & GREEN_KINDS, f"kein einziger gruener Treiber-Marker erkannt: {kinds}"
+    assert kinds - GREEN_KINDS, f"kein einziger nicht-gruener Treiber-Marker erkannt: {kinds}"
