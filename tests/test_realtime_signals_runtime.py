@@ -7,6 +7,13 @@ from pathlib import Path
 
 import open_prep.realtime_signals as rs
 
+# 2026-08-20: siehe tests/test_smc_live_overlay_feed_lifecycle_thread_safety.py
+# — ``Barrier.wait()`` ohne Frist haengt statt zu scheitern. Hier besonders
+# teuer: erreicht einer der acht Racer die Barriere nicht, blockieren die
+# uebrigen sieben dauerhaft, und sie sind NICHT Daemon — der Interpreter kaeme
+# danach nicht mehr zum Ende.
+_BARRIER_TIMEOUT_SECS = 15.0
+
 
 def test_ensure_rt_engine_running_fails_when_lock_is_held_without_visible_process(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(rs, "_RT_ENGINE_LOCK_FILE", tmp_path / "realtime_engine.lock")
@@ -372,7 +379,7 @@ def test_async_poller_start_spawns_one_thread_under_concurrency(
     barrier = threading.Barrier(8)
 
     def _racer() -> None:
-        barrier.wait()
+        barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
         poller.start()
 
     racers = [real_thread_cls(target=_racer) for _ in range(8)]

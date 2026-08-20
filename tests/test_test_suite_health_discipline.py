@@ -249,3 +249,106 @@ def test_a_non_strict_xfail_is_still_caught(tmp_path: Path) -> None:
     assert [(m.name, m.strict) for m in markers] == [("xfail", False)], (
         f"ein nicht-strikter xfail wird nicht mehr gesehen: {markers}"
     )
+
+
+# --- Keine Barriere ohne Frist ----------------------------------------------
+# 2026-08-20. Ein Test, der HAENGT, sagt nichts; ein Test, der SCHEITERT, nennt
+# seinen Namen. Gemessen hat das dieser Tag: validate (4) verbrannte 45 Minuten
+# Job-Zeit und lieferte 43 Minuten lang keine einzige Log-Zeile (Lauf
+# 32369549784). Die Ursache dort war eine geborgte Uhr (#4935) — aber die
+# KLASSE ist breiter, und ``threading.Barrier.wait()`` ohne Timeout ist ihr
+# reinster Vertreter: erreicht eine Partei die Barriere nicht, warten die
+# anderen unbegrenzt, und wenn sie nicht Daemon sind, kommt danach nicht einmal
+# der Interpreter zum Ende.
+#
+# Die Population wird ABGELEITET, nicht gepflegt: welche Namen Barrieren sind,
+# liest der Waechter je Datei aus dem AST. Eine neue Barriere unter neuem Namen
+# faellt damit automatisch unter die Regel — die Frage „was passiert, wenn
+# morgen eine siebte dazukommt" beantwortet sich von selbst.
+
+
+def _barrier_waits_without_deadline(path: Path) -> list[int]:
+    """Zeilennummern der ``<barriere>.wait()``-Aufrufe ohne Argument."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    barriers: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        func = node.value.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name != "Barrier":
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                barriers.add(target.id)
+    if not barriers:
+        return []
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "wait"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id in barriers
+        and not node.args
+        and not node.keywords
+    ]
+
+
+def test_no_barrier_wait_without_a_deadline() -> None:
+    offenders: list[str] = []
+    for path in _python_test_files():
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        offenders += [f"{rel}:{line}" for line in _barrier_waits_without_deadline(path)]
+    assert not offenders, (
+        "threading.Barrier.wait() ohne timeout= in:\n  - "
+        + "\n  - ".join(offenders)
+        + "\n\nErreicht eine Partei die Barriere nicht, warten die anderen "
+        "UNBEGRENZT: der Test haengt, statt zu scheitern, und ein haengender "
+        "Test nennt seinen Namen nicht. Vorlage: tests/test_alerts_throttle.py "
+        "(``barrier.wait(timeout=5)``)."
+    )
+
+
+def _barrier_probe(tmp_path: Path, source: str) -> list[int]:
+    probe = tmp_path / "test_barrier_probe.py"
+    probe.write_text(source, encoding="utf-8")
+    return _barrier_waits_without_deadline(probe)
+
+
+def test_a_barrier_without_a_deadline_is_actually_caught(tmp_path: Path) -> None:
+    """Positivkontrolle. Ohne sie wäre der Test oben auch dann grün, wenn er
+    gar nichts mehr fände."""
+    lines = _barrier_probe(
+        tmp_path,
+        "import threading\n\n\ndef test_x():\n"
+        "    gate = threading.Barrier(2)\n"
+        "    gate.wait()\n",
+    )
+    assert lines == [6], f"eine fristlose Barriere wird nicht mehr gesehen: {lines}"
+
+
+def test_a_barrier_with_a_deadline_is_not_flagged(tmp_path: Path) -> None:
+    """Gegenrichtung — sonst genügte dem Test oben ein ``assert False``."""
+    lines = _barrier_probe(
+        tmp_path,
+        "import threading\n\n\ndef test_x():\n"
+        "    gate = threading.Barrier(2)\n"
+        "    gate.wait(timeout=5)\n",
+    )
+    assert lines == [], f"eine befristete Barriere wurde als Verstoss gelesen: {lines}"
+
+
+def test_an_unrelated_wait_is_not_flagged(tmp_path: Path) -> None:
+    """``Event.wait()`` blockiert ebenfalls, ist aber eine andere Form mit
+    anderer Berechtigung (ein Stub, der bis zum Stop blockieren SOLL). Dieser
+    Wächter urteilt nur über Barrieren — der Name muss aus einem
+    ``Barrier(...)`` stammen."""
+    lines = _barrier_probe(
+        tmp_path,
+        "import threading\n\n\ndef test_x():\n"
+        "    done = threading.Event()\n"
+        "    done.wait()\n",
+    )
+    assert lines == [], f"ein Event.wait() wurde als Barriere gelesen: {lines}"
