@@ -281,6 +281,9 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_sys_exit_ledger_pin.py",
     "tests/test_sys_path_mutation_ledger.py",
     "tests/test_tempfile_namedtemp_delete_kwarg_invariant.py",
+    # 2026-08-20: siehe _fast_inventory.py — der Skip/xfail-Disziplin-Pin lief
+    # bislang nur post-merge in ``validate``.
+    "tests/test_test_suite_health_discipline.py",
     "tests/test_threading_thread_daemon_invariant.py",
     "tests/test_time_sleep_budget.py",
     "tests/test_tls_jwt_verification_zero_surface.py",
