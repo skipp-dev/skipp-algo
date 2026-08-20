@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 6,
+    "COMPLETED": 7,
     "FAILED": 4,
     "NO_SETUPS": 4
   },
-  "attempts_total": 14,
+  "attempts_total": 15,
   "audit_integrity": {
-    "audit_rows": 9,
+    "audit_rows": 10,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 9,
-    "unique_audited_snapshots": 6,
-    "valid_audit_rows": 9
+    "unique_audited_intents": 10,
+    "unique_audited_snapshots": 7,
+    "valid_audit_rows": 10
   },
   "broker_io": false,
   "campaign_contract": {
@@ -33,27 +33,27 @@
     "schema_version": 1
   },
   "campaign_mode": "audit_only_shadow",
-  "failure_rate": 0.2857142857142857,
-  "failure_rate_lifetime": 0.2857142857142857,
-  "failure_window_size": 14,
+  "failure_rate": 0.26666666666666666,
+  "failure_rate_lifetime": 0.26666666666666666,
+  "failure_window_size": 15,
   "failures_by_type": {
     "ValueError": 4
   },
   "family_coverage_pct": {
-    "BOS": 33.333333333333336,
-    "FVG": 16.666666666666668,
-    "OB": 16.666666666666668,
-    "SWEEP": 83.33333333333333
+    "BOS": 42.857142857142854,
+    "FVG": 14.285714285714286,
+    "OB": 14.285714285714286,
+    "SWEEP": 71.42857142857143
   },
   "family_snapshot_counts": {
-    "BOS": 2,
+    "BOS": 3,
     "FVG": 1,
     "OB": 1,
     "SWEEP": 5
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-08-20T16:05:23.916035+00:00",
-  "last_observed_at": "2026-08-20T16:05:23.916035+00:00",
+  "generated_at": "2026-08-20T17:05:12.451390+00:00",
+  "last_observed_at": "2026-08-20T17:05:12.451390+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [
@@ -73,10 +73,10 @@
   },
   "paper_orders_placed": 0,
   "processing_seconds": {
-    "count": 14,
+    "count": 15,
     "max": 0.007071458036080003,
     "min": 0.0033662079949863255,
-    "p50": 0.005131541518494487,
+    "p50": 0.0051650829846039414,
     "p95": 0.007071458036080003
   },
   "promotion_gate": {
@@ -89,12 +89,12 @@
   },
   "schema_version": 2,
   "source_age_seconds": {
-    "count": 14,
+    "count": 15,
     "max": 1320.0360629558563,
     "min": 311.91088795661926,
-    "p50": 357.3070420026779,
+    "p50": 337.61833691596985,
     "p95": 1320.0360629558563
   },
-  "substantive_attempts_total": 14,
-  "unique_attempted_snapshots": 14
+  "substantive_attempts_total": 15,
+  "unique_attempted_snapshots": 15
 }
