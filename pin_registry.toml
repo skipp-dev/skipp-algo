@@ -182,7 +182,7 @@
 # _empty/_coerce shifted the urlopen call +8: 137->145.
 # 2026-08-09 (feat/portfolio-f4-evidence): portfolio decision/reconciliation
 # normalization shifted the existing, unchanged URL fetch anchor 147->246.
-"services/live_overlay_daemon/evidence_freshness_bridge.py" = [246]
+"services/live_overlay_daemon/evidence_freshness_bridge.py" = [250]  # 2026-08-20 (Disposition-Ledger: 4 Zeilen darueber): 246->250
 # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up): repo↔TV
 # Pine-library version snapshot fetch — mirrors evidence_freshness_bridge egress.
 "services/live_overlay_daemon/pine_library_version_bridge.py" = [132] # 2026-07-22 (ADR-0029 payload volume fields): 125->132

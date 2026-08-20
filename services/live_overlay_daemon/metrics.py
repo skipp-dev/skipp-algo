@@ -2610,6 +2610,9 @@ def _render_evidence_freshness_metrics() -> list[str]:
         "live_overlay_portfolio_shadow_reconciliation_sessions": portfolio.get(
             "reconciliation_sessions", 0
         ),
+        "live_overlay_portfolio_shadow_dispositioned_sessions": portfolio.get(
+            "risk_relevant_sessions_dispositioned"
+        ),
         "live_overlay_portfolio_shadow_missing_reconciliation_sessions": portfolio.get(
             "risk_relevant_sessions_missing_reconciliation", 0
         ),
