@@ -243,6 +243,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_var_budget_pin.py",
     "tests/test_pine_const_getter_migration_tripwire.py",
     "tests/test_smc_strategy_mirror_deadline_tripwire.py",
+    "tests/test_us_extended_session_window.py",
     "tests/test_terminal_bitcoin.py",
     "tests/test_exit_tif_explicit_at_order_submitters.py",
     "tests/test_point_in_time_integrity.py",

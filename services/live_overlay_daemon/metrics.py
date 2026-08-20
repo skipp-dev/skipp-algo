@@ -39,6 +39,7 @@ from .market_hours import (
     holiday_calendar_loaded,
     is_asia_regular_session_open,
     is_europe_regular_session_open,
+    is_us_extended_session_open,
     is_us_regular_session_open,
 )
 
@@ -1536,6 +1537,13 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     lines.append(f"live_overlay_expected_market_traffic {1 if expected_traffic else 0}")
     lines.append("# TYPE live_overlay_market_us_open gauge")
     lines.append(f"live_overlay_market_us_open {1 if us_open else 0}")
+    # The window in which the feed actually delivers bars (04:00-20:00 ET).
+    # Data-flow alerts gate on THIS one; the regular-session gauge above stays
+    # for anything whose false positive could restart the process.
+    lines.append("# TYPE live_overlay_market_us_extended_open gauge")
+    lines.append(
+        f"live_overlay_market_us_extended_open {1 if is_us_extended_session_open() else 0}"
+    )
     # 0 once a holiday lookup has fallen back to an empty calendar. The
     # fallback is deliberate (a missing package must not crash the daemon)
     # but fail-OPEN: an empty calendar makes a holiday look like a trading
