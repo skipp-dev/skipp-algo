@@ -849,18 +849,46 @@ jobs:
           # F-V5-F1 pattern: exempt ONLY the literal already-exists answer;
           # every other create failure (auth, ruleset, rate limit) stays a
           # hard error instead of a green run with no PR.
+          TITLE="chore(governance): automated R1 re-attestation to /${target}"
           if ! pr_err="$(gh pr create --repo "${GITHUB_REPOSITORY}" --base main --head "${BRANCH}" \
-            --title "chore(governance): automated R1 re-attestation to /${target}" \
+            --title "${TITLE}" \
             --body-file "${RUNNER_TEMP}/reattest-pr-body.md" 2>&1)"; then
             if printf '%s' "${pr_err}" | grep -qi "already exists"; then
-              echo "::notice::proposal PR already exists; the evidence push refreshed it."
+              # An EARLIER cycle left this PR open: the required checks are
+              # strict, so the PR goes BEHIND the moment main moves and
+              # auto-merge stalls there. This cycle force-pushed a DIFFERENT
+              # release onto the same fixed branch, so the open PR still
+              # describes the previous one. Repoint it instead of merging a
+              # release under its predecessor's name.
+              echo "::notice::proposal PR already exists; repointing it at /${target}."
+              gh pr edit --repo "${GITHUB_REPOSITORY}" "${BRANCH}" \
+                --title "${TITLE}" \
+                --body-file "${RUNNER_TEMP}/reattest-pr-body.md"
             else
               printf '%s\n' "${pr_err}"
               echo "::error::gh pr create failed for the re-attestation PR — see step log"
               exit 1
             fi
           fi
-          gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --squash --auto
+          # GitHub freezes the squash message when auto-merge is ARMED, not when
+          # it fires. #4894 recorded "re-attestation to /282" on main while the
+          # tree it merged carries /283 and a different evidence file, because
+          # the arming happened 6h51m and two cycles earlier. Disarm, then
+          # re-arm with THIS cycle's message and pass it explicitly, so main's
+          # history cannot name a release other than the one it carries.
+          pr_number="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --json number --jq '.number')"
+          {
+            cat "${RUNNER_TEMP}/reattest-pr-body.md"
+            echo
+            echo "Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          } > "${RUNNER_TEMP}/reattest-merge-body.md"
+          armed="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --json autoMergeRequest --jq '.autoMergeRequest != null')"
+          if [ "${armed}" = "true" ]; then
+            gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --disable-auto
+          fi
+          gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --squash --auto \
+            --subject "${TITLE} (#${pr_number})" \
+            --body-file "${RUNNER_TEMP}/reattest-merge-body.md"
 
       # Last, so the snapshot is uploaded and published first: this run pushed
       # content the registered evidence does not attest, which needs a human,
