@@ -79,18 +79,24 @@
 "tests/test_smc_atomic_write.py" = 4
 # 2026-08-19 (Sweep): module-wide skipif — python/strategies/smc_mirror has
 # never existed (#2353), so this whole file has been inert since it was
-# written. DECISION OWED: implement the mirror or delete the file; the ledger
-# records the silence instead of hiding it.
+# written. 2026-08-20: the decision is no longer owed, it is DATED —
+# tests/test_smc_strategy_mirror_deadline_tripwire.py sleeps until 2026-09-30
+# and then demands "build the mirror, delete the file, or move the date
+# deliberately". That tripwire also goes red the moment the mirror lands, so
+# these two ledger lines cannot outlive their reason.
 "tests/test_smc_strategy_snapshot.py" = 1
 # 2026-08-19 (Sweep): inverse of the entry above — pins the scaffolding-only
 # state and skips once the mirror exists.
 "tests/test_smc_strategy_snapshot_scaffolding.py" = 1
 "tests/test_smc_trust_badges_dashboard.py" = 1
-# 2026-08-19 (Sweep): 1 module-wide skipif + 10 decorators. The module-wide
-# one requires FMP_API_KEY or NEWSAPI_KEY, and NO workflow that runs pytest
-# exports either — measured 2026-08-19: 39 tests skip on every CI run and the
-# budget reported 0 for this file. DECISION OWED: supply a key to one gate or
-# retire the live-endpoint tests.
+# 2026-08-19 (Sweep): 1 module-wide skipif + 10 decorators, 39 tests silent on
+# every CI run because no pytest-running workflow exports FMP_API_KEY or
+# NEWSAPI_KEY. 2026-08-20 ENTSCHIEDEN: the module-wide mark became a per-class
+# `requires_api_keys`, so the 10 pure-Python tests (TestHelpers: formatters
+# used by streamlit_terminal.py / terminal_tabs/tab_bitcoin.py) now run in
+# every lauf and gate merges; the 29 live-endpoint tests stay out of CI on
+# purpose — they cost provider quota and flake. Count unchanged at 11: the
+# mark definition is one spelling, the 10 per-test decorators the rest.
 "tests/test_terminal_bitcoin.py" = 11
 "tests/test_workflow_freshness_monitor_workflow_contract.py" = 1
 "tests/test_workflow_live_window_posture.py" = 2
