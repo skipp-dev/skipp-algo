@@ -858,35 +858,53 @@ jobs:
               # strict, so the PR goes BEHIND the moment main moves and
               # auto-merge stalls there. This cycle force-pushed a DIFFERENT
               # release onto the same fixed branch, so the open PR still
-              # describes the previous one. Repoint it instead of merging a
-              # release under its predecessor's name.
+              # carries the previous release in its title and body -- and this
+              # repo squashes with squash_merge_commit_title=PR_TITLE /
+              # ...message=PR_BODY, i.e. GitHub composes the merge commit from
+              # exactly those two fields when it fires. #4894 landed on main as
+              # "re-attestation to /282" over a tree carrying /283 and a
+              # different evidence file for that reason. Repoint, do not merge
+              # a release under its predecessor's name.
               echo "::notice::proposal PR already exists; repointing it at /${target}."
-              gh pr edit --repo "${GITHUB_REPOSITORY}" "${BRANCH}" \
-                --title "${TITLE}" \
-                --body-file "${RUNNER_TEMP}/reattest-pr-body.md"
+              repoint=1
             else
               printf '%s\n' "${pr_err}"
               echo "::error::gh pr create failed for the re-attestation PR — see step log"
               exit 1
             fi
           fi
-          # GitHub freezes the squash message when auto-merge is ARMED, not when
-          # it fires. #4894 recorded "re-attestation to /282" on main while the
-          # tree it merged carries /283 and a different evidence file, because
-          # the arming happened 6h51m and two cycles earlier. Disarm, then
-          # re-arm with THIS cycle's message and pass it explicitly, so main's
-          # history cannot name a release other than the one it carries.
-          pr_number="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --json number --jq '.number')"
+          # Resolve the OPEN PR explicitly. `gh pr <cmd> <branch>` on a FIXED
+          # branch answers with a CLOSED/MERGED PR when no open one exists
+          # (measured 2026-08-20: `gh pr view bot/r1-reattest` -> #4894,
+          # MERGED), which would put a foreign PR number into the headline
+          # below -- silently, where the old branch-selector form failed loudly.
+          pr_number="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${BRANCH}" \
+            --state open --json number --jq '.[0].number // empty')"
+          case "${pr_number}" in
+            ''|*[!0-9]*)
+              echo "::error::no OPEN proposal PR for ${BRANCH} — refusing to arm auto-merge with an unknown back-reference"
+              exit 1
+              ;;
+          esac
+          if [ "${repoint:-0}" = "1" ]; then
+            gh pr edit --repo "${GITHUB_REPOSITORY}" "${pr_number}" \
+              --title "${TITLE}" \
+              --body-file "${RUNNER_TEMP}/reattest-pr-body.md"
+          fi
+          # Belt and braces on top of the repoint: pass the message explicitly
+          # so the merge commit is what THIS cycle measured even if the repo's
+          # squash defaults change. GitHub stores it when auto-merge is ARMED
+          # (#4432), so a stale arming has to be dropped first.
           {
             cat "${RUNNER_TEMP}/reattest-pr-body.md"
             echo
             echo "Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           } > "${RUNNER_TEMP}/reattest-merge-body.md"
-          armed="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --json autoMergeRequest --jq '.autoMergeRequest != null')"
+          armed="$(gh pr view --repo "${GITHUB_REPOSITORY}" "${pr_number}" --json autoMergeRequest --jq '.autoMergeRequest != null')"
           if [ "${armed}" = "true" ]; then
-            gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --disable-auto
+            gh pr merge --repo "${GITHUB_REPOSITORY}" "${pr_number}" --disable-auto
           fi
-          gh pr merge --repo "${GITHUB_REPOSITORY}" "${BRANCH}" --squash --auto \
+          gh pr merge --repo "${GITHUB_REPOSITORY}" "${pr_number}" --squash --auto \
             --subject "${TITLE} (#${pr_number})" \
             --body-file "${RUNNER_TEMP}/reattest-merge-body.md"
 

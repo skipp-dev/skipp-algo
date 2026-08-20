@@ -402,7 +402,11 @@ case "$*" in
       exit 1
     fi
     ;;
-  *"--json number"*) echo 4894 ;;
+  "pr list"*)
+    # `--jq '.[0].number // empty'` is applied by gh itself, so the stub emits
+    # what the real binary would already have reduced it to.
+    [ "${STUB_NO_OPEN_PR}" = "1" ] || echo 4906
+    ;;
   *"--json autoMergeRequest"*) echo "${STUB_ARMED}" ;;
 esac
 exit 0
@@ -410,13 +414,20 @@ exit 0
 
 _GIT_STUB = "#!/bin/sh\nexit 0\n"
 
+_SUBJECT = "--subject chore(governance): automated R1 re-attestation to /283 (#4906)"
+
 
 def _run_evidence_commit_step(
-    tmp_path: Path, *, pr_exists: bool, armed: bool
-) -> list[str]:
+    tmp_path: Path,
+    *,
+    pr_exists: bool,
+    armed: bool,
+    open_pr: bool = True,
+) -> tuple[subprocess.CompletedProcess, list[str], Path]:
     """Execute the evidence-commit step against stubbed `gh`/`git`.
 
-    Returns the `gh` argv lines the step produced, in order.
+    Returns the process result, the `gh` argv lines it produced in order, and
+    the runner temp dir (which holds the message files the step wrote).
     """
     stub_dir = tmp_path / "stub"
     stub_dir.mkdir(exist_ok=True)
@@ -427,7 +438,7 @@ def _run_evidence_commit_step(
 
     runner_temp = tmp_path / "runner-temp"
     runner_temp.mkdir(exist_ok=True)
-    evidence = tmp_path / "evidence.json"
+    evidence = tmp_path / "smc_r1_live_rollout_evidence_2026-08-20T010429Z.json"
     # The release the chain is attesting IN THIS CYCLE.
     evidence.write_text(json.dumps({"libraryReleaseVersion": 283}), encoding="utf-8")
     gh_log = tmp_path / "gh.log"
@@ -448,12 +459,13 @@ def _run_evidence_commit_step(
             "GH_LOG": str(gh_log),
             "STUB_PR_EXISTS": "1" if pr_exists else "0",
             "STUB_ARMED": "true" if armed else "false",
+            "STUB_NO_OPEN_PR": "0" if open_pr else "1",
         },
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
-    return [line for line in gh_log.read_text(encoding="utf-8").splitlines() if line]
+    calls = [line for line in gh_log.read_text(encoding="utf-8").splitlines() if line]
+    return result, calls, runner_temp
 
 
 def test_the_merge_message_names_the_release_this_cycle_actually_carries(
@@ -461,16 +473,20 @@ def test_the_merge_message_names_the_release_this_cycle_actually_carries(
 ) -> None:
     """Executed in both arms.
 
-    GitHub freezes the squash message when auto-merge is ARMED, not when it
-    fires, and the proposal branch is FIXED: a cycle force-pushes a new release
-    onto a PR an earlier cycle already opened and armed. #4894 merged on
-    2026-08-20 with the headline "automated R1 re-attestation to /282" over a
-    tree carrying /283 and a different evidence file -- the arming was 6h51m and
-    two cycles old. A governance chain whose main-line history names the wrong
-    release is worse than no history, so the step must repoint the stale PR and
-    re-arm with THIS cycle's message.
+    The proposal branch is FIXED, and a cycle force-pushes a new release onto a
+    PR an earlier cycle already opened. This repo squashes with
+    ``squash_merge_commit_title=PR_TITLE`` / ``...message=PR_BODY`` (measured
+    2026-08-20), so GitHub composes the merge commit from the PR's own fields
+    when auto-merge fires -- and #4894 landed on main as "re-attestation to
+    /282" over a tree carrying /283 with a different evidence file, because
+    ``gh pr create`` answered "already exists" and nobody repointed those
+    fields. A governance chain whose main-line history names the wrong release
+    is worse than no history.
     """
-    calls = _run_evidence_commit_step(tmp_path, pr_exists=True, armed=True)
+    result, calls, runner_temp = _run_evidence_commit_step(
+        tmp_path, pr_exists=True, armed=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
     edits = [c for c in calls if c.startswith("pr edit")]
     assert edits, f"a stale open PR was not repointed: {calls}"
@@ -482,14 +498,20 @@ def test_the_merge_message_names_the_release_this_cycle_actually_carries(
 
     arm = [c for c in calls if "--squash --auto" in c]
     assert len(arm) == 1, f"expected exactly one re-arm, got {arm}"
-    # The headline is derived from the evidence file this run wrote, and keeps
-    # the PR back-reference the default squash headline would have supplied.
-    assert "--subject chore(governance): automated R1 re-attestation to /283 (#4894)" in arm[0]
+    # Headline derived from the evidence file THIS run wrote, and it keeps the
+    # PR back-reference the PR_TITLE default would have supplied.
+    assert _SUBJECT in arm[0]
     assert "/282" not in arm[0]
     # Disarm must precede the re-arm, or the stale message survives.
     assert calls.index(next(c for c in calls if "--disable-auto" in c)) < calls.index(
         arm[0]
     )
+
+    # The body must name THIS cycle's evidence and run, not a predecessor's.
+    body = (runner_temp / "reattest-merge-body.md").read_text(encoding="utf-8")
+    assert "smc_r1_live_rollout_evidence_2026-08-20T010429Z.json" in body
+    assert "32289119773" in body
+    assert "Co-authored-by: github-actions[bot]" in body
 
 
 def test_a_first_cycle_pr_is_armed_without_a_pointless_disarm(
@@ -497,13 +519,37 @@ def test_a_first_cycle_pr_is_armed_without_a_pointless_disarm(
 ) -> None:
     """The repoint path is for a PR an earlier cycle left behind. On the normal
     path (create succeeds, nothing armed) the step must not edit or disarm."""
-    calls = _run_evidence_commit_step(tmp_path, pr_exists=False, armed=False)
+    result, calls, _ = _run_evidence_commit_step(
+        tmp_path, pr_exists=False, armed=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
     assert not [c for c in calls if c.startswith("pr edit")], calls
     assert not [c for c in calls if "--disable-auto" in c], calls
     arm = [c for c in calls if "--squash --auto" in c]
     assert len(arm) == 1, f"expected exactly one arming, got {arm}"
-    assert "--subject chore(governance): automated R1 re-attestation to /283 (#4894)" in arm[0]
+    assert _SUBJECT in arm[0]
+
+
+def test_the_pr_number_comes_from_the_open_pr_not_the_branch_selector(
+    tmp_path: Path,
+) -> None:
+    """`gh pr <cmd> <branch>` on a FIXED branch answers with a CLOSED/MERGED PR
+    when no open one exists -- measured 2026-08-20, `gh pr view bot/r1-reattest`
+    returned #4894 (MERGED) after that PR had landed. Reading the back-reference
+    that way turns a loud failure into a merge commit citing a foreign PR, so
+    the step must resolve the OPEN PR explicitly and refuse when there is none.
+    """
+    result, calls, _ = _run_evidence_commit_step(
+        tmp_path, pr_exists=True, armed=False, open_pr=False
+    )
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "no OPEN proposal PR" in result.stdout + result.stderr
+    # Nothing may be armed once the back-reference is unknown.
+    assert not [c for c in calls if "--squash --auto" in c], calls
+    # And the resolution must go through the open-PR listing, not `pr view`.
+    assert any(c.startswith("pr list") and "--state open" in c for c in calls), calls
 
 
 def test_the_unattested_guard_remeasures_instead_of_trusting_the_flag() -> None:
