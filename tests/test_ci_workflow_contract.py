@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from tests._fast_gates_gate import run_ci_gate
+from tests._fast_gates_gate import gh_was_called, run_ci_gate
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _WF_PATH = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
@@ -227,13 +227,14 @@ def test_the_gate_decides_by_event_not_by_the_words_in_its_source(
     measured 2026-08-04, three separate mutations to what this file claims to
     guard each left all nine of its tests green.
 
-    The policy pinned here: pull requests and non-main pushes are status-only,
-    main pushes and manual dispatches run the heavy suite. Executed through the
-    shared harness in ``tests/_fast_gates_gate.py`` rather than a second local
-    copy — one gate, one harness.
+    The policy pinned here (2026-08-20): pull requests run heavy — the slow
+    complement, so the lane can become a required check without being vacuous —
+    non-main pushes stay status-only, main pushes and manual dispatches run
+    heavy. Executed through the shared harness in ``tests/_fast_gates_gate.py``
+    rather than a second local copy — one gate, one harness.
     """
     cases = {
-        ("pull_request", "feature"): "false",
+        ("pull_request", "feature"): "true",
         ("push", "feature"): "false",
         ("push", "main"): "true",
         ("workflow_dispatch", "main"): "true",
@@ -248,7 +249,7 @@ def test_the_gate_decides_by_event_not_by_the_words_in_its_source(
         )
 
 
-def test_a_bot_pull_request_is_status_only_like_any_other(tmp_path: Path) -> None:
+def test_no_branch_name_buys_a_different_verdict(tmp_path: Path) -> None:
     """No branch name buys a different verdict, and nothing calls ``gh``.
 
     Until #4396 this gate carried a ``bot/*`` path allow-list that inspected the
@@ -258,10 +259,12 @@ def test_a_bot_pull_request_is_status_only_like_any_other(tmp_path: Path) -> Non
     not run. #4396 deleted the arm; this pins the behaviour that replaced it, so
     the allow-list cannot return unexamined.
 
-    The second half needs no log text: were any path inspection reintroduced, a
+    The second half is MEASURED, not inferred. Until 2026-08-20 it read: a
     ``gh`` that cannot list the PR's files would take a fail-closed branch and
-    write ``run_heavy=true``. Still ``false`` means the gate returned before it
-    ever called ``gh``.
+    write ``run_heavy=true``, so a verdict of ``false`` proved the gate never
+    called ``gh``. Since pull requests now legitimately return ``true``, that
+    discriminator tells the two cases apart no longer — both sides look the
+    same. The stubbed ``gh`` therefore leaves a trace and the test reads it.
     """
     source_path = tmp_path / "source"
     source_path.mkdir()
@@ -272,9 +275,13 @@ def test_a_bot_pull_request_is_status_only_like_any_other(tmp_path: Path) -> Non
         head_ref="bot/library-refresh-1094-1",
         changed_files=["src/smc_integration/engine.py"],
     )
-    assert bot_pr["run_heavy"] == "false", (
-        "a bot/* pull request was handed a non-data path and did not come back "
-        "status-only; a path allow-list is deciding pull requests again"
+    assert bot_pr["run_heavy"] == "true", (
+        "a bot/* pull request came back with a verdict of its own; the branch "
+        "name is deciding pull requests again"
+    )
+    assert not gh_was_called(source_path), (
+        "the gate invoked `gh`; a path allow-list is inspecting pull requests "
+        "again (the arm #4396 removed as unreachable)"
     )
 
     broken_gh = tmp_path / "broken_gh"
@@ -287,7 +294,67 @@ def test_a_bot_pull_request_is_status_only_like_any_other(tmp_path: Path) -> Non
         changed_files=["src/smc_integration/engine.py"],
         gh_exit_code=1,
     )
-    assert fail_closed["run_heavy"] == "false", (
+    assert fail_closed["run_heavy"] == "true", (
         "a failing `gh` changed the verdict, so the gate is calling `gh` on "
         "pull requests again; see above"
     )
+    assert not gh_was_called(broken_gh), (
+        "the gate invoked `gh` even with it broken -- the verdict happening to "
+        "match is not evidence that it did not"
+    )
+
+
+def test_the_pull_request_lane_runs_only_the_slow_complement() -> None:
+    """Ohne Marker liefe hier die volle Suite und doppelte die schnelle Lane.
+
+    ADR-0012 Option B teilt die Suite exakt: gemessen 2026-08-20 sind es
+    5480 (not slow) + 20428 (slow) = 25908 = die ganze Suite. ``fast-gates``
+    faehrt die Nicht-slow-Haelfte, diese Lane den Rest. Faellt das ``-m slow``
+    weg, wiederholt jeder der ~36 PRs pro Tag die 5480 der schnellen Lane --
+    reine Rechenzeit ohne zusaetzliches Signal, und das Actions-Budget ist ein
+    dokumentierter Ausfallgrund (einmal alles rot).
+
+    Die Mutationsprobe zu diesem Test fand die Luecke: das Entfernen des
+    Markers liess vorher alle 50 Tests der drei Wach-Dateien gruen.
+
+    Die main-Push-Lane bleibt ABSICHTLICH ungefiltert -- sie erzeugt das
+    Coverage-Artefakt ueber die ganze Suite und ist kein Gate.
+    """
+    data = _load()
+    steps = data["jobs"]["validate"]["steps"]
+
+    def _step(name_fragment: str) -> dict:
+        found = [s for s in steps if name_fragment in str(s.get("name", ""))]
+        assert len(found) == 1, f"{name_fragment!r} matcht {len(found)} Schritte"
+        return found[0]
+
+    # Kommentarzeilen ausschliessen: die Schritte BESCHREIBEN ihren Aufruf im
+    # Kommentar darueber, und ein blosses `"pytest" in ln` trifft die
+    # Beschreibung statt des Verhaltens (beim ersten Lauf dieses Tests genau so
+    # passiert). Gefiltert wird auf die Aufruf-Form, nicht auf das Wort.
+    def _invocations(block: str) -> list[str]:
+        return [
+            ln for ln in block.splitlines()
+            if "python -m pytest" in ln and not ln.lstrip().startswith("#")
+        ]
+
+    pr_lane = _step("(PR / non-main push")["run"]
+    invocations = _invocations(pr_lane)
+    assert invocations, "die PR-Lane hat keinen pytest-Aufruf mehr"
+    for line in invocations:
+        args = line.split("pytest", 1)[1]
+        assert "-m slow" in args, (
+            "die PR-Lane faehrt nicht mehr nur das slow-Komplement; ohne den "
+            "Marker wiederholt sie die kuratierte fast-gates-Menge auf jedem "
+            f"PR.\n  Zeile: {line.strip()}"
+        )
+
+    main_lane = _step("(main push")["run"]
+    main_calls = _invocations(main_lane)
+    assert main_calls, "die main-Lane hat keinen pytest-Aufruf mehr"
+    for line in main_calls:
+        args = line.split("pytest", 1)[1]
+        assert "-m slow" not in args, (
+            "die main-Push-Lane misst Coverage ueber die GANZE Suite; ein "
+            "slow-Filter dort halbierte das Audit-Artefakt stillschweigend."
+        )
