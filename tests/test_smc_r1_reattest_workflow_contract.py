@@ -298,6 +298,119 @@ def test_the_evidence_commit_is_seeded_scoped_and_arms_auto_merge() -> None:
     assert "--squash --auto" in run
 
 
+_GH_STUB = """#!/bin/sh
+printf '%s\\n' "$*" >> "${GH_LOG}"
+case "$*" in
+  "pr create"*)
+    if [ "${STUB_PR_EXISTS}" = "1" ]; then
+      echo 'a pull request for branch "bot/r1-reattest" into branch "main" already exists' >&2
+      exit 1
+    fi
+    ;;
+  *"--json number"*) echo 4894 ;;
+  *"--json autoMergeRequest"*) echo "${STUB_ARMED}" ;;
+esac
+exit 0
+"""
+
+_GIT_STUB = "#!/bin/sh\nexit 0\n"
+
+
+def _run_evidence_commit_step(
+    tmp_path: Path, *, pr_exists: bool, armed: bool
+) -> list[str]:
+    """Execute the evidence-commit step against stubbed `gh`/`git`.
+
+    Returns the `gh` argv lines the step produced, in order.
+    """
+    stub_dir = tmp_path / "stub"
+    stub_dir.mkdir(exist_ok=True)
+    for name, body in (("gh", _GH_STUB), ("git", _GIT_STUB)):
+        path = stub_dir / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir(exist_ok=True)
+    evidence = tmp_path / "evidence.json"
+    # The release the chain is attesting IN THIS CYCLE.
+    evidence.write_text(json.dumps({"libraryReleaseVersion": 283}), encoding="utf-8")
+    gh_log = tmp_path / "gh.log"
+    gh_log.write_text("", encoding="utf-8")
+
+    run = _step(_save_steps(), "Commit the evidence to the proposal branch")["run"]
+    result = subprocess.run(
+        ["/bin/bash", "-c", run],
+        cwd=tmp_path,
+        env={
+            "PATH": f"{stub_dir}:/usr/bin:/bin",
+            "GH_TOKEN": "stub-token",
+            "GITHUB_REPOSITORY": "skipp-dev/skipp-algo",
+            "GITHUB_REF_NAME": "bot/r1-reattest",
+            "GITHUB_RUN_ID": "32289119773",
+            "RUNNER_TEMP": str(runner_temp),
+            "EVIDENCE_PATH": str(evidence),
+            "GH_LOG": str(gh_log),
+            "STUB_PR_EXISTS": "1" if pr_exists else "0",
+            "STUB_ARMED": "true" if armed else "false",
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return [line for line in gh_log.read_text(encoding="utf-8").splitlines() if line]
+
+
+def test_the_merge_message_names_the_release_this_cycle_actually_carries(
+    tmp_path: Path,
+) -> None:
+    """Executed in both arms.
+
+    GitHub freezes the squash message when auto-merge is ARMED, not when it
+    fires, and the proposal branch is FIXED: a cycle force-pushes a new release
+    onto a PR an earlier cycle already opened and armed. #4894 merged on
+    2026-08-20 with the headline "automated R1 re-attestation to /282" over a
+    tree carrying /283 and a different evidence file -- the arming was 6h51m and
+    two cycles old. A governance chain whose main-line history names the wrong
+    release is worse than no history, so the step must repoint the stale PR and
+    re-arm with THIS cycle's message.
+    """
+    calls = _run_evidence_commit_step(tmp_path, pr_exists=True, armed=True)
+
+    edits = [c for c in calls if c.startswith("pr edit")]
+    assert edits, f"a stale open PR was not repointed: {calls}"
+    assert "/283" in edits[0]
+
+    assert any("--disable-auto" in c for c in calls), (
+        f"auto-merge armed by an earlier cycle was never disarmed: {calls}"
+    )
+
+    arm = [c for c in calls if "--squash --auto" in c]
+    assert len(arm) == 1, f"expected exactly one re-arm, got {arm}"
+    # The headline is derived from the evidence file this run wrote, and keeps
+    # the PR back-reference the default squash headline would have supplied.
+    assert "--subject chore(governance): automated R1 re-attestation to /283 (#4894)" in arm[0]
+    assert "/282" not in arm[0]
+    # Disarm must precede the re-arm, or the stale message survives.
+    assert calls.index(next(c for c in calls if "--disable-auto" in c)) < calls.index(
+        arm[0]
+    )
+
+
+def test_a_first_cycle_pr_is_armed_without_a_pointless_disarm(
+    tmp_path: Path,
+) -> None:
+    """The repoint path is for a PR an earlier cycle left behind. On the normal
+    path (create succeeds, nothing armed) the step must not edit or disarm."""
+    calls = _run_evidence_commit_step(tmp_path, pr_exists=False, armed=False)
+
+    assert not [c for c in calls if c.startswith("pr edit")], calls
+    assert not [c for c in calls if "--disable-auto" in c], calls
+    arm = [c for c in calls if "--squash --auto" in c]
+    assert len(arm) == 1, f"expected exactly one arming, got {arm}"
+    assert "--subject chore(governance): automated R1 re-attestation to /283 (#4894)" in arm[0]
+
+
 def test_the_unattested_guard_remeasures_instead_of_trusting_the_flag() -> None:
     """The carve-out may only exit 0 by asking the SAME module that found the
     un-attestation again, against the extended chain."""
