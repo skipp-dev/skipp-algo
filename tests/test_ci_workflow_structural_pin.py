@@ -136,12 +136,81 @@ def test_runs_on_uses_hosted_runner_variable(validate_job: dict) -> None:
     )
 
 
-def test_timeout_minutes_45(validate_job: dict) -> None:
+def test_a_hanging_test_still_names_itself() -> None:
+    """Die Kappe beendet einen Hang — sie ERKLAERT ihn nicht.
+
+    Am 2026-08-20 starb ``validate (4)`` nach 45m 22s am Job-Limit. Der
+    Runner-Log sprang in zwei Minuten auf ``[ 28%]`` und schwieg dann 43
+    Minuten; dieselbe Shard lief lokal in 98,76 s durch (6139 passed). Faktor 27
+    — ein Hang, keine Langsamkeit. Diagnostisch lag NICHTS vor: Stille nennt
+    weder Test noch Thread.
+
+    ``faulthandler_timeout`` gehoert zu pytest selbst und druckt den Traceback
+    ALLER Threads. Belegt am 20.8. mit einer synthetischen Barriere::
+
+        Timeout (0:00:03)!
+        Thread 0x...:
+          File ".../threading.py", line 725 in wait
+          File ".../test_hangprobe.py", line 20 in test_a_thread_stuck_on_a_barrier
+
+    Die Schwelle wird hier NICHT gegen eine handgeschriebene Zahl geprueft,
+    sondern gegen die laengste tatsaechlich aufgezeichnete Testlaufzeit. Kommt
+    morgen ein Test dazu, der laenger braucht als die Schwelle, wird dieser
+    Waechter rot und erzwingt eine Entscheidung — statt still Fehlalarm-Dumps zu
+    produzieren.
+    """
+    import json
+    import tomllib
+
+    ini = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    timeout = ini["tool"]["pytest"]["ini_options"].get("faulthandler_timeout")
+    assert timeout is not None, (
+        "faulthandler_timeout ist weg — ein haengender Test schweigt dann wieder "
+        "bis zum Job-Limit, ohne sich zu benennen (2026-08-20, validate (4))."
+    )
+    threshold = float(timeout)
+
+    durations = json.loads((REPO_ROOT / ".test_durations").read_text(encoding="utf-8"))
+    slowest_id, slowest = max(durations.items(), key=lambda kv: kv[1])
+    assert threshold > slowest * 2, (
+        f"faulthandler_timeout={threshold}s laesst dem langsamsten aufgezeichneten "
+        f"Test ({slowest:.1f}s, {slowest_id}) weniger als den doppelten Spielraum. "
+        "Auf einem langsameren Runner produziert das Fehlalarm-Dumps — entweder "
+        "die Schwelle heben oder den Test beschleunigen."
+    )
+
+
+def test_timeout_minutes_caps_both_lanes(validate_job: dict) -> None:
+    """Beide Lanes brauchen eine harte Kappe — aber nicht dieselbe.
+
+    Bis 2026-08-20 stand hier eine glatte 45. Die gehoert der MAIN-Lane: die
+    volle Suite mit Coverage laeuft ~30-40 min auf hosted Runnern, und ohne Kappe
+    steht der GHA-Default von 6 h. Seit #4927 faehrt die PR-Lane aber nur die
+    slow-Komplementmenge (gemessen: 4,5-6,3 min fuer die gesunden Shards), und
+    ein Hang in Shard 4 hat am 20.8. volle 45 Minuten verbrannt, ohne ein
+    einziges Signal zu liefern. Deshalb jetzt zwei Zahlen statt einer.
+
+    Der Test pinnt beide, damit weder die eine noch die andere still
+    verschwindet — ein Ausdruck, der nur noch EINE Grenze traegt, faellt hier
+    auf.
+    """
     timeout = validate_job.get("timeout-minutes")
-    assert timeout == 45, (
-        "validate.timeout-minutes MUST stay at 45 — the full pytest suite "
-        "runs ~30-40 min on hosted runners and we want a hard cap on hangs "
-        "rather than a runaway 6 h GHA default."
+    assert isinstance(timeout, str) and timeout.startswith("${{"), (
+        "validate.timeout-minutes MUST stay an expression carrying BOTH caps — "
+        f"got {timeout!r}. Eine glatte Zahl kappt entweder die main-Lane zu "
+        "frueh oder laesst die PR-Lane 45 Minuten in einen Hang laufen."
+    )
+    assert "pull_request" in timeout, (
+        "die Kappe unterscheidet die Lanes nicht mehr am Ereignis — ohne "
+        f"``github.event_name == 'pull_request'`` greift nur ein Wert: {timeout!r}"
+    )
+    assert "45" in timeout, (
+        "das 45-min-Budget der MAIN-Lane ist weg — die volle Suite mit Coverage "
+        f"laeuft ~30-40 min und wuerde abgeschnitten: {timeout!r}"
+    )
+    assert "15" in timeout, (
+        "die 15-min-Kappe der PR-Lane ist weg — ein Hang in einer Shard "
+        f"verbrennt dann wieder 45 Runner-Minuten fuer null Signal: {timeout!r}"
     )
 
 

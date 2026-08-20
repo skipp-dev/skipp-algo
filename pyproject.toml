@@ -62,6 +62,29 @@ pythonpath = ["."]
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
 ]
+# 2026-08-20: ein haengender Test soll sich SELBST benennen.
+#
+# Am 20.8. starb `validate (4)` auf einem PR nach 45m 22s am Job-Limit. Der
+# Runner-Log sprang in zwei Minuten auf `[ 28%]` und schwieg dann 43 Minuten;
+# beim Aufraeumen `Terminate orphan process: pid (2178) (python)`. Dieselbe
+# Shard lokal: 6139 passed in 98,76 s. Faktor 27 — es war ein Hang, keine
+# Langsamkeit. Diagnostisch hatten wir NICHTS in der Hand: 43 Minuten Stille
+# nennen keinen Test und keinen Thread.
+#
+# `faulthandler_timeout` gehoert zu pytest selbst (stdlib-Plugin) und druckt
+# den Traceback ALLER Threads, wenn ein Test laenger braucht. Bei einem
+# Thread-Deadlock ist genau das die fehlende Information: welcher Thread wo
+# blockiert. Es bricht den Lauf NICHT ab — es macht ihn nur redselig.
+# (`pytest-timeout` waere der naheliegendere Weg und ist bewusst NICHT
+# gewaehlt: es ist nicht installiert und braeuchte eine neue Abhaengigkeit,
+# also einen Pin-Vertrag mehr.)
+#
+# 180 s ist gemessen, nicht geraten: der laengste in `.test_durations`
+# aufgezeichnete Einzeltest liegt bei 56,6 s, KEINER ueber 60 s, vier ueber
+# 30 s. 180 s sind also gut das Dreifache des bekannten Maximums — ein
+# langsamerer Runner loest damit keinen Fehlalarm aus. Und selbst gegen das
+# gesenkte PR-Job-Limit (15 min) bleiben nach dem Dump zwoelf Minuten Log.
+faulthandler_timeout = 180
 # ADR-0012: the `slow` marker partitions the suite for a future
 # fast-gates vs validate split (Option B — disjoint via marker).
 # Phase 1: CI selection is UNCHANGED — `fast-gates` runs an explicit
