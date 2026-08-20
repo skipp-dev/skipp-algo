@@ -4,6 +4,22 @@ These tests verify that each data source responds and returns the expected
 data structure. They hit live APIs (not mocked) to confirm real connectivity.
 
 Run with: pytest tests/test_terminal_bitcoin.py -v
+
+2026-08-20 (Geburtsfehler-Sweep, Nachzug zur DECISION-OWED-Zeile in
+``pin_registry.toml``): der Modul-weite ``pytestmark`` legte ALLE 39 Tests
+still, sobald weder ``FMP_API_KEY`` noch ``NEWSAPI_KEY`` gesetzt ist — und
+gemessen exportiert KEIN pytest-fahrender Workflow eine der beiden. Fuenf
+dieser Tests brauchen aber gar kein Netz: ``TestHelpers`` prueft reine
+Formatierer (``format_btc_price``, ``format_large_number``, ...), die zum
+Streamlit-Terminal gehoeren (``streamlit_terminal.py``,
+``terminal_tabs/tab_bitcoin.py`` importieren dieses Modul). Sie lagen ohne
+Grund hinter einem API-Schluessel.
+
+ENTSCHIEDEN statt weiter offen: die Netz-Tests bleiben absichtlich aus CI
+draussen (Live-Endpunkte kosten Quote und flaken), aber das Tor sitzt jetzt
+pro Klasse — nicht ueber der Datei. Die reinen Tests laufen in jedem Lauf
+mit; das Skip-Budget zaehlt den Rest weiterhin, damit die Stille sichtbar
+bleibt.
 """
 
 from __future__ import annotations
@@ -12,8 +28,8 @@ import os
 
 import pytest
 
-# Skip entire module if no API keys are set
-pytestmark = pytest.mark.skipif(
+# Live endpoints only. Pure-Python tests below must NOT carry this mark.
+requires_api_keys = pytest.mark.skipif(
     not os.environ.get("FMP_API_KEY") and not os.environ.get("NEWSAPI_KEY"),
     reason="No API keys set (FMP_API_KEY / NEWSAPI_KEY) — skipping live endpoint tests",
 )
@@ -45,6 +61,7 @@ from terminal_bitcoin import (
 )
 
 
+@requires_api_keys
 class TestBTCQuote:
     """Real-time Bitcoin quote from FMP or yfinance."""
 
@@ -70,6 +87,7 @@ class TestBTCQuote:
         assert quote.change_icon in ("🟢", "🔴", "⚪")
 
 
+@requires_api_keys
 class TestBTCOHLCV:
     """Historical OHLCV data for chart rendering."""
 
@@ -103,6 +121,7 @@ class TestBTCOHLCV:
             assert rows[0]["close"] > 0
 
 
+@requires_api_keys
 class TestBTCOHLCV10Min:
     """10-minute aggregated OHLCV for volume analysis."""
 
@@ -122,6 +141,7 @@ class TestBTCOHLCV10Min:
                 assert key in rows[0], f"Missing key '{key}' in 10min row"
 
 
+@requires_api_keys
 class TestTechnicals:
     """TradingView technical analysis for BTC."""
 
@@ -154,6 +174,7 @@ class TestTechnicals:
             assert tech.interval == interval
 
 
+@requires_api_keys
 class TestFearGreed:
     """Fear & Greed index from FMP."""
 
@@ -185,6 +206,7 @@ class TestFearGreed:
             assert fg.icon in ("🟢", "🟡", "⚪", "🟠", "🔴")
 
 
+@requires_api_keys
 class TestCryptoMovers:
     """Cryptocurrency gainers and losers from FMP."""
 
@@ -212,6 +234,7 @@ class TestCryptoMovers:
                 assert m.symbol, "Mover should have a symbol"
 
 
+@requires_api_keys
 class TestCryptoListings:
     """Cryptocurrency exchange listings from FMP."""
 
@@ -235,6 +258,7 @@ class TestCryptoListings:
             assert li.symbol, "Listing should have a symbol"
 
 
+@requires_api_keys
 class TestBTCSupply:
     """Bitcoin market cap and supply data."""
 
@@ -247,6 +271,7 @@ class TestBTCSupply:
         assert supply.total_supply == 21_000_000
 
 
+@requires_api_keys
 class TestBTCNews:
     """Bitcoin news from FMP."""
 
@@ -270,6 +295,7 @@ class TestBTCNews:
             assert "url" in art
 
 
+@requires_api_keys
 class TestBTCOutlook:
     """Composite tomorrow outlook."""
 
