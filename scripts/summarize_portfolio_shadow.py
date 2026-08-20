@@ -26,9 +26,33 @@ def _decision_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def dispositioned_sessions(
+    dispositions: Iterable[dict[str, Any]],
+) -> tuple[set[str], set[str]]:
+    """Split disposition entries into (clears_alert, still_blocks_review).
+
+    An entry without a non-empty ``reason`` is ignored outright -- a waiver has
+    to say why, otherwise it is indistinguishable from forgetting.
+    """
+    clears: set[str] = set()
+    blocks: set[str] = set()
+    for entry in dispositions:
+        if not isinstance(entry, dict):
+            continue
+        session = str(entry.get("session", "")).strip()
+        reason = str(entry.get("reason", "")).strip()
+        if not session or not reason:
+            continue
+        clears.add(session)
+        if entry.get("blocks_review", True):
+            blocks.add(session)
+    return clears, blocks
+
+
 def summarize_portfolio_shadow(
     rows: Iterable[dict[str, Any]],
     reconciliations: Iterable[dict[str, Any]] = (),
+    dispositions: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     all_rows = list(rows)
     decisions = _decision_rows(all_rows)
@@ -117,7 +141,20 @@ def summarize_portfolio_shadow(
         latest_reconciliation_at = str(
             latest_reconciliation.get("after_captured_at", "") or ""
         )
-    missing_reconciliation = risk_relevant_sessions - reconciliation_sessions
+    # Two different questions, deliberately kept apart:
+    #   unreconciled  -- the raw gap; drives `ready_for_human_review`, because
+    #                    evidence that is lost is still evidence that is missing.
+    #   missing_...   -- the gap MINUS dispositioned sessions; drives the alert,
+    #                    which otherwise fires forever on an unfixable gap and
+    #                    masks the next real one.
+    unreconciled = risk_relevant_sessions - reconciliation_sessions
+    disposition_clears, disposition_blocks = dispositioned_sessions(dispositions)
+    missing_reconciliation = unreconciled - disposition_clears
+    dispositioned_gaps = unreconciled & disposition_clears
+    # A waiver for a session that is not actually missing is dead weight and is
+    # reported, so the ledger cannot rot into a permanent blind spot.
+    unused_dispositions = disposition_clears - unreconciled
+    review_blocking_gap = missing_reconciliation | (unreconciled & disposition_blocks)
     contract_start = min(
         (str(row.get("ts", "")) for row in decisions if row.get("ts")),
         default="",
@@ -139,7 +176,7 @@ def summarize_portfolio_shadow(
         len(risk_relevant_sessions) >= MIN_SHADOW_SESSIONS_FOR_REVIEW
         and incomplete_decisions == 0
         and risk_relevant_decision_count > 0
-        and not missing_reconciliation
+        and not review_blocking_gap
         and reconciliation_failures == 0
         and submission_attempts_without_prior_evaluation == 0
     )
@@ -165,6 +202,8 @@ def summarize_portfolio_shadow(
         "incomplete_decisions": incomplete_decisions,
         "reconciliation_sessions": len(reconciliation_sessions),
         "risk_relevant_sessions_missing_reconciliation": len(missing_reconciliation),
+        "risk_relevant_sessions_dispositioned": len(dispositioned_gaps),
+        "reconciliation_dispositions_unused": len(unused_dispositions),
         "reconciliation_failures": reconciliation_failures,
         "latest_reconciliation_at": latest_reconciliation_at,
         "latest_reconciliation_max_abs_quantity_delta": latest_reconciliation_delta,
@@ -188,6 +227,17 @@ def _load_jsonl(paths: Sequence[Path]) -> list[dict[str, Any]]:
     return rows
 
 
+def load_dispositions(path: Path | None) -> list[dict[str, Any]]:
+    """Read the disposition ledger; a missing file means "no waivers"."""
+    if path is None or not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    entries = payload.get("dispositions", []) if isinstance(payload, dict) else payload
+    if not isinstance(entries, list):
+        raise ValueError(f"{path}: 'dispositions' must be a list")
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Summarize portfolio shadow evidence.")
     parser.add_argument("inputs", nargs="+", type=Path)
@@ -197,6 +247,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=(),
         help="Portfolio reconciliation JSON reports for the observed sessions.",
+    )
+    parser.add_argument(
+        "--dispositions",
+        type=Path,
+        default=None,
+        help=(
+            "configs/portfolio_reconciliation_dispositions.json -- sessions whose "
+            "reconciliation is provably unobtainable, each with a reason."
+        ),
     )
     parser.add_argument("--output", type=Path, required=True)
     return parser
@@ -211,6 +270,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = summarize_portfolio_shadow(
         _load_jsonl(args.inputs),
         reconciliation_rows,
+        load_dispositions(args.dispositions),
     )
     atomic_write_text(
         json.dumps(report, sort_keys=True, indent=2) + "\n",

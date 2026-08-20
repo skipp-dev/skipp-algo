@@ -79,6 +79,7 @@ def _empty(loaded: float, error: str) -> dict[str, Any]:
             "incomplete_decisions": 0,
             "reconciliation_sessions": 0,
             "risk_relevant_sessions_missing_reconciliation": 0,
+            "risk_relevant_sessions_dispositioned": 0,
             "reconciliation_failures": 0,
             "latest_reconciliation_at": "",
             "latest_reconciliation_max_abs_quantity_delta": 0,
@@ -197,6 +198,9 @@ def _coerce(raw: dict[str, Any]) -> dict[str, Any]:
             ),
             "incomplete_decisions": _num(portfolio.get("incomplete_decisions")),
             "reconciliation_sessions": _num(portfolio.get("reconciliation_sessions")),
+            "risk_relevant_sessions_dispositioned": _num(
+                portfolio.get("risk_relevant_sessions_dispositioned")
+            ),
             "risk_relevant_sessions_missing_reconciliation": _num(
                 portfolio.get("risk_relevant_sessions_missing_reconciliation")
             ),
