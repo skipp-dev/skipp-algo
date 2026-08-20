@@ -6004,10 +6004,22 @@ groups:
       datasourceUid: grafanacloud-prom
       model:
         # This is the question pre-a0-shadow-data-missing's TITLE used to
-        # claim and its expression never asked. Records flowing in with zero
+        # claim and its expression never asked. PRE-A0 scoring with zero
         # snapshots written means the evidence base for the PRE-A0 promotion
         # stops growing -- silently, because every other gauge stays green.
-        expr: (sum(increase(a0_fast_records_processed_total{job="a0_fast"}[15m])) > bool 100) * (sum(increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m])) == bool 0)
+        #
+        # 2026-08-20: the load guard used to be a0_fast_records_processed_total.
+        # That counter runs pre- and post-market; pre_a0_snapshots_recorded_total
+        # only moves during the regular session (measured over 5 days: snapshots
+        # are written 13-20 UTC and are exactly 0 in every other hour, while
+        # 5821 records/h flow at 08 UTC). The pair therefore compared unlike
+        # things and the CRITICAL rule was true 23.2% of the week -- 39 hours of
+        # guaranteed false alarm, every trading day, 4.5-9.2h at a stretch.
+        # pre_a0_scores_total lives in the same path as the snapshots and shares
+        # their window exactly, so the guard needs no clock and survives DST.
+        # Re-measured over the same 7 days: 0 of 673 points true, while the
+        # guard itself is armed at 135 of them -- quiet AND still able to fire.
+        expr: (sum(increase(pre_a0_scores_total{job="a0_fast"}[15m])) > bool 100) * (sum(increase(pre_a0_snapshots_recorded_total{job="a0_fast"}[15m])) == bool 0)
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -6023,8 +6035,8 @@ groups:
     labels: {severity: critical}
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/pre_a0_rollout_runbook.md
-      summary: A0-Fast is processing records but PRE-A0 wrote no snapshot for 15 minutes -- the
-        promotion evidence base has stopped growing.
+      summary: PRE-A0 is scoring but wrote no snapshot for 15 minutes -- the promotion evidence
+        base has stopped growing.
       runbook: Check the snapshot flush path and the a0-fast-shadow volume (/app/data/pre-a0-snapshots,
         partitioned by session_date). Lost snapshot days cannot be reconstructed -- they have to be
         re-accumulated over live market days.

@@ -3716,3 +3716,34 @@ def test_no_range_function_over_a_multi_metric_name_selector() -> None:
         "die Query bricht mit doppeltem Labelset ab und die Regel feuert nie. "
         "Je Metrik einzeln summieren:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_pre_a0_snapshot_alert_gates_on_the_same_path_it_measures():
+    """Ein Lastwaechter aus einem ANDEREN Zeitfenster macht die Regel dauerhaft wahr.
+
+    2026-08-20 gemessen: `a0_fast_records_processed_total` laeuft vor- und
+    nachboerslich weiter (5821 Records/h um 08 UTC), waehrend
+    `pre_a0_snapshots_recorded_total` ausschliesslich 13-20 UTC steigt. Die
+    CRITICAL-Regel war dadurch 23,2 % der Woche wahr -- 39 Fehlalarm-Stunden,
+    an jedem Handelstag 4,5-9,2 h am Stueck. Der Waechter muss aus DEMSELBEN
+    Pfad kommen wie der gemessene Zaehler; dann braucht er keine Uhr und
+    ueberlebt die Zeitumstellung.
+    """
+    root = Path(__file__).resolve().parents[1] / "services" / "live_overlay_daemon"
+    rules = (root / "infra" / "grafana" / "alert-rules.yaml").read_text(encoding="utf-8")
+    # Block = ab der uid bis zur naechsten uid (oder Dateiende) -- robuster als
+    # ein Lookahead, der eine Folge-Regel voraussetzt.
+    chunks = [c for c in rules.split("- uid: ") if c.startswith("pre-a0-snapshots-not-recorded")]
+    assert chunks, "Regel pre-a0-snapshots-not-recorded fehlt"
+    exprs = [e for c in chunks for e in re.findall(r"^\s*expr:\s*(.+)$", c, re.M)]
+    assert exprs, "kein expr im Regelblock"
+    if True:
+        for expr in exprs:
+            assert "pre_a0_snapshots_recorded_total" in expr, expr
+            assert "a0_fast_records_processed_total" not in expr, (
+                "Lastwaechter aus dem A0-Fast-Ingest: laeuft ausserhalb der Sitzung "
+                "weiter und macht die Regel taeglich stundenlang wahr. Einen "
+                "pre_a0_*-Zaehler nehmen. " + expr
+            )
+            guards = [m for m in ("pre_a0_scores_total", "pre_a0_estimates_total") if m in expr]
+            assert guards, "kein pre_a0_*-Lastwaechter im Ausdruck: " + expr
