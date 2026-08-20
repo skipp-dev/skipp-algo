@@ -127,6 +127,11 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_subprocess_spawn_sites_ledger.py",
     "test_sys_exit_ledger_pin.py",
     "test_sys_path_mutation_ledger.py",
+    # 2026-08-20: nachgezogen, weil die zwei Geschwister-Pins dieser Datei
+    # (test_pytest_skip_budget.py, test_six_zero_tripwires_bundle.py) laengst
+    # hier standen, der Wächter selbst aber nicht — deshalb konnte #4911 gruen
+    # mergen und main 13 CI-Laeufe lang rot halten.
+    "test_test_suite_health_discipline.py",
     "test_time_sleep_budget.py",
     "test_type_ignore_budget.py",
     "test_urllib_urlopen_ledger.py",
