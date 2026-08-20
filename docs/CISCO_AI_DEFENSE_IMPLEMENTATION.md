@@ -1,8 +1,9 @@
 # Cisco AI Defense for skipp-algo
 
-Status: tenant rollout and live runtime controls verified on 2026-07-20 in the
-dedicated, private Railway service `skipp-terminal-ai`.  Repository merge and
-general availability remain gated by Draft PR review and CI.
+Status: merged and live.  Tenant rollout and live runtime controls verified on
+2026-07-20 in the dedicated, private Railway service `skipp-terminal-ai`; the
+LLM egress path has since moved to the Producer, and the key state was
+re-measured there on 2026-08-20 (see "Key state re-measurement").
 
 ## Objective
 
@@ -133,7 +134,7 @@ The wrapper adds two intentional hardening rules around the SDK:
 | Connection | `skipp-algo-runtime-openai`, Cisco AI Defense SaaS data plane |
 | Guardrail profile | `skipp-algo-strict-runtime-profile-v1`; security 4/4 configured to block, privacy 3/3 enabled, safety 8/8 enabled, medium filter strength |
 | Policy | `skipp-algo-strict-runtime-v1`, enabled and attached to the dedicated connection |
-| Inspection key | `skipp-algo-runtime-openai-railway`, 64 characters, finite expiry on 2026-08-19 |
+| Inspection key | `skipp-algo-runtime-openai-railway`, 64 characters, finite expiry on 2026-08-19 — superseded; see the 2026-08-20 re-measurement below |
 | Railway runtime | `skipp-terminal-ai`, one replica, timeout `10`, final mode `enforce`; public ingress is permitted only through the fail-closed access proxy documented below |
 | Monitor smoke | safe request allowed; synthetic injection recorded with `Prompt Injection` and `General Harms` rules |
 | Enforcement smoke | safe request allowed; the same synthetic injection raised `AIDefenseBlockedError` before provider egress |
@@ -144,6 +145,26 @@ was found to contain an invalid value.  The valid Inspection key is held by
 Cisco and Railway only.  The dedicated Railway SSH public key used for the
 smoke test is named `codex-skipp-cisco-smoke`; review or remove it when remote
 operator access is no longer required.
+
+## Key state re-measurement (2026-08-20)
+
+All four rows were measured live on 2026-08-20, one day after the originally
+documented Inspection-key expiry, with content-free synthetic probes run
+inside the `smc-signals-producer` container via `railway ssh` (no prompt,
+response, or key material in any output).
+
+| Check | Measured state |
+| --- | --- |
+| Inspection key on `smc-signals-producer` | VALID — a synthetic `ping` inspection against `eu-central-1` authenticated and returned a complete decision (`is_safe=True`, `Action.ALLOW`); mode `enforce`. The 2026-08-19 expiry above did not strike, so the active key was rotated or extended after 2026-07-20. |
+| Actual expiry of the active key | NOT READABLE from repo or runtime. The Management API rejects the deployed management credential (below), so the expiry is visible only in the AI Defense dashboard (Administration → API Keys / connection keys). |
+| `CISCO_AI_DEFENSE_MANAGEMENT_API_KEY` on `smc-signals-producer` | INVALID and unconsumed — `GET https://api.eu.security.cisco.com/api/ai-defense/v1/connections` and `/applications` with the documented `x-cisco-ai-defense-tenant-api-key` header both return `401 {"code":16, "message":"failed to authenticate and authorize"}`, and no repo code, workflow, or doc references the variable. It also contradicts the operator-only blast-radius rule in "Secret handling and rotation". Remove it from the service, or replace it with a valid key stored operator-side only. |
+| `CISCO_AI_DEFENSE_API_KEY/_MODE/_REGION/_TIMEOUT_SECONDS` on `skipp-terminal-ai` | DEAD COPY — the terminal AI tab routes exclusively through the Producer's private `/ai-insights` (`ProducerAIInsightsClient`); no code path in the terminal image calls `inspect_messages`. A stale duplicate of the Inspection key with no mechanism keeping it in sync with the Producer's copy. Candidate for removal (removal triggers a terminal redeploy). |
+
+Expiry monitoring: none exists. `scripts/credential_health_check.py` does not
+cover the Cisco Inspection key, and the producer log window inspected on
+2026-08-20 contained no AI Defense traffic, so a silent expiry would surface
+only as fail-closed AI Insights errors for end users. Rotation before the next
+expiry is currently UNGESICHERT — verlässt sich auf menschliches Gedächtnis.
 
 ## Runtime configuration
 
