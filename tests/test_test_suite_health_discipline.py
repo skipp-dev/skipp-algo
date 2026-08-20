@@ -46,6 +46,7 @@ synthetische Dateien durch ``_iter_markers`` und verlangen beide Urteile.
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 from typing import NamedTuple
 
@@ -248,4 +249,67 @@ def test_a_non_strict_xfail_is_still_caught(tmp_path: Path) -> None:
     )
     assert [(m.name, m.strict) for m in markers] == [("xfail", False)], (
         f"ein nicht-strikter xfail wird nicht mehr gesehen: {markers}"
+    )
+
+
+# --- „duration-balanced" soll ein Befund sein, keine Behauptung ---------------
+
+
+def _duration_file_coverage(durations: dict[str, float], test_files: set[str]) -> float:
+    """Anteil der Testdateien, für die ``.test_durations`` überhaupt etwas weiß."""
+    if not test_files:
+        return 1.0
+    recorded = {key.split("::")[0] for key in durations}
+    return len(test_files & recorded) / len(test_files)
+
+
+def test_the_duration_map_still_covers_the_suite() -> None:
+    """``ci.yml`` nennt die Aufteilung *duration-balanced (pytest-split)*.
+
+    Die Balance kommt aus ``.test_durations``. Fehlt ein Test dort, bekommt er
+    von pytest-split den MITTELWERT — und der liegt hier 70× über dem Median
+    (0,82 ms Median gegen 58,13 ms Mittel). Ein Viertel der Suite galt am
+    2026-08-20 deshalb als exakt gleich schwer.
+
+    Was das kostet, ist gemessen, nicht vermutet: mit der damals vier Wochen
+    alten Datei brauchten die vier Shards real 2,97 / 2,33 / 2,23 / 5,70 min
+    (Spreizung 2,55×); frisch aufgezeichnet 3,31 / 3,32 / 3,28 / 3,32
+    (Spreizung 1,01×). Der längste Pfad sinkt um 42 %.
+
+    Der Boden ist ebenfalls gemessen: die Datei vom 23.7. deckte am 20.8. noch
+    73,3 % der Testdateien ab — rund 6,7 Prozentpunkte Verrottung pro Woche.
+    85 % lassen also gut zwei Wochen Vorlauf, und dieser Wächter wird rot,
+    BEVOR die Schieflage wieder so gross ist wie beim validate(4)-Vorfall.
+
+    Reparatur ist ein Befehl, kein Projekt::
+
+        python -m pytest -q -p no:randomly --store-durations
+
+    auf einer UNBELASTETEN Maschine — Konkurrenz verfälscht die Messung.
+    """
+    durations = json.loads((REPO_ROOT / ".test_durations").read_text(encoding="utf-8"))
+    test_files = {p.relative_to(REPO_ROOT).as_posix() for p in _python_test_files()}
+    coverage = _duration_file_coverage(durations, test_files)
+    assert coverage >= 0.85, (
+        f".test_durations kennt nur {coverage:.1%} der {len(test_files)} Testdateien. "
+        "Die fehlenden bekommen von pytest-split alle denselben Mittelwert, damit "
+        "waere 'duration-balanced' ein Name ohne Deckung. Neu aufzeichnen: "
+        "python -m pytest -q -p no:randomly --store-durations"
+    )
+
+
+def test_the_coverage_measure_itself_is_not_vacuous() -> None:
+    """Positivkontrolle — sonst genügte dem Wächter oben ein ``return 1.0``."""
+    files = {"tests/test_a.py", "tests/test_b.py", "tests/test_c.py", "tests/test_d.py"}
+    full = {
+        "tests/test_a.py::t": 1.0, "tests/test_b.py::t": 1.0,
+        "tests/test_c.py::t": 1.0, "tests/test_d.py::t": 1.0,
+    }
+    assert _duration_file_coverage(full, files) == 1.0
+    half = {"tests/test_a.py::t": 1.0, "tests/test_b.py::t": 1.0}
+    assert _duration_file_coverage(half, files) == 0.5, "die Messung zaehlt nicht"
+    stale = {"tests/test_geloescht.py::t": 1.0}
+    assert _duration_file_coverage(stale, files) == 0.0, (
+        "Eintraege fuer Dateien, die es nicht mehr gibt, duerfen nicht als "
+        "Abdeckung zaehlen"
     )
