@@ -311,7 +311,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # _empty/_coerce shifted this global anchor +8: 188->196.
         # 2026-08-09 (feat/portfolio-f4-evidence): normalization-only line
         # shift; the existing cache singleton and names are unchanged.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 302, ("_cached", "_cached_at_monotonic")),
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 306, ("_cached", "_cached_at_monotonic")),  # 2026-08-20 (Disposition-Ledger: 4 Zeilen ueber der Stelle): 302->306
         # 2026-07-11 (feat/sweep-trap-shadow-grafana): WS4a sweep-trap shadow
         # snapshot bridge — same TTL-cache singleton pattern (snapshot() +
         # _reset_cache_for_tests()).

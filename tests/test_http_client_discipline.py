@@ -185,7 +185,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # _empty/_coerce shifted this +8: 137->145.
         # 2026-08-09: portfolio evidence normalization shifted the existing
         # request site; HTTPS and explicit timeout semantics are unchanged.
-        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 246),
+        ("services/live_overlay_daemon/evidence_freshness_bridge.py", 250),  # 2026-08-20 (Disposition-Ledger: 4 Zeilen ueber der Stelle): 246->250
         ("services/live_overlay_daemon/provider_usage_bridge.py", 97),  # 2026-07-11 (rate_limit_hits coerce +1 line): 96->97
         # 2026-07-13 (feat/pine-library-version-monitor, #3599/#3603 follow-up):
         # repo↔TradingView Pine-library version snapshot fetcher, https-only +

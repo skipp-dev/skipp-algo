@@ -1542,6 +1542,16 @@
           },
           "instant": true,
           "range": false
+        },
+        {
+          "expr": "live_overlay_portfolio_shadow_dispositioned_sessions{job=~\"$job\"}",
+          "legendFormat": "dispositioned (evidence unobtainable)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -9977,6 +9987,6 @@
   "timezone": "utc",
   "title": "SMC Live Overlay API",
   "uid": "smc-live-overlay-v1",
-  "version": 69,
+  "version": 70,
   "description": "Live-overlay daemon operational dashboard: feed health, worker liveness, SMC overlay freshness, external bridge status, provider health, daily experiment metrics, and Railway container resources."
 }
