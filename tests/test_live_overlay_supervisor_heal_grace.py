@@ -101,7 +101,14 @@ def _drive(
             "flow_refresh": True,
         },
     )
+    # 2026-08-21: BEIDE Sitzungsfunktionen liefern. Dieser PR stellt die
+    # ERKENNUNG auf is_us_extended_session_open um; wer nur die RTH-Funktion
+    # patcht, borgt die erweiterte Sitzung von der WANDUHR der Maschine und
+    # ist damit tageszeitabhaengig gruen. Gemessen: ohne diese Zeilen fielen
+    # 7 Tests ausserhalb 04:00-20:00 ET. RTH offen impliziert erweitert offen;
+    # "geschlossen" heisst hier "keine Stall-Erkennung", also ebenfalls False.
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: True)
     monkeypatch.setattr(feed_mod, "_inc_metric", lambda *a, **k: None)
     feed_mod._fatal_config_error.clear()
     # 2026-08-20: auch DIESEN Modulzustand zuruecksetzen, sonst borgt der Test
