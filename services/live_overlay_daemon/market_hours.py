@@ -179,6 +179,39 @@ def is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool
     )
 
 
+def is_us_extended_session_open(now_utc: datetime.datetime | None = None) -> bool:
+    """Return True during the US PRODUCT window (Mon-Fri 04:00-20:00 ET).
+
+    This is the window in which the feed actually delivers bars, and it is
+    wider than the regular session by 5.5 hours before and 4 hours after.
+    Two independent records say so: the daemon subscribes to
+    ``EQUS.MINI ohlcv-1m ALL_SYMBOLS`` (no session filter), and OPS.md records
+    a 2026-07-22 restart at 09:13Z — 05:13 ET — after which "premarket
+    repopulated".
+
+    Why it exists (2026-08-20, deep review of the serve path): the data-flow
+    alerts were gated on ``is_us_regular_session_open``, so a feed that went
+    silent at 16:10 ET on a Friday was neither reported nor healed until
+    Monday 09:30. Anything that watches DATA FLOW belongs on this window;
+    anything that can restart the process stays on the regular session, where
+    a false positive cannot turn into a nightly outage.
+
+    Early-close days end here too, deliberately: standing down at 13:00 ET
+    costs a few hours of watching, while watching a closed market costs false
+    alarms — and, on the healing path, a self-inflicted restart loop.
+    """
+    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
+    return _is_open_between(
+        now_utc=now_utc,
+        zone_name="America/New_York",
+        start_local=datetime.time(4, 0),
+        end_local=datetime.time(20, 0),
+        holiday_calendar_code="NYSE",
+        early_close_end_local=_US_EARLY_CLOSE_LOCAL,
+        is_early_close=_is_us_early_close,
+    )
+
+
 def is_europe_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
     """Return True during regular Europe session proxy (Mon-Fri, 08:00-16:30 London)."""
     now_utc = now_utc or datetime.datetime.now(datetime.UTC)

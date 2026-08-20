@@ -2047,7 +2047,12 @@ def test_feed_down_critical_covers_silent_stall_via_bar_age_ladder() -> None:
     """
     critical = _alert_rule("lo-feed-down-market-open")
     critical_expr = critical["data"][0]["model"]["expr"]
-    assert "live_overlay_market_us_open" in critical_expr
+    # 2026-08-20: das Tor ist jetzt das PRODUKTFENSTER (04:00-20:00 ET), nicht
+    # die regulaere Sitzung — eine Leitung, die 16:10 verstummt, wurde sonst
+    # bis Montag weder gemeldet noch geheilt. Die Zuordnung "misst Datenfluss
+    # => gated auf das Produktfenster" bewacht
+    # tests/test_us_extended_session_window.py in beide Richtungen.
+    assert "live_overlay_market_us_extended_open" in critical_expr
     assert "1 - live_overlay_feed_healthy" in critical_expr, (
         f"loud-failure path vanished from the critical feed-down rule: {critical_expr}"
     )
