@@ -9,6 +9,8 @@ Optional vars:
   OVERLAY_REFRESH_SECS        — standard field refresh cadence, default 1800 (30 min)
   OVERLAY_FLOW_REFRESH_SECS   — flow-field fast refresh cadence, default 300 (5 min)
   OVERLAY_MAX_STALE_SECS      — threshold for marking payload stale, default 3600 (1 h)
+  OVERLAY_MAX_BAR_AGE_SECS    — threshold for BAR recency (a 60s cadence, not the
+                                compute cadence), default 180 = the feed's own stall threshold
   OVERLAY_ROLLING_BARS        — number of 1-min bars to keep per symbol, default 60
   NEWS_SNAPSHOT_PATH          — path to news snapshot JSON, default relative to repo root
   NEWS_SNAPSHOT_URL           — optional https URL fetched at runtime; takes precedence
@@ -189,6 +191,25 @@ def flow_refresh_secs() -> int:
 
 def max_stale_secs() -> int:
     return _clamped_int("OVERLAY_MAX_STALE_SECS", 3600, 60, 7200)
+
+
+def max_bar_age_secs() -> int:
+    """Budget for BAR recency — a different clock than ``max_stale_secs``.
+
+    ``max_stale_secs`` is sized for the compute cadence: the refresh thread
+    recomputes every ``OVERLAY_REFRESH_SECS`` (1800s default), so 3600 gives
+    two cycles of headroom before a payload counts as stale. Bars arrive on a
+    60-second cadence, so the SAME number is 60x too loose for them — measured
+    2026-08-20: the first 60 minutes of any feed freeze were served as
+    ``stale: false``, and ``_latest_bar_age_secs`` reasons in its own docstring
+    about a "60s budget" that no caller supplied.
+
+    The default is the daemon's own stall threshold
+    (``feed._STALL_MAX_BAR_AGE_SECS`` = 180): what the supervisor treats as a
+    stalled feed must not be served as fresh data. Not a duplicate constant —
+    that one decides whether to HEAL, this one decides what to SAY.
+    """
+    return _clamped_int("OVERLAY_MAX_BAR_AGE_SECS", 180, 60, 3600)
 
 
 def rolling_bars() -> int:

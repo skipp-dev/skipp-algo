@@ -155,7 +155,7 @@ Returns **404** on wrong token (does not leak route existence).
 | `symbol` | str | e.g. `"NVDA"` | Uppercased |
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
 | `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
-| `stale` | bool | | For `5m`, true when overlay age or the symbol's newest source-bar age exceeds `max_stale_secs`; other timeframe caches use their compute age. |
+| `stale` | bool | | True when the symbol's newest source-bar age exceeds `max_bar_age_secs` (bar clock, default 180s = the feed's own stall threshold). For `5m` the overlay compute age against `max_stale_secs` (compute clock, default 3600s) is ORed in. Two clocks on purpose: bars arrive every 60s, the refresh thread recomputes every 1800s. |
 | `universe_member` | bool \| null | | Membership in the loaded generated-library universe; null when the universe is unavailable |
 | `universe_size` | int \| null | ≥ 0 | Size of the loaded generated-library universe |
 | `library_asof_date` | str \| null | | Generator-declared library date |
