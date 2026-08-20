@@ -123,3 +123,57 @@ def test_5m_stale_true_when_compute_stale_even_with_fresh_bars(serving) -> None:
     serving.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: _bars(30.0))
     serving.setattr(main_mod.cache, "overlay_age_secs", lambda: 7200.0)
     assert _get("5m")["stale"] is True
+
+
+def test_bar_age_is_judged_on_the_bar_clock_not_the_compute_clock(serving) -> None:
+    """Ein Bar, den der Daemon selbst als Stall zaehlt, darf nicht frisch heissen.
+
+    2026-08-20 (Deep-Review des Serve-Pfads): ``OVERLAY_MAX_STALE_SECS`` ist am
+    deployten Dienst NICHT gesetzt (63 Railway-Variablen geprueft), also greift
+    der Default 3600 s. Dieser EINE Wert wird gegen ZWEI Groessen verglichen,
+    die um Faktor 60 auseinanderliegen: das Overlay-Alter (Refresh-Kadenz 1800 s
+    — dort ist 3600 korrekt bemessen) und das BAR-Alter (Bars kommen im 60-s-
+    Takt). Der Docstring von ``_latest_bar_age_secs`` rechnet woertlich "under a
+    60s budget"; gegen 3600 s ist die dortige +60-s-Korrektur wirkungslos.
+
+    Der Daemon hat seine eigene Definition von "Feed steht" bereits:
+    ``feed._STALL_MAX_BAR_AGE_SECS = 180`` — drei Minuten ohne Bar sind ein
+    Stall, den der Supervisor heilt. Was der Supervisor als Stall behandelt,
+    darf die Nutzlast nicht als frisch ausliefern.
+
+    Die vorhandenen Tests dieser Datei pinnen 7200 s (stale) und 30 s (frisch)
+    und lassen genau das Fenster dazwischen offen — 180 s bis 3600 s, also die
+    erste Stunde jedes Einfrierens.
+    """
+    serving.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: _bars(900.0))
+    assert _get("5m")["stale"] is True, (
+        "ein 15 Minuten alter Bar wurde als frisch serviert — das Bar-Alter wird "
+        "gegen das Compute-Budget geprueft statt gegen ein bar-skaliertes"
+    )
+
+
+def test_the_on_demand_timeframe_path_uses_the_same_bar_budget(serving) -> None:
+    """Beide Pfade, nicht nur der 5m-Pfad.
+
+    ``_get_payload_for_timeframe`` leitet ``stale`` bereits aus der Bar-
+    Aktualitaet ab — aber gegen dasselbe Compute-Budget. Ein Fix, der nur den
+    5m-Pfad anfasst, liesse die uebrigen Zeitrahmen mit der alten Toleranz
+    zurueck.
+    """
+    serving.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: _bars(900.0))
+    serving.setattr(main_mod.cache, "get_overlay", lambda _sym: None)
+    assert _get("15m")["stale"] is True, (
+        "der On-demand-Zeitrahmenpfad serviert einen 15 Minuten alten Bar als frisch"
+    )
+
+
+def test_a_normally_flowing_feed_is_still_fresh(serving) -> None:
+    """Positivkontrolle: das neue Budget darf den Normalbetrieb nicht roeten.
+
+    Bars kommen im 60-s-Takt, ``_latest_bar_age_secs`` misst seit dem SCHLUSS
+    des neuesten Bars — im Normalbetrieb pendelt das zwischen 0 und 60 s.
+    Ohne diese Kontrolle koennte der Test oben auch dadurch gruen werden, dass
+    schlicht alles stale heisst.
+    """
+    serving.setattr(main_mod.cache, "get_bars_snapshot", lambda _sym: _bars(45.0))
+    assert _get("5m")["stale"] is False
