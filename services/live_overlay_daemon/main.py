@@ -345,7 +345,7 @@ def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
     payload["stale"] = (
         True
         if latest_bar_age_secs is None
-        else latest_bar_age_secs > config.max_stale_secs()
+        else latest_bar_age_secs > config.max_bar_age_secs()
     )
     return payload
 
@@ -450,7 +450,9 @@ def smc_live(
             max_stale = config.max_stale_secs()
             compute_stale = (age > max_stale) if age != float("inf") else True
             bar_age = _latest_bar_age_secs(cache.get_bars_snapshot(sym))
-            data_stale = bar_age is None or bar_age > max_stale
+            # Bar recency runs on the bar clock (60s cadence), not the compute
+            # clock (1800s cadence) — see config.max_bar_age_secs.
+            data_stale = bar_age is None or bar_age > config.max_bar_age_secs()
             payload["stale"] = compute_stale or data_stale
         if payload.get("stale"):
             observability.metric_counter("live_overlay.smc_live_stale_served.total")
