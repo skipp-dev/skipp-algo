@@ -10,6 +10,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+import types
 
 import pytest
 
@@ -294,6 +295,41 @@ def test_supervisor_break_stalled_client_calls_stop() -> None:
     assert calls == ["stop"]
 
 
+class _BoundedStop(threading.Event):
+    """Ein Stop-Event, das sich nach ``limit`` Runden selbst setzt.
+
+    Jeder Supervisor-Test hier faehrt die ECHTE Schleife
+    (``while not stop.wait(_SUPERVISOR_INTERVAL_SECS)``) und verlaesst sich
+    darauf, dass ein Stub ``stop.set()`` ruft, sobald das erwartete Verhalten
+    eintritt. Tritt es NICHT ein, laeuft die Schleife fuer immer: der Test
+    haengt, statt zu scheitern — und ein haengender Test sagt nichts, waehrend
+    ein fehlgeschlagener seinen Namen nennt.
+
+    Was das kostet, ist gemessen: am 2026-08-20 blockierte
+    ``test_supervisor_breaks_never_first_bar_stall`` auf einem frisch
+    gebooteten Runner (geborgte ``monotonic()``-Uptime, siehe dort) und
+    verbrannte 45 Minuten Job-Zeit ohne eine einzige Zeile Diagnose
+    (validate (4), Lauf 32369549784). Erst der faulthandler-Dump aus #4933
+    nannte den Test.
+
+    Die Schranke ist grosszuegig: bei ``_SUPERVISOR_INTERVAL_SECS = 0.01``
+    sind 200 Runden zwei Sekunden, waehrend der langsamste dieser Tests vier
+    Runden braucht (``_SELF_HEAL_MAX_ATTEMPTS`` = 3 plus Eskalation). Sie
+    aendert also an keinem gruenen Lauf etwas — sie verwandelt nur einen
+    stillen Hang in eine laute Zusicherung.
+    """
+
+    def __init__(self, limit: int = 200) -> None:
+        super().__init__()
+        self._rounds_left = limit
+
+    def wait(self, timeout: float | None = None) -> bool:
+        self._rounds_left -= 1
+        if self._rounds_left <= 0:
+            self.set()
+        return super().wait(timeout)
+
+
 def test_supervisor_break_stalled_client_noop_without_client() -> None:
     """No active client → break is a safe no-op (must not raise)."""
     import services.live_overlay_daemon.feed as feed_mod
@@ -308,7 +344,7 @@ def test_supervisor_escalates_on_fatal_config_error(monkeypatch: pytest.MonkeyPa
     loop forever trying to self-heal."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     escalated: list[int] = []
 
     def _fake_escalate(code: int = 1) -> None:
@@ -329,7 +365,7 @@ def test_supervisor_heals_dead_worker_via_partial_restart(monkeypatch: pytest.Mo
     """A dead worker thread must trigger the idempotent start() partial restart."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     started: list[int] = []
     escalated: list[int] = []
 
@@ -356,7 +392,7 @@ def test_supervisor_does_not_heal_dead_worker_after_stop_is_set(monkeypatch: pyt
     """The final stop check closes the resurrection race before partial restart."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     started: list[int] = []
 
     monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
@@ -381,7 +417,7 @@ def test_supervisor_breaks_stall_during_session(monkeypatch: pytest.MonkeyPatch)
     the worker threads are still alive)."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     broke: list[int] = []
 
     monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
@@ -408,7 +444,7 @@ def test_supervisor_breaks_never_first_bar_stall(monkeypatch: pytest.MonkeyPatch
     """Connected RTH feeds that never deliver the first bar are stale too."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     broke: list[int] = []
 
     monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.01)
@@ -419,7 +455,25 @@ def test_supervisor_breaks_never_first_bar_stall(monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
     monkeypatch.setattr(feed_mod, "last_bar_age_secs", lambda: None)
-    monkeypatch.setattr(feed_mod, "_feed_connected_at", time.monotonic() - feed_mod._STALL_MAX_BAR_AGE_SECS - 10.0)
+    # 2026-08-20: BEIDE Seiten des Vergleichs liefern, statt eine von der
+    # Maschine zu borgen.
+    #
+    # Vorher stand hier ``time.monotonic() - _STALL_MAX_BAR_AGE_SECS - 10``.
+    # ``monotonic()`` zaehlt ab BOOT. Auf einem Entwicklerrechner mit Tagen
+    # Uptime ist das eine grosse Zahl und die Differenz bleibt positiv — auf
+    # einem frisch gestarteten GitHub-Runner mit unter 190 s Uptime wird sie
+    # NEGATIV. Und ``feed.py`` gated die Erkennung mit
+    # ``elif _feed_connected_at > 0:``, greift bei einem negativen Wert also
+    # nicht: kein Stall, kein ``_fake_break``, kein ``stop.set()`` — und
+    # ``while not stop.wait(0.01)`` drehte sich, bis das Job-Limit sie erschlug.
+    # Gekostet hat das am 20.8. 45 Minuten Runner-Zeit ohne eine einzige Zeile
+    # Diagnose (validate (4), Lauf 32369549784); benannt hat es erst der
+    # faulthandler-Dump aus #4933.
+    fake_now = 10_000.0
+    monkeypatch.setattr(feed_mod, "time", types.SimpleNamespace(monotonic=lambda: fake_now))
+    monkeypatch.setattr(
+        feed_mod, "_feed_connected_at", fake_now - feed_mod._STALL_MAX_BAR_AGE_SECS - 10.0
+    )
 
     def _fake_break() -> None:
         broke.append(1)
@@ -441,7 +495,7 @@ def test_supervisor_escalates_after_max_heal_attempts(monkeypatch: pytest.Monkey
     process restart after _SELF_HEAL_MAX_ATTEMPTS."""
     import services.live_overlay_daemon.feed as feed_mod
 
-    stop = threading.Event()
+    stop = _BoundedStop()
     escalated: list[int] = []
 
     monkeypatch.setattr(feed_mod, "_SUPERVISOR_INTERVAL_SECS", 0.001)
