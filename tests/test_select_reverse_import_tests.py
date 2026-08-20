@@ -168,3 +168,55 @@ def test_the_cost_model_holds_for_every_production_module() -> None:
         "stage's cost model (seconds, not minutes) no longer holds -- re-measure "
         "before raising this bound"
     )
+
+def test_the_stage_carries_no_marker_filter() -> None:
+    """ADR-0012 Phase 2 would gut this stage -- 23 of 25 selected tests vanish.
+
+    The stage exists to reach BEYOND the curated fast inventory: it runs every
+    test that imports a production module the PR changed. Measured 2026-08-20
+    for a one-file change to ``services/live_overlay_daemon/compute.py``: the
+    selector returns 25 test files, of which only **2** are in
+    ``FAST_TEST_FILES``. The root conftest auto-marks the other 23 ``slow``
+    (1439 of 1696 test files repo-wide are auto-slow), so a marker filter on
+    this invocation would silently reduce the stage to 2 files.
+
+    That loss is not caught anywhere: ``ci.yml`` is status-only on ALL pull
+    requests (its gate exits ``run_heavy=false`` for every ``pull_request``
+    event, bot or not), so the full suite is a MAIN-PUSH backstop, not a PR
+    one. The 23 would first run after the merge.
+
+    ADR-0012 Phase 2 proposes replacing the enumerated file list in
+    smc-fast-pr-gates.yml with a marker selection. That is coherent only
+    together with the other half of the ADR -- promoting ``validate`` to a
+    required check (Operator-Punkt 1). Wiring the fast half alone moves 85%
+    of the corpus off the required path. This test is the tripwire for that
+    half-step; it is not an objection to Phase 2.
+
+    Checked on the INVOCATION line only, not the step text -- this docstring
+    names the flag it forbids, and a text-wide search would read that as the
+    violation (the trap the --maxfail pin above already paid for).
+    """
+    gates = (ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml").read_text(
+        encoding="utf-8"
+    )
+    step = gates.index(
+        "- name: Run every test that imports a production module this PR changed"
+    )
+    body = gates[step : gates.index("- name: ", step + 1)]
+    pytest_lines = [
+        line for line in body.splitlines() if "python -m pytest ${selected}" in line
+    ]
+    assert pytest_lines, "the stage's pytest invocation vanished from its step"
+    for line in pytest_lines:
+        # NUR den Teil hinter `pytest` pruefen: `python -m pytest` traegt selbst
+        # ein ` -m `, das ist Pythons Modul-Flag und nicht pytests Marker-Filter.
+        # (Die erste Fassung dieses Tests schlug genau daran an.)
+        args = line.split("pytest", 1)[1]
+        assert " -m " not in args, (
+            "marker filter on the reverse-import stage: it would cut the "
+            "selection to the fast inventory (measured 2 of 25 for a "
+            "compute.py change) and the rest would first run post-merge, "
+            "because ci.yml is status-only on every pull request. If this is "
+            "ADR-0012 Phase 2, land the required-check half with it.\n"
+            f"  offending line: {line.strip()}"
+        )
