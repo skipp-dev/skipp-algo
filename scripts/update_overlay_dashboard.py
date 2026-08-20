@@ -546,6 +546,10 @@ def _ensure_portfolio_evidence_panels(data: dict[str, Any]) -> bool:
                     'live_overlay_portfolio_shadow_missing_reconciliation_sessions{job=~"$job"}',
                     "missing",
                 ),
+                (
+                    'live_overlay_portfolio_shadow_dispositioned_sessions{job=~"$job"}',
+                    "dispositioned (evidence unobtainable)",
+                ),
             ),
         ),
         _portfolio_evidence_panel(

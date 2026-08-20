@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "_doc": [
+    "Risk-relevant shadow sessions whose reconciliation evidence is PROVABLY",
+    "unobtainable. `run-c13-reconcile.sh` hardcodes DATE=$(date -u +%F) and the",
+    "after-snapshot is a point-in-time broker capture, so a session missed at the",
+    "time can never be reconciled later -- without this ledger the gap counter is",
+    "a monotonically rising number that alerts forever and masks the NEXT gap.",
+    "",
+    "An entry needs a non-empty `reason`; entries without one are ignored, so a",
+    "silent waiver is impossible. `blocks_review` defaults to true: a dispositioned",
+    "session still holds `ready_for_human_review` shut, because lost evidence is",
+    "still missing evidence. Setting it false is an explicit trading-governance",
+    "decision and belongs to the operator, not to whoever writes the entry.",
+    "",
+    "An entry for a session that HAS reconciliation (or that is not risk-relevant)",
+    "is reported as unused so the ledger cannot rot unnoticed."
+  ],
+  "dispositions": [
+    {
+      "session": "2026-08-18",
+      "recorded_at": "2026-08-20",
+      "blocks_review": true,
+      "reason": "run-c13-reconcile ended DEGRADED portfolio-after-failed: TWS was down at 23:05 local (connect refused on 7497, IB error 1100), so portfolio_after_2026-08-18.json was never captured. The after-snapshot is a point-in-time read of the broker account and the runner only ever operates on the current UTC date, so no backfill path exists.",
+      "evidence": "artifacts/portfolio/ on data/phase-a-audit holds reconciliation_2026-08-12 and reconciliation_2026-08-17 only; automation/launchd/run-c13-reconcile.sh line 29 pins DATE to today."
+    }
+  ]
+}
