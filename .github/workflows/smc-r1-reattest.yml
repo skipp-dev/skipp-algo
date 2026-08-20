@@ -173,6 +173,32 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           BRANCH="bot/r1-reattest"
+          # Retire a proposal PR an earlier cycle left open BEFORE the pin-only
+          # state becomes its head. `smc-fast-pr-gates` triggers on
+          # pull_request/push:main/merge_group -- never on a push to bot/*, so
+          # without an open PR this window produces no run at all. With one, the
+          # R1 guard correctly reddens it (a pin change whose evidence does not
+          # exist yet) and #4894 paid two such runs per stalled cycle.
+          #
+          # Nothing is lost: this step force-pushes over that branch anyway.
+          # Measured on #4894 -- the merge added exactly ONE chain entry
+          # (smc_r1_evidence_chain.json | 5 +), i.e. the earlier cycle's
+          # evidence commit was already discarded.
+          #
+          # The stall itself stays observed, and NOT by those red runs: they
+          # only mean "an open PR's head is a pin-only state", so a cycle dying
+          # before the push produces no signal at all. The outcome is watched by
+          # the `Pine consumer pin drifts from published TradingView version`
+          # Grafana rule over pine-library-version-monitor (built for exactly
+          # this blindness, #3599/#3603; measured firing 2026-08-20T04:35:30Z).
+          # workflow-freshness-monitor cannot carry it -- this chain is listed
+          # `:any`, so the proposer running is enough to keep it green.
+          stale="$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${BRANCH}" \
+            --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${stale}" ]; then
+            gh pr close --repo "${GITHUB_REPOSITORY}" "${stale}" \
+              --comment "Superseded: this cycle force-pushes ${BRANCH} to /${TARGET}. A fresh PR follows once its evidence exists."
+          fi
           git checkout -b "${BRANCH}"
           git add SMC_Event_Overlay.pine
           git commit -m "chore(pine): move the R1 Event Overlay pin to /${TARGET} for re-attestation"
