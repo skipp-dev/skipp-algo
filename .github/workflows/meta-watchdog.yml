@@ -169,6 +169,43 @@ jobs:
           fi
           echo "dag_status=$dag_status" >> "$GITHUB_OUTPUT"
 
+      - name: Check the workflow-failure alarm can see the merge-critical workflows
+        id: alarm_coverage
+        # Wer beobachtet den Beobachter. Der Grafana-Alarm
+        # `lo-workflow-run-failed` wertet nur Workflows aus, deren IDs in
+        # GITHUB_WORKFLOW_MONITOR_IDS auf dem live_overlay_daemon stehen — einer
+        # Liste, die NUR in der Railway-Umgebung existiert. Kein Repo-Artefakt
+        # deklariert sie, kein Test pinnt sie, und `noDataState: OK` macht eine
+        # fehlende Zeitreihe geraeuschlos.
+        #
+        # Am 2026-08-20 gemessen: 26 IDs konfiguriert, 8 Zeitreihen vorhanden,
+        # `smc-fast-pr-gates` in keiner der beiden Mengen — und das an dem Tag,
+        # an dem strict_required_status_checks_policy auf false ging und der
+        # main-Lauf damit zum Rueckfangnetz wurde.
+        #
+        # KEIN `continue-on-error`: der Schritt faengt den Exit-Code selbst ab
+        # (`rc=$?`, kein `set -e`) und endet immer mit 0. Die Wertung passiert
+        # ausschliesslich unten ueber `alarm_rc` — genau EIN Ort, an dem sich
+        # entscheidet, ob der Job rot wird.
+        env:
+          GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -uo pipefail
+          if [ -z "${GRAFANA_API_KEY}" ]; then
+            echo "::warning title=meta-watchdog::GRAFANA_API_TOKEN fehlt -- Alarm-Abdeckung UNGEPRUEFT."
+            echo "alarm_rc=8" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -m scripts.check_workflow_failure_alarm_coverage
+          rc=$?
+          echo "alarm_rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" = "1" ]; then
+            echo "::error title=meta-watchdog::Der Workflow-Fehleralarm ist fuer einen merge-kritischen Workflow BLIND. Siehe Schrittausgabe: GITHUB_WORKFLOW_MONITOR_IDS auf dem live_overlay_daemon nachziehen."
+          elif [ "$rc" = "8" ]; then
+            echo "::warning title=meta-watchdog::Alarm-Abdeckung nicht messbar (Sonde ungueltig) -- das ist KEIN Bestehen."
+          fi
+
       - name: Annotate probe results
         if: always() && steps.probe.outputs.rc != ''
         run: |
@@ -363,8 +400,9 @@ jobs:
           (
             (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
             steps.dag.outputs.dag_status == 'broken' ||
-            steps.dag.outputs.dag_status == 'error'
+            steps.dag.outputs.dag_status == 'error' ||
+            steps.alarm_coverage.outputs.alarm_rc == '1'
           )
         run: |
-          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }}"
+          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }} | alarm_rc=${{ steps.alarm_coverage.outputs.alarm_rc }}"
           exit 1
