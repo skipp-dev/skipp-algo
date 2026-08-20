@@ -211,6 +211,43 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Overlay age > 1h — compute cycle likely hung or erroring
       runbook: Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds).
+  - uid: lo-holiday-calendar-degraded
+    title: Holiday calendar unavailable — sessions treat holidays as trading days
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: "1 - live_overlay_market_holiday_calendar_loaded{job=\"live_overlay\"}\n"
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 15m
+    labels:
+      severity: high
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: A holiday lookup fell back to an empty calendar — every holiday now reads as a trading day
+      runbook: >-
+        The fallback is deliberate (a missing calendar must not crash the daemon) but
+        fail-OPEN. With an empty calendar is_us_regular_session_open() returns true on
+        Christmas, the self-heal supervisor sees a "stalled" feed on a closed market,
+        heals three times and calls os._exit — against a platform budget of three
+        restarts. Check that holidays==0.102 is installed in the deployed image and
+        that financial_holidays("NYSE", ...) still resolves; the daemon logs the reason
+        once at WARNING.
   - uid: lo-no-symbols
     title: Zero overlay symbols after warmup
     condition: C
