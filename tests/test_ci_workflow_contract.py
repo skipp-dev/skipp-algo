@@ -117,7 +117,12 @@ def test_single_validate_job_with_event_gate() -> None:
         "(this name is also a status-check context candidate; see PR #2427)"
     )
     job = data["jobs"]["validate"]
-    assert job["timeout-minutes"] == 45
+    # 2026-08-20: aus der glatten 45 wurde ein Ausdruck mit ZWEI Kappen —
+    # 15 min fuer die PR-Lane, 45 min fuer die main-Lane. Beide Zahlen sind in
+    # tests/test_ci_workflow_structural_pin.py::test_timeout_minutes_caps_both_lanes
+    # einzeln gepinnt; hier genuegt, dass ueberhaupt eine Kappe steht (ohne sie
+    # gilt der GHA-Default von 6 h).
+    assert str(job["timeout-minutes"]).strip() != ""
     gate_step = next(
         (s for s in job["steps"] if s.get("id") == "gate"), None
     )
