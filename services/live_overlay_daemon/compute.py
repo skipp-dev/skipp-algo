@@ -1302,6 +1302,39 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
 
 
+# Longest stretch a day can deliver without a legitimate gap: the 04:00-20:00 ET
+# extended session. A warm-up window longer than this ALWAYS spans a night, so
+# for those timeframes the multi-session span is the constructed state, not a
+# defect — see the comment at _TF_RAW_BAR_REQUIREMENTS. Deliberately a constant,
+# not a calendar: no session maths, no DST, no holidays enter this decision.
+_MAX_GAPLESS_WINDOW_SECS = 960 * 60
+# A gap counts as a hole from four steps on. One missing candle is data noise —
+# thin symbols do not print every minute — and blinding the indicator for them
+# would be the more expensive error direction.
+_HOLE_FACTOR = 4.0
+
+
+def _window_has_a_hole(stamps: list[float | None]) -> bool:
+    """True when this window straddles an outage, session-free.
+
+    The step is DERIVED as the median spacing of the window itself, so the
+    check needs no timeframe argument and cannot drift from one. It gives up
+    (returns False) whenever it cannot decide: missing stamps, a nonsensical
+    step, or a window whose nominal span could never fit inside one day.
+    """
+    if any(stamp is None for stamp in stamps) or len(stamps) < 3:
+        return False
+    seconds = sorted(float(stamp) / 1e9 for stamp in stamps if stamp is not None)
+    deltas = [seconds[i + 1] - seconds[i] for i in range(len(seconds) - 1)]
+    ordered = sorted(deltas)
+    step = ordered[len(ordered) // 2]
+    if step <= 0:
+        return False
+    if len(stamps) * step > _MAX_GAPLESS_WINDOW_SECS:
+        return False
+    return any(delta > _HOLE_FACTOR * step for delta in deltas)
+
+
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
     Squeeze = True when the Bollinger Bands sit fully inside the Keltner
@@ -1326,6 +1359,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     # all refer to the SAME bar. Independent per-field filtering would
     # produce cross-bar ATR when any bar in the window is missing a field.
     triples: list[tuple[float, float, float]] = []
+    stamps: list[float | None] = []
     for b in bars:
         close = _coerce_finite_float(b.get("close"))
         high = _coerce_finite_float(b.get("high"))
@@ -1343,6 +1377,7 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
         if not (low <= close <= high):
             continue
         triples.append((close, high, low))
+        stamps.append(_coerce_finite_float(b.get("ts_event")))
 
     # Fail closed on too little history. The Bollinger half needs `period`
     # bars, but the Keltner half is RECURSIVE: without warm-up its ATR is a
@@ -1350,6 +1385,14 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     # here means "no verdict", which the wire contract already allows;
     # a mis-warmed boolean would be a wrong verdict.
     if len(triples) < period + _SQUEEZE_MIN_WARMUP_BARS:
+        return None
+
+    # Fail closed on a window with a HOLE. The check above counts candles, not
+    # time, so bars from before a feed outage saturate the warm-up and the
+    # verdict gets computed across the discontinuity — measured 2026-08-20 on
+    # 5m: 335 minutes of a confident value that flipped False->True at ~120
+    # minutes, driven by the old/new mixture rather than by the market.
+    if _window_has_a_hole(stamps[-(period + _SQUEEZE_MIN_WARMUP_BARS) :]):
         return None
 
     closes_all = [t[0] for t in triples]
