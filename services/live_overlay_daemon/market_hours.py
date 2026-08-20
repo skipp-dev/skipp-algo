@@ -2,14 +2,44 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from collections.abc import Callable
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+logger = logging.getLogger(__name__)
 
 try:
     import holidays as _holidays
 except Exception:  # pragma: no cover - optional dependency fallback
     _holidays = None
+
+# Set the moment a holiday lookup falls back to "no holidays". The fallback is
+# deliberate — a missing calendar must not crash the daemon — but it is
+# fail-OPEN: an empty calendar makes Christmas look like a trading day. That
+# matters because the session predicates gate the self-heal supervisor, whose
+# escalation is os._exit and whose platform budget is three restarts: a wrong
+# "market open" can walk the daemon into a nightly outage. So the fallback
+# stays, and this flag makes it audible.
+# Ein Dict statt eines Modul-Skalars: der Zustand wird aus einer Funktion
+# heraus gesetzt, und `global` waere hier eine Ledger-Eintragung wert, die sich
+# durch einen Container vermeiden laesst.
+_holiday_calendar_state = {"degraded": False}
+
+
+def holiday_calendar_loaded() -> bool:
+    """False once any holiday lookup has fallen back to an empty calendar."""
+    return not _holiday_calendar_state["degraded"]
+
+
+def _note_holiday_calendar_fallback(reason: str) -> None:
+    if not _holiday_calendar_state["degraded"]:
+        logger.warning(
+            "Holiday calendar unavailable (%s) — sessions will treat holidays as "
+            "trading days until this is fixed.",
+            reason,
+        )
+    _holiday_calendar_state["degraded"] = True
 
 
 def _is_weekday(dt: datetime.datetime) -> bool:
@@ -67,6 +97,7 @@ def _is_open_between(
 def _holiday_dates_for_year(calendar_code: str, year: int) -> frozenset[datetime.date]:
     """Return holiday dates for a calendar/year pair (or empty set on fallback)."""
     if _holidays is None:
+        _note_holiday_calendar_fallback("package not importable")
         return frozenset()
 
     try:
@@ -75,6 +106,7 @@ def _holiday_dates_for_year(calendar_code: str, year: int) -> frozenset[datetime
         else:
             calendar = _holidays.country_holidays(calendar_code, years=year)
     except Exception:
+        _note_holiday_calendar_fallback(f"lookup failed for {calendar_code}/{year}")
         return frozenset()
 
     return frozenset(calendar.keys())
