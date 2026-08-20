@@ -51,7 +51,10 @@ from governance.magnitude_stage_policy import classification_of
 from scripts.backfill_live_outcomes import _CLOSED_ACTIONS
 from scripts.run_magnitude_shadow_ledger import ALL_FAMILIES, CANDIDATE_FAMILIES
 from scripts.smc_atomic_write import atomic_write_json
-from scripts.summarize_portfolio_shadow import summarize_portfolio_shadow
+from scripts.summarize_portfolio_shadow import (
+    load_dispositions,
+    summarize_portfolio_shadow,
+)
 
 DEFAULT_OUTPUT = "artifacts/monitoring/evidence_freshness.json"
 DEFAULT_LEDGER = "artifacts/governance/magnitude_resolution_shadow.jsonl"
@@ -161,6 +164,7 @@ def build_snapshot(
     generated_at_unix: float,
     submit_code_behind_commits: int | None = None,
     portfolio_reconciliations: list[dict[str, Any]] | None = None,
+    portfolio_dispositions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Assemble the snapshot dict from already-loaded inputs (pure).
 
@@ -199,6 +203,7 @@ def build_snapshot(
     portfolio_shadow = summarize_portfolio_shadow(
         incubation_records,
         portfolio_reconciliations or [],
+        portfolio_dispositions or [],
     )
 
     return {
@@ -385,6 +390,9 @@ def main(argv: list[str] | None = None) -> int:
         generated_at_unix=datetime.now(UTC).timestamp(),
         submit_code_behind_commits=submit_code_behind_commits,
         portfolio_reconciliations=portfolio_reconciliations,
+        portfolio_dispositions=load_dispositions(
+            Path("configs/portfolio_reconciliation_dispositions.json")
+        ),
     )
     atomic_write_json(snapshot, Path(args.output), indent=2, sort_keys=True)
     print(
