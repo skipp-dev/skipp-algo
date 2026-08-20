@@ -9250,6 +9250,67 @@ async function tracePublishChooserAbsence(
   return evidence;
 }
 
+/**
+ * Darf der Neu-Publish-Rueckfall feuern?
+ *
+ * Nur bei POSITIV belegtem Nicht-Treffer, nie bei ausbleibender Evidenz --
+ * dieser Zweig publiziert auf ein echtes Konto, und ein Rueckfall auf eine
+ * leere Antwort erzeugt Duplikate. Zwei Belege muessen beide vorliegen:
+ *
+ *  1. der getippte Name steht wirklich im Chooser-Feld (die Keystrokes kamen
+ *     an -- sonst waere die leere Liste eine Aussage ueber die Eingabe);
+ *  2. die Optionsliste hat MINDESTENS EINEN Eintrag aufgeloest (die Liste
+ *     existiert und filtert -- sonst waere sie nie geoeffnet, und "kein
+ *     Treffer" waere ununterscheidbar von "nie gefragt").
+ *
+ * Gemessen 2026-08-20 (Lauf 32313143879): Feld trug "Open-Prep Daily Panel",
+ * Liste fuehrte einen Eintrag ("EMA Suite - Trend & Breakout Monitor (v6)").
+ * Beide Belege lagen also vor.
+ */
+export async function gatherPublishNewFallbackEvidence(
+  page: Page,
+  scriptName: string,
+): Promise<{ eligible: boolean; typedValue: string | null; optionCount: number }> {
+  const chooser = await waitForFirstVisibleLocator(
+    tvSelectors.publishExistingScriptChooser(page),
+    1_500,
+    async (candidate) => (await candidate.evaluate((element) => element.tagName.toLowerCase())) === "input",
+  );
+  const typedValue = chooser ? await chooser.inputValue().catch(() => null) : null;
+
+  let optionCount = 0;
+  for (const locator of tvSelectors.publishAnyScriptOption(page)) {
+    optionCount = Math.max(optionCount, await locator.count().catch(() => 0));
+  }
+
+  return {
+    eligible: publishNewFallbackEligible(typedValue, optionCount, scriptName),
+    typedValue,
+    optionCount,
+  };
+}
+
+/**
+ * Die Entscheidung, getrennt vom DOM-Sammeln -- damit die sicherheitskritische
+ * Haelfte ohne Playwright-Page pruefbar ist. Ein Quelltext-Test kann "trifft
+ * die Entscheidung" nicht von "erwaehnt sie" unterscheiden; diese Funktion
+ * laesst sich direkt ausfuehren.
+ *
+ * `true` NUR bei zwei positiven Belegen. Jede Abwesenheit -- kein Feld, leeres
+ * Feld, anderer Text, keine Optionen -- ist ein Sondenfehler und KEIN
+ * Nicht-Treffer.
+ */
+export function publishNewFallbackEligible(
+  typedValue: string | null,
+  optionCount: number,
+  scriptName: string,
+): boolean {
+  if (typeof typedValue !== "string") return false;
+  if (typedValue.trim() !== scriptName.trim()) return false;
+  if (!Number.isFinite(optionCount) || optionCount <= 0) return false;
+  return true;
+}
+
 export async function selectExistingPublishScript(page: Page, scriptName: string): Promise<boolean> {
   const nativeChooser = await waitForFirstVisibleLocator(
     tvSelectors.publishExistingScriptChooser(page),
@@ -9483,6 +9544,8 @@ export async function publishPrivateScript(
   await page.waitForTimeout(750);
   const openSurfaceBodyText = await page.locator("body").innerText().catch(() => "");
 
+  let publishedViaNewFallback = false;
+
   if (options.publishMode === "update_existing") {
     if (!options.scriptName) {
       throw new Error("Update existing script publish mode requires scriptName");
@@ -9509,20 +9572,71 @@ export async function publishPrivateScript(
 
       const selectedExistingScript = await selectExistingPublishScript(page, options.scriptName);
       if (!selectedExistingScript) {
+        // 2026-08-20: der Chooser IST nicht das Problem. Screenshot + Inventar
+        // aus Lauf 32313143879 (nach #4871) zeigen: Dialog offen, Modus
+        // "Update existing script" gewaehlt, `input[placeholder="Choose script"]`
+        // sichtbar, der getippte Name steht drin -- und die Liste darunter
+        // fuehrt EIN anderes Skript. "Open-Prep Daily Panel" ist schlicht nicht
+        // publiziert. Gespeichert (Pine-Editor) != publiziert (Publish-Liste),
+        // und `openedExistingScript:true` beschreibt nur das Erste. Damit kann
+        // "Update existing" es NIE finden: der Workflow hat seit Einfuehrung des
+        // Pfads nie erfolgreich publiziert, also fehlt der Eintrag, also
+        // scheitert der naechste Lauf genauso. Fuenf Selektor-Aenderungen
+        // konnten daran nichts bewegen.
+        //
+        // Der Rueckfall auf "Publish new script" bricht diesen Kreis -- EINMAL,
+        // danach traegt der Update-Pfad von selbst.
+        //
+        // ER FEUERT NUR BEI POSITIV BELEGTEM NICHT-TREFFER. Das ist die ganze
+        // Sicherheit dieser Stelle: dieser Zweig PUBLIZIERT auf ein echtes
+        // TradingView-Konto, und ein Rueckfall auf eine ausbleibende Antwort
+        // erzeugt Duplikate. Verlangt werden deshalb zwei positive Belege --
+        // der getippte Name steht im Feld UND die Optionsliste hat mindestens
+        // einen Eintrag aufgeloest. Fehlt einer davon, ist es ein Sondenfehler
+        // und kein Nicht-Treffer, und der alte Wurf bleibt.
+        const fallbackEvidence = await gatherPublishNewFallbackEvidence(page, options.scriptName);
+        if (fallbackEvidence.eligible) {
+          tracePageEvent(
+            page,
+            "publish-new-fallback",
+            `${options.scriptName}:typed=${JSON.stringify(fallbackEvidence.typedValue)}`
+              + `:options=${fallbackEvidence.optionCount}`,
+          );
+          const selectedNewMode = await clickVisibleWithFallback(
+            page,
+            tvSelectors.publishNewScriptMode(page),
+            "publish-new-script-mode",
+            2_000,
+            350,
+          );
+          if (!selectedNewMode) {
+            throw new Error(
+              `Could not select Publish new script after "${options.scriptName}" was found unpublished`
+                + `; chooser listed ${fallbackEvidence.optionCount} other script(s)`,
+            );
+          }
+          publishedViaNewFallback = true;
+        } else {
         // The trace already carries the inventory, but the trace lives only in
         // the run log. The error travels into the publish report, which is the
         // uploaded artifact -- so put the DOM facts where the evidence is kept.
-        const evidence = await tracePublishChooserAbsence(page, "publish-throw");
-        throw new Error(
-          `Could not select existing TradingView script: ${options.scriptName}`
-          + `; publish surface nodes: ${evidence.surfaceCount}`
-          + `; overlay controls: ${JSON.stringify(evidence.controls).slice(0, 4_000)}`,
-        );
+          const evidence = await tracePublishChooserAbsence(page, "publish-throw");
+          throw new Error(
+            `Could not select existing TradingView script: ${options.scriptName}`
+            + `; publish surface nodes: ${evidence.surfaceCount}`
+            + `; chooser typed=${JSON.stringify(fallbackEvidence.typedValue)}`
+            + `; chooser options=${fallbackEvidence.optionCount}`
+            + `; overlay controls: ${JSON.stringify(evidence.controls).slice(0, 4_000)}`,
+          );
+        }
       }
     }
   }
 
-  if (options.title && options.publishMode !== "update_existing") {
+  // Der Rueckfall publiziert NEU, auch wenn publishMode nominell
+  // "update_existing" ist -- ohne Titel endet das in "Script title is
+  // required", also im falschen Gruen vom 2026-08-08.
+  if (options.title && (options.publishMode !== "update_existing" || publishedViaNewFallback)) {
     const titleFilled = await fillFirstAndVerify(options.title, tvSelectors.publishTitleInput(page), 1_000);
     if (!titleFilled) {
       throw new Error("Could not fill and verify the TradingView publish title");

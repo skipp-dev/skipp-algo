@@ -485,6 +485,43 @@ export const tvSelectors = {
     ];
   },
 
+  /**
+   * The "Publish new script" half of the same segmented control that
+   * `publishUpdateExistingMode` selects. Mirrors its locator ladder.
+   *
+   * Measured form (run 32313143879 inventory, i=10):
+   * `button[role="radio"][aria-label="Publish new script"]`.
+   */
+  publishNewScriptMode(page: Page): Locator[] {
+    const surface = publishSurface(page);
+    const exact = /^publish new script$/i;
+
+    return [
+      surface.getByRole("tab", { name: exact }),
+      surface.getByRole("button", { name: exact }),
+      surface.getByRole("radio", { name: exact }),
+      surface.locator('[role="tab"], [role="button"], button, label').filter({ hasText: exact }),
+      surface.getByText(exact, { exact: true }),
+    ];
+  },
+
+  /**
+   * ANY option in the chooser dropdown, regardless of its text.
+   *
+   * The difference to `publishExistingScriptOption` is the whole point: that
+   * one asks "is MY script listed", this one asks "did the list resolve at
+   * all". Without the second question an empty result is ambiguous -- the
+   * script may be absent, or the dropdown may never have opened -- and the
+   * new-publish fallback must not fire on the second case.
+   */
+  publishAnyScriptOption(page: Page): Locator[] {
+    return [
+      page.getByRole("option"),
+      page.getByRole("menuitem"),
+      page.locator('[role="listbox"] [role="option"], [role="menu"] [role="menuitem"]'),
+    ];
+  },
+
   publishExistingScriptOption(page: Page, scriptName: string): Locator[] {
     const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
 
