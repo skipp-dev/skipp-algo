@@ -126,6 +126,101 @@ def test_proposer_pushes_the_fixed_branch_and_dispatches_reattest_on_it() -> Non
     assert dispatch["env"]["GH_TOKEN"] == "${{ secrets.GH_PAT }}"
 
 
+_PROPOSER_GH_STUB = """#!/bin/sh
+printf 'gh %s\\n' "$*" >> "${CALL_LOG}"
+case "$*" in
+  "pr list"*) [ "${STUB_STALE_PR}" = "0" ] || echo "${STUB_STALE_PR}" ;;
+esac
+exit 0
+"""
+
+_PROPOSER_GIT_STUB = """#!/bin/sh
+printf 'git %s\\n' "$*" >> "${CALL_LOG}"
+exit 0
+"""
+
+
+def _run_force_push_step(tmp_path: Path, *, stale_pr: str) -> tuple[
+    subprocess.CompletedProcess, list[str]
+]:
+    """Execute the proposer's force-push step against stubbed `gh`/`git`.
+
+    `python3` stays real so the shipped pin substitution runs for real.
+    """
+    stub_dir = tmp_path / "stub"
+    stub_dir.mkdir(exist_ok=True)
+    for name, body in (("gh", _PROPOSER_GH_STUB), ("git", _PROPOSER_GIT_STUB)):
+        path = stub_dir / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+
+    (tmp_path / "SMC_Event_Overlay.pine").write_text(
+        (_REPO_ROOT / "SMC_Event_Overlay.pine").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    call_log = tmp_path / "calls.log"
+    call_log.write_text("", encoding="utf-8")
+
+    run = _step(_reattest()["jobs"]["propose"]["steps"], "Force-push the pin-bump")["run"]
+    result = subprocess.run(
+        ["/bin/bash", "-c", run],
+        cwd=tmp_path,
+        env={
+            "PATH": f"{stub_dir}:/usr/bin:/bin",
+            "GH_TOKEN": "stub-token",
+            "GITHUB_REPOSITORY": "skipp-dev/skipp-algo",
+            "TARGET": "99999",
+            "CALL_LOG": str(call_log),
+            "STUB_STALE_PR": stale_pr,
+        },
+        capture_output=True,
+        text=True,
+    )
+    calls = [line for line in call_log.read_text(encoding="utf-8").splitlines() if line]
+    return result, calls
+
+
+def test_a_stale_proposal_pr_is_retired_before_the_pin_only_state_becomes_its_head(
+    tmp_path: Path,
+) -> None:
+    """Executed in both arms.
+
+    ``smc-fast-pr-gates`` triggers on pull_request / push:main / merge_group --
+    never on a push to ``bot/*``. So the pin-only window costs nothing while no
+    PR is open, and reddens an open one: the R1 guard correctly refuses a pin
+    change whose evidence does not exist yet, which is what #4894 paid twice per
+    stalled cycle (runs 32317716481, 32318278073). Closing first is free --
+    this very step force-pushes over that branch, and #4894's merge added
+    exactly ONE chain entry, i.e. the earlier cycle's evidence commit was
+    already gone.
+
+    The close must happen BEFORE the push, or the red run has already been
+    dispatched by the time the PR goes away.
+    """
+    result, calls = _run_force_push_step(tmp_path, stale_pr="4894")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    closes = [c for c in calls if c.startswith("gh pr close")]
+    assert closes, f"a stale proposal PR was not retired: {calls}"
+    assert "4894" in closes[0]
+
+    pushes = [c for c in calls if c.startswith("git push")]
+    assert pushes, f"the proposal branch was never pushed: {calls}"
+    assert calls.index(closes[0]) < calls.index(pushes[0]), (
+        f"the PR was closed only after the pin-only head was pushed: {calls}"
+    )
+
+
+def test_no_open_proposal_pr_means_nothing_is_closed(tmp_path: Path) -> None:
+    """The retirement is for a PR an earlier cycle left behind. With none open
+    the step must not close anything -- and must still push the proposal."""
+    result, calls = _run_force_push_step(tmp_path, stale_pr="0")
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    assert not [c for c in calls if c.startswith("gh pr close")], calls
+    assert [c for c in calls if c.startswith("git push")], calls
+
+
 def _pin_substitution_fragment() -> str:
     """The proposer's pin-rewrite command, sliced out of the step verbatim.
 
