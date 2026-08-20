@@ -161,9 +161,18 @@ def test_event_gate_present_and_fails_closed(validate_job: dict) -> None:
         "validate MUST contain a step with id=`gate` that decides run_heavy."
     )
     run = gate.get("run") or ""
-    assert "Pull request CI is status-only" in run, (
-        "pull_request validate runs MUST stay status-only to avoid GitHub "
-        "merge-ref validate(4) zombies."
+    # 2026-08-20: pull requests run the slow complement (Operator-Entscheidung,
+    # ADR-0012 Option B + Operator-Punkt 1). Die vorherige Zusicherung hier
+    # begruendete den Kurzschluss mit "GitHub merge-ref validate(4) zombies" --
+    # gemessen steht dieser Satz GENAU EINMAL im Baum (22 "zombie"-Treffer
+    # gesamt, 9 davon C13 als Positivkontrolle), ohne ADR, Issue oder Commit
+    # dahinter; die Zeile stammt aus dem Wurzel-Commit der Historie. Die Sorge
+    # wird nicht verworfen, sondern auf ihre zwei Gegenmittel gepinnt: die
+    # PR-Concurrency bricht Vorlaeufer ab, und der Job hat ein Zeitlimit. Ein
+    # haengender Lauf kann sich damit nicht ueber PR-Updates hinweg stapeln.
+    assert "Pull request runs the slow complement" in run, (
+        "pull_request validate must state which lane it runs; a required check "
+        "that silently short-circuits is protection in appearance only."
     )
     assert "Non-main push CI is status-only" in run, (
         "non-main push validate runs MUST stay status-only; otherwise PR "

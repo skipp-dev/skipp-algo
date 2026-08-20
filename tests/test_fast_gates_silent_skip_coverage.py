@@ -1478,17 +1478,23 @@ def test_ci_gate_runs_the_full_suite_on_manual_dispatch(tmp_path: Path) -> None:
     assert outputs["run_heavy"] == "true"
 
 
-def test_ci_gate_stays_status_only_on_a_pull_request(tmp_path: Path) -> None:
-    """The other direction, so "always true" cannot satisfy the two above.
+def test_ci_gate_runs_heavy_on_a_pull_request(tmp_path: Path) -> None:
+    """2026-08-20: pull requests run the heavy lane (slow complement).
 
-    PR CI being status-only is deliberate (fast-gates is the required check,
-    ADR-0011). Pinning it keeps the pair honest AND documents that the heavy
-    lane genuinely does not run here — for every PR, whatever it changes. The
-    gate never looks at the paths, so no file list is passed.
+    Bis dahin waren PRs status-only, und dieser Test war die Gegenrichtung, an
+    der ein degenerierter "immer true"-Gate scheiterte. Diese Rolle traegt jetzt
+    ``test_ci_gate_stays_status_only_on_a_non_main_push`` darunter -- dort ist
+    das Urteil weiterhin ``false``, das Paar bleibt also ehrlich.
+
+    Der Grund fuer die Umstellung: ``validate`` soll ein required Check werden
+    (Operator-Entscheidung, ADR-0012 Option B + Operator-Punkt 1). Ein
+    Pflicht-Check, der auf PRs in 12 s ohne Testlauf gruen meldet, waere vakuum.
+    Der Gate schaut weiterhin auf keine Pfade, deshalb wird keine Dateiliste
+    uebergeben.
     """
     outputs = run_ci_gate(tmp_path, event_name="pull_request", ref_name="feature/x")
 
-    assert outputs["run_heavy"] == "false"
+    assert outputs["run_heavy"] == "true"
 
 
 def test_ci_gate_stays_status_only_on_a_non_main_push(tmp_path: Path) -> None:

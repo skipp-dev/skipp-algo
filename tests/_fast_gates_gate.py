@@ -194,6 +194,16 @@ def run_gate(
     )
 
 
+# Aufrufspur je Lauf, damit `gh_was_called()` sie lesen kann.
+_GH_TRACE_BY_TMP: dict[Path, Path] = {}
+
+
+def gh_was_called(tmp_path: Path) -> bool:
+    """Hat der ausgefuehrte Schritt das gestubbte ``gh`` angefasst?"""
+    trace = _GH_TRACE_BY_TMP.get(tmp_path)
+    return bool(trace and trace.exists() and trace.read_text().strip())
+
+
 def _run_step_shell(
     run_block: str,
     tmp_path: Path,
@@ -210,15 +220,24 @@ def _run_step_shell(
     # collided with by a changed path that happens to equal it, and this
     # harness's whole job is to not have blind spots of that shape.
     quoted = " ".join(shlex.quote(path) for path in changed_files)
-    stub.write_text(
-        f"#!/bin/sh\nprintf '%s\\n' {quoted}\nexit {gh_exit_code}\n" if changed_files
-        else f"#!/bin/sh\nexit {gh_exit_code}\n",
-        encoding="utf-8",
+    # Der Stub hinterlaesst eine SPUR. Bis 2026-08-20 wurde "der Gate ruft kein
+    # `gh`" darueber bewiesen, dass ein fehlschlagendes `gh` den fail-closed
+    # Zweig (run_heavy=true) genommen haette und das Urteil trotzdem `false`
+    # blieb. Seit pull_request regulaer `true` liefert, unterscheidet dieser
+    # Diskriminator NICHTS mehr -- beide Seiten sehen gleich aus. Die Spur
+    # ersetzt ihn durch eine direkte Messung.
+    trace = tmp_path / "gh_calls"
+    body = f"#!/bin/sh\necho called >> {shlex.quote(str(trace))}\n"
+    body += (
+        f"printf '%s\\n' {quoted}\nexit {gh_exit_code}\n" if changed_files
+        else f"exit {gh_exit_code}\n"
     )
+    stub.write_text(body, encoding="utf-8")
     stub.chmod(0o755)
 
     github_output = tmp_path / "github_output"
     github_output.write_text("", encoding="utf-8")
+    _GH_TRACE_BY_TMP[tmp_path] = trace
 
     result = subprocess.run(
         [*SHELL, "-c", run_block],
