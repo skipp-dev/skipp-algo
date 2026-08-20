@@ -294,7 +294,11 @@ test("the chooser failure carries its evidence into the uploaded report", () => 
 // Entscheidung hier direkt ausgefuehrt und nicht am Quelltext behauptet.
 
 test("the new-publish fallback fires only on a positively evidenced miss", async () => {
-  const { publishNewFallbackEligible } = await import("../lib/tv_shared.ts");
+  // `.js`, nicht `.ts`: NodeNext loest die Endung auf die Quelle auf. Ein
+  // `.ts`-Import bricht `tsc --noEmit` mit TS5097 (allowImportingTsExtensions
+  // ist aus) -- 20.8. auf allen drei tv-onboarding-Plattformen rot, waehrend
+  // `tv:test` unter tsx gruen blieb. Die 20 Geschwister hier nutzen `.js`.
+  const { publishNewFallbackEligible } = await import("../lib/tv_shared.js");
   const name = "Open-Prep Daily Panel";
 
   // Der gemessene Fall (Lauf 32313143879): Name im Feld, eine fremde Option.
