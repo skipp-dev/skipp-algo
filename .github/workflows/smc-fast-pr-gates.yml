@@ -734,6 +734,7 @@ jobs:
             tests/test_pine_handlib_publisher_inventory.py \
             tests/test_pine_library_import_permissions.py \
             tests/test_monitoring_metric_alert_coverage.py \
+            tests/test_realtime_signals_metrics_endpoint.py \
             tests/test_github_workflow_expected_presence.py \
             tests/test_degraded_status_alert_coverage.py \
             tests/test_grafana_alert_rules_upsert.py \
