@@ -95,7 +95,7 @@
     "OB": 0.4782,
     "SWEEP": 0.6799
   },
-  "generated_at": "2026-08-18T22:02:28.532640+00:00",
+  "generated_at": "2026-08-19T22:04:04.069554+00:00",
   "metrics": {
     "dce": 0.122597,
     "ece": 0.132014,
@@ -189,9 +189,9 @@
   },
   "schema_version": "1.4.0",
   "source": {
-    "commit_sha": "fdf71be568c9d24361b5a13866a580bdf4546809",
+    "commit_sha": "0bbc78225a9e105355aa44149a8756bac9b27f8b",
     "path": "artifacts/reports/zone_priority_calibration.json",
-    "workflow_run": "32190734743"
+    "workflow_run": "32306959754"
   },
   "status": "ok",
   "track_record_gate": {

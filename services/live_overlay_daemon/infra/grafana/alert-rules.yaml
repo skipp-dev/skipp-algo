@@ -5778,7 +5778,18 @@ groups:
         # raised to 86400 via HOLD_MANAGER_SHADOW_MAX_EVENT_AGE_SECS on the
         # Railway service + layout move to 5m planned). Counter sum covers
         # contract mismatches, malformed payloads and event-time rejections.
-        expr: sum(increase({__name__=~"live_overlay_hold_manager_shadow_(contract|payload|event_time)_rejected_total", job="live_overlay"}[30m]))
+        # Explizite Summe statt `{__name__=~"...(a|b|c)_total"}`: `increase()`
+        # verwirft `__name__`, wodurch ALLE passenden Serien auf denselben
+        # Labelset kollabieren und die Query mit "vector cannot contain metrics
+        # with the same labelset" abbricht. Solange die Counter lazy erzeugt
+        # wurden, existierte hoechstens einer und die Kollision blieb aus — die
+        # Regel war blind statt kaputt. Mit dem Seeding (#4880) existieren alle
+        # drei, seitdem meldet Grafana health=error. Gemessen 19.8. gegen
+        # grafanacloud-prom: Regex-Form und `sum by (__name__)` scheitern beide,
+        # die explizite Summe liefert 0. Die Regel war NIE feuerfaehig.
+        expr: sum(increase(live_overlay_hold_manager_shadow_contract_rejected_total{job="live_overlay"}[30m]))
+          + sum(increase(live_overlay_hold_manager_shadow_payload_rejected_total{job="live_overlay"}[30m]))
+          + sum(increase(live_overlay_hold_manager_shadow_event_time_rejected_total{job="live_overlay"}[30m]))
         instant: true
     - refId: C
       datasourceUid: __expr__
