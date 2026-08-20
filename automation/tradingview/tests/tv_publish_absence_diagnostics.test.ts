@@ -284,3 +284,47 @@ test("the chooser failure carries its evidence into the uploaded report", () => 
     + "\"resolved fine but the control is shaped differently\" are different bugs",
   );
 });
+
+// --- Neu-Publish-Rueckfall: feuert NUR bei positiv belegtem Nicht-Treffer ----
+//
+// Anlass 2026-08-20: "Open-Prep Daily Panel" ist nicht publiziert, also kann
+// "Update existing" es nie finden -- der Workflow war 12 Tage rot. Der
+// Rueckfall bricht das, PUBLIZIERT dabei aber auf ein echtes Konto. Ein
+// Rueckfall auf eine ausbleibende Antwort erzeugt Duplikate, deshalb ist die
+// Entscheidung hier direkt ausgefuehrt und nicht am Quelltext behauptet.
+
+test("the new-publish fallback fires only on a positively evidenced miss", async () => {
+  // `.js`, nicht `.ts`: NodeNext loest die Endung auf die Quelle auf. Ein
+  // `.ts`-Import bricht `tsc --noEmit` mit TS5097 (allowImportingTsExtensions
+  // ist aus) -- 20.8. auf allen drei tv-onboarding-Plattformen rot, waehrend
+  // `tv:test` unter tsx gruen blieb. Die 20 Geschwister hier nutzen `.js`.
+  const { publishNewFallbackEligible } = await import("../lib/tv_shared.js");
+  const name = "Open-Prep Daily Panel";
+
+  // Der gemessene Fall (Lauf 32313143879): Name im Feld, eine fremde Option.
+  assert.equal(publishNewFallbackEligible(name, 1, name), true);
+  assert.equal(publishNewFallbackEligible(`  ${name}  `, 3, name), true);
+
+  // Liste nie aufgeloest -> Sondenfehler, KEIN Nicht-Treffer.
+  assert.equal(publishNewFallbackEligible(name, 0, name), false);
+  assert.equal(publishNewFallbackEligible(name, Number.NaN, name), false);
+
+  // Keystrokes kamen nicht an -> die leere Liste sagt nichts ueber das Konto.
+  assert.equal(publishNewFallbackEligible(null, 2, name), false);
+  assert.equal(publishNewFallbackEligible("", 2, name), false);
+  assert.equal(publishNewFallbackEligible("Open-Prep", 2, name), false);
+});
+
+test("the fallback decision is reached through the gatherer, not inlined", () => {
+  const source = read("automation/tradingview/lib/tv_shared.ts");
+  assert.match(
+    source,
+    /eligible:\s*publishNewFallbackEligible\(/,
+    "gatherPublishNewFallbackEvidence must delegate to the pure decision",
+  );
+  assert.match(
+    source,
+    /if \(fallbackEvidence\.eligible\)/,
+    "the publish flow must gate the fallback on the gathered evidence",
+  );
+});
