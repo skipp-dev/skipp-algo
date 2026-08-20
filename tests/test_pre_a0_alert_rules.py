@@ -27,11 +27,17 @@ _REQUIRED_PRE_A0_RULES: dict[str, tuple[str, ...]] = {
     "pre-a0-runtime-errors": ("pre_a0_persistence_errors_total",),
     "pre-a0-input-drift": ("pre_a0_feature_out_of_range_total",),
     "pre-a0-alert-budget-exceeded": ("pre_a0_alert_budget_exceeded_total",),
-    # The rule the old title merely promised. records_processed rising while
+    # The rule the old title merely promised. PRE-A0 scoring while
     # snapshots_recorded stays flat means the promotion evidence base has
     # stopped growing -- and lost snapshot days cannot be reconstructed.
+    #
+    # 2026-08-20: the load guard was a0_fast_records_processed_total, which runs
+    # pre- and post-market while the snapshot counter only moves 13-20 UTC. The
+    # pair compared unlike things and the CRITICAL rule was true 23.2% of the
+    # week. pre_a0_scores_total shares the snapshots' window exactly, so the
+    # guard needs no clock and survives DST.
     "pre-a0-snapshots-not-recorded": (
-        "a0_fast_records_processed_total",
+        "pre_a0_scores_total",
         "pre_a0_snapshots_recorded_total",
     ),
 }
