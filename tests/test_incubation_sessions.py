@@ -138,6 +138,44 @@ def test_a_failed_submission_never_becomes_an_order(tmp_path: Path) -> None:
     assert report.rows_skipped_never_submitted == 2
 
 
+def test_a_portfolio_risk_decision_row_is_evidence_not_an_order(tmp_path: Path) -> None:
+    """The shadow risk gate's audit row must convert, not crash the adapter.
+
+    ``run_smc_live_incubation`` writes one ``portfolio_risk_evaluated`` row per
+    evaluated session — a statement about the whole book with no ``intent_id``
+    and no bracket (top-level shape as in the live ledger; ``portfolio_risk``
+    abbreviated). Until 2026-08-21 the adapter refused it as unknown, which
+    turned every ``promotion-gate-daily`` run red from the first live
+    evaluation onwards.
+    """
+    risk_row: dict[str, object] = {
+        "ts": "2026-08-12T13:28:08.376721+00:00",
+        "phase": "paper",
+        "evidence_class": "PAPER",
+        "action": "portfolio_risk_evaluated",
+        "kill_switch_triggered": False,
+        "portfolio_risk": {"verdict": "reject", "enforced": False},
+    }
+    path = _write(
+        tmp_path,
+        "incubation_2026-08-12.jsonl",
+        [
+            _row(
+                intent_id="smc-NVDA-2026-08-12-port7497",
+                ts="2026-08-12T13:28:06+00:00",
+                reconciled_at="2026-08-12T21:05:05+00:00",
+            ),
+            risk_row,
+        ],
+    )
+
+    sessions, report = build_sessions(load_incubation_rows([path]))
+
+    _legs, n_entry_orders, _filled = extract_leg_costs(sessions)
+    assert n_entry_orders == 1, "the risk row must not become an order"
+    assert report.rows_skipped_never_submitted == 1
+
+
 def test_a_stop_exit_adds_a_fee_only_leg_on_the_sell_side(tmp_path: Path) -> None:
     path = _write(
         tmp_path,
