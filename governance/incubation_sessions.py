@@ -24,8 +24,9 @@ direction
     rows on record is a long; a short would need its own measured convention,
     not a guess.
 
-Rows that never reached the market (``submit_failed``, ``audit_only``) are not
-orders. Whole days the reconciler never touched are **unknown, not unfilled**:
+Rows that never reached the market (``submit_failed``, ``audit_only``,
+``portfolio_risk_evaluated``) are not orders. Whole days the reconciler never
+touched are **unknown, not unfilled**:
 counting their submissions as misses would fabricate a fill-rate denominator,
 so they are dropped and reported. Nothing here is silently truncated —
 :class:`ConversionReport` carries every exclusion.
@@ -48,8 +49,12 @@ from typing import Any, Final
 _SUBMITTED_ACTIONS = frozenset({"paper_submitted", "filled", "stop_hit", "tp_hit"})
 # Ledger actions the reconciler writes only after it has seen an entry fill.
 _FILLED_ACTIONS = frozenset({"filled", "stop_hit", "tp_hit"})
-# Ledger actions where no order ever reached the market.
-_NEVER_SUBMITTED_ACTIONS = frozenset({"submit_failed", "audit_only"})
+# Ledger actions where no order ever reached the market. `portfolio_risk_evaluated`
+# is the shadow risk gate's decision row (run_smc_live_incubation, since 2026-08-12):
+# evidence about the whole book, carrying no intent_id and no bracket — never an order.
+_NEVER_SUBMITTED_ACTIONS = frozenset(
+    {"submit_failed", "audit_only", "portfolio_risk_evaluated"}
+)
 
 # Order-ref suffixes as scripts/execute_ibkr_watchlist.py assigns them; the
 # estimator reads `-entry` and `-tp` as limit-bearing and everything else as
