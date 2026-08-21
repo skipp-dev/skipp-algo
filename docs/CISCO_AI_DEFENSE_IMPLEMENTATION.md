@@ -176,7 +176,7 @@ Measured live with the Management API from inside both producer containers:
 | Tenant application | Renamed in the tenant to `smc-signals-producer` (was `skipp-algo`; updated 2026-08-21T10:51Z). The object names in "Cisco tenant objects" below are the original rollout names. |
 | Active Inspection key | `my-app-ai-key`, created 2026-07-20T19:23Z, `expiry: null` — it **never expires**. Planned expiry is therefore no longer a death mode; revocation and region/tenant changes are. |
 | Documented key `skipp-algo-runtime-openai-railway` | REVOKED on 2026-08-19T08:32Z (it did not lapse; it was revoked). |
-| Hybrid connector | Railway service `aidefense-connector` runs Cisco's `proxyrelayclient:26.8.3` against `eu.cloudgw.aidefense.security.cisco.com:443`; no public domain; healthz `SERVING` over private networking. Its `CISCO_AID_APIKEY` still holds a non-connector value, so the tunnel is `Unauthenticated` and NO traffic is routed through it. Routing LLM egress through the connector would be a separate, reviewed change to the enforcement architecture. |
+| Hybrid connector | Railway service `aidefense-connector` runs Cisco's `proxyrelayclient:26.8.3` against `eu.cloudgw.aidefense.security.cisco.com:443`; no public domain; healthz `SERVING` over private networking. The operator installed the connector API key at 11:25Z; the tunnel has been CONNECTED to the relay since 2026-08-21T11:25:41Z (worker pools + ping sender up, zero reconnects observed). NO traffic is routed through it yet. Routing LLM egress through the connector would be a separate, reviewed change to the enforcement architecture. |
 
 ### Inspection-key self-probe (mechanism, 2026-08-21)
 
