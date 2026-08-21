@@ -38,7 +38,18 @@ DURATIONS = REPO_ROOT / ".test_durations"
 # 2026-08-21 gemessen: 1248 von 1705 Testdateien = 73,2 %. Der Boden ist der
 # HEUTIGE Stand, nicht das Ziel — er stoppt das Weiterverrotten sofort, ohne
 # eine Messung zu behaupten, die es noch nicht gibt.
-_COVERAGE_FLOOR = 73.0
+#
+# 2026-08-21, nachgezogen: die erste Aufzeichnung AUF DEM RUNNER (Lauf
+# 32508396491, vier Shards je in eigenem Prozess) hebt die Abdeckung auf
+# 1707 von 1709 Testdateien = 99,9 %. Der Ratschen-Test hat den Nachzug
+# erzwungen, wie gebaut — 26,9 Punkte Abstand bei erlaubten 15.
+#
+# 95,0 statt 99,0: die beiden fehlenden Dateien sind der Rest, den ein Lauf
+# nicht erfasst (vollstaendig uebersprungene Module), und normale Zu- und
+# Abgaenge im Testbestand duerfen den Boden nicht sofort wieder reissen.
+# 4,9 Punkte Luft, und der Ratschen-Test zieht selbst nach, sobald eine
+# spaetere Messung dauerhaft hoeher liegt.
+_COVERAGE_FLOOR = 95.0
 
 # Wie weit der Boden hinter der Wirklichkeit herhinken darf, bevor er nachgezogen
 # werden MUSS. 15 Punkte lassen normalen Zuwachs zu und erzwingen den Nachzug,
