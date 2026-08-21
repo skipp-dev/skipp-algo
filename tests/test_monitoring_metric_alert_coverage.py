@@ -875,11 +875,16 @@ def test_every_referenced_producer_metric_is_emitted() -> None:
     # The fmp_* counters exist only once an FMP client object was constructed
     # (realtime_signals._collect_process_metrics reads them off the client);
     # a producer with NO client pages via sp-client-disabled instead.
+    # cisco_probe_* exists only while a CiscoKeyProber runs (serve path);
+    # exporting seeded values from prober-less engines would defeat the
+    # absent()-alarm — a producer with NO prober pages via
+    # sp-cisco-probe-missing instead (tests/test_cisco_probe_alert_rules.py).
     dynamic = {
         "signals_producer_client_disabled_info",
         "signals_producer_fmp_requests_total",
         "signals_producer_fmp_endpoint_requests_total",
         "signals_producer_fmp_endpoint_response_bytes_total",
+        "signals_producer_cisco_probe_last_success_age_seconds",
     }
     unmatched = sorted(referenced - emitted - dynamic)
     assert not unmatched, (

@@ -127,14 +127,14 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # shifted +20/+20/+72/+80/+80 lines by readiness metrics.
         ("open_prep/realtime_signals.py", 323),   # 2026-07-25 (databento-signal-migration): 322->323
         ("open_prep/realtime_signals.py", 398),   # 2026-07-25 (databento-signal-migration): 397->398
-        ("open_prep/realtime_signals.py", 2641),  # 2026-07-28 (ATR sanitization import): 2602->2626 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 2626->2641)
+        ("open_prep/realtime_signals.py", 2646),  # 2026-07-28 (ATR sanitization import): 2602->2626 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 2626->2641) (2026-08-21 cisco-probe: 2641->2646)
 
         # 2026-07-17: opt-in FMP A0 parity persistence shifted the unchanged
         # poll-loop throttle and error-backoff sleeps by +23 lines.
         # 2026-07-26 (merge Databento source after re-qual fixes):
         # combined branch additions shifted the reviewed loop sleeps.
-        ("open_prep/realtime_signals.py", 4363),  # 2026-08-08 (parse the calibration HH:MM): 4324->4348 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4348->4363)
-        ("open_prep/realtime_signals.py", 4382),  # 2026-08-08 (parse the calibration HH:MM): 4343->4367 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4367->4382)
+        ("open_prep/realtime_signals.py", 4383),  # 2026-08-08 (parse the calibration HH:MM): 4324->4348 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4348->4363) (2026-08-21 cisco-probe: 4363->4383)
+        ("open_prep/realtime_signals.py", 4402),  # 2026-08-08 (parse the calibration HH:MM): 4343->4367 (2026-08-18 railway-token guard) (2026-08-19 FMP-Endpoint-Seed: 4367->4382) (2026-08-21 cisco-probe: 4382->4402)
 
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).

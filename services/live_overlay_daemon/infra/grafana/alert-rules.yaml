@@ -2852,6 +2852,84 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The postmarket shadow adapter has no same-session regular-close cumulative-volume baseline, so price rows cannot become signal-ready.
       runbook: Verify that the producer completed at least one successful regular-session quote poll and persisted postmarket_close_volume. Keep extended-hours signal publishing disabled until the baseline is present.
+  - uid: sp-cisco-probe-stale
+    title: Cisco AI Defense key probe failing
+    condition: C
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: signals_producer_cisco_probe_last_success_age_seconds{job="signals_producer"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 7200
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md
+      summary: Cisco AI Defense self-probe has not succeeded for >2h — Terminal AI
+        Insights is failing closed
+      runbook: 'The producer runs a content-free synthetic inspection every RT_CISCO_PROBE_SECS
+        (default 1h; open_prep/cisco_probe.py). A blocked decision counts as success,
+        so this fires only when Cisco returns no usable decision at all: revoked or
+        rotated Inspection key (the active key has no expiry, so revocation IS the
+        expected death mode), wrong CISCO_AI_DEFENSE_REGION, or a Cisco outage. Check
+        producer logs for "Cisco key self-probe failed error_type=..." and the key
+        state in the AI Defense dashboard (connection skipp-algo-runtime-openai).
+        The sentinel age 999999 also lands here when a fresh deploy never had a
+        single successful probe. 999999 is the boot sentinel, not a real age.'
+  - uid: sp-cisco-probe-missing
+    title: Cisco AI Defense probe series missing
+    condition: C
+    # absent() yields an empty vector when HEALTHY -> NoData is the normal state,
+    # not the alarm. The alarm fires via absent()==1; keep NoData quiet.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: absent(signals_producer_cisco_probe_last_success_age_seconds{job="signals_producer"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    for: 30m
+    labels:
+      severity: warning
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/docs/CISCO_AI_DEFENSE_IMPLEMENTATION.md
+      summary: Producer is up but exports no cisco_probe series — the self-probe
+        thread is not running
+      runbook: 'sp-scrape-down owns a dead producer; this rule owns the sneaky case:
+        /metrics answers but signals_producer_cisco_probe_* is gone (probe thread
+        crashed, serve path stopped starting it, or a rollback to a pre-probe build).
+        The probe has deliberately no off switch, so an absent series is never a
+        configured state. for: 30m rides out the rules-publish vs. Railway-deploy
+        race on a merge that touches both.'
 - orgId: 1
   name: evidence-and-workflow-freshness
   folder: SMC Live Overlay

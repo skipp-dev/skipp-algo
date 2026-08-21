@@ -160,11 +160,41 @@ response, or key material in any output).
 | `CISCO_AI_DEFENSE_MANAGEMENT_API_KEY` on `smc-signals-producer` | INVALID and unconsumed — `GET https://api.eu.security.cisco.com/api/ai-defense/v1/connections` and `/applications` with the documented `x-cisco-ai-defense-tenant-api-key` header both return `401 {"code":16, "message":"failed to authenticate and authorize"}`, and no repo code, workflow, or doc references the variable. It also contradicts the operator-only blast-radius rule in "Secret handling and rotation". Remove it from the service, or replace it with a valid key stored operator-side only. |
 | `CISCO_AI_DEFENSE_API_KEY/_MODE/_REGION/_TIMEOUT_SECONDS` on `skipp-terminal-ai` | DEAD COPY — the terminal AI tab routes exclusively through the Producer's private `/ai-insights` (`ProducerAIInsightsClient`); no code path in the terminal image calls `inspect_messages`. A stale duplicate of the Inspection key with no mechanism keeping it in sync with the Producer's copy. Candidate for removal (removal triggers a terminal redeploy). |
 
-Expiry monitoring: none exists. `scripts/credential_health_check.py` does not
-cover the Cisco Inspection key, and the producer log window inspected on
-2026-08-20 contained no AI Defense traffic, so a silent expiry would surface
-only as fail-closed AI Insights errors for end users. Rotation before the next
-expiry is currently UNGESICHERT — verlässt sich auf menschliches Gedächtnis.
+Expiry monitoring on 2026-08-20: none existed. `scripts/credential_health_check.py`
+does not cover the Cisco Inspection key, and the producer log window inspected
+on 2026-08-20 contained no AI Defense traffic, so a silent key death would have
+surfaced only as fail-closed AI Insights errors for end users. Superseded by
+the self-probe below (2026-08-21).
+
+### Key state re-measurement (2026-08-21)
+
+Measured live with the Management API from inside both producer containers:
+
+| Check | Measured state |
+| --- | --- |
+| `CISCO_AI_DEFENSE_MANAGEMENT_API_KEY` | Replaced by the operator with a working Management key; verified live (HTTP 200 on `/applications` and `/connections`) inside `smc-signals-producer` AND `smc-signals-producer-databento-shadow`. The values are hash-identical on both services — two runtime copies means two places every future rotation must touch. |
+| Tenant application | Renamed in the tenant to `smc-signals-producer` (was `skipp-algo`; updated 2026-08-21T10:51Z). The object names in "Cisco tenant objects" below are the original rollout names. |
+| Active Inspection key | `my-app-ai-key`, created 2026-07-20T19:23Z, `expiry: null` — it **never expires**. Planned expiry is therefore no longer a death mode; revocation and region/tenant changes are. |
+| Documented key `skipp-algo-runtime-openai-railway` | REVOKED on 2026-08-19T08:32Z (it did not lapse; it was revoked). |
+| Hybrid connector | Railway service `aidefense-connector` runs Cisco's `proxyrelayclient:26.8.3` against `eu.cloudgw.aidefense.security.cisco.com:443`; no public domain; healthz `SERVING` over private networking. The operator installed the connector API key at 11:25Z; the tunnel has been CONNECTED to the relay since 2026-08-21T11:25:41Z (worker pools + ping sender up, zero reconnects observed). NO traffic is routed through it yet. Routing LLM egress through the connector would be a separate, reviewed change to the enforcement architecture. |
+
+### Inspection-key self-probe (mechanism, 2026-08-21)
+
+The watchdog gap above is closed by a producer self-probe instead of a second
+secret store: `open_prep/cisco_probe.py` runs one content-free synthetic
+inspection (`ping`, request phase, source `cisco-self-probe`) every
+`RT_CISCO_PROBE_SECS` (default 3600, floor 300, no off switch) on a daemon
+thread started by the serve path. A blocked decision counts as success; only
+configuration errors, transport failures, and malformed decisions — the states
+in which the runtime guard fails closed — count as failures. Results are
+exported as `signals_producer_cisco_probe_*` on the existing `/metrics`
+surface (already scraped by Alloy as job `signals_producer`) and consumed by
+two Grafana rules in
+`services/live_overlay_daemon/infra/grafana/alert-rules.yaml`:
+`sp-cisco-probe-stale` (last success age > 2h) and `sp-cisco-probe-missing`
+(series absent while the producer is up).
+`tests/test_cisco_probe_alert_rules.py` pins the metric names against the
+rules file so exporter and alert cannot drift apart silently.
 
 ## Runtime configuration
 
@@ -174,6 +204,7 @@ expiry is currently UNGESICHERT — verlässt sich auf menschliches Gedächtnis.
 | `CISCO_AI_DEFENSE_REGION` | Yes | `eu-central-1`, `us-west-2`, `ap-northeast-1`, or `me-central-1`; must match the tenant region |
 | `CISCO_AI_DEFENSE_MODE` | No | `enforce` by default; `monitor` permits policy violations but still blocks unavailable or invalid inspection |
 | `CISCO_AI_DEFENSE_TIMEOUT_SECONDS` | No | Integer 1–60; default `10` |
+| `RT_CISCO_PROBE_SECS` | No | Inspection-key self-probe interval in seconds; default `3600`, floor `300`, no off switch (see "Inspection-key self-probe") |
 | `AI_VALIDATION_TOKEN` | Yes for dashboard validation | Dedicated 32–512 byte bearer token accepted only by the Producer's public `/ai-validation` application target |
 | `TERMINAL_PRODUCER_FEED_URL` | Yes for centralized news | `http://${{smc-signals-producer.RAILWAY_PRIVATE_DOMAIN}}:8080/news-feed.json` |
 | `TERMINAL_PRODUCER_FEED_TOKEN` | With producer URL | Railway reference to the producer's `SIGNALS_INTERNAL_TOKEN` |

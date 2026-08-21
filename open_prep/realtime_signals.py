@@ -1304,6 +1304,9 @@ def _collect_process_metrics(engine: Any | None = None) -> str:
         lines.append(f"# TYPE {_prefix}_avg_volume_negative_cache_symbols gauge")
         lines.append(f"{_prefix}_avg_volume_negative_cache_symbols {_negative_avg}")
         lines.extend(_collect_a0_latency_metrics(engine, now, _prefix) + _collect_databento_feed_metrics(engine))
+        _prober = getattr(engine, "_cisco_prober", None)
+        if _prober is not None:
+            lines.extend(_prober.metrics_lines(_prefix))
 
     return "\n".join(lines) + "\n"
 
@@ -2322,6 +2325,8 @@ class RealtimeEngine:
         self._async_newsstack: AsyncNewsstackPoller | None = None
         # Opt-in near-A0 fast-lane re-poller (started via start_near_a0_repoller)
         self._near_a0_repoller: NearA0Repoller | None = None
+        # Cisco AI Defense key self-probe (started via start_cisco_probe)
+        self._cisco_prober: Any = None
 
         # VisiData snapshot: latest per-symbol row data
         self._vd_rows: dict[str, dict[str, Any]] = {}
@@ -2745,6 +2750,12 @@ class RealtimeEngine:
         """Start the opt-in near-A0 fast-lane re-poller (call once at startup)."""
         self._near_a0_repoller = NearA0Repoller(self, interval)
         self._near_a0_repoller.start()
+
+    def start_cisco_probe(self, interval_s: float) -> None:
+        """Start the Cisco AI Defense key self-probe (call once at startup)."""
+        from open_prep.cisco_probe import CiscoKeyProber
+        self._cisco_prober = CiscoKeyProber(interval_s=interval_s)
+        self._cisco_prober.start()
 
     # ------------------------------------------------------------------
     # Fetch current quotes for watched symbols
@@ -4226,6 +4237,15 @@ def main() -> None:
     )
     engine.start_async_newsstack(poll_interval=ns_interval)
     logger.info("Async newsstack started (interval=%ds)", ns_interval)
+
+    # Cisco AI Defense key self-probe: content-free synthetic inspection so a
+    # revoked/rotated Inspection key alerts via Grafana (sp-cisco-probe-*)
+    # instead of surfacing only as fail-closed AI Insights errors. Interval
+    # floor 300s; deliberately no off switch — the paired absent()-rule pages
+    # when the series disappears.
+    cisco_probe_secs = _env_int("RT_CISCO_PROBE_SECS", 3600, minimum=300, maximum=None)
+    engine.start_cisco_probe(float(cisco_probe_secs))
+    logger.info("Cisco key self-probe started (interval=%ds)", cisco_probe_secs)
 
     # Opt-in near-A0 fast lane: re-poll A1/A2 symbols every N seconds so an
     # escalation to A0 pushes to Slack in seconds, not a full ~30s cycle late.
