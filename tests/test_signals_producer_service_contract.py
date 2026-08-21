@@ -62,6 +62,9 @@ def test_signal_engine_entrypoint_uses_port_env_for_telemetry_default(monkeypatc
         def start_near_a0_repoller(self, poll_interval: float) -> None:
             pass
 
+        def start_cisco_probe(self, interval_s: float) -> None:
+            pass
+
         def start_quote_source(self) -> None:
             quote_source_lifecycle.append("start")
 
