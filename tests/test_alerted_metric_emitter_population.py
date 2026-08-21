@@ -389,8 +389,13 @@ def _apply_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _signals_producer_engine() -> SimpleNamespace:
+    from open_prep.cisco_probe import CiscoKeyProber
+
     return SimpleNamespace(
         _watchlist=[{"symbol": "AAPL", "avg_volume": 10_000}],
+        # Not started: metrics_lines renders without the thread, proving the
+        # sp-cisco-probe-stale series comes from the real exporter path.
+        _cisco_prober=CiscoKeyProber(interval_s=3600.0, probe_fn=lambda: (True, "")),
         open_prep_snapshot_loaded=1.0,
         open_prep_snapshot_age_seconds=1.0,
         last_poll_success_epoch=_FIXTURE_EPOCH,

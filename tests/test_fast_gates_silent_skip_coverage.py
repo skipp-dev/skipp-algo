@@ -129,6 +129,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_build_commercial_family_setups.py",
     "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
+    # 2026-08-21: couples the Cisco self-probe exporter to its Grafana rules
+    # (sp-cisco-probe-stale/-missing) — a rename on either side merges green
+    # without this on the required path.
+    "tests/test_cisco_probe_alert_rules.py",
     # 2026-08-01: guards that the R1-attested-source gate stays wired into
     # fast-gates. Without it the gate could be dropped from the workflow and,
     # like the R1 contract test itself, nothing would notice until after a

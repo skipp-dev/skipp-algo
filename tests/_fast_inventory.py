@@ -78,6 +78,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_realtime_signals_metrics_endpoint.py",
     "test_alerted_metric_emitter_population.py",
     # Monitoring artifacts: Grafana dashboards + alert rules (2026-07-23).
+    "test_cisco_probe_alert_rules.py",
     "test_grafana_alert_rules_upsert.py",
     "test_grafana_dashboard_pullback.py",
     "test_live_overlay_alert_rules_publish_workflow.py",

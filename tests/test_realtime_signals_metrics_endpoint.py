@@ -782,3 +782,53 @@ def test_an_empty_seed_reopens_the_hole() -> None:
     finally:
         rs.SEEDED_FMP_ENDPOINTS = original
     assert "profile-bulk" not in body
+
+
+# ---------------------------------------------------------------------------
+# Cisco AI Defense self-probe gauges (open_prep/cisco_probe.py)
+# ---------------------------------------------------------------------------
+
+def test_collect_process_metrics_exposes_cisco_probe_state() -> None:
+    from open_prep.cisco_probe import CiscoKeyProber
+
+    prober = CiscoKeyProber(interval_s=3600.0, probe_fn=lambda: (True, ""))
+    prober.attempts = 3
+    prober.failures = 1
+    prober.consecutive_failures = 0
+    prober.last_success_epoch = time.time() - 5.0
+    prober.last_ok = True
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=time.time(),
+        last_poll_duration_seconds=0.0,
+        _cisco_prober=prober,
+    )
+
+    body = rs._collect_process_metrics(engine)
+
+    assert "signals_producer_cisco_probe_ok 1" in body
+    assert "signals_producer_cisco_probe_attempts_total 3" in body
+    assert "signals_producer_cisco_probe_failures_total 1" in body
+    assert "signals_producer_cisco_probe_consecutive_failures 0" in body
+    age_match = re.search(r"signals_producer_cisco_probe_last_success_age_seconds (\d+\.\d)", body)
+    assert age_match is not None
+    assert 0.0 <= float(age_match.group(1)) < 60.0
+
+
+def test_collect_process_metrics_omits_cisco_probe_series_without_prober() -> None:
+    # The absent() alert rule (sp-cisco-probe-missing) owns this state: an
+    # engine without a running prober must NOT export seeded zeros that would
+    # read as healthy.
+    engine = SimpleNamespace(
+        _watchlist=[],
+        open_prep_snapshot_loaded=1.0,
+        open_prep_snapshot_age_seconds=0.0,
+        last_poll_success_epoch=time.time(),
+        last_poll_duration_seconds=0.0,
+    )
+
+    body = rs._collect_process_metrics(engine)
+
+    assert "cisco_probe" not in body
