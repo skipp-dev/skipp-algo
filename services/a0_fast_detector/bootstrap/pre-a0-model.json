@@ -1,11 +1,11 @@
 {
-  "artifact_id": "de97b74e6c6f645a513ece01",
-  "calibrated_from": "2026-07-30",
-  "calibrated_through": "2026-07-30",
+  "artifact_id": "12db269a05d2eece069c5137",
+  "calibrated_from": "2026-08-19",
+  "calibrated_through": "2026-08-19",
   "calibration": {
-    "fitted_samples": 60079,
-    "intercept": 0.0173521426203998,
-    "slope": 0.9243250122329281,
+    "fitted_samples": 41652,
+    "intercept": -0.025359144954134875,
+    "slope": 0.8998716910703598,
     "version": "platt-v1"
   },
   "contract_version": "pre-a0-model-v1",
@@ -25,36 +25,36 @@
     "regular"
   ],
   "metrics": {
-    "calibration_brier": 0.0033463820913906188,
-    "calibration_ece": 0.00010318214314285028,
-    "test_average_precision": 0.01659241003884509,
-    "test_base_rate_brier": 0.005097376039969146,
-    "test_brier": 0.005092687873627547,
-    "test_ece": 0.001822164798905946,
-    "test_rows": 56015.0
+    "calibration_brier": 0.003669670446720523,
+    "calibration_ece": 0.0008297636830401417,
+    "test_average_precision": 0.018971975085037514,
+    "test_base_rate_brier": 0.006154563808137522,
+    "test_brier": 0.006142386126973425,
+    "test_ece": 0.0015682604378781375,
+    "test_rows": 67335.0
   },
   "model": {
     "coefficients": [
-      0.0002866556779587328,
-      -0.007945179985140705,
-      -0.010743940362540623,
-      -0.18919251059396683,
-      -0.012006737373493798,
-      -0.0019493297517357154,
-      0.0015044172031108095
+      -0.03631953225094697,
+      -0.006961013401053231,
+      -0.02161272595103799,
+      -0.1590544291623817,
+      0.010863758013784308,
+      0.016316755158738445,
+      0.009139944476443318
     ],
     "feature_max": [
-      1343.4782608695652,
+      4437.430167597766,
       606.4088212400986,
       2.0,
-      2.999984515264491,
+      2.9999912185183883,
       1.0,
       1.0,
       180.0
     ],
     "feature_min": [
       0.0,
-      5.161578502943607e-06,
+      2.927160537192502e-06,
       0.0,
       0.0,
       0.0,
@@ -70,11 +70,11 @@
       "direction",
       "horizon_s"
     ],
-    "intercept": -6.031609759497574
+    "intercept": -5.997391642232105
   },
-  "review_after": "2026-11-01T18:14:43Z",
+  "review_after": "2026-10-05T16:10:03Z",
   "schema_version": "pre-a0-snapshot-v1",
-  "split_manifest_sha256": "7b4b411dc2de454920a9317a81ef777b0cfdeeabea6d59ffef9d2e2df2e55a2a",
+  "split_manifest_sha256": "7b3bd1b59c2bee20e2c23a6e40616efc520ee5d4bd94b33b6031a96b758eb084",
   "trained_from": "2026-07-21",
-  "trained_through": "2026-07-29"
+  "trained_through": "2026-08-18"
 }

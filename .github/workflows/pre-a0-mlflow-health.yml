@@ -49,7 +49,7 @@ jobs:
             --tracking-uri "$MLFLOW_TRACKING_URI" \
             --username "$MLFLOW_TRACKING_USERNAME" \
             --password "$MLFLOW_TRACKING_PASSWORD" \
-            --expected-artifact-id de97b74e6c6f645a513ece01 \
+            --expected-artifact-id 12db269a05d2eece069c5137 \
             --warn-before-days 14 \
             --output artifacts/ci/pre_a0_mlflow_health.json || rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

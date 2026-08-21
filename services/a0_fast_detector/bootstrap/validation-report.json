@@ -1,47 +1,60 @@
 {
-  "artifact_id": "de97b74e6c6f645a513ece01",
-  "calibration_rows": 60079,
-  "data_source": "live a0-fast-shadow snapshots (Railway volume a0-fast-shadow-volume, source=databento:daily, market_session=regular)",
-  "metrics": {
-    "calibration_brier": 0.0033463820913906188,
-    "calibration_ece": 0.00010318214314285028,
-    "test_average_precision": 0.01659241003884509,
-    "test_base_rate": 0.005123627599750067,
-    "test_base_rate_brier": 0.005097376039969146,
-    "test_brier": 0.005092687873627547,
-    "test_ece": 0.001822164798905946,
-    "test_positive_rows": 287.0,
-    "test_rows": 56015.0
+ "artifact_id": "12db269a05d2eece069c5137",
+ "calibration_rows": 41652,
+ "data_source": "live a0-fast-shadow snapshots (Railway volume a0-fast-shadow-volume, source=databento:daily, market_session=regular)",
+ "metrics": {
+  "calibration_brier": 0.003669670446720523,
+  "calibration_ece": 0.0008297636830401417,
+  "test_average_precision": 0.018971975085037514,
+  "test_base_rate": 0.006192916016930274,
+  "test_base_rate_brier": 0.006154563808137522,
+  "test_brier": 0.006142386126973425,
+  "test_ece": 0.0015682604378781375,
+  "test_positive_rows": 417,
+  "test_rows": 67335.0
+ },
+ "offline_gate_passed": true,
+ "reference_version": "shadow-retrain-209e2fe39e4a",
+ "review_after": "2026-10-05T16:10:03Z",
+ "split": {
+  "calibration_day": "2026-08-19",
+  "counts": {
+   "calibration": 41652,
+   "test": 67335,
+   "train": 1278478
   },
-  "offline_gate_passed": true,
-  "reference_version": "shadow-retrain-cedc165df9ce",
-  "review_after": "2026-11-01T18:14:43Z",
-  "split": {
-    "calibration_day": "2026-07-30",
-    "counts": {
-      "2026-07-21": 14000,
-      "2026-07-22": 12992,
-      "2026-07-23": 13919,
-      "2026-07-24": 10584,
-      "2026-07-27": 10000,
-      "2026-07-28": 15411,
-      "2026-07-29": 18140,
-      "2026-07-30": 20553,
-      "2026-07-31": 19147
-    },
-    "test_day": "2026-07-31",
-    "train_days": [
-      "2026-07-21",
-      "2026-07-22",
-      "2026-07-23",
-      "2026-07-24",
-      "2026-07-27",
-      "2026-07-28",
-      "2026-07-29"
-    ]
+  "dataset_sha256": "209e2fe39e4aff27206b182ede3632c5783e142dd54a7a4a1b9ce87120f8428c",
+  "final_test_sealed": true,
+  "leakage_audit": {
+   "critical_count": 0,
+   "passed": true
   },
-  "split_sha256": "7b4b411dc2de454920a9317a81ef777b0cfdeeabea6d59ffef9d2e2df2e55a2a",
-  "symbol_count": 881,
-  "test_rows": 56015,
-  "train_rows": 277253
+  "test_day": "2026-08-20",
+  "train_days": [
+   "2026-07-21",
+   "2026-07-22",
+   "2026-07-23",
+   "2026-07-24",
+   "2026-07-27",
+   "2026-07-28",
+   "2026-07-29",
+   "2026-07-30",
+   "2026-07-31",
+   "2026-08-03",
+   "2026-08-04",
+   "2026-08-05",
+   "2026-08-06",
+   "2026-08-07",
+   "2026-08-10",
+   "2026-08-11",
+   "2026-08-12",
+   "2026-08-13",
+   "2026-08-14",
+   "2026-08-17",
+   "2026-08-18"
+  ]
+ },
+ "split_sha256": "7b3bd1b59c2bee20e2c23a6e40616efc520ee5d4bd94b33b6031a96b758eb084",
+ "test_rows": 67335,
+ "train_rows": 1278478
 }
