@@ -405,7 +405,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
+    """CLI-Einstieg. ``now`` ist eine reine Python-Naht, KEIN Kommandozeilen-Schalter.
+
+    2026-08-21: Der CLI-Test borgte sich die Uhr und wich Mitternacht mit einem
+    1800-s-Ruecksprung aus -- siehe ``test_a_bar_spanning_midnight_is_refused``, das
+    die Datumsgrenze jetzt ausdruecklich prueft, statt sie zu umgehen. Kein
+    ``--now``-Flag: eine faelschbare Uhr auf der Kommandozeile eines Handelswerkzeugs
+    braucht niemand.
+    """
     args = _build_parser().parse_args(argv)
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
@@ -413,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("input root must be a JSON object")
         manifest = run_shadow_once(
             payload=payload,
+            now=now,
             setups_path=args.setups_output,
             gate_status_path=args.gate_status_output,
             diagnostics_path=args.diagnostics_output,
