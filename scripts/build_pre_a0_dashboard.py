@@ -567,7 +567,10 @@ def build_dashboard() -> dict[str, Any]:
         _timeseries(
             35,
             "Feature Contract Violations",
-            "Five-minute rates of missing and out-of-range model inputs.",
+            "Five-minute rates of missing and out-of-range model inputs, plus the"
+            " per-feature out-of-range breakdown that names the drifting input"
+            " (before 2026-08-21 the pre-a0-input-drift alert could not say WHICH"
+            " feature left the training envelope).",
             [
                 _target(
                     'sum(rate(pre_a0_feature_missing_total{job=~"$job"}[5m]))',
@@ -578,6 +581,16 @@ def build_dashboard() -> dict[str, Any]:
                     'sum(rate(pre_a0_feature_out_of_range_total{job=~"$job"}[5m]))',
                     "out of range/s",
                     "B",
+                ),
+                _target(
+                    'sum by (feature) (rate(pre_a0_feature_out_of_range_by_feature_total{job=~"$job"}[5m]))',
+                    "oor {{feature}}/s",
+                    "C",
+                ),
+                _target(
+                    'sum by (feature) (rate(pre_a0_feature_missing_by_feature_total{job=~"$job"}[5m]))',
+                    "missing {{feature}}/s",
+                    "D",
                 ),
             ],
             x=0,

@@ -20,6 +20,8 @@ class PreA0Telemetry:
         self._inference_errors = 0
         self._feature_missing = 0
         self._feature_out_of_range = 0
+        self._feature_missing_by_feature: Counter[str] = Counter()
+        self._feature_out_of_range_by_feature: Counter[str] = Counter()
         self._alert_budget_exceeded = 0
         self._duplicate_decision_ids = 0
         self._inference_duration_ms_sum = 0.0
@@ -54,6 +56,13 @@ class PreA0Telemetry:
                 else "none"
             )
             self._disabled_reasons = (reason,) if reason else ()
+            # Seed one zero-valued series per model feature so increase() over
+            # the labelled families never eats its first violation (the
+            # a0_fast_records_rejected_total lesson, 2026-08-19). getattr chain:
+            # tests hand set_model() artifact fakes without a .model.
+            for name in getattr(getattr(artifact, "model", None), "feature_names", ()):
+                self._feature_missing_by_feature.setdefault(name, 0)
+                self._feature_out_of_range_by_feature.setdefault(name, 0)
 
     def record_estimate(self, state: str) -> None:
         with self._lock:
@@ -65,6 +74,8 @@ class PreA0Telemetry:
             self._inference_duration_ms_sum += max(0.0, score.inference_ms)
             self._feature_missing += len(score.missing_features)
             self._feature_out_of_range += len(score.out_of_range_features)
+            self._feature_missing_by_feature.update(score.missing_features)
+            self._feature_out_of_range_by_feature.update(score.out_of_range_features)
             if score.probability is None:
                 self._inference_errors += 1
                 bucket = "unavailable"
@@ -104,6 +115,10 @@ class PreA0Telemetry:
                 "inference_errors": self._inference_errors,
                 "feature_missing": self._feature_missing,
                 "feature_out_of_range": self._feature_out_of_range,
+                "feature_missing_by_feature": dict(self._feature_missing_by_feature),
+                "feature_out_of_range_by_feature": dict(
+                    self._feature_out_of_range_by_feature
+                ),
                 "alert_budget_exceeded": self._alert_budget_exceeded,
                 "duplicate_decision_ids": self._duplicate_decision_ids,
                 "inference_duration_ms_sum": self._inference_duration_ms_sum,
@@ -139,6 +154,16 @@ class PreA0Telemetry:
             f'{{status="{snapshot["model_status"]}",artifact_id="{snapshot["model_artifact_id"]}",'
             f'calibration_version="{snapshot["calibration_version"]}"}} 1',
         ]
+        rows.extend(
+            f'pre_a0_feature_missing_by_feature_total{{feature="{feature}"}} {count}'
+            for feature, count in sorted(snapshot["feature_missing_by_feature"].items())
+        )
+        rows.extend(
+            f'pre_a0_feature_out_of_range_by_feature_total{{feature="{feature}"}} {count}'
+            for feature, count in sorted(
+                snapshot["feature_out_of_range_by_feature"].items()
+            )
+        )
         rows.extend(
             f'pre_a0_estimates_total{{state="{state}"}} {count}'
             for state, count in sorted(snapshot["states"].items())

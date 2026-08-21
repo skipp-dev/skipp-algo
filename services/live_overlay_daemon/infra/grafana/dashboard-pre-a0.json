@@ -1500,7 +1500,7 @@
       "id": 35,
       "title": "Feature Contract Violations",
       "type": "timeseries",
-      "description": "Five-minute rates of missing and out-of-range model inputs.",
+      "description": "Five-minute rates of missing and out-of-range model inputs, plus the per-feature out-of-range breakdown that names the drifting input (before 2026-08-21 the pre-a0-input-drift alert could not say WHICH feature left the training envelope).",
       "datasource": {
         "type": "prometheus",
         "uid": "grafanacloud-prom"
@@ -1529,6 +1529,24 @@
           "expr": "sum(rate(pre_a0_feature_out_of_range_total{job=~\"$job\"}[5m]))",
           "legendFormat": "out of range/s",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "sum by (feature) (rate(pre_a0_feature_out_of_range_by_feature_total{job=~\"$job\"}[5m]))",
+          "legendFormat": "oor {{feature}}/s",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "grafanacloud-prom"
+          },
+          "expr": "sum by (feature) (rate(pre_a0_feature_missing_by_feature_total{job=~\"$job\"}[5m]))",
+          "legendFormat": "missing {{feature}}/s",
+          "refId": "D"
         }
       ],
       "fieldConfig": {
