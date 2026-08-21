@@ -293,8 +293,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # comment is deliberately local to the iterator success boundary,
         # shifting these existing singleton anchors by three lines.
         ("services/live_overlay_daemon/feed.py", 550, ("_last_bar_at",)),  # 2026-08-06 (heal grace follows the backoff): 520->550  # 2026-07-26 preserve TF history across feed restart: 511->513; 2026-08-05 supervisor post-heal grace: 513->520
-        ("services/live_overlay_daemon/feed.py", 752, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-06 (heal grace follows the backoff): 702->752  # 2026-07-26 preserve TF history across feed restart: 674->676; 2026-08-05 supervisor post-heal grace: 676->702
-        ("services/live_overlay_daemon/feed.py", 851, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-06 (heal grace follows the backoff): 801->851  # 2026-07-26 preserve TF history across feed restart: 773->775; 2026-08-05 supervisor post-heal grace: 775->801
+        ("services/live_overlay_daemon/feed.py", 776, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-20 (heal window widens, kill switch does not): 752->776  # 2026-08-06 (heal grace follows the backoff): 702->752  # 2026-07-26 preserve TF history across feed restart: 674->676; 2026-08-05 supervisor post-heal grace: 676->702
+        ("services/live_overlay_daemon/feed.py", 875, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),  # 2026-08-20 (heal window widens, kill switch does not): 851->875  # 2026-08-06 (heal grace follows the backoff): 801->851  # 2026-07-26 preserve TF history across feed restart: 773->775; 2026-08-05 supervisor post-heal grace: 775->801
         # 2026-06-21: optional external bridge snapshot caches are guarded by
         # module locks and cached via module-level singleton snapshots.
         # 2026-06-23: workflow bridge hardening (status/conclusion semantics,

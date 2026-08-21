@@ -660,7 +660,12 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
 
         workers = worker_liveness()
         stalled = False
-        if market_hours.is_us_regular_session_open():
+        # ERKENNUNG laeuft auf dem Produktfenster (04:00-20:00 ET), weil dort
+        # Bars fliessen: die Subscription ist ALL_SYMBOLS ohne Sitzungsfilter,
+        # und OPS.md haelt einen Neustart um 05:13 ET fest, nach dem
+        # "premarket repopulated". Vorher endete die Aufmerksamkeit um 16:00 —
+        # eine Leitung, die Freitag 16:10 verstummte, heilte erst Montag 09:30.
+        if market_hours.is_us_extended_session_open():
             age = last_bar_age_secs()
             if age is not None:
                 stalled = age > _STALL_MAX_BAR_AGE_SECS
@@ -701,6 +706,25 @@ def _run_supervisor_loop(stop: threading.Event) -> None:
             workers, stalled, heal_attempts, _SELF_HEAL_MAX_ATTEMPTS,
         )
         if heal_attempts > _SELF_HEAL_MAX_ATTEMPTS:
+            # Die ERKENNUNG ist breiter geworden, der TOTMANNSCHALTER nicht.
+            # _escalate_to_platform_restart ruft os._exit, und railway.toml
+            # gibt nach restartPolicyMaxRetries = 3 auf: ein falsches "Markt
+            # offen" ausserhalb RTH wuerde den Dienst nicht heilen, sondern
+            # dauerhaft abschalten. Ein toter Worker-Thread ist dagegen ein
+            # echter Zombie, den ein Neustart repariert — der eskaliert zu
+            # jeder Stunde.
+            workers_dead = not all(workers.values())
+            if not (workers_dead or market_hours.is_us_regular_session_open()):
+                logger.critical(
+                    "Supervisor: self-heal exhausted (%d/%d) on a STALL outside the "
+                    "regular session — withholding the process restart and keeping "
+                    "the reconnect loop. lo-feed-down-market-open is the operator's "
+                    "signal here.",
+                    _SELF_HEAL_MAX_ATTEMPTS, _SELF_HEAL_MAX_ATTEMPTS,
+                )
+                _inc_metric("supervisor_escalations_withheld")
+                heal_attempts = _SELF_HEAL_MAX_ATTEMPTS
+                continue
             logger.critical(
                 "Supervisor: self-heal exhausted (%d/%d) — escalating; "
                 "platform ON_FAILURE policy restarts the process.",

@@ -390,7 +390,14 @@ def test_supervisor_heals_dead_worker_via_partial_restart(monkeypatch: pytest.Mo
         feed_mod, "worker_liveness",
         lambda: {"live_feed": False, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
     )
+    # 2026-08-21: BEIDE Sitzungsfunktionen liefern. Dieser PR stellt die
+    # ERKENNUNG auf is_us_extended_session_open um; wer nur die RTH-Funktion
+    # patcht, borgt die erweiterte Sitzung von der WANDUHR der Maschine und
+    # ist damit tageszeitabhaengig gruen. Gemessen: ohne diese Zeilen fielen
+    # 7 Tests ausserhalb 04:00-20:00 ET. RTH offen impliziert erweitert offen;
+    # "geschlossen" heisst hier "keine Stall-Erkennung", also ebenfalls False.
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: False)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: False)
 
     def _fake_start() -> None:
         started.append(1)
@@ -418,6 +425,7 @@ def test_supervisor_does_not_heal_dead_worker_after_stop_is_set(monkeypatch: pyt
 
     monkeypatch.setattr(feed_mod, "worker_liveness", _dead_worker_then_shutdown)
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: False)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: False)
 
     def _fake_start() -> None:
         started.append(1)
@@ -442,6 +450,7 @@ def test_supervisor_breaks_stall_during_session(monkeypatch: pytest.MonkeyPatch)
         lambda: {"live_feed": True, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
     )
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: True)
     monkeypatch.setattr(feed_mod, "last_bar_age_secs", lambda: feed_mod._STALL_MAX_BAR_AGE_SECS + 10.0)
 
     def _fake_break() -> None:
@@ -470,6 +479,7 @@ def test_supervisor_breaks_never_first_bar_stall(monkeypatch: pytest.MonkeyPatch
         lambda: {"live_feed": True, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
     )
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: True)
     monkeypatch.setattr(feed_mod, "last_bar_age_secs", lambda: None)
     # 2026-08-20: BEIDE Seiten des Vergleichs liefern, statt eine von der
     # Maschine zu borgen.
@@ -520,6 +530,7 @@ def test_supervisor_escalates_after_max_heal_attempts(monkeypatch: pytest.Monkey
         lambda: {"live_feed": False, "ingest_processor": True, "overlay_refresh": True, "flow_refresh": True},
     )
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: False)
+    monkeypatch.setattr(feed_mod.market_hours, "is_us_extended_session_open", lambda: False)
     monkeypatch.setattr(feed_mod, "start", lambda: None)  # heal never fixes it
 
     def _fake_escalate(code: int = 1) -> None:
