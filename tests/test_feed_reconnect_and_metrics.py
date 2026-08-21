@@ -61,11 +61,40 @@ def _no_reconnect_constant_leaks() -> Iterator[None]:
     reintroduced plain assignment therefore fails in the file that caused it,
     deterministically, instead of surfacing as an unrelated red test somewhere
     downstream.
+
+    2026-08-21: ``_runtime["reconnect_wait_until"]`` DAZUGENOMMEN. Der Waechter
+    hiess schon immer "no reconnect leaks", sah aber nur die zwei Konstanten --
+    waehrend derselbe Codepfad, den diese Datei faehrt, in feed.py:511
+    ``_runtime["reconnect_wait_until"] = time.monotonic() + delay`` schreibt.
+    Das ist die ECHTE Uhr, also auf einer Maschine mit Uptime eine Zahl in
+    Hunderttausenden, und sie blieb stehen.
+
+    Was das kostete, gemessen auf sauberem origin/main (9995cdff9):
+
+        pytest tests/test_feed_reconnect_and_metrics.py \\
+               tests/test_smc_live_overlay_feed_lifecycle_thread_safety.py
+        -> 2 failed, 26 passed
+
+    Der Supervisor liest den Schluessel in ``_grace_deadline`` (feed.py:131) und
+    haelt die Heilung bis zu jener Zeit zurueck -- also praktisch fuer immer.
+    Die Tests nebenan scheitern dann mit ``assert [] == [1]``: der Supervisor
+    heilte nie, und die Begruendung zeigt auf den falschen Verdaechtigen.
+    Ueber die volle Reverse-Import-Auswahl von feed.py waren es 9 rote Tests;
+    ein Plugin, das NUR diesen einen Schluessel zuruecksetzt, machte daraus
+    302 passed.
     """
     import services.live_overlay_daemon.feed as feed
 
     before = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
-    yield
+    window_before = feed._runtime.get("reconnect_wait_until", 0.0)
+    try:
+        yield
+    finally:
+        # Zuruecksetzen, NICHT bloss pruefen: der Wert entsteht im
+        # Produktionscode, nicht in einer Testzeile. Ihn hier einzufordern
+        # hiesse, jedem Test dieser Datei aufzutragen, hinter feed.py
+        # aufzuraeumen -- eine Regel, die der naechste neue Test nicht kennt.
+        feed._runtime["reconnect_wait_until"] = window_before
     after = (feed._RECONNECT_DELAY_SECS, feed._RECONNECT_BACKOFF_SECS)
     assert after == before, (
         "this test left feed's reconnect constants at "
