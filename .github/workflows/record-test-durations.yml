@@ -75,6 +75,33 @@ jobs:
       - name: Set up pinned Python
         uses: ./.github/actions/setup-python-pinned
 
+      # Ohne diese drei Schritte laeuft der Recording-Schritt gegen den nackten
+      # Tool-Cache-Interpreter und stirbt nach ~10 s mit "No module named
+      # pytest" — gemessen an Lauf 32499080475, dem ERSTEN Dispatch dieses
+      # Workflows ueberhaupt. `setup-persistent-venv` legt das venv-bin auf
+      # GITHUB_PATH, weshalb das blanke `python` im Schritt darunter danach die
+      # venv trifft; genau so macht es der validate-Job in ci.yml.
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
+
+      - name: Resolve Python 3.12 interpreter
+        shell: bash
+        run: |
+          python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+          echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+
+      - name: Install test dependencies
+        uses: ./.github/actions/setup-persistent-venv
+        with:
+          python-bin: ${{ env.SMC_PYTHON_BIN }}
+          requirements-file: requirements.lock
+          extra-packages: pytest
+          runner-environment: github-hosted
+
       - name: Record durations for this shard
         run: |
           set -uo pipefail
