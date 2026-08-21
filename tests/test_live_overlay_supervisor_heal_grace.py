@@ -104,6 +104,25 @@ def _drive(
     monkeypatch.setattr(feed_mod.market_hours, "is_us_regular_session_open", lambda: True)
     monkeypatch.setattr(feed_mod, "_inc_metric", lambda *a, **k: None)
     feed_mod._fatal_config_error.clear()
+    # 2026-08-20: auch DIESEN Modulzustand zuruecksetzen, sonst borgt der Test
+    # die Uhr eines fremden Tests.
+    #
+    # Der Treiber stellt die Zeit auf 200.0. ``_run_supervisor_loop`` liest aber
+    # ``_runtime["reconnect_wait_until"]``, und der ECHTE Reconnect-Pfad
+    # (feed.py, ``_runtime[...] = time.monotonic() + delay``) schreibt dort einen
+    # Wert der ECHTEN Uhr — auf einer Maschine mit Uptime also Hunderttausende.
+    # Gegen unsere 200.0 liegt der in ferner Zukunft, ``_grace_deadline`` laeuft
+    # nie ab, es wird nie geheilt und nie eskaliert.
+    #
+    # Gemessen am 20.8.: im SERIELLEN Volllauf fielen dadurch alle fuenf Tests
+    # dieser Datei, waehrend sie allein und unter ``-n 4`` gruen sind — unter
+    # xdist landet der Verursacher meist in einem anderen Worker. Die PR-Lane
+    # faehrt die volle Suite SERIELL innerhalb jedes Shards (ci.yml:
+    # ``--splits 4 --group N``, ohne ``-n``), dort ist die Reihenfolge also
+    # wieder scharf; und jede Neuaufzeichnung von ``.test_durations`` verschiebt
+    # die Shard-Zuschnitte. Genau nachgestellt mit einem Plugin, das nichts
+    # weiter tut als diesen einen Schluessel zu setzen.
+    monkeypatch.setitem(feed_mod._runtime, "reconnect_wait_until", 0.0)
 
     feed_mod._run_supervisor_loop(_Stop())
     return state
@@ -136,4 +155,35 @@ def test_a_feed_that_never_recovers_still_escalates(
     assert state["exited"], "a permanently dead feed must still escalate"
     assert state["heals"] == pytest.approx(3, abs=1), (
         f"escalation should follow the documented {3} attempts, saw {state['heals']}"
+    )
+
+
+def test_a_leftover_reconnect_window_does_not_disarm_this_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Die Isolation selbst festnageln, nicht nur herstellen.
+
+    Ohne den ``reconnect_wait_until``-Reset in ``_drive`` erbt dieser Treiber die
+    ECHTE Uhr eines fremden Tests, und alle fuenf Zusicherungen dieser Datei
+    werden lautlos vakuum: die Heilkarenz laeuft nie ab, es wird nie geheilt,
+    nie eskaliert — und ``assert state["exited"]`` scheitert mit einer Begruendung,
+    die auf den falschen Verdaechtigen zeigt.
+
+    Diese Probe setzt genau den Zustand, den der echte Reconnect-Pfad
+    hinterlaesst (``time.monotonic() + delay``, feed.py), und verlangt dasselbe
+    Urteil wie ohne ihn. Nimmt jemand den Reset wieder heraus, wird sie rot.
+    """
+    import time as real_time
+
+    import services.live_overlay_daemon.feed as feed_mod
+
+    feed_mod._runtime["reconnect_wait_until"] = real_time.monotonic() + 30.0
+    try:
+        state = _drive(monkeypatch, first_bar_delay=10_000.0, max_cycles=200)
+    finally:
+        feed_mod._runtime["reconnect_wait_until"] = 0.0
+    assert state["exited"], (
+        "ein stehengebliebenes reconnect_wait_until aus einem FREMDEN Test hat "
+        "die Eskalation entwaffnet — _drive setzt den Modulzustand nicht mehr "
+        "zurueck, und damit sind alle Zusicherungen dieser Datei vakuum"
     )
