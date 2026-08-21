@@ -3,7 +3,7 @@
 
 //@version=6
 
-import preuss_steffen/smc_micro_profiles_generated/301 as mp
+import preuss_steffen/smc_micro_profiles_generated/302 as mp
 import preuss_steffen/smc_utils/4 as u
 
 // Product role: pro execution surface on the frozen 8-channel executable contract.
