@@ -111,6 +111,68 @@ def test_evidence_readiness_requires_inference_and_persisted_snapshots() -> None
     assert 'a0_fast_evidence_status_info{reason="evidence_flowing"} 1' in text
 
 
+def test_out_of_range_features_are_named_not_just_counted() -> None:
+    """The drift alert says "input quality degraded"; telemetry must say WHICH input.
+
+    Until 2026-08-21 record_score() collapsed score.out_of_range_features to a
+    length, so a firing pre-a0-input-drift alert was unattributable from
+    metrics or logs (measured live: 2.5k OOR/h, feature unknown).
+    """
+    pre_a0 = PreA0Telemetry()
+    pre_a0.record_score(
+        ShadowScore(
+            ModelStatus.READY,
+            0.7,
+            True,
+            60,
+            1.0,
+            ("volume_progress",),
+            ("price_distance_pct", "volume_distance_pace"),
+            "artifact-1",
+            "feature_out_of_range",
+        )
+    )
+    body = pre_a0.render_prometheus()
+    assert (
+        'pre_a0_feature_out_of_range_by_feature_total{feature="price_distance_pct"} 1'
+        in body
+    )
+    assert (
+        'pre_a0_feature_out_of_range_by_feature_total{feature="volume_distance_pace"} 1'
+        in body
+    )
+    assert (
+        'pre_a0_feature_missing_by_feature_total{feature="volume_progress"} 1' in body
+    )
+    # The unlabeled totals (the alert's contract) keep counting unchanged.
+    assert "pre_a0_feature_out_of_range_total 2" in body
+    assert "pre_a0_feature_missing_total 1" in body
+
+
+def test_per_feature_series_are_seeded_at_zero_once_the_model_is_known() -> None:
+    """increase() over an unseeded counter eats its first burst (2026-08-19 lesson).
+
+    Every feature the loaded model declares must be exposed at zero BEFORE its
+    first violation, or the first drift burst becomes the baseline.
+    """
+    pre_a0 = PreA0Telemetry()
+    artifact = SimpleNamespace(
+        artifact_id="artifact-1",
+        calibration=SimpleNamespace(version="platt-v1"),
+        model=SimpleNamespace(feature_names=("price_progress", "direction")),
+    )
+    pre_a0.set_model(ModelStatus.READY, artifact, None)
+    body = pre_a0.render_prometheus()
+    for name in ("price_progress", "direction"):
+        assert (
+            f'pre_a0_feature_out_of_range_by_feature_total{{feature="{name}"}} 0'
+            in body
+        ), f"feature {name!r} not seeded at zero"
+        assert (
+            f'pre_a0_feature_missing_by_feature_total{{feature="{name}"}} 0' in body
+        ), f"missing series for {name!r} not seeded at zero"
+
+
 def test_rejection_counter_is_seeded_before_the_first_rejection() -> None:
     """increase() over an unseeded counter eats its own first burst.
 
