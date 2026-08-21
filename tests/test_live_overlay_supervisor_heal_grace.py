@@ -172,16 +172,24 @@ def test_a_leftover_reconnect_window_does_not_disarm_this_file(
     Diese Probe setzt genau den Zustand, den der echte Reconnect-Pfad
     hinterlaesst (``time.monotonic() + delay``, feed.py), und verlangt dasselbe
     Urteil wie ohne ihn. Nimmt jemand den Reset wieder heraus, wird sie rot.
+
+    Gesetzt wird ueber ``monkeypatch``, NICHT per Zuweisung mit ``finally``.
+    Gemessen am 21.8.: die ``finally``-Fassung leckte genau den Wert, den sie
+    prueft. ``_drive`` setzt denselben Schluessel ebenfalls per ``monkeypatch``,
+    und dessen Teardown laeuft NACH dem ``finally`` -- er stellte also die
+    vergiftete Zahl wieder her, statt sie zu raeumen. Folge: zwei Tests in
+    ``test_smc_live_overlay_feed_lifecycle_thread_safety.py`` fielen mit
+    ``assert [] == [1]``, weil der Supervisor nie heilte. Mit ``monkeypatch``
+    raeumen beide Setzungen in LIFO-Reihenfolge zurueck auf den Originalwert.
     """
     import time as real_time
 
     import services.live_overlay_daemon.feed as feed_mod
 
-    feed_mod._runtime["reconnect_wait_until"] = real_time.monotonic() + 30.0
-    try:
-        state = _drive(monkeypatch, first_bar_delay=10_000.0, max_cycles=200)
-    finally:
-        feed_mod._runtime["reconnect_wait_until"] = 0.0
+    monkeypatch.setitem(
+        feed_mod._runtime, "reconnect_wait_until", real_time.monotonic() + 30.0
+    )
+    state = _drive(monkeypatch, first_bar_delay=10_000.0, max_cycles=200)
     assert state["exited"], (
         "ein stehengebliebenes reconnect_wait_until aus einem FREMDEN Test hat "
         "die Eskalation entwaffnet — _drive setzt den Modulzustand nicht mehr "
