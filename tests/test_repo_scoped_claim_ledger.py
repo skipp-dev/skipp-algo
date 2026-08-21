@@ -100,6 +100,45 @@ _LEDGER: dict[str, dict[str, object]] = {
             "2026-08-05. Kept in place, naming the three tests that refuted it (#4472)."
         ),
     },
+    "scripts/check_workflow_failure_alarm_coverage.py": {
+        "count": 1,
+        "status": PROVEN,
+        "population": "every source file in the repo (the extensions scanned below)",
+        # Die Behauptung: der WERT von GITHUB_WORKFLOW_MONITOR_IDS -- also welche
+        # Workflows der Fehleralarm ueberhaupt auswertet -- steht in keiner Repo-Datei;
+        # er lebt nur in der Railway-Umgebung des live_overlay_daemon.
+        #
+        # Gepinnt wird der VARIABLENNAME, nicht der Wert, und zwar mit Absicht. Ein
+        # Muster auf den Wert (`...IDS = "228915564,..."`) traefe heute NULL Zeilen --
+        # und eine Null kann ein Befund oder ein kaputtes Regex sein, ohne dass man es
+        # ansieht. Der Name trifft 11-mal; geht diese Zahl kaputt, faellt es auf.
+        #
+        # Was die Aenderung erzwingt: jede NEUE Fundstelle roetet und verlangt die
+        # Frage "ist das eine Deklaration des Werts?" -- genau das Ereignis, das die
+        # Behauptung widerlegen wuerde. Die 11 von 2026-08-20 sind Parser (config.py),
+        # Kommentare/Runbook (die Grafana-Regeldatei, meta-watchdog.yml), Test-Fixture
+        # -- der Dateiname der Regeldatei steht hier bewusst NICHT ausgeschrieben:
+        # `_MONITORING_ARTIFACT_SIGNAL` in test_fast_gates_silent_skip_coverage.py
+        # sucht ihn im Volltext und haette diese Datei sonst als Monitoring-Waechter
+        # eingestuft, den sie nicht ist (sie liest die Regeldatei nie).
+        # (test_github_workflow_bridge_invariants.py) und die Erklaertexte dieses
+        # Waechters -- keine mit Wert. Nachmessen:
+        #   grep -rn 'GITHUB_WORKFLOW_MONITOR_IDS' --include='*.py' --include='*.yml' \
+        #     --include='*.yaml' --include='*.ts' --include='*.sh' .
+        #
+        # GRENZE DES PINS, bei der Mutationsprobe gefunden: `_scan` zaehlt pro ZEILE,
+        # nicht pro Vorkommen. Wer den Wert an eine BEREITS treffende Zeile anhaengt,
+        # bleibt unsichtbar -- die erste Mutationsprobe tat genau das und blieb gruen.
+        # Auf einer eigenen Zeile (die realistische Form einer Deklaration) roetet es:
+        # 12 statt 11, belegt 2026-08-20.
+        "pattern": r"GITHUB_WORKFLOW_MONITOR_IDS",
+        "expected_hits": 11,
+        "note": (
+            "Re-run below. Eine zwoelfte Fundstelle ist entweder harmlose Doku -- dann "
+            "Zahl anheben -- oder die Deklaration des Werts im Repo, und dann ist die "
+            "Behauptung im Docstring falsch geworden und gehoert korrigiert."
+        ),
+    },
 }
 
 _FOUR_QUESTIONS = """
