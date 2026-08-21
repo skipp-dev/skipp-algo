@@ -8,7 +8,7 @@ import pytest
 
 from open_prep.pre_a0_mlflow import GovernanceValidationError, validate_bundle
 
-ARTIFACT_ID = "de97b74e6c6f645a513ece01"
+ARTIFACT_ID = "12db269a05d2eece069c5137"  # 2026-08-21 retrain (23 sessions): de97b74e->12db269a
 ARTIFACT_PATH = Path("services/a0_fast_detector/bootstrap/pre-a0-model.json")
 REPORT_PATH = Path("services/a0_fast_detector/bootstrap/validation-report.json")
 POLICY_PATH = Path("governance/pre_a0_promotion_policy.json")
@@ -57,8 +57,8 @@ def test_expired_artifact_blocks_all_promotions() -> None:
         ARTIFACT_PATH,
         REPORT_PATH,
         POLICY_PATH,
-        # One day past the artifact's review_after (2026-11-01T18:14:43Z).
-        now=datetime(2026, 11, 2, tzinfo=UTC),
+        # One day past the artifact's review_after (2026-10-05T16:10:03Z).
+        now=datetime(2026, 10, 6, tzinfo=UTC),
     )
     assert bundle.gates.not_expired is False
     assert bundle.gates.candidate_eligible is False

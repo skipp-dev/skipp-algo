@@ -64,12 +64,16 @@ artifact id, so this by-construction range noise no longer paged while
 re-armed automatically when the retrained artifact went live (dashboard panels
 are unchanged and still show the raw violations).
 
-**Status 2026-08-18 (Doppelgänger-Sweep): the two paragraphs above are
-history, not the present.** The retrained artifact `de97b74e6c6f645a513ece01`
-(9 sessions, horizons `[30, 60, 180]`, test_rows 56015) replaced the bootstrap
-on 2026-08-03 (#4358); `RT_PRE_A0_ALLOWED_HORIZONS=30,60,180` is set and the
-input-drift range term is armed. The current pin population for the artifact
-id is FIVE files (both bootstrap JSONs, `tests/test_pre_a0_mlflow.py`,
+**Status 2026-08-21: the two paragraphs above are history, not the
+present.** The deployed artifact is `12db269a05d2eece069c5137` (23 sessions
+2026-07-21..08-20, horizons `[30, 60, 180]`, test sealed on the walk-forward
+day 2026-08-20 with 67335 rows / 417 positives, AP lift 3.06x). It replaced
+`de97b74e6c6f645a513ece01` (9 sessions), whose envelope capped
+`price_progress` at 1343 while live wild movers printed beyond it — the
+recurring market-hours `pre-a0-input-drift` OOR bursts of 2026-08-17..21.
+`RT_PRE_A0_ALLOWED_HORIZONS=30,60,180` is set and the input-drift range term
+stays armed. The pin population for the artifact id is FIVE files (both
+bootstrap JSONs, `tests/test_pre_a0_mlflow.py`,
 `scripts/check_pre_a0_mlflow_health.py`, `pre-a0-mlflow-health.yml`) — repin
 all five at the next retrain; the ops-side auto-PR script seds only two of
 them and will land in its staged/manual branch.

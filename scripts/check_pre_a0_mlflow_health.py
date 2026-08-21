@@ -17,7 +17,7 @@ from scripts.smc_atomic_write import atomic_write_json
 
 DEFAULT_MODEL_NAME = "skipp-pre-a0"
 DEFAULT_ALIAS = "candidate"
-DEFAULT_ARTIFACT_ID = "de97b74e6c6f645a513ece01"
+DEFAULT_ARTIFACT_ID = "12db269a05d2eece069c5137"  # 2026-08-21 retrain: de97b74e->12db269a
 DEFAULT_RUNTIME_CONTRACT = "local-json-v1"
 DEFAULT_DECLARED_REQUIREMENTS = (
     Path(__file__).resolve().parents[1] / "services" / "mlflow_tracking" / "requirements.txt"
