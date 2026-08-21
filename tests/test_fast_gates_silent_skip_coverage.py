@@ -370,6 +370,12 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_workflow_tv_save_consumer_source_contract.py",
     "tests/test_workflow_tv_post_mutation_verify_contract.py",
     "tests/test_workflow_upload_artifact_uniform_version.py",
+    # 2026-08-21: Vertragswaechter ueber record-test-durations.yml. Auf den
+    # Pflichtpfad, weil eine Aufzeichnung in falscher Form (xdist, --maxfail)
+    # eine .test_durations erzeugt, die vollstaendig AUSSIEHT und den
+    # Shard-Zuschnitt still verfaelscht.
+    "tests/test_record_test_durations_workflow.py",
+    "tests/test_test_durations_coverage_ratchet.py",
     "tests/test_yaml_xml_zero_surface.py",
     # 2026-08-08: repo-wide source guards promoted from advisory to required.
     # Each reads a production surface where a new violation used to merge green

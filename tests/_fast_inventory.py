@@ -133,6 +133,12 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # hier standen, der Wächter selbst aber nicht — deshalb konnte #4911 gruen
     # mergen und main 13 CI-Laeufe lang rot halten.
     "test_test_suite_health_discipline.py",
+    # 2026-08-21: der Abdeckungs-Ratschenwaechter ueber `.test_durations`. Er
+    # gehoert auf den Pflichtpfad, weil eine verrottete Datei den Shard-Zuschnitt
+    # in ci.yml still verfaelscht (jeder unbekannte Test bekommt den MITTELWERT)
+    # — und weil ein Waechter, den nur `validate` faehrt, genau dann kein Urteil
+    # abgibt, wenn dessen Shard haengt (#4929, 21.8.).
+    "test_test_durations_coverage_ratchet.py",
     "test_time_sleep_budget.py",
     "test_type_ignore_budget.py",
     "test_urllib_urlopen_ledger.py",
@@ -155,6 +161,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     # 2026-08-19 (Review-Follow-up #4823): merge_group laeuft ohne den
     # diff-getriebenen Selektor — der Interpreter-Pin-Waechter muss fix gepinnt sein.
     "test_workflow_python_version_pinned.py",
+    "test_record_test_durations_workflow.py",
     "test_scheduled_workflow_observation_inventory.py",
     "test_smc_r4_context_readback_workflow.py",
     "test_scripts_path_as_posix_guard.py",
