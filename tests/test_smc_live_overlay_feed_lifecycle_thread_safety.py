@@ -14,6 +14,22 @@ import types
 
 import pytest
 
+# 2026-08-20: jede Barriere braucht eine Frist.
+#
+# ``threading.Barrier.wait()`` ohne Timeout blockiert UNBEGRENZT, sobald eine
+# der Parteien die Barriere nicht erreicht — der Test haengt dann, statt zu
+# scheitern. Ein haengender Test sagt nichts; ein fehlgeschlagener nennt seinen
+# Namen. Was das kostet, ist an diesem Tag gemessen worden: ein Hang derselben
+# Klasse (geborgte Uhr, #4935) verbrannte 45 Minuten Job-Zeit ohne eine einzige
+# Zeile Diagnose — validate (4), Lauf 32369549784.
+#
+# 15 s statt der 5 s, die ``tests/test_alerts_throttle.py`` fuer dieselbe Form
+# benutzt: dreifacher Spielraum fuer den 2-Kern-Runner. Zugleich eine
+# Groessenordnung UNTER ``faulthandler_timeout = 180`` (#4933), damit ein echter
+# Hang eine saubere ``BrokenBarrierError``-Zusicherung erzeugt statt eines
+# Thread-Dumps.
+_BARRIER_TIMEOUT_SECS = 15.0
+
 
 class _SlowToStartThread:
     """Fake Thread that becomes alive when the start gate is released."""
@@ -148,9 +164,9 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     def _poll_liveness() -> None:
         try:
             for _ in range(iterations):
-                step_barrier.wait()
+                step_barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
                 liveness_results.append(feed_mod.worker_liveness())
-                step_barrier.wait()
+                step_barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
         except Exception as exc:
             errors.append(exc)
 
@@ -162,13 +178,13 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
                     feed_mod._runtime["ingest_thread"] = _SlowToStartThread(name="ingest-processor")
                     feed_mod._refresh_thread = _SlowToStartThread(name="overlay-refresh")
                     feed_mod._flow_refresh_thread = _SlowToStartThread(name="flow-refresh")
-                step_barrier.wait()
+                step_barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
                 with feed_mod._lifecycle_lock:
                     feed_mod._feed_thread = None
                     feed_mod._runtime["ingest_thread"] = None
                     feed_mod._refresh_thread = None
                     feed_mod._flow_refresh_thread = None
-                step_barrier.wait()
+                step_barrier.wait(timeout=_BARRIER_TIMEOUT_SECS)
         except Exception as exc:
             errors.append(exc)
 
