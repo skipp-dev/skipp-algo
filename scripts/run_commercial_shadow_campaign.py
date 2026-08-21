@@ -605,7 +605,20 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
+    """CLI-Einstieg. ``now`` ist eine reine Python-Naht, KEIN Kommandozeilen-Schalter.
+
+    2026-08-21: Der CLI-Test war der einzige in seiner Datei, der sich die Uhr von der
+    Maschine borgte -- alle anderen reichen laengst ``now=_NOW`` durch. Genau dadurch
+    war er in den ersten 15 Minuten nach UTC-Mitternacht taeglich rot: sein
+    Mitternachts-Ausweichzweig alterte die Quelle um 1800 s gegen eine 300-s-Schwelle
+    (Populationsbeweis: 15 von 1440 Minuten). Mit dieser Naht liefert der Test BEIDE
+    Seiten des Vergleichs und braucht den Zweig nicht mehr.
+
+    Bewusst kein ``--now``-Flag: eine gefaelschte Uhr auf der Kommandozeile eines
+    Handelswerkzeugs waere ein Fussangel-Schalter, den niemand braucht. Wer das Modul
+    importiert, kann pinnen; wer es aufruft, bekommt die echte Zeit.
+    """
     args = _build_parser().parse_args(argv)
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
@@ -613,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("input root must be a JSON object")
         attempt, report = run_campaign_observation(
             payload=payload,
+            now=now,
             campaign_dir=args.campaign_dir,
             quantity=args.quantity,
             stop_buffer_bps=args.stop_buffer_bps,

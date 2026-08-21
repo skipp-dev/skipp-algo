@@ -88,6 +88,106 @@ def _audit(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
+def _payload_spanning_midnight() -> tuple[dict, float, float]:
+    """Ein 15-Minuten-Bar quer ueber die UTC-Datumsgrenze: OPEN 23:52Z, CLOSE 00:07Z."""
+    open_ts = datetime(2027, 1, 14, 23, 52, 0, tzinfo=UTC).timestamp()
+    close_ts = open_ts + 900.0
+    payload = _payload()
+    payload["as_of"] = open_ts
+    payload["bars"][0]["timestamp"] = open_ts
+    for gruppe, feld in (
+        ("bos", "time"),
+        ("orderblocks", "anchor_ts"),
+        ("fvg", "anchor_ts"),
+        ("liquidity_sweeps", "time"),
+    ):
+        payload["structure"][gruppe][0][feld] = open_ts
+    return payload, open_ts, close_ts
+
+
+def test_a_bar_spanning_midnight_is_refused(tmp_path: Path) -> None:
+    """Handelstag und Frische kommen von VERSCHIEDENEN Enden desselben Bars.
+
+    ``run_commercial_family_shadow`` leitet den Handelstag aus ``payload["as_of"]``
+    ab, also aus dem Bar-**OPEN**::
+
+        trade_date = source_asof.date().isoformat()
+
+    Die Wissenszeit dagegen ist der Bar-**CLOSE** (``payload_knowledge_ts``, seit
+    #4870 -- Databento stempelt ``ts_event`` am OPEN, gewusst hat man es erst am
+    CLOSE). Solange beide Enden auf denselben UTC-Tag fallen, faellt das nicht auf.
+    Ueberspannt ein Bar Mitternacht, fallen sie auseinander, und
+    ``_validate_prospective_commercial_setups`` in ``run_smc_live_incubation.py``
+    lehnt den Batch mit einem ``ValueError`` ab. Das Verhalten ist LAUT, nicht still
+    -- und genau das haelt dieser Test fest.
+
+    **Warum es diesen Test gibt (2026-08-21).** Bis dahin lebte dieses Wissen
+    ausschliesslich als Ausweichzweig in zwei CLI-Tests: die borgten sich die Uhr
+    (``datetime.now(UTC) - 901``) und schoben den Bar im Mitternachtsfenster um
+    1800 s in den Vortag. Der Zweig verhinderte nichts, er WICH aus -- und alterte
+    dabei die Quelle so weit, dass er ``test_cli_is_local_only_and_writes_campaign_report``
+    taeglich von 00:01Z bis 00:15Z rot machte (15 von 1440 Minuten, gemessen ueber
+    alle Minuten eines Tages; ausserhalb war die Quelle 1 s alt, drinnen 1801 s
+    gegen eine 300-s-Schwelle). Die Uhren sind jetzt gepinnt und die Zweige weg --
+    das Wissen darf deshalb nicht mit ihnen verschwinden.
+
+    **Aendert jemand das Verhalten absichtlich** -- etwa auf "Bar wird auf den
+    OPEN-Tag gebucht, Wissenszeit hin oder her" --, dann roetet dieser Test und
+    verlangt eine Entscheidung statt eines stillen Wechsels. Das ist eine Aussage
+    ueber die Tagesrisiko-Buchfuehrung (``AccountState(as_of=...)`` haengt am
+    Handelstag), nicht ueber einen Test.
+    """
+    payload, open_ts, close_ts = _payload_spanning_midnight()
+    assert (
+        datetime.fromtimestamp(open_ts, UTC).date()
+        != datetime.fromtimestamp(close_ts, UTC).date()
+    ), "Positivkontrolle: die Fixture ueberspannt die Datumsgrenze gar nicht"
+
+    with pytest.raises(ValueError) as excinfo:
+        run_shadow_once(
+            payload=payload,
+            now=datetime.fromtimestamp(close_ts + 1.0, UTC),
+            **_paths(tmp_path),
+        )
+
+    meldung = str(excinfo.value)
+    assert "trade_date" in meldung and "source_asof_ts" in meldung, (
+        "die Ablehnung nennt ihren Grund nicht mehr -- ohne beide Namen kann der "
+        f"naechste Leser die Mitternachts-Ursache nicht erkennen: {meldung!r}"
+    )
+
+
+def test_the_same_bar_one_hour_later_is_accepted(tmp_path: Path) -> None:
+    """Gegenprobe: nicht die Fixture ist kaputt, sondern die Datumsgrenze entscheidet.
+
+    Ohne diese Gegenprobe koennte der Test oben auch dann gruen sein, wenn die
+    Fixture aus einem voellig anderen Grund abgelehnt wird -- und wuerde eine
+    Ablehnung feiern, die mit Mitternacht nichts zu tun hat.
+    """
+    payload, open_ts, close_ts = _payload_spanning_midnight()
+    versatz = 3600.0  # derselbe Bar, eine Stunde spaeter: beide Enden am 15.1.
+    payload["as_of"] = open_ts + versatz
+    payload["bars"][0]["timestamp"] = open_ts + versatz
+    for gruppe, feld in (
+        ("bos", "time"),
+        ("orderblocks", "anchor_ts"),
+        ("fvg", "anchor_ts"),
+        ("liquidity_sweeps", "time"),
+    ):
+        payload["structure"][gruppe][0][feld] = open_ts + versatz
+    assert (
+        datetime.fromtimestamp(open_ts + versatz, UTC).date()
+        == datetime.fromtimestamp(close_ts + versatz, UTC).date()
+    )
+
+    manifest = run_shadow_once(
+        payload=payload,
+        now=datetime.fromtimestamp(close_ts + versatz + 1.0, UTC),
+        **_paths(tmp_path),
+    )
+    assert manifest["broker_io"] is False
+
+
 def test_run_writes_one_complete_audit_only_snapshot(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
 
@@ -235,22 +335,13 @@ def test_no_setup_snapshot_is_recorded_without_creating_audit(tmp_path: Path) ->
 def test_cli_has_no_broker_or_network_switch(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     source = tmp_path / "input.json"
+    # 2026-08-21: Uhr gepinnt statt geborgt. Vorher stand hier
+    # `datetime.now(UTC) - 901` mit einem Mitternachts-Ausweichzweig, der den Bar um
+    # 1800 s in den Vortag schob. Der Zweig pruefte die Datumsgrenze nicht, er wich
+    # ihr aus -- und alterte dabei die Quelle. Beim Geschwister-CLI-Test
+    # (Kampagne) machte genau das den Lauf taeglich 00:01Z-00:15Z rot. Die Grenze
+    # selbst hat jetzt einen eigenen Test: test_a_bar_spanning_midnight_is_refused.
     payload = _payload()
-    # 2026-08-19 (Close-Stempel): letzter Bar muss VOR jetzt schliessen; im
-    # Mitternachtsfenster den Bar ganz in den Vortag schieben, sonst reisst
-    # der trade_date-vs-Close-Datum-Check (deterministisch statt 15min-Flake).
-    current_anchor = datetime.now(UTC).timestamp() - 901.0
-    if (
-        datetime.fromtimestamp(current_anchor, UTC).date()
-        != datetime.fromtimestamp(current_anchor + 900.0, UTC).date()
-    ):
-        current_anchor -= 1800.0
-    payload["as_of"] = current_anchor
-    payload["bars"][0]["timestamp"] = current_anchor
-    payload["structure"]["bos"][0]["time"] = current_anchor
-    payload["structure"]["orderblocks"][0]["anchor_ts"] = current_anchor
-    payload["structure"]["fvg"][0]["anchor_ts"] = current_anchor
-    payload["structure"]["liquidity_sweeps"][0]["time"] = current_anchor
     source.write_text(json.dumps(payload), encoding="utf-8")
 
     rc = main(
@@ -269,7 +360,8 @@ def test_cli_has_no_broker_or_network_switch(tmp_path: Path) -> None:
             str(paths["manifest_path"]),
             "--max-setup-age-seconds",
             "999999999",
-        ]
+        ],
+        now=_NOW,
     )
 
     assert rc == 0

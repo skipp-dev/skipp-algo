@@ -455,17 +455,29 @@ def test_campaign_thresholds_fail_closed(
 
 
 def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
-    # 2026-08-19 (Close-Stempel): siehe gleichlautenden Kommentar im
-    # family-shadow-CLI-Test — datumssicherer Anker statt Mitternachts-Flake.
-    current_anchor = datetime.now(UTC).timestamp() - 901.0
-    if (
-        datetime.fromtimestamp(current_anchor, UTC).date()
-        != datetime.fromtimestamp(current_anchor + 900.0, UTC).date()
-    ):
-        current_anchor -= 1800.0
-    payload = _shift_payload(_payload(), current_anchor - _ANCHOR)
+    """Frische Ware ist frisch genug -- gefragt wird NICHTS ueber die Datumsgrenze.
+
+    2026-08-21: Dieser Test war der einzige seiner Datei, der sich die Uhr von der
+    Maschine borgte. Alle anderen reichen ``now=_NOW`` durch; hier stand stattdessen
+    ``datetime.now(UTC) - 901`` plus ein Ausweichzweig, der den Bar im
+    Mitternachtsfenster um 1800 s zurueckschob. Der Zweig sollte einen Flake
+    beseitigen und erzeugte einen deterministischen Fehlschlag: 1801 s Alter gegen
+    ``max_source_age_p95_seconds`` = 300. Ueber alle 1440 Minuten eines Tages
+    gemessen -- **15 rot, 00:01Z bis 00:15Z**, ausserhalb 1 s Alter. `main` auf
+    sauberem origin/main war dort reproduzierbar rot.
+
+    Beide Seiten des Vergleichs kommen jetzt aus der Fixture: ``_ANCHOR`` liegt fest
+    (OPEN 08:00Z / CLOSE 08:15Z desselben Tages, also von Bauart datumssicher) und
+    ``now=_NOW`` ist der Bar-CLOSE. Damit gibt es keine geliehene Uhr mehr und der
+    Ausweichzweig ist gegenstandslos.
+
+    Was der Zweig als EINZIGE Stelle im Repo festhielt -- dass Handelstag und Frische
+    von verschiedenen Enden desselben Bars kommen -- ist nicht verlorengegangen,
+    sondern steht ausdrucksstaerker in
+    ``test_run_commercial_family_shadow.py::test_a_bar_spanning_midnight_is_refused``.
+    """
     source = tmp_path / "input.json"
-    source.write_text(json.dumps(payload), encoding="utf-8")
+    source.write_text(json.dumps(_payload()), encoding="utf-8")
     campaign_dir = tmp_path / "campaign"
 
     rc = main(
@@ -478,7 +490,8 @@ def test_cli_is_local_only_and_writes_campaign_report(tmp_path: Path) -> None:
             "1",
             "--max-setup-age-seconds",
             "3600",
-        ]
+        ],
+        now=_NOW,
     )
 
     assert rc == 0
