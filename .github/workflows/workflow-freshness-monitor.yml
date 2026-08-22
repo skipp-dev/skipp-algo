@@ -103,6 +103,17 @@ jobs:
           #   fvg-quality-quartile-gate   72:weekday  Mo-Fr Gate.
           # Die Vollstaendigkeit ueber ALLE scheduled Workflows haelt
           # tests/test_scheduled_workflow_observation_inventory.py.
+          # 2026-08-22: openprep-pine-panel-publish traegt eine DATIERTE
+          # expected-stale-Deklaration: letzter Success 8.8., bekannter
+          # Vorfall (haengende TV-Save-Kette + offener Operator-Entscheid
+          # "erster Publish muss 'new' sein"), dessen EIGENE Alarme brennen
+          # (beide TV-Drift-Alerts). Das taegliche by-design-Rot hier
+          # fuetterte nur den generischen "latest run failed"-Alarm und
+          # wuerde die NAECHSTE, unabhaengige stale-Zeile ertraenken.
+          # Ablauf 2026-09-04 (Operator 24.-28.8. abwesend, erste volle
+          # Woche danach): ab dann faellt die Zeile wieder hart rot aus —
+          # Tripwire, kein Mute. Verlaengern heisst: Datum UND Begruendung
+          # hier erneuern.
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
@@ -111,7 +122,7 @@ jobs:
             c13-daily-cron.yml=72:weekday \
             run-open-prep-daily.yml=72:weekday \
             open-prep-outcome-backfill.yml=72:weekday \
-            openprep-pine-panel-publish.yml=72:weekday \
+            openprep-pine-panel-publish.yml=72:weekday:expected-stale-until=2026-09-04 \
             promotion-gate-daily.yml=72:weekday \
             f2-promotion-gate-daily.yml=72:any:weekday \
             fvg-quality-recal-shadow-daily.yml=72:weekday \
@@ -162,6 +173,8 @@ jobs:
               if status == "fresh":
                   age = wf.get("age_hours")
                   print(f"::notice title=workflow-freshness::{name}: fresh ({age}h ago)")
+              elif status == "expected_stale":
+                  print(f"::warning title=workflow-freshness::{name}: stale as DECLARED -- {wf.get('detail')}")
               elif status == "stale":
                   print(f"::error title=workflow-freshness::{name}: STALE -- last success {wf.get('age_hours')}h ago, budget {wf.get('budget_hours')}h")
               elif status == "missing":
