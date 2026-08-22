@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-export type RolloutExecutionMode = "write" | "verify-only";
+export type RolloutExecutionMode = "write" | "verify-only" | "repair-only";
 
 export type RolloutExecutionPlan = Readonly<{
   mode: RolloutExecutionMode;
@@ -105,6 +105,7 @@ export function resolveExecutionPlan(
   env: NodeJS.ProcessEnv,
 ): RolloutExecutionPlan {
   const verifyOnly = args.includes("--verify-only");
+  const repairOnly = args.includes("--repair-only");
   const forceRebind = isTrue(env.TV_FORCE_REBIND);
   const refreshProducer = isTrue(env.TV_REFRESH_PRODUCER);
   const mappingOverride = normalizedMappingOverride(env.TV_CONSUMER_MAPPING_JSON);
@@ -119,12 +120,32 @@ export function resolveExecutionPlan(
     if (mappingOverride && mappingOverride !== "[]") {
       throw new Error("--verify-only conflicts with non-empty TV_CONSUMER_MAPPING_JSON");
     }
+    if (repairOnly) {
+      throw new Error("--verify-only conflicts with --repair-only");
+    }
     return Object.freeze({
       mode: "verify-only",
       saveSources: false,
       refreshProducer: false,
       repairBindings: false,
       saveLayout: false,
+    });
+  }
+
+  if (repairOnly) {
+    // Der Modus stellt her, was ein Producer-Refresh zerlegt hat, und deployt
+    // dabei NICHTS. Schreibende Eingaben werden abgelehnt statt ignoriert:
+    // ein stillschweigend verworfenes TV_REFRESH_PRODUCER liesse den Aufrufer
+    // glauben, sein Refresh sei gelaufen.
+    if (isTrue(env.TV_REFRESH_PRODUCER)) {
+      throw new Error("--repair-only refuses TV_REFRESH_PRODUCER=true: it repairs, it does not refresh");
+    }
+    return Object.freeze({
+      mode: "repair-only" as const,
+      saveSources: false,
+      refreshProducer: false,
+      repairBindings: true,
+      saveLayout: true,
     });
   }
 
