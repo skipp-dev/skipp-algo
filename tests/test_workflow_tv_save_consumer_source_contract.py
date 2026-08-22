@@ -734,6 +734,52 @@ def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:
     assert "refreshChartScriptInstance(session.page, config.producerName)" in batch
 
 
+def test_repair_only_input_reaches_the_cli() -> None:
+    """Der Schalter muss den CLI-Flag erreichen, nicht nur existieren.
+
+    Ein Eingabefeld, das nirgends ankommt, ist die vakuose Variante dieses
+    Features: der Dispatch sieht erfolgreich aus, der Lauf repariert nichts.
+
+    Anders als die anderen boolean-Inputs dieses Workflows (die direkt als
+    ``${{ github.event.inputs.X }}`` in einer env-Zeile stehen) laeuft
+    ``repair_only`` durch dieselbe env-Indirektion wie ``verify_only``: die
+    env-Variable TV_REPAIR_ONLY liest den Input, und das run-Skript liest die
+    env-Variable. Beide Glieder der Kette werden hier geprueft, nicht nur eins.
+    """
+    wf = _load()
+    inputs = (wf.get("on") or wf.get(True))["workflow_dispatch"]["inputs"]
+    assert "repair_only" in inputs, "der Schalter fehlt"
+    assert inputs["repair_only"]["type"] == "boolean"
+    assert inputs["repair_only"]["default"] is False
+
+    save_step = next(
+        step for step in wf["jobs"]["save"]["steps"] if step.get("id") == "save"
+    )
+    assert "github.event.inputs.repair_only" in save_step["env"]["TV_REPAIR_ONLY"], (
+        "die env-Variable liest den Dispatch-Input nicht"
+    )
+    assert "--repair-only" in save_step["run"], (
+        "der Schalter erreicht die CLI nicht — der Lauf wuerde als write laufen"
+    )
+    assert "TV_REPAIR_ONLY" in save_step["run"], (
+        "das run-Skript liest die env-Variable nicht, die den Input traegt"
+    )
+
+
+def test_the_repair_run_obeys_the_operator_window() -> None:
+    """Ein Reparaturlauf mutiert — also gilt das Operator-Gate fuer ihn.
+
+    Sonst kaempft die Automatik gegen die Hand des Operators, waehrend er
+    selbst am Chart arbeitet. Das Gate unterscheidet heute nur verify_only von
+    write; repair_only darf es NICHT zusaetzlich umgehen.
+    """
+    gate = next(s for s in _steps() if s.get("name") == _GATE)
+    assert "verify_only" in gate["if"]
+    assert "repair_only" not in gate["if"], (
+        "repair_only darf das Gate NICHT umgehen — es mutiert das Layout"
+    )
+
+
 def test_verify_only_mode_structurally_gates_every_mutation_and_records_provenance() -> None:
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     evidence = (
