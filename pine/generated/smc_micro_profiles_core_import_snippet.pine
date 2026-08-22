@@ -2,7 +2,7 @@
 // For regime, news, calendar, layering, and event-risk (v5) fields,
 // read mp.FIELD_NAME directly from the library. See the full field
 // inventory in the library header comment.
-import preuss_steffen/smc_micro_profiles_generated/314 as mp
+import preuss_steffen/smc_micro_profiles_generated/315 as mp
 string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS
 string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS
 string midday_dead_tickers_effective = mp.MIDDAY_DEAD_TICKERS
