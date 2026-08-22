@@ -57,10 +57,42 @@ OUTCOMES="artifacts/open_prep/outcomes_local/outcomes_${DATE}.json"
 STATUS_MARKER="cache/live/.audit_push_status_${DATE}"
 mkdir -p cache/live 2>/dev/null || true
 
+# Publishing-Lib und Marker-Summary VOR dem No-Audit-Exit (Grenzgaenger-Sweep
+# 2026-08-22): der Emit sass dahinter, und seit seiner Geburt (#4848, 19.8.)
+# gab es keinen einzigen Audit-Tag mehr — cache/live/c13_status_markers.json
+# hatte auf data/phase-a-audit NIE existiert. Die Ampel floss also exakt an
+# den Tagen nicht, die sie beleuchten soll (Dormanz, tote Treiber). Der
+# Digest muss JEDEN Wochentag fliessen, unabhaengig vom Audit.
+# shellcheck source=automation/launchd/lib_c13_data_push.sh
+source "$(dirname "$0")/lib_c13_data_push.sh"
+# Status-marker summary (#4848 Review-Punkt #4): sanitized digest of the last
+# three days' .<agent>_status_* markers, consumed by c13-daily-cron's
+# status_markers step. Best-effort: a summary failure must never block the
+# audit push; a missing/stale summary is since 2026-08-22 a HARD alarm on
+# the cron side (check()), not a warning.
+MARKERS_SUMMARY="cache/live/c13_status_markers.json"
+VENV="${C13_VENV:-${REPO}/.venv}"
+"${VENV}/bin/python" -m scripts.c13_status_markers emit \
+    --live-dir cache/live --live-dir cache/imbalance --live-dir cache/wsh \
+    --date "${DATE}" --days-back 3 \
+    --output "${MARKERS_SUMMARY}" \
+    || echo "audit-push: WARN — status-marker summary emit failed; pushing without it" >&2
+
 if [[ ! -f "${AUDIT}" ]]; then
     echo "audit-push: DEGRADED — no audit artefact at ${AUDIT}. Phase-A produced no" \
          "incubation file today; check com.skippalgo.c13.phase-a (Full-Disk-Access/TCC," \
-         "venv path, or upstream trade-cards). Nothing pushed." >&2
+         "venv path, or upstream trade-cards). Pushing the status-marker summary alone." >&2
+    echo "degraded:no-audit-file:$(date -u +%FT%TZ)" > "${STATUS_MARKER}" || true
+    # push_to_data_branch schreibt sein EIGENES Ergebnis in das Marker-Arg
+    # (ok:pushed/degraded:push-*). Danach die semantische Wahrheit
+    # zurueckschreiben: der Tag hatte kein Audit — das ist es, was morgen im
+    # Digest stehen muss. Ein verlorener push-failed-Detailtext ist verkraftbar:
+    # scheitert der Push, wird die Summary stale und check() roetet CI-seitig.
+    push_to_data_branch \
+        "chore(c13): status markers ${DATE} (no-audit day)" \
+        "${STATUS_MARKER}" \
+        "${MARKERS_SUMMARY}" \
+        || echo "audit-push: WARN — summary-only push failed; check() reds on staleness" >&2
     echo "degraded:no-audit-file:$(date -u +%FT%TZ)" > "${STATUS_MARKER}" || true
     exit 0
 fi
@@ -78,20 +110,8 @@ fi
 # NOTE: this was a ``git worktree`` of the dev clone until 2026-07-06 — if
 # you are debugging a frozen data branch, the state lives in the cache dir
 # above, not in ``git worktree list``. See lib_c13_data_push.sh's header.
-# shellcheck source=automation/launchd/lib_c13_data_push.sh
-source "$(dirname "$0")/lib_c13_data_push.sh"
-# Status-marker summary (#4848 Review-Punkt #4): sanitized digest of the last
-# three days' .<agent>_status_* markers, consumed by c13-daily-cron's
-# status_markers step. Best-effort BEFORE the primary payload: a summary
-# failure must never block the audit push, and the cron treats a missing
-# summary as its own warning.
-MARKERS_SUMMARY="cache/live/c13_status_markers.json"
-VENV="${C13_VENV:-${REPO}/.venv}"
-"${VENV}/bin/python" -m scripts.c13_status_markers emit \
-    --live-dir cache/live --live-dir cache/imbalance --live-dir cache/wsh \
-    --date "${DATE}" --days-back 3 \
-    --output "${MARKERS_SUMMARY}" \
-    || echo "audit-push: WARN — status-marker summary emit failed; pushing without it" >&2
+# (Lib + Marker-Summary werden seit 2026-08-22 VOR dem No-Audit-Exit oben
+# geladen bzw. emittiert — die Summary faehrt in diesem Push nur noch mit.)
 push_to_data_branch \
     "chore(c13): phase-a audit ${DATE}" \
     "${STATUS_MARKER}" \

@@ -177,29 +177,127 @@ def emit(
     return summary
 
 
+def _previous_weekday(day: date_type) -> date_type:
+    d = day - timedelta(days=1)
+    while d.isoweekday() > 5:
+        d -= timedelta(days=1)
+    return d
+
+
+#: Treiber, deren Marker an jedem einschlaegigen Tag EXISTIEREN muessen.
+#: eod_flatten an Handelstagen (Feiertage via is_trading_day — der Wrapper
+#: steigt dort seit #4990 bewusst markerlos aus); reconcile und audit_push an
+#: jedem Wochentag, aber nur STRIKT vor window_end: reconcile feuert 23:05
+#: LOKAL und liegt in den +5-DST-Wochen (~50 Tage/Jahr) HINTER dem
+#: 17:30-ET-Emit — Praesenz am Emissionstag selbst zu verlangen waere ein
+#: eingebauter Jahres-Fehlalarm.
+_REQUIRED_ON_TRADING_DAYS = ("eod_flatten",)
+_REQUIRED_ON_WEEKDAYS_BEFORE_END = ("reconcile", "audit_push")
+
+
 def check(summary_path: Path, *, date: str) -> int:
-    """Return 1 if any marker of ``date`` or the day before is not green."""
+    """Return 1 when the marker chain is broken or a scoped marker is not green.
+
+    Grenzgaenger-Sweep 2026-08-22, drei GEMESSENE Loecher der Erstfassung:
+    (1) die Summary hatte auf dem Data-Branch NIE existiert (der Emit sass
+    hinter dem No-Audit-Exit des audit-push-Treibers) und "fehlend" war weich;
+    (2) Staleness war von "Wochenende" ununterscheidbar — Marker fielen aus
+    dem Scope und der Lauf blieb gruen; (3) ABWESENHEIT war unsichtbar: der
+    EOD-Flatten-Haenger vom 21.8. (8 h 41 min, Marker nie geschrieben) waere
+    auch mit frischer Summary gruen geblieben, weil nur vorhandene nicht-
+    gruene Marker alarmierten. Fehlend/stale/abwesend sind jetzt rot;
+    weich bleibt allein die Broker-Dormanz (audit_push/no-audit-file — sie
+    ist Design, reconcile stempelt denselben Zustand bewusst SUCCESS).
+
+    Die Praesenzpruefung ankert am ``window_end`` der Summary SELBST, nicht
+    am Cron-Datum: der Cron (22:00Z) laeuft im Winter VOR dem 17:30-ET-Push
+    desselben Handelstags, dessen Marker also fruehestens einen Tag spaeter
+    ankommen. Alarm-Latenz bleibt damit maximal zwei Wochentage.
+    """
     if not summary_path.is_file():
-        # A missing summary means the audit push never ran — that day is
-        # already covered by the cron's own no-audit soft-skip (rc=78) and
-        # the freshness monitors; a second alarm here would double-report.
-        print(f"::warning::c13 status markers: no summary at {summary_path}; nothing to check")
-        return 0
+        print(
+            f"::error::c13 status markers: no summary at {summary_path} — the "
+            "workstation->data-branch chain has not delivered (audit-push dead, "
+            "push failing, or overlay broken). Every workstation failure is "
+            "invisible until this flows again."
+        )
+        return 1
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     end = date_type.fromisoformat(date)
+
+    # (2) Frische: die Summary ist der Herzschlag der Mac->Branch-Kette.
+    # Ein Wochentag Nachlauf ist erlaubt (Winter-Fall oben); mehr ist Ausfall.
+    try:
+        window_end = date_type.fromisoformat(str(summary.get("window_end")))
+    except ValueError:
+        print(
+            f"::error::c13 status markers: unparseable window_end "
+            f"{summary.get('window_end')!r} — refusing to judge freshness from it"
+        )
+        return 1
+    if window_end < _previous_weekday(end):
+        print(
+            f"::error::c13 status markers: summary is stale (window_end "
+            f"{window_end.isoformat()}, expected >= "
+            f"{_previous_weekday(end).isoformat()}) — the workstation push "
+            "chain has stopped delivering"
+        )
+        return 1
+
+    markers = summary.get("markers", [])
+
+    # (3) Praesenz ueber das Fenster der Summary: ein Treiber, der HAENGT,
+    # schreibt keinen Marker — genau dieser Fall muss rot werden.
+    from scripts.us_equity_early_closes import is_trading_day
+
+    have = {(str(m.get("agent")), str(m.get("date"))) for m in markers}
+    window_days = int(summary.get("window_days") or 3)
+    missing: list[str] = []
+    for offset in range(min(3, window_days)):
+        day = window_end - timedelta(days=offset)
+        if day.isoweekday() > 5:
+            continue
+        if is_trading_day(day):
+            for agent in _REQUIRED_ON_TRADING_DAYS:
+                if (agent, _iso(day)) not in have:
+                    missing.append(f"{agent}({_iso(day)})")
+        if day < window_end:
+            for agent in _REQUIRED_ON_WEEKDAYS_BEFORE_END:
+                if (agent, _iso(day)) not in have:
+                    missing.append(f"{agent}({_iso(day)})")
+
+    # (1) Inhalt: nicht-gruene Marker von heute/gestern, wie gehabt — mit
+    # der EINEN dokumentierten Ausnahme Broker-Dormanz.
     scope = {_iso(end), _iso(end - timedelta(days=1))}
-    in_scope = [m for m in summary.get("markers", []) if m.get("date") in scope]
-    if not in_scope:
-        print(f"::warning::c13 status markers: none dated {sorted(scope)} (weekend/holiday?)")
-        return 0
-    offenders = [m for m in in_scope if str(m.get("kind", "")).lower() not in GREEN_KINDS]
+    in_scope = [m for m in markers if m.get("date") in scope]
+    offenders: list[dict] = []
+    dormant: list[dict] = []
+    for m in in_scope:
+        kind = str(m.get("kind", "")).lower()
+        if kind in GREEN_KINDS:
+            continue
+        if (
+            str(m.get("agent")) == "audit_push"
+            and kind == "degraded"
+            and str(m.get("message", "")).startswith("no-audit-file")
+        ):
+            dormant.append(m)
+            continue
+        offenders.append(m)
     for m in in_scope:
         print(f"marker {m['date']} {m['agent']}: {m['kind']} {m.get('message', '')}".rstrip())
+    if dormant:
+        days = ", ".join(sorted(str(m["date"]) for m in dormant))
+        print(
+            f"::warning::c13 status markers: no phase-a audit on {days} — "
+            "expected while the broker is dormant; the paper-flip decision owns this."
+        )
+    if missing:
+        print(f"::error::c13 status markers MISSING (driver hung or never fired): {', '.join(missing)}")
     if offenders:
         names = ", ".join(f"{m['agent']}({m['date']}): {m['kind']}" for m in offenders)
         print(f"::error::c13 status markers not green: {names}")
-        return 1
-    return 0
+    return 1 if (missing or offenders) else 0
 
 
 def main(argv: list[str] | None = None) -> int:

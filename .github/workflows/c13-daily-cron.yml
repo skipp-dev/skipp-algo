@@ -192,8 +192,12 @@ jobs:
       # audit push ships a sanitized summary (cache/live/c13_status_markers
       # .json, overlaid above); this step alarms on any non-green marker of
       # the trade date or the day before, so a silent failure lives at most
-      # one day. Missing summary / empty window stay soft (no-audit days and
-      # staleness already have owners: rc=78 + the freshness guards).
+      # one day. Seit 2026-08-22 (Grenzgaenger-Sweep) sind AUCH rot: fehlende
+      # Summary, stale Summary (window_end aelter als der letzte Wochentag)
+      # und ABWESENDE Pflicht-Marker (eod_flatten an Handelstagen, reconcile/
+      # audit_push an Wochentagen vor window_end) — der 8h41-Haenger vom 21.8.
+      # schrieb keinen Marker und war der alten Fassung unsichtbar. Weich
+      # bleibt allein Broker-Dormanz (audit_push degraded/no-audit-file).
       - name: Step 0 — check workstation status markers (advisory)
         id: status_markers
         # CONTINUE-ON-ERROR-INTENTIONAL: advisory like steps 1-5b — the alarm
