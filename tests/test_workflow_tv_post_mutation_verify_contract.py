@@ -101,17 +101,51 @@ def test_the_loop_terminates_by_measurement_not_convention() -> None:
         "Wait 15 minutes before re-reading the mutated surface",
         "Dispatch the read-only verification",
     ):
-        assert steps[name]["if"] == "${{ steps.mode.outputs.mode != 'verify-only' }}"
+        assert steps[name]["if"] == (
+            "${{ steps.mode.outputs.mode != 'verify-only' "
+            "&& steps.mode.outputs.mode != 'never-ran' }}"
+        )
 
     # Order: gate before sleep before dispatch — a dispatch ahead of the gate
     # would loop, a sleep ahead of the gate would waste 15 runner-minutes on
     # every verify completion.
     names = [step["name"] for step in _steps()]
     assert (
-        names.index("Stop when the completed run was read-only")
+        names.index("Stop when the completed run provably did not mutate")
         < names.index("Wait 15 minutes before re-reading the mutated surface")
         < names.index("Dispatch the read-only verification")
     )
+
+
+def test_a_save_job_that_never_ran_exits_without_the_fifteen_minute_look() -> None:
+    """A trigger run whose save job never ran must not earn a re-verify.
+
+    Decided 2026-08-22. Since #4998 split tv-save-consumer-source into a
+    supersession-gate job plus the save job, a superseded (or
+    failed-refresh-guard) run completes as SUCCESS with a SKIPPED save job —
+    the 2026-08-03 skipped exit at the job gate never sees it — and a run
+    cancelled while still queued completes with no jobs at all. Both have no
+    snapshot, so before this probe each one earned a fail-closed verify-only
+    dispatch. Measured 2026-08-22: 11 queued saves cancelled at 09:40Z
+    produced one dispatch every ~15 min into the starved session queue.
+
+    The probe reads GitHub's job record — the only artifact-free proof that
+    no browser was opened — and must itself fail closed: on a probe error the
+    mode stays "unknown" and the re-verify still runs.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    run = steps["Read the completed run's execution mode from its snapshot"]["run"]
+    # The probe reads the trigger run's job list, not the event payload…
+    assert "/jobs?per_page=100" in run
+    # …counts only save jobs that actually ran. Skipped jobs DO carry a
+    # started_at timestamp (measured: run 32467080904), so the filter must be
+    # by conclusion, never by started_at.
+    assert 'select(.name == "save")' in run
+    assert 'select(.conclusion != "skipped")' in run
+    # Only an exact count of 0 flips the mode; a probe error must not.
+    assert '"${save_ran}" = "0"' in run
+    assert "|| echo probe-error" in run
+    assert 'mode="never-ran"' in run
 
 
 def test_the_dispatch_is_read_only_and_targets_the_save_workflow() -> None:
