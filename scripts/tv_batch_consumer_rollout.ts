@@ -43,8 +43,10 @@ import {
 } from "./tv_verify_consumer_bindings.js";
 import {
   compareAgainstBaseline,
+  selectLayoutsNeedingRepair,
   type ObservedConsumer,
   type OutOfBandVerdict,
+  type RepairCandidateConsumer,
 } from "../automation/tradingview/lib/tv_out_of_band_drift.js";
 
 type RolloutConfig = {
@@ -202,12 +204,18 @@ function getFlag(name: string, fallback: string): string {
  * this walks the layouts read-only. A target that cannot be read is simply
  * absent from the result, which the comparison turns into "unknown" rather than
  * into a false drift.
+ *
+ * Returns two views of the same pass: `observed` (label/actual pairs) feeds
+ * compareAgainstBaseline, and `consumers` (scriptName/mismatches) feeds
+ * selectLayoutsNeedingRepair — repair-only's layout-scoping decision reuses
+ * this read instead of paying for a second browser pass.
  */
 async function observeBindingsOnly(
   session: Awaited<ReturnType<typeof newTradingViewSession>>,
   config: RolloutConfig,
-): Promise<ObservedConsumer[]> {
+): Promise<{ observed: ObservedConsumer[]; consumers: RepairCandidateConsumer[] }> {
   const observed: ObservedConsumer[] = [];
+  const consumers: RepairCandidateConsumer[] = [];
   for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
     try {
       // The navigation sits inside the same swallow as the read below it, on
@@ -240,6 +248,7 @@ async function observeBindingsOnly(
             scriptName: result.scriptName,
             selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
           });
+          consumers.push({ scriptName: result.scriptName, mismatches: result.mismatches });
         } catch (error) {
           // The target stays absent — an unread target must not read as
           // unchanged — but never silently: the two 2026-08-14 misses left
@@ -260,7 +269,7 @@ async function observeBindingsOnly(
       );
     }
   }
-  return observed;
+  return { observed, consumers };
 }
 
 /**
@@ -455,6 +464,12 @@ async function main(): Promise<void> {
       );
     }
 
+    // repair-only's scoping decision: which chart layouts the later loop is
+    // allowed to touch. Stays empty for every other mode -- the skip check at
+    // the loop below is itself gated on executionPlan.mode === "repair-only",
+    // so an empty array here never narrows a write or verify-only run.
+    let layoutsNeedingRepair: string[] = [];
+
     // Before anything is written. After the first save, a difference could be
     // this run's own doing and proves nothing about a second writer. A
     // read-only run never writes, so it has no "before the first mutation"
@@ -463,13 +478,28 @@ async function main(): Promise<void> {
     // report.tradingViewObserved.bindings rather than paying for a second
     // observeBindingsOnly pass here).
     if (executionPlan.mode !== "verify-only") {
+      const preMutation = await observeBindingsOnly(session, config);
       report.outOfBandDrift = compareAgainstBaseline({
-        observed: await observeBindingsOnly(session, config),
+        observed: preMutation.observed,
         baseline: loadPublishedBaseline(baselinePath),
         expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
       });
       if (report.outOfBandDrift.status !== "clean") {
         console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
+      }
+      // Reuses this same read rather than a second browser pass: a consumer
+      // this read never saw (an unreachable layout, or a target the per-target
+      // catch above swallowed) is absent from preMutation.consumers, and
+      // selectLayoutsNeedingRepair treats that absence as needing repair too
+      // -- an observation outage widens the run, it never narrows it.
+      if (executionPlan.mode === "repair-only") {
+        layoutsNeedingRepair = selectLayoutsNeedingRepair(
+          preMutation.consumers,
+          config.verifyTargets.map((target) => ({
+            scriptName: target.scriptName,
+            chartUrl: target.chartUrl ?? config.primaryChartUrl,
+          })),
+        );
       }
     }
 
@@ -658,6 +688,15 @@ async function main(): Promise<void> {
         // mutated, and a failure inside the layout must not retroactively make
         // it look untouched.
         const mutatingLayout = repairBindings;
+
+        // Im repair-only-Modus wird NUR angefasst, was der Vor-Mutations-
+        // Snapshot als defekt gemeldet hat. Saubere Layouts bleiben unberuehrt --
+        // ein Reparaturlauf darf kein zweiter Zerstoerer werden.
+        if (executionPlan.mode === "repair-only" && !layoutsNeedingRepair.includes(layout.chartUrl)) {
+          console.error(`[tv-trace] repair-skip-clean-layout ${layout.chartUrl}`);
+          continue;
+        }
+
         let layoutRepairedCleanly = true;
         // The targets that made this layout unclean, by name. The boolean above
         // says THAT the layout is partial; the alert a human reads has to say

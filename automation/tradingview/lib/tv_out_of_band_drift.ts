@@ -198,3 +198,37 @@ export function compareAgainstBaseline(args: {
 
   return { status: "clean", reason: "every binding matches the last CI observation", changed: [] };
 }
+
+export type RepairCandidateConsumer = {
+  scriptName: string;
+  mismatches: readonly unknown[];
+};
+
+export type RepairCandidateTarget = {
+  scriptName: string;
+  chartUrl: string;
+};
+
+/**
+ * Die Layouts, die eine Reparatur brauchen — und nur die.
+ *
+ * Ein Konsument, den der Snapshot NICHT nennt, zaehlt als reparaturbeduerftig:
+ * eine leere Beobachtung ist kein gruener Befund (2026-08-14, `bindings: []`
+ * vergiftete die Drift-Grundlinie). Lieber einmal zu viel reparieren — die
+ * Reparatur ist idempotent — als ein zerlegtes Layout fuer sauber halten.
+ */
+export function selectLayoutsNeedingRepair(
+  consumers: readonly RepairCandidateConsumer[],
+  targets: readonly RepairCandidateTarget[],
+): string[] {
+  const byName = new Map(consumers.map((c) => [c.scriptName, c]));
+  const needed: string[] = [];
+  for (const target of targets) {
+    const observed = byName.get(target.scriptName);
+    const broken = !observed || observed.mismatches.length > 0;
+    if (broken && !needed.includes(target.chartUrl)) {
+      needed.push(target.chartUrl);
+    }
+  }
+  return needed;
+}
