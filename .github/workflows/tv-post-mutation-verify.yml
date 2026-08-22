@@ -29,9 +29,21 @@ name: tv-post-mutation-verify
 #     published binding snapshot and exits when executionMode is verify-only.
 #     A run whose snapshot is missing (died before upload) is treated as
 #     mutating — nobody can prove it did not write, so the cheap re-verify
-#     runs. Fail closed, in the direction of looking. One exception, decided
-#     2026-08-03: a SKIPPED trigger run exits at the job gate — skipped means
-#     the save job never started, which is GitHub's own record, not a claim.
+#     runs. Fail closed, in the direction of looking. Two exceptions, both
+#     read from GitHub's own records rather than anyone's claim:
+#
+#       - decided 2026-08-03: a SKIPPED trigger run exits at the job gate —
+#         skipped means the save job never started.
+#       - decided 2026-08-22: a trigger run whose SAVE JOB never ran exits at
+#         the mode gate. Since #4998 split the save workflow into a
+#         supersession-gate job plus the save job, a superseded (or
+#         failed-refresh-guard) run completes as SUCCESS with a skipped save
+#         job — the 2026-08-03 skipped exit never sees it — and a run
+#         cancelled while still queued completes with no jobs at all. Both
+#         used to earn a fail-closed verify-only dispatch despite provably
+#         never opening a browser. Measured 2026-08-22: 11 queued saves
+#         cancelled at 09:40Z produced one dispatch every ~15 min into the
+#         already starved tradingview-session queue.
 
 on:
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
@@ -98,6 +110,21 @@ jobs:
           mode="unknown"
           if gh run download "${TRIGGER_RUN_ID}" -n tradingview-consumer-bindings -D snapshot 2>/dev/null; then
             mode="$(jq -r '.executionMode // "unknown"' snapshot/tradingview_consumer_bindings.json 2>/dev/null || echo unknown)"
+          else
+            # No snapshot. Distinguish "the save job never ran" from "died
+            # mid-run" via the trigger run's job list — GitHub's own record,
+            # the only artifact-free proof that no browser was opened. A run
+            # cancelled while queued has zero jobs (measured: run 32560401563);
+            # a superseded/guard-skipped run has a save job with conclusion
+            # "skipped" (skipped jobs DO carry started_at, so filter by
+            # conclusion, measured: run 32467080904). Only an exact count of 0
+            # flips the mode — a probe error yields "probe-error" and leaves
+            # mode=unknown: fail closed, in the direction of looking.
+            save_ran="$(gh api "repos/${GH_REPO}/actions/runs/${TRIGGER_RUN_ID}/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "save") | select(.conclusion != "skipped")] | length' 2>/dev/null || echo probe-error)"
+            if [ "${save_ran}" = "0" ]; then
+              mode="never-ran"
+            fi
           fi
           echo "mode=${mode}" >> "$GITHUB_OUTPUT"
           echo "trigger run ${TRIGGER_RUN_ID} executionMode: ${mode}"
@@ -105,17 +132,21 @@ jobs:
       # Loop guard. The verify run this workflow dispatches completes and
       # re-triggers this workflow; its snapshot says verify-only and the chain
       # ends here — measured from the artifact, not inferred from event names.
-      - name: Stop when the completed run was read-only
-        if: ${{ steps.mode.outputs.mode == 'verify-only' }}
+      # Same exit for a trigger run whose save job never ran (superseded,
+      # guard-skipped, or cancelled while queued): nothing touched the surface.
+      - name: Stop when the completed run provably did not mutate
+        if: ${{ steps.mode.outputs.mode == 'verify-only' || steps.mode.outputs.mode == 'never-ran' }}
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
         run: |
-          echo "::notice::completed run was verify-only — no re-verification needed"
+          echo "::notice::completed run was ${MODE} — no re-verification needed"
 
       - name: Wait 15 minutes before re-reading the mutated surface
-        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
         run: sleep 900
 
       - name: Dispatch the read-only verification
-        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -129,7 +160,7 @@ jobs:
             -d '{"ref":"main","inputs":{"verify_only":"true"}}'
 
       - name: Write dispatch summary
-        if: ${{ steps.mode.outputs.mode != 'verify-only' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
         env:
           TRIGGER_MODE: ${{ steps.mode.outputs.mode }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
