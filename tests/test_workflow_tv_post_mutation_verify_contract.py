@@ -103,7 +103,8 @@ def test_the_loop_terminates_by_measurement_not_convention() -> None:
     ):
         assert steps[name]["if"] == (
             "${{ steps.mode.outputs.mode != 'verify-only' "
-            "&& steps.mode.outputs.mode != 'never-ran' }}"
+            "&& steps.mode.outputs.mode != 'never-ran' "
+            "&& steps.mode.outputs.mode != 'write-no-mutation' }}"
         )
 
     # Order: gate before sleep before dispatch — a dispatch ahead of the gate
@@ -158,3 +159,56 @@ def test_the_dispatch_is_read_only_and_targets_the_save_workflow() -> None:
 
     sleep = next(s for s in _steps() if s["name"].startswith("Wait 15 minutes"))
     assert sleep["run"].strip() == "sleep 900"
+
+
+def test_a_write_run_that_provably_touched_nothing_exits_too() -> None:
+    """A refused write run carries its own proof; the gate must read it.
+
+    Decided 2026-08-22, third exception after skipped (08-03) and never-ran
+    (08-22). The save workflow uploads its binding snapshot on failure too, so
+    a run that died at a preflight gate publishes executionMode=write with
+    every mutation counter at zero. Measured on run 32499587392, which refused
+    at "manifest says 314, TradingView lists 315": reading executionMode alone
+    turned that refusal into a +15min verify dispatch, and while the saves
+    failed systematically the chain fed itself -- 15 dispatches sat 14-15 min
+    behind a completed run that day, flooding the single-slot TradingView
+    queue the drift alerts were waiting on.
+
+    The proof must be exhaustive and fail closed: EVERY mutation field is
+    checked for presence AND emptiness, so a schema that grows a new field, a
+    partial write, or a corrupt artifact keeps the re-verify. Verified against
+    the real snapshot plus ten mutated variants of it.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    run = steps["Read the completed run's execution mode from its snapshot"]["run"]
+
+    # Only a WRITE snapshot is ever re-classified — verify-only already exits,
+    # and "unknown" must keep looking.
+    assert '[ "${mode}" = "write" ]' in run
+    assert 'mode="write-no-mutation"' in run
+    # jq -e is what makes a missing field or a broken file fail closed.
+    assert "jq -e" in run
+
+    # Every field that records a real change must be proven PRESENT and EMPTY.
+    # A new mutation field added to the snapshot without being listed here
+    # would let a genuine write masquerade as stillness, so the emptiness
+    # clause is spelled out per field rather than pattern-matched.
+    emptiness = {
+        "sourceSavesCompleted": ".sourceSavesCompleted == 0",
+        "producerInstancesRemoved": ".producerInstancesRemoved == 0",
+        "consumerInstancesRemoved": ".consumerInstancesRemoved == 0",
+        "bindingsRepaired": ".bindingsRepaired == 0",
+        "layoutSaved": ".layoutSaved == false",
+        "savedChartUrls": "(.savedChartUrls | length) == 0",
+        "abandonedChartUrls": "(.abandonedChartUrls | length) == 0",
+        "savedWithoutAttestation": "(.savedWithoutAttestation | length) == 0",
+    }
+    normalised = " ".join(run.split())
+    for field, clause in emptiness.items():
+        assert f'has("{field}")' in normalised, (
+            f"{field} is not proven PRESENT — a snapshot missing it would be "
+            "read as 'nothing happened'"
+        )
+        assert clause in normalised, (
+            f"{field} is not proven EMPTY (expected the clause {clause!r})"
+        )
