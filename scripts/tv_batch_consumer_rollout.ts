@@ -52,12 +52,30 @@ type RolloutConfig = {
   verifyTargets: VerifyConsumerTarget[];
 };
 
-type FailedTarget = { target: string; error: string };
+/**
+ * One entry per verification attempt of a target.
+ *
+ * Added 2026-08-22: the retry loop kept its per-attempt detail (exit, duration,
+ * error text) only in the CI log, so the artifact alone could not tell one
+ * flake from N identical deterministic failures — the distinction
+ * preflight_retry_log.jsonl exists to make. `bindings.failed[].error` carries
+ * only the LAST error.
+ */
+type VerifyAttempt = { attempt: number; durationMs: number; error: string };
+type FailedTarget = { target: string; error: string; attempts?: VerifyAttempt[] };
 type RolloutReport = {
   schemaVersion: 2;
   executionMode: RolloutExecutionMode;
   observedAt: string;
   generatedAt: string;
+  /**
+   * When the run STOPPED observing. `observedAt`/`generatedAt` are both stamped
+   * at the START (run 758: 05:25:03 stamped, last trace line 05:53:20 — a 28
+   * minute run), which is enough to misorder cause and effect when correlating
+   * a layout write against the operator's own browser or the next refresh.
+   * Null until the report is finalised.
+   */
+  completedAt: string | null;
   generated_at_unix: number;
   durationSeconds: number;
   ok: boolean;
@@ -162,7 +180,7 @@ type RolloutReport = {
     checkedConsumers: number;
     checkedBindings: number;
     mismatches: number;
-    consumers: VerifyConsumerResult[];
+    consumers: (VerifyConsumerResult & { attempts?: VerifyAttempt[] })[];
     failed: FailedTarget[];
   };
 };
@@ -331,6 +349,7 @@ async function main(): Promise<void> {
     executionMode: executionPlan.mode,
     observedAt,
     generatedAt: observedAt,
+    completedAt: null,
     generated_at_unix: Math.floor(Date.parse(observedAt) / 1000),
     durationSeconds: 0,
     ok: false,
@@ -632,22 +651,36 @@ async function main(): Promise<void> {
         // it look untouched.
         const mutatingLayout = repairBindings;
         let layoutRepairedCleanly = true;
+        // The targets that made this layout unclean, by name. The boolean above
+        // says THAT the layout is partial; the alert a human reads has to say
+        // WHICH script blocked it -- the 2026-08-22 drift alerts named the
+        // effect ("bindings drifted") while the cause was one script whose
+        // settings dialog never opens.
+        const blockingTargets: string[] = [];
 
         for (const target of layout.targets) {
           let result: VerifyConsumerResult | null = null;
           let lastError = "unknown verification failure";
+          // One entry per attempt, so the ARTIFACT alone separates a single
+          // flake from N identical deterministic failures. The per-attempt
+          // detail used to live only in the CI log; the bar is
+          // preflight_retry_log.jsonl.
+          const attempts: { attempt: number; durationMs: number; error: string }[] = [];
           for (let attempt = 1; attempt <= 2; attempt += 1) {
+            const startedAt = Date.now();
             try {
               result = await verifyConsumerBindings(session, target, repairBindings, repairBindings);
               lastError = "";
+              attempts.push({ attempt, durationMs: Date.now() - startedAt, error: "" });
               break;
             } catch (error) {
               lastError = String((error as Error)?.message ?? error);
+              attempts.push({ attempt, durationMs: Date.now() - startedAt, error: lastError });
               if (attempt < 2) await gotoChart(session.page, layout.chartUrl).catch(() => undefined);
             }
           }
-          if (result) report.bindings.consumers.push(result);
-          else report.bindings.failed.push({ target: target.scriptName, error: lastError });
+          if (result) report.bindings.consumers.push({ ...result, attempts });
+          else report.bindings.failed.push({ target: target.scriptName, error: lastError, attempts });
           // Exactly the run's own success criterion, per target: report.ok is
           // gated on bindings.failed and bindings.mismatches. It deliberately
           // does NOT include result.ok, which also carries
@@ -655,7 +688,10 @@ async function main(): Promise<void> {
           // the residual window after the repair still collects dead-parent
           // errors from the OTHER consumers this run has not repaired yet.
           // Abandoning on it would abandon every layout of a healthy rollout.
-          if (!result || result.mismatches.length > 0) layoutRepairedCleanly = false;
+          if (!result || result.mismatches.length > 0) {
+            layoutRepairedCleanly = false;
+            blockingTargets.push(target.scriptName);
+          }
         }
 
         if (!executionPlan.saveLayout || !mutatingLayout) continue;
@@ -675,6 +711,16 @@ async function main(): Promise<void> {
           // rollback, and rolling back is exactly what we no longer want.
           partiallyRepairedChartUrls.push(layout.chartUrl);
           repairBindings = false;
+          // Loud, not just a JSON field. This branch WRITES an incomplete
+          // binding set onto the operator's traded chart -- a real degradation,
+          // and the kind that used to look like success. It names the blocking
+          // scripts so the reader does not have to open the run to learn which
+          // one to fix.
+          console.log(
+            `::warning title=Partial layout repair saved::${layout.chartUrl} — `
+            + `${blockingTargets.length} of ${layout.targets.length} targets stayed on defaults; `
+            + `blocked by: ${blockingTargets.join(", ")}`,
+          );
         }
 
         try {
@@ -787,6 +833,10 @@ async function main(): Promise<void> {
       }
     }
     report.durationSeconds = Math.round((Date.now() - started) / 100) / 10;
+    // The END of the observation, as opposed to observedAt/generatedAt which are
+    // both the start. Without it, "when did this run touch the chart?" is only
+    // answerable from the CI log.
+    report.completedAt = new Date().toISOString();
     // producerRefresh is deliberately NOT a factor: it is a cosmetic re-apply of an
     // already-published script, and TradingView's SPA makes it the flakiest step in
     // the run. Its outcome stays in report.producerRefresh.{ok,error} as evidence.

@@ -129,11 +129,13 @@ jobs:
                   | has("sourceSavesCompleted") and has("producerInstancesRemoved")
                     and has("consumerInstancesRemoved") and has("bindingsRepaired")
                     and has("layoutSaved") and has("savedChartUrls")
-                    and has("abandonedChartUrls") and has("savedWithoutAttestation")
+                    and has("abandonedChartUrls") and has("partiallyRepairedChartUrls")
+                    and has("savedWithoutAttestation")
                     and .sourceSavesCompleted == 0 and .producerInstancesRemoved == 0
                     and .consumerInstancesRemoved == 0 and .bindingsRepaired == 0
                     and .layoutSaved == false and (.savedChartUrls | length) == 0
                     and (.abandonedChartUrls | length) == 0
+                    and (.partiallyRepairedChartUrls | length) == 0
                     and (.savedWithoutAttestation | length) == 0
                 ' snapshot/tradingview_consumer_bindings.json >/dev/null 2>&1; then
               mode="write-no-mutation"
