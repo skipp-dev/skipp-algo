@@ -110,6 +110,34 @@ jobs:
           mode="unknown"
           if gh run download "${TRIGGER_RUN_ID}" -n tradingview-consumer-bindings -D snapshot 2>/dev/null; then
             mode="$(jq -r '.executionMode // "unknown"' snapshot/tradingview_consumer_bindings.json 2>/dev/null || echo unknown)"
+            # A write run that died BEFORE touching anything carries its own
+            # proof: the snapshot it uploaded (the upload step runs on failure
+            # too) has every mutation counter at zero. Measured 2026-08-22 on
+            # run 32499587392, which refused at the library-publish drift gate
+            # -- "manifest says 314, TradingView lists 315" -- and uploaded
+            # executionMode=write with sourceSavesCompleted 0, layoutSaved
+            # false, savedChartUrls []. Reading only executionMode turned each
+            # such refusal into a +15min verify dispatch, and with the saves
+            # failing systematically that chain sustained itself: 15 dispatches
+            # sat 14-15 min behind a completed run that day, flooding the
+            # single-slot TradingView queue the drift alerts were waiting on.
+            # jq -e is the fail-closed half: a missing field, a changed schema
+            # or a corrupt file exits non-zero and the mode stays "write", so
+            # only a snapshot that PROVES stillness ends the chain.
+            if [ "${mode}" = "write" ] && jq -e '
+                  .mutations
+                  | has("sourceSavesCompleted") and has("producerInstancesRemoved")
+                    and has("consumerInstancesRemoved") and has("bindingsRepaired")
+                    and has("layoutSaved") and has("savedChartUrls")
+                    and has("abandonedChartUrls") and has("savedWithoutAttestation")
+                    and .sourceSavesCompleted == 0 and .producerInstancesRemoved == 0
+                    and .consumerInstancesRemoved == 0 and .bindingsRepaired == 0
+                    and .layoutSaved == false and (.savedChartUrls | length) == 0
+                    and (.abandonedChartUrls | length) == 0
+                    and (.savedWithoutAttestation | length) == 0
+                ' snapshot/tradingview_consumer_bindings.json >/dev/null 2>&1; then
+              mode="write-no-mutation"
+            fi
           else
             # No snapshot. Distinguish "the save job never ran" from "died
             # mid-run" via the trigger run's job list — GitHub's own record,
@@ -135,18 +163,18 @@ jobs:
       # Same exit for a trigger run whose save job never ran (superseded,
       # guard-skipped, or cancelled while queued): nothing touched the surface.
       - name: Stop when the completed run provably did not mutate
-        if: ${{ steps.mode.outputs.mode == 'verify-only' || steps.mode.outputs.mode == 'never-ran' }}
+        if: ${{ steps.mode.outputs.mode == 'verify-only' || steps.mode.outputs.mode == 'never-ran' || steps.mode.outputs.mode == 'write-no-mutation' }}
         env:
           MODE: ${{ steps.mode.outputs.mode }}
         run: |
           echo "::notice::completed run was ${MODE} — no re-verification needed"
 
       - name: Wait 15 minutes before re-reading the mutated surface
-        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' && steps.mode.outputs.mode != 'write-no-mutation' }}
         run: sleep 900
 
       - name: Dispatch the read-only verification
-        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' && steps.mode.outputs.mode != 'write-no-mutation' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -160,7 +188,7 @@ jobs:
             -d '{"ref":"main","inputs":{"verify_only":"true"}}'
 
       - name: Write dispatch summary
-        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' }}
+        if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' && steps.mode.outputs.mode != 'write-no-mutation' }}
         env:
           TRIGGER_MODE: ${{ steps.mode.outputs.mode }}
           TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
