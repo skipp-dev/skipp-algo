@@ -32,6 +32,39 @@ EARLY_CLOSES_ET_1300: frozenset[date] = frozenset(
     }
 )
 
+#: Planmaessige GANZTAGS-Schliessungen der NYSE. Ohne diese Menge liest
+#: close_time_et_hhmm einen Feiertag als regulaeren 16:00-Tag: das ET-Gate
+#: lehnt nur Wochenenden ab, also feuert der EOD-Flatten am Feiertag, und
+#: reqGlobalCancel toetet die GTC-Schutz-Legs, waehrend die DAY-Market-Orders
+#: bei geschlossenem Markt nichts mehr schliessen koennen. Das ist dieselbe
+#: Zweck-Inversion wie an einem unbekannten Halbtag, nur vollstaendig.
+#: Gegen holidays.financial_holidays("NYSE") verifiziert (2026-08-22);
+#: Wochenend-Feiertage stehen bewusst NICHT drin (das Gate deckt sie ab).
+FULL_CLOSURES_ET: frozenset[date] = frozenset(
+    {
+        date(2026, 1, 1),    # New Year's Day
+        date(2026, 1, 19),   # Martin Luther King Jr. Day
+        date(2026, 2, 16),   # Washington's Birthday
+        date(2026, 4, 3),    # Good Friday
+        date(2026, 5, 25),   # Memorial Day
+        date(2026, 6, 19),   # Juneteenth
+        date(2026, 7, 3),    # Independence Day (beobachtet, 4.7. = Samstag)
+        date(2026, 9, 7),    # Labor Day
+        date(2026, 11, 26),  # Thanksgiving
+        date(2026, 12, 25),  # Christmas
+        date(2027, 1, 1),    # New Year's Day
+        date(2027, 1, 18),   # Martin Luther King Jr. Day
+        date(2027, 2, 15),   # Washington's Birthday
+        date(2027, 3, 26),   # Good Friday
+        date(2027, 5, 31),   # Memorial Day
+        date(2027, 6, 18),   # Juneteenth (beobachtet, 19.6. = Samstag)
+        date(2027, 7, 5),    # Independence Day (beobachtet, 4.7. = Sonntag)
+        date(2027, 9, 6),    # Labor Day
+        date(2027, 11, 25),  # Thanksgiving
+        date(2027, 12, 24),  # Christmas (beobachtet, 25.12. = Samstag)
+    }
+)
+
 #: Bis zu diesem Tag ist der Kalender GEPFLEGT (nicht: letzter Eintrag).
 #: Der Horizont-Test roetet, sobald heute darueber liegt.
 CALENDAR_HORIZON = date(2027, 12, 31)
@@ -41,8 +74,21 @@ _EARLY_CLOSE = (13, 0)
 _FLATTEN_LEAD_MINUTES = 15
 
 
+def is_trading_day(day: date) -> bool:
+    """Handelt der US-Kassamarkt an ``day`` ueberhaupt?
+
+    close_time_et_hhmm beantwortet nur "wann schliesst er", nie "schliesst er
+    heute". Wer die erste Frage als Ersatz fuer die zweite nimmt, bekommt an
+    jedem Feiertag eine plausible 16:00 zurueck.
+    """
+    return day.isoweekday() <= 5 and day not in FULL_CLOSURES_ET
+
+
 def close_time_et_hhmm(day: date) -> tuple[int, int]:
-    """(HH, MM) des Kassaschlusses in ET fuer ``day``."""
+    """(HH, MM) des Kassaschlusses in ET fuer ``day``.
+
+    Nur fuer Handelstage sinnvoll — ``is_trading_day`` zuerst fragen.
+    """
     return _EARLY_CLOSE if day in EARLY_CLOSES_ET_1300 else _REGULAR_CLOSE
 
 
@@ -59,12 +105,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--print",
         dest="what",
-        choices=["flatten-target", "close"],
+        choices=["flatten-target", "close", "trading-day"],
         default="flatten-target",
-        help="flatten-target: 'HH MM' des Gate-Ziels; close: 'HH MM' des Schlusses",
+        help=(
+            "flatten-target: 'HH MM' des Gate-Ziels; close: 'HH MM' des "
+            "Schlusses; trading-day: '1' oder '0' fuer die Shell"
+        ),
     )
     args = parser.parse_args(argv)
     day = date.fromisoformat(args.date)
+    if args.what == "trading-day":
+        print("1" if is_trading_day(day) else "0")
+        return 0
     hh, mm = close_time_et_hhmm(day) if args.what == "close" else flatten_target_et_hhmm(day)
     print(f"{hh:02d} {mm:02d}")
     return 0

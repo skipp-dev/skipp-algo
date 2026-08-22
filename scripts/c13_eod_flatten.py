@@ -52,7 +52,7 @@ from scripts.execute_ibkr_watchlist import (
     assert_paper_account_if_paper_port,
 )
 from scripts.smc_atomic_write import atomic_write_text
-from scripts.us_equity_early_closes import close_time_et_hhmm
+from scripts.us_equity_early_closes import close_time_et_hhmm, is_trading_day
 
 # TWS paper (7497) and IB Gateway paper (4002); everything else is refused.
 PAPER_PORTS = frozenset({7497, 4002})
@@ -71,7 +71,18 @@ def close_guard_verdict(now_et: datetime) -> str | None:
     mehr schliessen — reqGlobalCancel wuerde nur noch den GTC-Schutz toeten
     und die Positionen ungeschuetzt ueber Nacht legen (Halbtage 13:00 ET,
     verspaetete manuelle Laeufe). Vor dem Close: None = weitermachen.
+
+    Grenzgaenger-Sweep 2026-08-22: an einem GANZTAGS geschlossenen Feiertag
+    lieferte close_time_et_hhmm brav 16:00, 15:45 lag davor, und der Flatten
+    lief — dieselbe Inversion, nur vollstaendig, weil gar nichts mehr fuellen
+    kann. Das ET-Gate faengt das nicht: es lehnt ausschliesslich Wochenenden
+    ab. Darum die Handelstag-Frage VOR der Uhrzeit-Frage.
     """
+    if not is_trading_day(now_et.date()):
+        return (
+            f"{now_et.date().isoformat()} is not a US trading day — "
+            "refusing to cancel GTC exits on a closed market"
+        )
     close_hh, close_mm = close_time_et_hhmm(now_et.date())
     if (now_et.hour, now_et.minute) >= (close_hh, close_mm):
         return (

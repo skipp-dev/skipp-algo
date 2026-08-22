@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.us_equity_early_closes import EARLY_CLOSES_ET_1300
+from scripts.us_equity_early_closes import EARLY_CLOSES_ET_1300, FULL_CLOSURES_ET
 from tests._guard_corpus import iter_tracked_files
 
 REPO = Path(__file__).resolve().parents[1]
@@ -36,6 +36,8 @@ WRAPPER = REPO / "automation" / "launchd" / "run-c13-eod-flatten.sh"
 # lassen.
 _EARLY_CLOSE = min(EARLY_CLOSES_ET_1300).isoformat()
 _REGULAR = "2026-08-19"
+# Ebenfalls dem SSOT entnommen, nicht abgeschrieben: eine Ganztags-Schliessung.
+_FULL_CLOSURE = min(FULL_CLOSURES_ET).isoformat()
 
 
 def _fake_venv(tmp_path: Path) -> Path:
@@ -98,6 +100,42 @@ def test_wrapper_targets_the_days_close(
     assert "not the window, skip" in result.stderr, (
         "Der Testaufbau haengt daran, dass das Gate no-optet — sonst haette "
         f"dieser Lauf IBKR beruehrt.\nstderr:\n{result.stderr}"
+    )
+
+
+def test_wrapper_skips_full_market_holidays_before_the_gate(tmp_path: Path) -> None:
+    """Grenzgaenger-Sweep 2026-08-22, ausgefuehrt statt gelesen.
+
+    Das ET-Gate lehnt nur Wochenenden ab; an einem ganztaegigen Feiertag gab
+    der Kalender brav 16:00 zurueck und der Wrapper lief bis zum Flatten
+    durch. Er muss stattdessen aussteigen wie am Wochenende — mit 0 (sonst
+    zaehlt launchd einen Fehlschlag) und OHNE die Gate-Meldung, denn das
+    Gate darf gar nicht mehr erreicht werden.
+    """
+    result = _run_wrapper(tmp_path, _FULL_CLOSURE)
+
+    assert result.returncode == 0, (
+        f"Feiertags-Skip muss sauber mit 0 enden.\nstderr:\n{result.stderr}"
+    )
+    assert "not a US trading day" in result.stderr, (
+        f"{_FULL_CLOSURE} ist eine Ganztags-Schliessung; der Wrapper haette "
+        f"vor dem Gate aussteigen muessen.\nstderr:\n{result.stderr}"
+    )
+    assert "target " not in result.stderr, (
+        "Der Wrapper hat trotz Feiertag ein Gate-Ziel bestimmt — der Skip "
+        f"sitzt hinter der Zielwahl statt davor.\nstderr:\n{result.stderr}"
+    )
+
+
+def test_a_trading_day_still_reaches_the_gate(tmp_path: Path) -> None:
+    """Positivkontrolle zum Feiertags-Skip: er darf nicht jeden Tag schlucken."""
+    result = _run_wrapper(tmp_path, _REGULAR)
+
+    assert "not a US trading day" not in result.stderr, (
+        f"Regulaerer Handelstag als Feiertag abgewiesen.\nstderr:\n{result.stderr}"
+    )
+    assert "target 15:45" in result.stderr, (
+        f"Der Wrapper hat das Gate nicht erreicht.\nstderr:\n{result.stderr}"
     )
 
 
