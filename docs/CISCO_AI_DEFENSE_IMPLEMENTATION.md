@@ -454,17 +454,39 @@ Zwei gemessene Fallen stehen als Kommentar in der Policy und als Test dahinter:
   Keychain-Token.  Sie bleiben sichtbar; die Ziele sind im Manifest deklariert.
   Eine Regel dieser Klasse auf eigenem, aktiv bearbeitetem Werkzeug
   stummzuschalten wäre der falsche Mute.
-- **13× in fremden Skills** (`~/.codex/skills/.system/` — `plugin-creator`,
-  `openai-docs`, `imagegen`, `skill-installer` — sowie `gh-address-comments`).
-  Geprüft und harmlos: Anweisungstext, ein lokaler `fs.readFile`, ein
-  Doku-`fetch`, eine Paginierungsschleife, das Lesen einer API-Key-Variablen.
-  Sie sind über `mcp-scanner.allowlist.skills` pfadweise stumm.
+- **1× HIGH `RESOURCE_ABUSE_INFINITE_LOOP`** in `~/.codex/skills/gh-address-comments`:
+  eine Paginierungsschleife, die am leeren Seiten-Ergebnis bricht.  Fremdcode,
+  geprüft, harmlos — pfadweise stumm über `mcp-scanner.allowlist.skills`.
+- **12× in `~/.codex/skills/.system/`** (`plugin-creator`, `openai-docs`,
+  `imagegen`, `skill-installer`).  Geprüft und harmlos: Anweisungstext, ein
+  lokaler `fs.readFile`, ein Doku-`fetch`, das Lesen einer API-Key-Variablen.
+  Diese zwölf sind **nicht** stummgeschaltet — sie werden gar nicht erst
+  gemeldet, siehe Abdeckungslücke unten.
 
-**UNGESICHERT — verlässt sich auf menschliches Gedächtnis:** diese Pfad-Mutes
-haben keinen Verfall und keine Bindung an den Inhalt.  Codex installiert
-`~/.codex/skills/.system/` bei jedem Update neu; ein künftiger, bösartiger Stand
-derselben Pfade würde nicht gemeldet.  Ein Stolperdraht (Inhalts-Hash je
-stummgeschaltetem Skill, erneutes Melden bei Änderung) ist **nicht** gebaut.
+### Zwei offene Abdeckungslücken
+
+Beide sind gemessen, nicht vermutet, und beide sind **nicht** geschlossen:
+
+1. **Die Extension steigt nicht nach `~/.codex/skills/.system/` ab.**  Der
+   Scan-Verlauf vom 2026-08-22 zählt 16 Skills, keines davon unter `.system`.
+   Die sechs dort installierten Codex-System-Skills laufen im Agent-Kontext des
+   Entwicklers und sind von der Oberfläche aus unbeobachtet.  Sichtbar werden
+   sie nur in einem rekursiven CLI-Lauf.  Ein Allowlist-Eintrag für diese Pfade
+   wäre tote Konfiguration und wurde deshalb bewusst nicht gesetzt.
+2. **Der Mute auf `gh-address-comments` hat keinen Verfall und keine Bindung an
+   den Inhalt.**  UNGESICHERT — verlässt sich auf menschliches Gedächtnis: ein
+   künftiger, bösartiger Stand desselben Pfades würde nicht gemeldet.  Ein
+   Stolperdraht (Inhalts-Hash je stummgeschaltetem Skill, erneutes Melden bei
+   Änderung) ist **nicht** gebaut.
+
+Der wiederholbare Volllauf über beide Lücken hinweg:
+
+```bash
+for w in ~/.claude/skills ~/.codex/skills <repo>/.claude/skills <repo>/.github/skills; do
+  skill-scanner scan-all "$w" --recursive --use-behavioral --use-trigger \
+    --policy configs/skill_scan_policy.yaml --format json --output-json "/tmp/$(basename $w).json"
+done
+```
 
 ## Official references
 
