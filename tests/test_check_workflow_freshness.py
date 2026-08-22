@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -87,6 +87,58 @@ def test_stale_when_age_exceeds_budget() -> None:
     )
     assert r.status == "stale"
     assert r.age_hours == 72.0
+
+
+def test_expected_stale_inside_declared_window() -> None:
+    """A dated declaration turns stale into acknowledged expected_stale."""
+    r = check_workflow(
+        repo="o/r",
+        workflow_file="openprep-pine-panel-publish.yml",
+        budget_hours=24.0,
+        token="t",
+        now=NOW,
+        fetcher=_ok_fetcher(age_hours=72.0),
+        expected_stale_until=date(2026, 5, 30),
+    )
+    assert r.status == "expected_stale"
+    assert r.expected_stale_until == "2026-05-30"
+    assert "expires 2026-05-30" in (r.detail or "")
+
+
+def test_expected_stale_expires_hard_under_a_shifted_clock() -> None:
+    """Both sides of the date comparison, DELIVERED by shifting ``now``.
+
+    The declaration is a tripwire, not a mute: the last declared day still
+    gates, the day after fails hard again with an EXPIRED detail.
+    """
+    kwargs: dict = dict(
+        repo="o/r",
+        workflow_file="openprep-pine-panel-publish.yml",
+        budget_hours=24.0,
+        token="t",
+        fetcher=_ok_fetcher(age_hours=72.0),
+        expected_stale_until=date(2026, 5, 30),
+    )
+    last_day = check_workflow(now=datetime(2026, 5, 30, 23, 59, tzinfo=UTC), **kwargs)
+    assert last_day.status == "expected_stale"
+
+    day_after = check_workflow(now=datetime(2026, 5, 31, 0, 1, tzinfo=UTC), **kwargs)
+    assert day_after.status == "stale"
+    assert "EXPIRED 2026-05-30" in (day_after.detail or "")
+
+
+def test_expected_stale_declaration_never_touches_a_fresh_row() -> None:
+    r = check_workflow(
+        repo="o/r",
+        workflow_file="openprep-pine-panel-publish.yml",
+        budget_hours=30.0,
+        token="t",
+        now=NOW,
+        fetcher=_ok_fetcher(age_hours=12.0),
+        expected_stale_until=date(2026, 5, 30),
+    )
+    assert r.status == "fresh"
+    assert r.detail is None
 
 
 def test_missing_when_no_runs_returned() -> None:
@@ -206,6 +258,38 @@ def test_check_all_overall_stale_when_any_stale() -> None:
     assert report.stale_count == 1
 
 
+def test_check_all_expected_stale_yields_zero_exit_but_real_stale_still_wins() -> None:
+    stale = _ok_fetcher(age_hours=200.0)
+
+    # Only an acknowledged row: overall expected_stale, counted separately.
+    report = check_all(
+        repo="o/r",
+        workflows=[("a.yml", 24.0, False, False, date(2026, 5, 30))],
+        token="t",
+        now=NOW,
+        fetcher=stale,
+    )
+    assert report.overall == "expected_stale"
+    assert report.expected_stale_count == 1
+    assert report.stale_count == 0
+
+    # An acknowledged row NEXT TO an unrelated stale row: the unrelated one
+    # must still fail the probe — that is the whole point of the gate.
+    report = check_all(
+        repo="o/r",
+        workflows=[
+            ("a.yml", 24.0, False, False, date(2026, 5, 30)),
+            ("b.yml", 24.0, False),
+        ],
+        token="t",
+        now=NOW,
+        fetcher=stale,
+    )
+    assert report.overall == "stale"
+    assert report.stale_count == 1
+    assert report.expected_stale_count == 1
+
+
 def test_check_all_overall_error_when_any_api_error() -> None:
     state = {"i": 0}
     ok = _ok_fetcher(age_hours=2.0)
@@ -232,12 +316,20 @@ def test_check_all_overall_error_when_any_api_error() -> None:
 
 
 def test_parse_workflow_spec_ok() -> None:
-    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0, False, False)
-    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5, False, False)
-    assert _parse_workflow_spec("gate.yml=30:any") == ("gate.yml", 30.0, True, False)
-    assert _parse_workflow_spec("gate.yml=30:weekday") == ("gate.yml", 30.0, False, True)
-    assert _parse_workflow_spec("gate.yml=30:any:weekday") == ("gate.yml", 30.0, True, True)
-    assert _parse_workflow_spec("gate.yml=30:weekday:any") == ("gate.yml", 30.0, True, True)
+    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0, False, False, None)
+    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5, False, False, None)
+    assert _parse_workflow_spec("gate.yml=30:any") == ("gate.yml", 30.0, True, False, None)
+    assert _parse_workflow_spec("gate.yml=30:weekday") == ("gate.yml", 30.0, False, True, None)
+    assert _parse_workflow_spec("gate.yml=30:any:weekday") == ("gate.yml", 30.0, True, True, None)
+    assert _parse_workflow_spec("gate.yml=30:weekday:any") == ("gate.yml", 30.0, True, True, None)
+    assert _parse_workflow_spec(
+        "gate.yml=30:weekday:expected-stale-until=2026-09-04"
+    ) == ("gate.yml", 30.0, False, True, date(2026, 9, 4))
+    # `:success` is the explicit alias for the default success-only mode
+    # (meta-watchdog DAG probe pins `:success:weekday`).
+    assert _parse_workflow_spec("pipe.yml=14:success:weekday") == (
+        "pipe.yml", 14.0, False, True, None,
+    )
 
 
 @pytest.mark.parametrize(
@@ -248,6 +340,12 @@ def test_parse_workflow_spec_ok() -> None:
         "ci.yml=zero",
         "ci.yml=-1",
         "ci.yml=0",
+        # A typo'd suffix that parsed silently would neuter the very
+        # guarantee it claims to configure.
+        "ci.yml=24:weekdya",
+        "ci.yml=24:expected-stale-until=tomorrow",
+        "ci.yml=24:expected-stale-until=",
+        "ci.yml=24:any:success",
     ],
 )
 def test_parse_workflow_spec_rejects(raw: str) -> None:
@@ -276,6 +374,18 @@ def test_cli_returns_zero_on_fresh(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert rc == 0
     parsed = json.loads(out.read_text(encoding="utf-8"))
     assert parsed["overall"] == "fresh"
+
+
+def test_cli_returns_zero_on_expected_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An acknowledged incident must not fail the probe (and files no issue)."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    _patch_check_all(
+        monkeypatch,
+        FreshnessReport(overall="expected_stale", expected_stale_count=1, repo="owner/repo"),
+    )
+    rc = main(["ci.yml=24:expected-stale-until=2026-09-04"])
+    assert rc == 0
 
 
 def test_cli_returns_two_on_stale(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -119,7 +119,8 @@
 # Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
-"scripts/check_workflow_freshness.py" = [72]
+# 2026-08-22 (expected-stale-until suffix): 72->79 — docstring/dataclass grew above the call site.
+"scripts/check_workflow_freshness.py" = [79]
 # 2026-08-16: pine-release-notes watcher; weekly GET against the one fixed
 # public TradingView docs URL, explicit 30s timeout, B310 nosec'd at the
 # call site, gzip fallback decoded in-process. No POST, no auth.
