@@ -5905,6 +5905,155 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
  * each wrong dialog correctly, so nothing wrong was written, but the step burnt
  * its full 60s budget twice per run and the layout repair stopped there.
  */
+export type LegendRowGeometry = {
+  text: string;
+  box: { x: number; y: number; width: number; height: number };
+};
+
+/** TradingView's legend row. Same selector the shared test fixture models. */
+const LEGEND_SOURCE_ITEM_SELECTOR = '[data-name="legend-source-item"]';
+
+/** Script name to a safe file-name fragment: "SMC Long-Dip Alerts" -> "smc-long-dip-alerts". */
+export function slugifyForPath(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "unnamed";
+}
+
+export type LegendFailureEvidence = {
+  scriptName: string;
+  capturedAt: string;
+  /** The target row and its vertical neighbours, or [] when it was not found. */
+  neighbourhood: LegendRowGeometry[];
+  /** Where a double-click would have gone, and what actually sits there. */
+  aim: { point: { x: number; y: number }; topElement: string } | null;
+  screenshotPath: string;
+};
+
+/**
+ * Whether a legend row belongs to `scriptName`.
+ *
+ * TradingView appends a version chip ("SMC Setup Check · 8.0"), so the row text
+ * is longer than the name — but a bare `startsWith` would be useless here:
+ * "SMC Long-Dip" prefixes four real script names, and Dashboard / Strategy /
+ * Alerts / Mobile would all match each other. The name must be followed by a
+ * separator, or be the whole text.
+ */
+function legendRowBelongsToScript(text: string, scriptName: string): boolean {
+  const rowText = normalizeUiText(text);
+  const name = normalizeUiText(scriptName);
+  if (!rowText || !name) return false;
+  if (rowText === name) return true;
+  if (!rowText.startsWith(name)) return false;
+  // Only the version chip may follow. A SPACE is not a valid separator: script
+  // names contain spaces, so "SMC Long-Dip" would swallow "SMC Long-Dip
+  // Dashboard" and the neighbourhood would describe the wrong row.
+  return /^\s*·/.test(rowText.slice(name.length));
+}
+
+/**
+ * The target legend row plus the rows directly above and below it.
+ *
+ * Written down as failure evidence because a mis-aimed double-click hits a
+ * NEIGHBOUR: on 2026-08-22 every attempt to open `SMC Long-Dip Alerts` opened
+ * `SMC Setup Check` or `SMC Breakout Overlay`, and nothing recorded where those
+ * rows actually were — so the geometry had to be inferred instead of read.
+ *
+ * Neighbourhood is vertical position, not DOM order. An absent target yields
+ * nothing rather than a guess: evidence that quietly describes the wrong row is
+ * worse than evidence that says it could not find the row.
+ */
+export function selectLegendNeighbourhood(
+  rows: readonly LegendRowGeometry[],
+  scriptName: string,
+): LegendRowGeometry[] {
+  const ordered = [...rows].sort((a, b) => a.box.y - b.box.y);
+  const index = ordered.findIndex((entry) => legendRowBelongsToScript(entry.text, scriptName));
+  if (index === -1) return [];
+  return ordered.slice(Math.max(0, index - 1), index + 2);
+}
+
+/**
+ * Everything a 3am reader needs about a target that never opened: a full-page
+ * screenshot, the geometry of its legend row and its neighbours, and what
+ * actually sits at the point a double-click would have gone to.
+ *
+ * Written only when a target has failed for good — one file pair per failed
+ * script, nothing on a green run. The 2026-08-22 diagnosis needed exactly this
+ * and had to infer it instead: the run left a bindings snapshot and trace lines,
+ * but no record of where any row was.
+ *
+ * Best-effort by construction. This runs on a page that has ALREADY failed, so
+ * every probe here can fail too; a partial evidence file beats throwing a second
+ * error over the first one and losing both.
+ */
+export async function captureLegendFailureEvidence(
+  page: Page,
+  scriptName: string,
+  runId: string,
+): Promise<LegendFailureEvidence> {
+  const evidence: LegendFailureEvidence = {
+    scriptName,
+    capturedAt: utcNow(),
+    neighbourhood: [],
+    aim: null,
+    screenshotPath: "",
+  };
+
+  evidence.screenshotPath = await takeScreenshot(page, runId, `settings-failure-${slugifyForPath(scriptName)}`)
+    .catch(() => "");
+
+  const rows = await page
+    .evaluate((rowSelector) => {
+      const items = Array.from(document.querySelectorAll(rowSelector));
+      return items.map((item) => {
+        const rect = item.getBoundingClientRect();
+        return {
+          text: ((item as HTMLElement).innerText ?? item.textContent ?? "").trim().slice(0, 120),
+          box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        };
+      });
+    }, LEGEND_SOURCE_ITEM_SELECTOR)
+    .catch(() => [] as LegendRowGeometry[]);
+
+  evidence.neighbourhood = selectLegendNeighbourhood(rows, scriptName);
+
+  const targetRow = evidence.neighbourhood.find((entry) => legendRowBelongsToScript(entry.text, scriptName));
+  if (targetRow && !legendBoxIsTooSmallToClick(targetRow.box)) {
+    const point = resolveLegendDoubleClickPoint(targetRow.box);
+    const topElement = await page
+      .evaluate((at) => {
+        const top = document.elementFromPoint(at.x, at.y);
+        if (!top) return "none";
+        const label = ((top as HTMLElement).innerText ?? top.textContent ?? "").trim();
+        return label.slice(0, 120) || top.nodeName;
+      }, point)
+      .catch(() => "unknown");
+    evidence.aim = { point, topElement };
+  }
+
+  return evidence;
+}
+
+/**
+ * Write the evidence next to its screenshot and return the path.
+ *
+ * Same directory as `takeScreenshot`, so one upload step collects both and the
+ * `.json` sits beside the `.png` it explains.
+ */
+export function writeLegendFailureEvidence(evidence: LegendFailureEvidence): string {
+  const dir = process.env.TV_SCREENSHOT_DIR || "automation/tradingview/reports/screenshots";
+  fs.mkdirSync(dir, { recursive: true });
+  const base = evidence.screenshotPath
+    ? path.basename(evidence.screenshotPath).replace(/\.png$/, "")
+    : `settings-failure-${slugifyForPath(evidence.scriptName)}`;
+  const filePath = path.join(dir, `${base}.json`);
+  fs.writeFileSync(filePath, `${JSON.stringify(evidence, null, 2)}\n`, "utf-8");
+  return filePath;
+}
+
 export function resolveLegendDoubleClickPoint(
   box: { x: number; y: number; width: number; height: number },
 ): { x: number; y: number } {

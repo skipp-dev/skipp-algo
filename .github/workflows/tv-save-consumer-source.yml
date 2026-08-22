@@ -688,6 +688,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Screenshot + Legendengeometrie je Ziel, das ENDGUELTIG nicht zu oeffnen
+      # war. Gleiche Torbedingung wie oben: nur ein Lauf, der einen Browser
+      # geoeffnet hat, kann Beweise haben.
+      #
+      # 'ignore' und nicht 'error': ein gruener Lauf schreibt hier nichts, und
+      # das ist der Normalfall -- 'error' oder 'warn' wuerde jeden gesunden Lauf
+      # mit einer Meldung versehen, die niemand mehr liest.
+      - name: Upload failure evidence
+        if: ${{ always() && (steps.save.conclusion == 'success' || steps.save.conclusion == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tradingview-failure-evidence
+          path: automation/tradingview/reports/screenshots/
+          if-no-files-found: ignore
+          retention-days: 30
+
       # Same gate as the upload above, same reason: run 30700389375 is why
       # 'failure' stays in the OR -- a rollout that opened a browser and then
       # failed still has a real, fresh snapshot worth publishing.

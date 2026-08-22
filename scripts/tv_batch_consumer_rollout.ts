@@ -17,6 +17,8 @@ import {
   closeTradingViewSession,
   ensurePineEditor,
   fetchPublishedLibraryVersionViaFacade,
+  captureLegendFailureEvidence,
+  writeLegendFailureEvidence,
   gotoChart,
   gotoChartAndAwaitScript,
   isTrackedStepTimeoutError,
@@ -62,7 +64,7 @@ type RolloutConfig = {
  * only the LAST error.
  */
 type VerifyAttempt = { attempt: number; durationMs: number; error: string };
-type FailedTarget = { target: string; error: string; attempts?: VerifyAttempt[] };
+type FailedTarget = { target: string; error: string; attempts?: VerifyAttempt[]; evidence?: string };
 type RolloutReport = {
   schemaVersion: 2;
   executionMode: RolloutExecutionMode;
@@ -182,6 +184,8 @@ type RolloutReport = {
     mismatches: number;
     consumers: (VerifyConsumerResult & { attempts?: VerifyAttempt[] })[];
     failed: FailedTarget[];
+    /** Dateinamen der Fehler-Beweise, relativ zum hochgeladenen Artefakt. */
+    evidence: string[];
   };
 };
 
@@ -343,6 +347,9 @@ async function main(): Promise<void> {
   });
   const refreshProducer = executionPlan.refreshProducer;
   const observedAt = new Date().toISOString();
+  // Ein Stempel je Lauf: die Beweisdateien eines Laufs gehoeren sichtbar
+  // zusammen und kollidieren nicht mit denen des naechsten.
+  const evidenceRunId = observedAt.replace(/[:.]/g, "-");
 
   const report: RolloutReport = {
     schemaVersion: 2,
@@ -405,6 +412,7 @@ async function main(): Promise<void> {
       checkedConsumers: 0,
       checkedBindings: 0,
       mismatches: 0,
+      evidence: [],
       consumers: [],
       failed: [],
     },
@@ -680,7 +688,33 @@ async function main(): Promise<void> {
             }
           }
           if (result) report.bindings.consumers.push({ ...result, attempts });
-          else report.bindings.failed.push({ target: target.scriptName, error: lastError, attempts });
+          else {
+            // Endgueltig gescheitert: die Seite steht noch im Fehlerzustand
+            // (nach dem letzten Versuch folgt kein gotoChart mehr), also ist
+            // JETZT der einzige Moment, in dem sich festhalten laesst, wie es
+            // aussah. Ein Bild + die Legendengeometrie pro gescheitertem
+            // Skript; ein gruener Lauf schreibt nichts.
+            const evidence = await captureLegendFailureEvidence(
+              session.page,
+              target.scriptName,
+              evidenceRunId,
+            ).catch(() => null);
+            if (evidence) {
+              const evidencePath = writeLegendFailureEvidence(evidence);
+              report.bindings.evidence.push(evidencePath);
+              console.log(
+                `::warning title=Settings never opened::${target.scriptName} — `
+                + `evidence ${path.basename(evidencePath)}`
+                + (evidence.aim ? `, click point hit: ${evidence.aim.topElement}` : ""),
+              );
+            }
+            report.bindings.failed.push({
+              target: target.scriptName,
+              error: lastError,
+              attempts,
+              evidence: evidence?.screenshotPath ? path.basename(evidence.screenshotPath) : "",
+            });
+          }
           // Exactly the run's own success criterion, per target: report.ok is
           // gated on bindings.failed and bindings.mismatches. It deliberately
           // does NOT include result.ok, which also carries
