@@ -39,7 +39,19 @@ _RULES = (
 )
 # Genau die Regeln, die DATENFLUSS messen. Kundenverkehr und News haben eigene
 # Rhythmen und bleiben bewusst auf der regulaeren Sitzung.
-_DATA_FLOW_RULES = ("lo-feed-down-market-open", "lo-last-bar-stale-open")
+# 2026-08-22: a0-fast-stream-silent-extended kommt dazu — der grobe Wächter
+# (30 min) über dem A0-Fast-Strom. Sein feiner Zwilling a0-fast-stream-stale
+# bleibt ABSICHTLICH auf der regulären Sitzung und steht deshalb NICHT hier:
+# seine 8-s-Schwelle trägt nur dort (gemessen p95 1,7 s regulär gegen 35,8 s
+# premarket / 39,3 s after-hours beim Microcap-Universum), im Produktfenster
+# hätte sie 37,8 h Fehlalarm pro 5 Tage erzeugt. Genau die Aufgabenteilung,
+# die der market_hours-Docstring meint: Datenfluss aufs Produktfenster, aber
+# nur mit einer Schwelle, die dort auch trägt.
+_DATA_FLOW_RULES = (
+    "lo-feed-down-market-open",
+    "lo-last-bar-stale-open",
+    "a0-fast-stream-silent-extended",
+)
 
 
 def _at(year: int, month: int, day: int, hour: int, minute: int) -> datetime.datetime:
