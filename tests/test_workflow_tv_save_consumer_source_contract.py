@@ -1726,9 +1726,62 @@ def test_a_failed_run_can_be_diagnosed_from_the_artifact_alone() -> None:
     assert "attempts.push({ attempt, durationMs: Date.now() - startedAt, error: \"\" });" in batch
     assert "attempts.push({ attempt, durationMs: Date.now() - startedAt, error: lastError });" in batch
     assert "report.bindings.consumers.push({ ...result, attempts });" in batch
-    assert "error: lastError, attempts });" in batch
+    # 2026-08-22: aus dem Einzeiler wurde ein Block, weil der Fehlerfall jetzt
+    # zusaetzlich Beweise erzeugt. Die Zusicherung bleibt dieselbe — der
+    # gescheiterte Ziel-Eintrag traegt seine Versuchsliste.
+    assert "target: target.scriptName," in batch
+    assert "error: lastError,\n              attempts," in batch
 
     # WHERE: navigation is traced, so a swallowed rejection still leaves a mark.
     assert 'tracePageEvent(page, "goto-chart-start", target);' in shared
     assert "goto-chart-error" in shared
     assert 'tracePageEvent(page, "goto-chart-ok", target);' in shared
+
+
+def test_failure_evidence_is_produced_and_collected() -> None:
+    """A target that never opened leaves a picture and its geometry — and the
+    workflow actually picks them up.
+
+    Added 2026-08-22. Diagnosing why `SMC Long-Dip Alerts` opened its
+    NEIGHBOUR's settings took hours because the run left no record of where any
+    legend row was: the snapshot had counts, the log had traces, neither had
+    geometry. This binds the three halves that make the evidence real —
+    produced, written, and uploaded — because any one of them missing makes the
+    other two pointless.
+    """
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    shared = (
+        _REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts"
+    ).read_text(encoding="utf-8")
+    wf = _load()
+
+    # Produced at the FINAL failure only: after the last attempt there is no
+    # gotoChart, so the page still shows the failure. One capture per failed
+    # script; a green run writes nothing.
+    assert "captureLegendFailureEvidence(" in batch
+    assert "writeLegendFailureEvidence(evidence)" in batch
+    assert "report.bindings.evidence.push(evidencePath);" in batch
+    # ...and it is announced, naming what the click point actually hit.
+    assert "::warning title=Settings never opened::" in batch
+    assert "click point hit:" in batch
+
+    # The capture itself records the three things the 2026-08-22 diagnosis
+    # lacked: the neighbourhood, the aim point, and what sits at it.
+    assert "export async function captureLegendFailureEvidence(" in shared
+    assert "selectLegendNeighbourhood(rows, scriptName)" in shared
+    assert "evidence.aim = { point, topElement };" in shared
+
+    # Collected. Without this step the evidence dies with the runner.
+    steps = wf["jobs"]["save"]["steps"]
+    upload = next(
+        (step for step in steps if step.get("name") == "Upload failure evidence"),
+        None,
+    )
+    assert upload is not None, "the evidence is written but never uploaded"
+    assert upload["with"]["path"] == "automation/tradingview/reports/screenshots/"
+    # A green run legitimately produces nothing here; 'error' or 'warn' would
+    # decorate every healthy run with a message nobody reads.
+    assert upload["with"]["if-no-files-found"] == "ignore"
+    assert "steps.save.conclusion == 'failure'" in upload["if"], (
+        "evidence must survive the failing run it describes"
+    )
