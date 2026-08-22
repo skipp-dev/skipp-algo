@@ -5879,6 +5879,52 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
   }, Math.max(stepTimeoutMs(), 90_000));
 }
 
+/**
+ * Where to double-click inside a legend row, guaranteed to land INSIDE it.
+ *
+ * Pure so it can be proven without a browser; the DOM hit-test that follows it
+ * is Playwright-against-TradingView and is only proven by the next CI run.
+ *
+ * The offsets aim a little inside the row rather than at its centre, because a
+ * legend row's centre can sit under the hover toolbar TradingView renders over
+ * it. They used to be applied UNCLAMPED:
+ *
+ *     x + max(16, min(56, width * 0.25))
+ *     y + max(6, min(height / 2, max(height - 6, 6)))
+ *
+ * For a row of height <= 5 or width <= 16 — a clipped or partially scrolled row
+ * reports exactly that — the result lies OUTSIDE the element: 16px to the right
+ * of a 10px-wide row, or 6px below a 4px-tall one. `page.mouse.dblclick` takes
+ * raw viewport coordinates and has no actionability check, so it then opens
+ * whatever IS painted there: the NEIGHBOURING legend row.
+ *
+ * Measured on 2026-08-22 (runs 758 and 771): every attempt to open
+ * `SMC Long-Dip Alerts` opened the dialog of `SMC Setup Check` or
+ * `SMC Breakout Overlay` — its two neighbours in the rollout order — and
+ * targeting Setup Check opened Long-Dip Alerts. The identity guard rejected
+ * each wrong dialog correctly, so nothing wrong was written, but the step burnt
+ * its full 60s budget twice per run and the layout repair stopped there.
+ */
+export function resolveLegendDoubleClickPoint(
+  box: { x: number; y: number; width: number; height: number },
+): { x: number; y: number } {
+  // A degenerate box has no interior to aim at; the caller must not click it.
+  const insetX = Math.max(16, Math.min(56, box.width * 0.25));
+  const insetY = Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
+  // Clamp strictly inside: an offset equal to the extent is already the first
+  // pixel of whatever is drawn next to this row.
+  const safeX = Math.min(insetX, Math.max(box.width / 2, box.width - 1));
+  const safeY = Math.min(insetY, Math.max(box.height / 2, box.height - 1));
+  return { x: box.x + safeX, y: box.y + safeY };
+}
+
+/** A box too small to aim into at all — clicking it can only hit a neighbour. */
+export function legendBoxIsTooSmallToClick(
+  box: { width: number; height: number },
+): boolean {
+  return box.width < 2 || box.height < 2;
+}
+
 async function tryOpenScriptSettingsByDoubleClick(
   page: Page,
   target: Locator,
@@ -5908,8 +5954,57 @@ async function tryOpenScriptSettingsByDoubleClick(
     return false;
   }
 
-  const doubleClickX = box.x + Math.max(16, Math.min(56, box.width * 0.25));
-  const doubleClickY = box.y + Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
+  if (legendBoxIsTooSmallToClick(box)) {
+    // Clicking a degenerate box cannot hit it; the DOM gesture below still can.
+    tracePageEvent(
+      page,
+      `${traceStartEvent}-box-degenerate`,
+      `${traceDetail}:${Math.round(box.width)}x${Math.round(box.height)}`,
+    );
+    const domOnly = await dispatchDomMouseGesture(target, "dblclick").catch(() => false);
+    if (domOnly) {
+      tracePageEvent(page, `${traceStartEvent}-dom`, traceDetail);
+      await page.waitForTimeout(350);
+      if (await settleSettingsOpen()) {
+        tracePageEvent(page, `${traceOkEvent}-dom`, traceDetail);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const { x: doubleClickX, y: doubleClickY } = resolveLegendDoubleClickPoint(box);
+
+  // Does that point actually belong to this row? `page.mouse.dblclick` has no
+  // actionability check, so without this a covered, clipped or just-relaid-out
+  // row silently sends the double-click to whatever is painted on top — which
+  // is how targeting one script opened its neighbour's settings for a whole
+  // day. A foreign hit is now NAMED instead of surfacing as a 60s timeout.
+  const hitOwner = await target
+    .evaluate((element, point) => {
+      const top = document.elementFromPoint(point.x, point.y);
+      if (!top) return "none";
+      if (element === top || element.contains(top) || top.contains(element)) return "self";
+      const label = (top as HTMLElement).innerText ?? top.textContent ?? "";
+      return `foreign:${label.trim().slice(0, 60) || top.nodeName}`;
+    }, { x: doubleClickX, y: doubleClickY })
+    .catch(() => "unknown");
+  if (hitOwner !== "self") {
+    tracePageEvent(page, `${traceStartEvent}-hit-target-miss`, `${traceDetail}:${hitOwner}`);
+    // Re-measure once after scrolling it in: a row that merely drifted is
+    // cheap to recover, and the DOM gesture below covers what scrolling cannot.
+    await target.scrollIntoViewIfNeeded().catch(() => undefined);
+    const rebox = await target.boundingBox().catch(() => null);
+    if (rebox && !legendBoxIsTooSmallToClick(rebox)) {
+      const retry = resolveLegendDoubleClickPoint(rebox);
+      tracePageEvent(page, `${traceStartEvent}-hit-target-remeasured`, traceDetail);
+      await page.mouse.dblclick(retry.x, retry.y).catch(() => undefined);
+      await page.waitForTimeout(350);
+      if (await settleSettingsOpen()) {
+        return true;
+      }
+    }
+  }
   tracePageEvent(page, traceStartEvent, traceDetail);
   await page.mouse.dblclick(doubleClickX, doubleClickY).catch(() => undefined);
   await page.waitForTimeout(350);
