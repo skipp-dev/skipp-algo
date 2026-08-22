@@ -24,6 +24,14 @@ class Decision:
 
 
 def decide(snapshot: dict, dispatches_today: int, repair_in_flight: bool = False) -> Decision:
+    if not isinstance(snapshot, dict):
+        # Fail closed: ein Top-Level-Snapshot, der kein Objekt ist (z.B. eine
+        # JSON-Liste), ist syntaktisch gueltiges JSON, aber schema-fremd.
+        return Decision(
+            False,
+            f"Snapshot ist kein Objekt ({type(snapshot).__name__}) — fail closed, kein Urteil",
+        )
+
     mode = snapshot.get("executionMode")
     if mode != "verify-only":
         # Schleifenschutz: ein Reparatur-Snapshot traegt "repair-only" und darf
@@ -34,16 +42,39 @@ def decide(snapshot: dict, dispatches_today: int, repair_in_flight: bool = False
     if not isinstance(bindings, dict):
         return Decision(False, "Snapshot ohne bindings — fail closed, kein Urteil")
 
-    if not bindings.get("checkedConsumers"):
+    checked_consumers = bindings.get("checkedConsumers")
+    if not isinstance(checked_consumers, int) or checked_consumers <= 0:
         # Leer ist nicht gruen (2026-08-14): ein Fehlschlag pusht bindings: [].
-        # Daraus eine Reparatur abzuleiten hiesse, auf Rauschen zu mutieren.
-        return Decision(False, "leere Beobachtung (checkedConsumers=0) — kein Urteil")
+        # Ein Nicht-int-Wert (z.B. ein String "0") ist ebenso UNBEKANNT, nicht
+        # "nicht leer" — sonst waere er in Python truthy und wuerde durchrutschen.
+        return Decision(
+            False,
+            f"leere oder unklare Beobachtung (checkedConsumers={checked_consumers!r}) — kein Urteil",
+        )
 
-    drifted = [
-        c.get("scriptName")
-        for c in bindings.get("consumers") or []
-        if c.get("mismatches")
-    ]
+    consumers_raw = bindings.get("consumers")
+    if consumers_raw is None:
+        consumers_raw = []
+    elif not isinstance(consumers_raw, list):
+        return Decision(
+            False,
+            f"bindings.consumers ist keine Liste ({type(consumers_raw).__name__}) — "
+            "fail closed, kein Urteil",
+        )
+
+    drifted = []
+    for idx, consumer in enumerate(consumers_raw):
+        if not isinstance(consumer, dict):
+            # Schema-fremd: ein Konsument, der kein Objekt ist, laesst sich nicht
+            # nach scriptName/mismatches befragen — fail closed statt zu werfen.
+            return Decision(
+                False,
+                f"Konsument #{idx} ist kein Objekt ({type(consumer).__name__}) — "
+                "fail closed, kein Urteil",
+            )
+        if consumer.get("mismatches"):
+            drifted.append(consumer.get("scriptName"))
+
     if not drifted:
         return Decision(False, "keine Mismatches — nichts zu reparieren")
 

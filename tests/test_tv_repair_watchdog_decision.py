@@ -1,7 +1,12 @@
 """Die Entscheidung des Waechters, ausserhalb des Browsers und einzeln beweisbar."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
+
+from scripts import tv_repair_watchdog_decision as cli_module
 from scripts.tv_repair_watchdog_decision import DAILY_DISPATCH_CAP, decide
 
 
@@ -74,3 +79,66 @@ def test_a_malformed_snapshot_refuses_rather_than_guesses(missing: str) -> None:
     del broken[missing]
     decision = decide(broken, dispatches_today=0)
     assert decision.dispatch is False
+
+
+def test_a_top_level_list_snapshot_refuses_rather_than_crashes() -> None:
+    """Syntaktisch gueltiges JSON (eine Liste), aber kein Objekt — kein Wurf."""
+    decision = decide([], dispatches_today=0)
+    assert decision.dispatch is False
+    assert "kein objekt" in decision.reason.lower()
+
+
+def test_a_non_dict_consumer_entry_refuses_rather_than_crashes() -> None:
+    """Ein Konsumenten-Eintrag, der kein Objekt ist, darf nicht werfen."""
+    broken = _snapshot(mismatches=0)
+    broken["bindings"]["consumers"] = ["not-a-dict"]
+    decision = decide(broken, dispatches_today=0)
+    assert decision.dispatch is False
+    assert "konsument" in decision.reason.lower()
+
+
+def test_a_string_checked_consumers_count_is_treated_as_unknown() -> None:
+    """Ein String '0' ist in Python truthy — muss trotzdem als UNBEKANNT gelten."""
+    broken = _snapshot(mismatches=1)
+    broken["bindings"]["checkedConsumers"] = "0"
+    decision = decide(broken, dispatches_today=0)
+    assert decision.dispatch is False
+    assert (
+        "leer" in decision.reason.lower()
+        or "unbekannt" in decision.reason.lower()
+        or "unklar" in decision.reason.lower()
+    )
+
+
+def test_cli_never_crashes_on_a_malformed_snapshot_and_still_writes_a_reason(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Pinnt exakt den vom Review reproduzierten Vertragsbruch: exit 0 + reason=.
+
+    Vorher stuerzte decide() bei ``echo '[]' > snap.json`` mit AttributeError
+    ab (Exit != 0, kein reason= in $GITHUB_OUTPUT) — genau der Vertragsbruch,
+    den kein bisheriger Test abdeckte.
+    """
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text("[]", encoding="utf-8")
+    output_path = tmp_path / "github_output.txt"
+
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tv_repair_watchdog_decision.py",
+            "--snapshot",
+            str(snapshot_path),
+            "--dispatches-today",
+            "0",
+        ],
+    )
+
+    exit_code = cli_module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert "dispatch=false" in payload
+    assert "reason=" in payload
