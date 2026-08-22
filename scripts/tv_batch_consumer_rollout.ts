@@ -100,11 +100,33 @@ type RolloutReport = {
     /** Every chart layout actually persisted, in visit order. */
     savedChartUrls: string[];
     /**
-     * Layouts whose rebinds were deliberately discarded because not every
-     * target on them came back clean. These charts are unchanged, not
-     * half rebound — and repair stopped at the first of them.
+     * Layouts whose rebinds were discarded because the SAVE itself never
+     * confirmed. Only that case remains: an incomplete repair is now saved,
+     * not thrown away (see partiallyRepairedChartUrls).
      */
     abandonedChartUrls: string[];
+    /**
+     * Layouts saved even though not every target on them came back clean —
+     * operator decision 2026-08-22, and the reversal of the rule that stood
+     * here before ("a layout with any failure is abandoned").
+     *
+     * The old rule rested on "not saving is an exact, free rollback". That is
+     * only true of BINDINGS. Measured on run 758 (2026-08-22): the instances
+     * this run re-inserted at 05:37-05:47 survived both a layout switch and
+     * the end of the session, while the 98 rebinds it read back as correct at
+     * 05:47-05:53 were gone. TradingView persists instance add/remove at once
+     * and input bindings only on a layout save — so abandoning discarded the
+     * repair reliably and did nothing about the damage. With ~16 refresh-driven
+     * runs a day, every round left the layout further apart.
+     *
+     * Saving a partial repair is therefore strictly better than the
+     * alternative: the targets that were reached keep their sources, the ones
+     * that were not stay on defaults — which is exactly where abandoning left
+     * them anyway. Repair still stops at the first such layout, so what is
+     * persisted remains a prefix of the rollout, and report.ok is still false
+     * through the target that failed.
+     */
+    partiallyRepairedChartUrls: string[];
     /**
      * Sources this run SAVED even though the registered R1 evidence attests
      * different content — so the evidence stops describing what is deployed
@@ -341,6 +363,7 @@ async function main(): Promise<void> {
       layoutSaved: false,
       savedChartUrls: [],
       abandonedChartUrls: [],
+      partiallyRepairedChartUrls: [],
       savedWithoutAttestation,
     },
     outOfBandDrift: {
@@ -597,6 +620,7 @@ async function main(): Promise<void> {
       // bounds the run.
       const savedChartUrls: string[] = [];
       const abandonedChartUrls: string[] = [];
+      const partiallyRepairedChartUrls: string[] = [];
       let repairBindings = executionPlan.repairBindings;
 
       for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
@@ -637,14 +661,20 @@ async function main(): Promise<void> {
         if (!executionPlan.saveLayout || !mutatingLayout) continue;
 
         if (!layoutRepairedCleanly) {
-          // Roll back by discarding: reload without saving. This is the same
-          // mechanism that silently reverted rebinds before the save existed --
-          // used deliberately, it is the reason a partial repair can never
-          // reach the operator's chart.
-          abandonedChartUrls.push(layout.chartUrl);
+          // Operator decision 2026-08-22: SAVE the partial repair instead of
+          // discarding it. This reverses the rule that stood here, and the
+          // reversal is the point -- see partiallyRepairedChartUrls above for
+          // the measurement that killed the old premise ("not saving is an
+          // exact, free rollback"). It holds for bindings and not for
+          // instances, so abandoning threw away the repair and left the damage.
+          //
+          // Deliberately NOT changed: repair still stops here, so what gets
+          // persisted stays a PREFIX of the rollout rather than an arbitrary
+          // subset, and report.ok is still false through the target that
+          // failed. No fall-through to a reload either -- the reload WAS the
+          // rollback, and rolling back is exactly what we no longer want.
+          partiallyRepairedChartUrls.push(layout.chartUrl);
           repairBindings = false;
-          await gotoChart(session.page, layout.chartUrl).catch(() => undefined);
-          continue;
         }
 
         try {
@@ -654,7 +684,9 @@ async function main(): Promise<void> {
         } catch (error) {
           // The save never confirmed, so what reached this layout is unknown.
           // Stop mutating rather than stack another layout on top of it; the
-          // failure gates report.ok below.
+          // failure gates report.ok below. This is now the ONLY way a layout
+          // ends up in abandonedChartUrls -- an incomplete repair is saved.
+          abandonedChartUrls.push(layout.chartUrl);
           repairBindings = false;
           report.bindings.failed.push({
             target: `chart-layout:${layout.chartUrl}`,
@@ -666,14 +698,21 @@ async function main(): Promise<void> {
       if (executionPlan.saveLayout) {
         report.mutations.savedChartUrls = savedChartUrls;
         report.mutations.abandonedChartUrls = abandonedChartUrls;
-        // A run that abandoned or failed nothing must have saved every layout
-        // it planned to. Without this a green report could still cover a strict
-        // subset -- the failure this whole block exists to prevent. When
-        // something WAS abandoned, the layouts after it are unsaved on purpose
+        report.mutations.partiallyRepairedChartUrls = partiallyRepairedChartUrls;
+        // A run that hit nothing must have saved every layout it planned to.
+        // Without this a green report could still cover a strict subset -- the
+        // failure this whole block exists to prevent. When something DID go
+        // wrong, the layouts after it are unvisited on purpose (repair stops)
         // and report.ok is already false through the target that caused it.
+        //
+        // partiallyRepairedChartUrls joins this predicate for the same reason
+        // abandonedChartUrls did: it marks the layout where the run stopped
+        // widening. It does NOT mark an unsaved layout any more -- that one was
+        // saved on purpose (operator decision 2026-08-22).
         const planned = resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl);
         const missed = planned.filter((chartUrl) => !savedChartUrls.includes(chartUrl));
         const nothingWentWrong = abandonedChartUrls.length === 0
+          && partiallyRepairedChartUrls.length === 0
           && report.bindings.failed.length === 0
           && report.bindings.consumers.every((item) => item.mismatches.length === 0);
         if (missed.length > 0 && nothingWentWrong) {
