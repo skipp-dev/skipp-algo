@@ -40,9 +40,22 @@ _REQUIRED_A0_FAST_RULES: dict[str, tuple[str, ...]] = {
     "a0-fast-slow-reader-drops": ("a0_fast_queue_dropped_total",),
     "a0-fast-record-rejections": ("a0_fast_records_rejected_total",),
     "a0-fast-queue-pressure": ("a0_fast_queue_depth", "a0_fast_queue_capacity"),
+    # 2026-08-22: the stale pair. The 8s rule is gated on the REGULAR session
+    # (that is where 8s carries: p95 1.7s), the 30-minute rule watches the
+    # whole product window so a stream dying after the close is caught the
+    # same day. The session gauges are pinned as metric references here for
+    # the same reason as everything else in this table: a rule that silently
+    # loses its gate goes back to burning 56.8h per 5 days, and one that
+    # loses the gate the OTHER way stops watching the window entirely.
     "a0-fast-stream-stale": (
         "a0_fast_stream_connected",
         "a0_fast_last_record_age_seconds",
+        "live_overlay_market_us_open",
+    ),
+    "a0-fast-stream-silent-extended": (
+        "a0_fast_stream_connected",
+        "a0_fast_last_record_age_seconds",
+        "live_overlay_market_us_extended_open",
     ),
     "pre-a0-shadow-resync-stuck": ("a0_fast_resync_required_symbols",),
     "pre-a0-shadow-data-missing": (

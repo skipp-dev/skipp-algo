@@ -6061,7 +6061,20 @@ groups:
         # The nastiest of the seven: connected==1 looks healthy on every
         # dashboard while no bar has arrived. Only the age gauge separates a
         # live stream from a socket that is merely open.
-        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 8))
+        #
+        # 2026-08-22: gated on the REGULAR session, because the 8s threshold
+        # only carries there. Measured over 5 days (max age, 5-min steps):
+        # regular 13:30-20:00Z median 0.6s / p95 1.7s / max 11.9s, 0.3% above
+        # 8s -- while premarket is 28% above, after-hours 35%, and closed
+        # 99%. The A0_FAST_SYMBOLS universe is micro-caps: outside RTH it is
+        # simply not trading, so ungated this rule burned 56.8h per 5 days and
+        # masked the real thing (2026-08-22: a weekend gap was triaged as an
+        # incident until the day of week was checked). Gating on the extended
+        # window instead was measured too and rejected: 37.8h, because that
+        # window opens at 04:00 ET. The extended window keeps its own coarse
+        # watcher -- see a0-fast-stream-silent-extended below, which is the
+        # data-flow guard market_hours.py's docstring asks for.
+        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 8)) * on() group_left() max(live_overlay_market_us_open{job="live_overlay"})
         instant: true
     - refId: C
       datasourceUid: __expr__
@@ -6079,9 +6092,54 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
       summary: The A0-Fast stream reports connected but no fresh bar arrived -- an open socket is not
         a flowing feed.
-      runbook: Expected outside RTH and on market holidays. During a session this means the gateway
-        stopped delivering without dropping the connection; restart inside the session so the replay
-        still covers the gap.
+      runbook: Fires only inside the US regular session, where any silence beyond 8s is abnormal
+        (measured p95 1.7s). It means the gateway stopped delivering without dropping the
+        connection; restart inside the session so the replay still covers the gap. Silence outside
+        RTH is covered by a0-fast-stream-silent-extended instead.
+  - uid: a0-fast-stream-silent-extended
+    title: A0-Fast stream silent through the extended window
+    condition: C
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        # The coarse half of the pair added 2026-08-22. a0-fast-stream-stale
+        # watches the regular session at 8s; this one watches the whole
+        # product window (04:00-20:00 ET) at 30 MINUTES, so a stream that dies
+        # after the close is still caught the same day rather than at the next
+        # open -- the failure mode market_hours.py's docstring warns about
+        # ("a feed that went silent at 16:10 ET on a Friday was neither
+        # reported nor healed until Monday 09:30").
+        # Why 30min and not 60s: measured over 5 days, p95 of the record age
+        # is 35.8s in premarket and 39.3s in after-hours (micro-cap universe),
+        # and a 60s threshold still burned 24.6h per 5 days. 1800s is ~46x
+        # that p95, so only a genuinely dead stream reaches it, while the
+        # regular-session rule above keeps the fast 8s reaction where the
+        # feed is dense.
+        expr: max((a0_fast_stream_connected{job="a0_fast"} == bool 1) * (a0_fast_last_record_age_seconds{job="a0_fast"} > bool 1800)) * on() group_left() max(live_overlay_market_us_extended_open{job="live_overlay"})
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params: [0]
+          operator: {type: and}
+          query: {params: [A]}
+    for: 5m
+    labels: {severity: warning}
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/a0_fast_detector/README.md
+      summary: The A0-Fast stream delivered nothing for 30 minutes while the US product window
+        (04:00-20:00 ET) was open.
+      runbook: Half an hour of total silence inside the product window is a dead stream, not a quiet
+        universe. Check the reader stall watchdog (A0_FAST_READER_STALL_SECS, default 300s) and the
+        Databento entitlement; a restart inside the window lets the replay cover the gap. Silence
+        outside the window is expected -- the stream returns with premarket on its own (measured
+        over 2026-08-15..17, a 57h gap healed with no intervention).
   - uid: pre-a0-alert-budget-exceeded
     title: PRE-A0 alert budget exceeded
     condition: C
