@@ -65,7 +65,9 @@ child_process.exec('ls ' + dir)
 ```
 
 **What to look for (Python):**
-```python
+
+<!-- Muster-Katalog, kein lauffaehiger Code — siehe Hinweis in language-patterns.md. -->
+```text
 os.system(user_input)
 subprocess.call(user_input, shell=True)
 eval(user_input)

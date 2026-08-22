@@ -76,7 +76,11 @@ ALLOWED_HOSTS = ['*']  # too permissive
 ```
 
 ### Flask specific
-```python
+
+<!-- Muster-Katalog, kein lauffaehiger Code: als ```text ausgezeichnet, damit ein
+     Skill-Scanner die Beispiele nicht als eval/exec-Fund in dieser Referenz
+     meldet (MDBLOCK_PYTHON_EVAL_EXEC). In echtem Code feuert die Regel weiter. -->
+```text
 # Debug mode
 app.run(debug=True)  # never in production
 
