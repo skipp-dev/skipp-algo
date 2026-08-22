@@ -378,6 +378,94 @@ complete developer interaction coverage until controlled tests from Codex,
 Claude Code, GitHub Copilot, and each approved browser tool appear in the
 relevant telemetry and a harmless block test succeeds for each client.
 
+## Skill- und MCP-Scan der Entwicklerumgebung (2026-08-22)
+
+Die Zeile "Future first-party agent or MCP client" oben nennt "MCP/skill scan"
+als geforderte Kontrolle.  Sie läuft seit dem 2026-08-21 real, aber **nicht** im
+Repository-Prozess: der Cisco AI Security Scanner ist eine VS-Code-Extension
+(`cisco-ai.cisco-ai-security-scanner` 1.0.6, darin `mcp-scanner` 4.6.0 und
+`skill-scanner` 2.0.9).  Sie prüft MCP-Konfigurationen und Agent-Skills auf der
+Entwicklermaschine, nicht Produktions-Code.  Dieser Abschnitt hält fest, was
+gemessen wurde und welche Befunde bewusst stummgeschaltet sind.
+
+### Grundgesamtheit und Messung
+
+Die Extension scannte mit `scanScope: global` nur `~/.claude/skills` und
+`~/.codex/skills` — **16 Skills, 24 Befunde**.  Die Workspace-Skills des
+Repositories (`.claude/skills/`, `.github/skills/`) waren damit nie erfasst.
+Die vollständige Menge wurde am 2026-08-22 über alle vier Wurzeln gefahren:
+
+```bash
+skill-scanner scan-all <wurzel> --recursive --use-behavioral --use-trigger \
+  --policy configs/skill_scan_policy.yaml --format json
+```
+
+**35 Skills, 63 Befunde** vorher — also rund die Hälfte der Menge ungesehen.
+Nach den Fixes und der Policy: **21 Befunde**, keine Severity-Klasse gestiegen.
+
+| Severity | vorher | nachher |
+| --- | --- | --- |
+| CRITICAL | 3 | 1 |
+| HIGH | 6 | 4 |
+| MEDIUM | 18 | 16 |
+| LOW | 1 | 0 |
+| INFO | 35 | 0 |
+
+### Behobene Befunde (kein Mute)
+
+- **2× CRITICAL `COMPOUND_FIND_EXEC`** in `~/.claude/skills/pre-push-guard`: der
+  Bytecode-Purge war ein rekursives Shell-Delete aus dem Arbeitsverzeichnis mit
+  unterdrücktem stderr.  Ersetzt durch einen auf die Git-Wurzel verankerten
+  Python-Purge, der die Anzahl meldet.  Die Regel ist nicht abgeschaltet.
+- **1× MEDIUM `TOOL_ABUSE_UNDECLARED_NETWORK`** und die Dokumentationsforderung
+  zu `DATA_EXFIL_NETWORK_REQUESTS` in `~/.claude/skills/prove-over-population`:
+  das Skill deklariert seine zwei Ziele jetzt im `compatibility`-Feld.
+- **1× LOW `PYCACHE_FILES_DETECTED`**: `__pycache__/` entfernt, und die
+  dokumentierte Aufrufform nutzt `python -B`, damit es nicht wiederkommt.
+- **2× HIGH `MDBLOCK_PYTHON_EVAL_EXEC`, 1× MEDIUM `MDBLOCK_PYTHON_SUBPROCESS`**
+  in `.github/skills/security-review/references/`: die Verwundbarkeits-Kataloge
+  waren als `python` ausgezeichnet.  Sie sind Muster-Listen, kein lauffähiger
+  Code, und stehen jetzt in `text`-Blöcken.  Beide Regeln bleiben überall scharf.
+
+### Stummgeschaltet: `configs/skill_scan_policy.yaml`
+
+Aktiv nur mit `skill-scanner.scanPolicy: "custom"` plus
+`skill-scanner.scanPolicyFile` auf diese Datei — ohne den ersten Schalter wird
+die Datei ignoriert.  Abgeschaltet ist genau eine Regel:
+`MANIFEST_MISSING_LICENSE`.  Sie feuerte auf 35 von 35 Skills, betrifft die
+Vertriebshygiene veröffentlichter Skill-Pakete und trennt bei 100 % Trefferquote
+nichts.  Der Wächter `tests/test_skill_scan_policy.py` verlangt für jede weitere
+Zeile eine Begründung im selben File.
+
+Zwei gemessene Fallen stehen als Kommentar in der Policy und als Test dahinter:
+
+1. Eine Liste in der Policy **ersetzt** die Preset-Liste, sie ergänzt sie nicht.
+   `skip_in_docs` mit zwei Einträgen zu schreiben hätte die 14 Einträge des
+   `balanced`-Presets still gelöscht — der Scan wäre grüner **und** blinder
+   geworden, und beides sieht in der Oberfläche gleich aus.
+2. `skip_in_docs` wirkt nur auf Regeln des `static`-Analyzers.  Die
+   `MDBLOCK_*`-Regeln stammen aus dem behavioral analyzer, der die
+   Policy-Scoping-Felder nicht liest; ein Eintrag dort wäre folgenlos gewesen.
+
+### Verbleibende 21 Befunde
+
+- **8× MEDIUM `DATA_EXFIL_NETWORK_REQUESTS`** in `prove-over-population` sind
+  **richtig**: das Skill führt authentifizierte Ausgangsaufrufe mit einem
+  Keychain-Token.  Sie bleiben sichtbar; die Ziele sind im Manifest deklariert.
+  Eine Regel dieser Klasse auf eigenem, aktiv bearbeitetem Werkzeug
+  stummzuschalten wäre der falsche Mute.
+- **13× in fremden Skills** (`~/.codex/skills/.system/` — `plugin-creator`,
+  `openai-docs`, `imagegen`, `skill-installer` — sowie `gh-address-comments`).
+  Geprüft und harmlos: Anweisungstext, ein lokaler `fs.readFile`, ein
+  Doku-`fetch`, eine Paginierungsschleife, das Lesen einer API-Key-Variablen.
+  Sie sind über `mcp-scanner.allowlist.skills` pfadweise stumm.
+
+**UNGESICHERT — verlässt sich auf menschliches Gedächtnis:** diese Pfad-Mutes
+haben keinen Verfall und keine Bindung an den Inhalt.  Codex installiert
+`~/.codex/skills/.system/` bei jedem Update neu; ein künftiger, bösartiger Stand
+derselben Pfade würde nicht gemeldet.  Ein Stolperdraht (Inhalts-Hash je
+stummgeschaltetem Skill, erneutes Melden bei Änderung) ist **nicht** gebaut.
+
 ## Official references
 
 - Cisco AI Defense Inspection API: <https://developer.cisco.com/docs/ai-defense-inspection/>
