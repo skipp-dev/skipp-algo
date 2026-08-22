@@ -247,7 +247,16 @@ def _trading_signals_snapshot() -> dict[str, object]:
 
     if isinstance(raw, dict) and raw:
         loaded = 1.0
-        signals_obj = raw.get("signals") or []
+        # Der Serve-Pfad verwirft einen Snapshot, dessen ``signals`` kein List
+        # ist, als ERSTES (compute._signals_snapshot_is_fresh seit #4056) und
+        # liefert dann fuer JEDES Symbol None. Ohne ein Gegenstueck hier meldete
+        # der Exporter denselben Snapshot als geladen und frisch: stiller
+        # Totalverlust des Handelskontexts bei gruener Alarmflaeche. Der
+        # Rohwert zaehlt, nicht ``or []`` — das macht "Feld fehlt" und "leere
+        # Liste" ununterscheidbar, obwohl Serve nur das ERSTE verwirft.
+        signals_raw = raw.get("signals")
+        signals_usable = isinstance(signals_raw, list)
+        signals_obj = signals_raw if signals_usable else []
         counts["active"] = _coerce_count(raw.get("signal_count"))
         counts["a0"] = _coerce_count(raw.get("a0_count"))
         counts["a1"] = _coerce_count(raw.get("a1_count"))
@@ -272,6 +281,11 @@ def _trading_signals_snapshot() -> dict[str, object]:
                 # snapshot is current. Keep the age unknown and stale so the
                 # alerting contract matches compute._signals_snapshot_is_fresh.
                 stale = 1.0
+        if not signals_usable:
+            # NACH dem Altersblock, sonst ueberschriebe dessen ``else 0.0``
+            # dieses Urteil: ein Snapshot mit taufrischem ``updated_epoch``,
+            # aber unbrauchbarer Signalliste, saehe wieder frisch aus.
+            stale = 1.0
 
     signals_list = signals_obj if isinstance(signals_obj, list) else []
     normalized = [item for item in signals_list if isinstance(item, dict)]
