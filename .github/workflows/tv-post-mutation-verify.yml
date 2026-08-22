@@ -76,6 +76,11 @@ concurrency:
 
 env:
   PYTHONUNBUFFERED: "1"
+  # Required by tests/test_workflow_invoked_scripts_importable.py and
+  # tests/test_workflow_pythonpath_for_direct_invoke.py: the repair-decision
+  # step below direct-invokes `python3 scripts/tv_repair_watchdog_decision.py`
+  # rather than `python -m scripts.<module>`.
+  PYTHONPATH: ${{ github.workspace }}
 
 defaults:
   run:
@@ -188,6 +193,87 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/dispatches" \
             -d '{"ref":"main","inputs":{"verify_only":"true"}}'
+
+      # The missing edge from measurement to action (2026-08-23). A verify-only
+      # run already holds the freshest bindings snapshot in hand -- this reads
+      # it and asks scripts/tv_repair_watchdog_decision.py (pure, no network,
+      # independently tested) whether any consumer drifted and a repair is
+      # warranted. Loop guard: gated on mode == 'verify-only' only, so a
+      # repair-only run's OWN completion (which re-triggers this workflow via
+      # the same workflow_run chain) can never ask this question about itself
+      # -- decide() also refuses on executionMode != verify-only, so the guard
+      # is enforced twice, once at the workflow gate and once inside the pure
+      # function it calls.
+      - name: Decide whether the layout needs a repair
+        id: repair_decision
+        if: ${{ always() && steps.mode.outputs.mode == 'verify-only' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # ET, not UTC: the daily dispatch cap must track the trading day the
+          # refresh cadence itself runs against, not the runner's own clock --
+          # GitHub-hosted runners run UTC. Exported for the WHOLE step so it
+          # governs both `date` and jq's strflocaltime below: strflocaltime
+          # reads the process's ambient zone, it does not accept a per-call
+          # `TZ=` prefix the way a single `date` invocation can. Scoping TZ
+          # only to the `date` call (as an earlier draft of this step did)
+          # leaves jq computing in the runner's UTC and comparing a UTC
+          # bucket-date against an ET "today" string -- measured locally at
+          # 02:30Z: with TZ left ambient for jq alone, strflocaltime lands one
+          # calendar day off from the ET date the shell had just computed, so
+          # the comparison silently mismatches near midnight ET and the cap
+          # miscounts. Runner tzdata is not a new dependency here: GitHub's
+          # ubuntu-latest images ship the full IANA zoneinfo database already.
+          TZ: America/New_York
+        run: |
+          set -euo pipefail
+          # Wie viele Male hat sich der Save-Workflow heute (ET) ueberhaupt per
+          # workflow_dispatch gemeldet? Die Plattform ist der Zaehler, kein
+          # eigener Zustand -- aber die REST-API kennzeichnet keinen Dispatch
+          # mit den Input-Werten, mit denen er ausgeloest wurde, also zaehlt
+          # jeder manuelle Dispatch mit, nicht nur repair_only=true. Das macht
+          # den Deckel im Zweifel FRUEHER zu, nie spaeter -- fail closed in der
+          # sicheren Richtung.
+          today="$(date +%F)"
+          runs="$(gh api "repos/${GH_REPO}/actions/workflows/tv-save-consumer-source.yml/runs?event=workflow_dispatch&per_page=100")"
+          count="$(printf '%s' "$runs" | jq --arg today "$today" '
+              [.workflow_runs[]
+               | select((.created_at | fromdateiso8601 | strflocaltime("%Y-%m-%d")) == $today)
+              ] | length')"
+          in_flight="$(printf '%s' "$runs" | jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          flag=""
+          [ "${in_flight}" -gt 0 ] && flag="--repair-in-flight"
+          python3 scripts/tv_repair_watchdog_decision.py \
+            --snapshot snapshot/tradingview_consumer_bindings.json \
+            --dispatches-today "${count}" ${flag}
+
+      - name: Dispatch the repair run
+        if: ${{ always() && steps.repair_decision.outputs.dispatch == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          REPAIR_REASON: ${{ steps.repair_decision.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "::warning title=Layout repair dispatched::${REPAIR_REASON}"
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"repair_only":"true"}}'
+
+      # The third alarm state (repair succeeded) needs no step of its own: the
+      # drift alert derives from the published bindings snapshot, and the next
+      # verify run writes it forward without mismatches. This step covers the
+      # second: repair attempted and capped -- silence here would mean the cap
+      # firing looks identical to "nothing was wrong" from the outside.
+      - name: Say it when the watchdog gives up
+        if: ${{ always() && steps.repair_decision.outputs.dispatch == 'false' && contains(steps.repair_decision.outputs.reason, 'Deckel erreicht') }}
+        env:
+          REPAIR_REASON: ${{ steps.repair_decision.outputs.reason }}
+        run: |
+          echo "::error title=Layout repair gave up::${REPAIR_REASON}"
 
       - name: Write dispatch summary
         if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' && steps.mode.outputs.mode != 'write-no-mutation' }}

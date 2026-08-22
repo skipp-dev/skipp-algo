@@ -184,6 +184,58 @@ def test_the_dispatch_is_read_only_and_targets_the_save_workflow() -> None:
     assert sleep["run"].strip() == "sleep 900"
 
 
+def test_the_watchdog_dispatches_a_repair_and_says_why() -> None:
+    """Die fehlende Kante von der Messung zur Handlung.
+
+    Der Verify-Lauf misst den Layout-Zustand bereits und laedt ihn hoch; bis
+    2026-08-22 handelte niemand darauf. Diese Kante ist der ganze Waechter.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    decision = steps["Decide whether the layout needs a repair"]
+    assert "scripts/tv_repair_watchdog_decision.py" in decision["run"]
+    assert "--snapshot" in decision["run"]
+    assert "--dispatches-today" in decision["run"], (
+        "ohne Deckel-Argument liefe der Waechter unbegrenzt"
+    )
+
+    dispatch = steps["Dispatch the repair run"]
+    assert "repair_only" in dispatch["run"], "der Dispatch muss den Modus setzen"
+    assert "verify_only" not in dispatch["run"], (
+        "ein Verify repariert nichts — das waere die vakuose Variante"
+    )
+    assert "steps.repair_decision.outputs.dispatch == 'true'" in dispatch["if"]
+
+
+def test_the_decision_step_only_reacts_to_verify_only_snapshots() -> None:
+    """Schleifenschutz: ein Reparaturlauf darf keinen weiteren ausloesen.
+
+    Der Auslöser reagiert ausschliesslich auf Snapshots mit
+    executionMode == "verify-only". Waere die Bedingung breiter (z.B. auch auf
+    "repair-only" oder "write" gestellt), koennte ein Reparaturlauf ueber
+    seinen eigenen abgeschlossenen Lauf erneut in diesen Job hineinlaufen und
+    sich selbst eine weitere Reparatur bestellen.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    decision = steps["Decide whether the layout needs a repair"]
+    assert decision["if"] == "${{ always() && steps.mode.outputs.mode == 'verify-only' }}"
+
+
+def test_the_watchdog_says_it_when_it_gives_up() -> None:
+    """Der Deckel ist laut: erreicht, gibt es eine ::error::-Zeile mit Grund.
+
+    Ohne diesen Schritt wuerde ein erreichter Deckel nur in
+    steps.repair_decision.outputs.reason verschwinden — niemand, der nicht
+    gezielt in die Step-Outputs schaut, wuerde je erfahren, dass der Waechter
+    aufgegeben hat.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    give_up = steps["Say it when the watchdog gives up"]
+    condition = " ".join(give_up["if"].split())
+    assert "steps.repair_decision.outputs.dispatch == 'false'" in condition
+    assert "contains(steps.repair_decision.outputs.reason, 'Deckel erreicht')" in condition
+    assert "::error" in give_up["run"]
+
+
 def test_a_write_run_that_provably_touched_nothing_exits_too() -> None:
     """A refused write run carries its own proof; the gate must read it.
 
