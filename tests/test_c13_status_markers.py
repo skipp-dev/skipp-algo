@@ -88,13 +88,39 @@ def test_emit_writes_schema_and_is_deterministic(live_dir: Path, tmp_path: Path)
     assert all(m["dir"] == live_dir.as_posix() for m in data["markers"])
 
 
-def _summary(tmp_path: Path, markers: list[dict]) -> Path:
+def _summary(
+    tmp_path: Path,
+    markers: list[dict],
+    *,
+    window_end: str = "2026-08-18",
+    window_days: int = 3,
+) -> Path:
     p = tmp_path / "s.json"
     p.write_text(
-        json.dumps({"schema_version": 1, "window_end": "x", "window_days": 3, "markers": markers}),
+        json.dumps(
+            {
+                "schema_version": 1,
+                "window_end": window_end,
+                "window_days": window_days,
+                "markers": markers,
+            }
+        ),
         encoding="utf-8",
     )
     return p
+
+
+def _mk(agent: str, date: str, kind: str = "SUCCESS", message: str = "") -> dict:
+    return {"agent": agent, "date": date, "kind": kind, "message": message, "ts": _TS}
+
+
+def _green_window(window_end: str, *days_back_dates: str) -> list[dict]:
+    """Voll-gruener Markersatz: eod_flatten fuer alle Tage, reconcile und
+    audit_push fuer die Tage VOR window_end (Praesenzregeln von check())."""
+    rows = [_mk("eod_flatten", window_end)]
+    for d in days_back_dates:
+        rows += [_mk("eod_flatten", d), _mk("reconcile", d), _mk("audit_push", d, kind="ok")]
+    return rows
 
 
 def test_check_alarms_on_any_non_green_marker(live_dir: Path, tmp_path: Path) -> None:
@@ -105,19 +131,26 @@ def test_check_alarms_on_any_non_green_marker(live_dir: Path, tmp_path: Path) ->
     assert check(out, date="2026-08-18") == 1
     # Am 19.8. zaehlt der Vortag mit -> immer noch rot: still ist maximal 1 Tag.
     assert check(out, date="2026-08-19") == 1
-    # Am 20.8. liegt nichts mehr im Fenster -> weich gruen (Wochenend-Semantik).
-    assert check(out, date="2026-08-20") == 0
+    # Am 20.8. (Do) ist eine Summary mit window_end 18.8. STALE — der
+    # Produzent haette am 19.8. schieben muessen. Bis 22.8. war das weich
+    # ("Wochenend-Semantik") und Staleness damit unsichtbar; jetzt rot.
+    assert check(out, date="2026-08-20") == 1
 
 
 def test_check_green_when_all_markers_ok(tmp_path: Path) -> None:
+    # Montag als window_end: das 3-Tage-Fenster faellt aufs Wochenende, die
+    # Praesenzpflicht reduziert sich auf eod_flatten(Mo) — der Test misst
+    # dann isoliert die Kind-Bewertung.
     p = _summary(
         tmp_path,
         [
-            {"agent": "reconcile", "date": "2026-08-18", "kind": "SUCCESS", "message": "", "ts": _TS},
-            {"agent": "audit_push", "date": "2026-08-18", "kind": "ok", "message": "", "ts": _TS},
+            _mk("eod_flatten", "2026-08-17"),
+            _mk("reconcile", "2026-08-17"),
+            _mk("audit_push", "2026-08-17", kind="ok"),
         ],
+        window_end="2026-08-17",
     )
-    assert check(p, date="2026-08-18") == 0
+    assert check(p, date="2026-08-17") == 0
 
 
 def test_collect_parses_the_measured_real_formats(tmp_path: Path) -> None:
@@ -184,6 +217,12 @@ def test_real_format_green_day_stays_green_end_to_end(tmp_path: Path) -> None:
     d.mkdir()
     _write_marker(d, "ibkr_smoke", "2026-08-18", "SUCCESS|smoke-ok audit=smoke_2026-08-18.jsonl\n")
     _write_marker(d, "tws_autostart", "2026-08-18", "SUCCESS|already-running\n")
+    # Reales eod-flatten-Format (SUCCESS:fills:<pfad>): seit 22.8. ist seine
+    # PRAESENZ an Handelstagen Pflicht — ohne ihn wuerde dieser Gruen-Test rot.
+    _write_marker(
+        d, "eod_flatten", "2026-08-18",
+        "SUCCESS:fills:/Users/op/x/cache/live/portfolio_fills_eod_2026-08-18.json:2026-08-18T19:45:04Z\n",
+    )
     _write_marker(
         d, "audit_push", "2026-08-18", "ok pushed:2026-08-18T21:30:02Z:incubation_2026-08-18.jsonl\n"
     )
@@ -206,6 +245,9 @@ def test_empty_marker_fails_closed(tmp_path: Path) -> None:
     d = tmp_path / "live"
     d.mkdir()
     _write_marker(d, "reconcile", "2026-08-18", "")
+    # Praesenzpflicht erfuellen, damit rot ISOLIERT vom leeren Marker kommt
+    # (Loeschsonden-Disziplin: jede Zeile traegt genau ihren Zweck).
+    _write_marker(d, "eod_flatten", "2026-08-18", f"SUCCESS:flattened=0:{_TS}\n")
     out = tmp_path / "s.json"
     emit(d, date="2026-08-18", days_back=1, output=out)
 
@@ -213,15 +255,139 @@ def test_empty_marker_fails_closed(tmp_path: Path) -> None:
 
 
 def test_check_fails_closed_on_unknown_kind(tmp_path: Path) -> None:
+    # eod_flatten(Mo) erfuellt die Praesenzpflicht — rot kommt hier allein
+    # aus dem unbekannten Kind, nicht aus einer Nebenbedingung.
     p = _summary(
         tmp_path,
-        [{"agent": "reconcile", "date": "2026-08-18", "kind": "PARTIAL", "message": "", "ts": _TS}],
+        [_mk("eod_flatten", "2026-08-17"), _mk("reconcile", "2026-08-17", kind="PARTIAL")],
+        window_end="2026-08-17",
     )
-    assert check(p, date="2026-08-18") == 1
+    assert check(p, date="2026-08-17") == 1
 
 
-def test_check_missing_summary_is_soft(tmp_path: Path) -> None:
-    assert check(tmp_path / "fehlt.json", date="2026-08-18") == 0
+def test_check_missing_summary_is_red(tmp_path: Path) -> None:
+    """Bis 22.8. weich — und die Summary hatte auf dem Data-Branch NIE
+    existiert (Emit sass hinter dem No-Audit-Exit): der Konsument las seit
+    seiner Geburt eine Datei, die nie ankam, und blieb dabei gruen. Fehlende
+    Summary heisst 'die Mac->Branch-Kette liefert nicht' und ist rot."""
+    assert check(tmp_path / "fehlt.json", date="2026-08-18") == 1
+
+
+def test_check_stale_summary_is_red(tmp_path: Path) -> None:
+    """window_end aelter als der letzte Wochentag vor dem Pruefdatum = die
+    Push-Kette steht. Vorher fielen die Marker einfach aus dem Scope und der
+    Lauf war 'weich gruen' — Staleness und Wochenende waren ununterscheidbar.
+
+    Fixture bewusst PRAESENZ-VOLLSTAENDIG (Loeschsonde 22.8.: eine erste
+    Fassung mit unvollstaendigem Fenster wurde auch ohne die Staleness-
+    Pruefung rot — ueber die Praesenzpflicht — und bewies damit die falsche
+    Zeile). Hier ist Staleness der EINZIGE Rotgrund: ohne sie waere der
+    Scope {21.,20.} leer und der Lauf gruen."""
+    p = _summary(
+        tmp_path, _green_window("2026-08-18", "2026-08-17"), window_end="2026-08-18"
+    )
+    # Fr 21.8.: letzter Wochentag davor ist Do 20.8. > 18.8. -> stale.
+    assert check(p, date="2026-08-21") == 1
+
+
+def test_check_tolerates_one_weekday_of_lag(tmp_path: Path) -> None:
+    """Der Cron (22:00Z) laeuft im Winter VOR dem 17:30-ET-Push desselben
+    Tages — window_end == Vortag ist deshalb kein Ausfall. Positivkontrolle
+    zur Staleness: die Regel darf nicht jede normale Verzoegerung roeten."""
+    p = _summary(
+        tmp_path,
+        _green_window("2026-08-21", "2026-08-20", "2026-08-19"),
+        window_end="2026-08-21",
+    )
+    # Mo 24.8. gegen Freitags-Summary (21.8.): previous_weekday(Mo) = Fr -> frisch.
+    assert check(p, date="2026-08-24") == 0
+
+
+def test_check_reds_on_missing_eod_flatten_marker(tmp_path: Path) -> None:
+    """Die 21.8.-Reproduktion: der Flatten hing 8h41 und schrieb NIE einen
+    Marker. Der alten Fassung war Abwesenheit unsichtbar (sie bewertete nur
+    vorhandene Marker) — genau dieser Fall muss rot sein."""
+    rows = [m for m in _green_window("2026-08-21", "2026-08-20", "2026-08-19")
+            if not (m["agent"] == "eod_flatten" and m["date"] == "2026-08-21")]
+    p = _summary(tmp_path, rows, window_end="2026-08-21")
+    assert check(p, date="2026-08-21") == 1
+
+
+def test_check_ignores_missing_eod_flatten_on_a_full_holiday(tmp_path: Path) -> None:
+    """#4990-Anschluss: am Feiertag steigt der Flatten-Wrapper bewusst
+    markerlos aus — Abwesenheit ist dort Design, kein Ausfall. Labor Day
+    2026-09-07 (Mo), Fenster faellt sonst aufs Wochenende."""
+    p = _summary(tmp_path, [], window_end="2026-09-07")
+    assert check(p, date="2026-09-07") == 0
+
+
+def test_check_tolerates_reconcile_lag_on_window_end(tmp_path: Path) -> None:
+    """reconcile feuert 23:05 LOKAL; in den +5-DST-Wochen liegt das HINTER
+    dem 17:30-ET-Emit — sein Marker fuer den Emissionstag kann also fehlen,
+    ohne dass etwas kaputt ist. Pflicht erst fuer Tage VOR window_end."""
+    rows = [m for m in _green_window("2026-08-21", "2026-08-20", "2026-08-19")
+            if not (m["agent"] == "reconcile" and m["date"] == "2026-08-21")]
+    # reconcile(21.8.) fehlt bereits im _green_window (nur Tage < window_end
+    # tragen reconcile) — der Filter oben ist die explizite Dokumentation.
+    p = _summary(tmp_path, rows, window_end="2026-08-21")
+    assert check(p, date="2026-08-21") == 0
+
+
+def test_check_reds_on_missing_reconcile_before_window_end(tmp_path: Path) -> None:
+    rows = [m for m in _green_window("2026-08-21", "2026-08-20", "2026-08-19")
+            if not (m["agent"] == "reconcile" and m["date"] == "2026-08-20")]
+    p = _summary(tmp_path, rows, window_end="2026-08-21")
+    assert check(p, date="2026-08-21") == 1
+
+
+def test_check_broker_dormancy_is_a_warning_not_an_alarm(tmp_path: Path) -> None:
+    """audit_push degraded/no-audit-file = Broker-Dormanz, die ist Design
+    (reconcile stempelt denselben Zustand bewusst SUCCESS). Ein taegliches
+    rotes Issue waere eine Fehlalarm-Maschine. Positivkontrolle daneben:
+    ein ECHTES degraded (push-failed) bleibt rot."""
+    dormant = _summary(
+        tmp_path,
+        [
+            _mk("eod_flatten", "2026-08-17"),
+            _mk("audit_push", "2026-08-17", kind="degraded", message="no-audit-file"),
+        ],
+        window_end="2026-08-17",
+    )
+    assert check(dormant, date="2026-08-17") == 0
+
+    broken = _summary(
+        tmp_path,
+        [
+            _mk("eod_flatten", "2026-08-17"),
+            _mk("audit_push", "2026-08-17", kind="degraded", message="push-failed"),
+        ],
+        window_end="2026-08-17",
+    )
+    assert check(broken, date="2026-08-17") == 1
+
+
+def test_audit_push_ships_the_summary_even_without_an_audit() -> None:
+    """Der Geburtsfehler der Erstfassung: der Emit sass HINTER dem
+    No-Audit-Exit, und seit #4848 gab es keinen Audit-Tag mehr — die Summary
+    hatte auf data/phase-a-audit nie existiert. Der Digest muss jeden
+    Wochentag fliessen, gerade an den Tagen ohne Nutzdaten."""
+    source = (
+        Path(__file__).resolve().parents[1] / "automation" / "launchd" / "run-c13-audit-push.sh"
+    ).read_text(encoding="utf-8")
+
+    emit_pos = source.index("-m scripts.c13_status_markers emit")
+    no_audit_pos = source.index('if [[ ! -f "${AUDIT}" ]]')
+    assert emit_pos < no_audit_pos, "Emit sitzt (wieder) hinter dem No-Audit-Exit"
+
+    block = source[no_audit_pos : source.index("\nfi\n", no_audit_pos)]
+    assert "push_to_data_branch" in block, "No-Audit-Zweig pusht die Summary nicht"
+    assert '"${MARKERS_SUMMARY}"' in block
+    # push_to_data_branch ueberschreibt sein Marker-Arg mit dem Push-Ergebnis;
+    # die semantische Wahrheit (kein Audit) muss danach zurueckgeschrieben
+    # werden — zwei Schreibstellen im Zweig sind der Beleg.
+    assert block.count("degraded:no-audit-file") >= 2, (
+        "Marker-Restore nach dem Push fehlt — die Lib hinterlaesst sonst ok:pushed"
+    )
 
 
 def test_cli_emit_then_check_roundtrip(live_dir: Path, tmp_path: Path) -> None:
