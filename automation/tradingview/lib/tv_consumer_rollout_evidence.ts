@@ -330,3 +330,54 @@ export function resolveLayoutSavePoints(
 ): string[] {
   return groupTargetsByLayout(targets, primaryChartUrl).map((group) => group.chartUrl);
 }
+
+/**
+ * Which verify targets THIS run is expected to have checked, given its mode.
+ *
+ * write and verify-only visit every layout, so every target is expected --
+ * unchanged from before repair-only existed. repair-only only ever opens the
+ * layouts selectLayoutsNeedingRepair named (a skipped clean layout's targets
+ * are never read at all, see the skip in tv_batch_consumer_rollout.ts' layout
+ * loop), so holding it to the FULL config here would mean a repair-only run
+ * could never reach report.ok === true the moment it successfully narrows
+ * anything -- exactly the defect this function exists to close (2026-08-23
+ * ruling: Task 3's own completeness gate would otherwise never observe a
+ * successful narrow repair as `ok`).
+ */
+export function resolveExpectedConsumerTargets<T extends { chartUrl?: string }>(
+  targets: readonly T[],
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): T[] {
+  if (mode !== "repair-only") return [...targets];
+  return targets.filter((target) => layoutsNeedingRepair.includes(target.chartUrl ?? primaryChartUrl));
+}
+
+/**
+ * The two binding-side clauses of report.ok, extracted as one pure predicate
+ * so the completeness narrowing above can be proven directly against
+ * synthetic inputs -- main() itself cannot be unit-tested, it needs a live
+ * TradingView session.
+ *
+ * For write and verify-only this is byte-identical to the old
+ * `checkedConsumers === expectedConsumers && mismatches === 0` check:
+ * resolveExpectedConsumerTargets returns the full target list for them, so
+ * nothing about those two modes changes.
+ */
+export function bindingsAreComplete<T extends { chartUrl?: string }>(input: {
+  targets: readonly T[];
+  primaryChartUrl: string;
+  mode: RolloutExecutionMode;
+  layoutsNeedingRepair: readonly string[];
+  checkedConsumers: number;
+  mismatches: number;
+}): boolean {
+  const expected = resolveExpectedConsumerTargets(
+    input.targets,
+    input.primaryChartUrl,
+    input.mode,
+    input.layoutsNeedingRepair,
+  );
+  return input.checkedConsumers === expected.length && input.mismatches === 0;
+}

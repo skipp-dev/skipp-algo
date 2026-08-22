@@ -6,8 +6,10 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
+  bindingsAreComplete,
   buildRolloutProvenance,
   resolveExecutionPlan,
+  resolveExpectedConsumerTargets,
   resolveLibraryPublishObservation,
   sha256Bytes,
 } from "../lib/tv_consumer_rollout_evidence.js";
@@ -185,6 +187,116 @@ test("an unreadable facade stays unknown instead of being rounded to either verd
   assert.equal(observation.verdict, "unknown");
   assert.notEqual(observation.verdict, "match");
   assert.equal(observation.observedVersion, null);
+});
+
+// ---------------------------------------------------------------------------
+// 2026-08-23 ruling: Task 3's repair-only skip (scripts/tv_batch_consumer_
+// rollout.ts) leaves report.bindings.checkedConsumers short of the constant,
+// mode-independent report.bindings.expectedConsumers the moment it correctly
+// skips a clean layout -- so a fully successful narrow repair could never
+// reach report.ok === true. resolveExpectedConsumerTargets and
+// bindingsAreComplete are the fix, extracted as pure functions specifically
+// so this reachability claim can be proven directly: main() itself needs a
+// live TradingView session and cannot be unit-tested.
+// ---------------------------------------------------------------------------
+
+const REPAIR_TARGETS = [
+  { scriptName: "SMC Decision Board", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Setup Check", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Hold Manager", chartUrl: "https://tv/chart/B/" },
+];
+
+test("repair-only narrows the expected set to only the layouts needing repair", () => {
+  // Layout B never showed a mismatch, so the run only ever opens layout A.
+  const expected = resolveExpectedConsumerTargets(
+    REPAIR_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/"],
+  );
+  assert.deepEqual(expected.map((t) => t.scriptName), ["SMC Decision Board", "SMC Setup Check"]);
+});
+
+test("write and verify-only ignore layoutsNeedingRepair entirely: expected is always every target", () => {
+  for (const mode of ["write", "verify-only"] as const) {
+    // Even though layoutsNeedingRepair (mode-irrelevant for these two) names
+    // only layout A, the expected set must still be the FULL config -- these
+    // modes visit every layout, unconditionally.
+    const expected = resolveExpectedConsumerTargets(
+      REPAIR_TARGETS,
+      "https://tv/chart/A/",
+      mode,
+      ["https://tv/chart/A/"],
+    );
+    assert.equal(expected.length, REPAIR_TARGETS.length);
+  }
+});
+
+test("repair-only CAN reach ok:true after skipping a clean layout", () => {
+  // Layout B was clean in the pre-mutation read and therefore never visited;
+  // only A's two targets were checked, both clean. This is exactly the
+  // successful-narrow-repair case the 2026-08-22/23 finding said could never
+  // reach report.ok === true before this fix.
+  assert.equal(
+    bindingsAreComplete({
+      targets: REPAIR_TARGETS,
+      primaryChartUrl: "https://tv/chart/A/",
+      mode: "repair-only",
+      layoutsNeedingRepair: ["https://tv/chart/A/"],
+      checkedConsumers: 2,
+      mismatches: 0,
+    }),
+    true,
+  );
+});
+
+test("repair-only does NOT reach ok:true when a visited target kept a mismatch", () => {
+  // Same skip as above (layout B untouched, 2 of 3 targets checked), but one
+  // of the VISITED targets (on layout A, the one the run repaired) still
+  // reports a mismatch. Completeness alone must not paper over a real defect.
+  assert.equal(
+    bindingsAreComplete({
+      targets: REPAIR_TARGETS,
+      primaryChartUrl: "https://tv/chart/A/",
+      mode: "repair-only",
+      layoutsNeedingRepair: ["https://tv/chart/A/"],
+      checkedConsumers: 2,
+      mismatches: 1,
+    }),
+    false,
+  );
+});
+
+test("write and verify-only are unchanged: incomplete against the FULL target list still fails", () => {
+  // Same checkedConsumers=2/mismatches=0 as the repair-only success case
+  // above, but under write/verify-only that is only 2 of 3 EXPECTED targets
+  // -- these modes never narrow, so this must stay incomplete exactly as it
+  // did before repair-only existed.
+  for (const mode of ["write", "verify-only"] as const) {
+    assert.equal(
+      bindingsAreComplete({
+        targets: REPAIR_TARGETS,
+        primaryChartUrl: "https://tv/chart/A/",
+        mode,
+        layoutsNeedingRepair: ["https://tv/chart/A/"],
+        checkedConsumers: 2,
+        mismatches: 0,
+      }),
+      false,
+    );
+    // Checking every target with zero mismatches still reaches ok, unchanged.
+    assert.equal(
+      bindingsAreComplete({
+        targets: REPAIR_TARGETS,
+        primaryChartUrl: "https://tv/chart/A/",
+        mode,
+        layoutsNeedingRepair: ["https://tv/chart/A/"],
+        checkedConsumers: REPAIR_TARGETS.length,
+        mismatches: 0,
+      }),
+      true,
+    );
+  }
 });
 
 test("only a known drift gates report.ok; unknown does not", () => {

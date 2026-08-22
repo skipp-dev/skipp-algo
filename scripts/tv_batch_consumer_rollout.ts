@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  bindingsAreComplete,
   buildRolloutProvenance,
   groupTargetsByLayout,
   resolveExecutionPlan,
@@ -428,6 +429,13 @@ async function main(): Promise<void> {
   };
 
   const session = await newTradingViewSession();
+  // Hoisted above the try block: the finally block's completeness gate (see
+  // report.ok below) has to read this too, and a `let` declared inside `try`
+  // is not visible in its own `finally`. Stays empty for every mode except
+  // repair-only -- the skip check in the layout loop below is itself gated on
+  // executionPlan.mode === "repair-only", so an empty array here never
+  // narrows a write or verify-only run.
+  let layoutsNeedingRepair: string[] = [];
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Rollout requires authenticated TradingView state");
 
@@ -463,12 +471,6 @@ async function main(): Promise<void> {
         + "the run continues, but its library-publish evidence is UNKNOWN, not confirmed.",
       );
     }
-
-    // repair-only's scoping decision: which chart layouts the later loop is
-    // allowed to touch. Stays empty for every other mode -- the skip check at
-    // the loop below is itself gated on executionPlan.mode === "repair-only",
-    // so an empty array here never narrows a write or verify-only run.
-    let layoutsNeedingRepair: string[] = [];
 
     // Before anything is written. After the first save, a difference could be
     // this run's own doing and proves nothing about a second writer. A
@@ -930,8 +932,21 @@ async function main(): Promise<void> {
       && report.sources.checked === report.sources.expected
       && report.sources.drifted === 0
       && report.bindings.failed.length === 0
-      && report.bindings.checkedConsumers === report.bindings.expectedConsumers
-      && report.bindings.mismatches === 0
+      // Extracted (2026-08-23 ruling) so repair-only's narrowed completeness
+      // check -- "checked everything expected" means every consumer on the
+      // layouts selectLayoutsNeedingRepair named, not report.bindings.
+      // expectedConsumers, which is the whole config regardless of mode --
+      // can be proven directly against synthetic inputs. write and
+      // verify-only visit every layout, so this stays byte-identical to the
+      // old `checkedConsumers === expectedConsumers && mismatches === 0`.
+      && bindingsAreComplete({
+        targets: config.verifyTargets,
+        primaryChartUrl: config.primaryChartUrl,
+        mode: executionPlan.mode,
+        layoutsNeedingRepair,
+        checkedConsumers: report.bindings.checkedConsumers,
+        mismatches: report.bindings.mismatches,
+      })
       // A second writer touched the managed layouts since the last CI run, or
       // the comparison could not be made. The save is NOT withheld -- that
       // would freeze the consumers on an old pinned library while the producer
