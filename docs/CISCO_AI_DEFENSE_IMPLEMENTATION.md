@@ -458,28 +458,60 @@ Zwei gemessene Fallen stehen als Kommentar in der Policy und als Test dahinter:
   eine Paginierungsschleife, die am leeren Seiten-Ergebnis bricht.  Fremdcode,
   geprüft, harmlos — pfadweise stumm über `mcp-scanner.allowlist.skills`.
 - **12× in `~/.codex/skills/.system/`** (`plugin-creator`, `openai-docs`,
-  `imagegen`, `skill-installer`).  Geprüft und harmlos: Anweisungstext, ein
-  lokaler `fs.readFile`, ein Doku-`fetch`, das Lesen einer API-Key-Variablen.
-  Diese zwölf sind **nicht** stummgeschaltet — sie werden gar nicht erst
-  gemeldet, siehe Abdeckungslücke unten.
+  `imagegen`, `skill-installer`).  Beim ersten Durchgang wurden diese zwölf
+  **gar nicht gemeldet** — die Extension stieg in diesen Pfad nicht ab.  Seit
+  dem Nachtrag unten wird er gescannt, jeder Befund wurde einzeln an der Quelle
+  geprüft, und die vier Skills sind hash-gebunden stummgeschaltet.
 
-### Zwei offene Abdeckungslücken
+### Beide Abdeckungslücken geschlossen (2026-08-22, Nachtrag)
 
-Beide sind gemessen, nicht vermutet, und beide sind **nicht** geschlossen:
+Der erste Durchgang ließ zwei Lücken offen. Beide sind jetzt zu.
 
-1. **Die Extension steigt nicht nach `~/.codex/skills/.system/` ab.**  Der
-   Scan-Verlauf vom 2026-08-22 zählt 16 Skills, keines davon unter `.system`.
-   Die sechs dort installierten Codex-System-Skills laufen im Agent-Kontext des
-   Entwicklers und sind von der Oberfläche aus unbeobachtet.  Sichtbar werden
-   sie nur in einem rekursiven CLI-Lauf.  Ein Allowlist-Eintrag für diese Pfade
-   wäre tote Konfiguration und wurde deshalb bewusst nicht gesetzt.
-2. **Der Mute auf `gh-address-comments` hat keinen Verfall und keine Bindung an
-   den Inhalt.**  UNGESICHERT — verlässt sich auf menschliches Gedächtnis: ein
-   künftiger, bösartiger Stand desselben Pfades würde nicht gemeldet.  Ein
-   Stolperdraht (Inhalts-Hash je stummgeschaltetem Skill, erneutes Melden bei
-   Änderung) ist **nicht** gebaut.
+**1 — `~/.codex/skills/.system/` wird beobachtet.**  Ursache war eine Zeile in
+`scanSkillsDirectory`: `if (o.name.startsWith(".")) continue;` überspringt jedes
+Kind, dessen Name mit einem Punkt beginnt.  Beim Scan von `~/.codex/skills` fiel
+`.system` damit heraus — die sechs dort installierten Codex-System-Skills laufen
+im Agent-Kontext des Entwicklers und waren nie erfasst.  Als eigener Eintrag in
+`skill-scanner.globalSkills.customPaths` ist `.system` selbst das
+Scan-Verzeichnis; seine Kinder sind nicht versteckt und werden gelesen.  Damit
+wächst das Sichtfeld der Oberfläche von 16 auf 22 Skills.
 
-Der wiederholbare Volllauf über beide Lücken hinweg:
+Die 12 Befunde dort wurden einzeln an der Quelle geprüft, nicht pauschal
+abgetan.  Alle zwölf sind Fehlalarme: bei `plugin-creator` treffen beide Regeln
+dieselbe Zeile Ablauf-Prosa; `skill-installer` baut seine URLs an **beiden**
+Aufrufstellen aus GitHub-Konstanten (einzige Ziele im ganzen Skill:
+`api.github.com`, `codeload.github.com`, `github.com`); `openai-docs` liest die
+Quelle, die der Aufrufer per `--source` übergibt; `imagegen` prüft nur, *ob*
+`OPENAI_API_KEY` gesetzt ist.  Die Einzelbegründungen stehen in
+`configs/skill_mute_registry.json` — samt dem einen verbliebenen Restrisiko
+(der GitHub-Token-Header überlebt bei `skill-installer` eine Weiterleitung;
+Fremdcode, nicht änderbar, deshalb notiert statt verschwiegen).
+
+**2 — Kein Mute mehr ohne Inhalts-Bindung.**  `mcp-scanner.allowlist.skills`
+blendet ein ganzes Skill aus, dauerhaft und unabhängig davon, was später darin
+steht.  Genau diese Pfade sind Fremdcode, den Codex bei jedem Update ersetzt.
+Der Satz „bei einem Update erneut prüfen" wäre hier eine Zukunfts-Zusage ohne
+Mechanismus.  Stattdessen:
+
+| Teil | Ort | Aufgabe |
+| --- | --- | --- |
+| Registry | `configs/skill_mute_registry.json` | je Mute Grund, Datum, Eigentümer, abgedeckte Regeln und der sha256 des Skill-Baums zum Zeitpunkt der Freigabe |
+| Audit | `scripts/audit_skill_mutes.py` | Drift, unbegründeter Mute, toter Eintrag; Exit 0/3/**9**, wobei 9 („konnte nicht messen") bewusst von 0 getrennt ist |
+| Auslöser | `~/.claude/hooks/skill-mute-drift-warn.sh` | SessionStart — läuft bei **jeder** Sitzung und schreibt den Befund vor den Agenten, der die Mutes gerade benutzt |
+| Vertrag | `tests/test_skill_mute_registry.py` | 18 Tests; jede Befund-Klasse als Positivkontrolle synthetisch hergestellt |
+
+Der Hash deckt den ganzen Baum ab — auch `.pyc`, auch Punktdateien, und ein
+Symlink geht mit seinem Ziel-*Pfad* ein, damit eine Umbiegung nach außen ihn
+verändert.  Es gibt bewusst **kein** `--bless`: ein Mute neu zu erteilen heißt,
+den Fremdcode erneut zu lesen; ein Ein-Befehl-Neusegen würde genau den Schritt
+wegautomatisieren, für den der Wächter da ist.  Der neue Hash kommt über
+`--print-hash` und wird von Hand übernommen.
+
+Arbeitsteilung, damit keine Hälfte für die andere gehalten wird: CI prüft den
+**Vertrag** (die Pfade unter `~/.codex/…` existieren auf einem Runner nicht),
+der Hook prüft den **Ist-Zustand** auf der Maschine.
+
+Der wiederholbare Volllauf:
 
 ```bash
 for w in ~/.claude/skills ~/.codex/skills <repo>/.claude/skills <repo>/.github/skills; do
