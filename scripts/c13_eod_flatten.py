@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -79,6 +80,24 @@ def close_guard_verdict(now_et: datetime) -> str | None:
             f"{close_hh:02d}:{close_mm:02d} ET — refusing to cancel GTC exits after the bell"
         )
     return None
+
+
+def install_sigterm_clean_exit() -> None:
+    """SIGTERM in ein SystemExit wandeln, damit ``finally`` noch laeuft.
+
+    Der Wrapper hat seit 2026-08-22 einen Laufzeit-Waechter: haengt der Lauf
+    (halbtoter TWS-Socket — am 21.8. 8 h 41 min lang), schiesst er ihn ab,
+    sonst startet launchd den Job NIE wieder (kein zweiter Start eines noch
+    laufenden Jobs). Ein hartes Signal wuerde aber ``ib.disconnect()``
+    ueberspringen und clientId in TWS haengen lassen — der naechste Lauf
+    scheiterte dann am Connect und der Waechter haette den Ausfall nur
+    verschoben statt behoben. Darum: Signal -> SystemExit -> finally.
+    """
+
+    def _handler(signum: int, _frame: Any) -> None:
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, _handler)
 
 
 def _connect(host: str, port: int, client_id: int, timeout: float) -> Any:
@@ -271,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     # ET-Wanduhr fuer close_guard_verdict. Produktion laesst ihn weg.
     parser.add_argument("--now-et", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    install_sigterm_clean_exit()
 
     if args.port not in PAPER_PORTS:
         print(f"eod-flatten: refusing non-paper port {args.port}", file=sys.stderr)
