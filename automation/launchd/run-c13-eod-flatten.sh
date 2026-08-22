@@ -64,6 +64,18 @@ fi
 # Plist feuert dafuer zusaetzlich die 12:45-ET-Kandidaten; das Gate laesst
 # genau den passenden durch. Test-Hook: C13_GATE_NOW_ET_DATE.
 ET_DATE="${C13_GATE_NOW_ET_DATE:-$(TZ=America/New_York date +%Y-%m-%d)}"
+
+# Ganztaegige Feiertage zuerst: das ET-Gate unten lehnt nur WOCHENENDEN ab, und
+# close_time_et_hhmm liefert am Feiertag eine plausible 16:00 — der Flatten
+# wuerde also feuern und mit reqGlobalCancel den GTC-Schutz toeten, ohne
+# irgendetwas schliessen zu koennen (Grenzgaenger-Sweep 2026-08-22). Behandelt
+# wie ein Wochenende: still aussteigen, KEIN Status-Marker — sonst laese die
+# Reconcile-Kette an ~10 Tagen im Jahr ein DEGRADED, das keines ist.
+if [[ "$("${PY}" -m scripts.us_equity_early_closes --date "${ET_DATE}" --print trading-day)" != "1" ]]; then
+    echo "eod-flatten cron: ${ET_DATE} is not a US trading day — skip." >&2
+    exit 0
+fi
+
 read -r TARGET_HH TARGET_MM < <("${PY}" -m scripts.us_equity_early_closes --date "${ET_DATE}")
 
 # shellcheck disable=SC1091

@@ -480,6 +480,32 @@ def test_close_guard_allows_before_and_refuses_after_the_bell() -> None:
     assert close_guard_verdict(datetime(2026, 11, 27, 15, 45)) is not None
 
 
+def test_close_guard_refuses_every_full_market_holiday() -> None:
+    """Grenzgaenger-Sweep 2026-08-22: das ET-Gate lehnt nur Wochenenden ab.
+
+    Vor dem Fix gab close_time_et_hhmm am Feiertag 16:00 zurueck, 15:45 lag
+    davor, und der Flatten lief: reqGlobalCancel toetet die GTC-Exits,
+    schliessen kann er bei geschlossenem Markt nichts. Ueber die VOLLE Menge
+    pruefen — ein einziger vergessener Tag genuegt fuer den Schaden.
+    """
+    from datetime import datetime
+
+    from scripts.us_equity_early_closes import FULL_CLOSURES_ET
+
+    passed_through = sorted(
+        d.isoformat()
+        for d in FULL_CLOSURES_ET
+        if close_guard_verdict(datetime(d.year, d.month, d.day, 15, 45)) is None
+    )
+    assert not passed_through, (
+        f"Flatten wuerde am Feiertag feuern: {passed_through}"
+    )
+
+    # Positivkontrolle: der Guard sagt nicht einfach immer nein.
+    assert close_guard_verdict(datetime(2026, 8, 19, 15, 45)) is None
+    assert close_guard_verdict(datetime(2026, 11, 27, 12, 44)) is None
+
+
 def test_main_refuses_after_close_before_touching_the_broker(tmp_path, capsys) -> None:
     """Nach dem Bell: rc 1 VOR jedem Connect — reqGlobalCancel darf den
     GTC-Schutz nicht mehr anfassen. Kein FakeIB noetig: der Lauf endet vor
