@@ -639,8 +639,24 @@ def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
     assert "groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)" in batch
     # A failed save lands in bindings.failed, which gates report.ok below.
     assert '"chart-layout' in batch
-    # Nothing may be reported green having persisted a strict subset.
-    assert "resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)" in batch
+    # Nothing may be reported green having persisted a strict subset -- of the
+    # layouts the run was SUPPOSED to save.
+    #
+    # Re-anchored 2026-08-23. The pin used to name the unnarrowed call
+    # `resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)`,
+    # which is exactly the expression the whole-branch review found broken:
+    # it is the full, mode-independent layout list, while repair-only
+    # deliberately skips clean layouts, so every SUCCESSFUL narrow repair
+    # pushed bindings.failed for the layouts it was right not to touch
+    # (measured: planned=[vWgAWyfC, hKHTmKhu, twh98JLB] vs
+    # savedChartUrls=[vWgAWyfC] => exit 1). The property this test is about --
+    # a strict subset is never green -- is unchanged; only the population it
+    # is measured against is now mode-aware, and
+    # resolveExpectedLayoutSavePoints proves in
+    # automation/tradingview/tests/tv_consumer_rollout_evidence.test.ts that
+    # write and verify-only still get the full list.
+    assert "const planned = resolveExpectedLayoutSavePoints(" in batch
+    assert "executionPlan.mode," in batch
     assert "layouts never saved" in batch
 
 

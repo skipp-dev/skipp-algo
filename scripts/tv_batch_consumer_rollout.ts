@@ -8,8 +8,9 @@ import {
   buildRolloutProvenance,
   groupTargetsByLayout,
   resolveExecutionPlan,
-  resolveLayoutSavePoints,
+  resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
+  resolveSkippedLayouts,
   type LibraryPublishObservation,
   type RolloutExecutionMode,
   type RolloutProvenance,
@@ -183,6 +184,26 @@ type RolloutReport = {
   bindings: {
     expectedConsumers: number;
     checkedConsumers: number;
+    /**
+     * The layouts THIS run was scoped to, and the ones it deliberately left
+     * alone. Both empty for write and verify-only, which narrow nothing.
+     *
+     * These two exist because the pair above cannot answer the only question
+     * a post-mortem asks about repair-only. `checkedConsumers: 7` against
+     * `expectedConsumers: 10` reads exactly the same whether the run skipped
+     * three CLEAN layouts on purpose -- the mode working -- or whether three
+     * targets were unreadable -- the mode failing. Opposite conclusions, same
+     * two numbers, and until 2026-08-23 the narrowing lived only in a local
+     * variable that died with the process. This is the sole post-mortem
+     * surface of the mode: the run cannot be re-executed to find out, because
+     * the next refresh has already moved the layout on.
+     *
+     * expectedConsumers stays the FULL config on purpose. It is what the
+     * repository expects; narrowedToChartUrls is what this run decided. A
+     * reader needs both to see that a decision was made at all.
+     */
+    narrowedToChartUrls: string[];
+    skippedChartUrls: string[];
     checkedBindings: number;
     mismatches: number;
     consumers: (VerifyConsumerResult & { attempts?: VerifyAttempt[] })[];
@@ -420,6 +441,10 @@ async function main(): Promise<void> {
     bindings: {
       expectedConsumers: config.verifyTargets.length,
       checkedConsumers: 0,
+      // Filled in the finally block, from the same layoutsNeedingRepair the
+      // skip and both completeness gates read — one decision, one source.
+      narrowedToChartUrls: [],
+      skippedChartUrls: [],
       checkedBindings: 0,
       mismatches: 0,
       evidence: [],
@@ -830,7 +855,23 @@ async function main(): Promise<void> {
         // abandonedChartUrls did: it marks the layout where the run stopped
         // widening. It does NOT mark an unsaved layout any more -- that one was
         // saved on purpose (operator decision 2026-08-22).
-        const planned = resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl);
+        //
+        // Mode-aware since 2026-08-23. `planned` used to be
+        // resolveLayoutSavePoints(config.verifyTargets, ...) -- the full layout
+        // list regardless of mode -- while repair-only deliberately skips every
+        // clean layout right above. The two disagreed exactly when the mode
+        // worked: measured against the real config, planned=[vWgAWyfC,
+        // hKHTmKhu, twh98JLB] against savedChartUrls=[vWgAWyfC] pushed
+        // bindings.failed for the two layouts the run was RIGHT not to touch,
+        // so a successful repair reported itself as failed (exit 1). Same
+        // defect the 2026-08-23 ruling fixed for checkedConsumers; this is its
+        // second site, and resolveExpectedLayoutSavePoints is its sibling.
+        const planned = resolveExpectedLayoutSavePoints(
+          config.verifyTargets,
+          config.primaryChartUrl,
+          executionPlan.mode,
+          layoutsNeedingRepair,
+        );
         const missed = planned.filter((chartUrl) => !savedChartUrls.includes(chartUrl));
         const nothingWentWrong = abandonedChartUrls.length === 0
           && partiallyRepairedChartUrls.length === 0
@@ -849,6 +890,23 @@ async function main(): Promise<void> {
     report.sources.checked = report.sources.consumers.length;
     report.sources.drifted = report.sources.consumers.filter((item) => !item.matches).length;
     report.bindings.checkedConsumers = report.bindings.consumers.length;
+    // In the finally block so it is written even when the run dies mid-repair:
+    // a crashed narrow run is exactly when a reader needs to know what it had
+    // decided to leave alone. Empty for write/verify-only, and empty for a
+    // repair-only run that died before the pre-mutation read -- which is the
+    // honest answer there, no narrowing had been decided yet.
+    report.bindings.narrowedToChartUrls = resolveExpectedLayoutSavePoints(
+      config.verifyTargets,
+      config.primaryChartUrl,
+      executionPlan.mode,
+      layoutsNeedingRepair,
+    );
+    report.bindings.skippedChartUrls = resolveSkippedLayouts(
+      config.verifyTargets,
+      config.primaryChartUrl,
+      executionPlan.mode,
+      layoutsNeedingRepair,
+    );
     report.bindings.checkedBindings = report.bindings.consumers.reduce((sum, item) => sum + item.checked, 0);
     report.bindings.mismatches = report.bindings.consumers.reduce((sum, item) => sum + item.mismatches.length, 0);
     report.mutations.bindingsRepaired = report.bindings.consumers.reduce(

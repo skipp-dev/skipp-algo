@@ -10,7 +10,9 @@ import {
   buildRolloutProvenance,
   resolveExecutionPlan,
   resolveExpectedConsumerTargets,
+  resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
+  resolveSkippedLayouts,
   sha256Bytes,
 } from "../lib/tv_consumer_rollout_evidence.js";
 
@@ -297,6 +299,162 @@ test("write and verify-only are unchanged: incomplete against the FULL target li
       true,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// The SECOND completeness check, found by the whole-branch review on
+// 2026-08-23. tv_batch_consumer_rollout.ts has a "layouts never saved" clause
+// that compared savedChartUrls against the full, mode-independent layout list
+// -- the same defect the block above fixed for checkedConsumers, at a second
+// site 100 lines away. Measured against the real config: planned=[vWgAWyfC,
+// hKHTmKhu, twh98JLB], savedChartUrls=[vWgAWyfC] => missed=[hKHTmKhu,
+// twh98JLB] => bindings.failed => report.ok=false => exit 1, on a repair-only
+// run that had done exactly the right thing.
+// ---------------------------------------------------------------------------
+
+// Three targets across two layouts, matching the real config's shape: the
+// primary layout carries two consumers, a second layout carries one.
+const SAVE_POINT_TARGETS = [
+  { scriptName: "SMC Decision Board", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Setup Check", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Hold Manager", chartUrl: "https://tv/chart/B/" },
+];
+
+test("repair-only narrows the expected SAVE points to the layouts needing repair", () => {
+  assert.deepEqual(
+    resolveExpectedLayoutSavePoints(
+      SAVE_POINT_TARGETS,
+      "https://tv/chart/A/",
+      "repair-only",
+      ["https://tv/chart/A/"],
+    ),
+    ["https://tv/chart/A/"],
+  );
+});
+
+test("a narrow repair that saved every layout it opened reports NOTHING missed", () => {
+  // The exact reproduction of the finding, in the shape the rollout computes
+  // it: planned minus savedChartUrls must be empty for a run that repaired
+  // layout A and correctly never opened layout B.
+  const planned = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/"],
+  );
+  const savedChartUrls = ["https://tv/chart/A/"];
+  assert.deepEqual(planned.filter((url) => !savedChartUrls.includes(url)), []);
+
+  // ...and the pre-fix expression, kept here as the negative control: the
+  // unnarrowed list is what pushed bindings.failed on a healthy run.
+  const unnarrowed = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "write",
+    ["https://tv/chart/A/"],
+  );
+  assert.deepEqual(
+    unnarrowed.filter((url) => !savedChartUrls.includes(url)),
+    ["https://tv/chart/B/"],
+  );
+});
+
+test("a narrow repair that failed to save a layout it DID open still reports it missed", () => {
+  // Narrowing must not swallow a real failure: layout A needed repair, was
+  // opened, and its save never confirmed.
+  const planned = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/", "https://tv/chart/B/"],
+  );
+  assert.deepEqual(
+    planned.filter((url) => !["https://tv/chart/B/"].includes(url)),
+    ["https://tv/chart/A/"],
+  );
+});
+
+test("write and verify-only save points are unchanged by layoutsNeedingRepair", () => {
+  const full = ["https://tv/chart/A/", "https://tv/chart/B/"];
+  for (const mode of ["write", "verify-only"] as const) {
+    // Even with layoutsNeedingRepair naming only A -- and even with it empty,
+    // which is what these two modes actually pass -- the expected save points
+    // stay the full list, byte-identical to resolveLayoutSavePoints.
+    assert.deepEqual(
+      resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, ["https://tv/chart/A/"]),
+      full,
+    );
+    assert.deepEqual(
+      resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, []),
+      full,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// I5: the artifact has to say what the run left out.
+// ---------------------------------------------------------------------------
+
+test("the skipped layouts are named, so a narrow run is distinguishable from a blind one", () => {
+  // checkedConsumers 2 / expectedConsumers 3 is ambiguous on its own: two
+  // targets checked because layout B was deliberately skipped, or because
+  // layout B could not be read? This is the field that answers it.
+  assert.deepEqual(
+    resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", "repair-only", ["https://tv/chart/A/"]),
+    ["https://tv/chart/B/"],
+  );
+  // A repair-only run that found NOTHING to repair skipped everything -- and
+  // says so, rather than looking like a run that narrowed to nothing by
+  // accident.
+  assert.deepEqual(
+    resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", "repair-only", []),
+    ["https://tv/chart/A/", "https://tv/chart/B/"],
+  );
+});
+
+test("write and verify-only skip nothing, whatever layoutsNeedingRepair says", () => {
+  for (const mode of ["write", "verify-only"] as const) {
+    assert.deepEqual(
+      resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, ["https://tv/chart/A/"]),
+      [],
+    );
+  }
+});
+
+test("narrowedTo and skipped partition the full layout list, in every mode", () => {
+  // The two artifact fields must be readable together without a third source:
+  // for repair-only they add up to the full plan, and for the other modes the
+  // narrowing is provably absent rather than merely unset.
+  const full = resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", "write", []);
+  for (const mode of ["write", "verify-only", "repair-only"] as const) {
+    for (const needing of [[], ["https://tv/chart/A/"], ["https://tv/chart/A/", "https://tv/chart/B/"]]) {
+      const narrowed = resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, needing);
+      const skipped = resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, needing);
+      assert.deepEqual([...narrowed, ...skipped].sort(), [...full].sort());
+      assert.deepEqual(narrowed.filter((url) => skipped.includes(url)), []);
+    }
+  }
+});
+
+test("the rollout wires the narrowing into BOTH completeness gates and the artifact", () => {
+  // The pure functions above can only prove the arithmetic. These pins prove
+  // the rollout actually calls them -- the C2 defect was precisely that one of
+  // the two gates had been left on the unnarrowed list while the other was
+  // fixed, and no single-task review could see both at once.
+  const rollout = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "..", "scripts", "tv_batch_consumer_rollout.ts"),
+    "utf-8",
+  );
+  assert.ok(
+    rollout.includes("const planned = resolveExpectedLayoutSavePoints("),
+    "the layouts-never-saved gate must use the mode-aware save points",
+  );
+  assert.ok(
+    !rollout.includes("resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)"),
+    "the unnarrowed save-point call is the C2 defect and must not come back",
+  );
+  assert.ok(rollout.includes("report.bindings.narrowedToChartUrls = resolveExpectedLayoutSavePoints("));
+  assert.ok(rollout.includes("report.bindings.skippedChartUrls = resolveSkippedLayouts("));
 });
 
 test("only a known drift gates report.ok; unknown does not", () => {

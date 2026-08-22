@@ -23,7 +23,24 @@ class Decision:
     reason: str
 
 
-def decide(snapshot: dict, dispatches_today: int, repair_in_flight: bool = False) -> Decision:
+def decide(
+    snapshot: dict,
+    repair_dispatches_today: int,
+    repair_in_flight: bool = False,
+    dispatch_count_unknown: bool = False,
+) -> Decision:
+    """Entscheidet ueber EINEN Reparatur-Dispatch.
+
+    ``repair_dispatches_today`` sind die Reparatur-Dispatches, die dieser
+    Waechter heute (ET) selbst abgesetzt hat — nicht die workflow_dispatch-Laeufe
+    des Save-Workflows. Der Unterschied ist nicht akademisch: an ET-2026-08-22
+    waren 12 von 12 solcher Laeufe die eigenen Verify-Dispatches des Waechters
+    und keiner davon eine Reparatur; die alte, breitere Zaehlung haette den
+    Deckel jeden Tag ab der ersten Entscheidung gemeldet.
+
+    ``dispatch_count_unknown`` sagt, dass der Aufrufer diese Zahl nicht
+    ermitteln KONNTE. Ein unbekannter Deckel ist kein offener Deckel.
+    """
     if not isinstance(snapshot, dict):
         # Fail closed: ein Top-Level-Snapshot, der kein Objekt ist (z.B. eine
         # JSON-Liste), ist syntaktisch gueltiges JSON, aber schema-fremd.
@@ -84,10 +101,27 @@ def decide(snapshot: dict, dispatches_today: int, repair_in_flight: bool = False
         # denselben Warteplatz der Session-Gruppe draengen.
         return Decision(False, "ein Reparaturlauf ist bereits in flight — kein zweiter")
 
-    if dispatches_today >= DAILY_DISPATCH_CAP:
+    if dispatch_count_unknown:
+        # Ein Deckel, der nicht gezaehlt werden konnte, ist kein offener Deckel.
+        # Der Aufrufer meldet das, wenn sein Listenfenster den ET-Tag nicht mehr
+        # ueberdeckt — sonst waere ausgerechnet der lauteste Tag der, an dem der
+        # Deckel aufgeht. Der Marker unten ist ein Vertrag mit dem Alarmschritt
+        # in tv-post-mutation-verify.yml: ohne ihn waere dieser Ausgang der
+        # stille Zwilling des erreichten Deckels.
         return Decision(
             False,
-            f"Deckel erreicht: {dispatches_today}/{DAILY_DISPATCH_CAP} Reparaturlaeufe heute — "
+            "Listenfenster erschoepft — Zahl der heutigen Reparatur-Dispatches unbekannt, "
+            f"fail closed, kein Dispatch; betroffen: {', '.join(str(d) for d in drifted)}",
+        )
+
+    if repair_dispatches_today >= DAILY_DISPATCH_CAP:
+        # "Reparatur-Dispatches", nicht "Reparaturlaeufe": gezaehlt werden die
+        # abgesetzten Dispatches dieses Waechters. Ob der bestellte Lauf dann
+        # startete, sagt diese Zahl nicht — und darf sie nicht behaupten.
+        return Decision(
+            False,
+            f"Deckel erreicht: {repair_dispatches_today}/{DAILY_DISPATCH_CAP} "
+            "Reparatur-Dispatches heute — "
             f"Operator noetig, betroffen: {', '.join(str(d) for d in drifted)}",
         )
 
@@ -97,8 +131,22 @@ def decide(snapshot: dict, dispatches_today: int, repair_in_flight: bool = False
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--snapshot", required=True)
-    parser.add_argument("--dispatches-today", type=int, default=0)
+    parser.add_argument(
+        "--repair-dispatches-today",
+        type=int,
+        default=0,
+        help=(
+            "Reparatur-Dispatches, die dieser Waechter heute (ET) selbst abgesetzt hat. "
+            "NICHT die workflow_dispatch-Laeufe des Save-Workflows — die sind zum "
+            "allergroessten Teil seine eigenen Verify-Dispatches."
+        ),
+    )
     parser.add_argument("--repair-in-flight", action="store_true")
+    parser.add_argument(
+        "--dispatch-count-unknown",
+        action="store_true",
+        help="Der Aufrufer konnte die Tageszahl nicht ermitteln — fail closed statt ungedeckelt.",
+    )
     args = parser.parse_args()
 
     try:
@@ -106,7 +154,12 @@ def main() -> int:
     except Exception as exc:  # jede Lesefehlerart faellt fail-closed
         decision = Decision(False, f"Snapshot unlesbar: {exc}")
     else:
-        decision = decide(snapshot, args.dispatches_today, args.repair_in_flight)
+        decision = decide(
+            snapshot,
+            args.repair_dispatches_today,
+            args.repair_in_flight,
+            args.dispatch_count_unknown,
+        )
 
     output = os.environ.get("GITHUB_OUTPUT")
     if output:

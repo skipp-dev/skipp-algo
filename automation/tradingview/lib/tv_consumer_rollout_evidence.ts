@@ -332,6 +332,56 @@ export function resolveLayoutSavePoints(
 }
 
 /**
+ * The chart layouts THIS run is expected to have saved, given its mode.
+ *
+ * The sibling of resolveExpectedConsumerTargets below, for the SECOND
+ * completeness check -- the one over saved layouts rather than over checked
+ * consumers. Both had the same defect and it had to be fixed twice: the
+ * "layouts never saved" clause compared savedChartUrls against the full,
+ * mode-independent resolveLayoutSavePoints(config.verifyTargets, ...), while
+ * repair-only deliberately skips every clean layout. So the better the mode
+ * worked, the more layouts were "missed": measured against the real config on
+ * 2026-08-23, planned=[vWgAWyfC, hKHTmKhu, twh98JLB] against
+ * savedChartUrls=[vWgAWyfC] pushed bindings.failed for the two layouts the run
+ * was right not to touch -- report.ok=false, exit 1, a successful repair
+ * reporting itself as failed.
+ *
+ * write and verify-only are untouched: they visit every layout, so they keep
+ * the full save-point list exactly as before repair-only existed.
+ */
+export function resolveExpectedLayoutSavePoints(
+  targets: ReadonlyArray<{ chartUrl?: string }>,
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): string[] {
+  const planned = resolveLayoutSavePoints(targets, primaryChartUrl);
+  if (mode !== "repair-only") return planned;
+  return planned.filter((chartUrl) => layoutsNeedingRepair.includes(chartUrl));
+}
+
+/**
+ * The layouts a repair-only run deliberately left alone, in visit order.
+ *
+ * The only post-mortem surface this narrowing has. From the snapshot alone,
+ * `checkedConsumers: 7 / expectedConsumers: 10` reads identically whether the
+ * run skipped three CLEAN layouts on purpose or whether three targets were
+ * unreadable -- opposite conclusions, same two numbers. This names the
+ * difference in the artifact instead of leaving it in a local variable that
+ * dies with the process.
+ */
+export function resolveSkippedLayouts(
+  targets: ReadonlyArray<{ chartUrl?: string }>,
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): string[] {
+  if (mode !== "repair-only") return [];
+  return resolveLayoutSavePoints(targets, primaryChartUrl)
+    .filter((chartUrl) => !layoutsNeedingRepair.includes(chartUrl));
+}
+
+/**
  * Which verify targets THIS run is expected to have checked, given its mode.
  *
  * write and verify-only visit every layout, so every target is expected --
