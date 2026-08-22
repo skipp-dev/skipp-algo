@@ -1627,3 +1627,29 @@ def _the_repository_running_these_tests_must_not_move():
         f"({identity_before!r} -> {identity_after!r}); the next commit made here "
         "would be refused by the commit-author gate"
     )
+
+
+def test_supersession_gate_guards_the_save_job() -> None:
+    """A stale automated run must free the tradingview-session slot in seconds.
+
+    2026-08-22: 14 pending saves starved 19h behind ~2h publishes in the
+    shared FIFO group (queue: max) while both TV drift alerts burned. The
+    gate job abdicates a stale AUTOMATED run when a newer automated run is
+    queued; the decision logic itself is pinned by
+    tests/test_tv_save_supersession_gate.py.
+    """
+    wf = _load()
+    gate = wf["jobs"]["supersession-gate"]
+    run_cmd = gate["steps"][-1]["run"]
+    assert "scripts/tv_save_supersession_gate.py" in run_cmd
+    assert "actions/workflows/tv-save-consumer-source.yml/runs" in run_cmd, (
+        "the gate must query THIS workflow's own run list"
+    )
+    save = wf["jobs"]["save"]
+    assert save["needs"] == "supersession-gate"
+    assert "needs.supersession-gate.outputs.superseded != 'true'" in save["if"]
+    # The refresh-success guard must survive the if-extension unchanged.
+    assert "github.event.workflow_run.conclusion == 'success'" in save["if"]
+    assert wf["permissions"].get("actions") == "read", (
+        "listing own runs needs actions: read"
+    )

@@ -116,6 +116,9 @@ permissions:
   # bot/library-refresh-* PR that carries the refresh commit before it can
   # check that commit out. See "Await the refresh commit on main" below.
   pull-requests: read
+  # Read-only, for the supersession gate: it lists this workflow's own queued
+  # runs to decide whether a newer automated run makes this one redundant.
+  actions: read
 
 concurrency:
   # 2026-08-01: one AUTOMATED browser session at a time — CI against CI only.
@@ -145,6 +148,19 @@ concurrency:
   # never protected the waiter. Under the default `queue: single` a group holds
   # exactly one pending run and the next entrant CANCELS it -- that is what
   # dropped dispatches here. `queue: max` queues up to 100 runs FIFO instead.
+  # 2026-08-22: `queue: max` alone starves this workflow — every automated
+  # trigger lines up behind every ~2h publish sharing the group (measured:
+  # 14 pending saves, no verdict for 19h, both TV drift alerts burning; the
+  # first save to reach the slot then refused on a manifest that TV had long
+  # outrun). The supersession-gate job below drains that backlog: a stale run
+  # frees the slot in seconds when a newer run of the SAME event kind is
+  # queued — a workflow_run save is repeated by the next workflow_run save
+  # (it rebuilds on current main), a schedule verify by the next verify.
+  # Cross-kind supersession is deliberately impossible (a verify never saves)
+  # and workflow_dispatch runs take part in neither direction (their mode
+  # hangs on inputs). Known bounded gap: the superseding chain save can
+  # itself skip on the failed-refresh guard below; the next chain trigger
+  # then heals, and the drift alert stays the watchdog meanwhile.
   queue: max
 
 defaults:
@@ -155,11 +171,51 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  supersession-gate:
+    # Runs INSIDE the tradingview-session slot (concurrency is workflow-level),
+    # deliberately: the whole point is that a stale run occupies the slot for
+    # seconds instead of a full save. Decision logic lives import-testable in
+    # scripts/tv_save_supersession_gate.py; this job only fetches the run list
+    # and publishes the verdict. Fail-open: an API or parse error answers
+    # "not superseded" and the save proceeds.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    env:
+      # The gate script is stdlib-only, but every scripts/ invocation in this
+      # repo declares PYTHONPATH (tests/test_workflow_pythonpath_for_direct_invoke.py).
+      PYTHONPATH: ${{ github.workspace }}
+    outputs:
+      superseded: ${{ steps.gate.outputs.superseded }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Decide supersession against the queued automated runs
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_RUN_NUMBER: ${{ github.run_number }}
+          GATE_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -uo pipefail
+          verdict="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/runs?per_page=50&exclude_pull_requests=true" \
+            | python3 scripts/tv_save_supersession_gate.py)" || verdict="superseded=false
+          reason=gate_fetch_error"
+          echo "${verdict}"
+          echo "${verdict}" >> "$GITHUB_OUTPUT"
+          echo "supersession-gate: ${verdict}" >> "$GITHUB_STEP_SUMMARY"
+
   save:
+    needs: supersession-gate
     # Only a SUCCESSFUL library refresh may trigger the writing chain: after a
     # failed refresh the repo pin/library state is unknown, and saving then
-    # could roll consumers onto a half-published state.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # could roll consumers onto a half-published state. A superseded automated
+    # run skips entirely — the newer queued run repeats everything this one
+    # would have done, on fresher state (see the supersession-gate job).
+    if: >-
+      needs.supersession-gate.outputs.superseded != 'true'
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:

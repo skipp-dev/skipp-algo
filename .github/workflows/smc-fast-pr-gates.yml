@@ -787,7 +787,8 @@ jobs:
             tests/test_workflow_invoked_scripts_import_order.py \
             tests/test_workflow_python_version_pinned.py \
             tests/test_scheduled_workflow_observation_inventory.py \
-            tests/test_documented_env_vars_are_read.py
+            tests/test_documented_env_vars_are_read.py \
+            tests/test_launchd_shell_portability.py
 
       # 2026-08-01: three green PRs in one day changed a workflow and broke a
       # guard that reads it but is not on the pinned list below (#4288, #4291,
