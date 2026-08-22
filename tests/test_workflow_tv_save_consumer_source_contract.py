@@ -145,7 +145,23 @@ def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
     """A binding migration must not report success with a mixed account state."""
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert "report.save.failed.length === 0" in batch
-    assert "report.bindings.mismatches === 0" in batch
+    # 2026-08-23: `report.bindings.mismatches === 0` used to sit directly in
+    # report.ok's && chain here. Task 3's repair-only completeness fix
+    # (8800deadc) moved that clause into bindingsAreComplete() in
+    # tv_consumer_rollout_evidence.ts, combined with the new layout-narrowing
+    # check it had to be ANDed with (2026-08-23 ruling) -- the literal string
+    # this test pinned is gone from THIS file, but the guarantee it protects
+    # ("any miss fails the run") must not travel unverified. Pin both ends of
+    # the move instead of the one that vanished: the report's own mismatch
+    # count is actually threaded into the shared gate (here, in the rollout),
+    # and that gate actually requires it to equal zero (in the function it
+    # moved to, below) -- not just carried through and silently dropped.
+    assert "mismatches: report.bindings.mismatches," in batch
+    assert "&& bindingsAreComplete({" in batch
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert "input.checkedConsumers === expected.length && input.mismatches === 0" in evidence
     assert "process.exitCode = 1" in batch
 
 
