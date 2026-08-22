@@ -665,13 +665,36 @@ def test_a_layout_is_saved_whole_or_discarded_whole() -> None:
     assert "if (!result || result.mismatches.length > 0) layoutRepairedCleanly = false;" in batch
     assert "!result.ok" not in batch
 
-    # An incomplete layout is discarded, not saved, and recorded as such.
+    # An incomplete layout is SAVED and recorded as such.
+    #
+    # This pinned the opposite until 2026-08-22 ("discarded, not saved"), on the
+    # premise that "not saving is an exact, free rollback". Measured on run 758
+    # that premise is false: it holds for BINDINGS, not for instances. The
+    # instances that run re-inserted survived a layout switch and the end of the
+    # session; the 98 rebinds it read back as correct were gone. Abandoning
+    # therefore discarded the repair reliably and did nothing about the damage,
+    # and with ~16 refresh-driven runs a day every round left the layout further
+    # apart. Operator decision 2026-08-22: save the partial repair.
     assert "if (!layoutRepairedCleanly) {" in batch
+    assert "partiallyRepairedChartUrls.push(layout.chartUrl);" in batch
+    assert "report.mutations.partiallyRepairedChartUrls = partiallyRepairedChartUrls;" in batch
+    # No rollback reload in that branch any more -- the reload WAS the rollback.
+    incomplete_branch = batch.split("if (!layoutRepairedCleanly) {")[1].split("}")[0]
+    assert "gotoChart" not in incomplete_branch, (
+        "the incomplete-layout branch must not reload: that reload is the very "
+        "rollback this change removes"
+    )
+    # Abandoning survives for the one case where nothing IS persisted: a save
+    # that never confirmed.
     assert "abandonedChartUrls.push(layout.chartUrl);" in batch
     assert "report.mutations.abandonedChartUrls = abandonedChartUrls;" in batch
-    # The rollback is the reload itself -- the same mechanism that used to
-    # revert rebinds silently.
-    assert "await gotoChart(session.page, layout.chartUrl).catch(() => undefined);" in batch
+    save_failure_branch = batch.split("The save never confirmed")[1].split("});")[0]
+    assert "abandonedChartUrls.push(layout.chartUrl);" in save_failure_branch, (
+        "an unconfirmed save is the only remaining abandon path"
+    )
+    # Both markers gate the completeness predicate: they mark where the run
+    # stopped widening, which is what makes a partial save-set legitimate.
+    assert "&& partiallyRepairedChartUrls.length === 0" in batch
 
     # A layout that was never mutated is not a save point.
     assert "const mutatingLayout = repairBindings;" in batch
