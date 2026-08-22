@@ -714,7 +714,15 @@ async function main(): Promise<number> {
           allowChartRefresh: cli.executionMode === "mutating",
         });
         if (settingsOpened !== true) {
-          throw new Error(`Settings opened for the wrong TradingView script: ${target.scriptName}`);
+          // Gleiche Korrektur wie in tv_shared (2026-08-22): `openSettingsForScript`
+          // liefert bei JEDEM Misserfolg etwas anderes als `true`, auch wenn gar
+          // kein Dialog aufging — die alte Formulierung schickte den Leser auf die
+          // Suche nach einer Namensverwechslung, die es nicht gab. Die
+          // Identitaetspruefung steht eine Zeile tiefer und nennt beide Namen.
+          throw new Error(
+            `Settings dialog never opened for: ${target.scriptName} (no dialog surfaced; ` +
+              `see the script-settings-* trace events of this attempt)`,
+          );
         }
         await assertOpenedScriptIdentityOrThrow(session.page, target);
         targetResult.settings_open_ok = true;

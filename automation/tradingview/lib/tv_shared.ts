@@ -8854,7 +8854,21 @@ export async function openSettingsForScript(
         if (opened === true) {
           return true;
         }
-        throw new Error(`Settings opened for the wrong TradingView script: ${scriptName}`);
+        // Diese Meldung hiess bis 2026-08-22 "Settings opened for the wrong
+        // TradingView script: <ziel>" — und log, denn `openSettingsForScriptOnce`
+        // liefert bei JEDEM Misserfolg `false`, auch wenn ueberhaupt kein Dialog
+        // aufging. Der genannte Name war das ZIEL, nicht ein fremder Dialog. Wer
+        // sie las, suchte eine Namensverwechslung, die es nicht gab: die Diagnose
+        // zu Klasse H lief deshalb zuerst in die falsche Richtung, und der
+        // eigentliche Befund (kein Dialog, Legende nicht getroffen) stand nur in
+        // den Trace-Events daneben.
+        //
+        // Ein echter Identitaets-Mismatch wirft weiter in
+        // verifyOpenedSettingsDialogIdentity und nennt dort BEIDE Namen.
+        throw new Error(
+          `Settings dialog never opened for: ${scriptName} (no dialog surfaced; see the ` +
+            `script-settings-* trace events of this attempt for which lookup failed)`,
+        );
       } catch (error: unknown) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
