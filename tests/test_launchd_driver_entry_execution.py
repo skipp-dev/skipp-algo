@@ -46,6 +46,10 @@ _MIN_DRIVERS = 12
 #: genau der Stolperdraht: "faehrt beim ersten Feuer ungeprueft" darf nicht
 #: wieder still passieren.
 _GATELESS_EXPECTED = {"run-c13-reconcile.sh"}
+# Werkzeuge, die ein Treiber auf dem No-Op-Pfad NIE erreichen darf: sie
+# bespielen den Desktop (osascript) oder den Keychain (security). Die Sandbox
+# stubbt sie auf PATH UND biegt Absolutpfad-Aufrufe in den Kopien darauf um.
+_SANDBOXED_TOOLS = ("osascript", "security")
 
 #: Catchup-Treiber (imbalance) exiten am Gate-Skip ABSICHTLICH nicht (B6-Fix
 #: #4840: Skip setzt nur C13_CATCHUP_EXCLUDE_TODAY=1, der Backfill laeuft
@@ -64,10 +68,55 @@ def _sandbox(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     repo = tmp_path / "repo"
     (repo / "automation" / "launchd").mkdir(parents=True)
     (repo / "cache" / "live").mkdir(parents=True)
+
+    # Stubs VOR den Treiberkopien: die Kopien werden auf sie umgebogen.
+    stubbin = tmp_path / "bin"
+    stubbin.mkdir()
+    # Defensive Stubs: kein Treiber SOLL sie auf dem No-Op-Pfad erreichen; tut es
+    # einer doch, roetet der SANDBOX-VERLETZUNG-Zweig den Test, statt den Desktop
+    # zu bespielen.
+    for tool in _SANDBOXED_TOOLS:
+        p = stubbin / tool
+        p.write_text(
+            f'#!/bin/bash\necho "SANDBOX-VERLETZUNG: {tool} erreicht" >&2\nexit 97\n',
+            encoding="utf-8",
+        )
+        p.chmod(0o755)
+    # `date` pinnt NUR die nackte Stundenabfrage — den Zweigwaehler in
+    # run-c13-tws-reminder.sh (`HOUR="$(date +%H)"`). TZ-praefixierte Aufrufe
+    # (lib_c13_et_gate.sh nutzt `TZ=America/New_York date +%H`) bleiben echt,
+    # sonst wuerde dieser Stub die ET-Logik verfaelschen, die C13_GATE_NOW_ET
+    # ohnehin schon deterministisch setzt.
+    date_stub = stubbin / "date"
+    date_stub.write_text(
+        "#!/bin/bash\n"
+        'if [ -z "$TZ" ] && [ "$1" = "+%H" ]; then echo "09"; exit 0; fi\n'
+        'exec /bin/date "$@"\n',
+        encoding="utf-8",
+    )
+    date_stub.chmod(0o755)
+
+    # Absolute Pfade auf die gefaehrlichen Werkzeuge werden in der KOPIE auf die
+    # Stubs umgebogen. Der PATH-Shim allein ist dafuer VAKUUM: ein Treiber, der
+    # `/usr/bin/osascript` schreibt, geht an PATH vorbei — auf macOS feuert er
+    # dann eine echte Notification, auf Linux bricht er mit rc=127 ab.
+    rewrites = 0
     for src in LAUNCHD.glob("*.sh"):
         dst = repo / "automation" / "launchd" / src.name
-        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+        text = src.read_text(encoding="utf-8")
+        for tool in _SANDBOXED_TOOLS:
+            needle = f"/usr/bin/{tool}"
+            if needle in text:
+                text = text.replace(needle, str(stubbin / tool))
+                rewrites += 1
+        dst.write_text(text, encoding="utf-8")
         dst.chmod(0o755)
+    # Positivkontrolle: verschwindet der Absolutpfad-Aufruf aus dem Korpus,
+    # soll das AUFFALLEN und nicht als stille Null durchlaufen.
+    assert rewrites >= 1, (
+        "kein einziger Absolutpfad auf osascript/security im Treiber-Korpus — "
+        "entweder ist der Korpus leer oder diese Umschreibung ist tot"
+    )
 
     venv = tmp_path / "venv"
     (venv / "bin").mkdir(parents=True)
@@ -93,15 +142,6 @@ def _sandbox(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 
     home = tmp_path / "home"
     home.mkdir()
-    # Defensive Stubs: kein Treiber erreicht sie auf dem No-Op-Pfad (gemessen),
-    # aber ein kuenftiger Treiber, der VOR dem Gate notifiziert oder den
-    # Keychain fragt, soll den Test roeten statt den Desktop zu bespielen.
-    stubbin = tmp_path / "bin"
-    stubbin.mkdir()
-    for tool in ("osascript", "security"):
-        p = stubbin / tool
-        p.write_text(f'#!/bin/bash\necho "SANDBOX-VERLETZUNG: {tool} erreicht" >&2\nexit 97\n', encoding="utf-8")
-        p.chmod(0o755)
 
     env = dict(os.environ)
     env.update(
