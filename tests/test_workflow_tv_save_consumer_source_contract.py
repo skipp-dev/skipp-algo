@@ -662,8 +662,16 @@ def test_a_layout_is_saved_whole_or_discarded_whole() -> None:
     # evidence only: the residual window after a repair still collects
     # dead-parent errors from the consumers this run has NOT repaired yet, so
     # abandoning on it would abandon every layout of a healthy rollout.
-    assert "if (!result || result.mismatches.length > 0) layoutRepairedCleanly = false;" in batch
+    # 2026-08-22: the criterion is unchanged, the statement became a block
+    # because the blocking target names are now collected for the alert text.
+    assert "if (!result || result.mismatches.length > 0) {" in batch
+    assert "layoutRepairedCleanly = false;" in batch
     assert "!result.ok" not in batch
+    # The names of the targets that made the layout partial. Without them the
+    # warning below can only say THAT the layout is partial; the 2026-08-22
+    # drift alerts failed exactly there — they named the effect while the cause
+    # was one script whose settings dialog never opens.
+    assert "blockingTargets.push(target.scriptName);" in batch
 
     # An incomplete layout is SAVED and recorded as such.
     #
@@ -678,6 +686,12 @@ def test_a_layout_is_saved_whole_or_discarded_whole() -> None:
     assert "if (!layoutRepairedCleanly) {" in batch
     assert "partiallyRepairedChartUrls.push(layout.chartUrl);" in batch
     assert "report.mutations.partiallyRepairedChartUrls = partiallyRepairedChartUrls;" in batch
+    # ...and it says so OUT LOUD. This branch writes an incomplete binding set
+    # onto the operator's traded chart — a degradation that would otherwise look
+    # like a green run, visible only to whoever downloads the artifact and runs
+    # jq. The marker must be greppable and must name the blocking scripts.
+    assert "::warning title=Partial layout repair saved::" in batch
+    assert "blocked by: ${blockingTargets.join(\", \")}" in batch
     # No rollback reload in that branch any more -- the reload WAS the rollback.
     incomplete_branch = batch.split("if (!layoutRepairedCleanly) {")[1].split("}")[0]
     assert "gotoChart" not in incomplete_branch, (
@@ -1676,3 +1690,45 @@ def test_supersession_gate_guards_the_save_job() -> None:
     assert wf["permissions"].get("actions") == "read", (
         "listing own runs needs actions: read"
     )
+
+
+def test_a_failed_run_can_be_diagnosed_from_the_artifact_alone() -> None:
+    """The artifact must answer WHEN, HOW OFTEN and WHERE without a re-run.
+
+    Added 2026-08-22 after an observability review of the partial-save change.
+    Each assertion below stands for a question that cost real time to answer
+    from the 2026-08-22 runs, and that the snapshot could not answer on its own:
+
+    * WHEN did this run touch the chart? `observedAt`/`generatedAt` are both
+      stamped at the START — run 758 carries 05:25:03 while its last trace line
+      is 05:53:20 — so a reader correlating a layout write against the next
+      library refresh had only the CI log. Hence `completedAt`.
+    * Was that failure a flake or deterministic? The retry loop kept its
+      per-attempt detail in the log only; the snapshot carried the LAST error.
+      Hence `attempts`, the shape preflight_retry_log.jsonl set the bar for.
+    * Did the navigation even happen? `gotoChart` emitted nothing at all and
+      three call sites swallow its rejection, so a navigation that never
+      occurred was invisible in both log and artifact — measured as zero
+      occurrences across two full run logs.
+    """
+    batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
+    shared = (
+        _REPO_ROOT / "automation" / "tradingview" / "lib" / "tv_shared.ts"
+    ).read_text(encoding="utf-8")
+
+    # WHEN: an end-of-observation stamp distinct from the start stamps.
+    assert "completedAt: string | null;" in batch
+    assert "report.completedAt = new Date().toISOString();" in batch
+    assert "completedAt: null," in batch, "must start null, not backdated to observedAt"
+
+    # HOW OFTEN: per-attempt rows travel into the report, for both outcomes.
+    assert "type VerifyAttempt = { attempt: number; durationMs: number; error: string };" in batch
+    assert "attempts.push({ attempt, durationMs: Date.now() - startedAt, error: \"\" });" in batch
+    assert "attempts.push({ attempt, durationMs: Date.now() - startedAt, error: lastError });" in batch
+    assert "report.bindings.consumers.push({ ...result, attempts });" in batch
+    assert "error: lastError, attempts });" in batch
+
+    # WHERE: navigation is traced, so a swallowed rejection still leaves a mark.
+    assert 'tracePageEvent(page, "goto-chart-start", target);' in shared
+    assert "goto-chart-error" in shared
+    assert 'tracePageEvent(page, "goto-chart-ok", target);' in shared

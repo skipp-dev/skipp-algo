@@ -2357,11 +2357,33 @@ export async function closeTradingViewSession(session: TradingViewSession): Prom
   await session.browser.close().catch(() => undefined);
 }
 
+/**
+ * Navigate to a chart.
+ *
+ * Traced deliberately (2026-08-22). Three of the call sites in
+ * `tv_batch_consumer_rollout.ts` swallow the rejection with
+ * `.catch(() => undefined)` because a failed recovery navigation must not kill
+ * the run — but until now that combination left NOTHING behind: the function
+ * emitted no event, so a navigation that never happened was invisible in both
+ * the log and the artifact, and only surfaced as an unrelated-looking failure
+ * further down. Measured on runs 758 and 771: zero occurrences of this
+ * function in either log, which made the absence unusable as evidence.
+ */
 export async function gotoChart(page: Page, chartUrl?: string): Promise<void> {
-  await page.goto(chartUrl || process.env.TV_CHART_URL || "https://www.tradingview.com/chart/", {
-    waitUntil: "domcontentloaded",
-  });
+  const target = chartUrl || process.env.TV_CHART_URL || "https://www.tradingview.com/chart/";
+  tracePageEvent(page, "goto-chart-start", target);
+  try {
+    await page.goto(target, { waitUntil: "domcontentloaded" });
+  } catch (error) {
+    tracePageEvent(
+      page,
+      "goto-chart-error",
+      `${target}:${String((error as Error)?.message ?? error)}`,
+    );
+    throw error;
+  }
   await page.waitForTimeout(3_000);
+  tracePageEvent(page, "goto-chart-ok", target);
 }
 
 export const DRILL_SETTLE_TIMEOUT_MS = Number(process.env.TV_DRILL_SETTLE_TIMEOUT_MS ?? 30_000);

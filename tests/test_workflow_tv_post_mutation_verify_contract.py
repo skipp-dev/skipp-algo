@@ -15,12 +15,35 @@ completed run's published snapshot) rather than by event-name convention.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
 
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _ROOT / ".github" / "workflows" / "tv-post-mutation-verify.yml"
+_ROLLOUT = _ROOT / "scripts" / "tv_batch_consumer_rollout.ts"
+
+
+def _rollout_mutation_fields() -> list[str]:
+    """Every key of the producer's `mutations` object, in declaration order.
+
+    Read from the TypeScript source rather than restated here, so the stillness
+    proof below cannot silently fall behind the schema it is proving things
+    about. That is not hypothetical: #5013 added a mutation field and the
+    hardcoded list this replaces stayed green.
+    """
+    source = _ROLLOUT.read_text(encoding="utf-8")
+    block = re.search(r"\n  mutations: \{\n(.*?)\n  \};\n", source, re.DOTALL)
+    if block is None:  # pragma: no cover - the parser failing IS the finding
+        raise AssertionError(
+            "could not locate the `mutations` type block in "
+            f"{_ROLLOUT.relative_to(_ROOT)} — the stillness proof below is "
+            "only as exhaustive as this parser"
+        )
+    # Field lines look like `    name: type;`; doc comments and blank lines are
+    # skipped. Anchored at four spaces so nested object literals cannot leak in.
+    return re.findall(r"^    ([A-Za-z][A-Za-z0-9_]*): ", block.group(1), re.MULTILINE)
 
 
 def _load() -> dict:
@@ -190,25 +213,39 @@ def test_a_write_run_that_provably_touched_nothing_exits_too() -> None:
     assert "jq -e" in run
 
     # Every field that records a real change must be proven PRESENT and EMPTY.
-    # A new mutation field added to the snapshot without being listed here
-    # would let a genuine write masquerade as stillness, so the emptiness
-    # clause is spelled out per field rather than pattern-matched.
-    emptiness = {
-        "sourceSavesCompleted": ".sourceSavesCompleted == 0",
-        "producerInstancesRemoved": ".producerInstancesRemoved == 0",
-        "consumerInstancesRemoved": ".consumerInstancesRemoved == 0",
-        "bindingsRepaired": ".bindingsRepaired == 0",
-        "layoutSaved": ".layoutSaved == false",
-        "savedChartUrls": "(.savedChartUrls | length) == 0",
-        "abandonedChartUrls": "(.abandonedChartUrls | length) == 0",
-        "savedWithoutAttestation": "(.savedWithoutAttestation | length) == 0",
-    }
+    #
+    # The field list is DERIVED from the producer's own `mutations` type, not
+    # copied here. Until 2026-08-22 it was a hardcoded dict, and the docstring
+    # right above it promised exactly the protection the dict could not give:
+    # #5013 added `partiallyRepairedChartUrls` to the snapshot and this test
+    # stayed green, because a hardcoded list only ever checks the fields it
+    # already knows. Reading the type is what makes "a new mutation field
+    # cannot slip past" true instead of merely stated.
+    mutation_fields = _rollout_mutation_fields()
+    # The four *Requested flags record INTENT, not a change: a run that planned
+    # to save and saved nothing is still still. They are deliberately outside
+    # the stillness proof.
+    recording_fields = [
+        field for field in mutation_fields if not field.endswith("Requested")
+    ]
+    assert len(recording_fields) >= 8, (
+        "suspiciously few mutation fields parsed from tv_batch_consumer_rollout.ts — "
+        f"got {recording_fields!r}; the parser probably stopped matching the type"
+    )
+
     normalised = " ".join(run.split())
-    for field, clause in emptiness.items():
+    for field in recording_fields:
         assert f'has("{field}")' in normalised, (
             f"{field} is not proven PRESENT — a snapshot missing it would be "
             "read as 'nothing happened'"
         )
-        assert clause in normalised, (
-            f"{field} is not proven EMPTY (expected the clause {clause!r})"
+        # Scalars compare against their zero value, collections against length.
+        clause_alternatives = (
+            f"({field} | length) == 0",
+            f".{field} == 0",
+            f".{field} == false",
+            f"(.{field} | length) == 0",
+        )
+        assert any(clause in normalised for clause in clause_alternatives), (
+            f"{field} is not proven EMPTY — expected one of {clause_alternatives!r}"
         )
