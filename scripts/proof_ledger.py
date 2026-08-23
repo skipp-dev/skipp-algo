@@ -25,12 +25,23 @@ ROOT = Path(__file__).resolve().parents[1]
 _LEDGER_PATH = ROOT / "proof_ledger.toml"
 
 MERGE_STATES = frozenset(
-    {"OFFEN", "PASS", "FAIL", "SCHLAFEND", "UNERREICHBAR", "UNGESICHERT"}
+    {
+        "OFFEN",
+        "PASS",
+        "FAIL",
+        "SCHLAFEND",
+        "UNERREICHBAR",
+        "UNGESICHERT",
+        # Eine Beruehrung der Klasse, die keinen Beweis braucht (Kommentar,
+        # Umbenennung, Formatierung). Terminal, aber DEKLARIERT: sie steht im
+        # Ledger und im Diff, statt durch Nichtstun zu entstehen.
+        "AUSGENOMMEN",
+    }
 )
 #: Zustaende, die keine Frist mehr brauchen. SCHLAFEND ist ABSICHTLICH nicht
 #: dabei: es ist ein Durchgangszustand mit genau drei Ausgaengen (Drill,
 #: deklariert unerreichbar, akzeptiert ungesichert).
-TERMINAL_STATES = frozenset({"PASS", "FAIL", "UNERREICHBAR"})
+TERMINAL_STATES = frozenset({"PASS", "FAIL", "UNERREICHBAR", "AUSGENOMMEN"})
 
 _REQUIRED_ALWAYS = ("id", "kind", "claim", "state", "due_by", "owner")
 _REQUIRED_FIX = ("witness", "witness_job", "evidence_source", "version_probe", "judge")

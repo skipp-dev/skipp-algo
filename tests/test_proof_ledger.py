@@ -195,3 +195,89 @@ def test_the_class_is_derived_from_the_workflows_not_copied():
     assert len(workflow_files()) >= class_floors()["workflows"]
     assert len(referenced_code()) >= class_floors()["referenced_code"]
     assert len(test_imported()) >= class_floors()["test_imported"]
+
+
+# --- Offline-Gate (Task 3) --------------------------------------------------
+
+
+def test_the_range_is_widened_to_the_merge_base():
+    """`git diff A..B` ist KEIN Bereich, sondern ein Vergleich zweier BAEUME.
+    Auf einem PR-Branch meldet er die Aenderungen von main als die eigenen —
+    genau so wurde #4373 am 4.8. faelschlich rot."""
+    from scripts.check_proof_ledger import _merge_base_range
+
+    assert _merge_base_range("aaa..bbb") == "aaa...bbb"
+    assert _merge_base_range("aaa...bbb") == "aaa...bbb"
+
+
+def test_a_coupled_reason_must_hold_in_the_tree():
+    """Anti-Willkuer: SCHLAFEND/UNERREICHBAR nur mit pruefbarer Repo-Tatsache."""
+    from scripts.check_proof_ledger import _coupling_failures
+
+    assert _coupling_failures() == []
+
+
+def test_a_dangling_symbol_reference_is_reported(tmp_path, monkeypatch):
+    """Mutationsprobe: zeigt die Begruendung ins Leere, muss es auffallen."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    fake = ProofEntry(
+        id="fake",
+        kind="fix",
+        claim="c",
+        state="UNERREICHBAR",
+        due_by="2026-09-06",
+        owner="operator",
+        unreachable_because="symbol:scripts/proof_ledger.py#gibtEsNicht",
+        raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (fake,))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "gibtEsNicht" in problems[0]
+
+
+def test_touching_the_class_without_a_new_entry_fails(monkeypatch, capsys):
+    import scripts.check_proof_ledger as gate
+
+    monkeypatch.setattr(gate, "_changed_files", lambda rng: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "_ledger_ids_at", lambda rev: frozenset({"5013"}))
+    monkeypatch.setattr(gate, "load_entries", lambda: ())
+    monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
+
+    rc = gate.main(["--range", "aaa..bbb"])
+
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert "scripts/x.ts" in err
+    assert "proof_ledger.toml" in err
+
+
+def test_touching_the_class_with_a_new_entry_passes(monkeypatch):
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    neu = ProofEntry(
+        id="9999", kind="defect", claim="c", state="OFFEN",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    monkeypatch.setattr(gate, "_changed_files", lambda rng: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "_ledger_ids_at", lambda rev: frozenset({"5013"}))
+    monkeypatch.setattr(gate, "load_entries", lambda: (neu,))
+    monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
+
+    assert gate.main(["--range", "aaa..bbb"]) == 0
+
+
+def test_a_pr_that_touches_nothing_in_the_class_passes(monkeypatch):
+    import scripts.check_proof_ledger as gate
+
+    monkeypatch.setattr(gate, "_changed_files", lambda rng: frozenset({"README.md"}))
+    monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "load_entries", lambda: ())
+    monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
+
+    assert gate.main(["--range", "aaa..bbb"]) == 0
