@@ -5925,6 +5925,12 @@ export function slugifyForPath(value: string): string {
 export type LegendFailureEvidence = {
   scriptName: string;
   capturedAt: string;
+  /**
+   * Welcher Weg die Zeilen geliefert hat. Ohne dieses Feld ist eine leere
+   * `neighbourhood` nicht von "falsch gesucht" zu unterscheiden — genau die
+   * Verwechslung, die Lauf 32556181388 erzeugt hat.
+   */
+  rowSource: "legend-source-item" | "visible-text";
   /** The target row and its vertical neighbours, or [] when it was not found. */
   neighbourhood: LegendRowGeometry[];
   /** Where a double-click would have gone, and what actually sits there. */
@@ -5997,6 +6003,7 @@ export async function captureLegendFailureEvidence(
   const evidence: LegendFailureEvidence = {
     scriptName,
     capturedAt: utcNow(),
+    rowSource: "legend-source-item",
     neighbourhood: [],
     aim: null,
     screenshotPath: "",
@@ -6005,6 +6012,21 @@ export async function captureLegendFailureEvidence(
   evidence.screenshotPath = await takeScreenshot(page, runId, `settings-failure-${slugifyForPath(scriptName)}`)
     .catch(() => "");
 
+  // Zwei Wege, weil der erste nachweislich leer ausgehen kann.
+  //
+  // `[data-name="legend-source-item"]` stammt aus einer Test-Fixture dieses
+  // Repos, nicht aus gemessenem TradingView-DOM. Lauf 32556181388 (2026-08-22)
+  // hat das live gezeigt: die Beweisdatei entstand, aber `aim` blieb null und
+  // die Warnung trug kein `click point hit` — die Zielzeile war in der
+  // Nachbarschaft nicht enthalten. Der Produktionscode dieses Repos sucht
+  // Legendenzeilen deshalb seit dem 2026-07-Vorfall ueber TEXT statt ueber
+  // Attribute (findLegendRowWrappersByVisibleText): ein Attribut-Selektor auf
+  // der Legende ist hier bekannt fragil.
+  //
+  // Der Attribut-Weg bleibt zuerst, weil er die ganze Legende liefert und damit
+  // echte Nachbarn kennt; der Text-Weg liefert nur die Zielzeile, aber lieber
+  // eine Zeile mit Geometrie als eine leere Datei, die wie "nichts gefunden"
+  // aussieht und in Wahrheit "falsch gesucht" heisst.
   const rows = await page
     .evaluate((rowSelector) => {
       const items = Array.from(document.querySelectorAll(rowSelector));
@@ -6017,6 +6039,17 @@ export async function captureLegendFailureEvidence(
       });
     }, LEGEND_SOURCE_ITEM_SELECTOR)
     .catch(() => [] as LegendRowGeometry[]);
+  evidence.rowSource = rows.length > 0 ? "legend-source-item" : "visible-text";
+
+  if (rows.length === 0) {
+    const wrappers = await findLegendRowWrappersByVisibleText(page, scriptName).catch(() => []);
+    for (const wrapper of wrappers) {
+      const box = await wrapper.boundingBox().catch(() => null);
+      if (!box) continue;
+      const text = await wrapper.innerText().catch(() => "");
+      rows.push({ text: (text || scriptName).trim().slice(0, 120), box });
+    }
+  }
 
   evidence.neighbourhood = selectLegendNeighbourhood(rows, scriptName);
 
