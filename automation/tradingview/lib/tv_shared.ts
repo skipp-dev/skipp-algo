@@ -4674,31 +4674,84 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
   tracePageEvent(page, `${tracePrefix}-identity-start`, scriptName);
   if (await hasScriptSettingsInputsSurface(page)) {
     const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
-    const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
-    if (!titledDialog) {
+    const picked = pickDialogForScript(dialogs, scriptName);
+    if (picked.verdict === "untitled") {
       tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
       return true;
     }
-    if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
-      tracePageEvent(page, `${tracePrefix}-identity-title-match`, titledDialog.title);
+    if (picked.verdict === "match") {
+      tracePageEvent(page, `${tracePrefix}-identity-title-match`, picked.dialog!.title);
       return true;
     }
-    tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
+    tracePageEvent(
+      page,
+      `${tracePrefix}-identity-mismatch`,
+      `${scriptName} != ${picked.dialog!.title} (${picked.visibleCount} titled dialog(s) visible)`,
+    );
     await closeModal(page).catch(() => undefined);
     return false;
   }
 
   const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
-  const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
-  if (!titledDialog) {
+  const picked = pickDialogForScript(dialogs, scriptName);
+  if (picked.verdict === "untitled") {
     tracePageEvent(page, `${tracePrefix}-identity-missing-title`, scriptName);
     throw new Error(`Opened settings dialog without an identifiable script title for: ${scriptName}`);
   }
-  if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
+  if (picked.verdict === "match") {
     return true;
   }
-  tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
-  throw new Error(`Opened settings dialog for wrong script: expected ${scriptName}, got ${titledDialog.title}`);
+  tracePageEvent(
+    page,
+    `${tracePrefix}-identity-mismatch`,
+    `${scriptName} != ${picked.dialog!.title} (${picked.visibleCount} titled dialog(s) visible)`,
+  );
+  throw new Error(
+    `Opened settings dialog for wrong script: expected ${scriptName}, got ${picked.dialog!.title}`
+    + ` (${picked.visibleCount} titled dialog(s) visible)`,
+  );
+}
+
+export type DialogPick = {
+  verdict: "match" | "mismatch" | "untitled";
+  /** Bei "match" der passende, bei "mismatch" der erste betitelte (fuer die Spur). */
+  dialog: { title: string } | null;
+  /** Wie viele betitelte Dialoge gleichzeitig sichtbar waren — das ist der Befund. */
+  visibleCount: number;
+};
+
+/**
+ * Welcher der sichtbaren Dialoge gehoert zum Ziel?
+ *
+ * Bis 2026-08-23 nahm die Identitaetspruefung `dialogs.find(titled)` — den
+ * ERSTEN mit Titel, nicht den passenden. Sind mehrere Dialoge gleichzeitig
+ * offen, ist das eine Lotterie: der richtige kann offen sein und trotzdem
+ * abgelehnt werden.
+ *
+ * Gemessen an Lauf 32556181388: Ziel `SMC Long-Dip Alerts` sah in EINEM Lauf
+ * drei verschiedene fremde Dialoge (`SMC Breakout Overlay` 4x, `SMC Setup
+ * Check` 2x, Producer `SMC Long-Dip Suite` 2x). Bei einem einzigen
+ * haengengebliebenen Dialog waere der Fremde immer derselbe — drei
+ * verschiedene sind nur mit mehreren gleichzeitig sichtbaren erklaerbar.
+ * `closeModal` meldete dabei 31/31 Erfolg, schliesst aber je nur einen.
+ *
+ * "untitled" bleibt vom Mismatch getrennt: eine sichtbare Einstellungsflaeche
+ * ohne lesbaren Titel ist NICHT das falsche Skript, und dieser Unterschied
+ * trug bereits den implicit-surface-Pfad.
+ */
+export function pickDialogForScript(
+  dialogs: ReadonlyArray<{ title: string }>,
+  scriptName: string,
+): DialogPick {
+  const titled = dialogs.filter((dialog) => normalizeUiText(dialog.title).length > 0);
+  if (titled.length === 0) {
+    return { verdict: "untitled", dialog: null, visibleCount: 0 };
+  }
+  const matching = titled.find((dialog) => settingsDialogTitleMatchesScriptName(scriptName, dialog.title));
+  if (matching) {
+    return { verdict: "match", dialog: matching, visibleCount: titled.length };
+  }
+  return { verdict: "mismatch", dialog: titled[0], visibleCount: titled.length };
 }
 
 export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogTitle?: string | null): boolean {
