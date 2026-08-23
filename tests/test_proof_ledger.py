@@ -433,6 +433,40 @@ def test_the_branch_labels_come_from_the_source_not_from_a_copy():
     assert "clean_run" in branches
 
 
+# --- Fix-Runde 2 (2026-08-23): Notiz statt Mechanismus abgeschafft ---------
+
+
+def test_entry_5025_can_never_reach_pre_fix_code():
+    """``version_probe = "KEINE"`` macht fuer Eintrag "5025" den ersten Zweig
+    in ``tv_repair_only_contract.judge()`` strukturell tot: wegen der
+    Kurzschluss-Semantik von ``and`` ist
+    ``entry.version_probe != "KEINE" and not has_path(...)`` fuer diesen
+    Eintrag IMMER ``False`` -- ``pre_fix_code`` kann nie zurueckkommen, gleich
+    welche Evidenz hereinkommt. Bisher stand genau diese Aussage nur als
+    Begruendung (Kommentar) in ``proof_ledger.toml`` und im Task-5-Bericht --
+    ein Kommentar wird nicht rot, wenn jemand den Kurzschluss umbaut oder
+    ``version_probe`` auf ein echtes Feld zurueckstellt. Deckt dieselben drei
+    Faelle ab, die ein Pruefer von Hand gefahren hat: leere Evidenz, Evidenz
+    ohne ``executionMode``, ``executionMode`` auf einem anderen Wert als
+    "repair-only" -- keiner davon darf ``pre_fix_code`` liefern.
+    """
+    from scripts.proof_judges import load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5025")
+    assert entry.version_probe == "KEINE", (
+        "Voraussetzung dieses Tests verletzt: version_probe wurde geaendert"
+    )
+    judge = load_judge("tv_repair_only_contract")
+    cases = {
+        "leere_evidenz": {},
+        "ohne_executionMode": {"mutations": {"sourceSavesCompleted": 0}},
+        "executionMode_write": {"executionMode": "write"},
+    }
+    for label, evidence in cases.items():
+        verdict = judge.judge(evidence, entry)
+        assert verdict.branch != "pre_fix_code", (label, verdict)
+
+
 def test_every_judge_branch_is_reached_by_real_evidence_or_is_declared():
     """DER Test. Ein Zweig, den kein echtes Artefakt erreicht, muss in
     proof_ledger.toml als unerreichbar deklariert sein — mit Grund. Sonst ist
