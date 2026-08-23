@@ -14,7 +14,18 @@
 
 - **Arbeitsbaum:** `/Users/spreuss/Documents/skipp-algo-wt-beweisledger`, Branch `docs/beweis-ledger`. Niemals in `/Users/spreuss/Documents/skipp-algo` arbeiten (stale HEAD).
 - **Python:** immer `/Users/spreuss/Documents/skipp-algo/.venv/bin/python` (3.12.13). System-`python3` ist 3.9 und erzeugt irreführende `datetime.UTC`-Importfehler.
-- **Testaufruf:** `PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest <datei> -q --no-header -p no:randomly`
+- **Testaufruf:** `PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest <datei> -q --no-header`
+- **Kein `-p no:randomly`.** Frühere Fassungen dieses Plans hängten den Schalter an jedes
+  Testkommando. **GEMESSEN 2026-08-23: wirkungslos.** `pytest-randomly` ist in diesem `.venv`
+  nicht installiert und im gesamten Repo nirgends deklariert; pytest akzeptiert den Schalter
+  klaglos, auch wenn das Plugin fehlt. Er sah aus wie ein Schutz gegen Reihenfolge-Effekte und
+  war keiner — dieselbe Fehlerklasse, gegen die dieser Plan gebaut wird, in seinen eigenen
+  Randbedingungen. Die Reihenfolge-Unabhängigkeit, die er vorgab herzustellen, ist stattdessen
+  **direkt belegt**: mehrere Tests dieser Datei patchen `_LEDGER_PATH` und leeren davor und
+  danach den `lru_cache` von `_load()`. Dass dieses `cache_clear()` tragend ist, wurde durch
+  Entfernen gezeigt — der Test lief isoliert weiter grün, fiel aber sofort, sobald ein
+  vorheriger Test das echte Ledger bereits gecacht hatte. Wer neue Tests ergänzt, die
+  `_LEDGER_PATH` patchen, muss dasselbe Muster übernehmen.
 - **Vor jedem Testlauf:** `find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null`
 - **Wächter laufen als Modul** — `python -m scripts.check_proof_ledger`, nie über den Pfad. Über den Pfad findet er das `scripts`-Paket nicht, außer der Aufrufer exportiert zufällig `PYTHONPATH`; ein Wächter, der in einer Lane still besteht, die eine Variable vergessen hat, ist schlimmer als kein Wächter.
 - **Ruff:** `.venv/bin/python -m ruff check .` sauber vor jedem Push. Exception-Klassen brauchen Suffix `Error` (N818); Testfunktionen snake_case (N802).
@@ -412,7 +423,7 @@ def test_a_malformed_entry_is_refused_loudly(tmp_path, monkeypatch):
 cd /Users/spreuss/Documents/skipp-algo-wt-beweisledger
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
 Erwartet: Collection-Error — `ModuleNotFoundError: No module named 'scripts.proof_ledger'`.
@@ -566,7 +577,7 @@ def declared_unreachable_branches() -> frozenset[tuple[str, str, str]]:
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
 Erwartet: 7 passed.
@@ -730,7 +741,7 @@ def test_the_class_is_derived_from_the_workflows_not_copied():
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly -k "class or derived or derivation"
+  tests/test_proof_ledger.py -q --no-header -k "class or derived or derivation"
 ```
 
 Erwartet: `ModuleNotFoundError: No module named 'scripts.proof_class'`.
@@ -912,10 +923,10 @@ Die drei Zahlen minus 10 % (abgerundet) in `proof_ledger.toml` unter `[class_flo
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 11 passed.
+Erwartet: 13 passed.
 
 - [ ] **Step 6: Mutationsprobe — die Klasse muss auf Quellenänderung reagieren**
 
@@ -923,7 +934,7 @@ In `.github/workflows/tv-save-consumer-source.yml` die Zeile, die `scripts/tv_ba
 
 ```bash
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly \
+  tests/test_proof_ledger.py -q --no-header \
   -k "browser_automation"
 ```
 
@@ -1163,7 +1174,7 @@ def test_an_unknown_coupling_kind_is_reported(monkeypatch):
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly -k "range or coupl or touching or dangling"
+  tests/test_proof_ledger.py -q --no-header -k "range or coupl or touching or dangling"
 ```
 
 Erwartet: `ModuleNotFoundError: No module named 'scripts.check_proof_ledger'`.
@@ -1345,10 +1356,10 @@ if __name__ == "__main__":
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 17 passed.
+Erwartet: 23 passed.
 
 - [ ] **Step 6: Der Wächter gegen den eigenen Branch — die Positivkontrolle**
 
@@ -1497,7 +1508,7 @@ def test_the_judge_never_reads_the_run_conclusion():
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly -k "judge or partial_save or save_phase"
+  tests/test_proof_ledger.py -q --no-header -k "judge or partial_save or save_phase"
 ```
 
 Erwartet: `ModuleNotFoundError: No module named 'scripts.proof_judges'`.
@@ -1838,10 +1849,10 @@ Zweige, die danach keinen Treffer haben, gehören als `[[unreachable_branch]]` m
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 21 passed.
+Erwartet: 27 passed.
 
 - [ ] **Step 8: Ruff und Commit**
 
@@ -1950,7 +1961,7 @@ def test_every_judge_branch_is_reached_by_real_evidence_or_is_declared():
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly -k "branch or vacu or declares"
+  tests/test_proof_ledger.py -q --no-header -k "branch or vacu or declares"
 ```
 
 Erwartet: `ImportError: cannot import name 'declared_branches'`.
@@ -2010,10 +2021,10 @@ def declared_branches(name: str) -> frozenset[str]:
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 24 passed. Schlägt `test_every_judge_branch_is_reached...` fehl, ist das **kein Testfehler** — dann fehlt ein Korpus-Eintrag oder eine Deklaration. Die Fehlermeldung nennt beide Auswege.
+Erwartet: 30 passed. Schlägt `test_every_judge_branch_is_reached...` fehl, ist das **kein Testfehler** — dann fehlt ein Korpus-Eintrag oder eine Deklaration. Die Fehlermeldung nennt beide Auswege.
 
 - [ ] **Step 5: Die Mutationsprobe, um die es geht — den #5018-Defekt nachstellen**
 
@@ -2028,7 +2039,7 @@ Dann:
 
 ```bash
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly \
+  tests/test_proof_ledger.py -q --no-header \
   -k "every_judge_branch_is_reached"
 ```
 
@@ -2219,7 +2230,7 @@ def test_dormant_past_its_deadline_is_overdue_not_ok():
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly -k "contradiction or overdue or terminal_entry"
+  tests/test_proof_ledger.py -q --no-header -k "contradiction or overdue or terminal_entry"
 ```
 
 Erwartet: `ModuleNotFoundError: No module named 'scripts.judge_proof_ledger'`.
@@ -2371,10 +2382,10 @@ if __name__ == "__main__":
 ```bash
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 28 passed.
+Erwartet: 34 passed.
 
 - [ ] **Step 5: Den Monitor gegen die echte Lage laufen lassen**
 
@@ -2471,7 +2482,7 @@ PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python scripts/lin
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python scripts/lint_workflow_pythonunbuffered.py
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
   tests/test_workflow_runner_pinned.py tests/test_workflow_upload_artifact_uniform_version.py \
-  -q --no-header -p no:randomly
+  -q --no-header
 ```
 
 Alle vier müssen sauber sein. `test_workflow_runner_pinned` verlangt gegebenenfalls die Runner-Auflösung über `scripts/resolve_workflow_runner.py` statt `runs-on: ubuntu-latest` — dann die Form von einem bestehenden scheduled Workflow übernehmen, nicht raten.
@@ -2482,7 +2493,7 @@ Alle vier müssen sauber sein. `test_workflow_runner_pinned` verlangt gegebenenf
 /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m ruff check .
 find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
-  tests/test_proof_ledger.py -q --no-header -p no:randomly
+  tests/test_proof_ledger.py -q --no-header
 git add scripts/judge_proof_ledger.py .github/workflows/proof-ledger-monitor.yml \
   tests/test_proof_ledger.py
 git commit -F /tmp/pl_commit_7.txt
