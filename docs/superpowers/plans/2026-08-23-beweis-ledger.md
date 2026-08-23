@@ -46,45 +46,55 @@ Tasks 1–5 bauen aufeinander auf. Task 6 verdrahtet; Task 7 ist von 6 unabhäng
 
 ---
 
-### Task 0: Die Messung, die den Ansatz trägt oder kippt
+### Task 0: Die Messung, die den Ansatz trägt oder kippt — AM 2026-08-23 GEFAHREN
 
-**Files:** keine. Ergebnis wandert als Kommentar in `proof_ledger.toml` (Task 1) und als Untergrenzen in Task 2.
+**Files:** keine. Ergebnis ist unten festgehalten und wandert als Kommentar in `proof_ledger.toml` (Task 1).
 
 **Abbruchkriterium:** Fallen mehr als **25 %** der letzten 200 gemergten PRs in die Klasse, ist der Mechanismus tot geboren — dann Halt, Ergebnis melden, Trigger-Ableitung neu schneiden. Nicht die Pflicht aufweichen.
 
-- [ ] **Step 1: Kandidatenklasse grob bestimmen**
+> **ERGEBNIS 2026-08-23: 43 von 200 = 21 %, davon 0 Bot-Commits. Schwelle nicht gerissen, der Ansatz trägt.** Alle 43 sind Einzelfälle (kein Titel kommt zweimal vor) — echte Änderungen an TV-Automation, Workflows und `scripts/tv_*`. Der Library-Refresh-Bot fällt **nicht** in die Klasse, weil `.pine`-Dateien Daten sind, die ein Workflow publiziert, und kein Code, den er ausführt. Das war vorher eine Erwartung und ist jetzt eine Messung.
+
+- [x] **Step 1: Die Grundgesamtheit richtig bilden**
+
+**`--merges` liefert hier NULL** — `main` ist squash-basiert, es gibt keine Merge-Commits. Ein Lauf über `git log --merges` hätte eine leere Liste ergeben und ausgesehen wie „0 % beweispflichtig, alles unbedenklich". Jeder Commit auf `main` **ist** ein gemergter PR:
 
 ```bash
 cd /Users/spreuss/Documents/skipp-algo-wt-beweisledger
-git log origin/main --merges -n 200 --format='%H' > /tmp/pl_merges.txt
-wc -l < /tmp/pl_merges.txt
+git fetch -q origin
+git log origin/main -n 200 --format='%H' > /tmp/pl_commits.txt
+wc -l < /tmp/pl_commits.txt        # muss 200 sein, nicht 0
 ```
 
-- [ ] **Step 2: Je Merge zählen, ob er die Klasse berührt**
+- [x] **Step 2: Je PR zählen, ob er die Klasse berührt**
 
 ```bash
 : > /tmp/pl_hits.txt
 while read -r sha; do
-  files=$(git diff --name-only "${sha}^1...${sha}" 2>/dev/null)
-  if printf '%s\n' "$files" | grep -qE '^(\.github/workflows/|automation/tradingview/)'; then
+  if git diff --name-only "${sha}^" "${sha}" 2>/dev/null \
+     | grep -qE '^(\.github/workflows/|automation/tradingview/|scripts/tv_)'; then
     printf '%s\n' "$sha" >> /tmp/pl_hits.txt
   fi
-done < /tmp/pl_merges.txt
-echo "beweispflichtig: $(wc -l < /tmp/pl_hits.txt) von $(wc -l < /tmp/pl_merges.txt)"
+done < /tmp/pl_commits.txt
+hits=$(wc -l < /tmp/pl_hits.txt | tr -d ' ')
+total=$(wc -l < /tmp/pl_commits.txt | tr -d ' ')
+echo "beweispflichtig: ${hits} von ${total} = $(( hits * 100 / total )) %"
+[ "$hits" -gt 0 ] || echo "POSITIVKONTROLLE ROT — Filter greift daneben, Ergebnis wertlos"
 ```
 
-- [ ] **Step 3: Den Bot gegenprüfen — die Frage, an der es scheitert**
+Gemessen: `43 von 200 = 21 %`.
+
+- [x] **Step 3: Den Bot gegenprüfen — die Frage, an der es scheitert**
 
 ```bash
 while read -r sha; do git log -1 --format='%s' "$sha"; done < /tmp/pl_hits.txt \
-  | sed 's/(#[0-9]*)//' | sort | uniq -c | sort -rn | head -15
+  | grep -cE 'library refresh|measurement baseline|chore\(deps'
 ```
 
-Erwartung: `chore(pine): library refresh` taucht **nicht** auf, weil `.pine`-Dateien weder unter `.github/workflows/` noch unter `automation/tradingview/` liegen. Taucht es doch auf, greift das Abbruchkriterium.
+Gemessen: **0**. Wäre diese Zahl zweistellig, wäre der Mechanismus tot geboren — bei ~16 Bot-Merges am Tag ersäuft jedes echte Signal.
 
-- [ ] **Step 4: Ergebnis festhalten**
+- [x] **Step 4: Ergebnis festhalten**
 
-Die drei Zahlen (Merges, Treffer, Anteil) notieren. Sie werden in Task 1 als datierter Kommentar in `proof_ledger.toml` eingetragen — eine Quote, die nur im Kopf steht, ist in zwei Wochen eine Erfindung.
+Die drei Zahlen stehen im Kasten oben und gehören als datierter Kommentar in `proof_ledger.toml`. Eine Quote, die nur im Kopf steht, ist in zwei Wochen eine Erfindung.
 
 ---
 
@@ -154,7 +164,13 @@ beobachtet worden. Der Zweig bleibt, weil er den Fall benennt, in dem der
 
 # ---------------------------------------------------------------------------
 # Eintraege. Stand 2026-08-23 05:49Z.
-# Aufnahmequote aus Task 0: <TREFFER> von <MERGES> Merges (<ANTEIL> %).
+#
+# Aufnahmequote, GEMESSEN 2026-08-23 (Task 0): 43 von 200 gemergten PRs = 21 %,
+# davon 0 Bot-Commits. Die 43 sind durchweg Einzelfaelle — kein Titel kommt
+# zweimal vor. Der Library-Refresh-Bot faellt NICHT in die Klasse, weil
+# .pine-Dateien Daten sind, die ein Workflow publiziert, und kein Code, den er
+# ausfuehrt. Faellt diese Quote je ueber 25 %, ist der Trigger neu zu
+# schneiden — nicht die Pflicht aufzuweichen.
 # ---------------------------------------------------------------------------
 
 [[proof]]
@@ -243,6 +259,29 @@ judge           = "tv_legend_click"
 # 2026-08-23: Lauf 32556181388 zeigt hit-target-miss 0 und box-degenerate 0 —
 # der Klick traf seine Zeile, der Dialog ging trotzdem nicht auf. Der
 # Rechenfehler war real, aber nicht die Ursache. Klasse H besteht fort.
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5027"
+kind            = "fix"
+merged_at       = "2026-08-23T00:58:56Z"
+merge_sha       = "d3c0f5e7e"
+claim           = "Die Identitaetspruefung sucht den passenden Dialog, nicht den ersten"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5018: die Spur steht im Log, nicht im Artefakt.
+evidence_source = "job_log"
+artifact        = ""
+# KEINE inhaltliche Versionsprobe eingetragen, obwohl es eine geben KOENNTE:
+# #5027 schreibt die Anzahl gleichzeitig offener Dialoge in die Spur. Sobald
+# deren exakter Text an einem echten Lauf gemessen ist, gehoert er hierhin —
+# bis dahin waere ein geratenes Suchmuster eine Versionsprobe, die nichts
+# probiert.
+version_probe   = "KEINE"
+version_probe_reason = "Dialoganzahl-Spur existiert, Wortlaut noch nicht gemessen"
+judge           = "tv_legend_click"
 state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "operator"
