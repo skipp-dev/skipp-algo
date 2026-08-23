@@ -56,7 +56,12 @@ def test_dormant_and_unreachable_need_a_repo_coupled_reason():
 
 def test_the_class_floors_are_positive():
     floors = class_floors()
-    assert set(floors) == {"workflows", "referenced_code", "derived_class"}
+    assert set(floors) == {
+        "workflows",
+        "referenced_code",
+        "test_imported",
+        "derived_class",
+    }
     for name, value in floors.items():
         assert value >= 1, name
 
@@ -98,11 +103,51 @@ def test_the_derived_class_holds_the_browser_automation_and_the_workflows():
     assert ".github/workflows/tv-save-consumer-source.yml" in derived
 
 
-def test_a_file_a_test_imports_is_not_in_the_class():
-    """tv_shared.ts wird von tv_shared.test.ts importiert — die Suite SIEHT es."""
-    from scripts.proof_class import derive_class
+def test_a_file_a_test_actually_imports_is_excluded_by_the_mechanism():
+    """Anker getauscht (Fix-Runde 1, 2026-08-23): der alte Anker
+    (automation/tradingview/tv_shared.ts) war VAKUOS. Nachgemessen:
+    ``automation/tradingview/tv_shared.ts`` steht nie in ``referenced_code()`` --
+    der echte Pfad ist ``automation/tradingview/lib/tv_shared.ts``, und kein
+    Workflow ruft die Library direkt auf. "Nicht in der Klasse" war also trivial
+    wahr und waere selbst gruen geblieben, haette man ``test_imported()``
+    komplett abgeschaltet.
 
-    assert "automation/tradingview/tv_shared.ts" not in derive_class()
+    Dieser Anker liegt dagegen ZUERST in ``referenced_code()`` (ein Workflow
+    fuehrt ihn aus, siehe ``.github/workflows/*.yml``) und wird NUR durch die
+    Ausschluss-Mechanik entfernt: ``tests/test_check_r1_attested_sources.py``
+    Zeile 35 importiert ihn wirklich (``from scripts.check_r1_attested_sources
+    import attested_sources, find_offenders``), kein Text-Pin. Ohne
+    ``test_imported()`` bliebe er drin -- der Test in Teil 2 unten beweist genau
+    das per Mutationsprobe.
+    """
+    from scripts.proof_class import derive_class, referenced_code
+
+    target = "scripts/check_r1_attested_sources.py"
+    assert target in referenced_code(), "Anker-Voraussetzung verletzt: nicht referenziert"
+    assert target not in derive_class()
+
+
+def test_the_exclusion_mechanism_is_load_bearing(monkeypatch):
+    """Echte Mutationsprobe: schaltet ``test_imported()`` auf leer. Der Anker aus
+    dem Test oben MUSS dann in der Klasse auftauchen -- das ist die Zusicherung,
+    die vorher fehlte. Ohne sie kann eine kaputte ``test_imported()`` nie rot
+    werden: liefert sie leer, WAECHST ``derived_class`` nur, wird also nie
+    kleiner, und der bestehende ``derived_class``-Floor kann das strukturell
+    nicht fangen (Fix-Runde 1, 2026-08-23).
+
+    Der ``test_imported``-Floor aus Teil 3 wird hier bewusst auf 0 gesetzt: der
+    fiele sonst selbst zuerst (0 < gemessene Untergrenze) und die Probe wuerde
+    nie bis zur Ausschluss-Verdrahtung kommen, die dieser Test eigentlich prueft.
+    Der Floor selbst hat seine eigene Zusicherung ueber
+    ``test_the_class_floors_are_positive`` und die dortige Schluesselmenge.
+    """
+    import scripts.proof_class as mod
+
+    floors = dict(class_floors())
+    floors["test_imported"] = 0
+    monkeypatch.setattr(mod, "class_floors", lambda: floors)
+    monkeypatch.setattr(mod, "test_imported", lambda root=mod.ROOT: frozenset())
+    assert "scripts/check_r1_attested_sources.py" in mod.derive_class()
 
 
 def test_the_derivation_refuses_to_succeed_empty():

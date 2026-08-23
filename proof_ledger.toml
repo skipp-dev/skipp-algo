@@ -35,10 +35,16 @@
 # 2026-08-23 gemessen (nach RULING: test_imported() zaehlt nur echte
 # import/require/from-Treffer, kein Text-Pin mehr):
 #   workflows=71, referenced_code=611, derived_class=577
+#
+# 2026-08-23 gemessen (Fix-Runde 1): test_imported=691. Ohne eigenen Floor
+# konnte derive_class() eine tote test_imported() (liefert leer) nicht fangen
+# -- eine leere Menge laesst derived_class nur WACHSEN, nie schrumpfen, der
+# derived_class-Floor allein ist dafuer blind.
 # ---------------------------------------------------------------------------
 [class_floors]
 workflows = 63
 referenced_code = 549
+test_imported = 621
 derived_class = 519
 
 # ---------------------------------------------------------------------------

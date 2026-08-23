@@ -28,7 +28,16 @@ ROOT = Path(__file__).resolve().parents[1]
 #: Merges am Tag in die Klasse und der Mechanismus ist tot geboren (Task 0).
 _CODE_SUFFIXES = (".py", ".ts", ".sh", ".mjs")
 
-#: Referenzen auf Repo-Dateien in einem `run:`-Block.
+#: Matcht ueberall im rohen Workflow-Dateitext -- NICHT nur innerhalb eines
+#: `run:`-Blocks, sondern auch in YAML-Kommentaren und Prosa; die Regex kennt
+#: keine YAML-Struktur, nur Zeichenketten. Gemessen 2026-08-23 (Task-2-
+#: Mutationsprobe): eine reine Kommentar-Erwaehnung in smc-r4-context-
+#: readback.yml hielt einen Pfad in referenced_code(), obwohl beide echten
+#: Aufrufstellen bereits entfernt waren. Bewusst so belassen: die
+#: Grosszuegigkeit irrt in Richtung einer GROESSEREN Klasse -- fail-safe, nicht
+#: fail-open. Ein Treffer hier ist notwendig, aber nicht hinreichend fuer
+#: "wird ausgefuehrt"; erst wenn test_imported() die Datei NICHT sieht, landet
+#: sie in der beweispflichtigen Klasse.
 _REF = re.compile(
     r"(?<![\w./-])((?:scripts|automation|tools|services)/[\w./-]+"
     r"\.(?:py|ts|sh|mjs))(?![\w/])"
@@ -112,6 +121,11 @@ def derive_class(root: Path = ROOT) -> frozenset[str]:
             f"< {floors['referenced_code']}"
         )
     covered = test_imported(root)
+    if len(covered) < floors["test_imported"]:
+        raise ProofClassError(
+            f"Untergrenze verletzt: {len(covered)} von Tests importierte Dateien "
+            f"< {floors['test_imported']}"
+        )
     unseen = {
         rel
         for rel in referenced
