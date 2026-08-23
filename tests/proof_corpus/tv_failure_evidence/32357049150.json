@@ -1,0 +1,28 @@
+{
+  "_herkunft": {
+    "geladen_am": "2026-08-23",
+    "lauf_conclusion": "failure",
+    "run_id": "32357049150",
+    "warum": "Lauf VOR #5013/#5020 (20.8., 17:30Z) -- Artefakt traegt weder mutations.partiallyRepairedChartUrls noch bindings.evidence"
+  },
+  "bindings": {
+    "checkedConsumers": 10,
+    "mismatches": 0
+  },
+  "executionMode": "verify-only",
+  "generatedAt": "2026-08-20T17:30:00.160Z",
+  "mutations": {
+    "abandonedChartUrls": [],
+    "bindingRepairRequested": false,
+    "bindingsRepaired": 0,
+    "consumerInstancesRemoved": 0,
+    "layoutSaveRequested": false,
+    "layoutSaved": false,
+    "producerInstancesRemoved": 0,
+    "producerRefreshRequested": false,
+    "savedChartUrls": [],
+    "savedWithoutAttestation": [],
+    "sourceSaveRequested": false,
+    "sourceSavesCompleted": 0
+  }
+}

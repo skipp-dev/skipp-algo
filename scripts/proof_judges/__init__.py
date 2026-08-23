@@ -14,6 +14,7 @@ Liste ist blind fuer Zuwachs.
 
 from __future__ import annotations
 
+import ast
 import importlib
 import json
 from dataclasses import dataclass
@@ -71,3 +72,48 @@ def has_path(evidence: dict, dotted: str) -> bool:
             return False
         node = node[part]
     return True
+
+
+class VacuityError(Exception):
+    """Die Zweig-Ableitung hat ihre Untergrenze unterschritten."""
+
+
+def judge_names() -> frozenset[str]:
+    """Alle im Ledger benannten Urteiler — abgeleitet, nicht gelistet."""
+    from scripts.proof_ledger import load_entries
+
+    return frozenset(entry.judge for entry in load_entries() if entry.judge)
+
+
+def declared_branches(name: str) -> frozenset[str]:
+    """Zweig-Labels aus dem QUELLTEXT des Urteilers ableiten.
+
+    Nicht abschreiben. Eine Liste, die eine Kopie der bewachten Struktur ist,
+    kann genau die Drift nicht fangen, vor der sie warnt — gemessen am
+    2026-08-22, als #5013 ein neuntes ``mutations``-Feld hinzufuegte und der
+    hartkodierte Kopplungstest gruen blieb.
+    """
+    module = load_judge(name)
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    labels: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+        if called != "Verdict":
+            continue
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "branch"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                labels.add(keyword.value.value)
+    if len(labels) < 2:
+        raise VacuityError(
+            f"{name}: nur {len(labels)} Zweig-Label(s) gefunden — der Parser ist "
+            "kaputt, oder der Urteiler hat keine Verzweigung. Beides ist ein "
+            "Befund, kein Ergebnis."
+        )
+    return frozenset(labels)

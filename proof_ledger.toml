@@ -64,6 +64,165 @@ beobachtet worden. Der Zweig bleibt, weil er den Fall benennt, in dem der
 """
 
 # ---------------------------------------------------------------------------
+# Task 5 (2026-08-23): Anti-Vakuitaet per AST-Ableitung (declared_branches in
+# scripts/proof_judges/__init__.py). Neun Zweige, denen kein reales Korpus-
+# Artefakt begegnet ist -- je einzeln nachgemessen, nicht aufgefuellt. Jede
+# Messung nennt die durchsuchte Grundgesamtheit (Lauf-Ids, Anzahl geprueft).
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "abandoned_after_fix"
+reason = """
+2026-08-23 gemessen: 107 nicht abgelaufene Laeufe von tv-save-consumer-source
+gepruefte (gh run list, oberste 150, artefakt-verfuegbar). Genau zwei tragen
+ein gefuelltes abandonedChartUrls (32485302991, 32490246714) -- beide vom
+22.8. VOR 16:42:54Z, also vor #5013: ihr Artefakt hat noch gar kein
+mutations.partiallyRepairedChartUrls-Feld und trifft deshalb zuerst
+pre_fix_code, nie diesen Zweig. Seit #5013 (inkl. der 98 Reparaturen in
+32620808573) ist abandonedChartUrls in jedem gepruefte Lauf leer geblieben.
+Laut Kommentar in tv_partial_save.py ist der Zweig "nach #5013 nur noch per
+unbestaetigtem Save erreichbar" (saveChangedChartLayout wirft) -- ein Fall,
+der bislang nicht eingetreten ist, keine Frage der Erreichbarkeit.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "clean_run"
+reason = """
+2026-08-23 gemessen: dieselben 107 Laeufe durchsucht nach
+layoutSaveRequested=true MIT leerem partiallyRepairedChartUrls UND leerem
+abandonedChartUrls (die Bedingung fuer einen sauberen Save nach #5013). Kein
+Treffer: der letzte volle write-Modus-Lauf (32528421800) endete 12:43:55Z am
+22.8., also VOR #5013 (16:42:54Z). Seither lief nur noch Diagnose
+(verify-only, layoutSaveRequested=false, ueberwiegend wegen der offenen
+Klasse H) und genau ein repair-only-Lauf (32620808573), der selbst partiell
+reparierte statt sauber durchzulaufen. Ein normaler Save ist seit dem Fix
+schlicht noch nicht wiederholt worden -- nicht, weil er es nicht koennte.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_repair_only_contract"
+branch = "pre_fix_code"
+reason = """
+2026-08-23 gemessen: der version_probe dieses Eintrags ("executionMode")
+prueft nur die PRAESENZ des Feldnamens, nicht den Wert "repair-only". Per
+`git log -S'executionMode: RolloutExecutionMode' -- scripts/tv_batch_consumer_rollout.ts`
+existiert das Feld seit #4085 (acf9d2e77, 2026-07-26), fast einen Monat vor
+#5025 (9803e4253, 2026-08-23T00:30:20Z) -- jedes seither erzeugte Artefakt,
+ob vor oder nach #5025, traegt den Schluessel. Ein Artefakt ohne ihn muesste
+vor dem 26.7. entstanden sein; erstens ist innerhalb der GitHub-Aufbewahrung
+kein solches mehr abrufbar (107 gepruefte Laeufe reichen nur bis 20.8.
+zurueck), zweitens wuerde seine Abwesenheit ohnehin nur #4085 belegen, nicht
+#5025 -- der Probe kann diesen Fix strukturell nie bezeugen. Nicht der
+Korpus fehlt hier, sondern der version_probe von Eintrag "5025" ist die
+falsche Wahl; das gehoert korrigiert, nicht aufgefuellt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_repair_only_contract"
+branch = "contract_broken"
+reason = """
+2026-08-23 gemessen: #5025 wurde am 23.8. um 00:30:20Z gemergt; seither ist
+GENAU EIN repair-only-Lauf ueberhaupt entstanden (32620808573, 05:38:38Z),
+und der hielt den Vertrag (sourceSavesCompleted=0, producerInstancesRemoved=0,
+consumerInstancesRemoved=0). Bei n=1 kann keine Verletzung beobachtet worden
+sein, unabhaengig davon, ob sie moeglich waere -- reachable bleibt der Zweig
+ueber jedes der drei Felder, sobald ein zweiter repair-only-Lauf laeuft. Das
+ist exakt die Regression, die #5025 verhindern soll; sie noch nie beobachtet
+zu haben ist der Erfolg des Fixes, nicht ein Testmangel.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_failure_evidence"
+branch = "nothing_failed"
+reason = """
+2026-08-23 gemessen: alle 12 seit #5020 (21:16:15Z 22.8.) erzeugten Artefakte
+mit bindings.evidence-Feld gepruefte. Acht davon haben checkedConsumers=0 UND
+checkedBindings=0 ("##[notice]This run observed no TradingView bindings") --
+eine leere Beobachtung ist kein Nachweis fuer "nichts ist gescheitert",
+sondern fuer "nichts wurde geprueft" (dieselbe Falle wie die leere
+Grundlinie #4711 -- ein Vergleich, den dieses Ledger nicht wiederholen darf).
+Die verbleibenden vier echten Beobachtungen (checkedConsumers 7-9) haben
+AUSNAHMSLOS mindestens ein failed-Ziel (Klasse H, offen seit #5018/#5027).
+Ein Lauf, der wirklich etwas prueft und dabei nichts findet, ist seit #5020
+schlicht nicht vorgekommen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_failure_evidence"
+branch = "failed_without_evidence"
+reason = """
+2026-08-23 gemessen: scripts/tv_batch_consumer_rollout.ts kennt zwei
+getrennte Stellen, die bindings.failed fuellen. Zeile 786 (Skript-Settings-
+Timeout) versucht IMMER zuerst captureLegendFailureEvidence (Zeile 772).
+Zeilen 846 und 890 (Layout-Save-Fehler bzw. verpasste Save-Punkte) pushen
+dagegen OHNE jeden Evidenz-Versuch -- dieser zweite Pfad ist real und
+erreichbar. Er kam aber in keinem der 12 seit #5020 beobachteten Artefakte
+vor: alle vier echten Beobachtungen zeigen failed_n==evidence_n exakt (die
+acht Nulltreffer sind leere Beobachtungen, siehe nothing_failed). Ein
+Layout-Save-Fehler (der abandonedChartUrls-Pfad) wuerde diesen Zweig feuern;
+seit #5020 ist keiner aufgetreten.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "click_missed_its_row"
+reason = """
+2026-08-23 gemessen. GENAU der Zweig, den Task 5 nachbauen sollte -- deshalb
+besonders geprueft: die Spur wird von echtem Code erzeugt.
+automation/tradingview/lib/tv_shared.ts:6175 ruft
+tracePageEvent(page, `${traceStartEvent}-hit-target-miss`, ...) auf,
+sobald document.elementFromPoint am Doppelklick-Punkt ein FREMDES Element
+trifft (hitOwner !== "self", Zeilen 6165-6175). console.error schreibt das
+in den Job-Log, den dieser Urteiler liest (evidence_source=job_log) -- der
+Mechanismus ist real, kein Artefakt-Feld wie beim alten Sondenzweig, der
+nie feuern konnte. Der Code-Pfad wird bei jedem Legend-Doppelklick
+durchlaufen (openSettingsForScript kommt in denselben Logs 20-51x vor). In
+ALLEN 7 real gepruefte Job-Logs (Laeufe 32357049150, 32550130816,
+32554422526, 32560949161, 32575497213, 32556181388, 32620808573) stand
+hitOwner jedoch immer auf "self" -- 0 Treffer. Reachable, bislang nicht
+eingetreten -- anders als der alte Sondenzweig ist dieser NICHT falsch
+gebaut; was fehlt, ist ein realer Lauf mit einer verschobenen/verdeckten
+Legend-Zeile im Klickmoment.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "all_dialogs_opened"
+reason = """
+2026-08-23 gemessen. openSettingsForScript ist der ROUTINE-Schrittname fuer
+JEDES Oeffnen einer Skript-Einstellung, ob erfolgreich oder haengen
+geblieben (`[tv-step] start/ok/error openSettingsForScript:...`) -- er
+steht in praktisch jedem Log, das ueberhaupt ein Skript prueft (bestaetigt
+an Lauf 32357049150: 20 Treffer bei 0 fehlgeschlagenen Zielen). Die
+einzigen der 7 real gepruefte Logs OHNE diese Spur sind die 4
+checkedConsumers=0-Laeufe -- leere Beobachtung, siehe
+tv_failure_evidence.nothing_failed. Deren Log als "alle Dialoge geoeffnet"
+zu werten waere derselbe Fehler wie eine leere Beobachtung als Befund zu
+verkaufen. Mit echten, ehrlichen Logs ist dieser Zweig praktisch nie
+erreichbar, weil der vorausgehende Zweig (dialog_stuck_without_miss) jeden
+Log mit mindestens einem Dialogversuch zuerst abfaengt -- unabhaengig vom
+Ausgang. Das ist ein Praezisionsfehler in dialog_stuck_without_miss
+(feuert auch bei vollstaendig erfolgreichen Laeufen, siehe der neue
+Korpus-Eintrag 32357049150), nicht nur eine Beobachtungsluecke bei diesem
+Zweig -- im Task-5-Bericht als eigener Befund vermerkt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "no_log"
+reason = """
+2026-08-23 gemessen: in 7 real abgerufenen Job-Logs (auch beim leersten
+beobachteten Lauf, 32550130816, 64 KB trotz checkedConsumers=0) war der Log
+NIE leer -- der Runner schreibt Setup/Teardown unabhaengig vom
+Automationsskript. evidence["log"] wird nur leer, wenn der Log-ABRUF selbst
+scheitert (Netzwerk/Auth-Fehler beim Aufzeichnen) oder ein Job nie startete
+-- beides ist ein Defekt der Aufzeichnungspipeline, kein Inhalt eines
+echten Laufs, den dieser Urteiler bezeugen soll. KANN_NICHT_BEZEUGEN ist
+hier defensiver Code fuer die Abholung, keine Aussage ueber Lauf-Varianten.
+"""
+
+# ---------------------------------------------------------------------------
 # Eintraege. Stand 2026-08-23 05:49Z.
 #
 # Aufnahmequote, GEMESSEN 2026-08-23 (Task 0): 43 von 200 gemergten PRs = 21 %,

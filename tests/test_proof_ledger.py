@@ -407,3 +407,61 @@ def test_the_judge_never_reads_the_run_conclusion():
         "Ein Urteiler, der die Lauf-Conclusion liest, fuehrt einen bestandenen "
         "Beweis als Fehlschlag"
     )
+
+
+# --- Anti-Vakuitaet (Task 5) ------------------------------------------------
+
+
+def test_a_judge_declares_at_least_two_branches():
+    """Untergrenze: ein AST-Parser, der nichts findet, ist kaputt und nicht
+    etwa erfolgreich mit null Zweigen."""
+    from scripts.proof_judges import declared_branches, judge_names
+
+    names = judge_names()
+    assert names, "kein Urteiler im Ledger — Positivkontrolle leer"
+    for name in names:
+        assert len(declared_branches(name)) >= 2, name
+
+
+def test_the_branch_labels_come_from_the_source_not_from_a_copy():
+    """Abgeleitet, nicht abgeschrieben: eine Kopie ist blind fuer Zuwachs."""
+    from scripts.proof_judges import declared_branches
+
+    branches = declared_branches("tv_partial_save")
+    assert "partial_saved" in branches
+    assert "save_phase_never_reached" in branches
+    assert "clean_run" in branches
+
+
+def test_every_judge_branch_is_reached_by_real_evidence_or_is_declared():
+    """DER Test. Ein Zweig, den kein echtes Artefakt erreicht, muss in
+    proof_ledger.toml als unerreichbar deklariert sein — mit Grund. Sonst ist
+    er vakuoes und faellt hier auf, nicht erst nach einem verlorenen Tag."""
+    from scripts.proof_judges import (
+        corpus_for,
+        declared_branches,
+        judge_names,
+        load_judge,
+    )
+
+    entries = load_entries()
+    declared_dead = {
+        (judge, branch) for judge, branch, _ in declared_unreachable_branches()
+    }
+    for name in sorted(judge_names()):
+        entry = next(e for e in entries if e.judge == name)
+        judge = load_judge(name)
+        reached = {
+            judge.judge(evidence, entry).branch for _, evidence in corpus_for(name)
+        }
+        orphaned = {
+            branch
+            for branch in declared_branches(name)
+            if branch not in reached and (name, branch) not in declared_dead
+        }
+        assert not orphaned, (
+            f"{name}: Zweige ohne echten Korpus-Treffer und ohne Deklaration: "
+            f"{sorted(orphaned)}. Entweder einen echten Lauf aufzeichnen, der "
+            f"sie erreicht, oder sie in proof_ledger.toml unter "
+            f"[[unreachable_branch]] mit Grund eintragen."
+        )
