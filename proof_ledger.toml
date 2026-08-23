@@ -56,11 +56,31 @@ derived_class = 519
 judge  = "tv_partial_save"
 branch = "pruefen_partial_not_saved"
 reason = """
-2026-08-23: In 396 Artefakten (24.7.-22.8.) war partiallyRepairedChartUrls nie
-gefuellt; seit dem ersten Feuern am 23.8. (Lauf 32620808573) lag es stets AUCH
-in savedChartUrls. Ein partial-Layout, das NICHT gespeichert wurde, ist nie
-beobachtet worden. Der Zweig bleibt, weil er den Fall benennt, in dem der
-#5013-Fix nur halb wirkt.
+2026-08-23, Fix-Runde 1 NACHGEZAEHLT (Task-5-Auftrag, da die 8/4-Inversion bei
+nothing_failed Vertrauen in unnachgezaehlte Populationszahlen dieses Files
+gekostet hat): die urspruengliche Zahl "396 Artefakte (24.7.-22.8.)" war NICHT
+396, sondern per `gh run list --workflow=tv-save-consumer-source.yml --created
+"2026-07-24..2026-08-22"` (408 Laeufe mit conclusion failure/success) und je
+Lauf `gh api .../artifacts` gezaehlt: 399 tragen ein
+tradingview-consumer-bindings-Artefakt (9 nicht, vermutlich vor dem
+Artefakt-Upload gescheitert) -- 399, nicht 396, Differenz 3. KORRIGIERT.
+
+Die inhaltliche Aussage ("nie gefuellt") wurde NICHT an allen 399 per Download
+neu verifiziert (ausserhalb des Zeitbudgets dieser Fix-Runde). Stattdessen:
+das Feld kann laut `git log -S'partiallyRepairedChartUrls'` erst seit #5013
+(7733f988c, 2026-08-22T16:42:54Z) ueberhaupt existieren -- jedes Artefakt, das
+VOR diesem Merge tatsaechlich AUSGEFUEHRT (nicht nur dispatcht) wurde, hat das
+Feld gar nicht erst, was staerker ist als "leer". Wegen der Warteschlangen-
+Verzoegerung (belegt: Lauf 32575497213 dispatcht 13:20:37Z 22.8., ausgefuehrt
+erst 03:39:54Z 23.8.) wurde eine 25-Lauf-Stichprobe der zuletzt vor dem Cutoff
+dispatchten Laeufe geprueft: 10 von 25 fuehrten TATSAECHLICH nach dem Merge
+aus, und in allen 10 war das Feld zwar vorhanden, aber leer ([]). Das deckt
+sich mit der unabhaengigen, ausfuehrungszeit-basierten 107-Lauf-Stichprobe
+dieser Aufgabe (siehe abandoned_after_fix/clean_run), die ebenfalls 0
+Nicht-Leer-Treffer fand. Seit dem ersten Feuern am 23.8. (Lauf 32620808573)
+lag es stets AUCH in savedChartUrls. Ein partial-Layout, das NICHT gespeichert
+wurde, ist nie beobachtet worden. Der Zweig bleibt, weil er den Fall benennt,
+in dem der #5013-Fix nur halb wirkt.
 """
 
 # ---------------------------------------------------------------------------
@@ -104,18 +124,21 @@ schlicht noch nicht wiederholt worden -- nicht, weil er es nicht koennte.
 judge  = "tv_repair_only_contract"
 branch = "pre_fix_code"
 reason = """
-2026-08-23 gemessen: der version_probe dieses Eintrags ("executionMode")
-prueft nur die PRAESENZ des Feldnamens, nicht den Wert "repair-only". Per
-`git log -S'executionMode: RolloutExecutionMode' -- scripts/tv_batch_consumer_rollout.ts`
-existiert das Feld seit #4085 (acf9d2e77, 2026-07-26), fast einen Monat vor
-#5025 (9803e4253, 2026-08-23T00:30:20Z) -- jedes seither erzeugte Artefakt,
-ob vor oder nach #5025, traegt den Schluessel. Ein Artefakt ohne ihn muesste
-vor dem 26.7. entstanden sein; erstens ist innerhalb der GitHub-Aufbewahrung
-kein solches mehr abrufbar (107 gepruefte Laeufe reichen nur bis 20.8.
-zurueck), zweitens wuerde seine Abwesenheit ohnehin nur #4085 belegen, nicht
-#5025 -- der Probe kann diesen Fix strukturell nie bezeugen. Nicht der
-Korpus fehlt hier, sondern der version_probe von Eintrag "5025" ist die
-falsche Wahl; das gehoert korrigiert, nicht aufgefuellt.
+Fix-Runde 1 (2026-08-23): KONSTRUKTIONSBEDINGT unerreichbar, nicht bloss
+unbeobachtet -- staerker als die Erstfassung dieser Deklaration. Ursache
+korrigiert: Eintrag "5025" hat version_probe jetzt auf "KEINE" gesetzt (statt
+"executionMode"), weil has_path() nur Feld-PRAESENZ pruefen kann, #5025 aber
+keinen neuen Feldnamen einfuehrte, sondern einen neuen WERT
+("repair-only") eines seit #4085 (26.7.2026, `git log -S'executionMode: RolloutExecutionMode'`)
+vorhandenen Feldes -- eine Praesenzprobe kann eine Wertaenderung an einem
+bestehenden Feld prinzipiell nicht ausdruecken. Mit version_probe="KEINE"
+lautet der Guard in tv_repair_only_contract.judge():
+`if entry.version_probe != "KEINE" and not has_path(...)` -- der erste Teil
+ist fuer Eintrag "5025" jetzt IMMER False, der pre_fix_code-Zweig wird also
+nie mehr zurueckgegeben, gleich welche Evidenz hereinkommt. Das ist keine
+Beobachtungsluecke mehr, sondern eine Zusicherung des Codes selbst. Der
+Urteiler faengt das Szenario (Artefakt ohne "repair-only") ohnehin per
+not_a_repair_run ab, siehe die zwei Zeilen darunter im Urteiler-Quelltext.
 """
 
 [[unreachable_branch]]
@@ -136,32 +159,39 @@ zu haben ist der Erfolg des Fixes, nicht ein Testmangel.
 judge  = "tv_failure_evidence"
 branch = "nothing_failed"
 reason = """
-2026-08-23 gemessen: alle 12 seit #5020 (21:16:15Z 22.8.) erzeugten Artefakte
-mit bindings.evidence-Feld gepruefte. Acht davon haben checkedConsumers=0 UND
-checkedBindings=0 ("##[notice]This run observed no TradingView bindings") --
-eine leere Beobachtung ist kein Nachweis fuer "nichts ist gescheitert",
-sondern fuer "nichts wurde geprueft" (dieselbe Falle wie die leere
-Grundlinie #4711 -- ein Vergleich, den dieses Ledger nicht wiederholen darf).
-Die verbleibenden vier echten Beobachtungen (checkedConsumers 7-9) haben
-AUSNAHMSLOS mindestens ein failed-Ziel (Klasse H, offen seit #5018/#5027).
-Ein Lauf, der wirklich etwas prueft und dabei nichts findet, ist seit #5020
-schlicht nicht vorgekommen.
+2026-08-23 gemessen, Fix-Runde 1 KORRIGIERT (die Erstfassung hatte die Zahlen
+invertiert -- Pruefer-Befund, selbst nachgerechnet und bestaetigt): alle 12
+seit #5020 (21:16:15Z 22.8.) erzeugten Artefakte mit bindings.evidence-Feld
+gepruefte. VIER davon haben checkedConsumers=0 UND checkedBindings=0
+("##[notice]This run observed no TradingView bindings") -- Laeufe
+32550130816, 32554422526, 32560949161, 32575497213. Eine leere Beobachtung
+ist kein Nachweis fuer "nichts ist gescheitert", sondern fuer "nichts wurde
+geprueft" (dieselbe Falle wie die leere Grundlinie #4711 -- ein Vergleich,
+den dieses Ledger nicht wiederholen darf). Die verbleibenden ACHT echten
+Beobachtungen (checkedConsumers 5-9, Laeufe 32551703837, 32554443194,
+32556181388, 32564125896, 32599492026, 32612207345, 32620455054, 32620808573)
+haben AUSNAHMSLOS mindestens ein failed-Ziel (Klasse H, offen seit
+#5018/#5027). Ein Lauf, der wirklich etwas prueft und dabei nichts findet,
+ist seit #5020 schlicht nicht vorgekommen.
 """
 
 [[unreachable_branch]]
 judge  = "tv_failure_evidence"
 branch = "failed_without_evidence"
 reason = """
-2026-08-23 gemessen: scripts/tv_batch_consumer_rollout.ts kennt zwei
-getrennte Stellen, die bindings.failed fuellen. Zeile 786 (Skript-Settings-
-Timeout) versucht IMMER zuerst captureLegendFailureEvidence (Zeile 772).
-Zeilen 846 und 890 (Layout-Save-Fehler bzw. verpasste Save-Punkte) pushen
-dagegen OHNE jeden Evidenz-Versuch -- dieser zweite Pfad ist real und
-erreichbar. Er kam aber in keinem der 12 seit #5020 beobachteten Artefakte
-vor: alle vier echten Beobachtungen zeigen failed_n==evidence_n exakt (die
-acht Nulltreffer sind leere Beobachtungen, siehe nothing_failed). Ein
-Layout-Save-Fehler (der abandonedChartUrls-Pfad) wuerde diesen Zweig feuern;
-seit #5020 ist keiner aufgetreten.
+2026-08-23 gemessen, Fix-Runde 1 KORRIGIERT (dieselbe Inversion wie bei
+nothing_failed, hier nachgezogen): scripts/tv_batch_consumer_rollout.ts kennt
+zwei getrennte Stellen, die bindings.failed fuellen. Zeile 786
+(Skript-Settings-Timeout) versucht IMMER zuerst captureLegendFailureEvidence
+(Zeile 772). Zeilen 846 und 890 (Layout-Save-Fehler bzw. verpasste
+Save-Punkte) pushen dagegen OHNE jeden Evidenz-Versuch -- dieser zweite Pfad
+ist real und erreichbar. Er kam aber in keinem der 12 seit #5020 beobachteten
+Artefakte vor: alle ACHT echten Beobachtungen (32551703837, 32554443194,
+32556181388, 32564125896, 32599492026, 32612207345, 32620455054, 32620808573)
+zeigen failed_n==evidence_n exakt (die VIER Nulltreffer -- 32550130816,
+32554422526, 32560949161, 32575497213 -- sind leere Beobachtungen, siehe
+nothing_failed). Ein Layout-Save-Fehler (der abandonedChartUrls-Pfad) wuerde
+diesen Zweig feuern; seit #5020 ist keiner aufgetreten.
 """
 
 [[unreachable_branch]]
@@ -265,7 +295,18 @@ witness         = "tv-save-consumer-source"
 witness_job     = "save"
 evidence_source = "artifact"
 artifact        = "tradingview-consumer-bindings"
-version_probe   = "executionMode"
+# Fix-Runde 1 (2026-08-23), Task-5-Nachbefund: "executionMode" ist eine
+# Feld-PRAESENZ-Probe, aber #5025 fuehrte keinen neuen FELDNAMEN ein, sondern
+# einen neuen WERT ("repair-only") eines seit #4085 (26.7.) vorhandenen
+# Feldes. has_path() kann eine Wertaenderung an einem bestehenden Feld
+# prinzipiell nicht ausdruecken -- jedes Artefakt seit dem 26.7. traegt den
+# Schluessel, ob vor oder nach #5025. version_probe deshalb auf KEINE
+# gesetzt statt eine Probe zu behalten, die nie etwas beweisen konnte. Der
+# Urteiler faengt den Fall ohnehin selbst ab: fehlt "repair-only" als Wert,
+# liefert er STEHT_AUS/not_a_repair_run, nicht faelschlich ein Urteil ueber
+# vermeintlich alten Code.
+version_probe   = "KEINE"
+version_probe_reason = "Feld-Praesenz-Probe kann eine neue WERT-Variante eines bestehenden Feldes nicht ausdruecken (Feld seit #4085, Wert seit #5025); der Urteiler faengt den Fall selbst per not_a_repair_run ab"
 judge           = "tv_repair_only_contract"
 # 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
 # haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
@@ -365,6 +406,54 @@ claim           = "Der in_flight-Grund des Waechters nennt einen Reparaturlauf, 
 # Mechanismus ist richtig (ein wartender Lauf belegt den Ein-Platz-Slot), der
 # TEXT behauptet etwas Falsches und schickt den Leser auf die Suche nach einem
 # Lauf, den es nicht gibt. Nicht behoben.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Task 5, Fix-Runde 1 (2026-08-23): zwei Zweifelsfaelle aus der Anti-Vakuitaets-
+# Arbeit, die als Zukunfts-Prosa ("sollte irgendwann gefixt werden") keinen
+# Mechanismus haetten. Als defect-Eintraege bekommen sie einen Halter (owner,
+# due_by), statt in einer Bericht-Fussnote zu verschwinden.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "dialog-stuck-without-miss-false-positive"
+kind            = "defect"
+claim           = "tv_legend_click.dialog_stuck_without_miss feuert bei jedem Log mit einem Skript-Settings-Versuch, nicht nur bei einem Timeout"
+# 2026-08-23 gefunden (Task 5, Anti-Vakuitaet): die Bedingung ist eine bloße
+# Substring-Suche nach "openSettingsForScript" im Job-Log. Dieser Name steht
+# in JEDEM [tv-step] start/ok/error-Eintrag fuer diesen Schritt, ob er gelang
+# oder haengen blieb -- er ist ein Routine-Schrittname, kein Fehlersignal.
+# Belegt an Lauf 32357049150 (tests/proof_corpus/tv_legend_click/32357049150.json):
+# 20 Treffer, 0 fehlgeschlagene Ziele, vollstaendig gesunder Durchlauf --
+# trotzdem PRUEFEN "Timeout, aber der Klick traf". Nebenwirkung: dieser Zweig
+# faengt praktisch jeden Log mit mindestens einem Dialogversuch VOR dem
+# eigentlichen Fallback ab, wodurch tv_legend_click.all_dialogs_opened fuer
+# ehrliche (nicht leere) Beobachtungen faktisch nie erreicht wird. NICHT
+# behoben: eine Aenderung an tv_legend_click.py wuerde gegen Task 4s
+# Korpus-Erwartungen zurueckschlagen (Operator-Entscheidung noetig, ob die
+# Bedingung auf einen echten Timeout-Marker statt auf den Schrittnamen
+# umgestellt wird).
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "has-path-field-vs-value-probe"
+kind            = "defect"
+claim           = "has_path() kann nur Feld-Praesenz pruefen, aber ein version_probe muss manchmal einen neuen WERT eines bestehenden Feldes bezeugen"
+# 2026-08-23 gefunden (Task 5, Fix-Runde 1, am Beispiel Eintrag 5025 --
+# executionMode existiert seit #4085, der Wert "repair-only" erst seit #5025;
+# eine Praesenzprobe konnte das strukturell nicht ausdruecken und wurde dort
+# auf KEINE zurueckgesetzt). Die Schwaeche liegt in scripts/proof_judges/__init__.py
+# has_path(), nicht nur im einen Eintrag: JEDE zukuenftige Aenderung, die
+# einem bestehenden Feld einen neuen WERT statt einem neuen Feld einen neuen
+# NAMEN gibt, kann mit einem reinen has_path()-version_probe nicht bezeugt
+# werden -- der Fehler wuerde erst durch einen weiteren falschen version_probe
+# auffallen, nicht durch einen Test. Nicht behoben: haette einen zweiten
+# Probentyp (Feld-WERT statt Feld-Praesenz) in has_path()/version_probe
+# zur Folge, der ueber Eintrag 5025 hinausgeht -- Operator-Entscheidung, ob
+# sich der Aufwand vor dem naechsten betroffenen Fix lohnt.
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
