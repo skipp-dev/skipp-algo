@@ -357,3 +357,53 @@ def test_an_unknown_coupling_kind_is_reported(monkeypatch):
     problems = gate._coupling_failures()
     assert len(problems) == 1
     assert "voodoo" in problems[0]
+
+
+# --- Urteiler (Task 4) ------------------------------------------------------
+
+
+def test_the_partial_save_judge_reads_the_real_run_as_pass():
+    """Lauf 32620808573: partiallyRepaired UND saved gefuellt, abandoned leer."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5013")
+    judge = load_judge("tv_partial_save")
+    corpus = dict(corpus_for("tv_partial_save"))
+    verdict = judge.judge(corpus["32620808573"], entry)
+    assert verdict.state == "PASS", verdict
+
+
+def test_a_run_without_the_version_probe_cannot_testify():
+    """Inhaltliche Versionsprobe: fehlt das Feld, lief aelterer Code."""
+    from scripts.proof_judges import load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5013")
+    judge = load_judge("tv_partial_save")
+    verdict = judge.judge({"mutations": {"layoutSaveRequested": True}}, entry)
+    assert verdict.state == "KANN_NICHT_BEZEUGEN", verdict
+
+
+def test_a_run_that_never_reached_the_save_phase_is_pending_not_dormant():
+    """Der Trennstrich, um den es geht: STEHT_AUS ist nicht SCHLAFEND."""
+    from scripts.proof_judges import load_judge
+
+    entry = next(e for e in load_entries() if e.id == "5013")
+    judge = load_judge("tv_partial_save")
+    verdict = judge.judge(
+        {"mutations": {"partiallyRepairedChartUrls": [], "layoutSaveRequested": False}},
+        entry,
+    )
+    assert verdict.state == "STEHT_AUS", verdict
+
+
+def test_the_judge_never_reads_the_run_conclusion():
+    """Lauf 32620808573 war conclusion=failure und tat exakt das Richtige."""
+    import inspect
+
+    from scripts.proof_judges import load_judge
+
+    source = inspect.getsource(load_judge("tv_partial_save"))
+    assert "conclusion" not in source, (
+        "Ein Urteiler, der die Lauf-Conclusion liest, fuehrt einen bestandenen "
+        "Beweis als Fehlschlag"
+    )
