@@ -14,6 +14,7 @@
 #   SCHLAFEND     Bedingung trat nicht ein — DURCHGANGSZUSTAND, nie terminal
 #   UNERREICHBAR  deklariert; braucht unreachable_because (Repo-Kopplung)
 #   UNGESICHERT   akzeptiert ohne Beweis; braucht Besitzer und Frist
+#   AUSGENOMMEN   deklarierte Ausnahme; kein Beweis noetig (Kommentar, Umbenennung, Formatierung)
 #
 # Editier-Regeln:
 #   * Zustand nur mit datiertem Kommentar aendern, der die MESSUNG nennt.

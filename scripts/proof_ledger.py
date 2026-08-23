@@ -73,8 +73,22 @@ class ProofEntry:
 
 @lru_cache(maxsize=1)
 def _load() -> dict[str, Any]:
-    with _LEDGER_PATH.open("rb") as fp:
-        return tomllib.load(fp)
+    """Lies und parse das Ledger. Wandelt jede Lesepanne in ``ProofLedgerError``,
+    damit der einzige Aufrufer, der das abfaengt (``check_proof_ledger.main``),
+    sie von einem echten Befund (rc=1) unterscheiden kann (rc=2). Ungefangen
+    waeren ``TOMLDecodeError``/``FileNotFoundError`` ein Traceback, den
+    ``main()`` als rc=1 verwechselbar macht — genau die Klasse, die dieser
+    Waechter selbst adressiert.
+    """
+    try:
+        with _LEDGER_PATH.open("rb") as fp:
+            return tomllib.load(fp)
+    except FileNotFoundError as exc:
+        raise ProofLedgerError(f"{_LEDGER_PATH}: Datei nicht gefunden") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ProofLedgerError(
+            f"{_LEDGER_PATH}: nicht wohlgeformtes TOML: {exc}"
+        ) from exc
 
 
 def _entry_from(raw: dict[str, Any]) -> ProofEntry:

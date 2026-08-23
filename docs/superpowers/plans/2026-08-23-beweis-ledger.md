@@ -486,8 +486,22 @@ class ProofEntry:
 
 @lru_cache(maxsize=1)
 def _load() -> dict[str, Any]:
-    with _LEDGER_PATH.open("rb") as fp:
-        return tomllib.load(fp)
+    """Lies und parse das Ledger. Wandelt jede Lesepanne in ``ProofLedgerError``,
+    damit der einzige Aufrufer, der das abfaengt (``check_proof_ledger.main``),
+    sie von einem echten Befund (rc=1) unterscheiden kann (rc=2). Ungefangen
+    waeren ``TOMLDecodeError``/``FileNotFoundError`` ein Traceback, den
+    ``main()`` als rc=1 verwechselbar macht — genau die Klasse, die dieser
+    Waechter selbst adressiert.
+    """
+    try:
+        with _LEDGER_PATH.open("rb") as fp:
+            return tomllib.load(fp)
+    except FileNotFoundError as exc:
+        raise ProofLedgerError(f"{_LEDGER_PATH}: Datei nicht gefunden") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ProofLedgerError(
+            f"{_LEDGER_PATH}: nicht wohlgeformtes TOML: {exc}"
+        ) from exc
 
 
 def _entry_from(raw: dict[str, Any]) -> ProofEntry:
@@ -1066,6 +1080,82 @@ def test_a_pr_that_touches_nothing_in_the_class_passes(monkeypatch):
     monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
 
     assert gate.main(["--range", "aaa..bbb"]) == 0
+
+
+# --- Offline-Gate Fix-Runde 1: der Exit-Code-Vertrag (rc=2) -----------------
+
+
+def test_a_malformed_toml_yields_exit_code_two(tmp_path, monkeypatch):
+    """rc=2 heisst 'Ledger unlesbar', rc=1 heisst 'echter Befund' — beide duerfen
+    nicht zusammenfallen. Kaputtes TOML darf auch nicht als ungefangener
+    Traceback enden: main()s ``try/except ProofLedgerError`` greift nur, wenn
+    ``_load()`` ``TOMLDecodeError`` tatsaechlich in ``ProofLedgerError`` uebersetzt."""
+    import scripts.check_proof_ledger as gate
+    import scripts.proof_ledger as mod
+
+    broken = tmp_path / "proof_ledger.toml"
+    broken.write_text("[[[ das ist kein gueltiges TOML", encoding="utf-8")
+    monkeypatch.setattr(mod, "_LEDGER_PATH", broken)
+    mod._load.cache_clear()
+    assert gate.main(["--range", "aaa..bbb"]) == 2
+    mod._load.cache_clear()
+
+
+def test_a_missing_ledger_file_yields_exit_code_two(tmp_path, monkeypatch):
+    """Symmetrisch zum kaputten TOML: eine fehlende Datei ist ``FileNotFoundError``
+    statt ``TOMLDecodeError``, muss aber denselben rc=2-Pfad treffen."""
+    import scripts.check_proof_ledger as gate
+    import scripts.proof_ledger as mod
+
+    missing = tmp_path / "existiert-nicht.toml"
+    monkeypatch.setattr(mod, "_LEDGER_PATH", missing)
+    mod._load.cache_clear()
+    assert gate.main(["--range", "aaa..bbb"]) == 2
+    mod._load.cache_clear()
+
+
+def test_a_dangling_path_reference_is_reported(monkeypatch):
+    """Positivkontrolle fuer den `path:`-Zweig von `_coupling_failures()` —
+    symmetrisch zur bestehenden Probe fuer `symbol:`."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    fake = ProofEntry(
+        id="fake-path",
+        kind="fix",
+        claim="c",
+        state="UNERREICHBAR",
+        due_by="2026-09-06",
+        owner="operator",
+        unreachable_because="path:scripts/gibtEsNicht.py",
+        raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (fake,))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "scripts/gibtEsNicht.py" in problems[0]
+
+
+def test_an_unknown_coupling_kind_is_reported(monkeypatch):
+    """Positivkontrolle fuer den `else`-Zweig von `_coupling_failures()` — eine
+    unbekannte Kopplungsart darf nicht stillschweigend als geprueft gelten."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    fake = ProofEntry(
+        id="fake-kind",
+        kind="fix",
+        claim="c",
+        state="UNERREICHBAR",
+        due_by="2026-09-06",
+        owner="operator",
+        unreachable_because="voodoo:irgendwas",
+        raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (fake,))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "voodoo" in problems[0]
 ```
 
 - [ ] **Step 3: Fehlschlag bestätigen**
