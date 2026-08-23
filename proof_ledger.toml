@@ -1,0 +1,195 @@
+# proof_ledger.toml — offene Beweise gemergter Aenderungen.
+#
+# Ein Eintrag je Aenderung, deren Wirkung die Testsuite prinzipiell nicht
+# sehen kann (Browser-Automation, Workflow-YAML, externe Dienste).
+#
+# Geladen NUR ueber scripts/proof_ledger.py — nie direkt geparst, damit das
+# Schema an genau einer Stelle erzwingbar bleibt (gleiche Regel wie
+# tests/_pin_registry.py fuer pin_registry.toml, ADR-0009).
+#
+# Zustaende:
+#   OFFEN         Beweis erwartet, Frist laeuft
+#   PASS          bezeugt; pass_kind = live | drill
+#   FAIL          bezeugt und widerlegt
+#   SCHLAFEND     Bedingung trat nicht ein — DURCHGANGSZUSTAND, nie terminal
+#   UNERREICHBAR  deklariert; braucht unreachable_because (Repo-Kopplung)
+#   UNGESICHERT   akzeptiert ohne Beweis; braucht Besitzer und Frist
+#
+# Editier-Regeln:
+#   * Zustand nur mit datiertem Kommentar aendern, der die MESSUNG nennt.
+#   * SCHLAFEND und UNERREICHBAR brauchen unreachable_because; der Wert wird
+#     gegen den Baum geprueft, nicht geglaubt.
+#   * Einen Eintrag entfernen ist zulaessig, wenn die Aenderung zurueckgerollt
+#     wurde. Fristablauf ist KEIN Entfernungsgrund.
+
+# ---------------------------------------------------------------------------
+# Untergrenzen der abgeleiteten Dateiklasse (scripts/proof_class.py).
+# Auf die in Task 2 GEMESSENEN Werte setzen, dann minus 10 % als Puffer.
+# Ein Parser unter diesen Zahlen ist kaputt, nicht erfolgreich.
+# ---------------------------------------------------------------------------
+[class_floors]
+workflows = 1
+referenced_code = 1
+derived_class = 1
+
+# ---------------------------------------------------------------------------
+# Urteilszweige ohne echten Korpus-Treffer, die trotzdem stehen bleiben.
+# Jeder Eintrag ist ein Gestaendnis und braucht einen Grund.
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "pruefen_partial_not_saved"
+reason = """
+2026-08-23: In 396 Artefakten (24.7.-22.8.) war partiallyRepairedChartUrls nie
+gefuellt; seit dem ersten Feuern am 23.8. (Lauf 32620808573) lag es stets AUCH
+in savedChartUrls. Ein partial-Layout, das NICHT gespeichert wurde, ist nie
+beobachtet worden. Der Zweig bleibt, weil er den Fall benennt, in dem der
+#5013-Fix nur halb wirkt.
+"""
+
+# ---------------------------------------------------------------------------
+# Eintraege. Stand 2026-08-23 05:49Z.
+#
+# Aufnahmequote, GEMESSEN 2026-08-23 (Task 0): 43 von 200 gemergten PRs = 21 %,
+# davon 0 Bot-Commits. Die 43 sind durchweg Einzelfaelle — kein Titel kommt
+# zweimal vor. Der Library-Refresh-Bot faellt NICHT in die Klasse, weil
+# .pine-Dateien Daten sind, die ein Workflow publiziert, und kein Code, den er
+# ausfuehrt. Faellt diese Quote je ueber 25 %, ist der Trigger neu zu
+# schneiden — nicht die Pflicht aufzuweichen.
+# ---------------------------------------------------------------------------
+
+[[proof]]
+id              = "5013"
+kind            = "fix"
+merged_at       = "2026-08-22T16:42:54Z"
+merge_sha       = "7733f988c"
+claim           = "Ein unerreichbares Ziel fuehrt zum Partial-Save statt zum Verwerfen"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "mutations.partiallyRepairedChartUrls"
+judge           = "tv_partial_save"
+# 2026-08-23 05:49Z GEMESSEN: Lauf 32620808573 (vom Layout-Waechter angefordert)
+# zeigt partiallyRepairedChartUrls [vWgAWyfC] UND savedChartUrls [vWgAWyfC] bei
+# leerem abandonedChartUrls, 98 Bindungen repariert. Der Lauf war
+# conclusion=failure — ein roter Lauf, der exakt das Richtige tat.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32620808573"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5025"
+kind            = "fix"
+merged_at       = "2026-08-23T00:30:20Z"
+merge_sha       = "9803e4253"
+claim           = "Der Layout-Waechter dispatcht repair-only, und der repariert und speichert"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "executionMode"
+judge           = "tv_repair_only_contract"
+# 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
+# haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
+# consumerInstancesRemoved 0 — nichts deployt, nichts zerlegt.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32620808573"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5020"
+kind            = "fix"
+merged_at       = "2026-08-22T21:16:15Z"
+merge_sha       = "6826873e1"
+claim           = "Ein endgueltig gescheitertes Ziel hinterlaesst eine Beweisdatei"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "bindings.evidence"
+judge           = "tv_failure_evidence"
+# 2026-08-23 00:2xZ GEMESSEN an Lauf 32556181388: eine Beweisdatei geschrieben
+# (…-settings-failure-smc-long-dip-alerts.json).
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32556181388"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5018"
+kind            = "fix"
+merged_at       = "2026-08-22T20:32:49Z"
+merge_sha       = "1ae9e5ca8"
+claim           = "Der Legenden-Doppelklick trifft seine eigene Zeile, nicht die Nachbarzeile"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Die -hit-target-miss-Spur geht ins JOB-LOG, nie ins Artefakt. Genau diese
+# Verwechslung machte den Sondenzweig vom 22.8. vakuoes: er suchte in
+# bindings.failed[].error nach einem Wert, der dort nie steht.
+evidence_source = "job_log"
+artifact        = ""
+# KEINE inhaltliche Versionsprobe moeglich: die neuen Spuren erscheinen nur im
+# Fehlerfall, ihr Fehlen beweist nichts ueber die Code-Version. Allein der
+# Job-Start traegt — das ist bewusst schwaecher und wird hier benannt statt
+# stillschweigend in Kauf genommen.
+version_probe   = "KEINE"
+version_probe_reason = "Spur nur im Fehlerfall; Abwesenheit ist kein Versionsbeweis"
+judge           = "tv_legend_click"
+# 2026-08-23: Lauf 32556181388 zeigt hit-target-miss 0 und box-degenerate 0 —
+# der Klick traf seine Zeile, der Dialog ging trotzdem nicht auf. Der
+# Rechenfehler war real, aber nicht die Ursache. Klasse H besteht fort.
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5027"
+kind            = "fix"
+merged_at       = "2026-08-23T00:58:56Z"
+merge_sha       = "d3c0f5e7e"
+claim           = "Die Identitaetspruefung sucht den passenden Dialog, nicht den ersten"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5018: die Spur steht im Log, nicht im Artefakt.
+evidence_source = "job_log"
+artifact        = ""
+# KEINE inhaltliche Versionsprobe eingetragen, obwohl es eine geben KOENNTE:
+# #5027 schreibt die Anzahl gleichzeitig offener Dialoge in die Spur. Sobald
+# deren exakter Text an einem echten Lauf gemessen ist, gehoert er hierhin —
+# bis dahin waere ein geratenes Suchmuster eine Versionsprobe, die nichts
+# probiert.
+version_probe   = "KEINE"
+version_probe_reason = "Dialoganzahl-Spur existiert, Wortlaut noch nicht gemessen"
+judge           = "tv_legend_click"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "klasse-h"
+kind            = "defect"
+claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den Timeout; Ursache offen"
+# Aktueller Kandidat (2026-08-23): mehrere Dialoge gleichzeitig offen, die
+# Identitaetspruefung nimmt den ERSTEN statt den passenden (#5027).
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "waechter-in-flight-text"
+kind            = "defect"
+claim           = "Der in_flight-Grund des Waechters nennt einen Reparaturlauf, den es nicht gibt"
+# 2026-08-23 gefunden: in_flight zaehlt JEDEN wartenden workflow_dispatch, auch
+# die read-only-Verifikation, die die Verify-Kette selbst dispatcht. Der
+# Mechanismus ist richtig (ein wartender Lauf belegt den Ein-Platz-Slot), der
+# TEXT behauptet etwas Falsches und schickt den Leser auf die Suche nach einem
+# Lauf, den es nicht gibt. Nicht behoben.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
