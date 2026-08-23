@@ -195,6 +195,21 @@ jobs:
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
 
+      # Ein PR, der Code aendert, den nur ein Workflow ausfuehrt und kein Test
+      # importiert, zeigt seine Wirkung erst im echten Lauf. Ohne Ledger-
+      # Eintrag verdunstet "noch nicht bewiesen" still zu "wird schon stimmen":
+      # am 2026-08-23 lag #5013 dreizehn Stunden auf einem Zustand, der von
+      # "schlafend, also in Ordnung" nicht zu unterscheiden war.
+      # Diff-bezogen und OHNE Netz — fast-gates ist der einzige required Check.
+      - name: Guard the proof ledger
+        if: (steps.gate.outputs.run_heavy == 'true') && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          python -m scripts.check_proof_ledger --range "${BASE_SHA}..${HEAD_SHA}"
+
       # Der schmale Schnitt (2026-08-13): `bot/*` überspringt weiterhin ALLES
       # Schwere — nur dieser Wächter läuft mit. Er kostet Bruchteile einer
       # Sekunde und schliesst die Lücke, durch die der Bibliothekslauf die vier
@@ -625,6 +640,7 @@ jobs:
             tests/test_terminal_bitcoin.py \
             tests/test_exit_tif_explicit_at_order_submitters.py \
             tests/test_prod_print_ledger.py \
+            tests/test_proof_ledger.py \
             tests/test_pytest_skip_budget.py \
             tests/test_random_tempfile_ledger_pin.py \
             tests/test_realtime_signals_sister_ledger_guardrail.py \
