@@ -26,11 +26,20 @@ Gemessen am 2026-08-22/23 an der TradingView-Kette:
   nicht zufällig ungefeuert — und hat trotzdem Urteile gedruckt.
 - **Zwei Zustände sehen im Grünen gleich aus.** „Die Bedingung trat nicht ein" (SCHLAFEND) und
   „die Bedingung trat ein, der Zweig wurde aber nie erreicht" (STEHT AUS) sind verschiedene
-  Aussagen. Gemessen an Lauf `32556181388` (save-Job 22:52Z, also nach beiden Merges): #5013
-  steht auf **STEHT AUS** — `layoutSaveRequested=false`, der Lauf stirbt bei
-  `openSettingsForScript`, bevor die Save-Entscheidung ansteht. Die Bedingung für #5013 (ein
-  unerreichbares Ziel) **liegt vor**. Der Verdacht, den nur diese Trennung sichtbar macht:
-  #5013 ist womöglich unerreichbar für genau den Fehlschlag, für den es gebaut wurde.
+  Aussagen. #5013 hat in einer Nacht beide durchlaufen, und niemand hätte den Übergang
+  bemerkt: um 00:23Z stand es auf **STEHT AUS** (Lauf `32556181388`,
+  `layoutSaveRequested=false` — der Lauf stirbt bei `openSettingsForScript`, bevor die
+  Save-Entscheidung ansteht), um 05:49Z auf **PASS** (Lauf `32620808573`,
+  `partiallyRepairedChartUrls: [vWgAWyfC]` **und** `savedChartUrls: [vWgAWyfC]`,
+  `abandonedChartUrls: []`, 98 Bindungen repariert). Dreizehn Stunden lang war der Zustand
+  von „schlafend, also wohl in Ordnung" nicht zu unterscheiden, und der Übergang wurde nur
+  deshalb sichtbar, weil ein Mensch zufällig zur richtigen Zeit ein Skript aufrief.
+
+- **Die Lauf-Conclusion ist als Urteilsquelle untauglich.** Ebenjener Lauf `32620808573` war
+  `conclusion: failure` — weil `report.ok` an einem nicht leeren
+  `partiallyRepairedChartUrls` hängt. Ein **roter Lauf, der exakt das Richtige tat.** Wer
+  über die Conclusion urteilt, führt hier einen bestandenen Beweis als Fehlschlag. Deshalb
+  urteilt dieses Ledger ausschließlich über Evidenz*inhalt*.
 - **Die Prämisse, unter der #5013 als schlafend geführt wurde, ist überholt.** Sie lautete
   „#5018 entfernt die Bedingung, unter der #5013 feuern könnte". #5018 hat Klasse H nicht
   behoben (2026-08-23 live widerlegt: `hit-target-miss: 0`, `box-degenerate: 0`, Dialog geht
@@ -250,7 +259,10 @@ wird als `PASS (Drill)` geführt, getrennt von `PASS (Live)`.
 
 Diese Trennung liefert eine Aussage, die es heute nicht gibt: **`PASS (Drill)` bei anhaltendem
 `STEHT_AUS` live** heißt *die Entscheidung ist korrekt, aber der Zweig wird in Produktion nicht
-erreicht.* Für #5013 ist genau das der offene Verdacht.
+erreicht.* Für #5013 war genau das der Verdacht in der Nacht des 23.8. — er ist um 05:49Z
+**widerlegt** worden, und zwar von einem Lauf, den der Layout-Wächter angefordert hat. Die
+Unterscheidung bleibt trotzdem nötig: Sie ist der Grund, warum der Verdacht überhaupt formuliert
+werden konnte, statt als „schlafend" abgelegt zu werden.
 
 ### Alarm
 
@@ -308,8 +320,24 @@ Dazu die Positivkontroll-Liste bekannter Klassen-Mitglieder und Nicht-Mitglieder
 
 ## Migration
 
-Geseedet werden die vier Einträge, die heute im Bash-Skript hängen — #5013, #5018, #5020,
-Layout-Wächter (#5025, gemergt als `9803e4253`) — plus ein `defect`-Eintrag für Klasse H.
+Geseedet werden die vier Einträge, die heute im Bash-Skript hängen, mit dem Zustand vom
+2026-08-23 05:49Z:
+
+| Eintrag | Zustand | Zeuge |
+|---|---|---|
+| #5013 Partial-Save | `PASS (Live)` | Lauf `32620808573` |
+| Layout-Wächter #5025 | `PASS (Live)` | Lauf `32620808573` (`executionMode: repair-only`) |
+| #5020 Beweisdateien | `PASS (Live)` | Lauf `32556181388` |
+| #5018 Legenden-Klick | `OFFEN`, `evidence_source = "job_log"` | kein Urteil aus dem Artefakt |
+
+Dazu zwei `defect`-Einträge: **Klasse H** (Settings-Dialog geht nicht auf; aktueller
+Ursachenkandidat ist #5027, mehrere gleichzeitig offene Dialoge) und der **irreführende
+`in_flight`-Grund des Wächters** (er zählt jeden wartenden `workflow_dispatch`, auch die
+read-only-Verifikation, und meldet dann „ein Reparaturlauf ist bereits in flight", wo keiner
+ist — der Mechanismus stimmt, der Text lügt; am 2026-08-23 gefunden, nicht behoben).
+
+Lauf `32620808573` ist zugleich der erste echte **Korpus-Eintrag** für `tv_partial_save`: Er
+erreicht den PASS-Zweig mit echter Evidenz, nicht mit einer Fixture.
 **Keine rückwirkenden Einträge** für die 26 gemessenen Altfälle: Ein Zustandscheck auf main
 machte jeden PR rot, auch den reparierenden. Die Begründung ist dieselbe wie beim R1-Guard.
 
@@ -319,8 +347,9 @@ machte jeden PR rot, auch den reparierenden. Die Begründung ist dieselbe wie be
   Ansatzpunkt ist nach der 2026-08-23-Messung der Zustand des Skripts bzw. der TV-Sitzung, nicht
   die Klickgeometrie. Sie bekommt hier einen `defect`-Eintrag mit Besitzer und Frist, damit sie
   einen Halter hat — der Mechanismus löst sie nicht.
-- **Ob #5013 in Produktion erreichbar ist.** Das ist der erste Nutzfall des Ledgers, nicht Teil
-  von ihm.
+- **Das Beheben der beiden `defect`-Einträge.** Klasse H und der lügende `in_flight`-Text
+  bekommen hier einen Halter mit Frist, damit sie nicht verdunsten. Der Mechanismus löst sie
+  nicht.
 - **Die Browser-Hälfte drillbar machen.** Der Schnitt legt die Entscheidungen nach außen; was im
   Browser bleibt, bleibt ehrlich unbewiesen.
 
