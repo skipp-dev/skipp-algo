@@ -73,10 +73,19 @@ VOR diesem Merge tatsaechlich AUSGEFUEHRT (nicht nur dispatcht) wurde, hat das
 Feld gar nicht erst, was staerker ist als "leer". Wegen der Warteschlangen-
 Verzoegerung (belegt: Lauf 32575497213 dispatcht 13:20:37Z 22.8., ausgefuehrt
 erst 03:39:54Z 23.8.) wurde eine 25-Lauf-Stichprobe der zuletzt vor dem Cutoff
-dispatchten Laeufe geprueft: 10 von 25 fuehrten TATSAECHLICH nach dem Merge
-aus, und in allen 10 war das Feld zwar vorhanden, aber leer ([]). Das deckt
-sich mit der unabhaengigen, ausfuehrungszeit-basierten 107-Lauf-Stichprobe
-dieser Aufgabe (siehe abandoned_after_fix/clean_run), die ebenfalls 0
+dispatchten Laeufe geprueft. Reproduzierbar: aus den 399 (s.o.) die mit
+createdAt < 2026-08-22T16:42:54Z, davon die 25 mit dem groessten createdAt
+(also die zuletzt VOR dem Merge dispatchten) -- Ids: 32575497213, 32564125896,
+32560949161, 32556181388, 32554443194, 32554422526, 32551703837, 32550130816,
+32544827322, 32541192874, 32529583947, 32528421800, 32527226522, 32522169025,
+32520893668, 32515409677, 32508510590, 32505570798, 32499587392, 32496151926,
+32490246714, 32486573726, 32485501852, 32483782211, 32480541762. Von diesen
+25 fuehrten GENAU 10 (generatedAt >= 2026-08-22T16:42:54Z) TATSAECHLICH nach
+dem Merge aus: 32575497213, 32564125896, 32560949161, 32556181388,
+32554443194, 32554422526, 32551703837, 32550130816, 32544827322, 32541192874
+-- in allen 10 war das Feld zwar vorhanden, aber leer ([]). Das deckt sich
+mit der unabhaengigen, ausfuehrungszeit-basierten 107-Lauf-Stichprobe dieser
+Aufgabe (siehe abandoned_after_fix/clean_run), die ebenfalls 0
 Nicht-Leer-Treffer fand. Seit dem ersten Feuern am 23.8. (Lauf 32620808573)
 lag es stets AUCH in savedChartUrls. Ein partial-Layout, das NICHT gespeichert
 wurde, ist nie beobachtet worden. Der Zweig bleibt, weil er den Fall benennt,
