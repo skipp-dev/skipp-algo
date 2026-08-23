@@ -195,21 +195,6 @@ jobs:
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
           python -m scripts.check_r1_attested_sources --range "${BASE_SHA}..${HEAD_SHA}"
 
-      # Ein PR, der Code aendert, den nur ein Workflow ausfuehrt und kein Test
-      # importiert, zeigt seine Wirkung erst im echten Lauf. Ohne Ledger-
-      # Eintrag verdunstet "noch nicht bewiesen" still zu "wird schon stimmen":
-      # am 2026-08-23 lag #5013 dreizehn Stunden auf einem Zustand, der von
-      # "schlafend, also in Ordnung" nicht zu unterscheiden war.
-      # Diff-bezogen und OHNE Netz — fast-gates ist der einzige required Check.
-      - name: Guard the proof ledger
-        if: (steps.gate.outputs.run_heavy == 'true') && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          python -m scripts.check_proof_ledger --range "${BASE_SHA}..${HEAD_SHA}"
-
       # Der schmale Schnitt (2026-08-13): `bot/*` überspringt weiterhin ALLES
       # Schwere — nur dieser Wächter läuft mit. Er kostet Bruchteile einer
       # Sekunde und schliesst die Lücke, durch die der Bibliothekslauf die vier
@@ -429,6 +414,44 @@ jobs:
 
           echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
           exit 1
+
+      # Ein PR, der Code aendert, den nur ein Workflow ausfuehrt und kein Test
+      # importiert, zeigt seine Wirkung erst im echten Lauf. Ohne Ledger-
+      # Eintrag verdunstet "noch nicht bewiesen" still zu "wird schon stimmen":
+      # am 2026-08-23 lag #5013 dreizehn Stunden auf einem Zustand, der von
+      # "schlafend, also in Ordnung" nicht zu unterscheiden war.
+      # Diff-bezogen und OHNE Netz — fast-gates ist der einzige required Check.
+      #
+      # NICHT neben "Guard R1-attested sources" platziert (Fix-Runde 1,
+      # 2026-08-24): dieser Waechter importiert tomllib (>=3.11) direkt und
+      # ueber scripts/proof_ledger.py. An der Nachbarposition -- vor jedem
+      # Python-Setup, stdlib-3.9-sicher gehalten wie R1/customer-surface --
+      # waere das ein ModuleNotFoundError beim Import, auf jedem Heavy-PR.
+      # Er laeuft deshalb erst NACH "Resolve Python 3.12 interpreter": das ist
+      # die einzige Stelle in diesem Job, die auf BEIDEN Lanes (github-hosted
+      # ueber die Bootstrap-Assertion, self-hosted ueber `python`/`py -3.12`)
+      # tatsaechlich einen 3.12-Interpreter erzwingt und mit einer benannten
+      # ::error:: statt einem Traceback scheitert -- kein zusaetzlicher
+      # Versions-Guard noetig, dieser Schritt liefert bereits einen; ein
+      # zweiter haette dasselbe Blast-Radius-Problem (jeder Heavy-PR rot) nur
+      # mit hoeflicherem Text. `$SMC_PYTHON_BIN` statt `python`, weil die
+      # self-hosted-`py -3.12`-Variante einen Pfad setzt, der nicht zwingend
+      # das `python` in PATH ist. Braucht run_heavy=='true' (nie den
+      # Pine-only-Lane) -- die Pine-only-Lane KANN laut der bot-Allow-Liste
+      # oben (Zeile ~134: `artifacts/*|docs/*|reports/*|pine/generated/*|*.pine`,
+      # matcht nie einen `.github/workflows/*.yml`-Pfad) ohnehin keinen
+      # beweispflichtigen Diff enthalten, deshalb ist die engere Bedingung
+      # (ohne `run_pine_guard`) hier korrekt und nicht bloss zufaellig
+      # ungefaehrlich.
+      - name: Guard the proof ledger
+        if: (steps.gate.outputs.run_heavy == 'true') && github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          "$SMC_PYTHON_BIN" -VV
+          git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
+          "$SMC_PYTHON_BIN" -m scripts.check_proof_ledger --range "${BASE_SHA}..${HEAD_SHA}"
 
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
