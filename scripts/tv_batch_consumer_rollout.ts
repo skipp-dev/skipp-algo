@@ -4,11 +4,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  bindingsAreComplete,
   buildRolloutProvenance,
   groupTargetsByLayout,
   resolveExecutionPlan,
-  resolveLayoutSavePoints,
+  resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
+  resolveSkippedLayouts,
   type LibraryPublishObservation,
   type RolloutExecutionMode,
   type RolloutProvenance,
@@ -43,8 +45,10 @@ import {
 } from "./tv_verify_consumer_bindings.js";
 import {
   compareAgainstBaseline,
+  selectLayoutsNeedingRepair,
   type ObservedConsumer,
   type OutOfBandVerdict,
+  type RepairCandidateConsumer,
 } from "../automation/tradingview/lib/tv_out_of_band_drift.js";
 
 type RolloutConfig = {
@@ -180,6 +184,35 @@ type RolloutReport = {
   bindings: {
     expectedConsumers: number;
     checkedConsumers: number;
+    /**
+     * The layouts THIS run planned to save, and the ones it deliberately left
+     * alone.
+     *
+     * plannedChartUrls is the layout list this run set out to save: the
+     * narrowed set for repair-only, the full list for write and verify-only.
+     * skippedChartUrls is the difference, and it is the field that says a
+     * narrowing happened at all: empty unless the mode is repair-only.
+     *
+     * The field was called narrowedToChartUrls until 2026-08-23 and misread
+     * twice under that name -- once in this comment, once in a report --
+     * both times as "empty for write". Renamed rather than re-explained.
+     *
+     * These two exist because the pair above cannot answer the only question
+     * a post-mortem asks about repair-only. `checkedConsumers: 7` against
+     * `expectedConsumers: 10` reads exactly the same whether the run skipped
+     * three CLEAN layouts on purpose -- the mode working -- or whether three
+     * targets were unreadable -- the mode failing. Opposite conclusions, same
+     * two numbers, and until 2026-08-23 the narrowing lived only in a local
+     * variable that died with the process. This is the sole post-mortem
+     * surface of the mode: the run cannot be re-executed to find out, because
+     * the next refresh has already moved the layout on.
+     *
+     * expectedConsumers stays the FULL config on purpose. It is what the
+     * repository expects; plannedChartUrls is what this run decided. A
+     * reader needs both to see that a decision was made at all.
+     */
+    plannedChartUrls: string[];
+    skippedChartUrls: string[];
     checkedBindings: number;
     mismatches: number;
     consumers: (VerifyConsumerResult & { attempts?: VerifyAttempt[] })[];
@@ -202,12 +235,18 @@ function getFlag(name: string, fallback: string): string {
  * this walks the layouts read-only. A target that cannot be read is simply
  * absent from the result, which the comparison turns into "unknown" rather than
  * into a false drift.
+ *
+ * Returns two views of the same pass: `observed` (label/actual pairs) feeds
+ * compareAgainstBaseline, and `consumers` (scriptName/mismatches) feeds
+ * selectLayoutsNeedingRepair — repair-only's layout-scoping decision reuses
+ * this read instead of paying for a second browser pass.
  */
 async function observeBindingsOnly(
   session: Awaited<ReturnType<typeof newTradingViewSession>>,
   config: RolloutConfig,
-): Promise<ObservedConsumer[]> {
+): Promise<{ observed: ObservedConsumer[]; consumers: RepairCandidateConsumer[] }> {
   const observed: ObservedConsumer[] = [];
+  const consumers: RepairCandidateConsumer[] = [];
   for (const layout of groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)) {
     try {
       // The navigation sits inside the same swallow as the read below it, on
@@ -240,6 +279,7 @@ async function observeBindingsOnly(
             scriptName: result.scriptName,
             selections: result.bindings.map((binding) => ({ label: binding.label, actual: binding.actual })),
           });
+          consumers.push({ scriptName: result.scriptName, mismatches: result.mismatches });
         } catch (error) {
           // The target stays absent — an unread target must not read as
           // unchanged — but never silently: the two 2026-08-14 misses left
@@ -260,7 +300,7 @@ async function observeBindingsOnly(
       );
     }
   }
-  return observed;
+  return { observed, consumers };
 }
 
 /**
@@ -410,6 +450,10 @@ async function main(): Promise<void> {
     bindings: {
       expectedConsumers: config.verifyTargets.length,
       checkedConsumers: 0,
+      // Filled in the finally block, from the same layoutsNeedingRepair the
+      // skip and both completeness gates read — one decision, one source.
+      plannedChartUrls: [],
+      skippedChartUrls: [],
       checkedBindings: 0,
       mismatches: 0,
       evidence: [],
@@ -419,6 +463,13 @@ async function main(): Promise<void> {
   };
 
   const session = await newTradingViewSession();
+  // Hoisted above the try block: the finally block's completeness gate (see
+  // report.ok below) has to read this too, and a `let` declared inside `try`
+  // is not visible in its own `finally`. Stays empty for every mode except
+  // repair-only -- the skip check in the layout loop below is itself gated on
+  // executionPlan.mode === "repair-only", so an empty array here never
+  // narrows a write or verify-only run.
+  let layoutsNeedingRepair: string[] = [];
   try {
     if (!session.authResolution.authReusedOk) throw new Error("Rollout requires authenticated TradingView state");
 
@@ -463,13 +514,28 @@ async function main(): Promise<void> {
     // report.tradingViewObserved.bindings rather than paying for a second
     // observeBindingsOnly pass here).
     if (executionPlan.mode !== "verify-only") {
+      const preMutation = await observeBindingsOnly(session, config);
       report.outOfBandDrift = compareAgainstBaseline({
-        observed: await observeBindingsOnly(session, config),
+        observed: preMutation.observed,
         baseline: loadPublishedBaseline(baselinePath),
         expectedScriptNames: config.verifyTargets.map((target) => target.scriptName),
       });
       if (report.outOfBandDrift.status !== "clean") {
         console.warn(`[rollout] out-of-band drift ${report.outOfBandDrift.status}: ${report.outOfBandDrift.reason}`);
+      }
+      // Reuses this same read rather than a second browser pass: a consumer
+      // this read never saw (an unreachable layout, or a target the per-target
+      // catch above swallowed) is absent from preMutation.consumers, and
+      // selectLayoutsNeedingRepair treats that absence as needing repair too
+      // -- an observation outage widens the run, it never narrows it.
+      if (executionPlan.mode === "repair-only") {
+        layoutsNeedingRepair = selectLayoutsNeedingRepair(
+          preMutation.consumers,
+          config.verifyTargets.map((target) => ({
+            scriptName: target.scriptName,
+            chartUrl: target.chartUrl ?? config.primaryChartUrl,
+          })),
+        );
       }
     }
 
@@ -658,6 +724,15 @@ async function main(): Promise<void> {
         // mutated, and a failure inside the layout must not retroactively make
         // it look untouched.
         const mutatingLayout = repairBindings;
+
+        // Im repair-only-Modus wird NUR angefasst, was der Vor-Mutations-
+        // Snapshot als defekt gemeldet hat. Saubere Layouts bleiben unberuehrt --
+        // ein Reparaturlauf darf kein zweiter Zerstoerer werden.
+        if (executionPlan.mode === "repair-only" && !layoutsNeedingRepair.includes(layout.chartUrl)) {
+          console.error(`[tv-trace] repair-skip-clean-layout ${layout.chartUrl}`);
+          continue;
+        }
+
         let layoutRepairedCleanly = true;
         // The targets that made this layout unclean, by name. The boolean above
         // says THAT the layout is partial; the alert a human reads has to say
@@ -789,7 +864,23 @@ async function main(): Promise<void> {
         // abandonedChartUrls did: it marks the layout where the run stopped
         // widening. It does NOT mark an unsaved layout any more -- that one was
         // saved on purpose (operator decision 2026-08-22).
-        const planned = resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl);
+        //
+        // Mode-aware since 2026-08-23. `planned` used to be
+        // resolveLayoutSavePoints(config.verifyTargets, ...) -- the full layout
+        // list regardless of mode -- while repair-only deliberately skips every
+        // clean layout right above. The two disagreed exactly when the mode
+        // worked: measured against the real config, planned=[vWgAWyfC,
+        // hKHTmKhu, twh98JLB] against savedChartUrls=[vWgAWyfC] pushed
+        // bindings.failed for the two layouts the run was RIGHT not to touch,
+        // so a successful repair reported itself as failed (exit 1). Same
+        // defect the 2026-08-23 ruling fixed for checkedConsumers; this is its
+        // second site, and resolveExpectedLayoutSavePoints is its sibling.
+        const planned = resolveExpectedLayoutSavePoints(
+          config.verifyTargets,
+          config.primaryChartUrl,
+          executionPlan.mode,
+          layoutsNeedingRepair,
+        );
         const missed = planned.filter((chartUrl) => !savedChartUrls.includes(chartUrl));
         const nothingWentWrong = abandonedChartUrls.length === 0
           && partiallyRepairedChartUrls.length === 0
@@ -808,6 +899,29 @@ async function main(): Promise<void> {
     report.sources.checked = report.sources.consumers.length;
     report.sources.drifted = report.sources.consumers.filter((item) => !item.matches).length;
     report.bindings.checkedConsumers = report.bindings.consumers.length;
+    // In the finally block so it is written even when the run dies mid-repair:
+    // a crashed narrow run is exactly when a reader needs to know what it had
+    // decided to leave alone.
+    //
+    // What lands, per mode (measured, not assumed): write and verify-only get
+    // the FULL layout list in plannedChartUrls and an empty
+    // skippedChartUrls -- they plan every layout and skip none. A repair-only
+    // run that died BEFORE the pre-mutation read gets an empty
+    // plannedChartUrls and every layout in skippedChartUrls, which is the
+    // honest answer there: it touched nothing, no narrowing had been decided
+    // yet.
+    report.bindings.plannedChartUrls = resolveExpectedLayoutSavePoints(
+      config.verifyTargets,
+      config.primaryChartUrl,
+      executionPlan.mode,
+      layoutsNeedingRepair,
+    );
+    report.bindings.skippedChartUrls = resolveSkippedLayouts(
+      config.verifyTargets,
+      config.primaryChartUrl,
+      executionPlan.mode,
+      layoutsNeedingRepair,
+    );
     report.bindings.checkedBindings = report.bindings.consumers.reduce((sum, item) => sum + item.checked, 0);
     report.bindings.mismatches = report.bindings.consumers.reduce((sum, item) => sum + item.mismatches.length, 0);
     report.mutations.bindingsRepaired = report.bindings.consumers.reduce(
@@ -891,8 +1005,21 @@ async function main(): Promise<void> {
       && report.sources.checked === report.sources.expected
       && report.sources.drifted === 0
       && report.bindings.failed.length === 0
-      && report.bindings.checkedConsumers === report.bindings.expectedConsumers
-      && report.bindings.mismatches === 0
+      // Extracted (2026-08-23 ruling) so repair-only's narrowed completeness
+      // check -- "checked everything expected" means every consumer on the
+      // layouts selectLayoutsNeedingRepair named, not report.bindings.
+      // expectedConsumers, which is the whole config regardless of mode --
+      // can be proven directly against synthetic inputs. write and
+      // verify-only visit every layout, so this stays byte-identical to the
+      // old `checkedConsumers === expectedConsumers && mismatches === 0`.
+      && bindingsAreComplete({
+        targets: config.verifyTargets,
+        primaryChartUrl: config.primaryChartUrl,
+        mode: executionPlan.mode,
+        layoutsNeedingRepair,
+        checkedConsumers: report.bindings.checkedConsumers,
+        mismatches: report.bindings.mismatches,
+      })
       // A second writer touched the managed layouts since the last CI run, or
       // the comparison could not be made. The save is NOT withheld -- that
       // would freeze the consumers on an old pinned library while the producer

@@ -24,6 +24,19 @@ empty. To prevent regressions:
    ``ModuleNotFoundError`` on ``scripts``. This is the behavioural guard
    that catches the actual bug class even if the structural guard is
    bypassed.
+
+3. ``test_jobs_invoking_scripts_check_out_the_repo`` — every JOB that
+   direct-invokes ``python scripts/X.py`` must run ``actions/checkout``
+   before it. Added 2026-08-23: both guards above were green for a script
+   that was not on the runner AT ALL. ``tv-post-mutation-verify.yml``
+   direct-invoked ``scripts/tv_repair_watchdog_decision.py`` from a job
+   with no checkout — the workflow's own header comment said "This job
+   checks out nothing" — so the call would have died with ``can't open
+   file``, exit 2 under ``set -euo pipefail``, taking the job red and the
+   watchdog's dispatch output with it. PYTHONPATH is about *how* a present
+   script imports; this is about whether it is present. Sweeping every
+   workflow is the positive control: 54 such jobs across 51 workflows,
+   exactly one of them without a checkout.
 """
 
 from __future__ import annotations
@@ -95,6 +108,66 @@ _WORKFLOWS_INVOKING_SCRIPTS = sorted({wf for wf, _ in _INVOCATIONS})
 _UNIQUE_SCRIPTS = sorted({script for _, script in _INVOCATIONS})
 
 
+def _discover_invoking_jobs() -> list[tuple[Path, str, int | None, int, list[str]]]:
+    """Every JOB that direct-invokes ``python scripts/X.py``.
+
+    Returns ``(workflow, job_id, first_checkout_index, first_invoke_index,
+    scripts)``. ``first_checkout_index`` is ``None`` when the job has no
+    ``actions/checkout`` step at all — the C1 failure shape.
+
+    Parsed per job rather than per file on purpose: a checkout in a *sibling*
+    job does not put the script on this job's runner, and each job gets a fresh
+    workspace. The one real defect this found lived in a workflow whose other
+    jobs would not have helped either — it had none.
+    """
+    found: list[tuple[Path, str, int | None, int, list[str]]] = []
+    if not WORKFLOW_DIR.is_dir():
+        return found
+    for wf in sorted(set(WORKFLOW_DIR.glob("*.yml")) | set(WORKFLOW_DIR.glob("*.yaml"))):
+        try:
+            loaded = yaml.safe_load(wf.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:  # pragma: no cover - covered elsewhere
+            pytest.fail(f"{wf.name}: invalid YAML: {exc}")
+        if not isinstance(loaded, dict):
+            continue
+        jobs = loaded.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        for job_id, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps")
+            if not isinstance(steps, list):
+                # A `uses:` job calls a reusable workflow; that file is swept
+                # on its own pass.
+                continue
+            checkout_at: int | None = None
+            invoke_at: int | None = None
+            scripts: list[str] = []
+            for index, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    continue
+                uses = step.get("uses")
+                if (
+                    isinstance(uses, str)
+                    and uses.split("@", 1)[0].strip() == "actions/checkout"
+                    and checkout_at is None
+                ):
+                    checkout_at = index
+                run = step.get("run")
+                if isinstance(run, str):
+                    for match in _DIRECT_INVOKE_RE.finditer(run):
+                        scripts.append(match.group(1))
+                        if invoke_at is None:
+                            invoke_at = index
+            if invoke_at is not None:
+                found.append((wf, str(job_id), checkout_at, invoke_at, sorted(set(scripts))))
+    return found
+
+
+_INVOKING_JOBS = _discover_invoking_jobs()
+
+
 def test_at_least_one_workflow_invokes_scripts_directly() -> None:
     """Sanity check: if this becomes empty, the discovery regex regressed."""
     assert _INVOCATIONS, (
@@ -131,6 +204,72 @@ def test_workflows_invoking_scripts_set_pythonpath(workflow: Path) -> None:
         f"Add to the workflow:\n\n"
         f"  env:\n"
         f"    PYTHONPATH: ${{{{ github.workspace }}}}\n"
+    )
+
+
+def test_the_invoking_job_sweep_covers_every_invoking_workflow() -> None:
+    """Positive control for the per-job parser.
+
+    The whole-file regex above and the YAML walk below must agree on WHICH
+    workflows invoke a script. If the walk silently stopped seeing a workflow —
+    a schema change, an anchor, a job shape it does not handle — the checkout
+    guard would go quietly vacuous for it, which is precisely the failure mode
+    that let C1 through in the first place.
+    """
+    assert _INVOKING_JOBS, "the per-job sweep found nothing — the YAML walk regressed"
+    from_regex = {wf.name for wf in _WORKFLOWS_INVOKING_SCRIPTS}
+    from_walk = {wf.name for wf, _, _, _, _ in _INVOKING_JOBS}
+    assert from_regex == from_walk, (
+        "the whole-file regex and the per-job YAML walk disagree about which "
+        "workflows direct-invoke a scripts/*.py. Only seen by the regex: "
+        f"{sorted(from_regex - from_walk)}; only by the walk: "
+        f"{sorted(from_walk - from_regex)}. Every workflow the regex sees must "
+        "be reachable by the walk, or the checkout guard below is blind to it."
+    )
+
+
+@pytest.mark.parametrize(
+    ("workflow", "job_id", "checkout_at", "invoke_at", "scripts"),
+    _INVOKING_JOBS,
+    ids=[f"{wf.name}::{job}" for wf, job, _, _, _ in _INVOKING_JOBS],
+)
+def test_jobs_invoking_scripts_check_out_the_repo(
+    workflow: Path,
+    job_id: str,
+    checkout_at: int | None,
+    invoke_at: int,
+    scripts: list[str],
+) -> None:
+    """C1 guard (2026-08-23): the script has to BE on the runner.
+
+    PYTHONPATH answers "how does a present script import its siblings". It
+    says nothing about presence, and it was declared — correctly — in the very
+    workflow whose job had no checkout. Both existing guards were green while
+    the invocation could only ever have produced ``can't open file``.
+
+    The checkout must also come BEFORE the invocation, and not merely exist in
+    the job: ``actions/checkout`` defaults to ``clean: true`` (``git clean
+    -ffdx``), so a checkout placed after a step that downloaded an artifact
+    into the workspace deletes it. Measured over the whole population when
+    this was written: 54 invoking jobs, 0 of them ordered the other way, so
+    the stricter rule costs nothing today and closes the hole for tomorrow.
+    """
+    assert checkout_at is not None, (
+        f"{workflow.name}::{job_id} runs {scripts} but has no actions/checkout "
+        f"step. The job's workspace is empty, so the invocation fails with "
+        f"``can't open file '<workspace>/{scripts[0]}'`` (exit 2, which takes "
+        f"the whole step down under ``set -euo pipefail``). Add:\n\n"
+        f"  - name: Checkout\n"
+        f"    uses: actions/checkout@<sha> # v7\n"
+        f"    with:\n"
+        f"      persist-credentials: false\n"
+    )
+    assert checkout_at < invoke_at, (
+        f"{workflow.name}::{job_id} checks out at step {checkout_at} but "
+        f"already invokes {scripts} at step {invoke_at}. Move the checkout "
+        f"ahead of the invocation — and note that actions/checkout cleans the "
+        f"workspace (git clean -ffdx), so a late checkout can also delete "
+        f"artifacts an earlier step downloaded."
     )
 
 

@@ -6,9 +6,13 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
+  bindingsAreComplete,
   buildRolloutProvenance,
   resolveExecutionPlan,
+  resolveExpectedConsumerTargets,
+  resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
+  resolveSkippedLayouts,
   sha256Bytes,
 } from "../lib/tv_consumer_rollout_evidence.js";
 
@@ -185,6 +189,272 @@ test("an unreadable facade stays unknown instead of being rounded to either verd
   assert.equal(observation.verdict, "unknown");
   assert.notEqual(observation.verdict, "match");
   assert.equal(observation.observedVersion, null);
+});
+
+// ---------------------------------------------------------------------------
+// 2026-08-23 ruling: Task 3's repair-only skip (scripts/tv_batch_consumer_
+// rollout.ts) leaves report.bindings.checkedConsumers short of the constant,
+// mode-independent report.bindings.expectedConsumers the moment it correctly
+// skips a clean layout -- so a fully successful narrow repair could never
+// reach report.ok === true. resolveExpectedConsumerTargets and
+// bindingsAreComplete are the fix, extracted as pure functions specifically
+// so this reachability claim can be proven directly: main() itself needs a
+// live TradingView session and cannot be unit-tested.
+// ---------------------------------------------------------------------------
+
+const REPAIR_TARGETS = [
+  { scriptName: "SMC Decision Board", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Setup Check", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Hold Manager", chartUrl: "https://tv/chart/B/" },
+];
+
+test("repair-only narrows the expected set to only the layouts needing repair", () => {
+  // Layout B never showed a mismatch, so the run only ever opens layout A.
+  const expected = resolveExpectedConsumerTargets(
+    REPAIR_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/"],
+  );
+  assert.deepEqual(expected.map((t) => t.scriptName), ["SMC Decision Board", "SMC Setup Check"]);
+});
+
+test("write and verify-only ignore layoutsNeedingRepair entirely: expected is always every target", () => {
+  for (const mode of ["write", "verify-only"] as const) {
+    // Even though layoutsNeedingRepair (mode-irrelevant for these two) names
+    // only layout A, the expected set must still be the FULL config -- these
+    // modes visit every layout, unconditionally.
+    const expected = resolveExpectedConsumerTargets(
+      REPAIR_TARGETS,
+      "https://tv/chart/A/",
+      mode,
+      ["https://tv/chart/A/"],
+    );
+    assert.equal(expected.length, REPAIR_TARGETS.length);
+  }
+});
+
+test("repair-only CAN reach ok:true after skipping a clean layout", () => {
+  // Layout B was clean in the pre-mutation read and therefore never visited;
+  // only A's two targets were checked, both clean. This is exactly the
+  // successful-narrow-repair case the 2026-08-22/23 finding said could never
+  // reach report.ok === true before this fix.
+  assert.equal(
+    bindingsAreComplete({
+      targets: REPAIR_TARGETS,
+      primaryChartUrl: "https://tv/chart/A/",
+      mode: "repair-only",
+      layoutsNeedingRepair: ["https://tv/chart/A/"],
+      checkedConsumers: 2,
+      mismatches: 0,
+    }),
+    true,
+  );
+});
+
+test("repair-only does NOT reach ok:true when a visited target kept a mismatch", () => {
+  // Same skip as above (layout B untouched, 2 of 3 targets checked), but one
+  // of the VISITED targets (on layout A, the one the run repaired) still
+  // reports a mismatch. Completeness alone must not paper over a real defect.
+  assert.equal(
+    bindingsAreComplete({
+      targets: REPAIR_TARGETS,
+      primaryChartUrl: "https://tv/chart/A/",
+      mode: "repair-only",
+      layoutsNeedingRepair: ["https://tv/chart/A/"],
+      checkedConsumers: 2,
+      mismatches: 1,
+    }),
+    false,
+  );
+});
+
+test("write and verify-only are unchanged: incomplete against the FULL target list still fails", () => {
+  // Same checkedConsumers=2/mismatches=0 as the repair-only success case
+  // above, but under write/verify-only that is only 2 of 3 EXPECTED targets
+  // -- these modes never narrow, so this must stay incomplete exactly as it
+  // did before repair-only existed.
+  for (const mode of ["write", "verify-only"] as const) {
+    assert.equal(
+      bindingsAreComplete({
+        targets: REPAIR_TARGETS,
+        primaryChartUrl: "https://tv/chart/A/",
+        mode,
+        layoutsNeedingRepair: ["https://tv/chart/A/"],
+        checkedConsumers: 2,
+        mismatches: 0,
+      }),
+      false,
+    );
+    // Checking every target with zero mismatches still reaches ok, unchanged.
+    assert.equal(
+      bindingsAreComplete({
+        targets: REPAIR_TARGETS,
+        primaryChartUrl: "https://tv/chart/A/",
+        mode,
+        layoutsNeedingRepair: ["https://tv/chart/A/"],
+        checkedConsumers: REPAIR_TARGETS.length,
+        mismatches: 0,
+      }),
+      true,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The SECOND completeness check, found by the whole-branch review on
+// 2026-08-23. tv_batch_consumer_rollout.ts has a "layouts never saved" clause
+// that compared savedChartUrls against the full, mode-independent layout list
+// -- the same defect the block above fixed for checkedConsumers, at a second
+// site 100 lines away. Measured against the real config: planned=[vWgAWyfC,
+// hKHTmKhu, twh98JLB], savedChartUrls=[vWgAWyfC] => missed=[hKHTmKhu,
+// twh98JLB] => bindings.failed => report.ok=false => exit 1, on a repair-only
+// run that had done exactly the right thing.
+// ---------------------------------------------------------------------------
+
+// Three targets across two layouts, matching the real config's shape: the
+// primary layout carries two consumers, a second layout carries one.
+const SAVE_POINT_TARGETS = [
+  { scriptName: "SMC Decision Board", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Setup Check", chartUrl: "https://tv/chart/A/" },
+  { scriptName: "SMC Hold Manager", chartUrl: "https://tv/chart/B/" },
+];
+
+test("repair-only narrows the expected SAVE points to the layouts needing repair", () => {
+  assert.deepEqual(
+    resolveExpectedLayoutSavePoints(
+      SAVE_POINT_TARGETS,
+      "https://tv/chart/A/",
+      "repair-only",
+      ["https://tv/chart/A/"],
+    ),
+    ["https://tv/chart/A/"],
+  );
+});
+
+test("a narrow repair that saved every layout it opened reports NOTHING missed", () => {
+  // The exact reproduction of the finding, in the shape the rollout computes
+  // it: planned minus savedChartUrls must be empty for a run that repaired
+  // layout A and correctly never opened layout B.
+  const planned = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/"],
+  );
+  const savedChartUrls = ["https://tv/chart/A/"];
+  assert.deepEqual(planned.filter((url) => !savedChartUrls.includes(url)), []);
+
+  // ...and the pre-fix expression, kept here as the negative control: the
+  // unnarrowed list is what pushed bindings.failed on a healthy run.
+  const unnarrowed = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "write",
+    ["https://tv/chart/A/"],
+  );
+  assert.deepEqual(
+    unnarrowed.filter((url) => !savedChartUrls.includes(url)),
+    ["https://tv/chart/B/"],
+  );
+});
+
+test("a narrow repair that failed to save a layout it DID open still reports it missed", () => {
+  // Narrowing must not swallow a real failure: layout A needed repair, was
+  // opened, and its save never confirmed.
+  const planned = resolveExpectedLayoutSavePoints(
+    SAVE_POINT_TARGETS,
+    "https://tv/chart/A/",
+    "repair-only",
+    ["https://tv/chart/A/", "https://tv/chart/B/"],
+  );
+  assert.deepEqual(
+    planned.filter((url) => !["https://tv/chart/B/"].includes(url)),
+    ["https://tv/chart/A/"],
+  );
+});
+
+test("write and verify-only save points are unchanged by layoutsNeedingRepair", () => {
+  const full = ["https://tv/chart/A/", "https://tv/chart/B/"];
+  for (const mode of ["write", "verify-only"] as const) {
+    // Even with layoutsNeedingRepair naming only A -- and even with it empty,
+    // which is what these two modes actually pass -- the expected save points
+    // stay the full list, byte-identical to resolveLayoutSavePoints.
+    assert.deepEqual(
+      resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, ["https://tv/chart/A/"]),
+      full,
+    );
+    assert.deepEqual(
+      resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, []),
+      full,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// I5: the artifact has to say what the run left out.
+// ---------------------------------------------------------------------------
+
+test("the skipped layouts are named, so a narrow run is distinguishable from a blind one", () => {
+  // checkedConsumers 2 / expectedConsumers 3 is ambiguous on its own: two
+  // targets checked because layout B was deliberately skipped, or because
+  // layout B could not be read? This is the field that answers it.
+  assert.deepEqual(
+    resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", "repair-only", ["https://tv/chart/A/"]),
+    ["https://tv/chart/B/"],
+  );
+  // A repair-only run that found NOTHING to repair skipped everything -- and
+  // says so, rather than looking like a run that narrowed to nothing by
+  // accident.
+  assert.deepEqual(
+    resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", "repair-only", []),
+    ["https://tv/chart/A/", "https://tv/chart/B/"],
+  );
+});
+
+test("write and verify-only skip nothing, whatever layoutsNeedingRepair says", () => {
+  for (const mode of ["write", "verify-only"] as const) {
+    assert.deepEqual(
+      resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, ["https://tv/chart/A/"]),
+      [],
+    );
+  }
+});
+
+test("narrowedTo and skipped partition the full layout list, in every mode", () => {
+  // The two artifact fields must be readable together without a third source:
+  // for repair-only they add up to the full plan, and for the other modes the
+  // narrowing is provably absent rather than merely unset.
+  const full = resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", "write", []);
+  for (const mode of ["write", "verify-only", "repair-only"] as const) {
+    for (const needing of [[], ["https://tv/chart/A/"], ["https://tv/chart/A/", "https://tv/chart/B/"]]) {
+      const narrowed = resolveExpectedLayoutSavePoints(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, needing);
+      const skipped = resolveSkippedLayouts(SAVE_POINT_TARGETS, "https://tv/chart/A/", mode, needing);
+      assert.deepEqual([...narrowed, ...skipped].sort(), [...full].sort());
+      assert.deepEqual(narrowed.filter((url) => skipped.includes(url)), []);
+    }
+  }
+});
+
+test("the rollout wires the narrowing into BOTH completeness gates and the artifact", () => {
+  // The pure functions above can only prove the arithmetic. These pins prove
+  // the rollout actually calls them -- the C2 defect was precisely that one of
+  // the two gates had been left on the unnarrowed list while the other was
+  // fixed, and no single-task review could see both at once.
+  const rollout = fs.readFileSync(
+    path.join(import.meta.dirname, "..", "..", "..", "scripts", "tv_batch_consumer_rollout.ts"),
+    "utf-8",
+  );
+  assert.ok(
+    rollout.includes("const planned = resolveExpectedLayoutSavePoints("),
+    "the layouts-never-saved gate must use the mode-aware save points",
+  );
+  assert.ok(
+    !rollout.includes("resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)"),
+    "the unnarrowed save-point call is the C2 defect and must not come back",
+  );
+  assert.ok(rollout.includes("report.bindings.plannedChartUrls = resolveExpectedLayoutSavePoints("));
+  assert.ok(rollout.includes("report.bindings.skippedChartUrls = resolveSkippedLayouts("));
 });
 
 test("only a known drift gates report.ok; unknown does not", () => {

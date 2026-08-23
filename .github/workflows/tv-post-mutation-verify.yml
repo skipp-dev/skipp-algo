@@ -48,9 +48,14 @@ name: tv-post-mutation-verify
 on:
   # zizmor: ignore[dangerous-triggers] -- workflow_run source is the same-repo
   # tv-save-consumer-source (no fork/PR-controlled context reaches it: that
-  # workflow has no pull_request trigger). This job checks out nothing, reads
-  # one artifact of the completed run, and dispatches with a fixed read-only
-  # input; permissions are actions:write + contents:read only.
+  # workflow has no pull_request trigger). This job checks out the DEFAULT
+  # BRANCH read-only and persists no credentials -- workflow_run resolves
+  # github.ref/github.sha to the default branch, never to anything the trigger
+  # run controlled -- reads one artifact of the completed run, and dispatches
+  # with fixed inputs; permissions are actions:write + contents:read only.
+  # (Until 2026-08-23 this said "checks out nothing", and it was true: the
+  # repair-decision step direct-invoked a scripts/*.py that was therefore not
+  # on the runner at all. See the Checkout step below.)
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows:
       - tv-save-consumer-source
@@ -76,6 +81,11 @@ concurrency:
 
 env:
   PYTHONUNBUFFERED: "1"
+  # Required by tests/test_workflow_invoked_scripts_importable.py and
+  # tests/test_workflow_pythonpath_for_direct_invoke.py: the repair-decision
+  # step below direct-invokes `python3 scripts/tv_repair_watchdog_decision.py`
+  # rather than `python -m scripts.<module>`.
+  PYTHONPATH: ${{ github.workspace }}
 
 defaults:
   run:
@@ -99,6 +109,27 @@ jobs:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
+      # The repair-decision step below direct-invokes
+      # `python3 scripts/tv_repair_watchdog_decision.py`. A script only runs if
+      # it is on the runner. Until 2026-08-23 this job checked out nothing, so
+      # that call would have died with "can't open file .../scripts/
+      # tv_repair_watchdog_decision.py", exit 2 under `set -euo pipefail`: the
+      # job red, steps.repair_decision.outputs.dispatch empty, the watchdog
+      # never firing -- and every single-task review saw only its own half.
+      # tests/test_workflow_invoked_scripts_importable.py now sweeps EVERY
+      # workflow that direct-invokes a scripts/*.py for a checkout in the same
+      # job, ahead of the invocation (54 such jobs across 51 workflows; this
+      # was the one).
+      #
+      # FIRST step, deliberately. The mode step below downloads the trigger
+      # run's artifact into ./snapshot, and actions/checkout defaults to
+      # `clean: true` (`git clean -ffdx`) -- a checkout placed after it would
+      # delete the very snapshot the decision reads.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
       - name: Read the completed run's execution mode from its snapshot
         id: mode
         env:
@@ -188,6 +219,148 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/dispatches" \
             -d '{"ref":"main","inputs":{"verify_only":"true"}}'
+
+      # The missing edge from measurement to action (2026-08-23). A verify-only
+      # run already holds the freshest bindings snapshot in hand -- this reads
+      # it and asks scripts/tv_repair_watchdog_decision.py (pure, no network,
+      # independently tested) whether any consumer drifted and a repair is
+      # warranted. Loop guard: gated on mode == 'verify-only' only, so a
+      # repair-only run's OWN completion (which re-triggers this workflow via
+      # the same workflow_run chain) can never ask this question about itself
+      # -- decide() also refuses on executionMode != verify-only, so the guard
+      # is enforced twice, once at the workflow gate and once inside the pure
+      # function it calls.
+      - name: Decide whether the layout needs a repair
+        id: repair_decision
+        if: ${{ always() && steps.mode.outputs.mode == 'verify-only' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # ET, not UTC: the daily dispatch cap must track the trading day the
+          # refresh cadence itself runs against, not the runner's own clock --
+          # GitHub-hosted runners run UTC. Exported for the WHOLE step so it
+          # governs both `date` and jq's strflocaltime below: strflocaltime
+          # reads the process's ambient zone, it does not accept a per-call
+          # `TZ=` prefix the way a single `date` invocation can. Scoping TZ
+          # only to the `date` call (as an earlier draft of this step did)
+          # leaves jq computing in the runner's UTC and comparing a UTC
+          # bucket-date against an ET "today" string -- measured locally at
+          # 02:30Z: with TZ left ambient for jq alone, strflocaltime lands one
+          # calendar day off from the ET date the shell had just computed, so
+          # the comparison silently mismatches near midnight ET and the cap
+          # miscounts. Runner tzdata is not a new dependency here: GitHub's
+          # ubuntu-latest images ship the full IANA zoneinfo database already.
+          TZ: America/New_York
+        run: |
+          set -euo pipefail
+          # Der Deckel zaehlt die REPARATUR-Dispatches DIESES Waechters, nicht
+          # jeden workflow_dispatch des Save-Workflows.
+          #
+          # Warum die alte Zaehlung falsch war, gemessen statt vermutet: an
+          # ET-2026-08-22 gab es 12 workflow_dispatch-Laeufe von
+          # tv-save-consumer-source -- und genau 12 Verify-Dispatches, die
+          # DIESER Workflow 60 Zeilen weiter oben selbst abgesetzt hat. Die
+          # gezaehlte Menge war also zu 100% die eigene Verify-Kette; kein
+          # einziger Reparaturlauf war darunter. Mit einem Deckel von 3 waere er
+          # ab der ERSTEN Entscheidung des Tages erschoepft gewesen, und jeder
+          # Abend haette ein "::error:: Layout repair gave up" geliefert, das
+          # "Operator noetig" behauptet, obwohl nichts kaputt ist. Die vier
+          # Tage davor: 18/21/25/26 Waechter-Laeufe -- die Verwechslung ist der
+          # Normalfall, nicht der Rand.
+          #
+          # Warum ES SO geht: die REST-API kennzeichnet einen Dispatch nicht mit
+          # den Inputs, mit denen er ausgeloest wurde (deshalb war er ueber die
+          # Save-Laeufe nicht unterscheidbar). Sie kennzeichnet aber jeden
+          # SCHRITT jedes Laufs mit seinem conclusion, und "Dispatch the repair
+          # run" laeuft ausschliesslich dann, wenn dieser Waechter eine
+          # Reparatur bestellt hat -- das ist die eigene Handlung, direkt
+          # abgelesen. Nachgemessen ueber alle 18 Waechter-Laeufe des
+          # ET-2026-08-22: 18/18 beantworteten die Schritt-Abfrage, 0
+          # Probe-Fehler, 13 s fuer die ganze Schleife.
+          #
+          # Der Schrittname unten ist ein Vertrag mit dem Schritt "Dispatch the
+          # repair run" in dieser Datei -- umbenannt und nicht mitgezogen,
+          # zaehlte der Deckel still 0 und der Waechter liefe unbegrenzt. Genau
+          # diese Kopplung pinnt
+          # tests/test_workflow_tv_post_mutation_verify_contract.py.
+          today="$(date +%F)"
+          # created>= filtert nach UTC und ist damit eine Obermenge des
+          # ET-Tages (ET-Tagesbeginn liegt 4-5 h spaeter); die exakte
+          # Tagesgrenze zieht strflocaltime unten unter TZ=America/New_York.
+          # total_count zaehlt das ganze gefilterte Fenster, auch ueber die
+          # 100er-Seite hinaus -- passt der Tag nicht in eine Seite, ist die
+          # Tageszahl UNBEKANNT statt klein: fail closed, sonst waere ein
+          # besonders lauter Tag genau der Tag, an dem der Deckel aufgeht.
+          runs="$(gh api "repos/${GH_REPO}/actions/workflows/tv-post-mutation-verify.yml/runs?per_page=100&created=%3E%3D${today}")"
+          total="$(printf '%s' "$runs" | jq '.total_count')"
+          count_flag=""
+          [ "${total}" -gt 100 ] && count_flag="--dispatch-count-unknown"
+          # Der eigene Lauf ist ausgenommen: sein "Dispatch the repair run"
+          # steht noch aus (conclusion null) und wuerde sich sonst selbst
+          # gegen den Deckel zaehlen. Ueber die Konkurrenzgruppe laeuft
+          # ohnehin hoechstens ein Waechter gleichzeitig.
+          printf '%s' "$runs" | jq -r --arg today "$today" --arg self "${GITHUB_RUN_ID}" '
+              [.workflow_runs[]
+               | select((.created_at | fromdateiso8601 | strflocaltime("%Y-%m-%d")) == $today)
+               | select((.id | tostring) != $self)
+               | .id] | .[]' > "${RUNNER_TEMP:-/tmp}/watchdog_runs_today.txt"
+          count=0
+          while IFS= read -r run_id; do
+            [ -z "${run_id}" ] && continue
+            fired="$(gh api "repos/${GH_REPO}/actions/runs/${run_id}/jobs?per_page=100" \
+              --jq '[.jobs[].steps[]? | select(.name == "Dispatch the repair run") | select(.conclusion != "skipped")] | length' 2>/dev/null || echo probe-error)"
+            # Ein Probe-Fehler zaehlt als gefeuert: der Deckel geht im Zweifel
+            # frueher zu, nie spaeter.
+            [ "${fired}" = "probe-error" ] && fired=1
+            count=$((count + fired))
+          done < "${RUNNER_TEMP:-/tmp}/watchdog_runs_today.txt"
+          echo "repair dispatches today (ET ${today}, own runs): ${count} (window total ${total})"
+          # Bewusst BREITER als der Deckel: ein wartender Lauf JEDER Art belegt
+          # denselben einzigen Warteplatz der tradingview-session-Gruppe, den
+          # eine Reparatur braeuchte. Hier ist das die sichere Richtung (kein
+          # zweiter Lauf), waehrend dieselbe Breite beim Deckel den Alarm
+          # ausloest -- deshalb wird nur der Deckel verengt.
+          in_flight="$(gh api "repos/${GH_REPO}/actions/workflows/tv-save-consumer-source.yml/runs?event=workflow_dispatch&per_page=100" \
+            --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+          flag=""
+          [ "${in_flight}" -gt 0 ] && flag="--repair-in-flight"
+          python3 scripts/tv_repair_watchdog_decision.py \
+            --snapshot snapshot/tradingview_consumer_bindings.json \
+            --repair-dispatches-today "${count}" ${flag} ${count_flag}
+
+      - name: Dispatch the repair run
+        if: ${{ always() && steps.repair_decision.outputs.dispatch == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          REPAIR_REASON: ${{ steps.repair_decision.outputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "::warning title=Layout repair dispatched::${REPAIR_REASON}"
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/tv-save-consumer-source.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"repair_only":"true"}}'
+
+      # The third alarm state (repair succeeded) needs no step of its own: the
+      # drift alert derives from the published bindings snapshot, and the next
+      # verify run writes it forward without mismatches. This step covers the
+      # second: repair attempted and capped -- silence here would mean the cap
+      # firing looks identical to "nothing was wrong" from the outside.
+      # Zwei Aufgabe-Gruende, beide laut: der erreichte Deckel, und der Fall,
+      # in dem der Deckel nicht einmal GEZAEHLT werden konnte (Listenfenster
+      # erschoepft). Der zweite ist ebenso operator-wuerdig -- eine gemessene
+      # Drift bleibt unrepariert -- und waere sonst der stille Zwilling des
+      # ersten. Absichtlich zwei benannte Marker statt eines breiten
+      # "fail closed": die schema-fail-closed-Gruende sind bewusst leise.
+      - name: Say it when the watchdog gives up
+        if: ${{ always() && steps.repair_decision.outputs.dispatch == 'false' && (contains(steps.repair_decision.outputs.reason, 'Deckel erreicht') || contains(steps.repair_decision.outputs.reason, 'Listenfenster erschoepft')) }}
+        env:
+          REPAIR_REASON: ${{ steps.repair_decision.outputs.reason }}
+        run: |
+          echo "::error title=Layout repair gave up::${REPAIR_REASON}"
 
       - name: Write dispatch summary
         if: ${{ steps.mode.outputs.mode != 'verify-only' && steps.mode.outputs.mode != 'never-ran' && steps.mode.outputs.mode != 'write-no-mutation' }}

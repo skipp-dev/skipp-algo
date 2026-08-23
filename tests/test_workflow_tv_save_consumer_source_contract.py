@@ -145,7 +145,23 @@ def test_miss_is_reported_and_any_miss_fails_the_coordinated_rollout() -> None:
     """A binding migration must not report success with a mixed account state."""
     batch = (_REPO_ROOT / "scripts" / "tv_batch_consumer_rollout.ts").read_text(encoding="utf-8")
     assert "report.save.failed.length === 0" in batch
-    assert "report.bindings.mismatches === 0" in batch
+    # 2026-08-23: `report.bindings.mismatches === 0` used to sit directly in
+    # report.ok's && chain here. Task 3's repair-only completeness fix
+    # (8800deadc) moved that clause into bindingsAreComplete() in
+    # tv_consumer_rollout_evidence.ts, combined with the new layout-narrowing
+    # check it had to be ANDed with (2026-08-23 ruling) -- the literal string
+    # this test pinned is gone from THIS file, but the guarantee it protects
+    # ("any miss fails the run") must not travel unverified. Pin both ends of
+    # the move instead of the one that vanished: the report's own mismatch
+    # count is actually threaded into the shared gate (here, in the rollout),
+    # and that gate actually requires it to equal zero (in the function it
+    # moved to, below) -- not just carried through and silently dropped.
+    assert "mismatches: report.bindings.mismatches," in batch
+    assert "&& bindingsAreComplete({" in batch
+    evidence = (
+        _REPO_ROOT / "automation/tradingview/lib/tv_consumer_rollout_evidence.ts"
+    ).read_text(encoding="utf-8")
+    assert "input.checkedConsumers === expected.length && input.mismatches === 0" in evidence
     assert "process.exitCode = 1" in batch
 
 
@@ -623,8 +639,24 @@ def test_force_rebind_persists_the_layout_so_bindings_survive_reload() -> None:
     assert "groupTargetsByLayout(config.verifyTargets, config.primaryChartUrl)" in batch
     # A failed save lands in bindings.failed, which gates report.ok below.
     assert '"chart-layout' in batch
-    # Nothing may be reported green having persisted a strict subset.
-    assert "resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)" in batch
+    # Nothing may be reported green having persisted a strict subset -- of the
+    # layouts the run was SUPPOSED to save.
+    #
+    # Re-anchored 2026-08-23. The pin used to name the unnarrowed call
+    # `resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)`,
+    # which is exactly the expression the whole-branch review found broken:
+    # it is the full, mode-independent layout list, while repair-only
+    # deliberately skips clean layouts, so every SUCCESSFUL narrow repair
+    # pushed bindings.failed for the layouts it was right not to touch
+    # (measured: planned=[vWgAWyfC, hKHTmKhu, twh98JLB] vs
+    # savedChartUrls=[vWgAWyfC] => exit 1). The property this test is about --
+    # a strict subset is never green -- is unchanged; only the population it
+    # is measured against is now mode-aware, and
+    # resolveExpectedLayoutSavePoints proves in
+    # automation/tradingview/tests/tv_consumer_rollout_evidence.test.ts that
+    # write and verify-only still get the full list.
+    assert "const planned = resolveExpectedLayoutSavePoints(" in batch
+    assert "executionPlan.mode," in batch
     assert "layouts never saved" in batch
 
 
@@ -732,6 +764,52 @@ def test_producer_refresh_is_explicit_and_requires_full_rebind() -> None:
     assert "env.TV_REFRESH_PRODUCER" in evidence
     assert "refreshProducer && !forceRebind" in evidence
     assert "refreshChartScriptInstance(session.page, config.producerName)" in batch
+
+
+def test_repair_only_input_reaches_the_cli() -> None:
+    """Der Schalter muss den CLI-Flag erreichen, nicht nur existieren.
+
+    Ein Eingabefeld, das nirgends ankommt, ist die vakuose Variante dieses
+    Features: der Dispatch sieht erfolgreich aus, der Lauf repariert nichts.
+
+    Anders als die anderen boolean-Inputs dieses Workflows (die direkt als
+    ``${{ github.event.inputs.X }}`` in einer env-Zeile stehen) laeuft
+    ``repair_only`` durch dieselbe env-Indirektion wie ``verify_only``: die
+    env-Variable TV_REPAIR_ONLY liest den Input, und das run-Skript liest die
+    env-Variable. Beide Glieder der Kette werden hier geprueft, nicht nur eins.
+    """
+    wf = _load()
+    inputs = (wf.get("on") or wf.get(True))["workflow_dispatch"]["inputs"]
+    assert "repair_only" in inputs, "der Schalter fehlt"
+    assert inputs["repair_only"]["type"] == "boolean"
+    assert inputs["repair_only"]["default"] is False
+
+    save_step = next(
+        step for step in wf["jobs"]["save"]["steps"] if step.get("id") == "save"
+    )
+    assert "github.event.inputs.repair_only" in save_step["env"]["TV_REPAIR_ONLY"], (
+        "die env-Variable liest den Dispatch-Input nicht"
+    )
+    assert "--repair-only" in save_step["run"], (
+        "der Schalter erreicht die CLI nicht — der Lauf wuerde als write laufen"
+    )
+    assert "TV_REPAIR_ONLY" in save_step["run"], (
+        "das run-Skript liest die env-Variable nicht, die den Input traegt"
+    )
+
+
+def test_the_repair_run_obeys_the_operator_window() -> None:
+    """Ein Reparaturlauf mutiert — also gilt das Operator-Gate fuer ihn.
+
+    Sonst kaempft die Automatik gegen die Hand des Operators, waehrend er
+    selbst am Chart arbeitet. Das Gate unterscheidet heute nur verify_only von
+    write; repair_only darf es NICHT zusaetzlich umgehen.
+    """
+    gate = next(s for s in _steps() if s.get("name") == _GATE)
+    assert "verify_only" in gate["if"]
+    assert "repair_only" not in gate["if"], (
+        "repair_only darf das Gate NICHT umgehen — es mutiert das Layout"
+    )
 
 
 def test_verify_only_mode_structurally_gates_every_mutation_and_records_provenance() -> None:

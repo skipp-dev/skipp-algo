@@ -184,6 +184,209 @@ def test_the_dispatch_is_read_only_and_targets_the_save_workflow() -> None:
     assert sleep["run"].strip() == "sleep 900"
 
 
+def test_the_decision_script_is_actually_on_the_runner() -> None:
+    """C1: der Job ruft ein Repo-Skript auf — also braucht er das Repo.
+
+    Bis 2026-08-23 checkte dieser Job NICHTS aus (der Kommentar im Kopf sagte
+    es woertlich), waehrend der Entscheidungsschritt
+    ``python3 scripts/tv_repair_watchdog_decision.py`` direkt aufrief. Das
+    Arbeitsverzeichnis war leer: "can't open file", Exit 2 unter
+    ``set -euo pipefail``, Job rot, outputs.dispatch leer — der Waechter haette
+    NIE gefeuert. Kein Einzelreview konnte das sehen; der Aufruf und das
+    fehlende Checkout gehoerten zu verschiedenen Tasks.
+
+    Der Sweep ueber ALLE Workflows lebt in
+    tests/test_workflow_invoked_scripts_importable.py; hier steht die lokale
+    Reihenfolge-Bedingung, die nur diese Datei hat.
+    """
+    steps = _steps()
+    names = [step["name"] for step in steps]
+    checkout = next(
+        (s for s in steps if str(s.get("uses", "")).split("@", 1)[0] == "actions/checkout"),
+        None,
+    )
+    assert checkout is not None, "der Job ruft ein scripts/*.py auf und braucht ein Checkout"
+    # SHA-gepinnt wie die Nachbar-Workflows, nie per Tag.
+    assert re.fullmatch(r"actions/checkout@[0-9a-f]{40}", checkout["uses"]), (
+        f"Checkout muss SHA-gepinnt sein, ist: {checkout['uses']!r}"
+    )
+    assert checkout["with"]["persist-credentials"] is False
+
+    # Vor dem Aufruf — und vor dem Artefakt-Download. actions/checkout raeumt
+    # den Workspace per Voreinstellung auf (`clean: true` => `git clean -ffdx`),
+    # ein spaeteres Checkout wuerde also genau das ./snapshot loeschen, das die
+    # Entscheidung liest.
+    assert names.index("Checkout") == 0, (
+        "das Checkout muss der ERSTE Schritt sein: der Modus-Schritt laedt das "
+        "Artefakt nach ./snapshot, und ein spaeteres Checkout raeumt es weg"
+    )
+    assert names.index("Checkout") < names.index("Decide whether the layout needs a repair")
+    # Kein `if` — ein bedingtes Checkout koennte von der Bedingung des
+    # Aufrufers wegdriften und den Befund wieder aufmachen.
+    assert "if" not in checkout
+
+
+def test_the_watchdog_dispatches_a_repair_and_says_why() -> None:
+    """Die fehlende Kante von der Messung zur Handlung.
+
+    Der Verify-Lauf misst den Layout-Zustand bereits und laedt ihn hoch; bis
+    2026-08-22 handelte niemand darauf. Diese Kante ist der ganze Waechter.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    decision = steps["Decide whether the layout needs a repair"]
+    assert "scripts/tv_repair_watchdog_decision.py" in decision["run"]
+    assert "--snapshot" in decision["run"]
+    assert "--repair-dispatches-today" in decision["run"], (
+        "ohne Deckel-Argument liefe der Waechter unbegrenzt"
+    )
+
+
+def test_the_cap_counts_this_workflows_own_repair_dispatches() -> None:
+    """I1: die richtige Grundgesamtheit, sonst ist der Deckel ein Fehlalarm.
+
+    Bis 2026-08-23 zaehlte der Deckel JEDEN workflow_dispatch-Lauf von
+    tv-save-consumer-source des ET-Tages. Diese Menge wird von den
+    Verify-Dispatches beherrscht, die DIESER Workflow 60 Zeilen weiter oben
+    selbst absetzt. Gemessen an ET-2026-08-22: 12 workflow_dispatch-Laeufe des
+    Save-Workflows und 12 gefeuerte Verify-Dispatch-Schritte dieses Workflows —
+    12 von 12, kein einziger Reparaturlauf darunter. Mit einem Deckel von 3
+    waere er ab der ersten Entscheidung jedes Tages erschoepft gewesen und
+    haette jeden Abend ein "::error:: Layout repair gave up" geliefert, das
+    "Operator noetig" behauptet, obwohl nichts kaputt ist. Die vier Tage davor:
+    18/21/25/26 Waechter-Laeufe.
+
+    Gezaehlt wird stattdessen die EIGENE Handlung: Laeufe dieses Workflows,
+    deren Schritt "Dispatch the repair run" nicht `skipped` ist. Die REST-API
+    kennzeichnet einen Dispatch nicht mit seinen Inputs, aber jeden Schritt mit
+    seinem conclusion (nachgemessen: 18/18 Laeufe beantworteten die Abfrage, 0
+    Probe-Fehler).
+    """
+    steps = {step["name"]: step for step in _steps()}
+    run = " ".join(steps["Decide whether the layout needs a repair"]["run"].split())
+
+    # Die gezaehlte Menge sind die Laeufe DIESES Workflows...
+    assert "actions/workflows/tv-post-mutation-verify.yml/runs" in run, (
+        "der Deckel muss die eigenen Laeufe zaehlen, nicht die des Save-Workflows"
+    )
+    # ...gefiltert auf den Schritt, den nur eine echte Reparatur ausloest.
+    assert 'select(.name == "Dispatch the repair run")' in run
+    assert 'select(.conclusion != "skipped")' in run
+    # Der eigene Lauf zaehlt nicht gegen sich selbst (sein Schritt steht noch
+    # aus, conclusion null).
+    assert "GITHUB_RUN_ID" in run
+    # Ein Probe-Fehler zaehlt als gefeuert: der Deckel geht frueher zu, nie
+    # spaeter.
+    assert "|| echo probe-error" in run
+    assert 'fired=1' in run
+    # Und das Fenster, aus dem gezaehlt wird, meldet seine eigene Erschoepfung.
+    assert "total_count" in run
+    assert "--dispatch-count-unknown" in run
+
+
+def test_the_counted_step_name_is_a_real_step_of_this_workflow() -> None:
+    """Der Deckel haengt an einem Schrittnamen — der muss existieren.
+
+    Wird "Dispatch the repair run" umbenannt und die jq-Abfrage nicht
+    mitgezogen, zaehlt der Deckel still 0 und der Waechter laeuft UNBEGRENZT.
+    Das ist die gefaehrliche Richtung (fail open), also wird die Kopplung hier
+    gegen die Datei selbst geprueft statt bloss beschrieben.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    names = set(steps)
+    counted = re.findall(
+        r'select\(\.name == "([^"]+)"\)',
+        steps["Decide whether the layout needs a repair"]["run"],
+    )
+    assert counted, "die Deckel-Zaehlung filtert auf keinen Schrittnamen mehr"
+    for name in counted:
+        assert name in names, (
+            f"der Deckel zaehlt Schritte namens {name!r}, aber dieser Workflow hat "
+            f"keinen solchen Schritt — die Zaehlung waere still 0 und der "
+            f"Waechter ungedeckelt. Vorhanden: {sorted(names)}"
+        )
+
+
+def test_the_repair_dispatch_sets_the_mode_and_only_that() -> None:
+    steps = {step["name"]: step for step in _steps()}
+    dispatch = steps["Dispatch the repair run"]
+    assert "repair_only" in dispatch["run"], "der Dispatch muss den Modus setzen"
+    assert "verify_only" not in dispatch["run"], (
+        "ein Verify repariert nichts — das waere die vakuose Variante"
+    )
+    assert "steps.repair_decision.outputs.dispatch == 'true'" in dispatch["if"]
+
+
+def test_the_decision_step_only_reacts_to_verify_only_snapshots() -> None:
+    """Schleifenschutz: ein Reparaturlauf darf keinen weiteren ausloesen.
+
+    Der Auslöser reagiert ausschliesslich auf Snapshots mit
+    executionMode == "verify-only". Waere die Bedingung breiter (z.B. auch auf
+    "repair-only" oder "write" gestellt), koennte ein Reparaturlauf ueber
+    seinen eigenen abgeschlossenen Lauf erneut in diesen Job hineinlaufen und
+    sich selbst eine weitere Reparatur bestellen.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    decision = steps["Decide whether the layout needs a repair"]
+    assert decision["if"] == "${{ always() && steps.mode.outputs.mode == 'verify-only' }}"
+
+
+def test_the_watchdog_says_it_when_it_gives_up() -> None:
+    """Der Deckel ist laut: erreicht, gibt es eine ::error::-Zeile mit Grund.
+
+    Ohne diesen Schritt wuerde ein erreichter Deckel nur in
+    steps.repair_decision.outputs.reason verschwinden — niemand, der nicht
+    gezielt in die Step-Outputs schaut, wuerde je erfahren, dass der Waechter
+    aufgegeben hat.
+    """
+    steps = {step["name"]: step for step in _steps()}
+    give_up = steps["Say it when the watchdog gives up"]
+    condition = " ".join(give_up["if"].split())
+    assert "steps.repair_decision.outputs.dispatch == 'false'" in condition
+    assert "contains(steps.repair_decision.outputs.reason, 'Deckel erreicht')" in condition
+    # Zweiter Aufgabe-Grund, seit 2026-08-23: der Deckel konnte nicht einmal
+    # GEZAEHLT werden (Listenfenster erschoepft). Eine gemessene Drift bleibt
+    # dann ebenso unrepariert — ohne diesen Zweig waere das der stille Zwilling
+    # des erreichten Deckels.
+    assert "contains(steps.repair_decision.outputs.reason, 'Listenfenster erschoepft')" in condition
+    assert "::error" in give_up["run"]
+
+
+def test_every_giving_up_reason_of_the_decider_reaches_the_alarm() -> None:
+    """Die Alarmbedingung wird gegen die MENGE der Aufgabe-Gruende geprueft.
+
+    Sonst waere sie eine Stichprobe: ein neuer fail-closed-Ausgang im
+    Entscheider koennte lautlos dazukommen, und die Bedingung hier bliebe grün,
+    weil sie nur die Gruende kennt, die sie schon kennt.
+
+    Aufgeben heisst hier: es GIBT etwas zu reparieren, aber der Waechter tut es
+    nicht. Die schema-fail-closed-Gruende (unlesbares/leeres Artefakt) faellen
+    bewusst NICHT darunter — dort ist gar kein Urteil moeglich, und der
+    Drift-Alarm auf dem Snapshot deckt sie ab.
+    """
+    from scripts.tv_repair_watchdog_decision import DAILY_DISPATCH_CAP, decide
+
+    snapshot = {
+        "executionMode": "verify-only",
+        "bindings": {
+            "checkedConsumers": 10,
+            "consumers": [{"scriptName": "SMC Setup Check", "mismatches": [{"label": "BUS Armed"}]}],
+        },
+    }
+    giving_up_reasons = [
+        decide(snapshot, repair_dispatches_today=DAILY_DISPATCH_CAP).reason,
+        decide(snapshot, repair_dispatches_today=0, dispatch_count_unknown=True).reason,
+    ]
+    condition = " ".join(
+        {step["name"]: step for step in _steps()}["Say it when the watchdog gives up"]["if"].split()
+    )
+    markers = re.findall(r"contains\(steps\.repair_decision\.outputs\.reason, '([^']+)'\)", condition)
+    for reason in giving_up_reasons:
+        assert any(marker in reason for marker in markers), (
+            f"der Aufgabe-Grund {reason!r} loest keinen Alarm aus — bekannte "
+            f"Marker: {markers}"
+        )
+
+
 def test_a_write_run_that_provably_touched_nothing_exits_too() -> None:
     """A refused write run carries its own proof; the gate must read it.
 

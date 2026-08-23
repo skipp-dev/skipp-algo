@@ -125,3 +125,44 @@ test("the ordering rationale is written where the reload lives", () => {
     "the reload must document that it has to run before the instance refreshes",
   );
 });
+
+// ---------------------------------------------------------------------------
+// Task 3 (2026-08-22/23): repair-only must touch ONLY the layouts the
+// pre-mutation snapshot named as needing repair. Unlike the pure selector
+// (selectLayoutsNeedingRepair, unit-tested directly in
+// tv_layouts_needing_repair.test.ts), the SKIP ITSELF lives inline in this
+// file's layout loop and had no source-anchor regression pin — a future
+// refactor could silently drop the `continue` and no test would notice.
+// ---------------------------------------------------------------------------
+
+test("a clean layout is skipped right after mutatingLayout is captured, before any target is read", () => {
+  const s = source();
+  const markerAt = s.indexOf("const mutatingLayout = repairBindings;");
+  assert.ok(markerAt > 0, "mutatingLayout capture not found");
+  const targetLoopAt = s.indexOf("for (const target of layout.targets) {", markerAt);
+  assert.ok(targetLoopAt > markerAt, "per-target verification loop not found after mutatingLayout");
+  const between = s.slice(markerAt, targetLoopAt);
+  assert.match(
+    between,
+    /if \(executionPlan\.mode === "repair-only" && !layoutsNeedingRepair\.includes\(layout\.chartUrl\)\) \{/,
+    "the repair-only skip must sit between mutatingLayout and the per-target loop, " +
+      "or a clean layout's targets get read/repaired anyway",
+  );
+  assert.match(
+    between,
+    /continue;/,
+    "the skip must actually leave the loop iteration — without `continue` the guard is a no-op",
+  );
+});
+
+test("a skipped clean layout leaves a trace line in tracePageEvent's exact log format", () => {
+  // tracePageEvent itself is module-private in tv_shared.ts and not imported
+  // here (verified 2026-08-22) — the skip logs directly with console.error,
+  // byte-identical to what tracePageEvent writes, so the line greps the same
+  // for any reader or CI rule.
+  assert.match(
+    source(),
+    /console\.error\(`\[tv-trace\] repair-skip-clean-layout \$\{layout\.chartUrl\}`\)/,
+    "the skip must emit the [tv-trace] repair-skip-clean-layout line",
+  );
+});

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-export type RolloutExecutionMode = "write" | "verify-only";
+export type RolloutExecutionMode = "write" | "verify-only" | "repair-only";
 
 export type RolloutExecutionPlan = Readonly<{
   mode: RolloutExecutionMode;
@@ -105,6 +105,7 @@ export function resolveExecutionPlan(
   env: NodeJS.ProcessEnv,
 ): RolloutExecutionPlan {
   const verifyOnly = args.includes("--verify-only");
+  const repairOnly = args.includes("--repair-only");
   const forceRebind = isTrue(env.TV_FORCE_REBIND);
   const refreshProducer = isTrue(env.TV_REFRESH_PRODUCER);
   const mappingOverride = normalizedMappingOverride(env.TV_CONSUMER_MAPPING_JSON);
@@ -119,12 +120,32 @@ export function resolveExecutionPlan(
     if (mappingOverride && mappingOverride !== "[]") {
       throw new Error("--verify-only conflicts with non-empty TV_CONSUMER_MAPPING_JSON");
     }
+    if (repairOnly) {
+      throw new Error("--verify-only conflicts with --repair-only");
+    }
     return Object.freeze({
       mode: "verify-only",
       saveSources: false,
       refreshProducer: false,
       repairBindings: false,
       saveLayout: false,
+    });
+  }
+
+  if (repairOnly) {
+    // Der Modus stellt her, was ein Producer-Refresh zerlegt hat, und deployt
+    // dabei NICHTS. Schreibende Eingaben werden abgelehnt statt ignoriert:
+    // ein stillschweigend verworfenes TV_REFRESH_PRODUCER liesse den Aufrufer
+    // glauben, sein Refresh sei gelaufen.
+    if (isTrue(env.TV_REFRESH_PRODUCER)) {
+      throw new Error("--repair-only refuses TV_REFRESH_PRODUCER=true: it repairs, it does not refresh");
+    }
+    return Object.freeze({
+      mode: "repair-only" as const,
+      saveSources: false,
+      refreshProducer: false,
+      repairBindings: true,
+      saveLayout: true,
     });
   }
 
@@ -308,4 +329,105 @@ export function resolveLayoutSavePoints(
   primaryChartUrl: string,
 ): string[] {
   return groupTargetsByLayout(targets, primaryChartUrl).map((group) => group.chartUrl);
+}
+
+/**
+ * The chart layouts THIS run is expected to have saved, given its mode.
+ *
+ * The sibling of resolveExpectedConsumerTargets below, for the SECOND
+ * completeness check -- the one over saved layouts rather than over checked
+ * consumers. Both had the same defect and it had to be fixed twice: the
+ * "layouts never saved" clause compared savedChartUrls against the full,
+ * mode-independent resolveLayoutSavePoints(config.verifyTargets, ...), while
+ * repair-only deliberately skips every clean layout. So the better the mode
+ * worked, the more layouts were "missed": measured against the real config on
+ * 2026-08-23, planned=[vWgAWyfC, hKHTmKhu, twh98JLB] against
+ * savedChartUrls=[vWgAWyfC] pushed bindings.failed for the two layouts the run
+ * was right not to touch -- report.ok=false, exit 1, a successful repair
+ * reporting itself as failed.
+ *
+ * write and verify-only are untouched: they visit every layout, so they keep
+ * the full save-point list exactly as before repair-only existed.
+ */
+export function resolveExpectedLayoutSavePoints(
+  targets: ReadonlyArray<{ chartUrl?: string }>,
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): string[] {
+  const planned = resolveLayoutSavePoints(targets, primaryChartUrl);
+  if (mode !== "repair-only") return planned;
+  return planned.filter((chartUrl) => layoutsNeedingRepair.includes(chartUrl));
+}
+
+/**
+ * The layouts a repair-only run deliberately left alone, in visit order.
+ *
+ * The only post-mortem surface this narrowing has. From the snapshot alone,
+ * `checkedConsumers: 7 / expectedConsumers: 10` reads identically whether the
+ * run skipped three CLEAN layouts on purpose or whether three targets were
+ * unreadable -- opposite conclusions, same two numbers. This names the
+ * difference in the artifact instead of leaving it in a local variable that
+ * dies with the process.
+ */
+export function resolveSkippedLayouts(
+  targets: ReadonlyArray<{ chartUrl?: string }>,
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): string[] {
+  if (mode !== "repair-only") return [];
+  return resolveLayoutSavePoints(targets, primaryChartUrl)
+    .filter((chartUrl) => !layoutsNeedingRepair.includes(chartUrl));
+}
+
+/**
+ * Which verify targets THIS run is expected to have checked, given its mode.
+ *
+ * write and verify-only visit every layout, so every target is expected --
+ * unchanged from before repair-only existed. repair-only only ever opens the
+ * layouts selectLayoutsNeedingRepair named (a skipped clean layout's targets
+ * are never read at all, see the skip in tv_batch_consumer_rollout.ts' layout
+ * loop), so holding it to the FULL config here would mean a repair-only run
+ * could never reach report.ok === true the moment it successfully narrows
+ * anything -- exactly the defect this function exists to close (2026-08-23
+ * ruling: Task 3's own completeness gate would otherwise never observe a
+ * successful narrow repair as `ok`).
+ */
+export function resolveExpectedConsumerTargets<T extends { chartUrl?: string }>(
+  targets: readonly T[],
+  primaryChartUrl: string,
+  mode: RolloutExecutionMode,
+  layoutsNeedingRepair: readonly string[],
+): T[] {
+  if (mode !== "repair-only") return [...targets];
+  return targets.filter((target) => layoutsNeedingRepair.includes(target.chartUrl ?? primaryChartUrl));
+}
+
+/**
+ * The two binding-side clauses of report.ok, extracted as one pure predicate
+ * so the completeness narrowing above can be proven directly against
+ * synthetic inputs -- main() itself cannot be unit-tested, it needs a live
+ * TradingView session.
+ *
+ * For write and verify-only this is byte-identical to the old
+ * `checkedConsumers === expectedConsumers && mismatches === 0` check:
+ * resolveExpectedConsumerTargets returns the full target list for them, so
+ * nothing about those two modes changes.
+ */
+export function bindingsAreComplete<T extends { chartUrl?: string }>(input: {
+  targets: readonly T[];
+  primaryChartUrl: string;
+  mode: RolloutExecutionMode;
+  layoutsNeedingRepair: readonly string[];
+  checkedConsumers: number;
+  mismatches: number;
+}): boolean {
+  const expected = resolveExpectedConsumerTargets(
+    input.targets,
+    input.primaryChartUrl,
+    input.mode,
+    input.layoutsNeedingRepair,
+  );
+  return input.checkedConsumers === expected.length && input.mismatches === 0;
 }

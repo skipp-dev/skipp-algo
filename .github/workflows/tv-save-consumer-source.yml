@@ -69,6 +69,11 @@ on:
         type: boolean
         required: false
         default: false
+      repair_only:
+        description: "Nur Bindungen reparieren und Layout speichern — kein Quellen-Save, kein Producer-Refresh. Umgeht das Manifest-Fenster."
+        type: boolean
+        required: false
+        default: false
       repair_e2e:
         description: "Temporarily drift one Dashboard binding, repair it, and reverify"
         type: boolean
@@ -587,6 +592,11 @@ jobs:
           # report cannot come back green while the evidence goes stale.
           TV_UNATTESTED_SOURCES: ${{ steps.attestation.outputs.unattested }}
           TV_VERIFY_ONLY: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only || 'false' }}
+          # repair-only is a workflow_dispatch-only mode (schedule and the
+          # workflow_run refresh chain never set it): it repairs bindings and
+          # saves the layout, but writes no source and refreshes no producer,
+          # so it makes sense only as an explicit operator choice.
+          TV_REPAIR_ONLY: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.repair_only || 'false' }}
           # [] remains a legacy-compatible belt-and-suspenders guard. The
           # actual no-write contract is --verify-only below.
           TV_CONSUMER_MAPPING_JSON: ${{ github.event_name == 'schedule' && '[]' || github.event_name == 'workflow_dispatch' && github.event.inputs.verify_only == 'true' && '[]' || github.event.inputs.mapping }}
@@ -602,6 +612,8 @@ jobs:
           args=()
           if [ "${TV_VERIFY_ONLY}" = "true" ]; then
             args+=(--verify-only)
+          elif [ "${TV_REPAIR_ONLY}" = "true" ]; then
+            args+=(--repair-only)
           fi
           npx tsx scripts/tv_batch_consumer_rollout.ts "${args[@]}"
 
