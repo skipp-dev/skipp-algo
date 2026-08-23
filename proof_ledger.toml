@@ -113,26 +113,38 @@ Laut Kommentar in tv_partial_save.py ist der Zweig "nach #5013 nur noch per
 unbestaetigtem Save erreichbar" (saveChangedChartLayout wirft) -- ein Fall,
 der bislang nicht eingetreten ist, keine Frage der Erreichbarkeit.
 
-2026-08-23, Fix-Runde 1 VOLLSTAENDIG NACHGEHOLT (Task-5-Nachbefund: "107
-gepruefte Laeufe" war zu stark formuliert -- inhaltlich waren nur 76 davon
-geladen). Auswahlregel, reproduzierbar: `gh run list
---workflow=tv-save-consumer-source.yml --limit 150 --json
-databaseId,createdAt` (150 Laeufe, neueste zuerst), je Lauf `gh api
-repos/skipp-dev/skipp-algo/actions/runs/<id>/artifacts` auf ein NICHT
-abgelaufenes tradingview-consumer-bindings-Artefakt gefiltert -- 107 von
-150. Von diesen 107 waren urspruenglich nur die obersten 76 (nach derselben
-Sortierung) per `gh run download <id> -n tradingview-consumer-bindings`
-inhaltlich heruntergeladen und ausgewertet; die restlichen 31 (Positionen
-101-150 der 150er Rohliste) waren nur auf expired=false geprueft, nie
-inhaltlich geladen. Nachgeholt: dieselben 31 per `gh run download`,
-identische Methode, nachtraeglich heruntergeladen und ausgewertet -- damit
-sind jetzt echte 107 von 107 inhaltlich verifiziert. Ergebnis unveraendert:
-weiterhin genau die zwei oben genannten Laeufe (32485302991, 32490246714)
-mit gefuelltem abandonedChartUrls, beide vor #5013. Diese Vollpruefung stand
-zunaechst nur im Fix-Runde-1-Bericht (git-ignorierter, inzwischen
-geloeschter Workspace unter .superpowers/sdd/) -- hier nachgetragen, Fix-
-Runde 2 (2026-08-23), damit die Aussage die Loeschung des Workspaces
-ueberlebt.
+2026-08-23, Fix-Runde 2 hatte "107 nicht abgelaufene Laeufe" per `gh run
+list --limit 150, oberste 150, neueste zuerst` vollstaendig nachgeprueft --
+aber das ist ein Fenster ueber eine WACHSENDE Population (Pruefer-Befund,
+empirisch: zwischen dem Fix-Runde-2-Commit 2026-08-23T17:24Z und der
+Nachpruefung entstanden bereits zwei weitere Laeufe, 32667423306/21:33Z und
+32667902527/21:47Z, die im "oberste 150"-Fenster nicht mehr an derselben
+Stelle stuenden). Aus dem Ledger-Text allein war die damalige Menge nicht
+rekonstruierbar. Fix-Runde 3 (2026-08-23) ANKERT NEU statt zu rekonstruieren:
+
+Population jetzt ueber den echten Verfallsmechanismus definiert, nicht ueber
+eine Laufanzahl: das Artefakt traegt `retention-days: 30`
+(.github/workflows/tv-save-consumer-source.yml:641,701,717) -- "nicht
+abgelaufen" ist damit "created_at < 30 Tage vor Messzeitpunkt UND
+expired=false laut GitHub", kein "oberste N". Fuer DIESEN Zweig zusaetzlich
+auf createdAt >= #5013-Merge (2026-08-22T16:42:54Z, permanent -- Laeufe
+davor treffen ohnehin pre_fix_code, s.o.) eingegrenzt. Kommando: `gh api
+"repos/skipp-dev/skipp-algo/actions/artifacts?name=tradingview-consumer-bindings&per_page=100"
+--paginate -q '.artifacts[] | select(.expired==false) |
+[.workflow_run.id,.created_at] | @tsv'`, Zeilen mit created_at >=
+2026-08-22T16:42:54Z behalten. AS OF 2026-08-23T23:08Z (obere Grenze ist der
+Messzeitpunkt, untere Grenze der permanente Merge-Zeitpunkt -- eine
+Wiederholung braucht eine NEUE obere Grenze und liefert dann mehr Laeufe,
+nie eine andere Menge fuer DIESES abgeschlossene Fenster): genau 16 Laeufe
+-- 32541192874, 32544827322, 32550130816, 32551703837, 32554422526,
+32554443194, 32556181388, 32560949161, 32564125896, 32575497213,
+32599492026, 32612207345, 32620455054, 32620808573, 32667423306,
+32667902527 (die letzten beiden NEU seit Fix-Runde 2, nicht ausgeklammert).
+Alle 16 per `gh run download <id> -n tradingview-consumer-bindings`
+inhaltlich geladen: abandonedChartUrls ist in ALLEN 16 leer (`[]`) -- 0
+Treffer, deckungsgleich mit dem alten (nicht reproduzierbaren) Befund. Die
+zwei Laeufe von VOR dem Merge (32485302991, 32490246714, s.o.) liegen
+ausserhalb dieses Fensters per Konstruktion, nicht per Sortierplatz.
 """
 
 [[unreachable_branch]]
@@ -149,24 +161,22 @@ Klasse H) und genau ein repair-only-Lauf (32620808573), der selbst partiell
 reparierte statt sauber durchzulaufen. Ein normaler Save ist seit dem Fix
 schlicht noch nicht wiederholt worden -- nicht, weil er es nicht koennte.
 
-2026-08-23, Fix-Runde 1 VOLLSTAENDIG NACHGEHOLT (derselbe Nachbefund wie bei
-abandoned_after_fix, hier fuer denselben Korpus): von den 107 nicht
-abgelaufenen Laeufen (Auswahlregel s.o.: `gh run list
---workflow=tv-save-consumer-source.yml --limit 150 --json
-databaseId,createdAt`, gefiltert per `gh api
-repos/skipp-dev/skipp-algo/actions/runs/<id>/artifacts` auf expired=false --
-107 von 150) waren urspruenglich nur die obersten 76 per `gh run download
-<id> -n tradingview-consumer-bindings` inhaltlich geladen; die restlichen 31
-(Positionen 101-150 der 150er Rohliste) nur auf expired=false, nie
-inhaltlich. Nachgeholt: dieselben 31 per `gh run download` nachgeladen und
-ausgewertet -- jetzt echte 107 von 107 gepruefte auf
+2026-08-23, Fix-Runde 3 ANKER KORRIGIERT (derselbe Befund wie bei
+abandoned_after_fix -- "oberste 150" war ein Fenster ueber eine wachsende
+Population, siehe dort fuer den Pruefer-Beleg mit den zwei uebersehenen
+neuen Laeufen). Dieselbe neu verankerte Population wie oben (createdAt >=
+2026-08-22T16:42:54Z, non-expired laut `gh api
+.../actions/artifacts?name=tradingview-consumer-bindings`, AS OF
+2026-08-23T23:08Z): 16 Laeufe, dieselben Ids wie bei abandoned_after_fix.
+Alle 16 (identische Downloads, ein Durchlauf deckt beide Zweige) auf
 `layoutSaveRequested=true` MIT leerem partiallyRepairedChartUrls UND leerem
-abandonedChartUrls. Ergebnis unveraendert: weiterhin 0 Treffer, aus
-demselben Grund wie oben (letzter voller write-Lauf 32528421800 endete vor
-#5013). Diese Vollpruefung stand zunaechst nur im Fix-Runde-1-Bericht
-(git-ignorierter, inzwischen geloeschter Workspace) -- hier nachgetragen,
-Fix-Runde 2 (2026-08-23), damit die Aussage die Loeschung des Workspaces
-ueberlebt.
+abandonedChartUrls geprueft. Kein Treffer: 14 der 16 sind verify-only
+(layoutSaveRequested=false), die restlichen zwei (32620808573, 05:49Z;
+32667902527, 21:47Z -- die zweite NEU seit Fix-Runde 2) sind repair-only mit
+gefuelltem partiallyRepairedChartUrls, keiner davon leer/leer/leer. Der
+letzte volle write-Modus-Lauf bleibt 32528421800, 12:43:55Z am 22.8., VOR
+#5013 -- ausserhalb dieses Fensters per Konstruktion. Ein normaler Save ist
+seit dem Fix weiterhin nicht wiederholt worden.
 """
 
 [[unreachable_branch]]
