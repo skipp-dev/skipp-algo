@@ -85,3 +85,38 @@ def test_a_malformed_entry_is_refused_loudly(tmp_path, monkeypatch):
     with pytest.raises(ProofLedgerError, match="owner"):
         mod.load_entries()
     mod._load.cache_clear()
+
+
+# --- abgeleitete Dateiklasse (Task 2) ---------------------------------------
+
+
+def test_the_derived_class_holds_the_browser_automation_and_the_workflows():
+    from scripts.proof_class import derive_class
+
+    derived = derive_class()
+    assert "scripts/tv_batch_consumer_rollout.ts" in derived
+    assert ".github/workflows/tv-save-consumer-source.yml" in derived
+
+
+def test_a_file_a_test_imports_is_not_in_the_class():
+    """tv_shared.ts wird von tv_shared.test.ts importiert — die Suite SIEHT es."""
+    from scripts.proof_class import derive_class
+
+    assert "automation/tradingview/tv_shared.ts" not in derive_class()
+
+
+def test_the_derivation_refuses_to_succeed_empty():
+    """Leeres Ergebnis ist kein Befund: ein kaputter Parser muss rot werden."""
+    import scripts.proof_class as mod
+
+    with pytest.raises(mod.ProofClassError, match="Untergrenze"):
+        mod.derive_class(root=mod.ROOT / "docs")
+
+
+def test_the_class_is_derived_from_the_workflows_not_copied():
+    """Mutationsprobe im Test: faellt eine Workflow-Referenz weg, schrumpft die
+    Klasse. Ein hartkodierter Vergleich waere blind fuer Zuwachs."""
+    from scripts.proof_class import referenced_code, workflow_files
+
+    assert len(workflow_files()) >= class_floors()["workflows"]
+    assert len(referenced_code()) >= class_floors()["referenced_code"]

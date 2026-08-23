@@ -26,11 +26,20 @@
 # Untergrenzen der abgeleiteten Dateiklasse (scripts/proof_class.py).
 # Auf die in Task 2 GEMESSENEN Werte setzen, dann minus 10 % als Puffer.
 # Ein Parser unter diesen Zahlen ist kaputt, nicht erfolgreich.
+#
+# 2026-08-23 erste Messung (VERWORFEN — Stamm-Treffer-Heuristik in
+# test_imported() zaehlte Text-Pins als Testdeckung und nahm ausgerechnet
+# scripts/tv_batch_consumer_rollout.ts aus der Klasse):
+#   workflows=71, referenced_code=611, derived_class=141
+#
+# 2026-08-23 gemessen (nach RULING: test_imported() zaehlt nur echte
+# import/require/from-Treffer, kein Text-Pin mehr):
+#   workflows=71, referenced_code=611, derived_class=577
 # ---------------------------------------------------------------------------
 [class_floors]
-workflows = 1
-referenced_code = 1
-derived_class = 1
+workflows = 63
+referenced_code = 549
+derived_class = 519
 
 # ---------------------------------------------------------------------------
 # Urteilszweige ohne echten Korpus-Treffer, die trotzdem stehen bleiben.

@@ -694,6 +694,15 @@ _REF = re.compile(
 #: `python -m scripts.foo` — Modulform, die keinen Pfad schreibt.
 _MODULE_REF = re.compile(r"python3?\s+-m\s+((?:scripts|tools)\.[\w.]+)")
 
+#: Ein Test, der eine Datei als TEXT liest und Teilstrings pinnt, sieht ihre
+#: Bytes — nicht ihre Wirkung. Gemessen 2026-08-23 an
+#: tests/test_workflow_tv_save_consumer_source_contract.py: 20 woertliche
+#: Vorkommen des Pfades von tv_batch_consumer_rollout.ts, kein einziger Aufruf.
+#: Wer solche Nennungen als Deckung zaehlt, nimmt ausgerechnet das Skript aus
+#: der Klasse, das am 2026-08-22 das gehandelte Layout zerlegt hat.
+_TS_IMPORT = re.compile(r"""(?:from|require\(|import\()\s*['"]([^'"]+)['"]""")
+_PY_IMPORT = re.compile(r"^\s*(?:from|import)\s+((?:scripts|tools)[\w.]*)", re.M)
+
 
 class ProofClassError(Exception):
     """Die Ableitung hat ihre Untergrenze unterschritten."""
@@ -721,11 +730,10 @@ def referenced_code(root: Path = ROOT) -> frozenset[str]:
 
 
 def test_imported(root: Path = ROOT) -> frozenset[str]:
-    """Repo-Dateien, die von einer Testdatei importiert oder benannt werden.
+    """Dateien, die eine Testdatei IMPORTIERT — nicht solche, die sie nur nennt.
 
-    Bewusst grosszuegig (Stamm-Treffer genuegt): Ueberdeckung kostet einen
-    fehlenden Ledger-Eintrag fuer etwas, das ein Test ohnehin sieht;
-    Unterdeckung kostet Rauschen bei jedem PR.
+    Die Unterscheidung ist der Kern: ein Kontrakttest, der Quelltext als String
+    pint, beobachtet keine Ausfuehrung. Er gehoert nicht zur Deckung.
     """
     named: set[str] = set()
     for tests_dir in ((root / "tests"), (root / "automation")):
@@ -737,11 +745,13 @@ def test_imported(root: Path = ROOT) -> frozenset[str]:
             if not (path.name.startswith("test_") or ".test." in path.name):
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
-            named.update(_REF.findall(text))
-            for module in re.findall(r"(?:from|import)\s+((?:scripts|tools)[\w.]*)", text):
-                named.add(Path(*module.split(".")).with_suffix(".py").as_posix())
-            for stem in re.findall(r"[\"']([\w-]+)\.(?:ts|py|sh|mjs)[\"']", text):
-                named.add(stem)
+            for spec in _TS_IMPORT.findall(text):
+                named.add(Path(spec).name)
+                named.add(Path(spec).stem)
+            for module in _PY_IMPORT.findall(text):
+                rel = Path(*module.split(".")).with_suffix(".py").as_posix()
+                named.add(rel)
+                named.add(Path(rel).stem)
     return frozenset(named)
 
 
