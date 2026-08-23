@@ -188,19 +188,14 @@ type RolloutReport = {
      * The layouts THIS run planned to save, and the ones it deliberately left
      * alone.
      *
-     * narrowedToChartUrls is the PLAN, not the narrowing. For repair-only it
-     * is the narrowed set; for write and verify-only it is the FULL layout
-     * list, because those two visit every layout -- so it is non-empty in
-     * every mode, and a write artifact carries it populated.
+     * plannedChartUrls is the layout list this run set out to save: the
+     * narrowed set for repair-only, the full list for write and verify-only.
      * skippedChartUrls is the difference, and it is the field that says a
      * narrowing happened at all: empty unless the mode is repair-only.
      *
-     * Spelled out because the first version of this comment got it wrong in
-     * both places it appeared, claiming both fields were empty for write. They
-     * are not, and "write and verify-only save points are unchanged by
-     * layoutsNeedingRepair" in
-     * automation/tradingview/tests/tv_consumer_rollout_evidence.test.ts pins
-     * exactly that full list.
+     * The field was called narrowedToChartUrls until 2026-08-23 and misread
+     * twice under that name -- once in this comment, once in a report --
+     * both times as "empty for write". Renamed rather than re-explained.
      *
      * These two exist because the pair above cannot answer the only question
      * a post-mortem asks about repair-only. `checkedConsumers: 7` against
@@ -213,10 +208,10 @@ type RolloutReport = {
      * the next refresh has already moved the layout on.
      *
      * expectedConsumers stays the FULL config on purpose. It is what the
-     * repository expects; narrowedToChartUrls is what this run decided. A
+     * repository expects; plannedChartUrls is what this run decided. A
      * reader needs both to see that a decision was made at all.
      */
-    narrowedToChartUrls: string[];
+    plannedChartUrls: string[];
     skippedChartUrls: string[];
     checkedBindings: number;
     mismatches: number;
@@ -457,7 +452,7 @@ async function main(): Promise<void> {
       checkedConsumers: 0,
       // Filled in the finally block, from the same layoutsNeedingRepair the
       // skip and both completeness gates read — one decision, one source.
-      narrowedToChartUrls: [],
+      plannedChartUrls: [],
       skippedChartUrls: [],
       checkedBindings: 0,
       mismatches: 0,
@@ -909,13 +904,13 @@ async function main(): Promise<void> {
     // decided to leave alone.
     //
     // What lands, per mode (measured, not assumed): write and verify-only get
-    // the FULL layout list in narrowedToChartUrls and an empty
+    // the FULL layout list in plannedChartUrls and an empty
     // skippedChartUrls -- they plan every layout and skip none. A repair-only
     // run that died BEFORE the pre-mutation read gets an empty
-    // narrowedToChartUrls and every layout in skippedChartUrls, which is the
+    // plannedChartUrls and every layout in skippedChartUrls, which is the
     // honest answer there: it touched nothing, no narrowing had been decided
     // yet.
-    report.bindings.narrowedToChartUrls = resolveExpectedLayoutSavePoints(
+    report.bindings.plannedChartUrls = resolveExpectedLayoutSavePoints(
       config.verifyTargets,
       config.primaryChartUrl,
       executionPlan.mode,

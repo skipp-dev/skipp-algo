@@ -453,7 +453,7 @@ test("the rollout wires the narrowing into BOTH completeness gates and the artif
     !rollout.includes("resolveLayoutSavePoints(config.verifyTargets, config.primaryChartUrl)"),
     "the unnarrowed save-point call is the C2 defect and must not come back",
   );
-  assert.ok(rollout.includes("report.bindings.narrowedToChartUrls = resolveExpectedLayoutSavePoints("));
+  assert.ok(rollout.includes("report.bindings.plannedChartUrls = resolveExpectedLayoutSavePoints("));
   assert.ok(rollout.includes("report.bindings.skippedChartUrls = resolveSkippedLayouts("));
 });
 
