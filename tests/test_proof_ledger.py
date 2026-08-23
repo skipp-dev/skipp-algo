@@ -150,6 +150,31 @@ def test_the_exclusion_mechanism_is_load_bearing(monkeypatch):
     assert "scripts/check_r1_attested_sources.py" in mod.derive_class()
 
 
+def test_the_test_imported_floor_is_enforced(monkeypatch):
+    """Der Floor-Guard fuer ``test_imported`` (Fix-Runde 1, ``proof_class.py``
+    Zeilen um 124-128) hatte keine Positivkontrolle IN der Suite -- nur eine
+    manuelle Probe ausserhalb, die nie committet wurde (Fix-Runde 2,
+    Reviewer-Befund, per grep verifiziert: kein Test drueckte ``test_imported``
+    unter seinen Floor). Ein Waechter, dessen Feuern nur ausserhalb der Suite
+    gezeigt wurde, ist IN der Suite unbewacht: wuerde der Zweig versehentlich
+    entfernt oder der Vergleich invertiert (``<`` zu ``>``), bliebe alles gruen.
+    Das ist dieselbe Fehlerklasse wie der vakuoese Anker und die fehlende
+    Untergrenze aus Runde 1 -- diesmal am Waechter, der die Untergrenze
+    durchsetzt, statt an der Untergrenze selbst.
+
+    Symmetrisch zur bestehenden Positivkontrolle ueber ``root=mod.ROOT / "docs"``
+    fuer die anderen drei Mengen: Floor absurd hoch gesetzt (echter Wert bleibt
+    bei ~691), ``derive_class()`` muss werfen.
+    """
+    import scripts.proof_class as mod
+
+    floors = dict(class_floors())
+    floors["test_imported"] = 999_999
+    monkeypatch.setattr(mod, "class_floors", lambda: floors)
+    with pytest.raises(mod.ProofClassError, match="Untergrenze"):
+        mod.derive_class()
+
+
 def test_the_derivation_refuses_to_succeed_empty():
     """Leeres Ergebnis ist kein Befund: ein kaputter Parser muss rot werden."""
     import scripts.proof_class as mod
@@ -160,8 +185,13 @@ def test_the_derivation_refuses_to_succeed_empty():
 
 def test_the_class_is_derived_from_the_workflows_not_copied():
     """Mutationsprobe im Test: faellt eine Workflow-Referenz weg, schrumpft die
-    Klasse. Ein hartkodierter Vergleich waere blind fuer Zuwachs."""
-    from scripts.proof_class import referenced_code, workflow_files
+    Klasse. Ein hartkodierter Vergleich waere blind fuer Zuwachs.
+
+    Alle vier Kollektoren im selben Muster (Fix-Runde 2, Reviewer-Befund: die
+    ersten drei standen hier, ``test_imported`` fehlte -- eine Asymmetrie ohne
+    Grund, die vierte Menge gehoert dazu)."""
+    from scripts.proof_class import referenced_code, test_imported, workflow_files
 
     assert len(workflow_files()) >= class_floors()["workflows"]
     assert len(referenced_code()) >= class_floors()["referenced_code"]
+    assert len(test_imported()) >= class_floors()["test_imported"]
