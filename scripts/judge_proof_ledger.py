@@ -47,11 +47,26 @@ REPO = "skipp-dev/skipp-algo"
 
 
 def classify(
-    entry: ProofEntry, verdict: Verdict | None, today: str, *, unreachable: bool = False
+    entry: ProofEntry,
+    verdict: Verdict | None,
+    today: str,
+    *,
+    unreachable: bool = False,
+    refutation_acknowledged: bool = False,
 ) -> str:
     """``OK`` | ``UEBERFAELLIG`` | ``WIDERSPRUCH`` | ``WIDERLEGT`` |
     ``NICHT_ERREICHT`` | ``KEIN_URTEIL``. Alles ausser ``OK`` ist laut
     (``main()`` meldet jede Nicht-OK-Zeile, rc=1, Issue).
+
+    ``refutation_acknowledged`` (2026-08-24, ersetzt den Halter
+    "widerlegt-kann-nicht-quittiert-werden"): reines Schluesselwort, von
+    ``main()`` VORBERECHNET. ``classify()`` bleibt rein -- sie schlaegt selbst
+    nichts nach, sie bekommt das Ergebnis der Kopplungspruefung
+    (``entry.refutation_tracked_by`` zeigt auf einen im Ledger existierenden
+    ``kind == "defect"``-Eintrag in einem NICHT-terminalen Zustand) fertig
+    hereingereicht. Wahr UND ``entry.state == "FAIL"`` heisst: das gemessene
+    FAIL ist quittiert, die Arbeit haengt sichtbar an einem eigenen Halter.
+    Jede andere Kombination bleibt beim bisherigen ``WIDERLEGT``.
 
     Die drei lauten Klassen sagen VERSCHIEDENE Dinge, und die Unterscheidung
     ist der Zweck -- eine gemeinsame Sammelklasse waere wieder ein Signal, das
@@ -103,7 +118,19 @@ def classify(
         # worden waere. Bewusst NICHT als WIDERSPRUCH gefuehrt: dort behauptet
         # das Ledger etwas Falsches, hier wirkt der Fix nicht. Zwei verschiedene
         # Aussagen, die zu zwei verschiedenen Handlungen fuehren.
+        #
+        # QUITTUNG (2026-08-24, Halter "widerlegt-kann-nicht-quittiert-werden"
+        # aufgeloest): dieser Zweig griff bisher AUCH fuer state == "FAIL"
+        # selbst, VOR dem TERMINAL_STATES-Kurzschluss unten -- ein deklariertes
+        # FAIL blieb dadurch dauerhaft laut, unabhaengig davon, ob am Defekt
+        # gearbeitet wird. Jetzt: ein deklariertes FAIL, dessen
+        # refutation_tracked_by-Halter geprueft und nicht-terminal ist, gilt
+        # als quittiert -- die Widerlegung ist zur Kenntnis genommen, nicht
+        # verschwiegen. Jede andere Kombination (kein Halter, Halter terminal
+        # geworden, Halter geloescht) faellt weiter auf WIDERLEGT zurueck.
         if verdict.state == "FAIL":
+            if refutation_acknowledged and entry.state == "FAIL":
+                return "OK"
             return "WIDERLEGT"
     if entry.state in TERMINAL_STATES:
         return "OK"
@@ -312,8 +339,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", dest="json_out", default="")
     args = parser.parse_args(argv)
 
+    entries = load_entries()
+    by_id = {entry.id: entry for entry in entries}
+
     rows: list[dict] = []
-    for entry in load_entries():
+    for entry in entries:
         verdict: Verdict | None = None
         run_id = ""
         gh_error = ""
@@ -337,6 +367,20 @@ def main(argv: list[str] | None = None) -> int:
         else:
             measured = "KEIN_ZEUGE"
 
+        # Kopplungspruefung fuer die WIDERLEGT-Quittung (2026-08-24): NUR
+        # nachschlagen, nie behaupten. Ein fehlender/falsch-artiger/terminal
+        # gewordener Halter liefert False, und classify() faellt dann auf
+        # WIDERLEGT zurueck -- dieselbe Pruefung wie
+        # scripts/check_proof_ledger.py::_coupling_failures, hier read-only
+        # und netzlos wiederholt, weil main() (nicht der Offline-Waechter)
+        # das Urteil bildet.
+        holder = by_id.get(entry.refutation_tracked_by) if entry.refutation_tracked_by else None
+        refutation_acknowledged = (
+            holder is not None
+            and holder.kind == "defect"
+            and holder.state not in TERMINAL_STATES
+        )
+
         rows.append(
             {
                 "id": entry.id,
@@ -352,7 +396,13 @@ def main(argv: list[str] | None = None) -> int:
                 "run": run_id,
                 "owner": entry.owner,
                 "due_by": entry.due_by,
-                "class": classify(entry, verdict, args.today, unreachable=bool(gh_error)),
+                "class": classify(
+                    entry,
+                    verdict,
+                    args.today,
+                    unreachable=bool(gh_error),
+                    refutation_acknowledged=refutation_acknowledged,
+                ),
             }
         )
 

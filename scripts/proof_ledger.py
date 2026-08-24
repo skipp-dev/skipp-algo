@@ -76,6 +76,14 @@ class ProofEntry:
     drill_source: str = ""
     drilled_at: str = ""
     unreachable_because: str = ""
+    # Kopplung fuer state == "FAIL" (2026-08-24, ersetzt den Halter
+    # "widerlegt-kann-nicht-quittiert-werden"): die id eines
+    # kind=="defect"-Eintrags, an dem die Arbeit haengt. Dieselbe
+    # Anti-Willkuer-Regel wie bei unreachable_because oben, nur gegen einen
+    # ANDEREN Ledger-Eintrag statt gegen eine Repo-Tatsache geprueft
+    # (scripts/check_proof_ledger.py::_coupling_failures) -- ohne diese
+    # Kopplung waere ein quittiertes FAIL ein Schalter zum Stummstellen.
+    refutation_tracked_by: str = ""
     raw: dict[str, Any] | None = None
 
 
@@ -112,6 +120,18 @@ def _entry_from(raw: dict[str, Any]) -> ProofEntry:
         raise ProofLedgerError(
             f"Eintrag {raw['id']!r}: unbekannter Zustand {raw['state']!r}"
         )
+    # Wie pass_kind bei PASS: state == "FAIL" ohne einen benannten Halter ist
+    # keine Deklaration, sondern ein Wort, das sich ohne Beleg umschreiben
+    # laesst. Der Halter selbst wird nicht hier, sondern in
+    # scripts/check_proof_ledger.py::_coupling_failures geprueft (existiert
+    # er, ist er kind=="defect", steht er NICHT-terminal) -- diese Zeile
+    # erzwingt nur, dass ueberhaupt einer benannt ist.
+    if raw["state"] == "FAIL" and not raw.get("refutation_tracked_by"):
+        raise ProofLedgerError(
+            f"Eintrag {raw['id']!r}: state=\"FAIL\" braucht refutation_tracked_by "
+            "-- sonst ist ein widerlegter Fix dauerhaft laut, ohne dass sich das "
+            "quittieren liesse"
+        )
     return ProofEntry(
         id=str(raw["id"]),
         kind=str(raw["kind"]),
@@ -130,6 +150,7 @@ def _entry_from(raw: dict[str, Any]) -> ProofEntry:
         drill_source=str(raw.get("drill_source", "")),
         drilled_at=str(raw.get("drilled_at", "")),
         unreachable_because=str(raw.get("unreachable_because", "")),
+        refutation_tracked_by=str(raw.get("refutation_tracked_by", "")),
         raw=dict(raw),
     )
 

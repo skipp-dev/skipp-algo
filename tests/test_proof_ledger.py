@@ -110,6 +110,27 @@ def test_dormant_and_unreachable_need_a_repo_coupled_reason():
             assert entry.unreachable_because.startswith(("symbol:", "path:")), entry.id
 
 
+def test_a_fail_entry_without_a_holder_is_refused_loudly(tmp_path, monkeypatch):
+    """Mutationsprobe: ``state = "FAIL"`` ohne ``refutation_tracked_by`` darf
+    nicht laden -- wie ``pass_kind`` bei ``PASS``, aber hier hart im Schema
+    statt nur per Test. Ohne diese Zeile waere ein FAIL-Eintrag ein Schalter
+    zum Stummstellen, den niemand zwingt, an einem Halter zu haengen."""
+    import scripts.proof_ledger as mod
+
+    broken = tmp_path / "proof_ledger.toml"
+    broken.write_text(
+        '[class_floors]\nworkflows = 1\nreferenced_code = 1\nderived_class = 1\n\n'
+        '[[proof]]\nid = "x"\nkind = "defect"\nclaim = "c"\n'
+        'state = "FAIL"\ndue_by = "2026-09-06"\nowner = "operator"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mod, "_LEDGER_PATH", broken)
+    mod._load.cache_clear()
+    with pytest.raises(ProofLedgerError, match="refutation_tracked_by"):
+        mod.load_entries()
+    mod._load.cache_clear()
+
+
 def test_the_class_floors_are_positive():
     floors = class_floors()
     assert set(floors) == {
@@ -413,6 +434,92 @@ def test_an_unknown_coupling_kind_is_reported(monkeypatch):
     problems = gate._coupling_failures()
     assert len(problems) == 1
     assert "voodoo" in problems[0]
+
+
+# --- Widerlegt-Quittung: refutation_tracked_by-Kopplung (2026-08-24) -------
+#
+# Ersetzt den Halter "widerlegt-kann-nicht-quittiert-werden". Symmetrisch zu
+# den unreachable_because-Proben oben, nur gegen einen ANDEREN Ledger-Eintrag
+# statt gegen eine Repo-Tatsache geprueft.
+
+
+def test_a_refutation_holder_that_does_not_exist_is_reported(monkeypatch):
+    """Kopplungsprobe, Variante 'existiert nicht' -- ein geloeschter Halter
+    darf die Quittung nicht stillschweigend gueltig lassen."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="geistert-nicht", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (fake,))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "geistert-nicht" in problems[0]
+
+
+def test_a_refutation_holder_that_is_not_a_defect_is_reported(monkeypatch):
+    """Kopplungsprobe, Variante 'falsche Art' -- der Halter muss kind=="defect"
+    sein, sonst ist er kein Ort, an dem Arbeit haengt."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="holder", kind="fix", claim="c", state="OFFEN",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="holder", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "holder" in problems[0]
+    assert "kind=" in problems[0]
+
+
+def test_a_refutation_holder_gone_terminal_makes_the_ack_invalid(monkeypatch):
+    """Der Kern der Kopplung: wird der Halter terminal (hier: AUSGENOMMEN),
+    ist die Quittung ungueltig -- der Offline-Waechter muss rot werden, nicht
+    nur der Monitor still zurueckfallen."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="klasse-h", kind="defect", claim="c", state="AUSGENOMMEN",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="klasse-h", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "klasse-h" in problems[0]
+
+
+def test_a_valid_refutation_holder_passes(monkeypatch):
+    """Positivkontrolle: ein offener defect-Halter macht die Kopplung still."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="klasse-h", kind="defect", claim="c", state="UNGESICHERT",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="klasse-h", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    assert gate._coupling_failures() == []
 
 
 # --- Urteiler (Task 4) ------------------------------------------------------
@@ -1159,6 +1266,86 @@ def test_a_measured_pass_on_an_open_entry_stays_quiet():
 
     entry = _job_log_entry(state="OFFEN", due_by="2026-12-31")
     assert classify(entry, Verdict("PASS", branch="all_dialogs_opened"), "2026-08-24") == "OK"
+
+
+# --- Widerlegt-Quittung: classify()s refutation_acknowledged (2026-08-24) --
+#
+# Ersetzt den Halter "widerlegt-kann-nicht-quittiert-werden". Der urspruengliche
+# Defekt: state="FAIL" + gemessen FAIL lief IMMER als WIDERLEGT, unabhaengig
+# vom deklarierten Zustand -- der WIDERLEGT-Zweig griff VOR dem
+# TERMINAL_STATES-Kurzschluss. classify() bleibt rein: refutation_acknowledged
+# wird fertig hereingereicht, nicht selbst nachgeschlagen.
+
+
+def test_an_acknowledged_fail_is_quiet():
+    """Der Kern des Fixes: state=FAIL + gemessen FAIL + ein zuvor gepruefter,
+    gueltiger Halter ist quittiert -- OK statt WIDERLEGT."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="FAIL", due_by="2026-12-31", refutation_tracked_by="klasse-h")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+        refutation_acknowledged=True,
+    ) == "OK"
+
+
+def test_a_declared_fail_without_acknowledgement_stays_loud():
+    """Regressionsprobe fuer den urspruenglichen Defekt: derselbe deklarierte
+    FAIL-Eintrag bleibt WIDERLEGT, solange refutation_acknowledged nicht wahr
+    ist (Halter fehlt, ist kein defect, oder ist terminal geworden -- das
+    wird in main() geprueft, hier nur die Konsequenz in classify())."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="FAIL", due_by="2026-12-31", refutation_tracked_by="klasse-h")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+    ) == "WIDERLEGT"
+
+
+def test_acknowledgement_never_leaks_onto_a_non_fail_declaration():
+    """Verteidigung in der Tiefe: selbst wenn main() faelschlich
+    refutation_acknowledged=True fuer einen deklarierten OFFEN-Eintrag
+    berechnen wuerde, verlangt classify() zusaetzlich entry.state == 'FAIL'."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="OFFEN", due_by="2026-12-31")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+        refutation_acknowledged=True,
+    ) == "WIDERLEGT"
+
+
+def test_main_looks_up_the_real_klasse_h_holder_for_5018_and_5027(monkeypatch, tmp_path):
+    """End-to-End gegen das ECHTE Ledger: main() muss den
+    refutation_tracked_by-Halter selbst nachschlagen (das ist neuer Code in
+    main(), nicht nur in classify() isoliert getestet). klasse-h steht im
+    echten proof_ledger.toml auf UNGESICHERT (nicht-terminal); #5018 und #5027
+    tragen refutation_tracked_by = "klasse-h". Ein gemessenes FAIL fuer beide
+    muss also OK liefern, nicht WIDERLEGT -- das ist die eigentliche Reparatur,
+    die den Cron 06:47Z wieder unterscheidungsfaehig macht."""
+    import json
+
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_judges import Verdict
+
+    def fake_judge_entry(entry):
+        if entry.id in {"5018", "5027"}:
+            return Verdict("FAIL", branch="identity_mismatch"), "32729006391"
+        return None, ""
+
+    monkeypatch.setattr(mod, "_judge_entry", fake_judge_entry)
+    out_path = tmp_path / "report.json"
+    mod.main(["--today", "2026-08-24", "--json", str(out_path)])
+    rows = json.loads(out_path.read_text(encoding="utf-8"))
+    by_id = {r["id"]: r for r in rows}
+
+    assert by_id["5018"]["declared"] == "FAIL", "Voraussetzung verletzt: #5018 nicht mehr FAIL"
+    assert by_id["5027"]["declared"] == "FAIL", "Voraussetzung verletzt: #5027 nicht mehr FAIL"
+    assert by_id["5018"]["class"] == "OK", by_id["5018"]
+    assert by_id["5027"]["class"] == "OK", by_id["5027"]
 
 
 # --- Zeugenwahl: abgebrochene Laeufe sind keine Zeugen (2026-08-24) ---------
