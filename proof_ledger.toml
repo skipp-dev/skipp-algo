@@ -515,8 +515,15 @@ owner           = "operator"
 [[proof]]
 id              = "task7-proof-ledger-monitor"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-08-24 nachgetragen: #5033 ist als Squash gelandet. Solange hier der
+# Platzhalter stand, lief die Zeugensuche dauerhaft ins Leere — `newest_witness`
+# vergleicht Zeitstempel als Zeichenketten, und ord('<')=60 ist groesser als
+# jede Ziffer, also war `started > merged_at` immer False. Der Monitor meldete
+# das seit der Fix-Welle laut (KEIN_URTEIL statt KEIN_ZEUGE), aber laut allein
+# beweist nichts: erst mit einem echten Zeitstempel kann sein erster Lauf sich
+# selbst bezeugen, statt bis zum Fristablauf am 6.9. stillzustehen.
+merged_at       = "2026-08-24T07:35:23Z"
+merge_sha       = "3ae6ef62e24f3f6ba49528fea3a7687e89ad2b77"
 claim           = "Der scheduled Monitor holt Zeugen ueber evidence_source==\"artifact\", urteilt korrekt, und meldet Widersprueche/Ueberfaelligkeiten in genau ein Issue -- ohne das Ledger zurueckzuschreiben. Insbesondere: ein uebersprungener Eintrag (evidence_source==\"job_log\" oder kind!=\"fix\") erscheint im Report NIE als KEIN_ZEUGE, sondern als KEIN_URTEIL(<Grund>)."
 witness         = "proof-ledger-monitor"
 witness_job     = "judge"
