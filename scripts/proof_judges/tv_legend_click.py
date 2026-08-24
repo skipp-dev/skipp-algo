@@ -49,18 +49,48 @@ def judge(evidence: dict, entry) -> Verdict:
             detail="openSettingsForScript kommt im Log nicht vor -- die "
             "Operation wurde nie versucht, das ist kein bestandener Beweis",
         )
-    # Ab hier ist "openSettingsForScript" im Log garantiert vorhanden (der
-    # Zweig oben haette sonst schon zurueckgegeben) -- die Praesenzpruefung
-    # unten ist damit tautologisch wahr, bleibt aber als eigener, benannter
-    # Zweig stehen (Symmetrie zur Abwesenheitspruefung, AST-lesbares Label).
-    # Diesselbe Symmetrie macht den PASS-Fall am Ende STRUKTURELL
-    # unerreichbar: bei Abwesenheit greift settings_never_attempted, bei
-    # Anwesenheit IMMER dialog_stuck_without_miss -- siehe die aktualisierte
-    # [[unreachable_branch]]-Begruendung in proof_ledger.toml.
-    if "openSettingsForScript" in log:
+    # settings_dialog_timed_out (2026-08-24, loest dialog_stuck_without_miss
+    # ab -- Coordinator-Fund, zweiter Teil derselben Sitzung): "Anwesenheit"
+    # war der falsche Test. openSettingsForScript ist der ROUTINE-Schrittname
+    # fuer JEDES Oeffnen einer Skript-Einstellung -- er steht in JEDEM
+    # [tv-step] start/ok/error-Eintrag, ob der Versuch gelang oder haengen
+    # blieb (das war genau die Ueberbreite hinter
+    # dialog-stuck-without-miss-false-positive: 20 Treffer bei 0
+    # fehlgeschlagenen Zielen in Lauf 32357049150, trotzdem PRUEFEN). Das Log
+    # unterscheidet die Faelle aber sehr wohl: ein timed-out Versuch traegt
+    # den Suffix ``: Step timed out`` auf DERSELBEN Zeile wie sein
+    # openSettingsForScript-Eintrag (GEMESSEN an Lauf 32729006391, 12:47Z --
+    # `[tv-step] error openSettingsForScript:SMC Long-Dip Alerts (60002ms):
+    # Step timed out after 60000ms: ...`), ein erfolgreicher Versuch nie.
+    #
+    # Der Marker wird deshalb PRO ZEILE geprueft (nicht als Ganzlog-Substring
+    # wie oben bei openSettingsForScript selbst): ``runTrackedStep`` traegt
+    # den 60-s-Deckel fuer MEHRERE getrackte Schritte, nicht nur fuer
+    # openSettingsForScript (siehe Klasse-H-Eintrag, Kandidat B) -- ein
+    # "Step timed out" fuer einen ANDEREN Schritt anderswo im selben Log
+    # darf einen ansonsten erfolgreichen openSettingsForScript-Durchlauf
+    # nicht faelschlich als FAIL fuehren. Genau diese Verwechslung (ein
+    # String, der irgendwo im Log steht, statt eine Aussage ueber DIESES
+    # Ereignis) war der urspruengliche Fehler in dialog_stuck_without_miss.
+    #
+    # FAIL statt PRUEFEN (Entscheidung, Coordinator-Vorschlag uebernommen):
+    # ein Timeout ist ein BEOBACHTETER Fehlschlag -- dieselbe Gewissheit wie
+    # bei click_missed_its_row und identity_mismatch, kein Zweifelsfall. Der
+    # alte PRUEFEN-Fall existierte nur, WEIL der Code Erfolg und Timeout
+    # nicht unterscheiden konnte; mit der Unterscheidung entfaellt der Grund
+    # fuer PRUEFEN in diesem Urteiler vollstaendig.
+    if any(
+        "openSettingsForScript" in line and "Step timed out" in line
+        for line in log.splitlines()
+    ):
         return Verdict(
-            "PRUEFEN",
-            branch="dialog_stuck_without_miss",
-            detail="Timeout, aber der Klick traf — Ursache liegt woanders",
+            "FAIL",
+            branch="settings_dialog_timed_out",
+            detail="mindestens ein openSettingsForScript-Versuch lief in den "
+            "60s-Timeout -- ein beobachteter Fehlschlag, kein Zweifelsfall",
         )
-    return Verdict("PASS", branch="all_dialogs_opened", detail="keine Klick-Spur")
+    return Verdict(
+        "PASS",
+        branch="all_dialogs_opened",
+        detail="openSettingsForScript lief durch, kein Timeout beobachtet",
+    )

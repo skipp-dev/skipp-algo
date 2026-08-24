@@ -657,6 +657,87 @@ def test_identity_mismatch_wins_even_without_a_literal_settings_marker():
     assert verdict.branch == "identity_mismatch", verdict
 
 
+# --- tv_legend_click: Anwesenheit ist kein Erfolg (2026-08-24, Teil 2) -----
+#
+# Coordinator-Fund am Live-Monitor, zweite Runde: der Anwesenheits-Zweig
+# (vormals dialog_stuck_without_miss/PRUEFEN) feuerte auf JEDEM Log mit
+# mindestens einem openSettingsForScript-Versuch, egal ob er gelang oder
+# haengen blieb -- derselbe Fehler wie eben bei settings_never_attempted,
+# nur eine Stufe hoeher: "Fehlermarker A nicht gefunden" wurde als "Erfolg"
+# gefuehrt, obwohl das Log Erfolg und Timeout sehr wohl unterscheidet (Suffix
+# ": Step timed out" auf derselben Zeile, GEMESSEN an Lauf 32729006391).
+
+
+def test_a_settings_timeout_without_a_mismatch_trace_fails():
+    """Der Kern: ein Timeout ist ein beobachteter Fehlschlag, keine
+    Grauzone -- FAIL statt des alten, unbestimmten PRUEFEN."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Long-Dip Alerts\n"
+        "[tv-step] error openSettingsForScript:SMC Long-Dip Alerts (60002ms): "
+        "Step timed out after 60000ms: openSettingsForScript:SMC Long-Dip Alerts"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "settings_dialog_timed_out", verdict
+
+
+def test_a_settings_success_without_a_timeout_is_a_pass():
+    """Gegenprobe zum Kern: openSettingsForScript OHNE Timeout ist jetzt
+    wieder ein echter PASS -- ueber POSITIVE Evidenz (lief durch), nicht ueber
+    Abwesenheit von Fehlermarkern."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Decision Board\n"
+        "[tv-step] ok openSettingsForScript:SMC Decision Board (4332ms)"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
+
+
+def test_the_recorded_healthy_run_reaches_pass_with_real_evidence():
+    """Positivkontrolle am ECHTEN, bereits aufgezeichneten Korpus: Lauf
+    32357049150 (20 openSettingsForScript-Treffer, 0 Step-timed-out, 0
+    identity-mismatch, 0 hit-target-miss) war bisher der Beleg fuer das alte
+    PRUEFEN -- unter der neuen Logik ist er der Beleg fuer PASS. Der Zweig
+    ist damit wieder per echter Evidenz gedeckt, keine Deklaration mehr
+    noetig (siehe die entfernte all_dialogs_opened-Deklaration in
+    proof_ledger.toml)."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32357049150"], None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
+
+
+def test_a_timeout_on_an_unrelated_step_does_not_fail_the_settings_check():
+    """Praezisions-Gegenprobe: runTrackedStep traegt den 60s-Deckel fuer
+    MEHRERE getrackte Schritte, nicht nur openSettingsForScript. Ein "Step
+    timed out" fuer einen ANDEREN Schritt anderswo im selben Log darf einen
+    ansonsten erfolgreichen openSettingsForScript-Durchlauf nicht faelschlich
+    als FAIL fuehren -- genau die Verwechslung (Ganzlog-Substring statt
+    Aussage ueber DIESES Ereignis), die dialog_stuck_without_miss ausmachte.
+    Deshalb wird pro ZEILE geprueft, nicht ueber den gesamten Log-Text."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Decision Board\n"
+        "[tv-step] ok openSettingsForScript:SMC Decision Board (4332ms)\n"
+        "[tv-step] error closeModal (60003ms): Step timed out after 60000ms: closeModal"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
+
+
 # --- Fix-Runde 2 (2026-08-23): Notiz statt Mechanismus abgeschafft ---------
 
 

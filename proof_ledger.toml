@@ -277,34 +277,35 @@ Legend-Zeile im Klickmoment.
 
 [[unreachable_branch]]
 judge  = "tv_legend_click"
-branch = "all_dialogs_opened"
+branch = "settings_dialog_timed_out"
 reason = """
-2026-08-23 gemessen, 2026-08-24 KORRIGIERT: die urspruengliche Fassung
-dieser Begruendung nannte den Zweig "praktisch" nie erreichbar -- und wurde
-noch am selben Tag durch echte Evidenz widerlegt. Lauf 32745395799
-(workflow_dispatch, verify-/repair-only, kein einziges
-openSettingsForScript im Log) erreichte GENAU diesen Zweig ueber den
-Live-Monitor und meldete PASS fuer einen Verify-Lauf, der Klasse H nie
-angefasst hat -- derselbe Fehler wie eine leere Beobachtung als Befund zu
-verkaufen (tv_failure_evidence.nothing_failed), hier am eigenen Urteiler
-eingetreten statt nur vorhergesagt.
+2026-08-24 gemessen, Coordinator-Auftrag: der Anwesenheits-Zweig
+(vormals dialog_stuck_without_miss/PRUEFEN) ist auf die WIRKUNG umgestellt
+-- openSettingsForScript UND ein "Step timed out" auf derselben Zeile ==
+FAIL/settings_dialog_timed_out; openSettingsForScript ohne Timeout == PASS/
+all_dialogs_opened (Korpus-Beleg: 32357049150, 20 Treffer, 0 Step-timed-out
+-- der PASS-Zweig ist damit wieder per echter Evidenz gedeckt, siehe unten).
 
-FIX (selbe Aenderung): ein neuer, VORGESCHALTETER Zweig
-(settings_never_attempted, STEHT_AUS) faengt jetzt jedes Log ohne
-openSettingsForScript ab -- Korpus-Beleg tests/proof_corpus/tv_legend_click/
-32745395799.json. Seither ist all_dialogs_opened nicht mehr nur praktisch,
-sondern STRUKTURELL unerreichbar: bei Abwesenheit der Spur greift
-settings_never_attempted, bei Anwesenheit IMMER dialog_stuck_without_miss
-(openSettingsForScript ist der ROUTINE-Schrittname fuer JEDES Oeffnen einer
-Skript-Einstellung, ob erfolgreich oder haengen geblieben -- bestaetigt an
-Lauf 32357049150: 20 Treffer bei 0 fehlgeschlagenen Zielen). Die zwei
-Praesenz-/Abwesenheits-Pruefungen auf denselben String sind erschoepfend
-und schliessen sich gegenseitig aus -- kein drittes Log-Muster kann den
-PASS-Fall danach noch erreichen. Der Praezisionsfehler in
-dialog_stuck_without_miss selbst (feuert auch bei vollstaendig
-erfolgreichen Laeufen) bleibt unter dialog-stuck-without-miss-false-positive
-separat gefuehrt, NICHT hier behoben -- diese Aenderung schliesst nur die
-Leere-Beobachtungs-Luecke.
+Fuer settings_dialog_timed_out selbst fehlt echte Korpus-Evidenz TROTZ
+gezielter Suche: 30 real abgerufene Job-Logs geprueft (alle completed,
+nicht gecancelt/geskippt, workflow_dispatch, 2026-08-21T06:45Z bis
+2026-08-24T16:59Z -- Laufliste per `gh api .../runs`, je Lauf grep -c auf
+openSettingsForScript/"Step timed out"/identity-mismatch/-hit-target-miss).
+Ergebnis: in JEDEM der 12 Laeufe mit mindestens einem Timeout (u. a.
+32729006391, 32620808573, 32694176198, 32667902527) stand AUCH
+identity-mismatch (>=3 Treffer) -- 12/12, keine Ausnahme. Das deckt sich
+mit dem bereits dokumentierten Klasse-H-Mechanismus (Eintrag klasse-h,
+Kandidat B): ein Timeout laesst den Dialog offen, jedes NACHFOLGENDE Ziel
+im selben Lauf erbt dadurch ein identity-mismatch. Weil identity-mismatch
+im Urteiler VOR dieser Pruefung abgefragt wird, gewinnt es zuerst -- ein
+Lauf muesste den Timeout ausgerechnet auf seinem LETZTEN verarbeiteten Ziel
+zeigen, um settings_dialog_timed_out isoliert zu erreichen; in der
+geprueften Stichprobe kam das nicht vor. Kein Widerspruch zur Existenz des
+Zweigs (der Mechanismus ist real und im Code nachvollziehbar, siehe
+tv_legend_click.py), nur (noch) kein isolierter Beleg. Direkter
+Unit-Test auf ein synthetisches Log haelt die Verzweigungslogik trotzdem
+fest (tests/test_proof_ledger.py::
+test_a_settings_timeout_without_a_mismatch_trace_fails).
 """
 
 [[unreachable_branch]]
@@ -637,34 +638,6 @@ claim           = "Der in_flight-Grund des Waechters nennt einen Reparaturlauf, 
 # Mechanismus ist richtig (ein wartender Lauf belegt den Ein-Platz-Slot), der
 # TEXT behauptet etwas Falsches und schickt den Leser auf die Suche nach einem
 # Lauf, den es nicht gibt. Nicht behoben.
-state           = "UNGESICHERT"
-due_by          = "2026-09-06"
-owner           = "operator"
-
-# ---------------------------------------------------------------------------
-# Task 5, Fix-Runde 1 (2026-08-23): zwei Zweifelsfaelle aus der Anti-Vakuitaets-
-# Arbeit, die als Zukunfts-Prosa ("sollte irgendwann gefixt werden") keinen
-# Mechanismus haetten. Als defect-Eintraege bekommen sie einen Halter (owner,
-# due_by), statt in einer Bericht-Fussnote zu verschwinden.
-# ---------------------------------------------------------------------------
-[[proof]]
-id              = "dialog-stuck-without-miss-false-positive"
-kind            = "defect"
-claim           = "tv_legend_click.dialog_stuck_without_miss feuert bei jedem Log mit einem Skript-Settings-Versuch, nicht nur bei einem Timeout"
-# 2026-08-23 gefunden (Task 5, Anti-Vakuitaet): die Bedingung ist eine bloße
-# Substring-Suche nach "openSettingsForScript" im Job-Log. Dieser Name steht
-# in JEDEM [tv-step] start/ok/error-Eintrag fuer diesen Schritt, ob er gelang
-# oder haengen blieb -- er ist ein Routine-Schrittname, kein Fehlersignal.
-# Belegt an Lauf 32357049150 (tests/proof_corpus/tv_legend_click/32357049150.json):
-# 20 Treffer, 0 fehlgeschlagene Ziele, vollstaendig gesunder Durchlauf --
-# trotzdem PRUEFEN "Timeout, aber der Klick traf". Nebenwirkung: dieser Zweig
-# faengt praktisch jeden Log mit mindestens einem Dialogversuch VOR dem
-# eigentlichen Fallback ab, wodurch tv_legend_click.all_dialogs_opened fuer
-# ehrliche (nicht leere) Beobachtungen faktisch nie erreicht wird. NICHT
-# behoben: eine Aenderung an tv_legend_click.py wuerde gegen Task 4s
-# Korpus-Erwartungen zurueckschlagen (Operator-Entscheidung noetig, ob die
-# Bedingung auf einen echten Timeout-Marker statt auf den Schrittnamen
-# umgestellt wird).
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
