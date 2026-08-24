@@ -255,28 +255,6 @@ diesen Zweig feuern; seit #5020 ist keiner aufgetreten.
 
 [[unreachable_branch]]
 judge  = "tv_legend_click"
-branch = "click_missed_its_row"
-reason = """
-2026-08-23 gemessen. GENAU der Zweig, den Task 5 nachbauen sollte -- deshalb
-besonders geprueft: die Spur wird von echtem Code erzeugt.
-automation/tradingview/lib/tv_shared.ts:6175 ruft
-tracePageEvent(page, `${traceStartEvent}-hit-target-miss`, ...) auf,
-sobald document.elementFromPoint am Doppelklick-Punkt ein FREMDES Element
-trifft (hitOwner !== "self", Zeilen 6165-6175). console.error schreibt das
-in den Job-Log, den dieser Urteiler liest (evidence_source=job_log) -- der
-Mechanismus ist real, kein Artefakt-Feld wie beim alten Sondenzweig, der
-nie feuern konnte. Der Code-Pfad wird bei jedem Legend-Doppelklick
-durchlaufen (openSettingsForScript kommt in denselben Logs 20-51x vor). In
-ALLEN 7 real gepruefte Job-Logs (Laeufe 32357049150, 32550130816,
-32554422526, 32560949161, 32575497213, 32556181388, 32620808573) stand
-hitOwner jedoch immer auf "self" -- 0 Treffer. Reachable, bislang nicht
-eingetreten -- anders als der alte Sondenzweig ist dieser NICHT falsch
-gebaut; was fehlt, ist ein realer Lauf mit einer verschobenen/verdeckten
-Legend-Zeile im Klickmoment.
-"""
-
-[[unreachable_branch]]
-judge  = "tv_legend_click"
 branch = "settings_dialog_timed_out"
 reason = """
 2026-08-24 gemessen, Coordinator-Auftrag: der Anwesenheits-Zweig
@@ -625,6 +603,30 @@ claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den T
 # dieselbe Pruefung, die die Leiter vorher fahren liess, nur nachtraeglich.
 # Die #5020-Beweisdatei wird beim Scheitern ohnehin geschrieben und ist der
 # richtige Ort. Steht dort "ja", ist (A) bewiesen.
+#
+# KORREKTUR 2026-08-24 (Coordinator-Fund, zwei Teile):
+#
+# * #5018 ist als URSACHE von Klasse H widerlegt (behebt den Alerts-Timeout
+#   nicht) -- ABER sein Waechter feuert real und schuetzt. ZWEIMAL belegt:
+#   Laeufe 32693789797 (2026-08-24T05:30:39Z) und 32599492026
+#   (2026-08-22T21:24:20Z), beide hit-target-miss=1, Spur woertlich
+#   "SMC Hold Manager:0:0:1:foreign:Remove" -- der berechnete Klickpunkt
+#   landet auf dem Remove-Knopf der Hover-Toolbar, nicht auf dem Zeilentext;
+#   ein Doppelklick dort haette den Indikator vom gehandelten Chart entfernt.
+#   Der DOM-Treffertest aus #5018 hat das beide Male verhindert. "Widerlegt"
+#   heisst hier NICHT "wirkungslos" -- es heisst "loest nicht den
+#   Alerts-Timeout". Korpus-Beleg: tests/proof_corpus/tv_legend_click/
+#   32693789797.json.
+#
+# * KLASSE H IST KEIN EINZELNER FEHLERMODUS, SONDERN ZWEI: (1) die
+#   Identitaetsverwechslung bei den Long-Dip-Skripten (Kandidaten (A)/(B)
+#   oben) und (2) eine EIGENE Geometrie-Fehlerklasse bei "SMC Hold Manager"
+#   (hit-target-miss, siehe die zwei Laeufe oben). Wer nur nach EINER Ursache
+#   sucht, uebersieht die andere -- beide Modi teilen sich den Namen
+#   "Klasse H", nicht den Mechanismus.
+#
+# Bleibt hoechste Prioritaet trotz der Korrektur: die eigentliche Arbeit (die
+# Alerts-Timeout-Ursache) ist weiterhin offen, nur ein Kandidat weniger.
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
@@ -638,8 +640,11 @@ claim           = "Der in_flight-Grund des Waechters nennt einen Reparaturlauf, 
 # Mechanismus ist richtig (ein wartender Lauf belegt den Ein-Platz-Slot), der
 # TEXT behauptet etwas Falsches und schickt den Leser auf die Suche nach einem
 # Lauf, den es nicht gibt. Nicht behoben.
+# FRIST 2026-08-24 GESTAFFELT auf 2026-09-27: irrefuehrender TEXT, aber der
+# Mechanismus dahinter (Ein-Platz-Slot) ist korrekt -- niedrigstes Risiko der
+# Staffel, kein falsches Verhalten, nur eine falsche Erklaerung dafuer.
 state           = "UNGESICHERT"
-due_by          = "2026-09-06"
+due_by          = "2026-09-27"
 owner           = "operator"
 
 # ---------------------------------------------------------------------------
@@ -667,8 +672,12 @@ claim           = "check_proof_ledger.py liest 'before' am literalen Bereichsanf
 # Randfall. Fix gehoert NICHT in diese Welle (Auftrag: Halter, keine
 # Loesung) -- der Mechanismus waere `_merge_base_range` durch einen echten
 # `git merge-base`-Aufruf zu ersetzen, bevor `_ledger_ids_at` liest.
+# FRIST 2026-08-24 GESTAFFELT auf 2026-09-13: durch Alltagsbedienung
+# auslösbar (main in den PR-Branch mergen ist Routine, kein Randfall) --
+# hoehere Prioritaet als reine Text-/Entwurfsbefunde, aber nicht die
+# eigentliche Klasse-H-Arbeit.
 state           = "UNGESICHERT"
-due_by          = "2026-09-06"
+due_by          = "2026-09-13"
 owner           = "operator"
 
 [[proof]]
@@ -690,29 +699,11 @@ claim           = "Die abgeleitete Klasse (scripts/proof_class.py) nimmt ALLE Wo
 # Code. Fix gehoert NICHT in diese Welle -- der Mechanismus waere ein
 # Trigger-Parser in workflow_files()/derive_class(), der pull_request-
 # Workflows ausschliesst, plus neu gemessene Floors in [class_floors].
+# FRIST 2026-08-24 GESTAFFELT auf 2026-09-20: taegliche Reibung (13 statt
+# 22 % PRs unnoetig beweispflichtig), aber kein Datenverlust und kein
+# stiller Fehlschlag -- der Waechter ist zu STRENG, nicht blind.
 state           = "UNGESICHERT"
-due_by          = "2026-09-06"
-owner           = "operator"
-
-[[proof]]
-id              = "bootstrap-gap-no-baseline-ledger-on-main"
-kind            = "defect"
-claim           = "origin/main hat kein proof_ledger.toml -- fuer den PR, der DIESEN Branch mergt, ist 'before' deshalb immer leer und der Waechter rc=0, unabhaengig vom Inhalt; 'ab dem naechsten PR greift der Schutz' ist eine Zukunftszusage ohne eigenen Mechanismus"
-# 2026-08-24 bestaetigt: `git show origin/main:proof_ledger.toml` liefert
-# "fatal: path 'proof_ledger.toml' does not exist" -- die Datei existiert auf
-# main nicht. MECHANISMUS: _ledger_ids_at() in scripts/check_proof_ledger.py
-# faengt genau diesen `git show`-Fehlschlag ab und liefert frozenset() --
-# beabsichtigt fuer den allerersten PR (Begruendung in der Spec, Abschnitt
-# "Migration": ein Zustandscheck auf main haette jeden PR rot gemacht,
-# einschliesslich des reparierenden). Das macht "after - before" fuer DIESEN
-# Merge trivial erfuellt, unabhaengig vom Inhalt -- tragbar fuer den
-# Bootstrap-PR selbst, aber die Aussage, dass der Schutz ab dem naechsten PR
-# tatsaechlich greift, ist bislang ungeprueft. Fix gehoert NICHT in diese
-# Welle -- der Halter wird VON SELBST ueberfaellig (Frist unten), wenn bis
-# dahin kein zweiter PR das Offline-Gate durchlaufen hat; Nachweis per
-# `git log --oneline -- proof_ledger.toml` auf main nach diesem Merge.
-state           = "UNGESICHERT"
-due_by          = "2026-09-06"
+due_by          = "2026-09-20"
 owner           = "operator"
 
 [[proof]]
@@ -731,8 +722,11 @@ claim           = "has_path() kann nur Feld-Praesenz pruefen, aber ein version_p
 # Probentyp (Feld-WERT statt Feld-Praesenz) in has_path()/version_probe
 # zur Folge, der ueber Eintrag 5025 hinausgeht -- Operator-Entscheidung, ob
 # sich der Aufwand vor dem naechsten betroffenen Fix lohnt.
+# FRIST 2026-08-24 GESTAFFELT auf 2026-09-27: Entwurfsgrenze, kein Defekt
+# an einem konkreten Eintrag -- 5025 selbst ist bereits sicher (version_probe
+# = "KEINE" mit Grund), betrifft nur KUENFTIGE Faelle.
 state           = "UNGESICHERT"
-due_by          = "2026-09-06"
+due_by          = "2026-09-27"
 owner           = "operator"
 
 # ---------------------------------------------------------------------------
@@ -810,8 +804,12 @@ claim   = "classify() (scripts/judge_proof_ledger.py:48-73) klassifiziert jeden 
 # declared in TERMINAL_STATES UND measured=="KEIN_ZEUGE" als mislabeled
 # zaehlen, nicht nur die evidence_source!=artifact-Faelle. Fix gehoert NICHT
 # in diese Aenderung -- Halter statt Notiz.
+# FRIST 2026-08-24 GESTAFFELT auf 2026-09-13: ein echtes Silent-OK-Risiko am
+# TERMINAL_STATES-Kurzschluss, dieselbe Risikostufe wie c4 -- ein Artefakt-
+# Lesefehler oder eine Job-Umbenennung reicht zum Ausloesen, kein exotischer
+# Randfall, und der Selbst-Urteiler kann es strukturell nicht auffangen.
 state   = "UNGESICHERT"
-due_by  = "2026-09-06"
+due_by  = "2026-09-13"
 owner   = "operator"
 
 [[proof]]
