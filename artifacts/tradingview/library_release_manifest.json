@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-08-24T10:31:42.911Z",
+  "generatedAt": "2026-08-24T13:53:36.582Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/328",
-    "expectedVersion": 328,
-    "publishedVersion": 328,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/329",
+    "expectedVersion": 329,
+    "publishedVersion": 329,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
