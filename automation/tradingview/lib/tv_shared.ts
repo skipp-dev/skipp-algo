@@ -4754,6 +4754,38 @@ export function pickDialogForScript(
   return { verdict: "mismatch", dialog: titled[0], visibleCount: titled.length };
 }
 
+export type DialogAtFailureVerdict = "target-visible" | "foreign-visible" | "untitled-visible" | "no-dialog";
+
+/**
+ * Ledger klasse-h, Kandidat (A): klassifiziert, was `pickDialogForScript`
+ * ueber die zum Messzeitpunkt sichtbaren Dialoge sagt, in die vier Zustaende,
+ * die die Beweisdatei unterscheidbar halten sollen. Reine Funktion, ohne
+ * Browser testbar -- derselbe Zuschnitt wie `pickDialogForScript` selbst, das
+ * sie wiederverwendet statt eine zweite Fassung der Auswahl danebenzustellen.
+ *
+ * "no-dialog" ist ein eigener Zustand VOR `pickDialogForScript`, weil dessen
+ * "untitled"-Verdikt sowohl "kein Dialog da" als auch "ein Dialog ohne
+ * lesbaren Titel" abdeckt -- hier muessen beide auseinanderbleiben.
+ */
+export function classifyDialogAtFailure(
+  dialogs: ReadonlyArray<{ title: string }>,
+  scriptName: string,
+): { verdict: DialogAtFailureVerdict; title: string | null; visibleCount: number } {
+  if (dialogs.length === 0) {
+    return { verdict: "no-dialog", title: null, visibleCount: 0 };
+  }
+  const picked = pickDialogForScript(dialogs, scriptName);
+  if (picked.verdict === "match") {
+    return { verdict: "target-visible", title: picked.dialog?.title ?? null, visibleCount: picked.visibleCount };
+  }
+  if (picked.verdict === "mismatch") {
+    return { verdict: "foreign-visible", title: picked.dialog?.title ?? null, visibleCount: picked.visibleCount };
+  }
+  // "untitled": dialogs.length > 0 here (checked above), so this is genuinely
+  // a visible dialog without a readable title -- not the zero-dialogs case.
+  return { verdict: "untitled-visible", title: null, visibleCount: picked.visibleCount };
+}
+
 export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogTitle?: string | null): boolean {
   const normalizedTitle = normalizeUiText(dialogTitle ?? "");
   if (!normalizedTitle) {
@@ -5989,6 +6021,28 @@ export type LegendFailureEvidence = {
   /** Where a double-click would have gone, and what actually sits there. */
   aim: { point: { x: number; y: number }; topElement: string } | null;
   screenshotPath: string;
+  /**
+   * Ledger klasse-h, Kandidat (A): war GENAU in dem Moment, in dem dieser
+   * Fehlschlag deklariert wird, ein Dialog sichtbar -- und trug er den Titel
+   * des Zielskripts? Dieselbe Pruefung (collectVisibleDialogSnapshots +
+   * pickDialogForScript), die die Leiter vorher hat scheitern lassen, nur
+   * nachtraeglich an derselben Stelle, statt an einer zweiten.
+   *
+   * "target-visible" bewiese (A): der Dialog war schon da, nur die Erkennung
+   * war schon fertig. "no-dialog" oder "foreign-visible" widerlegen (A) an
+   * dieser Stelle: der Zieldialog stand zu diesem Zeitpunkt schlicht nicht
+   * auf dem Schirm. Vier explizite Werte statt eines Booleans, weil "kein
+   * Dialog", "Dialog ohne lesbaren Titel" und "Messung fehlgeschlagen" sonst
+   * ununterscheidbar waeren -- genau die Verwechslung, an der
+   * `neighbourhood: []` schon einmal gescheitert ist.
+   */
+  dialogAtFailureVerdict: DialogAtFailureVerdict | "probe-failed";
+  /** Titel des zum Messzeitpunkt gefundenen Dialogs, falls einer da war; sonst null. */
+  dialogAtFailureTitle: string | null;
+  /** Wie viele BETITELTE Dialoge gleichzeitig sichtbar waren (wie DialogPick.visibleCount). */
+  dialogAtFailureVisibleCount: number;
+  /** Nur bei "probe-failed" belegt: warum die Messung selbst scheiterte. */
+  dialogAtFailureReason: string;
 };
 
 /**
@@ -6060,7 +6114,28 @@ export async function captureLegendFailureEvidence(
     neighbourhood: [],
     aim: null,
     screenshotPath: "",
+    dialogAtFailureVerdict: "probe-failed",
+    dialogAtFailureTitle: null,
+    dialogAtFailureVisibleCount: 0,
+    dialogAtFailureReason: "",
   };
+
+  // Klasse-H-Messprobe (Kandidat A), zuerst und lesend: BEVOR irgendetwas
+  // anderes hier den Zustand der Seite noch anfasst, festhalten, welcher
+  // Dialog (falls einer) genau jetzt sichtbar ist. Wiederverwendet dieselben
+  // Bausteine wie die Erkennungsstufe selbst (collectVisibleDialogSnapshots,
+  // pickDialogForScript ueber classifyDialogAtFailure) statt einer zweiten
+  // Fassung derselben Pruefung.
+  try {
+    const dialogsAtFailure = await collectVisibleDialogSnapshots(page);
+    const classified = classifyDialogAtFailure(dialogsAtFailure, scriptName);
+    evidence.dialogAtFailureVerdict = classified.verdict;
+    evidence.dialogAtFailureTitle = classified.title;
+    evidence.dialogAtFailureVisibleCount = classified.visibleCount;
+  } catch (error) {
+    evidence.dialogAtFailureVerdict = "probe-failed";
+    evidence.dialogAtFailureReason = `probe-failed: ${String((error as Error)?.message ?? error)}`;
+  }
 
   evidence.screenshotPath = await takeScreenshot(page, runId, `settings-failure-${slugifyForPath(scriptName)}`)
     .catch(() => "");
