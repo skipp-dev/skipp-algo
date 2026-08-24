@@ -78,12 +78,9 @@ for _scan_dir in _SCAN_DIRS:
 #
 # Keys are repo-relative POSIX paths (Deep-Review 2026-04-27).
 _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
-    # Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
-    # judge_proof_ledger.main() writes proof_ledger_monitor_report.json, a
-    # one-shot per-run report uploaded as the proof-ledger-monitor CI
-    # artifact -- not consumed by any downstream SMC pipeline manifest, no
-    # concurrent writer, no crash-durability requirement.
-    "scripts/judge_proof_ledger.py": "monitor report JSON (one-shot per run, uploaded as a CI artifact, not pipeline-consumed)",
+    # scripts/judge_proof_ledger.py: migrated to smc_atomic_write.atomic_write_json
+    # (pre-push-gate fix wave, 2026-08-24) instead of an allowlisted raw
+    # open(...,"w") -- no raw write site remains, so no entry here.
     "scripts/bake_overlay_library.py": "mkstemp + fdopen + os.replace atomic pattern (overlay .pine + manifest snapshots)",
     "scripts/plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "scripts/plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",

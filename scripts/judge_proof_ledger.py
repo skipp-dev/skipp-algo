@@ -41,6 +41,7 @@ from pathlib import Path
 
 from scripts.proof_judges import Verdict, load_judge
 from scripts.proof_ledger import TERMINAL_STATES, ProofEntry, load_entries
+from scripts.smc_atomic_write import atomic_write_json
 
 REPO = "skipp-dev/skipp-algo"
 
@@ -269,8 +270,7 @@ def main(argv: list[str] | None = None) -> int:
             f"gemessen={row['measured']:44s} faellig={row['due_by']} ({row['owner']})"
         )
     if args.json_out:
-        with open(args.json_out, "w", encoding="utf-8") as fh:
-            json.dump(rows, fh, indent=2, sort_keys=True)
+        atomic_write_json(rows, args.json_out, indent=2, sort_keys=True)
     if loud:
         print(f"\n{len(loud)} Eintrag/Eintraege brauchen einen Menschen.", file=sys.stderr)
     return 1 if loud else 0
