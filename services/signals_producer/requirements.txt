@@ -5,7 +5,7 @@
 # python-dotenv are imported behind try/except guards; pinning them here keeps
 # timezone handling and local .env parsing fully available in the container.
 python-dateutil==2.9.0.post0
-python-dotenv==1.2.2
+python-dotenv==1.2.3
 
 # newsstack_fmp dependencies (added 2026-06-24, PR: newsstack-in-image)
 httpx==0.28.1          # keep aligned with root requirements.txt to avoid runtime drift
@@ -21,4 +21,4 @@ tradingview-ta==3.3.0
 # open_prep.realtime_signals._build_databento_quote_source imports `databento`.
 # Explicit/fallback FMP mode does not import it. Keep aligned with root
 # requirements.txt to avoid drift.
-databento==0.83.0
+databento==0.84.0

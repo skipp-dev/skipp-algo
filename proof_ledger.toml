@@ -558,8 +558,51 @@ owner           = "operator"
 id              = "klasse-h"
 kind            = "defect"
 claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den Timeout; Ursache offen"
-# Aktueller Kandidat (2026-08-23): mehrere Dialoge gleichzeitig offen, die
-# Identitaetspruefung nimmt den ERSTEN statt den passenden (#5027).
+# ERMITTLUNGSSTAND 2026-08-24, an Lauf 32729006391 (12:47Z) gemessen.
+#
+# DREI KANDIDATEN WIDERLEGT -- nicht neu aufrollen:
+#  1. #5018 Klickgeometrie: hit-target-miss=0, box-degenerate=0; die
+#     Beweis-Screenshot zeigt die Hover-Toolbar auf der RICHTIGEN Legendenzeile.
+#     Der Klick sitzt.
+#  2. #5027 "mehrere Dialoge gleichzeitig offen": JEDE der 5 identity-mismatch-
+#     Spuren des Laufs meldet "1 titled dialog(s) visible". Nie mehr als einer.
+#     Die Praemisse des Fixes trifft nicht zu.
+#  3. "Erkennungsfilter zu streng" (die Klasse des 13.7.-Vorfalls):
+#     isIndicatorSettingsDialogSnapshot akzeptiert Style+Visibility --
+#     (hasInputsTab||hasVisibilityTab) && hasIndicatorTab ergibt (false||true)
+#     && true. Am Code geprueft.
+#
+# WAS DIE EVIDENZ POSITIV ZEIGT:
+#  * Der Dialog GEHT AUF. Die #5020-Beweisdatei zu SMC Long-Dip Alerts
+#    (2026-08-24T13-04-24-403Z) zeigt ihn offen, Titel korrekt, Reiter
+#    "Style | Visibility". Der Code meldete Fehlschlag, WAEHREND sein
+#    Zieldialog auf dem Schirm stand.
+#  * Der gelesene Dialog ist immer der des VORHERIGEN Ziels: waehrend
+#    "SMC Setup Check" laeuft, meldet die Spur indicator-dialog-visible
+#    "SMC Long-Dip Alerts" -- das zuvor gescheiterte Ziel.
+#  * Erfolgreiche Versuche dauern 2913-15702 ms, also Faktor fuenf Streuung.
+#
+# NEUER VERDACHT, zwei Teile:
+#  (B) BELEGT AM CODE: openSettingsForScript laeuft in runTrackedStep mit
+#      60-s-Deckel; die closeModal-Aufrufe stehen INNERHALB der Retry-Schleife
+#      (tv_shared.ts, retry-start und catch). Ein Step-Timeout bricht die
+#      innere Funktion ab -- der catch laeuft nie. Ein abgelaufener Versuch
+#      hinterlaesst seinen Dialog OFFEN. Das erklaert die symmetrischen
+#      Fehlpaarungen vollstaendig: aus einem Fehlschlag wird eine Kaskade ueber
+#      alle Folgeziele.
+#  (A) FUEHRENDER KANDIDAT, NICHT BEWIESEN: der Doppelklick oeffnet den
+#      richtigen Dialog, aber die Erkennungsstufe gibt auf, bevor TradingView
+#      ihn gerendert hat; die Leiter klickt dann in den inzwischen offenen
+#      Modal. Dieselbe Fehlerfamilie wie 13.7., anderer Mechanismus: damals
+#      erkannte der FILTER den offenen Dialog nicht, hier vermutlich das
+#      ZEITFENSTER. "Der Dialog war spaeter da" beweist aber noch nicht "die
+#      Erkennung war zu schnell".
+#
+# WAS (A) ENTSCHEIDEN WUERDE (billig, verhaltensneutral): beim Deklarieren des
+# Fehlschlags festhalten, ob ein passender Dialog gerade sichtbar ist --
+# dieselbe Pruefung, die die Leiter vorher fahren liess, nur nachtraeglich.
+# Die #5020-Beweisdatei wird beim Scheitern ohnehin geschrieben und ist der
+# richtige Ort. Steht dort "ja", ist (A) bewiesen.
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
