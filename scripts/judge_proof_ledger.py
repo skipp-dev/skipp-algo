@@ -84,10 +84,19 @@ def newest_witness(entry: ProofEntry) -> str:
             "-q",
             f'[.jobs[] | select(.name=="{entry.witness_job}") | .started_at][0] // ""',
         ).strip()
-        # Auf FORM pruefen, nicht auf "nicht leer": `gh api` schreibt seinen
-        # Fehler-Body nach STDOUT. Ein 404 liefert `{"message":...}`, und weil
-        # '{' groesser ist als jede Ziffer, kuerte ein reiner Groessenvergleich
-        # einen Lauf ohne Zeugen-Job zum Zeugen.
+        # Auf FORM pruefen, nicht auf "nicht leer". `gh api` schreibt seinen
+        # Fehler-Body zwar nach STDOUT -- gemessen 2026-08-24: ein echter 404
+        # liefert `returncode=1` und `{"message":"Not Found",...}` auf STDOUT
+        # -- aber _gh() oben filtert genau darauf (`if proc.returncode == 0
+        # else ""`), ein 404 erreicht diesen Vergleich ueber DIESEN Aufrufpfad
+        # also gar nicht. Die Formpruefung ist trotzdem die ZWEITE,
+        # unabhaengige Verteidigungslinie: sollte _gh()s Rueckgabecode-Filter
+        # je entfernt werden oder ein anderer Aufrufer ein rohes `gh`-Ergebnis
+        # hierher reichen, waere ein reiner Nicht-leer-/Groessenvergleich
+        # verwundbar -- '{' ist ASCII-groesser als jede Ziffer, ein
+        # JSON-Fehlerkoerper wuerde jeden echten Zeitstempel schlagen.
+        # test_newest_witness_never_crowns_a_json_error_body_as_a_witness
+        # haelt genau das fest, unabhaengig vom _gh()-Filter.
         if len(started) != 20 or not started.endswith("Z") or not started[:4].isdigit():
             continue
         if started > (entry.raw or {}).get("merged_at", ""):

@@ -554,6 +554,133 @@ def test_dormant_past_its_deadline_is_overdue_not_ok():
     assert classify(entry, Verdict("SCHLAFEND", branch="b"), "2026-08-23") == "UEBERFAELLIG"
 
 
+# --- newest_witness(): Zeugensuche ohne Netz (Fix-Runde 1, 2026-08-24) -----
+#
+# Vor dieser Runde hatte newest_witness()/_gh()/_judge_entry() null
+# Testabdeckung (grep-bestaetigt: 0 Treffer). Genau die drei
+# Randbedingungen, die diese Aufgabe traegt -- started_at statt head_sha,
+# status statt conclusion, FORM- statt Nichtleer-Pruefung -- waren
+# ungepinnt. Alle drei Tests hier laufen OHNE Netz (``_gh`` wird per
+# monkeypatch ersetzt) und wurden je per Rueckbau-Probe verifiziert: die
+# jeweilige Schutzeigenschaft im Quelltext testweise entfernt/geschwaecht,
+# Test lief rot, Aenderung zurueckgesetzt, Test lief wieder gruen. Wortlaut
+# im Task-7-Bericht, Abschnitt "Fix-Runde 1".
+
+
+def _fake_gh(list_output: str, job_responses: dict[str, str]):
+    """Ersatz fuer ``scripts.judge_proof_ledger._gh`` ohne Netz.
+
+    ``list_output``: was die ERSTE Abfrage (Laufliste des Workflows) liefert,
+    roh wie jq eine Lauf-Id je Zeile ausgeben wuerde. ``job_responses``:
+    Lauf-Id -> was die ZWEITE Abfrage (Job-Liste dieses Laufs) liefert, roh
+    wie der ``-q``-Filter sie ausgeben wuerde. Zeichnet jeden Aufruf auf
+    (``.calls``), damit ein Test die tatsaechlich gebaute jq-Abfrage
+    inspizieren kann -- nicht nur das Ergebnis.
+    """
+    calls: list[tuple[str, ...]] = []
+
+    def fake(*args: str) -> str:
+        calls.append(args)
+        joined = " ".join(args)
+        if "/runs?per_page=50" in joined:
+            return list_output
+        for run_id, response in job_responses.items():
+            if f"/runs/{run_id}/jobs" in joined:
+                return response
+        return ""
+
+    fake.calls = calls
+    return fake
+
+
+def test_newest_witness_uses_job_started_at_never_head_sha(monkeypatch):
+    """Ein Lauf mit veraltetem ``merge_sha`` (Save-Workflow forwardet auf
+    main, der Lauf misst also nicht denselben Commit wie der Merge), dessen
+    Zeugen-JOB aber NACH ``merged_at`` startete, muss trotzdem als Zeuge
+    gelten -- die Entscheidung haengt ausschliesslich an ``started_at``.
+    """
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z", "merge_sha": "STALE_SHA_NOT_THE_RUN"},
+    )
+    fake = _fake_gh(
+        list_output="32620808573\n",
+        job_responses={"32620808573": "2026-08-23T05:38:38Z"},
+    )
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == "32620808573"
+
+
+def test_newest_witness_lists_by_status_not_conclusion(monkeypatch):
+    """Lauf 32620808573 (2026-08-23) hatte ``conclusion: failure`` und war
+    trotzdem der richtige Zeuge. Zwei Belege in einem Test: (1) die
+    tatsaechlich gebaute jq-Abfrage filtert nur auf ``status=="completed"``,
+    nie auf ``conclusion`` -- das ist die Eigenschaft selbst, nicht nur ihre
+    Auswirkung; (2) ein solcher Lauf wird trotzdem als Zeuge akzeptiert.
+    """
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="5013", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    # Simuliert den roten Lauf: die Liste enthaelt seine Id ueberhaupt nur,
+    # WEIL die echte jq-Abfrage status statt conclusion filtert -- das prueft
+    # die Assertion unten an der tatsaechlichen Abfrage-Zeichenkette, nicht
+    # an diesem Stub (ein Stub kann jq-Semantik nicht ausfuehren).
+    fake = _fake_gh(
+        list_output="32620808573\n",
+        job_responses={"32620808573": "2026-08-23T05:38:38Z"},
+    )
+    monkeypatch.setattr(mod, "_gh", fake)
+
+    result = mod.newest_witness(entry)
+
+    assert result == "32620808573"
+    list_call = next(c for c in fake.calls if "/runs?per_page=50" in " ".join(c))
+    query = list_call[-1]
+    assert query == '.workflow_runs[] | select(.status=="completed") | .id'
+    assert "conclusion" not in query
+
+
+def test_newest_witness_never_crowns_a_json_error_body_as_a_witness(monkeypatch):
+    """Ein `gh api`-Fehlerkoerper (roh wie er STDOUT erreichen wuerde, waere
+    er nicht schon durch den Rueckgabecode-Filter in ``_gh()`` verworfen --
+    2026-08-24 gemessen: ein echter 404 liefert ``returncode=1``, `_gh()`
+    gibt dafuer bereits "" zurueck) darf NIE als Zeitstempel durchgehen: '{'
+    ist ASCII-groesser als jede Ziffer, ein reiner Groessenvergleich wuerde
+    jeden echten Zeitstempel schlagen. Die Formpruefung ist die zweite,
+    von ``_gh()``s Filter unabhaengige Verteidigungslinie -- dieser Test
+    haelt SIE fest, unabhaengig davon, ob der 404-Pfad sie in der Praxis
+    heute erreicht.
+    """
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    error_body = (
+        '{"message":"Not Found","documentation_url":'
+        '"https://docs.github.com/rest/actions/workflow-jobs'
+        '#list-jobs-for-a-workflow-run","status":"404"}'
+    )
+    fake = _fake_gh(
+        list_output="999999999\n",
+        job_responses={"999999999": error_body},
+    )
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == ""
+
+
 # --- Monitor: uebersprungen darf nie wie "kein Zeuge" aussehen -------------
 #
 # Der Monitor urteilt nur ueber evidence_source == "artifact" -- er holt keine
@@ -567,6 +694,13 @@ def test_dormant_past_its_deadline_is_overdue_not_ok():
 
 
 def test_a_job_log_entry_is_marked_unjudged_not_missing_witness():
+    """Pinnt den EXAKTEN Text des dedizierten job_log-Zweigs, nicht nur, dass
+    "job_log" irgendwo im Ergebnis vorkommt. Fix-Runde 1 (2026-08-24), Fund
+    des Pruefers: entfernt man den dedizierten Zweig, faengt der generische
+    Fallback (``evidence_source != "artifact"``) dieselbe Fixture auf und
+    liefert ``"evidence_source='job_log' unbekannt"`` -- ein
+    ``in``-Substring-Test bleibt gruen, weil ``repr("job_log")`` die
+    Zeichenkette "job_log" enthaelt, obwohl der FALSCHE Zweig feuerte."""
     from scripts.judge_proof_ledger import unjudged_reason
     from scripts.proof_ledger import ProofEntry
 
@@ -575,12 +709,16 @@ def test_a_job_log_entry_is_marked_unjudged_not_missing_witness():
         owner="operator", judge="tv_legend_click", witness="tv-save-consumer-source",
         witness_job="save", evidence_source="job_log", raw={},
     )
-    reason = unjudged_reason(entry)
-    assert reason, "ein job_log-Eintrag muss einen Grund tragen, nicht leer sein"
-    assert "job_log" in reason
+    assert unjudged_reason(entry) == "job_log — Monitor holt keine Logs"
 
 
 def test_a_defect_entry_without_a_judge_is_marked_unjudged():
+    """Pinnt den EXAKTEN Text des ``kind != "fix"``-Zweigs. Fix-Runde 1
+    (2026-08-24), Fund des Pruefers: diese Fixture hat AUCH kein ``judge``
+    gesetzt -- entfernt man den ``kind != "fix"``-Zweig, faengt der
+    nachfolgende ``not entry.judge``-Zweig dieselbe Fixture auf und liefert
+    "kein Urteiler deklariert". Ein reiner Wahrheitswert-Test (``assert
+    unjudged_reason(entry)``) unterscheidet die beiden Zweige nicht."""
     from scripts.judge_proof_ledger import unjudged_reason
     from scripts.proof_ledger import ProofEntry
 
@@ -588,7 +726,7 @@ def test_a_defect_entry_without_a_judge_is_marked_unjudged():
         id="klasse-h", kind="defect", claim="c", state="UNGESICHERT",
         due_by="2026-12-31", owner="operator", raw={},
     )
-    assert unjudged_reason(entry)
+    assert unjudged_reason(entry) == "kein fix-Eintrag"
 
 
 def test_an_artifact_fix_entry_with_a_judge_is_not_skipped():
