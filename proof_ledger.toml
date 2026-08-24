@@ -352,16 +352,16 @@ main()-Verdrahtung, die diese beiden Tests nicht sehen wuerden (sie rufen
 unjudged_reason() direkt, nicht main()).
 """
 
-[[unreachable_branch]]
-judge  = "proof_ledger_monitor_self"
-branch = "report_shaped_as_expected"
-reason = """
-2026-08-24: derselbe Grund wie bei report_empty -- kein Lauf, kein Korpus.
-Das ist der ERWARTETE Normalfall (PASS); ihn erst nach dem ersten echten Lauf
-ins Korpus aufzunehmen ist beabsichtigt, keine Luecke: ein synthetischer
-"gesunder" Fixture-Eintrag ohne echten Lauf dahinter waere eine erfundene
-Positivkontrolle, keine gemessene.
-"""
+# ENTFERNT 2026-08-24: die Deklaration von
+# proof_ledger_monitor_self.report_shaped_as_expected. Sie sagte selbst, was
+# sie aufloesen wuerde -- "ihn erst nach dem ersten echten Lauf ins Korpus
+# aufzunehmen ist beabsichtigt" -- und genau das ist eingetreten: der erste
+# CI-Lauf des Monitors (32707630964) hat einen Report geschrieben, er liegt
+# als tests/proof_corpus/proof_ledger_monitor_self/32707630964.json, und der
+# Urteiler erreicht darueber den PASS-Zweig mit echter Evidenz. Eine
+# Deklaration, deren Bedingung entfallen ist, muss weg, sonst nimmt sie dem
+# Anti-Vakuitaetstest genau den Zweig aus der Pruefung, der jetzt beweisbar
+# ist.
 
 # ---------------------------------------------------------------------------
 # Eintraege. Stand 2026-08-23 05:49Z.
@@ -537,7 +537,20 @@ artifact        = "proof-ledger-monitor-report"
 version_probe   = "KEINE"
 version_probe_reason = "Evidenz ist eine Liste von Report-Zeilen, keine Feld-Praesenz-Probe moeglich; der Urteiler prueft jede Zeile inhaltlich"
 judge           = "proof_ledger_monitor_self"
-state           = "OFFEN"
+# BEZEUGT 2026-08-24, und zwar von sich selbst. Nachvollziehbar an zwei
+# Lauf-Ids: der erste CI-Lauf des Monitors (32707630964) schrieb seinen Report
+# als Artefakt; der zweite (32707750199) fand ihn ueber witness_job="judge" als
+# Zeugen, holte das Artefakt und urteilte darueber per
+# proof_ledger_monitor_self -> PASS, Zweig report_shaped_as_expected. Der
+# zweite Lauf meldete den Eintrag als "deklariert=OFFEN gemessen=PASS"; diese
+# Zeile zieht die Deklaration nach.
+#
+# Warum ZWEI Laeufe noetig waren und das kein Mangel ist: ein Lauf kann sich
+# nicht bezeugen, waehrend er laeuft -- sein Artefakt entsteht erst an seinem
+# Ende. Der erste Lauf stand deshalb zu Recht auf KEIN_ZEUGE.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32707630964"
 due_by          = "2026-09-06"
 owner           = "operator"
 
