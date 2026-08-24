@@ -884,9 +884,12 @@ mit ersetztem Action-SHA ergibt PASS/download_geliefert ("1x gefunden, 1x
 geladen"). Das ist eine Positivkontrolle des Zweiges, kein Beweis des Bumps --
 darum steht der Eintrag 5037 auf OFFEN und nicht auf PASS.
 
-Schliesst sich selbst: der erste promotion-gate-daily-Lauf nach dem Merge
-faehrt v24. Wird sein Log als Korpus aufgezeichnet, macht der
-Widerspruchs-Test diese Deklaration rot und erzwingt ihre Entfernung.
+Schliesst sich selbst, und zwar OHNE menschliches Gedaechtnis: 5037 laesst sich
+nicht auf PASS setzen ohne einen Korpus, der den PASS-Zweig erreicht
+(test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass). Ein
+solcher Korpus traegt v24, erreicht damit `download_geliefert`, und das macht
+diese Deklaration im Widerspruchs-Test rot. Der Abschluss des Eintrags erzwingt
+also die Entfernung dieser Zeile.
 """
 
 [[unreachable_branch]]

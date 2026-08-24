@@ -170,6 +170,45 @@ def test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction():
     )
 
 
+def test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass():
+    """Der fehlende Ring — ohne ihn haengt der Widerspruchs-Test in der Luft.
+
+    ``test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction``
+    feuert nur, WENN jemand den Lauf als Korpus aufzeichnet. Dieser Schritt war
+    unmechanisiert: der Monitor koennte einen Zweig in Produktion laufend
+    erreichen, waehrend der Korpus alt bleibt und die Tot-Erklaerung ewig
+    stehen bleibt. Eine Absicherung, die auf "jemand denkt daran" endet, ist
+    keine.
+
+    Hier geschlossen: wer einen Eintrag auf PASS setzt, behauptet, der Beweis
+    sei erbracht. Dann muss der Korpus das ZEIGEN koennen. Damit haengt das
+    Aufzeichnen nicht mehr am Gedaechtnis, sondern am Abschluss selbst — und
+    fuer #5037 schliesst das die Kette: 5037 laesst sich nicht auf PASS setzen
+    ohne v24-Korpus, der v24-Korpus erreicht ``download_geliefert``, und das
+    macht dessen Tot-Erklaerung im Test darueber rot.
+
+    Gemessen 2026-08-24 beim Einbau: alle vier bestehenden PASS-Eintraege
+    (5013, 5025, 5020, task7-proof-ledger-monitor) erfuellen das bereits. Der
+    Test haelt den Zustand, er faerbt nichts nachtraeglich rot.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    ungedeckt = []
+    for entry in load_entries():
+        if entry.state != "PASS" or not entry.judge:
+            continue
+        judge = load_judge(entry.judge)
+        states = {judge.judge(ev, entry).state for _, ev in corpus_for(entry.judge)}
+        if "PASS" not in states:
+            ungedeckt.append(f"{entry.id} ({entry.judge}): Korpus ergibt {sorted(states)}")
+
+    assert not ungedeckt, (
+        "PASS behauptet, aber kein aufgezeichneter Lauf erreicht den "
+        f"PASS-Zweig: {sorted(ungedeckt)}. Den bezeugenden Lauf unter "
+        "tests/proof_corpus/<judge>/<job_id>.json aufzeichnen."
+    )
+
+
 def test_a_malformed_entry_is_refused_loudly(tmp_path, monkeypatch):
     """Mutationsprobe: ein Eintrag ohne owner darf nicht still durchrutschen."""
     import scripts.proof_ledger as mod
