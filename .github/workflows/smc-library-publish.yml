@@ -287,7 +287,7 @@ jobs:
       # erzeugte Bibliothek und werden hier nach $GITHUB_OUTPUT zurueckgelesen.
       # Damit haengt keine Bedingung an einer API, die sie nicht liefert.
       - name: Download refresh payload
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        uses: dawidd6/action-download-artifact@d63b86af1b34672e53c440b1b83979861906bad7 # v24
         with:
           workflow: smc-library-refresh.yml
           run_id: ${{ github.event_name == 'workflow_dispatch' && inputs.source_run_id || github.event.workflow_run.id }}
