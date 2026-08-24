@@ -1,0 +1,130 @@
+name: proof-ledger-monitor
+# live-window: mutating-on-cron  # schedule + issues:write (Beweis-Ledger Alert)
+
+# Die netzgebundene Haelfte des Beweis-Ledgers (proof_ledger.toml). Sie holt
+# Zeugen, urteilt und meldet -- und schreibt das Ledger NIE zurueck.
+# Zustandsaenderungen macht ein Mensch im PR, wo
+# scripts/check_proof_ledger.py (netzlos, in smc-fast-pr-gates) sie prueft.
+# Ein Bot mit Schreibrecht auf die Beweisfuehrung ist genau die Konstruktion,
+# durch die der Library-Refresh-Bot am 31.7. zweimal durch den R1-Vertrag
+# gelaufen ist.
+#
+# 06:47 UTC daily -- nach workflow-freshness-monitor (06:30, hat sein Fenster
+# schon verlassen) und vor meta-watchdog (07:15), kollisionsfrei mit den
+# anderen 06:xx-Crons (credential-health-check 06:00,
+# live-overlay-deploy-trigger-guard 06:17).
+on:
+  schedule:
+    - cron: "47 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proof-ledger-monitor
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  judge:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # issues:write nur hier (least privilege): dieser Job enthaelt den
+      # Issue-Step, die Workflow-Ebene bleibt contents:read.
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Judge the ledger
+        id: judge
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set +e
+          python -m scripts.judge_proof_ledger \
+            --today "$(date -u +%F)" --json proof_ledger_monitor_report.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          rc=$?
+          set -e
+          echo "loud=$rc" >> "$GITHUB_OUTPUT"
+          # NICHT hier exiten -- der Issue-Step unten braucht das Ergebnis
+          # zuerst; der letzte Step re-surfaced rc explizit.
+
+      - name: Upload report artifact
+        # Der Monitor ist selbst beweispflichtig (jede Workflow-Datei ist es
+        # unbedingt, scripts/proof_class.py) -- dieser Report ist der Zeuge
+        # fuer den eigenen Ledger-Eintrag (Urteiler
+        # scripts/proof_judges/proof_ledger_monitor_self.py). Dateiname des
+        # hochgeladenen Artefakts muss exakt dem Muster folgen, das
+        # scripts/judge_proof_ledger.py._judge_entry() ableitet
+        # (Artefaktname mit "-" -> Dateiname mit "_", ".json"-Endung).
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: proof-ledger-monitor-report
+          path: proof_ledger_monitor_report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Open or update the one issue
+        if: steps.judge.outputs.loud != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Repo hier kann Issues deaktiviert haben -- `gh issue list`/`create`/
+          # `edit` wuerde hart fehlschlagen und faelschlicherweise wie ein
+          # kaputter Monitor aussehen, obwohl die eigentliche Alarmierung (Step
+          # Summary oben + der Job-Fail im letzten Step) korrekt funktioniert.
+          # Degradiere hier weich statt den Job zu crashen (gleiches Muster wie
+          # meta-watchdog.yml / workflow-freshness-monitor.yml).
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=proof-ledger-monitor::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kann kein Alert-Issue oeffnen/aktualisieren. Step Summary oben und der Job-Fail im naechsten Step sind bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
+          title="Beweis-Ledger: Eintraege brauchen einen Menschen"
+          body="$(python - <<'PY'
+          import json
+          rows = json.load(open("proof_ledger_monitor_report.json"))
+          loud = [r for r in rows if r["class"] != "OK"]
+          print("Stand des automatischen Urteils. Das Ledger wird NICHT vom Bot")
+          print("geaendert -- Zustandsaenderungen gehoeren in einen PR.\n")
+          for r in loud:
+              print(f"- **{r['class']}** `{r['id']}` — deklariert `{r['declared']}`, "
+                    f"gemessen `{r['measured']}` (Zweig `{r['branch']}`), "
+                    f"faellig {r['due_by']}, Halter @{r['owner']}"
+                    + (f", Lauf {r['run']}" if r["run"] else ""))
+          PY
+          )"
+          existing="$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$title in:title" --json number --jq '.[0].number // ""')"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --repo "$GH_REPO" --body "$body"
+          else
+            gh issue create --repo "$GH_REPO" --title "$title" --body "$body"
+          fi
+
+      - name: Fail the job when something needs a human
+        if: always() && steps.judge.outputs.loud != '' && steps.judge.outputs.loud != '0'
+        run: |
+          echo "::error title=proof-ledger-monitor::${{ steps.judge.outputs.loud }} Ledger-Eintrag/Eintraege sind UEBERFAELLIG oder ein WIDERSPRUCH -- siehe Step Summary oben und das Alert-Issue."
+          exit 1

@@ -312,6 +312,58 @@ hier defensiver Code fuer die Abholung, keine Aussage ueber Lauf-Varianten.
 """
 
 # ---------------------------------------------------------------------------
+# Task 7 (2026-08-24): proof_ledger_monitor_self urteilt ueber den Report des
+# Monitors selbst (scripts/judge_proof_ledger.py). Der Workflow, der diesen
+# Zeugen erzeugen wuerde (.github/workflows/proof-ledger-monitor.yml), ist
+# Teil DIESER Aenderung -- er existiert noch auf keinem main-Commit und kann
+# folglich noch keinen einzigen Lauf erzeugt haben. Alle drei Zweige sind
+# deshalb KONSTRUKTIONSBEDINGT unbeobachtet, nicht bloss selten -- der Korpus
+# kann fruehestens nach dem ersten geplanten oder manuell ausgeloesten Lauf
+# entstehen. Erfundene Korpus-Dateien waeren hier keine Messung, sondern
+# genau die Behauptung ohne Beleg, die dieses Ledger verhindern soll.
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "report_empty"
+reason = """
+2026-08-24: .github/workflows/proof-ledger-monitor.yml ist Teil dieses PRs
+und hat noch nie gelaufen -- weder geplant (erster Cron-Slot liegt in der
+Zukunft) noch per workflow_dispatch. tests/proof_corpus/proof_ledger_monitor_self/
+kann deshalb keine echte Aufzeichnung enthalten, in der der Report leer
+ausfaellt oder keine Liste ist. Reachable, sobald load_entries() jemals leer
+zurueckkaeme (kaputtes TOML wird schon von check_proof_ledger.py als rc=2
+gefangen, s. scripts/proof_ledger.py) -- bislang nicht beobachtbar, weil noch
+kein einziger Lauf existiert.
+"""
+
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "skip_mislabeled_as_missing_witness"
+reason = """
+2026-08-24: derselbe Grund wie bei report_empty -- kein Lauf, kein Korpus.
+Inhaltlich ist dies der Zweig, den Task 7 explizit verhindern sollte: eine
+uebersprungene Pruefung (evidence_source != "artifact", z. B. #5018/#5027 mit
+job_log), die im Report als KEIN_ZEUGE statt als KEIN_URTEIL erscheint.
+tests/test_proof_ledger.py::test_a_job_log_entry_is_marked_unjudged_not_missing_witness
+und ::test_a_defect_entry_without_a_judge_is_marked_unjudged decken die
+Quelle (scripts.judge_proof_ledger.unjudged_reason) bereits per Unit-Test ab
+-- dieser Zweig ist die Absicherung GEGEN eine kuenftige Regression an der
+main()-Verdrahtung, die diese beiden Tests nicht sehen wuerden (sie rufen
+unjudged_reason() direkt, nicht main()).
+"""
+
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "report_shaped_as_expected"
+reason = """
+2026-08-24: derselbe Grund wie bei report_empty -- kein Lauf, kein Korpus.
+Das ist der ERWARTETE Normalfall (PASS); ihn erst nach dem ersten echten Lauf
+ins Korpus aufzunehmen ist beabsichtigt, keine Luecke: ein synthetischer
+"gesunder" Fixture-Eintrag ohne echten Lauf dahinter waere eine erfundene
+Positivkontrolle, keine gemessene.
+"""
+
+# ---------------------------------------------------------------------------
 # Eintraege. Stand 2026-08-23 05:49Z.
 #
 # Aufnahmequote, GEMESSEN 2026-08-23 (Task 0): 43 von 200 gemergten PRs = 21 %,
@@ -442,6 +494,42 @@ artifact        = ""
 version_probe   = "KEINE"
 version_probe_reason = "Dialoganzahl-Spur existiert, Wortlaut noch nicht gemessen"
 judge           = "tv_legend_click"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Task 7 (2026-08-24): der Monitor selbst ist beweispflichtig -- jede
+# Workflow-Datei ist es unbedingt (scripts/proof_class.py derive_class()
+# nimmt ALLE Workflow-Dateien bedingungslos auf, kein Sonderfall fuer
+# "Meta"-/Tooling-Workflows). "exempt/AUSGENOMMEN" waere hier unehrlich:
+# das ist per Definition fuer Kommentar/Umbenennung/Formatierung reserviert,
+# nicht fuer 100+ neue Zeilen realer, netzgebundener Funktionalitaet
+# (GitHub-API-Zeugensuche, Issue-Oeffnen/-Aktualisieren). Der Zeuge ist der
+# Monitor-Workflow selbst: sein eigener Report
+# (proof_ledger_monitor_report.json) wird als Artefakt hochgeladen und von
+# scripts/proof_judges/proof_ledger_monitor_self.py inhaltlich geprueft --
+# das ist ein echter, taeglich wiederkehrender Selbst-Check, kein einmaliger
+# Beleg.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "task7-proof-ledger-monitor"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der scheduled Monitor holt Zeugen ueber evidence_source==\"artifact\", urteilt korrekt, und meldet Widersprueche/Ueberfaelligkeiten in genau ein Issue -- ohne das Ledger zurueckzuschreiben. Insbesondere: ein uebersprungener Eintrag (evidence_source==\"job_log\" oder kind!=\"fix\") erscheint im Report NIE als KEIN_ZEUGE, sondern als KEIN_URTEIL(<Grund>)."
+witness         = "proof-ledger-monitor"
+witness_job     = "judge"
+evidence_source = "artifact"
+artifact        = "proof-ledger-monitor-report"
+# Evidenz ist eine LISTE von Report-Zeilen, kein Objekt mit benannten Feldern
+# -- has_path() (Feld-Praesenz-Probe) passt strukturell nicht auf eine Liste.
+# Derselbe Formfehler wie bei "has-path-field-vs-value-probe" unten, hier aus
+# einem anderen Grund (Listen- statt Objektform statt Wert- statt
+# Namensaenderung eines Feldes).
+version_probe   = "KEINE"
+version_probe_reason = "Evidenz ist eine Liste von Report-Zeilen, keine Feld-Praesenz-Probe moeglich; der Urteiler prueft jede Zeile inhaltlich"
+judge           = "proof_ledger_monitor_self"
 state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "operator"

@@ -499,3 +499,188 @@ def test_every_judge_branch_is_reached_by_real_evidence_or_is_declared():
             f"sie erreicht, oder sie in proof_ledger.toml unter "
             f"[[unreachable_branch]] mit Grund eintragen."
         )
+
+
+# --- Monitor (Task 7) -------------------------------------------------------
+
+
+def test_a_declared_pass_that_measures_fail_is_a_contradiction():
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="PASS", pass_kind="live",
+        due_by="2026-12-31", owner="operator", raw={},
+    )
+    assert classify(entry, Verdict("FAIL", branch="b"), "2026-08-23") == "WIDERSPRUCH"
+
+
+def test_an_open_entry_past_its_deadline_is_overdue():
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="OFFEN",
+        due_by="2026-08-01", owner="operator", raw={},
+    )
+    assert classify(entry, Verdict("STEHT_AUS", branch="b"), "2026-08-23") == "UEBERFAELLIG"
+
+
+def test_a_terminal_entry_is_never_overdue():
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="exempt", claim="c", state="AUSGENOMMEN",
+        due_by="2026-08-01", owner="operator", raw={},
+    )
+    assert classify(entry, Verdict("SCHLAFEND", branch="b"), "2026-08-23") == "OK"
+
+
+def test_dormant_past_its_deadline_is_overdue_not_ok():
+    """SCHLAFEND ist ein Durchgangszustand. Genau hier verdunstet es sonst."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="SCHLAFEND",
+        due_by="2026-08-01", owner="operator",
+        unreachable_because="symbol:scripts/proof_ledger.py#load_entries", raw={},
+    )
+    assert classify(entry, Verdict("SCHLAFEND", branch="b"), "2026-08-23") == "UEBERFAELLIG"
+
+
+# --- Monitor: uebersprungen darf nie wie "kein Zeuge" aussehen -------------
+#
+# Der Monitor urteilt nur ueber evidence_source == "artifact" -- er holt keine
+# Job-Logs. #5018/#5027 (evidence_source == "job_log") werden deshalb
+# strukturell uebersprungen. Ohne diese Unterscheidung wuerde main() sie mit
+# "KEIN_ZEUGE" beschriften -- demselben Text wie einen artifact-Eintrag, fuer
+# den wirklich gesucht und nichts gefunden wurde. Eine uebersprungene Pruefung,
+# die wie eine bestandene (oder wie eine erfolglos durchgefuehrte) aussieht,
+# ist genau der Defekt, gegen den dieses Ledger gebaut wurde -- deshalb ist
+# unjudged_reason() eine eigene, getestete Funktion und kein Kommentar.
+
+
+def test_a_job_log_entry_is_marked_unjudged_not_missing_witness():
+    from scripts.judge_proof_ledger import unjudged_reason
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="5018", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", judge="tv_legend_click", witness="tv-save-consumer-source",
+        witness_job="save", evidence_source="job_log", raw={},
+    )
+    reason = unjudged_reason(entry)
+    assert reason, "ein job_log-Eintrag muss einen Grund tragen, nicht leer sein"
+    assert "job_log" in reason
+
+
+def test_a_defect_entry_without_a_judge_is_marked_unjudged():
+    from scripts.judge_proof_ledger import unjudged_reason
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="klasse-h", kind="defect", claim="c", state="UNGESICHERT",
+        due_by="2026-12-31", owner="operator", raw={},
+    )
+    assert unjudged_reason(entry)
+
+
+def test_an_artifact_fix_entry_with_a_judge_is_not_skipped():
+    """Positivkontrolle: unjudged_reason() darf nicht pauschal alles ausschliessen."""
+    from scripts.judge_proof_ledger import unjudged_reason
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="5013", kind="fix", claim="c", state="PASS", due_by="2026-12-31",
+        owner="operator", judge="tv_partial_save", witness="tv-save-consumer-source",
+        witness_job="save", evidence_source="artifact", raw={},
+    )
+    assert unjudged_reason(entry) == ""
+
+
+# --- Monitor-Workflow-Vertrag (Task 7) --------------------------------------
+
+
+def test_the_monitor_workflow_calls_the_judge_and_never_writes_the_ledger_back():
+    """Zwei Dinge in einem Test:
+
+    1. Orphan-Inventory-Pflicht (``tests/test_workflow_orphan_inventory.py``):
+       jeder Workflow braucht mindestens eine echte Testreferenz auf seinen
+       Basisnamen -- eine ``ALLOWED_ORPHANS``-Ausnahme waere Prosa statt
+       Mechanismus fuer genau die Klasse, die dieses Ledger abbauen soll.
+    2. Der eigentliche Vertrag: der Monitor ruft ``scripts.judge_proof_ledger``
+       auf und schreibt proof_ledger.toml NIE zurueck -- ein Bot mit
+       Schreibrecht auf die Beweisfuehrung ist genau die Konstruktion, durch
+       die der Library-Refresh-Bot am 31.7. zweimal durch den R1-Vertrag lief.
+    """
+    import yaml
+
+    from scripts.proof_ledger import ROOT
+
+    path = ROOT / ".github" / "workflows" / "proof-ledger-monitor.yml"
+    assert path.is_file()
+    text = path.read_text(encoding="utf-8")
+    assert "python -m scripts.judge_proof_ledger" in text
+    assert "git commit" not in text
+    assert "git push" not in text
+
+    workflow = yaml.safe_load(text)
+    # PyYAML parst den bloss stehenden Schluessel `on:` als Bool True, nicht
+    # als String "on" -- derselbe Rueckfall wie in
+    # tests/test_workflow_live_window_posture.py::_trigger_keys.
+    triggers = workflow.get(True, workflow.get("on", {}))
+    assert "schedule" in triggers
+
+
+# --- proof_ledger_monitor_self: der Monitor urteilt ueber den eigenen Report
+#
+# Der Monitor ist selbst beweispflichtig (proof_ledger.toml, Eintrag
+# "task7-proof-ledger-monitor"). Alle drei Zweige stehen als
+# [[unreachable_branch]] im Ledger -- der Workflow hat noch nie gelaufen,
+# also gibt es noch keinen echten Korpus. Diese drei Tests pruefen den
+# Urteiler trotzdem direkt (derselbe Stil wie test_entry_5025_can_never_reach_pre_fix_code
+# oben), damit die Logik selbst schon VOR dem ersten echten Lauf abgesichert ist.
+
+
+def test_proof_ledger_monitor_self_fails_on_an_empty_report():
+    from scripts.proof_judges import proof_ledger_monitor_self
+
+    verdict = proof_ledger_monitor_self.judge([], None)
+    assert verdict.state == "FAIL"
+    assert verdict.branch == "report_empty"
+
+
+def test_proof_ledger_monitor_self_fails_when_a_skip_looks_like_a_missing_witness():
+    """Genau der Defekt, gegen den Task 7 gebaut wurde: ein uebersprungener
+    Eintrag (evidence_source != "artifact", z. B. #5018 mit job_log), der im
+    Report als KEIN_ZEUGE erscheint statt als KEIN_URTEIL(...)."""
+    from scripts.proof_judges import proof_ledger_monitor_self
+
+    report = [{"id": "5018", "evidence_source": "job_log", "measured": "KEIN_ZEUGE"}]
+    verdict = proof_ledger_monitor_self.judge(report, None)
+    assert verdict.state == "FAIL"
+    assert verdict.branch == "skip_mislabeled_as_missing_witness"
+
+
+def test_proof_ledger_monitor_self_passes_on_a_well_shaped_report():
+    """Positivkontrolle: ein job_log-Eintrag, der ehrlich als KEIN_URTEIL
+    beschriftet ist, darf den Selbst-Urteiler nicht faelschlich FAILen."""
+    from scripts.proof_judges import proof_ledger_monitor_self
+
+    report = [
+        {"id": "5013", "evidence_source": "artifact", "measured": "PASS"},
+        {
+            "id": "5018",
+            "evidence_source": "job_log",
+            "measured": "KEIN_URTEIL (job_log — Monitor holt keine Logs)",
+        },
+    ]
+    verdict = proof_ledger_monitor_self.judge(report, None)
+    assert verdict.state == "PASS"
+    assert verdict.branch == "report_shaped_as_expected"

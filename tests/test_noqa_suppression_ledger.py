@@ -156,6 +156,20 @@ _FROZEN_SITES: dict[str, int] = {
     # commit-author guard directly above; the argument list is a literal, no
     # shell, and the range comes from the workflow's own base/head SHAs.
     "scripts/check_r1_attested_sources.py": 2,
+    # 2026-08-23 (proof-ledger Task 6, gap found and closed 2026-08-24 while
+    # adding the sibling entry below): two `git` subprocess calls
+    # (`_changed_files`, `_ledger_ids_at`), each with the same fixed-argv,
+    # no-shell shape as check_r1_attested_sources.py above -- 2x (S603 +
+    # S607) = 4. Task 6 added the file without registering it here; this
+    # ledger's own `tests` exclusion made the gap invisible to
+    # `test_no_new_noqa_files` until Task 7 staged a second file in the same
+    # module and the check ran over tracked files again.
+    "scripts/check_proof_ledger.py": 4,
+    # 2026-08-24 (proof-ledger Task 7): one `gh` subprocess call (`_gh`),
+    # same fixed-argv, no-shell shape as check_r1_attested_sources.py /
+    # check_proof_ledger.py above (S603 + S607) -- the network-bound half of
+    # the same ledger, `gh` instead of `git`.
+    "scripts/judge_proof_ledger.py": 2,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,
