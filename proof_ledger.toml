@@ -848,3 +848,134 @@ claim  = "Der Determinismus-Kommentar an der Dauer-Aufzeichnung wird auf die Mes
 state  = "AUSGENOMMEN"
 due_by = "2026-08-24"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# 2026-08-24: der erste Dependency-Bump, seit es dieses Ledger gibt. Ein
+# Action-Bump ist NICHT "exempt": exempt meint Kommentar, Umbenennung,
+# Formatierung -- Beruehrungen ohne Wirkung. Diese hier hat Wirkung, und ihre
+# Ausfallart ist die stille.
+#
+# Gemessen am Diff: 18 Verwendungen der Action in den sieben Workflows, davon
+# 11 fail-soft (plan-2-8-weekly-digest 7, promotion-gate-daily 1,
+# adr0023-magnitude-shadow-daily 2, plan-2-8-monthly-digest 1). Braeche v24
+# den Download, blieben diese elf leer STATT laut.
+#
+# Zeuge ist bewusst ein TAEGLICHER Workflow: die Artefaktnamen der taeglichen
+# Laeufe sind datumsabhaengig und damit fuer evidence_source="artifact"
+# unauffindbar -- ueber das Job-Log spielt der Name keine Rolle, und der
+# Beweis steht nach einem Tag statt nach einer Woche.
+#
+# ABHAENGIGKEIT, ausdruecklich: der Monitor auf main holt heute KEINE Logs
+# (judge_proof_ledger.unjudged_reason -> "job_log -- Monitor holt keine
+# Logs"). Bis PR #5047 landet, meldet dieser Eintrag darum KEIN_URTEIL mit
+# genau diesem Grund -- sichtbar unbeurteilt, nicht faelschlich gruen. Er
+# beginnt zu urteilen, sobald #5047 gemergt ist.
+
+[[proof]]
+id              = "5037"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "action-download-artifact v24 liefert weiter; ohne diesen Beweis wuerden 11 fail-soft-Downloads bei einem Bruch still leer laufen statt zu scheitern"
+witness         = "promotion-gate-daily"
+witness_job     = "promotion-gate"
+evidence_source = "job_log"
+artifact        = ""
+# Der Runner druckt beim Laden jeder Action ihre aufgeloeste SHA
+# ("Download action repository '<repo>@<sha>'"). Dieser SHA existiert im Log
+# erst seit diesem PR -- deterministisch, kein geratenes Muster.
+version_probe   = "d63b86af1b34672e53c440b1b83979861906bad7"
+judge           = "artifact_download"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# --- Zweige von artifact_download (#5037) ----------------------------------
+# Gemeinsame Wurzel aller vier: die Versionsprobe laeuft ZUERST und ist ein
+# Commit-SHA, den es vor diesem PR nirgends gibt. Kein heute existierendes Log
+# kann daher einen Zweig DAHINTER erreichen -- der aufgezeichnete Korpus
+# (97463068400, promotion-gate-daily vom 2026-08-24) faehrt v21 und landet
+# korrekt auf `zeuge_faehrt_noch_v21`.
+#
+# Ein echtes v24-Log liesse sich vor dem Merge nur durch einen
+# `workflow_dispatch` auf den PR-Branch erzeugen. Gemessen am 2026-08-24 hat
+# von den sieben betroffenen Workflows KEINER eine nebenwirkungsfreie
+# Dispatch-Moeglichkeit: promotion-gate-daily und adr0023-magnitude-shadow-daily
+# committen (`contents: write` + `gh pr create`), smc-library-publish und
+# smc-library-refresh publizieren nach TradingView, plan-2-8-weekly-digest und
+# -monthly-digest legen Issues an (`issues: write`). Ein Beweislauf, der
+# Fremdzustand hinterlaesst, ist den Beweis nicht wert.
+#
+# DIESE DEKLARATIONEN VERROTTEN NICHT STILL: seit diesem PR faellt
+# test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction
+# rot aus, sobald ein aufgezeichneter Lauf einen hier tot erklaerten Zweig
+# erreicht. Der erste v24-Zeuge nach dem Merge erzwingt damit selbst, dass
+# `download_geliefert` hier verschwindet -- kein menschliches Gedaechtnis noetig.
+
+[[unreachable_branch]]
+judge  = "artifact_download"
+branch = "download_geliefert"
+reason = """
+Der ERWARTETE Zweig, und deshalb der wichtigste Eintrag hier: er ist nicht tot,
+sondern noch nicht geboren. Er verlangt ein Job-Log, in dem der v24-SHA
+d63b86af1b34672e53c440b1b83979861906bad7 steht; vor dem Merge dieses PRs
+existiert kein solcher Lauf, und ein Dispatch zum Erzeugen haette bei jedem der
+sieben Workflows Fremdwirkung (Commit, TradingView-Publish oder Issue).
+
+Nachgewiesen erreichbar ist er trotzdem, ohne Korpus-Luege: dasselbe echte Log
+mit ersetztem Action-SHA ergibt PASS/download_geliefert ("1x gefunden, 1x
+geladen"). Das ist eine Positivkontrolle des Zweiges, kein Beweis des Bumps --
+darum steht der Eintrag 5037 auf OFFEN und nicht auf PASS.
+
+Schliesst sich selbst, und zwar OHNE menschliches Gedaechtnis: 5037 laesst sich
+nicht auf PASS setzen ohne einen Korpus, der den PASS-Zweig erreicht
+(test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass). Ein
+solcher Korpus traegt v24, erreicht damit `download_geliefert`, und das macht
+diese Deklaration im Widerspruchs-Test rot. Der Abschluss des Eintrags erzwingt
+also die Entfernung dieser Zeile.
+"""
+
+[[unreachable_branch]]
+judge  = "artifact_download"
+branch = "gefunden_aber_nicht_geladen"
+reason = """
+Die Ausfallart, gegen die dieser Eintrag ueberhaupt steht: die Action meldet
+einen Fund, holt die Datei aber nicht. Sie ist in den aufgezeichneten Laeufen
+nie aufgetreten, und das ist der Normalfall -- ein Beweis-Zweig fuer einen
+Defekt ist genau dann erreichbar, wenn der Defekt eintritt.
+
+Sein Verhalten ist trotzdem gepruefte Mechanik, nicht Behauptung: aus dem
+echten Log erzeugt (Erfolgszeile entfernt, v24-SHA gesetzt) liefert er
+FAIL/gefunden_aber_nicht_geladen mit der gezaehlten Differenz. Bewusst FAIL und
+nicht PRUEFEN -- "gefunden, aber nichts geladen" ist in sich widerspruechlich
+und braucht keine zweite Meinung.
+"""
+
+[[unreachable_branch]]
+judge  = "artifact_download"
+branch = "kein_fund_im_log"
+reason = """
+Erreichbar nur, wenn v24 lief UND keine einzige (found)-Zeile im Log steht. Das
+hat zwei ununterscheidbare Ursachen -- der Download bricht, ODER es gab schlicht
+kein Vorgaenger-Artefakt zu finden (die fail-soft-Stellen holen Vorgaenger, und
+am ersten Lauf einer Kette existiert keiner). Weil das Log die beiden nicht
+trennt, urteilt der Zweig PRUEFEN statt FAIL: eine Anklage waere hier eine
+Behauptung ueber etwas, das die Evidenz nicht hergibt.
+
+Vor dem Merge unerreichbar aus derselben Wurzel wie die anderen: kein Log
+traegt den v24-SHA.
+"""
+
+[[unreachable_branch]]
+judge  = "artifact_download"
+branch = "kein_log"
+reason = """
+Feuert, wenn der Monitor den benannten Zeugen-Job nicht auffinden kann und ein
+leeres Log durchreicht. Im aufgezeichneten Korpus kommt das nicht vor -- die
+Aufzeichnung entsteht ja gerade aus einem erfolgreich geholten Log, der Zweig
+ist dort strukturell unerreichbar.
+
+Er ist die fail-closed-Kante des Urteilers: KANN_NICHT_BEZEUGEN statt PASS,
+damit ein Abrufproblem nie wie ein bestandener Beweis aussieht. Gleiche Rolle
+wie tv_legend_click.no_log, das aus demselben Grund hier steht.
+"""

@@ -130,6 +130,87 @@ def test_every_declared_unreachable_branch_carries_a_reason():
         )
 
 
+def test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction():
+    """Die Gegenrichtung zur Deklaration — und sie fehlte.
+
+    ``test_every_judge_branch_is_reached_by_real_evidence_or_is_declared``
+    prueft nur die eine Richtung: kein Zweig ohne Korpus-Treffer UND ohne
+    Deklaration. Ein Zweig, der tot erklaert ist und den der Korpus INZWISCHEN
+    erreicht, faellt dort durch beide Siebe — er ist ja "declared". Die
+    Deklaration konnte damit still veralten, und eine veraltete Deklaration ist
+    schlimmer als keine: sie behauptet, ein Zweig koenne nicht feuern, waehrend
+    er feuert.
+
+    Gemessen 2026-08-24 beim Einbau: 12 Deklarationen, 0 Widersprueche — der
+    Test faerbt also nichts nachtraeglich rot, er haelt den Zustand.
+
+    Er ist ausserdem der Mechanismus hinter den vier
+    ``artifact_download``-Deklarationen (#5037): die sind "noch nicht geboren",
+    nicht "tot". Sobald ein v24-Lauf als Korpus aufgezeichnet wird, faellt
+    ``download_geliefert`` hier auf und ERZWINGT die Entfernung seiner
+    Deklaration — statt sich auf ein menschliches Gedaechtnis zu verlassen.
+    """
+    from scripts.proof_judges import corpus_for, judge_names, load_judge
+
+    entries = load_entries()
+    dead = {(judge, branch) for judge, branch, _ in declared_unreachable_branches()}
+    assert dead, "keine Deklaration im Ledger — Positivkontrolle leer"
+
+    contradictions = []
+    for name in sorted(judge_names()):
+        entry = next(e for e in entries if e.judge == name)
+        judge = load_judge(name)
+        for run_id, evidence in corpus_for(name):
+            branch = judge.judge(evidence, entry).branch
+            if (name, branch) in dead:
+                contradictions.append(f"{name}.{branch} erreicht von Korpus {run_id}")
+
+    assert not contradictions, (
+        "tot erklaerte Zweige, die echte Evidenz erreicht: "
+        f"{sorted(contradictions)}. Die Deklaration in proof_ledger.toml "
+        "entfernen — der Zweig feuert."
+    )
+
+
+def test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass():
+    """Der fehlende Ring — ohne ihn haengt der Widerspruchs-Test in der Luft.
+
+    ``test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction``
+    feuert nur, WENN jemand den Lauf als Korpus aufzeichnet. Dieser Schritt war
+    unmechanisiert: der Monitor koennte einen Zweig in Produktion laufend
+    erreichen, waehrend der Korpus alt bleibt und die Tot-Erklaerung ewig
+    stehen bleibt. Eine Absicherung, die auf "jemand denkt daran" endet, ist
+    keine.
+
+    Hier geschlossen: wer einen Eintrag auf PASS setzt, behauptet, der Beweis
+    sei erbracht. Dann muss der Korpus das ZEIGEN koennen. Damit haengt das
+    Aufzeichnen nicht mehr am Gedaechtnis, sondern am Abschluss selbst — und
+    fuer #5037 schliesst das die Kette: 5037 laesst sich nicht auf PASS setzen
+    ohne v24-Korpus, der v24-Korpus erreicht ``download_geliefert``, und das
+    macht dessen Tot-Erklaerung im Test darueber rot.
+
+    Gemessen 2026-08-24 beim Einbau: alle vier bestehenden PASS-Eintraege
+    (5013, 5025, 5020, task7-proof-ledger-monitor) erfuellen das bereits. Der
+    Test haelt den Zustand, er faerbt nichts nachtraeglich rot.
+    """
+    from scripts.proof_judges import corpus_for, load_judge
+
+    ungedeckt = []
+    for entry in load_entries():
+        if entry.state != "PASS" or not entry.judge:
+            continue
+        judge = load_judge(entry.judge)
+        states = {judge.judge(ev, entry).state for _, ev in corpus_for(entry.judge)}
+        if "PASS" not in states:
+            ungedeckt.append(f"{entry.id} ({entry.judge}): Korpus ergibt {sorted(states)}")
+
+    assert not ungedeckt, (
+        "PASS behauptet, aber kein aufgezeichneter Lauf erreicht den "
+        f"PASS-Zweig: {sorted(ungedeckt)}. Den bezeugenden Lauf unter "
+        "tests/proof_corpus/<judge>/<job_id>.json aufzeichnen."
+    )
+
+
 def test_a_malformed_entry_is_refused_loudly(tmp_path, monkeypatch):
     """Mutationsprobe: ein Eintrag ohne owner darf nicht still durchrutschen."""
     import scripts.proof_ledger as mod
