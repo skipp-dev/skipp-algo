@@ -180,7 +180,8 @@ def _looks_like_an_iso8601_utc_timestamp(value: str) -> bool:
 
 
 def newest_witness(entry: ProofEntry) -> str:
-    """Lauf-Id des juengsten Laufs, dessen Zeugen-JOB nach dem Merge startete."""
+    """Lauf-Id des juengsten Laufs, dessen Zeugen-JOB nach dem Merge startete
+    und wirklich lief (``conclusion != "skipped"``)."""
     raw = _gh(
         "api",
         f"repos/{REPO}/actions/workflows/{entry.witness}.yml/runs?per_page=50",
@@ -203,7 +204,33 @@ def newest_witness(entry: ProofEntry) -> str:
             "api",
             f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100",
             "-q",
-            f'[.jobs[] | select(.name=="{entry.witness_job}") | .started_at][0] // ""',
+            # `skipped` ist AUSGESCHLOSSEN, dieselbe Klasse wie der
+            # cancelled-Ausschluss oben, eine Ebene tiefer: dort wurde der LAUF
+            # nie ein Zeuge, hier der JOB. Seit #4998 by design: das
+            # Supersessions-Gate der TV-Session-Gruppe cancelt nie, es
+            # UEBERSPRINGT den nachgelagerten "save"-Job -- der Lauf selbst
+            # bleibt completed/success (besteht also den cancelled-Filter
+            # oben klaglos), der Job traegt aber 0 Steps, kein Log, kein
+            # Artefakt. GEMESSEN 2026-08-24 an Lauf 32754064777: status=
+            # completed, conclusion=success, save-Job completed/skipped,
+            # started_at=2026-08-24T19:50:53Z -- ein FORM-gueltiger
+            # Zeitstempel ohne jede Arbeit dahinter. Ohne diesen Ausschluss
+            # wird dieser Lauf zum Zeugen gekuert, der Artefakt-Download bzw.
+            # Log-Abruf scheitert (404), und der Monitor meldet "API nicht
+            # erreichbar", obwohl die API gesund ist und schlicht nichts zu
+            # liefern hat. Das Wissen stand in der Vorgaenger-Sonde
+            # (tv_gate_probe_check.sh, eigenes Urteil "PASS -- SUPERSEDED")
+            # und ging beim Portieren zum DRITTEN Mal verloren -- nach dem
+            # cancelled-Ausschluss und der Job-Namensfilterung.
+            #
+            # KEIN Sonderfall fuer "Job noch ohne conclusion" noetig: die
+            # AEUSSERE Abfrage oben filtert bereits auf status=="completed"
+            # DES LAUFS. Ein Lauf gilt bei GitHub Actions erst dann als
+            # completed, wenn JEDER seiner Jobs beendet ist (ausgefuehrt,
+            # uebersprungen oder abgebrochen) -- ein Job ohne conclusion kann
+            # innerhalb eines bereits completed-Laufs also nicht vorkommen.
+            f'[.jobs[] | select(.name=="{entry.witness_job}") '
+            f'| select(.conclusion!="skipped") | .started_at][0] // ""',
         ).strip()
         # Auf FORM pruefen, nicht auf "nicht leer". `gh api` schreibt seinen
         # Fehler-Body zwar nach STDOUT -- gemessen 2026-08-24: ein echter 404

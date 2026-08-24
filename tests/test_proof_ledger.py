@@ -1369,6 +1369,116 @@ def test_newest_witness_skips_cancelled_runs():
     )
 
 
+def test_newest_witness_skips_a_superseded_job(monkeypatch):
+    """Dieselbe Klasse wie der cancelled-Ausschluss, eine Ebene tiefer: der
+    LAUF ist gruen (status completed, conclusion success, besteht den
+    cancelled-Filter klaglos), aber der ZEUGEN-JOB wurde vom Supersessions-
+    Gate der TV-Session-Gruppe uebersprungen (by design seit #4998 -- das Gate
+    cancelt nie, es ueberspringt den nachgelagerten 'save'-Job). Ein
+    uebersprungener Job hat 0 Steps, kein Log, kein Artefakt -- aber einen
+    FORM-gueltigen ``started_at``, besteht also die Zeitstempel-Formpruefung
+    und wuerde ohne eigenen Ausschluss zum Zeugen gekuert.
+
+    GEMESSEN 2026-08-24 an Lauf 32754064777: status=completed,
+    conclusion=success, save-Job completed/skipped,
+    started_at=2026-08-24T19:50:53Z. Das Wissen stand in der Vorgaenger-Sonde
+    (tv_gate_probe_check.sh, eigenes Urteil "PASS -- SUPERSEDED") und ging
+    beim Portieren zum DRITTEN Mal verloren -- nach dem cancelled-Ausschluss
+    und der Job-Namensfilterung.
+
+    Der Fake bildet echtes jq-Verhalten nach (wertet den ``name``- UND, falls
+    in der tatsaechlich gebauten Query vorhanden, den
+    ``conclusion!="skipped"``-Filter selbst aus) statt ein vorgefertigtes
+    Ergebnis zurueckzugeben -- eine entfernte Ausschlussklausel im
+    Quelltext macht diesen Test dadurch wirklich rot, nicht nur eine eigene
+    Fixture-Annahme.
+    """
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    # Neuester Lauf zuerst, wie die echte Laufliste sie liefert.
+    jobs_by_run = {
+        "32754064777": [
+            {"name": "supersession-gate", "conclusion": "success",
+             "started_at": "2026-08-24T19:50:41Z"},
+            {"name": "save", "conclusion": "skipped",
+             "started_at": "2026-08-24T19:50:53Z"},
+        ],
+        "32729006391": [
+            {"name": "save", "conclusion": "failure",
+             "started_at": "2026-08-24T12:47:00Z"},
+        ],
+    }
+
+    def fake(*args: str) -> str:
+        joined = " ".join(args)
+        if "/runs?per_page=50" in joined:
+            return "32754064777\n32729006391\n"
+        for run_id, jobs in jobs_by_run.items():
+            if f"/runs/{run_id}/jobs" not in joined:
+                continue
+            query = args[-1]
+            candidates = [j for j in jobs if j["name"] == entry.witness_job]
+            if 'conclusion!="skipped"' in query:
+                candidates = [j for j in candidates if j["conclusion"] != "skipped"]
+            return candidates[0]["started_at"] if candidates else ""
+        return ""
+
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == "32729006391", (
+        "der Lauf mit uebersprungenem save-Job wurde als Zeuge gekuert, statt "
+        "auf den naechsten Lauf mit einem save-Job zurueckzufallen, der "
+        "wirklich lief"
+    )
+
+
+def test_newest_witness_still_accepts_a_red_run_as_a_witness(monkeypatch):
+    """Gegenprobe zur Vorgabe: der neue skipped-Ausschluss darf success/
+    failure als Zeugen-JOB-Conclusion nicht anfassen -- ein roter Lauf bleibt
+    ein gueltiger Zeuge (32620808573 war conclusion=failure und tat exakt das
+    Richtige). Explizit nachgemessen, nicht angenommen: derselbe
+    jq-nachbildende Fake wie oben, hier mit einem save-Job auf
+    conclusion=failure statt skipped."""
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="5013", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    jobs_by_run = {
+        "32620808573": [
+            {"name": "save", "conclusion": "failure",
+             "started_at": "2026-08-23T05:38:38Z"},
+        ],
+    }
+
+    def fake(*args: str) -> str:
+        joined = " ".join(args)
+        if "/runs?per_page=50" in joined:
+            return "32620808573\n"
+        for run_id, jobs in jobs_by_run.items():
+            if f"/runs/{run_id}/jobs" not in joined:
+                continue
+            query = args[-1]
+            candidates = [j for j in jobs if j["name"] == entry.witness_job]
+            if 'conclusion!="skipped"' in query:
+                candidates = [j for j in candidates if j["conclusion"] != "skipped"]
+            return candidates[0]["started_at"] if candidates else ""
+        return ""
+
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == "32620808573", (
+        "ein roter (conclusion=failure) Zeugen-Job wurde faelschlich verworfen"
+    )
+
+
 def test_a_missing_artifact_is_not_reported_as_an_api_outage(monkeypatch):
     """"Artefakt in diesem Lauf nicht vorhanden" und "API nicht erreichbar"
     sind verschiedene Aussagen. Sie zu verschmelzen erzeugt einen lauten
