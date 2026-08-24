@@ -677,3 +677,82 @@ claim           = "has_path() kann nur Feld-Praesenz pruefen, aber ein version_p
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Abschluss-Review Restbefund 1 (2026-08-24): Halter statt Bericht, weil der
+# Arbeits-Workspace geloescht wird. Alle drei unten zitierten Szenarien und
+# der Selbst-Urteiler-Blindtest wurden fuer diesen Eintrag NEU gegen den
+# echten Ledger nachgemessen (nicht nur aus dem Review uebernommen), siehe
+# .superpowers/sdd/2026-08-23-beweis-ledger/final-fix-report.md, Abschnitt
+# "Restbefunde".
+# ---------------------------------------------------------------------------
+[[proof]]
+id      = "kein-zeuge-terminal-pass-reads-as-ok"
+kind    = "defect"
+claim   = "classify() (scripts/judge_proof_ledger.py:48-73) klassifiziert jeden terminalen Eintrag (state in TERMINAL_STATES, aktuell nur PASS: 5013/5025/5020) als OK, sobald verdict is None -- unabhaengig davon, OB ueberhaupt ein Zeuge gefunden wurde. Der proof_ledger_monitor_self-Selbst-Urteiler kann das strukturell nicht sehen."
+# MESSUNG (2026-08-24, gegen den echten Ledger nachgestellt, main()/classify()
+# aus scripts/judge_proof_ledger.py echt aufgerufen, nur _judge_entry()
+# gemockt): drei Szenarien, PASS-Eintraege (5013/5025/5020, die einzigen drei
+# TERMINAL_STATES-Eintraege im ganzen Ledger) auf class:
+#
+#   Szenario                                            rc  PASS-Eintraege=OK
+#   A alles rc=0, Laufliste leer (newest_witness="")      0  3/3
+#   B Zeuge GEFUNDEN (run_id="32620808573" im Report),
+#     Artefakt unlesbar (OSError/JSONDecodeError)         0  3/3
+#   C witness_job umbenannt (rc=0, Job-Liste leer)        0  3/3
+#
+# Schaerfste Auspraegung ist B: newest_witness() FAND den Zeugenlauf, nur
+# _judge_entry() (judge_proof_ledger.py:200-212) konnte artifact_path
+# (Path(tmp_dir) / (entry.artifact.replace("-","_") + ".json"), Zeile 205)
+# nicht als JSON laden und gibt (None, run_id) zurueck -- main() (Zeile
+# 237-244) traegt run_id zwar in row["run"] ein, aber measured faellt auf
+# den letzten else-Zweig "KEIN_ZEUGE" (Zeile 244), weil er nur auf
+# `verdict is not None` prueft, nicht auf `run_id`. Der Report zeigt also
+# in DERSELBEN Zeile run=32620808573 UND measured=KEIN_ZEUGE.
+#
+# MECHANISMUS: classify() (Zeile 48-73) hat genau zwei Vorrangstufen vor dem
+# TERMINAL_STATES-Kurzschluss (Zeile 69-70): `unreachable` (Zeile 60-61,
+# greift NUR bei GhCallError -- main() Zeile 230, also rc!=0 von `gh` selbst)
+# und `if verdict is not None:` (Zeile 62-68, greift NUR bei einem echten
+# Urteil). Jeder Weg in "ich konnte nichts sehen", der WEDER ein gh-Fehlschlag
+# NOCH ein Urteil ist -- leere Laufliste, umbenannter Job, gefundener Zeuge
+# mit unlesbarem Artefakt, ungueltige Evidenz im judge() selbst -- erreicht
+# beide Vorrangstufen nicht und faellt direkt in TERMINAL_STATES -> OK, egal
+# ob je etwas gemessen wurde.
+#
+# WARUM DER SELBST-URTEILER BLIND IST: proof_ledger_monitor_self.judge()
+# (scripts/proof_judges/proof_ledger_monitor_self.py:31-37) filtert
+# `row.get("evidence_source") != "artifact"`. 5013/5025/5020 tragen
+# evidence_source=="artifact" -- sie werden aus der mislabeled-Pruefung
+# AUSGENOMMEN, nicht erfasst. Nachgemessen (2026-08-24): ein Report mit genau
+# den drei Zeilen aus Szenario B (evidence_source=artifact, measured=
+# KEIN_ZEUGE, run gesetzt, class=OK) liefert proof_ledger_monitor_self.judge()
+# -> PASS/report_shaped_as_expected, "3 Zeile(n), keine maskierte Auslassung"
+# -- der Selbst-Urteiler haelt den Defekt fuer einen gesunden Report. 5013/
+# 5025/5020 sind ausserdem die EINZIGEN terminalen Eintraege im Ledger, also
+# die einzigen ohne due_by/UEBERFAELLIG als Ersatzmechanismus, der ein
+# falsches OK spaeter noch auffangen koennte.
+#
+# UNGEKOPPELTE FELDER: witness, witness_job, artifact, witness_run werden
+# nirgends gegen die Wirklichkeit (echter Workflow-Name, echter Job-Name,
+# echter Artefakt-Upload) geprueft -- `grep -rn witness_job tests scripts`
+# liefert genau eine Zusicherung (entry.witness_job nicht leer,
+# test_a_fix_entry_names_its_witness_and_version_probe). Der Artefakt-
+# Dateiname wird sogar ABGELEITET (`entry.artifact.replace("-","_") +
+# ".json"`, judge_proof_ledger.py:205) statt gegen den echten
+# upload-artifact-Namen im Workflow verglichen -- eine Konvention ohne
+# eigenen Waechter; ein Tippfehler im TOML oder eine Umbenennung im Workflow
+# traefe denselben "Artefakt unlesbar"-Pfad und laeuft still als OK durch.
+#
+# WAS DIE FRIST AUFLOESEN WUERDE (Mechanismus, keine Zukunftsprosa): main()
+# muesste zwischen "kein Zeuge gefunden" (run_id=="") und "Zeuge gefunden,
+# aber kein gueltiges Urteil" (run_id!="" and verdict is None) unterscheiden
+# und classify() fuer LETZTEREN Fall bei einem terminalen Eintrag WIDERSPRUCH
+# statt OK zurueckgeben lassen (dieselbe Vorrangstufe wie unreachable);
+# UND proof_ledger_monitor_self muesste zusaetzlich jede Report-Zeile mit
+# declared in TERMINAL_STATES UND measured=="KEIN_ZEUGE" als mislabeled
+# zaehlen, nicht nur die evidence_source!=artifact-Faelle. Fix gehoert NICHT
+# in diese Aenderung -- Halter statt Notiz.
+state   = "UNGESICHERT"
+due_by  = "2026-09-06"
+owner   = "operator"

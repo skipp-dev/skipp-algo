@@ -929,6 +929,46 @@ def test_the_monitor_workflow_calls_the_judge_and_never_writes_the_ledger_back()
     assert "schedule" in triggers
 
 
+def test_the_judge_job_carries_actions_read_for_its_three_gh_api_calls():
+    """Pinnt ``actions: read`` auf dem ``judge``-Job wortwoertlich, nicht nur
+    als Kommentar. Restbefund aus dem Abschluss-Review (2026-08-24): der
+    Reviewer hat die Zeile entfernt und die volle 47-Datei-Waechter-Batterie
+    gefahren -- identisches (gruenes) Ergebnis. Nichts schuetzte sie.
+
+    Der Job braucht das Recht fuer alle drei GitHub-API-Aufrufe in
+    ``scripts/judge_proof_ledger.py`` (Lauflisten-Abfrage in
+    ``newest_witness()``, Job-Liste desselben Laufs, ``gh run download`` in
+    ``_judge_entry()``) -- fehlt es, traegt der Fallback-Token
+    (``secrets.GH_PAT`` leer -> `github.token`) nur noch ``contents: read``
+    und alle drei Aufrufe scheitern mit 403 (``GhCallError``), was als
+    ``KEIN_URTEIL (API nicht erreichbar: ...)`` durchlaeuft statt als klarer
+    Konfigurationsfehler aufzufallen. Dasselbe Muster pinnen
+    ``test_workflow_tv_save_consumer_source_contract.py`` (Zeile ~1768,
+    ``wf["permissions"].get("actions") == "read"``) und
+    ``test_phase_b_promotion_readiness_workflow_contract.py``
+    (``test_permissions_minimal_read_only``) -- hier auf Job-Ebene, weil
+    dieser Workflow ``actions: read`` nicht auf Workflow-Ebene traegt
+    (dort nur ``contents: read``, s. o.), sondern per Least-Privilege im
+    ``judge``-Job selbst deklariert.
+
+    Rueckbau-Probe (Bericht dieser Aenderung): Zeile ``actions: read`` unter
+    `jobs.judge.permissions` entfernt -> dieser Test wird rot; Zeile wieder
+    eingesetzt -> gruen.
+    """
+    import yaml
+
+    from scripts.proof_ledger import ROOT
+
+    path = ROOT / ".github" / "workflows" / "proof-ledger-monitor.yml"
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    job_permissions = workflow["jobs"]["judge"]["permissions"]
+    assert job_permissions.get("actions") == "read", (
+        "the judge job's gh api / gh run download calls (newest_witness(), "
+        "_judge_entry()) need actions: read on the job itself; the workflow-level "
+        "permissions block only grants contents: read"
+    )
+
+
 # --- proof_ledger_monitor_self: der Monitor urteilt ueber den eigenen Report
 #
 # Der Monitor ist selbst beweispflichtig (proof_ledger.toml, Eintrag
