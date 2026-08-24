@@ -16,7 +16,7 @@ and forces every future cache to either:
 Scope: workspace Python files only — third-party packages under
 ``.venv/`` are excluded.
 
-Currently expected: 10 sites in 9 modules (all bounded) — see
+Currently expected: 11 sites in 10 modules (all bounded) — see
 :data:`_BASELINE_LRU_CACHE_SITES`. Adding a new ``@lru_cache`` site
 without ``maxsize=`` fails the pin; adding a new bounded site requires
 extending the baseline.
@@ -71,6 +71,10 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     # is the correct sizing; the cache exists so the ~11s tests/ walk runs once
     # per process rather than five times.
     ("tests/test_vacuous_claim_guard.py", "_scan"),
+    # maxsize=1 — Beweis-Ledger (2026-08-24): _load() parses proof_ledger.toml
+    # once per process; takes ZERO arguments, so the key domain is exactly one
+    # entry, same pattern as tests/_pin_registry.py._load above (ADR-0009).
+    ("scripts/proof_ledger.py", "_load"),
 })
 
 
