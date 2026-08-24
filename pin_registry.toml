@@ -495,6 +495,28 @@ file = "scripts/check_r1_attested_sources.py"
 attr = "run"
 count = 1
 
+# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
+# scripts/check_proof_ledger.py: two read-only git queries, both token-list
+# argv, no shell=True. `_changed_files()` runs `git diff --name-only
+# <range>` (the PR diff, never the standing state of main -- same pattern as
+# check_r1_attested_sources.py above). `_ledger_ids_at()` runs `git show
+# <rev>:proof_ledger.toml` to read the ledger as it stood at a given commit.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/check_proof_ledger.py"
+attr = "run"
+count = 2
+
+# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
+# scripts/judge_proof_ledger.py: one call site, `_gh()`, wraps every `gh`
+# CLI invocation the netbound monitor half makes (API reads for the witness
+# search, `gh run download` for the evidence artifact). Token-list argv, no
+# shell=True; auth comes from `GH_TOKEN` in the workflow environment, never
+# from untrusted input.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/judge_proof_ledger.py"
+attr = "run"
+count = 1
+
 # scripts/build_evidence_freshness_snapshot.py: single `_git` helper wrapping
 # read-only git queries (ls-tree/show/log) for the evidence-freshness snapshot.
 # Fixed token-list argv, no shell, no untrusted input.

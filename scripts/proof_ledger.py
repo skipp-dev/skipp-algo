@@ -67,6 +67,14 @@ class ProofEntry:
     version_probe: str = ""
     pass_kind: str = ""
     witness_run: str = ""
+    # Beweislast fuer pass_kind == "drill", symmetrisch zu witness_run fuer
+    # "live" (Critical 3, 2026-08-24): ohne diese zwei Felder war "drill" ein
+    # Ein-Wort-Ausgang ohne Beleg -- ein Eintrag konnte auf PASS/drill gesetzt
+    # werden, ohne je zu sagen, WAS durchgespielt wurde (drill_source) oder
+    # WANN (drilled_at). Durchgesetzt in
+    # tests/test_proof_ledger.py::test_a_pass_entry_says_whether_it_was_lived_or_drilled.
+    drill_source: str = ""
+    drilled_at: str = ""
     unreachable_because: str = ""
     raw: dict[str, Any] | None = None
 
@@ -119,6 +127,8 @@ def _entry_from(raw: dict[str, Any]) -> ProofEntry:
         version_probe=str(raw.get("version_probe", "")),
         pass_kind=str(raw.get("pass_kind", "")),
         witness_run=str(raw.get("witness_run", "")),
+        drill_source=str(raw.get("drill_source", "")),
+        drilled_at=str(raw.get("drilled_at", "")),
         unreachable_because=str(raw.get("unreachable_because", "")),
         raw=dict(raw),
     )

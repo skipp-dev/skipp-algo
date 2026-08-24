@@ -39,6 +39,17 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # actions:read -- `gh api .../actions/workflows/.../runs`,
+      # `gh api .../actions/runs/.../jobs` und `gh run download` rufen alle
+      # drei die Actions-REST-API auf, um den Zeugen-Lauf zu finden und sein
+      # Artefakt zu holen. Ohne dieses Recht scheitert genau der Fallback,
+      # den der Job vorsieht (secrets.GH_PAT leer -> github.token): das
+      # Job-Token traegt dann nur, was hier deklariert ist, und die drei
+      # Aufrufe scheitern mit 403. Elf andere Workflows in diesem Repo
+      # brauchen actions:read fuer dieselben drei Aufrufmuster, u. a.
+      # tv-save-consumer-source.yml:126, phase-b-promotion-readiness.yml:29,
+      # smc-library-refresh.yml:158.
+      actions: read
       # issues:write nur hier (least privilege): dieser Job enthaelt den
       # Issue-Step, die Workflow-Ebene bleibt contents:read.
       issues: write

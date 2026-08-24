@@ -37,13 +37,67 @@ def test_a_fix_entry_names_its_witness_and_version_probe():
             )
 
 
+def _assert_pass_entry_is_backed(entry) -> None:
+    """Beweislast eines terminalen PASS -- gleiche Strenge fuer beide Wege.
+
+    Fix-Runde (Critical 3, 2026-08-24): vorher zwang nur ``live`` einen
+    Lauf-Beleg (``witness_run``); ``drill`` verlangte NICHTS. Ein Eintrag
+    konnte auf ``state = "PASS"`` / ``pass_kind = "drill"`` gesetzt werden,
+    ohne je zu sagen, WAS durchgespielt wurde oder WANN -- terminal, nie
+    wieder ueberfaellig, und vom Monitor (evidence_source != "artifact" fuer
+    einen reinen Drill) ohnehin uebersprungen. Symmetrisch nachgezogen:
+    ``drill_source`` (Herkunft des synthetischen Inputs) und ``drilled_at``
+    (Zeitpunkt) sind jetzt fuer ``drill`` genauso Pflicht wie
+    ``witness_run`` fuer ``live``.
+    """
+    assert entry.pass_kind in {"live", "drill"}, entry.id
+    if entry.pass_kind == "live":
+        assert entry.witness_run, f"{entry.id}: live-PASS ohne Lauf-Id"
+    if entry.pass_kind == "drill":
+        assert entry.drill_source, f"{entry.id}: drill-PASS ohne Herkunft des Drills"
+        assert entry.drilled_at, f"{entry.id}: drill-PASS ohne Zeitpunkt"
+
+
 def test_a_pass_entry_says_whether_it_was_lived_or_drilled():
     for entry in load_entries():
         if entry.state != "PASS":
             continue
-        assert entry.pass_kind in {"live", "drill"}, entry.id
-        if entry.pass_kind == "live":
-            assert entry.witness_run, f"{entry.id}: live-PASS ohne Lauf-Id"
+        _assert_pass_entry_is_backed(entry)
+
+
+def test_a_drill_pass_without_provenance_is_rejected():
+    """Rueckbau-artige Mutationsprobe fuer Critical 3: kein echter Ledger-
+    Eintrag nutzt ``pass_kind = "drill"`` bisher (deferred minor aus Task 1),
+    also kann nur ein SYNTHETISCHER Eintrag zeigen, dass die neue Beweislast
+    wirklich feuert. Vor diesem Fix waere ``naked`` unten klaglos
+    durchgelaufen -- genau das Szenario aus dem Abschluss-Review: Eintrag
+    #5018 (nie bezeugt, kein Korpus, kein witness_run) auf
+    ``state = "PASS"`` / ``pass_kind = "drill"`` gesetzt lief in einer
+    /tmp-Kopie mit 45 passed durch, alles gruen."""
+    from scripts.proof_ledger import ProofEntry
+
+    naked = ProofEntry(
+        id="drill-ohne-beweis", kind="fix", claim="c", state="PASS",
+        pass_kind="drill", due_by="2026-09-06", owner="operator", raw={},
+    )
+    with pytest.raises(AssertionError, match="Herkunft des Drills"):
+        _assert_pass_entry_is_backed(naked)
+
+    nur_quelle = ProofEntry(
+        id="drill-nur-quelle", kind="fix", claim="c", state="PASS",
+        pass_kind="drill", drill_source="tests/proof_corpus/x/synth.json",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    with pytest.raises(AssertionError, match="ohne Zeitpunkt"):
+        _assert_pass_entry_is_backed(nur_quelle)
+
+    vollstaendig = ProofEntry(
+        id="drill-vollstaendig", kind="fix", claim="c", state="PASS",
+        pass_kind="drill", drill_source="tests/proof_corpus/x/synth.json",
+        drilled_at="2026-08-24T00:00:00Z",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    _assert_pass_entry_is_backed(vollstaendig)  # darf nicht werfen
 
 
 def test_dormant_and_unreachable_need_a_repo_coupled_reason():
@@ -681,6 +735,78 @@ def test_newest_witness_never_crowns_a_json_error_body_as_a_witness(monkeypatch)
     assert mod.newest_witness(entry) == ""
 
 
+# --- Critical 1 (2026-08-24): ein API-Totalausfall darf nie wie OK aussehen
+#
+# Vorher bildete _gh() JEDEN Nicht-Null-Rueckgabecode auf "" ab, ohne
+# Diagnose. Ein Totalausfall (403 / abgelaufener PAT / Rate-Limit / kein
+# Netz) sah dadurch identisch aus wie ein leeres, aber gueltiges Ergebnis:
+# newest_witness() lieferte "", die Ausgabe sagte KEIN_ZEUGE, und classify()
+# nahm fuer ein deklariertes PASS den TERMINAL_STATES-Kurzschluss OHNE je
+# versucht zu haben, den Zeugen zu pruefen -- zehn Zeilen OK, exit 0, kein
+# Job-Fail, drei davon PASS-Eintraege, bestaetigt auf der Grundlage von
+# nichts.
+
+
+def test_gh_raises_on_a_failed_call_instead_of_returning_empty(monkeypatch):
+    """Direkte Rueckbau-Probe an _gh() selbst: ein fehlgeschlagener Aufruf
+    muss GhCallError werfen, mit Rueckgabecode und STDERR im Text -- nicht
+    mehr "" zurueckgeben. Rueckgebaut (Bericht, Fix-Runde 1): `if
+    proc.returncode != 0: raise ...` durch `return proc.stdout if
+    proc.returncode == 0 else ""` ersetzt -> dieser Test wird rot
+    (`Failed: DID NOT RAISE`), zurueckgesetzt -> wieder gruen."""
+    import subprocess
+
+    import scripts.judge_proof_ledger as mod
+
+    class FakeCompletedProcess:
+        returncode = 1
+        stdout = ""
+        stderr = "gh: Bad credentials (HTTP 403)"
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: FakeCompletedProcess())
+    with pytest.raises(mod.GhCallError, match="403"):
+        mod._gh("api", "whatever")
+
+
+def test_a_total_api_outage_never_reads_as_ok(monkeypatch, tmp_path):
+    """DER Test fuer Critical 1: beweist, dass ein Totalausfall der API NICHT
+    zu lauter OK-Meldung fuehrt. _gh() wird komplett durch einen Stub
+    ersetzt, der bei JEDEM Aufruf GhCallError wirft (wie bei 403 / kein
+    Netz), und main() laeuft gegen das ECHTE proof_ledger.toml.
+
+    Rueckbau-Probe (Bericht, Fix-Runde 1): mit dem VORHERIGEN classify() (ohne
+    ``unreachable``-Parameter, TERMINAL_STATES-Kurzschluss ungeschuetzt)
+    wollte dieser Test bei Eintrag 5013 (state=PASS) ``class != "OK"``
+    pruefen -- rot, weil der Kurzschluss unabhaengig vom Ausfall OK lieferte.
+    Mit dem Fix: gruen.
+    """
+    import json
+
+    import scripts.judge_proof_ledger as mod
+
+    def boom(*args: str) -> str:
+        raise mod.GhCallError("boom: rc=1: HTTP 403: Bad credentials")
+
+    monkeypatch.setattr(mod, "_gh", boom)
+    out_path = tmp_path / "report.json"
+    rc = mod.main(["--today", "2026-08-24", "--json", str(out_path)])
+    rows = json.loads(out_path.read_text(encoding="utf-8"))
+
+    assert rc != 0, "Totalausfall darf nicht still mit Exit 0 enden"
+
+    # Eintraege, die aktiv beurteilt werden (evidence_source == "artifact",
+    # kind == "fix", judge gesetzt, echter merged_at) -- darunter DREI
+    # deklarierte PASS-Eintraege (5013, 5025, 5020), die vor dem Fix ueber
+    # den TERMINAL_STATES-Kurzschluss stillschweigend als OK durchliefen.
+    judged_ids = {"5013", "5025", "5020"}
+    judged_rows = [r for r in rows if r["id"] in judged_ids]
+    assert len(judged_rows) == 3, "Positivkontrolle: erwartete PASS-Eintraege fehlen im Report"
+    for row in judged_rows:
+        assert row["measured"].startswith("KEIN_URTEIL (API nicht erreichbar")
+        assert row["measured"] != "KEIN_ZEUGE"
+        assert row["class"] != "OK", row
+
+
 # --- Monitor: uebersprungen darf nie wie "kein Zeuge" aussehen -------------
 #
 # Der Monitor urteilt nur ueber evidence_source == "artifact" -- er holt keine
@@ -737,9 +863,36 @@ def test_an_artifact_fix_entry_with_a_judge_is_not_skipped():
     entry = ProofEntry(
         id="5013", kind="fix", claim="c", state="PASS", due_by="2026-12-31",
         owner="operator", judge="tv_partial_save", witness="tv-save-consumer-source",
-        witness_job="save", evidence_source="artifact", raw={},
+        witness_job="save", evidence_source="artifact",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
     )
     assert unjudged_reason(entry) == ""
+
+
+def test_an_unparseable_merged_at_is_named_not_silently_skipped():
+    """Der merged_at-Platzhalter (2026-08-24): ``"<wird beim Merge
+    nachgetragen>"`` (der aktuelle Wert von task7-proof-ledger-monitor) macht
+    in newest_witness() JEDEN Zeitstempelvergleich strukturell False ('<' ist
+    ASCII-groesser als jede Ziffer) -- der Zweig lief bislang STILL in ""
+    durch und erschien als KEIN_ZEUGE, ununterscheidbar von einer echten
+    erfolglosen Zeugensuche. unjudged_reason() muss das jetzt VOR der Suche
+    abfangen und benennen. Rueckbau-Probe (Bericht, Fix-Runde 1): den
+    merged_at-Formzweig aus unjudged_reason() entfernt -> dieser Test wird
+    rot (`assert '' != ''` schlaegt fehl, weil reason wieder "" ist),
+    zurueckgesetzt -> wieder gruen."""
+    from scripts.judge_proof_ledger import unjudged_reason
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="task7-proof-ledger-monitor", kind="fix", claim="c", state="OFFEN",
+        due_by="2026-12-31", owner="operator", judge="proof_ledger_monitor_self",
+        witness="proof-ledger-monitor", witness_job="judge", evidence_source="artifact",
+        raw={"merged_at": "<wird beim Merge nachgetragen>"},
+    )
+    reason = unjudged_reason(entry)
+    assert reason != ""
+    assert reason != "KEIN_ZEUGE"
+    assert "ISO-8601" in reason
 
 
 # --- Monitor-Workflow-Vertrag (Task 7) --------------------------------------

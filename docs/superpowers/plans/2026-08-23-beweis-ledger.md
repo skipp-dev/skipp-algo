@@ -35,6 +35,7 @@
 - **Kein Netz im Offline-Wächter.** Alles mit `gh`/`urllib` gehört in den Monitor-Workflow.
 - **Leeres Ergebnis ist kein Befund.** Jede abgeleitete Menge bekommt eine Untergrenze.
 - **Jede Verhaltenszusicherung braucht eine Mutationsprobe:** Feature zurückbauen, Test muss rot werden.
+- **`Erwartet: N passed`-Zeilen sind Momentaufnahmen, keine Verträge — drittes Mal nachgezogen (2026-08-24, vorher 2026-08-23 in Commit 89b388fb5).** Sie schreiben fest, was der ERSTE Durchlauf eines Tasks an Tests hinterlässt, aber jede spätere Review-Fix-Runde füllt dieselbe Testdatei weiter auf, ohne dass irgendein Mechanismus den Plan danach nachzieht — deshalb driften sie strukturell bei jedem Task mit Fix-Runden und werden nie durch bloßes Aufmerksamsein stabil; beim Lesen im Zweifel gegen `PYTHONPATH=$PWD .../python -m pytest tests/test_proof_ledger.py --collect-only -q | tail -1` prüfen statt der Zahl im Text zu glauben.
 
 ---
 
@@ -2024,7 +2025,7 @@ PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
   tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 30 passed. Schlägt `test_every_judge_branch_is_reached...` fehl, ist das **kein Testfehler** — dann fehlt ein Korpus-Eintrag oder eine Deklaration. Die Fehlermeldung nennt beide Auswege.
+Erwartet: 31 passed (kumulativer Ist-Wert nach Task 5s drei Fix-Runden, 2026-08-24 nachgezogen — Zahl war 30 gewesen, siehe die Erklärung in den Global Constraints). Schlägt `test_every_judge_branch_is_reached...` fehl, ist das **kein Testfehler** — dann fehlt ein Korpus-Eintrag oder eine Deklaration. Die Fehlermeldung nennt beide Auswege.
 
 - [ ] **Step 5: Die Mutationsprobe, um die es geht — den #5018-Defekt nachstellen**
 
@@ -2385,7 +2386,7 @@ PYTHONPATH=$PWD /Users/spreuss/Documents/skipp-algo/.venv/bin/python -m pytest \
   tests/test_proof_ledger.py -q --no-header
 ```
 
-Erwartet: 34 passed.
+Erwartet: 45 passed (kumulativer Ist-Wert nach Task 7s Fix-Runde 1, 2026-08-24 nachgezogen — Zahl war 34 gewesen, siehe die Erklärung in den Global Constraints).
 
 - [ ] **Step 5: Den Monitor gegen die echte Lage laufen lassen**
 

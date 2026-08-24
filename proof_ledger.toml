@@ -585,6 +585,79 @@ state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
 
+# ---------------------------------------------------------------------------
+# Fix-Welle nach dem Abschluss-Review (2026-08-24): drei Befunde, die "ein
+# schweigender Zweig sieht aus wie ein gesunder" an Stellen wiederholen, die
+# diese Welle NICHT loest -- Halter statt Notiz, mit dem Mechanismus benannt,
+# der die Frist von selbst ueberfaellig macht, wenn niemand nachfasst.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "c4-merge-base-not-merge-commit"
+kind            = "defect"
+claim           = "check_proof_ledger.py liest 'before' am literalen Bereichsanfang (git show base.sha:...), nicht an git merge-base(base,head) -- main in den PR-Branch mergen kann den Waechter gruen machen, ohne dass der PR einen eigenen Eintrag traegt"
+# 2026-08-24 REPRODUZIERT in einem /tmp-Git-Repo: PR aendert beweispflichtigen
+# Code ohne eigenen Eintrag => rc=1; danach einen fremden Branch gemergt,
+# dessen einziger Inhalt der Ledger-Eintrag eines ANDEREN PRs ist => rc=0. Der
+# PR erbt die Erfuellung eines Fremden. MECHANISMUS: _ledger_ids_at(base) in
+# scripts/check_proof_ledger.py:149-153 liest den Ledger-Stand an
+# `_merge_base_range(args.commit_range).split("...")[0]` -- das ist die
+# literale linke Seite des uebergebenen Bereichs (in fast-gates
+# `github.event.pull_request.base.sha`), NICHT `git merge-base base.sha
+# head.sha`. Nach einem main-Merge in den PR-Branch enthaelt `git show
+# base.sha:proof_ledger.toml` bereits jeden main-Eintrag bis zu diesem
+# literalen SHA, obwohl der PR selbst keinen neuen hinzugefuegt hat --
+# BEHIND-Aufloesung durch main-Merge ist in diesem Repo Routine, kein
+# Randfall. Fix gehoert NICHT in diese Welle (Auftrag: Halter, keine
+# Loesung) -- der Mechanismus waere `_merge_base_range` durch einen echten
+# `git merge-base`-Aufruf zu ersetzen, bevor `_ledger_ids_at` liest.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "i1i2-derived-class-missing-extern-filter"
+kind            = "defect"
+claim           = "Die abgeleitete Klasse (scripts/proof_class.py) nimmt ALLE Workflow-Dateien bedingungslos auf statt nur externe (Spec: Extern = Workflows ohne pull_request-Trigger) -- der Filter ist zwischen Spec und Implementierung spurlos verschwunden"
+# 2026-08-24 GEMESSEN: alle 8 pull_request-getriggerten Workflows liegen
+# aktuell in der Klasse, weil workflow_files() (scripts/proof_class.py:62-68)
+# jede *.yml/*.yaml aufnimmt, ohne je `on:`/`pull_request` zu pruefen --
+# derive_class() vereinigt workflow_files() bedingungslos mit unseen. Folge,
+# gemessen an den letzten 200 main-Merges: 13 sind ALLEIN wegen eines
+# pull_request-Workflows beweispflichtig -- Quote 22 % statt der in der Spec
+# (Abschnitt "Aufnahme") und im Kommentarkopf oben genannten 13 %. Und 71
+# Testdateien stehen aktuell in der Klasse, obwohl ihre Wirkung die Suite per
+# Definition SIEHT (sie IST die Suite) -- genau die Variante, die die Spec
+# unter "Zwei fruehere Fassungen und warum sie fielen" ausdruecklich verwirft
+# ("Alle Workflow-YAMLs in der Klasse"). MECHANISMUS des Fehlens: derive_class()
+# enthaelt keinen Trigger-Parser -- die Spec-Formel hat keine Entsprechung im
+# Code. Fix gehoert NICHT in diese Welle -- der Mechanismus waere ein
+# Trigger-Parser in workflow_files()/derive_class(), der pull_request-
+# Workflows ausschliesst, plus neu gemessene Floors in [class_floors].
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "bootstrap-gap-no-baseline-ledger-on-main"
+kind            = "defect"
+claim           = "origin/main hat kein proof_ledger.toml -- fuer den PR, der DIESEN Branch mergt, ist 'before' deshalb immer leer und der Waechter rc=0, unabhaengig vom Inhalt; 'ab dem naechsten PR greift der Schutz' ist eine Zukunftszusage ohne eigenen Mechanismus"
+# 2026-08-24 bestaetigt: `git show origin/main:proof_ledger.toml` liefert
+# "fatal: path 'proof_ledger.toml' does not exist" -- die Datei existiert auf
+# main nicht. MECHANISMUS: _ledger_ids_at() in scripts/check_proof_ledger.py
+# faengt genau diesen `git show`-Fehlschlag ab und liefert frozenset() --
+# beabsichtigt fuer den allerersten PR (Begruendung in der Spec, Abschnitt
+# "Migration": ein Zustandscheck auf main haette jeden PR rot gemacht,
+# einschliesslich des reparierenden). Das macht "after - before" fuer DIESEN
+# Merge trivial erfuellt, unabhaengig vom Inhalt -- tragbar fuer den
+# Bootstrap-PR selbst, aber die Aussage, dass der Schutz ab dem naechsten PR
+# tatsaechlich greift, ist bislang ungeprueft. Fix gehoert NICHT in diese
+# Welle -- der Halter wird VON SELBST ueberfaellig (Frist unten), wenn bis
+# dahin kein zweiter PR das Offline-Gate durchlaufen hat; Nachweis per
+# `git log --oneline -- proof_ledger.toml` auf main nach diesem Merge.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
 [[proof]]
 id              = "has-path-field-vs-value-probe"
 kind            = "defect"

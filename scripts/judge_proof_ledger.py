@@ -45,8 +45,20 @@ from scripts.proof_ledger import TERMINAL_STATES, ProofEntry, load_entries
 REPO = "skipp-dev/skipp-algo"
 
 
-def classify(entry: ProofEntry, verdict: Verdict | None, today: str) -> str:
-    """``OK`` | ``UEBERFAELLIG`` | ``WIDERSPRUCH``."""
+def classify(
+    entry: ProofEntry, verdict: Verdict | None, today: str, *, unreachable: bool = False
+) -> str:
+    """``OK`` | ``UEBERFAELLIG`` | ``WIDERSPRUCH`` | ``KEIN_URTEIL``.
+
+    ``unreachable=True`` heisst: der gh-Aufruf fuer diesen Eintrag ist mit
+    ``GhCallError`` fehlgeschlagen (Critical 1). Das muss VOR dem
+    ``TERMINAL_STATES``-Kurzschluss unten greifen -- sonst laeuft ein
+    deklariertes ``PASS`` als ``OK`` durch, obwohl wegen des Ausfalls gar
+    nichts gemessen wurde. Ein Totalausfall der API darf nie wie ein
+    bestandener Beweis aussehen.
+    """
+    if unreachable:
+        return "KEIN_URTEIL"
     if verdict is not None:
         declared_good = entry.state == "PASS"
         measured_bad = verdict.state in {"FAIL", "STEHT_AUS"}
@@ -61,12 +73,44 @@ def classify(entry: ProofEntry, verdict: Verdict | None, today: str) -> str:
     return "OK"
 
 
+class GhCallError(Exception):
+    """``gh`` lieferte einen Fehlschlag (Rueckgabecode != 0).
+
+    Vorher bildete ``_gh()`` JEDEN Nicht-Null-Rueckgabecode auf ``""`` ab --
+    ununterscheidbar von "gh lief durch und fand nichts". Ein Totalausfall
+    (403 / abgelaufener PAT / Rate-Limit / kein Netz) sah dadurch identisch
+    aus wie ein leeres, aber gueltiges Ergebnis: ``newest_witness()`` lieferte
+    in beiden Faellen ``""``, die Ausgabe sagte ``KEIN_ZEUGE``, und ein
+    deklariertes ``PASS`` lief ueber den ``TERMINAL_STATES``-Kurzschluss in
+    ``classify()`` als ``OK`` durch exit 0 -- ohne dass ueberhaupt etwas
+    gemessen wurde. Diese Exception traegt Rueckgabecode und STDERR nach
+    aussen, damit ``main()`` den Fall benennen kann statt ihn wie ein
+    Nicht-Ergebnis zu behandeln.
+    """
+
+
 def _gh(*args: str) -> str:
     proc = subprocess.run(  # noqa: S603
         ["gh", *args],  # noqa: S607
         capture_output=True, text=True, check=False,
     )
-    return proc.stdout if proc.returncode == 0 else ""
+    if proc.returncode != 0:
+        detail = proc.stderr.strip() or proc.stdout.strip() or "<keine Ausgabe>"
+        raise GhCallError(f"gh {' '.join(args)} -> rc={proc.returncode}: {detail}")
+    return proc.stdout
+
+
+def _looks_like_an_iso8601_utc_timestamp(value: str) -> bool:
+    """Form-Pruefung, nicht Kalender-Pruefung: exakt das Muster, das ``gh``
+    fuer ``started_at`` liefert (``YYYY-MM-DDTHH:MM:SSZ``, 20 Zeichen).
+    Geteilt zwischen der Zeugen-FORM-Pruefung in ``newest_witness()`` und der
+    ``merged_at``-Pruefung in ``unjudged_reason()`` -- derselbe Fehler (ein
+    String, der jeden lexikographischen Vergleich strukturell ``False``
+    macht, z. B. ``"<wird beim Merge nachgetragen>"``: ``'<'`` ist
+    ASCII-groesser als jede Ziffer) hat an beiden Stellen dieselbe
+    Form-Signatur.
+    """
+    return len(value) == 20 and value.endswith("Z") and value[:4].isdigit()
 
 
 def newest_witness(entry: ProofEntry) -> str:
@@ -87,17 +131,18 @@ def newest_witness(entry: ProofEntry) -> str:
         # Auf FORM pruefen, nicht auf "nicht leer". `gh api` schreibt seinen
         # Fehler-Body zwar nach STDOUT -- gemessen 2026-08-24: ein echter 404
         # liefert `returncode=1` und `{"message":"Not Found",...}` auf STDOUT
-        # -- aber _gh() oben filtert genau darauf (`if proc.returncode == 0
-        # else ""`), ein 404 erreicht diesen Vergleich ueber DIESEN Aufrufpfad
-        # also gar nicht. Die Formpruefung ist trotzdem die ZWEITE,
-        # unabhaengige Verteidigungslinie: sollte _gh()s Rueckgabecode-Filter
-        # je entfernt werden oder ein anderer Aufrufer ein rohes `gh`-Ergebnis
-        # hierher reichen, waere ein reiner Nicht-leer-/Groessenvergleich
-        # verwundbar -- '{' ist ASCII-groesser als jede Ziffer, ein
-        # JSON-Fehlerkoerper wuerde jeden echten Zeitstempel schlagen.
+        # -- aber _gh() oben wirft seit Critical-1-Fix-Runde auf JEDEM
+        # Nicht-Null-Rueckgabecode (GhCallError), ein 404 erreicht diesen
+        # Vergleich ueber DIESEN Aufrufpfad also gar nicht. Die Formpruefung
+        # ist trotzdem die ZWEITE, unabhaengige Verteidigungslinie: sollte
+        # _gh()s Fehlerpfad je entfernt werden oder ein anderer Aufrufer ein
+        # rohes `gh`-Ergebnis hierher reichen, waere ein reiner
+        # Nicht-leer-/Groessenvergleich verwundbar -- '{' ist ASCII-groesser
+        # als jede Ziffer, ein JSON-Fehlerkoerper wuerde jeden echten
+        # Zeitstempel schlagen.
         # test_newest_witness_never_crowns_a_json_error_body_as_a_witness
-        # haelt genau das fest, unabhaengig vom _gh()-Filter.
-        if len(started) != 20 or not started.endswith("Z") or not started[:4].isdigit():
+        # haelt genau das fest, unabhaengig von _gh()s Fehlerpfad.
+        if not _looks_like_an_iso8601_utc_timestamp(started):
             continue
         if started > (entry.raw or {}).get("merged_at", ""):
             return str(run_id)
@@ -122,6 +167,17 @@ def unjudged_reason(entry: ProofEntry) -> str:
         return "job_log — Monitor holt keine Logs"
     if entry.evidence_source != "artifact":
         return f"evidence_source={entry.evidence_source!r} unbekannt"
+    # Der merged_at-Platzhalter (Gefunden 2026-08-24): ein noch nicht
+    # gemergter Eintrag traegt "<wird beim Merge nachgetragen>" statt eines
+    # echten Zeitstempels. `'<'` ist ASCII-groesser als jede Ziffer, also ist
+    # `started > merged_at` in newest_witness() fuer JEDEN Lauf strukturell
+    # False -- der Zweig lief bislang STILL in "" durch und erschien als
+    # KEIN_ZEUGE, ununterscheidbar von einer echten erfolglosen Zeugensuche.
+    # Hier VOR der Suche abgefangen und benannt, statt den Ausfall der Suche
+    # zu ueberlassen.
+    merged_at = str((entry.raw or {}).get("merged_at", ""))
+    if not _looks_like_an_iso8601_utc_timestamp(merged_at):
+        return f"merged_at={merged_at!r} ist kein ISO-8601-Zeitstempel (Platzhalter?)"
     return ""
 
 
@@ -166,14 +222,24 @@ def main(argv: list[str] | None = None) -> int:
     for entry in load_entries():
         verdict: Verdict | None = None
         run_id = ""
+        gh_error = ""
         skip_reason = unjudged_reason(entry)
         if not skip_reason:
-            verdict, run_id = _judge_entry(entry)
+            try:
+                verdict, run_id = _judge_entry(entry)
+            except GhCallError as exc:
+                # Critical 1: ein gh-Fehlschlag (403 / abgelaufener PAT /
+                # Rate-Limit / kein Netz) darf NIE wie "kein Zeuge gefunden"
+                # aussehen -- das war die Wurzel, die zehn Zeilen OK mit
+                # exit 0 druckte, obwohl kein einziger Aufruf durchging.
+                gh_error = str(exc)
 
         if verdict is not None:
             measured = verdict.state
         elif skip_reason:
             measured = f"KEIN_URTEIL ({skip_reason})"
+        elif gh_error:
+            measured = f"KEIN_URTEIL (API nicht erreichbar: {gh_error})"
         else:
             measured = "KEIN_ZEUGE"
 
@@ -192,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
                 "run": run_id,
                 "owner": entry.owner,
                 "due_by": entry.due_by,
-                "class": classify(entry, verdict, args.today),
+                "class": classify(entry, verdict, args.today, unreachable=bool(gh_error)),
             }
         )
 
