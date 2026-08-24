@@ -1084,8 +1084,10 @@ def test_a_job_log_entry_is_no_longer_skipped():
     assert unjudged_reason(_job_log_entry()) == ""
 
 
-def test_the_job_log_path_picks_the_NAMED_job_not_the_first_one():
-    """Ein Lauf hat mehrere Jobs. Wird der falsche genommen, urteilt der
+def test_the_job_log_path_picks_the_named_job_not_the_first_one():
+    """Der Job wird nach NAMEN gefiltert, nicht nach Position.
+
+    Ein Lauf hat mehrere Jobs. Wird der falsche genommen, urteilt der
     Monitor ueber ein fremdes Log und meldet ein plausibles, falsches
     Ergebnis — schlimmer als kein Urteil."""
     import scripts.judge_proof_ledger as mod
