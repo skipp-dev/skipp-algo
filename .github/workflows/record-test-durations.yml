@@ -109,8 +109,20 @@ jobs:
           # abschneiden, sonst fehlen alle Gewichte hinter ihm. Bewusst OHNE
           # `-n`: die PR-Lane faehrt innerhalb eines Shards seriell, und eine
           # unter xdist gemessene Zeit ist nicht die Zeit, die dort anfaellt.
-          # `-p no:randomly` haelt die Sammelreihenfolge deterministisch, also
-          # vergleichbar zwischen zwei Aufzeichnungen.
+          # `-p no:randomly` ist hier WIRKUNGSLOS und stand trotzdem als
+          # Determinismus-Zusicherung da. Gemessen 2026-08-24: `pytest-randomly`
+          # ist in KEINER requirements*.txt und in keiner pyproject.toml
+          # deklariert (`git grep -c "pytest-randomly\|pytest_randomly"` ueber
+          # das ganze Repo ⇒ 0 Treffer), also nirgends installiert — und pytest
+          # akzeptiert `-p no:<plugin>` klaglos, auch wenn das Plugin fehlt. Der
+          # Schalter sah aus wie ein Schutz und war keiner.
+          # Die EIGENSCHAFT stimmt weiterhin: ohne das Plugin ist die
+          # Sammelreihenfolge ohnehin die Dateireihenfolge, also deterministisch
+          # und zwischen zwei Aufzeichnungen vergleichbar. Nur nicht DESWEGEN.
+          # Der Schalter bleibt bewusst stehen: wird `pytest-randomly` je
+          # aufgenommen, traegt er ab diesem Moment echt — ihn jetzt zu
+          # entfernen hiesse, den Schutz genau dann zu verlieren, wenn er
+          # erstmals gebraucht wird.
           python -m pytest -q -p no:randomly \
             --splits 4 --group "${{ matrix.group }}" \
             --store-durations \
