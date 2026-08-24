@@ -848,3 +848,40 @@ claim  = "Der Determinismus-Kommentar an der Dauer-Aufzeichnung wird auf die Mes
 state  = "AUSGENOMMEN"
 due_by = "2026-08-24"
 owner  = "operator"
+
+[[proof]]
+id     = "widerlegt-kann-nicht-quittiert-werden"
+kind   = "defect"
+claim  = "Ein gemessenes FAIL ist dauerhaft laut -- eine Widerlegung laesst sich nicht zur Kenntnis nehmen"
+# GEMESSEN 2026-08-24 gegen origin/main, alle vier Deklarationen durchgerechnet:
+#   deklariert=OFFEN        + gemessen=FAIL  ->  WIDERLEGT
+#   deklariert=FAIL         + gemessen=FAIL  ->  WIDERLEGT
+#   deklariert=UNGESICHERT  + gemessen=FAIL  ->  WIDERLEGT
+#   deklariert=PASS         + gemessen=FAIL  ->  WIDERSPRUCH
+# Auch state="FAIL" bleibt laut, obwohl FAIL in TERMINAL_STATES steht -- der
+# WIDERLEGT-Zweig in classify() greift VOR dem Terminal-Kurzschluss und fragt
+# den deklarierten Zustand nicht ab.
+#
+# FOLGE, und sie ist der eigentliche Schaden: #5018 und #5027 stehen seit dem
+# Merge von #5047 auf WIDERLEGT (Klasse H besteht fort). Der taegliche Cron
+# 06:47Z laeuft damit JEDEN Tag rot und aktualisiert sein Issue -- ohne dass
+# irgendjemand etwas daran aendern koennte ausser Klasse H zu beheben. Ein
+# Monitor, der immer rot ist, wird nach zwei Wochen nicht mehr gelesen. Das
+# ist exakt die Fehlerklasse, gegen die dieses Ledger gebaut ist, eine Ebene
+# hoeher: ein Signal, das nichts mehr unterscheidet.
+#
+# VERURSACHT von mir am 2026-08-24 mit dem WIDERLEGT-Zweig (#5047). Der Zweig
+# selbst ist richtig -- ein widerlegter Fix MUSS laut werden. Was fehlt, ist
+# die Quittung.
+#
+# WAS DIE FRIST AUFLOESEN WUERDE (Mechanismus, keine Prosa): eine Deklaration,
+# mit der sich eine Widerlegung zur Kenntnis nehmen laesst, ohne sie zu
+# verschweigen -- etwa state="FAIL" gilt als quittiert, SOLANGE der Eintrag
+# per Feld auf einen OFFENEN defect-Halter zeigt (hier: klasse-h). Dann ist
+# der Eintrag still, die Arbeit bleibt aber an einem Halter mit eigener Frist
+# haengen, und das Verschwinden des Halters macht ihn wieder laut. Ohne diese
+# Kopplung waere die Quittung ein Schalter zum Stummstellen -- genau das, was
+# die Anti-Willkuer-Kopplung an anderer Stelle verhindert.
+state  = "UNGESICHERT"
+due_by = "2026-08-31"
+owner  = "operator"
