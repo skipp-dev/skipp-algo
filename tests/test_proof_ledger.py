@@ -596,6 +596,67 @@ def test_the_branch_labels_come_from_the_source_not_from_a_copy():
     assert "clean_run" in branches
 
 
+# --- tv_legend_click: leere Beobachtung ist kein PASS (2026-08-24) ---------
+#
+# Coordinator-Fund am Live-Monitor: ein Log OHNE openSettingsForScript-Spur
+# (Verify-/Repair-Lauf, die Klick-Operation lief nie) fiel vor dem Fix bis
+# zum PASS/all_dialogs_opened durch -- "kein Fehlermarker gefunden" und "nie
+# versucht" sind verschiedene Aussagen. GEMESSEN an Lauf 32745395799: genau
+# das ist am 2026-08-24 live passiert, bevor der Fix landete (ein
+# Verify-/Repair-Lauf haette einen Klasse-H-Fix "bewiesen", den er nie
+# angefasst hat).
+
+
+def test_a_log_without_the_settings_marker_is_pending_not_passed():
+    """Der Kern: keine Klick-Spur heisst 'nie versucht', nicht 'bestanden'."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge({"log": "irgendein Log ohne jede Skript-Spur"}, None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "settings_never_attempted", verdict
+
+
+def test_the_recorded_verify_only_run_is_pending_not_passed():
+    """Positivkontrolle am ECHTEN, aufgezeichneten Lauf: 32745395799 war der
+    reale Fall, den der Coordinator am Live-Monitor gefunden hat -- ein
+    Verify-/Repair-Lauf, der Klasse H nie angefasst hat."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32745395799"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "settings_never_attempted", verdict
+
+
+def test_identity_mismatch_still_wins_when_the_settings_marker_is_present():
+    """Gegenprobe: die bestehenden Zweige bleiben unberuehrt. Ein Log MIT
+    identity-mismatch bleibt FAIL -- der neue Zweig steht in der
+    Pruefreihenfolge NACH identity-mismatch und darf ihn nicht abfangen."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32556181388"], None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "identity_mismatch", verdict
+
+
+def test_identity_mismatch_wins_even_without_a_literal_settings_marker():
+    """Randfall explizit gepinnt, nicht nur am realen Korpus angenommen: ein
+    synthetisches Log mit identity-mismatch, aber OHNE die woertliche
+    openSettingsForScript-Spur, muss trotzdem FAIL bleiben -- die Reihenfolge
+    (miss -> mismatch -> Abwesenheit -> Praesenz) darf identity-mismatch
+    nicht von settings_never_attempted ueberholen lassen."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge({"log": "... identity-mismatch SMC X != SMC Y ..."}, None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "identity_mismatch", verdict
+
+
 # --- Fix-Runde 2 (2026-08-23): Notiz statt Mechanismus abgeschafft ---------
 
 

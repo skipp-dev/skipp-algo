@@ -279,22 +279,32 @@ Legend-Zeile im Klickmoment.
 judge  = "tv_legend_click"
 branch = "all_dialogs_opened"
 reason = """
-2026-08-23 gemessen. openSettingsForScript ist der ROUTINE-Schrittname fuer
-JEDES Oeffnen einer Skript-Einstellung, ob erfolgreich oder haengen
-geblieben (`[tv-step] start/ok/error openSettingsForScript:...`) -- er
-steht in praktisch jedem Log, das ueberhaupt ein Skript prueft (bestaetigt
-an Lauf 32357049150: 20 Treffer bei 0 fehlgeschlagenen Zielen). Die
-einzigen der 7 real gepruefte Logs OHNE diese Spur sind die 4
-checkedConsumers=0-Laeufe -- leere Beobachtung, siehe
-tv_failure_evidence.nothing_failed. Deren Log als "alle Dialoge geoeffnet"
-zu werten waere derselbe Fehler wie eine leere Beobachtung als Befund zu
-verkaufen. Mit echten, ehrlichen Logs ist dieser Zweig praktisch nie
-erreichbar, weil der vorausgehende Zweig (dialog_stuck_without_miss) jeden
-Log mit mindestens einem Dialogversuch zuerst abfaengt -- unabhaengig vom
-Ausgang. Das ist ein Praezisionsfehler in dialog_stuck_without_miss
-(feuert auch bei vollstaendig erfolgreichen Laeufen, siehe der neue
-Korpus-Eintrag 32357049150), nicht nur eine Beobachtungsluecke bei diesem
-Zweig -- im Task-5-Bericht als eigener Befund vermerkt.
+2026-08-23 gemessen, 2026-08-24 KORRIGIERT: die urspruengliche Fassung
+dieser Begruendung nannte den Zweig "praktisch" nie erreichbar -- und wurde
+noch am selben Tag durch echte Evidenz widerlegt. Lauf 32745395799
+(workflow_dispatch, verify-/repair-only, kein einziges
+openSettingsForScript im Log) erreichte GENAU diesen Zweig ueber den
+Live-Monitor und meldete PASS fuer einen Verify-Lauf, der Klasse H nie
+angefasst hat -- derselbe Fehler wie eine leere Beobachtung als Befund zu
+verkaufen (tv_failure_evidence.nothing_failed), hier am eigenen Urteiler
+eingetreten statt nur vorhergesagt.
+
+FIX (selbe Aenderung): ein neuer, VORGESCHALTETER Zweig
+(settings_never_attempted, STEHT_AUS) faengt jetzt jedes Log ohne
+openSettingsForScript ab -- Korpus-Beleg tests/proof_corpus/tv_legend_click/
+32745395799.json. Seither ist all_dialogs_opened nicht mehr nur praktisch,
+sondern STRUKTURELL unerreichbar: bei Abwesenheit der Spur greift
+settings_never_attempted, bei Anwesenheit IMMER dialog_stuck_without_miss
+(openSettingsForScript ist der ROUTINE-Schrittname fuer JEDES Oeffnen einer
+Skript-Einstellung, ob erfolgreich oder haengen geblieben -- bestaetigt an
+Lauf 32357049150: 20 Treffer bei 0 fehlgeschlagenen Zielen). Die zwei
+Praesenz-/Abwesenheits-Pruefungen auf denselben String sind erschoepfend
+und schliessen sich gegenseitig aus -- kein drittes Log-Muster kann den
+PASS-Fall danach noch erreichen. Der Praezisionsfehler in
+dialog_stuck_without_miss selbst (feuert auch bei vollstaendig
+erfolgreichen Laeufen) bleibt unter dialog-stuck-without-miss-false-positive
+separat gefuehrt, NICHT hier behoben -- diese Aenderung schliesst nur die
+Leere-Beobachtungs-Luecke.
 """
 
 [[unreachable_branch]]

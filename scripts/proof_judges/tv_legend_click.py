@@ -30,6 +30,33 @@ def judge(evidence: dict, entry) -> Verdict:
             branch="identity_mismatch",
             detail="es ging der falsche Dialog auf",
         )
+    # settings_never_attempted (2026-08-24, Coordinator-Fund am Live-Monitor):
+    # "kein Fehlermarker gefunden" und "nie versucht" sind VERSCHIEDENE
+    # Aussagen -- die zweite als bestandenen Beweis zu fuehren ist die
+    # Leere-Beobachtung-Falle (dieselbe Klasse wie
+    # tv_failure_evidence.nothing_failed / checkedConsumers:0). Diese Probe
+    # muss VOR der PRUEFEN-Pruefung stehen: sie ist die POSITIVE
+    # Voraussetzung fuer alles danach (inklusive PASS), nicht ein
+    # Durchfall-Fall am Ende. GEMESSEN an Lauf 32745395799 (workflow_dispatch,
+    # verify-/repair-only, save-Job-Log 89431 B): openSettingsForScript kommt
+    # NULL Mal vor, die Klick-Operation lief also nie -- und wurde vor diesem
+    # Fix trotzdem als "all_dialogs_opened"/PASS gemeldet. Ein Verify-Lauf
+    # haette damit einen Klasse-H-Fix "bewiesen", den er nie angefasst hat.
+    if "openSettingsForScript" not in log:
+        return Verdict(
+            "STEHT_AUS",
+            branch="settings_never_attempted",
+            detail="openSettingsForScript kommt im Log nicht vor -- die "
+            "Operation wurde nie versucht, das ist kein bestandener Beweis",
+        )
+    # Ab hier ist "openSettingsForScript" im Log garantiert vorhanden (der
+    # Zweig oben haette sonst schon zurueckgegeben) -- die Praesenzpruefung
+    # unten ist damit tautologisch wahr, bleibt aber als eigener, benannter
+    # Zweig stehen (Symmetrie zur Abwesenheitspruefung, AST-lesbares Label).
+    # Diesselbe Symmetrie macht den PASS-Fall am Ende STRUKTURELL
+    # unerreichbar: bei Abwesenheit greift settings_never_attempted, bei
+    # Anwesenheit IMMER dialog_stuck_without_miss -- siehe die aktualisierte
+    # [[unreachable_branch]]-Begruendung in proof_ledger.toml.
     if "openSettingsForScript" in log:
         return Verdict(
             "PRUEFEN",
