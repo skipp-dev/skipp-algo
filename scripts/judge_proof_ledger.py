@@ -49,7 +49,23 @@ REPO = "skipp-dev/skipp-algo"
 def classify(
     entry: ProofEntry, verdict: Verdict | None, today: str, *, unreachable: bool = False
 ) -> str:
-    """``OK`` | ``UEBERFAELLIG`` | ``WIDERSPRUCH`` | ``KEIN_URTEIL``.
+    """``OK`` | ``UEBERFAELLIG`` | ``WIDERSPRUCH`` | ``WIDERLEGT`` |
+    ``NICHT_ERREICHT`` | ``KEIN_URTEIL``. Alles ausser ``OK`` ist laut
+    (``main()`` meldet jede Nicht-OK-Zeile, rc=1, Issue).
+
+    Die drei lauten Klassen sagen VERSCHIEDENE Dinge, und die Unterscheidung
+    ist der Zweck -- eine gemeinsame Sammelklasse waere wieder ein Signal, das
+    nicht sagt, was zu tun ist:
+
+    * ``WIDERSPRUCH`` -- deklariert ``PASS``, gemessen ``FAIL``: **das Ledger
+      behauptet etwas Falsches.**
+    * ``WIDERLEGT`` -- gemessen ``FAIL`` auf allem anderen: **der Fix wirkt
+      nicht.**
+    * ``NICHT_ERREICHT`` -- deklariert ``PASS``, gemessen ``STEHT_AUS``: **der
+      juengste Zeuge konnte nichts sagen**, weil er den Zweig nicht erreicht
+      hat. Keine Anschuldigung gegen das Ledger (der Eintrag traegt seinen
+      eigenen ``witness_run``), aber auch kein Schweigen.
+
 
     ``unreachable=True`` heisst: der gh-Aufruf fuer diesen Eintrag ist mit
     ``GhCallError`` fehlgeschlagen (Critical 1). Das muss VOR dem
@@ -62,9 +78,21 @@ def classify(
         return "KEIN_URTEIL"
     if verdict is not None:
         declared_good = entry.state == "PASS"
-        measured_bad = verdict.state in {"FAIL", "STEHT_AUS"}
-        if declared_good and measured_bad:
+        if declared_good and verdict.state == "FAIL":
             return "WIDERSPRUCH"
+        # NICHT_ERREICHT (2026-08-24): STEHT_AUS auf einem deklarierten PASS
+        # lief vorher als WIDERSPRUCH mit -- eine falsche Anschuldigung. Der
+        # Eintrag traegt seinen eigenen Beleg (witness_run); ein SPAETERER
+        # Lauf, der den Zweig nicht erreichte, widerlegt ihn nicht, er sagt
+        # nichts. GEMESSEN an Lauf 32729006391: er starb an Klasse H
+        # (identity_mismatch), erreichte die Save-Phase nie und lieferte fuer
+        # #5013 save_phase_never_reached -- als WIDERSPRUCH gemeldet haette das
+        # dem Ledger eine Luege unterstellt, die es nicht begangen hat.
+        # Trotzdem LAUT und nicht OK: dass ein Zweig nicht mehr erreicht wird,
+        # ist genau die Information, um die es hier geht -- sie zu verschweigen
+        # waere die Fehlerklasse, gegen die dieses Ledger gebaut ist.
+        if declared_good and verdict.state == "STEHT_AUS":
+            return "NICHT_ERREICHT"
         if entry.state == "UNERREICHBAR" and verdict.state in {"PASS", "FAIL"}:
             return "WIDERSPRUCH"
         # WIDERLEGT (2026-08-24): ein gemessenes FAIL auf allem, was NICHT
@@ -130,7 +158,18 @@ def newest_witness(entry: ProofEntry) -> str:
         "api",
         f"repos/{REPO}/actions/workflows/{entry.witness}.yml/runs?per_page=50",
         "-q",
-        '.workflow_runs[] | select(.status=="completed") | .id',
+        # `cancelled` ist AUSGESCHLOSSEN, nicht vergessen: ein abgebrochener
+        # Lauf laedt nie ein Artefakt hoch (die upload-Bedingung im Workflow
+        # verlangt success oder failure). Wird er trotzdem zum Zeugen gekuert,
+        # scheitert der Download -- und der Monitor meldet "API nicht
+        # erreichbar", waehrend die API einwandfrei antwortet.
+        # GEMESSEN 2026-08-24 an Lauf 32729923497: status=completed,
+        # conclusion=cancelled, save-Job cancelled, 0 Artefakte, und genau
+        # dieser Lauf verdraengte den brauchbaren Zeugen 32694176198.
+        # Das Wissen stand in der Vorgaenger-Sonde (tv_gate_probe_check.sh)
+        # und ging beim Portieren verloren.
+        '.workflow_runs[] | select(.status=="completed") '
+        '| select(.conclusion!="cancelled") | .id',
     )
     for run_id in raw.split():
         started = _gh(
@@ -243,10 +282,20 @@ def _judge_entry(entry: ProofEntry) -> tuple[Verdict | None, str]:
             return None, run_id
         return load_judge(entry.judge).judge({"log": log}, entry), run_id
     with tempfile.TemporaryDirectory(prefix="proof_ledger_") as tmp_dir:
-        _gh(
-            "run", "download", run_id, "-R", REPO,
-            "-n", entry.artifact, "-D", tmp_dir,
-        )
+        try:
+            _gh(
+                "run", "download", run_id, "-R", REPO,
+                "-n", entry.artifact, "-D", tmp_dir,
+            )
+        except GhCallError:
+            # "Dieser Lauf traegt das Artefakt nicht" ist NICHT "die API ist
+            # nicht erreichbar". Die beiden zu verschmelzen erzeugt einen
+            # lauten Fehlalarm ueber eine gesunde API -- und verdeckt zugleich
+            # den echten Befund, naemlich dass der Zeuge keine Evidenz trug.
+            # Seit dem cancelled-Ausschluss oben ist das selten, aber nicht
+            # unmoeglich: ein Lauf kann auch mit conclusion=failure sterben,
+            # bevor der upload-Schritt greift.
+            return None, run_id
         artifact_filename = entry.artifact.replace("-", "_") + ".json"
         artifact_path = Path(tmp_dir) / artifact_filename
         try:
