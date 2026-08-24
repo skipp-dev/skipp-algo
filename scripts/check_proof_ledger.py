@@ -21,7 +21,7 @@ import sys
 import tomllib
 
 from scripts.proof_class import derive_class
-from scripts.proof_ledger import ROOT, ProofLedgerError, load_entries
+from scripts.proof_ledger import ROOT, TERMINAL_STATES, ProofLedgerError, load_entries
 
 _REMEDY = """
 Dieser PR aendert Code, dessen Wirkung die Testsuite prinzipiell nicht sehen
@@ -103,28 +103,58 @@ def _coupling_failures() -> list[str]:
     laesst sich umschreiben, um einen Beweis stillzulegen. Das Muster stammt
     aus ``_DEPLOYMENT_IS_CONFIGURED``: die Deklaration ist nur ehrlich,
     solange die Sache existiert, auf die sie sich beruft.
+
+    Zweite Kopplungsart seit 2026-08-24: ``refutation_tracked_by`` auf einem
+    ``state == "FAIL"``-Eintrag muss auf einen ANDEREN Ledger-Eintrag zeigen,
+    der ``kind == "defect"`` ist und NICHT-terminal steht. Verschwindet der
+    Halter oder wird er terminal (PASS/FAIL/UNERREICHBAR/AUSGENOMMEN), ist die
+    Quittung ungueltig und der Waechter macht den PR rot — ohne diese Probe
+    waere ``refutation_tracked_by`` ein Schalter zum Stummstellen, den niemand
+    prueft, sobald der Halter erledigt oder geloescht wird.
     """
     problems: list[str] = []
-    for entry in load_entries():
+    entries = load_entries()
+    by_id = {entry.id: entry for entry in entries}
+    for entry in entries:
         ref = entry.unreachable_because
-        if not ref:
+        if ref:
+            kind, _, rest = ref.partition(":")
+            if kind == "path":
+                if not (ROOT / rest).exists():
+                    problems.append(f"{entry.id}: Pfad {rest!r} existiert nicht mehr")
+            elif kind == "symbol":
+                rel, _, name = rest.partition("#")
+                target = ROOT / rel
+                if not target.exists():
+                    problems.append(f"{entry.id}: Datei {rel!r} existiert nicht mehr")
+                elif name not in target.read_text(encoding="utf-8", errors="replace"):
+                    problems.append(
+                        f"{entry.id}: Symbol {name!r} steht nicht mehr in {rel!r} — "
+                        "die Begruendung traegt nicht mehr"
+                    )
+            else:
+                problems.append(f"{entry.id}: unbekannte Kopplungsart {kind!r}")
+
+        holder_id = entry.refutation_tracked_by
+        if not holder_id:
             continue
-        kind, _, rest = ref.partition(":")
-        if kind == "path":
-            if not (ROOT / rest).exists():
-                problems.append(f"{entry.id}: Pfad {rest!r} existiert nicht mehr")
-        elif kind == "symbol":
-            rel, _, name = rest.partition("#")
-            target = ROOT / rel
-            if not target.exists():
-                problems.append(f"{entry.id}: Datei {rel!r} existiert nicht mehr")
-            elif name not in target.read_text(encoding="utf-8", errors="replace"):
-                problems.append(
-                    f"{entry.id}: Symbol {name!r} steht nicht mehr in {rel!r} — "
-                    "die Begruendung traegt nicht mehr"
-                )
-        else:
-            problems.append(f"{entry.id}: unbekannte Kopplungsart {kind!r}")
+        holder = by_id.get(holder_id)
+        if holder is None:
+            problems.append(
+                f"{entry.id}: refutation_tracked_by {holder_id!r} existiert "
+                "nicht im Ledger"
+            )
+        elif holder.kind != "defect":
+            problems.append(
+                f"{entry.id}: refutation_tracked_by {holder_id!r} ist kein "
+                f"defect-Eintrag (kind={holder.kind!r})"
+            )
+        elif holder.state in TERMINAL_STATES:
+            problems.append(
+                f"{entry.id}: refutation_tracked_by {holder_id!r} steht auf "
+                f"einem terminalen Zustand ({holder.state!r}) — die Quittung "
+                "ist ungueltig"
+            )
     return problems
 
 

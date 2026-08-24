@@ -110,6 +110,27 @@ def test_dormant_and_unreachable_need_a_repo_coupled_reason():
             assert entry.unreachable_because.startswith(("symbol:", "path:")), entry.id
 
 
+def test_a_fail_entry_without_a_holder_is_refused_loudly(tmp_path, monkeypatch):
+    """Mutationsprobe: ``state = "FAIL"`` ohne ``refutation_tracked_by`` darf
+    nicht laden -- wie ``pass_kind`` bei ``PASS``, aber hier hart im Schema
+    statt nur per Test. Ohne diese Zeile waere ein FAIL-Eintrag ein Schalter
+    zum Stummstellen, den niemand zwingt, an einem Halter zu haengen."""
+    import scripts.proof_ledger as mod
+
+    broken = tmp_path / "proof_ledger.toml"
+    broken.write_text(
+        '[class_floors]\nworkflows = 1\nreferenced_code = 1\nderived_class = 1\n\n'
+        '[[proof]]\nid = "x"\nkind = "defect"\nclaim = "c"\n'
+        'state = "FAIL"\ndue_by = "2026-09-06"\nowner = "operator"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mod, "_LEDGER_PATH", broken)
+    mod._load.cache_clear()
+    with pytest.raises(ProofLedgerError, match="refutation_tracked_by"):
+        mod.load_entries()
+    mod._load.cache_clear()
+
+
 def test_the_class_floors_are_positive():
     floors = class_floors()
     assert set(floors) == {
@@ -496,6 +517,92 @@ def test_an_unknown_coupling_kind_is_reported(monkeypatch):
     assert "voodoo" in problems[0]
 
 
+# --- Widerlegt-Quittung: refutation_tracked_by-Kopplung (2026-08-24) -------
+#
+# Ersetzt den Halter "widerlegt-kann-nicht-quittiert-werden". Symmetrisch zu
+# den unreachable_because-Proben oben, nur gegen einen ANDEREN Ledger-Eintrag
+# statt gegen eine Repo-Tatsache geprueft.
+
+
+def test_a_refutation_holder_that_does_not_exist_is_reported(monkeypatch):
+    """Kopplungsprobe, Variante 'existiert nicht' -- ein geloeschter Halter
+    darf die Quittung nicht stillschweigend gueltig lassen."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="geistert-nicht", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (fake,))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "geistert-nicht" in problems[0]
+
+
+def test_a_refutation_holder_that_is_not_a_defect_is_reported(monkeypatch):
+    """Kopplungsprobe, Variante 'falsche Art' -- der Halter muss kind=="defect"
+    sein, sonst ist er kein Ort, an dem Arbeit haengt."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="holder", kind="fix", claim="c", state="OFFEN",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="holder", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "holder" in problems[0]
+    assert "kind=" in problems[0]
+
+
+def test_a_refutation_holder_gone_terminal_makes_the_ack_invalid(monkeypatch):
+    """Der Kern der Kopplung: wird der Halter terminal (hier: AUSGENOMMEN),
+    ist die Quittung ungueltig -- der Offline-Waechter muss rot werden, nicht
+    nur der Monitor still zurueckfallen."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="klasse-h", kind="defect", claim="c", state="AUSGENOMMEN",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="klasse-h", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    problems = gate._coupling_failures()
+    assert len(problems) == 1
+    assert "klasse-h" in problems[0]
+
+
+def test_a_valid_refutation_holder_passes(monkeypatch):
+    """Positivkontrolle: ein offener defect-Halter macht die Kopplung still."""
+    import scripts.check_proof_ledger as gate
+    from scripts.proof_ledger import ProofEntry
+
+    holder = ProofEntry(
+        id="klasse-h", kind="defect", claim="c", state="UNGESICHERT",
+        due_by="2026-09-06", owner="operator", raw={},
+    )
+    fake = ProofEntry(
+        id="fake-fail", kind="fix", claim="c", state="FAIL",
+        due_by="2026-09-06", owner="operator",
+        refutation_tracked_by="klasse-h", raw={},
+    )
+    monkeypatch.setattr(gate, "load_entries", lambda: (holder, fake))
+    assert gate._coupling_failures() == []
+
+
 # --- Urteiler (Task 4) ------------------------------------------------------
 
 
@@ -568,6 +675,148 @@ def test_the_branch_labels_come_from_the_source_not_from_a_copy():
     assert "partial_saved" in branches
     assert "save_phase_never_reached" in branches
     assert "clean_run" in branches
+
+
+# --- tv_legend_click: leere Beobachtung ist kein PASS (2026-08-24) ---------
+#
+# Coordinator-Fund am Live-Monitor: ein Log OHNE openSettingsForScript-Spur
+# (Verify-/Repair-Lauf, die Klick-Operation lief nie) fiel vor dem Fix bis
+# zum PASS/all_dialogs_opened durch -- "kein Fehlermarker gefunden" und "nie
+# versucht" sind verschiedene Aussagen. GEMESSEN an Lauf 32745395799: genau
+# das ist am 2026-08-24 live passiert, bevor der Fix landete (ein
+# Verify-/Repair-Lauf haette einen Klasse-H-Fix "bewiesen", den er nie
+# angefasst hat).
+
+
+def test_a_log_without_the_settings_marker_is_pending_not_passed():
+    """Der Kern: keine Klick-Spur heisst 'nie versucht', nicht 'bestanden'."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge({"log": "irgendein Log ohne jede Skript-Spur"}, None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "settings_never_attempted", verdict
+
+
+def test_the_recorded_verify_only_run_is_pending_not_passed():
+    """Positivkontrolle am ECHTEN, aufgezeichneten Lauf: 32745395799 war der
+    reale Fall, den der Coordinator am Live-Monitor gefunden hat -- ein
+    Verify-/Repair-Lauf, der Klasse H nie angefasst hat."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32745395799"], None)
+    assert verdict.state == "STEHT_AUS", verdict
+    assert verdict.branch == "settings_never_attempted", verdict
+
+
+def test_identity_mismatch_still_wins_when_the_settings_marker_is_present():
+    """Gegenprobe: die bestehenden Zweige bleiben unberuehrt. Ein Log MIT
+    identity-mismatch bleibt FAIL -- der neue Zweig steht in der
+    Pruefreihenfolge NACH identity-mismatch und darf ihn nicht abfangen."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32556181388"], None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "identity_mismatch", verdict
+
+
+def test_identity_mismatch_wins_even_without_a_literal_settings_marker():
+    """Randfall explizit gepinnt, nicht nur am realen Korpus angenommen: ein
+    synthetisches Log mit identity-mismatch, aber OHNE die woertliche
+    openSettingsForScript-Spur, muss trotzdem FAIL bleiben -- die Reihenfolge
+    (miss -> mismatch -> Abwesenheit -> Praesenz) darf identity-mismatch
+    nicht von settings_never_attempted ueberholen lassen."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge({"log": "... identity-mismatch SMC X != SMC Y ..."}, None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "identity_mismatch", verdict
+
+
+# --- tv_legend_click: Anwesenheit ist kein Erfolg (2026-08-24, Teil 2) -----
+#
+# Coordinator-Fund am Live-Monitor, zweite Runde: der Anwesenheits-Zweig
+# (vormals dialog_stuck_without_miss/PRUEFEN) feuerte auf JEDEM Log mit
+# mindestens einem openSettingsForScript-Versuch, egal ob er gelang oder
+# haengen blieb -- derselbe Fehler wie eben bei settings_never_attempted,
+# nur eine Stufe hoeher: "Fehlermarker A nicht gefunden" wurde als "Erfolg"
+# gefuehrt, obwohl das Log Erfolg und Timeout sehr wohl unterscheidet (Suffix
+# ": Step timed out" auf derselben Zeile, GEMESSEN an Lauf 32729006391).
+
+
+def test_a_settings_timeout_without_a_mismatch_trace_fails():
+    """Der Kern: ein Timeout ist ein beobachteter Fehlschlag, keine
+    Grauzone -- FAIL statt des alten, unbestimmten PRUEFEN."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Long-Dip Alerts\n"
+        "[tv-step] error openSettingsForScript:SMC Long-Dip Alerts (60002ms): "
+        "Step timed out after 60000ms: openSettingsForScript:SMC Long-Dip Alerts"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "settings_dialog_timed_out", verdict
+
+
+def test_a_settings_success_without_a_timeout_is_a_pass():
+    """Gegenprobe zum Kern: openSettingsForScript OHNE Timeout ist jetzt
+    wieder ein echter PASS -- ueber POSITIVE Evidenz (lief durch), nicht ueber
+    Abwesenheit von Fehlermarkern."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Decision Board\n"
+        "[tv-step] ok openSettingsForScript:SMC Decision Board (4332ms)"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
+
+
+def test_the_recorded_healthy_run_reaches_pass_with_real_evidence():
+    """Positivkontrolle am ECHTEN, bereits aufgezeichneten Korpus: Lauf
+    32357049150 (20 openSettingsForScript-Treffer, 0 Step-timed-out, 0
+    identity-mismatch, 0 hit-target-miss) war bisher der Beleg fuer das alte
+    PRUEFEN -- unter der neuen Logik ist er der Beleg fuer PASS. Der Zweig
+    ist damit wieder per echter Evidenz gedeckt, keine Deklaration mehr
+    noetig (siehe die entfernte all_dialogs_opened-Deklaration in
+    proof_ledger.toml)."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    corpus = dict(corpus_for("tv_legend_click"))
+    judge = load_judge("tv_legend_click")
+    verdict = judge.judge(corpus["32357049150"], None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
+
+
+def test_a_timeout_on_an_unrelated_step_does_not_fail_the_settings_check():
+    """Praezisions-Gegenprobe: runTrackedStep traegt den 60s-Deckel fuer
+    MEHRERE getrackte Schritte, nicht nur openSettingsForScript. Ein "Step
+    timed out" fuer einen ANDEREN Schritt anderswo im selben Log darf einen
+    ansonsten erfolgreichen openSettingsForScript-Durchlauf nicht faelschlich
+    als FAIL fuehren -- genau die Verwechslung (Ganzlog-Substring statt
+    Aussage ueber DIESES Ereignis), die dialog_stuck_without_miss ausmachte.
+    Deshalb wird pro ZEILE geprueft, nicht ueber den gesamten Log-Text."""
+    from scripts.proof_judges import load_judge
+
+    judge = load_judge("tv_legend_click")
+    log = (
+        "[tv-step] start openSettingsForScript:SMC Decision Board\n"
+        "[tv-step] ok openSettingsForScript:SMC Decision Board (4332ms)\n"
+        "[tv-step] error closeModal (60003ms): Step timed out after 60000ms: closeModal"
+    )
+    verdict = judge.judge({"log": log}, None)
+    assert verdict.state == "PASS", verdict
+    assert verdict.branch == "all_dialogs_opened", verdict
 
 
 # --- Fix-Runde 2 (2026-08-23): Notiz statt Mechanismus abgeschafft ---------
@@ -1242,6 +1491,86 @@ def test_a_measured_pass_on_an_open_entry_stays_quiet():
     assert classify(entry, Verdict("PASS", branch="all_dialogs_opened"), "2026-08-24") == "OK"
 
 
+# --- Widerlegt-Quittung: classify()s refutation_acknowledged (2026-08-24) --
+#
+# Ersetzt den Halter "widerlegt-kann-nicht-quittiert-werden". Der urspruengliche
+# Defekt: state="FAIL" + gemessen FAIL lief IMMER als WIDERLEGT, unabhaengig
+# vom deklarierten Zustand -- der WIDERLEGT-Zweig griff VOR dem
+# TERMINAL_STATES-Kurzschluss. classify() bleibt rein: refutation_acknowledged
+# wird fertig hereingereicht, nicht selbst nachgeschlagen.
+
+
+def test_an_acknowledged_fail_is_quiet():
+    """Der Kern des Fixes: state=FAIL + gemessen FAIL + ein zuvor gepruefter,
+    gueltiger Halter ist quittiert -- OK statt WIDERLEGT."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="FAIL", due_by="2026-12-31", refutation_tracked_by="klasse-h")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+        refutation_acknowledged=True,
+    ) == "OK"
+
+
+def test_a_declared_fail_without_acknowledgement_stays_loud():
+    """Regressionsprobe fuer den urspruenglichen Defekt: derselbe deklarierte
+    FAIL-Eintrag bleibt WIDERLEGT, solange refutation_acknowledged nicht wahr
+    ist (Halter fehlt, ist kein defect, oder ist terminal geworden -- das
+    wird in main() geprueft, hier nur die Konsequenz in classify())."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="FAIL", due_by="2026-12-31", refutation_tracked_by="klasse-h")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+    ) == "WIDERLEGT"
+
+
+def test_acknowledgement_never_leaks_onto_a_non_fail_declaration():
+    """Verteidigung in der Tiefe: selbst wenn main() faelschlich
+    refutation_acknowledged=True fuer einen deklarierten OFFEN-Eintrag
+    berechnen wuerde, verlangt classify() zusaetzlich entry.state == 'FAIL'."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="OFFEN", due_by="2026-12-31")
+    assert classify(
+        entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24",
+        refutation_acknowledged=True,
+    ) == "WIDERLEGT"
+
+
+def test_main_looks_up_the_real_klasse_h_holder_for_5018_and_5027(monkeypatch, tmp_path):
+    """End-to-End gegen das ECHTE Ledger: main() muss den
+    refutation_tracked_by-Halter selbst nachschlagen (das ist neuer Code in
+    main(), nicht nur in classify() isoliert getestet). klasse-h steht im
+    echten proof_ledger.toml auf UNGESICHERT (nicht-terminal); #5018 und #5027
+    tragen refutation_tracked_by = "klasse-h". Ein gemessenes FAIL fuer beide
+    muss also OK liefern, nicht WIDERLEGT -- das ist die eigentliche Reparatur,
+    die den Cron 06:47Z wieder unterscheidungsfaehig macht."""
+    import json
+
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_judges import Verdict
+
+    def fake_judge_entry(entry):
+        if entry.id in {"5018", "5027"}:
+            return Verdict("FAIL", branch="identity_mismatch"), "32729006391"
+        return None, ""
+
+    monkeypatch.setattr(mod, "_judge_entry", fake_judge_entry)
+    out_path = tmp_path / "report.json"
+    mod.main(["--today", "2026-08-24", "--json", str(out_path)])
+    rows = json.loads(out_path.read_text(encoding="utf-8"))
+    by_id = {r["id"]: r for r in rows}
+
+    assert by_id["5018"]["declared"] == "FAIL", "Voraussetzung verletzt: #5018 nicht mehr FAIL"
+    assert by_id["5027"]["declared"] == "FAIL", "Voraussetzung verletzt: #5027 nicht mehr FAIL"
+    assert by_id["5018"]["class"] == "OK", by_id["5018"]
+    assert by_id["5027"]["class"] == "OK", by_id["5027"]
+
+
 # --- Zeugenwahl: abgebrochene Laeufe sind keine Zeugen (2026-08-24) ---------
 
 
@@ -1260,6 +1589,116 @@ def test_newest_witness_skips_cancelled_runs():
 
     assert 'conclusion!="cancelled"' in inspect.getsource(mod.newest_witness), (
         "der Laufliste-Filter schliesst abgebrochene Laeufe nicht aus"
+    )
+
+
+def test_newest_witness_skips_a_superseded_job(monkeypatch):
+    """Dieselbe Klasse wie der cancelled-Ausschluss, eine Ebene tiefer: der
+    LAUF ist gruen (status completed, conclusion success, besteht den
+    cancelled-Filter klaglos), aber der ZEUGEN-JOB wurde vom Supersessions-
+    Gate der TV-Session-Gruppe uebersprungen (by design seit #4998 -- das Gate
+    cancelt nie, es ueberspringt den nachgelagerten 'save'-Job). Ein
+    uebersprungener Job hat 0 Steps, kein Log, kein Artefakt -- aber einen
+    FORM-gueltigen ``started_at``, besteht also die Zeitstempel-Formpruefung
+    und wuerde ohne eigenen Ausschluss zum Zeugen gekuert.
+
+    GEMESSEN 2026-08-24 an Lauf 32754064777: status=completed,
+    conclusion=success, save-Job completed/skipped,
+    started_at=2026-08-24T19:50:53Z. Das Wissen stand in der Vorgaenger-Sonde
+    (tv_gate_probe_check.sh, eigenes Urteil "PASS -- SUPERSEDED") und ging
+    beim Portieren zum DRITTEN Mal verloren -- nach dem cancelled-Ausschluss
+    und der Job-Namensfilterung.
+
+    Der Fake bildet echtes jq-Verhalten nach (wertet den ``name``- UND, falls
+    in der tatsaechlich gebauten Query vorhanden, den
+    ``conclusion!="skipped"``-Filter selbst aus) statt ein vorgefertigtes
+    Ergebnis zurueckzugeben -- eine entfernte Ausschlussklausel im
+    Quelltext macht diesen Test dadurch wirklich rot, nicht nur eine eigene
+    Fixture-Annahme.
+    """
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="x", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    # Neuester Lauf zuerst, wie die echte Laufliste sie liefert.
+    jobs_by_run = {
+        "32754064777": [
+            {"name": "supersession-gate", "conclusion": "success",
+             "started_at": "2026-08-24T19:50:41Z"},
+            {"name": "save", "conclusion": "skipped",
+             "started_at": "2026-08-24T19:50:53Z"},
+        ],
+        "32729006391": [
+            {"name": "save", "conclusion": "failure",
+             "started_at": "2026-08-24T12:47:00Z"},
+        ],
+    }
+
+    def fake(*args: str) -> str:
+        joined = " ".join(args)
+        if "/runs?per_page=50" in joined:
+            return "32754064777\n32729006391\n"
+        for run_id, jobs in jobs_by_run.items():
+            if f"/runs/{run_id}/jobs" not in joined:
+                continue
+            query = args[-1]
+            candidates = [j for j in jobs if j["name"] == entry.witness_job]
+            if 'conclusion!="skipped"' in query:
+                candidates = [j for j in candidates if j["conclusion"] != "skipped"]
+            return candidates[0]["started_at"] if candidates else ""
+        return ""
+
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == "32729006391", (
+        "der Lauf mit uebersprungenem save-Job wurde als Zeuge gekuert, statt "
+        "auf den naechsten Lauf mit einem save-Job zurueckzufallen, der "
+        "wirklich lief"
+    )
+
+
+def test_newest_witness_still_accepts_a_red_run_as_a_witness(monkeypatch):
+    """Gegenprobe zur Vorgabe: der neue skipped-Ausschluss darf success/
+    failure als Zeugen-JOB-Conclusion nicht anfassen -- ein roter Lauf bleibt
+    ein gueltiger Zeuge (32620808573 war conclusion=failure und tat exakt das
+    Richtige). Explizit nachgemessen, nicht angenommen: derselbe
+    jq-nachbildende Fake wie oben, hier mit einem save-Job auf
+    conclusion=failure statt skipped."""
+    import scripts.judge_proof_ledger as mod
+    from scripts.proof_ledger import ProofEntry
+
+    entry = ProofEntry(
+        id="5013", kind="fix", claim="c", state="OFFEN", due_by="2026-12-31",
+        owner="operator", witness="tv-save-consumer-source", witness_job="save",
+        raw={"merged_at": "2026-08-22T16:42:54Z"},
+    )
+    jobs_by_run = {
+        "32620808573": [
+            {"name": "save", "conclusion": "failure",
+             "started_at": "2026-08-23T05:38:38Z"},
+        ],
+    }
+
+    def fake(*args: str) -> str:
+        joined = " ".join(args)
+        if "/runs?per_page=50" in joined:
+            return "32620808573\n"
+        for run_id, jobs in jobs_by_run.items():
+            if f"/runs/{run_id}/jobs" not in joined:
+                continue
+            query = args[-1]
+            candidates = [j for j in jobs if j["name"] == entry.witness_job]
+            if 'conclusion!="skipped"' in query:
+                candidates = [j for j in candidates if j["conclusion"] != "skipped"]
+            return candidates[0]["started_at"] if candidates else ""
+        return ""
+
+    monkeypatch.setattr(mod, "_gh", fake)
+    assert mod.newest_witness(entry) == "32620808573", (
+        "ein roter (conclusion=failure) Zeugen-Job wurde faelschlich verworfen"
     )
 
 
