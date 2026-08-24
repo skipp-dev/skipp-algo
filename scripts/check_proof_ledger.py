@@ -84,7 +84,11 @@ def _ledger_ids_at(rev: str) -> frozenset[str]:
     """Eintrags-Ids, wie sie bei ``rev`` standen. Leer, wenn es sie nicht gab."""
     proc = subprocess.run(  # noqa: S603
         ["git", "show", f"{rev}:proof_ledger.toml"],  # noqa: S607
-        capture_output=True, text=True, cwd=ROOT,
+        # check=False (deliberate): a non-zero rc here means the file did not
+        # exist at `rev` (e.g. proof_ledger.toml is not yet on main) -- an
+        # EXPECTED outcome this function turns into an empty set below, not
+        # an error to raise on.
+        capture_output=True, text=True, check=False, cwd=ROOT,
     )
     if proc.returncode != 0:
         return frozenset()

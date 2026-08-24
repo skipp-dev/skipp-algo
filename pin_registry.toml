@@ -432,6 +432,19 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 "plan-2-8-weekly-digest.yml" = 382
 # Promotion-gate daily: post-#2421 baseline.
 "promotion-gate-daily.yml" = 2
+# proof-ledger-monitor.yml: single scoped `set +e`/`rc=$?`/`set -e` bracket
+# around ONE command (`judge_proof_ledger.py | tee -a "$GITHUB_STEP_SUMMARY"`).
+# Needed because the workflow's default bash shell runs with `-eo pipefail`,
+# so an unguarded pipeline would abort the step -- and hence the whole job --
+# the instant the judge exits non-zero (which it deliberately does whenever
+# a ledger entry is OFFEN/overdue). That would skip the two steps after it
+# (artifact upload, issue open/update), which must run on EVERY outcome, not
+# just success. `rc` is captured immediately after the guarded call and
+# re-enabled for the rest of the step; the LAST step re-surfaces it loudly via
+# `::error::` + `exit 1` -- the same bracket-and-resurface style already
+# pinned for workflow-freshness-monitor.yml / meta-watchdog.yml above, not
+# the silent-swallow anti-pattern the ratchet exists to catch.
+"proof-ledger-monitor.yml" = 1
 # Step-2b incremental activation (591c5bac): +1 from baseline for the
 # always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
 "smc-databento-production-export-sharded.yml" = 2
