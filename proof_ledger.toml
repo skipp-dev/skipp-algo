@@ -1,0 +1,758 @@
+# proof_ledger.toml — offene Beweise gemergter Aenderungen.
+#
+# Ein Eintrag je Aenderung, deren Wirkung die Testsuite prinzipiell nicht
+# sehen kann (Browser-Automation, Workflow-YAML, externe Dienste).
+#
+# Geladen NUR ueber scripts/proof_ledger.py — nie direkt geparst, damit das
+# Schema an genau einer Stelle erzwingbar bleibt (gleiche Regel wie
+# tests/_pin_registry.py fuer pin_registry.toml, ADR-0009).
+#
+# Zustaende:
+#   OFFEN         Beweis erwartet, Frist laeuft
+#   PASS          bezeugt; pass_kind = live | drill
+#   FAIL          bezeugt und widerlegt
+#   SCHLAFEND     Bedingung trat nicht ein — DURCHGANGSZUSTAND, nie terminal
+#   UNERREICHBAR  deklariert; braucht unreachable_because (Repo-Kopplung)
+#   UNGESICHERT   akzeptiert ohne Beweis; braucht Besitzer und Frist
+#   AUSGENOMMEN   deklarierte Ausnahme; kein Beweis noetig (Kommentar, Umbenennung, Formatierung)
+#
+# Editier-Regeln:
+#   * Zustand nur mit datiertem Kommentar aendern, der die MESSUNG nennt.
+#   * SCHLAFEND und UNERREICHBAR brauchen unreachable_because; der Wert wird
+#     gegen den Baum geprueft, nicht geglaubt.
+#   * Einen Eintrag entfernen ist zulaessig, wenn die Aenderung zurueckgerollt
+#     wurde. Fristablauf ist KEIN Entfernungsgrund.
+
+# ---------------------------------------------------------------------------
+# Untergrenzen der abgeleiteten Dateiklasse (scripts/proof_class.py).
+# Auf die in Task 2 GEMESSENEN Werte setzen, dann minus 10 % als Puffer.
+# Ein Parser unter diesen Zahlen ist kaputt, nicht erfolgreich.
+#
+# 2026-08-23 erste Messung (VERWORFEN — Stamm-Treffer-Heuristik in
+# test_imported() zaehlte Text-Pins als Testdeckung und nahm ausgerechnet
+# scripts/tv_batch_consumer_rollout.ts aus der Klasse):
+#   workflows=71, referenced_code=611, derived_class=141
+#
+# 2026-08-23 gemessen (nach RULING: test_imported() zaehlt nur echte
+# import/require/from-Treffer, kein Text-Pin mehr):
+#   workflows=71, referenced_code=611, derived_class=577
+#
+# 2026-08-23 gemessen (Fix-Runde 1): test_imported=691. Ohne eigenen Floor
+# konnte derive_class() eine tote test_imported() (liefert leer) nicht fangen
+# -- eine leere Menge laesst derived_class nur WACHSEN, nie schrumpfen, der
+# derived_class-Floor allein ist dafuer blind.
+# ---------------------------------------------------------------------------
+[class_floors]
+workflows = 63
+referenced_code = 549
+test_imported = 621
+derived_class = 519
+
+# ---------------------------------------------------------------------------
+# Urteilszweige ohne echten Korpus-Treffer, die trotzdem stehen bleiben.
+# Jeder Eintrag ist ein Gestaendnis und braucht einen Grund.
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "pruefen_partial_not_saved"
+reason = """
+2026-08-23, Fix-Runde 1 NACHGEZAEHLT (Task-5-Auftrag, da die 8/4-Inversion bei
+nothing_failed Vertrauen in unnachgezaehlte Populationszahlen dieses Files
+gekostet hat): die urspruengliche Zahl "396 Artefakte (24.7.-22.8.)" war NICHT
+396, sondern per `gh run list --workflow=tv-save-consumer-source.yml --created
+"2026-07-24..2026-08-22"` (408 Laeufe mit conclusion failure/success) und je
+Lauf `gh api .../artifacts` gezaehlt: 399 tragen ein
+tradingview-consumer-bindings-Artefakt (9 nicht, vermutlich vor dem
+Artefakt-Upload gescheitert) -- 399, nicht 396, Differenz 3. KORRIGIERT.
+
+Die inhaltliche Aussage ("nie gefuellt") wurde NICHT an allen 399 per Download
+neu verifiziert (ausserhalb des Zeitbudgets dieser Fix-Runde). Stattdessen:
+das Feld kann laut `git log -S'partiallyRepairedChartUrls'` erst seit #5013
+(7733f988c, 2026-08-22T16:42:54Z) ueberhaupt existieren -- jedes Artefakt, das
+VOR diesem Merge tatsaechlich AUSGEFUEHRT (nicht nur dispatcht) wurde, hat das
+Feld gar nicht erst, was staerker ist als "leer". Wegen der Warteschlangen-
+Verzoegerung (belegt: Lauf 32575497213 dispatcht 13:20:37Z 22.8., ausgefuehrt
+erst 03:39:54Z 23.8.) wurde eine 25-Lauf-Stichprobe der zuletzt vor dem Cutoff
+dispatchten Laeufe geprueft. Reproduzierbar: aus den 399 (s.o.) die mit
+createdAt < 2026-08-22T16:42:54Z, davon die 25 mit dem groessten createdAt
+(also die zuletzt VOR dem Merge dispatchten) -- Ids: 32575497213, 32564125896,
+32560949161, 32556181388, 32554443194, 32554422526, 32551703837, 32550130816,
+32544827322, 32541192874, 32529583947, 32528421800, 32527226522, 32522169025,
+32520893668, 32515409677, 32508510590, 32505570798, 32499587392, 32496151926,
+32490246714, 32486573726, 32485501852, 32483782211, 32480541762. Von diesen
+25 fuehrten GENAU 10 (generatedAt >= 2026-08-22T16:42:54Z) TATSAECHLICH nach
+dem Merge aus: 32575497213, 32564125896, 32560949161, 32556181388,
+32554443194, 32554422526, 32551703837, 32550130816, 32544827322, 32541192874
+-- in allen 10 war das Feld zwar vorhanden, aber leer ([]). Das deckt sich
+mit der unabhaengigen, ausfuehrungszeit-basierten 107-Lauf-Stichprobe dieser
+Aufgabe (siehe abandoned_after_fix/clean_run), die ebenfalls 0
+Nicht-Leer-Treffer fand. Seit dem ersten Feuern am 23.8. (Lauf 32620808573)
+lag es stets AUCH in savedChartUrls. Ein partial-Layout, das NICHT gespeichert
+wurde, ist nie beobachtet worden. Der Zweig bleibt, weil er den Fall benennt,
+in dem der #5013-Fix nur halb wirkt.
+"""
+
+# ---------------------------------------------------------------------------
+# Task 5 (2026-08-23): Anti-Vakuitaet per AST-Ableitung (declared_branches in
+# scripts/proof_judges/__init__.py). Neun Zweige, denen kein reales Korpus-
+# Artefakt begegnet ist -- je einzeln nachgemessen, nicht aufgefuellt. Jede
+# Messung nennt die durchsuchte Grundgesamtheit (Lauf-Ids, Anzahl geprueft).
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "abandoned_after_fix"
+reason = """
+2026-08-23 gemessen: 107 nicht abgelaufene Laeufe von tv-save-consumer-source
+gepruefte (gh run list, oberste 150, artefakt-verfuegbar). Genau zwei tragen
+ein gefuelltes abandonedChartUrls (32485302991, 32490246714) -- beide vom
+22.8. VOR 16:42:54Z, also vor #5013: ihr Artefakt hat noch gar kein
+mutations.partiallyRepairedChartUrls-Feld und trifft deshalb zuerst
+pre_fix_code, nie diesen Zweig. Seit #5013 (inkl. der 98 Reparaturen in
+32620808573) ist abandonedChartUrls in jedem gepruefte Lauf leer geblieben.
+Laut Kommentar in tv_partial_save.py ist der Zweig "nach #5013 nur noch per
+unbestaetigtem Save erreichbar" (saveChangedChartLayout wirft) -- ein Fall,
+der bislang nicht eingetreten ist, keine Frage der Erreichbarkeit.
+
+2026-08-23, Fix-Runde 2 hatte "107 nicht abgelaufene Laeufe" per `gh run
+list --limit 150, oberste 150, neueste zuerst` vollstaendig nachgeprueft --
+aber das ist ein Fenster ueber eine WACHSENDE Population (Pruefer-Befund,
+empirisch: zwischen dem Fix-Runde-2-Commit 2026-08-23T17:24Z und der
+Nachpruefung entstanden bereits zwei weitere Laeufe, 32667423306/21:33Z und
+32667902527/21:47Z, die im "oberste 150"-Fenster nicht mehr an derselben
+Stelle stuenden). Aus dem Ledger-Text allein war die damalige Menge nicht
+rekonstruierbar. Fix-Runde 3 (2026-08-23) ANKERT NEU statt zu rekonstruieren:
+
+Population jetzt ueber den echten Verfallsmechanismus definiert, nicht ueber
+eine Laufanzahl: das Artefakt traegt `retention-days: 30`
+(.github/workflows/tv-save-consumer-source.yml:641,701,717) -- "nicht
+abgelaufen" ist damit "created_at < 30 Tage vor Messzeitpunkt UND
+expired=false laut GitHub", kein "oberste N". Fuer DIESEN Zweig zusaetzlich
+auf createdAt >= #5013-Merge (2026-08-22T16:42:54Z, permanent -- Laeufe
+davor treffen ohnehin pre_fix_code, s.o.) eingegrenzt. Kommando: `gh api
+"repos/skipp-dev/skipp-algo/actions/artifacts?name=tradingview-consumer-bindings&per_page=100"
+--paginate -q '.artifacts[] | select(.expired==false) |
+[.workflow_run.id,.created_at] | @tsv'`, Zeilen mit created_at >=
+2026-08-22T16:42:54Z behalten. AS OF 2026-08-23T23:08Z (obere Grenze ist der
+Messzeitpunkt, untere Grenze der permanente Merge-Zeitpunkt -- eine
+Wiederholung braucht eine NEUE obere Grenze und liefert dann mehr Laeufe,
+nie eine andere Menge fuer DIESES abgeschlossene Fenster): genau 16 Laeufe
+-- 32541192874, 32544827322, 32550130816, 32551703837, 32554422526,
+32554443194, 32556181388, 32560949161, 32564125896, 32575497213,
+32599492026, 32612207345, 32620455054, 32620808573, 32667423306,
+32667902527 (die letzten beiden NEU seit Fix-Runde 2, nicht ausgeklammert).
+Alle 16 per `gh run download <id> -n tradingview-consumer-bindings`
+inhaltlich geladen: abandonedChartUrls ist in ALLEN 16 leer (`[]`) -- 0
+Treffer, deckungsgleich mit dem alten (nicht reproduzierbaren) Befund. Die
+zwei Laeufe von VOR dem Merge (32485302991, 32490246714, s.o.) liegen
+ausserhalb dieses Fensters per Konstruktion, nicht per Sortierplatz.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_partial_save"
+branch = "clean_run"
+reason = """
+2026-08-23 gemessen: dieselben 107 Laeufe durchsucht nach
+layoutSaveRequested=true MIT leerem partiallyRepairedChartUrls UND leerem
+abandonedChartUrls (die Bedingung fuer einen sauberen Save nach #5013). Kein
+Treffer: der letzte volle write-Modus-Lauf (32528421800) endete 12:43:55Z am
+22.8., also VOR #5013 (16:42:54Z). Seither lief nur noch Diagnose
+(verify-only, layoutSaveRequested=false, ueberwiegend wegen der offenen
+Klasse H) und genau ein repair-only-Lauf (32620808573), der selbst partiell
+reparierte statt sauber durchzulaufen. Ein normaler Save ist seit dem Fix
+schlicht noch nicht wiederholt worden -- nicht, weil er es nicht koennte.
+
+2026-08-23, Fix-Runde 3 ANKER KORRIGIERT (derselbe Befund wie bei
+abandoned_after_fix -- "oberste 150" war ein Fenster ueber eine wachsende
+Population, siehe dort fuer den Pruefer-Beleg mit den zwei uebersehenen
+neuen Laeufen). Dieselbe neu verankerte Population wie oben (createdAt >=
+2026-08-22T16:42:54Z, non-expired laut `gh api
+.../actions/artifacts?name=tradingview-consumer-bindings`, AS OF
+2026-08-23T23:08Z): 16 Laeufe, dieselben Ids wie bei abandoned_after_fix.
+Alle 16 (identische Downloads, ein Durchlauf deckt beide Zweige) auf
+`layoutSaveRequested=true` MIT leerem partiallyRepairedChartUrls UND leerem
+abandonedChartUrls geprueft. Kein Treffer: 14 der 16 sind verify-only
+(layoutSaveRequested=false), die restlichen zwei (32620808573, 05:49Z;
+32667902527, 21:47Z -- die zweite NEU seit Fix-Runde 2) sind repair-only mit
+gefuelltem partiallyRepairedChartUrls, keiner davon leer/leer/leer. Der
+letzte volle write-Modus-Lauf bleibt 32528421800, 12:43:55Z am 22.8., VOR
+#5013 -- ausserhalb dieses Fensters per Konstruktion. Ein normaler Save ist
+seit dem Fix weiterhin nicht wiederholt worden.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_repair_only_contract"
+branch = "pre_fix_code"
+reason = """
+Fix-Runde 1 (2026-08-23): KONSTRUKTIONSBEDINGT unerreichbar, nicht bloss
+unbeobachtet -- staerker als die Erstfassung dieser Deklaration. Ursache
+korrigiert: Eintrag "5025" hat version_probe jetzt auf "KEINE" gesetzt (statt
+"executionMode"), weil has_path() nur Feld-PRAESENZ pruefen kann, #5025 aber
+keinen neuen Feldnamen einfuehrte, sondern einen neuen WERT
+("repair-only") eines seit #4085 (26.7.2026, `git log -S'executionMode: RolloutExecutionMode'`)
+vorhandenen Feldes -- eine Praesenzprobe kann eine Wertaenderung an einem
+bestehenden Feld prinzipiell nicht ausdruecken. Mit version_probe="KEINE"
+lautet der Guard in tv_repair_only_contract.judge():
+`if entry.version_probe != "KEINE" and not has_path(...)` -- der erste Teil
+ist fuer Eintrag "5025" jetzt IMMER False, der pre_fix_code-Zweig wird also
+nie mehr zurueckgegeben, gleich welche Evidenz hereinkommt. Das ist keine
+Beobachtungsluecke mehr, sondern eine Zusicherung des Codes selbst. Der
+Urteiler faengt das Szenario (Artefakt ohne "repair-only") ohnehin per
+not_a_repair_run ab, siehe die zwei Zeilen darunter im Urteiler-Quelltext.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_repair_only_contract"
+branch = "contract_broken"
+reason = """
+2026-08-23 gemessen: #5025 wurde am 23.8. um 00:30:20Z gemergt; seither ist
+GENAU EIN repair-only-Lauf ueberhaupt entstanden (32620808573, 05:38:38Z),
+und der hielt den Vertrag (sourceSavesCompleted=0, producerInstancesRemoved=0,
+consumerInstancesRemoved=0). Bei n=1 kann keine Verletzung beobachtet worden
+sein, unabhaengig davon, ob sie moeglich waere -- reachable bleibt der Zweig
+ueber jedes der drei Felder, sobald ein zweiter repair-only-Lauf laeuft. Das
+ist exakt die Regression, die #5025 verhindern soll; sie noch nie beobachtet
+zu haben ist der Erfolg des Fixes, nicht ein Testmangel.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_failure_evidence"
+branch = "nothing_failed"
+reason = """
+2026-08-23 gemessen, Fix-Runde 1 KORRIGIERT (die Erstfassung hatte die Zahlen
+invertiert -- Pruefer-Befund, selbst nachgerechnet und bestaetigt): alle 12
+seit #5020 (21:16:15Z 22.8.) erzeugten Artefakte mit bindings.evidence-Feld
+gepruefte. VIER davon haben checkedConsumers=0 UND checkedBindings=0
+("##[notice]This run observed no TradingView bindings") -- Laeufe
+32550130816, 32554422526, 32560949161, 32575497213. Eine leere Beobachtung
+ist kein Nachweis fuer "nichts ist gescheitert", sondern fuer "nichts wurde
+geprueft" (dieselbe Falle wie die leere Grundlinie #4711 -- ein Vergleich,
+den dieses Ledger nicht wiederholen darf). Die verbleibenden ACHT echten
+Beobachtungen (checkedConsumers 5-9, Laeufe 32551703837, 32554443194,
+32556181388, 32564125896, 32599492026, 32612207345, 32620455054, 32620808573)
+haben AUSNAHMSLOS mindestens ein failed-Ziel (Klasse H, offen seit
+#5018/#5027). Ein Lauf, der wirklich etwas prueft und dabei nichts findet,
+ist seit #5020 schlicht nicht vorgekommen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_failure_evidence"
+branch = "failed_without_evidence"
+reason = """
+2026-08-23 gemessen, Fix-Runde 1 KORRIGIERT (dieselbe Inversion wie bei
+nothing_failed, hier nachgezogen): scripts/tv_batch_consumer_rollout.ts kennt
+zwei getrennte Stellen, die bindings.failed fuellen. Zeile 786
+(Skript-Settings-Timeout) versucht IMMER zuerst captureLegendFailureEvidence
+(Zeile 772). Zeilen 846 und 890 (Layout-Save-Fehler bzw. verpasste
+Save-Punkte) pushen dagegen OHNE jeden Evidenz-Versuch -- dieser zweite Pfad
+ist real und erreichbar. Er kam aber in keinem der 12 seit #5020 beobachteten
+Artefakte vor: alle ACHT echten Beobachtungen (32551703837, 32554443194,
+32556181388, 32564125896, 32599492026, 32612207345, 32620455054, 32620808573)
+zeigen failed_n==evidence_n exakt (die VIER Nulltreffer -- 32550130816,
+32554422526, 32560949161, 32575497213 -- sind leere Beobachtungen, siehe
+nothing_failed). Ein Layout-Save-Fehler (der abandonedChartUrls-Pfad) wuerde
+diesen Zweig feuern; seit #5020 ist keiner aufgetreten.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "click_missed_its_row"
+reason = """
+2026-08-23 gemessen. GENAU der Zweig, den Task 5 nachbauen sollte -- deshalb
+besonders geprueft: die Spur wird von echtem Code erzeugt.
+automation/tradingview/lib/tv_shared.ts:6175 ruft
+tracePageEvent(page, `${traceStartEvent}-hit-target-miss`, ...) auf,
+sobald document.elementFromPoint am Doppelklick-Punkt ein FREMDES Element
+trifft (hitOwner !== "self", Zeilen 6165-6175). console.error schreibt das
+in den Job-Log, den dieser Urteiler liest (evidence_source=job_log) -- der
+Mechanismus ist real, kein Artefakt-Feld wie beim alten Sondenzweig, der
+nie feuern konnte. Der Code-Pfad wird bei jedem Legend-Doppelklick
+durchlaufen (openSettingsForScript kommt in denselben Logs 20-51x vor). In
+ALLEN 7 real gepruefte Job-Logs (Laeufe 32357049150, 32550130816,
+32554422526, 32560949161, 32575497213, 32556181388, 32620808573) stand
+hitOwner jedoch immer auf "self" -- 0 Treffer. Reachable, bislang nicht
+eingetreten -- anders als der alte Sondenzweig ist dieser NICHT falsch
+gebaut; was fehlt, ist ein realer Lauf mit einer verschobenen/verdeckten
+Legend-Zeile im Klickmoment.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "all_dialogs_opened"
+reason = """
+2026-08-23 gemessen. openSettingsForScript ist der ROUTINE-Schrittname fuer
+JEDES Oeffnen einer Skript-Einstellung, ob erfolgreich oder haengen
+geblieben (`[tv-step] start/ok/error openSettingsForScript:...`) -- er
+steht in praktisch jedem Log, das ueberhaupt ein Skript prueft (bestaetigt
+an Lauf 32357049150: 20 Treffer bei 0 fehlgeschlagenen Zielen). Die
+einzigen der 7 real gepruefte Logs OHNE diese Spur sind die 4
+checkedConsumers=0-Laeufe -- leere Beobachtung, siehe
+tv_failure_evidence.nothing_failed. Deren Log als "alle Dialoge geoeffnet"
+zu werten waere derselbe Fehler wie eine leere Beobachtung als Befund zu
+verkaufen. Mit echten, ehrlichen Logs ist dieser Zweig praktisch nie
+erreichbar, weil der vorausgehende Zweig (dialog_stuck_without_miss) jeden
+Log mit mindestens einem Dialogversuch zuerst abfaengt -- unabhaengig vom
+Ausgang. Das ist ein Praezisionsfehler in dialog_stuck_without_miss
+(feuert auch bei vollstaendig erfolgreichen Laeufen, siehe der neue
+Korpus-Eintrag 32357049150), nicht nur eine Beobachtungsluecke bei diesem
+Zweig -- im Task-5-Bericht als eigener Befund vermerkt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_legend_click"
+branch = "no_log"
+reason = """
+2026-08-23 gemessen: in 7 real abgerufenen Job-Logs (auch beim leersten
+beobachteten Lauf, 32550130816, 64 KB trotz checkedConsumers=0) war der Log
+NIE leer -- der Runner schreibt Setup/Teardown unabhaengig vom
+Automationsskript. evidence["log"] wird nur leer, wenn der Log-ABRUF selbst
+scheitert (Netzwerk/Auth-Fehler beim Aufzeichnen) oder ein Job nie startete
+-- beides ist ein Defekt der Aufzeichnungspipeline, kein Inhalt eines
+echten Laufs, den dieser Urteiler bezeugen soll. KANN_NICHT_BEZEUGEN ist
+hier defensiver Code fuer die Abholung, keine Aussage ueber Lauf-Varianten.
+"""
+
+# ---------------------------------------------------------------------------
+# Task 7 (2026-08-24): proof_ledger_monitor_self urteilt ueber den Report des
+# Monitors selbst (scripts/judge_proof_ledger.py). Der Workflow, der diesen
+# Zeugen erzeugen wuerde (.github/workflows/proof-ledger-monitor.yml), ist
+# Teil DIESER Aenderung -- er existiert noch auf keinem main-Commit und kann
+# folglich noch keinen einzigen Lauf erzeugt haben. Alle drei Zweige sind
+# deshalb KONSTRUKTIONSBEDINGT unbeobachtet, nicht bloss selten -- der Korpus
+# kann fruehestens nach dem ersten geplanten oder manuell ausgeloesten Lauf
+# entstehen. Erfundene Korpus-Dateien waeren hier keine Messung, sondern
+# genau die Behauptung ohne Beleg, die dieses Ledger verhindern soll.
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "report_empty"
+reason = """
+2026-08-24: .github/workflows/proof-ledger-monitor.yml ist Teil dieses PRs
+und hat noch nie gelaufen -- weder geplant (erster Cron-Slot liegt in der
+Zukunft) noch per workflow_dispatch. tests/proof_corpus/proof_ledger_monitor_self/
+kann deshalb keine echte Aufzeichnung enthalten, in der der Report leer
+ausfaellt oder keine Liste ist. Reachable, sobald load_entries() jemals leer
+zurueckkaeme (kaputtes TOML wird schon von check_proof_ledger.py als rc=2
+gefangen, s. scripts/proof_ledger.py) -- bislang nicht beobachtbar, weil noch
+kein einziger Lauf existiert.
+"""
+
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "skip_mislabeled_as_missing_witness"
+reason = """
+2026-08-24: derselbe Grund wie bei report_empty -- kein Lauf, kein Korpus.
+Inhaltlich ist dies der Zweig, den Task 7 explizit verhindern sollte: eine
+uebersprungene Pruefung (evidence_source != "artifact", z. B. #5018/#5027 mit
+job_log), die im Report als KEIN_ZEUGE statt als KEIN_URTEIL erscheint.
+tests/test_proof_ledger.py::test_a_job_log_entry_is_marked_unjudged_not_missing_witness
+und ::test_a_defect_entry_without_a_judge_is_marked_unjudged decken die
+Quelle (scripts.judge_proof_ledger.unjudged_reason) bereits per Unit-Test ab
+-- dieser Zweig ist die Absicherung GEGEN eine kuenftige Regression an der
+main()-Verdrahtung, die diese beiden Tests nicht sehen wuerden (sie rufen
+unjudged_reason() direkt, nicht main()).
+"""
+
+[[unreachable_branch]]
+judge  = "proof_ledger_monitor_self"
+branch = "report_shaped_as_expected"
+reason = """
+2026-08-24: derselbe Grund wie bei report_empty -- kein Lauf, kein Korpus.
+Das ist der ERWARTETE Normalfall (PASS); ihn erst nach dem ersten echten Lauf
+ins Korpus aufzunehmen ist beabsichtigt, keine Luecke: ein synthetischer
+"gesunder" Fixture-Eintrag ohne echten Lauf dahinter waere eine erfundene
+Positivkontrolle, keine gemessene.
+"""
+
+# ---------------------------------------------------------------------------
+# Eintraege. Stand 2026-08-23 05:49Z.
+#
+# Aufnahmequote, GEMESSEN 2026-08-23 (Task 0): 43 von 200 gemergten PRs = 21 %,
+# davon 0 Bot-Commits. Die 43 sind durchweg Einzelfaelle — kein Titel kommt
+# zweimal vor. Der Library-Refresh-Bot faellt NICHT in die Klasse, weil
+# .pine-Dateien Daten sind, die ein Workflow publiziert, und kein Code, den er
+# ausfuehrt. Faellt diese Quote je ueber 25 %, ist der Trigger neu zu
+# schneiden — nicht die Pflicht aufzuweichen.
+# ---------------------------------------------------------------------------
+
+[[proof]]
+id              = "5013"
+kind            = "fix"
+merged_at       = "2026-08-22T16:42:54Z"
+merge_sha       = "7733f988c"
+claim           = "Ein unerreichbares Ziel fuehrt zum Partial-Save statt zum Verwerfen"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "mutations.partiallyRepairedChartUrls"
+judge           = "tv_partial_save"
+# 2026-08-23 05:49Z GEMESSEN: Lauf 32620808573 (vom Layout-Waechter angefordert)
+# zeigt partiallyRepairedChartUrls [vWgAWyfC] UND savedChartUrls [vWgAWyfC] bei
+# leerem abandonedChartUrls, 98 Bindungen repariert. Der Lauf war
+# conclusion=failure — ein roter Lauf, der exakt das Richtige tat.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32620808573"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5025"
+kind            = "fix"
+merged_at       = "2026-08-23T00:30:20Z"
+merge_sha       = "9803e4253"
+claim           = "Der Layout-Waechter dispatcht repair-only, und der repariert und speichert"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+# Fix-Runde 1 (2026-08-23), Task-5-Nachbefund: "executionMode" ist eine
+# Feld-PRAESENZ-Probe, aber #5025 fuehrte keinen neuen FELDNAMEN ein, sondern
+# einen neuen WERT ("repair-only") eines seit #4085 (26.7.) vorhandenen
+# Feldes. has_path() kann eine Wertaenderung an einem bestehenden Feld
+# prinzipiell nicht ausdruecken -- jedes Artefakt seit dem 26.7. traegt den
+# Schluessel, ob vor oder nach #5025. version_probe deshalb auf KEINE
+# gesetzt statt eine Probe zu behalten, die nie etwas beweisen konnte. Der
+# Urteiler faengt den Fall ohnehin selbst ab: fehlt "repair-only" als Wert,
+# liefert er STEHT_AUS/not_a_repair_run, nicht faelschlich ein Urteil ueber
+# vermeintlich alten Code.
+version_probe   = "KEINE"
+version_probe_reason = "Feld-Praesenz-Probe kann eine neue WERT-Variante eines bestehenden Feldes nicht ausdruecken (Feld seit #4085, Wert seit #5025); der Urteiler faengt den Fall selbst per not_a_repair_run ab"
+judge           = "tv_repair_only_contract"
+# 2026-08-23: derselbe Lauf 32620808573 traegt executionMode=repair-only und
+# haelt den Vertrag: sourceSavesCompleted 0, producerInstancesRemoved 0,
+# consumerInstancesRemoved 0 — nichts deployt, nichts zerlegt.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32620808573"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5020"
+kind            = "fix"
+merged_at       = "2026-08-22T21:16:15Z"
+merge_sha       = "6826873e1"
+claim           = "Ein endgueltig gescheitertes Ziel hinterlaesst eine Beweisdatei"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+version_probe   = "bindings.evidence"
+judge           = "tv_failure_evidence"
+# 2026-08-23 00:2xZ GEMESSEN an Lauf 32556181388: eine Beweisdatei geschrieben
+# (…-settings-failure-smc-long-dip-alerts.json).
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "32556181388"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5018"
+kind            = "fix"
+merged_at       = "2026-08-22T20:32:49Z"
+merge_sha       = "1ae9e5ca8"
+claim           = "Der Legenden-Doppelklick trifft seine eigene Zeile, nicht die Nachbarzeile"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Die -hit-target-miss-Spur geht ins JOB-LOG, nie ins Artefakt. Genau diese
+# Verwechslung machte den Sondenzweig vom 22.8. vakuoes: er suchte in
+# bindings.failed[].error nach einem Wert, der dort nie steht.
+evidence_source = "job_log"
+artifact        = ""
+# KEINE inhaltliche Versionsprobe moeglich: die neuen Spuren erscheinen nur im
+# Fehlerfall, ihr Fehlen beweist nichts ueber die Code-Version. Allein der
+# Job-Start traegt — das ist bewusst schwaecher und wird hier benannt statt
+# stillschweigend in Kauf genommen.
+version_probe   = "KEINE"
+version_probe_reason = "Spur nur im Fehlerfall; Abwesenheit ist kein Versionsbeweis"
+judge           = "tv_legend_click"
+# 2026-08-23: Lauf 32556181388 zeigt hit-target-miss 0 und box-degenerate 0 —
+# der Klick traf seine Zeile, der Dialog ging trotzdem nicht auf. Der
+# Rechenfehler war real, aber nicht die Ursache. Klasse H besteht fort.
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5027"
+kind            = "fix"
+merged_at       = "2026-08-23T00:58:56Z"
+merge_sha       = "d3c0f5e7e"
+claim           = "Die Identitaetspruefung sucht den passenden Dialog, nicht den ersten"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5018: die Spur steht im Log, nicht im Artefakt.
+evidence_source = "job_log"
+artifact        = ""
+# KEINE inhaltliche Versionsprobe eingetragen, obwohl es eine geben KOENNTE:
+# #5027 schreibt die Anzahl gleichzeitig offener Dialoge in die Spur. Sobald
+# deren exakter Text an einem echten Lauf gemessen ist, gehoert er hierhin —
+# bis dahin waere ein geratenes Suchmuster eine Versionsprobe, die nichts
+# probiert.
+version_probe   = "KEINE"
+version_probe_reason = "Dialoganzahl-Spur existiert, Wortlaut noch nicht gemessen"
+judge           = "tv_legend_click"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Task 7 (2026-08-24): der Monitor selbst ist beweispflichtig -- jede
+# Workflow-Datei ist es unbedingt (scripts/proof_class.py derive_class()
+# nimmt ALLE Workflow-Dateien bedingungslos auf, kein Sonderfall fuer
+# "Meta"-/Tooling-Workflows). "exempt/AUSGENOMMEN" waere hier unehrlich:
+# das ist per Definition fuer Kommentar/Umbenennung/Formatierung reserviert,
+# nicht fuer 100+ neue Zeilen realer, netzgebundener Funktionalitaet
+# (GitHub-API-Zeugensuche, Issue-Oeffnen/-Aktualisieren). Der Zeuge ist der
+# Monitor-Workflow selbst: sein eigener Report
+# (proof_ledger_monitor_report.json) wird als Artefakt hochgeladen und von
+# scripts/proof_judges/proof_ledger_monitor_self.py inhaltlich geprueft --
+# das ist ein echter, taeglich wiederkehrender Selbst-Check, kein einmaliger
+# Beleg.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "task7-proof-ledger-monitor"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der scheduled Monitor holt Zeugen ueber evidence_source==\"artifact\", urteilt korrekt, und meldet Widersprueche/Ueberfaelligkeiten in genau ein Issue -- ohne das Ledger zurueckzuschreiben. Insbesondere: ein uebersprungener Eintrag (evidence_source==\"job_log\" oder kind!=\"fix\") erscheint im Report NIE als KEIN_ZEUGE, sondern als KEIN_URTEIL(<Grund>)."
+witness         = "proof-ledger-monitor"
+witness_job     = "judge"
+evidence_source = "artifact"
+artifact        = "proof-ledger-monitor-report"
+# Evidenz ist eine LISTE von Report-Zeilen, kein Objekt mit benannten Feldern
+# -- has_path() (Feld-Praesenz-Probe) passt strukturell nicht auf eine Liste.
+# Derselbe Formfehler wie bei "has-path-field-vs-value-probe" unten, hier aus
+# einem anderen Grund (Listen- statt Objektform statt Wert- statt
+# Namensaenderung eines Feldes).
+version_probe   = "KEINE"
+version_probe_reason = "Evidenz ist eine Liste von Report-Zeilen, keine Feld-Praesenz-Probe moeglich; der Urteiler prueft jede Zeile inhaltlich"
+judge           = "proof_ledger_monitor_self"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "klasse-h"
+kind            = "defect"
+claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den Timeout; Ursache offen"
+# Aktueller Kandidat (2026-08-23): mehrere Dialoge gleichzeitig offen, die
+# Identitaetspruefung nimmt den ERSTEN statt den passenden (#5027).
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "waechter-in-flight-text"
+kind            = "defect"
+claim           = "Der in_flight-Grund des Waechters nennt einen Reparaturlauf, den es nicht gibt"
+# 2026-08-23 gefunden: in_flight zaehlt JEDEN wartenden workflow_dispatch, auch
+# die read-only-Verifikation, die die Verify-Kette selbst dispatcht. Der
+# Mechanismus ist richtig (ein wartender Lauf belegt den Ein-Platz-Slot), der
+# TEXT behauptet etwas Falsches und schickt den Leser auf die Suche nach einem
+# Lauf, den es nicht gibt. Nicht behoben.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Task 5, Fix-Runde 1 (2026-08-23): zwei Zweifelsfaelle aus der Anti-Vakuitaets-
+# Arbeit, die als Zukunfts-Prosa ("sollte irgendwann gefixt werden") keinen
+# Mechanismus haetten. Als defect-Eintraege bekommen sie einen Halter (owner,
+# due_by), statt in einer Bericht-Fussnote zu verschwinden.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "dialog-stuck-without-miss-false-positive"
+kind            = "defect"
+claim           = "tv_legend_click.dialog_stuck_without_miss feuert bei jedem Log mit einem Skript-Settings-Versuch, nicht nur bei einem Timeout"
+# 2026-08-23 gefunden (Task 5, Anti-Vakuitaet): die Bedingung ist eine bloße
+# Substring-Suche nach "openSettingsForScript" im Job-Log. Dieser Name steht
+# in JEDEM [tv-step] start/ok/error-Eintrag fuer diesen Schritt, ob er gelang
+# oder haengen blieb -- er ist ein Routine-Schrittname, kein Fehlersignal.
+# Belegt an Lauf 32357049150 (tests/proof_corpus/tv_legend_click/32357049150.json):
+# 20 Treffer, 0 fehlgeschlagene Ziele, vollstaendig gesunder Durchlauf --
+# trotzdem PRUEFEN "Timeout, aber der Klick traf". Nebenwirkung: dieser Zweig
+# faengt praktisch jeden Log mit mindestens einem Dialogversuch VOR dem
+# eigentlichen Fallback ab, wodurch tv_legend_click.all_dialogs_opened fuer
+# ehrliche (nicht leere) Beobachtungen faktisch nie erreicht wird. NICHT
+# behoben: eine Aenderung an tv_legend_click.py wuerde gegen Task 4s
+# Korpus-Erwartungen zurueckschlagen (Operator-Entscheidung noetig, ob die
+# Bedingung auf einen echten Timeout-Marker statt auf den Schrittnamen
+# umgestellt wird).
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Fix-Welle nach dem Abschluss-Review (2026-08-24): drei Befunde, die "ein
+# schweigender Zweig sieht aus wie ein gesunder" an Stellen wiederholen, die
+# diese Welle NICHT loest -- Halter statt Notiz, mit dem Mechanismus benannt,
+# der die Frist von selbst ueberfaellig macht, wenn niemand nachfasst.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "c4-merge-base-not-merge-commit"
+kind            = "defect"
+claim           = "check_proof_ledger.py liest 'before' am literalen Bereichsanfang (git show base.sha:...), nicht an git merge-base(base,head) -- main in den PR-Branch mergen kann den Waechter gruen machen, ohne dass der PR einen eigenen Eintrag traegt"
+# 2026-08-24 REPRODUZIERT in einem /tmp-Git-Repo: PR aendert beweispflichtigen
+# Code ohne eigenen Eintrag => rc=1; danach einen fremden Branch gemergt,
+# dessen einziger Inhalt der Ledger-Eintrag eines ANDEREN PRs ist => rc=0. Der
+# PR erbt die Erfuellung eines Fremden. MECHANISMUS: _ledger_ids_at(base) in
+# scripts/check_proof_ledger.py:149-153 liest den Ledger-Stand an
+# `_merge_base_range(args.commit_range).split("...")[0]` -- das ist die
+# literale linke Seite des uebergebenen Bereichs (in fast-gates
+# `github.event.pull_request.base.sha`), NICHT `git merge-base base.sha
+# head.sha`. Nach einem main-Merge in den PR-Branch enthaelt `git show
+# base.sha:proof_ledger.toml` bereits jeden main-Eintrag bis zu diesem
+# literalen SHA, obwohl der PR selbst keinen neuen hinzugefuegt hat --
+# BEHIND-Aufloesung durch main-Merge ist in diesem Repo Routine, kein
+# Randfall. Fix gehoert NICHT in diese Welle (Auftrag: Halter, keine
+# Loesung) -- der Mechanismus waere `_merge_base_range` durch einen echten
+# `git merge-base`-Aufruf zu ersetzen, bevor `_ledger_ids_at` liest.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "i1i2-derived-class-missing-extern-filter"
+kind            = "defect"
+claim           = "Die abgeleitete Klasse (scripts/proof_class.py) nimmt ALLE Workflow-Dateien bedingungslos auf statt nur externe (Spec: Extern = Workflows ohne pull_request-Trigger) -- der Filter ist zwischen Spec und Implementierung spurlos verschwunden"
+# 2026-08-24 GEMESSEN: alle 8 pull_request-getriggerten Workflows liegen
+# aktuell in der Klasse, weil workflow_files() (scripts/proof_class.py:62-68)
+# jede *.yml/*.yaml aufnimmt, ohne je `on:`/`pull_request` zu pruefen --
+# derive_class() vereinigt workflow_files() bedingungslos mit unseen. Folge,
+# gemessen an den letzten 200 main-Merges: 13 sind ALLEIN wegen eines
+# pull_request-Workflows beweispflichtig -- Quote 22 % statt der in der Spec
+# (Abschnitt "Aufnahme") und im Kommentarkopf oben genannten 13 %. Und 71
+# Testdateien stehen aktuell in der Klasse, obwohl ihre Wirkung die Suite per
+# Definition SIEHT (sie IST die Suite) -- genau die Variante, die die Spec
+# unter "Zwei fruehere Fassungen und warum sie fielen" ausdruecklich verwirft
+# ("Alle Workflow-YAMLs in der Klasse"). MECHANISMUS des Fehlens: derive_class()
+# enthaelt keinen Trigger-Parser -- die Spec-Formel hat keine Entsprechung im
+# Code. Fix gehoert NICHT in diese Welle -- der Mechanismus waere ein
+# Trigger-Parser in workflow_files()/derive_class(), der pull_request-
+# Workflows ausschliesst, plus neu gemessene Floors in [class_floors].
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "bootstrap-gap-no-baseline-ledger-on-main"
+kind            = "defect"
+claim           = "origin/main hat kein proof_ledger.toml -- fuer den PR, der DIESEN Branch mergt, ist 'before' deshalb immer leer und der Waechter rc=0, unabhaengig vom Inhalt; 'ab dem naechsten PR greift der Schutz' ist eine Zukunftszusage ohne eigenen Mechanismus"
+# 2026-08-24 bestaetigt: `git show origin/main:proof_ledger.toml` liefert
+# "fatal: path 'proof_ledger.toml' does not exist" -- die Datei existiert auf
+# main nicht. MECHANISMUS: _ledger_ids_at() in scripts/check_proof_ledger.py
+# faengt genau diesen `git show`-Fehlschlag ab und liefert frozenset() --
+# beabsichtigt fuer den allerersten PR (Begruendung in der Spec, Abschnitt
+# "Migration": ein Zustandscheck auf main haette jeden PR rot gemacht,
+# einschliesslich des reparierenden). Das macht "after - before" fuer DIESEN
+# Merge trivial erfuellt, unabhaengig vom Inhalt -- tragbar fuer den
+# Bootstrap-PR selbst, aber die Aussage, dass der Schutz ab dem naechsten PR
+# tatsaechlich greift, ist bislang ungeprueft. Fix gehoert NICHT in diese
+# Welle -- der Halter wird VON SELBST ueberfaellig (Frist unten), wenn bis
+# dahin kein zweiter PR das Offline-Gate durchlaufen hat; Nachweis per
+# `git log --oneline -- proof_ledger.toml` auf main nach diesem Merge.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "has-path-field-vs-value-probe"
+kind            = "defect"
+claim           = "has_path() kann nur Feld-Praesenz pruefen, aber ein version_probe muss manchmal einen neuen WERT eines bestehenden Feldes bezeugen"
+# 2026-08-23 gefunden (Task 5, Fix-Runde 1, am Beispiel Eintrag 5025 --
+# executionMode existiert seit #4085, der Wert "repair-only" erst seit #5025;
+# eine Praesenzprobe konnte das strukturell nicht ausdruecken und wurde dort
+# auf KEINE zurueckgesetzt). Die Schwaeche liegt in scripts/proof_judges/__init__.py
+# has_path(), nicht nur im einen Eintrag: JEDE zukuenftige Aenderung, die
+# einem bestehenden Feld einen neuen WERT statt einem neuen Feld einen neuen
+# NAMEN gibt, kann mit einem reinen has_path()-version_probe nicht bezeugt
+# werden -- der Fehler wuerde erst durch einen weiteren falschen version_probe
+# auffallen, nicht durch einen Test. Nicht behoben: haette einen zweiten
+# Probentyp (Feld-WERT statt Feld-Praesenz) in has_path()/version_probe
+# zur Folge, der ueber Eintrag 5025 hinausgeht -- Operator-Entscheidung, ob
+# sich der Aufwand vor dem naechsten betroffenen Fix lohnt.
+state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# Abschluss-Review Restbefund 1 (2026-08-24): Halter statt Bericht, weil der
+# Arbeits-Workspace geloescht wird. Alle drei unten zitierten Szenarien und
+# der Selbst-Urteiler-Blindtest wurden fuer diesen Eintrag NEU gegen den
+# echten Ledger nachgemessen (nicht nur aus dem Review uebernommen), siehe
+# .superpowers/sdd/2026-08-23-beweis-ledger/final-fix-report.md, Abschnitt
+# "Restbefunde".
+# ---------------------------------------------------------------------------
+[[proof]]
+id      = "kein-zeuge-terminal-pass-reads-as-ok"
+kind    = "defect"
+claim   = "classify() (scripts/judge_proof_ledger.py:48-73) klassifiziert jeden terminalen Eintrag (state in TERMINAL_STATES, aktuell nur PASS: 5013/5025/5020) als OK, sobald verdict is None -- unabhaengig davon, OB ueberhaupt ein Zeuge gefunden wurde. Der proof_ledger_monitor_self-Selbst-Urteiler kann das strukturell nicht sehen."
+# MESSUNG (2026-08-24, gegen den echten Ledger nachgestellt, main()/classify()
+# aus scripts/judge_proof_ledger.py echt aufgerufen, nur _judge_entry()
+# gemockt): drei Szenarien, PASS-Eintraege (5013/5025/5020, die einzigen drei
+# TERMINAL_STATES-Eintraege im ganzen Ledger) auf class:
+#
+#   Szenario                                            rc  PASS-Eintraege=OK
+#   A alles rc=0, Laufliste leer (newest_witness="")      0  3/3
+#   B Zeuge GEFUNDEN (run_id="32620808573" im Report),
+#     Artefakt unlesbar (OSError/JSONDecodeError)         0  3/3
+#   C witness_job umbenannt (rc=0, Job-Liste leer)        0  3/3
+#
+# Schaerfste Auspraegung ist B: newest_witness() FAND den Zeugenlauf, nur
+# _judge_entry() (judge_proof_ledger.py:200-212) konnte artifact_path
+# (Path(tmp_dir) / (entry.artifact.replace("-","_") + ".json"), Zeile 205)
+# nicht als JSON laden und gibt (None, run_id) zurueck -- main() (Zeile
+# 237-244) traegt run_id zwar in row["run"] ein, aber measured faellt auf
+# den letzten else-Zweig "KEIN_ZEUGE" (Zeile 244), weil er nur auf
+# `verdict is not None` prueft, nicht auf `run_id`. Der Report zeigt also
+# in DERSELBEN Zeile run=32620808573 UND measured=KEIN_ZEUGE.
+#
+# MECHANISMUS: classify() (Zeile 48-73) hat genau zwei Vorrangstufen vor dem
+# TERMINAL_STATES-Kurzschluss (Zeile 69-70): `unreachable` (Zeile 60-61,
+# greift NUR bei GhCallError -- main() Zeile 230, also rc!=0 von `gh` selbst)
+# und `if verdict is not None:` (Zeile 62-68, greift NUR bei einem echten
+# Urteil). Jeder Weg in "ich konnte nichts sehen", der WEDER ein gh-Fehlschlag
+# NOCH ein Urteil ist -- leere Laufliste, umbenannter Job, gefundener Zeuge
+# mit unlesbarem Artefakt, ungueltige Evidenz im judge() selbst -- erreicht
+# beide Vorrangstufen nicht und faellt direkt in TERMINAL_STATES -> OK, egal
+# ob je etwas gemessen wurde.
+#
+# WARUM DER SELBST-URTEILER BLIND IST: proof_ledger_monitor_self.judge()
+# (scripts/proof_judges/proof_ledger_monitor_self.py:31-37) filtert
+# `row.get("evidence_source") != "artifact"`. 5013/5025/5020 tragen
+# evidence_source=="artifact" -- sie werden aus der mislabeled-Pruefung
+# AUSGENOMMEN, nicht erfasst. Nachgemessen (2026-08-24): ein Report mit genau
+# den drei Zeilen aus Szenario B (evidence_source=artifact, measured=
+# KEIN_ZEUGE, run gesetzt, class=OK) liefert proof_ledger_monitor_self.judge()
+# -> PASS/report_shaped_as_expected, "3 Zeile(n), keine maskierte Auslassung"
+# -- der Selbst-Urteiler haelt den Defekt fuer einen gesunden Report. 5013/
+# 5025/5020 sind ausserdem die EINZIGEN terminalen Eintraege im Ledger, also
+# die einzigen ohne due_by/UEBERFAELLIG als Ersatzmechanismus, der ein
+# falsches OK spaeter noch auffangen koennte.
+#
+# UNGEKOPPELTE FELDER: witness, witness_job, artifact, witness_run werden
+# nirgends gegen die Wirklichkeit (echter Workflow-Name, echter Job-Name,
+# echter Artefakt-Upload) geprueft -- `grep -rn witness_job tests scripts`
+# liefert genau eine Zusicherung (entry.witness_job nicht leer,
+# test_a_fix_entry_names_its_witness_and_version_probe). Der Artefakt-
+# Dateiname wird sogar ABGELEITET (`entry.artifact.replace("-","_") +
+# ".json"`, judge_proof_ledger.py:205) statt gegen den echten
+# upload-artifact-Namen im Workflow verglichen -- eine Konvention ohne
+# eigenen Waechter; ein Tippfehler im TOML oder eine Umbenennung im Workflow
+# traefe denselben "Artefakt unlesbar"-Pfad und laeuft still als OK durch.
+#
+# WAS DIE FRIST AUFLOESEN WUERDE (Mechanismus, keine Zukunftsprosa): main()
+# muesste zwischen "kein Zeuge gefunden" (run_id=="") und "Zeuge gefunden,
+# aber kein gueltiges Urteil" (run_id!="" and verdict is None) unterscheiden
+# und classify() fuer LETZTEREN Fall bei einem terminalen Eintrag WIDERSPRUCH
+# statt OK zurueckgeben lassen (dieselbe Vorrangstufe wie unreachable);
+# UND proof_ledger_monitor_self muesste zusaetzlich jede Report-Zeile mit
+# declared in TERMINAL_STATES UND measured=="KEIN_ZEUGE" als mislabeled
+# zaehlen, nicht nur die evidence_source!=artifact-Faelle. Fix gehoert NICHT
+# in diese Aenderung -- Halter statt Notiz.
+state   = "UNGESICHERT"
+due_by  = "2026-09-06"
+owner   = "operator"

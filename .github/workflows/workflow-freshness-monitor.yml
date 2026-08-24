@@ -101,6 +101,14 @@ jobs:
           #     Kostenueberraschung ohne Vorwarnung.
           #   pine-library-version-monitor 30h  taeglich; Versionsdrift.
           #   fvg-quality-quartile-gate   72:weekday  Mo-Fr Gate.
+          # 2026-08-24 (Beweis-Ledger pre-push fix wave): proof-ledger-monitor
+          #   30:any  taeglich 06:47Z. `:any`, weil `conclusion: failure` hier
+          #   das RICHTIGE Ergebnis ist, sobald ein Ledger-Eintrag OFFEN und
+          #   ueberfaellig ist (siehe scripts/proof_ledger.py Docstring) --
+          #   success-only wuerde genau dann Dauer-Rot melden, wenn der Monitor
+          #   korrekt einen echten Befund meldet. Ein Monitor, der selbst still
+          #   ausfaellt, waere der bittere Fall: er ist die einzige Stelle, die
+          #   ueberfaellige Beweise sichtbar macht.
           # Die Vollstaendigkeit ueber ALLE scheduled Workflows haelt
           # tests/test_scheduled_workflow_observation_inventory.py.
           # 2026-08-22: openprep-pine-panel-publish traegt eine DATIERTE
@@ -144,7 +152,8 @@ jobs:
             smc-deeper-integration-gates.yml=30:any \
             vendor-billing-watch.yml=30 \
             pine-library-version-monitor.yml=30 \
-            fvg-quality-quartile-gate.yml=72:weekday
+            fvg-quality-quartile-gate.yml=72:weekday \
+            proof-ledger-monitor.yml=30:any
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

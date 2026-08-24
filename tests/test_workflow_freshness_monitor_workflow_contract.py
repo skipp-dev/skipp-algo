@@ -175,6 +175,12 @@ _MONITORED_WORKFLOWS = (
     "vendor-billing-watch.yml",
     "pine-library-version-monitor.yml",
     "fvg-quality-quartile-gate.yml",
+    # Beweis-Ledger pre-push fix wave (2026-08-24): proof-ledger-monitor.yml
+    # is itself the sole human-facing alarm for overdue proof_ledger.toml
+    # entries -- if its own cron silently stopped firing, that alarm would
+    # go blind with it. :any (below) because its own conclusion:failure is
+    # the CORRECT result when a ledger entry is overdue.
+    "proof-ledger-monitor.yml",
 )
 
 

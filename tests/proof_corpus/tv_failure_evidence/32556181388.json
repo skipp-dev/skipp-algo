@@ -1,0 +1,51 @@
+{
+  "_herkunft": {
+    "geladen_am": "2026-08-23",
+    "lauf_conclusion": "failure",
+    "run_id": "32556181388",
+    "warum": "Lauf mit geschriebener Beweisdatei (settings-failure-smc-long-dip-alerts)"
+  },
+  "bindings": {
+    "checkedConsumers": 9,
+    "evidence": [
+      "automation/tradingview/reports/screenshots/2026-08-22T22-53-07-879Z-settings-failure-smc-long-dip-alerts.json"
+    ],
+    "failed": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "durationMs": 60715,
+            "error": "Step timed out after 60000ms: openSettingsForScript:SMC Long-Dip Alerts; lifecycle pageClosed false, pageCrashed false, contextClosed false, browserDisconnected false, activeStep openSettingsForScript:SMC Long-Dip Alerts, events 25 [script-settings-legend-wrapper-menu-no-effect\u00d74 script-settings-legend-wrapper-menu-offset-ok\u00d71 script-settings-legend-wrapper-menu-pointer-bypass-ok\u00d71 script-settings-legend-wrapper-menu-pointer-bypass-miss\u00d71 script-settings-legend-wrapper-menu-dom-ok\u00d71 script-settings-legend-wrapper-menu-candidate-missing\u00d71 script-settings-legend-container-miss\u00d71 script-settings-open-legend-result\u00d71 script-settings-text-start\u00d71 script-settings-text-miss\u00d71 script-settings-open-text-result\u00d71 script-settings-anchor-candidate-miss-summary\u00d71 script-settings-open-anchor-result\u00d71 script-settings-surface-start\u00d71 script-settings-surface-settings-scoped-count\u00d71 script-settings-surface-settings-locator-count\u00d71 script-settings-surface-settings-item-visible\u00d71 script-settings-surface-settings-click-no-surface\u00d71 script-settings-surface-settings-hover-click-no-surface\u00d71 script-settings-surface-settings-force-no-surface\u00d71 script-settings-surface-settings-offset-start\u00d71 script-settings-surface-settings-offset-no-surface\u00d71], url https://www.tradingview.com/chart/vWgAWyfC/"
+          },
+          {
+            "attempt": 2,
+            "durationMs": 63642,
+            "error": "Step timed out after 60000ms: openSettingsForScript:SMC Long-Dip Alerts; lifecycle pageClosed false, pageCrashed false, contextClosed false, browserDisconnected false, activeStep openSettingsForScript:SMC Long-Dip Alerts, events 25 [script-settings-surface-settings-offset-no-surface\u00d73 script-settings-surface-settings-click-no-surface\u00d72 script-settings-surface-settings-hover-click-no-surface\u00d72 script-settings-surface-settings-force-no-surface\u00d72 script-settings-surface-settings-offset-start\u00d72 script-settings-legend-wrapper-menu-dom-ok\u00d71 script-settings-legend-wrapper-menu-no-effect\u00d71 script-settings-legend-wrapper-menu-candidate-missing\u00d71 script-settings-legend-container-miss\u00d71 script-settings-open-legend-result\u00d71 script-settings-text-start\u00d71 script-settings-text-miss\u00d71 script-settings-open-text-result\u00d71 script-settings-anchor-candidate-miss-summary\u00d71 script-settings-open-anchor-result\u00d71 script-settings-surface-start\u00d71 script-settings-surface-settings-scoped-count\u00d71 script-settings-surface-settings-locator-count\u00d71 script-settings-surface-settings-item-visible\u00d71], url https://www.tradingview.com/chart/vWgAWyfC/"
+          }
+        ],
+        "error": "Step timed out after 60000ms: openSettingsForScript:SMC Long-Dip Alerts; lifecycle pageClosed false, pageCrashed false, contextClosed false, browserDisconnected false, activeStep openSettingsForScript:SMC Long-Dip Alerts, events 25 [script-settings-surface-settings-offset-no-surface\u00d73 script-settings-surface-settings-click-no-surface\u00d72 script-settings-surface-settings-hover-click-no-surface\u00d72 script-settings-surface-settings-force-no-surface\u00d72 script-settings-surface-settings-offset-start\u00d72 script-settings-legend-wrapper-menu-dom-ok\u00d71 script-settings-legend-wrapper-menu-no-effect\u00d71 script-settings-legend-wrapper-menu-candidate-missing\u00d71 script-settings-legend-container-miss\u00d71 script-settings-open-legend-result\u00d71 script-settings-text-start\u00d71 script-settings-text-miss\u00d71 script-settings-open-text-result\u00d71 script-settings-anchor-candidate-miss-summary\u00d71 script-settings-open-anchor-result\u00d71 script-settings-surface-start\u00d71 script-settings-surface-settings-scoped-count\u00d71 script-settings-surface-settings-locator-count\u00d71 script-settings-surface-settings-item-visible\u00d71], url https://www.tradingview.com/chart/vWgAWyfC/",
+        "evidence": "2026-08-22T22-53-07-879Z-settings-failure-smc-long-dip-alerts.png",
+        "target": "SMC Long-Dip Alerts"
+      }
+    ],
+    "mismatches": 40
+  },
+  "executionMode": "verify-only",
+  "generatedAt": "2026-08-22T22:53:07.879Z",
+  "mutations": {
+    "abandonedChartUrls": [],
+    "bindingRepairRequested": false,
+    "bindingsRepaired": 0,
+    "consumerInstancesRemoved": 0,
+    "layoutSaveRequested": false,
+    "layoutSaved": false,
+    "partiallyRepairedChartUrls": [],
+    "producerInstancesRemoved": 0,
+    "producerRefreshRequested": false,
+    "savedChartUrls": [],
+    "savedWithoutAttestation": [],
+    "sourceSaveRequested": false,
+    "sourceSavesCompleted": 0
+  }
+}

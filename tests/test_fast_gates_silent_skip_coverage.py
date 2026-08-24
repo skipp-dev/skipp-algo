@@ -256,6 +256,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pre_a0_alert_rules.py",
     "tests/test_pre_a0_grafana_dashboard.py",
     "tests/test_prod_print_ledger.py",
+    "tests/test_proof_ledger.py",
     "tests/test_publish_overlay_dashboard.py",
     "tests/test_pytest_marker_bucket_discipline.py",
     "tests/test_pytest_skip_budget.py",
