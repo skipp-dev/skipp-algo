@@ -756,3 +756,32 @@ claim   = "classify() (scripts/judge_proof_ledger.py:48-73) klassifiziert jeden 
 state   = "UNGESICHERT"
 due_by  = "2026-09-06"
 owner   = "operator"
+
+[[proof]]
+id     = "5034"
+kind   = "exempt"
+claim  = "Der Determinismus-Kommentar an der Dauer-Aufzeichnung wird auf die Messung gezogen"
+# AUSGENOMMEN, und zwar zu Recht: dieser PR aendert an
+# .github/workflows/record-test-durations.yml ausschliesslich einen
+# Kommentarblock. Kein Schritt, kein Kommando, kein Ausdruck, keine
+# Bedingung -- `git diff --ignore-all-space` zeigt nur Zeilen, die mit `#`
+# beginnen. Es gibt also keine Wirkung, die ein Lauf bezeugen koennte, und
+# ein `witness`/`version_probe` waere hier eine erfundene Beweislast.
+#
+# Der Anlass ist selbst ein Fall dieser Fehlerklasse: der alte Kommentar sagte
+# "`-p no:randomly` haelt die Sammelreihenfolge deterministisch". Gemessen
+# 2026-08-24 ist `pytest-randomly` repo-weit in keiner requirements*.txt und
+# keiner pyproject.toml deklariert (`git grep -c` ⇒ 0), also nirgends
+# installiert; pytest akzeptiert `-p no:<plugin>` klaglos, auch wenn es fehlt.
+# Die EIGENSCHAFT (deterministische Sammelreihenfolge) stimmt weiter -- ohne
+# Plugin ist es die Dateireihenfolge -- nur nicht DESWEGEN. Der Schalter
+# bleibt absichtlich stehen, damit er traegt, falls das Plugin je aufgenommen
+# wird.
+#
+# Dieser Eintrag ist zugleich der erste echte Griff des neuen Waechters: er
+# hat #5034 einen PR nach seinem eigenen Merge gefangen (GUARD_RC=1, Datei
+# beim Namen genannt) -- die Bootstrap-Luecke schliesst sich damit
+# beobachtet, nicht behauptet.
+state  = "AUSGENOMMEN"
+due_by = "2026-08-24"
+owner  = "operator"
