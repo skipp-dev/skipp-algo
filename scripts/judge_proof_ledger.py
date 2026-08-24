@@ -67,6 +67,16 @@ def classify(
             return "WIDERSPRUCH"
         if entry.state == "UNERREICHBAR" and verdict.state in {"PASS", "FAIL"}:
             return "WIDERSPRUCH"
+        # WIDERLEGT (2026-08-24): ein gemessenes FAIL auf allem, was NICHT
+        # deklariertes PASS ist. Vorher fiel dieser Fall durch bis zum
+        # TERMINAL_STATES-Kurzschluss und wurde als OK gemeldet -- ein
+        # widerlegter Fix schwieg also bis zum Fristablauf, und das Anschliessen
+        # eines Urteilers waere folgenlos geblieben, weil sein FAIL verschluckt
+        # worden waere. Bewusst NICHT als WIDERSPRUCH gefuehrt: dort behauptet
+        # das Ledger etwas Falsches, hier wirkt der Fix nicht. Zwei verschiedene
+        # Aussagen, die zu zwei verschiedenen Handlungen fuehren.
+        if verdict.state == "FAIL":
+            return "WIDERLEGT"
     if entry.state in TERMINAL_STATES:
         return "OK"
     if dt.date.fromisoformat(entry.due_by) < dt.date.fromisoformat(today):
@@ -164,9 +174,7 @@ def unjudged_reason(entry: ProofEntry) -> str:
         return "kein fix-Eintrag"
     if not entry.judge:
         return "kein Urteiler deklariert"
-    if entry.evidence_source == "job_log":
-        return "job_log — Monitor holt keine Logs"
-    if entry.evidence_source != "artifact":
+    if entry.evidence_source not in {"artifact", "job_log"}:
         return f"evidence_source={entry.evidence_source!r} unbekannt"
     # Der merged_at-Platzhalter (Gefunden 2026-08-24): ein noch nicht
     # gemergter Eintrag traegt "<wird beim Merge nachgetragen>" statt eines
@@ -180,6 +188,37 @@ def unjudged_reason(entry: ProofEntry) -> str:
     if not _looks_like_an_iso8601_utc_timestamp(merged_at):
         return f"merged_at={merged_at!r} ist kein ISO-8601-Zeitstempel (Platzhalter?)"
     return ""
+
+
+def _fetch_job_log(entry: ProofEntry, run_id: str) -> str:
+    """Rohes Log des BENANNTEN Zeugen-Jobs, leer wenn er nicht auffindbar ist.
+
+    Zwei Dinge, die hier leicht falsch werden und beide ein plausibles,
+    falsches Urteil erzeugen wuerden:
+
+    * **Der Job wird nach ``witness_job`` gefiltert, nicht nach Position.**
+      Ein Lauf hat mehrere Jobs; wer den ersten nimmt, urteilt ueber ein
+      fremdes Log. Das faellt nicht auf -- ein fremdes Log liefert meist ein
+      plausibles Ergebnis, nur eben ueber die falsche Sache.
+    * **Kein Filter auf den Loginhalt.** Gemessen 2026-08-24 an Job
+      97105473851: 266 KB, 1964 Zeilen -- klein genug, um ihn ganz
+      durchzureichen. Ein Filter waere eine zweite Fassung derselben Wahrheit
+      neben der aufgezeichneten Korpus-Datei; die Urteiler pruefen ohnehin
+      Teilzeichenketten, und die stehen im Rohlog genauso.
+
+    Die Job-Id wird auf FORM geprueft (nur Ziffern), nicht auf "nicht leer":
+    ``gh`` schreibt seinen Fehlerkoerper nach STDOUT, und ein
+    ``{"message":"Not Found"}`` waere sonst eine gueltige Id.
+    """
+    raw = _gh(
+        "api",
+        f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100",
+        "-q",
+        f'[.jobs[] | select(.name=="{entry.witness_job}") | .id][0] // ""',
+    ).strip()
+    if not raw.isdigit():
+        return ""
+    return _gh("api", f"repos/{REPO}/actions/jobs/{raw}/logs")
 
 
 def _judge_entry(entry: ProofEntry) -> tuple[Verdict | None, str]:
@@ -198,6 +237,11 @@ def _judge_entry(entry: ProofEntry) -> tuple[Verdict | None, str]:
     run_id = newest_witness(entry)
     if not run_id:
         return None, ""
+    if entry.evidence_source == "job_log":
+        log = _fetch_job_log(entry, run_id)
+        if not log:
+            return None, run_id
+        return load_judge(entry.judge).judge({"log": log}, entry), run_id
     with tempfile.TemporaryDirectory(prefix="proof_ledger_") as tmp_dir:
         _gh(
             "run", "download", run_id, "-R", REPO,

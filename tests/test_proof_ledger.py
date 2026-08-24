@@ -819,14 +819,25 @@ def test_a_total_api_outage_never_reads_as_ok(monkeypatch, tmp_path):
 # unjudged_reason() eine eigene, getestete Funktion und kein Kommentar.
 
 
-def test_a_job_log_entry_is_marked_unjudged_not_missing_witness():
-    """Pinnt den EXAKTEN Text des dedizierten job_log-Zweigs, nicht nur, dass
-    "job_log" irgendwo im Ergebnis vorkommt. Fix-Runde 1 (2026-08-24), Fund
-    des Pruefers: entfernt man den dedizierten Zweig, faengt der generische
-    Fallback (``evidence_source != "artifact"``) dieselbe Fixture auf und
-    liefert ``"evidence_source='job_log' unbekannt"`` -- ein
-    ``in``-Substring-Test bleibt gruen, weil ``repr("job_log")`` die
-    Zeichenkette "job_log" enthaelt, obwohl der FALSCHE Zweig feuerte."""
+def test_an_entry_without_merged_at_is_marked_unjudged_not_missing_witness():
+    """Pinnt den EXAKTEN Text des merged_at-Zweigs, nicht nur, dass irgendein
+    Grund zurueckkommt.
+
+    UMGEZOGEN 2026-08-24: Diese Zusicherung pinnte urspruenglich den Text des
+    job_log-Zweigs ("job_log — Monitor holt keine Logs"). Dieser Zweig ist
+    ENTFERNT, seit der Monitor Job-Logs wirklich holt -- die Zusicherung ist
+    also nicht aufgeweicht worden, ihr Gegenstand ist verschwunden. Was
+    erhalten bleibt, ist ihr eigentlicher Wert: den KONKRETEN Zweig pinnen,
+    nicht eine Teilzeichenkette. Der Fund des Pruefers, der dazu fuehrte:
+    ``repr("job_log")`` enthaelt "job_log", also blieb ein ``in``-Test auch
+    dann gruen, wenn der generische Fallback statt des gemeinten Zweigs
+    feuerte. Dieselbe Falle steht hier weiterhin offen -- ``repr('')``
+    enthaelt keine sprechende Zeichenkette, aber ein ``in``-Test auf
+    "merged_at" waere ebenso blind gegen einen falschen Zweig.
+
+    Die neue Deckung fuer job_log liegt bei
+    ``test_a_job_log_entry_is_no_longer_skipped``.
+    """
     from scripts.judge_proof_ledger import unjudged_reason
     from scripts.proof_ledger import ProofEntry
 
@@ -835,7 +846,7 @@ def test_a_job_log_entry_is_marked_unjudged_not_missing_witness():
         owner="operator", judge="tv_legend_click", witness="tv-save-consumer-source",
         witness_job="save", evidence_source="job_log", raw={},
     )
-    assert unjudged_reason(entry) == "job_log — Monitor holt keine Logs"
+    assert unjudged_reason(entry) == "merged_at='' ist kein ISO-8601-Zeitstempel (Platzhalter?)"
 
 
 def test_a_defect_entry_without_a_judge_is_marked_unjudged():
@@ -1015,3 +1026,112 @@ def test_proof_ledger_monitor_self_passes_on_a_well_shaped_report():
     verdict = proof_ledger_monitor_self.judge(report, None)
     assert verdict.state == "PASS"
     assert verdict.branch == "report_shaped_as_expected"
+
+
+# --- Log-basierte Urteiler im Monitor (2026-08-24) --------------------------
+
+
+def _job_log_entry(**over):
+    """Ein job_log-Eintrag wie #5018/#5027, per Schluesselwort anpassbar."""
+    from scripts.proof_ledger import ProofEntry
+
+    fields = dict(
+        id="5018",
+        kind="fix",
+        claim="c",
+        state="OFFEN",
+        due_by="2026-12-31",
+        owner="operator",
+        judge="tv_legend_click",
+        witness="tv-save-consumer-source",
+        witness_job="save",
+        evidence_source="job_log",
+        artifact="",
+        version_probe="KEINE",
+        raw={"merged_at": "2026-08-22T20:32:49Z"},
+    )
+    fields.update(over)
+    return ProofEntry(**fields)
+
+
+def test_a_job_log_entry_is_no_longer_skipped():
+    """Solange unjudged_reason() hier einen Grund liefert, kann der Urteiler
+    noch so gut sein — main() ruft ihn nie auf."""
+    from scripts.judge_proof_ledger import unjudged_reason
+
+    assert unjudged_reason(_job_log_entry()) == ""
+
+
+def test_the_job_log_path_picks_the_NAMED_job_not_the_first_one():
+    """Ein Lauf hat mehrere Jobs. Wird der falsche genommen, urteilt der
+    Monitor ueber ein fremdes Log und meldet ein plausibles, falsches
+    Ergebnis — schlimmer als kein Urteil."""
+    import scripts.judge_proof_ledger as mod
+
+    seen = {}
+
+    def fake_gh(*args):
+        if args[0] == "api" and "/jobs?" in args[1]:
+            # Der Aufruf MUSS nach dem Namen filtern; wir geben die Id zurueck,
+            # die zu 'save' gehoert, nur wenn der Filter sie auch nennt.
+            assert "save" in args[-1], f"Job-Filter nennt den Namen nicht: {args[-1]}"
+            return "97105473851\n"
+        if args[0] == "api" and args[1].endswith("/logs"):
+            seen["log_url"] = args[1]
+            return "…identity-mismatch SMC Long-Dip Alerts != SMC Setup Check…\n"
+        raise AssertionError(f"unerwarteter gh-Aufruf: {args}")
+
+    monkeypatch_target = mod
+    old = monkeypatch_target._gh
+    monkeypatch_target._gh = fake_gh
+    try:
+        log = mod._fetch_job_log(_job_log_entry(), "32556181388")
+    finally:
+        monkeypatch_target._gh = old
+
+    assert "97105473851" in seen["log_url"], seen
+    assert "identity-mismatch" in log
+
+
+def test_the_job_log_reaches_the_judge_as_a_log_field(monkeypatch):
+    """tv_legend_click erwartet {"log": <text>} — nicht den nackten String und
+    nicht das Artefakt-Schema."""
+    import scripts.judge_proof_ledger as mod
+
+    entry = _job_log_entry()
+    monkeypatch.setattr(mod, "newest_witness", lambda e: "32556181388")
+    monkeypatch.setattr(mod, "_fetch_job_log", lambda e, r: "…-hit-target-miss…")
+    verdict, run_id = mod._judge_entry(entry)
+
+    assert run_id == "32556181388"
+    assert verdict is not None
+    assert verdict.branch == "click_missed_its_row", verdict
+
+
+def test_a_measured_fail_on_an_open_entry_is_loud():
+    """Der Kern: ein widerlegter Fix darf nicht bis zum Fristablauf schweigen.
+    Vorher lief OFFEN + FAIL ueber den Schluss von classify() als OK durch."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="OFFEN", due_by="2026-12-31")
+    assert classify(entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24") == "WIDERLEGT"
+
+
+def test_a_measured_fail_on_a_declared_pass_stays_a_contradiction():
+    """WIDERSPRUCH und WIDERLEGT sind verschiedene Aussagen: das Ledger luegt
+    gegen der Fix wirkt nicht. Beide laut, aber nicht dasselbe."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="PASS", pass_kind="live", witness_run="1")
+    assert classify(entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24") == "WIDERSPRUCH"
+
+
+def test_a_measured_pass_on_an_open_entry_stays_quiet():
+    """Gegenprobe: WIDERLEGT darf nicht jedes Urteil einfaerben."""
+    from scripts.judge_proof_ledger import classify
+    from scripts.proof_judges import Verdict
+
+    entry = _job_log_entry(state="OFFEN", due_by="2026-12-31")
+    assert classify(entry, Verdict("PASS", branch="all_dialogs_opened"), "2026-08-24") == "OK"
