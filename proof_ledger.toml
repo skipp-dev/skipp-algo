@@ -644,6 +644,72 @@ claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den T
 #
 # Bleibt hoechste Prioritaet trotz der Korrektur: die eigentliche Arbeit (die
 # Alerts-Timeout-Ursache) ist weiterhin offen, nur ein Kandidat weniger.
+#
+# ---------------------------------------------------------------------------
+# STAND 2026-08-25, Lauf 32803019213 (save-Job 11:52:50Z) -- MASSGEBLICH,
+# ersetzt den obigen Ermittlungsstand als aktuellen Befund (Historie bleibt
+# stehen, nicht neu aufrollen):
+#
+# (A) WIDERLEGT: die #5052-Probe (dialogAtFailureVerdict, siehe oben "WAS (A)
+#     ENTSCHEIDEN WUERDE") lief in diesem Lauf mit -- beim ERSTEN Fehlschlag
+#     meldete sie `dialogAtFailureVerdict = no-dialog, count=0`. Kein Dialog
+#     stand im Moment der Fehlschlag-Deklaration offen. "Die Erkennung war zu
+#     schnell" trifft nicht zu, wo gar nichts sichtbar war.
+#
+# (B) ALS URSPRUNG WIDERLEGT: waehrend der Versuche von `SMC Long-Dip Alerts`
+#     erschien wiederholt ein Dialog mit Titel `SMC Setup Check` -- aber
+#     `SMC Setup Check` lief in DIESEM Lauf ERST DANACH. Ein Ueberbleibsel
+#     eines fruehen, timeout-abgebrochenen Setup-Check-Versuchs (die
+#     Kaskaden-Erklaerung von (B) oben) ist damit fuer diesen Lauf
+#     ausgeschlossen -- es gab noch keinen Setup-Check-Versuch, dessen Dialog
+#     haette hinterlassen werden koennen. (B) bleibt als MECHANISMUS korrekt
+#     (der Code-Befund ueber closeModal innerhalb der Retry-Schleife steht),
+#     ist aber nicht der URSPRUNG der ersten Fehlpaarung.
+#
+# BEWIESENES PHAENOMEN: der Doppelklick auf die per Text aufgeloeste, per
+# DOM-Hit-Test bestaetigte Zielzeile (hit-target-miss=0 -- der Klick sitzt
+# geometrisch) oeffnet STABIL den Dialog des Legenden-NACHBARN, nicht des
+# Ziels: Alerts->Setup Check 2x, Alerts->Breakout Overlay 1x, symmetrisch
+# Setup Check->Alerts 1x, alle in diesem einen Lauf. Der Identitaetswaechter
+# (verifyOpenedSettingsDialogIdentity) lehnt jedes Mal korrekt ab und ruft
+# closeModal; die Leiter wiederholt danach denselben Doppelklick-Ansatz; nach
+# 60s stirbt das Step-Budget (`Step timed out` 4x, `budget-exhausted`). Aus
+# einem deterministischen Fehlklick wird so ein Totalausfall des Ziels, weil
+# nichts den Ansatz wechselt, wenn er zum zweiten Mal danebengreift.
+#
+# UNGEKLAERT (nicht in dieser Runde zu klaeren): ob ein mehrzeiliger Wrapper
+# die Klickgeometrie verschiebt oder TradingView die Zeile intern falsch
+# zuordnet. Entscheidet die Instrumentierung in formatLegendDblclickBoxDetail
+# (tv_shared.ts) am dblclick-start-Trace-Event beim naechsten natuerlichen
+# Fehlschlag: Boxhoehe ~20px = Einzelzeile (TV-Fehlzuordnung), ~40px+ =
+# mehrzeiliger Wrapper (Klick landet geometrisch auf dem Nachbarn). Reine
+# Formatierung, kein Verhaltenseingriff -- noch KEIN Lauf hat sie seit ihrer
+# Einfuehrung ausgewertet.
+#
+# FIX (diese Aenderung): Eskalation auf den zeilengebundenen Settings-Knopf
+# (button[data-qa-id="legend-settings-action"], selectors.ts ~657,
+# legendSettingsButtons/legendMenuButtons) ab dem ZWEITEN Identitaets-Mismatch
+# fuer dasselbe Ziel innerhalb eines openSettingsForScript-Aufrufs
+# (shouldEscalateSettingsOpenPath, Schwelle
+# SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD=2). Dieser Knopf wurde
+# bislang von KEINER Leiterstufe zum OEFFNEN geklickt --
+# legendTextWrapperHasNearbyAction prueft nur seine Naehe. Die Eskalation
+# (openSettingsForScriptViaLegendButton) loest die Zielzeile per Text neu auf
+# (findLegendRowWrappersByVisibleText), hovert sie (Knoepfe rendern erst beim
+# Hover -- Muster von openLegendRemovalMenu uebernommen) und klickt
+# legendSettingsButtons, ersatzweise legendMenuButtons ("More") + den
+# Settings-Eintrag im Menue. Derselbe Waechter (verifyOpenedSettingsDialogIdentity)
+# bleibt Schiedsrichter. Eigenes Trace-Praefix
+# `script-settings-open-button-escalation-*`. Die bestehende
+# Doppelklick-Leiter bleibt fuer den ersten Versuch unangetastet -- die
+# erfolgreichen 80 % der Ziele (2913-15702 ms, siehe oben) sind nicht
+# betroffen.
+#
+# Der Halter bleibt OFFEN/UNGESICHERT mit dieser Frist. Er ist erst behoben,
+# wenn ein ECHTER Lauf zeigt, dass die Eskalation greift (Trace-Event
+# `script-settings-open-button-escalation-armed` gefolgt von einem
+# erfolgreichen Oeffnen) -- nicht schon durch das Vorhandensein des Codes.
+# ---------------------------------------------------------------------------
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"

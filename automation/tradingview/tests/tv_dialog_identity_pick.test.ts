@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { classifyDialogAtFailure, pickDialogForScript } from "../lib/tv_shared.js";
+import {
+  classifyDialogAtFailure,
+  formatLegendDblclickBoxDetail,
+  pickDialogForScript,
+  recordSettingsIdentityMismatch,
+  resetSettingsIdentityMismatchCount,
+  SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD,
+  settingsIdentityMismatchCount,
+  shouldEscalateSettingsOpenPath,
+  type SettingsIdentityMismatchCounts,
+} from "../lib/tv_shared.js";
 
 // 2026-08-23, Lauf 32556181388: Ziel `SMC Long-Dip Alerts` sah in EINEM Lauf
 // drei VERSCHIEDENE fremde Dialoge — `SMC Breakout Overlay` (4x),
@@ -112,4 +122,81 @@ test("classifyDialogAtFailure: ein sichtbarer Dialog ohne lesbaren Titel ist 'un
   const classified = classifyDialogAtFailure([d("   ")], "SMC Long-Dip Alerts");
   assert.equal(classified.verdict, "untitled-visible");
   assert.equal(classified.title, null);
+});
+
+// Ledger klasse-h, Eskalation (Lauf 32803019213, save-Job 2026-08-25
+// 11:52:50Z): der Doppelklick-Pfad trifft stabil den Legenden-NACHBARN
+// (Alerts->Setup Check 2x, Alerts->Breakout Overlay 1x, symmetrisch Setup
+// Check->Alerts 1x). Ab dem ZWEITEN Mismatch fuer dasselbe Ziel eskaliert
+// openSettingsForScript auf den zeilengebundenen Knopf-Pfad statt erneut
+// doppelzuklicken. Reine Zaehl-/Entscheidungslogik auf einer Map, ohne
+// Browser beweisbar.
+
+test("der erste Mismatch fuer ein Ziel eskaliert noch nicht", () => {
+  const counts: SettingsIdentityMismatchCounts = new Map();
+  const afterFirst = recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  assert.equal(afterFirst, 1);
+  assert.equal(shouldEscalateSettingsOpenPath(afterFirst), false);
+});
+
+test("der zweite Mismatch fuer dasselbe Ziel eskaliert", () => {
+  const counts: SettingsIdentityMismatchCounts = new Map();
+  recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  const afterSecond = recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  assert.equal(afterSecond, 2);
+  assert.equal(shouldEscalateSettingsOpenPath(afterSecond), true);
+  assert.equal(
+    afterSecond,
+    SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD,
+    "die Schwelle ist die gemessene aus Lauf 32803019213",
+  );
+});
+
+test("die Zaehlung ist je Ziel getrennt -- ein fremdes Skript eskaliert nicht mit", () => {
+  const counts: SettingsIdentityMismatchCounts = new Map();
+  recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  assert.equal(settingsIdentityMismatchCount(counts, "SMC Setup Check"), 0);
+  assert.equal(shouldEscalateSettingsOpenPath(settingsIdentityMismatchCount(counts, "SMC Setup Check")), false);
+});
+
+test("resetSettingsIdentityMismatchCount macht die Zaehlung fuer einen neuen openSettingsForScript-Aufruf leer", () => {
+  // "je openSettingsForScript-Aufruf" (Auftragstext): ein Rest aus einem
+  // FRUEHEREN Aufruf fuer dasselbe Ziel darf einen neuen Aufruf nicht sofort
+  // eskalieren lassen, bevor der ueberhaupt einen Mismatch gesehen hat.
+  const counts: SettingsIdentityMismatchCounts = new Map();
+  recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
+  assert.equal(shouldEscalateSettingsOpenPath(settingsIdentityMismatchCount(counts, "SMC Long-Dip Alerts")), true);
+
+  resetSettingsIdentityMismatchCount(counts, "SMC Long-Dip Alerts");
+  assert.equal(settingsIdentityMismatchCount(counts, "SMC Long-Dip Alerts"), 0);
+  assert.equal(shouldEscalateSettingsOpenPath(settingsIdentityMismatchCount(counts, "SMC Long-Dip Alerts")), false);
+});
+
+// Ledger klasse-h, offene Messfrage (Lauf 32803019213): das dblclick-start-
+// Trace-Detail bekommt Boxmasse und Klickpunkt-Offset der tatsaechlich
+// geklickten Box, damit der naechste natuerliche Fehlschlag entscheidet, ob
+// ein mehrzeiliger Wrapper die Geometrie verschiebt (~40px+ Boxhoehe) oder TV
+// die Zeile intern falsch zuordnet (~20px Boxhoehe). Reine Formatierung, ohne
+// Browser beweisbar -- kein Verhaltenseingriff.
+
+test("formatLegendDblclickBoxDetail nennt Boxmasse und den Klickpunkt-Offset zur Box", () => {
+  const box = { x: 100, y: 200, width: 138, height: 18 };
+  const point = { x: 134, y: 209 };
+  assert.equal(formatLegendDblclickBoxDetail(box, point), "138x18@34,9");
+});
+
+test("formatLegendDblclickBoxDetail unterscheidet Einzelzeile (~20px) von mehrzeiligem Wrapper (~40px+)", () => {
+  const singleLineRow = { x: 0, y: 0, width: 140, height: 20 };
+  const wrappedTwoLineRow = { x: 0, y: 0, width: 140, height: 42 };
+  const point = { x: 35, y: 10 };
+  assert.equal(formatLegendDblclickBoxDetail(singleLineRow, point), "140x20@35,10");
+  assert.equal(formatLegendDblclickBoxDetail(wrappedTwoLineRow, point), "140x42@35,10");
+});
+
+test("formatLegendDblclickBoxDetail rundet auf ganze Pixel", () => {
+  const box = { x: 10.4, y: 20.6, width: 138.2, height: 17.7 };
+  const point = { x: 44.9, y: 29.1 };
+  assert.equal(formatLegendDblclickBoxDetail(box, point), "138x18@35,9");
 });
