@@ -1678,8 +1678,19 @@ def test_the_job_log_path_picks_the_named_job_not_the_first_one():
             # die zu 'save' gehoert, nur wenn der Filter sie auch nennt.
             assert "save" in args[-1], f"Job-Filter nennt den Namen nicht: {args[-1]}"
             return "97105473851\n"
-        if args[0] == "api" and args[1].endswith("/logs"):
-            seen["log_url"] = args[1]
+        log_urls = [a for a in args if isinstance(a, str) and a.endswith("/logs")]
+        if args[0] == "api" and log_urls:
+            # Pin (2026-08-25, erster geplanter Cron-Lauf 32819935310): die
+            # CI-`gh`-Version verweigert Logs mit ANSI-Escape-Sequenzen ohne
+            # dieses Flag (rc=1, "pass --allow-escape-sequences to output it
+            # anyway") -- und TradingView-Traces enthalten sie immer. Lokal
+            # lief der Aufruf auch ohne, deshalb hat es kein Test vor dem
+            # CI-Lauf gefangen. Ohne das Flag melden beide job_log-Eintraege
+            # dauerhaft "KEIN_URTEIL (API nicht erreichbar)".
+            assert "--allow-escape-sequences" in args, (
+                f"Log-Abruf ohne --allow-escape-sequences: {args}"
+            )
+            seen["log_url"] = log_urls[0]
             return "…identity-mismatch SMC Long-Dip Alerts != SMC Setup Check…\n"
         raise AssertionError(f"unerwarteter gh-Aufruf: {args}")
 
@@ -2000,3 +2011,50 @@ def test_a_declared_pass_measured_fail_stays_an_accusation():
 
     entry = _job_log_entry(state="PASS", pass_kind="live", witness_run="32620808573")
     assert classify(entry, Verdict("FAIL", branch="identity_mismatch"), "2026-08-24") == "WIDERSPRUCH"
+
+
+def test_an_older_gh_without_the_flag_falls_back_and_still_fetches(monkeypatch):
+    """Beide Seiten sind gemessen (2026-08-25): die CI-gh verlangt
+    --allow-escape-sequences (rc=1 ohne), die lokale gh 2.74.1 kennt das Flag
+    nicht ("unknown flag", rc=1). Ein hartes Flag haette CI-blind gegen
+    lokal-blind getauscht. Dieser Test pinnt den Rueckfall: meldet gh
+    "unknown flag", wird OHNE Flag erneut geholt; jeder ANDERE Fehlschlag
+    bleibt laut."""
+    import scripts.judge_proof_ledger as mod
+
+    calls = []
+
+    def fake_gh(*args):
+        if args[0] == "api" and "/jobs?" in args[1]:
+            return "97105473851\n"
+        calls.append(args)
+        if "--allow-escape-sequences" in args:
+            raise mod.GhCallError("gh api ... -> rc=1: unknown flag: --allow-escape-sequences")
+        return "…identity-mismatch…\n"
+
+    monkeypatch.setattr(mod, "_gh", fake_gh)
+    log = mod._fetch_job_log(_job_log_entry(), "32556181388")
+
+    assert "identity-mismatch" in log
+    assert len(calls) == 2, calls
+    assert "--allow-escape-sequences" in calls[0]
+    assert "--allow-escape-sequences" not in calls[1]
+
+
+def test_a_real_log_failure_is_not_swallowed_by_the_fallback(monkeypatch):
+    """Der Rueckfall gilt NUR fuer "unknown flag". Ein echter Fehlschlag (403,
+    404, Netz) muss weiter als GhCallError hochkommen -- sonst wuerde der
+    Rueckfall genau die Lautstaerke schlucken, die die C1-Fixwelle eingebaut
+    hat."""
+    import pytest as _pytest
+
+    import scripts.judge_proof_ledger as mod
+
+    def fake_gh(*args):
+        if args[0] == "api" and "/jobs?" in args[1]:
+            return "97105473851\n"
+        raise mod.GhCallError("gh api ... -> rc=1: HTTP 403")
+
+    monkeypatch.setattr(mod, "_gh", fake_gh)
+    with _pytest.raises(mod.GhCallError, match="403"):
+        mod._fetch_job_log(_job_log_entry(), "32556181388")
