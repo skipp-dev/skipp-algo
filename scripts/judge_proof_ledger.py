@@ -311,7 +311,26 @@ def _fetch_job_log(entry: ProofEntry, run_id: str) -> str:
     ).strip()
     if not raw.isdigit():
         return ""
-    return _gh("api", f"repos/{REPO}/actions/jobs/{raw}/logs")
+    # `--allow-escape-sequences` ist PFLICHT -- aber nur dort, wo gh es kennt.
+    # BEIDE Seiten sind gemessen (2026-08-25):
+    #   * CI (erster geplanter Cron-Lauf 32819935310): die dortige gh-Version
+    #     verweigert Logs mit ANSI-Escape-Sequenzen ohne das Flag mit rc=1
+    #     ("the response contains terminal escape sequences; pass
+    #     --allow-escape-sequences to output it anyway"). TradingView-Traces
+    #     enthalten solche Sequenzen immer -- ohne Flag melden beide
+    #     job_log-Eintraege dauerhaft "KEIN_URTEIL (API nicht erreichbar)".
+    #   * Lokal (gh 2.74.1): "unknown flag: --allow-escape-sequences", rc=1 --
+    #     die aeltere Version kennt weder den Guard noch das Flag.
+    # Ein hartes Flag haette CI-blind gegen lokal-blind getauscht. Deshalb
+    # Versuch MIT Flag, bei "unknown flag" Rueckfall OHNE; jeder andere
+    # Fehlschlag bleibt laut (GhCallError traegt stderr).
+    logs_endpoint = f"repos/{REPO}/actions/jobs/{raw}/logs"
+    try:
+        return _gh("api", "--allow-escape-sequences", logs_endpoint)
+    except GhCallError as exc:
+        if "unknown flag" not in str(exc):
+            raise
+        return _gh("api", logs_endpoint)
 
 
 def _judge_entry(entry: ProofEntry) -> tuple[Verdict | None, str]:

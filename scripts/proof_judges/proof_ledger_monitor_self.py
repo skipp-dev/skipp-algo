@@ -28,11 +28,25 @@ def judge(evidence: Any, entry) -> Verdict:  # entry ist Teil des Urteiler-Vertr
             branch="report_empty",
             detail="Report ist leer oder keine Liste -- der Lauf hat kein einziges Urteil geschrieben",
         )
+    # REGEL NACHGEZOGEN 2026-08-25, nach einer eigenen Falschanschuldigung.
+    # Die alte Bedingung (evidence_source != "artifact" UND KEIN_ZEUGE) stammt
+    # aus der Zeit, als job_log-Eintraege UEBERSPRUNGEN wurden (#5036) -- da
+    # war KEIN_ZEUGE auf ihnen zwingend eine Maskierung. Seit #5047 werden sie
+    # BEURTEILT, und KEIN_ZEUGE ist dort legitim: die Zeugensuche lief und fand
+    # nichts. GEMESSEN am Report des ersten Cron-Laufs (32819935310): Zeile
+    # 5037 (job_log, Zeugensuche leer) liess den Selbst-Urteiler FAIL melden
+    # und den Monitor-Eintrag als WIDERSPRUCH fuehren -- eine falsche
+    # Anschuldigung durch Regel-Drift zwischen zwei Aenderungen desselben Tages.
+    # Uebersprungen wird heute strukturell nur noch, was kein beurteilbarer
+    # fix-Eintrag ist; main() etikettiert jeden Skip als "KEIN_URTEIL (<grund>)".
+    # Die Invariante schuetzt also weiterhin dieselbe Zusicherung -- ein Skip
+    # darf nie wie eine erfolglose Zeugensuche aussehen -- nur an der Stelle,
+    # an der Skips heute wirklich entstehen.
     mislabeled = [
         row.get("id")
         for row in evidence
         if isinstance(row, dict)
-        and row.get("evidence_source") != "artifact"
+        and row.get("kind") != "fix"
         and row.get("measured") == "KEIN_ZEUGE"
     ]
     if mislabeled:
