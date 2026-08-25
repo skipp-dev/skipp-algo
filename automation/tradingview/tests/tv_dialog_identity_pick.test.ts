@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { pickDialogForScript } from "../lib/tv_shared.js";
+import { classifyDialogAtFailure, pickDialogForScript } from "../lib/tv_shared.js";
 
 // 2026-08-23, Lauf 32556181388: Ziel `SMC Long-Dip Alerts` sah in EINEM Lauf
 // drei VERSCHIEDENE fremde Dialoge — `SMC Breakout Overlay` (4x),
@@ -75,4 +75,41 @@ test("die Auswahl erbt die Semantik des bestehenden Matchers, sie erfindet keine
     pickDialogForScript([d("SMC Breakout Overlay"), d("SMC Long-Dip Alerts")], "SMC Long-Dip Alerts").dialog?.title,
     "SMC Long-Dip Alerts",
   );
+});
+
+// Ledger klasse-h, Kandidat (A): "der Dialog war spaeter da" beweist noch
+// nicht "die Erkennung war zu schnell". classifyDialogAtFailure ist die
+// Entscheidungslogik hinter der Messprobe, die genau DAS am realen Lauf
+// entscheidet — angewandt auf die Dialoge, die GENAU im Moment der
+// Fehlschlag-Deklaration sichtbar sind (nicht die spaeter geschriebene
+// Beweisdatei). Vier Zustaende, damit "kein Dialog", "Dialog mit fremdem
+// Titel" und "Dialog ohne lesbaren Titel" nicht ununterscheidbar zusammenfallen.
+test("classifyDialogAtFailure: kein sichtbarer Dialog ist 'no-dialog', nicht 'untitled'", () => {
+  const classified = classifyDialogAtFailure([], "SMC Long-Dip Alerts");
+  assert.equal(classified.verdict, "no-dialog");
+  assert.equal(classified.title, null);
+  assert.equal(classified.visibleCount, 0);
+});
+
+test("classifyDialogAtFailure: der Zieldialog ist sichtbar -> 'target-visible' (Kandidat A waere bewiesen)", () => {
+  const classified = classifyDialogAtFailure(
+    [d("SMC Breakout Overlay"), d("SMC Long-Dip Alerts")],
+    "SMC Long-Dip Alerts",
+  );
+  assert.equal(classified.verdict, "target-visible");
+  assert.equal(classified.title, "SMC Long-Dip Alerts");
+  assert.equal(classified.visibleCount, 2);
+});
+
+test("classifyDialogAtFailure: ein fremder Dialog ist sichtbar -> 'foreign-visible' mit seinem Titel", () => {
+  const classified = classifyDialogAtFailure([d("SMC Setup Check")], "SMC Long-Dip Alerts");
+  assert.equal(classified.verdict, "foreign-visible");
+  assert.equal(classified.title, "SMC Setup Check");
+  assert.equal(classified.visibleCount, 1);
+});
+
+test("classifyDialogAtFailure: ein sichtbarer Dialog ohne lesbaren Titel ist 'untitled-visible', nicht 'no-dialog'", () => {
+  const classified = classifyDialogAtFailure([d("   ")], "SMC Long-Dip Alerts");
+  assert.equal(classified.verdict, "untitled-visible");
+  assert.equal(classified.title, null);
 });
