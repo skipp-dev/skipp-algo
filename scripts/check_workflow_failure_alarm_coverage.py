@@ -131,7 +131,8 @@ def _mit_transient_retry(
                 file=sys.stderr,
             )
             schlaf(_TRANSIENT_BACKOFF_S)
-    assert letzte is not None  # Schleife endet nur nach einer Ausnahme
+    if letzte is None:  # pragma: no cover - Schleife endet nur nach Ausnahme
+        raise RuntimeError("Retry-Schleife endete ohne Ergebnis und ohne Ausnahme")
     raise letzte
 
 

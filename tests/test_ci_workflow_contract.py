@@ -73,8 +73,16 @@ def test_triggers_pinned() -> None:
     assert set(on_block.keys()) == {"push", "pull_request", "workflow_dispatch"}, (
         "ci.yml trigger surface drifted; expected push + pull_request + workflow_dispatch"
     )
-    assert on_block["push"]["branches"] == ["**"], "push must cover all branches"
-    assert on_block["pull_request"]["branches"] == ["**"], "PR must cover all branches"
+    assert on_block["push"].get("branches-ignore") == ["data/**"], (
+        "push must cover all branches EXCEPT data/** — Orphan-Datenbaeume "
+        "(stuendliche c13-Snapshots) tragen einen eingefrorenen Code-Schnappschuss, "
+        "dessen Datums-Anker dort nie wieder heilen koennen "
+        "(failed-runs-Triage 2026-08-25)"
+    )
+    assert "branches" not in on_block["push"], (
+        "branches und branches-ignore schliessen sich in Actions aus; ein "
+        "wieder eingefuegtes branches wuerde die data/**-Ausnahme still kippen"
+    )
     paths_ignore = on_block["pull_request"].get("paths-ignore", [])
     assert "**/*.md" in paths_ignore and "docs/**" in paths_ignore, (
         "doc-only PR short-circuit must keep ignoring **/*.md and docs/** "
