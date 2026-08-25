@@ -2058,3 +2058,39 @@ def test_a_real_log_failure_is_not_swallowed_by_the_fallback(monkeypatch):
     monkeypatch.setattr(mod, "_gh", fake_gh)
     with _pytest.raises(mod.GhCallError, match="403"):
         mod._fetch_job_log(_job_log_entry(), "32556181388")
+
+
+def test_a_judged_job_log_row_without_witness_is_not_a_mislabel():
+    """Pinnt die Drift-Reparatur vom 2026-08-25. Die alte Selbst-Urteiler-Regel
+    (evidence_source != artifact UND KEIN_ZEUGE => maskierter Skip) stammt aus
+    der Zeit, als job_log-Eintraege UEBERSPRUNGEN wurden. Seit #5047 werden sie
+    beurteilt, und KEIN_ZEUGE ist dort legitim: die Zeugensuche lief und fand
+    nichts. Gemessen am Report des ersten Cron-Laufs (32819935310): Zeile 5037
+    loeste eine FALSCHE Anschuldigung aus (Selbst-Urteiler FAIL, Monitor-
+    Eintrag WIDERSPRUCH). Der echte Report liegt als Korpus bei; unter der
+    reparierten Regel urteilt er PASS."""
+    from scripts.proof_judges import corpus_for, load_judge
+
+    entry = next(e for e in load_entries() if e.id == "task7-proof-ledger-monitor")
+    judge = load_judge("proof_ledger_monitor_self")
+    corpus = dict(corpus_for("proof_ledger_monitor_self"))
+    assert "32819935310" in corpus, "Korpus-Eintrag des Cron-Laufs fehlt"
+    verdict = judge.judge(corpus["32819935310"], entry)
+    assert verdict.state == "PASS", verdict
+
+
+def test_a_skipped_defect_row_shown_as_kein_zeuge_still_fails():
+    """Die Zusicherung selbst bleibt scharf: ein SKIP (kind != fix), der als
+    KEIN_ZEUGE erscheint, ist weiterhin eine Maskierung und muss FAIL geben --
+    die Reparatur oben verengt die Regel auf die Stelle, an der Skips heute
+    strukturell entstehen, sie weicht sie nicht auf."""
+    from scripts.proof_judges import load_judge
+
+    entry = next(e for e in load_entries() if e.id == "task7-proof-ledger-monitor")
+    judge = load_judge("proof_ledger_monitor_self")
+    rows = [
+        {"id": "x", "kind": "defect", "evidence_source": "", "measured": "KEIN_ZEUGE"},
+    ]
+    verdict = judge.judge(rows, entry)
+    assert verdict.state == "FAIL", verdict
+    assert verdict.branch == "skip_mislabeled_as_missing_witness", verdict
