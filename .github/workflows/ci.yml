@@ -3,7 +3,15 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # 2026-08-25: alle Branches AUSSER data/** — das sind verwaiste
+    # Datenbaeume (stuendliche c13-Snapshots u. ae.) ohne gemeinsame Historie
+    # mit main. Ihr eingefrorener Code-Schnappschuss (Juli-Stand) wurde bei
+    # jedem Datenpush neu validiert; zwei Datumsbomben des alten Stands
+    # (c9-Lock-Anker, Snooze-Expiry) machten ab dem 19.8. JEDEN Lauf rot —
+    # 6-7 nutzlose Rotlaeufe pro Tag ohne Aussage ueber heutigen Code.
+    # (`branches` und `branches-ignore` schliessen sich aus; "alle ausser"
+    # geht nur so.)
+    branches-ignore: ["data/**"]
   pull_request:
     branches: ["**"]
     # F-V8-C5-A (2026-05-07): doc-only PRs do not exercise the validate
