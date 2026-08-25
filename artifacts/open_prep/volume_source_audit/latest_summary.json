@@ -1,5 +1,5 @@
 {
-  "eod_to_minute_session_median": 1.336289,
+  "eod_to_minute_session_median": 1.312711,
   "minimum_sessions": 5,
   "quote_to_minute_session_median": 1.311962,
   "ready_for_decision": true,
@@ -95,8 +95,14 @@
       "quote_to_minute_median": 1.270913,
       "session_date": "2026-08-24",
       "symbols_measured": 10
+    },
+    {
+      "eod_to_minute_median": 1.249922,
+      "quote_to_minute_median": null,
+      "session_date": "2026-08-25",
+      "symbols_measured": 10
     }
   ],
-  "sessions_observed": 15,
+  "sessions_observed": 16,
   "verdict": "inconclusive"
 }
