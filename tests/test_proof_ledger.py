@@ -355,6 +355,92 @@ def test_the_class_is_derived_from_the_workflows_not_copied():
     assert len(test_imported()) >= class_floors()["test_imported"]
 
 
+# --- Extern-Filter (Halter i1i2-derived-class-missing-extern-filter) -------
+#
+# Spec (docs/superpowers/specs/2026-08-23-beweis-ledger-design.md, Abschnitt
+# "Aufnahme"): Extern = Workflows OHNE pull_request-Trigger. Ein Workflow, der
+# auf pull_request laeuft, beweist seine eigene Aenderung im naechsten
+# PR-Lauf selbst und gehoert nicht in die beweispflichtige Klasse.
+
+
+def test_the_on_key_becomes_a_yaml_boolean_and_is_still_found():
+    """YAML-Falle, explizit gepinnt: PyYAML parst ein unquotiertes ``on:`` als
+    Boolean-Schluessel ``True``, nicht als String ``"on"``. Positivkontrolle,
+    dass ``_on_trigger`` genau das handhabt -- ohne die True-Pruefung wuerde
+    JEDER Workflow als 'kein Trigger gefunden' durchgehen und faelschlich als
+    extern gelten, auch ein pull_request-Workflow."""
+    import yaml
+
+    from scripts.proof_class import _on_trigger
+
+    text = "on:\n  pull_request: {}\n"
+    parsed = yaml.safe_load(text)
+    assert True in parsed and "on" not in parsed, (
+        "Testannahme (PyYAML-Bool-Schluessel-Falle) stimmt nicht mehr"
+    )
+    assert _on_trigger(text) == {"pull_request": {}}
+
+
+def test_has_pull_request_trigger_parses_the_real_on_block(tmp_path):
+    """Geparst ueber den echten ``on:``-Block, nicht per Substring."""
+    from scripts.proof_class import _has_pull_request_trigger
+
+    yml = tmp_path / "a.yml"
+    yml.write_text("on:\n  pull_request:\n    branches: [main]\njobs: {}\n")
+    assert _has_pull_request_trigger(yml) is True
+
+
+def test_has_pull_request_trigger_is_false_for_other_triggers(tmp_path):
+    from scripts.proof_class import _has_pull_request_trigger
+
+    yml = tmp_path / "b.yml"
+    yml.write_text(
+        "on:\n  schedule:\n    - cron: '0 0 * * *'\n  workflow_dispatch: {}\njobs: {}\n"
+    )
+    assert _has_pull_request_trigger(yml) is False
+
+
+def test_has_pull_request_trigger_handles_the_list_and_string_on_forms(tmp_path):
+    """Der ``on:``-Block kann ein String, eine Liste oder eine Map sein --
+    alle drei Formen kommen in echten GH-Workflows vor."""
+    from scripts.proof_class import _has_pull_request_trigger
+
+    list_form = tmp_path / "c.yml"
+    list_form.write_text("on: [push, pull_request]\njobs: {}\n")
+    assert _has_pull_request_trigger(list_form) is True
+
+    string_form = tmp_path / "d.yml"
+    string_form.write_text("on: push\njobs: {}\n")
+    assert _has_pull_request_trigger(string_form) is False
+
+
+def test_a_pull_request_triggered_workflow_is_excluded_from_the_class():
+    """Anker am echten Repo: smc-fast-pr-gates.yml ist der EINZIGE required
+    Check (ADR-0011) und laeuft auf pull_request -- er beweist seine eigene
+    Aenderung im naechsten PR-Lauf selbst. Vor dem Fix lag er (mit ci.yml und
+    sechs weiteren) IN der Klasse -- gemessen 2026-08-24: alle 8
+    pull_request-Workflows lagen drin, weil workflow_files() jede Datei
+    bedingungslos aufnahm."""
+    from scripts.proof_class import derive_class, workflow_files
+
+    assert ".github/workflows/smc-fast-pr-gates.yml" not in workflow_files()
+    assert ".github/workflows/smc-fast-pr-gates.yml" not in derive_class()
+    assert ".github/workflows/ci.yml" not in workflow_files()
+
+
+def test_the_pull_request_trigger_filter_is_load_bearing(monkeypatch):
+    """Rueckbau-Probe: Filter abgeschaltet (jeder Workflow gilt als extern,
+    ``_has_pull_request_trigger`` liefert immer False) -- smc-fast-pr-gates.yml
+    MUSS dann wieder in der Klasse auftauchen. Ohne diese Zusicherung koennte
+    der Trigger-Parser (etwa die on:-Bool-Schluessel-Falle) stillschweigend
+    kaputtgehen, ohne dass ein Test es merkt."""
+    import scripts.proof_class as mod
+
+    monkeypatch.setattr(mod, "_has_pull_request_trigger", lambda path: False)
+    assert ".github/workflows/smc-fast-pr-gates.yml" in mod.workflow_files()
+    assert ".github/workflows/smc-fast-pr-gates.yml" in mod.derive_class()
+
+
 # --- Offline-Gate (Task 3) --------------------------------------------------
 
 
@@ -366,6 +452,162 @@ def test_the_range_is_widened_to_the_merge_base():
 
     assert _merge_base_range("aaa..bbb") == "aaa...bbb"
     assert _merge_base_range("aaa...bbb") == "aaa...bbb"
+
+
+def _git(tmp_path, *args: str) -> str:
+    """Kleiner Helfer fuer die c4-Regressionsprobe unten -- kein Netz, ein
+    ECHTES Git-Repo in tmp_path, nie das echte skipp-algo-Repo.
+
+    Umgebungsunabhaengig gehalten (2026-08-25, Gate-Fund: der Test fiel im
+    pre-push-Gate -- anderer Interpreter, andere Umgebung -- ohne dass lokal
+    (``pytest`` hier, 88 gruen) je etwas auffiel): jede ``GIT_*``-Variable
+    wird aus der Subprozess-Umgebung entfernt, bevor ``git`` laeuft. Ein
+    umschliessender pre-push-Hook laeuft mit gesetzten Git-Variablen
+    (``GIT_DIR``/``GIT_WORK_TREE``/``GIT_INDEX_FILE``/``GIT_OBJECT_DIRECTORY``/
+    ``GIT_CONFIG*``, ...) -- ungefiltert durchgereicht wuerden sie dieses
+    frische Testrepo auf den ECHTEN Baum umleiten, statt ein isoliertes
+    ``tmp_path``-Repo zu bauen. Das ist derselbe Fehler wie eine geborgte
+    Uhr: die Testumgebung liefert Zustand, den der Test selbst liefern muss.
+
+    Wirft bei Fehlschlag AssertionError mit Kommando, Rueckgabecode, stdout
+    UND stderr -- ein nackter ``CalledProcessError`` (``check=True`` mit
+    ``capture_output``) verschluckt genau die stderr-Zeile, die sagt, was
+    Git beanstandet hat, und kostet jedem Nachfolger dieselbe Ratesitzung.
+    """
+    import os
+    import subprocess
+
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    proc = subprocess.run(
+        ["git", *args], cwd=tmp_path, capture_output=True, text=True, env=env,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"git {list(args)!r} (cwd={tmp_path}) exited {proc.returncode}\n"
+            f"--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
+        )
+    return proc.stdout.strip()
+
+
+def test_before_is_read_at_the_merge_base_not_the_literal_range_start(tmp_path, monkeypatch):
+    """Regression fuer den Halter c4-merge-base-not-merge-commit, nachgestellt
+    in einem ECHTEN /tmp-Git-Repo (nicht gegen das echte skipp-algo-Repo).
+
+    Konstruktion, per echtem ``git merge-base`` unter ``/tmp`` verifiziert,
+    bevor dieser Test geschrieben wurde:
+
+    1. ``root`` (Ledger leer) --> ``pr1`` aendert ``provable.py``, OHNE
+       eigenen Ledger-Eintrag.
+    2. Parallel dazu, ebenfalls von ``root``: ``main_a`` traegt einen
+       FREMDEN, noch offenen Eintrag ("9999") -- ein anderer PR, der gerade
+       gemergt wurde.
+    3. Die PR-Branch loest ihren BEHIND-Zustand (Routine in diesem Repo) auf,
+       indem sie ``main_a`` mergt --> ``pr2``. Ihre Arbeitskopie traegt jetzt
+       "9999", geerbt vom Merge.
+    4. main loest den fremden Befund SPAETER auf und ENTFERNT "9999" wieder
+       --> ``main_b``. Der zweite (erneut getriggerte) Gate-Lauf bekommt
+       dieses main_b als BASE_SHA -- main ist inzwischen weiter als das, was
+       die PR-Branch tatsaechlich gemergt hat.
+
+    ``main_b`` ist KEIN Vorfahr von ``pr2`` (die PR-Branch hat main_b nie
+    gemergt) -- die echte Merge-Basis von (main_b, pr2) ist ``main_a``, wo
+    "9999" noch stand.
+
+    Mit dem alten Code (``base = _merge_base_range(...).split("...")[0]``)
+    wird ``before`` am LITERALEN BASE_SHA gelesen: main_b, das "9999" NICHT
+    mehr enthaelt. ``after`` (die Arbeitskopie der PR) enthaelt "9999" noch.
+    ``after - before`` enthaelt dann "9999", und der Waechter haelt das
+    faelschlich fuer einen frischen Beweis dieses PRs -- rc=0, obwohl der PR
+    fuer SEINE EIGENE Aenderung (provable.py) nie einen Eintrag angelegt hat.
+    Mit ``git merge-base`` (dem Fix) ist ``before`` main_a, wo "9999" noch
+    stand -- ``after - before`` ist leer, rc=1 bleibt bestehen.
+    """
+    import os
+
+    import scripts.check_proof_ledger as gate
+    import scripts.proof_ledger as ledger_mod
+
+    # Die Klasse, nicht der Einzelfall (Gate-Fund #2, 2026-08-25): `_git()`
+    # baut sich fuer die EIGENEN Aufrufe eine bereinigte Umgebung, aber
+    # `gate.main()` ruft INTERN dieselben `git`-Kommandos ueber
+    # `check_proof_ledger.py`s eigene subprocess.run()-Aufrufe (_changed_files/
+    # _ledger_ids_at/_merge_base_commit) -- OHNE eigenes `env=`, also mit der
+    # ererbten Prozessumgebung DIESES Testlaufs. Im pre-push-Gate laeuft
+    # dieser Testlauf selbst INNERHALB eines Git-Hooks, der GIT_DIR/GIT_
+    # WORK_TREE auf das ECHTE Repo setzt -- ungefiltert wuerden die
+    # "git diff"/"git show"/"git merge-base"-Aufrufe von check_proof_ledger.py
+    # dann trotz korrektem `cwd=tmp_path` das ECHTE Repo statt des frischen
+    # /tmp-Testrepos befragen und mit rc=128 auf Commits scheitern, die es
+    # dort nicht gibt (empirisch im Gate beobachtet). Deshalb wird die
+    # Prozessumgebung DIESES Tests selbst bereinigt, nicht nur `_git()`s
+    # eigene -- das deckt beide Aufrufer derselben git-Kommandos ab.
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key, raising=False)
+
+    def git(*args: str) -> str:
+        return _git(tmp_path, *args)
+
+    # Explizit statt geborgt: Startbranch per `-b` (kein `checkout -b` auf
+    # einem ungeborenen HEAD, das je nach `init.defaultBranch` unterschiedlich
+    # heissen kann), user.*/gpgsign/hooksPath als Repo-lokale Config statt auf
+    # eine (im Gate ggf. fehlende oder anders gesetzte) globale Config zu
+    # bauen -- damit weder eine fehlende Identitaet den Commit noch eine
+    # fremde Signatur-/Hook-Config den Ablauf zum Stehen bringt.
+    git("init", "-q", "-b", "trunk")
+    git("config", "user.email", "t@t.example")
+    git("config", "user.name", "t")
+    git("config", "commit.gpgsign", "false")
+    git("config", "core.hooksPath", "/dev/null")
+
+    seed_ledger = (
+        '[[proof]]\nid = "root-noop"\nkind = "exempt"\nclaim = "seed"\n'
+        'state = "AUSGENOMMEN"\ndue_by = "2026-09-06"\nowner = "t"\n'
+    )
+    (tmp_path / "provable.py").write_text("v1\n")
+    (tmp_path / "proof_ledger.toml").write_text(seed_ledger)
+    git("add", "-A")
+    git("commit", "-q", "-m", "root")
+
+    git("checkout", "-q", "-b", "pr")
+    (tmp_path / "provable.py").write_text("v2\n")
+    git("commit", "-q", "-am", "pr1: aendert provable.py, kein Eintrag")
+
+    git("checkout", "-q", "trunk", "-b", "mainline")
+    with (tmp_path / "proof_ledger.toml").open("a") as fp:
+        fp.write(
+            '\n[[proof]]\nid = "9999"\nkind = "defect"\n'
+            'claim = "fremder, noch offener Befund"\n'
+            'state = "UNGESICHERT"\ndue_by = "2026-09-06"\nowner = "t"\n'
+        )
+    git("commit", "-q", "-am", "main_a: fremder Eintrag 9999")
+    main_a = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "pr")
+    git("merge", "-q", "--no-edit", "mainline")
+    pr2 = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "mainline")
+    (tmp_path / "proof_ledger.toml").write_text(seed_ledger)
+    git("commit", "-q", "-am", "main_b: 9999 aufgeloest und entfernt")
+    main_b = git("rev-parse", "HEAD")
+
+    assert git("merge-base", main_b, pr2) == main_a, (
+        "Testaufbau falsch: erwartete Merge-Basis ist main_a"
+    )
+
+    git("checkout", "-q", pr2)  # Arbeitskopie = das, was der PR-CI-Job sieht
+
+    monkeypatch.setattr(gate, "ROOT", tmp_path)
+    monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"provable.py"}))
+    monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
+    monkeypatch.setattr(ledger_mod, "_LEDGER_PATH", tmp_path / "proof_ledger.toml")
+    ledger_mod._load.cache_clear()
+    try:
+        rc = gate.main(["--range", f"{main_b}..{pr2}"])
+        assert rc == 1, "provable.py ist beweispflichtig beruehrt, ohne eigenen Eintrag -- muss rc=1 bleiben"
+    finally:
+        ledger_mod._load.cache_clear()
 
 
 def test_a_coupled_reason_must_hold_in_the_tree():
@@ -401,6 +643,11 @@ def test_touching_the_class_without_a_new_entry_fails(monkeypatch, capsys):
 
     monkeypatch.setattr(gate, "_changed_files", lambda rng: frozenset({"scripts/x.ts"}))
     monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"scripts/x.ts"}))
+    # _merge_base_commit shells out to real `git merge-base` -- irrelevant to
+    # this unit (which only exercises the after-vs-before set logic), so it's
+    # stubbed alongside _ledger_ids_at rather than run against fake "aaa"/
+    # "bbb" refs that don't exist in this repo.
+    monkeypatch.setattr(gate, "_merge_base_commit", lambda rng: "irrelevant")
     monkeypatch.setattr(gate, "_ledger_ids_at", lambda rev: frozenset({"5013"}))
     monkeypatch.setattr(gate, "load_entries", lambda: ())
     monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
@@ -423,6 +670,7 @@ def test_touching_the_class_with_a_new_entry_passes(monkeypatch):
     )
     monkeypatch.setattr(gate, "_changed_files", lambda rng: frozenset({"scripts/x.ts"}))
     monkeypatch.setattr(gate, "derive_class", lambda: frozenset({"scripts/x.ts"}))
+    monkeypatch.setattr(gate, "_merge_base_commit", lambda rng: "irrelevant")
     monkeypatch.setattr(gate, "_ledger_ids_at", lambda rev: frozenset({"5013"}))
     monkeypatch.setattr(gate, "load_entries", lambda: (neu,))
     monkeypatch.setattr(gate, "_coupling_failures", lambda: [])
