@@ -10,7 +10,7 @@
           "n_closed_outcomes": 0
         },
         "MODELED_OOS": {
-          "n_outcomes": 11
+          "n_outcomes": 12
         },
         "PAPER": {
           "days": 0,
@@ -32,7 +32,7 @@
           "n_closed_outcomes": 0
         },
         "MODELED_OOS": {
-          "n_outcomes": 6
+          "n_outcomes": 7
         },
         "PAPER": {
           "days": 0,
@@ -76,7 +76,7 @@
           "n_closed_outcomes": 0
         },
         "MODELED_OOS": {
-          "n_outcomes": 12
+          "n_outcomes": 13
         },
         "PAPER": {
           "days": 0,
@@ -95,7 +95,7 @@
     "OB": 0.4782,
     "SWEEP": 0.6799
   },
-  "generated_at": "2026-08-24T22:04:16.634145+00:00",
+  "generated_at": "2026-08-25T22:03:50.190264+00:00",
   "metrics": {
     "dce": 0.122597,
     "ece": 0.132014,
@@ -133,36 +133,36 @@
       "concentrated": false,
       "dominant_regime": "RANGING",
       "per_regime_pnl": {
-        "NEUTRAL": 0.3261743643704326,
-        "RANGING": 0.7770433498040618,
+        "NEUTRAL": 0.3541284086439841,
+        "RANGING": 0.7683261648099312,
         "TRENDING": 0.09781693752121733
       },
-      "share_of_total_pnl": 0.6469782938460377,
+      "share_of_total_pnl": 0.6296354195763804,
       "threshold": 0.8
     },
-    "date": "2026-08-24",
+    "date": "2026-08-25",
     "measurement": {
       "cost_bps": 5.0,
       "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py",
       "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
       "return_rule": "touch_then_horizon_close"
     },
-    "n_trades_total": 29,
-    "n_trades_with_regime": 29,
+    "n_trades_total": 32,
+    "n_trades_with_regime": 32,
     "per_regime": {
       "NEUTRAL": {
-        "n": 4,
-        "regime_frequency_pct": 0.13793103448275862,
+        "n": 6,
+        "regime_frequency_pct": 0.1875,
         "skipped_reason": "insufficient_n"
       },
       "RANGING": {
-        "n": 19,
-        "regime_frequency_pct": 0.6551724137931034,
+        "n": 20,
+        "regime_frequency_pct": 0.625,
         "skipped_reason": "insufficient_n"
       },
       "TRENDING": {
         "n": 6,
-        "regime_frequency_pct": 0.20689655172413793,
+        "regime_frequency_pct": 0.1875,
         "skipped_reason": "insufficient_n"
       }
     },
@@ -174,8 +174,8 @@
       "n_resamples": 0,
       "observed": null,
       "per_regime_n": {
-        "NEUTRAL": 4,
-        "RANGING": 19,
+        "NEUTRAL": 6,
+        "RANGING": 20,
         "TRENDING": 6
       },
       "seed": 0,
@@ -189,9 +189,9 @@
   },
   "schema_version": "1.4.0",
   "source": {
-    "commit_sha": "d6a292dabd5d53e9a45df24fa6ab27605572c97e",
+    "commit_sha": "b4f5ca3725f1302581719e5e04b5e751436d21a5",
     "path": "artifacts/reports/zone_priority_calibration.json",
-    "workflow_run": "32782738134"
+    "workflow_run": "32904220663"
   },
   "status": "ok",
   "track_record_gate": {
@@ -201,35 +201,35 @@
         "name": "oos_trades",
         "status": "red",
         "threshold": 100.0,
-        "value": 29.0
+        "value": 32.0
       },
       {
-        "detail": "",
+        "detail": "rr_target=1.0",
         "name": "win_rate",
-        "status": "skipped",
+        "status": "green",
         "threshold": 0.55,
-        "value": null
+        "value": 0.71875
       },
       {
-        "detail": "",
+        "detail": "freq=730.5 (observed trades/year)",
         "name": "sharpe",
-        "status": "skipped",
+        "status": "green",
         "threshold": 1.0,
-        "value": null
+        "value": 12.424366730769837
       },
       {
-        "detail": "",
+        "detail": "method=studentized",
         "name": "bootstrap_sharpe_ci_low",
-        "status": "skipped",
+        "status": "green",
         "threshold": 0.3,
-        "value": null
+        "value": 5.144016028467888
       },
       {
-        "detail": "",
+        "detail": "fractional",
         "name": "max_drawdown",
-        "status": "skipped",
+        "status": "red",
         "threshold": 0.15,
-        "value": null
+        "value": 0.17272715418191775
       },
       {
         "detail": "missing",
@@ -260,263 +260,25 @@
         "value": null
       },
       {
-        "detail": "missing",
+        "detail": "",
         "name": "psr_sr_star_zero",
-        "status": "skipped",
+        "status": "green",
         "threshold": 0.95,
-        "value": null
+        "value": 0.9989676469967745
       },
       {
-        "detail": "",
+        "detail": "MinTRL \u2264 available n",
         "name": "min_trl_within_n",
-        "status": "skipped",
-        "threshold": 29.0,
-        "value": null
+        "status": "green",
+        "threshold": 32.0,
+        "value": 10.0
       }
     ],
-    "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades",
+    "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades, max_drawdown",
     "claimable": false,
-    "n_trades": 29,
+    "n_trades": 32,
     "per_variant": {
       "BOS": {
-        "checks": [
-          {
-            "detail": "\u2265100, ideal \u2265200",
-            "name": "oos_trades",
-            "status": "red",
-            "threshold": 100.0,
-            "value": 11.0
-          },
-          {
-            "detail": "",
-            "name": "win_rate",
-            "status": "skipped",
-            "threshold": 0.55,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "sharpe",
-            "status": "skipped",
-            "threshold": 1.0,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "bootstrap_sharpe_ci_low",
-            "status": "skipped",
-            "threshold": 0.3,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "max_drawdown",
-            "status": "skipped",
-            "threshold": 0.15,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "walk_forward_efficiency",
-            "status": "skipped",
-            "threshold": 0.5,
-            "value": null
-          },
-          {
-            "detail": "advisory: trade-shuffle; Schema-B block-permutation deferred",
-            "name": "permutation_p",
-            "status": "skipped",
-            "threshold": 0.05,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "fdr_rate",
-            "status": "skipped",
-            "threshold": 0.1,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "per_regime_hit_rate_spread",
-            "status": "skipped",
-            "threshold": 0.2,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "psr_sr_star_zero",
-            "status": "skipped",
-            "threshold": 0.95,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "min_trl_within_n",
-            "status": "skipped",
-            "threshold": 11.0,
-            "value": null
-          }
-        ],
-        "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades",
-        "claimable": false,
-        "failures": [
-          "oos_trades=11.0000 vs threshold 100.0000"
-        ],
-        "n_trades": 11,
-        "schema_version": "1.0.0",
-        "status": "red",
-        "summary": {
-          "fdr_rate": null,
-          "max_drawdown": {
-            "min_events": 30,
-            "n": 11,
-            "skipped_reason": "insufficient_trades"
-          },
-          "min_trl": null,
-          "per_regime_hit_rate_spread": null,
-          "permutation_p": null,
-          "profit_factor": {
-            "min_events": 30,
-            "n": 11,
-            "skipped_reason": "insufficient_trades"
-          },
-          "psr": null,
-          "rr_target": 1.0,
-          "sharpe": {
-            "min_events": 30,
-            "n": 11,
-            "skipped_reason": "insufficient_trades"
-          },
-          "walk_forward_efficiency": null,
-          "win_rate": {
-            "min_events": 30,
-            "n": 11,
-            "skipped_reason": "insufficient_trades"
-          },
-          "win_rate_threshold": 0.55
-        }
-      },
-      "OB": {
-        "checks": [
-          {
-            "detail": "\u2265100, ideal \u2265200",
-            "name": "oos_trades",
-            "status": "red",
-            "threshold": 100.0,
-            "value": 6.0
-          },
-          {
-            "detail": "",
-            "name": "win_rate",
-            "status": "skipped",
-            "threshold": 0.55,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "sharpe",
-            "status": "skipped",
-            "threshold": 1.0,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "bootstrap_sharpe_ci_low",
-            "status": "skipped",
-            "threshold": 0.3,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "max_drawdown",
-            "status": "skipped",
-            "threshold": 0.15,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "walk_forward_efficiency",
-            "status": "skipped",
-            "threshold": 0.5,
-            "value": null
-          },
-          {
-            "detail": "advisory: trade-shuffle; Schema-B block-permutation deferred",
-            "name": "permutation_p",
-            "status": "skipped",
-            "threshold": 0.05,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "fdr_rate",
-            "status": "skipped",
-            "threshold": 0.1,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "per_regime_hit_rate_spread",
-            "status": "skipped",
-            "threshold": 0.2,
-            "value": null
-          },
-          {
-            "detail": "missing",
-            "name": "psr_sr_star_zero",
-            "status": "skipped",
-            "threshold": 0.95,
-            "value": null
-          },
-          {
-            "detail": "",
-            "name": "min_trl_within_n",
-            "status": "skipped",
-            "threshold": 6.0,
-            "value": null
-          }
-        ],
-        "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades",
-        "claimable": false,
-        "failures": [
-          "oos_trades=6.0000 vs threshold 100.0000"
-        ],
-        "n_trades": 6,
-        "schema_version": "1.0.0",
-        "status": "red",
-        "summary": {
-          "fdr_rate": null,
-          "max_drawdown": {
-            "min_events": 30,
-            "n": 6,
-            "skipped_reason": "insufficient_trades"
-          },
-          "min_trl": null,
-          "per_regime_hit_rate_spread": null,
-          "permutation_p": null,
-          "profit_factor": {
-            "min_events": 30,
-            "n": 6,
-            "skipped_reason": "insufficient_trades"
-          },
-          "psr": null,
-          "rr_target": 1.0,
-          "sharpe": {
-            "min_events": 30,
-            "n": 6,
-            "skipped_reason": "insufficient_trades"
-          },
-          "walk_forward_efficiency": null,
-          "win_rate": {
-            "min_events": 30,
-            "n": 6,
-            "skipped_reason": "insufficient_trades"
-          },
-          "win_rate_threshold": 0.55
-        }
-      },
-      "SWEEP": {
         "checks": [
           {
             "detail": "\u2265100, ideal \u2265200",
@@ -634,6 +396,244 @@
           },
           "win_rate_threshold": 0.55
         }
+      },
+      "OB": {
+        "checks": [
+          {
+            "detail": "\u2265100, ideal \u2265200",
+            "name": "oos_trades",
+            "status": "red",
+            "threshold": 100.0,
+            "value": 7.0
+          },
+          {
+            "detail": "",
+            "name": "win_rate",
+            "status": "skipped",
+            "threshold": 0.55,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "sharpe",
+            "status": "skipped",
+            "threshold": 1.0,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "bootstrap_sharpe_ci_low",
+            "status": "skipped",
+            "threshold": 0.3,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "max_drawdown",
+            "status": "skipped",
+            "threshold": 0.15,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "walk_forward_efficiency",
+            "status": "skipped",
+            "threshold": 0.5,
+            "value": null
+          },
+          {
+            "detail": "advisory: trade-shuffle; Schema-B block-permutation deferred",
+            "name": "permutation_p",
+            "status": "skipped",
+            "threshold": 0.05,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "fdr_rate",
+            "status": "skipped",
+            "threshold": 0.1,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "per_regime_hit_rate_spread",
+            "status": "skipped",
+            "threshold": 0.2,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "psr_sr_star_zero",
+            "status": "skipped",
+            "threshold": 0.95,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "min_trl_within_n",
+            "status": "skipped",
+            "threshold": 7.0,
+            "value": null
+          }
+        ],
+        "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades",
+        "claimable": false,
+        "failures": [
+          "oos_trades=7.0000 vs threshold 100.0000"
+        ],
+        "n_trades": 7,
+        "schema_version": "1.0.0",
+        "status": "red",
+        "summary": {
+          "fdr_rate": null,
+          "max_drawdown": {
+            "min_events": 30,
+            "n": 7,
+            "skipped_reason": "insufficient_trades"
+          },
+          "min_trl": null,
+          "per_regime_hit_rate_spread": null,
+          "permutation_p": null,
+          "profit_factor": {
+            "min_events": 30,
+            "n": 7,
+            "skipped_reason": "insufficient_trades"
+          },
+          "psr": null,
+          "rr_target": 1.0,
+          "sharpe": {
+            "min_events": 30,
+            "n": 7,
+            "skipped_reason": "insufficient_trades"
+          },
+          "walk_forward_efficiency": null,
+          "win_rate": {
+            "min_events": 30,
+            "n": 7,
+            "skipped_reason": "insufficient_trades"
+          },
+          "win_rate_threshold": 0.55
+        }
+      },
+      "SWEEP": {
+        "checks": [
+          {
+            "detail": "\u2265100, ideal \u2265200",
+            "name": "oos_trades",
+            "status": "red",
+            "threshold": 100.0,
+            "value": 13.0
+          },
+          {
+            "detail": "",
+            "name": "win_rate",
+            "status": "skipped",
+            "threshold": 0.55,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "sharpe",
+            "status": "skipped",
+            "threshold": 1.0,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "bootstrap_sharpe_ci_low",
+            "status": "skipped",
+            "threshold": 0.3,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "max_drawdown",
+            "status": "skipped",
+            "threshold": 0.15,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "walk_forward_efficiency",
+            "status": "skipped",
+            "threshold": 0.5,
+            "value": null
+          },
+          {
+            "detail": "advisory: trade-shuffle; Schema-B block-permutation deferred",
+            "name": "permutation_p",
+            "status": "skipped",
+            "threshold": 0.05,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "fdr_rate",
+            "status": "skipped",
+            "threshold": 0.1,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "per_regime_hit_rate_spread",
+            "status": "skipped",
+            "threshold": 0.2,
+            "value": null
+          },
+          {
+            "detail": "missing",
+            "name": "psr_sr_star_zero",
+            "status": "skipped",
+            "threshold": 0.95,
+            "value": null
+          },
+          {
+            "detail": "",
+            "name": "min_trl_within_n",
+            "status": "skipped",
+            "threshold": 13.0,
+            "value": null
+          }
+        ],
+        "claim_note": "aggregate status 'red': green sub-checks are diagnostics, not claimable evidence; red checks: oos_trades",
+        "claimable": false,
+        "failures": [
+          "oos_trades=13.0000 vs threshold 100.0000"
+        ],
+        "n_trades": 13,
+        "schema_version": "1.0.0",
+        "status": "red",
+        "summary": {
+          "fdr_rate": null,
+          "max_drawdown": {
+            "min_events": 30,
+            "n": 13,
+            "skipped_reason": "insufficient_trades"
+          },
+          "min_trl": null,
+          "per_regime_hit_rate_spread": null,
+          "permutation_p": null,
+          "profit_factor": {
+            "min_events": 30,
+            "n": 13,
+            "skipped_reason": "insufficient_trades"
+          },
+          "psr": null,
+          "rr_target": 1.0,
+          "sharpe": {
+            "min_events": 30,
+            "n": 13,
+            "skipped_reason": "insufficient_trades"
+          },
+          "walk_forward_efficiency": null,
+          "win_rate": {
+            "min_events": 30,
+            "n": 13,
+            "skipped_reason": "insufficient_trades"
+          },
+          "win_rate_threshold": 0.55
+        }
       }
     },
     "schema_version": "1.0.0",
@@ -641,30 +641,53 @@
     "summary": {
       "fdr_rate": null,
       "max_drawdown": {
-        "min_events": 30,
-        "n": 29,
-        "skipped_reason": "insufficient_trades"
+        "B": 500,
+        "alpha": 0.05,
+        "block_length": 5,
+        "ci_high": 0.2446244791257005,
+        "ci_low": 0.037217428425237974,
+        "ci_method": "percentile",
+        "metric": "max_dd",
+        "n": 32,
+        "value": 0.17272715418191775
       },
-      "min_trl": null,
+      "min_trl": 10.0,
       "per_regime_hit_rate_spread": null,
       "permutation_p": null,
       "profit_factor": {
-        "min_events": 30,
-        "n": 29,
-        "skipped_reason": "insufficient_trades"
+        "B": 500,
+        "alpha": 0.05,
+        "ci_high": 18.850784098808887,
+        "ci_low": 1.566075865715049,
+        "ci_method": "percentile",
+        "metric": "profit_factor",
+        "n": 32,
+        "value": 4.742264458623062
       },
-      "psr": null,
+      "psr": 0.9989676469967745,
       "rr_target": 1.0,
       "sharpe": {
-        "min_events": 30,
-        "n": 29,
-        "skipped_reason": "insufficient_trades"
+        "B": 500,
+        "alpha": 0.05,
+        "block_length": 5,
+        "ci_high": 17.94901060751602,
+        "ci_low": 5.144016028467888,
+        "ci_method": "studentized",
+        "freq": 730,
+        "metric": "sharpe",
+        "n": 32,
+        "value": 12.424366730769837
       },
       "walk_forward_efficiency": null,
       "win_rate": {
-        "min_events": 30,
-        "n": 29,
-        "skipped_reason": "insufficient_trades"
+        "B": 500,
+        "alpha": 0.05,
+        "ci_high": 0.84375,
+        "ci_low": 0.5074154573483692,
+        "ci_method": "bca",
+        "metric": "win_rate",
+        "n": 32,
+        "value": 0.71875
       },
       "win_rate_threshold": 0.55
     }
