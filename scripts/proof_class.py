@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 from scripts.proof_ledger import class_floors
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,12 +61,56 @@ class ProofClassError(Exception):
     """Die Ableitung hat ihre Untergrenze unterschritten."""
 
 
+def _on_trigger(text: str) -> object:
+    """Der geparste `on:`-Block einer Workflow-Datei, oder ``None``.
+
+    YAML-Falle: ein unquotiertes ``on:`` wird von PyYAMLs (YAML-1.1-)
+    SafeLoader als Boolean-Schluessel ``True`` geparst, nicht als String
+    ``"on"``. Beide Formen werden hier geprueft, damit ein Workflow, dessen
+    Autor ``on:`` (statt ``"on":``) schreibt -- also praktisch jeder --
+    trotzdem erkannt wird.
+    """
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if "on" in data:
+        return data["on"]
+    return data.get(True)
+
+
+def _has_pull_request_trigger(path: Path) -> bool:
+    """Ob eine Workflow-Datei ``pull_request`` im ``on:``-Block traegt.
+
+    Geparst ueber den echten ``on:``-Block (PyYAML), nicht per Substring --
+    eine Erwaehnung in einem Kommentar oder einem anderen Feld darf nicht
+    zaehlen.
+    """
+    triggers = _on_trigger(path.read_text(encoding="utf-8", errors="replace"))
+    if isinstance(triggers, str):
+        return triggers == "pull_request"
+    if isinstance(triggers, (list, dict)):
+        return "pull_request" in triggers
+    return False
+
+
 def workflow_files(root: Path = ROOT) -> frozenset[str]:
-    """Alle Workflow-Definitionen, repo-relativ."""
+    """Externe Workflow-Definitionen, repo-relativ -- Extern = Workflows OHNE
+    ``pull_request``-Trigger (Spec: ``docs/superpowers/specs/
+    2026-08-23-beweis-ledger-design.md``, Abschnitt "Aufnahme"). Ein
+    Workflow, der auf ``pull_request`` laeuft, beweist seine eigene Aenderung
+    im naechsten PR-Lauf selbst und gehoert deshalb nicht in die
+    beweispflichtige Klasse -- sonst faellt z. B. ``smc-fast-pr-gates.yml``
+    (der einzige required Check, ADR-0011) in die eigene Beweispflicht.
+    """
     wf_dir = root / ".github" / "workflows"
+    all_files = sorted(wf_dir.glob("*.yml")) + sorted(wf_dir.glob("*.yaml"))
     return frozenset(
         p.relative_to(root).as_posix()
-        for p in sorted(wf_dir.glob("*.yml")) + sorted(wf_dir.glob("*.yaml"))
+        for p in all_files
+        if not _has_pull_request_trigger(p)
     )
 
 

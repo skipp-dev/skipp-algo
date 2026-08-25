@@ -164,7 +164,11 @@ _FROZEN_SITES: dict[str, int] = {
     # ledger's own `tests` exclusion made the gap invisible to
     # `test_no_new_noqa_files` until Task 7 staged a second file in the same
     # module and the check ran over tracked files again.
-    "scripts/check_proof_ledger.py": 4,
+    # Bumped 4 -> 6 on 2026-08-25 (c4-merge-base-not-merge-commit fix): a
+    # third `git` subprocess call, `_merge_base_commit()` (`git merge-base
+    # <links> <rechts>`), same fixed-argv, no-shell shape -- 3x (S603 +
+    # S607) = 6.
+    "scripts/check_proof_ledger.py": 6,
     # 2026-08-24 (proof-ledger Task 7): one `gh` subprocess call (`_gh`),
     # same fixed-argv, no-shell shape as check_r1_attested_sources.py /
     # check_proof_ledger.py above (S603 + S607) -- the network-bound half of

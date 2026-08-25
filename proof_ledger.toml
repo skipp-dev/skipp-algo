@@ -41,12 +41,20 @@
 # konnte derive_class() eine tote test_imported() (liefert leer) nicht fangen
 # -- eine leere Menge laesst derived_class nur WACHSEN, nie schrumpfen, der
 # derived_class-Floor allein ist dafuer blind.
+#
+# 2026-08-25 NEU GEMESSEN gegen origin/main (Defekt
+# i1i2-derived-class-missing-extern-filter behoben: workflow_files() nimmt
+# jetzt nur noch Workflows OHNE pull_request-Trigger auf, PyYAML-Parser des
+# `on:`-Blocks inkl. der Bool-Schluessel-Falle). Von 72 Workflow-Dateien
+# tragen 8 einen pull_request-Trigger und fallen aus der Klasse:
+#   workflows=64, referenced_code=521, test_imported=697, derived_class=487
+# Floors = gemessener Wert minus 10 % (int-Truncation, wie bisher).
 # ---------------------------------------------------------------------------
 [class_floors]
-workflows = 63
-referenced_code = 549
-test_imported = 621
-derived_class = 519
+workflows = 57
+referenced_code = 468
+test_imported = 627
+derived_class = 438
 
 # ---------------------------------------------------------------------------
 # Urteilszweige ohne echten Korpus-Treffer, die trotzdem stehen bleiben.
@@ -361,6 +369,15 @@ unjudged_reason() direkt, nicht main()).
 # .pine-Dateien Daten sind, die ein Workflow publiziert, und kein Code, den er
 # ausfuehrt. Faellt diese Quote je ueber 25 %, ist der Trigger neu zu
 # schneiden — nicht die Pflicht aufzuweichen.
+#
+# NEU GEMESSEN 2026-08-25 (Defekt i1i2-derived-class-missing-extern-filter
+# behoben, derselbe Bereich `git diff --name-only <sha>^ <sha>` je der
+# letzten 200 main-Commits, geschnitten mit der jetzt extern-gefilterten
+# derive_class()): 26 von 200 = 13,0 % — deutlich unter der 25-%-Abbruch-
+# schwelle, und deckungsgleich mit dem in der Spec (Abschnitt "Aufnahme")
+# ausgewiesenen Zielwert 26/200=13 %. Die 43/21 % oben war unter der
+# fehlerhaften Fassung gemessen (alle Workflows bedingungslos in der Klasse,
+# u. a. smc-fast-pr-gates.yml und ci.yml) und ist mit dem Fix ueberholt.
 # ---------------------------------------------------------------------------
 
 [[proof]]
@@ -652,60 +669,36 @@ owner           = "operator"
 # schweigender Zweig sieht aus wie ein gesunder" an Stellen wiederholen, die
 # diese Welle NICHT loest -- Halter statt Notiz, mit dem Mechanismus benannt,
 # der die Frist von selbst ueberfaellig macht, wenn niemand nachfasst.
+#
+# ENTFERNT 2026-08-25 (zwei der drei, BEHOBEN):
+#
+# * c4-merge-base-not-merge-commit -- check_proof_ledger.py::_merge_base_commit
+#   ersetzt die literale Bereichsseite durch einen echten `git merge-base
+#   <links> <rechts>`-Aufruf, bevor `_ledger_ids_at` liest. Regressionstest
+#   tests/test_proof_ledger.py::test_before_is_read_at_the_merge_base_not_the_literal_range_start
+#   (echtes /tmp-Git-Repo): PR aendert provable.py ohne eigenen Eintrag,
+#   mergt main mit einem noch offenen fremden Eintrag "9999" (BEHIND-
+#   Aufloesung), main loest "9999" SPAETER auf und entfernt ihn wieder --
+#   der zweite Gate-Lauf bekommt main NACH der Aufloesung als BASE_SHA. Vor
+#   dem Fix: `before` = literale Bereichsseite = main NACH der Aufloesung
+#   (ohne "9999"), waehrend die PR-Arbeitskopie "9999" noch vom Merge
+#   traegt -- `after - before` enthaelt "9999", rc=0 (der PR erbt die
+#   Beweispflicht-Erfuellung eines Fremden). Rueckbau per Mutationsprobe
+#   verifiziert: `_merge_base_commit` auf die alte literale-Split-Logik
+#   zurueckgesetzt macht denselben Test rot (rc=0 statt der erwarteten 1).
+#
+# * i1i2-derived-class-missing-extern-filter -- workflow_files()
+#   (scripts/proof_class.py) nimmt nur noch Workflows OHNE pull_request-
+#   Trigger auf (`_has_pull_request_trigger`/`_on_trigger`, PyYAML-Parser des
+#   echten `on:`-Blocks inkl. der Bool-Schluessel-Falle). Neu gemessen
+#   2026-08-25 gegen origin/main: 72 Workflows gesamt, 8 mit pull_request-
+#   Trigger, 64 extern; Aufnahmequote (letzte 200 main-Merges) jetzt 26/200 =
+#   13,0 % -- deutlich unter der 25-%-Abbruchschwelle und deckungsgleich mit
+#   dem Spec-Zielwert. Neue class_floors s. o. Rueckbau per Mutationsprobe
+#   verifiziert: tests/test_proof_ledger.py::test_the_pull_request_trigger_filter_is_load_bearing
+#   schaltet den Filter ab (`_has_pull_request_trigger` liefert immer False)
+#   -- smc-fast-pr-gates.yml liegt dann wieder in der Klasse.
 # ---------------------------------------------------------------------------
-[[proof]]
-id              = "c4-merge-base-not-merge-commit"
-kind            = "defect"
-claim           = "check_proof_ledger.py liest 'before' am literalen Bereichsanfang (git show base.sha:...), nicht an git merge-base(base,head) -- main in den PR-Branch mergen kann den Waechter gruen machen, ohne dass der PR einen eigenen Eintrag traegt"
-# 2026-08-24 REPRODUZIERT in einem /tmp-Git-Repo: PR aendert beweispflichtigen
-# Code ohne eigenen Eintrag => rc=1; danach einen fremden Branch gemergt,
-# dessen einziger Inhalt der Ledger-Eintrag eines ANDEREN PRs ist => rc=0. Der
-# PR erbt die Erfuellung eines Fremden. MECHANISMUS: _ledger_ids_at(base) in
-# scripts/check_proof_ledger.py:149-153 liest den Ledger-Stand an
-# `_merge_base_range(args.commit_range).split("...")[0]` -- das ist die
-# literale linke Seite des uebergebenen Bereichs (in fast-gates
-# `github.event.pull_request.base.sha`), NICHT `git merge-base base.sha
-# head.sha`. Nach einem main-Merge in den PR-Branch enthaelt `git show
-# base.sha:proof_ledger.toml` bereits jeden main-Eintrag bis zu diesem
-# literalen SHA, obwohl der PR selbst keinen neuen hinzugefuegt hat --
-# BEHIND-Aufloesung durch main-Merge ist in diesem Repo Routine, kein
-# Randfall. Fix gehoert NICHT in diese Welle (Auftrag: Halter, keine
-# Loesung) -- der Mechanismus waere `_merge_base_range` durch einen echten
-# `git merge-base`-Aufruf zu ersetzen, bevor `_ledger_ids_at` liest.
-# FRIST 2026-08-24 GESTAFFELT auf 2026-09-13: durch Alltagsbedienung
-# auslösbar (main in den PR-Branch mergen ist Routine, kein Randfall) --
-# hoehere Prioritaet als reine Text-/Entwurfsbefunde, aber nicht die
-# eigentliche Klasse-H-Arbeit.
-state           = "UNGESICHERT"
-due_by          = "2026-09-13"
-owner           = "operator"
-
-[[proof]]
-id              = "i1i2-derived-class-missing-extern-filter"
-kind            = "defect"
-claim           = "Die abgeleitete Klasse (scripts/proof_class.py) nimmt ALLE Workflow-Dateien bedingungslos auf statt nur externe (Spec: Extern = Workflows ohne pull_request-Trigger) -- der Filter ist zwischen Spec und Implementierung spurlos verschwunden"
-# 2026-08-24 GEMESSEN: alle 8 pull_request-getriggerten Workflows liegen
-# aktuell in der Klasse, weil workflow_files() (scripts/proof_class.py:62-68)
-# jede *.yml/*.yaml aufnimmt, ohne je `on:`/`pull_request` zu pruefen --
-# derive_class() vereinigt workflow_files() bedingungslos mit unseen. Folge,
-# gemessen an den letzten 200 main-Merges: 13 sind ALLEIN wegen eines
-# pull_request-Workflows beweispflichtig -- Quote 22 % statt der in der Spec
-# (Abschnitt "Aufnahme") und im Kommentarkopf oben genannten 13 %. Und 71
-# Testdateien stehen aktuell in der Klasse, obwohl ihre Wirkung die Suite per
-# Definition SIEHT (sie IST die Suite) -- genau die Variante, die die Spec
-# unter "Zwei fruehere Fassungen und warum sie fielen" ausdruecklich verwirft
-# ("Alle Workflow-YAMLs in der Klasse"). MECHANISMUS des Fehlens: derive_class()
-# enthaelt keinen Trigger-Parser -- die Spec-Formel hat keine Entsprechung im
-# Code. Fix gehoert NICHT in diese Welle -- der Mechanismus waere ein
-# Trigger-Parser in workflow_files()/derive_class(), der pull_request-
-# Workflows ausschliesst, plus neu gemessene Floors in [class_floors].
-# FRIST 2026-08-24 GESTAFFELT auf 2026-09-20: taegliche Reibung (13 statt
-# 22 % PRs unnoetig beweispflichtig), aber kein Datenverlust und kein
-# stiller Fehlschlag -- der Waechter ist zu STRENG, nicht blind.
-state           = "UNGESICHERT"
-due_by          = "2026-09-20"
-owner           = "operator"
-
 [[proof]]
 id              = "has-path-field-vs-value-probe"
 kind            = "defect"

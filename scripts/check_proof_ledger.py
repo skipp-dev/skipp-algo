@@ -72,6 +72,34 @@ def _merge_base_range(commit_range: str) -> str:
     return commit_range
 
 
+def _merge_base_commit(commit_range: str) -> str:
+    """Der echte Merge-Basis-COMMIT von ``A..B``/``A...B`` -- fuer ``git show
+    <rev>:datei``, das einen einzelnen Commit braucht, keinen Bereich.
+
+    ``_merge_base_range`` weitet ``A..B`` zu ``A...B``, was fuer ``git diff``
+    richtig ist (ein Vergleich zweier Baeume). Aber die linke Seite dieser
+    Zeichenkette ist NICHT die Merge-Basis -- sie ist der literale Anfang des
+    uebergebenen Bereichs (in fast-gates ``github.event.pull_request.base.sha``).
+    Mergt ein PR main in seinen eigenen Branch (BEHIND-Aufloesung, Routine in
+    diesem Repo), enthaelt ``git show base.sha:proof_ledger.toml`` bereits
+    jeden main-Eintrag bis zu diesem literalen SHA, obwohl der PR-Branch
+    selbst keinen neuen Eintrag hinzugefuegt hat -- der PR erbt die
+    Beweispflicht-Erfuellung eines fremden PRs. ``git merge-base`` liefert den
+    tatsaechlichen gemeinsamen Vorfahren, unabhaengig davon, was seither in
+    den PR-Branch gemergt wurde.
+    """
+    widened = _merge_base_range(commit_range)
+    if "..." in widened:
+        left, right = widened.split("...", 1)
+    else:
+        left = right = widened
+    proc = subprocess.run(  # noqa: S603
+        ["git", "merge-base", left, right],  # noqa: S607
+        capture_output=True, text=True, check=True, cwd=ROOT,
+    )
+    return proc.stdout.strip()
+
+
 def _changed_files(commit_range: str) -> frozenset[str]:
     proc = subprocess.run(  # noqa: S603
         ["git", "diff", "--name-only", _merge_base_range(commit_range)],  # noqa: S607
@@ -180,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     if not touched:
         return 0
 
-    base = _merge_base_range(args.commit_range).split("...")[0]
+    base = _merge_base_commit(args.commit_range)
     before = _ledger_ids_at(base)
     after = frozenset(entry.id for entry in entries)
     if after - before:
