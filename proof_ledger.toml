@@ -644,6 +644,130 @@ claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den T
 #
 # Bleibt hoechste Prioritaet trotz der Korrektur: die eigentliche Arbeit (die
 # Alerts-Timeout-Ursache) ist weiterhin offen, nur ein Kandidat weniger.
+#
+# ---------------------------------------------------------------------------
+# STAND 2026-08-25, Lauf 32803019213 (save-Job 11:52:50Z) -- MASSGEBLICH,
+# ersetzt den obigen Ermittlungsstand als aktuellen Befund (Historie bleibt
+# stehen, nicht neu aufrollen):
+#
+# (A) WIDERLEGT: die #5052-Probe (dialogAtFailureVerdict, siehe oben "WAS (A)
+#     ENTSCHEIDEN WUERDE") lief in diesem Lauf mit -- beim ERSTEN Fehlschlag
+#     meldete sie `dialogAtFailureVerdict = no-dialog, count=0`. Kein Dialog
+#     stand im Moment der Fehlschlag-Deklaration offen. "Die Erkennung war zu
+#     schnell" trifft nicht zu, wo gar nichts sichtbar war.
+#
+# (B) ALS URSPRUNG WIDERLEGT: waehrend der Versuche von `SMC Long-Dip Alerts`
+#     erschien wiederholt ein Dialog mit Titel `SMC Setup Check` -- aber
+#     `SMC Setup Check` lief in DIESEM Lauf ERST DANACH. Ein Ueberbleibsel
+#     eines fruehen, timeout-abgebrochenen Setup-Check-Versuchs (die
+#     Kaskaden-Erklaerung von (B) oben) ist damit fuer diesen Lauf
+#     ausgeschlossen -- es gab noch keinen Setup-Check-Versuch, dessen Dialog
+#     haette hinterlassen werden koennen. (B) bleibt als MECHANISMUS korrekt
+#     (der Code-Befund ueber closeModal innerhalb der Retry-Schleife steht),
+#     ist aber nicht der URSPRUNG der ersten Fehlpaarung.
+#
+# BEWIESENES PHAENOMEN: der Doppelklick auf die per Text aufgeloeste, per
+# DOM-Hit-Test bestaetigte Zielzeile (hit-target-miss=0 -- der Klick sitzt
+# geometrisch) oeffnet STABIL den Dialog des Legenden-NACHBARN, nicht des
+# Ziels: Alerts->Setup Check 2x, Alerts->Breakout Overlay 1x, symmetrisch
+# Setup Check->Alerts 1x, alle in diesem einen Lauf. Der Identitaetswaechter
+# (verifyOpenedSettingsDialogIdentity) lehnt jedes Mal korrekt ab und ruft
+# closeModal; die Leiter wiederholt danach denselben Doppelklick-Ansatz; nach
+# 60s stirbt das Step-Budget (`Step timed out` 4x, `budget-exhausted`). Aus
+# einem deterministischen Fehlklick wird so ein Totalausfall des Ziels, weil
+# nichts den Ansatz wechselt, wenn er zum zweiten Mal danebengreift.
+#
+# UNGEKLAERT (nicht in dieser Runde zu klaeren): ob ein mehrzeiliger Wrapper
+# die Klickgeometrie verschiebt oder TradingView die Zeile intern falsch
+# zuordnet. Entscheidet die Instrumentierung in formatLegendDblclickBoxDetail
+# (tv_shared.ts) am dblclick-start-Trace-Event (jetzt auch am Remeasure-Retry
+# nach hit-target-miss, Review I4 -- vorher blind ausgerechnet in dem Fall, in
+# dem die Wrapper-Geometrie am ehesten schuld waere) beim naechsten
+# natuerlichen Fehlschlag: Boxhoehe ~20px = Einzelzeile (TV-Fehlzuordnung),
+# ~40px+ = mehrzeiliger Wrapper (Klick landet geometrisch auf dem Nachbarn).
+# Reine Formatierung, kein Verhaltenseingriff -- noch KEIN Lauf hat sie seit
+# ihrer Einfuehrung ausgewertet. M8 (Review, Fix-Runde 1): tracePageEvent
+# schreibt in console + einen 25er-Ringpuffer, kein Artefakt -- die Antwort
+# steht NUR im Job-Log. Dieselbe Schwaeche ist bei #5018/#5027 oben schon
+# vermerkt ("die Spur geht ins JOB-LOG, nie ins Artefakt").
+#
+# FIX (diese Aenderung, ueberarbeitet nach Review Fix-Runde 1, 2026-08-25):
+# Eskalation auf den zeilengebundenen Settings-Knopf
+# (button[data-qa-id="legend-settings-action"], selectors.ts ~657,
+# legendSettingsButtons) ab dem ZWEITEN Identitaets-Mismatch fuer dasselbe
+# Ziel innerhalb eines openSettingsForScript-Aufrufs
+# (shouldEscalateSettingsOpenPath, Schwelle
+# SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD=2).
+#
+# I2-KORREKTUR (falsche Mengenaussage): NICHT "kein Leiterschritt klickt
+# diesen Knopf je zum Oeffnen" -- vier Stellen tun das bereits
+# (tv_shared.ts:6645/6693/6779/6896, je ein Direct-Settings-Fallback in
+# openSettingsFromVisibleLegendText/-LegendContainer(2x)/-ScriptText). Wahr
+# ist die schwaechere Aussage: die feuern nur, wenn der Doppelklick NICHTS
+# geoeffnet hat -- bei jedem GEMESSENEN klasse-h-Fehlschlag oeffnete der
+# Doppelklick aber ein (falsches) Dialog und kehrte per Identitaets-Mismatch
+# zurueck, BEVOR die Leiter je bei einem dieser Fallbacks ankam.
+# legendTextWrapperHasNearbyAction prueft weiterhin nur die Naehe, nicht das
+# Oeffnen.
+#
+# C1-KORREKTUR (CRITICAL, Review Fix-Runde 1): der urspruengliche
+# More-Zweig nutzte legendMenuButtons, dessen Kandidatenliste in
+# Catch-alls endet (`button`, `[role="button"]`, selectors.ts:652-653) --
+# in derselben Hover-Leiste wie der Remove-Knopf der Zeile, den der Ledger
+# oben zweimal als `foreign:Remove` belegt. Ueber
+# clickLegendControlWithFallback (force:true, vier Offset-Positionen,
+# DOM-Dispatch) haette das den Indikator vom Chart entfernen koennen, ohne
+# je einen Dialog zu oeffnen, den der Identitaetswaechter haette ablehnen
+# koennen -- und der Pfad laeuft auch im readonly-Verify-Modus
+# (tv_verify_consumer_bindings.ts), dessen Vertrag "must NOT mutate the
+# chart" lautet. Ersetzt durch die ENGE legendMoreActionLocators
+# (tv_shared.ts ~5571, dieselbe Liste, der openLegendRemovalMenu fuer den
+# Remove-Pfad bereits vertraut) und einfache aktionsfaehige clickFirst-Klicks
+# ohne force:true. Findet der Menue-Zweig keinen Settings-Eintrag, schliesst
+# er das Menue SOFORT per Escape in derselben Verzweigung, statt es dem
+# Catch des Aufrufers zu ueberlassen (M7).
+#
+# I5-KORREKTUR: die Eskalation ersetzte den letzten Leiterdurchgang
+# ersatzlos -- findet findLegendRowWrappersByVisibleText keine Zeile
+# (verlangt genau einen Action-Knopf im Wrapper), verlor das Ziel seinen
+# zweiten Rettungsversuch komplett. Der Dispatch faellt jetzt bei einem
+# Fehlschlag des Knopf-Pfads auf openSettingsForScriptOnce(...) durch
+# (`||`-Verknuepfung in openSettingsForScript).
+#
+# Die Eskalation (openSettingsForScriptViaLegendButton) loest die Zielzeile
+# per Text neu auf (findLegendRowWrappersByVisibleText), hovert sie (Knoepfe
+# rendern erst beim Hover -- Muster von openLegendRemovalMenu uebernommen)
+# und klickt legendSettingsButtons, ersatzweise legendMoreActionLocators
+# ("More") + den Settings-Eintrag im Menue. Derselbe Waechter
+# (verifyOpenedSettingsDialogIdentity) bleibt Schiedsrichter. Eigenes
+# Trace-Praefix `script-settings-open-button-escalation-*`. Die bestehende
+# Doppelklick-Leiter bleibt fuer den ersten Versuch unangetastet -- die
+# erfolgreichen 80 % der Ziele (2913-15702 ms, siehe oben) sind nicht
+# betroffen.
+#
+# I6 (Schwellen-Herleitung, ehrlich formuliert): Lauf 32803019213 misst
+# Mismatches je LAUF; der neue Zaehler zaehlt je AUFRUF
+# (openSettingsForScript). Zwei Mismatches je Aufruf SIND erreichbar --
+# ueber verifyOpenedSettingsDialogIdentity je einmal in der
+# legend-text-Sprosse und einmal in der legend-container-Sprosse desselben
+# Aufrufs -- aber KEIN gemessener Lauf hat das bislang durchlaufen. Die
+# Schwelle ist erreichbar, ihre Wirksamkeit ist NICHT belegt.
+#
+# I3 (Testbarkeit): vier Quelltext-Zusicherungen in
+# tv_dialog_identity_pick.test.ts (Muster aus tv_open_script_identity.test.ts,
+# functionBody + assert.match) pinnen die Verdrahtung, die die reinen
+# Map-Helfer-Tests allein nicht sehen: openSettingsForScript ruft
+# resetSettingsIdentityMismatchCount; verifyOpenedSettingsDialogIdentity ruft
+# recordSettingsIdentityMismatch; der Eskalations-Dispatch existiert mit dem
+# `||`-Fallback aus I5; dblclick-start (beide Stellen, normaler Klick UND
+# Remeasure-Retry) traegt formatLegendDblclickBoxDetail. Jede mit
+# Rueckbau-Probe verifiziert.
+#
+# Der Halter bleibt OFFEN/UNGESICHERT mit dieser Frist. Er ist erst behoben,
+# wenn ein ECHTER Lauf zeigt, dass die Eskalation greift (Trace-Event
+# `script-settings-open-button-escalation-armed` gefolgt von einem
+# erfolgreichen Oeffnen) -- nicht schon durch das Vorhandensein des Codes.
+# ---------------------------------------------------------------------------
 state           = "UNGESICHERT"
 due_by          = "2026-09-06"
 owner           = "operator"
