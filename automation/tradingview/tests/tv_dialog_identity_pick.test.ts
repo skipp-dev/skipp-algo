@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
@@ -12,6 +15,26 @@ import {
   shouldEscalateSettingsOpenPath,
   type SettingsIdentityMismatchCounts,
 } from "../lib/tv_shared.js";
+
+// Source-pin helpers (same shape as tv_open_script_identity.test.ts): the
+// pure map-helper tests above prove the counting/threshold LOGIC in
+// isolation, but say nothing about whether openSettingsForScript actually
+// calls into it. Review Fix-Runde 1, I3: four rollbacks (reset call removed,
+// mismatch recording removed, escalation dispatch removed, dblclick-start
+// detail removed) left the full suite green because nothing pinned the
+// WIRING itself.
+const _dir = path.dirname(fileURLToPath(import.meta.url));
+
+function tvSharedSource(): string {
+  return fs.readFileSync(path.join(_dir, "..", "lib", "tv_shared.ts"), "utf-8");
+}
+
+function functionBody(source: string, header: string): string {
+  const start = source.indexOf(header);
+  assert.ok(start !== -1, `expected to find ${JSON.stringify(header)} in tv_shared.ts`);
+  const next = source.indexOf("\nexport ", start + header.length);
+  return source.slice(start, next === -1 ? source.length : next);
+}
 
 // 2026-08-23, Lauf 32556181388: Ziel `SMC Long-Dip Alerts` sah in EINEM Lauf
 // drei VERSCHIEDENE fremde Dialoge — `SMC Breakout Overlay` (4x),
@@ -153,10 +176,20 @@ test("der zweite Mismatch fuer dasselbe Ziel eskaliert", () => {
 });
 
 test("die Zaehlung ist je Ziel getrennt -- ein fremdes Skript eskaliert nicht mit", () => {
+  // Review-Probe (Fix-Runde 1, "elfte Instanz"): eine reine Abwesenheits-
+  // Behauptung (count(fremd)===0) bleibt gruen, selbst wenn die Trennung nach
+  // Ziel komplett entfaellt und alle Mismatches unter einem globalen
+  // Schluessel ("*") landen -- dann waere count(fremd) IMMER 0, weil es gar
+  // kein "fremd" mehr gibt. Behauptet deshalb zusaetzlich ANWESENHEIT fuer
+  // BEIDE Ziele: Alerts traegt exakt seine zwei Mismatches, Setup Check
+  // seinen einen, unabhaengig voneinander.
   const counts: SettingsIdentityMismatchCounts = new Map();
   recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
   recordSettingsIdentityMismatch(counts, "SMC Long-Dip Alerts");
-  assert.equal(settingsIdentityMismatchCount(counts, "SMC Setup Check"), 0);
+  recordSettingsIdentityMismatch(counts, "SMC Setup Check");
+
+  assert.equal(settingsIdentityMismatchCount(counts, "SMC Long-Dip Alerts"), 2);
+  assert.equal(settingsIdentityMismatchCount(counts, "SMC Setup Check"), 1);
   assert.equal(shouldEscalateSettingsOpenPath(settingsIdentityMismatchCount(counts, "SMC Setup Check")), false);
 });
 
@@ -199,4 +232,57 @@ test("formatLegendDblclickBoxDetail rundet auf ganze Pixel", () => {
   const box = { x: 10.4, y: 20.6, width: 138.2, height: 17.7 };
   const point = { x: 44.9, y: 29.1 };
   assert.equal(formatLegendDblclickBoxDetail(box, point), "138x18@35,9");
+});
+
+// Review Fix-Runde 1, I3: die vier Verdrahtungs-Zusicherungen, die die reinen
+// Map-/Formatierungs-Tests oben NICHT sehen -- ob openSettingsForScript und
+// verifyOpenedSettingsDialogIdentity tatsaechlich in die neue Zaehlung
+// einhaengen, ob der Eskalations-Dispatch (mitsamt I5-Fallback) existiert und
+// ob dblclick-start das Boxdetail an BEIDEN Stellen traegt. Muster aus
+// tv_open_script_identity.test.ts: Quelltext lesen, nicht ausfuehren.
+
+test("openSettingsForScript setzt die Mismatch-Zaehlung fuer jeden Aufruf zurueck (I3)", () => {
+  const body = functionBody(tvSharedSource(), "export async function openSettingsForScript(");
+  assert.match(
+    body,
+    /resetSettingsIdentityMismatchCount\(/,
+    "openSettingsForScript muss die Zaehlung je Aufruf zuruecksetzen -- sonst eskaliert ein Rest "
+    + "aus einem frueheren Aufruf fuer dasselbe Ziel, bevor dieser Aufruf ueberhaupt einen "
+    + "Mismatch gesehen hat",
+  );
+});
+
+test("verifyOpenedSettingsDialogIdentity zaehlt jeden Mismatch mit (I3)", () => {
+  const body = functionBody(tvSharedSource(), "async function verifyOpenedSettingsDialogIdentity(");
+  const calls = body.match(/recordSettingsIdentityMismatch\(/g) ?? [];
+  assert.equal(
+    calls.length,
+    2,
+    "beide Mismatch-Zweige (der implicit-surface-Rueckgabezweig UND der werfende Zweig) "
+    + "muessen recordSettingsIdentityMismatch aufrufen, sonst zaehlt die Eskalation an einer "
+    + "der beiden Erkennungslagen nicht mit",
+  );
+});
+
+test("openSettingsForScript eskaliert auf den Knopf-Pfad und faellt bei dessen Fehlschlag auf die Leiter zurueck (I3/I5)", () => {
+  const body = functionBody(tvSharedSource(), "export async function openSettingsForScript(");
+  assert.match(
+    body,
+    /\(await openSettingsForScriptViaLegendButton\(page, scriptName\)\)\s*\|\|\s*\(await openSettingsForScriptOnce\(page, scriptName\)\)/,
+    "der Eskalationszweig muss openSettingsForScriptViaLegendButton aufrufen UND per `||` auf "
+    + "openSettingsForScriptOnce durchfallen (I5) -- sonst verliert ein Ziel, dessen Zeile der "
+    + "Knopf-Pfad nicht findet, seinen zweiten Rettungsversuch ersatzlos",
+  );
+});
+
+test("tryOpenScriptSettingsByDoubleClick traegt das Boxdetail an BEIDEN dblclick-start-Stellen (I3/I4)", () => {
+  const body = functionBody(tvSharedSource(), "async function tryOpenScriptSettingsByDoubleClick(");
+  const calls = body.match(/formatLegendDblclickBoxDetail\(/g) ?? [];
+  assert.equal(
+    calls.length,
+    2,
+    "sowohl der normale dblclick-start als auch der hit-target-remeasured-Retry nach einem "
+    + "hit-target-miss muessen formatLegendDblclickBoxDetail tragen -- ausgerechnet der "
+    + "Remeasure-Fall ist der, in dem eine verschobene Wrapper-Geometrie am ehesten schuld waere",
+  );
 });

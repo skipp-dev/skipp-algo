@@ -6401,7 +6401,14 @@ async function tryOpenScriptSettingsByDoubleClick(
     const rebox = await target.boundingBox().catch(() => null);
     if (rebox && !legendBoxIsTooSmallToClick(rebox)) {
       const retry = resolveLegendDoubleClickPoint(rebox);
-      tracePageEvent(page, `${traceStartEvent}-hit-target-remeasured`, traceDetail);
+      // Review I4: this retry is exactly the case a mislaid wrapper is most
+      // likely to explain (hit-target-miss already fired) — it must carry
+      // the same box/offset detail as the normal click, not go blind.
+      tracePageEvent(
+        page,
+        `${traceStartEvent}-hit-target-remeasured`,
+        `${traceDetail}:${formatLegendDblclickBoxDetail(rebox, retry)}`,
+      );
       await page.mouse.dblclick(retry.x, retry.y).catch(() => undefined);
       await page.waitForTimeout(350);
       if (await settleSettingsOpen()) {
@@ -9337,14 +9344,43 @@ async function openSettingsForScriptOnce(page: Page, scriptName: string): Promis
  *
  * Goes straight for the row-bound settings control
  * (`button[data-qa-id="legend-settings-action"]`, selectors.ts
- * `legendSettingsButtons`) that no ladder step upstream ever clicks to OPEN —
- * `legendTextWrapperHasNearbyAction` only checks that it exists nearby.
- * `findLegendRowWrappersByVisibleText` re-resolves the target row by its
- * text (not by re-using whatever row the mismatched attempt aimed at), and
- * the extra `wrapper.hover()` before each button click mirrors
+ * `legendSettingsButtons`). Review I2 (Fix-Runde 1): this is NOT the only
+ * place that clicks it — openSettingsFromVisibleLegendText/-LegendContainer
+ * (twice)/-ScriptText each carry their own direct-settings-button fallback
+ * (tv_shared.ts:6645/6693/6779/6896). The true, narrower claim: every
+ * MEASURED klasse-h failure had its double-click OPEN a (wrong) dialog and
+ * return via identity mismatch before the ladder ever reached one of those
+ * fallbacks — they exist for "nothing opened at all", never fire for
+ * "opened the wrong thing", so a mismatched target never reached them either.
+ * `findLegendRowWrappersByVisibleText` re-resolves the target row by its text
+ * (not by re-using whatever row the mismatched attempt aimed at), and the
+ * extra `wrapper.hover()` before each button click mirrors
  * `openLegendRemovalMenu`'s pattern: these action buttons render only on
- * hover. Falls back to the row's "More" menu (`legendMenuButtons`) and its
- * "Settings" entry when no direct settings button is present.
+ * hover.
+ *
+ * Review C1 (CRITICAL, Fix-Runde 1): the "More" fallback originally used
+ * `legendMenuButtons`, whose candidate list ends in bare `button` /
+ * `[role="button"]` catch-alls (selectors.ts:652-653) — inside the SAME hover
+ * strip as the row's Remove control, which this ledger's own evidence twice
+ * caught the plain double-click landing on (`foreign:Remove`,
+ * hit-target-miss). Clicked via `clickLegendControlWithFallback`'s
+ * force+offset-position fallback ladder, that could have removed the
+ * indicator from the live (or, worse, the readonly-verify) chart without
+ * ever opening a dialog the identity guard could reject. Replaced with the
+ * narrow `legendMoreActionLocators` (tv_shared.ts:5571 — the exact list
+ * `openLegendRemovalMenu` already trusts to mean "this row's More trigger,
+ * nothing else") and a plain actionable `clickFirst` click — no
+ * `force: true`. If the opened menu has no "Settings" entry, the menu is
+ * closed (Escape) right here in this branch instead of being left open for
+ * the caller's catch (mirrors the closeModal-before-throw shape at the end of
+ * `openSettingsForScriptOnce`).
+ *
+ * Review I6: the threshold is REACHABLE within one call (a legend-text
+ * mismatch followed by a legend-container mismatch, each through
+ * `verifyOpenedSettingsDialogIdentity`), but no real run has exercised this
+ * escalation path yet — Lauf 32803019213 measured mismatches per RUN, not
+ * per openSettingsForScript call. Effectiveness is UNPROVEN until a real run
+ * shows `script-settings-open-button-escalation-armed` followed by success.
  *
  * Same arbiter as every other path: `verifyOpenedSettingsDialogIdentity`
  * decides match/mismatch here exactly as it does for the double-click ladder.
@@ -9365,6 +9401,8 @@ async function openSettingsForScriptViaLegendButton(page: Page, scriptName: stri
     // openLegendRemovalMenu already uses for the remove path.
     await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
 
+    // Settings-specific candidates only (review C1): every locator in
+    // legendSettingsButtons targets a settings control, never Remove.
     const clickedDirectSettings = await clickLegendControlWithFallback(
       page,
       tvSelectors.legendSettingsButtons(wrapper),
@@ -9384,28 +9422,31 @@ async function openSettingsForScriptViaLegendButton(page: Page, scriptName: stri
     }
 
     await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
-    const clickedMenu = await clickLegendControlWithFallback(
-      page,
-      tvSelectors.legendMenuButtons(wrapper),
-      "script-settings-open-button-escalation-menu",
-      600,
-      200,
-      async () => hasSettingsSurfaceDomHint(page),
-    );
+    // Review C1: legendMoreActionLocators, NOT legendMenuButtons — the narrow
+    // "More" trigger list openLegendRemovalMenu already relies on, never a
+    // bare button/[role="button"] catch-all that could also resolve to
+    // Remove in the same hover strip. clickFirst does a plain actionable
+    // click (Playwright's own actionability wait), no force:true.
+    const clickedMenu = await clickFirst(legendMoreActionLocators(wrapper), 600);
     if (clickedMenu) {
       tracePageEvent(page, "script-settings-open-button-escalation-menu-clicked", `${scriptName}:${index}`);
-      const clickedMenuSettings = await clickVisibleWithFallback(
-        page,
-        tvSelectors.settingsAction(page),
-        "script-settings-open-button-escalation-menu-action",
-        1_500,
-        400,
-        async () => waitForScriptSettingsInputsSurface(page, 1_500),
-      );
+      const clickedMenuSettings = await clickFirst(tvSelectors.settingsAction(page), 1_500);
       if (clickedMenuSettings) {
-        tracePageEvent(page, "script-settings-open-button-escalation-menu-action-clicked", `${scriptName}:${index}`);
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-menu-dialog");
+        if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
+          tracePageEvent(page, "script-settings-open-button-escalation-menu-action-clicked", `${scriptName}:${index}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-menu-dialog");
+        }
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-open-button-escalation-menu", 750)) {
+          tracePageEvent(page, "script-settings-open-button-escalation-menu-action-clicked", `${scriptName}:${index}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-button-escalation-menu-dialog");
+        }
       }
+      // Review C1/M7: close the menu HERE, in this branch, instead of
+      // leaving it open for the caller's catch to clean up later — mirrors
+      // the closeModal-before-throw shape at the end of
+      // openSettingsForScriptOnce (tv_shared.ts, just above this function).
+      tracePageEvent(page, "script-settings-open-button-escalation-menu-no-settings", `${scriptName}:${index}`);
+      await page.keyboard.press("Escape").catch(() => undefined);
     }
   }
 
@@ -9471,8 +9512,13 @@ export async function openSettingsForScript(
         if (escalate) {
           tracePageEvent(page, "script-settings-open-button-escalation-armed", `${scriptName}:mismatches=${mismatchCount}`);
         }
+        // Review I5: the button path replacing the whole attempt ate the
+        // target's second rescue attempt outright when the row search itself
+        // came up empty (findLegendRowWrappersByVisibleText requires exactly
+        // one action button in the wrapper). Falling through to the plain
+        // ladder keeps that rescue attempt instead of trading it away.
         const opened = escalate
-          ? await openSettingsForScriptViaLegendButton(page, scriptName)
+          ? (await openSettingsForScriptViaLegendButton(page, scriptName)) || (await openSettingsForScriptOnce(page, scriptName))
           : await openSettingsForScriptOnce(page, scriptName);
         if (opened === true) {
           return true;
