@@ -508,16 +508,19 @@ file = "scripts/check_r1_attested_sources.py"
 attr = "run"
 count = 1
 
-# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
-# scripts/check_proof_ledger.py: two read-only git queries, both token-list
-# argv, no shell=True. `_changed_files()` runs `git diff --name-only
-# <range>` (the PR diff, never the standing state of main -- same pattern as
-# check_r1_attested_sources.py above). `_ledger_ids_at()` runs `git show
-# <rev>:proof_ledger.toml` to read the ledger as it stood at a given commit.
+# Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave);
+# bumped 2 -> 3 on 2026-08-25 (c4-merge-base-not-merge-commit fix): three
+# read-only git queries, all token-list argv, no shell=True.
+# `_changed_files()` runs `git diff --name-only <range>` (the PR diff, never
+# the standing state of main -- same pattern as check_r1_attested_sources.py
+# above). `_ledger_ids_at()` runs `git show <rev>:proof_ledger.toml` to read
+# the ledger as it stood at a given commit. `_merge_base_commit()` (new) runs
+# `git merge-base <links> <rechts>` to find the true common ancestor instead
+# of trusting the literal left side of the range string.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/check_proof_ledger.py"
 attr = "run"
-count = 2
+count = 3
 
 # Pre-existing gap found + reconciled 2026-08-24 (beweis-ledger fix wave):
 # scripts/judge_proof_ledger.py: one call site, `_gh()`, wraps every `gh`
