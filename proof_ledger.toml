@@ -1110,3 +1110,31 @@ claim  = "Selbst-Urteiler-Regel der job_log-Aera nachgezogen; Log-Abruf CI/lokal
 state  = "AUSGENOMMEN"
 due_by = "2026-08-25"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# 5077 -- meta-watchdog: set+e-Klammer um die Alarm-Sonde (failed-runs-Triage
+# 2026-08-25). AUSGENOMMEN mit Doppelgrund, Muster #5075:
+# 1. Die Wirkung ("Step ueberlebt rc!=0 unter der -e-Default-Shell und
+#    schreibt alarm_rc") ist von der Suite DAUERHAFT AUSFUEHRBAR bewiesen:
+#    test_the_alarm_step_script_survives_rc8_under_dash_e extrahiert den
+#    echten Step-Text aus dem YAML und faehrt ihn unter bash -e -o pipefail
+#    mit einem python-Stub, der wie im Cron-Lauf 32821936783 mit rc=8 stirbt.
+#    Gegenprobe am 2026-08-25 gefahren: die alte Fassung ohne Klammer faellt
+#    in genau diesem Test. Die Klassen-Heuristik (test_imported) sieht nur
+#    statische Importe und kann eine YAML-Extraktion nicht erkennen -- der
+#    konservative Fehlgriff irrt in die sichere Richtung, Preis ist dieser
+#    Eintrag.
+# 2. Ein Log-Zeuge traegt hier nichts: alarm_rc geht nach GITHUB_OUTPUT,
+#    nicht ins Log, und auf gesunden Laeufen (rc=0) ist die Klammer
+#    unbeobachtbar. Ein fix-Eintrag mit Log-judge wuerde den Monitor auf
+#    jedem gesunden Cron mit NICHT_ERREICHT fluten, ohne je etwas zu messen.
+#    rc=1 (Alarm BLIND) macht den Job weiterhin rot ueber den Fail-Step,
+#    gepinnt in test_the_check_runs_daily_and_can_fail_the_job.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5077"
+kind   = "exempt"
+claim  = "set+e-Klammer im alarm_coverage-Step: Wirkung ist suite-ausfuehrbar bewiesen (Drill-Test mit echtem Step-Text unter -e, Gegenprobe gefahren); ein Log-Zeuge kann auf gesunden Laeufen nichts aussagen"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-25"
+owner  = "operator"

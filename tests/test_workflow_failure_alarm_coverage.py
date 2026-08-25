@@ -20,6 +20,8 @@ Die Live-Abfrage selbst laeuft taeglich im meta-watchdog.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import urllib.error
 from pathlib import Path
 
@@ -265,4 +267,50 @@ def test_main_routes_the_fetches_through_the_retry(monkeypatch: pytest.MonkeyPat
     assert rc == 8, "endgueltig toter Transport bleibt fail-closed (exit 8)"
     assert calls["n"] == cov._TRANSIENT_VERSUCHE, (
         "main() muss die Abrufe durch die Retry-Huelle schicken"
+    )
+
+
+def test_the_alarm_step_script_survives_rc8_under_dash_e(
+    tmp_path: Path, watchdog: dict
+) -> None:
+    """Verhaltens-Drill (proof_ledger #5077), nicht nur Text-Pin.
+
+    Der ECHTE Step-Text aus dem YAML laeuft unter der ECHTEN Default-Shell
+    (`bash -e -o pipefail`), mit einem python-Stub, der wie im Cron-Lauf
+    32821936783 mit rc=8 stirbt. Vor dem Fix toetete `-e` den Step VOR der
+    alarm_rc-Zuweisung (Job rot, Vertrag gebrochen); mit der Klammer endet
+    der Step gruen und schreibt alarm_rc=8. Rueckbau der Klammer macht
+    diesen Test rot — er ist die dauerhaft ausfuehrbare Fassung des Drills.
+    """
+    steps = watchdog["jobs"]["probe"]["steps"]
+    script = next(s for s in steps if s.get("id") == "alarm_coverage")["run"]
+
+    stub_bin = tmp_path / "bin"
+    stub_bin.mkdir()
+    stub = stub_bin / "python"
+    stub.write_text(
+        "#!/bin/sh\necho 'SONDE UNGUELTIG: HTTPError: HTTP Error 503' >&2\nexit 8\n"
+    )
+    stub.chmod(0o755)
+    github_output = tmp_path / "github_output"
+    github_output.write_text("")
+
+    env = dict(os.environ)
+    env["PATH"] = f"{stub_bin}:{env['PATH']}"
+    env["GITHUB_OUTPUT"] = str(github_output)
+    env["GRAFANA_API_KEY"] = "drill-dummy"
+
+    # Fester bash-Pfad, Step-Text stammt aus dem Repo-YAML — keine Fremdeingabe.
+    proc = subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 0, (
+        f"Step stirbt unter -e trotz Klammer: rc={proc.returncode}\n{proc.stderr}"
+    )
+    assert "alarm_rc=8" in github_output.read_text(), (
+        "alarm_rc wurde nicht geschrieben — der rc-Fang ist wieder unerreichbar"
     )
