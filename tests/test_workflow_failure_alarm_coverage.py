@@ -20,14 +20,19 @@ Die Live-Abfrage selbst laeuft taeglich im meta-watchdog.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import urllib.error
 from pathlib import Path
 
 import pytest
 import yaml
 
+import scripts.check_workflow_failure_alarm_coverage as cov
 from scripts.check_workflow_failure_alarm_coverage import (
     REQUIRED_WORKFLOWS,
     RUN_PAGE_SIZE,
+    _mit_transient_retry,
     evaluate,
 )
 
@@ -185,4 +190,127 @@ def test_an_invalid_probe_is_not_reported_as_healthy(watchdog: dict) -> None:
     assert "alarm_rc == '8'" not in fail_step["if"], (
         "ein Sondenfehler darf den Job nicht rot machen -- sonst faerbt jede "
         "Grafana-Stoerung den Watchdog rot und die echten Befunde gehen unter."
+    )
+
+
+def test_the_probe_call_survives_the_default_shell_dash_e(watchdog: dict) -> None:
+    """`rc=$?` hinter einem nackten Aufruf ist unter `-e` toter Code.
+
+    Die Default-Shell der run-Steps ist `bash -e -o pipefail`; ohne
+    `set +e`-Klammer beendet ein rc!=0 den Step, BEVOR alarm_rc geschrieben
+    wird — genau so faerbte am 2026-08-25 ein einzelner GitHub-503 den ganzen
+    Watchdog rot (Lauf 32821936783), obwohl rc=8 laut Vertrag nur eine
+    Warnung ist. Die Schwester-Steps (probe/dag) tragen dieselbe Klammer.
+    """
+    steps = watchdog["jobs"]["probe"]["steps"]
+    schritt = next(s for s in steps if s.get("id") == "alarm_coverage")
+    assert (
+        "set +e\npython -m scripts.check_workflow_failure_alarm_coverage\nrc=$?\nset -e"
+        in schritt["run"]
+    ), "die set+e-Klammer um den Sondenaufruf fehlt — rc-Fang ist unter -e unerreichbar"
+
+
+def test_a_transient_503_is_retried_and_the_probe_still_measures() -> None:
+    calls = {"n": 0}
+
+    def fetch(arg: str) -> dict:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise urllib.error.HTTPError("u", 503, "Service Unavailable", None, None)
+        return {"arg": arg}
+
+    naps: list[float] = []
+    result = _mit_transient_retry(fetch, "x", schlaf=naps.append)
+    assert result == {"arg": "x"}
+    assert calls["n"] == 3
+    assert naps == [cov._TRANSIENT_BACKOFF_S, cov._TRANSIENT_BACKOFF_S]
+
+
+def test_a_persistent_transient_still_fails_closed() -> None:
+    calls = {"n": 0}
+
+    def fetch() -> None:
+        calls["n"] += 1
+        raise urllib.error.HTTPError("u", 503, "Service Unavailable", None, None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        _mit_transient_retry(fetch, schlaf=lambda _s: None)
+    assert calls["n"] == cov._TRANSIENT_VERSUCHE
+
+
+def test_a_real_client_error_is_not_retried() -> None:
+    """4xx ist Konfiguration, nicht Wetter — sofort laut, kein Versuch 2."""
+    calls = {"n": 0}
+
+    def fetch() -> None:
+        calls["n"] += 1
+        raise urllib.error.HTTPError("u", 403, "Forbidden", None, None)
+
+    with pytest.raises(urllib.error.HTTPError):
+        _mit_transient_retry(fetch, schlaf=lambda _s: None)
+    assert calls["n"] == 1
+
+
+def test_main_routes_the_fetches_through_the_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verdrahtungs-Pin: ohne die Huelle in main() waere der Fix rueckbaubar."""
+    calls = {"n": 0}
+
+    def kaputt(key: str) -> set[str]:
+        calls["n"] += 1
+        raise urllib.error.HTTPError("u", 503, "Service Unavailable", None, None)
+
+    monkeypatch.setattr(cov, "observed_workflows", kaputt)
+    monkeypatch.setattr(cov, "_api_key", lambda: "k")
+    monkeypatch.setattr(cov, "_TRANSIENT_BACKOFF_S", 0.0)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    rc = cov.main([])
+    assert rc == 8, "endgueltig toter Transport bleibt fail-closed (exit 8)"
+    assert calls["n"] == cov._TRANSIENT_VERSUCHE, (
+        "main() muss die Abrufe durch die Retry-Huelle schicken"
+    )
+
+
+def test_the_alarm_step_script_survives_rc8_under_dash_e(
+    tmp_path: Path, watchdog: dict
+) -> None:
+    """Verhaltens-Drill (proof_ledger #5077), nicht nur Text-Pin.
+
+    Der ECHTE Step-Text aus dem YAML laeuft unter der ECHTEN Default-Shell
+    (`bash -e -o pipefail`), mit einem python-Stub, der wie im Cron-Lauf
+    32821936783 mit rc=8 stirbt. Vor dem Fix toetete `-e` den Step VOR der
+    alarm_rc-Zuweisung (Job rot, Vertrag gebrochen); mit der Klammer endet
+    der Step gruen und schreibt alarm_rc=8. Rueckbau der Klammer macht
+    diesen Test rot — er ist die dauerhaft ausfuehrbare Fassung des Drills.
+    """
+    steps = watchdog["jobs"]["probe"]["steps"]
+    script = next(s for s in steps if s.get("id") == "alarm_coverage")["run"]
+
+    stub_bin = tmp_path / "bin"
+    stub_bin.mkdir()
+    stub = stub_bin / "python"
+    stub.write_text(
+        "#!/bin/sh\necho 'SONDE UNGUELTIG: HTTPError: HTTP Error 503' >&2\nexit 8\n"
+    )
+    stub.chmod(0o755)
+    github_output = tmp_path / "github_output"
+    github_output.write_text("")
+
+    env = dict(os.environ)
+    env["PATH"] = f"{stub_bin}:{env['PATH']}"
+    env["GITHUB_OUTPUT"] = str(github_output)
+    env["GRAFANA_API_KEY"] = "drill-dummy"
+
+    # Fester bash-Pfad, Step-Text stammt aus dem Repo-YAML — keine Fremdeingabe.
+    proc = subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert proc.returncode == 0, (
+        f"Step stirbt unter -e trotz Klammer: rc={proc.returncode}\n{proc.stderr}"
+    )
+    assert "alarm_rc=8" in github_output.read_text(), (
+        "alarm_rc wurde nicht geschrieben — der rc-Fang ist wieder unerreichbar"
     )

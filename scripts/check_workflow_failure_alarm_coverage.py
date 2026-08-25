@@ -45,7 +45,10 @@ from __future__ import annotations
 
 import os
 import sys
+import time
+import urllib.error
 import urllib.parse
+from collections.abc import Callable
 from typing import Any
 
 try:
@@ -89,6 +92,48 @@ RUN_PAGE_SIZE = 100
 
 class ProbeInvalidError(RuntimeError):
     """Die Sonde konnte nichts messen. Kein Ergebnis, kein Befund."""
+
+
+# 2026-08-25: der Cron-Lauf 32821936783 starb an einem EINZELNEN GitHub-503
+# (SONDE UNGUELTIG, exit 8) — die Historie davor war taeglich gruen. Ein
+# Transient soll die Sonde nicht faellen.
+_TRANSIENT_VERSUCHE = 3
+_TRANSIENT_BACKOFF_S = 4.0
+
+
+def _mit_transient_retry(
+    fn: Callable[..., Any],
+    /,
+    *args: Any,
+    schlaf: Callable[[float], None] = time.sleep,
+) -> Any:
+    """Idempotente GET-Abrufe gegen 5xx-/Netz-Transienten haerten.
+
+    Nur Transienten werden wiederholt: HTTP >= 500, URLError, Timeout. Ein
+    ECHTER Fehler (4xx wie 401/403, kaputtes JSON, ProbeInvalidError) bleibt
+    sofort laut. Nach dem letzten Versuch wird die Ausnahme unveraendert
+    weitergereicht — der Exit bleibt 8, die Sonde bleibt fail-closed.
+    """
+    letzte: Exception | None = None
+    for versuch in range(1, _TRANSIENT_VERSUCHE + 1):
+        try:
+            return fn(*args)
+        except urllib.error.HTTPError as exc:  # Subklasse von URLError: zuerst
+            if exc.code < 500:
+                raise
+            letzte = exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            letzte = exc
+        if versuch < _TRANSIENT_VERSUCHE:
+            print(
+                f"transient ({letzte}) — Versuch {versuch}/{_TRANSIENT_VERSUCHE}, "
+                f"neuer Versuch in {_TRANSIENT_BACKOFF_S:.0f}s",
+                file=sys.stderr,
+            )
+            schlaf(_TRANSIENT_BACKOFF_S)
+    if letzte is None:  # pragma: no cover - Schleife endet nur nach Ausnahme
+        raise RuntimeError("Retry-Schleife endete ohne Ergebnis und ohne Ausnahme")
+    raise letzte
 
 
 def _prom_datasource_id(key: str) -> int:
@@ -209,9 +254,9 @@ def main(argv: list[str] | None = None) -> int:
         return 8
     try:
         key = _api_key()
-        observed = observed_workflows(key)
-        names_by_file = workflow_names_by_file(repo, token)
-        in_page = workflows_in_run_page(repo, token)
+        observed = _mit_transient_retry(observed_workflows, key)
+        names_by_file = _mit_transient_retry(workflow_names_by_file, repo, token)
+        in_page = _mit_transient_retry(workflows_in_run_page, repo, token)
     except ProbeInvalidError as exc:
         print(f"SONDE UNGUELTIG: {exc}", file=sys.stderr)
         return 8

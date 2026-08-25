@@ -7,10 +7,14 @@ provides ≥ 90 days of real outcome data
 (`scripts/c9_threshold_replay.py::CALIBRATION_SOURCE` flips
 `"synthetic"` → `"live"` in that PR).
 
-**Target lock-in:** 2026-08-16 (extended from 2026-07-25 on 2026-07-25 —
-the C8 backfill had not yet accrued ≥ 90 days of live outcomes; the deadline
-was moved rather than recording a false `Status: locked`). Tracked by
-`tests/test_c9_threshold_lock_status.py`.
+**Target lock-in:** 2026-09-30 (extended 2026-07-25 → 2026-08-16 → 2026-09-30;
+both times the C8 backfill had not yet accrued ≥ 90 days of live outcomes, and
+the deadline was moved rather than recording a false `Status: locked`. The
+2026-08-25 extension also sharpened the anchor test: its substring match had
+been vacuously green against exactly this paragraph's self-quote since the
+08-16 deadline passed — it now requires a real status LINE). Tracked by
+`tests/test_c9_threshold_lock_status.py`; the substantive, event-driven
+criterion is `tests/test_c9_threshold_finalisation_anchor.py` (see below).
 
 ## What this is
 

@@ -477,7 +477,14 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # report and DAG summary land before the final fail-loud step re-surfaces
 # rc.  Count bumped 1→2: the new 'Annotate probe results' step (added
 # alongside 'Annotate DAG health') uses the same guarded pattern.
-"meta-watchdog.yml" = 2
+# 2026-08-25: 2→3 — der alarm_coverage-Step bekam dieselbe Klammer. Sein
+# nackter `rc=$?`-Fang war unter der Default-Shell (-e) toter Code: ein
+# einzelner GitHub-503 (rc=8, laut Vertrag nur Warnung) toetete den Step vor
+# der alarm_rc-Zuweisung und faerbte den Watchdog rot (Lauf 32821936783).
+# Kein Silent-Skip-Risiko: rc=1 (BLIND) macht den Job weiter rot ueber den
+# 'Fail job'-Step (alarm_rc == '1'), gepinnt in
+# tests/test_workflow_failure_alarm_coverage.py.
+"meta-watchdog.yml" = 3
 
 # ---------------------------------------------------------------------------
 # test_subprocess_shell_injection_pin.py — frozen subprocess call sites.
