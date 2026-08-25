@@ -1088,3 +1088,25 @@ Er ist die fail-closed-Kante des Urteilers: KANN_NICHT_BEZEUGEN statt PASS,
 damit ein Abrufproblem nie wie ein bestandener Beweis aussieht. Gleiche Rolle
 wie tv_legend_click.no_log, das aus demselben Grund hier steht.
 """
+
+[[proof]]
+id     = "5075"
+kind   = "exempt"
+claim  = "Selbst-Urteiler-Regel der job_log-Aera nachgezogen; Log-Abruf CI/lokal-kompatibel"
+# AUSGENOMMEN, mit dokumentiertem Doppelgrund (2026-08-25):
+#
+# 1. Die Wirkung von scripts/proof_judges/proof_ledger_monitor_self.py ist
+#    BEREITS gehalten: der [[proof]]-Eintrag task7-proof-ledger-monitor hat
+#    genau dieses Modul als judge und die Monitor-Laeufe als Zeugen. Ein
+#    zweiter fix-Eintrag fuer dieselbe Wirkung waere ein Doppelhalter.
+# 2. Der Waechter-Griff selbst ist ein dokumentierter Fehlgriff zweier
+#    bewusst konservativer Heuristiken: die Datei steht in referenced_code()
+#    nur ueber einen KOMMENTAR in proof-ledger-monitor.yml:84 (_REF liest
+#    Volltext, absichtlich fail-safe), und test_imported() sieht die 14
+#    dynamischen Nutzungen in tests/test_proof_ledger.py nicht, weil
+#    load_judge() per importlib laedt -- die Heuristik erkennt nur statische
+#    Importe. Beide Grosszuegigkeiten irren in die sichere Richtung
+#    (mehr Beweispflicht, nie weniger); der Preis ist dieser Eintrag.
+state  = "AUSGENOMMEN"
+due_by = "2026-08-25"
+owner  = "operator"
