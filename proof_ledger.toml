@@ -768,7 +768,69 @@ claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den T
 # `script-settings-open-button-escalation-armed` gefolgt von einem
 # erfolgreichen Oeffnen) -- nicht schon durch das Vorhandensein des Codes.
 # ---------------------------------------------------------------------------
+# STAND 2026-08-26, Lauf 32886027492 (save-Job-Log 07:20-07:22Z + #5020-
+# Beweisdatei) -- MASSGEBLICH, ersetzt den 25.8.-Stand als aktuellen Befund
+# (Historie bleibt stehen, nicht neu aufrollen). Drei Messungen:
+#
+# 1. DIE ESKALATION (#5069) FEUERT -- zweimal `escalation-armed SMC Long-Dip
+#    Alerts:mismatches=2`. Die I6-Frage (Schwelle je Aufruf erreichbar?) ist
+#    damit beantwortet: JA. Aber sie TRIFFT NICHT: `escalation-rows ...:0` ->
+#    `-miss` -- findLegendRowWrappersByVisibleText fand im Eskalationsmoment
+#    null Zeilen (dieselbe Text-Aufloesung fand die Zeile um 07:20 im
+#    Doppelklick-Pfad; um 07:22, ~1,4 s nach dem closeModal des abgelehnten
+#    Nachbar-Dialogs, nichts). Der I5-Fallback lief; das Ziel starb regulaer
+#    im Step-Budget. WELCHER der sechs stillen Filter verwarf, war aus dem
+#    Log nicht rekonstruierbar -- #5098 benennt das kuenftig
+#    (legend-text-wrapper-scan-empty mit Skip-Zaehlern).
+#
+# 2. dialogAtFailureVerdict = TARGET-VISIBLE (Titel `SMC Long-Dip Alerts`,
+#    genau einer sichtbar) im Moment der Fehlschlag-Deklaration (07:22:25.35).
+#    Die #5052-Sonde faellt hier ANDERS aus als am 25.8. (`no-dialog`):
+#    Fehlschlag-Deklarationen sind HETEROGEN; die 25.8.-Widerlegung von (A)
+#    gilt fuer JENEN Lauf, nicht universell.
+#
+# 3. GEOMETRIE ENTSCHIEDEN: `dblclick-start ...:158x15@40,8` und Wrapper
+#    `193x24@48,12` -- die Zeile ist EINZEILIG, der Klickpunkt liegt mittig
+#    darin. Der mehrzeilige Wrapper ist WIDERLEGT.
+#
+# FUEHRENDE DEUTUNG (deckt 24.8. "der gelesene Dialog ist immer der des
+# VORHERIGEN Ziels" + target-visible + Symmetrie + "immer genau 1 Dialog"):
+# TradingView verwendet das Settings-Modal wieder, der TITEL zieht dem Inhalt
+# nach. Die einmalige Sofort-Lesung der Identitaetspruefung sieht den alten
+# Titel, deklariert Mismatch -- und closeModal schliesst den gerade KORREKT
+# geoeffneten Dialog. FIX #5098: settleDialogPick (Nachlese 400+800 ms nur im
+# Mismatch-Fall; Treffer erst in der Nachlese traegt
+# `-identity-title-settled:reads=N`). NICHT BEWIESEN, dass das die ganze
+# Ursache ist -- der 25.8.-no-dialog-Fall bleibt davon unerklaert.
+#
+# Der Halter schliesst, wenn ein ECHTER Lauf `SMC Long-Dip Alerts`
+# erfolgreich oeffnet; die Spur des Laufs sagt dann den Mechanismus
+# (`-identity-title-settled` => nachziehender Titel war die Wurzel;
+# Eskalations-Erfolg => Knopf-Pfad). Beobachtet wird das mechanisiert von
+# ~/.claude/scripts/tv_gate_probe_check.sh (Job-Log-Zeugensammler, 26.8.).
+# ---------------------------------------------------------------------------
 state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5098"
+kind            = "fix"
+claim           = "Ein Identitaets-Mismatch gilt erst nach der Nachlese; ein leerer Zeilen-Scan nennt seine Skip-Gruende"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5018/#5027: die Spuren stehen im Job-LOG, nie im Artefakt. Der Monitor
+# ueberspringt job_log-Evidenz strukturell; den Zeugen sammelt
+# tv_gate_probe_check.sh (Morgen-Triage 0a).
+evidence_source = "job_log"
+artifact        = ""
+# `-identity-title-settled:reads=N` existiert erst mit diesem Fix und feuert
+# nur bei Treffer-in-Nachlese. Feuert sie, ist Version UND Wirkung zugleich
+# belegt; ihre ABWESENHEIT beweist nichts (wie bei #5018) -- dann traegt
+# allein der save-Job-Start nach dem Merge.
+version_probe   = "-identity-title-settled"
+judge           = "tv_legend_click"
+state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "operator"
 
