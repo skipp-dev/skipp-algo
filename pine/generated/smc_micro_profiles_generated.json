@@ -108,10 +108,10 @@
     "list_total": 892
   },
   "auto_commit_allowed": true,
-  "asof_time": "2026-08-25T14:59:07Z",
+  "asof_time": "2026-08-25T15:51:15Z",
   "refresh_count": 37,
-  "generated_at": "2026-08-25T14:59:09.620949+00:00",
-  "source_commit": "855afbaec56923300016d76fddd41509a42ac91c",
+  "generated_at": "2026-08-25T15:51:18.800115+00:00",
+  "source_commit": "054e7228e687fe37b6ef9cf5a61e7d42981e371e",
   "generator_path": "scripts/generate_smc_micro_profiles.py",
   "input_sha256": "e6f57b4334bca96adba67b2f5c7b086ccd6f4893106ec9f33d78236516a439c5"
 }
