@@ -1168,3 +1168,19 @@ claim  = "c13-Gate-78-Ausnahme ist suite-ausfuehrbar bewiesen (echte Gate-Beding
 state  = "AUSGENOMMEN"
 due_by = "2026-08-26"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# ats-watchlist-row -- Schritt 2 zu #4875 (26.8.): ats-baseline-daily auf die
+# Freshness-Watchlist. AUSGENOMMEN, weil die Wirkung suite-AUSFUEHRBAR
+# bewiesen ist: test_every_scheduled_workflow_is_watched_or_exempt und der
+# Contract-Ledger parsen die ECHTE Watchlist-Zeile aus dem YAML — Zeile raus
+# heisst 2 rote Tests (Mutationsprobe 26.8. gefahren). Die Klassen-Heuristik
+# (test_imported) sieht nur statische Importe, keine YAML-Auswertung.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "ats-watchlist-row"
+kind   = "exempt"
+claim  = "Watchlist-Zeile ats-baseline-daily.yml=72:weekday ist beidseitig suite-gepinnt (Inventar-Population + Contract-Ledger lesen das echte YAML; Rueckbau = 2 rote Tests)"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-26"
+owner  = "operator"
