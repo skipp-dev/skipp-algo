@@ -19,7 +19,7 @@
 
 indicator("SMC Imbalance Context", overlay = true, max_boxes_count = 50, max_labels_count = 50)
 
-import preuss_steffen/smc_micro_profiles_generated/347 as mp
+import preuss_steffen/smc_micro_profiles_generated/349 as mp
 
 // ── Inputs ──────────────────────────────────────────────────────
 
