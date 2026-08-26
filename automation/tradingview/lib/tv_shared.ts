@@ -4672,9 +4672,23 @@ async function snapshotDialogAcrossScroll(page: Page, dialog: Locator): Promise<
 
 async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string, tracePrefix: string): Promise<boolean> {
   tracePageEvent(page, `${tracePrefix}-identity-start`, scriptName);
+  // Nachlese statt Sofort-Urteil (Lauf 32886027492: target-visible im
+  // Deklarationsmoment) — siehe settleDialogPick. Ein Treffer erst in der
+  // Nachlese traegt eine eigene Spur: sie ist die inhaltliche Versionsprobe
+  // dieses Fixes am echten Lauf.
+  const readPick = async () =>
+    pickDialogForScript(await collectVisibleDialogSnapshots(page).catch(() => []), scriptName);
+  const traceSettled = (picked: DialogPick, reads: number) => {
+    if (reads > 1 && picked.verdict === "match") {
+      tracePageEvent(page, `${tracePrefix}-identity-title-settled`, `${picked.dialog!.title}:reads=${reads}`);
+    }
+  };
   if (await hasScriptSettingsInputsSurface(page)) {
-    const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
-    const picked = pickDialogForScript(dialogs, scriptName);
+    const settled = await settleDialogPick(readPick, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
+      await page.waitForTimeout(ms);
+    });
+    const picked = settled.pick;
+    traceSettled(picked, settled.reads);
     if (picked.verdict === "untitled") {
       tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
       return true;
@@ -4693,8 +4707,11 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
     return false;
   }
 
-  const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
-  const picked = pickDialogForScript(dialogs, scriptName);
+  const settled = await settleDialogPick(readPick, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
+    await page.waitForTimeout(ms);
+  });
+  const picked = settled.pick;
+  traceSettled(picked, settled.reads);
   if (picked.verdict === "untitled") {
     tracePageEvent(page, `${tracePrefix}-identity-missing-title`, scriptName);
     throw new Error(`Opened settings dialog without an identifiable script title for: ${scriptName}`);
@@ -4754,6 +4771,49 @@ export function pickDialogForScript(
     return { verdict: "match", dialog: matching, visibleCount: titled.length };
   }
   return { verdict: "mismatch", dialog: titled[0], visibleCount: titled.length };
+}
+
+/**
+ * Nachlese-Staffel, bevor ein Mismatch deklariert wird. Kurz und endlich:
+ * die Summe lebt im 60-s-Budget des umgebenden Steps, und im Erfolgsfall
+ * (erste Lesung trifft) wird gar nicht gewartet.
+ */
+export const SETTINGS_IDENTITY_RE_READ_WAITS_MS: readonly number[] = [400, 800];
+
+/**
+ * Ein Mismatch gilt erst, wenn er eine kurze Nachlese ueberlebt.
+ *
+ * Messgrund (Ledger klasse-h, Lauf 32886027492, 2026-08-26): im Moment der
+ * Fehlschlag-Deklaration stand der RICHTIGE Dialog offen
+ * (`dialogAtFailureVerdict = target-visible`, Titel korrekt, genau einer
+ * sichtbar) — die einmalige Sofort-Lesung hatte Sekunden vorher den Titel des
+ * VORHERIGEN Ziels gesehen (2026-08-24: "der gelesene Dialog ist immer der
+ * des vorherigen Ziels"). Das passt zu einem wiederverwendeten
+ * Settings-Modal, dessen Titel dem Inhalt nachzieht: der Klick oeffnet den
+ * richtigen Dialog, die Pruefung liest zu frueh, deklariert Mismatch — und
+ * closeModal schliesst den gerade korrekt geoeffneten Dialog. Genau daraus
+ * wurde die symmetrische Nachbar-Kaskade.
+ *
+ * Nur "mismatch" wird nachgelesen: "match" ist fertig, und "untitled" hat
+ * eigene Zweige (implicit-surface bzw. missing-title), die eine Wartezeit nur
+ * verlangsamen wuerde, ohne etwas zu entscheiden.
+ */
+export async function settleDialogPick(
+  readPick: () => Promise<DialogPick>,
+  waitsMs: readonly number[],
+  sleep: (ms: number) => Promise<void>,
+): Promise<{ pick: DialogPick; reads: number }> {
+  let pick = await readPick();
+  let reads = 1;
+  for (const waitMs of waitsMs) {
+    if (pick.verdict !== "mismatch") {
+      break;
+    }
+    await sleep(waitMs);
+    pick = await readPick();
+    reads += 1;
+  }
+  return { pick, reads };
 }
 
 export type DialogAtFailureVerdict = "target-visible" | "foreign-visible" | "untitled-visible" | "no-dialog";
@@ -5443,6 +5503,32 @@ export async function findLegendRowWrappers(
 export const LEGEND_TEXT_EXCLUDED_SURFACES =
   '[role="dialog"], [data-name*="dialog" i], [class*="modal" i], [role="menu"], [data-name*="menu" i], [data-name="tree"], [data-name="pine-dialog"]';
 
+export type LegendRowScanCounts = {
+  /** Rohtreffer der Textsuche (ueber alle Kandidatennamen, je Name gedeckelt auf 24). */
+  matches: number;
+  invisible: number;
+  excluded: number;
+  noWrapper: number;
+  badText: number;
+  actionCount: number;
+  dup: number;
+};
+
+/**
+ * Benennt die stillen Skip-Gruende eines leeren Zeilen-Scans.
+ *
+ * Messgrund (Ledger klasse-h, Lauf 32886027492, 2026-08-26): die Eskalation
+ * meldete `escalation-rows SMC Long-Dip Alerts:0` — null Zeilen, waehrend
+ * dieselbe Textsuche zwei Minuten vorher die Zeile fand. Die Spur nannte nur
+ * das Endergebnis; WELCHER der sechs Filter jeden Treffer verwarf, war aus
+ * dem Log nicht rekonstruierbar. Ein schweigender Zweig sieht aus wie ein
+ * gesunder.
+ */
+export function formatLegendRowScanDetail(scan: LegendRowScanCounts): string {
+  return `matches=${scan.matches}:invisible=${scan.invisible}:excluded=${scan.excluded}`
+    + `:no-wrapper=${scan.noWrapper}:text=${scan.badText}:actions=${scan.actionCount}:dup=${scan.dup}`;
+}
+
 /**
  * Text-first legend row discovery, for rows the button-first probes miss.
  *
@@ -5460,20 +5546,24 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
   const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
   const wrappers: Locator[] = [];
   const seenKeys = new Set<string>();
+  const scan: LegendRowScanCounts = { matches: 0, invisible: 0, excluded: 0, noWrapper: 0, badText: 0, actionCount: 0, dup: 0 };
 
   for (const [index] of candidateNames.entries()) {
     const [, loosePattern] = patternsList[index];
     const matches = page.getByText(loosePattern);
     const total = await matches.count().catch(() => 0);
+    scan.matches += Math.min(total, 24);
     for (let item = 0; item < Math.min(total, 24); item += 1) {
       const target = matches.nth(item);
       if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
+        scan.invisible += 1;
         continue;
       }
       const excluded = await target
         .evaluate((node, selector) => Boolean(node.closest(selector)), LEGEND_TEXT_EXCLUDED_SURFACES)
         .catch(() => true);
       if (excluded) {
+        scan.excluded += 1;
         continue;
       }
       await target.scrollIntoViewIfNeeded().catch(() => undefined);
@@ -5482,10 +5572,12 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
         .locator('xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]][1]')
         .first();
       if (!(await wrapper.isVisible({ timeout: 400 }).catch(() => false))) {
+        scan.noWrapper += 1;
         continue;
       }
       const wrapperText = normalizeUiText((await wrapper.innerText({ timeout: 300 }).catch(() => "")) || "");
       if (!wrapperText || wrapperText.length > 300) {
+        scan.badText += 1;
         continue;
       }
       // Tight row only — a pane container carries the text of every study
@@ -5496,17 +5588,25 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
         .count()
         .catch(() => 0);
       if (legendActionCount !== 1) {
+        scan.actionCount += 1;
         continue;
       }
       const box = await wrapper.boundingBox().catch(() => null);
       const key = box ? `${Math.round(box.x)}:${Math.round(box.y)}:${Math.round(box.width)}` : `${index}:${item}`;
       if (seenKeys.has(key)) {
+        scan.dup += 1;
         continue;
       }
       seenKeys.add(key);
       wrappers.push(wrapper);
       tracePageEvent(page, "legend-text-wrapper-found", `${scriptName}:${item}:${wrapperText.slice(0, 80)}`);
     }
+  }
+  if (wrappers.length === 0) {
+    // Lauf 32886027492 (escalation-rows :0): das Leer-Ergebnis MUSS seinen
+    // Grund nennen — nur dann entscheidet der naechste natuerliche Fehlschlag,
+    // welcher Filter greift. Auf dem Erfolgspfad keine zusaetzliche Spur.
+    tracePageEvent(page, "legend-text-wrapper-scan-empty", `${scriptName}:${formatLegendRowScanDetail(scan)}`);
   }
   return wrappers.slice(0, 6);
 }
