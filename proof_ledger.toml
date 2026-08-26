@@ -1138,3 +1138,33 @@ claim  = "set+e-Klammer im alarm_coverage-Step: Wirkung ist suite-ausfuehrbar be
 state  = "AUSGENOMMEN"
 due_by = "2026-08-25"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# 5088 -- Issue-Triage 26.8.: zwei Workflow-Aenderungen, beide AUSGENOMMEN
+# mit Doppelgrund nach Muster #5075/#5077.
+#
+# (a) c13-daily-cron.yml: die 78-Ausnahme fuer den Corpus-Step im Issue-Gate.
+#     Die Wirkung ist von der Suite AUSFUEHRBAR bewiesen: der
+#     Advisory-Chain-Harness wertet die ECHTE Gate-Bedingung aus
+#     (test_a_corpus_soft_skip_does_not_open_an_issue: 78 oeffnet kein
+#     Issue, 1 weiterhin schon; Mutationsprobe rot-dann-gruen gefahren).
+#     Die Klassen-Heuristik (test_imported) sieht nur statische Importe
+#     und erkennt die YAML-Auswertung nicht.
+# (b) ats-baseline-daily.yml: timeout-minutes 30 -> 75 (#4875). Ein
+#     stehender Log-Zeuge traegt hier nichts: die Wirkung ("Lauf ueberlebt
+#     Minute 30") ist an JEDEM kuenftigen Tageslauf trivial operativ
+#     sichtbar, und der Beweis ist ein einmaliger Messlauf, der direkt
+#     nach dem Merge dispatcht wird — #4875 wird NUR bei gemessenem Gruen
+#     geschlossen. Danach uebernimmt laut Inventar-Fahrplan
+#     (test_scheduled_workflow_observation_inventory.py, BEFRISTET bis
+#     2026-09-19) die Freshness-Watchlist die Dauerbeobachtung; dieser
+#     befristete Inventar-Eintrag ist der Stolperdraht, falls der
+#     Messlauf ausbleibt.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5088"
+kind   = "exempt"
+claim  = "c13-Gate-78-Ausnahme ist suite-ausfuehrbar bewiesen (echte Gate-Bedingung im Harness, beidseitig gepinnt); ats-Budget 75 wird per Post-Merge-Messlauf bewiesen und dauerhaft von der Freshness-Watchlist uebernommen (BEFRISTET-Stolperdraht bis 19.9.)"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-26"
+owner  = "operator"

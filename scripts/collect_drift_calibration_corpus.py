@@ -225,6 +225,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         drift_payload: dict[str, Any] = json.loads(
             drift_path.read_text(encoding="utf-8")
         )
+    except FileNotFoundError:
+        # rc-Konvention der c13-Kette: 78 = weicher Skip bei fehlendem Input.
+        # Auf einer dormanten Workstation produziert compute_live_drift kein
+        # drift_<DATE>.json — derselbe Zustand, den backfill/backtest_ref als
+        # 78 melden. Der harte rc=1 hier oeffnete vom 19. bis 25.8. taeglich
+        # ein c13-Failure-Issue (#4901 ff.), ohne dass etwas kaputt war.
+        print(
+            f"soft-skip: --drift-json fehlt ({drift_path}) — kein Input heute, rc=78",
+            file=sys.stderr,
+        )
+        return 78
     except OSError as exc:
         print(f"error: cannot read --drift-json: {exc}", file=sys.stderr)
         return 1

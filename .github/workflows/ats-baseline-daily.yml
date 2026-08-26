@@ -53,7 +53,13 @@ defaults:
 jobs:
   build-baseline:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 30
+    # 2026-08-26 (#4875): 30 → 75. Seit dem 12.8. starb jeder Lauf
+    # reproduzierbar bei 30:1x im Build-Step (GitHub meldet den Timeout-Kill
+    # als 'cancelled'); der letzte gruene Lauf (12.8.) brauchte bereits 28:26.
+    # Das Budget war auf die Laufzeit von Ende Juli geeicht und ist organisch
+    # ueberwachsen. 75 gibt Raum, die echte Laufzeit per Dispatch neu zu
+    # messen; danach ggf. wieder enger ziehen.
+    timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

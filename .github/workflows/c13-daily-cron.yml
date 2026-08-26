@@ -626,7 +626,7 @@ jobs:
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
           (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '') ||
           (steps.slippage_sample.outputs.rc != '0' && steps.slippage_sample.outputs.rc != '') ||
-          (steps.corpus.outputs.rc != '0' && steps.corpus.outputs.rc != '') ||
+          (steps.corpus.outputs.rc != '0' && steps.corpus.outputs.rc != '78' && steps.corpus.outputs.rc != '') ||
           (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '') ||
           (steps.emit_public.outputs.rc != '0' && steps.emit_public.outputs.rc != '')
         env:
