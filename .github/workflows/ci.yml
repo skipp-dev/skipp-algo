@@ -3,7 +3,14 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # 2026-08-26: Spiegel des main-Fixes aus #5077. Der stand bisher NUR auf
+    # main — ein push-Event liest die Workflow-YAML aber vom GEPUSHTEN Ref,
+    # also von DIESEM eingefrorenen Juli-Snapshot. Folge: jeder stuendliche
+    # c13-Datenpush validierte weiter den Juli-Code und starb an dessen
+    # Datumsbomben (c9-Lock-Anker 07-25, alte Snooze-Testfassung) — am 26.8.
+    # vier Rotlaeufe, obwohl der main-Fix seit dem 25.8. gemergt war.
+    # "Gemergt ≠ ausgeliefert" gilt auch zwischen Branches desselben Repos.
+    branches-ignore: ["data/**"]
   pull_request:
     branches: ["**"]
     # F-V8-C5-A (2026-05-07): doc-only PRs do not exercise the validate
