@@ -156,8 +156,22 @@ class TestDryRun:
 
 
 class TestErrorPaths:
-    def test_missing_drift_file_exits_1(self, tmp_path: Path) -> None:
+    def test_missing_drift_file_soft_skips_with_78(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # rc-Konvention der c13-Kette: fehlender Input ist 78 (weicher Skip),
+        # kein Fehler — auf einer dormanten Workstation entsteht kein
+        # drift_<DATE>.json, und rc=1 hier oeffnete taeglich ein Issue
+        # (#4901 ff., 19.-25.8.).
         rc = main(["--drift-json", str(tmp_path / "nonexistent.json")])
+        assert rc == 78
+        assert "soft-skip" in capsys.readouterr().err
+
+    def test_unreadable_existing_drift_file_stays_loud(self, tmp_path: Path) -> None:
+        # Nur ABWESENHEIT ist weich. Ein vorhandener, aber unlesbarer Pfad
+        # (hier: ein Verzeichnis) ist ein echter Fehler und bleibt rc=1 —
+        # sonst wuerde ein kaputter Producer als "kein Input heute" durchgehen.
+        rc = main(["--drift-json", str(tmp_path)])
         assert rc == 1
 
     def test_invalid_json_exits_1(self, tmp_path: Path) -> None:

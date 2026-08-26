@@ -434,3 +434,20 @@ def test_every_rc_publishing_step_is_wired_into_the_issue_gate() -> None:
         f"body={unreported}. Every step that publishes an rc must be listed in "
         "both, or its permanent failure degrades to an unread ::warning::."
     )
+
+
+def test_a_corpus_soft_skip_does_not_open_an_issue() -> None:
+    """Der dormante Normalfall seit dem 19.8.: kein drift_<DATE>.json.
+
+    Das Skript meldet fehlenden Input als 78 (gepinnt in
+    test_collect_drift_calibration_corpus); die Issue-Bedingung muss ihn wie
+    backfill/backtest_ref ausnehmen. Der harte rc=1 an dieser Stelle oeffnete
+    vom 19. bis 25.8. taeglich ein c13-Failure-Issue (#4901 ff.), waehrend die
+    Workstation absichtlich dormant war — Alarm ohne Defekt.
+    """
+    assert not evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"corpus.rc": "78", "backfill.rc": "0"}
+    ), "corpus-78 (kein Input) darf kein Issue oeffnen"
+    assert evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"corpus.rc": "1", "backfill.rc": "0"}
+    ), "ein ECHTER corpus-Fehler muss das Issue weiterhin oeffnen"
