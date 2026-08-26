@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-26",
+  "measurement": {
+    "return_rule": "touch_then_horizon_close",
+    "cost_bps": 5.0,
+    "regime_taxonomy": "point_in_time (TRENDING/RANGING/NEUTRAL)",
+    "note": "net returns GIVEN a triggered setup (untriggered events are not trades); entry zone-midpoint on first touch, exit at the family-horizon close, fixed round-turn cost \u2014 see ADR-0031 and governance/family_returns.py"
+  },
+  "plane": "1D",
+  "n_trades": 31,
+  "n_trades_with_regime": 31,
+  "returns_by_variant": {
+    "BOS": [
+      0.05512819446095337,
+      0.25334462744319863,
+      0.04435463341317924,
+      0.002565782942567699,
+      0.060805394308367594,
+      0.014265420338175752,
+      -0.008240284663361457,
+      -0.02921790763808222,
+      0.04726307498424709,
+      0.03189637922820392,
+      0.029049735899235398,
+      -0.05185482726506724
+    ],
+    "OB": [
+      -0.034136874917732665,
+      -0.1434885292389443,
+      0.06605829495168432,
+      0.10312434760127329,
+      0.025763311977597764,
+      -0.0010956916256839372
+    ],
+    "SWEEP": [
+      0.06750217220780795,
+      0.13924921038985533,
+      0.010703022210642864,
+      0.0394099545957497,
+      -0.018633551153767604,
+      -0.012822159620607159,
+      0.015588277626739078,
+      0.021881087777732608,
+      0.003306717013569132,
+      0.033485120554668416,
+      0.03432880272409527,
+      -0.008717184994130439,
+      -0.06978086699372656
+    ]
+  },
+  "trades": [
+    {
+      "pnl": 0.05512819446095337,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785196800.0
+    },
+    {
+      "pnl": 0.25334462744319863,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1785283200.0
+    },
+    {
+      "pnl": 0.04435463341317924,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785369600.0
+    },
+    {
+      "pnl": 0.002565782942567699,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785456000.0
+    },
+    {
+      "pnl": 0.060805394308367594,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785801600.0
+    },
+    {
+      "pnl": 0.014265420338175752,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785888000.0
+    },
+    {
+      "pnl": -0.008240284663361457,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1785974400.0
+    },
+    {
+      "pnl": -0.02921790763808222,
+      "regime_at_entry": "TRENDING",
+      "family": "BOS",
+      "anchor_ts": 1786060800.0
+    },
+    {
+      "pnl": 0.04726307498424709,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1786320000.0
+    },
+    {
+      "pnl": 0.03189637922820392,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1786406400.0
+    },
+    {
+      "pnl": 0.029049735899235398,
+      "regime_at_entry": "NEUTRAL",
+      "family": "BOS",
+      "anchor_ts": 1786492800.0
+    },
+    {
+      "pnl": -0.05185482726506724,
+      "regime_at_entry": "RANGING",
+      "family": "BOS",
+      "anchor_ts": 1786579200.0
+    },
+    {
+      "pnl": -0.034136874917732665,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1785196800.0
+    },
+    {
+      "pnl": -0.1434885292389443,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1785283200.0
+    },
+    {
+      "pnl": 0.06605829495168432,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1785456000.0
+    },
+    {
+      "pnl": 0.10312434760127329,
+      "regime_at_entry": "TRENDING",
+      "family": "OB",
+      "anchor_ts": 1785715200.0
+    },
+    {
+      "pnl": 0.025763311977597764,
+      "regime_at_entry": "RANGING",
+      "family": "OB",
+      "anchor_ts": 1785801600.0
+    },
+    {
+      "pnl": -0.0010956916256839372,
+      "regime_at_entry": "NEUTRAL",
+      "family": "OB",
+      "anchor_ts": 1785974400.0
+    },
+    {
+      "pnl": 0.06750217220780795,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1785196800.0
+    },
+    {
+      "pnl": 0.13924921038985533,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1785283200.0
+    },
+    {
+      "pnl": 0.010703022210642864,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1785369600.0
+    },
+    {
+      "pnl": 0.0394099545957497,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1785456000.0
+    },
+    {
+      "pnl": -0.018633551153767604,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1785715200.0
+    },
+    {
+      "pnl": -0.012822159620607159,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1785801600.0
+    },
+    {
+      "pnl": 0.015588277626739078,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1785888000.0
+    },
+    {
+      "pnl": 0.021881087777732608,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1785974400.0
+    },
+    {
+      "pnl": 0.003306717013569132,
+      "regime_at_entry": "NEUTRAL",
+      "family": "SWEEP",
+      "anchor_ts": 1786060800.0
+    },
+    {
+      "pnl": 0.033485120554668416,
+      "regime_at_entry": "TRENDING",
+      "family": "SWEEP",
+      "anchor_ts": 1786320000.0
+    },
+    {
+      "pnl": 0.03432880272409527,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1786406400.0
+    },
+    {
+      "pnl": -0.008717184994130439,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1786492800.0
+    },
+    {
+      "pnl": -0.06978086699372656,
+      "regime_at_entry": "RANGING",
+      "family": "SWEEP",
+      "anchor_ts": 1786579200.0
+    }
+  ],
+  "trades_per_year": 707.6719,
+  "rr_target": 1.0
+}
