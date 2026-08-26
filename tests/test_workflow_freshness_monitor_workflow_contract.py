@@ -132,6 +132,10 @@ _MONITORED_WORKFLOWS = (
     "smc-library-refresh.yml",
     "credential-health-check.yml",
     "c13-daily-cron.yml",
+    # 2026-08-26 (#4875): aufgenommen, nachdem Laufzeitprofil + Timeout-Fix
+    # (#5088) vorlagen — der einzige WP-J-Baseline-Producer; ein stiller
+    # Cron-Ausfall hiess zwei Wochen lang niemand-merkt-es.
+    "ats-baseline-daily.yml",
     "run-open-prep-daily.yml",
     # Truth-audit 2026-07-10 (M4): the only FI-sample/label producer and
     # the evening panel publisher were the two unwatched critical crons.

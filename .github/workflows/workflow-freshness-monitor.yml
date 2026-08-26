@@ -128,6 +128,7 @@ jobs:
             smc-library-refresh.yml=72:weekday \
             credential-health-check.yml=30 \
             c13-daily-cron.yml=72:weekday \
+            ats-baseline-daily.yml=72:weekday \
             run-open-prep-daily.yml=72:weekday \
             open-prep-outcome-backfill.yml=72:weekday \
             openprep-pine-panel-publish.yml=72:weekday:expected-stale-until=2026-09-04 \

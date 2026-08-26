@@ -101,16 +101,10 @@ _EXEMPT: dict[str, str] = {
         "Woechentlicher Publish an dieselbe externe Integration; kein "
         "Repo-Zustand haengt daran."
     ),
-    # --- BEFRISTET: echter Befund, Aufnahme erst nach Ursachenklaerung. ---
-    "ats-baseline-daily.yml": (
-        "BEFRISTET bis 2026-09-19 (#4875): Der Cron feuert, produziert aber "
-        "seit 2026-08-12 nichts — 9 von 10 Laeufen 'cancelled', jeder nach "
-        "reproduzierbar 30:17-30:19 Minuten, also am timeout-minutes: 30 "
-        "(Messung 2026-08-19; GitHub meldet Timeout-Kills als 'cancelled'). "
-        "Eine Watchlist-Zeile waere ab Merge Dauer-Rot und wuerde die anderen "
-        "Alarme entwerten; :any wuerde den Defekt nur maskieren. Erst "
-        "Laufzeitprofil + Fix in #4875, dann als '=72:weekday' aufnehmen."
-    ),
+    # ats-baseline-daily.yml: BEFRISTET-Eintrag (#4875) am 2026-08-26 nach
+    # Plan aufgeloest — Laufzeitprofil gemessen (Build 32:49, Budget 30->75
+    # in #5088), Messlauf 32940381326 gruen, Watchlist-Zeile '=72:weekday'
+    # ergaenzt.
 }
 
 
