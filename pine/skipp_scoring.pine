@@ -10,9 +10,13 @@ import preuss_steffen/skipp_math/1 as m
 // --------------------------------------------------
 // Constants
 // --------------------------------------------------
+// 2026-08-26 (#4756): getter-functions -> `export const`. Werte
+// unveraendert. `m.PRICE_EPS()` bleibt BEWUSST in Funktionsform: der Pin
+// steht auf skipp_math/1, dessen API der Getter ist; die Form folgt beim
+// Repin auf /2 (Publish-Reihenfolge: math zuerst).
 
-export SIDEWAYS_EMA_THRESH() => 0.005
-export SIDEWAYS_ATR_THRESH() => 0.015
+export const float SIDEWAYS_EMA_THRESH = 0.005
+export const float SIDEWAYS_ATR_THRESH = 0.015
 
 // --------------------------------------------------
 // Trend / Regime
@@ -21,12 +25,12 @@ export SIDEWAYS_ATR_THRESH() => 0.015
 // @function Continuous trend strength in [-1, 1]
 export trend_strength(float emaF, float emaS) =>
     float emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), m.PRICE_EPS())
-    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH(), m.PRICE_EPS())))
+    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, m.PRICE_EPS())))
 
 // @function Discrete trend regime: +1 bull, -1 bear, 0 sideways
 export trend_regime(float emaF, float emaS, float atrNorm) =>
     float emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), m.PRICE_EPS())
-    bool isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH() and atrNorm < SIDEWAYS_ATR_THRESH()
+    bool isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH and atrNorm < SIDEWAYS_ATR_THRESH
     bool isBull = emaF > emaS and not isSideways
     bool isBear = emaF < emaS and not isSideways
     isBull ? 1.0 : isBear ? -1.0 : 0.0
