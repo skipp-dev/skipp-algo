@@ -7,12 +7,16 @@ import { test } from "node:test";
 import {
   classifyDialogAtFailure,
   formatLegendDblclickBoxDetail,
+  formatLegendRowScanDetail,
   pickDialogForScript,
   recordSettingsIdentityMismatch,
   resetSettingsIdentityMismatchCount,
   SETTINGS_IDENTITY_MISMATCH_ESCALATION_THRESHOLD,
+  SETTINGS_IDENTITY_RE_READ_WAITS_MS,
   settingsIdentityMismatchCount,
+  settleDialogPick,
   shouldEscalateSettingsOpenPath,
+  type DialogPick,
   type SettingsIdentityMismatchCounts,
 } from "../lib/tv_shared.js";
 
@@ -285,4 +289,136 @@ test("tryOpenScriptSettingsByDoubleClick traegt das Boxdetail an BEIDEN dblclick
     + "hit-target-miss muessen formatLegendDblclickBoxDetail tragen -- ausgerechnet der "
     + "Remeasure-Fall ist der, in dem eine verschobene Wrapper-Geometrie am ehesten schuld waere",
   );
+});
+
+// Ledger klasse-h, STAND 2026-08-26 (Lauf 32886027492): dialogAtFailureVerdict
+// = target-visible — im Moment der Fehlschlag-Deklaration stand der RICHTIGE
+// Dialog offen, Titel korrekt, genau einer sichtbar. Zusammen mit dem
+// 24.8.-Befund ("der gelesene Dialog ist immer der des VORHERIGEN Ziels")
+// zeigt das auf ein wiederverwendetes Settings-Modal, dessen TITEL dem Inhalt
+// nachzieht: die einmalige Sofort-Lesung sieht den alten Titel, deklariert
+// Mismatch — und closeModal schliesst den gerade korrekt geoeffneten Dialog.
+// Ein Mismatch gilt deshalb erst, wenn er eine kurze Nachlese ueberlebt.
+// Reine Schleifenlogik, ohne Browser beweisbar.
+
+const pickOf = (verdict: DialogPick["verdict"], title: string | null): DialogPick => ({
+  verdict,
+  dialog: title === null ? null : { title },
+  visibleCount: title === null ? 0 : 1,
+});
+
+function fakeReader(sequence: DialogPick[]): { read: () => Promise<DialogPick>; reads: () => number } {
+  let n = 0;
+  return {
+    read: async () => {
+      const pick = sequence[Math.min(n, sequence.length - 1)];
+      n += 1;
+      return pick;
+    },
+    reads: () => n,
+  };
+}
+
+test("settleDialogPick: ein Mismatch, der sich in der Nachlese als Treffer entpuppt, ist ein Treffer", async () => {
+  const reader = fakeReader([
+    pickOf("mismatch", "SMC Setup Check"),
+    pickOf("match", "SMC Long-Dip Alerts"),
+  ]);
+  const sleeps: number[] = [];
+  const settled = await settleDialogPick(reader.read, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
+    sleeps.push(ms);
+  });
+  assert.equal(settled.pick.verdict, "match");
+  assert.equal(settled.pick.dialog?.title, "SMC Long-Dip Alerts");
+  assert.equal(settled.reads, 2);
+  assert.deepEqual(sleeps, [SETTINGS_IDENTITY_RE_READ_WAITS_MS[0]], "genau eine Wartezeit vor der zweiten Lesung");
+});
+
+test("settleDialogPick: ein Mismatch, der alle Nachlesen uebersteht, bleibt ein Mismatch", async () => {
+  const reader = fakeReader([pickOf("mismatch", "SMC Setup Check")]);
+  const settled = await settleDialogPick(reader.read, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async () => {});
+  assert.equal(settled.pick.verdict, "mismatch");
+  assert.equal(
+    settled.reads,
+    SETTINGS_IDENTITY_RE_READ_WAITS_MS.length + 1,
+    "erst nach ALLEN Nachlesen darf der Mismatch deklariert werden",
+  );
+});
+
+test("settleDialogPick: ein sofortiger Treffer wartet keine Millisekunde", async () => {
+  const reader = fakeReader([pickOf("match", "SMC Long-Dip Alerts")]);
+  const sleeps: number[] = [];
+  const settled = await settleDialogPick(reader.read, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async (ms) => {
+    sleeps.push(ms);
+  });
+  assert.equal(settled.pick.verdict, "match");
+  assert.equal(settled.reads, 1);
+  assert.deepEqual(sleeps, [], "der Erfolgspfad darf nicht langsamer werden");
+});
+
+test("settleDialogPick: 'untitled' ist KEIN Mismatch und wird nicht nachgelesen", async () => {
+  // untitled hat eigene Zweige (implicit-surface bzw. missing-title-throw) —
+  // eine Nachlese wuerde beide Pfade verlangsamen, ohne etwas zu entscheiden.
+  const reader = fakeReader([pickOf("untitled", null)]);
+  const settled = await settleDialogPick(reader.read, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async () => {
+    assert.fail("untitled darf keine Wartezeit ausloesen");
+  });
+  assert.equal(settled.pick.verdict, "untitled");
+  assert.equal(settled.reads, 1);
+});
+
+test("die Nachlese-Staffel ist kurz und endlich — sie lebt im 60-s-Budget des Steps", () => {
+  const total = SETTINGS_IDENTITY_RE_READ_WAITS_MS.reduce((a, b) => a + b, 0);
+  assert.ok(SETTINGS_IDENTITY_RE_READ_WAITS_MS.length >= 1, "mindestens eine Nachlese, sonst ist der Fix leer");
+  assert.ok(total <= 2_000, `Nachlese-Staffel ${total}ms — mehr frisst das Step-Budget der Leiter auf`);
+});
+
+test("verifyOpenedSettingsDialogIdentity liest ueber settleDialogPick, in BEIDEN Erkennungslagen (Verdrahtung)", () => {
+  const body = functionBody(tvSharedSource(), "async function verifyOpenedSettingsDialogIdentity(");
+  const calls = body.match(/settleDialogPick\(/g) ?? [];
+  assert.equal(
+    calls.length,
+    2,
+    "beide Zweige (Inputs-Surface sichtbar UND nicht sichtbar) muessen die Nachlese fahren — "
+    + "sonst deklariert eine der beiden Lagen weiter nach einer einzigen Sofort-Lesung "
+    + "Mismatch und closeModal schliesst den gerade korrekt geoeffneten Dialog",
+  );
+  assert.match(
+    body,
+    /-identity-title-settled/,
+    "ein Treffer erst in der Nachlese muss eine eigene Spur tragen — sie ist die inhaltliche "
+    + "Versionsprobe dieses Fixes am echten Lauf",
+  );
+});
+
+// Eskalations-Befund desselben Laufs: escalation-rows SMC Long-Dip Alerts:0 —
+// die Zeilenauflösung fand im Eskalationsmoment NULL Zeilen, und die Spur
+// nennt nur das Endergebnis. findLegendRowWrappersByVisibleText hat sechs
+// stille Skip-Gruende (unsichtbar, excluded, kein Wrapper, Text leer/>300,
+// Action-Count != 1, Duplikat); welcher zutraf, ist aus dem Log nicht
+// rekonstruierbar. Der Scan-Zaehler benennt beim naechsten Leer-Ergebnis den
+// Grund. Reine Formatierung, kein Verhaltenseingriff.
+
+test("formatLegendRowScanDetail nennt jeden stillen Skip-Grund mit seiner Zahl", () => {
+  const detail = formatLegendRowScanDetail({
+    matches: 3,
+    invisible: 1,
+    excluded: 1,
+    noWrapper: 1,
+    badText: 0,
+    actionCount: 0,
+    dup: 0,
+  });
+  assert.equal(detail, "matches=3:invisible=1:excluded=1:no-wrapper=1:text=0:actions=0:dup=0");
+});
+
+test("findLegendRowWrappersByVisibleText benennt ein Leer-Ergebnis mit den Scan-Zaehlern (Verdrahtung)", () => {
+  const body = functionBody(tvSharedSource(), "export async function findLegendRowWrappersByVisibleText(");
+  assert.match(
+    body,
+    /legend-text-wrapper-scan-empty/,
+    "ein leeres Ergebnis muss seine Zaehler in die Spur schreiben — ein schweigender Zweig "
+    + "sieht aus wie ein gesunder (escalation-rows:0 war genau das)",
+  );
+  assert.match(body, /formatLegendRowScanDetail\(/, "die Spur muss aus den echten Zaehlern formatiert sein");
 });
