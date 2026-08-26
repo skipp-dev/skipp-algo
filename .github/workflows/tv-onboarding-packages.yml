@@ -258,6 +258,18 @@ jobs:
       - name: Install build dependencies
         run: npm ci
 
+      - name: Provision pinned Playwright browser
+        # 2026-08-26: der gepinnte Chromium war auf KEINEM Bein je
+        # installiert — jeder gruene Lauf ueberlebte nur auf dem
+        # chrome-Channel-Fallback (9 Fallback-Starts allein im gruenen
+        # Windows-Job von Lauf 32977177457). Am 26.8. riss dessen
+        # 30-s-Timeout einmal und main wurde rot (Lauf 32978900076,
+        # "Test hermetic TV pins": browserType.launch: Executable doesn't
+        # exist ... chromium_headless_shell). Ein Pin, den nie jemand
+        # installiert, ist ein Name ohne Deckung. Der Fallback bleibt als
+        # zweites Netz; schlaegt die Installation fehl, ist der Step laut rot.
+        run: npx playwright install chromium
+
       - name: Type-check onboarding
         run: npm run tsc:check
 
