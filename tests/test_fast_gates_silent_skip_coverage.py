@@ -243,6 +243,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_handlib_publisher_inventory.py",
     "tests/test_pine_library_import_permissions.py",
     "tests/test_pine_surface_registry.py",
+    "tests/test_pine_string_literals_close_on_their_line.py",
     "tests/test_pine_request_security_htf_pin.py",
     "tests/test_pine_request_security_per_file_budget.py",
     "tests/test_pine_var_budget_pin.py",
@@ -808,11 +809,11 @@ def test_every_guard_corpus_user_is_on_the_required_path() -> None:
     referenced = set(re.findall(r"tests/test_[A-Za-z0-9_]+\.py", step))
     ungated = sorted(users - referenced - _GUARD_CORPUS_INTENTIONALLY_UNGATED)
     assert not ungated, (
-        "repo-wide source guard(s) are not on the required path. fast-gates is "
-        "the only merge-gating job, so these cannot block a merge: the property "
-        "they check — a timeout passed, a kwarg set, a secret-shaped file kept "
-        "out of git — is enforced only afterwards by `validate`, if anyone reads "
-        "it.\n\n"
+        "repo-wide source guard(s) are not in the fast-gates step. Since "
+        "2026-08-27 the validate shards also gate merges (ADR-0012), so an "
+        "unregistered guard still blocks — but only after the full slow "
+        "complement instead of failing in the ~8-minute fast lane where a "
+        "repo-wide property check belongs.\n\n"
         f"Ungated: {ungated}\n\n"
         "Add each to the 'Run pin / ledger drift guard' step in "
         "smc-fast-pr-gates.yml (plus FULL_REQUIRED_PATH_TRIPWIRES here and "
