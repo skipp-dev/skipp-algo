@@ -356,6 +356,27 @@ test("settleDialogPick: ein sofortiger Treffer wartet keine Millisekunde", async
   assert.deepEqual(sleeps, [], "der Erfolgspfad darf nicht langsamer werden");
 });
 
+test("settleDialogPick: verschwindet der Dialog in der Nachlese, endet sie als 'untitled'", async () => {
+  // Review-Fund 27.8. (Follow-up zu #5098): genau die Sequenz, in der die
+  // Surface-Messung des Aufrufers veraltet — der Aufrufer muss sie frisch
+  // bestaetigen, bevor er implicit-surface-Erfolg meldet.
+  const reader = fakeReader([pickOf("mismatch", "SMC Setup Check"), pickOf("untitled", null)]);
+  const settled = await settleDialogPick(reader.read, SETTINGS_IDENTITY_RE_READ_WAITS_MS, async () => {});
+  assert.equal(settled.pick.verdict, "untitled");
+  assert.equal(settled.reads, 2, "nach untitled darf keine weitere Nachlese folgen");
+});
+
+test("ein 'untitled' NACH der Nachlese gilt nur mit frisch bestaetigter Surface (Verdrahtung)", () => {
+  const body = functionBody(tvSharedSource(), "async function verifyOpenedSettingsDialogIdentity(");
+  assert.match(
+    body,
+    /-identity-surface-gone-after-settle/,
+    "ein untitled aus der Nachlese traegt eine bis zu 1,2 s alte Surface-Messung; ohne "
+    + "frische Bestaetigung ist das kein Erfolg — der Zweig braucht seinen eigenen, "
+    + "benannten Ausgang (return false, KEIN Mismatch-Zaehler-Tick)",
+  );
+});
+
 test("settleDialogPick: 'untitled' ist KEIN Mismatch und wird nicht nachgelesen", async () => {
   // untitled hat eigene Zweige (implicit-surface bzw. missing-title-throw) —
   // eine Nachlese wuerde beide Pfade verlangsamen, ohne etwas zu entscheiden.
