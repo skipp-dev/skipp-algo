@@ -643,10 +643,15 @@ jobs:
 
           DATE="${{ steps.date.outputs.date }}"
           TITLE="C13 daily-cron failure ${DATE}"
-          if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
-            echo "Issue already open — skipping."
-            exit 0
-          fi
+          # Dedupe je KLASSE, nicht je Datum (27.8.): waehrend der Broker-
+          # Dormanz (Ampel #5000, Halter #5081, bis Paper-Flip) feuert der
+          # Cron TAEGLICH — die Datums-Dedupe unten erzeugte pro Tag ein
+          # neues Issue derselben Klasse (#5110 neben #5081). Solange
+          # IRGENDEIN cron-failure-Issue offen ist, landet der Tagesbefund
+          # als KOMMENTAR auf dem aeltesten offenen (= der Halter); ein
+          # neues Issue entsteht erst wieder, wenn keines offen ist.
+          HOLDER="$(gh issue list --label cron-failure --state open \
+            --json number --jq 'sort_by(.number) | .[0].number // empty')"
           BODY=$(cat <<EOF
           C13 daily cron failed for trade date ${DATE}.
 
@@ -665,7 +670,12 @@ jobs:
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
           )
-          gh issue create \
-            --label cron-failure \
-            --title "${TITLE}" \
-            --body "${BODY}"
+          if [ -n "${HOLDER}" ]; then
+            echo "Offenes cron-failure-Issue #${HOLDER} — Tagesbefund als Kommentar."
+            gh issue comment "${HOLDER}" --body "${BODY}"
+          else
+            gh issue create \
+              --label cron-failure \
+              --title "${TITLE}" \
+              --body "${BODY}"
+          fi
