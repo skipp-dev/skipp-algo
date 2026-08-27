@@ -44,8 +44,8 @@ load-bearing here:
    workflow file, so the diff-driven "Run every guard that reads a
    workflow this PR changed" step in ``smc-fast-pr-gates.yml`` selects
    nothing. Hence the explicit registration in the "Run pin / ledger
-   drift guard" step (``fast-gates`` is the only required check —
-   ADR-0011), mirrored in
+   drift guard" step (``fast-gates`` is the required PR-time gate —
+   ADR-0011/0012), mirrored in
    ``tests/test_fast_gates_silent_skip_coverage.py`` and
    ``tests/_fast_inventory.py``.
 """

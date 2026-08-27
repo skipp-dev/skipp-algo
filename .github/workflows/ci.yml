@@ -15,9 +15,11 @@ on:
   pull_request:
     branches: ["**"]
     # F-V8-C5-A (2026-05-07): doc-only PRs do not exercise the validate
-    # job's heavy gate; skip CI to save runner minutes. ci.yml is NOT a
-    # required status check on main (only `fast-gates` is — see
-    # smc-fast-pr-gates.yml), so paths-ignore here cannot block a merge.
+    # job's heavy gate; skip CI to save runner minutes. Since 2026-08-27 the
+    # four `validate (N)` shard contexts ARE required on main (ADR-0012
+    # Operator-Punkt 1, `main-governance` ruleset). paths-ignore still cannot
+    # block a doc-only merge: the un-filtered `push:` lane below reports the
+    # same contexts (status-only, run_heavy=false) on every branch head.
     # `push:` above is intentionally NOT path-filtered so every branch still
     # reports a `validate` status. The gate below keeps non-main pushes
     # status-only; heavy validation runs on main pushes and manual dispatches.

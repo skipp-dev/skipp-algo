@@ -71,8 +71,8 @@ Registration
 ------------
 Like ``tests/test_credential_probe_consumers.py``, this file sits on the
 required path unconditionally (the "Run pin / ledger drift guard" step in
-``smc-fast-pr-gates.yml`` — ``fast-gates`` is the only required check,
-ADR-0011), mirrored in ``tests/test_fast_gates_silent_skip_coverage.py`` and
+``smc-fast-pr-gates.yml`` — ``fast-gates`` is the required PR-time gate,
+ADR-0011/0012), mirrored in ``tests/test_fast_gates_silent_skip_coverage.py`` and
 ``tests/_fast_inventory.py``. The diff-driven "Run every guard that reads a
 workflow this PR changed" step is not sufficient on its own: adding a target to
 ``scripts/smc_r1_rollout_contract.py`` touches no workflow file, so that

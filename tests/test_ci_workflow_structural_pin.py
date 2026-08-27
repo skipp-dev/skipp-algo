@@ -16,8 +16,8 @@ document it cited::
 
 One context, and it is not ``validate``. Protection lives in a **ruleset**,
 not in classic branch protection — the classic endpoint this docstring told
-readers to consult answers 404 (see ``docs/adr/0011-*``: ``fast-gates`` is the
-sole required check by design).
+readers to consult answers 404 (see ``docs/adr/0011-*``; since 2026-08-27 the
+four ``validate (N)`` shard contexts are required alongside ``fast-gates``).
 
 What this pin is actually worth, then, is narrower but real: ``ci.yml`` is
 where the repo's **only full-suite execution** lives, and it runs on main

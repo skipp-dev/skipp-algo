@@ -41,12 +41,12 @@ BRANCH = "main"
 # context (the GitHub Actions job name), not the classic "workflow / job" path.
 REQUIRED_STATUS_CHECKS: list[str] = [
     "fast-gates",
+    # 2026-08-27 (ADR-0012 Operator-Punkt 1): since #4927 the PR lane runs the
+    # slow complement for real; after 21 measured heavy green runs the four
+    # validate shard contexts joined the `main-governance` ruleset. Doc-only
+    # PRs stay mergeable: ci.yml's push lane reports them on every branch.
+    "validate (1)", "validate (2)", "validate (3)", "validate (4)",
 ]
-
-# No recommended-but-optional required checks. Gating on the full `validate`
-# suite before merge would need a merge queue, which is an organization-only
-# GitHub feature and unavailable on this user-owned repo; the
-# `lo-ci-full-suite-red` Grafana alert covers a red main-CI instead (2026-07-09).
 RECOMMENDED_STATUS_CHECKS: list[str] = []
 
 API_BASE = "https://api.github.com"

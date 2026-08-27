@@ -166,7 +166,7 @@ def test_the_remedy_names_both_places_the_registration_lives() -> None:
 
 
 def test_the_guard_is_wired_into_fast_gates() -> None:
-    """fast-gates is the only required check (ADR-0011).
+    """fast-gates is the required PR-time gate (ADR-0011; since 2026-08-27 the validate shards are also required).
 
     A guard in any other workflow would go red without blocking the merge —
     which is how #4284 landed while the R1 contract was already failing on main.
