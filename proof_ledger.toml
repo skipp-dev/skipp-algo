@@ -1282,3 +1282,23 @@ claim  = "Watchlist-Zeile ats-baseline-daily.yml=72:weekday ist beidseitig suite
 state  = "AUSGENOMMEN"
 due_by = "2026-08-26"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# 5119 -- Issue-Opener dedupet je KLASSE (27.8.): waehrend der Dormanz feuert
+# der Cron taeglich, die Datums-Dedupe erzeugte pro Tag ein neues Issue
+# (#5110 neben Halter #5081). AUSGENOMMEN nach Muster #5077/#5088: die
+# Wirkung ist suite-AUSFUEHRBAR bewiesen -- zwei Drill-Tests im Advisory-
+# Chain-Harness fuehren den ECHTEN run-Block mit gh-Stub aus (offener
+# Halter -> Kommentar auf den aeltesten, keiner -> Neu-Issue; Mutations-
+# probe: Holder-Zweig deaktiviert => rot). Die Klassen-Heuristik
+# (test_imported) sieht nur statische Importe, keine YAML-Auswertung.
+# Lehre desselben PRs: das Offline-Gate VOR dem Commit gefahren ist ein
+# leerer Range und misst nichts -- erst committen, dann messen.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5119"
+kind   = "exempt"
+claim  = "Klassen-Dedupe des Cron-Issue-Openers ist suite-ausfuehrbar bewiesen (echter Step-Bash im Harness, beide Zweige + Mutationsprobe)"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-27"
+owner  = "operator"
