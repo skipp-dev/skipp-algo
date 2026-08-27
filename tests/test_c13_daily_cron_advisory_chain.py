@@ -451,3 +451,62 @@ def test_a_corpus_soft_skip_does_not_open_an_issue() -> None:
     assert evaluate_condition(
         _CONDITIONS[_ISSUE_STEP], {"corpus.rc": "1", "backfill.rc": "0"}
     ), "ein ECHTER corpus-Fehler muss das Issue weiterhin oeffnen"
+
+
+# --------------------------------------------------------------------------
+# Issue-Opener: Dedupe je KLASSE (27.8., #5119) — der echte Step-Bash, ausgefuehrt
+# --------------------------------------------------------------------------
+# Waehrend der Broker-Dormanz feuert der Opener taeglich; die Datums-Dedupe
+# erzeugte pro Tag ein neues Issue derselben Klasse (#5110 neben #5081).
+# Diese zwei Tests fuehren den ECHTEN run-Block mit gh-Stub aus (Muster
+# _workflow_step_shell): offener Halter -> Kommentar auf den aeltesten,
+# kein Halter -> weiterhin Neu-Issue.
+
+_ISSUE_EXPRESSIONS = {
+    "steps.date.outputs.date": DATE,
+    "github.server_url": "https://github.test",
+    "github.repository": "skipp-dev/skipp-algo",
+    "github.run_id": "0",
+    **{
+        f"steps.{sid}.outputs.rc": "1"
+        for sid in (
+            "status_markers", "backfill", "backfill_progress", "drift_input",
+            "backtest_ref", "drift", "slippage_sample", "corpus", "families",
+            "emit_public",
+        )
+    },
+}
+
+# gh-Stub: repo view -> Issues aktiv; issue list -> Halter aus dem Test-Env
+# (leer = keiner offen); comment/create werden nur AUFGEZEICHNET.
+_GH_SCRIPT = 'case "$1 $2" in "repo view") echo "true" ;; "issue list") printf "%s" "${SKIPP_TEST_OPEN_HOLDER:-}" ;; esac'
+
+
+def _run_issue_step(tmp_path: Path, holder: str):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    return run_step(
+        WORKFLOW, _ISSUE_STEP, tmp_path,
+        env={"SKIPP_TEST_OPEN_HOLDER": holder},
+        stubs={"gh": Stub(script=_GH_SCRIPT)},
+        expressions=_ISSUE_EXPRESSIONS,
+    )
+
+
+def test_a_daily_failure_lands_on_the_open_holder_instead_of_a_new_issue(tmp_path: Path) -> None:
+    run = _run_issue_step(tmp_path / "holder", holder="5081")
+    assert run.returncode == 0, run.stderr
+    assert run.called_with("issue", "comment", "5081"), (
+        f"der Tagesbefund muss als Kommentar auf dem offenen Halter landen: {run.calls}"
+    )
+    assert not run.called_with("issue", "create"), (
+        f"solange ein cron-failure-Issue offen ist, darf kein neues entstehen: {run.calls}"
+    )
+
+
+def test_without_an_open_holder_a_new_issue_is_still_created(tmp_path: Path) -> None:
+    run = _run_issue_step(tmp_path / "leer", holder="")
+    assert run.returncode == 0, run.stderr
+    assert run.called_with("issue", "create"), (
+        f"ohne offenen Halter muss weiterhin ein Issue entstehen: {run.calls}"
+    )
+    assert not run.called_with("issue", "comment"), run.calls
