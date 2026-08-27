@@ -4,11 +4,14 @@ import * as path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { pineDeclarationTitlePattern } from "../lib/tv_shared.js";
+import { extractPineDeclarationTitle, pineDeclarationTitlePattern } from "../lib/tv_shared.js";
 import {
+  SOURCE_READBACK_IDENTITY_MISMATCH_EVENT,
+  SOURCE_SAVE_PERSISTED_MISMATCH_EVENT,
   assertConsumerEditorSource,
   assertConsumerPreWriteSource,
   expectedDeclarationOf,
+  judgePersistedConsumerSource,
   pineSourceSha256,
 } from "../../../scripts/tv_save_consumer_source.js";
 
@@ -142,4 +145,146 @@ test("without declarationTitle the name-equals-declaration behavior is unchanged
 
   assert.equal(expectedDeclarationOf(target), "SMC Long-Dip Suite");
   assert.equal(assertConsumerPreWriteSource(target, model), "declaration");
+});
+
+// ── Persisted-store readback (run 33031264859, 2026-08-27) ──────────────────
+//
+// The editor-buffer readback verified this run's own staged content while the
+// saved-script store held a sibling consumer's source in the slot. These pin
+// the identity-first judgement of whatever the persisted store serves, and
+// the wiring that makes the store — not the editor — the readback authority.
+
+test("extractPineDeclarationTitle reads the declaration, not mentions or imports", () => {
+  assert.equal(
+    extractPineDeclarationTitle('//@version=6\nindicator("SMC Long-Dip Mobile", overlay = true)\n'),
+    "SMC Long-Dip Mobile",
+  );
+  assert.equal(
+    extractPineDeclarationTitle("//@version=6\nstrategy('SMC Long-Dip Strategy', overlay = true)\n"),
+    "SMC Long-Dip Strategy",
+  );
+  assert.equal(
+    extractPineDeclarationTitle('library("smc_bus_private", overlay = false)'),
+    "smc_bus_private",
+  );
+  assert.equal(
+    extractPineDeclarationTitle('//@version=6\nindicator(title = "SMC Setup Check")\n'),
+    "SMC Setup Check",
+  );
+  // A comment or binding label mentioning a declaration must not count.
+  assert.equal(extractPineDeclarationTitle('// indicator: none\ns = input.source(close, "X")'), null);
+  assert.equal(extractPineDeclarationTitle(""), null);
+});
+
+test("persisted judgement accepts the slot only under its own declaration", () => {
+  const target = { source: "SMC_Long_Dip_Mobile.pine", scriptName: "SMC Long-Dip Mobile" };
+  const repoSource = '//@version=6\nindicator("SMC Long-Dip Mobile")\nplot(close)\n';
+  const expectedSha256 = pineSourceSha256(repoSource);
+
+  const match = judgePersistedConsumerSource(target, repoSource, expectedSha256);
+  assert.deepEqual(match, { verdict: "match", actualSha256: expectedSha256 });
+
+  // Same declaration, older body: honest drift, not an identity refusal.
+  const stale = repoSource.replace("plot(close)", "plot(open)");
+  const drift = judgePersistedConsumerSource(target, stale, expectedSha256);
+  assert.equal(drift.verdict, "sha-mismatch");
+  assert.ok(drift.verdict === "sha-mismatch" && drift.actualSha256 !== expectedSha256);
+
+  // The proven cross-write: the Mobile slot serving the Strategy source must
+  // be refused BEFORE any hash talk, with the `<name>:<foundTitle>` payload.
+  const crossWrite = judgePersistedConsumerSource(
+    target,
+    '//@version=6\nstrategy("SMC Long-Dip Strategy")\nplot(close)\n',
+    expectedSha256,
+  );
+  assert.equal(crossWrite.verdict, "identity-mismatch");
+  assert.ok(crossWrite.verdict === "identity-mismatch");
+  assert.equal(crossWrite.foundTitle, "SMC Long-Dip Strategy");
+  assert.equal(crossWrite.traceDetail, "SMC Long-Dip Mobile:SMC Long-Dip Strategy");
+
+  // A slot with no declaration at all is an identity mismatch too.
+  const empty = judgePersistedConsumerSource(target, "// empty slot", expectedSha256);
+  assert.equal(empty.verdict, "identity-mismatch");
+  assert.ok(empty.verdict === "identity-mismatch" && empty.foundTitle === null);
+  assert.equal(empty.traceDetail, "SMC Long-Dip Mobile:no-declaration");
+});
+
+test("persisted judgement honors an explicit declarationTitle (Hold Manager split)", () => {
+  const target = {
+    source: "SMC_Hold_Manager.pine",
+    scriptName: "SMC Hold Manager R2.4 Validation",
+    declarationTitle: "SMC Hold Manager",
+  };
+  const persisted = '//@version=6\nindicator("SMC Hold Manager", overlay = true)\nplot(close)\n';
+  const judged = judgePersistedConsumerSource(target, persisted, pineSourceSha256(persisted));
+  assert.equal(judged.verdict, "match");
+});
+
+test("fail-closed trace events keep their published names", () => {
+  // The proof ledger's witness greps the save-job log for these exact names;
+  // renaming them must be a conscious edit here, not a drive-by.
+  assert.equal(SOURCE_READBACK_IDENTITY_MISMATCH_EVENT, "source-readback-identity-mismatch");
+  assert.equal(SOURCE_SAVE_PERSISTED_MISMATCH_EVENT, "source-save-persisted-mismatch");
+});
+
+test("readback authority wiring: facade store first, unfiltered editor fallback, identity gate on both", () => {
+  const script = fs.readFileSync(path.join(repoRoot, "scripts/tv_save_consumer_source.ts"), "utf-8");
+  const verifyAt = script.indexOf("export async function verifyConsumerSource");
+  const cliAt = script.indexOf("export async function runSaveConsumerSourceCli");
+  assert.ok(verifyAt > 0, "verifyConsumerSource must exist");
+  assert.ok(cliAt > verifyAt, "cli entry must follow verifyConsumerSource");
+  const verifyBody = script.slice(verifyAt, cliAt);
+
+  // 1) The persisted store is consulted BEFORE any editor surface.
+  const facadeAt = verifyBody.indexOf("fetchSavedScriptSourceViaFacade(");
+  const openAt = verifyBody.indexOf("openExistingScript(");
+  assert.ok(facadeAt > 0, "verify must fetch the pine-facade saved source");
+  assert.ok(openAt > facadeAt, "the editor open is the FALLBACK, after the facade store");
+
+  // 2) The fallback read must NOT filter by the expected declaration — that
+  //    expectation-filter is how run 33031264859 verified its own buffer.
+  const readAt = verifyBody.indexOf("readEditorContent(");
+  assert.ok(readAt > 0, "fallback read exists");
+  const readCall = verifyBody.slice(readAt, verifyBody.indexOf("})", readAt));
+  assert.ok(
+    !readCall.includes("expectedDeclarationTitle"),
+    "fallback readEditorContent must read what the open actually loaded, not hunt for the expected declaration",
+  );
+
+  // 3) Both paths flow into the identity-gated judgement and its trace event.
+  assert.ok(verifyBody.includes("judgePersistedConsumerSource("), "verify must judge identity before hashes");
+  assert.ok(
+    verifyBody.includes("SOURCE_READBACK_IDENTITY_MISMATCH_EVENT"),
+    "the identity refusal must trace source-readback-identity-mismatch",
+  );
+
+  // 4) The write path proves the persisted slot after the save.
+  const saveAt = script.indexOf("export async function saveConsumerSource");
+  assert.ok(saveAt > 0);
+  const saveBody = script.slice(saveAt, verifyAt);
+  const saveScriptAt = saveBody.indexOf("await saveScript(");
+  const savePersistedAt = saveBody.indexOf("fetchSavedScriptSourceViaFacade(");
+  assert.ok(saveScriptAt > 0 && savePersistedAt > saveScriptAt, "post-save persisted proof must follow the save");
+  assert.ok(saveBody.includes("SOURCE_SAVE_PERSISTED_MISMATCH_EVENT"), "persisted refusal must trace its event");
+});
+
+test("extractPineDeclarationTitle resolves EVERY rollout consumer source to its declared title", () => {
+  // Full population, not a sample: the persisted readback fail-closes on the
+  // extracted title, so a source the extractor cannot resolve (wrapped
+  // declaration, leading comment mentioning indicator(/strategy() would turn
+  // into a false-red identity mismatch on the next save run. Measured
+  // 2026-08-28: 12/12 resolve. A new consumer that breaks this goes red HERE,
+  // in CI, not in the browser run.
+  const config = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "automation/tradingview/config/consumer-rollout.json"), "utf-8"),
+  ) as { saveTargets: Array<{ source: string; scriptName: string; declarationTitle?: string }> };
+  assert.ok(config.saveTargets.length >= 8);
+  for (const target of config.saveTargets) {
+    const code = fs.readFileSync(path.join(repoRoot, target.source), "utf-8");
+    assert.equal(
+      extractPineDeclarationTitle(code),
+      expectedDeclarationOf(target),
+      `${target.source}: extractor must resolve the declared title`,
+    );
+  }
 });

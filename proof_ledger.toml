@@ -309,6 +309,62 @@ hier defensiver Code fuer die Abholung, keine Aussage ueber Lauf-Varianten.
 """
 
 # ---------------------------------------------------------------------------
+# tv_source_readback (2026-08-28): der Fix, dessen Spuren dieser Urteiler
+# liest (source-readback-authority / source-readback-identity-mismatch /
+# source-save-persisted-mismatch), ist Teil DIESER Aenderung — er existiert
+# auf keinem main-Commit und kann noch keinen Zeugenlauf erzeugt haben
+# (gleiches Muster wie proof_ledger_monitor_self, 24.8.). Der Korpus traegt
+# bereits den PRAE-Fix-Blindlauf 33031264859 (Zweig readback_never_ran);
+# alle Nach-Fix-Zweige sind konstruktionsbedingt unbeobachtet, bis der
+# erste save-Lauf nach dem Merge aufgezeichnet ist. Der Widerspruchs-Test
+# erzwingt dann die Entfernung dieser Deklarationen.
+# ---------------------------------------------------------------------------
+[[unreachable_branch]]
+judge  = "tv_source_readback"
+branch = "no_log"
+reason = """
+2026-08-28: dieselbe Messung wie beim tv_legend_click-no_log-Zweig — der
+Runner schreibt Setup/Teardown immer, evidence["log"] wird nur leer, wenn
+der Log-ABRUF scheitert. Defensiver Abhol-Code, kein Lauf-Inhalt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_source_readback"
+branch = "fail_closed_fired"
+reason = """
+2026-08-28: die Events source-readback-identity-mismatch /
+source-save-persisted-mismatch existieren erst mit diesem Fix; kein main-
+Commit traegt ihn, also kann kein aufgezeichneter Lauf sie enthalten.
+Erreichbar ab dem ersten Nach-Merge-Lauf, der einen kontaminierten Slot
+vorfindet (der Mobile-Slot traegt Stand 28.8. noch Strategy@364 — der
+naechste Schreiblauf saved ihn frisch; faende die Ruecklese danach erneut
+Fremd-Deklaration, feuert genau dieser Zweig).
+"""
+
+[[unreachable_branch]]
+judge  = "tv_source_readback"
+branch = "facade_never_resolved"
+reason = """
+2026-08-28: source-readback-authority existiert erst mit diesem Fix (siehe
+fail_closed_fired). Dieser Zweig ist zudem der Alarm fuer die lokal nicht
+pruefbare Endpoint-Annahme (pine-facade get/<id>/<version> — Session nur in
+CI): liefert der Endpoint nicht, faellt JEDE Ruecklese auf editor-fallback
+zurueck und dieser Zweig meldet FAIL statt still gruen.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_source_readback"
+branch = "facade_authoritative"
+reason = """
+2026-08-28: source-readback-authority existiert erst mit diesem Fix (siehe
+fail_closed_fired). Dies ist der erwartete Erfolgszweig des ersten
+Nach-Merge-Schreiblaufs; seine Aufzeichnung (tests/proof_corpus/
+tv_source_readback/<job_id>.json) entfernt diese Deklaration per
+Widerspruchs-Test und traegt den PASS des Ledger-Eintrags
+tv-source-readback-persisted-store.
+"""
+
+# ---------------------------------------------------------------------------
 # Task 7 (2026-08-24): proof_ledger_monitor_self urteilt ueber den Report des
 # Monitors selbst (scripts/judge_proof_ledger.py). Der Workflow, der diesen
 # Zeugen erzeugen wuerde (.github/workflows/proof-ledger-monitor.yml), ist
@@ -1302,3 +1358,50 @@ claim  = "Klassen-Dedupe des Cron-Issue-Openers ist suite-ausfuehrbar bewiesen (
 state  = "AUSGENOMMEN"
 due_by = "2026-08-27"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# tv-source-readback-persisted-store (28.8.): Lauf 33031264859 (27.8.,
+# Pin /364, sourceSavesCompleted=12) persistierte den Strategy-Quelltext im
+# gespeicherten Slot "SMC Long-Dip Mobile" (Operator-Beweis 28.8.: Pine-
+# Editor-Oeffnung UND frisches Hinzufuegen aus dem Indicators-Dialog; kein
+# anderer Lauf schrieb dazwischen — alle spaeteren 27.8.-Laeufe brachen
+# verify-only am 366/367-Publish-Drift ab, der naechste Queue-Lauf startete
+# nie) — und meldete trotzdem "SMC Long-Dip Mobile matches=true" (Report
+# 11:25:36Z). Die Verifikation lief NACH einem harten Reload (11:08:02Z):
+# der Reload verwirft TradingViews per-Skript-Arbeitspuffer nicht, und
+# readEditorContent WAEHLTE den Puffer anhand des ERWARTETEN
+# Deklarationstitels aus (buildPineEditorModelPickerSource) — die Ruecklese
+# beantwortete "sieht ein sichtbarer Puffer aus wie erwartet", nie "was
+# liegt im Bestand". FIX: verifyConsumerSource liest den PERSISTIERTEN
+# Bestand ueber die pine-facade (list?filter=saved + get/<id>/<version>),
+# Editor nur noch als getraceter Fallback OHNE Erwartungsfilter; beidseitig
+# Deklarationszeilen-Identitaet fail-closed
+# (`source-readback-identity-mismatch <name>:<gefundenerTitel>`), und jeder
+# Save prueft danach den Bestand (`source-save-persisted-mismatch`).
+# UNBEWIESEN, was TV-seitig den Save an den falschen Slot band — alle
+# Repo-seitigen Signale des Schreibpfads waren gruen (preWriteIdentityMode
+# 12x "declaration"); der Fix macht die KLASSE am Bestand sichtbar, statt
+# den TV-Mechanismus zu raten. Die get/<id>/<version>-Endpoint-Form ist
+# lokal nicht pruefbar (Session nur in CI) — liefert sie nicht, faellt die
+# Ruecklese sichtbar auf editor-fallback zurueck und der Urteiler meldet
+# FAIL (facade_never_resolved), nicht still gruen.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "tv-source-readback-persisted-store"
+kind            = "fix"
+claim           = "Die Quell-Ruecklese urteilt ueber den persistierten Saved-Script-Bestand (pine-facade), nicht ueber den eigenen Editor-Puffer, und lehnt Fremd-Deklarationen fail-closed ab"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5098/#5118: die Spuren stehen im Job-LOG; Zeugensammler ist
+# tv_gate_probe_check.sh. Erwarteter Erfolgszeuge: `source-readback-authority
+# facade:<name>:v<version>` je Consumer (oder ein feuernder
+# `source-readback-identity-mismatch`, der den fail-closed-Zweig live belegt).
+evidence_source = "job_log"
+artifact        = ""
+# `source-readback-authority` existiert erst mit diesem Fix; ihre ABWESENHEIT
+# beweist nichts (#5018-Regel) — dann lief die Quell-Verifikation nie.
+version_probe   = "source-readback-authority"
+judge           = "tv_source_readback"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"

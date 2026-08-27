@@ -8,6 +8,11 @@ import {
   visiblePineSourceTransitionVerified,
   waitForVisiblePineDeclarationIdentity,
 } from "../lib/tv_shared.js";
+import {
+  SOURCE_READBACK_IDENTITY_MISMATCH_EVENT,
+  judgePersistedConsumerSource,
+  pineSourceSha256,
+} from "../../../scripts/tv_save_consumer_source.js";
 
 const SUITE_TITLE = "SMC Long-Dip Suite";
 const SUITE_PATTERN = pineDeclarationTitlePattern(SUITE_TITLE).source;
@@ -177,4 +182,63 @@ test("visible declaration wait rejects a UI-only switch and accepts the loaded e
     true,
   );
   assert.equal(evaluations, 2);
+});
+
+// ── Run 33031264859 (2026-08-27), cross-write readback blindness — pinned ───
+//
+// The rollout saved 12 consumers (10:59Z job, pin /364) and its source
+// verification reported "SMC Long-Dip Mobile matches=true" — while the
+// PERSISTED saved-script slot held the SMC Long-Dip Strategy source at that
+// same pin (operator proof 2026-08-28: Pine-editor open AND a fresh add from
+// the Indicators dialog; no other run saved sources in between — every later
+// 27.8. run aborted verify-only on the 366/367 publish drift, the next queued
+// run never started). The verify pass even ran AFTER a hard page reload
+// (11:08:02Z), so the reload does not discard TradingView's per-script
+// working buffers. The pair below is the behavioral red-proof: the OLD
+// expectation-filtered picker accepts that state as a match, the NEW
+// persisted-source judgement rejects it fail-closed.
+
+const MOBILE_TITLE = "SMC Long-Dip Mobile";
+const MOBILE_REPO_SOURCE = `//@version=6\nindicator("${MOBILE_TITLE}", overlay = true)\nplot(close)\n`;
+const STRATEGY_PERSISTED_SOURCE =
+  '//@version=6\nstrategy("SMC Long-Dip Strategy", overlay = true)\nstrategy.entry("L", strategy.long)\n';
+
+test("RED-PROOF: the old expectation-filtered readback verifies the session's own buffer and cannot see the persisted cross-write", () => {
+  // The page state of run 33031264859 during its verify pass: the single
+  // visible editor serves the session's own staged Mobile buffer; the
+  // saved-script store (holding the Strategy source in the Mobile slot) is
+  // not reachable through any Monaco model. The old readback selected the
+  // buffer BY the expected declaration pattern — "does any visible buffer
+  // look like what I expect" — and its hash comparison then reported the
+  // false matches=true against the repo file.
+  const ownStagedBuffer = {
+    getModel: () => ({ getValue: () => MOBILE_REPO_SOURCE }),
+    getDomNode: () => ({ isConnected: true, getBoundingClientRect: () => ({ width: 800, height: 600 }) }),
+    hasTextFocus: () => true,
+  };
+  const picked = runPicker(
+    pineDeclarationTitlePattern(MOBILE_TITLE).source,
+    { monaco: monacoWithModels([MOBILE_REPO_SOURCE], [ownStagedBuffer]) },
+    true,
+  );
+  assert.equal(picked.reason, "editor-declaration-match");
+  assert.equal(picked.value, MOBILE_REPO_SOURCE);
+  // Exactly the old verify decision on that read: expected == actual.
+  assert.equal(pineSourceSha256(picked.value ?? ""), pineSourceSha256(MOBILE_REPO_SOURCE));
+});
+
+test("the new persisted-source judgement rejects the same cross-write state fail-closed", () => {
+  const target = { source: "SMC_Long_Dip_Mobile.pine", scriptName: MOBILE_TITLE };
+  const judged = judgePersistedConsumerSource(
+    target,
+    STRATEGY_PERSISTED_SOURCE,
+    pineSourceSha256(MOBILE_REPO_SOURCE),
+  );
+  assert.equal(judged.verdict, "identity-mismatch");
+  assert.ok(judged.verdict === "identity-mismatch");
+  assert.equal(judged.foundTitle, "SMC Long-Dip Strategy");
+  // The traceDetail is the exact `<name>:<foundTitle>` payload of the
+  // fail-closed trace event the readback emits.
+  assert.equal(judged.traceDetail, `${MOBILE_TITLE}:SMC Long-Dip Strategy`);
+  assert.equal(SOURCE_READBACK_IDENTITY_MISMATCH_EVENT, "source-readback-identity-mismatch");
 });
