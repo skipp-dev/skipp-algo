@@ -5545,6 +5545,29 @@ export function formatLegendRowScanDetail(scan: LegendRowScanCounts): string {
 }
 
 /**
+ * Ist diese Knopf-Menge die einer EINZELNEN Legendenzeile?
+ *
+ * Messgrund (Lauf 32957051467, 2026-08-27 01:44/01:45Z — erste Auswertung
+ * der #5098-Skip-Zaehler): beide Alerts-Scans starben mit `actions=1` — der
+ * einzige sichtbare, nicht ausgeschlossene Kandidat fiel an der alten
+ * Summenregel `count !== 1` ueber BEIDE Knopfarten, weil die Hover-Leiste
+ * der Zeile Settings- UND More-Knopf traegt (Summe 2). Der Filter, der
+ * Pane-Container aussieben soll, frass die Zielzeile — ausgerechnet auf dem
+ * Eskalationspfad, der den Settings-Knopf klicken will.
+ *
+ * Der tragfaehige Container-Diskriminator ist die Zahl der SETTINGS-Knoepfe:
+ * eine enge Zeile traegt genau einen (egal ob daneben ein More-Knopf steht),
+ * ein Container mit N Zeilen traegt N. Zeilen ganz ohne Settings-Knopf
+ * bleiben wie bisher ueber genau einen More-Knopf zugelassen.
+ */
+export function isSingleLegendRowActionSet(settingsCount: number, moreCount: number): boolean {
+  if (settingsCount === 1) {
+    return true;
+  }
+  return settingsCount === 0 && moreCount === 1;
+}
+
+/**
  * Text-first legend row discovery, for rows the button-first probes miss.
  *
  * Run 30702240413, same session, same DOM: {@link findLegendRowWrappers}
@@ -5596,13 +5619,19 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
         continue;
       }
       // Tight row only — a pane container carries the text of every study
-      // below it and exactly this over-match is why the wrapper probe grew
-      // its one-legend-action rule. Mirror it for either current TV action.
-      const legendActionCount = await wrapper
-        .locator('button[data-qa-id="legend-settings-action"], button[data-qa-id="legend-more-action"]')
+      // below it. Diskriminator ist die Zahl der SETTINGS-Knoepfe (siehe
+      // isSingleLegendRowActionSet): die alte Summenregel ueber beide
+      // Knopfarten frass eine echte Zeile mit Settings+More (Summe 2) —
+      // Lauf 32957051467, actions=1 in beiden Alerts-Scans.
+      const settingsActionCount = await wrapper
+        .locator('button[data-qa-id="legend-settings-action"]')
         .count()
         .catch(() => 0);
-      if (legendActionCount !== 1) {
+      const moreActionCount = await wrapper
+        .locator('button[data-qa-id="legend-more-action"]')
+        .count()
+        .catch(() => 0);
+      if (!isSingleLegendRowActionSet(settingsActionCount, moreActionCount)) {
         scan.actionCount += 1;
         continue;
       }

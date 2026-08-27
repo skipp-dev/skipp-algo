@@ -809,7 +809,43 @@ claim           = "openSettingsForScript laeuft bei SMC Long-Dip Alerts in den T
 # Eskalations-Erfolg => Knopf-Pfad). Beobachtet wird das mechanisiert von
 # ~/.claude/scripts/tv_gate_probe_check.sh (Job-Log-Zeugensammler, 26.8.).
 # ---------------------------------------------------------------------------
+# STAND 2026-08-27, Lauf 32957051467 (save-Job 01:38:57Z, trug #5098 per
+# Job-Start nachweislich) -- erste Auswertung BEIDER neuen Instrumente:
+#
+# 1. NACHZIEH-THESE ALS ALLEIN-URSACHE GESCHWAECHT: 6 identity-mismatches
+#    UEBERLEBTEN die 1,2-s-Nachlese (`identity-title-settled`: 0 Treffer im
+#    Log). Der fremde Titel steht laenger als die Staffel oder der Dialog
+#    ist wirklich der des Nachbarn. #5098 bleibt als Haertung korrekt
+#    (verhindert das Schliessen eines spaet-richtigen Dialogs), traegt aber
+#    nicht als Erklaerung dieses Laufs.
+#
+# 2. DAS rows:0-RAETSEL IST GELOEST -- die #5098-Skip-Zaehler benennen es:
+#    `...scan-empty SMC Long-Dip Alerts:matches=3:invisible=1:excluded=1:
+#    no-wrapper=0:text=0:actions=1:dup=0` (zweiter Scan analog). Der einzige
+#    reale Kandidat starb am Enge-Zeile-Filter: die Summenregel `count!=1`
+#    zaehlte Settings- UND More-Knopf zusammen (Hover-Leiste traegt beide).
+#    FIX #5118: isSingleLegendRowActionSet -- Diskriminator ist die Zahl der
+#    SETTINGS-Knoepfe. Damit ist der Eskalationspfad (#5069) erstmals
+#    tatsaechlich begehbar; sein Erfolg ist der naechste erwartete Zeuge.
+# ---------------------------------------------------------------------------
 state           = "UNGESICHERT"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[proof]]
+id              = "5118"
+kind            = "fix"
+claim           = "Der Enge-Zeile-Filter laesst die Zielzeile mit Settings+More-Knopf durch; die Eskalation erreicht den Settings-Knopf"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+# Wie #5018/#5027/#5098: die Spuren stehen im Job-LOG; Zeugensammler ist
+# tv_gate_probe_check.sh. Erwarteter Erfolgszeuge: `escalation-rows ...:1`
+# gefolgt von `-settings-clicked`/`-dialog` statt `-miss`.
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "escalation-rows mit Wert >0 nach einem armed"
+judge           = "tv_legend_click"
+state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "operator"
 

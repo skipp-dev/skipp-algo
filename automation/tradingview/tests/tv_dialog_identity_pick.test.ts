@@ -8,6 +8,7 @@ import {
   classifyDialogAtFailure,
   formatLegendDblclickBoxDetail,
   formatLegendRowScanDetail,
+  isSingleLegendRowActionSet,
   pickDialogForScript,
   recordSettingsIdentityMismatch,
   resetSettingsIdentityMismatchCount,
@@ -431,6 +432,40 @@ test("formatLegendRowScanDetail nennt jeden stillen Skip-Grund mit seiner Zahl",
     dup: 0,
   });
   assert.equal(detail, "matches=3:invisible=1:excluded=1:no-wrapper=1:text=0:actions=0:dup=0");
+});
+
+// Lauf 32957051467 (27.8., erste Auswertung der #5098-Skip-Zaehler): beide
+// Alerts-Scans starben mit actions=1 — der einzige sichtbare, nicht
+// ausgeschlossene Kandidat fiel am alten `count !== 1` ueber BEIDE
+// Knopfarten, weil die Hover-Leiste der Zeile Settings- UND More-Knopf
+// traegt (Summe 2). Der Container-Diskriminator ist die Zahl der
+// SETTINGS-Knoepfe, nicht die Gesamtsumme.
+
+test("die gemessene Zielzeile (Settings+More gleichzeitig) ist eine enge Zeile", () => {
+  assert.equal(isSingleLegendRowActionSet(1, 1), true, "genau der Fall, der die Eskalation blockierte");
+});
+
+test("eine Zeile mit nur einem der beiden Knoepfe bleibt zugelassen", () => {
+  assert.equal(isSingleLegendRowActionSet(1, 0), true);
+  assert.equal(isSingleLegendRowActionSet(0, 1), true, "bisheriges Verhalten fuer More-only-Zeilen");
+});
+
+test("Pane-Container (mehrere Zeilen-Knopfsaetze) und knopflose Wrapper bleiben draussen", () => {
+  assert.equal(isSingleLegendRowActionSet(2, 2), false, "2 Zeilen im Container");
+  assert.equal(isSingleLegendRowActionSet(3, 3), false);
+  assert.equal(isSingleLegendRowActionSet(2, 0), false);
+  assert.equal(isSingleLegendRowActionSet(0, 2), false);
+  assert.equal(isSingleLegendRowActionSet(0, 0), false, "ohne Knopf ist nichts klickbar");
+});
+
+test("der Zeilen-Scan filtert ueber das Praedikat, mit getrennten Zaehlungen (Verdrahtung)", () => {
+  const body = functionBody(tvSharedSource(), "export async function findLegendRowWrappersByVisibleText(");
+  assert.match(
+    body,
+    /isSingleLegendRowActionSet\(/,
+    "der actions-Filter muss durch das Praedikat laufen — die alte Summenregel "
+    + "`count !== 1` frass die Zielzeile mit Settings+More (Lauf 32957051467)",
+  );
 });
 
 test("findLegendRowWrappersByVisibleText benennt ein Leer-Ergebnis mit den Scan-Zaehlern (Verdrahtung)", () => {
