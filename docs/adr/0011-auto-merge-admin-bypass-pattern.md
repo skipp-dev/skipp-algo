@@ -83,7 +83,8 @@ bot) is adopted immediately.
 ## Implementation
 
 The decision is reflected in the live `main` branch-protection config
-(required reviews absent; only the `fast-gates` status check required) and
+(required reviews absent; `fast-gates` plus — since 2026-08-27, ADR-0012
+Operator-Punkt 1 — the four `validate (N)` shard contexts required) and
 in the audit tooling that verifies it:
 
 - `scripts/verify_branch_protection.py` treats **absence of a required-review
@@ -91,8 +92,9 @@ in the audit tooling that verifies it:
   baseline**, reported informationally (`warn`). A **non-zero approval
   requirement is a hard `error`**, not "stricter": a positive approval count
   recreates the exact self-approval / admin-bypass failure mode this ADR
-  eliminates. The single hard merge gate remains the required `fast-gates`
-  status check.
+  eliminates. The hard merge gates are the required status checks
+  (`fast-gates`; since 2026-08-27 also `validate (1)`–`validate (4)`),
+  never an approval.
 - `tests/test_verify_branch_protection.py` pins all three shapes: required
   reviews absent (baseline — passes, `warn`), present with 0 approvals
   (passes, `warn`), and present with a positive approval count (fails,

@@ -73,7 +73,12 @@ _FULL_PROTECTION_RESPONSE = {
         "strict": True,
         "checks": [
             {"context": "smc-fast-pr-gates / fast-gates"},
-            {"context": "CI / validate"},
+            # 2026-08-27: validate is required as four shard contexts (ADR-0012
+            # Operator-Punkt 1); the healthy baseline carries all of them.
+            {"context": "CI / validate (1)"},
+            {"context": "CI / validate (2)"},
+            {"context": "CI / validate (3)"},
+            {"context": "CI / validate (4)"},
         ],
     },
     "allow_force_pushes": {"enabled": False},
@@ -187,7 +192,11 @@ class TestCheckRulesets:
             "rules": [
                 {"type": "pull_request", "parameters": {"required_approving_review_count": 0}},
                 {"type": "required_status_checks", "parameters": {
-                    "required_status_checks": [{"context": "fast-gates"}]
+                    "required_status_checks": [
+                        {"context": "fast-gates"},
+                        {"context": "validate (1)"}, {"context": "validate (2)"},
+                        {"context": "validate (3)"}, {"context": "validate (4)"},
+                    ]
                 }},
                 {"type": "non_fast_forward"},
                 {"type": "deletion"},
@@ -241,6 +250,41 @@ class TestCheckRulesets:
         failed = [r.name for r in report.results if not r.passed and r.severity == "error"]
         assert "ruleset_no_required_reviews" in failed
 
+    def test_ruleset_without_validate_shards_fails(self, mod: types.ModuleType) -> None:
+        """2026-08-27 (ADR-0012 Operator-Punkt 1): silently dropping the four
+        validate shard contexts from the ruleset must turn the verifier red —
+        a minimum-only guard would never fire on that removal."""
+        rulesets_list = [
+            {"id": 1, "name": "main-governance", "enforcement": "active"},
+        ]
+        ruleset_detail = {
+            "id": 1,
+            "name": "main-governance",
+            "enforcement": "active",
+            "rules": [
+                {"type": "pull_request", "parameters": {"required_approving_review_count": 0}},
+                {"type": "required_status_checks", "parameters": {
+                    "required_status_checks": [{"context": "fast-gates"}]
+                }},
+                {"type": "non_fast_forward"},
+                {"type": "deletion"},
+            ],
+        }
+
+        def _mock_get(path: str, token: str) -> tuple[int, Any]:
+            if "/rulesets/1" in path:
+                return 200, ruleset_detail
+            return 200, rulesets_list
+
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", side_effect=_mock_get):
+            mod._check_rulesets("fake-token", report)
+
+        assert not report.passed
+        failed = [r.name for r in report.results if not r.passed and r.severity == "error"]
+        assert "ruleset_check::validate (1)" in failed
+        assert "ruleset_check::validate (4)" in failed
+
     def test_no_rulesets_warns_only(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()
         with patch.object(mod, "_github_get", return_value=(200, [])):
@@ -272,7 +316,11 @@ class TestMain:
             "rules": [
                 {"type": "pull_request", "parameters": {}},
                 {"type": "required_status_checks", "parameters": {
-                    "required_status_checks": [{"context": "fast-gates"}]
+                    "required_status_checks": [
+                        {"context": "fast-gates"},
+                        {"context": "validate (1)"}, {"context": "validate (2)"},
+                        {"context": "validate (3)"}, {"context": "validate (4)"},
+                    ]
                 }},
                 {"type": "non_fast_forward"},
                 {"type": "deletion"},

@@ -68,7 +68,8 @@ except ImportError as exc:  # pragma: no cover - invocation-style guard
 # diesen Waechter nicht still leerlaufen laesst.
 REQUIRED_WORKFLOWS: dict[str, str] = {
     "smc-fast-pr-gates.yml": (
-        "einziger required Check. Seit strict_required_status_checks_policy=false "
+        "required Check (seit 2026-08-27 neben den vier validate-Shards, ADR-0012). "
+        "Seit strict_required_status_checks_policy=false "
         "(2026-08-20) kann ein PR mergen, ohne gegen das neueste main geprueft zu "
         "sein -- der main-Lauf IST das Rueckfangnetz. Seine Nicht-pytest-Schritte "
         "(ruff, actionlint, zizmor, TS-Vakuitaets-Guard, Docker-Bau und Start-Probe, "

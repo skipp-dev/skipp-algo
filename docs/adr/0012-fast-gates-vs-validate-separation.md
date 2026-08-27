@@ -75,14 +75,21 @@ test asserts every test file resolves to exactly one bucket so marker
 drift cannot silently exclude tests. Once stable, `validate` is
 promoted to required (closes Operator-Punkt 1).
 
-> **Status (truth-audit 2026-07-13): scaffolded, NOT yet wired.** No
-> workflow runs `pytest -m slow`. `fast-gates` runs an enumerated file
-> subset (`smc-fast-pr-gates.yml`); `ci.yml` `validate` runs the full
-> suite sharded 4-way (`--splits 4 --group …`), not the `-m slow`
-> complement; and `validate` is still non-required (`fast-gates` is the
-> only required check). The `slow` marker is registered
-> (`pyproject.toml`) and the bucket meta-test exists, but the Option-B
-> partition is not applied in CI.
+> **Status (2026-08-27): wired AND promoted — Operator-Punkt 1 closed.**
+> Since #4927 (2026-08-20) the `ci.yml` PR lane really runs the slow
+> complement (ADR-0012 partition, 4-way sharded, 16–20 runner-minutes
+> per push instead of a 12 s status-only pass). After 21 measured heavy
+> green PR runs (`validate_required_readiness.sh`, median 5.5 min,
+> zero red), the four shard contexts `validate (1)`–`validate (4)` were
+> added to the `main-governance` ruleset's required status checks on
+> 2026-08-27. Doc-only PRs stay mergeable: the un-path-filtered `push:`
+> lane reports the same contexts (status-only) on every branch head.
+> `scripts/verify_branch_protection.py` now demands all four contexts,
+> and `tests/test_verify_branch_protection.py` pins that their silent
+> removal turns the verifier red.
+>
+> Superseded note (truth-audit 2026-07-13): at that date no workflow ran
+> the `-m slow` complement and `validate` was non-required.
 
 ## Consequences
 

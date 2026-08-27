@@ -4,10 +4,10 @@ Pins the structural invariants of the main CI workflow so silent drift
 of the trigger surface, the event gate, runner policy, or pytest lane
 selection is caught at validate-time.
 
-Note: ``ci.yml`` is NOT a required status check on main (only
-``fast-gates`` is — see ``smc-fast-pr-gates.yml``). It is the heavy
-audit-trail lane. The invariants pinned here therefore protect the
-audit-trail integrity rather than gate enforcement.
+Note: since 2026-08-27 the four ``validate (N)`` shard contexts ARE
+required on main (ADR-0012 Operator-Punkt 1, ``main-governance``
+ruleset) alongside ``fast-gates``. The invariants pinned here therefore
+protect an enforcing gate, not just the audit trail.
 """
 
 from __future__ import annotations

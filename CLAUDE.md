@@ -49,7 +49,7 @@ There is **no** TradingView→repo sync, by design. The old `sync-tradingview-pi
 
 - **Wrong direction.** With the repo as SSOT it would fetch back exactly what the repo→TV publishers just pushed, and any TV-side edit would clobber the repo's authored/generated source. It fought the publishers over the same files.
 - **Never ran green.** The Playwright fetch scraped source from the Pine Editor DOM and exited 1 on `smc_overlay_generated` (null `script_url`).
-- **Its freshness gate was a structural false-red.** The removed `pine-library-freshness` **job** in `smc-fast-pr-gates.yml` failed any PR whose `pine/LIBRARY_VERSIONS.toml` `local_synced` date exceeded a 7-day SLA — but nothing ever stamped `local_synced` (the sync never wrote it), so from 2026-07-11 it breached on **every** PR. It was non-required (only `fast-gates` gates merges).
+- **Its freshness gate was a structural false-red.** The removed `pine-library-freshness` **job** in `smc-fast-pr-gates.yml` failed any PR whose `pine/LIBRARY_VERSIONS.toml` `local_synced` date exceeded a 7-day SLA — but nothing ever stamped `local_synced` (the sync never wrote it), so from 2026-07-11 it breached on **every** PR. It was non-required (only `fast-gates` gated merges then; since 2026-08-27 the four `validate (N)` shards are also required — ADR-0012).
 
 Removed 2026-07-11: `.github/workflows/sync-tradingview-pine-libraries.yml`, `scripts/tv_fetch_smc_libraries.ts`, `scripts/check_pine_library_age.py`, and the `pine-library-freshness` job in `smc-fast-pr-gates.yml`. The unread `pine/LIBRARY_VERSIONS.toml` metadata artifact was removed separately on 2026-07-15.
 

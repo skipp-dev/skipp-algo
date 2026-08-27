@@ -6,8 +6,9 @@ on:
     branches: [main]
   push:
     branches: [main]
-  # merge_group: `fast-gates` is the only required check, so it MUST run on the
-  # merge-queue ref — otherwise an enabled merge queue would wait forever for a
+  # merge_group: `fast-gates` is a required check (since 2026-08-27 alongside
+  # the four `validate (N)` shards), so it MUST run on the merge-queue ref —
+  # otherwise an enabled merge queue would wait forever for a
   # check that never dispatches. The heavy-gate logic below already runs the full
   # suite on any non-`pull_request` event, so the merged batch is fully validated.
   merge_group:
@@ -353,7 +354,7 @@ jobs:
       # The Python half of this guard (scripts/detect_vacuous_claims.py) has
       # gated merges since #4355. The TypeScript half shipped with #4356/#4381
       # and gated NOTHING: it ran only in tv-onboarding-packages.yml, and
-      # `fast-gates` is the only required check by design (ADR-0011). So the
+      # `fast-gates` was then the only required check (ADR-0011). So the
       # analyzer that finds "green without observing anything" in the
       # TradingView automation could go red for weeks without blocking a
       # single merge — a guard about unobserved checks, itself unobserved.
