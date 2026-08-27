@@ -107,6 +107,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_pine_alertcondition_and_declaration_pin.py",
     "test_pine_context_library_contract.py",
     "test_pine_decision_logic_deep_review_regressions.py",
+    "test_pine_string_literals_close_on_their_line.py",
     "test_pine_surface_registry.py",
     "test_pine_engine_fill_boundary.py",
     "test_pine_handlib_publisher_inventory.py",
