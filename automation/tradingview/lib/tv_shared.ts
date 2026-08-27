@@ -4690,8 +4690,17 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
     const picked = settled.pick;
     traceSettled(picked, settled.reads);
     if (picked.verdict === "untitled") {
-      tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
-      return true;
+      // Review-Fund 27.8.: ein untitled aus der NACHLESE traegt eine bis zu
+      // 1,2 s alte Surface-Messung — der (fremde) Dialog kann waehrend der
+      // Wartezeit geschlossen worden sein (Ghost-Versuche rufen closeModal).
+      // Erst frisch bestaetigen. Ohne Surface ist das KEIN Erfolg und KEIN
+      // Identitaets-Mismatch (kein Zaehler-Tick): die Leiter oeffnet erneut.
+      if (settled.reads === 1 || await hasScriptSettingsInputsSurface(page)) {
+        tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
+        return true;
+      }
+      tracePageEvent(page, `${tracePrefix}-identity-surface-gone-after-settle`, scriptName);
+      return false;
     }
     if (picked.verdict === "match") {
       tracePageEvent(page, `${tracePrefix}-identity-title-match`, picked.dialog!.title);
@@ -5504,7 +5513,13 @@ export const LEGEND_TEXT_EXCLUDED_SURFACES =
   '[role="dialog"], [data-name*="dialog" i], [class*="modal" i], [role="menu"], [data-name*="menu" i], [data-name="tree"], [data-name="pine-dialog"]';
 
 export type LegendRowScanCounts = {
-  /** Rohtreffer der Textsuche (ueber alle Kandidatennamen, je Name gedeckelt auf 24). */
+  /**
+   * ROHTREFFER der Textsuche ueber alle Kandidatennamen. Die Schleife
+   * verarbeitet je Name hoechstens 24 — uebersteigt matches die Summe der
+   * uebrigen Zaehler, BENENNT das den Deckel, statt ihn zu verschweigen
+   * (Review-Fund 27.8.: vorher stand hier der gedeckelte Wert, und
+   * `matches=24` sah aus wie eine vollstaendige Messung).
+   */
   matches: number;
   invisible: number;
   excluded: number;
@@ -5552,7 +5567,7 @@ export async function findLegendRowWrappersByVisibleText(page: Page, scriptName:
     const [, loosePattern] = patternsList[index];
     const matches = page.getByText(loosePattern);
     const total = await matches.count().catch(() => 0);
-    scan.matches += Math.min(total, 24);
+    scan.matches += total;  // Rohtreffer; die Schleife selbst deckelt bei 24
     for (let item = 0; item < Math.min(total, 24); item += 1) {
       const target = matches.nth(item);
       if (!(await target.isVisible({ timeout: 250 }).catch(() => false))) {
