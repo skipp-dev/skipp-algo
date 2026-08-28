@@ -83,7 +83,7 @@ def test_success_shapes_request(monkeypatch):
     # Kept as a literal on purpose: a re-pin of configs/composio_tools.json must
     # move this line too, so the version bump shows up in the test diff and can
     # be reviewed rather than silently ridden along.
-    assert body["version"] == "20260819_00"
+    assert body["version"] == "20260826_00"
 
 
 def test_connected_account_from_env(monkeypatch):
