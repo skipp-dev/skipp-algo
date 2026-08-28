@@ -1405,3 +1405,27 @@ judge           = "tv_source_readback"
 state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "operator"
+
+# ---------------------------------------------------------------------------
+# customer-surface-hold (28.8.): die vier Kundenoberflaechen bekommen das
+# Halte-Muster der R1-Companions mit Pin-only-Tuer, verdrahtet in BEIDE
+# automatisierten .pine-Schreiber (smc-library-publish surface_hold-Step nach
+# dem R1-Hold; pine-library-publish-handlibs vor der changed-Messung).
+# Suite-ausfuehrbar bewiesen nach dem #5119-Muster: der ECHTE Step-Bash
+# laeuft im Harness (tests/_workflow_step_shell) gegen ein Fixture-Remote —
+# Revert-Signatur (#4646) wird byte-identisch auf frisches main
+# zurueckgesetzt, reine Pin-Bumps passieren, geschrumpfte Kandidatenmenge
+# faellt geschlossen aus; drei Mutationsproben nach dem Commit rot
+# (Roster-Eintrag raus, Invocation still gelegt, Step umbenannt). Lebender
+# Zeuge im Betrieb: jeder Refresh-Lauf druckt im publish-Job
+# "No customer surface held (N checked)." bzw. "held at current-main
+# content: <datei>" — Zeile existiert erst seit diesem PR; ihre ABWESENHEIT
+# heisst, der Step lief nie (#5018-Regel), nicht "sauber".
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "customer-surface-hold"
+kind   = "exempt"
+claim  = "Customer-Surface-Hold ist suite-ausfuehrbar bewiesen (echter Step-Bash im Harness gegen Fixture-Remote, Hold-/Pass-/Fail-closed-Zweige + drei Mutationsproben); Betriebszeuge = 'No customer surface held'/'held at current-main content' im publish-Job-Log"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-28"
+owner  = "operator"
