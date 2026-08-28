@@ -164,6 +164,6 @@ if barstate.islast and bus_ok
         tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
 else if barstate.islast and not bus_ok
     table.cell(mob, 0, 0, "SMC Mobile", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
-    table.cell(mob, 1, 0, "❌ Add SMC Core Engine first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
+    table.cell(mob, 1, 0, "❌ Add SMC Long-Dip Suite first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
 
 // No overlays — mobile-optimized, table only

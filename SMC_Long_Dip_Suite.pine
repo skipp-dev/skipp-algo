@@ -339,21 +339,21 @@ var string color_theme = input.string('Standard', 'Color Theme', options = ['Sta
 // individual inputs lands in W1 once the preset \u2192 input mapping is
 // covered by tests.
 //
-//   MEGA_TECH      \u2014 AAPL, MSFT, GOOGL, NVDA, META, AMZN
+//   MEGA_TECH      — AAPL, MSFT, GOOGL, NVDA, META, AMZN
 //                    Recommend RVOL >= 1.3, tighter ETH window,
 //                    htf_bias_min = 0.7, FVG quality gate = high.
 //                    Calibration evidence: AMZN/1H Grade A
 //                    (84% HR, ECE 0.035).
-//   FIN_SERVICES   \u2014 JPM, BAC, GS, MS
+//   FIN_SERVICES   — JPM, BAC, GS, MS
 //                    Recommend FOMC event-gate ON, earnings
 //                    kill-switch ON, vol_regime threshold tighter.
 //                    Calibration evidence: JPM/15m Grade A (82.6% HR).
-//   ENERGY         \u2014 XOM, CVX, COP, OXY
+//   ENERGY         — XOM, CVX, COP, OXY
 //                    Recommend Vol-Regime default HIGH, OIL
 //                    event-gate ON, larger ATR-based zones.
-//                    Higher intraday vol \u2014 calibration uses regime split.
-//   CUSTOM         \u2014 Existing inputs apply as-is (default).
-var string quickstart_preset = input.string('Custom', 'Quickstart Preset', options = ['Custom', 'Mega-Cap US Tech', 'Financial Services', 'Energy'], group = g_mode, tooltip = 'Preset library. Pick a ticker class to load curated defaults backed by the calibration benchmark.\n\nMega-Cap US Tech (AAPL/MSFT/GOOGL/NVDA/META/AMZN) \u2014 RVOL >= 1.3, tight ETH window, FVG quality gate high. Evidence: AMZN/1H Grade A (84% HR, ECE 0.035).\n\nFinancial Services (JPM/BAC/GS/MS) \u2014 FOMC event-gate, earnings kill-switch, tighter vol threshold. Evidence: JPM/15m Grade A (82.6% HR).\n\nEnergy (XOM/CVX/COP/OXY) \u2014 Vol-Regime default HIGH, OIL event-gate, larger ATR zones.\n\nCustom keeps the existing inputs as-is.', display = display.status_line)
+//                    Higher intraday vol — calibration uses regime split.
+//   CUSTOM         — Existing inputs apply as-is (default).
+var string quickstart_preset = input.string('Custom', 'Quickstart Preset', options = ['Custom', 'Mega-Cap US Tech', 'Financial Services', 'Energy'], group = g_mode, tooltip = 'Preset library. Pick a ticker class to load curated defaults backed by the calibration benchmark.\n\nMega-Cap US Tech (AAPL/MSFT/GOOGL/NVDA/META/AMZN) — RVOL >= 1.3, tight ETH window, FVG quality gate high. Evidence: AMZN/1H Grade A (84% HR, ECE 0.035).\n\nFinancial Services (JPM/BAC/GS/MS) — FOMC event-gate, earnings kill-switch, tighter vol threshold. Evidence: JPM/15m Grade A (82.6% HR).\n\nEnergy (XOM/CVX/COP/OXY) — Vol-Regime default HIGH, OIL event-gate, larger ATR zones.\n\nCustom keeps the existing inputs as-is.', display = display.status_line)
 
 // Plan 1.4 W1 — effective-defaults helpers must be declared before
 // their first consumer (the effective_relvol_good chain in the gate
@@ -435,7 +435,7 @@ var g_mtf = '7. Advanced - Higher Timeframe Trend'
 // `smc_core/scoring.py`. Until then the input renders inactive and
 // the engine stays on the published 3-layer stack.
 var bool enable_trend_tf_0 = input.bool(false, 'Enable 2H pre-trend layer (Q4-gated)', group = g_mtf, display = display.none, tooltip = 'Pre-trend scaffold. Default OFF until its evaluation gate returns GO. Enabling without a green gate is unsupported because per-family calibrated weights for the 2H layer are not yet published; the 4th icon would render uncalibrated.')
-var string mtf_trend_tf0 = input.timeframe(DEFAULT_TREND_TF_0, 'Trend TF 0 (optional 2H — scaffold, inactive)', group = g_mtf, inline = 'mtf0', active = enable_trend_tf_0, display = display.none, tooltip = 'Pre-trend scaffold. NOT consumed yet — even with "Enable 2H pre-trend layer (Q4-gated)" ON, no request.security / trend-stack / dashboard reads this value; it becomes live only after the Q4 W13 A/B-Gate wiring lands. See docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md §6 Phase 3.')
+var string mtf_trend_tf0 = input.timeframe(DEFAULT_TREND_TF_0, 'Trend TF 0 (optional 2H — scaffold, inactive)', group = g_mtf, inline = 'mtf0', active = enable_trend_tf_0, display = display.none, tooltip = 'Pre-trend scaffold. NOT consumed yet — even with "Enable 2H pre-trend layer (Q4-gated)" ON, no request.security / trend-stack / dashboard reads this value; it becomes live only after its evaluation gate returns GO and the layer is wired in.')
 var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.none, tooltip = 'Trend Stack layer 1 (default 4H). Part of the ICT-standard 3-layer hierarchy 4H -> 1D -> 1W, factor-~4 spacing. Intentional over Flux-style 7-TF bias stacks: each layer is calibrated per-family x per-context. Custom TFs keep display but skip calibrated weights.')
 var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.none, tooltip = 'Trend Stack layer 2 (default 1D). Swing-context anchor on top of the intraday Chart-TF. Changing away from the default disables per-layer calibrated contribution.')
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none, tooltip = 'Trend Stack layer 3 (default 1W). Macro-bias anchor. An adaptive IPDA umbrella timeframe (D -> W -> M) sits above this layer automatically.')
@@ -682,7 +682,7 @@ var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g
 var int score_weight_adx = input.int(2, 'ADX', minval = 0, maxval = 3, group = g_quality, inline = 'qw2', display = display.none)
 var int score_weight_close = input.int(1, 'Close', minval = 0, maxval = 3, group = g_quality, inline = 'qw3', display = display.none)
 var int score_weight_relvol = input.int(1, 'RelVol', minval = 0, maxval = 3, group = g_quality, inline = 'qw3', display = display.none)
-var int min_htf_alignment_count = input.int(2, 'HTF Bias Min Count', minval = 1, maxval = 3, group = g_quality, inline = 'qw4', tooltip = 'Minimum number of higher-timeframe streams (1..3) that must be bullish for htf_alignment_ok = true. Default 2 of 3 matches the existing context-quality contract.\n\nPlan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor (Mega-Cap US Tech requires 3, Financial Services / Energy stay at 2). The preset never lowers the floor.', display = display.none)
+var int min_htf_alignment_count = input.int(2, 'HTF Bias Min Count', minval = 1, maxval = 3, group = g_quality, inline = 'qw4', tooltip = 'Minimum number of higher-timeframe streams (1..3) that must be bullish for htf_alignment_ok = true. Default 2 of 3 matches the existing context-quality contract.\n\nWhen a Quickstart Preset other than Custom is active, the preset can only raise this floor (Mega-Cap US Tech requires 3, Financial Services / Energy stay at 2). The preset never lowers the floor.', display = display.none)
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm', display = display.none)

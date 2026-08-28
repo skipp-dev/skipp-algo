@@ -109,5 +109,5 @@ alertcondition(_alertGate and has_earnings and _new_day,               'SMC: Ear
 // Minimal on-chart status so the study has a visible footprint when added.
 var table status_tbl = table.new(position.bottom_right, 1, 1)
 if barstate.islast
-    string status = engine_bound ? 'BUS linked' : 'BUS not linked — bind SchemaVersion/StateCode/Armed/ZoneActive'
+    string status = engine_bound ? 'Chart link active' : 'Chart link missing — bind SchemaVersion/StateCode/Armed/ZoneActive'
     table.cell(status_tbl, 0, 0, 'SMC Long-Dip Alerts: ' + status, text_size = size.small, text_color = chart.fg_color)

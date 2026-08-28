@@ -13,12 +13,19 @@ What this guard checks, and what it deliberately does not:
 * POPULATION - every input declaration in the four surfaces, minus the
   internal groups listed in :data:`INTERNAL_GROUP_VARS`. Both strings a
   customer can read in the settings panel are inspected: the title and the
-  tooltip. Customer-visible group labels are inspected too.
+  tooltip. Customer-visible group labels are inspected too. Since 2026-08-28
+  a third arm inspects the RENDERED chart strings: literals in
+  `table.cell(...)`/`label.new(...)` statements (multi-line concatenations
+  joined), in derived render wrappers, and in assignments one level above
+  such a statement — the Mobile fallback line, the Dashboard version warning
+  and the Hero tooltips live there, not in any input declaration.
 * NOT CHECKED - the input TITLES inside the internal groups. Those 68 "BUS ..."
   names are the TradingView binding contract that the onboarding automation
-  matches on (`automation/tradingview/lib/tv_shared.ts`); renaming them is a
-  separate change that has to move the matcher, the drift monitor and the
-  saved TradingView copies in one step.
+  matches on (SSOT `automation/tradingview/lib/bus_binding_labels.mjs`);
+  renaming them is a separate change that has to move the matcher, the drift
+  monitor and the saved TradingView copies in one step. Also not chased by the
+  rendered arm: `plot()` titles, helper-function return values and
+  var-to-var flow deeper than one assignment level.
 
 The partition is keyed on the group VARIABLE, never on its label, so the
 customer-facing wording stays free to change.
@@ -40,10 +47,12 @@ from scripts.check_customer_surface_vocabulary import (
     INTERNAL_GROUP_VARS,
     MIN_GROUP_LABELS,
     MIN_INPUTS,
+    MIN_RENDERED,
     PINE_FILES,
     group_label_leaks,
     input_leaks,
     main,
+    rendered_string_leaks,
     spec_partition_disagreements,
 )
 from tests._fast_gates_gate import step_conditions, third_party_import_chain
@@ -67,6 +76,17 @@ def test_customer_visible_group_labels_carry_no_plumbing_vocabulary(pine_file: s
         f"{MIN_GROUP_LABELS[pine_file]} — the parser broke, so a pass here would be vacuous"
     )
     assert not found, "internal vocabulary in a settings group label:\n" + "\n".join(found)
+
+
+@pytest.mark.parametrize("pine_file", PINE_FILES)
+def test_rendered_chart_strings_carry_no_plumbing_vocabulary(pine_file: str) -> None:
+    found, rendered = rendered_string_leaks(pine_file)
+    assert rendered >= MIN_RENDERED[pine_file], (
+        f"{pine_file}: only {rendered} rendered chart strings parsed, expected at "
+        f"least {MIN_RENDERED[pine_file]} — the parser broke, so a pass here would "
+        "be vacuous"
+    )
+    assert not found, "internal vocabulary in a rendered chart string:\n" + "\n".join(found)
 
 
 def test_internal_group_partition_matches_the_hero_surface_spec() -> None:
@@ -176,7 +196,116 @@ def test_the_guard_really_runs_on_the_lane_it_was_built_for() -> None:
         )
 
 
-def test_every_surface_is_covered_by_both_bounds() -> None:
-    """Über die GANZE Menge: keine Oberfläche ohne beide Untergrenzen."""
+def test_every_surface_is_covered_by_all_bounds() -> None:
+    """Über die GANZE Menge: keine Oberfläche ohne alle drei Untergrenzen."""
     assert set(PINE_FILES) == set(MIN_INPUTS) == set(MIN_GROUP_LABELS)
+    assert set(PINE_FILES) == set(MIN_RENDERED)
     assert set(PINE_FILES) == set(INTERNAL_GROUP_VARS)
+
+
+# ---------------------------------------------------------------------------
+# Rot-zuerst-Beweise der drei Blindstellen aus dem 10-Winkel-Review (2026-08-28).
+# Jeder Fall wurde GEGEN DEN ALTEN WÄCHTER ausgeführt und schlug dort fehl
+# (der alte Code akzeptierte die eingeschleuste Zeile); erst die Härtung im
+# Skript macht ihn grün. Die Injektionen sind synthetisch, die Mechanik ist
+# jeweils die des echten Live-Falls.
+# ---------------------------------------------------------------------------
+
+
+def test_tooltip_capture_survives_an_embedded_other_quote(monkeypatch) -> None:
+    """Mechanik 1: Das JEWEILS ANDERE Anführungszeichen beendete den Capture.
+
+    Die alte `_TOOLTIP_RE`-Zeichenklasse schloss BEIDE Quotezeichen aus, obwohl
+    nur das äußere Delimiter das Ende bestimmt. Ein einfach-quotierter Tooltip,
+    der ein "-Zitat enthält, wurde nach dem Kopf abgeschnitten — der Schwanz
+    (hier: ein Repo-Pfad) shippte grün. Live-Fall: der Trend-Scaffold-Tooltip
+    der Suite, 49 von 295 Zeichen geprüft.
+    """
+    import scripts.check_customer_surface_vocabulary as module
+
+    unpatched = module.read_lines
+    target = PINE_FILES[0]
+    injected = [
+        "x_qq = input.bool(false, 'Compact', group = g_surface, "
+        "tooltip = 'Head quotes \"another input\" and only the tail cites "
+        "docs/internal_plan.md')"
+    ]
+
+    def with_leak(pine_file: str) -> list[str]:
+        lines = unpatched(pine_file)
+        return lines + injected if pine_file == target else lines
+
+    monkeypatch.setattr(module, "read_lines", with_leak)
+    found, _ = module.input_leaks(target)
+    assert any("x_qq" in entry and "repo path" in entry for entry in found), (
+        "the tooltip capture still stops at an embedded quote of the other "
+        f"type — the repo path in the tail went unseen: {found!r}"
+    )
+    assert module.main([]) == 1
+
+
+def test_literal_escape_sequences_do_not_hide_the_word_boundary(monkeypatch) -> None:
+    """Mechanik 2: Pines literales Zwei-Zeichen-`\\n` klebt vor dem Muster.
+
+    In `'…contract.\\n\\nPlan 1.4: …'` steht vor dem P ein literales `n` —
+    ein Wortzeichen, also feuert `\\bPlan` nie. Live-Fall: der
+    `min_htf_alignment_count`-Tooltip der Suite.
+    """
+    import scripts.check_customer_surface_vocabulary as module
+
+    unpatched = module.read_lines
+    target = PINE_FILES[0]
+    injected = [
+        'x_nl = input.int(2, "Floor", group = g_surface, '
+        'tooltip = "matches the contract.\\n\\nPlan 1.4: the preset raises it")'
+    ]
+
+    def with_leak(pine_file: str) -> list[str]:
+        lines = unpatched(pine_file)
+        return lines + injected if pine_file == target else lines
+
+    monkeypatch.setattr(module, "read_lines", with_leak)
+    found, _ = module.input_leaks(target)
+    assert any(
+        "x_nl" in entry and "internal plan reference" in entry for entry in found
+    ), (
+        "a literal \\n escape directly before the pattern still eats the "
+        f"word boundary: {found!r}"
+    )
+    assert module.main([]) == 1
+
+
+def test_rendered_chart_strings_are_part_of_the_population(monkeypatch) -> None:
+    """Mechanik 3: table.cell/label.new-Strings waren gar keine Population.
+
+    Der Wächter las nur Input-Deklarationen und Gruppen-Labels — die Strings,
+    die TradingView tatsächlich AUF DEN CHART malt (Tabellenzellen, Labels,
+    auch mehrzeilig konkateniert), sah niemand. Live-Fälle: Mobile-Fallback
+    „Add SMC Core Engine first", Dashboard-Versionswarnung, Hero-Tooltip.
+    """
+    import scripts.check_customer_surface_vocabulary as module
+
+    unpatched = module.read_lines
+    target = PINE_FILES[0]
+    injected = [
+        "if barstate.islast",
+        '    table.cell(t, 0, 0, "Powered by the BUS Preset* contract")',
+        "    label.new(bar_index, high,",
+        '         "See pine/generated/fvg_context_health.json" +',
+        '         " for the detail breakdown",',
+        "         color = color.red)",
+    ]
+
+    def with_leak(pine_file: str) -> list[str]:
+        lines = unpatched(pine_file)
+        return lines + injected if pine_file == target else lines
+
+    monkeypatch.setattr(module, "read_lines", with_leak)
+    assert module.main([]) == 1
+    found, rendered = module.rendered_string_leaks(target)
+    assert any("BUS channel name" in entry for entry in found), found
+    assert any("repo path" in entry for entry in found), (
+        "the multi-line label.new concatenation was not joined into one "
+        f"statement: {found!r}"
+    )
+    assert rendered >= module.MIN_RENDERED[target]
