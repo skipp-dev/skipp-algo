@@ -76,7 +76,16 @@ jobs:
     # Runner policy (2026-05-20): CI should use the native GitHub-hosted
     # runner by default. Reserve self-hosted routing for workflows that
     # genuinely need local Windows/GPU/cache characteristics.
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    # 2026-08-29: `SMC_CI_ARM_RUNNER` steht VOR der bisherigen Wahl, damit
+    # diese eine Lane auf arm64 laufen kann, ohne die globale Variable
+    # anzufassen — die steuert ~80 Stellen inklusive der Playwright/TV-Lanes.
+    # Linux-arm64 ist bei GitHub ein STANDARD-Runner (nicht "larger"), zaehlt
+    # also gegen das Freikontingent und kostet darueber $0.005 statt $0.006
+    # pro Minute: -17 % auf die groesste Einzel-Lane des Repos (1.459
+    # Runner-Minuten am 2026-08-27, 26 % der Tageslast). Zurueckrollen =
+    # Repo-Variable loeschen, kein Code-Change. Kein `ubuntu-latest-arm`
+    # verwenden: das Label existiert nicht, nur versionierte Formen.
+    runs-on: ${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     # 2026-08-20: das 45-min-Budget gehoert der MAIN-Lane (volle Suite mit
     # Coverage) und bleibt dort unangetastet. Die PR-Lane faehrt seit #4927 nur
     # die slow-Komplementmenge und braucht das nicht: gemessen am ersten Lauf
@@ -196,9 +205,13 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .venv
-          key: venv-${{ runner.os }}-python3.12-${{ hashFiles('requirements.lock') }}
+          # `runner.arch` MUSS im Schluessel stehen: ohne ihn trifft ein
+          # arm64-Job exakt den x86_64-Eintrag (gleiches `runner.os`
+          # "Linux", gleicher Lock-Hash) und stellt ein venv mit
+          # x86_64-Binaries wieder her — Importfehler im besten Fall.
+          key: venv-${{ runner.os }}-${{ runner.arch }}-python3.12-${{ hashFiles('requirements.lock') }}
           restore-keys: |
-            venv-${{ runner.os }}-python3.12-
+            venv-${{ runner.os }}-${{ runner.arch }}-python3.12-
       - name: Install test dependencies
         # SC-04 (supply-chain audit 2026-06-14): requirements.lock is now always
         # used instead of being gated behind vars.SMC_USE_REQUIREMENTS_LOCK.

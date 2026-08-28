@@ -18,6 +18,26 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
+#: Die erlaubten Schreibweisen fuer "GitHub-hosted, kein self-hosted-Selektor".
+#: Drei Guard-Tests pinnen dieselbe Form (runner_pinned, python_version_pinned,
+#: ci_workflow_*) — sie liegt deshalb HIER und nicht dreimal nebeneinander.
+#: Ein privater Helfer, der quer ueber Testmodule importiert wird, hat in
+#: diesem Repo schon einmal main gebrochen (#4383 zog `_run_gate` unter #4385
+#: weg); der sanktionierte Weg ist dieses geteilte Modul.
+#:
+#: `_ARM` steht seit 2026-08-29 daneben: `SMC_CI_ARM_RUNNER` erlaubt einzelnen
+#: Lanes einen arm64-STANDARD-Runner (-17 % je Minute, zaehlt weiter gegen das
+#: Freikontingent), ohne die globale `SMC_GH_HOSTED_RUNNER` zu bewegen — die
+#: steuert ~80 Stellen inklusive der Playwright/TV-Lanes. Bewusst eine
+#: benannte Variante statt einer Datei-Ausnahme: der Hosted-Rueckfall und das
+#: `ubuntu-latest`-Literal bleiben gepinnt, eine dritte Schreibweise faellt
+#: weiter durch.
+HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
+HOSTED_RUNS_ON_ARM = (
+    "${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
+)
+HOSTED_RUNS_ON_FORMS = (HOSTED_RUNS_ON, HOSTED_RUNS_ON_ARM)
+
 
 COMPOSITE_ACTIONS_DIR = REPO_ROOT / ".github" / "actions"
 WORKFLOW_TEMPLATES_DIR = REPO_ROOT / ".github" / "workflow-templates"
