@@ -70,8 +70,20 @@ def test_live_window_marker_any_trigger() -> None:
 
 def test_triggers_pinned() -> None:
     on_block = _on(_load())
-    assert set(on_block.keys()) == {"push", "pull_request", "workflow_dispatch"}, (
-        "ci.yml trigger surface drifted; expected push + pull_request + workflow_dispatch"
+    # 2026-08-29: `merge_group` kam dazu. Die vier `validate (N)` Shards sind
+    # seit 2026-08-27 required — ohne diesen Trigger dispatchen sie auf dem
+    # Queue-Ref nie, und eine aktivierte Merge Queue wartet still bis zum
+    # Verfall des Batches. Der Satz "welcher required Kontext braucht den
+    # Trigger" wird NICHT hier wiederholt, sondern aus REQUIRED_STATUS_CHECKS
+    # abgeleitet: tests/test_required_checks_reach_the_merge_queue.py.
+    assert set(on_block.keys()) == {
+        "push",
+        "pull_request",
+        "merge_group",
+        "workflow_dispatch",
+    }, (
+        "ci.yml trigger surface drifted; expected push + pull_request + "
+        "merge_group + workflow_dispatch"
     )
     assert on_block["push"].get("branches-ignore") == ["data/**"], (
         "push must cover all branches EXCEPT data/** — Orphan-Datenbaeume "
@@ -251,6 +263,13 @@ def test_the_gate_decides_by_event_not_by_the_words_in_its_source(
         ("push", "feature"): "false",
         ("push", "main"): "true",
         ("workflow_dispatch", "main"): "true",
+        # 2026-08-29, mit dem `merge_group`-Trigger: der Batch-Ref sieht aus
+        # wie ein Branch, ist aber keiner ("main" steht NICHT darin), faellt
+        # also durch alle vier Arme oben in den fail-closed Schluss —
+        # `run_heavy=true`, der Batch wird voll validiert. Ohne diesen Fall
+        # bliebe unbewiesen, dass die Merge Queue nicht status-only durchwinkt:
+        # vier gruene 12-Sekunden-Shards, die nichts gepueft haben.
+        ("merge_group", "gh-readonly-queue/main/pr-5161-a1b2c3d"): "true",
     }
     for index, ((event, ref), expected) in enumerate(cases.items()):
         work = tmp_path / f"case{index}"

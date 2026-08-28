@@ -27,6 +27,20 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'CHANGELOG.md'
+  # Die vier `validate (N)` Shards sind seit 2026-08-27 required (ADR-0012
+  # Operator-Punkt 1). Eine Merge Queue validiert ihren Batch auf einem
+  # eigenen Ref (`gh-readonly-queue/main/...`) und mergt erst, wenn dort
+  # ALLE required Kontexte gemeldet haben — ein Workflow ohne diesen Trigger
+  # startet da nie, und der Batch wartet auf einen Check, den niemand mehr
+  # schickt. Der Ausfall ist still: nichts wird rot, die Queue steht.
+  # `smc-fast-pr-gates.yml` trug den Trigger schon (fast-gates + gate),
+  # ci.yml nicht — die Queue war damit strukturell unbenutzbar (gemessen
+  # 2026-08-29). Der Gate unten braucht KEINE neue Verzweigung: sein letzter
+  # Zweig faellt fail-closed auf `run_heavy=true`, der Batch wird also voll
+  # validiert. Gepinnt in tests/test_required_checks_reach_the_merge_queue.py
+  # (Population aus REQUIRED_STATUS_CHECKS abgeleitet) und ausgefuehrt in
+  # test_ci_workflow_contract.py.
+  merge_group:
   workflow_dispatch:
 
 permissions:
