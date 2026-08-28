@@ -207,18 +207,27 @@ jobs:
           git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
           SURFACE_BASE="${RUNNER_TEMP}/surface-hold-base"
           rm -rf "${SURFACE_BASE}"
-          # Same enumeration as the refresh chain's hold: every top-level
-          # .pine pinning the generated library, read from the JUST-fetched
-          # main. No mapfile — the executing test runs this block under
-          # whatever bash the developer has, including 3.2.
+          # Same enumeration as the refresh chain's hold: every root .pine
+          # carrying ANY owner import pin, read from the JUST-fetched main.
+          # repinAllConsumers rewrites every `import preuss_steffen/<lib>/<n>`
+          # line, so hand-lib-only surfaces (SMC_Breakout_Overlay.pine) are
+          # candidates too — under the old generated-library pattern they
+          # were rewritten without ever being enumerated (the #5145 gap).
+          # SMC++ library SOURCES are excluded: not customer surfaces; their
+          # mid-run seam stays with the publish chain's repin proof + R1
+          # hold. Coverage is derived and executed by
+          # tests/test_hold_customer_surfaces_wiring.py. No mapfile — the
+          # executing test runs this block under whatever bash the developer
+          # has, including 3.2.
           SURFACE_CANDIDATES=()
           while IFS= read -r f; do
             SURFACE_CANDIDATES+=("$f")
-          done < <(git grep -lE 'import preuss_steffen/smc_micro_profiles_generated/[0-9]*' FETCH_HEAD -- \
+          done < <(git grep -lE '^import[[:space:]]+preuss_steffen/' FETCH_HEAD -- \
             '*.pine' \
             ':(exclude)tests/**' \
             ':(exclude)pine/**' \
-            ':(exclude)node_modules/**' | sed 's|^FETCH_HEAD:||' | sort -u)
+            ':(exclude)node_modules/**' \
+            ':(exclude)SMC++/**' | sed 's|^FETCH_HEAD:||' | sort -u)
           if [ ${#SURFACE_CANDIDATES[@]} -eq 0 ]; then
             echo "::error::no customer-surface candidates on current main — refusing to report an all-clear over nothing"
             exit 1

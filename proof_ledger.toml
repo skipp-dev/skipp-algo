@@ -1429,3 +1429,31 @@ claim  = "Customer-Surface-Hold ist suite-ausfuehrbar bewiesen (echter Step-Bash
 state  = "AUSGENOMMEN"
 due_by = "2026-08-28"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# customer-surface-hold-enumeration (28.8., die im #5145-Bericht dokumentierte
+# Luecke): beide Hold-Steps enumerierten ihre Kandidaten mit dem
+# generated-Pin-Muster des Refresh-Bumps, aber repinAllConsumers
+# (pine-library-publish-handlibs) schreibt JEDEN preuss_steffen-Pin — eine
+# Kundenoberflaeche, die nur Hand-Bibliotheken pinnt (SMC_Breakout_Overlay),
+# war nie Kandidat und haette eine Nicht-pin-only-Aenderung ungehalten
+# durchgeschrieben (#4646-Klasse). Fix: Enumeration = jeder Owner-Pin
+# (abgeleitete Union beider Schreiber), required-Roster mit demselben Test,
+# fail-closed-Floor zwingt beide Caller breit. Suite-ausfuehrbar bewiesen
+# nach demselben #5119-Muster wie der Hold selbst: Rot-zuerst gegen den
+# Altstand (5 Failures, darunter der ECHTE Step-Bash beider Workflows, der
+# den stalen Revert in der handlib-gepinnten Oberflaeche liegen liess und
+# gruen endete), Coverage-Ableitung je Publish-Pfad (Bump-PIN_PATTERN +
+# geparste HAND_LIBS-Tabelle gegen das Enumerations-ERE), Mutationsproben
+# nach dem Commit rot. Lebender Betriebszeuge unveraendert die
+# #5145-Logzeile im publish-Job — ihr Roster steigt auf heutigem main
+# messbar von 13 auf 15 ("No customer surface held (15 checked).");
+# gemessen am 28.8. via held_customer_surfaces() ueber beide Enumerationen.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "customer-surface-hold-enumeration"
+kind   = "exempt"
+claim  = "Hold-Enumeration deckt jede von einem Publish-Pfad beschreibbare Kundenoberflaeche (Owner-Pin-Union statt mp-only); suite-ausfuehrbar bewiesen (Rot-zuerst am echten Step-Bash beider Workflows + Coverage-Ableitung je Pfad); Betriebszeuge = #5145-Logzeile, Roster 13 -> 15 checked"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-28"
+owner  = "operator"

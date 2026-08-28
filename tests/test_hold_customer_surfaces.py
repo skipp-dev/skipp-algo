@@ -161,9 +161,10 @@ def test_an_alias_less_pin_is_still_a_pin() -> None:
 
 
 def test_required_surfaces_are_the_holdable_vocabulary_guard_roster() -> None:
-    """Single source, derived: vocabulary roster, minus what a refresh cannot
-    rewrite (no generated-library pin) and minus the R1-attested companions.
-    The paid incident's four surfaces must always survive the derivation."""
+    """Single source, derived: vocabulary roster, minus what no automated
+    publish path can rewrite (no owner import pin at all) and minus the
+    R1-attested companions. The paid incident's four surfaces must always
+    survive the derivation."""
     required = required_customer_surfaces()
     assert set(required) <= set(PINE_FILES)
     for surface in (
@@ -179,12 +180,17 @@ def test_required_surfaces_are_the_holdable_vocabulary_guard_roster() -> None:
     for surface in (
         "SMC_Confluence_Hub.pine",
         "SMC_Long_Dip_Strategy.pine",
+        # 2026-08-28, the #5145 enumeration gap: pins ONLY smc_engine_private,
+        # no generated-library pin — but repinAllConsumers
+        # (pine-library-publish-handlibs.yml) rewrites every owner pin, so a
+        # handlibs run could write this customer surface while the old
+        # mp-pin-filtered roster read it as "un-holdable by construction".
+        "SMC_Breakout_Overlay.pine",
     ):
         assert surface in required, f"{surface} missing from the derived roster"
-    # Un-holdable by construction: no generated-library pin, so the bump
-    # enumeration can never produce them as candidates.
+    # Un-holdable by construction: no owner import pin at all, so no publish
+    # path has anything to rewrite in it.
     assert "SMC_Setup_Check.pine" not in required
-    assert "SMC_Breakout_Overlay.pine" not in required
     for surface in required:
         assert (_REPO / surface).is_file(), f"{surface} is rostered but not in the tree"
 
@@ -202,6 +208,22 @@ def test_required_surfaces_refuse_a_tree_that_lost_an_incident_surface(
     (tmp_path / "SMC_Long_Dip_Alerts.pine").write_text("plot(1)\n", encoding="utf-8")
     with pytest.raises(ValueError, match=re.escape("SMC_Long_Dip_Alerts.pine")):
         required_customer_surfaces(repo=tmp_path)
+
+
+def test_required_surfaces_count_a_surface_pinning_only_hand_libraries(
+    tmp_path: Path,
+) -> None:
+    """The #5145 gap as a population probe: a customer surface whose ONLY
+    pin is a hand-authored library is still rewritable (repinAllConsumers
+    rewrites every ``import preuss_steffen/...`` pin), so it must be
+    required. The old generated-pin filter derived an EMPTY roster from this
+    tree and the floor refused — reading rewritable surfaces as un-holdable
+    was exactly how a handlibs run could write one unheld."""
+    for name in sorted(PINE_FILES):
+        (tmp_path / name).write_text(
+            "import preuss_steffen/smc_utils/4 as u\n", encoding="utf-8"
+        )
+    assert set(required_customer_surfaces(repo=tmp_path)) == set(PINE_FILES)
 
 
 def test_roster_excludes_the_r1_attested_companions() -> None:
