@@ -642,6 +642,7 @@ jobs:
             tests/test_field_preference_chain_ledger.py \
             tests/test_global_statement_budget.py \
             tests/test_hashlib_weak_hash_ledger.py \
+            tests/test_hold_customer_surfaces.py \
             tests/test_http_client_discipline.py \
             tests/test_http_post_egress_ledger.py \
             tests/test_iloc_minus_one_guard_discipline.py \

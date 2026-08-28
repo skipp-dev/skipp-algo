@@ -4,7 +4,7 @@
 //@version=6
 
 // ────────────────────────────────────────────────────────────────
-// SkippALGO Confluence Hub v1
+// SMC Confluence Hub v1
 //
 // Aggregates SMC zone lifecycle (via BUS) with built-in trend,
 // momentum, and mean-reversion signals into a single traffic-light
@@ -14,7 +14,7 @@
 //   Short-parity scoring requires a separate confluence track.
 //
 // Requirements:
-//   - SMC Core Engine must be on the same chart with BUS bound
+//   - SMC Long-Dip Suite must be on the same chart with its Chart Link rows connected
 //   - No additional indicators required — trend/momentum computed internally
 // ────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ show_bg      = input.bool(true, "Highlight Confluence BG", group = g_display, to
 var string g_alerts = "6. Alerts"
 barCloseOnly = input.bool(true, "Alerts nur am Bar-Close", group = g_alerts, tooltip = "Wenn aktiv, feuern Alerts nur auf bestätigten (geschlossenen) Bars. Verhindert Repaint/Flicker während der laufenden Bar.")
 
-var string g_bus = "2. SMC Core Link"
+var string g_bus = "2. Chart Link - SMC Long-Dip Suite"
 // Declared in the Suite's BUS plot() order. TradingView lists a source study's
 // outputs in that plot order, so matching it here means each row's dropdown pick
 // moves strictly downwards while binding — no scrolling back up.

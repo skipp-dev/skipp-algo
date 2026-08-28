@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from tests.smc_manifest_test_utils import (
     ROOT,
     extract_group_titles,
@@ -15,6 +17,22 @@ MANIFEST = load_manifest()
 CORE_PATH = ROOT / 'SMC_Long_Dip_Suite.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Long_Dip_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Dip_Strategy.pine'
+
+# The consumer contracts registered 2026-08-28 (#4639 completion): every one
+# of them binds a single 'g_bus'-style group whose Pine label must be the
+# registry's title VERBATIM. Multi-group consumers (Dashboard/Strategy) keep
+# the numbered 'N. Chart Link - <suffix>' Pine form with suffix-only registry
+# titles and are checked through the split helper below instead.
+# holdManagerBindings is deliberately absent: its lane is frozen at build 3
+# (see test_hold_manager_rename_rides_the_next_build in
+# tests/test_customer_surface_vocabulary.py).
+SINGLE_GROUP_CONSUMER_CONTRACTS: tuple[str, ...] = (
+    'mobileBindings',
+    'alertsBindings',
+    'setupCheckBindings',
+    'breakoutOverlayBindings',
+    'confluenceHubBindings',
+)
 
 
 def _binding_tuples(bindings: tuple[Any, ...]) -> tuple[tuple[str, str], ...]:
@@ -81,6 +99,62 @@ def test_strategy_group_titles_match_manifest() -> None:
     strategy_source = read_text(STRATEGY_PATH)
     group_titles = extract_group_titles(strategy_source)
     assert _consumer_group_titles(_binding_tuples(MANIFEST.STRATEGY_BUS_BINDINGS), group_titles) == MANIFEST.STRATEGY_GROUP_TITLES
+
+
+@pytest.mark.parametrize('contract_key', SINGLE_GROUP_CONSUMER_CONTRACTS)
+def test_consumer_binding_rows_match_manifest(contract_key: str) -> None:
+    """Row labels, order and group of every registered consumer, from Pine.
+
+    Red-first 2026-08-28: executed against the pre-rename tree, every case
+    failed on the group label ('Engine BUS v2 (Expert Mapping)', '1. Link to
+    SMC Core Engine', ...) or — Mobile — on the pre-raise 'Chart Link' form.
+    """
+    source = read_text(ROOT / MANIFEST.BINDING_CONTRACT_FILES[contract_key])
+    bindings = MANIFEST.BINDING_CONTRACT_BINDINGS[contract_key]
+    assert extract_input_bindings(source) == _binding_tuples(bindings)
+    assert len(bindings) > 0, 'an empty contract would pass vacuously'
+
+
+@pytest.mark.parametrize('contract_key', SINGLE_GROUP_CONSUMER_CONTRACTS)
+def test_single_group_consumer_labels_carry_the_canonical_chart_link_title(
+    contract_key: str,
+) -> None:
+    """The Pine group label equals the registry title verbatim.
+
+    The canonical single-group form is the Alerts one, splitter-compatible
+    with `_consumer_group_titles` (`split(' - ', 1)[1]` -> 'SMC Long-Dip
+    Suite'); the Confluence Hub keeps its ordinal prefix ('2. ...') because
+    its settings panel numbers all six groups.
+    """
+    source = read_text(ROOT / MANIFEST.BINDING_CONTRACT_FILES[contract_key])
+    titles = MANIFEST.BINDING_CONTRACT_GROUP_TITLES[contract_key]
+    declared = extract_group_titles(source)
+    assert titles, 'an empty title map would pass vacuously'
+    for group_var, title in titles.items():
+        assert declared.get(group_var) == title, (
+            f'{contract_key}: Pine group {group_var!r} carries '
+            f'{declared.get(group_var)!r}, registry says {title!r}'
+        )
+        assert title.split(' - ', 1)[1] == 'SMC Long-Dip Suite'
+
+
+def test_exit_signal_group_titles_match_manifest() -> None:
+    """Exit Signal still carries the pre-rename labels — BY DESIGN, not drift.
+
+    The file is R1-attested (scripts/check_r1_attested_sources.py pins its
+    hash to the registered rollout evidence), so the 2026-08-28 Chart-Link
+    completion could not touch it. This pin documents the exception and goes
+    red the moment a re-attestation session renames the groups without moving
+    the registry titles with it.
+    """
+    exit_source = read_text(ROOT / 'SMC_Exit_Signal.pine')
+    group_titles = extract_group_titles(exit_source)
+    assert group_titles['g_bus_state'] == '3. Expert Mapping - Entry States'
+    assert group_titles['g_bus_plan'] == '4. Expert Mapping - Trade Plan'
+    assert MANIFEST.EXIT_SIGNAL_GROUP_TITLES_BY_KEY == {
+        'g_bus_state': 'Expert Mapping - Entry States',
+        'g_bus_plan': 'Expert Mapping - Trade Plan',
+    }
 
 
 def test_pro_only_contract_captures_diagnostic_surface() -> None:
@@ -324,6 +398,9 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
             {
                 'label': label,
                 'group': 'gBus',
+                # NOT renamed 2026-08-28: the lane is frozen at build 3, the
+                # Chart-Link rename rides the next build-advance sitting (see
+                # the tripwire in tests/test_customer_surface_vocabulary.py).
                 'groupTitle': 'Engine BUS v2 (Expert Mapping)',
                 'tier': 'critical',
             }

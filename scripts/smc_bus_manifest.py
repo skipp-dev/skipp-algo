@@ -1238,6 +1238,22 @@ STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_plan': 'Trade Plan',
 }
 
+# 2026-08-28 (#4639 completion): the 'Chart Link' rename reaches every
+# onboarding consumer. Single-group consumers carry ONE canonical label (the
+# Alerts form, splitter-compatible with the `split(' - ', 1)[1]` helper in
+# tests/test_smc_bus_manifest_contract.py); multi-group consumers use the
+# numbered Dashboard form 'N. Chart Link - <suffix>' in Pine and store only
+# the suffix here, exactly like DASHBOARD/STRATEGY_GROUP_TITLES_BY_KEY.
+CHART_LINK_SUITE_GROUP_TITLE = 'Chart Link - SMC Long-Dip Suite'
+
+# NOT renamed 2026-08-28: SMC_Hold_Manager.pine is frozen by its shadow lane —
+# the deployed receiver rejects any payload whose sourceBuild differs from
+# contract.source.build, the live TradingView alerts emit build 3, and the
+# build-history contract forces every source edit to mint a new build. The
+# Chart-Link rename must ride the lane's next build-advance sitting (source
+# transfer + 13-input rebinding + alert swap), like build 3 did on 2026-08-16.
+# Tripwire: test_hold_manager_rename_rides_the_next_build in
+# tests/test_customer_surface_vocabulary.py fires when the lane mints build 4.
 HOLD_MANAGER_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'gBus': 'Engine BUS v2 (Expert Mapping)',
 }
@@ -1246,9 +1262,36 @@ EVENT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_ev': 'Event Overlay',
 }
 
+# NOT renamed 2026-08-28: SMC_Exit_Signal.pine is R1-attested — its source
+# hash is frozen against artifacts/governance/smc_r1_live_rollout_evidence_*
+# and scripts/check_r1_attested_sources.py fails any PR that moves it. The
+# Chart-Link rename of this consumer must ride the next mutating TradingView
+# re-attestation session together with fresh evidence. Tripwire:
+# test_exit_signal_rename_rides_the_next_reattestation in
+# tests/test_customer_surface_vocabulary.py fires when the source moves.
 EXIT_SIGNAL_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_state': 'Expert Mapping - Entry States',
     'g_bus_plan': 'Expert Mapping - Trade Plan',
+}
+
+MOBILE_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
+}
+
+ALERTS_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
+}
+
+SETUP_CHECK_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
+}
+
+BREAKOUT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus': CHART_LINK_SUITE_GROUP_TITLE,
+}
+
+CONFLUENCE_HUB_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus': f'2. {CHART_LINK_SUITE_GROUP_TITLE}',
 }
 
 CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY: dict[str, str] = {
@@ -1372,6 +1415,63 @@ EXIT_SIGNAL_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
 )
 
+# 2026-08-28: the remaining onboarding consumers, registered so the registry —
+# not the Pine files alone — is the catalogue of every BUS-binding surface.
+# Row order mirrors each file's input.source declarations, which in turn walk
+# the Suite's BUS plot order (bind top-to-bottom without scrolling back up).
+MOBILE_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
+    BusBinding('BUS Armed', 'g_bus', 'critical'),
+    BusBinding('BUS Confirmed', 'g_bus', 'critical'),
+    BusBinding('BUS Ready', 'g_bus', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
+    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
+    BusBinding('BUS StateCode', 'g_bus', 'critical'),
+)
+
+ALERTS_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
+    BusBinding('BUS ZoneActive', 'g_bus', 'critical'),
+    BusBinding('BUS Armed', 'g_bus', 'critical'),
+    BusBinding('BUS StateCode', 'g_bus', 'critical'),
+)
+
+SETUP_CHECK_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
+    BusBinding('BUS Armed', 'g_bus', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
+    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
+    BusBinding('BUS StateCode', 'g_bus', 'critical'),
+)
+
+# First four rows are required for the engine tier; the rest are the optional
+# enrichment channels (real zone boxes, real risk plan, quality filter).
+BREAKOUT_OVERLAY_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
+    BusBinding('BUS ZoneActive', 'g_bus', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
+    BusBinding('BUS QualityScore', 'g_bus', 'diagnostic'),
+    BusBinding('BUS StopLevel', 'g_bus', 'diagnostic'),
+    BusBinding('BUS Target1', 'g_bus', 'diagnostic'),
+    BusBinding('BUS Target2', 'g_bus', 'diagnostic'),
+    BusBinding('BUS ZoneObTop', 'g_bus', 'diagnostic'),
+    BusBinding('BUS ZoneObBottom', 'g_bus', 'diagnostic'),
+    BusBinding('BUS ZoneFvgTop', 'g_bus', 'diagnostic'),
+    BusBinding('BUS ZoneFvgBottom', 'g_bus', 'diagnostic'),
+)
+
+CONFLUENCE_HUB_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus', 'critical'),
+    BusBinding('BUS Armed', 'g_bus', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus', 'critical'),
+    BusBinding('BUS QualityScore', 'g_bus', 'critical'),
+    BusBinding('BUS StateCode', 'g_bus', 'critical'),
+)
+
 _CONTEXT_GROUP_KEYS: dict[str, str] = {
     'meta': 'g_meta',
     'aggregate': 'g_meta',
@@ -1404,6 +1504,21 @@ EVENT_OVERLAY_BUS_LABELS: tuple[str, ...] = tuple(
 EXIT_SIGNAL_BUS_LABELS: tuple[str, ...] = tuple(
     binding.label for binding in EXIT_SIGNAL_BUS_BINDINGS
 )
+MOBILE_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in MOBILE_BUS_BINDINGS
+)
+ALERTS_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in ALERTS_BUS_BINDINGS
+)
+SETUP_CHECK_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in SETUP_CHECK_BUS_BINDINGS
+)
+BREAKOUT_OVERLAY_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in BREAKOUT_OVERLAY_BUS_BINDINGS
+)
+CONFLUENCE_HUB_BUS_LABELS: tuple[str, ...] = tuple(
+    binding.label for binding in CONFLUENCE_HUB_BUS_BINDINGS
+)
 
 DASHBOARD_CRITICAL_BINDINGS: tuple[BusBinding, ...] = tuple(
     b for b in DASHBOARD_BUS_BINDINGS if b.tier == 'critical'
@@ -1425,6 +1540,28 @@ BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
     'eventOverlayBindings': EVENT_OVERLAY_BUS_BINDINGS,
     'exitSignalBindings': EXIT_SIGNAL_BUS_BINDINGS,
     'contextOverlayBindings': CONTEXT_OVERLAY_BUS_BINDINGS,
+    'mobileBindings': MOBILE_BUS_BINDINGS,
+    'alertsBindings': ALERTS_BUS_BINDINGS,
+    'setupCheckBindings': SETUP_CHECK_BUS_BINDINGS,
+    'breakoutOverlayBindings': BREAKOUT_OVERLAY_BUS_BINDINGS,
+    'confluenceHubBindings': CONFLUENCE_HUB_BUS_BINDINGS,
+}
+
+# Which Pine file each binding contract binds. Single source for deriving the
+# consumer role below from SURFACE_DEFINITIONS instead of a second hand-kept
+# role catalogue (2026-08-28).
+BINDING_CONTRACT_FILES: dict[str, str] = {
+    'dashboardBindings': 'SMC_Long_Dip_Dashboard.pine',
+    'strategyBindings': 'SMC_Long_Dip_Strategy.pine',
+    'holdManagerBindings': 'SMC_Hold_Manager.pine',
+    'eventOverlayBindings': 'SMC_Event_Overlay.pine',
+    'exitSignalBindings': 'SMC_Exit_Signal.pine',
+    'contextOverlayBindings': 'SMC_Context_Overlay.pine',
+    'mobileBindings': 'SMC_Long_Dip_Mobile.pine',
+    'alertsBindings': 'SMC_Long_Dip_Alerts.pine',
+    'setupCheckBindings': 'SMC_Setup_Check.pine',
+    'breakoutOverlayBindings': 'SMC_Breakout_Overlay.pine',
+    'confluenceHubBindings': 'SMC_Confluence_Hub.pine',
 }
 
 BINDING_CONTRACT_NAMES: dict[str, str] = {
@@ -1434,15 +1571,18 @@ BINDING_CONTRACT_NAMES: dict[str, str] = {
     'eventOverlayBindings': 'Event Overlay BUS bindings',
     'exitSignalBindings': 'Exit Signal BUS bindings',
     'contextOverlayBindings': 'Context Overlay schema-8001 bindings',
+    'mobileBindings': 'Mobile companion BUS bindings',
+    'alertsBindings': 'Alerts companion BUS bindings',
+    'setupCheckBindings': 'Setup Check BUS bindings',
+    'breakoutOverlayBindings': 'Breakout Overlay BUS bindings',
+    'confluenceHubBindings': 'Confluence Hub BUS bindings',
 }
 
+# Derived, never typed: the registry already classifies every surface, so the
+# role a binding contract belongs to comes from SURFACE_DEFINITIONS.
 BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
-    'dashboardBindings': 'dashboard_companion',
-    'strategyBindings': 'execution_wrapper',
-    'holdManagerBindings': 'exit_companion',
-    'eventOverlayBindings': 'overlay_companion',
-    'exitSignalBindings': 'exit_companion',
-    'contextOverlayBindings': 'context_companion',
+    key: SURFACE_DEFINITIONS_BY_FILE[file].consumer_role
+    for key, file in BINDING_CONTRACT_FILES.items()
 }
 
 BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
@@ -1452,6 +1592,11 @@ BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
     'eventOverlayBindings': EVENT_OVERLAY_GROUP_TITLES_BY_KEY,
     'exitSignalBindings': EXIT_SIGNAL_GROUP_TITLES_BY_KEY,
     'contextOverlayBindings': CONTEXT_OVERLAY_GROUP_TITLES_BY_KEY,
+    'mobileBindings': MOBILE_GROUP_TITLES_BY_KEY,
+    'alertsBindings': ALERTS_GROUP_TITLES_BY_KEY,
+    'setupCheckBindings': SETUP_CHECK_GROUP_TITLES_BY_KEY,
+    'breakoutOverlayBindings': BREAKOUT_OVERLAY_GROUP_TITLES_BY_KEY,
+    'confluenceHubBindings': CONFLUENCE_HUB_GROUP_TITLES_BY_KEY,
 }
 
 
@@ -1503,6 +1648,11 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'contextOverlayBindings': [
                 binding.label for binding in CONTEXT_OVERLAY_BUS_BINDINGS
             ],
+            'mobileBindings': list(MOBILE_BUS_LABELS),
+            'alertsBindings': list(ALERTS_BUS_LABELS),
+            'setupCheckBindings': list(SETUP_CHECK_BUS_LABELS),
+            'breakoutOverlayBindings': list(BREAKOUT_OVERLAY_BUS_LABELS),
+            'confluenceHubBindings': list(CONFLUENCE_HUB_BUS_LABELS),
         },
         'preflightScopes': {
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],

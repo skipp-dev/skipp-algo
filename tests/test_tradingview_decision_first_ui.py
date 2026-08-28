@@ -306,7 +306,7 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
 
     assert 'strategy("SMC Long-Dip Strategy", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
-    assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
+    assert 'var string g_bus_entry = "3. Chart Link - Entry States"' in source
     assert source.index('entry_mode = input.string("Strict", "Execution Stage"') < source.index('src_armed = input.source(close, "BUS Armed"')
     assert source.index('use_take_profit = input.bool(true, "Use Take Profit"') < source.index('src_trigger = input.source(close, "BUS Trigger"')
     assert 'src_armed = input.source(close, "BUS Armed"' in source
@@ -320,7 +320,7 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     assert 'Minimum quality score required before the linked core setup can stage an execution plan.' in source
     # Tooltip now names the renamed product (SMC Long-Dip Suite, not the legacy
     # "SMC Core") and states that the rows follow the Suite's dropdown order.
-    assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite.' in source
+    assert 'Bind these chart-link inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite.' in source
     assert 'Bind these plan inputs after the state group so the linked execution plan stays deterministic.' in source
     assert 'plot(src_trigger, "Execution Trigger"' in source
     assert 'plot(src_invalidation, "Execution Invalidation"' in source

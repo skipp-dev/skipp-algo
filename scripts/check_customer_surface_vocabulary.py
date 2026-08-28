@@ -41,6 +41,23 @@ INTERNAL_GROUP_VARS: dict[str, frozenset[str]] = {
     "SMC_Long_Dip_Mobile.pine": frozenset({"g_bus"}),
     "SMC_Long_Dip_Alerts.pine": frozenset({"g_bus"}),
     "SMC_Long_Dip_Suite.pine": frozenset(),
+    # 2026-08-28: population grown from the four incident surfaces to every
+    # onboarding consumer the Chart-Link rename (#4639) could reach — it had
+    # reached only three of seven, and no guard watched the other surfaces a
+    # customer can open. The internal sets are each file's BUS binding groups
+    # (input TITLES in them are the frozen 64-channel binding contract).
+    # SMC_Exit_Signal.pine stays OUT: it is R1-attested (hash frozen against
+    # the registered rollout evidence), so its rename — and with it the one
+    # rendered "BUS" table cell it still paints — must ride the next mutating
+    # TradingView re-attestation session. SMC_Hold_Manager.pine stays OUT for
+    # the sibling reason: its shadow lane's deployed receiver rejects any
+    # build other than contract.source.build (the live alerts emit build 3),
+    # so its rename must ride the lane's next build-advance sitting. Both
+    # exceptions carry tripwires in tests/test_customer_surface_vocabulary.py.
+    "SMC_Setup_Check.pine": frozenset({"g_bus"}),
+    "SMC_Breakout_Overlay.pine": frozenset({"g_bus"}),
+    "SMC_Confluence_Hub.pine": frozenset({"g_bus"}),
+    "SMC_Long_Dip_Strategy.pine": frozenset({"g_bus_entry", "g_bus_plan"}),
 }
 
 # Lower bounds on what the parser must still find. Without them a broken regex
@@ -54,6 +71,12 @@ MIN_INPUTS: dict[str, int] = {
     "SMC_Long_Dip_Mobile.pine": 5,
     "SMC_Long_Dip_Alerts.pine": 2,
     "SMC_Long_Dip_Suite.pine": 227,
+    # 2026-08-28, measured after the Chart-Link rename. Setup Check is honest
+    # 0: its ONLY inputs are the six binding rows in the internal group.
+    "SMC_Setup_Check.pine": 0,
+    "SMC_Breakout_Overlay.pine": 23,
+    "SMC_Confluence_Hub.pine": 11,
+    "SMC_Long_Dip_Strategy.pine": 8,
 }
 
 # Same, for settings-group labels. Cross-checked 2026-08-12 against
@@ -63,6 +86,11 @@ MIN_GROUP_LABELS: dict[str, int] = {
     "SMC_Long_Dip_Mobile.pine": 3,
     "SMC_Long_Dip_Alerts.pine": 3,
     "SMC_Long_Dip_Suite.pine": 26,
+    # 2026-08-28, measured after the Chart-Link rename.
+    "SMC_Setup_Check.pine": 1,
+    "SMC_Breakout_Overlay.pine": 7,
+    "SMC_Confluence_Hub.pine": 6,
+    "SMC_Long_Dip_Strategy.pine": 5,
 }
 
 # Same, for RENDERED chart strings (third population arm, 2026-08-28): string
@@ -78,6 +106,11 @@ MIN_RENDERED: dict[str, int] = {
     "SMC_Long_Dip_Mobile.pine": 54,
     "SMC_Long_Dip_Alerts.pine": 3,
     "SMC_Long_Dip_Suite.pine": 23,
+    # 2026-08-28, measured after the Chart-Link rename.
+    "SMC_Setup_Check.pine": 52,
+    "SMC_Breakout_Overlay.pine": 20,
+    "SMC_Confluence_Hub.pine": 40,
+    "SMC_Long_Dip_Strategy.pine": 28,
 }
 
 # Vocabulary that belongs to internal plumbing rather than a product UX.
@@ -103,7 +136,13 @@ _INPUT_RE = re.compile(
     r"^(?:var\s+)?(?:(?:bool|int|float|string|color)\s+)?(?P<var>\w+)\s*=\s*input(?:\.\w+)?\("
 )
 _GROUP_RE = re.compile(r"\bgroup\s*=\s*(?P<var>\w+)")
-_TITLE_RE = re.compile(r"""input(?:\.\w+)?\(\s*(?:[^,]*,\s*)?["'](?P<t>[^"']{2,})["']""")
+# Pine-korrekt seit 2026-08-28 (dieselbe Klasse wie beim Tooltip darunter):
+# das ÄUSSERE Delimiter bestimmt das Ende. Die alte Zeichenklasse schloss
+# BEIDE Quotezeichen aus, also beendete ein eingebettetes Anführungszeichen
+# des jeweils anderen Typs den Titel-Capture — der Schwanz shippte ungeprüft.
+_TITLE_RE = re.compile(
+    r"""input(?:\.\w+)?\(\s*(?:[^,]*,\s*)?(?P<q>["'])(?P<t>(?:\\.|(?!(?P=q))[^\\]){2,})(?P=q)"""
+)
 # Pine-korrekt seit 2026-08-28: das ÄUSSERE Delimiter bestimmt das Ende. Die
 # alte Zeichenklasse schloss BEIDE Quotezeichen aus, also beendete ein
 # eingebettetes Anführungszeichen des jeweils anderen Typs den Capture — 13 von
@@ -114,7 +153,10 @@ _TOOLTIP_RE = re.compile(
 # All three declaration styles in the tree: `var string g_x = "..."` (Dashboard),
 # `var g_x = '...'` (Suite) and a bare `g_x = '...'` (Alerts). Missing one of them
 # silently shrinks the population — the Suite alone declares its groups as `var
-# g_x` and a `var string`-only pattern saw 1 of its 40 labels.
+# g_x` and a `var string`-only pattern saw 1 of its 40 labels. When the Hold
+# Manager joins the population (its lane's next build sitting), the variable
+# arm must learn its camelCase family (`gBus`, `gSource`, ...) — a `g_`-only
+# pattern sees 0 of its 6 labels.
 _GROUP_DEF_RE = re.compile(
     r"""^\s*(?:var\s+)?(?:string\s+)?(?P<var>g_\w+)\s*=\s*["'](?P<label>[^"']+)["']\s*$"""
 )

@@ -144,6 +144,9 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     assert hold_target['bindingContractName'] == 'Hold Manager BUS bindings'
     assert hold_target['bindingConsumerRole'] == 'exit_companion'
     assert len(hold_target['bindingContractLabels']) == 13
+    # Still the pre-rename title BY DESIGN (2026-08-28): the Hold Manager lane
+    # is frozen at build 3; its Chart-Link rename rides the next build-advance
+    # sitting (tripwire in tests/test_customer_surface_vocabulary.py).
     assert {
         group['groupTitle'] for group in hold_target['bindingLabelGroups']
     } == {'Engine BUS v2 (Expert Mapping)'}

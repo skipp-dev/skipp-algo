@@ -202,6 +202,10 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_grafana_dashboard_pullback.py",
     "tests/test_guard_corpus_tracked_files.py",
     "tests/test_hashlib_weak_hash_ledger.py",
+    # 2026-08-28: the customer-surface hold roster carries two
+    # pin_registry vacuity exemptions, which makes the file a pinned
+    # ledger the required path must run.
+    "tests/test_hold_customer_surfaces.py",
     "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",

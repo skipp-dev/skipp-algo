@@ -916,6 +916,52 @@
       "CTX SessionDirection",
       "CTX SessionMssBull",
       "CTX SessionMssBear"
+    ],
+    "mobileBindings": [
+      "BUS SchemaVersion",
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS StateCode"
+    ],
+    "alertsBindings": [
+      "BUS SchemaVersion",
+      "BUS ZoneActive",
+      "BUS Armed",
+      "BUS StateCode"
+    ],
+    "setupCheckBindings": [
+      "BUS SchemaVersion",
+      "BUS Armed",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS StateCode"
+    ],
+    "breakoutOverlayBindings": [
+      "BUS SchemaVersion",
+      "BUS ZoneActive",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS StopLevel",
+      "BUS Target1",
+      "BUS Target2",
+      "BUS ZoneObTop",
+      "BUS ZoneObBottom",
+      "BUS ZoneFvgTop",
+      "BUS ZoneFvgBottom"
+    ],
+    "confluenceHubBindings": [
+      "BUS SchemaVersion",
+      "BUS Armed",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS StateCode"
     ]
   },
   "preflightScopes": {
