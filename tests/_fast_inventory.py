@@ -367,6 +367,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_posix_only_import_guard.py",
     "test_smc_core_float_equality_discipline.py",
     "test_sprt_decision_consumer_coverage.py",
+    "test_subprocess_budget.py",
     "test_workflow_env_var_defaults.py",
     "test_workflow_invoked_scripts_import_order.py",
     "test_documented_env_vars_are_read.py",
