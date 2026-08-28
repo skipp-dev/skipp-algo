@@ -1,17 +1,17 @@
 {
   "attempt_status_counts": {
-    "COMPLETED": 26,
+    "COMPLETED": 27,
     "FAILED": 4,
     "NO_SETUPS": 18
   },
-  "attempts_total": 48,
+  "attempts_total": 49,
   "audit_integrity": {
-    "audit_rows": 40,
+    "audit_rows": 41,
     "duplicate_snapshot_intent_rows": 0,
     "invalid_audit_rows": 0,
-    "unique_audited_intents": 40,
-    "unique_audited_snapshots": 26,
-    "valid_audit_rows": 40
+    "unique_audited_intents": 41,
+    "unique_audited_snapshots": 27,
+    "valid_audit_rows": 41
   },
   "broker_io": false,
   "campaign_contract": {
@@ -34,26 +34,26 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.0,
-  "failure_rate_lifetime": 0.08333333333333333,
+  "failure_rate_lifetime": 0.08163265306122448,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 4
   },
   "family_coverage_pct": {
-    "BOS": 42.30769230769231,
-    "FVG": 15.384615384615385,
-    "OB": 42.30769230769231,
-    "SWEEP": 53.84615384615385
+    "BOS": 44.44444444444444,
+    "FVG": 14.814814814814815,
+    "OB": 40.74074074074074,
+    "SWEEP": 51.851851851851855
   },
   "family_snapshot_counts": {
-    "BOS": 11,
+    "BOS": 12,
     "FVG": 4,
     "OB": 11,
     "SWEEP": 14
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-08-28T14:05:12.205025+00:00",
-  "last_observed_at": "2026-08-28T14:05:12.205025+00:00",
+  "generated_at": "2026-08-28T15:05:05.757995+00:00",
+  "last_observed_at": "2026-08-28T15:05:05.757995+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -73,7 +73,7 @@
     "count": 20,
     "max": 0.18918612506240606,
     "min": 0.0045479589607566595,
-    "p50": 0.006197145557962358,
+    "p50": 0.006254478939808905,
     "p95": 0.008831833023577929
   },
   "promotion_gate": {
@@ -89,9 +89,9 @@
     "count": 20,
     "max": 336.87620401382446,
     "min": -66.75302004814148,
-    "p50": 317.00220704078674,
+    "p50": 316.1598105430603,
     "p95": 335.39540910720825
   },
-  "substantive_attempts_total": 48,
-  "unique_attempted_snapshots": 48
+  "substantive_attempts_total": 49,
+  "unique_attempted_snapshots": 49
 }
