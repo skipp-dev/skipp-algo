@@ -88,6 +88,16 @@ promoted to required (closes Operator-Punkt 1).
 > and `tests/test_verify_branch_protection.py` pins that their silent
 > removal turns the verifier red.
 >
+> **2026-08-28 (Geburtsfehler-Sweep):** the live ruleset has carried a
+> sixth required context since the promotion — `gate`, the
+> refuse-anything-not-a-real-pass summary job of `smc-fast-pr-gates.yml`
+> — which the 2026-08-27 Nachzug missed. `REQUIRED_STATUS_CHECKS` now
+> lists it, and the daily meta-watchdog probe
+> (`scripts/check_workflow_failure_alarm_coverage.py`) gained a
+> ruleset-drift arm that compares the LIVE required contexts against
+> that constant in both directions, so the next silent ruleset change
+> is caught by a scheduled check instead of by a sweep.
+>
 > Superseded note (truth-audit 2026-07-13): at that date no workflow ran
 > the `-m slow` complement and `validate` was non-required.
 

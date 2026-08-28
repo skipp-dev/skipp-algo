@@ -49,7 +49,7 @@ NAMES = {
 def test_the_required_set_names_the_merge_critical_workflows() -> None:
     """Ohne diese zwei ist der Waechter Dekoration.
 
-    ``smc-fast-pr-gates`` ist der einzige required Check und der einzige Ort,
+    ``smc-fast-pr-gates`` traegt fast-gates+gate (required, seit 27.8. mit den validate-Shards) und ist der einzige Ort,
     an dem ruff, actionlint, zizmor, der TS-Vakuitaets-Guard, der Docker-Bau
     samt Start-Probe und die Manifest-Drift-Pruefungen ueberhaupt laufen.
     ``ci.yml`` faehrt auf main die volle Suite.
@@ -314,3 +314,221 @@ def test_the_alarm_step_script_survives_rc8_under_dash_e(
     assert "alarm_rc=8" in github_output.read_text(), (
         "alarm_rc wurde nicht geschrieben — der rc-Fang ist wieder unerreichbar"
     )
+
+
+# ---------------------------------------------------------------------------
+# Ruleset-Drift-Arm (Geburtsfehler-Sweep 2026-08-28)
+#
+# Am 27.8. nahm der Operator `gate` mit ins main-governance-Ruleset auf; der
+# Nachzug #5121 uebertrug nur die vier validate-Shards. Kein Waechter lief je
+# gegen den LIVE-Zustand — verify_branch_protection.py startet kein Workflow.
+# Diese Tests pinnen den Arm, der das schliesst, und den Drift-Faenger fuer
+# die Handliste REQUIRED_WORKFLOWS.
+# ---------------------------------------------------------------------------
+
+WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+
+def test_the_repo_truth_carries_the_gate_context() -> None:
+    """Der Boden unter der abgeleiteten Pruefung — die #5121-Luecke, gepinnt.
+
+    Live gemessen 2026-08-28 (Ruleset 15245308): sechs Kontexte. Eine
+    abgeleitete Liste ohne Boden kann ihre eigene Drift nicht fangen.
+    """
+    assert {
+        "fast-gates", "gate",
+        "validate (1)", "validate (2)", "validate (3)", "validate (4)",
+    } <= set(cov.REQUIRED_STATUS_CHECKS)
+
+
+def test_a_context_the_ruleset_lost_is_a_finding() -> None:
+    findings = cov.evaluate_ruleset_drift(["fast-gates", "gate"], {"fast-gates"})
+    assert len(findings) == 1
+    assert "'gate'" in findings[0] and "verloren" in findings[0]
+
+
+def test_a_context_the_repo_truth_does_not_know_is_a_finding() -> None:
+    """Die Richtung, in der 'gate' am 27.8. tatsaechlich durchgefallen ist."""
+    findings = cov.evaluate_ruleset_drift(["fast-gates"], {"fast-gates", "gate"})
+    assert len(findings) == 1
+    assert "REQUIRED_STATUS_CHECKS" in findings[0]
+
+
+def test_an_empty_live_context_set_is_loud_not_clean() -> None:
+    """Null required Checks = Governance weg. Das darf nie wie 'kein Drift' aussehen."""
+    findings = cov.evaluate_ruleset_drift(["fast-gates"], set())
+    assert len(findings) == 1 and "NULL" in findings[0]
+
+
+def test_matching_context_sets_yield_no_drift() -> None:
+    """Positivkontrolle gegen einen Dauer-Rotton."""
+    assert cov.evaluate_ruleset_drift(["a", "b"], {"a", "b"}) == []
+
+
+def test_a_403_on_the_ruleset_read_is_not_measurable_not_a_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def gh(url: str, token: str) -> dict:
+        raise urllib.error.HTTPError("u", 403, "Forbidden", None, None)
+
+    monkeypatch.setattr(cov, "_gh", gh)
+    assert cov.live_required_contexts("r", "t") is None
+
+
+def test_a_5xx_on_the_ruleset_read_stays_loud(monkeypatch: pytest.MonkeyPatch) -> None:
+    """5xx ist Wetter — es gehoert in den Transient-Retry, nicht ins stille None."""
+    def gh(url: str, token: str) -> dict:
+        raise urllib.error.HTTPError("u", 503, "Service Unavailable", None, None)
+
+    monkeypatch.setattr(cov, "_gh", gh)
+    with pytest.raises(urllib.error.HTTPError):
+        cov.live_required_contexts("r", "t")
+
+
+def test_contexts_come_from_active_rulesets_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    def gh(url: str, token: str):  # Testdouble
+        if url.endswith("/rulesets"):
+            return [{"id": 1, "enforcement": "active"}, {"id": 2, "enforcement": "disabled"}]
+        assert url.endswith("/rulesets/1"), "ein disabled Ruleset darf nicht abgefragt werden"
+        return {"rules": [{"type": "required_status_checks", "parameters": {
+            "required_status_checks": [{"context": "fast-gates"}, {"context": "gate"}],
+        }}]}
+
+    monkeypatch.setattr(cov, "_gh", gh)
+    assert cov.live_required_contexts("r", "t") == {"fast-gates", "gate"}
+
+
+def _files_hosting_job(base: str, workflows_dir: Path) -> set[str]:
+    """Workflow-Dateien, deren Job-Schluessel ODER Anzeigename `base` ist.
+
+    Ein required-Check-Kontext ist der Job-Name; jede Workflow-Datei, die so
+    einen Job traegt, meldet diesen Kontext. Population von Platte, keine
+    Handliste (Doppelgaenger K5 / hartkodierte Waechter-Listen-Klasse).
+    """
+    hosts: set[str] = set()
+    for wf in sorted(workflows_dir.glob("*.yml")) + sorted(workflows_dir.glob("*.yaml")):
+        doc = yaml.safe_load(wf.read_text(encoding="utf-8")) or {}
+        jobs = doc.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        for job_key, job in jobs.items():
+            name = str((job or {}).get("name") or job_key)
+            if base in (str(job_key), name):
+                hosts.add(wf.name)
+    return hosts
+
+
+def test_every_required_context_is_hosted_and_its_workflow_is_monitored() -> None:
+    """Der Drift-Faenger fuer die Handliste REQUIRED_WORKFLOWS.
+
+    Gemessen 2026-08-28 ueber alle 72 Workflow-Dateien: fast-gates+gate leben
+    in smc-fast-pr-gates.yml, validate in ci.yml — exakt die zwei Eintraege
+    der Handliste. Kommt morgen ein required Check in einer DRITTEN Datei
+    dazu (oder zieht einer um), wird dieser Test rot, statt dass der
+    Fehleralarm still blind bleibt. Kontext ohne Job = Ruleset und Repo sind
+    auseinander (Umbenennungs-Falle).
+    """
+    alle = sorted(WORKFLOWS_DIR.glob("*.yml")) + sorted(WORKFLOWS_DIR.glob("*.yaml"))
+    assert len(alle) >= 30, "Vakuitaets-Boden: das Workflows-Glob findet fast nichts"
+    hosting: set[str] = set()
+    for context in cov.REQUIRED_STATUS_CHECKS:
+        base = context.split(" (")[0]
+        hosts = _files_hosting_job(base, WORKFLOWS_DIR)
+        assert hosts, (
+            f"Kontext {context!r}: kein Workflow-Job dieses Namens im Repo -- "
+            "Ruleset-Kontext und Repo sind auseinander (Umbenennung?)"
+        )
+        hosting |= hosts
+    assert hosting == set(REQUIRED_WORKFLOWS), (
+        "Die Workflows, die required-Check-Kontexte melden, und die vom "
+        f"Fehleralarm geforderten Dateien driften: hosting={sorted(hosting)} "
+        f"vs REQUIRED_WORKFLOWS={sorted(REQUIRED_WORKFLOWS)}"
+    )
+
+
+def test_a_new_workflow_hosting_a_required_job_is_caught(tmp_path: Path) -> None:
+    """Mutationsprobe fuer die Ableitung — synthetische dritte Datei."""
+    (tmp_path / "neu.yml").write_text(
+        "jobs:\n  gate:\n    runs-on: x\n", encoding="utf-8"
+    )
+    (tmp_path / "anders.yml").write_text(
+        "jobs:\n  bau:\n    name: gate\n    runs-on: x\n", encoding="utf-8"
+    )
+    assert _files_hosting_job("gate", tmp_path) == {"anders.yml", "neu.yml"}
+    assert _files_hosting_job("validate", tmp_path) == set()
+
+
+def _gesunde_sonde(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cov, "_api_key", lambda: "k")
+    monkeypatch.setattr(
+        cov, "observed_workflows", lambda key: {"smc-fast-pr-gates", "CI"}
+    )
+    monkeypatch.setattr(
+        cov,
+        "workflow_names_by_file",
+        lambda repo, token: {"smc-fast-pr-gates.yml": "smc-fast-pr-gates", "ci.yml": "CI"},
+    )
+    monkeypatch.setattr(
+        cov, "workflows_in_run_page", lambda repo, token: {"smc-fast-pr-gates", "CI"}
+    )
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+
+
+def test_live_drift_turns_the_daily_probe_red(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _gesunde_sonde(monkeypatch)
+    monkeypatch.setattr(cov, "live_required_contexts", lambda repo, token: {"fast-gates"})
+    rc = cov.main([])
+    assert rc == 1, "Ruleset-Drift muss den taeglichen Lauf rot machen"
+    assert "DRIFT" in capsys.readouterr().out
+
+
+def test_an_unreadable_ruleset_is_ungesichert_not_a_verdict(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """403 heisst 'nicht messbar' — sichtbar im Log, aber weder rot noch gruen.
+
+    Sonst faerbte ein Token ohne administration:read jeden Tageslauf, und die
+    echten Befunde gingen im Dauerrot unter (Muster der rc=8-Semantik).
+    """
+    _gesunde_sonde(monkeypatch)
+    monkeypatch.setattr(cov, "live_required_contexts", lambda repo, token: None)
+    rc = cov.main([])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "UNGESICHERT" in captured.err
+
+
+def test_matching_live_contexts_keep_the_probe_green(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Positivkontrolle der Verdrahtung in main()."""
+    _gesunde_sonde(monkeypatch)
+    monkeypatch.setattr(
+        cov,
+        "live_required_contexts",
+        lambda repo, token: set(cov.REQUIRED_STATUS_CHECKS),
+    )
+    assert cov.main([]) == 0
+
+
+def test_the_per_page_hint_reaches_the_blind_runbook(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-Richtung des Sweeps: die kopierte Fenstergroesse steht jetzt im Runbook.
+
+    Der Daemon exponiert per_page nirgends; wer einem Blind-Befund nachgeht,
+    muss die Praemisse dieses Skripts (RUN_PAGE_SIZE) gegen die Railway-Env
+    halten koennen, ohne den Quelltext zu lesen.
+    """
+    _gesunde_sonde(monkeypatch)
+    monkeypatch.setattr(cov, "observed_workflows", lambda key: {"CI"})
+    monkeypatch.setattr(
+        cov,
+        "live_required_contexts",
+        lambda repo, token: set(cov.REQUIRED_STATUS_CHECKS),
+    )
+    rc = cov.main([])
+    assert rc == 1
+    assert "GITHUB_WORKFLOW_MONITOR_PER_PAGE" in capsys.readouterr().err

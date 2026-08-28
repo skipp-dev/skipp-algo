@@ -40,7 +40,7 @@ BRANCH = "main"
 # consolidated into the `main-governance` ruleset), so this is the BARE ruleset
 # context (the GitHub Actions job name), not the classic "workflow / job" path.
 REQUIRED_STATUS_CHECKS: list[str] = [
-    "fast-gates",
+    "fast-gates", "gate",  # 2026-08-28: "gate" live im Ruleset gemessen (15245308); #5121 zog nur die validate-Shards nach.
     # 2026-08-27 (ADR-0012 Operator-Punkt 1): since #4927 the PR lane runs the
     # slow complement for real; after 21 measured heavy green runs the four
     # validate shard contexts joined the `main-governance` ruleset. Doc-only
