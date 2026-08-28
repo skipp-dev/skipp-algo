@@ -349,7 +349,7 @@ This is a pro follow-up surface for users who already trust the Core decision an
 
 ### LS-1 Expert Section
 
-All source mapping stays in an explicit `Expert Mapping` section.
+All source mapping stays in an explicit `Chart Link` section (named `Expert Mapping` until the 2026-08-28 vocabulary completion).
 
 If TradingView limitations prevent full hiding, then the product documentation must keep calling this a pro linked surface rather than a general user surface.
 

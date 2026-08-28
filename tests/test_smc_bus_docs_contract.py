@@ -88,3 +88,83 @@ def test_mainline_setup_runbook_references_canonical_sources() -> None:
     assert_contains(SETUP_RUNBOOK_PATH, 'smc_bus_manifest.py')
     assert_contains(SETUP_RUNBOOK_PATH, 'smc_product_cut_manifest.json')
     assert_contains(SETUP_RUNBOOK_PATH, 'npm run tv:preflight:smc-mainline')
+
+
+# --- Chart-Link completion (2026-08-28): the validation docs must speak the
+# --- CURRENT panel group names, and the retired ones must never come back.
+
+# The #4639 names these docs still carried 16 days after the rename — plus
+# 'Operator Only', the pre-#4639 prefix whose revert was the #4646 incident.
+RETIRED_GROUP_NAMES: tuple[str, ...] = (
+    'Lifecycle BUS',
+    'Diagnostic Support',
+    'Diagnostic Rows',
+    'Operator Only',
+)
+
+VALIDATION_DOC_PATHS: tuple[pathlib.Path, ...] = (
+    CHECKLIST_PATH,
+    RUNBOOK_DE_PATH,
+    RUNBOOK_EN_PATH,
+    SETUP_RUNBOOK_PATH,
+)
+
+
+def _ordered_dashboard_groups() -> list[tuple[str, int]]:
+    """(panel title, channel count) in the panel's own group order, derived
+    from the binding registry rather than restated."""
+    ordered: list[tuple[str, int]] = []
+    for binding in MANIFEST.DASHBOARD_BUS_BINDINGS:
+        title = MANIFEST.DASHBOARD_GROUP_TITLES_BY_KEY[binding.group]
+        if not ordered or ordered[-1][0] != title:
+            ordered.append((title, 0))
+        ordered[-1] = (title, ordered[-1][1] + 1)
+    return ordered
+
+
+def test_validation_docs_do_not_use_retired_group_names() -> None:
+    checked = 0
+    for path in VALIDATION_DOC_PATHS:
+        text = read_text(path)
+        for retired in RETIRED_GROUP_NAMES:
+            assert retired not in text, (
+                f'{path.name} still names the retired settings group '
+                f'{retired!r} — the panel says '
+                f'{tuple(MANIFEST.DASHBOARD_GROUP_TITLES)} since #4639'
+            )
+            checked += 1
+    assert checked == len(VALIDATION_DOC_PATHS) * len(RETIRED_GROUP_NAMES)
+
+
+def test_validation_docs_name_every_current_dashboard_group() -> None:
+    assert len(MANIFEST.DASHBOARD_GROUP_TITLES) == 8
+    for path in (CHECKLIST_PATH, RUNBOOK_DE_PATH, SETUP_RUNBOOK_PATH):
+        for title in MANIFEST.DASHBOARD_GROUP_TITLES:
+            assert_contains(path, title)
+
+
+def test_setup_runbook_table_matches_the_binding_groups() -> None:
+    """The 8-row table: panel order, per-group channel count, sum = 64."""
+    groups = _ordered_dashboard_groups()
+    assert [title for title, _ in groups] == list(MANIFEST.DASHBOARD_GROUP_TITLES)
+    assert sum(count for _, count in groups) == len(MANIFEST.ENGINE_BUS_LABELS) == 64
+    for position, (title, count) in enumerate(groups, 1):
+        assert_contains(SETUP_RUNBOOK_PATH, f'| {position} | {title} | {count} |')
+
+
+def test_docs_name_the_strategy_chart_link_groups() -> None:
+    """The Strategy consumer's groups renamed with the 2026-08-28 completion."""
+    for path, fragment in (
+        (RUNBOOK_DE_PATH, '`3. Chart Link - Entry States` und `4. Chart Link - Trade Plan`'),
+        (RUNBOOK_EN_PATH, '`3. Chart Link - Entry States` and `4. Chart Link - Trade Plan`'),
+        (CHECKLIST_PATH, 'the two `Chart Link` groups'),
+        (SETUP_RUNBOOK_PATH, 'two **Chart Link** source-binding groups'),
+    ):
+        assert_contains(path, fragment)
+    for path in (RUNBOOK_DE_PATH, RUNBOOK_EN_PATH, CHECKLIST_PATH, SETUP_RUNBOOK_PATH):
+        assert 'Expert Mapping' not in read_text(path), (
+            f'{path.name} still says Expert Mapping — the Strategy groups are '
+            'Chart Link groups since 2026-08-28 (Exit Signal keeps the old '
+            'labels until its re-attestation, but these docs do not describe '
+            'its groups)'
+        )
