@@ -1565,3 +1565,93 @@ claim  = "Step 1b publiziert rc=1 VOR den sechs jq-Lesungen; ein frueh sterbende
 state  = "AUSGENOMMEN"
 due_by = "2026-08-28"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# refresh-surface-hold (28.8., Lauf 33150273077): der publish-Job von
+# smc-library-publish checkt steps.source_tree.outputs.ref aus — Stunden
+# aelter als main — waehrend das YAML bei Run-Erstellung von main gepinnt
+# wird. Der #5141-Hold-Step starb dort mit "No module named
+# scripts.hold_customer_surfaces" NACH dem TV-Publish (v380) und VOR dem
+# Manifest-Commit: Manifest strandete auf 379, jeder tv-save-Lauf starb
+# fail-closed am Library-Drift (checkedConsumers=0), nichts beobachtete die
+# frisch gesetzten Operator-Bindings. Fix: Namespace-Luecken-Fuellung aus
+# FETCH_HEAD (scripts/ ist Namespace-Package; vorhandene Module behalten
+# Checkout-Version und __file__-Anker — der Rot-zuerst-Test fing die
+# Vollkopie-Variante, die smc_r1_rollout_contract von seinen Daten trennte).
+# Suite-ausfuehrbar (echter Step-Bash, staler Checkout via Symlinks, junges
+# Modul nur auf dem Fixture-main). Der reparierte Step lief aber noch in
+# KEINEM echten Lauf — OFFEN mit Urteiler (nie ausgeloester Workflow =
+# unbewiesen); Zeuge = naechster refresh-Publish (~stuendliche Kadenz).
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "refresh-surface-hold"
+kind            = "fix"
+claim           = "Der refresh-Publish stirbt nicht mehr am gepinnten Alt-Checkout ohne Hold-Modul: der Step fuellt fehlende scripts/-Module aus frisch gefetchtem main und haelt jede Kundenoberflaeche, bevor der Manifest-Commit laeuft"
+witness         = "smc-library-publish"
+witness_job     = "publish"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "No customer surface held"
+judge           = "refresh_surface_hold"
+state           = "OFFEN"
+due_by          = "2026-08-30"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "refresh_surface_hold"
+branch = "clean_full_check"
+reason = """
+Noch nicht geboren, nicht tot: der Zweig verlangt die Nulllesung "No customer
+surface held (N checked)." aus einem ECHTEN publish-Job-Log NACH dem Merge
+dieses Fixes — jeder Lauf davor starb an der Modul-Luecke (33150273077) oder
+kannte den Step nicht. Erreichbar bewiesen ohne Korpus-Luege: der echte
+Step-Bash laeuft im Fixture-Remote-Test
+(tests/test_hold_customer_surfaces_wiring.py, inkl. des stale-Checkout-Falls)
+und das Modul druckt exakt diese Zeile. Schliesst sich selbst: PASS fuer
+refresh-surface-hold braucht einen Korpus, der diesen Zweig (oder
+held_a_stale_surface) erreicht, und der macht die Deklaration im
+Widerspruchs-Test rot.
+"""
+
+[[unreachable_branch]]
+judge  = "refresh_surface_hold"
+branch = "held_a_stale_surface"
+reason = """
+Der Defekt-Fang-Zweig: feuert erst, wenn ein Mid-Run-Merge eine
+Kundenoberflaeche trifft, deren Pin sich im selben Lauf bewegt. Die Mechanik
+ist geprueft, nicht behauptet: der Fixture-Remote-Test
+(test_refresh_hold_step_restores_the_revert_and_keeps_the_pin_bumps) erzeugt
+genau diesen Fall im echten Step-Bash und liest die Marker-Zeile
+"held at current-main content: ..." aus dem Modul-Output.
+"""
+
+[[unreachable_branch]]
+judge  = "refresh_surface_hold"
+branch = "hold_never_ran"
+reason = """
+Feuert nur auf einem Log OHNE jede Hold-Spur — einem Lauf, der vor dem Step
+stirbt (fehlende TV-Auth, Preflight) oder auf toter Verdrahtung. Kein Korpus
+traegt so einen Lauf; die leere-Beobachtung-Semantik (STEHT_AUS statt PASS)
+folgt handlib_smcpp_hold.hold_never_ran.
+"""
+
+[[unreachable_branch]]
+judge  = "refresh_surface_hold"
+branch = "module_missing_regression"
+reason = """
+Der explizite Rueckfall-Zweig: die 33150273077-Signatur ("No module named
+scripts.hold_customer_surfaces") als FAIL statt STEHT_AUS, damit ein Riss der
+FETCH_HEAD-Naht nie wieder als "nie gelaufen" durchgeht. Erreicht kein
+Korpus, solange die Naht haelt — der Zweig ist die Alarmglocke, nicht der
+Normalfall; seine Ausloesbarkeit ist am echten Lauf 33150273077 gemessen
+(exakt diese Log-Zeile), nicht konstruiert.
+"""
+
+[[unreachable_branch]]
+judge  = "refresh_surface_hold"
+branch = "no_log"
+reason = """
+Leere Evidenz — der Abholer konnte kein Job-Log liefern. Erreicht kein
+Korpus, weil der Korpus aus gelieferten Logs besteht; noch gibt es fuer
+diesen Urteiler gar keinen Korpus (der reparierte Step lief noch nie).
+"""

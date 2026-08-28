@@ -206,6 +206,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # pin_registry vacuity exemptions, which makes the file a pinned
     # ledger the required path must run.
     "tests/test_hold_customer_surfaces.py",
+    "tests/test_hold_customer_surfaces_wiring.py",
     "tests/test_hmac_auth_zero_surface.py",
     "tests/test_http_client_discipline.py",
     "tests/test_http_post_egress_ledger.py",

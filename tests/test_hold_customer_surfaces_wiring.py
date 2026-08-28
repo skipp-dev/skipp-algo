@@ -29,6 +29,7 @@ from pathlib import Path
 
 import yaml
 
+from tests._guard_corpus import iter_tracked_files
 from tests._workflow_step_shell import Stub, run_step, step_by_name
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -316,13 +317,13 @@ def _fixture(tmp_path: Path, *, drop_from_main: str | None = None) -> Path:
     return work
 
 
-def _run_in(workflow: str, tmp_path: Path, work: Path):
+def _run_in(workflow: str, tmp_path: Path, work: Path, *, pythonpath: str | None = None):
     runner_temp = tmp_path / "runner_temp"
     runner_temp.mkdir(exist_ok=True)
     env = {
         **_ENV,
         "HOME": str(tmp_path),
-        "PYTHONPATH": str(REPO_ROOT),
+        "PYTHONPATH": pythonpath if pythonpath is not None else str(REPO_ROOT),
         "RUNNER_TEMP": str(runner_temp),
         "BUMP_REMOTE": str(tmp_path / "remote"),
         "SMC_PYTHON_BIN": sys.executable,
@@ -412,3 +413,68 @@ def test_handlibs_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     ]
     # And the module really ran through the stubbed interpreter.
     assert result.called_with("scripts.hold_customer_surfaces")
+
+
+def test_refresh_hold_survives_a_checkout_that_predates_the_script(
+    tmp_path: Path,
+) -> None:
+    """Run 33150273077 (2026-08-28): the refresh publish job checks out
+    ``steps.source_tree.outputs.ref`` — a commit that lags main by hours —
+    while its YAML is pinned at run creation from main. The step body must
+    not assume the checkout carries this module: the run died with ``No
+    module named scripts.hold_customer_surfaces`` AFTER the TV publish and
+    BEFORE the manifest commit, stranding the release manifest one version
+    behind TradingView and fail-closing every tv-save run on library
+    drift. When the checkout predates the module, it must run from freshly
+    fetched main instead. (handlibs is structurally immune: its checkout
+    and YAML come from the same sha.)
+    """
+    work = _fixture(tmp_path)
+    # The hold script lands on main mid-run (the #5141 merge): the fixture
+    # remote's main carries the whole scripts/ tree, not a hand-kept
+    # dependency list (the module lazy-imports its roster and attestation
+    # helpers, and a curated list here would rot with them).
+    remote = tmp_path / "remote"
+    young = Path("scripts") / "hold_customer_surfaces.py"
+    # Git-derived, not an rglob walk (test_guard_corpus_tracked_files budget);
+    # positive control below: the enumeration must contain the module under
+    # test, or the whole scenario silently degrades to the plain fixture.
+    tracked = iter_tracked_files("scripts/*.py", ("__pycache__",), root=REPO_ROOT)
+    assert REPO_ROOT / young in tracked
+    for src in tracked:
+        rel = src.relative_to(REPO_ROOT)
+        dst = remote / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+        # The stale checkout carries every module EXCEPT the young one —
+        # that is what "predates the script" means; its older modules must
+        # keep resolving from the checkout with their __file__-anchored
+        # data files (symlinks: ``resolve()`` lands in the real repo, where
+        # the governance artifacts the attestation roster reads live — the
+        # same anchoring every other executed test here leans on).
+        if rel != young:
+            work_dst = work / rel
+            work_dst.parent.mkdir(parents=True, exist_ok=True)
+            work_dst.symlink_to(src)
+    _commit_all(remote, "hold script lands on main mid-run")
+
+    # Actions points PYTHONPATH at the workspace — the stale checkout — so
+    # the young module cannot resolve from anywhere but fetched main.
+    result = _run_in(PUBLISH_WORKFLOW, tmp_path, work, pythonpath=str(work))
+
+    assert result.returncode == 0, result.stderr
+    # The hole-filling extracted exactly the module the checkout lacks —
+    # present modules keep their checkout version and anchoring.
+    hold_src = tmp_path / "runner_temp" / "surface-hold-src"
+    assert (hold_src / young).is_file()
+    assert not (hold_src / "scripts" / "hold_r1_attested_sources.py").exists()
+    assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
+        _PIN + _CLEAN_VOCAB
+    )
+    assert (work / "SMC_Breakout_Overlay.pine").read_text(encoding="utf-8") == (
+        _ENGINE_PIN + _CLEAN_VOCAB
+    )
+    assert json.loads(result.outputs["held"]) == [
+        "SMC_Breakout_Overlay.pine",
+        "SMC_Long_Dip_Dashboard.pine",
+    ]

@@ -1134,7 +1134,31 @@ jobs:
             mkdir -p "${SURFACE_BASE}/$(dirname "$f")"
             git show "FETCH_HEAD:$f" > "${SURFACE_BASE}/$f"
           done
-          "$SMC_PYTHON_BIN" -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
+          # This job checks out steps.source_tree.outputs.ref — a commit
+          # that lags main by hours — while the YAML is pinned at run
+          # creation from main. A module younger than that lag is absent
+          # from the checkout: run 33150273077 (2026-08-28) died here with
+          # "No module named scripts.hold_customer_surfaces" AFTER the TV
+          # publish and BEFORE the manifest commit, stranding the release
+          # manifest one version behind TradingView and fail-closing every
+          # tv-save run on library drift. Fill exactly the namespace holes
+          # from freshly fetched main: scripts/ has no __init__.py, so the
+          # interpreter merges the checkout's portion (first, via the job
+          # cwd) with the filled one — modules the checkout already carries
+          # keep their checkout version and their __file__-anchored data
+          # files (smc_r1_rollout_contract reads artifacts/governance/
+          # relative to its own location, so a wholesale fresh-main copy
+          # would strand it in a tree without its data).
+          HOLD_SRC="${RUNNER_TEMP}/surface-hold-src"
+          mkdir -p "${HOLD_SRC}"
+          while IFS= read -r py; do
+            if [ ! -f "${py}" ]; then
+              mkdir -p "${HOLD_SRC}/$(dirname "${py}")"
+              git show "FETCH_HEAD:${py}" > "${HOLD_SRC}/${py}"
+            fi
+          done < <(git ls-tree -r --name-only FETCH_HEAD -- scripts | grep -E '\.py$')
+          PYTHONPATH="${HOLD_SRC}${PYTHONPATH:+:${PYTHONPATH}}" \
+            "$SMC_PYTHON_BIN" -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
 
       - name: Report R1 attestation drift caused by this refresh
         id: r1_attestation
