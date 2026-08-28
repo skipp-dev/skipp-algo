@@ -71,6 +71,46 @@ def test_safe_decision_allows_and_attaches_sanitized_metadata(monkeypatch):
     assert kwargs["timeout"] == 7
 
 
+def test_caller_supplied_transaction_id_is_used_for_both_metadata_and_log(monkeypatch, caplog):
+    """One exchange, one id — otherwise "transaction" names a single inspection.
+
+    2026-08-29: request and response inspection of the same user query each
+    minted their own uuid, so the two Cisco events and the two log lines could
+    not be joined. Measured live in the Producer log: one terminal query
+    produced transaction_id=7fb089e7... for the request and 81b8f43e... for the
+    response.
+    """
+    client = _Client(_result(safe=True, action=Action.ALLOW))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+    shared = defense.new_transaction_id()
+
+    with caplog.at_level("INFO"):
+        request_decision = defense.inspect_messages(
+            _messages(), phase="request", source="s", model="m", transaction_id=shared,
+        )
+        response_decision = defense.inspect_messages(
+            _messages(), phase="response", source="s", model="m", transaction_id=shared,
+        )
+
+    assert request_decision.transaction_id == shared
+    assert response_decision.transaction_id == shared
+    assert len(client.calls) == 2, "both phases must have reached the SDK"
+    for _messages_sent, kwargs in client.calls:
+        assert kwargs["metadata"].client_transaction_id == shared
+        assert kwargs["request_id"] == shared
+    assert caplog.text.count(f"transaction_id={shared}") == 2
+
+
+def test_omitted_transaction_id_still_mints_a_unique_one(monkeypatch):
+    client = _Client(_result(safe=True, action=Action.ALLOW))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    first = defense.inspect_messages(_messages(), phase="request", source="s", model="m")
+    second = defense.inspect_messages(_messages(), phase="request", source="s", model="m")
+
+    assert first.transaction_id != second.transaction_id
+
+
 def test_allowed_decision_logs_the_event_id_for_correlation(monkeypatch, caplog):
     """An ALLOWED transaction must be correlatable to the Cisco event log too.
 

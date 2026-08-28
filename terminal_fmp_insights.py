@@ -22,7 +22,12 @@ from typing import Any, cast
 
 import httpx
 
-from cisco_ai_defense import AIDefenseBlockedError, append_assistant_message, inspect_messages
+from cisco_ai_defense import (
+    AIDefenseBlockedError,
+    append_assistant_message,
+    inspect_messages,
+    new_transaction_id,
+)
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from smc_core.resilient import resilient
 
@@ -461,7 +466,8 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
     """
     messages = payload.get("messages") or []
     model = str(payload.get("model") or _DEFAULT_MODEL)
-    inspect_messages(messages, phase="request", source="terminal-fmp-insights", model=model)
+    transaction_id = new_transaction_id()  # one id for both directions of this exchange
+    inspect_messages(messages, phase="request", source="terminal-fmp-insights", model=model, transaction_id=transaction_id)
     with httpx.Client(timeout=_API_TIMEOUT) as client:
         resp = client.post(
             "https://api.openai.com/v1/chat/completions",
@@ -485,6 +491,7 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
         phase="response",
         source="terminal-fmp-insights",
         model=model,
+        transaction_id=transaction_id,
     )
     return answer
 
@@ -565,11 +572,16 @@ def query_fmp_llm(
 
     try:
         if hit:
+            # A cache delivery is one exchange too: both re-inspections carry
+            # the same id, so a cached answer blocked by a tightened policy is
+            # traceable back to its own allow decision.
+            cached_transaction_id = new_transaction_id()
             inspect_messages(
                 payload["messages"],
                 phase="request",
                 source="terminal-fmp-insights",
                 model=model,
+                transaction_id=cached_transaction_id,
             )
             answer = cached_text
             inspect_messages(
@@ -577,6 +589,7 @@ def query_fmp_llm(
                 phase="response",
                 source="terminal-fmp-insights",
                 model=model,
+                transaction_id=cached_transaction_id,
             )
         else:
             answer = _call_openai_chat(payload, api_key)

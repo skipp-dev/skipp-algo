@@ -150,7 +150,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     ("terminal_export.py", 918),  # 2026-07-12 (drop dead social read): 921 -> 918
     # OpenAI chat completions — FMP insights enrichment.
     # Line shifted 402 → 409 (main merge for PR-J3 cache-key scoping).
-    ("terminal_fmp_insights.py", 466),  # 2026-08-29 blocked-vs-failed negative cache (audit): 456->466
+    ("terminal_fmp_insights.py", 472),  # 2026-08-29 per-exchange transaction id (audit): 466->472
     # Webhook fan-out from the live Streamlit terminal alert path
     # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
     # Line shifted 2257 → 2274 (system review 2026-04-30).

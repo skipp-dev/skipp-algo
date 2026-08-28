@@ -177,18 +177,34 @@ def _rule_names(result: Any) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
+def new_transaction_id() -> str:
+    """Mint one correlation id for a whole request/response exchange.
+
+    Callers that inspect both directions of the same user interaction pass the
+    same id to both :func:`inspect_messages` calls, so the two Cisco events and
+    the two log lines can be joined. Without it each call minted its own id and
+    "transaction" named a single inspection, not the transaction (2026-08-29).
+    """
+    return str(uuid.uuid4())
+
+
 def inspect_messages(
     messages: Sequence[Mapping[str, Any]],
     *,
     phase: str,
     source: str,
     model: str,
+    transaction_id: str | None = None,
 ) -> AIDefenseDecision:
     """Inspect a provider request or response and enforce the Cisco decision.
 
     ``monitor`` permits policy violations after recording them in Cisco, but
     configuration errors, transport failures, and malformed decisions remain
     fail-closed.  There is deliberately no runtime ``off`` mode.
+
+    Pass ``transaction_id`` from :func:`new_transaction_id` to correlate the
+    request and response inspection of one exchange; omitted, each call gets
+    its own id.
     """
     if phase not in {"request", "response"}:
         raise AIDefenseConfigurationError("AI Defense phase must be 'request' or 'response'")
@@ -196,7 +212,7 @@ def inspect_messages(
     mode = _phase_mode(phase)
     api_key, region, timeout = _runtime_config()
     normalized = _normalize_messages(messages)
-    transaction_id = str(uuid.uuid4())
+    transaction_id = transaction_id or new_transaction_id()
     metadata = Metadata(
         src_app=f"skipp-algo:{source}"[:128],
         dst_app=f"openai:{model}"[:128],

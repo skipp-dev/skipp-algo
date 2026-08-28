@@ -92,6 +92,41 @@ def test_terminal_fmp_never_calls_provider_when_request_inspection_fails(monkeyp
     assert provider_called is False
 
 
+def test_one_exchange_produces_one_transaction_id_across_both_phases(monkeypatch):
+    """Request and response inspection of the same query must be joinable."""
+    seen = []
+    monkeypatch.setattr(
+        fmp, "inspect_messages",
+        lambda _messages, **kwargs: seen.append((kwargs["phase"], kwargs.get("transaction_id"))),
+    )
+    monkeypatch.setattr(fmp.httpx, "Client", lambda *_args, **_kwargs: _Client())
+
+    payload = {"model": "gpt-test", "messages": [{"role": "user", "content": "q"}]}
+    fmp._call_openai_chat(payload, "openai-test-key")
+
+    assert [phase for phase, _ in seen] == ["request", "response"]
+    ids = {tid for _, tid in seen}
+    assert len(ids) == 1 and next(iter(ids)), f"phases must share one non-empty id, got {seen}"
+
+
+def test_a_cache_delivery_is_also_one_correlated_exchange(monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        fmp, "inspect_messages",
+        lambda _messages, **kwargs: seen.append((kwargs["phase"], kwargs.get("transaction_id"))),
+    )
+    monkeypatch.setattr(fmp.httpx, "Client", lambda *_args, **_kwargs: _Client())
+    fmp._cache.clear()
+
+    fmp.query_fmp_llm("repeat", "{}", "openai-test-key", model="gpt-test")
+    seen.clear()
+    fmp.query_fmp_llm("repeat", "{}", "openai-test-key", model="gpt-test")
+
+    assert [phase for phase, _ in seen] == ["request", "response"]
+    ids = {tid for _, tid in seen}
+    assert len(ids) == 1 and next(iter(ids)), f"cache delivery must share one id, got {seen}"
+
+
 def test_terminal_fmp_never_calls_provider_on_a_real_incomplete_cisco_decision(monkeypatch):
     """Drive the REAL wrapper, not a stub, with a decision Cisco never completed.
 

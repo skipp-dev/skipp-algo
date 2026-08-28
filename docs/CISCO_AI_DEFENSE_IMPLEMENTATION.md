@@ -220,6 +220,15 @@ the same change:
 2. `event_id` was logged only on a violation, so an *allowed* transaction could
    be correlated to the Cisco event log by timestamp only.  It is now logged on
    allow decisions too (`none` when Cisco returns no event).
+3. `transaction_id` named a single inspection, not the transaction.  Each
+   `inspect_messages` call minted its own uuid, so the request and the response
+   decision of one user query could not be joined — measured in the live
+   Producer log, where one terminal query at 2026-08-28T22:32Z produced
+   `transaction_id=7fb089e7…` for the request phase and `81b8f43e…` for the
+   response phase.  `new_transaction_id()` now mints one id per exchange and
+   both phases carry it, in the log line and in the Cisco
+   `client_transaction_id` metadata.  A cache delivery is one exchange too, so
+   its two re-inspections share an id as well.
 
 #### Incident 2026-08-28 22:24–22:28Z: the "duplicate" variable was the Producer's source
 
