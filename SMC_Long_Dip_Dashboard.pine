@@ -19,15 +19,20 @@ var string g_surface = "1. Product Surface"
 // knows nothing about these groups — so any group whose plot range is out of
 // sequence forces the operator to scroll back up in the dropdown. With 64 rows
 // that is the difference between a mechanical top-to-bottom pass and a hunt.
-// The former "Context Signals" group held two disjoint ranges (14-16 and
+// The former "Diagnostic Support" group held two disjoint ranges (14-16 and
 // 40-43) and is therefore split: state codes stay here, blocker/regime codes get
 // their own group.
 // Group LABELS are customer-facing text; the group VARIABLES below are the
 // surface-vs-internal partition that spec/hero_surface_input_map.json and
-// tests/test_customer_surface_vocabulary.py key on. Renaming a label is safe:
-// the TradingView onboarding automation binds by input TITLE, never by group
-// (automation/tradingview/lib/tv_shared.ts). Renaming a TITLE is not — that is
-// the frozen 64-channel binding contract.
+// tests/test_customer_surface_vocabulary.py key on. Renaming a label is NOT
+// free: the vocabulary guard scans ALL group labels (internal groups too),
+// and tv_preflight reports group TITLES from their copy in
+// scripts/smc_bus_manifest.py (DASHBOARD_GROUP_TITLES_BY_KEY), so that copy
+// moves in the same change. The onboarding automation binds by input TITLE
+// (SSOT: automation/tradingview/lib/bus_binding_labels.mjs, the 'BUS '/'CTX '
+// prefix parser shared by verify + packager); renaming a TITLE moves the
+// frozen 64-channel binding contract: matcher, drift monitor and the saved
+// TradingView copies in one step.
 var string g_bus_lifecycle = "2. Chart Link - Decision State"
 var string g_bus_diag = "3. Chart Link - Context Signals"
 var string g_bus_plan = "4. Chart Link - Trade Plan"
@@ -130,7 +135,7 @@ src_sd_confluence_row = input.source(close, "BUS SdConfluenceRow", group = g_bus
 src_sd_osc_row = input.source(close, "BUS SdOscRow", group = g_bus_diag_rows, display = display.none)
 src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_rows, display = display.none)
 src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows, display = display.none)
-src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_blockers, display = display.none, tooltip = "Blocker / regime codes. Split out of Diagnostic Support so every group covers one contiguous range of Suite outputs.")
+src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_blockers, display = display.none, tooltip = "Blocker / regime codes. Split out of Context Signals so every group covers one contiguous range of Suite outputs.")
 src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode", group = g_bus_blockers, display = display.none)
 src_vol_expansion_state = input.source(close, "BUS VolExpansionState", group = g_bus_blockers, display = display.none)
 src_ddvi_context_state = input.source(close, "BUS DdviContextState", group = g_bus_blockers, display = display.none)
@@ -155,7 +160,7 @@ src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, displ
 // and surface the 4-Click onboarding tooltip. Optional bindings: a missing
 // bind defaults to close → class code != 0 by accident, so the onboarding
 // tooltip falls back to the always-safe Hero text. No engine change.
-src_preset_class_code = input.source(close, "BUS PresetClassCode", group = g_bus_preset, display = display.none, tooltip = "Bind to the Engine's 'BUS PresetClassCode' hidden plot. 0 = Custom (onboarding tooltip), 1 = Mega-Cap US Tech, 2 = Financial Services, 3 = Energy. Plan §2.5 H5.")
+src_preset_class_code = input.source(close, "BUS PresetClassCode", group = g_bus_preset, display = display.none, tooltip = "Bind to the Suite's 'BUS PresetClassCode' hidden plot. 0 = Custom (onboarding tooltip), 1 = Mega-Cap US Tech, 2 = Financial Services, 3 = Energy.")
 src_preset_rvol_min = input.source(close, "BUS PresetRvolMin", group = g_bus_preset, display = display.none)
 src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin", group = g_bus_preset, display = display.none)
 src_preset_fvg_qual_gate = input.source(close, "BUS PresetFvgQualGate", group = g_bus_preset, display = display.none)
@@ -173,7 +178,7 @@ if barstate.islast and not bus_version_ok
     if not na(bus_version_warning)
         label.delete(bus_version_warning)
     bus_version_warning := label.new(bar_index, high,
-        "⚠ BUS Version Mismatch — Update Dashboard to match Core Engine v" +
+        "⚠ Chart Link Version Mismatch — Update Dashboard to match SMC Long-Dip Suite v" +
         str.tostring(math.round(src_bus_schema_version)),
         color = color.red, textcolor = color.white,
         style = label.style_label_down, size = size.small)
@@ -1846,7 +1851,7 @@ if show_table and barstate.islast
         // hint instead of the onboarding nudge, so the surface stays useful
         // for advanced users.
         int _hero_preset_code = int(math.round(src_preset_class_code))
-        string _hero_one_tt = (_hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: SMC_Core_Engine quickstart_preset · Plan §1.4 + §2.5 H5." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: BUS Preset* contract.") + "\n\n" + dashboard_universe_tt
+        string _hero_one_tt = (_hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: the Quickstart Preset input in SMC Long-Dip Suite." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: preset floors published by SMC Long-Dip Suite.") + "\n\n" + dashboard_universe_tt
         string _hero_one_display = _hero_one + " · " + dashboard_universe_badge
         dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)
         dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
@@ -1866,7 +1871,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 4, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
         // Addendum 2.8 (2026-04-21) — intentional 3-layer ICT trend stack;
         // see docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md
-        string _htf_trend_tt = "Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing).\nIntentional scope: 3 layers + adaptive IPDA, not a 7-TF stack. A 4th intermediate layer (2H) is scaffolded behind a feature-flag (SMC_Long_Dip_Suite.pine: enable_trend_tf_0, default OFF) and gated on the Q4 W13 A/B verdict (G1 ≥3pp HR uplift / G2 Brier ≤0.02 / G3 ≥30 events per bucket).\nSource: Addendum 2.8 (docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md)"
+        string _htf_trend_tt = "Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing).\nIntentional scope: 3 layers + adaptive IPDA, not a 7-TF stack. A 4th intermediate layer (2H) is scaffolded behind the 'Enable 2H pre-trend layer (Q4-gated)' input in SMC Long-Dip Suite (default OFF) and activates only after its evaluation gate returns GO (G1 ≥3pp HR uplift / G2 Brier ≤0.02 / G3 ≥30 events per bucket)."
         dashboard_row_tt(smc_dashboard, 5, "HTF Trend", "HTF1:" + trend_text(trend_htf_1) + " | HTF2:" + trend_text(trend_htf_2) + " | HTF3:" + trend_text(trend_htf_3), status_bg(htf_state), txt, _htf_trend_tt)
         dashboard_row(smc_dashboard, 6, "Long Setup", setup_text(state_code, source_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)
@@ -1940,7 +1945,7 @@ if show_table and barstate.islast
         // pine/generated/fvg_context_health.json sidecar. Empty input → legacy
         // single-number FVG Status row only (no surface change).
         string _audit_fvg_status_label = fvg_health_text(_audit_fvg_health)
-        string _audit_fvg_ctx_tt = fvg_context_health_text != "" ? "FVG per-context (D2):\n" + fvg_context_health_text + "\nSource: pine/generated/fvg_context_health.json" : "FVG Status — single-number summary. Paste per-context detail into the 'FVG Context Health' input to see the D2 breakdown."
+        string _audit_fvg_ctx_tt = fvg_context_health_text != "" ? "FVG per-context (D2):\n" + fvg_context_health_text : "FVG Status — single-number summary. Paste per-context detail into the 'FVG Context Health' input to see the D2 breakdown."
         dashboard_row_tt(smc_dashboard, 32, "FVG Status", _audit_fvg_status_label, status_bg(fvg_health_state(_audit_fvg_health)), txt, _audit_fvg_ctx_tt)
         if _audit_fvg_warn != ""
             dashboard_row(smc_dashboard, 33, "FVG Warning", _audit_fvg_warn, color.new(CLR_CAUTION, 75), txt)
@@ -2024,7 +2029,7 @@ if show_table and barstate.islast
   2. {3} — {4} ({5})
   3. {6} — {7} ({8})
   4. {9} — {10} ({11})
-Source: zone_priority_calibration.json · BUS contract: ZONE_CAL_*""",
+Source: zone_priority_calibration.json""",
              array.get(_wt_names, 0), format_cal_weight(array.get(_wt_vals, 0)), calibration_confidence_tier(array.get(_wt_vals, 0)),
              array.get(_wt_names, 1), format_cal_weight(array.get(_wt_vals, 1)), calibration_confidence_tier(array.get(_wt_vals, 1)),
              array.get(_wt_names, 2), format_cal_weight(array.get(_wt_vals, 2)), calibration_confidence_tier(array.get(_wt_vals, 2)),

@@ -65,6 +65,21 @@ MIN_GROUP_LABELS: dict[str, int] = {
     "SMC_Long_Dip_Suite.pine": 26,
 }
 
+# Same, for RENDERED chart strings (third population arm, 2026-08-28): string
+# literals inside `table.cell(...)` / `label.new(...)` statements — multi-line
+# concatenations joined by paren balance — plus literals in assignments to
+# variables those statements (or derived render wrappers such as the
+# Dashboard's `dashboard_row_tt`) consume directly. Measured 2026-08-28 and
+# pinned at the measured value. Deliberately NOT chased: `plot()`/input TITLES
+# (the frozen binding contract), strings returned by helper functions, and
+# var-to-var flow deeper than one assignment level.
+MIN_RENDERED: dict[str, int] = {
+    "SMC_Long_Dip_Dashboard.pine": 562,
+    "SMC_Long_Dip_Mobile.pine": 54,
+    "SMC_Long_Dip_Alerts.pine": 3,
+    "SMC_Long_Dip_Suite.pine": 23,
+}
+
 # Vocabulary that belongs to internal plumbing rather than a product UX.
 PLUMBING_PATTERNS: dict[str, str] = {
     "BUS channel name": r"\bBUS\b",
@@ -89,7 +104,13 @@ _INPUT_RE = re.compile(
 )
 _GROUP_RE = re.compile(r"\bgroup\s*=\s*(?P<var>\w+)")
 _TITLE_RE = re.compile(r"""input(?:\.\w+)?\(\s*(?:[^,]*,\s*)?["'](?P<t>[^"']{2,})["']""")
-_TOOLTIP_RE = re.compile(r"""\btooltip\s*=\s*["'](?P<t>(?:[^"'\\]|\\.)*)["']""")
+# Pine-korrekt seit 2026-08-28: das ÄUSSERE Delimiter bestimmt das Ende. Die
+# alte Zeichenklasse schloss BEIDE Quotezeichen aus, also beendete ein
+# eingebettetes Anführungszeichen des jeweils anderen Typs den Capture — 13 von
+# 90 Tooltips wurden trunkiert und ihr Schwanz shippte ungeprüft.
+_TOOLTIP_RE = re.compile(
+    r"""\btooltip\s*=\s*(?P<q>["'])(?P<t>(?:\\.|(?!(?P=q))[^\\])*)(?P=q)"""
+)
 # All three declaration styles in the tree: `var string g_x = "..."` (Dashboard),
 # `var g_x = '...'` (Suite) and a bare `g_x = '...'` (Alerts). Missing one of them
 # silently shrinks the population — the Suite alone declares its groups as `var
@@ -104,6 +125,11 @@ PINE_FILES = sorted(INTERNAL_GROUP_VARS)
 def leaks(text: str) -> list[str]:
     for term in ALLOWED_TERMS:
         text = text.replace(term, "")
+    # Pine-Escapes sind im Quelltext ZWEI Zeichen: das literale `\n` vor
+    # `Plan 1.4` ließ `\bPlan` nie feuern, weil `n` ein Wortzeichen ist
+    # (Live-Fall min_htf_alignment_count, 2026-08-28). Vor dem Mustermatch
+    # werden `\n`/`\t` deshalb zu Leerzeichen normalisiert.
+    text = text.replace("\\n", " ").replace("\\t", " ")
     return [
         name for name, pattern in PLUMBING_PATTERNS.items()
         if re.search(pattern, text, re.IGNORECASE)
@@ -156,6 +182,194 @@ def group_label_leaks(pine_file: str) -> tuple[list[str], int]:
     return found, labels
 
 
+# --- Dritter Populations-Arm (2026-08-28): gerenderte Chart-Strings ---------
+# Input-Deklarationen und Gruppen-Labels waren die einzige Population; die
+# Strings, die TradingView tatsächlich AUF DEN CHART malt (table.cell- und
+# label.new-Texte, auch mehrzeilig konkateniert), sah der Wächter nie — dort
+# lebten die Mobile-Fallback-Zeile, die Dashboard-Versionswarnung und der
+# Hero-Tooltip. Ein einfach-/doppelt-quotierter Pine-String endet nie auf der
+# Folgezeile (tests/test_pine_string_literals_close_on_their_line.py), deshalb
+# reicht ein zeilenweiser Scanner mit Quote-Zustand pro Zeile. Die
+# `\"\"\"`-Multiline-Templates (Dashboard-Tooltips) landen über das
+# Statement-Joining trotzdem als EIN Literal in der Population — die leeren
+# ""-Artefakte davor sind harmlos.
+
+# Ein String-Literal: das ÖFFNENDE Delimiter bestimmt das Ende; Escapes des
+# anderen Quotes (\' bzw. \") bleiben Teil des Literals.
+_STRING_LITERAL_RE = re.compile(
+    r"""(?P<q>["'])(?P<t>(?:\\.|(?!(?P=q))[^\\])*)(?P=q)"""
+)
+_FUNC_DEF_RE = re.compile(r"^(?P<name>[A-Za-z_]\w*)\(")
+_ASSIGN_RE = re.compile(
+    r"^\s*(?:var\s+)?(?:(?:string|bool|int|float|color|label|table|box|line)\s+)?"
+    r"(?P<name>[A-Za-z_]\w*)\s*:?=(?!=)\s*(?P<rhs>.*)$"
+)
+_RENDER_SINK_ROOTS = ("table.cell", "label.new")
+
+
+def _code_and_paren_delta(line: str) -> tuple[str, int]:
+    """Zeile ohne `//`-Kommentar plus Klammer-Saldo AUSSERHALB von Strings."""
+    out: list[str] = []
+    delta = 0
+    quote = ""
+    index = 0
+    while index < len(line):
+        char = line[index]
+        if quote:
+            if char == "\\":
+                out.append(line[index : index + 2])
+                index += 2
+                continue
+            out.append(char)
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+            out.append(char)
+        elif char == "/" and line.startswith("//", index):
+            break
+        else:
+            if char == "(":
+                delta += 1
+            elif char == ")":
+                delta -= 1
+            out.append(char)
+        index += 1
+    return "".join(out), delta
+
+
+def _statements(scanned: list[tuple[str, int]]) -> list[tuple[int, str]]:
+    """Mehrzeilige Aufrufe per Klammer-Saldo zu EINEM Statement zusammenziehen.
+
+    Genau die Mechanik, an der die Dashboard-Versionswarnung (label.new über
+    fünf Zeilen) und die Hero-Konkatenationen vorher unsichtbar waren.
+    """
+    statements: list[tuple[int, str]] = []
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    for lineno, (code, delta) in enumerate(scanned, 1):
+        if not parts:
+            if not code.strip():
+                continue
+            start = lineno
+            parts = [code]
+        else:
+            parts.append(code.strip())
+        depth += delta
+        if depth <= 0:
+            statements.append((start, " ".join(parts)))
+            parts = []
+            depth = 0
+    if parts:
+        statements.append((start, " ".join(parts)))
+    return statements
+
+
+def _render_wrapper_names(code_lines: list[str]) -> set[str]:
+    """Render-Sinks ABLEITEN statt hartkodieren: table.cell/label.new plus jede
+    Funktion, deren Rumpf (transitiv, Fixpunkt) einen Sink erreicht — im
+    Dashboard z. B. `dashboard_row` -> `dashboard_row_tt` -> `section_row`."""
+    bodies: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in code_lines:
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            match = _FUNC_DEF_RE.match(line)
+            current = match.group("name") if match and "=>" in line else None
+            continue
+        if current is not None:
+            bodies.setdefault(current, []).append(line)
+    sinks = set(_RENDER_SINK_ROOTS)
+    changed = True
+    while changed:
+        changed = False
+        for name, body in bodies.items():
+            if name in sinks:
+                continue
+            text = "\n".join(body)
+            if any(
+                re.search(rf"(?<![.\w]){re.escape(sink)}\(", text) for sink in sinks
+            ):
+                sinks.add(name)
+                changed = True
+    return sinks
+
+
+def _sink_argument_names(code: str) -> set[str]:
+    """Variablen, die ein Sink-Statement konsumiert (eine Zuweisungs-Ebene)."""
+    code = _STRING_LITERAL_RE.sub(" ", code)
+    names: set[str] = set()
+    for match in re.finditer(r"[A-Za-z_]\w*", code):
+        start, end = match.span()
+        if start and code[start - 1] == ".":
+            continue  # Attributzugriff (label.style_label_down)
+        tail = code[end:].lstrip()
+        if tail.startswith(("(", ".")):
+            continue  # Funktionsaufruf oder Namespace
+        if tail.startswith("=") and not tail.startswith("=="):
+            continue  # Keyword-Argument-NAME (bgcolor = ...)
+        names.add(match.group())
+    return names
+
+
+def rendered_string_leaks(pine_file: str) -> tuple[list[str], int]:
+    """Fundstellen und die GRÖSSE der geprüften Menge gerenderter Literale.
+
+    Bewusst NICHT verfolgt (im Namen ehrlich bleiben): `plot()`- und
+    Input-TITEL (der eingefrorene Binding-Contract), Rückgaben von
+    Hilfsfunktionen sowie Variable-zu-Variable-Fluss tiefer als eine
+    Zuweisungs-Ebene.
+    """
+    scanned = [_code_and_paren_delta(line) for line in read_lines(pine_file)]
+    statements = _statements(scanned)
+    sinks = _render_wrapper_names([code for code, _ in scanned])
+    sink_re = re.compile(
+        "|".join(rf"(?<![.\w]){re.escape(sink)}\(" for sink in sorted(sinks))
+    )
+
+    rendered: list[tuple[int, str]] = []
+    argument_names: set[str] = set()
+    sink_linenos: set[int] = set()
+    for lineno, code in statements:
+        if _FUNC_DEF_RE.match(code) and code.rstrip().endswith("=>"):
+            continue  # Funktions-SIGNATUR, kein Aufruf
+        if not sink_re.search(code):
+            continue
+        sink_linenos.add(lineno)
+        rendered.extend((lineno, literal) for literal in _string_literals(code))
+        argument_names |= _sink_argument_names(code)
+
+    for lineno, code in statements:
+        if lineno in sink_linenos:
+            continue
+        if _INPUT_RE.match(code.strip()):
+            # Input-Deklarationen sind die Population des ERSTEN Arms; ihre
+            # TITEL in internen Gruppen sind der eingefrorene Binding-Contract
+            # und bleiben bewusst draußen. Ohne diesen Filter zöge die
+            # Variablen-Verfolgung z. B. `src_bus_schema_version` (Argument der
+            # Versionswarnung) samt seinem "BUS SchemaVersion"-Titel herein.
+            continue
+        match = _ASSIGN_RE.match(code)
+        if not match or match.group("name") not in argument_names:
+            continue
+        rendered.extend(
+            (lineno, literal) for literal in _string_literals(match.group("rhs"))
+        )
+
+    found = [
+        f"{pine_file}:{lineno} rendered {literal[:60]!r} -> {leak}"
+        for lineno, literal in rendered
+        for leak in leaks(literal)
+    ]
+    return found, len(rendered)
+
+
+def _string_literals(code: str) -> list[str]:
+    return [match.group("t") for match in _STRING_LITERAL_RE.finditer(code)]
+
+
 def spec_partition_disagreements() -> list[str]:
     spec = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
     return [
@@ -188,6 +402,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         problems.extend(found)
 
+        found, rendered = rendered_string_leaks(pine_file)
+        if rendered < MIN_RENDERED[pine_file]:
+            problems.append(
+                f"{pine_file}: only {rendered} rendered chart strings parsed, "
+                f"expected at least {MIN_RENDERED[pine_file]} — the parser broke, "
+                "so a pass here would be vacuous"
+            )
+        problems.extend(found)
+
     problems.extend(spec_partition_disagreements())
 
     if problems:
@@ -203,8 +426,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"customer surfaces clean: {len(PINE_FILES)} files, "
-        f"{sum(MIN_INPUTS.values())}+ inputs and {sum(MIN_GROUP_LABELS.values())}+ "
-        "group labels inspected"
+        f"{sum(MIN_INPUTS.values())}+ inputs, {sum(MIN_GROUP_LABELS.values())}+ "
+        f"group labels and {sum(MIN_RENDERED.values())}+ rendered chart strings "
+        "inspected"
     )
     return 0
 
