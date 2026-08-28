@@ -168,9 +168,11 @@ def test_hold_enumeration_covers_what_every_publish_path_rewrites() -> None:
             ":(exclude)node_modules/**",
             # Library SOURCES are not customer surfaces: the hand-authored
             # SMC++ sources pin each other, so the broadened pattern would
-            # otherwise pull them into a hold whose restore semantics are
-            # designed for surfaces (their mid-run seam stays with the
-            # publish chain's own repin proof + R1 hold).
+            # otherwise pull them into a hold whose roster floor is defined
+            # over surfaces. Their mid-run seam has its own hold since
+            # 2026-08-28 (scripts/hold_smcpp_sources.py, executed by
+            # tests/test_hold_smcpp_sources_wiring.py) — before that it was
+            # covered by nothing (the #5148 gap).
             ":(exclude)SMC++/**",
         ):
             assert exclude in hold["run"], f"{workflow}: missing pathspec {exclude}"
