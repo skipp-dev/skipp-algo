@@ -1762,3 +1762,29 @@ required, Konstante ohne ihn) und wurde mit #5160 geschlossen; er ist der
 Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
 #5160 haelt -- feuert er, ist das der Ernstfall, nicht ein Testfall.
 """
+# library-refresh-safety-net-cadence (29.8.): Die Cron-Ticks des Consumers
+# sanken von 9 auf 4, weil der `workflow_run`-Fast-Path im gesunden Betrieb
+# ohnehin bei JEDEM Producer-Abschluss feuert — das Netz lief bis dahin
+# parallel zum Weg. AUSGENOMMEN mit Doppelgrund (Muster #5154):
+#
+# (a) Die geaenderte Flaeche ist von der Suite LESBAR und wird es auch:
+#     tests/test_workflow_databento_cron_respacing.py liest die Cron-Ticks
+#     genau dieser Datei, prueft Headroom und Nicht-Encroachment gegen die
+#     Producer-Ticks und verlangt seit diesem PR zusaetzlich den Fast Path.
+#     Ein schlecht gesetzter Tick oder ein entfernter Fast Path geht rot.
+#
+# (b) Ein Lauf-Zeuge kann hier nichts aussagen: die Aenderung ENTFERNT
+#     Laeufe. Ihr Beweis ist eine Abwesenheit, und Abwesenheit kann kein
+#     Log belegen. Die Gegenrichtung — Netz zu duenn — hat bereits einen
+#     laufenden Mechanismus: das Freshness-Budget des meta-watchdog
+#     (smc-library-refresh.yml=30:success:weekday) wird rot, wenn kein
+#     erfolgreicher Refresh mehr innerhalb von 30 Werktagsstunden liegt.
+#     Groesste geplante Werktagsluecke nach der Aenderung: 14 h.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "library-refresh-safety-net-cadence"
+kind   = "exempt"
+claim  = "Die Netz-Kadenz des Library-Refresh sank von 9 auf 4 Cron-Ticks, ohne die Refresh-Kadenz im gesunden Betrieb zu aendern (der workflow_run-Fast-Path bleibt) und ohne den Handoff-Vertrag zu verletzen. Suite-lesbar bewiesen (Headroom + Fast-Path-Pin); ein Log-Zeuge waere vakuum, weil die Wirkung eine Abwesenheit ist, und die Gegenrichtung deckt das 30-h-Freshness-Budget des meta-watchdog ab."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "operator"
