@@ -180,3 +180,94 @@ class TestMainExitCodes:
         """
         rc = CHECK.main([])
         assert rc == 0
+
+
+def _scoped_product_cut(titles: list[str], contracts: list[str]) -> dict:
+    return {
+        "manifestPath": "artifacts/tradingview/cut.json",
+        "mainlineFiles": [],
+        "contracts": {key: ["BUS X"] for key in contracts},
+        "preflightScopes": {
+            "smcMainline": [
+                {
+                    "file": "Core.pine",
+                    "bindingLabelGroups": [
+                        {"label": f"BUS {i}", "group": "g", "groupTitle": title}
+                        for i, title in enumerate(titles)
+                    ],
+                }
+            ]
+        },
+    }
+
+
+class TestEmbeddedProductCutDrift:
+    """The 2026-08-28 review finding: the embedded productCut copy carried
+    42x 'Lifecycle BUS' 16 days after #4639 renamed the settings groups, and
+    nothing compared the snapshot back to the canonical artifact. The check
+    WARNS (exit 0) by deliberate decision — see the function docstring."""
+
+    def _fixture(self, tmp_path, embedded: dict, canonical: dict) -> dict:
+        cut = tmp_path / "artifacts" / "tradingview" / "cut.json"
+        cut.parent.mkdir(parents=True, exist_ok=True)
+        cut.write_text(json.dumps(canonical), encoding="utf-8")
+        return {"productCut": embedded}
+
+    def test_agreeing_copies_report_nothing(self, tmp_path):
+        cut = _scoped_product_cut(["Decision State"], ["engine"])
+        manifest = self._fixture(tmp_path, cut, cut)
+        assert CHECK.embedded_product_cut_drift(manifest, tmp_path) == []
+
+    def test_the_review_signature_is_reported(self, tmp_path):
+        """A stale snapshot still speaking 'Lifecycle BUS' must be named."""
+        embedded = _scoped_product_cut(["Lifecycle BUS"], ["engine"])
+        canonical = _scoped_product_cut(["Decision State"], ["engine"])
+        manifest = self._fixture(tmp_path, embedded, canonical)
+        problems = CHECK.embedded_product_cut_drift(manifest, tmp_path)
+        assert any("Lifecycle BUS" in p for p in problems), problems
+        assert any("Decision State" in p for p in problems), problems
+
+    def test_a_diverged_contracts_key_set_is_reported(self, tmp_path):
+        embedded = _scoped_product_cut(["Decision State"], ["engine"])
+        canonical = _scoped_product_cut(
+            ["Decision State"], ["engine", "mobileBindings"]
+        )
+        manifest = self._fixture(tmp_path, embedded, canonical)
+        problems = CHECK.embedded_product_cut_drift(manifest, tmp_path)
+        assert any("mobileBindings" in p for p in problems), problems
+
+    def test_an_empty_canonical_census_is_not_a_pass(self, tmp_path):
+        """Vacuity control: a structure change must not read as agreement."""
+        embedded = _scoped_product_cut(["Decision State"], ["engine"])
+        canonical = {"contracts": {"engine": ["BUS X"]}, "preflightScopes": {}}
+        manifest = self._fixture(tmp_path, embedded, canonical)
+        problems = CHECK.embedded_product_cut_drift(manifest, tmp_path)
+        assert any("EMPTY groupTitle census" in p for p in problems), problems
+
+    def test_drift_warns_but_does_not_fail_the_lane(self, tmp_path, capsys):
+        """The deliberate WARN decision, executed: rc 0 with the warning."""
+        _materialize(
+            tmp_path,
+            [
+                "pine/generated/lib.json",
+                "pine/generated/snippet.pine",
+                "Core.pine",
+                "Dashboard.pine",
+            ],
+        )
+        canonical = _scoped_product_cut(["Decision State"], ["engine"])
+        embedded = _scoped_product_cut(["Lifecycle BUS"], ["engine"])
+        cut = tmp_path / "artifacts" / "tradingview" / "cut.json"
+        cut.parent.mkdir(parents=True, exist_ok=True)
+        cut.write_text(json.dumps(canonical), encoding="utf-8")
+        manifest = _minimal_manifest()
+        manifest["productCut"].update(
+            {k: v for k, v in embedded.items() if k != "manifestPath"}
+        )
+        manifest_path = _write_manifest(tmp_path, manifest)
+        rc = CHECK.main(["--root", str(tmp_path), "--manifest", str(manifest_path)])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "::warning" in out
+        assert "Lifecycle BUS" in out
+        assert "self-heals" in out

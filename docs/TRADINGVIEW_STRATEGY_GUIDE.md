@@ -88,7 +88,8 @@ These controls change wrapper behavior only. They do not widen the linked core
 output contract and do not introduce a second logic family.
 
 In TradingView the settings surface should expose `Execution Setup` and
-`Trade Plan` before the two `Expert Mapping` groups.
+`Trade Plan` before the two `Chart Link` groups (until 2026-08-28 they were
+labelled `Expert Mapping`).
 
 ## Chart Outputs
 

@@ -69,7 +69,7 @@ Workspace-Refresh: 2026-04-07
 ### Binding-Konvention
 
 1. Dashboard startet mit `1. Product Surface` und bindet danach in acht `Chart Link`-Gruppen: `2. Chart Link - Decision State`, `3. Chart Link - Context Signals`, `4. Chart Link - Trade Plan`, `5. Chart Link - Context Rows`, `6. Chart Link - Blocker Codes`, `7. Chart Link - Detail Surface`, `8. Chart Link - Lean Surface`, `9. Chart Link - Preset Contract`.
-2. Strategy startet mit `1. Execution Setup` und `2. Trade Plan`; die `source`-Bindings bleiben in `3. Expert Mapping - Entry States` und `4. Expert Mapping - Trade Plan`.
+2. Strategy startet mit `1. Execution Setup` und `2. Trade Plan`; die `source`-Bindings bleiben in `3. Chart Link - Entry States` und `4. Chart Link - Trade Plan`.
 3. Die Core-Settings priorisieren jetzt `1. Core Setup`, `2. Output`, `3. Trade Plan`, `4. Session Gate` und `5. Runtime Budget` vor den Advanced-Gruppen.
 4. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 5. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
@@ -195,10 +195,10 @@ Fail:
 4. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
 5. Sichtbarkeit und Reaktion der kanonischen Dashboard-BUS-Gruppen prüfen:
 
-- Lifecycle BUS
-- Diagnostic Support
+- Decision State
+- Context Signals
 - Trade Plan
-- Diagnostic Rows
+- Context Rows
 - Blocker Codes
 - Detail Surface
 - Lean Surface

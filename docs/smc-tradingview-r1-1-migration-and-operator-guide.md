@@ -59,7 +59,7 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 - `SMC_Long_Dip_Suite.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
 - `SMC_Long_Dip_Dashboard.pine` startet mit `Product Surface`; die acht Binding-Gruppen heissen `Chart Link`, die Debug-Mirrors und die manuellen Overrides `Advanced` (bis 2026-08-12 hiessen alle neun `Operator Only`).
-- `SMC_Long_Dip_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
+- `SMC_Long_Dip_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke heissen seit 2026-08-28 `Chart Link` (vorher `Expert Mapping`) und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
 
 ## Operator-Only Companion Workflow
 

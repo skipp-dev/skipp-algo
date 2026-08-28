@@ -52,12 +52,14 @@ matching Core BUS exports. The groups appear in this order:
 
 | # | Group | Channels |
 | --- | --- | --- |
-| 1 | Lifecycle BUS | 14 |
-| 2 | Diagnostic Rows | 20 |
-| 3 | Diagnostic Support | 7 |
-| 4 | Trade Plan | 3 |
-| 5 | Detail Surface | 13 |
-| 6 | Lean Surface | 2 |
+| 1 | Decision State | 14 |
+| 2 | Context Signals | 3 |
+| 3 | Trade Plan | 3 |
+| 4 | Context Rows | 20 |
+| 5 | Blocker Codes | 4 |
+| 6 | Detail Surface | 13 |
+| 7 | Lean Surface | 2 |
+| 8 | Preset Contract | 5 |
 
 Every channel maps to exactly one Core BUS export with the same label name.
 Bind them strictly in the order they appear — top-to-bottom, group by group.
@@ -77,7 +79,7 @@ Bind them strictly in the order they appear — top-to-bottom, group by group.
 1. Add a third script to the same chart.
 2. Select `SMC Long Strategy` from the published scripts or the editor.
 3. Open the strategy settings.
-4. Navigate to the two **Expert Mapping** source-binding groups.
+4. Navigate to the two **Chart Link** source-binding groups.
 
 ### Binding order
 

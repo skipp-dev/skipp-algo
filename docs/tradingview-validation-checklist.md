@@ -31,7 +31,7 @@ Current manual validation counts:
 
 The dashboard expects all `64` bindings declared in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
-Lifecycle:
+Decision State:
 
 - `BUS SchemaVersion`
 - `BUS ZoneActive`
@@ -48,7 +48,19 @@ Lifecycle:
 - `BUS TrendPack`
 - `BUS MetaPack`
 
-Diagnostic Rows:
+Context Signals:
+
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+
+Trade Plan:
+
+- `BUS StopLevel`
+- `BUS Target1`
+- `BUS Target2`
+
+Context Rows:
 
 - `BUS SessionGateRow`
 - `BUS MarketGateRow`
@@ -71,26 +83,17 @@ Diagnostic Rows:
 - `BUS VolRegimeRow`
 - `BUS VolSqueezeRow`
 
-Diagnostic Support:
+Blocker Codes:
 
-- `BUS LtfDeltaState`
-- `BUS SafeTrendState`
-- `BUS MicroProfileCode`
 - `BUS ReadyBlockerCode`
 - `BUS StrictBlockerCode`
 - `BUS VolExpansionState`
 - `BUS DdviContextState`
 
-These seven support channels replace the final packed transport layer. The
-dashboard reconstructs `LTF Delta`, `Swing`, `Micro Profile`, `Ready Gate`,
-`Strict Gate`, `Vol Expand`, and `DDVI` locally from the explicit support-code
-surface.
-
-Trade Plan:
-
-- `BUS StopLevel`
-- `BUS Target1`
-- `BUS Target2`
+The three `Context Signals` support codes and the four `Blocker Codes`
+replace the final packed transport layer. The dashboard reconstructs
+`LTF Delta`, `Swing`, `Micro Profile`, `Ready Gate`, `Strict Gate`,
+`Vol Expand`, and `DDVI` locally from this explicit support-code surface.
 
 Detail Surface:
 
@@ -112,6 +115,14 @@ Lean Surface:
 
 - `BUS LeanPackA`
 - `BUS LeanPackB`
+
+Preset Contract:
+
+- `BUS PresetClassCode`
+- `BUS PresetRvolMin`
+- `BUS PresetHtfBiasMin`
+- `BUS PresetFvgQualGate`
+- `BUS PresetVolRegimeDef`
 
 ### Local Dashboard-Only Debug Mirrors
 
@@ -142,8 +153,8 @@ The strategy expects only the 8 bindings declared in [SMC_Long_Dip_Strategy.pine
 Before validating any scenarios, confirm the visible product copy is aligned:
 
 1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`, starts with `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget` before any advanced groups, and in `Focus View` shows one hero card with no default swing-level or standalone warning-label duplicates before `Ready` trade lines appear.
-2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the operator-only binding groups.
-3. Strategy uses `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit`, with `Execution Setup` and `Trade Plan` appearing before the two `Expert Mapping` groups.
+2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the eight `Chart Link` binding groups.
+3. Strategy uses `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit`, with `Execution Setup` and `Trade Plan` appearing before the two `Chart Link` groups.
 4. Strategy chart outputs read `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit`.
 
 ## Manual Validation Scenarios

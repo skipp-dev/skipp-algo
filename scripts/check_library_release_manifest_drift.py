@@ -105,6 +105,79 @@ def find_missing(refs: list[tuple[str, str]], root: Path) -> list[tuple[str, str
     return missing
 
 
+def _group_title_census(product_cut: dict) -> dict[str, int]:
+    """``{groupTitle: occurrences}`` over every preflight bindingLabelGroups."""
+    census: dict[str, int] = {}
+    for scope in (product_cut.get("preflightScopes") or {}).values():
+        for target in scope or []:
+            if not isinstance(target, dict):
+                continue
+            for binding in target.get("bindingLabelGroups") or []:
+                if isinstance(binding, dict):
+                    title = binding.get("groupTitle")
+                    if isinstance(title, str):
+                        census[title] = census.get(title, 0) + 1
+    return census
+
+
+def embedded_product_cut_drift(manifest: dict, root: Path) -> list[str]:
+    """Compare the embedded ``productCut`` copy against the canonical artifact.
+
+    The 10-angle review of 2026-08-28 found the embedded copy still carrying
+    42x 'Lifecycle BUS' / 9x 'Diagnostic Support' — settings-group names that
+    #4639 had renamed 16 days earlier — because the copy is a snapshot taken
+    at publish time (``readProductCutSummary`` in tv_publish_micro_library.ts
+    copies the checked-in artifact verbatim) and nothing compared it back.
+
+    Compared: the ``groupTitle`` census over every preflight scope's
+    ``bindingLabelGroups`` plus the ``contracts`` key set. Reported as
+    ``::warning::`` (exit stays 0) by DELIBERATE decision: the embedded copy
+    lags a registry rename by up to one publish cycle in the ordinary course
+    of business, and the drift check runs on the required fast-gates lane —
+    a hard failure here would redden every open PR for up to a day after any
+    legitimate rename (#4272 relived). At publish time equality holds by
+    construction; a drift that persists means the publish cycle stalled, and
+    this warning keeps naming it on every heavy-lane PR until it heals.
+    """
+    product_cut_path = (manifest.get("productCut") or {}).get("manifestPath")
+    if not isinstance(product_cut_path, str) or not product_cut_path:
+        return ["productCut.manifestPath missing — cannot cross-check the embedded copy"]
+    canonical_file = root / product_cut_path
+    if not canonical_file.is_file():
+        return []  # already reported as a missing referenced path
+    try:
+        canonical = json.loads(canonical_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return [f"{product_cut_path} is not parseable JSON ({error}) — cannot cross-check"]
+
+    problems: list[str] = []
+    embedded_census = _group_title_census(manifest.get("productCut") or {})
+    canonical_census = _group_title_census(canonical)
+    if not canonical_census:
+        problems.append(
+            f"{product_cut_path} yields an EMPTY groupTitle census — the "
+            "cross-check would pass vacuously; its structure changed"
+        )
+    for title in sorted(set(embedded_census) | set(canonical_census)):
+        embedded = embedded_census.get(title, 0)
+        current = canonical_census.get(title, 0)
+        if embedded != current:
+            problems.append(
+                f"groupTitle {title!r}: embedded copy carries {embedded}, "
+                f"canonical product cut carries {current}"
+            )
+
+    embedded_contracts = set((manifest.get("productCut") or {}).get("contracts") or {})
+    canonical_contracts = set(canonical.get("contracts") or {})
+    if embedded_contracts != canonical_contracts:
+        problems.append(
+            "contracts key set differs: embedded "
+            f"{sorted(embedded_contracts - canonical_contracts)} extra, "
+            f"{sorted(canonical_contracts - embedded_contracts)} missing"
+        )
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     parser = argparse.ArgumentParser(description=__doc__)
@@ -130,10 +203,22 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL: library_release_manifest.json declares no referenced paths.")
         return 1
 
+    # WARN, never fail (rationale in embedded_product_cut_drift's docstring):
+    # the embedded copy is a publish-time snapshot that self-heals with the
+    # next library refresh; a persistent warning means the cycle stalled.
+    stale = embedded_product_cut_drift(manifest, args.root)
+    for problem in stale:
+        print(
+            "::warning title=library_release_manifest productCut snapshot "
+            f"drift::{problem} (self-heals with the next library publish; "
+            "persists only if the refresh cycle stalled)"
+        )
+
     if not missing:
         print(
             "OK: library_release_manifest.json is in sync with filesystem "
-            f"({len(refs)} referenced paths verified)."
+            f"({len(refs)} referenced paths verified"
+            + (f"; {len(stale)} productCut snapshot drift warning(s))" if stale else ")")
         )
         return 0
 
