@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-08-28T09:56:44.767Z",
+  "generatedAt": "2026-08-28T14:16:46.310Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
     "scriptName": "smc_micro_profiles_generated",
     "owner": "preuss_steffen",
-    "importPath": "preuss_steffen/smc_micro_profiles_generated/379",
-    "expectedVersion": 379,
-    "publishedVersion": 379,
+    "importPath": "preuss_steffen/smc_micro_profiles_generated/382",
+    "expectedVersion": 382,
+    "publishedVersion": 382,
     "publishStatus": "published",
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
@@ -19,8 +19,8 @@
       "placeholderSymbols": [
         "CCC"
       ],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-08-26.csv",
-      "universeSize": 6957,
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_merged__smc_microstructure_base_2026-08-27.csv",
+      "universeSize": 6952,
       "eventRiskSource": "smc_event_risk_builder"
     }
   },
@@ -404,6 +404,52 @@
         "CTX SessionDirection",
         "CTX SessionMssBull",
         "CTX SessionMssBear"
+      ],
+      "mobileBindings": [
+        "BUS SchemaVersion",
+        "BUS Armed",
+        "BUS Confirmed",
+        "BUS Ready",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS QualityScore",
+        "BUS StateCode"
+      ],
+      "alertsBindings": [
+        "BUS SchemaVersion",
+        "BUS ZoneActive",
+        "BUS Armed",
+        "BUS StateCode"
+      ],
+      "setupCheckBindings": [
+        "BUS SchemaVersion",
+        "BUS Armed",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS QualityScore",
+        "BUS StateCode"
+      ],
+      "breakoutOverlayBindings": [
+        "BUS SchemaVersion",
+        "BUS ZoneActive",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS QualityScore",
+        "BUS StopLevel",
+        "BUS Target1",
+        "BUS Target2",
+        "BUS ZoneObTop",
+        "BUS ZoneObBottom",
+        "BUS ZoneFvgTop",
+        "BUS ZoneFvgBottom"
+      ],
+      "confluenceHubBindings": [
+        "BUS SchemaVersion",
+        "BUS Armed",
+        "BUS Trigger",
+        "BUS Invalidation",
+        "BUS QualityScore",
+        "BUS StateCode"
       ]
     },
     "preflightScopes": {
