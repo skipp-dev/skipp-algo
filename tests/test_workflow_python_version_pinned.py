@@ -32,6 +32,11 @@ _ROUTED_MERGE_CRITICAL_WORKFLOWS = (
 )
 _COMPOSITE_USES_REF = "./.github/actions/setup-python-pinned"
 _HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
+# 2026-08-29: zweite erlaubte Hosted-Form (arm64-Standard-Runner via
+# `SMC_CI_ARM_RUNNER`, siehe tests/test_workflow_runner_pinned.py). Was
+# dieser Test schuetzt — hosted, kein self-hosted-Selektor, gepinnter
+# Python-Bootstrap — bleibt davon unberuehrt.
+from tests._workflow_yaml import HOSTED_RUNS_ON_FORMS as _HOSTED_RUNS_ON_FORMS
 
 
 def _load(path: Path) -> dict:
@@ -76,7 +81,7 @@ def test_hosted_only_merge_critical_workflow_uses_pinned_bootstrap(workflow_path
     assert "select-runner" not in jobs, f"{workflow_path.name} must not route CI through self-hosted selector"
     validate = jobs.get("validate")
     assert isinstance(validate, dict), f"{workflow_path.name} must define validate job"
-    assert validate.get("runs-on") == _HOSTED_RUNS_ON
+    assert validate.get("runs-on") in _HOSTED_RUNS_ON_FORMS
     assert any(step.get("uses") == _COMPOSITE_USES_REF for step in validate.get("steps", []) or [])
     assert not any(str(step.get("uses", "")).startswith("actions/setup-python@") for step in validate.get("steps", []) or [])
 

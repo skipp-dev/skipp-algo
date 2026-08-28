@@ -31,8 +31,12 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 
-_HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
+from tests._workflow_yaml import HOSTED_RUNS_ON_FORMS
+
+_HOSTED_RUNS_ON = HOSTED_RUNS_ON_FORMS[0]
+_HOSTED_RUNS_ON_FORMS = HOSTED_RUNS_ON_FORMS
 _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
+
 _HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
 _FAST_GATES_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || '' }}"
 _PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
@@ -134,12 +138,12 @@ def test_workflow_runs_on_contract(path: Path) -> None:
 
     offenders: list[str] = []
     for job_id, job in jobs.items():
-        if job.get("runs-on") != _HOSTED_RUNS_ON:
+        if job.get("runs-on") not in _HOSTED_RUNS_ON_FORMS:
             offenders.append(f"  {job_id}: runs-on = {job.get('runs-on')!r}")
     assert not offenders, (
         f"{path.name} has jobs with non-pinned hosted runs-on:\n"
         + "\n".join(offenders)
-        + f"\n\nExpected exactly: {_HOSTED_RUNS_ON!r}"
+        + f"\n\nExpected one of: {_HOSTED_RUNS_ON_FORMS!r}"
     )
 
 
@@ -194,7 +198,24 @@ def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> Non
     jobs = _jobs(workflow)
     assert set(jobs) == {"validate"}
     validate = jobs["validate"]
-    assert validate.get("runs-on") == _HOSTED_RUNS_ON
+    # 2026-08-29: nicht mehr der blanke `_HOSTED_RUNS_ON`-String. Die Lane
+    # darf per `SMC_CI_ARM_RUNNER` auf einen arm64-Standard-Runner zeigen
+    # (-17 % je Minute), ohne die globale Variable zu bewegen. Was dieser
+    # Test schuetzt, bleibt woertlich erhalten: GitHub-hosted, KEIN
+    # self-hosted-Selektor. Deshalb wird jetzt die Struktur geprueft statt
+    # der Zeichenkette — ein `fromJson(needs.select-runner...)` oder ein
+    # self-hosted-Label faellt weiter durch.
+    runs_on = validate.get("runs-on")
+    assert isinstance(runs_on, str)
+    assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
+        "validate MUSS die Hosted-Variable weiter als Rueckfall tragen"
+    )
+    assert runs_on.endswith("|| 'ubuntu-latest' }}"), (
+        f"validate.runs-on endet nicht mehr auf dem Hosted-Fallback: {runs_on!r}"
+    )
+    assert "SELF_HOSTED" not in runs_on and "select-runner" not in runs_on, (
+        f"validate.runs-on hat einen self-hosted-Selektor bekommen: {runs_on!r}"
+    )
     assert "needs" not in validate
     text = (_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8")
     assert "required-self-hosted" not in text
