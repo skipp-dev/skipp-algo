@@ -74,7 +74,7 @@ if barstate.islast
         table.cell(check_tbl, 0, 6, "",            bgcolor = header_bg, text_color = txt, text_size = size.small)
         table.cell(check_tbl, 1, 6, "Add Strategy  → bind Armed..Invalidation (8 inputs).", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
         table.cell(check_tbl, 0, 7, "",            bgcolor = header_bg, text_color = txt, text_size = size.small)
-        table.cell(check_tbl, 1, 7, "You can remove this Check indicator once setup is verified.", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+        table.cell(check_tbl, 1, 7, "Keep this indicator on the chart — the automation verifies the link through it.", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
 
         table.clear(check_tbl, 0, 8, 1, 9)
     else
