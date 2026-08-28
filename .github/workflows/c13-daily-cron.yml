@@ -290,6 +290,15 @@ jobs:
             echo "::warning::F-V3-15: no {\"backfill\":...} summary line found in stdout; cannot assert progress"
             exit 0
           fi
+          # Pessimistischer Default VOR den sechs jq-Lesungen. Stirbt eine
+          # davon (Schema-Drift via `// error`, jq fehlt, SIGPIPE), stirbt
+          # der Step unter `set -e` OHNE publiziertes rc -- und der
+          # Issue-Oeffner unten feuert auf rc=='1', haette also GESCHWIEGEN,
+          # waehrend der Cron rot ist. Am 2026-08-28 als KeyError 'rc' im
+          # Advisory-Chain-Harness gemessen (Lauf 33149634990). Actions nimmt
+          # bei doppeltem Schluessel den letzten Wert; die Urteils-Zweige
+          # unten ueberschreiben diesen Default auf jedem regulaeren Pfad.
+          echo "rc=1" >> "$GITHUB_OUTPUT"
           # `// error`, nicht `// 0`: alle sechs Zaehler werden vom Writer
           # (scripts/backfill_live_outcomes.py, summary-Dict) UNBEDINGT
           # emittiert -- ein fehlender Schluessel ist Schema-Drift. Mit `// 0`

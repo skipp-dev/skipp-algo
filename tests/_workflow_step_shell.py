@@ -172,6 +172,53 @@ def _parse_github_kv(text: str) -> dict[str, str]:
     return values
 
 
+def _stub_body(stub_spec: Stub, call_log: Path) -> str:
+    """The shell a stub executes. Extracted so its contract is testable alone.
+
+    The EXIT-trap stdin drain is load-bearing, not hygiene. A step line like
+    ``x=$(echo "$json" | jq -r '.field')`` runs under ``set -euo pipefail``;
+    the real ``jq`` always reads stdin, but a stub that only answers from
+    ``$2`` used to exit without ever touching it. When the left side of the
+    pipe was scheduled late (a loaded ``-n 4`` runner), its write hit a closed
+    read end: SIGPIPE, the pipeline fails, ``-e`` kills the step before it
+    publishes anything -- observed 2026-08-28 as ``KeyError: 'rc'`` in
+    ``validate (1)`` (run 33149634990), green again on the next, idler run.
+    Measured with the pre-fix body: 0/20 failures with an instant writer,
+    20/20 with the writer delayed, 0/20 with the drain. Draining makes the
+    stub WAIT for the writer's EOF, which closes the race for every stub,
+    present and future.
+
+    As an EXIT trap, deliberately, after two rejected placements:
+
+    * before the script -- eats the stdin that a script forwarding to a real
+      tool still needs (``exec "$REAL_PYTHON" ...`` in the promotion-gate
+      stubs read empty input; four tests went red);
+    * after the script -- never runs when the script ends in ``exit N``, so
+      exactly those stubs would keep the race.
+
+    The trap runs on every ``exit`` and preserves its status (POSIX; measured
+    on this repo's shells), a script that consumes stdin itself leaves the
+    trap nothing to drain, and ``exec`` replaces the process so a forwarded
+    real tool owns stdin untouched. ``passthrough`` gets no trap for the same
+    reason -- the real tool decides what to do with its input.
+    """
+    # `printf '%s '` over "$@" rather than `echo "$*"`: an argument
+    # beginning with `-e` would otherwise be eaten by echo instead of
+    # recorded, and this harness's whole job is to have no blind spots.
+    body = "#!/bin/sh\n" f'{{ printf "%s " "$@"; printf "\\n"; }} >> "{call_log}"\n'
+    if not stub_spec.passthrough:
+        body += "trap 'cat > /dev/null 2>/dev/null || true' EXIT\n"
+    if stub_spec.script:
+        body += stub_spec.script.rstrip() + "\n"
+    elif stub_spec.passthrough:
+        body += f'exec {shlex.quote(stub_spec.passthrough)} "$@"\n'
+    else:
+        if stub_spec.stdout:
+            body += f"printf '%s\\n' {shlex.quote(stub_spec.stdout)}\n"
+        body += f"exit {stub_spec.exit_code}\n"
+    return body
+
+
 def run_step(
     workflow: str,
     step_name: str,
@@ -196,19 +243,7 @@ def run_step(
     for name, spec in (stubs or {}).items():
         stub_spec = spec if isinstance(spec, Stub) else Stub(exit_code=spec)
         stub = bin_dir / name
-        # `printf '%s '` over "$@" rather than `echo "$*"`: an argument
-        # beginning with `-e` would otherwise be eaten by echo instead of
-        # recorded, and this harness's whole job is to have no blind spots.
-        body = "#!/bin/sh\n" f'{{ printf "%s " "$@"; printf "\\n"; }} >> "{call_log}"\n'
-        if stub_spec.script:
-            body += stub_spec.script.rstrip() + "\n"
-        elif stub_spec.passthrough:
-            body += f'exec {shlex.quote(stub_spec.passthrough)} "$@"\n'
-        else:
-            if stub_spec.stdout:
-                body += f"printf '%s\\n' {shlex.quote(stub_spec.stdout)}\n"
-            body += f"exit {stub_spec.exit_code}\n"
-        stub.write_text(body, encoding="utf-8")
+        stub.write_text(_stub_body(stub_spec, call_log), encoding="utf-8")
         stub.chmod(0o755)
 
     github_output = tmp_path / "github_output"
@@ -240,6 +275,10 @@ def run_step(
         capture_output=True,
         text=True,
         cwd=tmp_path,
+        # Closed stdin, deliberately: a stub that is NOT fed by a pipe now
+        # drains stdin (see _stub_body) and must see EOF immediately instead
+        # of blocking on whatever pytest inherited from the terminal.
+        stdin=subprocess.DEVNULL,
         # These blocks are branch logic over stubs; anything slower is a hang,
         # and a hang would burn the job's whole timeout instead of failing.
         timeout=60,

@@ -510,3 +510,32 @@ def test_without_an_open_holder_a_new_issue_is_still_created(tmp_path: Path) -> 
         f"ohne offenen Halter muss weiterhin ein Issue entstehen: {run.calls}"
     )
     assert not run.called_with("issue", "comment"), run.calls
+
+
+def test_a_dying_counter_read_still_publishes_the_failing_rc(tmp_path: Path) -> None:
+    """Stirbt eine jq-Lesung, bleibt das Urteil ROT statt stumm.
+
+    Vorher lagen ALLE rc-Writes des Nicht-leer-Pfads hinter den sechs
+    jq-Substitutionen: eine sterbende (Schema-Drift via `// error`, jq fehlt,
+    SIGPIPE) toetete den Step unter `set -e` VOR jedem Publish. Der
+    Issue-Oeffner feuert aber auf `backfill_progress.rc == '1'` — der Cron
+    waere rot gewesen und das Issue haette geschwiegen. Am 2026-08-28 als
+    ``KeyError: 'rc'`` gemessen (Lauf 33149634990).
+
+    Seither publiziert der Step VOR den Lesungen pessimistisch ``rc=1``;
+    jeder regulaere Pfad ueberschreibt (Actions nimmt den letzten Wert, der
+    Harness-Parser ebenso). Dieser Drill faehrt den ECHTEN Step-Text mit
+    einem sterbenden jq und ist der ausfuehrbare Beweis hinter dem
+    Ledger-Eintrag dieses Fixes.
+    """
+    result = run_step(
+        WORKFLOW, BACKFILL_PROGRESS, tmp_path,
+        env={"REAL_PYTHON": sys.executable},
+        stubs={"grep": Stub(stdout='{"backfill": {}}'), "jq": Stub(exit_code=5)},
+        expressions={"steps.date.outputs.date": DATE},
+    )
+    assert result.returncode != 0, "ein sterbender Zaehler muss den Step toeten"
+    assert result.outputs["rc"] == "1", result.outputs
+    assert evaluate_condition(
+        _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "1"}
+    ), "und das Issue muss trotzdem feuern"
