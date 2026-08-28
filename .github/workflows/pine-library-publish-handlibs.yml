@@ -185,6 +185,50 @@ jobs:
           # diffs the hold is about to take back, and a run whose only edit
           # was an attested companion would open an empty PR.
 
+      # Customer-surface hold (pin-only door), BEFORE the R1 hold measures
+      # the changed-set the PR will carry: `repinAllConsumers` rewrites every
+      # consumer .pine and the PR step stages '*.pine' wholesale from a
+      # checkout that is publish-chain-old by now — the same stale-tree
+      # revert class the refresh paid for on 2026-08-12 (#4646). Classified
+      # against a fresh fetch of main: identical/pin-only passes, anything
+      # else is restored to current-main content (that file then advances
+      # with the next publish). The R1 companions are excluded — their
+      # stricter hold below owns them. Roster, classifier, fail-closed floor:
+      # scripts/hold_customer_surfaces.py, executed by
+      # tests/test_hold_customer_surfaces_wiring.py.
+      - name: Hold customer surfaces unless the change is pin-only
+        id: surface_hold
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          # Explicit-token fetch (persist-credentials: false strips origin's
+          # auth); BUMP_REMOTE is the refresh chain's test seam, unset in CI.
+          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
+          SURFACE_BASE="${RUNNER_TEMP}/surface-hold-base"
+          rm -rf "${SURFACE_BASE}"
+          # Same enumeration as the refresh chain's hold: every top-level
+          # .pine pinning the generated library, read from the JUST-fetched
+          # main. No mapfile — the executing test runs this block under
+          # whatever bash the developer has, including 3.2.
+          SURFACE_CANDIDATES=()
+          while IFS= read -r f; do
+            SURFACE_CANDIDATES+=("$f")
+          done < <(git grep -lE 'import preuss_steffen/smc_micro_profiles_generated/[0-9]*' FETCH_HEAD -- \
+            '*.pine' \
+            ':(exclude)tests/**' \
+            ':(exclude)pine/**' \
+            ':(exclude)node_modules/**' | sed 's|^FETCH_HEAD:||' | sort -u)
+          if [ ${#SURFACE_CANDIDATES[@]} -eq 0 ]; then
+            echo "::error::no customer-surface candidates on current main — refusing to report an all-clear over nothing"
+            exit 1
+          fi
+          for f in "${SURFACE_CANDIDATES[@]}"; do
+            mkdir -p "${SURFACE_BASE}/$(dirname "$f")"
+            git show "FETCH_HEAD:$f" > "${SURFACE_BASE}/$f"
+          done
+          python3 -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
+
       - name: Hold R1-attested sources at their attested content
         id: r1_hold
         run: |
@@ -231,6 +275,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PUBLISH_RC: ${{ steps.publish.outputs.rc }}
           R1_HELD: ${{ steps.r1_hold.outputs.held }}
+          SURFACE_HELD: ${{ steps.surface_hold.outputs.held }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
@@ -255,6 +300,12 @@ jobs:
           # the omission is the R1 policy working as designed.
           if [ -n "${R1_HELD:-}" ] && [ "${R1_HELD}" != "[]" ]; then
             _summary="${_summary} **R1 hold:** the attested companion(s) ${R1_HELD} were restored to their attested content and are NOT repinned here; they advance only through the automated re-attestation chain (smc-r1-reattest.yml)."
+          fi
+          # A held customer surface reads as a missing repin in the diff; say
+          # it was held on purpose (change beyond the pin, restored to
+          # current-main content — scripts/hold_customer_surfaces.py).
+          if [ -n "${SURFACE_HELD:-}" ] && [ "${SURFACE_HELD}" != "[]" ]; then
+            _summary="${_summary} **Customer-surface hold:** ${SURFACE_HELD} changed beyond their import pins during this run and were restored to current-main content; their pins advance with the next publish."
           fi
           branch="bot/handlib-repin-${GITHUB_RUN_ID}"
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

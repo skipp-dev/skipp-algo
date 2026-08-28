@@ -98,6 +98,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
     "scripts/resolve_workflow_runner.py": "GitHub Actions $GITHUB_OUTPUT append for runner-selection outputs (mode='a')",
     "scripts/hold_r1_attested_sources.py": "GitHub Actions $GITHUB_OUTPUT append for the held-paths/notice outputs (mode='a')",
+    "scripts/hold_customer_surfaces.py": "GitHub Actions $GITHUB_OUTPUT append for the held-paths/notice outputs (mode='a'); the restores themselves go through smc_atomic_write",
     "scripts/restore_databento_export_bundle.py": "GitHub Actions $GITHUB_OUTPUT append in Databento artifact-restore helper (mode='a')",
     "scripts/tv_repair_watchdog_decision.py": "GitHub Actions $GITHUB_OUTPUT append for the repair-watchdog dispatch/reason outputs (mode='a')",
     "scripts/backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
