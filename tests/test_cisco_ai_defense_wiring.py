@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-import pytest
+from types import SimpleNamespace
 
+import pytest
+from aidefense.runtime.models import Action
+
+import cisco_ai_defense as defense
 import terminal_fmp_insights as fmp
-from cisco_ai_defense import AIDefenseBlockedError
+from cisco_ai_defense import (
+    AIDefenseBlockedError,
+    AIDefenseConfigurationError,
+    AIDefenseUnavailableError,
+)
 
 
 class _Response:
@@ -46,22 +54,74 @@ def test_terminal_fmp_inspects_request_and_response(monkeypatch):
     assert calls[1][0][-1] == {"role": "assistant", "content": "inspected answer"}
 
 
-def test_terminal_fmp_never_calls_provider_when_request_is_blocked(monkeypatch):
+@pytest.mark.parametrize(
+    "failure",
+    [
+        AIDefenseBlockedError("blocked test decision"),
+        AIDefenseUnavailableError("inspection unavailable"),
+        AIDefenseConfigurationError("region is not supported"),
+    ],
+    ids=["policy-block", "cisco-unavailable", "invalid-configuration"],
+)
+def test_terminal_fmp_never_calls_provider_when_request_inspection_fails(monkeypatch, failure):
+    """Every request-phase failure class must stop egress, not just a block.
+
+    2026-08-29: only the block case was pinned, so the demo claim "a Cisco
+    timeout / a broken configuration also means zero provider calls" rested on
+    reading the code rather than on a test. A future refactor that caught
+    ``AIDefenseUnavailableError`` around the inspection call and fell through to
+    ``httpx`` would have kept this file green.
+    """
     provider_called = False
 
-    def _blocked(*_args, **_kwargs):
-        raise AIDefenseBlockedError("blocked test decision")
+    def _fail(*_args, **_kwargs):
+        raise failure
 
     def _client(*_args, **_kwargs):
         nonlocal provider_called
         provider_called = True
         return _Client()
 
-    monkeypatch.setattr(fmp, "inspect_messages", _blocked)
+    monkeypatch.setattr(fmp, "inspect_messages", _fail)
     monkeypatch.setattr(fmp.httpx, "Client", _client)
 
     payload = {"model": "gpt-test", "messages": [{"role": "user", "content": "blocked"}]}
-    with pytest.raises(AIDefenseBlockedError):
+    with pytest.raises(type(failure)):
+        fmp._call_openai_chat(payload, "openai-test-key")
+
+    assert provider_called is False
+
+
+def test_terminal_fmp_never_calls_provider_on_a_real_incomplete_cisco_decision(monkeypatch):
+    """Drive the REAL wrapper, not a stub, with a decision Cisco never completed.
+
+    The SDK parses a missing ``is_safe`` as ``True``; the wrapper rejects that
+    because ``action`` alone is not an authorization. This test wires the real
+    ``cisco_ai_defense.inspect_messages`` into the real consumer so the whole
+    fail-closed chain — SDK response, contract validation, exception, missing
+    provider call — is covered end to end.
+    """
+    provider_called = False
+
+    class _Cisco:
+        def inspect_conversation(self, _messages, **_kwargs):
+            return SimpleNamespace(is_safe=None, action=Action.ALLOW, severity=None, rules=[], event_id=None)
+
+    def _client(*_args, **_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        return _Client()
+
+    monkeypatch.setenv("CISCO_AI_DEFENSE_API_KEY", "a" * 64)
+    monkeypatch.setenv("CISCO_AI_DEFENSE_REGION", "eu-central-1")
+    monkeypatch.setenv("CISCO_AI_DEFENSE_MODE", "enforce")
+    monkeypatch.delenv("CISCO_AI_DEFENSE_RESPONSE_MODE", raising=False)
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: _Cisco())
+    monkeypatch.setattr(fmp, "inspect_messages", defense.inspect_messages)
+    monkeypatch.setattr(fmp.httpx, "Client", _client)
+
+    payload = {"model": "gpt-test", "messages": [{"role": "user", "content": "question"}]}
+    with pytest.raises(AIDefenseUnavailableError, match="incomplete decision"):
         fmp._call_openai_chat(payload, "openai-test-key")
 
     assert provider_called is False

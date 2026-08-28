@@ -71,6 +71,39 @@ def test_safe_decision_allows_and_attaches_sanitized_metadata(monkeypatch):
     assert kwargs["timeout"] == 7
 
 
+def test_allowed_decision_logs_the_event_id_for_correlation(monkeypatch, caplog):
+    """An ALLOWED transaction must be correlatable to the Cisco event log too.
+
+    2026-08-29: ``event_id`` was logged only on a violation, so a clean
+    transaction could be tied to the dashboard by timestamp alone. Cisco mints
+    an event id only on a violation today, hence the ``none`` fallback -- the
+    point is that the field is present and carries the id whenever there is one.
+    """
+    client = _Client(_result(safe=True, action=Action.ALLOW, event_id="allowed-event"))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    with caplog.at_level("INFO"):
+        decision = defense.inspect_messages(
+            _messages(), phase="request", source="terminal-fmp-insights", model="gpt-test",
+        )
+
+    assert decision.allowed is True
+    assert "event_id=allowed-event" in caplog.text
+    assert f"transaction_id={decision.transaction_id}" in caplog.text
+
+
+def test_allowed_decision_without_a_cisco_event_logs_an_explicit_placeholder(monkeypatch, caplog):
+    client = _Client(_result(safe=True, action=Action.ALLOW, event_id=""))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    with caplog.at_level("INFO"):
+        defense.inspect_messages(
+            _messages(), phase="response", source="terminal-fmp-insights", model="gpt-test",
+        )
+
+    assert "event_id=none" in caplog.text
+
+
 def test_sdk_client_uses_the_region_endpoint_and_suppresses_body_debug_logs():
     client = defense._get_client("a" * 64, "eu-central-1", 7)
 

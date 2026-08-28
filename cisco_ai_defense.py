@@ -243,7 +243,7 @@ def inspect_messages(
     )
 
     if allowed:
-        logger.info("Cisco AI Defense allowed phase=%s source=%s transaction_id=%s", phase, source, transaction_id)
+        logger.info("Cisco AI Defense allowed phase=%s source=%s event_id=%s transaction_id=%s", phase, source, event_id or "none", transaction_id)  # 2026-08-29: event_id also on ALLOW so a clean transaction correlates to the Cisco event log, not only a violation
         return decision
 
     logger.warning(
