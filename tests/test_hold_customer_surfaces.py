@@ -33,6 +33,18 @@ _ANY_PIN = re.compile(
     r"^(import[ \t]+preuss_steffen/[A-Za-z0-9_]+/)(\d+)", re.MULTILINE
 )
 
+# The classifier cases replay a pin bump, so they quantify over the surfaces
+# that HAVE a pin. Since the 2026-08-28 population growth the vocabulary
+# roster also carries pin-less surfaces (SMC_Setup_Check.pine imports
+# nothing); bumping "every pin" there would be a vacuous fixture. Floor: the
+# pinned subset must never shrink below the four #4646 incident surfaces.
+_PINNED_SURFACES = [
+    s
+    for s in sorted(PINE_FILES)
+    if _ANY_PIN.search((_REPO / s).read_text(encoding="utf-8"))
+]
+assert len(_PINNED_SURFACES) >= 4
+
 
 def _bump_every_pin(text: str) -> str:
     """What a refresh legitimately does: move every import pin, nothing else."""
@@ -46,13 +58,31 @@ def _bump_every_pin(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def test_pinned_surface_roster_is_not_empty() -> None:
+    """Cross-test witness for the ``_PINNED_SURFACES`` parametrizations.
+
+    The analyzer cannot see a module-level ``assert`` prove a parametrize
+    source (registered in pin_registry.toml); this test carries the proof:
+    the pin-bump replays below quantify over at least the four #4646
+    incident surfaces.
+    """
+    assert len(_PINNED_SURFACES) >= 4
+    for surface in (
+        "SMC_Long_Dip_Suite.pine",
+        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Long_Dip_Mobile.pine",
+        "SMC_Long_Dip_Alerts.pine",
+    ):
+        assert surface in _PINNED_SURFACES
+
+
 @pytest.mark.parametrize("surface", sorted(PINE_FILES))
 def test_identical_content_classifies_identical(surface: str) -> None:
     text = (_REPO / surface).read_text(encoding="utf-8")
     assert classify_pin_only_change(text, text) == "identical"
 
 
-@pytest.mark.parametrize("surface", sorted(PINE_FILES))
+@pytest.mark.parametrize("surface", _PINNED_SURFACES)
 def test_a_pure_pin_bump_classifies_pin_only(surface: str) -> None:
     """Every pin in the file at once — SMC_Long_Dip_Suite.pine carries ten,
     which is exactly what the Event-Overlay classifier could not reconstruct."""
@@ -60,7 +90,7 @@ def test_a_pure_pin_bump_classifies_pin_only(surface: str) -> None:
     assert classify_pin_only_change(text, _bump_every_pin(text)) == "pin-only"
 
 
-@pytest.mark.parametrize("surface", sorted(PINE_FILES))
+@pytest.mark.parametrize("surface", _PINNED_SURFACES)
 def test_the_incident_signature_classifies_other(surface: str) -> None:
     """Pin bump PLUS a content edit — the #4646 revert shape, per surface."""
     text = (_REPO / surface).read_text(encoding="utf-8")
@@ -130,11 +160,12 @@ def test_an_alias_less_pin_is_still_a_pin() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_required_surfaces_are_the_vocabulary_guard_roster() -> None:
-    """Single source: the four names come from the vocabulary guard, and the
-    paid incident's four surfaces are all of them."""
+def test_required_surfaces_are_the_holdable_vocabulary_guard_roster() -> None:
+    """Single source, derived: vocabulary roster, minus what a refresh cannot
+    rewrite (no generated-library pin) and minus the R1-attested companions.
+    The paid incident's four surfaces must always survive the derivation."""
     required = required_customer_surfaces()
-    assert required == sorted(PINE_FILES)
+    assert set(required) <= set(PINE_FILES)
     for surface in (
         "SMC_Long_Dip_Suite.pine",
         "SMC_Long_Dip_Dashboard.pine",
@@ -142,8 +173,35 @@ def test_required_surfaces_are_the_vocabulary_guard_roster() -> None:
         "SMC_Long_Dip_Alerts.pine",
     ):
         assert surface in required, f"{surface} left the customer-surface roster"
+    # Grown deliberately with the 2026-08-28 population: the pinned consumers
+    # the refresh rewrites are now held too. (SMC_Hold_Manager.pine joins when
+    # its frozen shadow lane lets it into the vocabulary roster.)
+    for surface in (
+        "SMC_Confluence_Hub.pine",
+        "SMC_Long_Dip_Strategy.pine",
+    ):
+        assert surface in required, f"{surface} missing from the derived roster"
+    # Un-holdable by construction: no generated-library pin, so the bump
+    # enumeration can never produce them as candidates.
+    assert "SMC_Setup_Check.pine" not in required
+    assert "SMC_Breakout_Overlay.pine" not in required
     for surface in required:
         assert (_REPO / surface).is_file(), f"{surface} is rostered but not in the tree"
+
+
+def test_required_surfaces_refuse_a_tree_that_lost_an_incident_surface(
+    tmp_path: Path,
+) -> None:
+    """The floor under the derivation: a repo tree without (a pin in) one of
+    the #4646 surfaces must refuse, not silently shrink the roster."""
+    for name in sorted(PINE_FILES):
+        (tmp_path / name).write_text(
+            "import preuss_steffen/smc_micro_profiles_generated/220 as mp\n",
+            encoding="utf-8",
+        )
+    (tmp_path / "SMC_Long_Dip_Alerts.pine").write_text("plot(1)\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=re.escape("SMC_Long_Dip_Alerts.pine")):
+        required_customer_surfaces(repo=tmp_path)
 
 
 def test_roster_excludes_the_r1_attested_companions() -> None:
@@ -153,7 +211,7 @@ def test_roster_excludes_the_r1_attested_companions() -> None:
     roster = held_customer_surfaces(candidates)
     assert "SMC_Event_Overlay.pine" not in roster
     assert "SMC_Exit_Signal.pine" not in roster
-    assert set(sorted(PINE_FILES)) <= set(roster)
+    assert set(required_customer_surfaces()) <= set(roster)
 
 
 def test_roster_missing_a_customer_surface_is_refused() -> None:

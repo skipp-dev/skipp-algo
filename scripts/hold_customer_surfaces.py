@@ -69,24 +69,68 @@ _PIN_LINE_RE: Final = re.compile(
 )
 
 
-def required_customer_surfaces() -> list[str]:
+#: The bump enumeration's own pin, restated as a per-file test: only surfaces
+#: pinning the GENERATED library can be rewritten by a refresh, so only they
+#: can (and must) appear among the hold candidates.
+_GENERATED_LIBRARY_PIN_RE: Final = re.compile(
+    r"^import[ \t]+preuss_steffen/smc_micro_profiles_generated/\d+", re.MULTILINE
+)
+
+#: The four surfaces of the paid 2026-08-12 incident (#4646). The derivation
+#: below must never lose one of them — a hard floor under the derived list,
+#: because a derived list without a floor cannot catch its own drift.
+_INCIDENT_SURFACES: Final = frozenset({
+    "SMC_Long_Dip_Suite.pine",
+    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Long_Dip_Mobile.pine",
+    "SMC_Long_Dip_Alerts.pine",
+})
+
+
+def required_customer_surfaces(repo: Path = ROOT) -> list[str]:
     """The customer surfaces this hold must never run without.
 
-    Derived from the vocabulary guard's roster rather than restated: that
-    module is the repository's single definition of "customer surface"
-    (``PINE_FILES``), and two hand-maintained copies of the same four names
-    would drift exactly when one of them is renamed.
+    Derived (2026-08-28), not restated: start from the vocabulary guard's
+    roster (``PINE_FILES``, the single definition of "customer surface" — 4
+    files until the Chart-Link completion grew it to 9), keep the surfaces a
+    refresh can actually rewrite (they pin the generated library in the tree
+    this run operates on), and drop the R1-attested companions, which the
+    stricter unconditional hold owns. Without the pin filter the floor check
+    would demand surfaces the bump enumeration can never produce
+    (``SMC_Setup_Check.pine`` imports nothing) and every refresh would die on
+    a fail-closed error about a file it could not have touched.
     """
     # Imported here rather than at module scope for the same reason as in
     # scripts/hold_r1_attested_sources.py: the workflow runs this file as
     # ``python -m scripts.hold_customer_surfaces`` from the checkout root, so
     # the package import works without touching sys.path.
     from scripts.check_customer_surface_vocabulary import PINE_FILES
+    from scripts.hold_r1_attested_sources import attested_paths
 
-    return sorted(PINE_FILES)
+    attested = set(attested_paths())
+    required = []
+    for name in sorted(PINE_FILES):
+        if name in attested:
+            continue
+        surface = repo / name
+        if not surface.is_file():
+            # Not in this tree (possible mid-run rename on main): the fresh
+            # candidate enumeration still covers it; it cannot be required
+            # of a tree that does not carry it.
+            continue
+        if _GENERATED_LIBRARY_PIN_RE.search(surface.read_text(encoding="utf-8")):
+            required.append(name)
+    missing_floor = _INCIDENT_SURFACES - set(required)
+    if missing_floor:
+        raise ValueError(
+            "derived customer-surface roster lost incident surface(s) "
+            + ", ".join(sorted(missing_floor))
+            + " — refusing to run with a floor below the #4646 population"
+        )
+    return required
 
 
-def held_customer_surfaces(candidates: list[str]) -> list[str]:
+def held_customer_surfaces(candidates: list[str], repo: Path = ROOT) -> list[str]:
     """The roster this run will hold: candidates minus the R1-attested set.
 
     The R1 companions have their own, STRICTER hold (unconditional restore,
@@ -100,7 +144,7 @@ def held_customer_surfaces(candidates: list[str]) -> list[str]:
 
     attested = set(attested_paths())
     roster = sorted({c for c in candidates if c not in attested})
-    missing = [s for s in required_customer_surfaces() if s not in roster]
+    missing = [s for s in required_customer_surfaces(repo) if s not in roster]
     if missing:
         raise ValueError(
             "customer-surface roster is missing "
@@ -244,7 +288,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        roster = held_customer_surfaces(args.candidates)
+        roster = held_customer_surfaces(
+            args.candidates, repo=Path(args.repo).resolve()
+        )
     except ValueError as error:
         print(f"::error::{error}", file=sys.stderr)
         return 1

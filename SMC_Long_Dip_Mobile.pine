@@ -19,7 +19,7 @@ var color M_CAUTION = _cb ? #bcbd22 : color.orange
 var color M_BEAR    = _cb ? #ff7f0e : color.red
 var color M_NEUTRAL = color.gray
 
-var string g_bus = "Chart Link"
+var string g_bus = "Chart Link - SMC Long-Dip Suite"
 
 // Declared in the Suite's BUS plot() order. TradingView lists a source study's
 // outputs in that plot order, so matching it here means each row's dropdown pick

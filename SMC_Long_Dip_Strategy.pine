@@ -16,8 +16,8 @@ strategy("SMC Long-Dip Strategy", overlay = true, pyramiding = 0, process_orders
 
 var string g_setup = "1. Execution Setup"
 var string g_trade_plan = "2. Trade Plan"
-var string g_bus_entry = "3. Expert Mapping - Entry States"
-var string g_bus_plan = "4. Expert Mapping - Trade Plan"
+var string g_bus_entry = "3. Chart Link - Entry States"
+var string g_bus_plan = "4. Chart Link - Trade Plan"
 
 entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which linked core stage is allowed to stage the execution trigger.")
 min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup, tooltip = "Minimum quality score required before the linked core setup can stage an execution plan.")
@@ -33,7 +33,7 @@ take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, g
 // dropdown pick moves strictly downwards — bind top to bottom without scrolling
 // back up. QualityScore therefore sits with the plan rows (plot 9, after
 // Trigger 7 / Invalidation 8) rather than with the entry states.
-src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite. The rows follow the Suite's output order in the dropdown.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind these chart-link inputs top-to-bottom to the matching linked core outputs from SMC Long-Dip Suite. The rows follow the Suite's output order in the dropdown.")
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
 src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
 src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)

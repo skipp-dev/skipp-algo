@@ -1,7 +1,7 @@
 {
   "schema": "pine-input-provenance/v2",
   "total_inputs": 619,
-  "total_hidden": 402,
+  "total_hidden": 408,
   "files": [
     {
       "file": "SMC_Breakout_Overlay.pine",
@@ -4793,14 +4793,14 @@
     {
       "file": "SMC_Setup_Check.pine",
       "input_count": 6,
-      "hidden_count": 0,
+      "hidden_count": 6,
       "inputs": [
         {
           "varname": "src_schema",
           "kind": "source",
           "label": "BUS SchemaVersion",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -4808,7 +4808,7 @@
           "kind": "source",
           "label": "BUS Armed",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -4816,7 +4816,7 @@
           "kind": "source",
           "label": "BUS Trigger",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -4824,7 +4824,7 @@
           "kind": "source",
           "label": "BUS Invalidation",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -4832,7 +4832,7 @@
           "kind": "source",
           "label": "BUS QualityScore",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         },
         {
@@ -4840,7 +4840,7 @@
           "kind": "source",
           "label": "BUS StateCode",
           "group": "g_bus",
-          "has_display_none": false,
+          "has_display_none": true,
           "visibility": null
         }
       ]

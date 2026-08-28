@@ -10,16 +10,20 @@ tooltips quoting plan sections, work-package ids, repo paths and library names.
 
 What this guard checks, and what it deliberately does not:
 
-* POPULATION - every input declaration in the four surfaces, minus the
-  internal groups listed in :data:`INTERNAL_GROUP_VARS`. Both strings a
-  customer can read in the settings panel are inspected: the title and the
-  tooltip. Customer-visible group labels are inspected too. Since 2026-08-28
-  a third arm inspects the RENDERED chart strings: literals in
-  `table.cell(...)`/`label.new(...)` statements (multi-line concatenations
-  joined), in derived render wrappers, and in assignments one level above
-  such a statement — the Mobile fallback line, the Dashboard version warning
-  and the Hero tooltips live there, not in any input declaration.
-* NOT CHECKED - the input TITLES inside the internal groups. Those 68 "BUS ..."
+* POPULATION - every input declaration in the guarded surfaces, minus the
+  internal groups listed in :data:`INTERNAL_GROUP_VARS`. Four incident
+  surfaces until 2026-08-28; since then every onboarding consumer the
+  Chart-Link rename could reach (nine files — `SMC_Exit_Signal.pine` stays
+  out because it is R1-attested and hash-frozen until the next re-attestation
+  session). Both strings a customer can read in the settings panel are
+  inspected: the title and the tooltip. Customer-visible group labels are
+  inspected too. Since 2026-08-28 a third arm inspects the RENDERED chart
+  strings: literals in `table.cell(...)`/`label.new(...)` statements
+  (multi-line concatenations joined), in derived render wrappers, and in
+  assignments one level above such a statement — the Mobile fallback line,
+  the Dashboard version warning and the Hero tooltips live there, not in any
+  input declaration.
+* NOT CHECKED - the input TITLES inside the internal groups. The "BUS ..."
   names are the TradingView binding contract that the onboarding automation
   matches on (SSOT `automation/tradingview/lib/bus_binding_labels.mjs`);
   renaming them is a separate change that has to move the matcher, the drift
@@ -204,6 +208,94 @@ def test_every_surface_is_covered_by_all_bounds() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Stolperdrähte für die zwei Consumer, die die Chart-Link-Vervollständigung
+# (2026-08-28) NICHT erreichen durfte. Muster: test_hold_manager_wiring_rides_
+# the_next_build — schlafen, solange der einfrierende Vertrag den Altstand
+# pinnt; feuern, sobald sich die Quelle legitim bewegt, und dann das Rename
+# samt Guard-Aufnahme in DERSELBEN PR verlangen.
+# ---------------------------------------------------------------------------
+
+_EXIT_SIGNAL_ATTESTED_SHA = (
+    # R1-Evidenz smc_r1_live_rollout_evidence_2026-08-21T163804Z.json,
+    # sources['SMC Exit Signal'].repositorySha256 — der Hash, den
+    # scripts/check_r1_attested_sources.py gegen jede PR-Bewegung hält.
+    "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c"
+)
+
+_HOLD_MANAGER_BUILD3_SHA = (
+    # artifacts/governance/smc_hold_manager_shadow_contract.json
+    # source.sha256 @ build 3 — der Hash, den der deployte Shadow-Receiver
+    # (payload.sourceBuild == contract.source.build) am Leben hält.
+    "88d20484055c850f2a558434aa65b9429e60b9f17373c225d24a931325e82048"
+)
+
+
+def test_exit_signal_rename_rides_the_next_reattestation() -> None:
+    """Schläft, solange die R1-Evidenz den Altstand pinnt; feuert danach.
+
+    Feuer-Semantik: Die Re-Attestation-Session hat SMC_Exit_Signal.pine
+    bewegt — nimm das Chart-Link-Rename in DERSELBEN PR mit: Gruppen-Labels
+    '3./4. Chart Link - …', die gerenderte "BUS"-Tabellenzelle, den
+    Registry-Eintrag EXIT_SIGNAL_GROUP_TITLES_BY_KEY und den Guard-Eintrag
+    (INTERNAL_GROUP_VARS + Floors) für diese Datei.
+    """
+    import hashlib
+
+    from tests.smc_manifest_test_utils import ROOT as REPO_ROOT
+
+    source = (REPO_ROOT / "SMC_Exit_Signal.pine").read_text(encoding="utf-8")
+    if hashlib.sha256(source.encode()).hexdigest() == _EXIT_SIGNAL_ATTESTED_SHA:
+        assert "SMC_Exit_Signal.pine" not in PINE_FILES, (
+            "die Datei ist R1-eingefroren — sie in die Guard-Population zu "
+            "nehmen, macht den Guard rot, ohne dass jemand sie ändern darf"
+        )
+        return
+    assert "SMC_Exit_Signal.pine" in PINE_FILES, (
+        "SMC_Exit_Signal.pine hat sich von der attestierten Quelle bewegt: "
+        "nimm das Chart-Link-Rename in dieser PR mit (Labels, 'BUS'-Zelle, "
+        "Registry-Titel, Guard-Population + Floors) — oder pinne den neuen "
+        "attestierten Hash hier mit datiertem Kommentar, wenn die Session "
+        "das Rename ausdrücklich NICHT mitgenommen hat"
+    )
+
+
+def test_hold_manager_rename_rides_the_next_build() -> None:
+    """Schläft, solange der Shadow-Vertrag Build 3 pinnt; feuert auf Build 4+.
+
+    Feuer-Semantik: Die Hold-Manager-Spur hat einen neuen Build geprägt —
+    nimm das Chart-Link-Rename in DERSELBEN PR mit: gBus-Label, deutsche
+    Titel/Tooltips → Englisch, Status-Label-Strings ('Engine BUS v2',
+    '\\nBUS: ', STALE_CONTEXT-Zeile), Registry-Eintrag
+    HOLD_MANAGER_GROUP_TITLES_BY_KEY, Guard-Eintrag (INTERNAL_GROUP_VARS
+    {'gBus'} + Floors) und den camelCase-Arm von _GROUP_DEF_RE.
+    """
+    import json
+
+    from tests.smc_manifest_test_utils import ROOT as REPO_ROOT
+
+    contract = json.loads(
+        (
+            REPO_ROOT / "artifacts" / "governance"
+            / "smc_hold_manager_shadow_contract.json"
+        ).read_text(encoding="utf-8")
+    )
+    if contract["source"]["sha256"] == _HOLD_MANAGER_BUILD3_SHA:
+        assert "SMC_Hold_Manager.pine" not in PINE_FILES, (
+            "die Spur ist auf Build 3 eingefroren — Population jetzt zu "
+            "erweitern, macht den Guard rot, ohne dass jemand die Datei "
+            "ändern darf"
+        )
+        return
+    assert "SMC_Hold_Manager.pine" in PINE_FILES, (
+        "die Hold-Manager-Spur hat einen neuen Build geprägt: nimm das "
+        "Chart-Link-Rename in dieser PR mit (gBus-Label, Übersetzungen, "
+        "Registry-Titel, Guard-Population + Floors, camelCase-Arm) — oder "
+        "pinne den neuen Build-Hash hier mit datiertem Kommentar, wenn der "
+        "Build das Rename ausdrücklich NICHT mitgenommen hat"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Rot-zuerst-Beweise der drei Blindstellen aus dem 10-Winkel-Review (2026-08-28).
 # Jeder Fall wurde GEGEN DEN ALTEN WÄCHTER ausgeführt und schlug dort fehl
 # (der alte Code akzeptierte die eingeschleuste Zeile); erst die Härtung im
@@ -271,6 +363,36 @@ def test_literal_escape_sequences_do_not_hide_the_word_boundary(monkeypatch) -> 
     ), (
         "a literal \\n escape directly before the pattern still eats the "
         f"word boundary: {found!r}"
+    )
+    assert module.main([]) == 1
+
+
+def test_title_capture_survives_an_embedded_other_quote(monkeypatch) -> None:
+    """Mechanik 1b (2026-08-28): dieselbe Trunkierungsklasse traf auch TITEL.
+
+    `_TITLE_RE` schloss BEIDE Quotezeichen aus, obwohl nur das äußere
+    Delimiter das Ende bestimmt — ein doppelt-quotierter Titel, der ein
+    '-Zitat enthält, wurde nach dem Kopf abgeschnitten und sein Schwanz
+    shippte ungeprüft. In #5142 bewusst ausgelassen, hier geschlossen.
+    """
+    import scripts.check_customer_surface_vocabulary as module
+
+    unpatched = module.read_lines
+    target = PINE_FILES[0]
+    injected = [
+        'x_tq = input.bool(false, "Mirror the \'Compact\' toggle from '
+        'scripts/render_plan.py", group = g_surface)'
+    ]
+
+    def with_leak(pine_file: str) -> list[str]:
+        lines = unpatched(pine_file)
+        return lines + injected if pine_file == target else lines
+
+    monkeypatch.setattr(module, "read_lines", with_leak)
+    found, _ = module.input_leaks(target)
+    assert any("x_tq" in entry and "repo path" in entry for entry in found), (
+        "the title capture still stops at an embedded quote of the other "
+        f"type — the repo path in the tail went unseen: {found!r}"
     )
     assert module.main([]) == 1
 

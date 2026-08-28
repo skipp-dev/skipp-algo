@@ -64,20 +64,33 @@ def extract_input_bindings(text: str) -> tuple[tuple[str, str], ...]:
         stripped = line.strip()
         if 'input.source(' not in stripped:
             continue
-        label_match = re.search(r'input\.source\(close,\s*"([^"]+)"', stripped)
+        # Both quote styles: the Alerts companion declares its labels
+        # single-quoted, a double-quote-only pattern saw 0 of its 4 rows
+        # (measured 2026-08-28 when the consumer contracts were registered).
+        label_match = re.search(r"""input\.source\(close,\s*(["'])([^"']+)\1""", stripped)
         group_match = re.search(r'group\s*=\s*([A-Za-z_][A-Za-z0-9_]*)', stripped)
         if label_match and group_match:
-            bindings.append((label_match.group(1), group_match.group(1)))
+            bindings.append((label_match.group(2), group_match.group(1)))
     return tuple(bindings)
 
 
 def extract_group_titles(text: str) -> dict[str, str]:
+    """Every top-level string assignment that can name a settings group.
+
+    `var` is optional (Alerts/Breakout/Hold Manager declare groups bare), both
+    quote styles count, and the name arm is deliberately broad — lookups go by
+    known group variable, so extra string constants in the map are harmless
+    while a missed declaration style silently empties a contract check.
+    """
     group_titles: dict[str, str] = {}
     for line in text.splitlines():
         stripped = line.strip()
-        match = re.match(r'var(?:\s+string)?\s+([A-Za-z_][A-Za-z0-9_]*) = "([^"]+)"', stripped)
+        match = re.match(
+            r"""(?:var\s+)?(?:string\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["'])([^"']+)\2\s*$""",
+            stripped,
+        )
         if match:
-            group_titles[match.group(1)] = match.group(2)
+            group_titles[match.group(1)] = match.group(3)
     return group_titles
 
 
