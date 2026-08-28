@@ -26,13 +26,13 @@ See ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` \xa7R10.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 from tests._guard_corpus import iter_production_py_files
+from tests._subprocess_budget import run_within_budget
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE_PREFIXES = ("open_prep", "newsstack_fmp")
@@ -106,13 +106,16 @@ def test_r10_module_imports_in_hostile_env(module_name: str, tmp_path: Path) -> 
     # Suppress any plugin auto-loading that might inject env reads.
     env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
 
-    proc = subprocess.run(
+    proc = run_within_budget(
         [sys.executable, "-c", f"import {module_name}"],
+        what=f"hostile-env import of {module_name}",
+        # 89 modules, one interpreter each; tests/_subprocess_budget.py records
+        # why an overrun here is a load symptom rather than a slow import.
+        default_budget_s=90,
         cwd=str(_REPO_ROOT),
         env=env,
         capture_output=True,
         text=True,
-        timeout=90,
     )
     if proc.returncode != 0:
         raise AssertionError(

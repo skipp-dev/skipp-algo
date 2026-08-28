@@ -51,6 +51,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests._subprocess_budget import budget_seconds, overrun_message
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -311,8 +313,9 @@ def test_workflow_invoked_scripts_are_importable(script_relpath: str) -> None:
         cwd=str(REPO_ROOT),
         start_new_session=True,
     )
+    probe_budget = budget_seconds(60)
     try:
-        stdout, stderr = proc.communicate(timeout=60)
+        stdout, stderr = proc.communicate(timeout=probe_budget)
     except subprocess.TimeoutExpired:
         # Killing only the direct child can leave grandchildren holding the
         # captured stdout/stderr pipes open forever.  That made main CI reach
@@ -320,10 +323,15 @@ def test_workflow_invoked_scripts_are_importable(script_relpath: str) -> None:
         # fresh process group, so terminate the whole group before draining.
         os.killpg(proc.pid, signal.SIGKILL)
         stdout, stderr = proc.communicate()
+        # Do not blame the script: this probe shares a machine with ~89
+        # sibling interpreters and the overrun is usually starvation
+        # (2026-08-29). The whole process group is killed either way.
         pytest.fail(
-            f"{script_relpath} did not terminate within 60 seconds for "
-            "``--help``; the entire probe process group was killed.\n\n"
-            f"--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}\n"
+            overrun_message(
+                f"{script_relpath} --help",
+                probe_budget,
+                detail=f"--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}\n",
+            )
         )
     combined = (stdout or "") + "\n" + (stderr or "")
     if "ModuleNotFoundError: No module named 'scripts'" in combined:
