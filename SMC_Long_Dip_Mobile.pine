@@ -8,7 +8,7 @@
 
 indicator("SMC Long-Dip Mobile", overlay = true)
 
-import preuss_steffen/smc_micro_profiles_generated/372 as mp
+import preuss_steffen/smc_micro_profiles_generated/373 as mp
 
 var string g_mobile_surface = "Mobile Surface"
 color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_mobile_surface, tooltip = "Match this to the SMC Long-Dip Suite color theme. Colorblind Safe replaces red/green with orange/blue.")
