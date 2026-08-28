@@ -1655,3 +1655,110 @@ Leere Evidenz — der Abholer konnte kein Job-Log liefern. Erreicht kein
 Korpus, weil der Korpus aus gelieferten Logs besteht; noch gibt es fuer
 diesen Urteiler gar keinen Korpus (der reparierte Step lief noch nie).
 """
+
+# ---------------------------------------------------------------------------
+# 5161 -- der Governance-Verifier laeuft jetzt taeglich, statt nur zu
+# existieren (Geburtsfehler-Sweep, 2. Flug).
+#
+# Warum das KEIN exempt-Eintrag nach Muster #5077 ist, obwohl fuenf
+# ausfuehrbare Drills im Contract-Test stehen: die Drills beweisen, was der
+# Step TUT, wenn er laeuft. Die Behauptung dieses PRs ist eine andere --
+# dass er ueberhaupt laeuft. Genau daran scheiterte der Verifier seit
+# ADR-0011 (in KEINEM Workflow verdrahtet, 7 Referenzen, alle Doku/Pins),
+# und die 27.8.-Drift (gate-Kontext im Ruleset, Konstante ohne ihn, #5160)
+# hat live vorgefuehrt, was das kostet. Ein Log-Zeuge kann das -- und nur er.
+#
+# Die Versionsprobe ist die Kopfzeile des Verifiers selbst
+# ("Verifying branch protection for"), nicht ein Echo meines Step-Wrappers:
+# sie kann im meta-watchdog-Log nur stehen, seit dieser PR den Step einbaut.
+# Bewusst NICHT der Step-Name -- den druckt Actions als Gruppen-Header, auch
+# wenn der Step sofort stirbt; das waere ein Zeuge fuer YAML statt fuer
+# Ausfuehrung.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5161"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Der Branch-Protection-Verifier laeuft taeglich im meta-watchdog und macht den Job rot, wenn die ADR-0011-Baseline bricht"
+witness         = "meta-watchdog"
+witness_job     = "probe"
+evidence_source = "job_log"
+version_probe   = "Verifying branch protection for"
+judge           = "governance_baseline"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+# Alle vier Zweige von governance_baseline sind "noch nicht geboren", nicht
+# tot -- exakt die Lage der vier artifact_download-Deklarationen (#5037):
+# der Step existiert erst mit diesem PR, also kann es vor dem ersten
+# Cron-Lauf (07:15 UTC) keinen Korpus geben. Sobald einer aufgezeichnet ist,
+# ERZWINGT test_a_declared_dead_branch_that_real_evidence_reaches_is_a_
+# contradiction die Entfernung der Deklaration, die er erreicht -- der
+# Mechanismus statt eines Merkzettels.
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "no_log"
+reason = """
+Leere Evidenz -- der Abholer konnte kein Job-Log liefern. Erreicht kein
+Korpus, weil der Korpus aus GELIEFERTEN Logs besteht; fuer diesen Urteiler
+gibt es ueberhaupt noch keinen (der Step ist mit diesem PR geboren).
+"""
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "verifier_never_ran"
+reason = """
+Die Leere-Beobachtung-Bremse: probe-Job gelaufen, Verifier-Kopfzeile fehlt.
+Erreichbar wird der Zweig an einem Lauf auf altem Workflow-Stand oder bei
+frueherem Job-Abbruch -- vor dem ersten Cron nach dem Merge kann ihn kein
+aufgezeichneter Lauf erreichen. Er ist die Bremse gegen PASS aus Schweigen,
+nicht der Normalfall.
+"""
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "probe_not_measurable"
+reason = """
+rc=2-Ausgang: der Verifier lief, aber das Token traegt administration:read
+nicht. Am 28.8. um 19:39Z live GEGENGEMESSEN (Lauf 33204798571, Drift-Arm im
+Schwester-Step): dasselbe Token las die Rulesets ohne UNGESICHERT-Zeile --
+der Zweig ist ausloesbar, aber nach heutiger Messung nicht der erwartete
+Zustand, und kein Korpus traegt ihn.
+"""
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "verifier_ran_without_verdict"
+reason = """
+Kopfzeile ohne Result-Zeile: der Verifier stirbt zwischen Start und
+Zusammenfassung (unerwartete Ausnahme). Beide dokumentierten Ausgaenge des
+Skripts drucken eine Result-Zeile; dieser Zweig ist die Alarmglocke fuer den
+undokumentierten dritten, nicht der Normalfall -- und kein Korpus traegt ihn.
+"""
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "verifier_ran_and_baseline_holds"
+reason = """
+Der erwartete Normalfall -- und trotzdem heute unerreichbar: der Step ist mit
+diesem PR geboren, der erste meta-watchdog-Cron danach laeuft um 07:15 UTC.
+"Noch nicht geboren", nicht "tot" (Lage der vier #5037-Deklarationen). Der
+erste aufgezeichnete Lauf erreicht diesen Zweig und ERZWINGT ueber
+test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction die
+Entfernung genau dieser Zeilen -- dann wird aus OFFEN ein belegtes PASS.
+"""
+
+[[unreachable_branch]]
+judge  = "governance_baseline"
+branch = "governance_baseline_broken"
+reason = """
+Result: FAIL des Verifiers -- die ADR-0011-Baseline ist verletzt (fehlender
+required Check, Force-Push erlaubt, Review-Zwang). Ausloesbarkeit ist NICHT
+konstruiert: genau dieser Zustand bestand am 27.8. real (gate-Kontext live
+required, Konstante ohne ihn) und wurde mit #5160 geschlossen; er ist der
+Grund fuer diesen Waechter. Kein Korpus traegt ihn, weil die Baseline seit
+#5160 haelt -- feuert er, ist das der Ernstfall, nicht ein Testfall.
+"""

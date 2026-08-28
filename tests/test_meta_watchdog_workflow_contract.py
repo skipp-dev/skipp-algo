@@ -298,3 +298,68 @@ exit 0
         assert spec in call[0], (
             f"the dag probe no longer asks for {spec!r}. Asked: {call[0]}"
         )
+
+
+# --- governance step (Geburtsfehler-Sweep 2026-08-28) ------------------------
+#
+# scripts/verify_branch_protection.py existierte seit ADR-0011 und lief in
+# KEINEM Workflow; die 27.8.-Drift (gate-Kontext, #5160) bewies die Luecke
+# live. Dieser Block pinnt die Verdrahtung AUSGEFUEHRT: der echte Step-Text
+# unter der echten Default-Shell, python gestubbt auf die drei rc-Vertraege.
+
+_GOVERNANCE_STEP = "Verify the branch-protection governance baseline"
+
+
+def _governance(tmp_path: Path, *, script_rc: int):
+    return run_step(
+        "meta-watchdog.yml", _GOVERNANCE_STEP, tmp_path,
+        env={"GITHUB_TOKEN": "stub-token"},
+        stubs={"python": Stub(exit_code=script_rc)},
+    )
+
+
+def test_a_clean_governance_baseline_stays_green(tmp_path: Path) -> None:
+    result = _governance(tmp_path, script_rc=0)
+    assert result.returncode == 0, result.stderr
+    assert result.outputs["governance_rc"] == "0"
+    assert "::error" not in result.stdout
+
+
+def test_a_governance_finding_reaches_the_outputs_not_the_step_rc(tmp_path: Path) -> None:
+    """rc=1 muss als governance_rc publiziert werden, nicht den Step toeten.
+
+    Die Wertung passiert im Fail-Step; stirbt der Step hier, nimmt er sein
+    eigenes Verdict mit (dieselbe -e-Falle wie Lauf 32821936783).
+    """
+    result = _governance(tmp_path, script_rc=1)
+    assert result.returncode == 0, "der rc-Fang darf unter -e nicht sterben"
+    assert result.outputs["governance_rc"] == "1"
+    assert "::error" in result.stdout, "ein Governance-Finding muss annotiert sein"
+
+
+def test_an_unmeasurable_governance_probe_warns_but_does_not_verdict(tmp_path: Path) -> None:
+    """rc=2 (Netz/Auth) ist 'nicht messbar' — Warnung, weder rot noch gruen."""
+    result = _governance(tmp_path, script_rc=2)
+    assert result.returncode == 0
+    assert result.outputs["governance_rc"] == "2"
+    assert "::warning" in result.stdout and "KEIN Bestehen" in result.stdout
+    assert "::error" not in result.stdout
+
+
+def test_the_fail_step_reads_the_governance_verdict(workflow_text: str) -> None:
+    """Nur rc=1 faerbt den Job; rc=2 darf es ausdruecklich nicht."""
+    fail_block = workflow_text.split("Fail job on stale, broken, or error", 1)[1]
+    assert "steps.governance.outputs.governance_rc == '1'" in fail_block, (
+        "der Fail-Step liest das Governance-Verdict nicht mehr -- damit waere "
+        "der Step wieder eine Notiz statt eines Waechters"
+    )
+    assert "governance_rc == '2'" not in fail_block, (
+        "rc=2 heisst 'nicht messbar' und darf den Watchdog nicht rot faerben "
+        "(sonst geht jede Netzstoerung als Governance-Bruch durch)"
+    )
+
+
+def test_the_governance_step_invokes_the_verifier(tmp_path: Path) -> None:
+    """Ausgefuehrt, nicht gegreppt: der Aufruf muss auf der Kommandozeile ankommen."""
+    call = _governance(tmp_path, script_rc=0).called_with("verify_branch_protection")
+    assert call, "der Step ruft scripts/verify_branch_protection nicht mehr auf"

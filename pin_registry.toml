@@ -484,7 +484,7 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # Kein Silent-Skip-Risiko: rc=1 (BLIND) macht den Job weiter rot ueber den
 # 'Fail job'-Step (alarm_rc == '1'), gepinnt in
 # tests/test_workflow_failure_alarm_coverage.py.
-"meta-watchdog.yml" = 3
+"meta-watchdog.yml" = 4  # 2026-08-28: 3->4, governance-Step verdrahtet verify_branch_protection taeglich (Geburtsfehler-Sweep 2. Flug)
 
 # ---------------------------------------------------------------------------
 # test_subprocess_shell_injection_pin.py — frozen subprocess call sites.
