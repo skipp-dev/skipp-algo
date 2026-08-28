@@ -1678,15 +1678,22 @@ diesen Urteiler gar keinen Korpus (der reparierte Step lief noch nie).
 [[proof]]
 id              = "5161"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-28T23:01:33Z"
+merge_sha       = "063197307"
 claim           = "Der Branch-Protection-Verifier laeuft taeglich im meta-watchdog und macht den Job rot, wenn die ADR-0011-Baseline bricht"
 witness         = "meta-watchdog"
 witness_job     = "probe"
 evidence_source = "job_log"
 version_probe   = "Verifying branch protection for"
 judge           = "governance_baseline"
-state           = "OFFEN"
+# 2026-08-29: OFFEN -> PASS am ERSTEN Lauf des Steps (33219094828, probe-Job
+# 99009157816, workflow_dispatch 28.8. 23:03Z auf 063197307). Der Verifier
+# schrieb seine Kopfzeile und "Result: PASS" ins Log -- genau die Spur, die
+# vor diesem PR in KEINEM Workflow-Log stehen konnte. Aufgezeichnet als
+# tests/proof_corpus/governance_baseline/33219094828.json.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "33219094828"
 due_by          = "2026-09-06"
 owner           = "operator"
 
@@ -1737,18 +1744,6 @@ Kopfzeile ohne Result-Zeile: der Verifier stirbt zwischen Start und
 Zusammenfassung (unerwartete Ausnahme). Beide dokumentierten Ausgaenge des
 Skripts drucken eine Result-Zeile; dieser Zweig ist die Alarmglocke fuer den
 undokumentierten dritten, nicht der Normalfall -- und kein Korpus traegt ihn.
-"""
-
-[[unreachable_branch]]
-judge  = "governance_baseline"
-branch = "verifier_ran_and_baseline_holds"
-reason = """
-Der erwartete Normalfall -- und trotzdem heute unerreichbar: der Step ist mit
-diesem PR geboren, der erste meta-watchdog-Cron danach laeuft um 07:15 UTC.
-"Noch nicht geboren", nicht "tot" (Lage der vier #5037-Deklarationen). Der
-erste aufgezeichnete Lauf erreicht diesen Zweig und ERZWINGT ueber
-test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction die
-Entfernung genau dieser Zeilen -- dann wird aus OFFEN ein belegtes PASS.
 """
 
 [[unreachable_branch]]
