@@ -19,6 +19,8 @@ import json
 from pathlib import Path
 
 import pytest
+
+import scripts.hold_customer_surfaces as hold_customer_surfaces
 import scripts.hold_smcpp_sources as hold_smcpp_sources
 from scripts.hold_smcpp_sources import (
     hand_lib_sources,
@@ -26,8 +28,6 @@ from scripts.hold_smcpp_sources import (
     main,
     render_notice,
 )
-
-import scripts.hold_customer_surfaces as hold_customer_surfaces
 
 _REPO = Path(__file__).resolve().parents[1]
 
