@@ -68,6 +68,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_global_statement_budget.py",
     "test_hashlib_weak_hash_ledger.py",
     "test_hold_customer_surfaces.py",
+    "test_hold_customer_surfaces_wiring.py",
     "test_http_client_discipline.py",
     "test_http_post_egress_ledger.py",
     "test_iloc_minus_one_guard_discipline.py",
