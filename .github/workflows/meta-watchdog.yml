@@ -214,6 +214,38 @@ jobs:
             echo "::warning title=meta-watchdog::Alarm-Abdeckung nicht messbar (Sonde ungueltig) -- das ist KEIN Bestehen."
           fi
 
+      - name: Verify the branch-protection governance baseline
+        id: governance
+        # Geburtsfehler-Sweep 2026-08-28: scripts/verify_branch_protection.py
+        # existierte seit ADR-0011, lief aber in KEINEM Workflow — die
+        # 27.8.-Drift (gate-Kontext im Ruleset, Konstante ohne ihn, #5160)
+        # bewies live, dass ein nie startender Waechter keine ist. Der
+        # Drift-Arm im alarm_coverage-Step deckt NUR die Required-Checks;
+        # dieser Step misst zusaetzlich Force-Push-/Deletion-Block und die
+        # ADR-0011-Review-Baseline. Bewusste Ueberlappung, beide kosten
+        # Sekunden. Token: derselbe GH_PAT-Fallback — dass er die Rulesets
+        # lesen darf, ist am Lauf 33204798571 (28.8.) live gemessen.
+        #
+        # rc-Vertrag des Skripts: 0 ok · 1 Governance-Finding (Job wird unten
+        # rot) · 2 Netz/Auth (nicht messbar — Warnung, KEIN Bestehen, nicht
+        # rot; das rc-8-Muster der Schwester-Steps).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -uo pipefail
+          # `set +e`-Klammer wie in den Schwester-Steps: Default-Shell ist -e,
+          # ohne Klammer ist der rc-Fang toter Code (Lauf 32821936783).
+          set +e
+          python -m scripts.verify_branch_protection
+          rc=$?
+          set -e
+          echo "governance_rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" = "1" ]; then
+            echo "::error title=meta-watchdog::Branch-Protection-Governance verletzt (verify_branch_protection rc=1) -- Schrittausgabe lesen: welcher Check fehlt bzw. welche Regel kippte."
+          elif [ "$rc" != "0" ]; then
+            echo "::warning title=meta-watchdog::Governance nicht messbar (verify_branch_protection rc=$rc) -- das ist KEIN Bestehen."
+          fi
+
       - name: Annotate probe results
         if: always() && steps.probe.outputs.rc != ''
         run: |
@@ -409,8 +441,9 @@ jobs:
             (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
             steps.dag.outputs.dag_status == 'broken' ||
             steps.dag.outputs.dag_status == 'error' ||
-            steps.alarm_coverage.outputs.alarm_rc == '1'
+            steps.alarm_coverage.outputs.alarm_rc == '1' ||
+            steps.governance.outputs.governance_rc == '1'
           )
         run: |
-          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }} | alarm_rc=${{ steps.alarm_coverage.outputs.alarm_rc }}"
+          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }} | alarm_rc=${{ steps.alarm_coverage.outputs.alarm_rc }} | governance_rc=${{ steps.governance.outputs.governance_rc }}"
           exit 1
