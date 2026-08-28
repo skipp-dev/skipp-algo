@@ -1457,3 +1457,86 @@ claim  = "Hold-Enumeration deckt jede von einem Publish-Pfad beschreibbare Kunde
 state  = "AUSGENOMMEN"
 due_by = "2026-08-28"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# smcpp-source-hold (28.8., die in #5148 dokumentierte Luecke): der
+# handlibs-Publish staged '*.pine' + 'SMC++'/*.pine PAUSCHAL aus dem
+# Run-Start-Checkout, und der Publisher schreibt Pin-Zeilen IN die stalen
+# Arbeitskopien (repinAllConsumers + own-dep-Repins) — eine SMC++-Quelle,
+# deren Pin sich im Lauf bewegt, wird mit dem Run-Start-Stand darunter
+# committet und revertiert einen Mid-Run-Merge (#4646-Klasse fuer
+# Bibliotheksquellen; auf einem Scratch-Remote bewiesen: der gestagte Diff
+# entfernt den Mid-Run-Fix). Der Surface-Hold schliesst SMC++/** bewusst
+# aus, der R1-Hold deckt nur die attestierten Root-Quellen — diese Dateien
+# hielt NICHTS. Fix: eigener Hold-Step (scripts/hold_smcpp_sources.py,
+# gleicher Klassifizierer, Basis = FRISCH gefetchtes main, #5141-Semantik),
+# suite-ausfuehrbar (echter Step-Bash gegen Fixture-Remote, Rot-zuerst 5
+# Failures gegen den Altstand). Der Step selbst lief aber noch in KEINEM
+# echten Lauf — naechster Zeuge ist der Sonntags-Cron 04:00 UTC; deshalb
+# OFFEN mit Urteiler statt exempt (nie ausgeloester Workflow = unbewiesen).
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "smcpp-source-hold"
+kind            = "fix"
+claim           = "Der handlibs-Publish kann eine nicht-attestierte SMC++-Quelle nicht mehr mit stalem Run-Start-Stand committen: jeder Lauf haelt jede SMC++/*.pine gegen frisch gefetchtes main (pin-only-Tuer), bevor der Changed-Set gemessen wird"
+witness         = "pine-library-publish-handlibs"
+witness_job     = "publish"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "No SMC++ source held"
+judge           = "handlib_smcpp_hold"
+state           = "OFFEN"
+due_by          = "2026-09-07"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "handlib_smcpp_hold"
+branch = "clean_full_check"
+reason = """
+Noch nicht geboren, nicht tot: der Zweig verlangt die Nulllesung "No SMC++
+source held (N checked)." aus einem ECHTEN publish-Job-Log, und vor dem Merge
+dieses PRs existiert kein Lauf mit dem Step (naechster Zeuge: Sonntags-Cron
+04:00 UTC). Erreichbar bewiesen ohne Korpus-Luege: die Modul-Mechanik druckt
+exakt diese Zeile (tests/test_hold_smcpp_sources.py fuehrt main() aus), und
+der echte Step-Bash laeuft im Fixture-Remote-Test
+(tests/test_hold_smcpp_sources_wiring.py). Schliesst sich selbst: der Eintrag
+smcpp-source-hold laesst sich nicht auf PASS setzen ohne Korpus, der diesen
+Zweig (oder held_a_stale_source) erreicht — der Korpus macht diese
+Deklaration dann im Widerspruchs-Test rot und erzwingt ihre Entfernung.
+"""
+
+[[unreachable_branch]]
+judge  = "handlib_smcpp_hold"
+branch = "held_a_stale_source"
+reason = """
+Der Defekt-Fang-Zweig: er feuert erst, wenn in einem echten Lauf ein
+Mid-Run-Merge eine SMC++-Quelle trifft, deren Pin sich im selben Lauf bewegt —
+ein Beweis-Zweig fuer einen Defekt ist genau dann erreichbar, wenn der Defekt
+eintritt. Die Mechanik ist trotzdem geprueft, nicht behauptet: der
+Fixture-Remote-Test (tests/test_hold_smcpp_sources_wiring.py,
+test_smcpp_hold_restores_the_mid_run_merge_and_keeps_the_pin_bumps) erzeugt
+genau diesen Fall im echten Step-Bash und liest die Marker-Zeile
+"held at current-main content: SMC++/smc_utils.pine" aus dem Modul-Output.
+"""
+
+[[unreachable_branch]]
+judge  = "handlib_smcpp_hold"
+branch = "hold_never_ran"
+reason = """
+Feuert nur auf einem Log OHNE jede Hold-Spur — einem Lauf, der vor dem Step
+stirbt (z.B. fehlende TV-Auth beendet den Job frueher) oder auf toter
+Verdrahtung. Kein aufgezeichneter Korpus traegt so einen Lauf, weil es noch
+keinen Lauf mit dem Step gibt; die leere-Beobachtung-Semantik (STEHT_AUS
+statt PASS) folgt tv_legend_click.settings_never_attempted, wo dieselbe
+Klasse am 2026-08-24 live gemessen wurde.
+"""
+
+[[unreachable_branch]]
+judge  = "handlib_smcpp_hold"
+branch = "no_log"
+reason = """
+Leere Evidenz — der Abholer konnte kein Job-Log liefern. Erreicht kein
+Korpus, weil der Korpus aus gelieferten Logs besteht; derselbe Zweig ist in
+tv_legend_click deklariert-frei, weil dessen Korpus ihn zufaellig erreicht.
+Hier gibt es noch gar keinen Korpus (Step noch nie gelaufen).
+"""

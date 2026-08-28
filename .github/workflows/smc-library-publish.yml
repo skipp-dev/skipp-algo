@@ -1107,8 +1107,13 @@ jobs:
           # the bump's generated-library pattern only, and hand-lib-only
           # surfaces (SMC_Breakout_Overlay.pine) were never candidates (the
           # #5145 gap). SMC++ library SOURCES are excluded: they are not
-          # customer surfaces, and their mid-run seam stays with the publish
-          # chain's own repin proof + R1 hold. Coverage is derived and
+          # customer surfaces, and THIS workflow cannot stage them at all —
+          # the commit step's explicit `git add` list carries no SMC++ path
+          # and hard-fails on unstaged tracked changes, and the bump writes
+          # only smc_micro_profiles_generated pins, which no SMC++ source
+          # carries (measured 2026-08-28). Their mid-run seam on the
+          # handlibs path is owned by scripts/hold_smcpp_sources.py in
+          # pine-library-publish-handlibs.yml. Coverage is derived and
           # executed by tests/test_hold_customer_surfaces_wiring.py. No
           # mapfile — the executing test runs this block under whatever bash
           # the developer has, including 3.2.

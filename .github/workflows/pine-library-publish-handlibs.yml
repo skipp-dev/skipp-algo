@@ -213,9 +213,11 @@ jobs:
           # line, so hand-lib-only surfaces (SMC_Breakout_Overlay.pine) are
           # candidates too — under the old generated-library pattern they
           # were rewritten without ever being enumerated (the #5145 gap).
-          # SMC++ library SOURCES are excluded: not customer surfaces; their
-          # mid-run seam stays with the publish chain's repin proof + R1
-          # hold. Coverage is derived and executed by
+          # SMC++ library SOURCES are excluded: not customer surfaces; the
+          # dedicated SMC++ hold in the next step owns their mid-run seam
+          # (scripts/hold_smcpp_sources.py — until 2026-08-28 nothing did,
+          # the #5148 gap: the R1 hold covers only the attested root
+          # sources). Coverage is derived and executed by
           # tests/test_hold_customer_surfaces_wiring.py. No mapfile — the
           # executing test runs this block under whatever bash the developer
           # has, including 3.2.
@@ -237,6 +239,52 @@ jobs:
             git show "FETCH_HEAD:$f" > "${SURFACE_BASE}/$f"
           done
           python3 -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
+
+      # SMC++ library-source hold (pin-only door), same base and same
+      # classifier as the customer-surface hold above. The PR step stages
+      # '*.pine' + 'SMC++'/*.pine wholesale from the run-start checkout,
+      # and the publisher rewrites pin lines IN the stale working-tree
+      # copies (repinAllConsumers + the per-library own-dep repins), so an
+      # SMC++ source whose pin moved this run carries the run-start base
+      # underneath — a merge into that source mid-run would be committed
+      # back out of the stale tree (#4646's class, for library sources —
+      # the #5148 gap: the surface hold excludes SMC++/** by design and
+      # the R1 hold covers only the attested root sources, so these files
+      # were held by NOTHING). Base is a FRESH fetch of main, never the
+      # run-start HEAD (#5141: a stale base would revert the mid-run merge
+      # itself). identical/pin-only passes — the run's own repins stay
+      # pin-only against fresh main — anything else is restored to
+      # current-main content and advances its pin with the next publish.
+      # Candidates are ALL of SMC++/*.pine on fresh main (ls-tree, not an
+      # import grep: four sources carry no import at all and the publisher
+      # scans every SMC++ file). Roster, attested exclusion, fail-closed
+      # floor: scripts/hold_smcpp_sources.py, executed by
+      # tests/test_hold_smcpp_sources_wiring.py.
+      - name: Hold SMC++ library sources unless the change is pin-only
+        id: smcpp_hold
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          # Same explicit-token fetch seam as the surface hold (persist-
+          # credentials: false strips origin's auth); BUMP_REMOTE is the
+          # same test seam, unset in CI.
+          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
+          SMCPP_BASE="${RUNNER_TEMP}/smcpp-hold-base"
+          rm -rf "${SMCPP_BASE}"
+          SMCPP_CANDIDATES=()
+          while IFS= read -r f; do
+            SMCPP_CANDIDATES+=("$f")
+          done < <(git ls-tree -r --name-only FETCH_HEAD -- SMC++/ | grep -E '\.pine$' | sort -u)
+          if [ ${#SMCPP_CANDIDATES[@]} -eq 0 ]; then
+            echo "::error::no SMC++ library sources on current main — refusing to report an all-clear over nothing"
+            exit 1
+          fi
+          for f in "${SMCPP_CANDIDATES[@]}"; do
+            mkdir -p "${SMCPP_BASE}/$(dirname "$f")"
+            git show "FETCH_HEAD:$f" > "${SMCPP_BASE}/$f"
+          done
+          python3 -m scripts.hold_smcpp_sources --base-dir "${SMCPP_BASE}" --repo . "${SMCPP_CANDIDATES[@]}"
 
       - name: Hold R1-attested sources at their attested content
         id: r1_hold
@@ -285,6 +333,7 @@ jobs:
           PUBLISH_RC: ${{ steps.publish.outputs.rc }}
           R1_HELD: ${{ steps.r1_hold.outputs.held }}
           SURFACE_HELD: ${{ steps.surface_hold.outputs.held }}
+          SMCPP_HELD: ${{ steps.smcpp_hold.outputs.held }}
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
@@ -315,6 +364,12 @@ jobs:
           # current-main content — scripts/hold_customer_surfaces.py).
           if [ -n "${SURFACE_HELD:-}" ] && [ "${SURFACE_HELD}" != "[]" ]; then
             _summary="${_summary} **Customer-surface hold:** ${SURFACE_HELD} changed beyond their import pins during this run and were restored to current-main content; their pins advance with the next publish."
+          fi
+          # Same for a held SMC++ library source: the diff omits its repin
+          # on purpose (change beyond the pin — committing the stale copy
+          # would revert a mid-run merge; scripts/hold_smcpp_sources.py).
+          if [ -n "${SMCPP_HELD:-}" ] && [ "${SMCPP_HELD}" != "[]" ]; then
+            _summary="${_summary} **SMC++ source hold:** ${SMCPP_HELD} changed beyond their import pins during this run and were restored to current-main content; their pins advance with the next publish run."
           fi
           branch="bot/handlib-repin-${GITHUB_RUN_ID}"
           _remote_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"

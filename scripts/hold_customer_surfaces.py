@@ -275,6 +275,24 @@ def render_notice(held: list[str]) -> str:
     )
 
 
+def write_github_outputs(path: Path, *, held: list[str], notice: str) -> None:
+    """Append ``held`` / ``notice`` step outputs the way Actions reads them.
+
+    Shared with ``scripts/hold_smcpp_sources.py`` (2026-08-28): the heredoc
+    delimiter growth is exactly the kind of subtlety a second copy would get
+    wrong, and the raw-write allowlist (tests/test_atomic_write_call_sites.py)
+    then keeps a single ``$GITHUB_OUTPUT`` append site.
+    """
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"held={json.dumps(held)}\n")
+        # Heredoc with a delimiter grown past any collision, exactly as in
+        # hold_r1_attested_sources: the notice is multi-line.
+        delimiter = "SURFACEHOLD_EOF"
+        while delimiter in notice:
+            delimiter += "_X"
+        handle.write(f"notice<<{delimiter}\n{notice}\n{delimiter}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -319,14 +337,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.github_output:
         notice = render_notice(held) if held else ""
-        with Path(args.github_output).open("a", encoding="utf-8") as handle:
-            handle.write(f"held={json.dumps(held)}\n")
-            # Heredoc with a delimiter grown past any collision, exactly as in
-            # hold_r1_attested_sources: the notice is multi-line.
-            delimiter = "SURFACEHOLD_EOF"
-            while delimiter in notice:
-                delimiter += "_X"
-            handle.write(f"notice<<{delimiter}\n{notice}\n{delimiter}\n")
+        write_github_outputs(Path(args.github_output), held=held, notice=notice)
     return 0
 
 
