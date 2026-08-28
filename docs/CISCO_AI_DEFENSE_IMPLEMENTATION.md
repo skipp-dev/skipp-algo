@@ -30,9 +30,26 @@ candidate PRE-A0 model into an approved trading model.
 | Codex, Claude Code, GitHub Copilot UI | Runs outside the repository process | Requires an in-path enterprise control; repository code cannot intercept it |
 
 The regression guard `tests/test_ai_defense_egress_guard.py` fails if a new
-known LLM generation endpoint or provider SDK import appears without an
-explicit Cisco boundary.  It also fails when a first-party agent or MCP client
-is activated before its dedicated runtime design has been reviewed.
+LLM generation endpoint or provider SDK import appears without an explicit
+Cisco boundary.  It also fails when a first-party agent or MCP client is
+activated before its dedicated runtime design has been reviewed.
+
+Since 2026-08-29 the guard matches provider **hosts** (`api.openai.com`,
+`api.anthropic.com`, `openai.azure.com`,
+`generativelanguage.googleapis.com`, `api.mistral.ai`, `api.cohere.*`)
+instead of one exact route, and provider/agent imports match on a dotted
+prefix, so `from openai.types import ...`, `import openai.resources`,
+`POST /v1/responses` and an Azure deployment URL are no longer invisible to
+it — the demo review on 2026-08-28 measured all four slipping through the
+previous exact-match version while the guard reported success.  A production
+file that reaches a provider host must be either in the inspected generation
+inventory (`terminal_fmp_insights.py`) or in the reviewed content-free
+inventory (`scripts/probe_providers.py`, the `GET /v1/models` probe); a
+second test re-proves that no file in the content-free inventory contains a
+completion-carrying route, so the exemption cannot be used to smuggle an
+uninspected call in.  Five positive controls feed synthetic offenders through
+the same matching helpers, because a guard whose corpus contains no offender
+is otherwise green whether or not it can still detect one.
 
 ## Protection scope decision (2026-07-20)
 
@@ -177,6 +194,96 @@ Measured live with the Management API from inside both producer containers:
 | Active Inspection key | `my-app-ai-key`, created 2026-07-20T19:23Z, `expiry: null` — it **never expires**. Planned expiry is therefore no longer a death mode; revocation and region/tenant changes are. |
 | Documented key `skipp-algo-runtime-openai-railway` | REVOKED on 2026-08-19T08:32Z (it did not lapse; it was revoked). |
 | Hybrid connector | Railway service `aidefense-connector` runs Cisco's `proxyrelayclient:26.8.3` against `eu.cloudgw.aidefense.security.cisco.com:443`; no public domain; healthz `SERVING` over private networking. The operator installed the connector API key at 11:25Z; the tunnel has been CONNECTED to the relay since 2026-08-21T11:25:41Z (worker pools + ping sender up, zero reconnects observed). NO traffic is routed through it yet. Routing LLM egress through the connector would be a separate, reviewed change to the enforcement architecture. |
+
+### Key state re-measurement (2026-08-28)
+
+Measured live while validating the customer-demo runbook.  Railway variable
+*names* were read per service; values are quoted only where they are not secret.
+
+| Check | Measured state |
+| --- | --- |
+| Runtime modes on `smc-signals-producer` | `CISCO_AI_DEFENSE_MODE=enforce`, `CISCO_AI_DEFENSE_RESPONSE_MODE=monitor`, region `eu-central-1`, timeout `10`. The response phase therefore **records and delivers** a policy violation, and the delivered answer is positively cached. Enforce on the response phase is a separate, explicit decision. |
+| "Dead" Cisco copy on `skipp-terminal-ai` | REMOVED 2026-08-28 — and it was **not dead**. See the incident below: the Producer's mode/region/timeout resolved from those entries. The terminal container now carries no `CISCO_AI_DEFENSE_*` and no `OPENAI_API_KEY`, which is the intended end state; the Producer needed its own literals. |
+| `CISCO_AI_DEFENSE_MANAGEMENT_API_KEY` on both producers | REMOVED 2026-08-28 from `smc-signals-producer` and `smc-signals-producer-databento-shadow`, both redeployed and verified inside the new containers. It was unconsumed (its only reference anywhere in the repository was this document) and contradicted the operator-only blast-radius rule in "Secret handling and rotation". |
+| Active inspection key | `my-app-ai-key`, `expiry: null` — unchanged. Planned expiry is not a death mode; revocation and region/tenant changes are, and the self-probe is what observes them. |
+
+Two application-layer defects found while validating the demo claims, fixed in
+the same change:
+
+1. The negative cache stored an AI Defense **policy block** and a provider or
+   inspection **failure** under one sentinel.  A blocked prompt repeated inside
+   the 30 s TTL was therefore reported as a failure, and `/ai-validation` maps a
+   failure to `502 validation backend unavailable` — Cisco's validator would
+   have scored a working guardrail as application downtime.  The suppression is
+   unchanged; the reason is now preserved, so a replayed block answers exactly
+   like the first block.
+2. `event_id` was logged only on a violation, so an *allowed* transaction could
+   be correlated to the Cisco event log by timestamp only.  It is now logged on
+   allow decisions too (`none` when Cisco returns no event).
+
+#### Incident 2026-08-28 22:24–22:28Z: the "duplicate" variable was the Producer's source
+
+Deleting the four `CISCO_AI_DEFENSE_*` entries from `skipp-terminal-ai` — the
+row recorded on 2026-08-20 as a DEAD COPY, and genuinely unread by any terminal
+code path — left `CISCO_AI_DEFENSE_MODE`, `_REGION` and `_TIMEOUT_SECONDS`
+**empty in the Producer's variable store**.  `_mode()` rejects an empty mode, so
+every AI Insights and `/ai-validation` request fails closed with
+`AIDefenseConfigurationError`.
+
+What is proven, and what is not:
+
+* **Proven — the values changed under that deletion.**  All three read
+  `enforce` / `eu-central-1` / `10` before it and empty after.
+* **Proven — the management-key deletion did not cause it.**  The identical
+  `railway variable delete CISCO_AI_DEFENSE_MANAGEMENT_API_KEY` ran on *both*
+  producers, and the shadow's other Cisco variables are untouched
+  (`enforce` / `eu-central-1` / `10`).  That controlled comparison leaves the
+  terminal deletion as the only candidate.
+* **Proven — `CISCO_AI_DEFENSE_RESPONSE_MODE` survived.**  It is the one name
+  the terminal never carried.
+* **Not proven — the exact linkage.**  The Producer's
+  `CISCO_AI_DEFENSE_API_KEY` survived, so it is a service-level literal while
+  the other three were not.  Whether those three were shared-scope or reference
+  variables is visible only in the Railway dashboard's variable activity log;
+  the CLI reports resolved values and now returns empty for all three.
+
+Timing, and why the blast radius stayed small:
+
+* A variable change does **not** restart a running container.  The Producer kept
+  serving with its old, correct environment for roughly half an hour after the
+  deletion.
+* The outage began when the Producer was redeployed for the management-key
+  removal: container up `22:24:58Z`, first log line
+  `Cisco key self-probe failed error_type=AIDefenseConfigurationError consecutive=1`
+  390 ms later.
+* Restored as explicit literals on the Producer (`enforce`, `eu-central-1`,
+  `10`), redeployed, container up `22:28:03Z`, followed one second later by
+  `Cisco AI Defense allowed phase=request source=cisco-self-probe` and
+  `Cisco key self-probe ok`.  End-to-end `/ai-validation` from inside the
+  container: `HTTP 200`, `answer="OK"`, `error=""`.
+* Total exposure **3 min 6 s**, outside market hours.
+
+Three lessons that outrank the incident itself:
+
+1. **"No code reads it" is not "nothing depends on it."**  The 2026-08-20 row
+   proved the terminal copy was unread by terminal *code* and concluded it was
+   dead.  Configuration can be consumed by the platform rather than by the
+   process; those are two different questions and only the first was asked.
+2. **The self-probe earned its keep.**  It turned a silent misconfiguration into
+   a logged failure within one second of container start — exactly the watchdog
+   gap it was built for on 2026-08-21.  The paired Grafana rule
+   (`sp-cisco-probe-stale`, last success older than 2 h) correctly did *not*
+   fire for a three-minute outage: the probe is the detector, the alert is for a
+   sustained failure.
+3. **Delete a shared-looking variable only after reading it back on every
+   service that could resolve it** — after a redeploy, since the store and the
+   running container disagree until then — and require one
+   `Cisco key self-probe ok` line before calling the change done.
+
+Secret-hygiene follow-up: while diagnosing this, the Producer's
+`CISCO_AI_DEFENSE_API_KEY` value was printed to an operator terminal by a
+variable dump that did not mask it.  Rotate that Inspection key with the overlap
+procedure in "Secret handling and rotation".
 
 ### Inspection-key self-probe (mechanism, 2026-08-21)
 
