@@ -705,7 +705,7 @@ var float adx_strong_min = input.float(25.0, 'Strong', minval = 1, step = 0.5, g
 // Relative volume
 var bool use_rel_volume = input.bool(true, 'Use Relative Volume', group = g_long, inline = 'rv', display = display.none)
 var int relvol_len = input.int(20, 'Length', minval = 1, group = g_long, inline = 'rv', active = use_rel_volume, display = display.none)
-var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, group = g_long, inline = 'rv', active = use_rel_volume, display = display.none, tooltip = 'Minimum RVOL multiple for the relative-volume gate. When a Quickstart Preset other than Custom is active, the preset may raise this floor, never lower it. The Decision Board shows the effective value.')
+var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, group = g_long, inline = 'rv', active = use_rel_volume, display = display.none, tooltip = 'Minimum RVOL multiple for the relative-volume gate. When a Quickstart Preset other than Custom is active, the preset may raise this floor, never lower it. Effective value is published as the hidden PresetRvolMin chart output.')
 
 // Candle quality
 var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', group = g_long, inline = 'close', display = display.none)

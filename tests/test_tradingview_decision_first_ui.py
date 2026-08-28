@@ -242,7 +242,7 @@ def test_core_engine_quickstart_preset_rvol_floor_is_wired_into_effective_gate()
         f"before its consumer (idx {consumer_idx}) — Pine forward refs do not compile"
     )
     # User-facing input tooltip must explain that the preset can raise the floor.
-    assert "Plan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor" in source
+    assert "the preset may raise this floor, never lower it. Effective value is published as the hidden PresetRvolMin chart output." in source
 
 
 def test_core_engine_quickstart_preset_htf_bias_floor_is_wired_into_context_quality() -> None:
