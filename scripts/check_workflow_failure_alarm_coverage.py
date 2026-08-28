@@ -32,7 +32,9 @@ das Skript sagt das, statt es als Erfolg zu verbuchen.
 Exit-Codes
 ----------
 0   jede belegbare Forderung erfuellt
-1   ein Workflow ist in der Seite, hat aber keine Zeitreihe -> Alarm ist blind
+1   ein Workflow ist in der Seite, hat aber keine Zeitreihe -> Alarm ist blind;
+    ODER die Required-Check-Menge des Live-Rulesets weicht von
+    ``REQUIRED_STATUS_CHECKS`` ab (Drift-Arm, seit 2026-08-28)
 8   Sonde ungueltig (kein Token, keine Serien ueberhaupt, leere Lauf-Seite)
 
 Aufruf::
@@ -54,6 +56,7 @@ from typing import Any
 try:
     from scripts.check_workflow_freshness import _default_fetcher
     from scripts.grafana_alert_rules_upsert import _api_key, _request
+    from scripts.verify_branch_protection import REQUIRED_STATUS_CHECKS
 except ImportError as exc:  # pragma: no cover - invocation-style guard
     raise SystemExit(
         "run as `python -m scripts.check_workflow_failure_alarm_coverage` from the "
@@ -209,6 +212,73 @@ def workflows_in_run_page(repo: str, token: str) -> set[str]:
     return {str(run.get("name", "")) for run in runs}
 
 
+def live_required_contexts(repo: str, token: str) -> set[str] | None:
+    """Required-Check-Kontexte aller AKTIVEN Rulesets — oder ``None`` = nicht lesbar.
+
+    Geburtsfehler-Sweep 2026-08-28: am 27.8. nahm der Operator ``gate`` mit ins
+    ``main-governance``-Ruleset auf, und der Nachzug #5121 uebertrug nur die vier
+    validate-Shards nach ``REQUIRED_STATUS_CHECKS`` — kein Waechter lief je gegen
+    den LIVE-Zustand (``verify_branch_protection.py`` startet kein Workflow).
+    Dieser Arm schliesst das: er laeuft im selben taeglichen meta-watchdog-Schritt.
+
+    ``None`` (403/404: Token ohne ``administration:read``) ist ausdruecklich KEIN
+    Befund und KEIN Bestehen — der Aufrufer druckt das als UNGESICHERT-Zeile.
+    """
+    try:
+        rulesets = _gh(f"https://api.github.com/repos/{repo}/rulesets", token)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 404):
+            return None
+        raise
+    contexts: set[str] = set()
+    for ruleset in rulesets if isinstance(rulesets, list) else []:
+        if str(ruleset.get("enforcement") or "") != "active":
+            continue
+        try:
+            detail = _gh(
+                f"https://api.github.com/repos/{repo}/rulesets/{int(ruleset.get('id') or 0)}",
+                token,
+            )
+        except urllib.error.HTTPError as exc:
+            if exc.code in (403, 404):
+                return None
+            raise
+        for rule in detail.get("rules") or []:
+            if rule.get("type") != "required_status_checks":
+                continue
+            for check in (rule.get("parameters") or {}).get("required_status_checks") or []:
+                context = str(check.get("context") or "").strip()
+                if context:
+                    contexts.add(context)
+    return contexts
+
+
+def evaluate_ruleset_drift(erwartet: list[str], live: set[str]) -> list[str]:
+    """Beide Drift-Richtungen; reine Funktion, damit testbar.
+
+    Eine LEERE Live-Menge ist selbst ein Befund: null required Checks heisst,
+    die Governance ist abgeschaltet — das darf nie wie 'kein Drift' aussehen.
+    """
+    if not live:
+        return [
+            "das Live-Ruleset verlangt NULL Status-Checks -- die Merge-Governance "
+            "ist abgeschaltet oder das Ruleset wurde geleert"
+        ]
+    findings: list[str] = []
+    for context in sorted(set(erwartet) - live):
+        findings.append(
+            f"{context!r} steht in REQUIRED_STATUS_CHECKS, ist aber LIVE nicht mehr "
+            "required -- der Merge-Schutz hat diesen Check verloren"
+        )
+    for context in sorted(live - set(erwartet)):
+        findings.append(
+            f"{context!r} ist LIVE required, fehlt aber in REQUIRED_STATUS_CHECKS "
+            "(scripts/verify_branch_protection.py) -- Repo-Wahrheit nachziehen, "
+            "genau die Luecke, durch die 'gate' am 27.8. gefallen ist (#5121)"
+        )
+    return findings
+
+
 def evaluate(
     required: dict[str, str],
     names_by_file: dict[str, str],
@@ -271,6 +341,19 @@ def main(argv: list[str] | None = None) -> int:
 
     blind, ok, stumm = evaluate(REQUIRED_WORKFLOWS, names_by_file, in_page, observed)
 
+    # Drift-Arm (2026-08-28): Live-Ruleset gegen die Repo-Wahrheit. Nicht lesbar
+    # ist kein Befund und kein Bestehen -- eine sichtbare UNGESICHERT-Zeile.
+    drift: list[str] = []
+    drift_unsicher: str | None = None
+    try:
+        live = _mit_transient_retry(live_required_contexts, repo, token)
+    except (OSError, ValueError, KeyError, RuntimeError) as exc:
+        live, drift_unsicher = None, f"SONDE-FEHLER {type(exc).__name__}: {exc}"
+    if live is None:
+        drift_unsicher = drift_unsicher or "Ruleset nicht lesbar (Token ohne administration:read?)"
+    else:
+        drift = evaluate_ruleset_drift(REQUIRED_STATUS_CHECKS, live)
+
     print(f"GitHub-Token aus    : {token_source}")
     print(f"Zeitreihen im Alarm : {len(observed)}")
     print(f"Workflows im Fenster: {len(in_page)}  (dieselbe Seite, die die Bruecke sieht)")
@@ -280,7 +363,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  --      {line}")
     for line in blind:
         print(f"  BLIND   {line}")
+    if drift_unsicher is not None:
+        print(f"  --      Ruleset-Drift-Arm UNGESICHERT -- {drift_unsicher}", file=sys.stderr)
+    for line in drift:
+        print(f"  DRIFT   {line}")
 
+    if drift:
+        print(
+            "\nDie Required-Check-Menge des Live-Rulesets und REQUIRED_STATUS_CHECKS "
+            "(scripts/verify_branch_protection.py) sind auseinander. Live nachlesen:\n"
+            "  gh api repos/skipp-dev/skipp-algo/rulesets --jq '.[]|select(.enforcement==\"active\").id' \\\n"
+            "    | xargs -I{} gh api repos/skipp-dev/skipp-algo/rulesets/{} \\\n"
+            "    --jq '.rules[]|select(.type==\"required_status_checks\").parameters.required_status_checks[].context'",
+            file=sys.stderr,
+        )
     if blind:
         print(
             "\nDer Fehleralarm ist fuer die obigen Workflows blind. Ursache ist fast "
@@ -289,9 +385,14 @@ def main(argv: list[str] | None = None) -> int:
             "  railway ssh --service live_overlay_daemon -- sh -lc "
             "'printf \"%s\\n\" \"$GITHUB_WORKFLOW_MONITOR_IDS\"'\n"
             "  gh api repos/skipp-dev/skipp-algo/actions/workflows --paginate "
-            "--jq '.workflows[]|\"\\(.id)\\t\\(.path)\"'",
+            "--jq '.workflows[]|\"\\(.id)\\t\\(.path)\"'\n"
+            "Bei Fehlalarm-Verdacht auch GITHUB_WORKFLOW_MONITOR_PER_PAGE pruefen: "
+            f"dieses Skript nimmt {RUN_PAGE_SIZE} an (die Daemon-Vorgabe); eine "
+            "abgesenkte Bruecken-Seite laesst dieses Skript mehr fordern, als die "
+            "Bruecke je sieht.",
             file=sys.stderr,
         )
+    if blind or drift:
         return 1
     if not ok:
         print(

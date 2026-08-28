@@ -73,6 +73,7 @@ _FULL_PROTECTION_RESPONSE = {
         "strict": True,
         "checks": [
             {"context": "smc-fast-pr-gates / fast-gates"},
+            {"context": "smc-fast-pr-gates / gate"},  # 2026-08-28: gate ist required
             # 2026-08-27: validate is required as four shard contexts (ADR-0012
             # Operator-Punkt 1); the healthy baseline carries all of them.
             {"context": "CI / validate (1)"},
@@ -193,7 +194,7 @@ class TestCheckRulesets:
                 {"type": "pull_request", "parameters": {"required_approving_review_count": 0}},
                 {"type": "required_status_checks", "parameters": {
                     "required_status_checks": [
-                        {"context": "fast-gates"},
+                        {"context": "fast-gates"}, {"context": "gate"},  # 2026-08-28
                         {"context": "validate (1)"}, {"context": "validate (2)"},
                         {"context": "validate (3)"}, {"context": "validate (4)"},
                     ]
@@ -317,7 +318,7 @@ class TestMain:
                 {"type": "pull_request", "parameters": {}},
                 {"type": "required_status_checks", "parameters": {
                     "required_status_checks": [
-                        {"context": "fast-gates"},
+                        {"context": "fast-gates"}, {"context": "gate"},  # 2026-08-28
                         {"context": "validate (1)"}, {"context": "validate (2)"},
                         {"context": "validate (3)"}, {"context": "validate (4)"},
                     ]
