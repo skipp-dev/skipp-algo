@@ -83,7 +83,16 @@ def test_save_is_model_pinned_before_write_and_hash_verified_after_save() -> Non
     # validation script). The declaration checks therefore pin
     # expectedDeclarationOf(target), and the name-derived open checks are
     # conditional on name==declaration instead of unconditionally true.
-    assert saver.count("expectedDeclarationTitle: expectedDeclarationOf(target)") >= 3
+    # 2026-08-28 (run 33031264859): 3->2. The THIRD occurrence was the verify
+    # readback's expectation-filter — the exact mechanism that selected the
+    # session's own buffer and reported matches=true while the persisted slot
+    # held a sibling consumer's source. verifyConsumerSource now reads the
+    # pine-facade saved store first and, in the editor fallback, reads the
+    # loaded buffer UNFILTERED and judges its declaration fail-closed
+    # (pinned by automation/tradingview/tests/tv_save_consumer_source.test.ts).
+    assert saver.count("expectedDeclarationTitle: expectedDeclarationOf(target)") == 2
+    assert "fetchSavedScriptSourceViaFacade" in saver
+    assert "judgePersistedConsumerSource" in saver
     assert "expectedDeclarationTitle: target.scriptName" not in saver
     assert saver.count("requireVisibleEditor: true") == 4
     assert saver.count("requireVisibleDeclarationIdentity: nameIsDeclaration") == 1

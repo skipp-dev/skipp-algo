@@ -1312,7 +1312,7 @@ async function runTrackedStep<T>(
   }
 }
 
-function tracePageEvent(page: Page, type: string, detail?: string): void {
+export function tracePageEvent(page: Page, type: string, detail?: string): void {
   const tracker = pageLifecycleTrackers.get(page);
   if (tracker) {
     pushLifecycleEvent(tracker, type, detail);
@@ -2762,6 +2762,106 @@ export async function fetchPublishedLibraryVersionViaFacade(page: Page, scriptNa
     return version;
   } catch (error: unknown) {
     tracePageEvent(page, "facade-version-error", `${scriptName}:${String(error).slice(0, 120)}`);
+    return null;
+  }
+}
+
+/**
+ * Extract the title from a Pine declaration statement
+ * (`indicator("…")` / `strategy("…")` / `library("…")`, optionally via the
+ * named `title=` argument). Returns null when the source carries no such
+ * declaration. Pure and exported for hermetic tests: this is the identity
+ * leg of the persisted-source readback (run 33031264859, 2026-08-27 — the
+ * editor-buffer readback verified this run's own staged content while the
+ * saved-script store held ANOTHER consumer's source in the slot).
+ */
+export function extractPineDeclarationTitle(source: string): string | null {
+  const match = /\b(?:indicator|strategy|library)\s*\(\s*(?:title\s*=\s*)?(["'])([^"'\r\n]*)\1/.exec(source);
+  return match ? match[2] ?? null : null;
+}
+
+export type SavedScriptFacadeSource = {
+  scriptIdPart: string;
+  version: number;
+  source: string;
+};
+
+/**
+ * Authoritative PERSISTED saved-script source via TradingView's pine-facade
+ * API (`filter=saved` listing + per-script get). This deliberately bypasses
+ * the Pine editor: the editor serves per-script working buffers that survive
+ * even a hard page reload, so any chooser+Monaco readback can report the
+ * session's own writes instead of the stored document (proven by run
+ * 33031264859: verify pass after the 11:08:02Z reload hashed the repo source
+ * for "SMC Long-Dip Mobile" while the persisted slot — operator evidence
+ * 2026-08-28, fresh add from the Indicators dialog — held the
+ * "SMC Long-Dip Strategy" source at this run's own pin /364).
+ *
+ * Returns null (never throws) when the listing/get fails, the script is
+ * absent, the saved name is ambiguous, or the response shape is not the
+ * expected one — every reason is traced so a run that silently loses the
+ * store-authoritative leg is visible in its job log.
+ */
+export async function fetchSavedScriptSourceViaFacade(
+  page: Page,
+  scriptName: string,
+): Promise<SavedScriptFacadeSource | null> {
+  try {
+    const listResponse = await page.request.get("https://pine-facade.tradingview.com/pine-facade/list/?filter=saved");
+    if (!listResponse.ok()) {
+      tracePageEvent(page, "facade-saved-source-http", `${scriptName}:list:${listResponse.status()}`);
+      return null;
+    }
+    const scripts = (await listResponse.json()) as Array<{
+      scriptName?: string;
+      scriptIdPart?: unknown;
+      version?: unknown;
+    }>;
+    const hits = Array.isArray(scripts)
+      ? scripts.filter((script) => (script.scriptName || "") === scriptName)
+      : [];
+    if (hits.length === 0) {
+      tracePageEvent(page, "facade-saved-source-absent", scriptName);
+      return null;
+    }
+    if (hits.length > 1) {
+      // Two saved documents with the same name: the readback cannot know
+      // which one the rollout wrote. Refusing here keeps the caller on the
+      // (traced) editor fallback instead of verifying an arbitrary slot.
+      tracePageEvent(page, "facade-saved-source-ambiguous", `${scriptName}:${hits.length}`);
+      return null;
+    }
+    const scriptIdPart = typeof hits[0].scriptIdPart === "string" ? hits[0].scriptIdPart : "";
+    const version = parseFacadeSavedVersion(hits[0].version);
+    if (!scriptIdPart || version === null) {
+      tracePageEvent(
+        page,
+        "facade-saved-source-shape",
+        `${scriptName}:idPart=${scriptIdPart ? "present" : "missing"}:version=${String(hits[0].version ?? "missing")}`,
+      );
+      return null;
+    }
+    const getResponse = await page.request.get(
+      `https://pine-facade.tradingview.com/pine-facade/get/${encodeURIComponent(scriptIdPart)}/${version}`,
+    );
+    if (!getResponse.ok()) {
+      tracePageEvent(page, "facade-saved-source-http", `${scriptName}:get:${getResponse.status()}`);
+      return null;
+    }
+    const payload = (await getResponse.json()) as { source?: unknown } | null;
+    const source = typeof payload?.source === "string" ? payload.source : null;
+    if (source === null || !source.trim()) {
+      tracePageEvent(page, "facade-saved-source-shape", `${scriptName}:get-payload-has-no-source-string`);
+      return null;
+    }
+    tracePageEvent(
+      page,
+      "facade-saved-source-resolved",
+      `${scriptName}:v${version}:${Buffer.byteLength(source, "utf-8")}`,
+    );
+    return { scriptIdPart, version, source };
+  } catch (error: unknown) {
+    tracePageEvent(page, "facade-saved-source-error", `${scriptName}:${String(error).slice(0, 120)}`);
     return null;
   }
 }
