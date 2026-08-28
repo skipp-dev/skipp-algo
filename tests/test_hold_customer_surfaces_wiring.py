@@ -22,6 +22,7 @@ A substring test cannot tell "restored the file" from "printed that it would".
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -82,29 +83,102 @@ def test_refresh_runs_the_hold_after_the_r1_hold_and_before_the_commit() -> None
     assert step.get("if") == steps[r1_at].get("if")
 
 
-def test_refresh_hold_enumerates_exactly_what_the_bump_rewrites() -> None:
-    """The candidate derivation is the bump step's own, against fresh main."""
+def _hold_enumeration_pattern(workflow: str) -> str:
+    """The ERE the hold step's candidate enumeration greps for."""
+    step = step_by_name(workflow, STEP_NAME)
+    match = re.search(r"git grep -lE '([^']+)' FETCH_HEAD", str(step["run"]))
+    assert match, f"{workflow}: hold step no longer enumerates via git grep -lE"
+    return match.group(1)
+
+
+def _ere_matches(pattern: str, line: str) -> bool:
+    """POSIX-ERE match exactly as `git grep -lE` would judge the line."""
+    return (
+        subprocess.run(
+            ["grep", "-qE", pattern], input=line.encode(), env=_ENV
+        ).returncode
+        == 0
+    )
+
+
+def test_hold_enumeration_covers_what_every_publish_path_rewrites() -> None:
+    """Derived per publish path, not restated (the #5145 gap, closed).
+
+    Until 2026-08-28 the hold enumerated with the refresh bump's own
+    generated-library pattern — but ``repinAllConsumers``
+    (scripts/tv_publish_hand_authored_libraries.ts) rewrites EVERY
+    ``import preuss_steffen/<lib>/<n>`` pin, so a handlibs run wrote
+    hand-lib-only surfaces (SMC_Breakout_Overlay.pine) that were never
+    candidates. The invariant now: each workflow's enumeration pattern must
+    match a pin of every library its publish path can rewrite — the refresh
+    bump's declared PIN_PATTERN population and the whole HAND_LIBS table,
+    both read from the writers themselves so a new library cannot land
+    outside the hold's population.
+    """
+    refresh_pattern = _hold_enumeration_pattern(PUBLISH_WORKFLOW)
+    handlibs_pattern = _hold_enumeration_pattern(HANDLIBS_WORKFLOW)
+    assert refresh_pattern == handlibs_pattern, (
+        "the two holds enumerate with different patterns; their populations "
+        f"can drift apart ({refresh_pattern!r} vs {handlibs_pattern!r})"
+    )
+
+    # Refresh path: a line the bump step's own PIN_PATTERN rewrites.
     steps = _steps(PUBLISH_WORKFLOW)
     bump = steps[_index(steps, "Bump library version in all pine consumers")]
-    hold = steps[_index(steps, STEP_NAME)]
-    # The bump declares the library it owns in one shell assignment; the hold
-    # must grep for that same pattern rather than a drifting restatement.
     pattern_lines = [
         line for line in str(bump["run"]).splitlines() if "PIN_PATTERN='" in line
     ]
     assert pattern_lines, "the bump step no longer declares PIN_PATTERN"
-    pattern = pattern_lines[0].split("PIN_PATTERN='")[1].rstrip("'").strip("'")
-    assert pattern in hold["run"], (
-        f"the hold does not enumerate with the bump's pattern {pattern!r}; "
-        "the two populations can now drift apart"
+    bump_pattern = pattern_lines[0].split("PIN_PATTERN='")[1].rstrip("'").strip("'")
+    generated_pin = "import preuss_steffen/smc_micro_profiles_generated/221 as mp"
+    assert _ere_matches(bump_pattern, generated_pin), (
+        "the sample line no longer matches the bump's PIN_PATTERN; "
+        "update the sample, it is this test's positive control"
     )
-    for exclude in (":(exclude)tests/**", ":(exclude)pine/**", ":(exclude)node_modules/**"):
-        assert exclude in hold["run"], f"missing pathspec {exclude}"
-    assert "FETCH_HEAD" in hold["run"], "the base must be freshly fetched main"
-    assert "x-access-token" in hold["run"], (
-        "persist-credentials: false — a bare `origin` fetch dies with exit 128 "
-        "(measured 2026-08-14, run 31793906137)"
+    assert _ere_matches(refresh_pattern, generated_pin), (
+        "the hold enumeration does not cover the bump step's own writes"
     )
+
+    # Handlibs path: every library in the publisher's HAND_LIBS table,
+    # derived from the writer itself rather than restated here.
+    publisher = (REPO_ROOT / "scripts" / "tv_publish_hand_authored_libraries.ts").read_text(
+        encoding="utf-8"
+    )
+    hand_libs = re.findall(r'\{ name: "([A-Za-z0-9_]+)",', publisher)
+    assert len(hand_libs) >= 10, (
+        f"HAND_LIBS parse found only {hand_libs} — the derivation lost the "
+        "population it exists to cover (10 libraries measured 2026-08-28)"
+    )
+    for lib in hand_libs:
+        for pin in (
+            f"import preuss_steffen/{lib}/54 as x",
+            f"import preuss_steffen/{lib}/54",  # alias-less form
+        ):
+            assert _ere_matches(refresh_pattern, pin), (
+                f"the hold enumeration does not cover {pin!r} — "
+                "repinAllConsumers writes it, so a surface pinning only "
+                f"{lib} would be rewritten without ever being a candidate"
+            )
+
+    for workflow in (PUBLISH_WORKFLOW, HANDLIBS_WORKFLOW):
+        hold = step_by_name(workflow, STEP_NAME)
+        for exclude in (
+            ":(exclude)tests/**",
+            ":(exclude)pine/**",
+            ":(exclude)node_modules/**",
+            # Library SOURCES are not customer surfaces: the hand-authored
+            # SMC++ sources pin each other, so the broadened pattern would
+            # otherwise pull them into a hold whose restore semantics are
+            # designed for surfaces (their mid-run seam stays with the
+            # publish chain's own repin proof + R1 hold).
+            ":(exclude)SMC++/**",
+        ):
+            assert exclude in hold["run"], f"{workflow}: missing pathspec {exclude}"
+        assert "FETCH_HEAD" in hold["run"], "the base must be freshly fetched main"
+        assert "x-access-token" in hold["run"], (
+            "persist-credentials: false — a bare `origin` fetch dies with exit "
+            "128 (measured 2026-08-14, run 31793906137)"
+        )
 
 
 def test_refresh_commit_step_carries_the_hold_notice_into_the_pr_body() -> None:
@@ -159,6 +233,10 @@ def test_handlibs_pr_body_names_the_held_surfaces() -> None:
 
 _PIN = "import preuss_steffen/smc_micro_profiles_generated/220 as mp\n"
 _BUMPED = "import preuss_steffen/smc_micro_profiles_generated/221 as mp\n"
+# A hand-authored library pin: what repinAllConsumers rewrites and the old
+# generated-pin enumeration never saw (the #5145 gap).
+_ENGINE_PIN = "import preuss_steffen/smc_engine_private/54 as eng\n"
+_ENGINE_BUMPED = "import preuss_steffen/smc_engine_private/55 as eng\n"
 _CLEAN_VOCAB = 'var string g_bus_diag = "3. Chart Link - Context Signals"\n'
 _OLD_VOCAB = 'var string g_bus_diag = "3. Operator Only - Diagnostic Support"\n'
 
@@ -191,6 +269,12 @@ def _fixture(tmp_path: Path, *, drop_from_main: str | None = None) -> Path:
         # An R1-attested companion is among the enumerated candidates and must
         # be left to its own, stricter hold rather than classified here.
         "SMC_Event_Overlay.pine": _PIN + "plot(4)\n",
+        # The #5145 gap pair: a customer surface pinning ONLY a hand-authored
+        # library carries the same stale-tree revert as the Dashboard, and a
+        # non-surface hand-lib consumer proves a pure hand-lib pin bump still
+        # passes the door (the weekly repin must not be held).
+        "SMC_Breakout_Overlay.pine": _ENGINE_PIN + _OLD_VOCAB,
+        "SMC_Context_Bus.pine": _ENGINE_PIN + "plot(5)\n",
     }
     remote = tmp_path / "remote"
     remote.mkdir()
@@ -204,21 +288,28 @@ def _fixture(tmp_path: Path, *, drop_from_main: str | None = None) -> Path:
     work = tmp_path / "work"
     _git(["clone", "-q", str(remote), str(work)], tmp_path)
 
-    # The mid-run merge on main: Dashboard's vocabulary cleanup (#4639).
+    # The mid-run merge on main: the vocabulary cleanup (#4639) — on the
+    # Dashboard AND on the hand-lib-only Breakout Overlay.
     (remote / "SMC_Long_Dip_Dashboard.pine").write_text(
         _PIN + _CLEAN_VOCAB, encoding="utf-8"
+    )
+    (remote / "SMC_Breakout_Overlay.pine").write_text(
+        _ENGINE_PIN + _CLEAN_VOCAB, encoding="utf-8"
     )
     if drop_from_main is not None:
         (remote / drop_from_main).unlink()
     _commit_all(remote, "vocabulary cleanup merged mid-run")
 
-    # The refresh's writes to the stale working tree: every pin bumped; the
-    # Dashboard content is the STALE one — committing it would revert #4639.
+    # The run's writes to the stale working tree: every pin bumped (the
+    # generated pin by the refresh bump, the hand-lib pin by
+    # repinAllConsumers); Dashboard and Breakout content is the STALE one —
+    # committing either would revert #4639.
     for name, body in surfaces.items():
         if name == "SMC_Event_Overlay.pine":
             continue  # the R1 hold already restored the companion
         (work / name).write_text(
-            body.replace(_PIN, _BUMPED), encoding="utf-8"
+            body.replace(_PIN, _BUMPED).replace(_ENGINE_PIN, _ENGINE_BUMPED),
+            encoding="utf-8",
         )
     return work
 
@@ -257,19 +348,29 @@ def test_refresh_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     result = _run_in(PUBLISH_WORKFLOW, tmp_path, work)
 
     assert result.returncode == 0, result.stderr
-    # The revert-in-waiting is byte-identical to current main again: clean
-    # vocabulary, pin NOT advanced (it advances with the next refresh).
+    # The reverts-in-waiting are byte-identical to current main again: clean
+    # vocabulary, pin NOT advanced (it advances with the next refresh) — on
+    # the generated-pin Dashboard AND the hand-lib-only Breakout Overlay
+    # (the #5145 gap: the old enumeration never made it a candidate).
     assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
         _PIN + _CLEAN_VOCAB
     )
-    # Pure pin bumps pass through untouched.
+    assert (work / "SMC_Breakout_Overlay.pine").read_text(encoding="utf-8") == (
+        _ENGINE_PIN + _CLEAN_VOCAB
+    )
+    # Pure pin bumps pass through untouched — the hand-lib pin bump on a
+    # non-surface consumer included (the weekly repin must not be held).
     for name in ("SMC_Long_Dip_Suite.pine", "SMC_Long_Dip_Mobile.pine", "SMC_Long_Dip_Alerts.pine"):
         assert _BUMPED in (work / name).read_text(encoding="utf-8"), name
+    assert _ENGINE_BUMPED in (work / "SMC_Context_Bus.pine").read_text(encoding="utf-8")
     # The attested companion was left to its own hold.
     assert (work / "SMC_Event_Overlay.pine").read_text(encoding="utf-8") == (
         _PIN + "plot(4)\n"
     )
-    assert json.loads(result.outputs["held"]) == ["SMC_Long_Dip_Dashboard.pine"]
+    assert json.loads(result.outputs["held"]) == [
+        "SMC_Breakout_Overlay.pine",
+        "SMC_Long_Dip_Dashboard.pine",
+    ]
     assert "Customer surfaces held" in result.outputs["notice"]
 
 
@@ -294,7 +395,18 @@ def test_handlibs_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
         _PIN + _CLEAN_VOCAB
     )
+    # The #5145 gap, executed: the surface repinAllConsumers rewrites without
+    # any generated-library pin comes back byte-identical to current main —
+    # under the old enumeration this file was never a candidate and the stale
+    # revert would have been staged wholesale by the PR step.
+    assert (work / "SMC_Breakout_Overlay.pine").read_text(encoding="utf-8") == (
+        _ENGINE_PIN + _CLEAN_VOCAB
+    )
     assert _BUMPED in (work / "SMC_Long_Dip_Mobile.pine").read_text(encoding="utf-8")
-    assert json.loads(result.outputs["held"]) == ["SMC_Long_Dip_Dashboard.pine"]
+    assert _ENGINE_BUMPED in (work / "SMC_Context_Bus.pine").read_text(encoding="utf-8")
+    assert json.loads(result.outputs["held"]) == [
+        "SMC_Breakout_Overlay.pine",
+        "SMC_Long_Dip_Dashboard.pine",
+    ]
     # And the module really ran through the stubbed interpreter.
     assert result.called_with("scripts.hold_customer_surfaces")

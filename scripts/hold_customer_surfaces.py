@@ -34,11 +34,12 @@ attestation duties (``scripts/check_r1_attested_sources.py`` compares every
 contract target's hash against registered evidence, and every legitimate edit
 then costs a mutating TradingView re-attestation session). Customer surfaces
 carry no evidence artifacts, so they get a parallel roster here: the caller
-passes every candidate the bump enumerated, this module excludes the R1-held
-companions (their own, stricter hold owns them) and refuses to run unless the
-four customer surfaces named by ``scripts.check_customer_surface_vocabulary``
-(the single source for "customer surface") are all present — an empty or
-shrunken roster is UNKNOWN, never an all-clear.
+passes every candidate its enumeration produced, this module excludes the
+R1-held companions (their own, stricter hold owns them) and refuses to run
+unless every rewritable customer surface named by
+``scripts.check_customer_surface_vocabulary`` (the single source for
+"customer surface") is present — an empty or shrunken roster is UNKNOWN,
+never an all-clear.
 """
 
 from __future__ import annotations
@@ -69,11 +70,20 @@ _PIN_LINE_RE: Final = re.compile(
 )
 
 
-#: The bump enumeration's own pin, restated as a per-file test: only surfaces
-#: pinning the GENERATED library can be rewritten by a refresh, so only they
-#: can (and must) appear among the hold candidates.
-_GENERATED_LIBRARY_PIN_RE: Final = re.compile(
-    r"^import[ \t]+preuss_steffen/smc_micro_profiles_generated/\d+", re.MULTILINE
+#: What ANY automated publish path may rewrite, restated as a per-file test.
+#: Both writers rewrite exclusively owner import-pin lines (the refresh
+#: bump's PIN_PATTERN in smc-library-publish.yml and repinAllConsumers in
+#: scripts/tv_publish_hand_authored_libraries.ts), so "carries an owner
+#: import" is exactly "some publish path can write this file". Loose on
+#: purpose — bare prefix, no version shape: a pin form the classifier cannot
+#: reconstruct must still make the file required, where it is then held on
+#: any change (fail closed), never silently out of scope. Until 2026-08-28
+#: this tested only the generated-library pin (the refresh bump's own
+#: filter); the handlibs publish rewrites hand-library pins in surfaces
+#: without any generated pin (SMC_Breakout_Overlay.pine pins only
+#: smc_engine_private), and those ran unheld — the #5145 gap.
+_OWNER_IMPORT_RE: Final = re.compile(
+    r"^import[ \t]+preuss_steffen/", re.MULTILINE
 )
 
 #: The four surfaces of the paid 2026-08-12 incident (#4646). The derivation
@@ -92,11 +102,12 @@ def required_customer_surfaces(repo: Path = ROOT) -> list[str]:
 
     Derived (2026-08-28), not restated: start from the vocabulary guard's
     roster (``PINE_FILES``, the single definition of "customer surface" — 4
-    files until the Chart-Link completion grew it to 9), keep the surfaces a
-    refresh can actually rewrite (they pin the generated library in the tree
-    this run operates on), and drop the R1-attested companions, which the
-    stricter unconditional hold owns. Without the pin filter the floor check
-    would demand surfaces the bump enumeration can never produce
+    files until the Chart-Link completion grew it to 8), keep the surfaces
+    some publish path can actually rewrite (they carry an owner import pin
+    in the tree this run operates on — see ``_OWNER_IMPORT_RE`` for why the
+    generated-pin-only filter was the #5145 gap), and drop the R1-attested
+    companions, which the stricter unconditional hold owns. Without the pin
+    filter the floor check would demand surfaces no enumeration can produce
     (``SMC_Setup_Check.pine`` imports nothing) and every refresh would die on
     a fail-closed error about a file it could not have touched.
     """
@@ -118,7 +129,7 @@ def required_customer_surfaces(repo: Path = ROOT) -> list[str]:
             # candidate enumeration still covers it; it cannot be required
             # of a tree that does not carry it.
             continue
-        if _GENERATED_LIBRARY_PIN_RE.search(surface.read_text(encoding="utf-8")):
+        if _OWNER_IMPORT_RE.search(surface.read_text(encoding="utf-8")):
             required.append(name)
     missing_floor = _INCIDENT_SURFACES - set(required)
     if missing_floor:

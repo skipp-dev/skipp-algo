@@ -1099,18 +1099,28 @@ jobs:
           git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
           SURFACE_BASE="${RUNNER_TEMP}/surface-hold-base"
           rm -rf "${SURFACE_BASE}"
-          # The bump step's own enumeration (its PIN_PATTERN, its excludes),
-          # run against the JUST-fetched main: every top-level .pine pinning
-          # the generated library. No mapfile — the executing test runs this
-          # block under whatever bash the developer has, including 3.2.
+          # Enumerate every root .pine carrying ANY owner import pin, read
+          # from the JUST-fetched main. Every automated publish path rewrites
+          # exclusively such pin lines (this workflow's bump via PIN_PATTERN,
+          # the handlibs publish via repinAllConsumers), so this is the union
+          # of what any of them can write — until 2026-08-28 the grep used
+          # the bump's generated-library pattern only, and hand-lib-only
+          # surfaces (SMC_Breakout_Overlay.pine) were never candidates (the
+          # #5145 gap). SMC++ library SOURCES are excluded: they are not
+          # customer surfaces, and their mid-run seam stays with the publish
+          # chain's own repin proof + R1 hold. Coverage is derived and
+          # executed by tests/test_hold_customer_surfaces_wiring.py. No
+          # mapfile — the executing test runs this block under whatever bash
+          # the developer has, including 3.2.
           SURFACE_CANDIDATES=()
           while IFS= read -r f; do
             SURFACE_CANDIDATES+=("$f")
-          done < <(git grep -lE 'import preuss_steffen/smc_micro_profiles_generated/[0-9]*' FETCH_HEAD -- \
+          done < <(git grep -lE '^import[[:space:]]+preuss_steffen/' FETCH_HEAD -- \
             '*.pine' \
             ':(exclude)tests/**' \
             ':(exclude)pine/**' \
-            ':(exclude)node_modules/**' | sed 's|^FETCH_HEAD:||' | sort -u)
+            ':(exclude)node_modules/**' \
+            ':(exclude)SMC++/**' | sed 's|^FETCH_HEAD:||' | sort -u)
           if [ ${#SURFACE_CANDIDATES[@]} -eq 0 ]; then
             echo "::error::no customer-surface candidates on current main — refusing to report an all-clear over nothing"
             exit 1
