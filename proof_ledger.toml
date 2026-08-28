@@ -1540,3 +1540,28 @@ Korpus, weil der Korpus aus gelieferten Logs besteht; derselbe Zweig ist in
 tv_legend_click deklariert-frei, weil dessen Korpus ihn zufaellig erreicht.
 Hier gibt es noch gar keinen Korpus (Step noch nie gelaufen).
 """
+
+# ---------------------------------------------------------------------------
+# 5154 -- Advisory-Chain Step 1b: pessimistisches rc=1 vor den jq-Lesungen
+# (plus Harness-Drain, der aber reine Testinfrastruktur ist). AUSGENOMMEN mit
+# Doppelgrund nach Muster #5075/#5077/#5088:
+#
+# (a) Die Wirkung ist von der Suite AUSFUEHRBAR bewiesen, nicht behauptet:
+#     test_a_dying_counter_read_still_publishes_the_failing_rc faehrt den
+#     ECHTEN Step-Text mit einem sterbenden jq -- Step rot, rc=1 publiziert,
+#     Issue-Bedingung feuert. Die Gegenrichtung (regulaere Pfade
+#     ueberschreiben den Default) decken die bestehenden Tests desselben
+#     Files ab (stalled -> rc=1, progressing -> rc=0).
+#
+# (b) Ein Log-Zeuge auf gesunden Laeufen kann nichts aussagen: der Default
+#     wird dort immer ueberschrieben; sichtbar wuerde die Aenderung erst in
+#     genau dem Fehlerfall (Schema-Drift), dessen Eintreten niemand
+#     herbeifuehren will und dessen Ausbleiben nichts beweist.
+
+[[proof]]
+id     = "5154"
+kind   = "exempt"
+claim  = "Step 1b publiziert rc=1 VOR den sechs jq-Lesungen; ein frueh sterbender Step laesst das Cron-Issue nicht mehr schweigen. Suite-ausfuehrbar bewiesen (Drill mit echtem Step-Text), ein Log-Zeuge auf gesunden Laeufen waere vakuum."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-28"
+owner  = "operator"
