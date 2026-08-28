@@ -1066,6 +1066,61 @@ jobs:
         if: steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: '"$SMC_PYTHON_BIN" -m scripts.hold_r1_attested_sources'
 
+      # ── Customer-surface hold (pin-only door) ───────────────────
+      # The bump step wrote every consumer from CURRENT main and proved that
+      # write pin-only (scripts/check_pine_consumer_repin.py) — inside its own
+      # step. Between that proof and "Commit and push changes" the tree is
+      # unguarded: a step that writes a customer surface there would be staged
+      # by the commit's explicit `git add` list and merged on the bot lane
+      # exactly like the 2026-08-12 stale-tree revert (#4646: 46 lines of
+      # dashboard vocabulary back on a green PR, 59 seconds after #4639
+      # removed them). So the surfaces get the R1 hold PATTERN with a
+      # pin-only door, classified against a FRESH fetch of main rather than
+      # the run-start checkout: identical/pin-only passes, anything else is
+      # restored to current-main content and reported in the PR body. Unlike
+      # the repin check this cannot strand a published library: it repairs
+      # the tree instead of failing a run whose publish already happened.
+      # The R1 companions above are excluded — their hold is stricter on
+      # purpose (even a pin bump is taken back until re-attestation).
+      # Roster, classifier and the fail-closed floor (the four customer
+      # surfaces must all be among the candidates):
+      # scripts/hold_customer_surfaces.py, executed by
+      # tests/test_hold_customer_surfaces_wiring.py.
+      - name: Hold customer surfaces unless the change is pin-only
+        id: surface_hold
+        if: steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          # Same explicit-token fetch seam as the bump step: the checkout ran
+          # with persist-credentials: false, so a bare `origin` fetch dies
+          # with exit 128 (measured 2026-08-14, run 31793906137). BUMP_REMOTE
+          # is the same test seam (unset in CI).
+          git fetch --quiet "${BUMP_REMOTE:-https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git}" main
+          SURFACE_BASE="${RUNNER_TEMP}/surface-hold-base"
+          rm -rf "${SURFACE_BASE}"
+          # The bump step's own enumeration (its PIN_PATTERN, its excludes),
+          # run against the JUST-fetched main: every top-level .pine pinning
+          # the generated library. No mapfile — the executing test runs this
+          # block under whatever bash the developer has, including 3.2.
+          SURFACE_CANDIDATES=()
+          while IFS= read -r f; do
+            SURFACE_CANDIDATES+=("$f")
+          done < <(git grep -lE 'import preuss_steffen/smc_micro_profiles_generated/[0-9]*' FETCH_HEAD -- \
+            '*.pine' \
+            ':(exclude)tests/**' \
+            ':(exclude)pine/**' \
+            ':(exclude)node_modules/**' | sed 's|^FETCH_HEAD:||' | sort -u)
+          if [ ${#SURFACE_CANDIDATES[@]} -eq 0 ]; then
+            echo "::error::no customer-surface candidates on current main — refusing to report an all-clear over nothing"
+            exit 1
+          fi
+          for f in "${SURFACE_CANDIDATES[@]}"; do
+            mkdir -p "${SURFACE_BASE}/$(dirname "$f")"
+            git show "FETCH_HEAD:$f" > "${SURFACE_BASE}/$f"
+          done
+          "$SMC_PYTHON_BIN" -m scripts.hold_customer_surfaces --base-dir "${SURFACE_BASE}" --repo . "${SURFACE_CANDIDATES[@]}"
+
       - name: Report R1 attestation drift caused by this refresh
         id: r1_attestation
         if: steps.handoff.outputs.changed == 'true' && steps.handoff.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
@@ -1335,6 +1390,9 @@ jobs:
           # unset variable used to mean.
           R1_ATTESTATION_NOTICE: ${{ steps.r1_attestation.outputs.notice }}
           R1_HOLD_NOTICE: ${{ steps.r1_hold.outputs.notice }}
+          # Same seam for the customer-surface hold: empty when nothing was
+          # held or the step was skipped.
+          SURFACE_HOLD_NOTICE: ${{ steps.surface_hold.outputs.notice }}
           # Bound here rather than interpolated into the script: an
           # Actions expression inside `run:` cannot be executed by
           # tests/_workflow_step_shell.py, which is how this step's
@@ -1407,6 +1465,13 @@ jobs:
           # it only by diffing two .pine files will read it as a bug.
           if [ -n "${R1_HOLD_NOTICE:-}" ]; then
             PR_BODY="${PR_BODY}"$'\n\n'"${R1_HOLD_NOTICE}"
+          fi
+          # A customer surface held at current-main content (change was not
+          # pin-only) reads as a missing bump in the diff; say it was held on
+          # purpose — see the surface_hold step and
+          # scripts/hold_customer_surfaces.py.
+          if [ -n "${SURFACE_HOLD_NOTICE:-}" ]; then
+            PR_BODY="${PR_BODY}"$'\n\n'"${SURFACE_HOLD_NOTICE}"
           fi
 
           BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
