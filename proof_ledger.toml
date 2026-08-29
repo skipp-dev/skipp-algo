@@ -1854,10 +1854,22 @@ artifact        = ""
 # Zeilen darunter belegen, ueber WIE VIEL geurteilt wurde.
 version_probe   = "| Variable | Wert | Lanes | Urteil |"
 judge           = "runner_label_variable_watch"
-state           = "OFFEN"
-# Der Cron laeuft alle 6 h, der erste Lauf kommt also am Merge-Tag. Die Frist
-# ist trotzdem grosszuegig, weil der Zeuge erst nach dem Merge auf main
-# entsteht und ein Wochenende dazwischenliegen darf.
+# 2026-08-29, GEMESSEN statt erwartet: der `push`-Trigger feuerte beim Merge
+# sofort, Lauf 33240542676 (07:18:50Z) auf main. Bericht im Job-Log:
+# "Geprueft: 2 variablengesteuerte `runs-on`-Variablen ueber 71
+# Workflow-Dateien", `SMC_CI_ARM_RUNNER`=`ubuntu-24.04-arm` OK,
+# `SMC_GH_HOSTED_RUNNER`=`ubuntu-latest` OK.
+#
+# Derselbe Lauf hat einen Defekt IM URTEILER aufgedeckt, der ohne ihn
+# unentdeckt geblieben waere: die Zeilen-Regex war auf `^` verankert, das
+# Job-Log traegt aber ein Praefix je Zeile. Der Urteiler haette jeden gesunden
+# Lauf als `rows_missing` angeklagt — eine falsche Anschuldigung mit plausibler
+# Begruendung. Behoben und gepinnt in
+# tests/test_runner_label_watch_judge_reads_a_job_log.py; der Lauf liegt als
+# Korpus unter tests/proof_corpus/runner_label_variable_watch/.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "33240542676"
 due_by          = "2026-09-05"
 owner           = "@preuss_steffen"
 
@@ -1872,16 +1884,10 @@ owner           = "@preuss_steffen"
 # test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass verlangt
 # dann einen Korpus, der den PASS-Zweig wirklich trifft.
 
-[[unreachable_branch]]
-judge  = "runner_label_variable_watch"
-branch = "scope_measured_and_judged"
-reason = """
-Der Normalfall — und der einzige Zweig hier, der beim ersten Cron-Lauf nach dem
-Merge sicher feuert. Beim Landen gibt es ihn noch nicht als Korpus, weil der
-Zeuge den Lauf auf main VORAUSSETZT. Lokal gegen das echte Repo gemessen
-(2026-08-29): 2 Variablen ueber 71 Workflow-Dateien, beide OK, rc=0. Diese
-Deklaration gehoert entfernt, sobald der erste Lauf aufgezeichnet ist.
-"""
+# Die Deklaration fuer `scope_measured_and_judged` stand hier bis 2026-08-29
+# und ist ENTFERNT: der erste Lauf auf main (33240542676, 07:18:50Z) erreicht
+# den Zweig, ist als Korpus aufgezeichnet, und der Widerspruchs-Test haette sie
+# genau dafuer rot gemacht. Der Stolperdraht hat gehalten.
 
 [[unreachable_branch]]
 judge  = "runner_label_variable_watch"

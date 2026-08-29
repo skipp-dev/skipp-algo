@@ -35,9 +35,17 @@ _SCOPE_RE = re.compile(
 )
 
 #: Eine Urteilszeile: | `NAME` | `WERT` | N | URTEIL |
+#:
+#: BEWUSST NICHT auf ``^`` verankert, und das ist der Kern der Sache: die
+#: Evidenz ist ein GitHub-Job-Log, und dort traegt jede Zeile ein Praefix aus
+#: Job-Name, Step-Name und Zeitstempel (``watch\tArm-Runner...\t2026-...Z ``).
+#: Die erste Fassung dieses Urteilers (#5178) war verankert und fand deshalb
+#: NULL Urteilszeilen im echten Lauf 33240542676 — sie haette jeden gesunden
+#: Lauf als ``rows_missing`` angeklagt, waehrend Kopfzeile und Umfangszeile
+#: (unverankert gesucht) sauber matchten. Gemessen, nicht vermutet: der Korpus
+#: unter tests/proof_corpus/ ist genau dieser Lauf.
 _ROW_RE = re.compile(
-    r"^\|\s*`(?P<name>[A-Z][A-Z0-9_]*)`\s*\|\s*`(?P<value>[^`]*)`\s*\|\s*(?P<lanes>\d+)\s*\|\s*(?P<verdict>\S+)\s*\|",
-    re.M,
+    r"\|\s*`(?P<name>[A-Z][A-Z0-9_]*)`\s*\|\s*`(?P<value>[^`]*)`\s*\|\s*(?P<lanes>\d+)\s*\|\s*(?P<verdict>\S+)\s*\|"
 )
 
 #: Untergrenze, gemessen am 2026-08-29: 2 Variablen ueber 71 Workflow-Dateien.
