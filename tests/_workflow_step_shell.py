@@ -35,6 +35,8 @@ from pathlib import Path
 
 import yaml
 
+from tests._subprocess_budget import run_within_budget
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
@@ -259,8 +261,10 @@ def run_step(
     step_summary = tmp_path / "step_summary"
     step_summary.write_text("", encoding="utf-8")
 
-    result = subprocess.run(
+    result = run_within_budget(
         [*BASH, "-c", _expand(str(step_by_name(workflow, step_name)["run"]), expressions)],
+        what=f"workflow step {step_name!r} of {workflow}",
+        default_budget_s=60,
         # Deliberately not `{**os.environ, ...}`: `bash -c` sources BASH_ENV
         # even under --noprofile --norc, so a developer's shell could change
         # what this measures. PATH is kept, stub dir first, because the step
@@ -281,7 +285,9 @@ def run_step(
         stdin=subprocess.DEVNULL,
         # These blocks are branch logic over stubs; anything slower is a hang,
         # and a hang would burn the job's whole timeout instead of failing.
-        timeout=60,
+        # The budget lives in tests/_subprocess_budget.py, which also turns an
+        # overrun into a message naming its own failure class instead of a
+        # bare TimeoutExpired (2026-08-29).
     )
 
     return StepRun(
