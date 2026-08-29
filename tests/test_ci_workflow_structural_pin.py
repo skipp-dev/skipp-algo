@@ -124,7 +124,15 @@ def test_concurrency_cancels_only_pull_requests(ci_doc: dict) -> None:
 
 def test_runs_on_uses_hosted_runner_variable(validate_job: dict) -> None:
     runs_on = validate_job.get("runs-on")
-    assert isinstance(runs_on, str)
+    # 2026-08-29: mit Meldung — zweite Fundstelle derselben Klasse wie in
+    # tests/test_workflow_runner_pinned.py. `runs-on: [self-hosted, linux,
+    # ARM64]` ist die Liste-statt-String-Schreibweise, die eine arm64-Umstellung
+    # nahelegt; ohne Meldung faellt sie hier mit nacktem AssertionError, und die
+    # beiden Policy-Asserts darunter laufen nie.
+    assert isinstance(runs_on, str), (
+        f"validate.runs-on ist kein String mehr, sondern {type(runs_on).__name__}: {runs_on!r} — "
+        "eine Label-Liste umgeht die Policy-Pruefungen darunter, statt an ihnen zu scheitern"
+    )
     assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
         "validate.runs-on MUST reference vars.SMC_GH_HOSTED_RUNNER per the "
         "2026-05-20 runner policy (CI is GitHub-hosted by default; self-hosted "

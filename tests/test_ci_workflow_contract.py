@@ -132,9 +132,18 @@ def test_pythonunbuffered_env_pinned() -> None:
 
 def test_single_validate_job_with_event_gate() -> None:
     data = _load()
-    assert list(data["jobs"].keys()) == ["validate"], (
-        "ci.yml must expose exactly one job named ``validate`` "
-        "(this name is also a status-check context candidate; see PR #2427)"
+    # 2026-08-29: zweiter Job, `runner-preflight`, VOR `validate`. Was PR #2427
+    # schuetzte, war der Job-NAME als Status-Check-Anker und die Abwesenheit
+    # eines Runner-Fan-outs — beides bleibt: `validate` heisst weiter
+    # `validate`, und der Preflight waehlt keinen Runner, er prueft nur den Wert
+    # von `SMC_CI_ARM_RUNNER`, bevor die vier required Shards in eine Queue
+    # laufen, aus der sie nie zurueckkehren (ein unbekanntes Label erzeugt
+    # keinen roten Lauf, sondern gar keinen). Die Reihenfolge ist mitgepinnt:
+    # ein Waechter hinter dem Geschuetzten waere wirkungslos.
+    assert list(data["jobs"].keys()) == ["runner-preflight", "validate"], (
+        "ci.yml must expose exactly the value-guard job ``runner-preflight`` "
+        "followed by ``validate`` (the latter name is also a status-check "
+        f"context candidate; see PR #2427). Found: {list(data['jobs'].keys())!r}"
     )
     job = data["jobs"]["validate"]
     # 2026-08-20: aus der glatten 45 wurde ein Ausdruck mit ZWEI Kappen —
