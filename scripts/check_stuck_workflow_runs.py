@@ -102,6 +102,14 @@ class Stuck:
 
     @property
     def diagnosis(self) -> str:
+        if self.status == "acknowledged_gone":
+            return (
+                "steht in PHANTOM_RUN_IDS, ist aber gar nicht mehr in Arbeit — "
+                "das ist die GUTE Nachricht: GitHub hat den Waisen aufgeloest. "
+                "Kein Schaden, aber der Eintrag ist jetzt gegenstandslos und "
+                "wuerde eine kuenftige Lauf-ID mit demselben Wert stumm "
+                "schalten. id aus PHANTOM_RUN_IDS entfernen"
+            )
         if self.status == "in_progress":
             return (
                 "laeuft und endet nicht — der Job HAT einen Runner. Seine "
@@ -213,65 +221,109 @@ PHANTOM_RUN_IDS: frozenset[int] = frozenset({32985711996})
 PHANTOM_REVIEW_BY: str = "2026-12-01"
 
 
-def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
-    """Reines Urteil — die Testbarkeit dieser Sonde haengt daran."""
-    findings: list[Stuck] = []
-    for run in runs:
-        status = str(run.get("status") or "")
-        if status not in ("queued", "waiting", "in_progress"):
-            continue
-        # Die Ausnahme greift NUR, solange der Lauf wirklich noch haengt.
-        # Loest GitHub ihn doch noch auf (Retention, Support, stiller
-        # Aufraeumlauf), verschwindet er aus der Lauf-Liste, der Eintrag wird
-        # gegenstandslos — und `test_no_phantom_id_has_outlived_its_reason`
-        # macht ihn dann rot, statt ihn stillschweigend altern zu lassen.
-        if int(run.get("id") or 0) in PHANTOM_RUN_IDS:
-            continue
-        # Welche Quelle das Alter ergibt, entscheidet der STATUS — nicht, ob ein
-        # Feld gesetzt ist.
-        #
-        # 2026-08-29 am ersten echten Lauf gemessen und damit eine Annahme
-        # widerlegt, die hier bis eben stand: `run_started_at` fehle, solange
-        # nichts lief. Falsch. GitHub setzt es auch fuer `queued` und zwar
-        # identisch zu `created_at` (Lauf 32985711996: beide
-        # 2026-08-26T15:38:15Z, Status `queued`). Die alte Praeferenz-Reihenfolge
-        # stempelte deshalb "gemessen ab run_started_at" auf einen Lauf, der NIE
-        # gestartet ist — sie las sich wie 68 Stunden ARBEIT, wo 68 Stunden
-        # WARTEN standen. Die Zahl war richtig, das Etikett log; und ein Etikett,
-        # das in genau dem Fall luegt, fuer den es erfunden wurde, ist schlimmer
-        # als keins.
-        #
-        # `queued`/`waiting` haben per Definition nicht gearbeitet: dort ist
-        # `created_at` die gesuchte Groesse. `in_progress` arbeitet: dort
-        # `run_started_at`, mit `created_at` als Rueckfall, falls es doch einmal
-        # fehlt.
-        if status in ("queued", "waiting"):
-            stamp, stamp_source = run.get("created_at"), "created_at (Wartezeit)"
-        else:
-            stamp, stamp_source = run.get("run_started_at"), "run_started_at (Laufzeit)"
-            if stamp is None:
-                stamp, stamp_source = run.get("created_at"), "created_at (Rueckfall)"
-        try:
-            begonnen = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-        except (TypeError, ValueError):
-            continue
-        alter = (now - begonnen).total_seconds() / 60
-        budget = IN_PROGRESS_BUDGET_MIN if status == "in_progress" else QUEUED_BUDGET_MIN
-        if alter <= budget:
-            continue
-        findings.append(
-            Stuck(
-                run_id=int(run.get("id") or 0),
-                workflow=str(run.get("name") or "<ohne Namen>"),
-                branch=str(run.get("head_branch") or "?"),
-                status=status,
-                age_min=alter,
-                budget_min=budget,
-                url=str(run.get("html_url") or ""),
-                age_source=stamp_source,
-            )
+def _over_budget(run: dict[str, Any], now: dt.datetime) -> Stuck | None:
+    """Steht dieser Lauf ueber seinem Budget? Ohne Ansehen der Quittung.
+
+    Bewusst OHNE den Phantom-Filter: die Quittung entscheidet, ob ein Befund ins
+    URTEIL geht, nicht ob er ueberhaupt ERMITTELT wird. Vorher war beides
+    dasselbe `continue`, und ein quittierter Lauf verschwand damit auch aus dem
+    Bericht — in dieser Form war eine Quittung von einem Mute nicht zu
+    unterscheiden. :func:`evaluate` und :func:`acknowledged_over_budget` teilen
+    sich jetzt diese eine Klassifikation und sind damit nachweislich
+    komplementaer (gepinnt in tests/test_check_stuck_workflow_runs.py).
+    """
+    status = str(run.get("status") or "")
+    if status not in ("queued", "waiting", "in_progress"):
+        return None
+    # Welche Quelle das Alter ergibt, entscheidet der STATUS — nicht, ob ein
+    # Feld gesetzt ist.
+    #
+    # 2026-08-29 am ersten echten Lauf gemessen und damit eine Annahme
+    # widerlegt, die hier bis eben stand: `run_started_at` fehle, solange
+    # nichts lief. Falsch. GitHub setzt es auch fuer `queued` und zwar
+    # identisch zu `created_at` (Lauf 32985711996: beide
+    # 2026-08-26T15:38:15Z, Status `queued`). Die alte Praeferenz-Reihenfolge
+    # stempelte deshalb "gemessen ab run_started_at" auf einen Lauf, der NIE
+    # gestartet ist — sie las sich wie 68 Stunden ARBEIT, wo 68 Stunden
+    # WARTEN standen. Die Zahl war richtig, das Etikett log; und ein Etikett,
+    # das in genau dem Fall luegt, fuer den es erfunden wurde, ist schlimmer
+    # als keins.
+    #
+    # `queued`/`waiting` haben per Definition nicht gearbeitet: dort ist
+    # `created_at` die gesuchte Groesse. `in_progress` arbeitet: dort
+    # `run_started_at`, mit `created_at` als Rueckfall, falls es doch einmal
+    # fehlt.
+    if status in ("queued", "waiting"):
+        stamp, stamp_source = run.get("created_at"), "created_at (Wartezeit)"
+    else:
+        stamp, stamp_source = run.get("run_started_at"), "run_started_at (Laufzeit)"
+        if stamp is None:
+            stamp, stamp_source = run.get("created_at"), "created_at (Rueckfall)"
+    try:
+        begonnen = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    alter = (now - begonnen).total_seconds() / 60
+    budget = IN_PROGRESS_BUDGET_MIN if status == "in_progress" else QUEUED_BUDGET_MIN
+    if alter <= budget:
+        return None
+    return (
+        Stuck(
+            run_id=int(run.get("id") or 0),
+            workflow=str(run.get("name") or "<ohne Namen>"),
+            branch=str(run.get("head_branch") or "?"),
+            status=status,
+            age_min=alter,
+            budget_min=budget,
+            url=str(run.get("html_url") or ""),
+            age_source=stamp_source,
         )
-    return sorted(findings, key=lambda f: f.age_min, reverse=True)
+    )
+
+
+def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
+    """Das URTEIL: stehende Laeufe ohne Quittung. Bestimmt den Exit-Code."""
+    return sorted(
+        (s for run in runs if (s := _over_budget(run, now)) and s.run_id not in PHANTOM_RUN_IDS),
+        key=lambda f: f.age_min,
+        reverse=True,
+    )
+
+
+def acknowledged_over_budget(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
+    """Die QUITTIERTEN stehenden Laeufe — ausgewiesen, nicht weggelassen.
+
+    Sie gehen nicht ins Urteil ein (der Exit-Code bleibt unberuehrt), erscheinen
+    aber im Bericht. Der Unterschied ist der ganze Zweck dieser Funktion: eine
+    Quittung, die einen Lauf unsichtbar macht, ist von einem Mute nicht zu
+    unterscheiden — und ein Mute nimmt auch dem naechsten, echten Stillstand die
+    Zeile weg.
+    """
+    return sorted(
+        (s for run in runs if (s := _over_budget(run, now)) and s.run_id in PHANTOM_RUN_IDS),
+        key=lambda f: f.age_min,
+        reverse=True,
+    )
+
+
+def dead_acknowledgements(runs: list[dict[str, Any]]) -> list[int]:
+    """Quittierte Laeufe, die GAR NICHT MEHR in Arbeit sind.
+
+    Die Laufzeit-Haelfte einer Zusicherung, die bisher nur netzlos geprueft
+    wurde: ``test_no_phantom_id_has_outlived_its_reason`` verspricht in seinem
+    Docstring, dass eine gegenstandslos gewordene Ausnahme auffaellt, kann das
+    aber nicht leisten — er prueft, ob die ID im Kommentar begruendet ist, nicht
+    ob der Lauf noch existiert. Loest GitHub den Waisen auf (Retention, Support,
+    stiller Aufraeumlauf), verschwindet er aus der Lauf-Liste, und genau DAS
+    sieht nur eine Sonde mit Netz.
+
+    Ein toter Eintrag ist nicht harmlos: er behauptet, ein Lauf koenne nicht
+    gemeldet werden, waehrend er laengst weg ist — und er wuerde eine kuenftige
+    Lauf-ID mit demselben Wert stumm schalten.
+    """
+    in_arbeit = {int(r.get("id") or 0) for r in runs}
+    return sorted(pid for pid in PHANTOM_RUN_IDS if pid not in in_arbeit)
+
 
 
 def fetch_in_flight(repo: str, token: str, fetcher: Any = None) -> list[dict[str, Any]]:
@@ -356,6 +408,21 @@ def main(argv: list[str] | None = None) -> int:
 
     now = dt.datetime.now(dt.UTC)
     findings = evaluate(runs, now)
+    quittiert = acknowledged_over_budget(runs, now)
+
+    # Ein toter Quittungs-Eintrag IST ein Befund: er behauptet, ein Lauf koenne
+    # nicht gemeldet werden, waehrend er laengst weg ist — und wuerde eine
+    # kuenftige Lauf-ID mit demselben Wert stumm schalten. Der Text sagt
+    # ausdruecklich, dass das die GUTE Nachricht ist, damit niemand nach einem
+    # Schaden sucht, den es nicht gibt.
+    for tot in dead_acknowledgements(runs):
+        findings.append(
+            Stuck(
+                run_id=tot, workflow="<quittierter Lauf nicht mehr in Arbeit>",
+                branch="-", status="acknowledged_gone", age_min=0.0,
+                budget_min=0, url="", age_source="-",
+            )
+        )
 
     lines = [
         "## stuck-run-watch",
@@ -375,6 +442,20 @@ def main(argv: list[str] | None = None) -> int:
             lines += ["", f"**{f.workflow}** ({f.status}) — {f.diagnosis}."]
     else:
         lines += ["", "Kein Lauf ueber seinem Budget."]
+    if quittiert:
+        lines += [
+            "",
+            f"**Quittiert** ({len(quittiert)}) — bekannt, nicht stumm. Diese Laeufe "
+            f"stehen ueber Budget, gehen aber NICHT ins Urteil ein; die Frist "
+            f"{PHANTOM_REVIEW_BY} erzwingt das Nachmessen.",
+            "",
+            "| Workflow | Status | Alter | Lauf |",
+            "|---|---|---|---|",
+        ]
+        for f in quittiert:
+            lines.append(
+                f"| {f.workflow} | `{f.status}` | {f.age_min:.0f} min | {f.run_id} |"
+            )
     lines += ["", f"Token-Quelle: `{token_source}`."]
 
     print("\n".join(lines))
