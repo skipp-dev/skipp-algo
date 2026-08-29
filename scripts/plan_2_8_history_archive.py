@@ -83,6 +83,7 @@ def append_snapshot(
     rollup: dict[str, Any],
     history_path: Path,
     captured_at: str | None = None,
+    replace_on_duplicate: bool = False,
 ) -> dict[str, Any]:
     """Append a compact snapshot to ``history_path`` (JSONL).
 
@@ -108,7 +109,24 @@ def append_snapshot(
     key = (snapshot["captured_at"], snapshot["scoring_root"])
 
     if key in seen:
-        return {"appended": False, "snapshot": snapshot, "history_size": len(existing)}
+        if not replace_on_duplicate:
+            return {"appended": False, "snapshot": snapshot, "history_size": len(existing)}
+        # Der Tageslauf ist NICHT idempotent im Sinne von "egal welcher".
+        # Der Benchmark scort ein 5-Tage-Ankerfenster; ein spaeterer Lauf
+        # desselben Tages sieht nachgereifte Labels, weshalb der
+        # Accumulate-Schritt auf (family, anchor_ts) mit Tie-Break
+        # "laengste forward_closes" dedupliziert. Wer hier den ERSTEN
+        # Schnappschuss behaelt, wirft genau diese Reifung weg. Mit dieser
+        # Flagge gewinnt der juengste Lauf des Tages.
+        kept = [e for e in existing
+                if (e.get("captured_at"), e.get("scoring_root")) != key]
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        with history_path.open("w", encoding="utf-8") as fh:
+            for entry in kept:
+                fh.write(json.dumps(entry) + "\n")
+            fh.write(json.dumps(snapshot) + "\n")
+        return {"appended": True, "replaced": True,
+                "snapshot": snapshot, "history_size": len(kept) + 1}
 
     history_path.parent.mkdir(parents=True, exist_ok=True)
     with history_path.open("a", encoding="utf-8") as fh:
@@ -142,6 +160,17 @@ def main(argv: list[str] | None = None) -> int:
                         help="Append-only JSONL history file.")
     parser.add_argument("--captured-at", default=None,
                         help="Override captured_at (default: now in UTC).")
+    # Ohne --captured-at faellt der Wert auf `now()` SEKUNDENGENAU zurueck,
+    # d.h. jeder Lauf schreibt eine neue Zeile und die Dedup-Zusage im
+    # Modulkopf traegt fuer die CI-Aufrufstelle nicht. Gemessen 2026-08-29:
+    # der Rolling-Bench feuert bis zu 9x/Werktag (workflow_run je
+    # Producer-Tick), die Rotation auf 366 Zeilen deckte damit ~40 Tage
+    # statt der im Workflow behaupteten ~1 Jahr.
+    parser.add_argument("--replace-on-duplicate", action="store_true",
+                        help="Bei gleichem (captured_at, scoring_root) den "
+                             "bestehenden Eintrag ERSETZEN statt zu "
+                             "verwerfen — der juengste Lauf eines Tages "
+                             "traegt die reifsten Labels.")
     args = parser.parse_args(argv)
 
     try:
@@ -154,13 +183,15 @@ def main(argv: list[str] | None = None) -> int:
         result = append_snapshot(
             rollup=rollup, history_path=args.history,
             captured_at=args.captured_at,
+            replace_on_duplicate=args.replace_on_duplicate,
         )
     except OSError as exc:
         print(f"ERROR: unwritable history {args.history}: {exc}", file=sys.stderr)
         return 1
 
     if result["appended"]:
-        print(f"appended snapshot for {result['snapshot']['scoring_root']!r} "
+        verb = "replaced" if result.get("replaced") else "appended"
+        print(f"{verb} snapshot for {result['snapshot']['scoring_root']!r} "
               f"to {args.history} (history size: {result['history_size']})")
     else:
         print(f"snapshot for {result['snapshot']['scoring_root']!r} at "
