@@ -47,10 +47,16 @@
 #      unencrypted jar archives — verified with file/unzip), and IBC's
 #      classpath glob in scripts/ibcstart.sh collects *.jar ONLY. Without
 #      the symlinks IBC dies at startup with "jclient/LoginFrame" (exit
-#      1107) because that class lives in jts4launch-*.dat. The offline
-#      build never self-updates, so the symlinks are durable; the
-#      self-updating build replaces its jars on every update, which is why
-#      it is not used here.
+#      1107) because that class lives in jts4launch-*.dat. The self-updating
+#      build replaces its jars on every update, which is why it is not used
+#      here.
+#      **KORREKTUR 2026-08-29: "the offline build never self-updates, so the
+#      symlinks are durable" stand hier und war FALSCH.** Gemessen: der
+#      Offline-Build tauschte jts4launch-1045-macos-arm am 5.8. gegen ein neu
+#      benanntes .dat, der Symlink vom 2.8. zeigte ins Leere, und IBC starb
+#      24 Tage lang an genau diesem exit 1107 — waehrend die SUCCESS-Marker
+#      dieser Tage alle "already-running" (Handstart) trugen. Deshalb legt
+#      der Treiber die Links jetzt selbst an, statt sie vorauszusetzen.
 #
 # Repo policy: never --force, never --no-verify.
 
@@ -69,7 +75,12 @@ MARKER="${REPO}/cache/live/.tws_autostart_status_${DATE}"
 
 _write_marker() {
     mkdir -p "${REPO}/cache/live"
-    printf '%s|%s\n' "$1" "${2:-}" > "${MARKER}"
+    # JAR_NOTE haengt an JEDEM Ausgang, nicht nur an den gruenen: eine
+    # Selbst-Aktualisierung, die zusammen mit einem anderen Defekt auftritt
+    # (IBC weg, Keychain leer, Login-Timeout), waere sonst genau dort
+    # unsichtbar, wo man sie am dringendsten sehen will. Zum Definitionszeit-
+    # punkt ist JAR_NOTE noch ungesetzt; bash loest es beim AUFRUF auf.
+    printf '%s|%s%s\n' "$1" "${2:-}" "${JAR_NOTE:-}" > "${MARKER}"
 }
 
 # ET gate: 07:30 ET, 30 min ahead of the smoke. The plist fires at the three
@@ -77,7 +88,51 @@ _write_marker() {
 source "$(dirname "$0")/lib_c13_et_gate.sh"
 c13_require_et_window "$REPO" 07 30 10 tws-autostart || exit 0
 
+# --- Jar-Symlinks ABLEITEN statt annehmen ----------------------------------
+# Der Kopf dieses Skripts behauptete: "The offline build never self-updates, so
+# the symlinks are durable". Am 2026-08-29 WIDERLEGT: der Offline-Build hatte
+# jts4launch-1045-macos-arm am 5.8. gegen ein neu benanntes .dat getauscht, der
+# am 2.8. von Hand gesetzte *.jar-Symlink zeigte seither ins Leere, und IBC
+# starb an JEDEM Werktag mit "jclient/LoginFrame" / exit 1107 — 24 Tage lang,
+# weil genau diese Klasse in jts4launch-*.dat liegt und IBCs Classpath-Glob nur
+# *.jar sammelt. Eine handgepflegte Symlink-Liste kann ihre eigene Drift nicht
+# fangen; also wird die Population hier vor JEDEM Start aus den .dat-Dateien
+# ABGELEITET und jeder tote Link entfernt. Repariert werden musste = laut, denn
+# eine stille Selbst-Aktualisierung ist genau das, was 24 Tage unsichtbar blieb.
+TWS_JARS="${TWS_APP_PATH}/Trader Workstation ${TWS_MAJOR}/jars"
+JAR_REPAIRS=0
+if [[ -d "${TWS_JARS}" ]]; then
+    for _dat in "${TWS_JARS}"/*.dat; do
+        [[ -e "${_dat}" ]] || continue          # leeres Glob
+        _link="${_dat%.dat}.jar"
+        if [[ ! -e "${_link}" ]]; then          # fehlt ODER zeigt ins Leere
+            rm -f "${_link}"
+            ln -s "$(basename "${_dat}")" "${_link}"
+            JAR_REPAIRS=$((JAR_REPAIRS + 1))
+        fi
+    done
+    for _link in "${TWS_JARS}"/*.jar; do
+        # Tote Links, deren .dat UMBENANNT wurde: die Schleife oben legt den
+        # neuen Link an, entfernt den alten aber nicht — und ein toter Eintrag
+        # im Classpath ist genau der Ausfall vom 5.8.
+        [[ -L "${_link}" ]] || continue
+        [[ -e "${_link}" ]] && continue
+        rm -f "${_link}"
+        JAR_REPAIRS=$((JAR_REPAIRS + 1))
+    done
+fi
+JAR_NOTE=""
+if [[ "${JAR_REPAIRS}" -gt 0 ]]; then
+    JAR_NOTE=":jarlinks-repaired=${JAR_REPAIRS}"
+    echo "tws-autostart: ${JAR_REPAIRS} Jar-Symlink(s) in ${TWS_JARS} repariert" \
+         "— der TWS-Build hat sich selbst aktualisiert." >&2
+fi
+
 if /usr/bin/nc -z 127.0.0.1 "${PORT}" >/dev/null 2>&1; then
+    # "already-running" beweist NICHTS ueber den Autostart: der Port kann von
+    # einem Handstart offen sein. Genau so sahen 11./12./17./18./20./28.8. gruen
+    # aus, waehrend seit dem 5.8. kein einziger IBC-Start gelang. Bei der Triage
+    # zaehlt die NACHRICHT, nicht das Verdikt.
     echo "tws-autostart: TWS already listening on ${PORT} — nothing to do."
     _write_marker "SUCCESS" "already-running"
     exit 0
