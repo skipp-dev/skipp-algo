@@ -2114,3 +2114,28 @@ claim  = "Die gepinnte Schleifenzeile ist wiederhergestellt; das Verhalten unter
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# 5186 — Der Rolling-Bench uebergibt `--captured-at` (Tagesschluessel) und
+# `--replace-on-duplicate`. AUSGENOMMEN mit Doppelgrund (Muster #5154):
+#
+# (a) Die Wirkung ist von der Suite AUSFUEHRBAR bewiesen, nicht behauptet:
+#     tests/test_plan_2_8_history_archive.py faehrt append_snapshot zweimal
+#     mit demselben Tagesschluessel und prueft, dass EINE Zeile bleibt und
+#     der juengste Schnappschuss gewinnt; ein zweiter Test haelt fest, dass
+#     der Default weiterhin verwirft (Backfill-Semantik unveraendert).
+#     Rot-zuerst: Ersetzung deaktiviert => Test faellt.
+#
+# (b) Ein Lauf-Zeuge kaeme zu spaet und saehe zu wenig: der Effekt zeigt
+#     sich erst am ZWEITEN Lauf eines Tages, und die Datei liegt in einem
+#     Branch-Artefakt, nicht im Lauf-Log. Die Gegenrichtung — Rotation
+#     deckt wieder ~1 Jahr — ist am Bestand messbar, sobald genug Tage
+#     vergangen sind, und braucht keinen Urteiler-Automatismus.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5186"
+kind   = "exempt"
+claim  = "Der Rolling-Bench schreibt hoechstens eine History-Zeile pro Tag, und zwar die des juengsten Laufs (reifste Labels). Die Rotation auf 366 Zeilen deckt damit wieder ~1 Jahr statt ~40 Tagen. Suite-ausfuehrbar bewiesen; der Default-Pfad (Backfill) bleibt unveraendert."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "operator"

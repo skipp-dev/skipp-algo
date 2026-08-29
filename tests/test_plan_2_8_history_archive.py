@@ -151,3 +151,70 @@ def test_cli_error_on_unreadable_rollup(
     ])
     assert rc == 1
     assert "unreadable rollup" in capsys.readouterr().err
+
+
+def test_the_ci_call_site_pins_the_day_and_keeps_the_latest_run(tmp_path):
+    """Der Tageslauf ist nicht "egal welcher" — der juengste gewinnt.
+
+    Zwei Defekte in einem, gemessen 2026-08-29:
+
+    1. Ohne ``--captured-at`` faellt ``captured_at`` auf ``now()``
+       SEKUNDENGENAU zurueck. Die Dedup-Zusage des Modulkopfs traegt fuer die
+       CI-Aufrufstelle deshalb nicht: der Rolling-Bench feuert bis zu 9x pro
+       Werktag (``workflow_run`` je Producer-Tick), und jeder Lauf schrieb
+       eine eigene Zeile. Die Rotation auf 366 Zeilen deckte damit ~40 Tage
+       statt des im Workflow behaupteten Jahres — genau das Fenster, fuer
+       dessen Drift-Erkennung der Workflow existiert.
+    2. Die naheliegende Reparatur allein (Tag als Schluessel) waere die
+       falsche Richtung gewesen: bei Dublette behaelt das Skript den ERSTEN
+       Eintrag. Der Bench scort aber ein 5-Tage-Ankerfenster, spaetere
+       Laeufe sehen nachgereifte Labels — deshalb dedupliziert der
+       Accumulate-Schritt auf "laengste forward_closes". Der frueheste
+       Schnappschuss ist der schlechteste.
+    """
+    history = tmp_path / "plan_2_8_history.jsonl"
+    day = "2026-08-29T00:00:00Z"
+
+    first = arch.append_snapshot(
+        rollup=_rollup("root-a"),
+        history_path=history, captured_at=day, replace_on_duplicate=True,
+    )
+    assert first["appended"] is True
+
+    # Zweiter Lauf DESSELBEN Tages, reifere Zahlen.
+    second = arch.append_snapshot(
+        rollup={**_rollup("root-a"), "files_scanned": 99},
+        history_path=history, captured_at=day, replace_on_duplicate=True,
+    )
+    assert second["appended"] is True
+    assert second.get("replaced") is True
+
+    rows = [json.loads(line) for line in history.read_text().splitlines() if line.strip()]
+    assert len(rows) == 1, f"ein Tag muss eine Zeile tragen, nicht {len(rows)}"
+    assert rows[0]["captured_at"] == day
+    # Und es ist der JUENGSTE Lauf, nicht der erste.
+    assert rows[0] != first["snapshot"], "der fruehere Schnappschuss ueberlebte"
+
+
+def test_the_default_still_refuses_to_overwrite(tmp_path):
+    """Positivkontrolle: der Backfill-Pfad bleibt unveraendert.
+
+    ``--replace-on-duplicate`` ist opt-in. Ohne die Flagge muss ein
+    doppelter Schluessel weiterhin VERWORFEN werden — sonst haette diese
+    Aenderung still die Semantik des historischen Backfills gedreht, wo
+    Wiederholungen identisch sind und ein Ueberschreiben nichts gewinnt.
+    """
+    history = tmp_path / "plan_2_8_history.jsonl"
+    day = "2026-08-29T00:00:00Z"
+    arch.append_snapshot(
+        rollup=_rollup("root-a"),
+        history_path=history, captured_at=day,
+    )
+    again = arch.append_snapshot(
+        rollup={**_rollup("root-a"), "files_scanned": 99},
+        history_path=history, captured_at=day,
+    )
+    assert again["appended"] is False
+    rows = [json.loads(line) for line in history.read_text().splitlines() if line.strip()]
+    assert len(rows) == 1
+    assert rows[0] != again["snapshot"], "der Default hat ueberschrieben"
