@@ -672,6 +672,87 @@ for w in ~/.claude/skills ~/.codex/skills <repo>/.claude/skills <repo>/.github/s
 done
 ```
 
+## Documentation review (2026-08-29)
+
+A multi-source pass over Cisco's own documentation, run to give the customer
+demo a fact base and to check this runbook's claims.  Every item below is
+either confirmed from a primary Cisco source or marked as measured-here.
+Where the documentation and the SDK disagree, the SDK wins: it is what runs.
+
+### Confirmed by Cisco's documentation
+
+| Claim we make | Status |
+| --- | --- |
+| Inspection and Management are separate planes with separate key classes and separate headers (`X-Cisco-AI-Defense-API-Key` vs `x-cisco-ai-defense-tenant-api-key`) | Confirmed, and corroborated in Cisco's own SDK source |
+| The two key classes are not interchangeable | Confirmed for Management → Inspection ("You cannot use this key for the AI Defense Inspection API"). The reverse direction is **nowhere stated** |
+| `event_id` is minted only on a violation | Confirmed — so an ALLOW line carrying `event_id=none` is expected, not a defect |
+| `client_transaction_id` is echoed for correlation | Confirmed as an echo. There is **no documented way to search the event log by it**, so do not promise that in a demo |
+| Inspection keys are minted per connection and support an expiry | Confirmed: Applications → [app] → API Connections → Add Connection → Add API key, with "Expire on" or "Never Expire", shown once; regeneration invalidates the previous key immediately |
+
+### Where the documentation is silent, and we measured instead
+
+* **Wrong-class key.** No Cisco source states what a wrong-class key does.
+  Measured 2026-08-29 on the live tenant: a Management key returns **401** from
+  the Inspection API in both `eu` and `us`, and **200** from the Management API.
+  That asymmetry is the fastest way to tell the two apart — they are otherwise
+  indistinguishable, both being 64 hex characters.
+* **Key format.** The 64-character length this wrapper enforces is **not
+  documented** by Cisco for either key class; it rests on our own measurement.
+  The check is fail-closed, so the risk is refusing a valid key of a future
+  format, not accepting a bad one.
+* **`action` in the response.** Cisco's published `InspectResponse` schema lists
+  eight properties and **`action` is not among them**; its `required` array
+  names `classification`, which is not one of the eight either (the property is
+  `classifications`).  Formally, no response field is guaranteed.  The field is
+  nonetheless real: the SDK reads it from the response body
+  (`runtime/inspection_client.py:257`), it is not derived from `is_safe`.  Our
+  two-field contract is therefore two independent signals, and deliberately
+  stricter than what Cisco documents.
+
+### Where the documentation and the SDK disagree
+
+Measured per region in a **fresh process** — `Config` is a process-wide
+singleton that silently ignores later parameters, so a single-process probe
+returns one host for every region and looks perfectly plausible:
+
+| Region | Cisco docs | SDK (measured) |
+| --- | --- | --- |
+| `us-west-2` | `us.` | `us.` |
+| `eu-central-1` | `eu.` | `eu.` |
+| `ap-northeast-1` | region named `ap-ne-1`, host `ap.` | **`apj.`** — and `ap-ne-1` raises `ValueError: Invalid region` |
+| `me-central-1` | not documented at all | **`uae.`** — supported |
+
+Consequences, both now pinned by `tests/test_cisco_ai_defense.py`:
+
+1. An operator following Cisco's published table and setting `ap-ne-1` would
+   configure a value the SDK cannot use.  This wrapper rejects it first, with
+   its own configuration error.
+2. `me-central-1` works despite being undocumented.  The documentation review
+   concluded no Middle-East host exists; removing it on that basis would have
+   deleted a functioning region.  The endpoint table is the counter-evidence,
+   and the test fails if a future SDK stops resolving any of the four.
+
+### The `Config` singleton, as a standing hazard
+
+`Config` keeps the first instance for the life of the process and logs
+`Config singleton already initialized. Ignoring different parameters` for every
+later one.  `_get_client` is `lru_cache`d on `(api_key, region, timeout)`, so a
+process that ever inspected against two regions would get a second cache entry
+whose client still talks to the **first** region.  Not reachable today — each
+service runs one region — but it is a silent-wrong-answer failure mode, not a
+loud one, and it is the reason the region table above had to be measured one
+process at a time.
+
+### Not answered by this review
+
+Enforcement points and deployment modes (Gateway, the hybrid connector /
+`proxyrelayclient`, MCP Gateway), agent and MCP runtime protection, the SDK's
+version history, and the boundary between AI Defense and Secure Access
+"AI Access" produced **no claims that survived verification**.  That is a gap in
+the sources, **not** a negative finding: it does not mean those features are
+absent.  Our own measurement that the pinned SDK contains no `agentsec` module
+stands on its own and is unaffected.
+
 ## Official references
 
 - Cisco AI Defense Inspection API: <https://developer.cisco.com/docs/ai-defense-inspection/>
