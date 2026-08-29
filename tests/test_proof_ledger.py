@@ -24,6 +24,49 @@ def test_every_entry_carries_owner_deadline_and_a_known_state():
         dt.date.fromisoformat(entry.due_by)
 
 
+def test_a_fix_entry_carries_real_merge_metadata_not_the_template_placeholder():
+    """Der Platzhalter aus der Vorlage darf nicht auf main ueberleben.
+
+    ``merged_at`` ist nicht dekorativ: die Zeugensuche in
+    ``scripts/judge_proof_ledger.py`` verlangt, dass der Zeugen-Job NACH dem
+    Merge startete. Bleibt das Feld auf ``"<wird beim Merge nachgetragen>"``,
+    faellt der Eintrag in den ``merged_at``-Zweig und wird als UNGEURTEILT
+    gefuehrt — ein Eintrag also, der aussieht, als waere er in Arbeit, waehrend
+    sein Zeuge laengst existiert.
+
+    Gemessen am 2026-08-29: von allen fix-Eintraegen auf main trug genau EINER
+    (#5178, in dieser Sitzung angelegt) noch den Platzhalter, alle anderen
+    echte Werte. Das Nachtragen war also immer schon Handarbeit ohne
+    Stolperdraht — bis hierher. Kein Vorwurf an die Vorlage: sie sagt
+    ausdruecklich "wird beim Merge nachgetragen". Nur sagte das bisher niemand
+    nochmal im richtigen Moment.
+    """
+    offenders = []
+    for entry in load_entries():
+        if entry.kind != "fix":
+            continue
+        for field in ("merged_at", "merge_sha"):
+            value = str(entry.raw.get(field, "")).strip()
+            # NUR der stehengebliebene Platzhalter, NICHT die Abwesenheit.
+            # Erste Fassung dieses Tests pruefte auch auf "" und klagte damit
+            # sechs korrekte Eintraege an (5118, 5098 und die vier
+            # Halter-Eintraege): die sind gar keine gemergten PRs, und das Repo
+            # behandelt fehlendes `merged_at` ausdruecklich als eigenen,
+            # legitimen Zweig — siehe
+            # test_an_entry_without_merged_at_is_marked_unjudged_not_missing_witness.
+            # Ein Waechter, der korrekte Zustaende anklagt, wird abgeschaltet
+            # und schuetzt dann gar nichts mehr.
+            if value.startswith("<") and value.endswith(">"):
+                offenders.append(f"{entry.id}.{field} = {value!r}")
+    assert not offenders, (
+        "fix-Eintraege mit Vorlagen-Platzhalter statt echter Merge-Metadaten: "
+        f"{offenders}. `merged_at` steuert die Zeugensuche — ohne echten Wert "
+        "gilt der Eintrag als ungeurteilt, obwohl sein Zeuge existiert. "
+        "Werte aus `gh pr view <nr> --json mergedAt,mergeCommit` nachtragen und "
+        "gegen `git log -1 <sha>` gegenpruefen."
+    )
+
+
 def test_a_fix_entry_names_its_witness_and_version_probe():
     """Ohne Zeuge und Versionsprobe ist ein Urteil nicht zurechenbar."""
     fixes = [e for e in load_entries() if e.kind == "fix"]

@@ -1830,8 +1830,12 @@ Merge erreicht, nicht in ferner Zukunft.
 [[proof]]
 id              = "5178"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# 2026-08-29 nachgetragen. `gh pr view 5178` und `git log -1 4b9eca55a` stimmen
+# ueberein (SHA identisch, Zeitstempel 07:18:47Z Merge-Event vs. 07:18:46Z
+# Committer-Datum); der Zeugen-Job startete 07:18:50Z, also DANACH — die
+# Zeugensuche des Monitors vergleicht genau das.
+merged_at       = "2026-08-29T07:18:47Z"
+merge_sha       = "4b9eca55a055d787ac89e0abb5e9a7829c16dcd8"
 claim           = """
 Ein Runner-Label ausserhalb der Allowlist wird LAUT gemeldet, statt die
 betroffenen Jobs still nicht starten zu lassen. Gemessen am 2026-08-29 haengen
@@ -2012,7 +2016,12 @@ fail-closed auf KANN_NICHT_BEZEUGEN statt auf ein Urteil.
 #     eine Kopie seiner Aussage.
 # ---------------------------------------------------------------------------
 [[proof]]
-id     = "5178"
+# 2026-08-29 korrigiert: dieser Eintrag gehoert zu PR #5179, nicht #5178.
+# Die Nummer war beim Anlegen geraten; #5178 war zu dem Zeitpunkt bereits von
+# einer anderen Aenderung belegt. Ergebnis war `ProofLedgerError: doppelte id`
+# und 17 rote Tests auf main — die Checks von #5179 liefen auf einer Basis VOR
+# dem Merge von #5178 und konnten die Kollision nicht sehen.
+id     = "5179"
 kind   = "exempt"
 claim  = "Die gepinnte Schleifenzeile ist wiederhergestellt; das Verhalten unter Library-Drift bleibt exakt wie in #5177 (Schleife arbeitet nicht, sources.notJudgedReason gesetzt). Form suite-geprueft durch tv_producer_refresh_layouts.test.ts, Wirkung bezeugt der offene Eintrag tv-verify-measures-under-drift."
 state  = "AUSGENOMMEN"
