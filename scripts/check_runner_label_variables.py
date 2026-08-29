@@ -75,6 +75,13 @@ ALLOWLIST_PATH = REPO_ROOT / ".github" / "runner_label_allowlist.json"
 #: einem ``env:``-Block kann einen Lauf rot machen, aber nicht verschwinden lassen.
 _RUNS_ON_RE = re.compile(r"^\s*runs-on:\s*(?P<value>.+?)\s*$", re.M)
 _VARS_RE = re.compile(r"vars\.([A-Z][A-Z0-9_]*)")
+#: Literale Labels: blank (`runs-on: ubuntu-latest`) oder als ||-Rueckfall in
+#: einem Ausdruck (`|| 'ubuntu-latest'`).
+_BARE_LABEL_RE = re.compile(r"^[a-z][a-z0-9.-]*$")
+_QUOTED_LABEL_RE = re.compile(r"'([a-z][a-z0-9.-]*)'")
+#: `runs-on: ${{ matrix.runner }}` faechert ueber matrix-Eintraege auf; deren
+#: Werte sind literale Labels wie jeder andere auch.
+_MATRIX_RUNNER_RE = re.compile(r"^\s*runner:\s*(?P<label>[a-z][a-z0-9.-]*)\s*$", re.M)
 
 _GITHUB_API = "https://api.github.com"
 
@@ -114,6 +121,74 @@ def derive_runner_variables(workflows_dir: Path | None = None) -> dict[str, tupl
     return {name: tuple(sorted(set(files))) for name, files in sorted(sites.items())}
 
 
+def derive_literal_labels(workflows_dir: Path | None = None) -> dict[str, tuple[str, ...]]:
+    """Welche Labels stehen LITERAL in einem ``runs-on``? Aus den Dateien gelesen.
+
+    Drei Formen, alle drei kommen im Repo vor (2026-08-29 gezaehlt):
+    blank (``runs-on: ubuntu-latest``, 2x), als ``||``-Rueckfall in einem
+    Ausdruck (``|| 'ubuntu-latest'``, 96x) und als ``matrix.runner``-Wert
+    (``windows-latest``, ``macos-latest``, ``macos-15-intel``).
+
+    Warum das ueberhaupt geprueft wird: bei der Anlage der Variablen-Allowlist
+    wurden Literale mit der Begruendung "im Diff sichtbar" ausgeklammert. Der
+    erste echte Fund von stuck-run-watch stand in einer matrix mit genau solchen
+    Literalen — sichtbar heisst nicht geprueft, ein Review nickt ein Label ab,
+    das es nicht gibt.
+    """
+    directory = workflows_dir if workflows_dir is not None else WORKFLOWS_DIR
+    sites: dict[str, list[str]] = {}
+    for path in sorted(directory.glob("*.yml")) + sorted(directory.glob("*.yaml")):
+        text = path.read_text(encoding="utf-8")
+        matrix_driven = False
+        for match in _RUNS_ON_RE.finditer(text):
+            wert = match.group("value").strip().strip("\"'")
+            if "matrix.runner" in wert:
+                matrix_driven = True
+            if "${{" in match.group("value"):
+                for label in _QUOTED_LABEL_RE.findall(match.group("value")):
+                    sites.setdefault(label, []).append(path.name)
+            elif _BARE_LABEL_RE.match(wert):
+                sites.setdefault(wert, []).append(path.name)
+        if matrix_driven:
+            for match in _MATRIX_RUNNER_RE.finditer(text):
+                sites.setdefault(match.group("label"), []).append(path.name)
+    return {name: tuple(sorted(set(files))) for name, files in sorted(sites.items())}
+
+
+def evaluate_literals(
+    derived: dict[str, tuple[str, ...]], allowed: tuple[str, ...]
+) -> list[Finding]:
+    """Unbekanntes literales Label -> Befund; toter Allowlist-Eintrag ebenso."""
+    findings: list[Finding] = []
+    for label, files in derived.items():
+        if label not in allowed:
+            findings.append(
+                Finding(
+                    kind="unknown_literal_label",
+                    variable=label,
+                    detail=(
+                        f"steht literal in `runs-on` ({', '.join(files)}), aber nicht "
+                        f"auf der Literal-Allowlist. Erlaubt: {', '.join(allowed)}. "
+                        "Ein Label, das GitHub nicht kennt, macht die betroffenen "
+                        "Jobs nicht rot — sie starten nie."
+                    ),
+                )
+            )
+    for label in allowed:
+        if label not in derived:
+            findings.append(
+                Finding(
+                    kind="stale_literal_label",
+                    variable=label,
+                    detail=(
+                        "steht auf der Literal-Allowlist, wird aber von keinem "
+                        "`runs-on` mehr benutzt. Eintrag entfernen."
+                    ),
+                )
+            )
+    return findings
+
+
 def load_allowlist(path: Path | None = None) -> dict[str, dict[str, Any]]:
     """Die Allowlist, auf das Wesentliche reduziert und validiert.
 
@@ -122,6 +197,9 @@ def load_allowlist(path: Path | None = None) -> dict[str, dict[str, Any]]:
     """
     target = path if path is not None else ALLOWLIST_PATH
     raw = json.loads(target.read_text(encoding="utf-8"))
+    literals = (raw.get("literal_labels") or {}).get("allowed")
+    if not isinstance(literals, list) or not literals:
+        raise ValueError(f"{target}: `literal_labels.allowed` fehlt oder ist leer")
     variables = raw.get("variables")
     if not isinstance(variables, dict) or not variables:
         raise ValueError(f"{target}: `variables` fehlt oder ist leer")
@@ -132,6 +210,13 @@ def load_allowlist(path: Path | None = None) -> dict[str, dict[str, Any]]:
         if not all(isinstance(label, str) and label.strip() == label and label for label in allowed):
             raise ValueError(f"{target}: `{name}.allowed` enthaelt einen leeren oder gepolsterten Wert")
     return variables
+
+
+def load_literal_allowlist(path: Path | None = None) -> tuple[str, ...]:
+    """Die erlaubten literalen Labels — separat, weil sie nichts Live-Gesetztes sind."""
+    target = path if path is not None else ALLOWLIST_PATH
+    raw = json.loads(target.read_text(encoding="utf-8"))
+    return tuple((raw.get("literal_labels") or {}).get("allowed") or ())
 
 
 def evaluate(
@@ -312,11 +397,18 @@ def main(argv: list[str] | None = None) -> int:
 
     findings = evaluate(derived, allowlist, live)
 
+    literale = derive_literal_labels()
+    literal_erlaubt = load_literal_allowlist()
+    findings += evaluate_literals(literale, literal_erlaubt)
+
     lines = [
         "## runner-label-variable-watch",
         "",
         f"Geprueft: {len(derived)} variablengesteuerte `runs-on`-Variablen "
         f"ueber {len(set(f for files in derived.values() for f in files))} Workflow-Dateien.",
+        "",
+        f"Literale `runs-on`-Labels: {len(literale)} verschieden "
+        f"({', '.join(sorted(literale))}).",
         "",
         "| Variable | Wert | Lanes | Urteil |",
         "|---|---|---|---|",

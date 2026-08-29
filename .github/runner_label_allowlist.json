@@ -35,5 +35,14 @@
       "unset_ok": true,
       "note": "Nur ci.yml/validate. `ubuntu-latest-arm` existiert NICHT -- GitHub bietet fuer linux-arm64 ausschliesslich versionierte Labels an. Genau diese Falle ist der Grund fuer den runner-preflight-Job."
     }
+  },
+  "literal_labels": {
+    "allowed": [
+      "ubuntu-latest",
+      "windows-latest",
+      "macos-latest",
+      "macos-15-intel"
+    ],
+    "note": "Labels, die LITERAL in einem runs-on stehen (blank, als ||-Rueckfall in einem Ausdruck, oder als matrix.runner-Wert). Was diese Liste beweist und was NICHT: sie erzwingt, dass ein neues literales Label eine BEWUSSTE Aenderung ist statt beliebiger Text im Diff — bei der Anlage der Variablen-Allowlist am 2026-08-29 wurden Literale mit 'im Diff sichtbar' ausgeklammert, und genau das war zu grosszuegig: sichtbar heisst nicht geprueft. Sie beweist NICHT, dass das Label bei GitHub existiert; dafuer gibt es keinen Katalog-Endpunkt. Den empirischen Existenzbeweis liefert stuck-run-watch (#5183): ein Label, das niemand annimmt, laesst den Lauf `queued` stehen und wird dort gemeldet."
   }
 }
