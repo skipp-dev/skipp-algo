@@ -1954,6 +1954,34 @@ state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "@preuss_steffen"
 
+[[proof]]
+id              = "5197"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Ein quittierter Lauf wird AUSGEWIESEN statt weggelassen. Vorher uebersprang
+`PHANTOM_RUN_IDS` ihn per `continue` in beidem — Urteil UND Bericht; in der Form
+war eine Quittung von einem Mute nicht zu unterscheiden, und ein unsichtbarer
+Ausnahmefall nimmt auch dem naechsten, echten Stillstand die Zeile. Zusaetzlich
+erkennt die Sonde jetzt zur LAUFZEIT, wenn eine Quittung gegenstandslos wurde
+(Lauf nicht mehr in Arbeit) — die Haelfte, die der netzlose
+test_no_phantom_id_has_outlived_its_reason verspricht, aber nicht leisten kann.
+"""
+witness         = "stuck-run-watch"
+witness_job     = "watch"
+evidence_source = "job_log"
+artifact        = ""
+# Der Abschnittskopf existiert erst seit dieser Aenderung und belegt zugleich,
+# DASS quittierte Laeufe im Bericht stehen — genau die Wirkung, um die es geht.
+version_probe   = "**Quittiert**"
+# Derselbe Urteiler wie #5183: er prueft, ob die Sonde eine Flotte GESEHEN hat.
+# Mehrfachnutzung ist im Ledger etabliert (tv_legend_click traegt #5018+#5027).
+judge           = "stuck_run_watch"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "@preuss_steffen"
+
 # --- Zweige von `stuck_run_watch` -------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst auf main. Gleicher
 # Stolperdraht wie bei #5178 — erreicht echte Evidenz einen dieser Zweige, wird

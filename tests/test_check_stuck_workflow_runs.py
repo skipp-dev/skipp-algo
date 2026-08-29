@@ -247,7 +247,17 @@ def test_a_standing_run_makes_main_return_rc1(monkeypatch: pytest.MonkeyPatch, c
 
 
 def test_a_quiet_fleet_makes_main_return_rc0(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    """Ruhige Flotte OHNE Quittungen -> rc 0.
+
+    2026-08-29 praezisiert: die leere Flotte allein genuegt als Praemisse nicht
+    mehr. Steht ein Lauf in PHANTOM_RUN_IDS und taucht in der Liste NICHT auf,
+    dann ist er aufgeloest — und die tote Quittung ist zu Recht ein Befund
+    (test_a_dead_acknowledgement_makes_the_probe_red_with_a_non_alarming_text).
+    Dieser Test prueft die Ruhe, nicht die Quittungslage, und macht das jetzt
+    explizit statt sich darauf zu verlassen, dass die Menge leer ist.
+    """
     monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setattr("scripts.check_stuck_workflow_runs.PHANTOM_RUN_IDS", frozenset())
     monkeypatch.setattr(
         "scripts.check_stuck_workflow_runs.fetch_in_flight",
         lambda repo, token, fetcher=None: [],
@@ -441,3 +451,90 @@ def test_every_phantom_id_is_covered_by_the_deadline() -> None:
     assert mod.PHANTOM_RUN_IDS, "leere Ausnahmemenge — die Aussage unten waere vakuum"
     assert mod.PHANTOM_REVIEW_BY, "Frist fehlt, die Ausnahme waere wieder ein Mute"
     dt.date.fromisoformat(mod.PHANTOM_REVIEW_BY)
+
+
+# --------------------------------------------------------------------------
+# Quittiert heisst ausgewiesen, nicht weggelassen (2026-08-29)
+# --------------------------------------------------------------------------
+
+
+def _phantom_id() -> int:
+    return sorted(mod.PHANTOM_RUN_IDS)[0]
+
+
+def test_an_acknowledged_run_is_excluded_from_the_verdict() -> None:
+    """Der Exit-Code darf sich durch eine Quittung nicht aendern."""
+    runs = [_run(id=_phantom_id(), status="queued",
+                 created_at=_minutes_ago(5000), run_started_at=None)]
+    assert evaluate(runs, _NOW) == []
+
+
+def test_an_acknowledged_run_is_still_reported() -> None:
+    """Der eigentliche Punkt: sichtbar bleiben.
+
+    Vorher verschwand ein quittierter Lauf per `continue` aus BEIDEM — Urteil
+    und Bericht. In der Form ist eine Quittung von einem Mute nicht zu
+    unterscheiden, und ein Mute nimmt auch dem naechsten, echten Stillstand die
+    Zeile weg.
+    """
+    runs = [_run(id=_phantom_id(), status="queued",
+                 created_at=_minutes_ago(5000), run_started_at=None)]
+    ausgewiesen = mod.acknowledged_over_budget(runs, _NOW)
+    assert len(ausgewiesen) == 1
+    assert ausgewiesen[0].run_id == _phantom_id()
+    assert ausgewiesen[0].age_min == pytest.approx(5000, abs=1)
+
+
+def test_verdict_and_acknowledged_are_complementary_over_the_same_population() -> None:
+    """Kein Lauf faellt zwischen die beiden Listen — und keiner steht in beiden.
+
+    Beide teilen sich EINE Klassifikation (`_over_budget`); diese Zeile pinnt,
+    dass die Aufteilung danach vollstaendig und ueberschneidungsfrei ist. Ohne
+    sie koennte ein Umbau einen stehenden Lauf lautlos in keine der beiden
+    Listen fallen lassen.
+    """
+    runs = [
+        _run(id=_phantom_id(), status="queued", created_at=_minutes_ago(5000), run_started_at=None),
+        _run(id=901, status="queued", created_at=_minutes_ago(5000), run_started_at=None),
+        _run(id=902, status="in_progress", run_started_at=_minutes_ago(10)),  # gesund
+    ]
+    urteil = {f.run_id for f in evaluate(runs, _NOW)}
+    quittiert = {f.run_id for f in mod.acknowledged_over_budget(runs, _NOW)}
+    assert urteil == {901}
+    assert quittiert == {_phantom_id()}
+    assert not (urteil & quittiert), "ein Lauf steht in beiden Listen"
+    ueber_budget = {r["id"] for r in runs if mod._over_budget(r, _NOW)}
+    assert urteil | quittiert == ueber_budget, "ein stehender Lauf faellt zwischen die Listen"
+
+
+def test_a_dead_acknowledgement_is_detected_when_the_run_is_gone() -> None:
+    """Die Laufzeit-Haelfte, die der netzlose Test nicht leisten kann.
+
+    `test_no_phantom_id_has_outlived_its_reason` verspricht in seinem Docstring,
+    dass eine gegenstandslos gewordene Ausnahme auffaellt — er prueft aber nur,
+    ob die ID im Kommentar begruendet ist. Ob der Lauf noch EXISTIERT, sieht nur
+    eine Sonde mit Netz.
+    """
+    assert mod.dead_acknowledgements([]) == [_phantom_id()]
+    noch_da = [_run(id=_phantom_id(), status="queued")]
+    assert mod.dead_acknowledgements(noch_da) == []
+
+
+def test_a_dead_acknowledgement_makes_the_probe_red_with_a_non_alarming_text(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Rot, aber der Text sagt, dass es die GUTE Nachricht ist.
+
+    Sonst sucht der Geweckte nach einem Schaden, den es nicht gibt — dieselbe
+    Klasse wie eine falsche Anschuldigung, nur andersherum.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setattr(
+        "scripts.check_stuck_workflow_runs.fetch_in_flight",
+        lambda repo, token, fetcher=None: [],
+    )
+    rc = main(["--repo", "skipp-dev/skipp-algo"])
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert str(_phantom_id()) in err
+    assert "GUTE Nachricht" in err and "entfernen" in err
