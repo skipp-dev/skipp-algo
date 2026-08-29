@@ -2208,3 +2208,30 @@ reason = """
 Leere Evidenz — der Abholer konnte kein Job-Log liefern. Erreicht kein
 Korpus, weil der Korpus aus gelieferten Logs besteht.
 """
+
+# ---------------------------------------------------------------------------
+# 5195 — Der Netz-Cron des Rolling-Benchmarks wandert von 16:30 UTC auf 12:15
+# und 22:15, also IN die beiden Fenster des `cadence-gate` (#5191). Dazu drei
+# stale Zahlen im Begruendungsblock und eine beim Konsumenten. AUSGENOMMEN
+# mit Doppelgrund (Muster #5154):
+#
+# (a) Die pruefbare Eigenschaft ist suite-gedeckt: der Ordering-Pin
+#     tests/test_workflow_databento_consumer_cron_ordering.py liest die
+#     Cron-Ticks dieser Datei und verlangt fruehester Consumer-Tick >=
+#     Producer-Start + 30 min Puffer sowie gleiche Wochentagsmenge. Ein
+#     falsch gelegter Tick faellt dort durch.
+#
+# (b) Ein Lauf-Zeuge kann die Aenderung nicht bezeugen: die Netze feuern
+#     per Konstruktion NUR an Tagen, an denen die workflow_run-Zustellung
+#     ausgefallen ist. Ihr Ausbleiben ist der Normalfall und beweist nichts;
+#     ihr Eintreten ist ein Stoerfall, den niemand herbeifuehren will. Die
+#     Wirkung des Gates selbst bezeugt bereits der offene Eintrag
+#     rolling-bench-two-windows (Urteiler rolling_bench_gate, Frist 5.9.).
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5195"
+kind   = "exempt"
+claim  = "Die Netz-Ticks liegen in den Fenstern des cadence-gate: 12:15 UTC bedient die Tages-Gates ab 13:30 (Producer-Tick 10:00 + 120-min-Budget + Puffer, Lauf fertig ~13:01), 22:15 UTC deckt Fenster B. Der Ordering-Pin haelt die Handoff-Bedingung; die Konsumenten selbst bleiben unveraendert."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "operator"
