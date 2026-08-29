@@ -312,3 +312,86 @@ def test_append_assistant_message_does_not_mutate_input():
 
     assert messages == [{"role": "user", "content": "question"}]
     assert result[-1] == {"role": "assistant", "content": "answer"}
+
+
+# ---------------------------------------------------------------------------
+# Region contract.
+#
+# _SUPPORTED_REGIONS is an allow-list in a fail-closed path, so it has to match
+# what the SDK can actually resolve — not what a document says. Measured
+# 2026-08-29, the two disagree, and the SDK is the one that runs:
+#
+#   region            Cisco docs        SDK (measured)
+#   us-west-2         us.               us.
+#   eu-central-1      eu.               eu.
+#   ap-northeast-1    -- (docs say      apj.
+#                     region `ap-ne-1`,
+#                     host `ap.`)
+#   me-central-1      not documented    uae.
+#
+# Two traps this pins:
+#   * `ap-ne-1`, the region name in Cisco's published table, is REJECTED by the
+#     SDK (`ValueError: Invalid region`). An operator following the docs would
+#     configure a value that cannot work.
+#   * `me-central-1` IS supported (uae host) though absent from the docs. A
+#     research pass over Cisco's documentation on 2026-08-29 concluded no
+#     Middle-East host exists; acting on that would have removed a working
+#     region. The endpoint below is the counter-evidence.
+#
+# `Config` is a process-wide singleton that IGNORES later parameters (it logs
+# "Config singleton already initialized" and keeps the first region), so each
+# case must reset it — and a probe that does not reset gets a uniform, plausible
+# and wrong answer. That is how this table was nearly recorded incorrectly.
+# ---------------------------------------------------------------------------
+
+_REGION_ENDPOINTS = {
+    "us-west-2": "https://us.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat",
+    "eu-central-1": "https://eu.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat",
+    "ap-northeast-1": "https://apj.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat",
+    "me-central-1": "https://uae.api.inspect.aidefense.security.cisco.com/api/v1/inspect/chat",
+}
+
+
+def _fresh_client(region: str):
+    """Build a client for *region*, defeating the Config singleton."""
+    from aidefense import ChatInspectionClient, Config
+
+    Config._instances.clear()
+    return ChatInspectionClient(api_key="a" * 64, config=Config(region=region))
+
+
+def test_every_allowed_region_resolves_to_its_own_cisco_endpoint():
+    """The allow-list and the SDK must agree, region by region.
+
+    Not one representative region: an allow-list is a claim about ALL of its
+    members, and a single spot check would keep a region that the SDK no longer
+    resolves.
+    """
+    assert set(defense._SUPPORTED_REGIONS) == set(_REGION_ENDPOINTS), (
+        "the allow-list and the measured endpoint table drifted apart; "
+        "re-measure with a fresh process per region before editing either"
+    )
+    for region, expected in sorted(_REGION_ENDPOINTS.items()):
+        assert _fresh_client(region).endpoint == expected, region
+    assert len({*_REGION_ENDPOINTS.values()}) == len(_REGION_ENDPOINTS), (
+        "two regions resolved to the same host — the singleton was not reset"
+    )
+
+
+def test_an_unknown_region_is_refused_by_the_sdk_not_silently_defaulted():
+    """Positive control: the assertion above only means something if a bad
+    region actually fails. A silent default would make every case pass."""
+    import pytest as _pytest
+
+    for bogus in ("ap-ne-1", "xx-fantasy-9", ""):
+        with _pytest.raises(ValueError, match=r"[Ii]nvalid region"):
+            _fresh_client(bogus)
+
+
+def test_the_wrapper_rejects_a_region_the_sdk_would_reject():
+    """`ap-ne-1` is Cisco's documented region name and the SDK refuses it.
+
+    The wrapper must refuse it first, with its own configuration error, so the
+    failure names the configuration rather than surfacing an SDK ValueError.
+    """
+    assert "ap-ne-1" not in defense._SUPPORTED_REGIONS

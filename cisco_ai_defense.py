@@ -31,6 +31,12 @@ _MODE_ENV = "CISCO_AI_DEFENSE_MODE"
 _RESPONSE_MODE_ENV = "CISCO_AI_DEFENSE_RESPONSE_MODE"
 _TIMEOUT_ENV = "CISCO_AI_DEFENSE_TIMEOUT_SECONDS"
 
+# Measured against the SDK on 2026-08-29, because Cisco's published region
+# table and the SDK disagree and only one of them runs: the docs name
+# `ap-ne-1` (host `ap.`), which the SDK REJECTS, and omit `me-central-1`,
+# which the SDK resolves to a `uae.` host. The endpoint each of these four
+# resolves to is pinned in tests/test_cisco_ai_defense.py; re-measure there
+# before editing this set.
 _SUPPORTED_REGIONS = frozenset({"us-west-2", "eu-central-1", "ap-northeast-1", "me-central-1"})
 _SUPPORTED_ROLES = {
     "system": Role.SYSTEM,
@@ -239,8 +245,15 @@ def inspect_messages(
 
     action = getattr(result, "action", None)
     is_safe = getattr(result, "is_safe", None)
-    # SDK 2.1.2 defaults a missing is_safe field to True while parsing.  An
+    # SDK 2.1.2 defaults a missing is_safe field to True while parsing
+    # (`inspection_client.py:264`, `response_data.get("is_safe", True)`).  An
     # explicit action is therefore required as a second fail-closed contract.
+    # That second signal is genuinely independent — the SDK reads action from
+    # the response (`inspection_client.py:257`) rather than deriving it from
+    # is_safe — but note it is NOT in Cisco's published response schema
+    # (checked 2026-08-29), and the SDK swallows an unrecognised value into
+    # None via `except ValueError: pass`.  Requiring it is deliberately
+    # stricter than the documented contract.
     decision_valid = isinstance(is_safe, bool) and action in {Action.ALLOW, Action.BLOCK}
     if not decision_valid:
         raise AIDefenseUnavailableError("Cisco AI Defense returned an incomplete decision; provider call blocked")
