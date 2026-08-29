@@ -11,6 +11,7 @@ import {
   resolveExecutionPlan,
   resolveExpectedConsumerTargets,
   resolveExpectedLayoutSavePoints,
+  resolveLibraryDriftGate,
   resolveLibraryPublishObservation,
   resolveSkippedLayouts,
   sha256Bytes,
@@ -470,4 +471,40 @@ test("only a known drift gates report.ok; unknown does not", () => {
   const probeAt = rollout.indexOf("fetchPublishedLibraryVersionViaFacade");
   const firstSaveAt = rollout.indexOf("saveConsumerSource(session, target)");
   assert.ok(probeAt > 0 && firstSaveAt > 0 && probeAt < firstSaveAt);
+});
+
+// --------------------------------------------------------------------------
+// Library-Drift: "darf nicht schreiben" ist nicht "darf nicht messen".
+// --------------------------------------------------------------------------
+
+test("a writing run still aborts on drift", () => {
+  for (const mode of ["write", "repair-only", "save-only"]) {
+    const gate = resolveLibraryDriftGate({ verdict: "drift", mode });
+    assert.equal(gate.abort, true, `${mode} must not save onto an unpublished pin`);
+    assert.equal(gate.judgeSources, false);
+    assert.match(gate.reason, /must not save/);
+  }
+});
+
+test("a read-only run measures under drift instead of dying blind", () => {
+  const gate = resolveLibraryDriftGate({ verdict: "drift", mode: "verify-only" });
+  // Der Punkt der Aenderung: KEIN Abbruch vor der Messung. Bis 2026-08-29
+  // starb dadurch jeder tv-save-Lauf mit checkedConsumers: 0.
+  assert.equal(gate.abort, false);
+  // Und die Grenze der Aussage: Quellen bleiben unbeurteilt, weil ihr
+  // Erwartungswert aus dem Baum stammt, dessen Uebereinstimmung die Drift
+  // gerade offen laesst. Bindungen haengen nicht an der Library-Version.
+  assert.equal(gate.judgeSources, false);
+  assert.match(gate.reason, /BINDINGS only/);
+});
+
+test("without drift nothing changes for any mode", () => {
+  for (const verdict of ["match", "unknown"] as const) {
+    for (const mode of ["verify-only", "write"]) {
+      const gate = resolveLibraryDriftGate({ verdict, mode });
+      assert.equal(gate.abort, false, `${verdict}/${mode}`);
+      assert.equal(gate.judgeSources, true, `${verdict}/${mode} must still judge sources`);
+      assert.equal(gate.reason, "");
+    }
+  }
 });

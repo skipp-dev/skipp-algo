@@ -92,6 +92,70 @@ export function resolveLibraryPublishObservation(input: {
   return Object.freeze({ scriptName, manifestPublishedVersion, observedVersion, verdict });
 }
 
+/** Was ein Lauf bei Library-Publish-Drift tun darf. */
+export type LibraryDriftGate = Readonly<{
+  /** Lauf abbrechen, BEVOR irgendetwas gemessen wurde. */
+  abort: boolean;
+  /** Duerfen Quell-Vergleiche als Urteil gelten? */
+  judgeSources: boolean;
+  reason: string;
+}>;
+
+/**
+ * Trennt "darf nicht SCHREIBEN" von "darf nicht MESSEN".
+ *
+ * Der Abbruch bei Drift wurde fuer schreibende Laeufe gebaut, und seine
+ * Begruendung sagt das woertlich: die Consumer, die gleich GESPEICHERT werden,
+ * tragen `import .../<N>`-Pins, und gegen eine Version zu speichern, die
+ * TradingView nicht veroeffentlicht, ist die CE10272-Klasse — die Skripte
+ * landen und kompilieren dann auf dem Operator-Chart nicht.
+ *
+ * Ein `verify-only`-Lauf speichert NICHTS. Fuer ihn galt der Abbruch trotzdem,
+ * und das kostete die Beobachtung selbst: gemessen vom 2026-08-28 bis
+ * 2026-08-29 starb JEDER tv-save-Lauf mit `checkedConsumers: 0`, weil die
+ * Save-Queue (4-6 h Latenz) fast immer in ein Drift-Fenster faellt, das die
+ * ~stuendlichen Publishes oeffnen. Die Bindungen des Operators waren seit dem
+ * 28.8. gesetzt und wurden nie bestaetigt — nicht weil sie falsch waren,
+ * sondern weil niemand hinsah.
+ *
+ * Was unter Drift NICHT beurteilt werden darf, sind die QUELLEN: ihr
+ * Erwartungswert stammt aus dem ausgecheckten Baum, und genau dessen
+ * Uebereinstimmung mit TradingView ist waehrend der Drift offen. Ein
+ * "drifted"-Urteil daraus waere ein Fehlalarm ueber die Library-Version, nicht
+ * ueber die Quelle. BINDUNGEN haengen nicht an der Library-Version: welcher
+ * Ausgang eines Producers in welchem Eingang eines Consumers steckt, ist von
+ * `import .../<N>` unabhaengig — sie bleiben beurteilbar.
+ *
+ * `report.ok` bleibt davon unberuehrt: die Drift-Klausel dort haelt den Lauf
+ * weiter auf `false`. Diese Funktion aendert NUR, ob vor der Messung
+ * abgebrochen wird.
+ */
+export function resolveLibraryDriftGate(input: {
+  verdict: LibraryPublishObservation["verdict"];
+  mode: string;
+}): LibraryDriftGate {
+  const { verdict, mode } = input;
+  if (verdict !== "drift") {
+    return Object.freeze({ abort: false, judgeSources: true, reason: "" });
+  }
+  if (mode !== "verify-only") {
+    return Object.freeze({
+      abort: true,
+      judgeSources: false,
+      reason: "a writing run must not save consumers onto a pin TradingView does not publish",
+    });
+  }
+  return Object.freeze({
+    abort: false,
+    judgeSources: false,
+    reason:
+      "library publish drift: read-only run continues and judges BINDINGS only; "
+      + "source comparison is not judged because its expectation comes from the "
+      + "checked-out tree, whose agreement with TradingView is what the drift "
+      + "puts in question",
+  });
+}
+
 function isTrue(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }
