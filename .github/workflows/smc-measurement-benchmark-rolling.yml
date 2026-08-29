@@ -547,9 +547,23 @@ jobs:
           set +e
           rollup="${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json"
           if [ -s "${rollup}" ]; then
+            # --captured-at: ohne diesen Wert faellt captured_at auf
+            # `now()` SEKUNDENGENAU zurueck, und die Dedup-Zusage des
+            # Skripts traegt hier nicht — jeder Lauf schreibt eine Zeile.
+            # Gemessen 2026-08-29: bis zu 9 Fires/Werktag (workflow_run je
+            # Producer-Tick), damit deckte die Rotation auf 366 Zeilen ~40
+            # Tage statt der weiter unten behaupteten ~1 Jahr.
+            # --replace-on-duplicate: der juengste Lauf des Tages gewinnt.
+            # Der Bench scort ein 5-Tage-Ankerfenster; spaetere Laeufe sehen
+            # nachgereifte Labels (derselbe Grund, aus dem der
+            # Accumulate-Schritt auf "laengste forward_closes" dedupliziert).
+            # Ohne die Flagge behielte die Datei den FRUEHESTEN Schnappschuss
+            # und wuerfe die Reifung weg.
             "$SMC_PYTHON_BIN" scripts/plan_2_8_history_archive.py \
               --rollup  "${rollup}" \
               --history "${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl" \
+              --captured-at "${{ steps.meta.outputs.run_date }}T00:00:00Z" \
+              --replace-on-duplicate \
               || true
           fi
           true
