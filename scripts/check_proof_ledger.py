@@ -186,9 +186,45 @@ def _coupling_failures() -> list[str]:
     return problems
 
 
+def guessed_pr_numbers(added_ids: frozenset[str], pr_number: str) -> list[str]:
+    """Welche neu angelegten numerischen ids gehoeren NICHT zu diesem PR?
+
+    Warum das geprueft wird (2026-08-29, ein bezahlter Ausfall):
+    PR #5179 legte seinen Eintrag unter ``id = "5178"`` an -- seine eigene Nummer
+    war 5179, die Nummer war beim Anlegen GERATEN, und 5178 war zu dem Zeitpunkt
+    bereits belegt. Der Loader lehnt das Ledger bei doppelter id KOMPLETT ab:
+    17 Tests rot, ``main`` 70 Minuten blockiert, jeder offene PR mit dazu.
+
+    Beide PRs waren fuer sich gruen. Die Checks von #5179 liefen auf einer Basis
+    VOR dem Merge des anderen und konnten die Kollision strukturell nicht sehen
+    -- kein Review-Versaeumnis, sondern die Stale-Check-Falle. Ein
+    Kollisions-Test haette sie deshalb auch nicht gefangen; was faengt, ist die
+    Frage, ob die Nummer ueberhaupt die EIGENE ist. Die kann jeder PR fuer sich
+    allein beantworten.
+
+    Symbolische ids (``refresh-surface-hold``, ``klasse-h``-Halter) sind
+    ausgenommen: sie referenzieren keinen PR und koennen deshalb auch keinen
+    fremden treffen.
+    """
+    return sorted(
+        added
+        for added in added_ids
+        if added.isdigit() and added != pr_number
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--range", dest="commit_range", required=True)
+    parser.add_argument(
+        "--pr",
+        dest="pr_number",
+        default="",
+        help=(
+            "Nummer des PRs, der diesen Bereich beitraegt. Gesetzt erzwingt sie, "
+            "dass jede neu angelegte NUMERISCHE Beweis-id genau diese Nummer ist."
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -204,13 +240,39 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {line}", file=sys.stderr)
         return 1
 
+    after = frozenset(entry.id for entry in entries)
+
+    # VOR dem `touched`-Ausstieg, aber NUR wenn eine PR-Nummer vorliegt: ein PR
+    # kann einen Eintrag anlegen, ohne selbst beweispflichtige Dateien zu
+    # beruehren (der Ausfall vom 2026-08-29 war genau so ein `exempt`-Eintrag).
+    # Stuende die Pruefung unter dem Ausstieg, waere sie fuer den Fall blind,
+    # der sie ausgeloest hat. Die `merge-base`-Aufloesung bleibt bewusst INNEN:
+    # ohne `--pr` (main-Push, merge_group, Aufrufe mit synthetischem Bereich)
+    # darf sich am bisherigen Verhalten nichts aendern.
+    if args.pr_number:
+        added = after - _ledger_ids_at(_merge_base_commit(args.commit_range))
+        fremd = guessed_pr_numbers(added, args.pr_number)
+        if fremd:
+            print(
+                f"Beweis-Eintrag mit fremder PR-Nummer: {fremd} — dieser PR ist "
+                f"#{args.pr_number}.",
+                file=sys.stderr,
+            )
+            print(
+                "Eine geratene Nummer kann eine bereits belegte treffen. Der "
+                "Loader lehnt das Ledger dann KOMPLETT ab (`doppelte id`), und "
+                "main faellt fuer alle offenen PRs aus — am 2026-08-29 70 "
+                "Minuten lang. id auf die eigene PR-Nummer setzen.",
+                file=sys.stderr,
+            )
+            return 1
+
     touched = sorted(_changed_files(args.commit_range) & derive_class())
     if not touched:
         return 0
 
     base = _merge_base_commit(args.commit_range)
     before = _ledger_ids_at(base)
-    after = frozenset(entry.id for entry in entries)
     if after - before:
         return 0
 

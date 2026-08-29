@@ -117,6 +117,11 @@ REQUIRED_PINNED_TESTS: tuple[str, ...] = (
 # Snapshot refreshed 2026-07-26; additions require a matching workflow edit so
 # the tuple and the merge-critical invocation remain a two-way audit trail.
 FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
+    # 2026-08-29: liest die Verdrahtung des Beweis-id-Waechters in
+    # smc-fast-pr-gates. Ohne required Pfad koennte genau der Merge
+    # durchgehen, der `--pr` oder `PR_NUMBER` entfernt — und die geratene
+    # Nummer waere wieder ungefangen (Ausfall 2026-08-29, main 70 min rot).
+    "tests/test_proof_entry_id_is_the_own_pr_number.py",
     "tests/test_assert_and_open_encoding_pin.py",
     "tests/test_assert_in_production_budget.py",
     "tests/test_asyncio_event_loop_zero_surface.py",

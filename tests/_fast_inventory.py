@@ -122,6 +122,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_exit_tif_explicit_at_order_submitters.py",
     "test_prod_print_ledger.py",
     "test_proof_ledger.py",
+    "test_proof_entry_id_is_the_own_pr_number.py",
     "test_pytest_skip_budget.py",
     "test_random_tempfile_ledger_pin.py",
     "test_realtime_signals_sister_ledger_guardrail.py",
