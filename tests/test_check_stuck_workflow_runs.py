@@ -18,9 +18,11 @@ gesunde Langläufer), und dass diese Ableitung überhaupt etwas findet.
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import pytest
 
+import scripts.check_stuck_workflow_runs as mod
 from scripts.check_stuck_workflow_runs import (
     IN_PROGRESS_BUDGET_MIN,
     QUEUED_BUDGET_MIN,
@@ -279,3 +281,130 @@ def test_the_age_source_follows_the_status_not_the_presence_of_a_field() -> None
     assert "Laufzeit" in laufend[0].age_source
     assert "Wartezeit" in wartend[0].as_error_annotation()
     assert "Laufzeit" in laufend[0].as_error_annotation()
+
+
+def test_the_queued_diagnosis_names_the_orphan_cause_too() -> None:
+    """Die zweite Ursache, die den ERSTEN Fund dieses Waechters erklaerte.
+
+    2026-08-29: tv-onboarding-packages stand 4140 min in `queued`, und die
+    damals einzige Diagnose schickte den Leser zum Runner-Label. Gemessen war
+    es etwas anderes: der Lauf gehoerte zu PR #5101, der 20 min nach dem
+    Queue-Eintritt mergte; der Branch `ci/pin-playwright-browser` verschwand
+    dabei (`git ls-remote` = 0 Refs), und GitHub raeumt so einen PR-Lauf nie
+    ab. Repo-weit war das der EINZIGE wartende Lauf (`status=queued` ->
+    total_count 1) — die Klasse ist selten, aber ihre Fehldiagnose kostet
+    jedes Mal eine Suche am intakten Label.
+
+    Ein Alarm, der wahr ist und falsch begruendet, ist die teuerste Sorte:
+    er wird geglaubt.
+    """
+    f = evaluate(
+        [
+            _run(
+                status="queued",
+                created_at="2026-08-26T15:38:15Z",
+                run_started_at="2026-08-26T15:38:15Z",
+                name="tv-onboarding-packages",
+            )
+        ],
+        _NOW,
+    )[0]
+    assert "verwaist" in f.diagnosis, (
+        "die Waisen-Ursache fehlt — der Leser prueft dann ein intaktes Label"
+    )
+    assert "Runner-Label" in f.diagnosis, (
+        "die Label-Ursache darf dabei nicht verloren gehen; beide sind moeglich"
+    )
+
+
+def test_the_orphan_hint_does_not_stop_at_cancel() -> None:
+    """`gh run cancel` allein ist eine Sackgasse — am 29.8. gemessen.
+
+    Beide Endpunkte verweigerten den Waisen, und zwar mit einander
+    widersprechenden Meldungen: `gh run cancel` -> "Cannot cancel a workflow
+    run that is completed", force-cancel -> "Cannot cancel a workflow run that
+    has not been queued yet" (HTTP 409) — waehrend Lauf UND Check-Suite
+    unveraendert `queued` meldeten. Ein Hinweis, der dort endet, schickt den
+    Leser in genau diese Schleife; der Ausweg (DELETE) gehoert daneben.
+    """
+    run = _run(
+        status="queued",
+        created_at="2026-08-26T15:38:15Z",
+        run_started_at="2026-08-26T15:38:15Z",
+    )
+    f = evaluate([run], _NOW)[0]
+    assert "cancel" in f.diagnosis and "DELETE" in f.diagnosis, (
+        f"der Hinweis endet bei cancel und laesst den Leser stehen: {f.diagnosis}"
+    )
+    assert "PHANTOM_RUN_IDS" in f.diagnosis, (
+        "der Hinweis muss den einzigen verbleibenden Weg nennen — sonst "
+        "verspricht er einen Ausweg, den es nachweislich nicht gibt"
+    )
+
+
+def test_a_phantom_run_does_not_keep_the_watcher_permanently_red() -> None:
+    """Die Ausnahme wirkt — sonst faellt der Waechter seinem ersten Fund zum Opfer.
+
+    Lauf 32985711996 ist am 2026-08-29 gegen alle drei Aufloesungswege
+    gemessen worden (cancel / force-cancel / DELETE — alle verweigern, mit
+    widerspruechlichen Begruendungen, waehrend der Lauf `queued` meldet).
+    Ohne Ausnahme meldet der Waechter ihn bei JEDEM Lauf, und ein dauerhaft
+    roter Draht wird abgeschaltet.
+    """
+    phantom = _run(
+        id=32985711996,
+        status="queued",
+        created_at="2026-08-26T15:38:15Z",
+        run_started_at="2026-08-26T15:38:15Z",
+        name="tv-onboarding-packages",
+    )
+    assert evaluate([phantom], _NOW) == [], "der Phantom-Lauf faerbt weiter rot"
+
+
+def test_the_phantom_exception_is_narrow_and_not_a_pattern() -> None:
+    """Ein ANDERER haengender Lauf desselben Workflows muss weiter feuern.
+
+    Die Ausnahme ist eine ID-Liste, kein Muster. Ein Muster ("alles, was
+    verwaist aussieht") wuerde genau die Klasse stumm schalten, um die es
+    geht — die Ausfallart ohne Alarm, gegen die #5183 gebaut wurde.
+    """
+    anderer = _run(
+        id=999999999,
+        status="queued",
+        created_at="2026-08-26T15:38:15Z",
+        run_started_at="2026-08-26T15:38:15Z",
+        name="tv-onboarding-packages",
+    )
+    assert len(evaluate([anderer], _NOW)) == 1, (
+        "die Ausnahme greift zu breit — sie darf NUR die eine gemessene ID decken"
+    )
+
+
+def test_no_phantom_id_has_outlived_its_reason() -> None:
+    """Die Gegenrichtung: eine Ausnahme, deren Grund entfallen ist, muss auffallen.
+
+    Der Eintrag steht nur, WEIL GitHub den Lauf nicht aufloest. Loest GitHub
+    ihn doch noch auf, ist die Ausnahme gegenstandslos — und eine
+    gegenstandslose Ausnahme ist schlimmer als keine: sie behauptet, ein Lauf
+    koenne nicht gemeldet werden, waehrend er laengst weg ist. Dieselbe
+    Mechanik wie bei den `[[unreachable_branch]]`-Deklarationen des
+    Beweis-Ledgers: die Deklaration muss sterben koennen.
+
+    Netzlos geprueft: der Eintrag muss im Modul begruendet sein (ID im
+    Kommentarblock ueber der Menge). Wer eine ID ohne Begruendung eintraegt,
+    faellt hier auf.
+    """
+    quelle = Path(mod.__file__).read_text(encoding="utf-8")
+    # An der ZUWEISUNG ankern, nicht am ersten Vorkommen des Namens: seit die
+    # Diagnose den Namen selbst nennt, traf ein naiver split() den Text im
+    # Meldungs-String und schnitt den Begruendungsblock weg. Der Test fiel
+    # dadurch auf seine eigene Suche herein — genau die Klasse, die er bewacht.
+    marker = "PHANTOM_RUN_IDS: frozenset[int] = frozenset("
+    assert marker in quelle, "die Zuweisung ist umgezogen — Anker neu setzen"
+    block = quelle.split(marker)[0]
+    for run_id in mod.PHANTOM_RUN_IDS:
+        assert str(run_id) in block, (
+            f"Lauf {run_id} steht in PHANTOM_RUN_IDS, aber der Kommentarblock "
+            "darueber begruendet ihn nicht — eine Ausnahme ohne Grund wird nie "
+            "wieder geprueft"
+        )
