@@ -395,3 +395,56 @@ def test_the_wrapper_rejects_a_region_the_sdk_would_reject():
     failure names the configuration rather than surfacing an SDK ValueError.
     """
     assert "ap-ne-1" not in defense._SUPPORTED_REGIONS
+
+
+def test_agentsec_still_cannot_see_this_repository_s_egress():
+    """The reason `agentsec.protect()` is not wired, as a tripwire rather than prose.
+
+    Cisco's SDK ships an `agentsec` auto-patcher (measured 2026-08-29: it is
+    present, contrary to what this repo's documentation claimed for months).
+    It patches SDK *clients*. This repository's single LLM egress is a raw
+    `httpx` POST, so the patcher is structurally blind to it.
+
+    That reasoning has exactly two premises, and both are checked here, because
+    prose does not notice when a premise stops holding:
+
+      * `httpx` is not among the patchers — a future SDK could add one;
+      * no production module imports a patched client — a future refactor to
+        the `openai` SDK would change that (the egress guard would catch the
+        import, but not the consequence for agentsec).
+
+    If either goes red, `agentsec` becomes relevant and the decision not to
+    wire it has to be taken again on current facts.
+    """
+    from pathlib import Path as _Path
+
+    from aidefense.runtime import agentsec
+
+    patcher_dir = _Path(agentsec.__file__).parent / "patchers"
+    patchers = {
+        path.stem
+        for path in patcher_dir.glob("*.py")
+        if not path.stem.startswith("_")
+    }
+    assert patchers, "patcher inventory collapsed — the assertions below would be vacuous"
+    assert "httpx" not in patchers, (
+        "the SDK now patches httpx, so agentsec CAN see this repo's raw-httpx "
+        f"egress; re-take the decision not to wire it. Patchers: {sorted(patchers)}"
+    )
+    # The second premise is the egress guard's inventory: our one generation
+    # path uses httpx, not a patched client.
+    egress = (defense_repo_root() / "terminal_fmp_insights.py").read_text(encoding="utf-8")
+    assert "httpx.Client(" in egress, "the egress path no longer uses raw httpx"
+    checked = sorted(patchers)
+    assert checked, "no patcher to check the egress against — the loop below would pass vacuously"
+    for client in checked:
+        assert f"import {client}" not in egress, (
+            f"terminal_fmp_insights now imports {client}, which agentsec patches — "
+            "wiring agentsec is no longer a no-op and must be reconsidered"
+        )
+
+
+def defense_repo_root():
+    from pathlib import Path as _Path
+
+    return _Path(__file__).resolve().parents[1]

@@ -544,12 +544,40 @@ What this does and does not change:
   is that activating an agent or MCP runtime is a new trust boundary that needs
   a reviewed design — not that no enforcement point exists.  That premise is
   unaffected.
-* What is no longer true is the *reason* previously given for it.  `agentsec`
-  is an available enforcement point; we have simply not designed for it.  That
-  is an architecture decision, and it should be stated as one.
-* `anthropic` is **not** among the patched clients, so Claude traffic would be
-  covered only indirectly via `boto3`/Bedrock.  Relevant if an agent path is
-  ever designed.
+* The reason previously given for it was wrong, and the first correction of it
+  (2026-08-29) was still too vague: it said `agentsec` is "an available
+  enforcement point we have simply not designed for".  Measured the same day,
+  it is not available *to this repository* at all, for three independent
+  reasons — any one of which is sufficient:
+
+  1. **It patches SDK clients; our egress is raw `httpx`.**  The nine patchers
+     are `openai`, `bedrock`, `cohere`, `mistral`, `vertexai`, `google_genai`,
+     `azure_ai_inference`, `litellm`, `mcp`.  `httpx` is not among them.
+     Measured: `httpx.Client.post` is byte-identical before and after
+     `protect()`.  Our one egress call is
+     `httpx.Client().post("https://api.openai.com/v1/chat/completions")`
+     (`terminal_fmp_insights.py`), so the auto-patcher is structurally blind to
+     it — which is exactly what `cisco_ai_defense.py`'s own module docstring has
+     said since day one.
+  2. **No production module imports any patched client.**  Even with `wrapt`
+     present, `protect()` would patch nothing here.
+  3. **`protect()` cannot execute on the pinned SDK.**  It raises
+     `ModuleNotFoundError: No module named 'wrapt'`, and `wrapt` appears in
+     neither `Requires-Dist` nor the single declared extra (`aibom`).  The
+     module ships with an undeclared runtime dependency.
+
+  Calling `agentsec.protect()` on the current path would therefore be a no-op
+  that looks like protection — the vacuity failure class this repository spends
+  a lot of effort hunting.  It is not wired, and that is a measurement, not a
+  preference.
+* `anthropic` is **not** among the patched clients either, and this repository
+  makes no Anthropic calls at all, so the question is moot here.  It would
+  matter only for a future path that used the `anthropic` SDK directly; Bedrock
+  traffic via `boto3` would be covered.
+* **When this changes:** `tests/test_cisco_ai_defense.py` pins reason 1.  If a
+  future SDK adds an `httpx` patcher, or if this repository starts importing a
+  patched client, that test goes red and this decision has to be re-taken.  The
+  paragraph above is a summary of that tripwire, not a promise to remember.
 
 Whether the tenant license includes Secure Access AI Access, Gateway, hybrid,
 or MCP features must be confirmed in Security Cloud Control.  Do not claim
