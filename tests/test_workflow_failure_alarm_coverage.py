@@ -35,6 +35,7 @@ from scripts.check_workflow_failure_alarm_coverage import (
     _mit_transient_retry,
     evaluate,
 )
+from tests._fast_gates_gate import evaluate_condition
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WATCHDOG = REPO_ROOT / ".github" / "workflows" / "meta-watchdog.yml"
@@ -173,9 +174,34 @@ def test_the_check_runs_daily_and_can_fail_the_job(watchdog: dict) -> None:
         (s for s in steps if str(s.get("name", "")).startswith("Fail job on stale")), None
     )
     assert fail_step is not None, "der abschliessende Fehlschlag-Schritt wurde umbenannt"
-    assert "steps.alarm_coverage.outputs.alarm_rc == '1'" in fail_step["if"], (
+    assert _job_faellt_bei("1"), (
         "der Fehlschlag der Abdeckungspruefung macht den Job NICHT rot -- damit "
         "waere der Waechter genau so stumm wie der Alarm, den er bewacht."
+    )
+
+
+def _job_faellt_bei(alarm_rc: str) -> bool:
+    """Faellt der Job bei diesem alarm_rc? Ausgewertet an der ECHTEN Bedingung.
+
+    Vorher stand hier ein Literal-Pin auf ``alarm_rc == '1'`` und ein
+    Abwesenheits-Assert auf ``'8'``. Beide blieben gruen, als die Bedingung
+    eine Deny-Liste war, durch die JEDER unbekannte rc still gruen fiel.
+    """
+    watchdog = yaml.safe_load(WATCHDOG.read_text(encoding="utf-8"))
+    steps = watchdog["jobs"]["probe"]["steps"]
+    bedingung = next(
+        s for s in steps if str(s.get("name", "")).startswith("Fail job on stale")
+    )["if"]
+    return evaluate_condition(
+        bedingung,
+        {
+            # alles andere ausdruecklich gruen: so misst der Aufruf allein den
+            # alarm_rc-Zweig und nicht versehentlich einen Nachbarn.
+            "probe.rc": "0",
+            "dag.dag_status": "complete",
+            "governance.governance_rc": "0",
+            "alarm_coverage.alarm_rc": alarm_rc,
+        },
     )
 
 
@@ -185,11 +211,40 @@ def test_an_invalid_probe_is_not_reported_as_healthy(watchdog: dict) -> None:
     schritt = next(s for s in steps if s.get("id") == "alarm_coverage")
     assert '"$rc" = "8"' in schritt["run"], "der Sondenfehler wird nicht gesondert behandelt"
     assert "KEIN Bestehen" in schritt["run"]
-
-    fail_step = next(s for s in steps if str(s.get("name", "")).startswith("Fail job on stale"))
-    assert "alarm_rc == '8'" not in fail_step["if"], (
+    assert not _job_faellt_bei("8"), (
         "ein Sondenfehler darf den Job nicht rot machen -- sonst faerbt jede "
         "Grafana-Stoerung den Watchdog rot und die echten Befunde gehen unter."
+    )
+
+
+def test_an_rc_outside_the_contract_is_not_silently_green() -> None:
+    """Der Vertrag kennt 0/1/8 — jeder andere rc ist ein ABSTURZ der Sonde.
+
+    Gefunden im Code-Review 2026-08-29: die Fail-Bedingung war eine
+    Deny-Liste (``alarm_rc == '1'``), also fielen 127 (Interpreter/Modulpfad
+    weg nach einem Runner-Image-Wechsel) und 137 (OOM-Kill) still gruen durch
+    — ausgerechnet im Waechter gegen stille Blindheit. Vor dem 25.8. hatte
+    ``bash -e`` das noch mitgefangen; die (richtige) ``set +e``-Klammer nahm
+    dieses Netz weg, ohne die Deny-Liste nachzuziehen.
+    """
+    for rc in ("2", "9", "127", "137"):
+        assert _job_faellt_bei(rc), (
+            f"alarm_rc={rc} liegt ausserhalb des Vertrags 0/1/8 und muss den "
+            "Job rot machen, statt still durchzugehen"
+        )
+    assert not _job_faellt_bei("0"), "ein sauberer Lauf darf nicht rot werden"
+    assert not _job_faellt_bei(""), (
+        "ein uebersprungener Step publiziert kein alarm_rc — das ist 'kein "
+        "Urteil', nicht 'Befund'"
+    )
+    schritt_run = next(
+        s
+        for s in yaml.safe_load(WATCHDOG.read_text(encoding="utf-8"))["jobs"]["probe"]["steps"]
+        if s.get("id") == "alarm_coverage"
+    )["run"]
+    assert "unbekanntem rc" in schritt_run, (
+        "der Step muss den unbekannten rc auch benennen, sonst steht der "
+        "Operator vor einem roten Job ohne Grund"
     )
 
 
@@ -532,3 +587,30 @@ def test_the_per_page_hint_reaches_the_blind_runbook(
     rc = cov.main([])
     assert rc == 1
     assert "GITHUB_WORKFLOW_MONITOR_PER_PAGE" in capsys.readouterr().err
+
+
+def test_a_mid_read_connection_reset_is_retried() -> None:
+    """Der haeufigste Transient ueberhaupt — und der einzige, der fehlte.
+
+    ``http.client.RemoteDisconnected`` ist ``ConnectionResetError``, also
+    ``OSError``, aber KEIN ``URLError``; er entsteht beim ``resp.read()``,
+    das ``urllib`` nicht mehr einpackt. Bis zum Code-Review 2026-08-29 fiel
+    er deshalb ohne Wiederholung durch, obwohl der Docstring "Netz-
+    Transienten" versprach.
+    """
+    import http.client
+
+    assert not isinstance(
+        http.client.RemoteDisconnected("x"), urllib.error.URLError
+    ), "Praemisse dieses Tests: RemoteDisconnected ist KEIN URLError"
+
+    calls = {"n": 0}
+
+    def fetch() -> str:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise http.client.RemoteDisconnected("Remote end closed connection")
+        return "ok"
+
+    assert _mit_transient_retry(fetch, schlaf=lambda _s: None) == "ok"
+    assert calls["n"] == 3
