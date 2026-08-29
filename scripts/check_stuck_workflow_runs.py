@@ -169,6 +169,21 @@ def max_declared_timeout(workflows_dir: Path | None = None) -> int:
 #: ihren Alarm an ein Artefakt, das niemand beseitigen kann.
 PHANTOM_RUN_IDS: frozenset[int] = frozenset({32985711996})
 
+#: Die FRIST zu der Ausnahme oben. Sie fehlte bis 2026-08-29, und der eigene
+#: Diagnosetext versprach sie schon: er nennt die Ausnahme "datiert", die
+#: Zuweisung darueber war ein undatiertes ``frozenset``. Ohne Datum ist eine
+#: Ausnahme kein Stolperdraht, sondern ein Mute — dasselbe, wogegen der
+#: Kommentarblock oben argumentiert.
+#:
+#: Was die Frist erzwingt, ist NACHMESSEN, nicht Entfernen. Zwei Ausgaenge sind
+#: moeglich, und beide verlangen eine Handlung: GitHub hat den Waisen inzwischen
+#: abgeraeumt (dann gehoert die id raus, sonst deckt sie kuenftig einen ECHTEN
+#: Stillstand mit derselben Nummer nicht mehr auf, sondern ist bloss tot), oder
+#: er steht weiter (dann Datum UND Begruendung erneuern, also erneut hinsehen).
+#: Muster: ``BEFRISTET bis`` in test_scheduled_workflow_observation_inventory
+#: und ``expected-stale-until=`` im workflow-freshness-monitor.
+PHANTOM_REVIEW_BY: str = "2026-09-30"
+
 
 def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
     """Reines Urteil — die Testbarkeit dieser Sonde haengt daran."""

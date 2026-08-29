@@ -408,3 +408,36 @@ def test_no_phantom_id_has_outlived_its_reason() -> None:
             "darueber begruendet ihn nicht — eine Ausnahme ohne Grund wird nie "
             "wieder geprueft"
         )
+
+
+def test_the_phantom_exception_carries_a_deadline_and_expires() -> None:
+    """Eine Ausnahme ohne Frist ist ein Mute — und der eigene Text verspricht eine.
+
+    Der Diagnosetext der Sonde nennt die Ausnahme "datiert"; bis 2026-08-29 war
+    die Zuweisung ein undatiertes ``frozenset``. Name und Ausdruck fielen
+    auseinander, und was blieb, war ein Dauer-Stummschalter fuer genau die
+    Ausfallart, gegen die #5183 gebaut wurde.
+
+    Diese Zeile IST der Stolperdraht: ab der Frist faellt sie rot und erzwingt
+    ein Nachmessen. Beide Ausgaenge verlangen eine Handlung — GitHub hat den
+    Waisen abgeraeumt (id entfernen, sonst ist sie tot und deckt kuenftig einen
+    ECHTEN Stillstand), oder er steht weiter (Datum UND Begruendung erneuern).
+    """
+    frist = dt.date.fromisoformat(mod.PHANTOM_REVIEW_BY)
+    assert dt.date.today() <= frist, (
+        f"Die Phantom-Ausnahme ist seit {mod.PHANTOM_REVIEW_BY} faellig. "
+        f"Nachmessen, ob {sorted(mod.PHANTOM_RUN_IDS)} noch stehen: "
+        "geraeumt -> id entfernen; steht weiter -> Datum und Begruendung "
+        "erneuern. Nicht einfach das Datum hochsetzen."
+    )
+
+
+def test_every_phantom_id_is_covered_by_the_deadline() -> None:
+    """Kein Eintrag darf an der Frist vorbei existieren.
+
+    Ohne diese Kopplung koennte eine zweite id spaeter dazukommen und waere
+    unbefristet — die Luecke von 2026-08-29 in klein.
+    """
+    assert mod.PHANTOM_RUN_IDS, "leere Ausnahmemenge — die Aussage unten waere vakuum"
+    assert mod.PHANTOM_REVIEW_BY, "Frist fehlt, die Ausnahme waere wieder ein Mute"
+    dt.date.fromisoformat(mod.PHANTOM_REVIEW_BY)

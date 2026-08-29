@@ -261,3 +261,76 @@ def test_broken_allowlist_raises_rather_than_passing(tmp_path: Path) -> None:
     broken.write_text(json.dumps({"variables": {"X": {"allowed": []}}}), encoding="utf-8")
     with pytest.raises(ValueError):
         load_allowlist(broken)
+
+
+# --------------------------------------------------------------------------
+# Literale Labels (2026-08-29): "im Diff sichtbar" heisst nicht "geprueft"
+# --------------------------------------------------------------------------
+
+
+def test_the_literal_derivation_finds_the_real_population() -> None:
+    """Positivkontrolle — ohne sie waeren alle Aussagen unten vakuum.
+
+    Bei der Anlage der Variablen-Allowlist wurden literale Labels mit der
+    Begruendung "im Diff sichtbar" ausgeklammert. Der erste echte Fund von
+    stuck-run-watch stand in einer matrix mit genau solchen Literalen: sichtbar
+    heisst nicht geprueft, ein Review nickt ein Label ab, das es nicht gibt.
+    """
+    from scripts.check_runner_label_variables import derive_literal_labels
+
+    literale = derive_literal_labels()
+    # Am 2026-08-29 gezaehlt: ubuntu-latest (blank 2x + 96x als ||-Rueckfall),
+    # windows-latest / macos-latest / macos-15-intel (matrix.runner).
+    assert "ubuntu-latest" in literale, f"Ableitung blind; gefunden: {sorted(literale)}"
+    for label in ("windows-latest", "macos-latest", "macos-15-intel"):
+        assert label in literale, (
+            f"{label} wird ueber `matrix.runner` benutzt, die Ableitung sieht es "
+            f"nicht — gefunden: {sorted(literale)}"
+        )
+
+
+def test_every_literal_label_in_use_is_on_the_allowlist() -> None:
+    """Der Anti-Drift-Arm gegen den ECHTEN Repo-Zustand."""
+    from scripts.check_runner_label_variables import (
+        derive_literal_labels,
+        evaluate_literals,
+        load_literal_allowlist,
+    )
+
+    findings = evaluate_literals(derive_literal_labels(), load_literal_allowlist())
+    assert findings == [], f"Literal-Labels ohne Deckung: {[(f.kind, f.variable) for f in findings]}"
+
+
+def test_an_unknown_literal_label_is_a_finding() -> None:
+    from scripts.check_runner_label_variables import evaluate_literals
+
+    findings = evaluate_literals(
+        {"ubuntu-latest": ("ci.yml",), "ubuntu-latest-arm": ("x.yml",)},
+        ("ubuntu-latest",),
+    )
+    assert [f.kind for f in findings] == ["unknown_literal_label"]
+    text = findings[0].detail + findings[0].as_error_annotation()
+    assert "ubuntu-latest-arm" in text and "x.yml" in text, (
+        "der Befund nennt weder das Label noch die betroffene Datei"
+    )
+
+
+def test_a_dead_literal_allowlist_entry_is_a_finding() -> None:
+    from scripts.check_runner_label_variables import evaluate_literals
+
+    findings = evaluate_literals({"ubuntu-latest": ("ci.yml",)}, ("ubuntu-latest", "macos-11"))
+    assert [f.kind for f in findings] == ["stale_literal_label"]
+    assert findings[0].variable == "macos-11"
+
+
+def test_a_broken_literal_allowlist_raises_rather_than_passing(tmp_path: Path) -> None:
+    """Eine leere Liste darf nicht als "nichts zu beanstanden" durchgehen."""
+    from scripts.check_runner_label_variables import load_allowlist
+
+    broken = tmp_path / "a.json"
+    broken.write_text(
+        json.dumps({"variables": {"X": {"allowed": ["y"]}}, "literal_labels": {"allowed": []}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        load_allowlist(broken)
