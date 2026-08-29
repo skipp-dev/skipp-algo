@@ -11,8 +11,18 @@ endet, erzeugt kein ``failure`` und taucht in keiner Alarmregel auf:
 
 * ``queued``, weil kein Runner das Label annimmt — ein falscher Wert in einer
   Repo-Variablen, ein totes self-hosted-Label auf einer der 15
-  ``select-runner``-Lanes. GitHub plant den Job nie ein und beendet ihn nach
-  24 h still als ``cancelled``.
+  ``select-runner``-Lanes. GitHub plant den Job nie ein, und der Lauf steht
+  **unbefristet**.
+
+  KORREKTUR 2026-08-29 (recherchiert, primaerbelegt): hier stand "beendet ihn
+  nach 24 h still als ``cancelled``". Das ist eine Fehlzuschreibung. Die Zeile
+  in den Actions-Limits lautet ``| Self-hosted | Job queue time | 24 hours |``
+  — sie gilt NUR self-hosted und NUR je JOB. Fuer GitHub-hosted gibt es gar
+  keine dokumentierte Warteschlangen-Grenze, und ein Lauf mit
+  ``jobs.total_count: 0`` hat keinen Job, der eine Uhr starten koennte. Der
+  Lauf steht also nicht "zu lange" — er steht ohne Ablauf. Das macht diese
+  Sonde wichtiger, nicht unwichtiger: es gibt keinen Mechanismus, der ihn
+  spaeter von selbst beendet.
 * ``in_progress``, weil ein Job hängt und die eigene ``timeout-minutes`` ihn
   nicht killt — der ``validate (4)``-Hang (#4939/#4949) ist genau das.
 
@@ -117,7 +127,7 @@ class Stuck:
             "kein Runner hat den Job angenommen — NICHT nach einem haengenden "
             "Test suchen, es laeuft nichts. Entweder Runner-Label pruefen "
             "(Repo-Variable oder self-hosted-Selektor) ODER der Lauf ist "
-            "verwaist: Branch geloescht / PR gemergt, waehrend er wartete. "
+            "verwaist: Branch geloescht / PR gemergt, waehrend er wartete "
             "Beim Waisen zuerst `gh run cancel <id>` versuchen — schlaegt das "
             "fehl, force-cancel und DELETE ebenfalls (alle drei am 2026-08-29 "
             "gemessen), dann ist der Lauf unsterblich und gehoert als "
@@ -156,7 +166,8 @@ def max_declared_timeout(workflows_dir: Path | None = None) -> int:
 #: stumm schalten, um die es hier geht.
 #:
 #: 32985711996 (tv-onboarding-packages, PR #5101, `queued` seit
-#: 2026-08-26T15:38:15Z): der PR mergte 20 min nach dem Queue-Eintritt, sein
+#: 2026-08-26T15:38:15Z): BEOBACHTETE Begleitumstaende — der PR mergte 20 min
+#: nach dem Queue-Eintritt, sein
 #: Branch `ci/pin-playwright-browser` verschwand dabei, der Lauf bekam nie
 #: einen Job (`total_count` 0). Am 2026-08-29 alle drei Aufloesungswege
 #: GEMESSEN — und alle drei verweigern, mit einander widersprechenden
@@ -182,7 +193,24 @@ PHANTOM_RUN_IDS: frozenset[int] = frozenset({32985711996})
 #: er steht weiter (dann Datum UND Begruendung erneuern, also erneut hinsehen).
 #: Muster: ``BEFRISTET bis`` in test_scheduled_workflow_observation_inventory
 #: und ``expected-stale-until=`` im workflow-freshness-monitor.
-PHANTOM_REVIEW_BY: str = "2026-09-30"
+#: 2026-08-29 von 2026-09-30 auf 2026-12-01 verschoben, mit Beleg statt Gefuehl.
+#: Ein GitHub-Changelog vom 2026-08-27 kuendigt an, dass Workflow-Runs AB
+#: 2026-10-01 unter die Actions-Retention fallen (Vorgabe 90 Tage) und danach
+#: automatisch abgeraeumt werden; vorher wurden sie 400+ Tage gehalten. Die alte
+#: Frist lag EINEN TAG VOR diesem Stichtag — sie haette also garantiert einen
+#: Review erzwungen, bei dem sich nichts geaendert haben KANN. Fuer einen am
+#: 2026-08-26 erzeugten Lauf laeuft die 90-Tage-Uhr rechnerisch Ende November
+#: aus; der 1.12. ist der erste Termin, an dem Nachmessen etwas finden kann.
+#: UNSICHER bleibt, ob die Retention einen Lauf erfasst, der nie endete —
+#: deshalb Nachmessen und nicht Annehmen.
+#:
+#: Der einzige bekannte Ausweg vorher ist ein GitHub-Support-Ticket mit Repo,
+#: Run-ID und den drei Fehlercodes: recherchiert 2026-08-29, keine Quelle nennt
+#: einen Selbstbedienungs-Weg, und zwei naheliegende Hoffnungen sind widerlegt
+#: (force-cancel ist NICHT der vorgesehene Weg fuer diese Sequenz; DELETE
+#: beginnt NICHT nach zwei Wochen zu greifen — die Zwei-Wochen-Regel gilt nur
+#: fuer Laeufe, die auch abgeschlossen sind).
+PHANTOM_REVIEW_BY: str = "2026-12-01"
 
 
 def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:

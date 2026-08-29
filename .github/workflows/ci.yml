@@ -62,8 +62,11 @@ jobs:
   # 2026-08-29 (Observability-Review zu #5168): `SMC_CI_ARM_RUNNER` unten waehlt
   # den Runner der vier required `validate (N)`-Shards. Ein Tippfehler in dieser
   # Repo-Variablen erzeugt KEINEN roten Lauf, sondern GAR KEINEN: GitHub findet
-  # kein passendes Label, der Job bleibt `queued` bis zum 24-h-Limit und wird
-  # dann still `cancelled`. `timeout-minutes` faengt das nicht — es laeuft erst,
+  # kein passendes Label, der Job wird nie angelegt, und der Lauf steht
+  # UNBEFRISTET in `queued`. (Korrektur 2026-08-29: hier stand "bis zum
+  # 24-h-Limit, dann still cancelled". Die 24-h-Zeile der Actions-Limits gilt
+  # nur self-hosted und nur je JOB; fuer GitHub-hosted ist keine
+  # Warteschlangen-Grenze dokumentiert.) `timeout-minutes` faengt das nicht — es laeuft erst,
   # wenn ein Runner den Job angenommen HAT (dieselbe Erkenntnis steht seit
   # laengerem in tests/test_workflow_runner_pinned.py fuer fast-gates). Und der
   # Fehleralarm `lo-workflow-run-failed` wertet nur "latest run failed" aus

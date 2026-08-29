@@ -170,7 +170,8 @@ def test_no_stale_ubuntu_latest_tier_literals() -> None:
 #: `runner-label-variable-watch` prueft die WERTE der Runner-Variablen. Ein
 #: Wachposten, der selbst an einer dieser Variablen haengt, steht in genau dem
 #: Moment mit, in dem er gebraucht wird -- ein falsches Label macht Jobs nicht
-#: rot, sondern verhindert sie (`queued` bis zum 24-h-Limit, dann still
+#: rot, sondern verhindert sie (`queued` UNBEFRISTET; die 24-h-Zeile der
+#: Actions-Limits gilt nur self-hosted und nur je JOB, korrigiert 2026-08-29
 #: `cancelled`). Die Immunitaet IST hier die Funktion, nicht eine Nachlaessigkeit.
 #: Als Paar gepinnt: der Job muss literal bleiben (unten), und kein zweiter Job
 #: darf sich dieselbe Schreibweise nehmen.

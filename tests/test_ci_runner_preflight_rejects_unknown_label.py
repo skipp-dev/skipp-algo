@@ -13,7 +13,9 @@ Ein Tippfehler in dieser Variablen erzeugt keinen roten Lauf, sondern gar
 keinen. Drei belegte Bausteine ergeben zusammen den blinden Fleck:
 
 * GitHub findet kein passendes Label und plant den Job nie ein — er bleibt
-  ``queued`` bis zum 24-h-Limit und wird dann still ``cancelled``.
+  ``queued``, und zwar UNBEFRISTET: die 24-h-Zeile der Actions-Limits gilt nur
+  self-hosted und nur je JOB, und ein Lauf ohne angelegten Job hat keinen, der
+  eine Uhr startet (korrigiert 2026-08-29, vorher stand hier ein 24-h-Limit).
 * ``timeout-minutes`` faengt das nicht. Dieselbe Erkenntnis steht seit laengerem
   in ``tests/test_workflow_runner_pinned.py`` fuer fast-gates: *"timeout-minutes
   is only enforced by the runner itself"* — es laeuft erst, wenn ein Runner den
