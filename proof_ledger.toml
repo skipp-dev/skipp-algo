@@ -1314,11 +1314,25 @@ owner  = "operator"
 #     2026-09-19) die Freshness-Watchlist die Dauerbeobachtung; dieser
 #     befristete Inventar-Eintrag ist der Stolperdraht, falls der
 #     Messlauf ausbleibt.
+#
+# NACHTRAG 2026-08-29 (Code-Review), zwei Korrekturen an diesem Eintrag:
+# 1. Der oben genannte BEFRISTET-Stolperdraht existiert nicht mehr: #5091
+#    hat ihn noch am selben Tag planmaessig aufgeloest (Messlauf 32940381326
+#    gruen, 32:49; Watchlist-Zeile ats-baseline-daily.yml=72:weekday). Es
+#    entstand keine Luecke — aber ein Ledger-Eintrag, der auf einen
+#    entfernten Mechanismus zeigt, ist genau die Prosa-ohne-Deckung, gegen
+#    die dieses Ledger gebaut ist. Die Dauerbeobachtung haelt jetzt die
+#    Watchlist (Eintrag ats-watchlist-row unten).
+# 2. Die 78-Ausnahme fuer den Corpus-Step ist ZURUECKGEBAUT. Ihre
+#    Begruendung ("dormante Workstation produziert kein drift_<DATE>.json")
+#    war eine ungepruefte Annahme; gemessen lief compute_live_drift nie, und
+#    der Corpus-Step haette gar nicht laufen duerfen. Wurzel war das
+#    Skip-Leck der if-Kette, geschlossen im selben PR wie dieser Nachtrag.
 # ---------------------------------------------------------------------------
 [[proof]]
 id     = "5088"
 kind   = "exempt"
-claim  = "c13-Gate-78-Ausnahme ist suite-ausfuehrbar bewiesen (echte Gate-Bedingung im Harness, beidseitig gepinnt); ats-Budget 75 wird per Post-Merge-Messlauf bewiesen und dauerhaft von der Freshness-Watchlist uebernommen (BEFRISTET-Stolperdraht bis 19.9.)"
+claim  = "ats-Budget 75 ist per Messlauf 32940381326 bewiesen (32:49) und dauerhaft von der Freshness-Watchlist uebernommen; die urspruenglich hier gehaltene c13-Gate-78-Ausnahme ist am 29.8. zurueckgebaut worden (siehe Nachtrag oben)"
 state  = "AUSGENOMMEN"
 due_by = "2026-08-26"
 owner  = "operator"
@@ -2253,6 +2267,33 @@ Korpus, weil der Korpus aus gelieferten Logs besteht.
 id     = "5195"
 kind   = "exempt"
 claim  = "Die Netz-Ticks liegen in den Fenstern des cadence-gate: 12:15 UTC bedient die Tages-Gates ab 13:30 (Producer-Tick 10:00 + 120-min-Budget + Puffer, Lauf fertig ~13:01), 22:15 UTC deckt Fenster B. Der Ordering-Pin haelt die Handoff-Bedingung; die Konsumenten selbst bleiben unveraendert."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# c13-chain-skip-leak -- Code-Review-Folge zu #5088 (2026-08-29).
+# AUSGENOMMEN mit Doppelgrund nach Muster #5075/#5077/#5088:
+# 1. Die Wirkung ist von der Suite AUSFUEHRBAR bewiesen, nicht nur behauptet:
+#    test_no_chain_gate_can_be_satisfied_by_a_skipped_predecessor wertet die
+#    ECHTEN if-Bedingungen aus dem YAML aus, ueber die ABGELEITETE
+#    Grundgesamtheit aller neun rc-Gates, mit einem Evaluator, der GitHubs
+#    null-Coercion modelliert (test_the_null_coercion_itself_is_pinned).
+#    Rueckbau des outcome-Vergleichs = rot. Die Klassen-Heuristik
+#    (test_imported) sieht nur statische Importe, keine YAML-Auswertung.
+# 2. Ein Log-Zeuge traegt hier NICHTS, und das ist der Kern des Fixes: das
+#    Leck war im Log unsichtbar: uebersprungene Steps und faelschlich
+#    gelaufene Steps sehen beide "gruen" aus. Sichtbar wurde es erst in der
+#    Step-Konklusionsliste der Jobs-API (Laeufe 33021447055, 33216084496).
+#    Der operative Zeuge ist der naechste dormante Werktagslauf: dort muessen
+#    4b/5a/5b/5c ab jetzt 'skipped' sein statt 'success' — das prueft der
+#    taegliche Cron selbst, und ein erneutes Leck oeffnet ueber den nun
+#    wieder harten corpus-rc=1 sofort ein Issue.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "c13-chain-skip-leak"
+kind   = "exempt"
+claim  = "Jedes rc-Gate der c13-Kette ist fail-closed gegen einen uebersprungenen Vorgaenger (abgeleitete Grundgesamtheit, GitHub-null-Coercion im Evaluator modelliert); der Corpus-Step ist wieder hart und meldet ein erneutes Leck als Issue"
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
