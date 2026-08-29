@@ -59,7 +59,69 @@ defaults:
     shell: bash
 
 jobs:
+  # 2026-08-29 (Observability-Review zu #5168): `SMC_CI_ARM_RUNNER` unten waehlt
+  # den Runner der vier required `validate (N)`-Shards. Ein Tippfehler in dieser
+  # Repo-Variablen erzeugt KEINEN roten Lauf, sondern GAR KEINEN: GitHub findet
+  # kein passendes Label, der Job bleibt `queued` bis zum 24-h-Limit und wird
+  # dann still `cancelled`. `timeout-minutes` faengt das nicht — es laeuft erst,
+  # wenn ein Runner den Job angenommen HAT (dieselbe Erkenntnis steht seit
+  # laengerem in tests/test_workflow_runner_pinned.py fuer fast-gates). Und der
+  # Fehleralarm `lo-workflow-run-failed` wertet nur "latest run failed" aus
+  # (scripts/check_workflow_failure_alarm_coverage.py), bei `noDataState: OK` —
+  # ein Lauf, der nie endet, erzeugt kein `failure`. Ergebnis waere ein stiller
+  # PR-Stau ohne Alert, ohne Log, ohne Artefakt: der Job hat nie gestartet, es
+  # gibt keine Steps.
+  #
+  # Dieser Vorschalt-Job macht daraus einen lauten Fehlschlag mit dem konkreten
+  # Wert im Log. Er laeuft BEWUSST nicht auf der Variablen, die er prueft.
+  runner-preflight:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Arm-Runner-Label gegen Allowlist pruefen
+        env:
+          # env-Indirektion statt direkter ${{ }}-Interpolation im run-Block,
+          # konsistent zur M-1-Haertung des gate-Steps weiter unten.
+          ARM_RUNNER: ${{ vars.SMC_CI_ARM_RUNNER }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ARM_RUNNER}" ]]; then
+            echo "arm_runner=<unset>"
+            echo "resolution_reason=ci_policy_no_arm_override"
+            echo "\`SMC_CI_ARM_RUNNER\` ist nicht gesetzt — validate faehrt die bisherige Wahl." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Allowlist bewusst kurz und hier: GitHub hat fuer linux-arm64 nur
+          # VERSIONIERTE Standard-Labels, `ubuntu-latest-arm` existiert nicht.
+          # Ein neues Label einzutragen ist eine Ein-Zeilen-PR — ein unbekanntes
+          # Label durchzulassen kostet einen halben Tag stillen PR-Stau.
+          case "${ARM_RUNNER}" in
+            ubuntu-24.04-arm|ubuntu-22.04-arm) ;;
+            *)
+              echo "::error::SMC_CI_ARM_RUNNER='${ARM_RUNNER}' ist kein bekanntes GitHub-arm64-Label."
+              echo "::error::Erlaubt: ubuntu-24.04-arm, ubuntu-22.04-arm. Zurueckrollen: Repo-Variable loeschen."
+              {
+                echo "## runner-preflight FEHLGESCHLAGEN"
+                echo ""
+                echo "\`SMC_CI_ARM_RUNNER\` = \`${ARM_RUNNER}\` — kein bekanntes GitHub-arm64-Label."
+                echo ""
+                echo "Erlaubt: \`ubuntu-24.04-arm\`, \`ubuntu-22.04-arm\`."
+                echo "Zurueckrollen: Repo-Variable \`SMC_CI_ARM_RUNNER\` loeschen (kein Code-Change)."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1 ;;
+          esac
+          echo "arm_runner=${ARM_RUNNER}"
+          echo "resolution_reason=ci_policy_arm_override"
+          echo "validate faehrt auf \`${ARM_RUNNER}\` (arm64-Standard-Runner)." >> "$GITHUB_STEP_SUMMARY"
+
   validate:
+    # 2026-08-29: die EINZIGE erlaubte `needs`-Kante dieser Lane. Sie routet
+    # NICHT ueber `select-runner` (das bleibt verboten, siehe
+    # tests/test_workflow_runner_pinned.py) — sie stellt nur sicher, dass ein
+    # unbekanntes `SMC_CI_ARM_RUNNER`-Label rot wird, BEVOR vier required
+    # Shards in eine Queue laufen, aus der sie nie zurueckkehren.
+    needs: runner-preflight
     # Duration-balanced matrix sharding (pytest-split): the full test suite is
     # split into 4 groups that run in parallel on standard GitHub-hosted
     # runners, turning the ~40 min single-runner validate into ~10-12 min wall
@@ -85,6 +147,9 @@ jobs:
     # Runner-Minuten am 2026-08-27, 26 % der Tageslast). Zurueckrollen =
     # Repo-Variable loeschen, kein Code-Change. Kein `ubuntu-latest-arm`
     # verwenden: das Label existiert nicht, nur versionierte Formen.
+    # Erlaubte Werte, Wirkung und Rueckrollrezept:
+    # docs/engineering-program/runner_hosted_vs_selfhosted_decision.md
+    # Durchgesetzt vom Job `runner-preflight` oben.
     runs-on: ${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     # 2026-08-20: das 45-min-Budget gehoert der MAIN-Lane (volle Suite mit
     # Coverage) und bleibt dort unangetastet. Die PR-Lane faehrt seit #4927 nur
@@ -163,10 +228,48 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
+        # 2026-08-29 (Observability-Review zu #5168): `resolution_reason` war
+        # ein KOPIERTER statt gemessener Wert — eine Konstante an genau der
+        # Stelle, an der es seit `SMC_CI_ARM_RUNNER` drei moegliche Aufloesungen
+        # gibt. `runner.arch` fehlte ganz, obwohl die Architektur die einzige
+        # neu variable Dimension ist: faellt ein Shard an einem fehlenden
+        # aarch64-Wheel oder einer C-Extension, stand die Architektur nirgends.
+        # Vorbild ist smc-fast-pr-gates.yml, das die gemessenen Outputs seines
+        # Resolver-Jobs ausgibt statt Literale. (Der Ausdruck selbst steht hier
+        # bewusst nicht ausgeschrieben: ein Guard in
+        # tests/test_workflow_runner_pinned.py sucht ihn per Textsuche in
+        # ci.yml, weil diese Lane nie ueber einen Resolver routen darf.)
+        env:
+          ARM_RUNNER: ${{ vars.SMC_CI_ARM_RUNNER }}
+          HOSTED_RUNNER: ${{ vars.SMC_GH_HOSTED_RUNNER }}
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_ARCH: ${{ runner.arch }}
+          SHARD: ${{ matrix.group }}
         run: |
+          set -euo pipefail
+          if [[ -n "${ARM_RUNNER}" ]]; then
+            reason=ci_policy_arm_override
+          elif [[ -n "${HOSTED_RUNNER}" ]]; then
+            reason=ci_policy_hosted_override
+          else
+            reason=ci_policy_github_hosted_default
+          fi
           echo "runner_environment=github-hosted"
-          echo "resolution_reason=ci_policy_github_hosted"
-          echo "runner_name=${{ runner.name }}"
+          echo "resolution_reason=${reason}"
+          echo "runner_name=${RUNNER_NAME}"
+          echo "runner_arch=${RUNNER_ARCH}"
+          echo "shard=${SHARD}"
+          # Hebt dieselben Felder aus dem Job-Log in die Run-Uebersicht: um 3
+          # Uhr nachts ist das der Unterschied zwischen "triagierbar" und "erst
+          # vier Job-Logs oeffnen".
+          {
+            echo "| Feld | Wert |"
+            echo "|---|---|"
+            echo "| resolution_reason | ${reason} |"
+            echo "| runner_arch | ${RUNNER_ARCH} |"
+            echo "| runner_name | ${RUNNER_NAME} |"
+            echo "| shard | ${SHARD} |"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -212,6 +315,20 @@ jobs:
           key: venv-${{ runner.os }}-${{ runner.arch }}-python3.12-${{ hashFiles('requirements.lock') }}
           restore-keys: |
             venv-${{ runner.os }}-${{ runner.arch }}-python3.12-
+      - name: Announce venv cache outcome
+        # 2026-08-29: MUSS hinter dem Cache-Step stehen — davor ist
+        # `steps.venv-cache.outputs.cache-hit` leer und der Stempel waere ein
+        # geratenes `false` statt einer Messung. Ein Arch-Wechsel invalidiert
+        # den Key (Absicht, siehe oben); ohne diesen Marker wird die Lane dabei
+        # still ~45 s je Shard langsamer und niemand kann es hinterher greppen.
+        if: steps.gate.outputs.run_heavy == 'true'
+        env:
+          VENV_CACHE_HIT: ${{ steps.venv-cache.outputs.cache-hit || 'false' }}
+          RUNNER_ARCH: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          echo "venv_cache_hit=${VENV_CACHE_HIT}"
+          echo "| venv_cache_hit | ${VENV_CACHE_HIT} (arch ${RUNNER_ARCH}) |" >> "$GITHUB_STEP_SUMMARY"
       - name: Install test dependencies
         # SC-04 (supply-chain audit 2026-06-14): requirements.lock is now always
         # used instead of being gated behind vars.SMC_USE_REQUIREMENTS_LOCK.

@@ -196,7 +196,17 @@ def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_nam
 def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> None:
     workflow = yaml.safe_load((_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8"))
     jobs = _jobs(workflow)
-    assert set(jobs) == {"validate"}
+    # 2026-08-29: zweiter Job zugelassen — `runner-preflight`. Was dieser
+    # Assert schuetzt, war nie "genau ein Job", sondern "kein `select-runner`
+    # Fan-out": ci.yml darf die Runner-Wahl nicht an einen Resolver-Job
+    # delegieren. Der Preflight tut das Gegenteil — er WAEHLT nichts, er
+    # PRUEFT nur den Wert von `SMC_CI_ARM_RUNNER`, bevor die vier required
+    # Shards in eine Queue laufen, aus der sie nie zurueckkehren. Die
+    # Menge bleibt geschlossen: ein dritter Job faellt weiter durch.
+    assert set(jobs) == {"runner-preflight", "validate"}, (
+        f"ci.yml-Jobmenge hat sich veraendert: {sorted(jobs)!r} — erlaubt sind "
+        "nur `validate` und der Wert-Waechter `runner-preflight`"
+    )
     validate = jobs["validate"]
     # 2026-08-29: nicht mehr der blanke `_HOSTED_RUNS_ON`-String. Die Lane
     # darf per `SMC_CI_ARM_RUNNER` auf einen arm64-Standard-Runner zeigen
@@ -206,7 +216,14 @@ def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> Non
     # der Zeichenkette — ein `fromJson(needs.select-runner...)` oder ein
     # self-hosted-Label faellt weiter durch.
     runs_on = validate.get("runs-on")
-    assert isinstance(runs_on, str)
+    # 2026-08-29: mit Meldung. Ohne sie faellt der wahrscheinlichste Fall —
+    # `runs-on: [self-hosted, linux, ARM64]`, genau die Schreibweise, die eine
+    # arm64-Umstellung nahelegt — mit nacktem AssertionError, und die drei
+    # aussagekraeftigen Struktur-Pruefungen darunter laufen nie.
+    assert isinstance(runs_on, str), (
+        f"validate.runs-on ist kein String mehr, sondern {type(runs_on).__name__}: {runs_on!r} — "
+        "eine Label-Liste umgeht die Struktur-Pruefungen darunter, statt an ihnen zu scheitern"
+    )
     assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
         "validate MUSS die Hosted-Variable weiter als Rueckfall tragen"
     )
@@ -216,7 +233,13 @@ def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> Non
     assert "SELF_HOSTED" not in runs_on and "select-runner" not in runs_on, (
         f"validate.runs-on hat einen self-hosted-Selektor bekommen: {runs_on!r}"
     )
-    assert "needs" not in validate
+    # 2026-08-29: genau EINE `needs`-Kante, und zwar die auf den Wert-Waechter.
+    # Der Schutzzweck war nie "gar keine Kante", sondern "keine Kante auf einen
+    # Runner-Resolver" — das pinnt die naechste Zeile (`needs.select-runner`
+    # taucht im ganzen File nicht auf) unveraendert weiter.
+    assert validate.get("needs") == "runner-preflight", (
+        f"validate.needs ist nicht mehr der Wert-Waechter, sondern {validate.get('needs')!r}"
+    )
     text = (_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8")
     assert "required-self-hosted" not in text
     assert "needs.select-runner" not in text
