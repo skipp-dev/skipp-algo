@@ -3062,8 +3062,18 @@ groups:
     # suite on every merge, so a red latest run means merged code broke tests
     # that `fast-gates` (the only REQUIRED check) does not run — and auto-merge
     # rides right over it. 2026-07-09: CI sat red ~5h through 6 merges, invisible
-    # under the 24h rule. Fire after 2h so a same-day regression pages while a
-    # quick red->green fix (a flake healed on the next push) rides out.
+    # under the 24h rule.
+    #
+    # `for` 2026-08-29 von 2h auf 15m, aus GEMESSENEN Episodendauern statt aus
+    # dem Gefuehl. Die Absicht der 2h war richtig -- ein Flake, der auf dem
+    # naechsten Push heilt, soll ausreiten --, die Zahl war um ein Vielfaches zu
+    # gross. Alle Pending-Episoden dieser Regel in 24 h (Alarm-Historie, lesbar
+    # seit #5200):
+    #   22:42Z->22:43Z 1 min | 05:38->05:39 1 min | 07:24->07:29 5 min
+    #   07:46->08:33 47 min  | 09:36->09:37 1 min
+    # Die Flatterer liegen bei 1-5 min, der ECHTE Vorfall bei 47 min. Mit 2h
+    # erreichte KEINE der vier Episoden je `Alerting` -- die Regel sah das rote
+    # main dieses Vormittags und blieb stumm. 15m trennt beides sauber.
     # `== bool 0` (not `== 0`): a bare filter yields 0 on a match and gt-0 reads
     # 0>0=false -- inert; bool maps a red latest run to 1 so it actually fires.
     # NOTE: this fires only while `CI` is in the daemon's watch scope
@@ -3090,9 +3100,17 @@ groups:
           query:
             params:
             - A
-    for: 2h
+    for: 15m
     labels:
-      severity: warning
+      # 2026-08-29: von `warning` auf `critical`. Vorher trug JEDE Regel dieses
+      # Stacks `warning` — der Schweregrad transportierte damit keine
+      # Information, und ein rotes required Gate war eine Zeile unter hunderten
+      # (546 Zustandswechsel in 14 h, alle in denselben Kanal).
+      severity: critical
+      # Eigenes Label statt Match auf den Regelnamen: die Route in
+      # notification-routing.yaml haengt daran, und weitere required-Check-Regeln
+      # koennen ihr spaeter beitreten, ohne dass die Route wachsen muss.
+      required_check: "true"
     annotations:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: The main-push CI workflow (full pytest suite) has been red for 2h -- a merge broke tests

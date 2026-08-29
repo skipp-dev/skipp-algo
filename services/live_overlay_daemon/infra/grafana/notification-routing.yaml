@@ -41,6 +41,32 @@ policy:
     - grafana_folder
     - alertname
   routes:
+    # 2026-08-29: eigene Route fuer required Checks, VOR der generischen
+    # Severity-Route (Reihenfolge entscheidet, `continue: false` unten stoppt).
+    #
+    # Warum eine eigene: am 2026-08-29 war `main` 47 min rot und niemand merkte
+    # es. Die Regel hatte den Ausfall gesehen (Pending 07:46->08:33), aber alle
+    # Regeln dieses Stacks tragen bis dahin `warning` und landen im selben
+    # Kanal, gruppiert nach `grafana_folder`+`alertname` -- 546 Zustandswechsel
+    # in 14 h. Ein rotes required Gate war darin nicht auffindbar.
+    #
+    # Zwei Unterschiede zur generischen Route, beide absichtlich:
+    #   * `group_by: [alertname]` -- nicht mit den Ordner-Geschwistern in eine
+    #     Benachrichtigung einsammeln.
+    #   * `repeat_interval: 30m` -- solange main rot ist, wiederholt melden
+    #     statt einmal zu piepen und zu schweigen (Grafana-Vorgabe: 4h).
+    #
+    # Der EMPFAENGER bleibt bewusst derselbe Slack-Kontaktpunkt: ein eigener
+    # Kanal (oder Pager) ist eine Operator-Entscheidung ueber ein Ziel, das
+    # dieses Repo nicht erfinden kann. Die Route ist die Naht dafuer.
+    - receiver: slack-smc-alerts
+      object_matchers:
+        - [required_check, "=", "true"]
+      group_by:
+        - alertname
+      group_wait: 30s
+      repeat_interval: 30m
+      continue: false
     - receiver: slack-smc-alerts
       object_matchers:
         - [severity, "=~", "critical|warning|high"]

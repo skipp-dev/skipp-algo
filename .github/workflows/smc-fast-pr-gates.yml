@@ -675,6 +675,7 @@ jobs:
             tests/test_exit_tif_explicit_at_order_submitters.py \
             tests/test_prod_print_ledger.py \
             tests/test_proof_ledger.py \
+            tests/test_grafana_notification_routing_upsert.py \
             tests/test_proof_entry_id_is_the_own_pr_number.py \
             tests/test_pytest_skip_budget.py \
             tests/test_random_tempfile_ledger_pin.py \
