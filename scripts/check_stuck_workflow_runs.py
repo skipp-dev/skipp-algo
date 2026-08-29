@@ -98,10 +98,30 @@ class Stuck:
                 "`timeout-minutes` greift nicht oder ist zu grosszuegig; im Log "
                 "steht, wo er haengt"
             )
+        # ZWEI Ursachen, und die zweite kostete am 2026-08-29 eine Fehlsuche:
+        # der erste Fund dieses Waechters (tv-onboarding-packages, 4140 min
+        # `queued`) war KEIN Label-Problem. Der Lauf gehoerte zu PR #5101, der
+        # 20 min nach dem Queue-Eintritt mergte; sein Branch verschwand dabei,
+        # und GitHub raeumt so einen PR-Lauf nie ab. Wer der alten, einzigen
+        # Diagnose folgt, prueft ein intaktes Runner-Label.
+        #
+        # Der Hinweis verspricht KEINEN Ausweg, weil am 29.8. gemessen ALLE
+        # DREI Wege versperrt waren — und ein Hinweis, der einen Ausweg nennt,
+        # den es nicht gibt, ist genau der Defekt, den dieser Fix behebt:
+        #   `gh run cancel`  -> "Cannot cancel a workflow run that is completed"
+        #   force-cancel     -> "...that has not been queued yet" (HTTP 409)
+        #   DELETE           -> "Could not delete the workflow run" (HTTP 403)
+        # waehrend Lauf UND Check-Suite unveraendert `queued` melden. Der
+        # Waise ist damit unsterblich; was bleibt, ist die Ausnahme unten.
         return (
             "kein Runner hat den Job angenommen — NICHT nach einem haengenden "
-            "Test suchen, es laeuft nichts. Runner-Label pruefen (Repo-Variable "
-            "oder self-hosted-Selektor)"
+            "Test suchen, es laeuft nichts. Entweder Runner-Label pruefen "
+            "(Repo-Variable oder self-hosted-Selektor) ODER der Lauf ist "
+            "verwaist: Branch geloescht / PR gemergt, waehrend er wartete. "
+            "Beim Waisen zuerst `gh run cancel <id>` versuchen — schlaegt das "
+            "fehl, force-cancel und DELETE ebenfalls (alle drei am 2026-08-29 "
+            "gemessen), dann ist der Lauf unsterblich und gehoert als "
+            "datierte Ausnahme in PHANTOM_RUN_IDS, nicht in den Dauer-Alarm"
         )
 
     def as_error_annotation(self) -> str:
@@ -130,12 +150,39 @@ def max_declared_timeout(workflows_dir: Path | None = None) -> int:
     return max(werte) if werte else 0
 
 
+#: Laeufe, die GitHub selbst nicht mehr aufloest — die einzige zulaessige
+#: Ausnahme dieser Sonde, und sie ist bewusst eine ID-LISTE statt eines
+#: Musters: ein Muster ("alles was verwaist aussieht") wuerde die Klasse
+#: stumm schalten, um die es hier geht.
+#:
+#: 32985711996 (tv-onboarding-packages, PR #5101, `queued` seit
+#: 2026-08-26T15:38:15Z): der PR mergte 20 min nach dem Queue-Eintritt, sein
+#: Branch `ci/pin-playwright-browser` verschwand dabei, der Lauf bekam nie
+#: einen Job (`total_count` 0). Am 2026-08-29 alle drei Aufloesungswege
+#: GEMESSEN — und alle drei verweigern, mit einander widersprechenden
+#: Begruendungen, waehrend Lauf und Check-Suite `queued` melden:
+#:   cancel -> "run that is completed" | force-cancel -> "has not been queued
+#:   yet" (409) | DELETE -> "Could not delete the workflow run" (403)
+#: Ohne diese Ausnahme steht der Waechter ab seinem ERSTEN Fund dauerhaft rot
+#: — und ein Draht, der immer rot ist, wird abgeschaltet. Genau das waere der
+#: teuerste Ausgang: die Ausfallart, gegen die #5183 gebaut wurde, verlaere
+#: ihren Alarm an ein Artefakt, das niemand beseitigen kann.
+PHANTOM_RUN_IDS: frozenset[int] = frozenset({32985711996})
+
+
 def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
     """Reines Urteil — die Testbarkeit dieser Sonde haengt daran."""
     findings: list[Stuck] = []
     for run in runs:
         status = str(run.get("status") or "")
         if status not in ("queued", "waiting", "in_progress"):
+            continue
+        # Die Ausnahme greift NUR, solange der Lauf wirklich noch haengt.
+        # Loest GitHub ihn doch noch auf (Retention, Support, stiller
+        # Aufraeumlauf), verschwindet er aus der Lauf-Liste, der Eintrag wird
+        # gegenstandslos — und `test_no_phantom_id_has_outlived_its_reason`
+        # macht ihn dann rot, statt ihn stillschweigend altern zu lassen.
+        if int(run.get("id") or 0) in PHANTOM_RUN_IDS:
             continue
         # Welche Quelle das Alter ergibt, entscheidet der STATUS — nicht, ob ein
         # Feld gesetzt ist.
