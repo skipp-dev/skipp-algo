@@ -66,7 +66,16 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         # Workflow-Audit 2026-06: previously unmonitored data pipelines.
         # `:any` = cron fires count (workflows with expected red runs);
         # stage1-weekly runs on Mondays -> 8-day budget.
-        "smc-measurement-benchmark-rolling.yml=72:any:weekday",
+        # 2026-08-29 `:any` -> `:success`. Seit dem Kadenz-Gate kann dieser
+        # Workflow absichtlich UEBERSPRINGEN (conclusion "skipped"), und
+        # `:any` zaehlt jeden Fire — ein Gate-Defekt, der IMMER ueberspringt,
+        # bliebe damit dauerhaft gruen und unentdeckt. `:success` verlangt
+        # innerhalb von 72 Werktagsstunden einen wirklich gelaufenen
+        # Benchmark; bei zwei geplanten Laeufen je Werktag ist das reichlich
+        # Luft. Die Regel selbst ist in
+        # tests/test_decide_rolling_benchmark_run.py geprueft — dieser
+        # Eintrag ist der Alarm daneben, nicht der Beweis.
+        "smc-measurement-benchmark-rolling.yml=72:success:weekday",
         "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",
         "g23-ab-watchdog.yml=72:any:weekday",

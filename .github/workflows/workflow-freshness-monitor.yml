@@ -137,7 +137,7 @@ jobs:
             fvg-quality-recal-shadow-daily.yml=72:weekday \
             feature-importance-daily.yml=30 \
             meta-watchdog.yml=30:any \
-            smc-measurement-benchmark-rolling.yml=72:any:weekday \
+            smc-measurement-benchmark-rolling.yml=72:success:weekday \
             adr0023-magnitude-shadow-daily.yml=72:any:weekday \
             sweep-trap-shadow-daily.yml=72:any:weekday \
             adr0023-magnitude-stage1-weekly.yml=192 \

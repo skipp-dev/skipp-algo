@@ -93,7 +93,77 @@ defaults:
     shell: bash
 
 jobs:
+  # Entscheidet VOR allem Teuren, ob dieser Fire ueberhaupt laufen muss.
+  # Der Producer hat neun Ticks je Werktag, `workflow_run` feuerte also bis
+  # zu neunmal — obwohl der Kopfkommentar oben von zwei Laeufen ausgeht.
+  # Gemessen 2026-08-29: acht Laeufe, 366 Runner-Minuten an einem Werktag.
+  #
+  # Die Entscheidung liegt bewusst auf JOB-Ebene, nicht als Schritt im
+  # Worker: ein uebersprungener Job fuehrt seine 15 `if: always()`-Schritte
+  # gar nicht erst aus. Eine Schranke im Job muesste jede einzelne davon
+  # mittragen, und jede vergessene waere ein roter Lauf.
+  #
+  # Die Regel selbst (zwei Fenster, Blindheit ⇒ laufen) steht in
+  # scripts/decide_rolling_benchmark_run.py und ist dort tabellengetrieben
+  # geprueft — hier laeuft nur die Abfrage des heutigen Zustands.
+  # Der Name ist NICHT `gate`: so heisst ein required Status-Check aus
+  # smc-fast-pr-gates.yml, und zwei Jobs gleichen Namens melden denselben
+  # Kontext. tests/test_required_checks_reach_the_merge_queue.py hat genau
+  # das gefangen (2026-08-29) — der Waechter loest required Kontexte ueber
+  # Jobnamen auf und sah diesen Workflow ploetzlich als Melder von `gate`.
+  cadence-gate:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      window: ${{ steps.decide.outputs.window }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Der Gate-Job liest nur und entscheidet; er pusht nichts. Ohne
+          # diese Zeile persistiert die Action den Token in .git/config und
+          # zizmor meldet `artipacked` (medium) — gemessen 2026-08-29.
+          persist-credentials: false
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+      - name: Decide whether this fire has to run
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Env-Indirektion statt direkter ${{ }}-Interpolation im run-Block:
+          # dieselbe Haertung wie in ci.yml (Audit M-1). Der zizmor-Ratchet
+          # meldet direkte Interpolation als template-injection — gemessen
+          # 2026-08-29 an genau diesem Schritt (high 97->98, medium 52->53).
+          GATE_REPOSITORY: ${{ github.repository }}
+          GATE_WORKFLOW: ${{ github.workflow }}
+          GATE_EVENT_NAME: ${{ github.event_name }}
+          GATE_PRODUCER_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          # Die heutigen Laeufe DIESES Workflows. Schlaegt die Abfrage fehl,
+          # bleibt RUNS leer — und die Entscheidung faellt fail-open auf
+          # LAUFEN (siehe Modul-Docstring: ein Gate, das bei Blindheit
+          # ueberspringt, stoppt den Benchmark still und dauerhaft).
+          RUNS="$(gh run list \
+            --repo "${GATE_REPOSITORY}" \
+            --workflow "${GATE_WORKFLOW}" \
+            --created "$(date -u +%Y-%m-%d)" \
+            --limit 50 \
+            --json conclusion,createdAt \
+            --jq '[.[] | {conclusion, created_at: .createdAt}]' 2>/dev/null || true)"
+          python scripts/decide_rolling_benchmark_run.py \
+            --event-name "${GATE_EVENT_NAME}" \
+            --producer-conclusion "${GATE_PRODUCER_CONCLUSION}" \
+            --todays-runs "${RUNS}"
+
   select-runner:
+    # Kein Runner wird aufgeloest, wenn ohnehin nichts laeuft. Dieser Job
+    # lief bisher bei JEDEM Producer-Abschluss mit, auch nach Fehllaeufen.
+    needs: cadence-gate
+    if: ${{ needs.cadence-gate.outputs.run == 'true' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
@@ -133,8 +203,11 @@ jobs:
     # if the producer succeeded (mirror of F-V4-J3 in
     # smc-library-refresh.yml). Manual workflow_dispatch and the
     # scheduled safety-net cron bypass this guard.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    needs: select-runner
+    # Die Producer-Bedingung bleibt woertlich; das Kadenz-Gate kommt als
+    # zweite Bedingung dazu (`gate` prueft sie ebenfalls, aber diese Zeile
+    # ist der Vertrag dieses Jobs und darf nicht von einem anderen abhaengen).
+    if: ${{ (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') && needs.cadence-gate.outputs.run == 'true' }}
+    needs: [cadence-gate, select-runner]
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     # 60 -> 120 (frame-fix 2026-07-13): genuine full-session intraday frames
     # carry ~2.3k events/pair instead of ~2 — even after the PIT day-bucket +
