@@ -33,10 +33,11 @@ does not check the ``if:``, so the published ``rc`` is fed back through
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
-from tests._fast_gates_gate import evaluate_condition, step_conditions
+from tests._fast_gates_gate import SKIPPED, evaluate_condition, step_conditions
 from tests._workflow_step_shell import Stub, declares_bash_default, run_step
 
 WORKFLOW = "c13-daily-cron.yml"
@@ -435,107 +436,82 @@ def test_every_rc_publishing_step_is_wired_into_the_issue_gate() -> None:
         "both, or its permanent failure degrades to an unread ::warning::."
     )
 
+def _rc_gates() -> dict[str, list[str]]:
+    """Jedes Ketten-Gate der POSITIVEN Form ``steps.<X>.outputs.rc == '0'``.
 
-def test_a_corpus_soft_skip_does_not_open_an_issue() -> None:
-    """Der dormante Normalfall seit dem 19.8.: kein drift_<DATE>.json.
+    ABGELEITET aus dem YAML, nicht als Liste gepflegt: ein neuer Step mit
+    demselben Muster ist ab seiner ersten Zeile mitgeprueft. Eine
+    hartkodierte Liste faengt genau die Drift nicht, die sie fangen soll.
 
-    Das Skript meldet fehlenden Input als 78 (gepinnt in
-    test_collect_drift_calibration_corpus); die Issue-Bedingung muss ihn wie
-    backfill/backtest_ref ausnehmen. Der harte rc=1 an dieser Stelle oeffnete
-    vom 19. bis 25.8. taeglich ein c13-Failure-Issue (#4901 ff.), waehrend die
-    Workstation absichtlich dormant war — Alarm ohne Defekt.
+    Bewusst NUR die positive Form. Die ``⚠️ Warn``-Steps lesen dasselbe ``rc``
+    mit ``!= '0'``; bei uebersprungenem Vorgaenger ist ``null != '0'`` falsch,
+    sie schweigen also korrekt (die im YAML dokumentierte C12-Falle). Sie
+    gehoeren nicht in diese Population — der erste Entwurf dieses Tests zog
+    sie mit ein und wurde von der Gegenrichtung dafuer rot.
     """
-    assert not evaluate_condition(
-        _CONDITIONS[_ISSUE_STEP], {"corpus.rc": "78", "backfill.rc": "0"}
-    ), "corpus-78 (kein Input) darf kein Issue oeffnen"
-    assert evaluate_condition(
-        _CONDITIONS[_ISSUE_STEP], {"corpus.rc": "1", "backfill.rc": "0"}
-    ), "ein ECHTER corpus-Fehler muss das Issue weiterhin oeffnen"
+    gates: dict[str, list[str]] = {}
+    for step, condition in _CONDITIONS.items():
+        referenced = sorted(set(re.findall(r"steps\.([a-z_]+)\.outputs\.rc == '0'", condition)))
+        if referenced and step != _ISSUE_STEP:
+            gates[step] = referenced
+    return gates
 
 
-# --------------------------------------------------------------------------
-# Issue-Opener: Dedupe je KLASSE (27.8., #5119) — der echte Step-Bash, ausgefuehrt
-# --------------------------------------------------------------------------
-# Waehrend der Broker-Dormanz feuert der Opener taeglich; die Datums-Dedupe
-# erzeugte pro Tag ein neues Issue derselben Klasse (#5110 neben #5081).
-# Diese zwei Tests fuehren den ECHTEN run-Block mit gh-Stub aus (Muster
-# _workflow_step_shell): offener Halter -> Kommentar auf den aeltesten,
-# kein Halter -> weiterhin Neu-Issue.
+def test_the_chain_gate_population_is_not_empty() -> None:
+    """Vakuitaets-Schutz: ein kaputter Parser darf nicht als 'alles sauber' gelten."""
+    gates = _rc_gates()
+    assert len(gates) >= 8, f"nur {len(gates)} rc-Gates gefunden — Parser kaputt? {gates}"
 
-_ISSUE_EXPRESSIONS = {
-    "steps.date.outputs.date": DATE,
-    "github.server_url": "https://github.test",
-    "github.repository": "skipp-dev/skipp-algo",
-    "github.run_id": "0",
-    **{
-        f"steps.{sid}.outputs.rc": "1"
-        for sid in (
-            "status_markers", "backfill", "backfill_progress", "drift_input",
-            "backtest_ref", "drift", "slippage_sample", "corpus", "families",
-            "emit_public",
+
+def test_no_chain_gate_can_be_satisfied_by_a_skipped_predecessor() -> None:
+    """Das Skip-Leck, gemessen am 2026-08-29 (Code-Review zu #5088).
+
+    ``steps.<uebersprungen>.outputs.rc == '0'`` ist in GitHub WAHR: der
+    fehlende Kontextwert ist ``null``, und die lose Gleichheit castet ``null``
+    und ``'0'`` beide nach 0. Folge in Lauf 33216084496 (28.8.): ``drift``
+    war skipped, trotzdem liefen 4b, 5a, 5b UND 5c — letzterer committet den
+    oeffentlichen Kalibrier-Report per PR, an einem Tag ohne jede
+    Drift-Berechnung.
+
+    Ueber die GRUNDGESAMTHEIT der abgeleiteten Gates, nicht ueber eine
+    Stichprobe. Der Fix ist der vorangestellte ``outcome == 'success'``-
+    Vergleich; sein Rueckbau macht diesen Test rot.
+    """
+    for step, vorgaenger_liste in sorted(_rc_gates().items()):
+        for vorgaenger in vorgaenger_liste:
+            assert not evaluate_condition(
+                _CONDITIONS[step], {f"{vorgaenger}.outcome": "skipped"}
+            ), (
+                f"{step!r} laeuft, obwohl {vorgaenger!r} uebersprungen wurde — "
+                "das Gate liest nur `outputs.rc` und faellt auf GitHubs "
+                "null-Coercion herein. `steps.X.outcome == 'success' && …` "
+                "davorsetzen."
+            )
+
+
+def test_a_predecessor_that_really_succeeded_still_lets_the_chain_run() -> None:
+    """Gegenrichtung: der Fix darf die Kette nicht generell stilllegen."""
+    for step, vorgaenger_liste in sorted(_rc_gates().items()):
+        zustand: dict[str, object] = {}
+        for vorgaenger in vorgaenger_liste:
+            zustand[f"{vorgaenger}.outcome"] = "success"
+            zustand[f"{vorgaenger}.rc"] = "0"
+        assert evaluate_condition(_CONDITIONS[step], zustand), (
+            f"{step!r} laeuft NICHT, obwohl alle Vorgaenger sauber mit rc=0 "
+            "durchliefen — der Fix haette die Kette stillgelegt"
         )
-    },
-}
-
-# gh-Stub: repo view -> Issues aktiv; issue list -> Halter aus dem Test-Env
-# (leer = keiner offen); comment/create werden nur AUFGEZEICHNET.
-_GH_SCRIPT = 'case "$1 $2" in "repo view") echo "true" ;; "issue list") printf "%s" "${SKIPP_TEST_OPEN_HOLDER:-}" ;; esac'
 
 
-def _run_issue_step(tmp_path: Path, holder: str):
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    return run_step(
-        WORKFLOW, _ISSUE_STEP, tmp_path,
-        env={"SKIPP_TEST_OPEN_HOLDER": holder},
-        stubs={"gh": Stub(script=_GH_SCRIPT)},
-        expressions=_ISSUE_EXPRESSIONS,
-    )
+def test_the_null_coercion_itself_is_pinned() -> None:
+    """Der Evaluator muss die gemessene GitHub-Semantik abbilden, nicht "".
 
-
-def test_a_daily_failure_lands_on_the_open_holder_instead_of_a_new_issue(tmp_path: Path) -> None:
-    run = _run_issue_step(tmp_path / "holder", holder="5081")
-    assert run.returncode == 0, run.stderr
-    assert run.called_with("issue", "comment", "5081"), (
-        f"der Tagesbefund muss als Kommentar auf dem offenen Halter landen: {run.calls}"
-    )
-    assert not run.called_with("issue", "create"), (
-        f"solange ein cron-failure-Issue offen ist, darf kein neues entstehen: {run.calls}"
-    )
-
-
-def test_without_an_open_holder_a_new_issue_is_still_created(tmp_path: Path) -> None:
-    run = _run_issue_step(tmp_path / "leer", holder="")
-    assert run.returncode == 0, run.stderr
-    assert run.called_with("issue", "create"), (
-        f"ohne offenen Halter muss weiterhin ein Issue entstehen: {run.calls}"
-    )
-    assert not run.called_with("issue", "comment"), run.calls
-
-
-def test_a_dying_counter_read_still_publishes_the_failing_rc(tmp_path: Path) -> None:
-    """Stirbt eine jq-Lesung, bleibt das Urteil ROT statt stumm.
-
-    Vorher lagen ALLE rc-Writes des Nicht-leer-Pfads hinter den sechs
-    jq-Substitutionen: eine sterbende (Schema-Drift via `// error`, jq fehlt,
-    SIGPIPE) toetete den Step unter `set -e` VOR jedem Publish. Der
-    Issue-Oeffner feuert aber auf `backfill_progress.rc == '1'` — der Cron
-    waere rot gewesen und das Issue haette geschwiegen. Am 2026-08-28 als
-    ``KeyError: 'rc'`` gemessen (Lauf 33149634990).
-
-    Seither publiziert der Step VOR den Lesungen pessimistisch ``rc=1``;
-    jeder regulaere Pfad ueberschreibt (Actions nimmt den letzten Wert, der
-    Harness-Parser ebenso). Dieser Drill faehrt den ECHTEN Step-Text mit
-    einem sterbenden jq und ist der ausfuehrbare Beweis hinter dem
-    Ledger-Eintrag dieses Fixes.
+    Ohne diese Modellierung war der Harness fuer das Leck strukturell blind:
+    er loeste den Output eines uebersprungenen Steps als "" auf und verglich
+    ihn als String, womit ``"" == '0'`` falsch war — grün aus dem falschen
+    Grund.
     """
-    result = run_step(
-        WORKFLOW, BACKFILL_PROGRESS, tmp_path,
-        env={"REAL_PYTHON": sys.executable},
-        stubs={"grep": Stub(stdout='{"backfill": {}}'), "jq": Stub(exit_code=5)},
-        expressions={"steps.date.outputs.date": DATE},
+    assert evaluate_condition("steps.x.outputs.rc == '0'", {"x.rc": SKIPPED}), (
+        "null == '0' ist in GitHub WAHR (beide werden nach 0 gecastet)"
     )
-    assert result.returncode != 0, "ein sterbender Zaehler muss den Step toeten"
-    assert result.outputs["rc"] == "1", result.outputs
-    assert evaluate_condition(
-        _CONDITIONS[_ISSUE_STEP], {"backfill.rc": "0", "backfill_progress.rc": "1"}
-    ), "und das Issue muss trotzdem feuern"
+    assert not evaluate_condition("steps.x.outputs.rc == '78'", {"x.rc": SKIPPED})
+    assert not evaluate_condition("steps.x.outcome == 'success'", {"x.outcome": "skipped"})

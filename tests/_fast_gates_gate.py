@@ -326,9 +326,60 @@ def _unwrap(expression: str) -> str:
 _EXPRESSION_TOKEN = re.compile(r"\s*(\(|\)|&&|\|\||==|!=|'[^']*'|[A-Za-z_][A-Za-z0-9_.-]*)")
 
 
+class _GhNull:
+    """Der Wert, den GitHub fuer den Output eines UEBERSPRUNGENEN Steps liefert.
+
+    Kein leerer String: ``steps.<id>.outputs.<name>`` eines uebersprungenen
+    Steps ist ``null``, und GitHubs lose Gleichheit castet bei ungleichen Typen
+    nach Zahl — ``null`` -> 0 und ``'0'`` -> 0, also ist
+    ``steps.uebersprungen.outputs.rc == '0'`` **wahr**.
+
+    Das ist nicht aus der Doku abgeleitet, sondern GEMESSEN: in Lauf
+    33216084496 (c13-daily-cron, 2026-08-28) war ``drift_input`` skipped und
+    Step 3 — dessen einziges Gate ``steps.drift_input.outputs.rc == '0'`` ist —
+    lief trotzdem; ebenso liefen 4b/5a/5b/5c hinter dem uebersprungenen
+    ``drift``. Dieser Evaluator modellierte den Fall vorher als leeren String
+    und verglich ihn als String, konnte das Leck also strukturell nicht sehen.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - Diagnose-Hilfe
+        return "<GitHub null (skipped step)>"
+
+
+SKIPPED = _GhNull()
+
+
+def _as_number(value: object) -> float | None:
+    """GitHubs Zahl-Cast fuer die lose Gleichheit; None = NaN (nie gleich)."""
+    if isinstance(value, _GhNull):
+        return 0.0
+    if value == "":
+        return 0.0
+    try:
+        return float(str(value))
+    except ValueError:
+        return None
+
+
+def _gh_equals(left: object, right: object) -> bool:
+    """Lose Gleichheit wie GitHub sie auswertet.
+
+    Gleiche Typen (hier: zwei Strings) vergleichen als String. Sobald eine
+    Seite ``null`` ist — der Fall eines uebersprungenen Steps — castet GitHub
+    BEIDE Seiten nach Zahl. Ein nicht-numerischer String wird dabei zu NaN und
+    ist mit nichts gleich, auch nicht mit sich selbst.
+    """
+    if isinstance(left, _GhNull) or isinstance(right, _GhNull):
+        links, rechts = _as_number(left), _as_number(right)
+        if links is None or rechts is None:
+            return False
+        return links == rechts
+    return left == right
+
+
 def evaluate_condition(
     expression: str,
-    outputs: dict[str, str],
+    outputs: dict[str, object],
     *,
     event_name: str = "pull_request",
     contexts: dict[str, str] | None = None,
@@ -398,6 +449,12 @@ def evaluate_condition(
             # ambiguous. The qualified key wins; the bare one stays for the
             # single-step callers.
             _, step_id, _, key = token.split(".", 3)
+            # Ein uebersprungener Step hat KEINE Outputs — jede Lesung daran
+            # ist `null`, nicht "". Wer `{"drift.outcome": "skipped"}` angibt,
+            # bekommt das fuer alle Outputs dieses Steps automatisch; so muss
+            # kein Aufrufer die Coercion-Regel selbst kennen.
+            if outputs.get(f"{step_id}.outcome") == "skipped":
+                return SKIPPED
             if f"{step_id}.{key}" in outputs:
                 return outputs[f"{step_id}.{key}"]
             return outputs.get(key, "")
@@ -438,9 +495,9 @@ def evaluate_condition(
         operator = take()
         right = operand()
         if operator == "==":
-            return left == right
+            return _gh_equals(left, right)
         if operator == "!=":
-            return left != right
+            return not _gh_equals(left, right)
         raise AssertionError(f"unsupported operator {operator!r} in {expression!r}")
 
     def conjunction() -> bool:

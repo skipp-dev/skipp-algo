@@ -273,9 +273,25 @@ jobs:
       # ::warning:: in an otherwise-green cron is not detectable. It now
       # publishes `rc` like every other step in this chain, so the
       # "Open issue if any required step failed" gate below alerts on it.
+      # SKIP-LECK, gemessen und geschlossen 2026-08-29 (Code-Review zu #5088).
+      # Jedes `if:` dieser Kette lautete `steps.<vorgaenger>.outputs.rc == '0'`.
+      # Bei einem UEBERSPRUNGENEN Vorgaenger ist dieser Ausdruck in GitHub
+      # WAHR: der fehlende Kontextwert ist `null`, und die lose Gleichheit
+      # castet `null` und `'0'` beide nach 0. Gemessen an Lauf 33216084496
+      # (28.8.): `drift_input` skipped -> Step 3 LIEF; `drift` skipped ->
+      # 4b, 5a, 5b und 5c liefen, inklusive des Commit-PRs fuer den
+      # oeffentlichen Kalibrier-Report — an einem Tag, an dem der
+      # Drift-Produzent nie startete.
+      #
+      # `outcome` ist fuer einen uebersprungenen Step 'skipped' und damit
+      # ungleich 'success', also ist die Kette mit dem vorangestellten
+      # outcome-Vergleich fail-closed. Die Vollstaendigkeit ueber ALLE
+      # rc-Gates haelt test_c13_daily_cron_advisory_chain.py
+      # (test_no_chain_gate_can_be_satisfied_by_a_skipped_predecessor) —
+      # abgeleitet aus dem YAML, nicht aus einer Liste.
       - name: Step 1b — assert backfill made progress (advisory)
         id: backfill_progress
-        if: steps.backfill.outputs.rc == '0'
+        if: steps.backfill.outcome == 'success' && steps.backfill.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: "advisory" here means job-soft, not
         # unreported — the regression is alerted through `rc` + the issue gate,
         # exactly like steps 2-5b. The remaining steps (drift, families, public
@@ -336,7 +352,7 @@ jobs:
 
       - name: Step 2 — drift-input from audit JSONL (advisory)
         id: drift_input
-        if: steps.backfill.outputs.rc == '0'
+        if: steps.backfill.outcome == 'success' && steps.backfill.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: failures here are reported via the
         # downstream issue-opener step; do not fail the whole job so later
         # steps and artefact upload still run.
@@ -361,7 +377,7 @@ jobs:
 
       - name: Step 3 — refresh backtest reference (advisory)
         id: backtest_ref
-        if: steps.drift_input.outputs.rc == '0'
+        if: steps.drift_input.outcome == 'success' && steps.drift_input.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) when the
         # walk-forward / bootstrap-CI inputs are not yet refreshed for the
         # day; this is expected on weekends / holidays.
@@ -396,7 +412,7 @@ jobs:
 
       - name: Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)
         id: slippage_sample
-        if: steps.backtest_ref.outputs.rc == '0'
+        if: steps.backtest_ref.outcome == 'success' && steps.backtest_ref.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: mixed-mode is total: it falls
         # back to deterministic replay samples when no real fills are
         # available. The only way this step can fail is a hard import
@@ -428,7 +444,7 @@ jobs:
 
       - name: Step 4 — compute live drift (advisory)
         id: drift
-        if: steps.backtest_ref.outputs.rc == '0'
+        if: steps.backtest_ref.outcome == 'success' && steps.backtest_ref.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: surface failures via the
         # issue-opener step; do not fail the job so artefacts still upload.
         continue-on-error: true
@@ -466,7 +482,7 @@ jobs:
 
       - name: "Step 4b — best-effort: append drift snapshot to calibration corpus (issue #2798)"
         id: corpus
-        if: steps.drift.outputs.rc == '0'
+        if: steps.drift.outcome == 'success' && steps.drift.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: corpus collection is advisory.
         # A failure here must never block the daily cron or the drift alert.
         # W9-7: accumulates daily (computed_at, variant, drift_score, verdict,
@@ -492,7 +508,7 @@ jobs:
 
       - name: Step 5a — build families telemetry (advisory)
         id: families
-        if: steps.drift.outputs.rc == '0'
+        if: steps.drift.outcome == 'success' && steps.drift.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: keep later diagnostic/upload steps
         # running, but publish the non-zero rc to the issue gate below.
         # Missing ownership or unknown variants are evidence-integrity
@@ -528,7 +544,7 @@ jobs:
 
       - name: Step 5b — emit public calibration report (advisory)
         id: emit_public
-        if: steps.drift.outputs.rc == '0'
+        if: steps.drift.outcome == 'success' && steps.drift.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: surfaces failures via the
         # issue-opener step. A family-less report must never replace the last
         # complete snapshot, so this step fails closed unless Step 5a produced
@@ -586,7 +602,7 @@ jobs:
         # this job: a publish that fails silently is what caused #298. A red
         # run is the alarm (c13-daily-cron.yml is on the freshness-monitor
         # watchlist at 72:weekday).
-        if: steps.emit_public.outputs.rc == '0'
+        if: steps.emit_public.outcome == 'success' && steps.emit_public.outputs.rc == '0'
         env:
           # GH_PAT (not GITHUB_TOKEN) so the PR triggers the required
           # fast-gates check; a GITHUB_TOKEN-authored PR spawns no child
@@ -635,7 +651,7 @@ jobs:
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
           (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '') ||
           (steps.slippage_sample.outputs.rc != '0' && steps.slippage_sample.outputs.rc != '') ||
-          (steps.corpus.outputs.rc != '0' && steps.corpus.outputs.rc != '78' && steps.corpus.outputs.rc != '') ||
+          (steps.corpus.outputs.rc != '0' && steps.corpus.outputs.rc != '') ||
           (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '') ||
           (steps.emit_public.outputs.rc != '0' && steps.emit_public.outputs.rc != '')
         env:
