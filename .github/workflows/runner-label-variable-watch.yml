@@ -1,0 +1,147 @@
+name: runner-label-variable-watch
+# live-window: mutating-on-cron  # schedule + issues:write (Runner-Variablen-Alert)
+
+# Haelt die live gesetzten Runner-Variablen gegen .github/runner_label_allowlist.json.
+#
+# Warum als eigener Cron und nicht als Job in ci.yml: ein falsches Runner-Label
+# macht einen Lauf nicht rot, sondern verhindert ihn -- der Job bleibt `queued`
+# bis zum 24-h-Limit und wird still `cancelled`. Ein Wachposten, der selbst an
+# einer Runner-Variablen haengt, steht in genau dem Moment mit, in dem er
+# gebraucht wird. Der `runner-preflight` in ci.yml (#5171) ist deshalb nur die
+# halbe Antwort: er ist gegen `SMC_CI_ARM_RUNNER` immun, aber nicht gegen
+# `SMC_GH_HOSTED_RUNNER`, an dem 80 der 97 `runs-on`-Stellen dieses Repos
+# haengen -- inklusive der beiden einzigen required Kontexte fast-gates/gate.
+#
+# 05:40 UTC, alle 6 h. Die 05:40-Ausgabe liegt bewusst VOR dem ersten
+# Morgen-Cron (credential-health-check 06:00, live-overlay-deploy-trigger-guard
+# 06:17, workflow-freshness-monitor 06:30, proof-ledger-monitor 06:47,
+# meta-watchdog 07:15): wenn die Runner-Wahl kaputt ist, soll das bekannt sein,
+# bevor die Tagesladung hineinlaeuft. Beobachtet wird dieser Cron selbst vom
+# workflow-freshness-monitor (12:any) -- ohne diesen Eintrag waere er von Geburt
+# an unsichtbar (tests/test_scheduled_workflow_observation_inventory.py).
+on:
+  schedule:
+    - cron: "40 5,11,17,23 * * *"
+  workflow_dispatch: {}
+  # Aenderungen an der Allowlist oder der Sonde selbst pruefen sofort gegen den
+  # LIVE-Zustand -- sonst faellt eine zu eng gezogene Allowlist erst Stunden
+  # spaeter auf, naemlich beim naechsten Cron.
+  push:
+    branches: [main]
+    paths:
+      - ".github/runner_label_allowlist.json"
+      - "scripts/check_runner_label_variables.py"
+      - ".github/workflows/runner-label-variable-watch.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-label-variable-watch
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  watch:
+    # LITERAL, ohne Operator-Override -- das ist der ganze Zweck dieses
+    # Workflows und die einzige begruendete Ausnahme von der Repo-Regel
+    # "kein blankes ubuntu-latest". Gepinnt mit Begruendung in
+    # tests/test_workflow_runner_pinned.py::test_no_bare_ubuntu_latest_runs_on;
+    # ein zweiter Job mit dieser Schreibweise faellt weiter durch.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # issues:write nur hier (least privilege): die Workflow-Ebene bleibt
+      # contents:read, nur dieser Job oeffnet das Alert-Issue.
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          # Dieser Job liest nur und schiebt nie: die Sonde braucht die
+          # Repo-Dateien, `gh` bringt sein eigenes Token mit. Ohne diese Zeile
+          # bliebe das Job-Token in .git/config zurueck (zizmor `artipacked`).
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Runner-Variablen gegen die Allowlist halten
+        id: probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set +e
+          python -m scripts.check_runner_label_variables --repo "$GITHUB_REPOSITORY" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          # NICHT hier exiten: der Issue-Step unten braucht das Ergebnis, und der
+          # letzte Step bringt rc explizit wieder an die Oberflaeche. rc=8 ist
+          # ausdruecklich KEIN Erfolg -- eine Sonde, die nichts messen konnte,
+          # hat nichts bewiesen.
+
+      - name: Open or update the one issue
+        if: steps.probe.outputs.rc != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          PROBE_RC: ${{ steps.probe.outputs.rc }}
+        run: |
+          set -euo pipefail
+
+          # Issues koennen im Repo deaktiviert sein -- dann waere ein harter
+          # Fehlschlag hier ein FALSCHES Signal (er saehe aus wie ein kaputter
+          # Monitor, obwohl Step Summary und Job-Fail korrekt alarmieren).
+          # Gleiches Muster wie proof-ledger-monitor.yml / meta-watchdog.yml.
+          if [ "$(gh repo view "$GH_REPO" --json hasIssuesEnabled --jq '.hasIssuesEnabled')" != "true" ]; then
+            echo "::warning title=runner-label-variable-watch::GitHub Issues sind auf ${GH_REPO} deaktiviert -- kein Alert-Issue moeglich. Step Summary und der Job-Fail sind bis auf Weiteres der Alarm."
+            exit 0
+          fi
+
+          title="Runner-Variablen: ein Wert steht ausserhalb der Allowlist"
+          if [ "$PROBE_RC" = "8" ]; then
+            title="Runner-Variablen: die Sonde konnte nicht messen"
+          fi
+          body="$(printf '%s\n' \
+            "Die Sonde \`scripts/check_runner_label_variables.py\` hat mit rc=${PROBE_RC} geurteilt." \
+            "" \
+            "Warum das dringend ist: ein Runner-Label ausserhalb der Allowlist macht die betroffenen" \
+            "Jobs **nicht rot, sondern unsichtbar** -- GitHub plant sie nie ein, sie bleiben \`queued\`" \
+            "bis zum 24-h-Limit und werden dann still \`cancelled\`. Weder \`timeout-minutes\` noch der" \
+            "Workflow-Fehleralarm sehen das." \
+            "" \
+            "Die betroffene Variable, ihr Wert und die erlaubten Werte stehen in der Step Summary des" \
+            "Laufs: ${GITHUB_SERVER_URL}/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}" \
+            "" \
+            "Zurueckrollen: Repo-Variable auf einen erlaubten Wert setzen oder loeschen" \
+            "(Settings -> Secrets and variables -> Actions -> Variables). Erlaubte Werte:" \
+            "\`.github/runner_label_allowlist.json\`.")"
+          existing="$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$title in:title" --json number --jq '.[0].number // ""')"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --repo "$GH_REPO" --body "$body"
+          else
+            gh issue create --repo "$GH_REPO" --title "$title" --body "$body"
+          fi
+
+      - name: Fail the job when a value or the probe itself is off
+        if: always() && steps.probe.outputs.rc != '' && steps.probe.outputs.rc != '0'
+        env:
+          # env-Indirektion statt ${{ }} im run-Block, konsistent zur
+          # M-1-Haertung des Repos (zizmor `template-injection`).
+          PROBE_RC: ${{ steps.probe.outputs.rc }}
+        run: |
+          echo "::error title=runner-label-variable-watch::Sonde beendete mit rc=${PROBE_RC} (1 = Wert ausserhalb der Allowlist, 8 = Sonde ungueltig) -- siehe Step Summary und das Alert-Issue."
+          exit 1

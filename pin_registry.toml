@@ -445,6 +445,14 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # pinned for workflow-freshness-monitor.yml / meta-watchdog.yml above, not
 # the silent-swallow anti-pattern the ratchet exists to catch.
 "proof-ledger-monitor.yml" = 1
+# runner-label-variable-watch.yml (2026-08-29): eine einzige geklammerte
+# `set +e`/`rc=$?`/`set -e`-Stelle um den Sondenaufruf. Noetig aus demselben
+# Grund wie oben: die Sonde beendet ABSICHTLICH non-zero (rc=1 Wert ausserhalb
+# der Allowlist, rc=8 Sonde ungueltig), und unter `-eo pipefail` wuerde der Job
+# genau dann abbrechen, wenn es etwas zu melden gibt -- der Issue-Step und der
+# rc-Resurface-Step darunter liefen nie. Kein Fail-Soft: der letzte Step bringt
+# rc explizit zurueck an die Oberflaeche und laesst den Job scheitern.
+"runner-label-variable-watch.yml" = 1
 # Step-2b incremental activation (591c5bac): +1 from baseline for the
 # always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
 "smc-databento-production-export-sharded.yml" = 2

@@ -138,12 +138,19 @@ def test_workflow_runs_on_contract(path: Path) -> None:
 
     offenders: list[str] = []
     for job_id, job in jobs.items():
+        # 2026-08-29: dieselbe Ausnahmeliste wie in
+        # test_no_bare_ubuntu_latest_runs_on — bewusst EINE Liste fuer beide
+        # Guards. Zwei Kopien haetten sich auseinanderentwickelt, und dann
+        # deckt die eine, was die andere noch verbietet.
+        if (path.name, job_id) in _LITERAL_RUNNER_EXEMPTIONS:
+            continue
         if job.get("runs-on") not in _HOSTED_RUNS_ON_FORMS:
             offenders.append(f"  {job_id}: runs-on = {job.get('runs-on')!r}")
     assert not offenders, (
         f"{path.name} has jobs with non-pinned hosted runs-on:\n"
         + "\n".join(offenders)
         + f"\n\nExpected one of: {_HOSTED_RUNS_ON_FORMS!r}"
+        + f"\nBegruendete Ausnahmen: {sorted(_LITERAL_RUNNER_EXEMPTIONS)}"
     )
 
 
@@ -159,17 +166,51 @@ def test_no_stale_ubuntu_latest_tier_literals() -> None:
     )
 
 
+#: Die einzige begruendete Ausnahme von "kein blankes ubuntu-latest", 2026-08-29.
+#: `runner-label-variable-watch` prueft die WERTE der Runner-Variablen. Ein
+#: Wachposten, der selbst an einer dieser Variablen haengt, steht in genau dem
+#: Moment mit, in dem er gebraucht wird -- ein falsches Label macht Jobs nicht
+#: rot, sondern verhindert sie (`queued` bis zum 24-h-Limit, dann still
+#: `cancelled`). Die Immunitaet IST hier die Funktion, nicht eine Nachlaessigkeit.
+#: Als Paar gepinnt: der Job muss literal bleiben (unten), und kein zweiter Job
+#: darf sich dieselbe Schreibweise nehmen.
+_LITERAL_RUNNER_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
+    {("runner-label-variable-watch.yml", "watch")}
+)
+
+
 def test_no_bare_ubuntu_latest_runs_on() -> None:
     offenders: list[str] = []
     for path in _workflow_files():
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         for job_id, job in _jobs(workflow).items():
-            if job.get("runs-on") == "ubuntu-latest":
+            if job.get("runs-on") == "ubuntu-latest" and (path.name, job_id) not in _LITERAL_RUNNER_EXEMPTIONS:
                 offenders.append(f"  {path.name}:{job_id}")
     assert not offenders, (
         "Found bare ``runs-on: ubuntu-latest`` (no operator override or selector hook):\n"
         + "\n".join(offenders)
+        + f"\n\nBegruendete Ausnahmen: {sorted(_LITERAL_RUNNER_EXEMPTIONS)}"
     )
+
+
+def test_literal_runner_exemptions_are_real_and_still_literal() -> None:
+    """Die Ausnahme muss existieren UND wirken.
+
+    Zwei Ausfallarten, die ein blosser Eintrag nicht abdeckt: der Job ist weg
+    (dann ist die Ausnahme ein toter Name, der die naechste Nachlaessigkeit
+    deckt), oder er hat sich doch eine Variable geholt (dann ist die Immunitaet
+    still verloren, waehrend der Eintrag weiter Ruhe suggeriert).
+    """
+    for filename, job_id in sorted(_LITERAL_RUNNER_EXEMPTIONS):
+        path = _WORKFLOWS_DIR / filename
+        assert path.exists(), f"Ausnahme zeigt auf {filename}, die Datei gibt es nicht mehr"
+        jobs = _jobs(yaml.safe_load(path.read_text(encoding="utf-8")))
+        assert job_id in jobs, f"Ausnahme zeigt auf {filename}:{job_id}, den Job gibt es nicht mehr"
+        runs_on = jobs[job_id].get("runs-on")
+        assert runs_on == "ubuntu-latest", (
+            f"{filename}:{job_id} ist nicht mehr literal, sondern {runs_on!r} — "
+            "damit haengt der Wert-Waechter an genau der Variablen, die er prueft"
+        )
 
 
 def test_fast_gates_prefers_github_hosted_selector() -> None:

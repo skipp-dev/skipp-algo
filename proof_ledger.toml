@@ -1827,6 +1827,107 @@ vom 28.-29.8. fast staendig ein — der Zweig wird beim ersten Lauf nach dem
 Merge erreicht, nicht in ferner Zukunft.
 """
 
+[[proof]]
+id              = "5178"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Ein Runner-Label ausserhalb der Allowlist wird LAUT gemeldet, statt die
+betroffenen Jobs still nicht starten zu lassen. Gemessen am 2026-08-29 haengen
+80 der 97 `runs-on`-Stellen an `SMC_GH_HOSTED_RUNNER`, und kein Test prueft
+ihren WERT — alle pinnen den Ausdruck. Ein falscher Wert macht die Jobs nicht
+rot, sondern verhindert sie: `queued` bis zum 24-h-Limit, dann still
+`cancelled`. Weder `timeout-minutes` (laeuft erst nach der Job-Annahme) noch
+der Fehleralarm (wertet nur `failure`) sehen das.
+"""
+witness         = "runner-label-variable-watch"
+witness_job     = "watch"
+# Die Sonde schreibt ihren Bericht nach stdout; der Aufrufer teet ihn in die
+# Step Summary. Bewusst kein eigener Schreibpfad und deshalb kein Artefakt —
+# zwei Wahrheiten ueber denselben Bericht waeren genau die Doppelgaenger-Stelle,
+# die diese PR an anderer Stelle schliesst.
+evidence_source = "job_log"
+artifact        = ""
+# Inhaltliche Versionsprobe, keine "KEINE": die Tabellen-Kopfzeile existiert
+# erst seit dieser Aenderung. Erscheint sie, lief der neue Code — und die
+# Zeilen darunter belegen, ueber WIE VIEL geurteilt wurde.
+version_probe   = "| Variable | Wert | Lanes | Urteil |"
+judge           = "runner_label_variable_watch"
+state           = "OFFEN"
+# Der Cron laeuft alle 6 h, der erste Lauf kommt also am Merge-Tag. Die Frist
+# ist trotzdem grosszuegig, weil der Zeuge erst nach dem Merge auf main
+# entsteht und ein Wochenende dazwischenliegen darf.
+due_by          = "2026-09-05"
+owner           = "@preuss_steffen"
+
+# --- Zweige von `runner_label_variable_watch` -------------------------------
+# Kein Korpus erreicht sie beim Landen: der Zeuge entsteht erst durch den
+# ersten Cron-Lauf auf main. Die Deklaration ist deshalb kein "unmoeglich",
+# sondern ein "noch nicht aufgezeichnet, und hier ist der Grund" — und sie
+# traegt ihren eigenen Stolperdraht: sobald ein Lauf als Korpus aufgezeichnet
+# wird und einen dieser Zweige erreicht, faellt
+# test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction
+# rot aus und erzwingt das Entfernen. Der Ring schliesst sich bei PASS:
+# test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass verlangt
+# dann einen Korpus, der den PASS-Zweig wirklich trifft.
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "scope_measured_and_judged"
+reason = """
+Der Normalfall — und der einzige Zweig hier, der beim ersten Cron-Lauf nach dem
+Merge sicher feuert. Beim Landen gibt es ihn noch nicht als Korpus, weil der
+Zeuge den Lauf auf main VORAUSSETZT. Lokal gegen das echte Repo gemessen
+(2026-08-29): 2 Variablen ueber 71 Workflow-Dateien, beide OK, rc=0. Diese
+Deklaration gehoert entfernt, sobald der erste Lauf aufgezeichnet ist.
+"""
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "log_empty"
+reason = """
+Leere Evidenz — der Zeugensammler lieferte kein Log. Erreicht kein Korpus,
+weil ein Korpus aus gelieferten Logs besteht. Fail-closed statt Urteil.
+"""
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "no_report_table"
+reason = """
+Log ohne Bericht-Tabelle: entweder lief die alte Fassung, oder die Sonde brach
+vor dem Urteil ab. Das ist die Versionsprobe in Zweigform und feuert nur bei
+einem Lauf vor dieser Aenderung — den es als Korpus nicht gibt.
+"""
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "no_scope_line"
+reason = """
+Tabelle da, Umfangszeile weg. Nur durch einen Umbau der Ausgabe erreichbar,
+der die eine Zeile entfernt und die andere behaelt — die Alarmglocke gegen
+genau diesen Umbau, nicht der Normalfall.
+"""
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "scope_collapsed"
+reason = """
+Der eigentliche Schutz: die Ableitung schrumpft auf fast nichts und der
+Waechter urteilt ueber eine leere Menge, meldet aber Erfolg. Erreicht kein
+Korpus, solange der Scanner sieht — er ist die Alarmglocke gegen ein blindes
+Wachwerden, path:scripts/check_runner_label_variables.py
+"""
+
+[[unreachable_branch]]
+judge  = "runner_label_variable_watch"
+branch = "rows_missing"
+reason = """
+Mehr abgeleitete Variablen als gerenderte Urteilszeilen: fuer mindestens eine
+fiel kein Urteil. Nur durch einen Fehler in der Berichtschleife erreichbar,
+den kein aufgezeichneter Lauf zeigt.
+"""
+
 [[unreachable_branch]]
 judge  = "tv_verify_measures_under_drift"
 branch = "still_blind_under_drift"
