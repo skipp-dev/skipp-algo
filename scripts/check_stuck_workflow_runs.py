@@ -186,7 +186,30 @@ def max_declared_timeout(workflows_dir: Path | None = None) -> int:
 #: — und ein Draht, der immer rot ist, wird abgeschaltet. Genau das waere der
 #: teuerste Ausgang: die Ausfallart, gegen die #5183 gebaut wurde, verlaere
 #: ihren Alarm an ein Artefakt, das niemand beseitigen kann.
-PHANTOM_RUN_IDS: frozenset[int] = frozenset({32985711996})
+#: LEER seit 2026-08-29. Der einzige Eintrag (32985711996) ist gegenstandslos
+#: geworden: der Lauf wurde um 16:28:07Z aufgeloest — `status=completed`,
+#: `conclusion=cancelled`, in keiner der drei in-flight-Abfragen mehr. Damit
+#: stand er 72,8 Stunden in `queued`, was nebenbei bestaetigt, dass es fuer
+#: GitHub-hosted keine 24-h-Warteschlangen-Grenze gibt.
+#:
+#: Aufgeloest hat ihn NICHT nachweislich einer der drei Abbruchversuche vom
+#: selben Tag (~13:00Z, alle drei abgelehnt) — der Zeitversatz von rund drei
+#: Stunden laesst offen, ob ein Cancel verzoegert doch griff oder GitHub
+#: unabhaengig aufraeumte. Aus den Endpunkten ist das nicht unterscheidbar, und
+#: es wird hier deshalb auch nicht behauptet.
+#:
+#: Gemeldet hat es die Sonde selbst, beim ERSTEN Lauf nach #5197: der
+#: `acknowledged_gone`-Zweig fand die ID in keinem laufenden Lauf mehr. Die
+#: Laufzeit-Erkennung hat damit ihre eigene Ueberfluessigkeit entdeckt.
+#:
+#: Das Wissen bleibt hier stehen, weil der naechste Waise es braucht: alle drei
+#: Aufloesungswege verweigern, zwei mit einander widersprechenden Gruenden
+#:   cancel -> "run that is completed" | force-cancel -> "has not been queued
+#:   yet" (409) | DELETE -> "Could not delete the workflow run" (403)
+#: waehrend Lauf und Check-Suite `queued` melden. Recherchiert 2026-08-29:
+#: kein Selbstbedienungs-Weg, einziges Mittel ist ein GitHub-Support-Ticket;
+#: die Signatur ist seit 2024 von mehreren Nutzern unabhaengig reproduziert.
+PHANTOM_RUN_IDS: frozenset[int] = frozenset()
 
 #: Die FRIST zu der Ausnahme oben. Sie fehlte bis 2026-08-29, und der eigene
 #: Diagnosetext versprach sie schon: er nennt die Ausnahme "datiert", die
