@@ -1896,8 +1896,10 @@ owner           = "@preuss_steffen"
 [[proof]]
 id              = "5183"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+# gh und git stimmen ueberein (beide 2026-08-29T12:04:23Z, SHA identisch);
+# der Zeugen-Job startete 12:04:27Z, also danach.
+merged_at       = "2026-08-29T12:04:23Z"
+merge_sha       = "43a0c60ac6ff83caff1f21743f003fc923386c97"
 claim           = """
 Ein Lauf, der NICHT ENDET, wird gemeldet. Der Fehleralarm
 `lo-workflow-run-failed` wertet nur Endzustaende aus ("latest run failed",
@@ -1919,9 +1921,15 @@ artifact        = ""
 # Lauf mit 0 geprueften Laeufen ist kein Beweis fuer Ruhe.
 version_probe   = "Lauf/Laeufe in Arbeit geprueft (Budget: queued 60 min, in_progress 330 min)"
 judge           = "stuck_run_watch"
-state           = "OFFEN"
-# Der Cron laeuft alle 2 h, der `push`-Trigger feuert schon beim Merge. Frist
-# grosszuegig, weil der Zeuge erst auf main entsteht.
+# 2026-08-29, GEMESSEN: der `push`-Trigger feuerte beim Merge sofort, Lauf
+# 33251602366 (12:04:27Z). Er ging ROT — und zwar richtig: die Sonde fand einen
+# realen Stillstand, `tv-onboarding-packages` seit 4106 min `queued`. Genau
+# dieser Lauf hat ausserdem eine Annahme im Code widerlegt (GitHub setzt
+# `run_started_at` auch fuer `queued`), behoben in derselben Aenderung wie
+# dieser Eintragswechsel.
+state           = "PASS"
+pass_kind       = "live"
+witness_run     = "33251602366"
 due_by          = "2026-09-05"
 owner           = "@preuss_steffen"
 
@@ -1933,15 +1941,10 @@ owner           = "@preuss_steffen"
 # test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass einen
 # Korpus, der den PASS-Zweig wirklich trifft.
 
-[[unreachable_branch]]
-judge  = "stuck_run_watch"
-branch = "fleet_measured"
-reason = """
-Der Normalfall, und der einzige Zweig, der beim ersten Lauf nach dem Merge
-sicher feuert — beim Landen gibt es ihn noch nicht als Korpus, weil der Zeuge
-den Lauf auf main voraussetzt. Entfernen, sobald der erste Lauf aufgezeichnet
-ist.
-"""
+# Die Deklaration fuer `fleet_measured` stand hier bis 2026-08-29 und ist
+# ENTFERNT: Lauf 33251602366 erreicht den Zweig und liegt als Korpus vor. Der
+# Widerspruchs-Test haette sie genau dafuer rot gemacht — zweiter Fang dieses
+# Stolperdrahts an einem Tag.
 
 [[unreachable_branch]]
 judge  = "stuck_run_watch"

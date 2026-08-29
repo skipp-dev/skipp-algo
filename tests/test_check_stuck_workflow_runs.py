@@ -145,6 +145,22 @@ def test_a_queued_run_without_run_started_at_still_has_an_age() -> None:
     assert found[0].age_min == pytest.approx(600, abs=1)
 
 
+def test_a_queued_run_ignores_a_present_run_started_at() -> None:
+    """Der Fall, den die Produktion lieferte: beide Felder gesetzt, Status queued.
+
+    Waere hier `run_started_at` bevorzugt worden, stuende im Alarm die falsche
+    Groesse — und bei einem spaeter gesetzten `run_started_at` auch die falsche
+    ZAHL, naemlich eine zu kleine.
+    """
+    runs = [_run(id=13, status="queued",
+                 created_at=_minutes_ago(600), run_started_at=_minutes_ago(30))]
+    found = evaluate(runs, _NOW)
+    assert len(found) == 1
+    assert found[0].age_min == pytest.approx(600, abs=1), (
+        "queued wurde ab run_started_at gemessen — die Wartezeit waere um 570 min zu kurz"
+    )
+
+
 def test_completed_runs_are_ignored() -> None:
     runs = [_run(id=12, status="completed", run_started_at=_minutes_ago(10_000))]
     assert evaluate(runs, _NOW) == []
@@ -238,19 +254,28 @@ def test_a_quiet_fleet_makes_main_return_rc0(monkeypatch: pytest.MonkeyPatch, ca
     assert "Kein Lauf ueber seinem Budget" in capsys.readouterr().out
 
 
-def test_the_alarm_discloses_which_timestamp_the_age_came_from() -> None:
-    """`run_started_at` misst gearbeitete Zeit, `created_at` gewartete.
+def test_the_age_source_follows_the_status_not_the_presence_of_a_field() -> None:
+    """Am ersten echten Lauf bezahlt (2026-08-29).
 
-    Ohne die Offenlegung stehen zwei verschiedene Groessen unter derselben
-    Zahl, und der Geweckte kann nicht sehen, welche er vor sich hat.
+    GitHub setzt ``run_started_at`` AUCH fuer ``queued``, identisch zu
+    ``created_at`` (Lauf 32985711996). Eine Praeferenz-Reihenfolge stempelte
+    darum "gemessen ab run_started_at" auf einen Lauf, der nie gestartet ist —
+    das las sich wie 68 h Arbeit, wo 68 h Warten standen. Die Zahl stimmte, das
+    Etikett log, und zwar in genau dem Fall, fuer den es erfunden wurde.
+
+    Deshalb entscheidet der STATUS, nicht die Anwesenheit eines Feldes.
     """
     wartend = evaluate(
-        [_run(id=1, status="queued", run_started_at=None, created_at=_minutes_ago(600))], _NOW
+        [_run(id=1, status="queued",
+              run_started_at=_minutes_ago(600), created_at=_minutes_ago(600))], _NOW
     )
     laufend = evaluate(
         [_run(id=2, status="in_progress", run_started_at=_minutes_ago(600))], _NOW
     )
-    assert wartend[0].age_source == "created_at"
-    assert laufend[0].age_source == "run_started_at"
-    assert "created_at" in wartend[0].as_error_annotation()
-    assert "run_started_at" in laufend[0].as_error_annotation()
+    assert "Wartezeit" in wartend[0].age_source, (
+        f"queued wurde als {wartend[0].age_source!r} etikettiert — der Lauf hat nicht gearbeitet"
+    )
+    assert "created_at" in wartend[0].age_source
+    assert "Laufzeit" in laufend[0].age_source
+    assert "Wartezeit" in wartend[0].as_error_annotation()
+    assert "Laufzeit" in laufend[0].as_error_annotation()
