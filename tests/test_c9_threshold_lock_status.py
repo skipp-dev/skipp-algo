@@ -33,10 +33,28 @@ import pytest
 LOCK_BY = _dt.date(2026, 9, 30)
 DOC = Path(__file__).resolve().parent.parent / "docs" / "c9_threshold_tuning.md"
 
+# Fenced code blocks are quotations, never the document's own status.
+_FENCED_BLOCK = re.compile(r"^[ \t]*```.*?^[ \t]*```", re.MULTILINE | re.DOTALL)
+
 # Line anchor, not substring: the line must BE a status line declaring
-# ``locked`` — ``**Status:** locked …`` or ``Status: locked …`` at the start
-# of a line.
-_LOCKED_STATUS_LINE = re.compile(r"^(?:\*\*)?Status:(?:\*\*)?[ \t]+locked\b", re.MULTILINE)
+# ``locked`` — ``**Status:** locked …``, ``**Status**: locked …`` or
+# ``Status: locked …`` at the start of a line (optionally as a list item).
+#
+# The trailing lookahead is what separates a declaration from a sentence:
+# ``locked`` must end the line or be followed by a dash/punctuation, so
+# "Status: locked was never recorded here." — prose that merely starts with
+# the words — is NOT a lock. That hole was found in code review 2026-08-29,
+# after the same class of hole (substring matching the doc's own self-quote)
+# had already let the 2026-08-16 deadline pass unnoticed.
+#
+# Deliberately NOT matched: a blockquoted ``> Status: locked``. In this
+# repo's docs a blockquote marks a superseded or quoted note, which is
+# exactly the "prose about the status" that must never count as the status.
+_LOCKED_STATUS_LINE = re.compile(
+    r"^[ \t]{0,3}(?:[-*+][ \t]+)?(?:\*\*)?Status(?:\*\*)?[ \t]*:(?:\*\*)?[ \t]+"
+    r"locked\b(?=[ \t]*$|[ \t]*[.,;]|[ \t]+[—–-])",
+    re.MULTILINE | re.IGNORECASE,
+)
 
 
 def _status_line_locked(text: str) -> bool:
@@ -47,7 +65,7 @@ def _status_line_locked(text: str) -> bool:
     false ``Status: locked``" inside the extension rationale, not the
     status line. Prose ABOUT the status must never count as the status.
     """
-    return bool(_LOCKED_STATUS_LINE.search(text))
+    return bool(_LOCKED_STATUS_LINE.search(_FENCED_BLOCK.sub("", text)))
 
 
 def test_c9_thresholds_locked_after_deadline() -> None:
@@ -90,3 +108,36 @@ def test_the_current_doc_does_not_already_count_as_locked() -> None:
     text = DOC.read_text(encoding="utf-8")
     assert "synthetic-tuned" in text  # premise: doc still in the pre-lock state
     assert not _status_line_locked(text)
+
+
+def test_prose_that_merely_starts_with_the_words_is_not_a_lock() -> None:
+    """Found in code review 2026-08-29 — the line anchor alone was not enough.
+
+    A sentence that BEGINS at the line start with "Status: locked" satisfied
+    the first anchored version. That is the same failure class as the
+    substring bug it replaced: prose about the status counting as the status.
+    """
+    assert not _status_line_locked("Status: locked was never recorded here.\n")
+    assert not _status_line_locked("**Status:** locked is what we would write if\n")
+
+
+def test_a_fenced_example_is_not_a_lock() -> None:
+    """A code block is a quotation, not the document's own status."""
+    assert not _status_line_locked(
+        "# C9\n\n**Status:** synthetic-tuned\n\n"
+        "Write it like this once the replay is done:\n\n"
+        "```markdown\n**Status:** locked — tuned against 92d\n```\n"
+    )
+
+
+def test_the_usual_markdown_spellings_of_a_real_lock_all_count() -> None:
+    """The counter-direction: a genuine lock must not be missed on a comma."""
+    for zeile in (
+        "**Status:** locked — tuned against 92d of live outcomes\n",
+        "**Status**: locked — tuned against 92d\n",
+        "Status: locked\n",
+        "Status: LOCKED\n",
+        "- **Status:** locked, replay 2026-09-28\n",
+        "**Status:** locked.\n",
+    ):
+        assert _status_line_locked(f"# C9\n\n{zeile}\n"), zeile

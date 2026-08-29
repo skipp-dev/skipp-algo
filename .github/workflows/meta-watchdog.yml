@@ -212,6 +212,14 @@ jobs:
             echo "::error title=meta-watchdog::Der Workflow-Fehleralarm ist fuer einen merge-kritischen Workflow BLIND. Siehe Schrittausgabe: GITHUB_WORKFLOW_MONITOR_IDS auf dem live_overlay_daemon nachziehen."
           elif [ "$rc" = "8" ]; then
             echo "::warning title=meta-watchdog::Alarm-Abdeckung nicht messbar (Sonde ungueltig) -- das ist KEIN Bestehen."
+          elif [ "$rc" != "0" ]; then
+            # 2026-08-29 (Code-Review): der Vertrag kennt 0/1/8. Alles andere
+            # ist ein ABSTURZ der Sonde, nicht ihr Urteil — 127 (Interpreter
+            # oder Modulpfad weg nach einem Runner-Image-Wechsel), 137 (OOM).
+            # Vorher fiel das durch die Deny-Liste des Fail-Steps und war
+            # still gruen: ausgerechnet der Waechter gegen stille Blindheit
+            # war gegen die eigene stille Blindheit blind.
+            echo "::error title=meta-watchdog::Alarm-Abdeckungs-Sonde mit unbekanntem rc=$rc abgebrochen (Vertrag: 0/1/8). Kein Urteil — die Sonde selbst ist kaputt."
           fi
 
       - name: Verify the branch-protection governance baseline
@@ -441,7 +449,9 @@ jobs:
             (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
             steps.dag.outputs.dag_status == 'broken' ||
             steps.dag.outputs.dag_status == 'error' ||
-            steps.alarm_coverage.outputs.alarm_rc == '1' ||
+            (steps.alarm_coverage.outputs.alarm_rc != '' &&
+             steps.alarm_coverage.outputs.alarm_rc != '0' &&
+             steps.alarm_coverage.outputs.alarm_rc != '8') ||
             steps.governance.outputs.governance_rc == '1'
           )
         run: |

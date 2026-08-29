@@ -46,6 +46,7 @@ Aufruf::
 from __future__ import annotations
 
 import os
+import ssl
 import sys
 import time
 import urllib.error
@@ -113,10 +114,20 @@ def _mit_transient_retry(
 ) -> Any:
     """Idempotente GET-Abrufe gegen 5xx-/Netz-Transienten haerten.
 
-    Nur Transienten werden wiederholt: HTTP >= 500, URLError, Timeout. Ein
-    ECHTER Fehler (4xx wie 401/403, kaputtes JSON, ProbeInvalidError) bleibt
-    sofort laut. Nach dem letzten Versuch wird die Ausnahme unveraendert
-    weitergereicht — der Exit bleibt 8, die Sonde bleibt fail-closed.
+    Nur Transienten werden wiederholt: HTTP >= 500, URLError, Timeout sowie
+    Verbindungs-/TLS-Abbrueche. Ein ECHTER Fehler (4xx wie 401/403, kaputtes
+    JSON, ProbeInvalidError) bleibt sofort laut. Nach dem letzten Versuch wird
+    die Ausnahme unveraendert weitergereicht — der Exit bleibt 8, die Sonde
+    bleibt fail-closed.
+
+    ``ConnectionError`` und ``ssl.SSLError`` stehen ausdruecklich mit in der
+    Liste, obwohl der Docstring vorher nur "Netz-Transienten" versprach: beide
+    sind ``OSError``, aber KEIN ``URLError`` (gemessen), und sie entstehen erst
+    beim ``resp.read()``, das ``urllib`` nicht mehr einpackt. Der haeufigste
+    Transient ueberhaupt — ein Verbindungsabbruch mitten im Lesen
+    (``http.client.RemoteDisconnected``, Subklasse von
+    ``ConnectionResetError``) — waere sonst als einziger nicht wiederholt
+    worden.
     """
     letzte: Exception | None = None
     for versuch in range(1, _TRANSIENT_VERSUCHE + 1):
@@ -126,7 +137,12 @@ def _mit_transient_retry(
             if exc.code < 500:
                 raise
             letzte = exc
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionError,
+            ssl.SSLError,
+        ) as exc:
             letzte = exc
         if versuch < _TRANSIENT_VERSUCHE:
             print(

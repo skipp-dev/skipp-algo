@@ -11,6 +11,16 @@ on:
     # 6-7 nutzlose Rotlaeufe pro Tag ohne Aussage ueber heutigen Code.
     # (`branches` und `branches-ignore` schliessen sich aus; "alle ausser"
     # geht nur so.)
+    #
+    # WICHTIG (gemessen 2026-08-26, Nachtrag zu #5077): Diese Zeile allein
+    # stoppt die Rotlaeufe NICHT. Ein `push` loest die Workflow-Datei des
+    # GEPUSHTEN Refs aus, nicht die von main — der Orphan-Branch trug seine
+    # eigene, alte ci.yml und feuerte weiter, bis dieselbe Aenderung dort
+    # gespiegelt wurde (`8697f3216`). Es gibt also ZWEI Kopien dieses
+    # `on:`-Blocks ohne Kopplungswaechter; wird der Datenbranch je aus einem
+    # aelteren Schnappschuss neu aufgesetzt, kehren die 6-7 Rotlaeufe pro Tag
+    # still zurueck. Dauerhafte Loesung waere, `.github/workflows/` auf den
+    # data-Branches ganz zu entfernen — OPERATOR-Entscheid, offen.
     branches-ignore: ["data/**"]
   pull_request:
     branches: ["**"]
@@ -20,8 +30,11 @@ on:
     # Operator-Punkt 1, `main-governance` ruleset). paths-ignore still cannot
     # block a doc-only merge: the un-filtered `push:` lane below reports the
     # same contexts (status-only, run_heavy=false) on every branch head.
-    # `push:` above is intentionally NOT path-filtered so every branch still
-    # reports a `validate` status. The gate below keeps non-main pushes
+    # `push:` above is intentionally NOT path-filtered, so every branch that
+    # the lane covers still reports a `validate` status. 2026-08-29: "every
+    # branch" is no longer literally true — `data/**` is excluded above, by
+    # design (no code review happens on a data-only branch). Nothing consumes
+    # a `validate` status on those refs. The gate below keeps non-main pushes
     # status-only; heavy validation runs on main pushes and manual dispatches.
     paths-ignore:
       - '**/*.md'
