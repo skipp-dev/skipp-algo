@@ -449,10 +449,18 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # 2026-08-29: `--pr` erzwingt, dass eine neu angelegte NUMERISCHE
+          # Beweis-id die eigene PR-Nummer ist. #5179 legte seinen Eintrag unter
+          # der geratenen 5178 an, die bereits belegt war — der Loader lehnte das
+          # Ledger komplett ab und main war 70 min fuer alle offenen PRs blockiert.
+          # Beide PRs waren fuer sich gruen (Stale-Check-Falle); die Frage "ist es
+          # meine eigene Nummer" kann dagegen jeder PR allein beantworten.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           "$SMC_PYTHON_BIN" -VV
           git fetch --depth=500 origin "$BASE_SHA" "$HEAD_SHA" 2>/dev/null || true
-          "$SMC_PYTHON_BIN" -m scripts.check_proof_ledger --range "${BASE_SHA}..${HEAD_SHA}"
+          "$SMC_PYTHON_BIN" -m scripts.check_proof_ledger \
+            --range "${BASE_SHA}..${HEAD_SHA}" --pr "$PR_NUMBER"
 
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
@@ -667,6 +675,7 @@ jobs:
             tests/test_exit_tif_explicit_at_order_submitters.py \
             tests/test_prod_print_ledger.py \
             tests/test_proof_ledger.py \
+            tests/test_proof_entry_id_is_the_own_pr_number.py \
             tests/test_pytest_skip_budget.py \
             tests/test_random_tempfile_ledger_pin.py \
             tests/test_realtime_signals_sister_ledger_guardrail.py \
