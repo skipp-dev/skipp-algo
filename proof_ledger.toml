@@ -1841,8 +1841,9 @@ Ein Runner-Label ausserhalb der Allowlist wird LAUT gemeldet, statt die
 betroffenen Jobs still nicht starten zu lassen. Gemessen am 2026-08-29 haengen
 80 der 97 `runs-on`-Stellen an `SMC_GH_HOSTED_RUNNER`, und kein Test prueft
 ihren WERT — alle pinnen den Ausdruck. Ein falscher Wert macht die Jobs nicht
-rot, sondern verhindert sie: `queued` bis zum 24-h-Limit, dann still
-`cancelled`. Weder `timeout-minutes` (laeuft erst nach der Job-Annahme) noch
+rot, sondern verhindert sie: `queued`, und zwar UNBEFRISTET (korrigiert
+2026-08-29 — die 24-h-Zeile der Actions-Limits gilt nur self-hosted und nur je
+JOB; ein Lauf ohne angelegten Job hat keinen, der eine Uhr startet). Weder `timeout-minutes` (laeuft erst nach der Job-Annahme) noch
 der Fehleralarm (wertet nur `failure`) sehen das.
 """
 witness         = "runner-label-variable-watch"
@@ -1932,6 +1933,26 @@ pass_kind       = "live"
 witness_run     = "33251602366"
 due_by          = "2026-09-05"
 owner           = "@preuss_steffen"
+
+[[proof]]
+id     = "5196"
+kind   = "exempt"
+claim  = """
+Aendert AUSSAGEN, nicht Verhalten. Elf Stellen behaupteten, ein Lauf ohne
+passenden Runner bleibe `queued` bis zu einem 24-h-Limit und werde dann still
+`cancelled`; die Zeile in den Actions-Limits gilt nur self-hosted und nur je
+JOB, fuer GitHub-hosted ist keine Warteschlangen-Grenze dokumentiert. Der Text
+sagt jetzt UNBEFRISTET. Kein Urteil einer Sonde aendert sich dadurch: die
+Ableitungen, Budgets und Exit-Codes sind unberuehrt, und die einzige
+nicht-prosaische Aenderung -- PHANTOM_REVIEW_BY von 2026-09-30 auf 2026-12-01,
+weil die Retention-Umstellung erst am 2026-10-01 greift -- ist durch
+test_the_phantom_exception_carries_a_deadline_and_expires gedeckt, das die
+Frist bei Ablauf rot macht. Eine Wirkung, die ein Zeuge belegen koennte, gibt
+es hier also nicht; was zu pruefen war, steht in den Tests.
+"""
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "@preuss_steffen"
 
 # --- Zweige von `stuck_run_watch` -------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst auf main. Gleicher

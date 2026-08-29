@@ -6,7 +6,7 @@ Warum es diese Sonde gibt
 
 Ein falsches Runner-Label macht einen Lauf nicht rot, sondern **verhindert ihn**.
 GitHub findet kein passendes Label, plant den Job nie ein, laesst ihn ``queued``
-bis zum 24-h-Limit stehen und beendet ihn dann still als ``cancelled``. Drei
+UNBEFRISTET stehen. (Korrektur 2026-08-29: die 24-h-Zeile der Actions-Limits gilt nur self-hosted und nur je JOB; fuer GitHub-hosted ist keine Warteschlangen-Grenze dokumentiert.) Drei
 Schutzmechanismen greifen dabei alle nicht:
 
 * ``timeout-minutes`` laeuft erst, wenn ein Runner den Job ANGENOMMEN hat.
@@ -284,8 +284,8 @@ def evaluate(
                         f"steht auf `{value}`, das ist kein erlaubtes Runner-Label. "
                         f"Erlaubt: {', '.join(allowed)}. Betroffene Lanes: "
                         f"{', '.join(derived[name])}. Ein unbekanntes Label macht diese "
-                        "Jobs nicht rot -- sie starten nie und werden nach 24 h still "
-                        "`cancelled`. Zurueckrollen: Repo-Variable auf einen erlaubten "
+                        "Jobs nicht rot -- sie starten nie, und der Lauf bleibt "
+                        "unbefristet stehen. Zurueckrollen: Repo-Variable auf einen erlaubten "
                         "Wert setzen oder loeschen."
                     ),
                 )

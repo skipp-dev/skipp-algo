@@ -5,7 +5,8 @@ name: runner-label-variable-watch
 #
 # Warum als eigener Cron und nicht als Job in ci.yml: ein falsches Runner-Label
 # macht einen Lauf nicht rot, sondern verhindert ihn -- der Job bleibt `queued`
-# bis zum 24-h-Limit und wird still `cancelled`. Ein Wachposten, der selbst an
+# unbefristet stehen (die 24-h-Zeile der Actions-Limits gilt nur self-hosted und
+# nur je JOB — korrigiert 2026-08-29). Ein Wachposten, der selbst an
 # einer Runner-Variablen haengt, steht in genau dem Moment mit, in dem er
 # gebraucht wird. Der `runner-preflight` in ci.yml (#5171) ist deshalb nur die
 # halbe Antwort: er ist gegen `SMC_CI_ARM_RUNNER` immun, aber nicht gegen
@@ -119,7 +120,7 @@ jobs:
             "" \
             "Warum das dringend ist: ein Runner-Label ausserhalb der Allowlist macht die betroffenen" \
             "Jobs **nicht rot, sondern unsichtbar** -- GitHub plant sie nie ein, sie bleiben \`queued\`" \
-            "bis zum 24-h-Limit und werden dann still \`cancelled\`. Weder \`timeout-minutes\` noch der" \
+            "unbefristet stehen. Weder \`timeout-minutes\` noch der" \
             "Workflow-Fehleralarm sehen das." \
             "" \
             "Die betroffene Variable, ihr Wert und die erlaubten Werte stehen in der Step Summary des" \
