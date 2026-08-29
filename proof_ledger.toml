@@ -1893,6 +1893,90 @@ owner           = "@preuss_steffen"
 # den Zweig, ist als Korpus aufgezeichnet, und der Widerspruchs-Test haette sie
 # genau dafuer rot gemacht. Der Stolperdraht hat gehalten.
 
+[[proof]]
+id              = "5183"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Ein Lauf, der NICHT ENDET, wird gemeldet. Der Fehleralarm
+`lo-workflow-run-failed` wertet nur Endzustaende aus ("latest run failed",
+`noDataState: OK`) — ein Lauf, der ewig `queued` oder `in_progress` bleibt,
+erzeugt kein `failure` und taucht in keiner Regel auf, waehrend er required
+Kontexte und damit jeden offenen PR blockiert. Zwei Budgets, zwei Diagnosen:
+`queued` zu lange = kein Runner nimmt das Label an; `in_progress` zu lange =
+der Job haengt und seine `timeout-minutes` greift nicht (validate (4),
+#4939/#4949).
+"""
+witness         = "stuck-run-watch"
+witness_job     = "watch"
+# Wie #5178: Bericht nach stdout, vom Aufrufer in die Step Summary geteet.
+# Kein Artefakt, damit es nicht zwei Wahrheiten ueber denselben Bericht gibt.
+evidence_source = "job_log"
+artifact        = ""
+# Inhaltliche Versionsprobe: die Umfangszeile mit BEIDEN Budgets existiert erst
+# seit dieser Aenderung. Sie belegt zugleich, worueber geurteilt wurde — ein
+# Lauf mit 0 geprueften Laeufen ist kein Beweis fuer Ruhe.
+version_probe   = "Lauf/Laeufe in Arbeit geprueft (Budget: queued 60 min, in_progress 330 min)"
+judge           = "stuck_run_watch"
+state           = "OFFEN"
+# Der Cron laeuft alle 2 h, der `push`-Trigger feuert schon beim Merge. Frist
+# grosszuegig, weil der Zeuge erst auf main entsteht.
+due_by          = "2026-09-05"
+owner           = "@preuss_steffen"
+
+# --- Zweige von `stuck_run_watch` -------------------------------------------
+# Kein Korpus beim Landen: der Zeuge entsteht erst auf main. Gleicher
+# Stolperdraht wie bei #5178 — erreicht echte Evidenz einen dieser Zweige, wird
+# test_a_declared_dead_branch_that_real_evidence_reaches_is_a_contradiction rot
+# und erzwingt das Entfernen; beim Wechsel auf PASS verlangt
+# test_a_pass_entry_is_backed_by_a_corpus_that_actually_reaches_pass einen
+# Korpus, der den PASS-Zweig wirklich trifft.
+
+[[unreachable_branch]]
+judge  = "stuck_run_watch"
+branch = "fleet_measured"
+reason = """
+Der Normalfall, und der einzige Zweig, der beim ersten Lauf nach dem Merge
+sicher feuert — beim Landen gibt es ihn noch nicht als Korpus, weil der Zeuge
+den Lauf auf main voraussetzt. Entfernen, sobald der erste Lauf aufgezeichnet
+ist.
+"""
+
+[[unreachable_branch]]
+judge  = "stuck_run_watch"
+branch = "log_empty"
+reason = """
+Leere Evidenz — der Zeugensammler lieferte kein Log. Erreicht kein Korpus, weil
+ein Korpus aus gelieferten Logs besteht. Fail-closed statt Urteil.
+"""
+
+[[unreachable_branch]]
+judge  = "stuck_run_watch"
+branch = "no_scope_line"
+reason = """
+Log ohne Umfangszeile: entweder lief eine Fassung vor dieser Aenderung, oder die
+Sonde brach vor dem Bericht ab. Das ist die Versionsprobe in Zweigform.
+"""
+
+[[unreachable_branch]]
+judge  = "stuck_run_watch"
+branch = "budgets_drifted"
+reason = """
+Die Budgets im Lauf weichen von denen ab, gegen die dieser Urteiler gebaut
+wurde. Alarmglocke gegen eine Aenderung, die die Sonde bewegt und den Urteiler
+stehen laesst — path:scripts/check_stuck_workflow_runs.py
+"""
+
+[[unreachable_branch]]
+judge  = "stuck_run_watch"
+branch = "empty_fleet"
+reason = """
+Der eigentliche Schutz: 0 gepruefte Laeufe. Erreicht kein Korpus, solange die
+Abfrage traegt — er trennt "Flotte ist ruhig" von "Sonde hat nichts gesehen",
+und genau diese Verwechslung vergiftet sonst die Grundlinie.
+"""
+
 [[unreachable_branch]]
 judge  = "runner_label_variable_watch"
 branch = "log_empty"

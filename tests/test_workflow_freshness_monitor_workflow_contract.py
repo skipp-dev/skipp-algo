@@ -193,6 +193,12 @@ _MONITORED_WORKFLOWS = (
     # muss ihr eigener Ausfall beobachtet sein. :any (unten), weil ihr
     # conclusion:failure das KORREKTE Ergebnis ist, sobald ein Wert ausschert.
     "runner-label-variable-watch.yml",
+    # Stillstands-Waechter (2026-08-29): meldet Laeufe, die nicht enden —
+    # die Ausfallart, die der Fehleralarm strukturell nicht sieht (er wertet
+    # nur Endzustaende). Faellt sein eigener Cron aus, ist die Klasse wieder
+    # unsichtbar. :any, weil sein conclusion:failure das KORREKTE Ergebnis
+    # ist, sobald ein Lauf steht.
+    "stuck-run-watch.yml",
 )
 
 

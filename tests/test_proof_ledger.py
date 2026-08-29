@@ -45,6 +45,18 @@ def test_a_fix_entry_carries_real_merge_metadata_not_the_template_placeholder():
     for entry in load_entries():
         if entry.kind != "fix":
             continue
+        # 2026-08-29 verengt, zweite Korrektur an diesem Waechter: solange ein
+        # Eintrag OFFEN ist, IST der Platzhalter der richtige Wert — beim
+        # Anlegen im PR gibt es den Merge-SHA noch nicht, und die Vorlage in
+        # scripts/check_proof_ledger.py sagt das ausdruecklich. Die erste
+        # Fassung verbot ihn generell und machte damit den dokumentierten
+        # Ablauf unmoeglich; ein neuer fix-Eintrag waere gar nicht mehr
+        # anlegbar gewesen. Was der Waechter wirklich schuetzt, ist der
+        # Uebergang: wer PASS oder FAIL behauptet, behauptet ein Urteil — und
+        # das setzt eine geglueckte Zeugensuche voraus, die ohne echtes
+        # `merged_at` nicht stattgefunden haben kann.
+        if entry.state == "OFFEN":
+            continue
         for field in ("merged_at", "merge_sha"):
             value = str(entry.raw.get(field, "")).strip()
             # NUR der stehengebliebene Platzhalter, NICHT die Abwesenheit.

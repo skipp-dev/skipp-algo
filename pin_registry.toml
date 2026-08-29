@@ -453,6 +453,10 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # rc-Resurface-Step darunter liefen nie. Kein Fail-Soft: der letzte Step bringt
 # rc explizit zurueck an die Oberflaeche und laesst den Job scheitern.
 "runner-label-variable-watch.yml" = 1
+# stuck-run-watch.yml (2026-08-29): eine geklammerte Stelle, gleicher Grund —
+# die Sonde beendet absichtlich non-zero (rc=1 ein Lauf steht, rc=8 Sonde
+# ungueltig), und der Issue-Step darunter muss trotzdem laufen.
+"stuck-run-watch.yml" = 1
 # Step-2b incremental activation (591c5bac): +1 from baseline for the
 # always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
 "smc-databento-production-export-sharded.yml" = 2

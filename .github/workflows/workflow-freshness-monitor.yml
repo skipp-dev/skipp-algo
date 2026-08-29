@@ -155,7 +155,8 @@ jobs:
             pine-library-version-monitor.yml=30 \
             fvg-quality-quartile-gate.yml=72:weekday \
             proof-ledger-monitor.yml=30:any \
-            runner-label-variable-watch.yml=12:any
+            runner-label-variable-watch.yml=12:any \
+            stuck-run-watch.yml=6:any
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
