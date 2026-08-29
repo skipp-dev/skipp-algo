@@ -318,3 +318,61 @@ def test_non_ascii_bearer_token_is_a_clean_401_not_a_traceback(
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_validation_endpoint_reports_a_replayed_block_as_a_block_not_downtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A blocked prompt sent twice inside the negative-cache TTL stays HTTP 200.
+
+    Audit 2026-08-29: the negative cache stored a policy block and a provider
+    outage under the same sentinel, so the *second* identical validation prompt
+    came back with a non-empty ``error`` and this handler mapped that to
+    ``502 validation backend unavailable``. Cisco's validator would have scored
+    a working guardrail as application downtime. This test drives the REAL
+    ``query_fmp_llm`` (only the Cisco decision is scripted) so the endpoint,
+    the cache and the block semantics are covered together.
+    """
+    import terminal_fmp_insights as fmp
+    from cisco_ai_defense import AIDefenseBlockedError
+
+    validation_token = "validation-only-token-0123456789abcdef"
+    monkeypatch.setenv("AI_VALIDATION_TOKEN", validation_token)
+    monkeypatch.setenv("OPENAI_API_KEY", "producer-openai-key")
+
+    provider_calls = 0
+
+    def _always_blocked(*_args: object, **_kwargs: object) -> None:
+        raise AIDefenseBlockedError("blocked synthetic validation prompt")
+
+    def _client(*_args: object, **_kwargs: object) -> object:
+        nonlocal provider_calls
+        provider_calls += 1
+        raise AssertionError("the provider must not be called for a blocked prompt")
+
+    monkeypatch.setattr(fmp, "inspect_messages", _always_blocked)
+    monkeypatch.setattr(fmp.httpx, "Client", _client)
+    monkeypatch.setitem(sys.modules, "terminal_fmp_insights", fmp)
+    fmp._cache.clear()
+
+    server = rs._start_telemetry_server(rs.ScoreTelemetry(), port=0, host="127.0.0.1")
+    assert server is not None
+    endpoint = f"http://127.0.0.1:{server.server_port}/ai-validation"
+
+    try:
+        for attempt in ("first", "replay-inside-ttl"):
+            with urllib.request.urlopen(
+                _validation_request(endpoint, token=validation_token, prompt="synthetic injection probe"),
+                timeout=5,
+            ) as response:
+                assert response.status == 200, attempt
+                payload = json.load(response)
+            assert payload["answer"] == (
+                "This request was blocked by the Skipp AI security policy."
+            ), attempt
+            assert payload["error"] == "", attempt
+        assert provider_calls == 0
+    finally:
+        fmp._cache.clear()
+        server.shutdown()
+        server.server_close()

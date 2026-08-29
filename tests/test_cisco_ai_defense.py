@@ -71,6 +71,79 @@ def test_safe_decision_allows_and_attaches_sanitized_metadata(monkeypatch):
     assert kwargs["timeout"] == 7
 
 
+def test_caller_supplied_transaction_id_is_used_for_both_metadata_and_log(monkeypatch, caplog):
+    """One exchange, one id — otherwise "transaction" names a single inspection.
+
+    2026-08-29: request and response inspection of the same user query each
+    minted their own uuid, so the two Cisco events and the two log lines could
+    not be joined. Measured live in the Producer log: one terminal query
+    produced transaction_id=7fb089e7... for the request and 81b8f43e... for the
+    response.
+    """
+    client = _Client(_result(safe=True, action=Action.ALLOW))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+    shared = defense.new_transaction_id()
+
+    with caplog.at_level("INFO"):
+        request_decision = defense.inspect_messages(
+            _messages(), phase="request", source="s", model="m", transaction_id=shared,
+        )
+        response_decision = defense.inspect_messages(
+            _messages(), phase="response", source="s", model="m", transaction_id=shared,
+        )
+
+    assert request_decision.transaction_id == shared
+    assert response_decision.transaction_id == shared
+    assert len(client.calls) == 2, "both phases must have reached the SDK"
+    for _messages_sent, kwargs in client.calls:
+        assert kwargs["metadata"].client_transaction_id == shared
+        assert kwargs["request_id"] == shared
+    assert caplog.text.count(f"transaction_id={shared}") == 2
+
+
+def test_omitted_transaction_id_still_mints_a_unique_one(monkeypatch):
+    client = _Client(_result(safe=True, action=Action.ALLOW))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    first = defense.inspect_messages(_messages(), phase="request", source="s", model="m")
+    second = defense.inspect_messages(_messages(), phase="request", source="s", model="m")
+
+    assert first.transaction_id != second.transaction_id
+
+
+def test_allowed_decision_logs_the_event_id_for_correlation(monkeypatch, caplog):
+    """An ALLOWED transaction must be correlatable to the Cisco event log too.
+
+    2026-08-29: ``event_id`` was logged only on a violation, so a clean
+    transaction could be tied to the dashboard by timestamp alone. Cisco mints
+    an event id only on a violation today, hence the ``none`` fallback -- the
+    point is that the field is present and carries the id whenever there is one.
+    """
+    client = _Client(_result(safe=True, action=Action.ALLOW, event_id="allowed-event"))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    with caplog.at_level("INFO"):
+        decision = defense.inspect_messages(
+            _messages(), phase="request", source="terminal-fmp-insights", model="gpt-test",
+        )
+
+    assert decision.allowed is True
+    assert "event_id=allowed-event" in caplog.text
+    assert f"transaction_id={decision.transaction_id}" in caplog.text
+
+
+def test_allowed_decision_without_a_cisco_event_logs_an_explicit_placeholder(monkeypatch, caplog):
+    client = _Client(_result(safe=True, action=Action.ALLOW, event_id=""))
+    monkeypatch.setattr(defense, "_get_client", lambda *_args: client)
+
+    with caplog.at_level("INFO"):
+        defense.inspect_messages(
+            _messages(), phase="response", source="terminal-fmp-insights", model="gpt-test",
+        )
+
+    assert "event_id=none" in caplog.text
+
+
 def test_sdk_client_uses_the_region_endpoint_and_suppresses_body_debug_logs():
     client = defense._get_client("a" * 64, "eu-central-1", 7)
 
