@@ -1885,3 +1885,29 @@ Bericht ohne bindings.checkedConsumers — das Feld traegt jeder Bericht seit
 Schema 2. Der Zweig steht fuer einen kuenftigen Schema-Bruch und faellt
 fail-closed auf KANN_NICHT_BEZEUGEN statt auf ein Urteil.
 """
+
+# ---------------------------------------------------------------------------
+# 5178 — Nachzug zu #5177: die Quell-Schleife traegt wieder ihre gepinnte
+# Zeile (`for (const target of sourceVerificationTargets)`), der Ausstieg
+# unter Library-Drift steht als `break` im Rumpf. AUSGENOMMEN mit
+# Doppelgrund (Muster #5154):
+#
+# (a) Reine FORM-Aenderung ohne Verhaltensunterschied gegenueber #5177: die
+#     Schleife arbeitet unter Drift in beiden Fassungen nicht, und
+#     `sources.notJudgedReason` weist es unveraendert aus. Die Wirkung, die
+#     einen Zeugen braucht, gehoert #5177 — dort steht sie als OFFEN mit
+#     Urteiler `tv_verify_measures_under_drift` (Frist 2026-09-05).
+#
+# (b) Die Form selbst ist suite-geprueft, nicht behauptet:
+#     automation/tradingview/tests/tv_producer_refresh_layouts.test.ts liest
+#     den Quelltext und verlangt die Zeile woertlich im save-gated Block.
+#     Genau dieser Test war nach #5177 rot; ein zweiter Zeuge daneben waere
+#     eine Kopie seiner Aussage.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "5178"
+kind   = "exempt"
+claim  = "Die gepinnte Schleifenzeile ist wiederhergestellt; das Verhalten unter Library-Drift bleibt exakt wie in #5177 (Schleife arbeitet nicht, sources.notJudgedReason gesetzt). Form suite-geprueft durch tv_producer_refresh_layouts.test.ts, Wirkung bezeugt der offene Eintrag tv-verify-measures-under-drift."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-29"
+owner  = "operator"
