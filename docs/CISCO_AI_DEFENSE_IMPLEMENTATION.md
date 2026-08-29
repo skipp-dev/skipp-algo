@@ -26,7 +26,7 @@ candidate PRE-A0 model into an approved trading model.
 | OpenAI provider probe | `GET /v1/models`, no prompt or completion | Credential/availability probe only; no content to inspect |
 | PRE-A0/A0 inference | Local deterministic model artifact | Existing model-governance and MLflow gates; not an LLM exchange |
 | Claude Agent SDK | Dependency present, no first-party invocation found | No active runtime path yet |
-| MCP | No first-party MCP client invocation found | Add Cisco `agentsec` before enabling an agent/MCP runtime |
+| MCP | No first-party MCP client invocation found | `aidefense.runtime.agentsec` DOES ship a `mcp` patcher (corrected 2026-08-29, see below); using it is an architecture decision we have not taken, not a missing capability |
 | Codex, Claude Code, GitHub Copilot UI | Runs outside the repository process | Requires an in-path enterprise control; repository code cannot intercept it |
 
 The regression guard `tests/test_ai_defense_egress_guard.py` fails if a new
@@ -520,9 +520,36 @@ Inspection API remains the enforcement point for our own application code.
 
 For a future first-party agent or MCP runtime, select a supported AI Defense
 runtime enforcement point and pair it with agent/tool least privilege and the
-available MCP supply-chain scanning.  The current pinned Python SDK does not
-contain the previously assumed `aidefense.runtime.agentsec` module, so this
-runbook and the egress guard do not treat that import as a valid control.
+available MCP supply-chain scanning.
+
+**Corrected 2026-08-29.**  This paragraph previously said the pinned SDK "does
+not contain the previously assumed `aidefense.runtime.agentsec` module".  That
+is **false**, and it was false when written.  Measured in our own installed
+2.1.2: `from aidefense.runtime import agentsec` succeeds, `agentsec.protect()`
+is callable, and the package holds 36 files including nine client patchers —
+`openai`, `bedrock`, `cohere`, `mistral`, `vertexai`, `google_genai`,
+`azure_ai_inference`, `litellm` and **`mcp`**.  A source-artifact review the
+same day found the module in every published wheel and sdist from 2.1.0
+onward, our pinned 2.1.3 included.
+
+Why the original measurement missed it: `agentsec` is **not re-exported from
+`aidefense/runtime/__init__.py`** (zero references there).  Introspecting the
+package namespace therefore shows nothing, while the filesystem shows 36 files.
+A namespace probe answered plausibly and wrongly — the same failure mode as the
+`Config`-singleton region probe recorded above.
+
+What this does and does not change:
+
+* The egress guard's default-deny on agent/MCP imports **stands**.  Its premise
+  is that activating an agent or MCP runtime is a new trust boundary that needs
+  a reviewed design — not that no enforcement point exists.  That premise is
+  unaffected.
+* What is no longer true is the *reason* previously given for it.  `agentsec`
+  is an available enforcement point; we have simply not designed for it.  That
+  is an architecture decision, and it should be stated as one.
+* `anthropic` is **not** among the patched clients, so Claude traffic would be
+  covered only indirectly via `boto3`/Bedrock.  Relevant if an agent path is
+  ever designed.
 
 Whether the tenant license includes Secure Access AI Access, Gateway, hybrid,
 or MCP features must be confirmed in Security Cloud Control.  Do not claim
@@ -750,8 +777,16 @@ Enforcement points and deployment modes (Gateway, the hybrid connector /
 version history, and the boundary between AI Defense and Secure Access
 "AI Access" produced **no claims that survived verification**.  That is a gap in
 the sources, **not** a negative finding: it does not mean those features are
-absent.  Our own measurement that the pinned SDK contains no `agentsec` module
-stands on its own and is unaffected.
+absent.
+
+One of those "own measurements" did not survive contact with the artifact.  The
+claim that the pinned SDK contains no `agentsec` module was repeated here on
+2026-08-28 as something that "stands on its own" — it was inherited from an
+earlier note, asserted confidently, and never re-measured.  It is wrong; see the
+correction in "Protecting developer AI interactions" above.  The lesson is the
+one this document keeps re-learning from a different direction: a claim about an
+artifact has to be checked against the artifact, and calling it "our own
+measurement" is not the same as having taken one.
 
 ## Official references
 
