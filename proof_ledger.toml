@@ -1783,3 +1783,105 @@ claim  = "Die Netz-Kadenz des Library-Refresh sank von 9 auf 4 Cron-Ticks, ohne 
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# tv-verify-measures-under-drift (29.8.): "darf nicht SCHREIBEN" und "darf
+# nicht MESSEN" waren dieselbe Bedingung. Der Drift-Abbruch wurde fuer
+# schreibende Laeufe gebaut (CE10272: Consumer nicht auf einen
+# unveroeffentlichten Pin rollen) und galt trotzdem fuer `verify-only`, der
+# nichts speichert. Gemessen 28.-29.8.: JEDER tv-save-Lauf starb mit
+# checkedConsumers=0 bei expectedConsumers=10 — strukturell, weil die
+# Session-Queue (4-6 h) fast immer in ein Drift-Fenster faellt, das die
+# ~stuendlichen Publishes oeffnen. Die Bindungen des Operators waren gesetzt
+# und wurden nie bestaetigt, weil niemand hinsah.
+#
+# Die ENTSCHEIDUNG ist suite-ausfuehrbar (resolveLibraryDriftGate, drei Tests
+# ueber alle Modus/Verdict-Kombinationen). Die VERDRAHTUNG im Playwright-Lauf
+# sieht die Suite nicht — dafuer dieser Zeuge. Bewusst OFFEN: der reparierte
+# Pfad lief in keinem echten Lauf (nie ausgeloester Workflow = unbewiesen).
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "tv-verify-measures-under-drift"
+kind            = "fix"
+claim           = "Ein verify-only-Lauf bricht bei Library-Publish-Drift nicht mehr vor der Messung ab: er liest die Bindungen und setzt das Quell-Urteil ausdruecklich aus (sources.notJudgedReason). Schreibende Laeufe brechen unveraendert ab, und report.ok bleibt unter Drift false."
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tv-consumer-rollout-report"
+version_probe   = "notJudgedReason"
+judge           = "tv_verify_measures_under_drift"
+state           = "OFFEN"
+due_by          = "2026-09-05"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "measured_under_drift"
+reason = """
+Der PASS-Zweig: verlangt einen ECHTEN Lauf, der Drift SIEHT und trotzdem
+liest. Vor dem Merge dieses PRs gibt es ihn nicht — davor brach jeder solche
+Lauf ab. Erreichbar bewiesen ohne Korpus-Luege: die Entscheidung dahinter ist
+ausfuehrbar geprueft (resolveLibraryDriftGate: verify-only + drift => kein
+Abbruch, keine Quell-Beurteilung), und das Drift-Fenster tritt laut Messung
+vom 28.-29.8. fast staendig ein — der Zweig wird beim ersten Lauf nach dem
+Merge erreicht, nicht in ferner Zukunft.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "still_blind_under_drift"
+reason = """
+Der Rueckfall-Zweig: Drift gesehen und trotzdem checkedConsumers=0 hiesse,
+die Verdrahtung greift nicht. Erreicht kein Korpus, solange sie greift — er
+ist die Alarmglocke, nicht der Normalfall. Seine Ausloesbarkeit ist an den
+echten Laeufen vom 28.-29.8. gemessen (genau diese Signatur), nicht
+konstruiert.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "measured_without_naming_the_limit"
+reason = """
+Feuert, wenn unter Drift gemessen, aber sources.notJudgedReason NICHT
+gesetzt wurde — die halbe Aenderung. Das kann nur eintreten, wenn jemand die
+Ausweisung entfernt und die Messung stehen laesst; kein aufgezeichneter Lauf
+traegt das. Der Zweig existiert, weil eine 0 ohne Grund im Artefakt die
+teuerste Sorte Entwarnung ist.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "not_a_read_only_run"
+reason = """
+Schreibende Laeufe brechen bei Drift weiter ab und koennen diesen Beweis
+nicht liefern. Der Zweig haelt sie ausdruecklich auf STEHT_AUS statt sie als
+Beleg zu zaehlen — sonst wuerde ein beliebiger Save-Lauf den Eintrag
+schliessen, ohne die Aenderung je beruehrt zu haben.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "no_drift_yet"
+reason = """
+Ein Lesepass OHNE Drift haette auch vor der Aenderung gemessen und beweist
+sie deshalb nicht. Bewusst STEHT_AUS statt PASS — das ist die
+Leere-Beobachtung-Disziplin: "hat funktioniert" darf nicht aus einem Lauf
+folgen, der den reparierten Pfad nie betrat.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "no_artifact"
+reason = """
+Leere Evidenz — der Abholer konnte keinen Bericht liefern. Erreicht kein
+Korpus, weil der Korpus aus gelieferten Berichten besteht.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_verify_measures_under_drift"
+branch = "no_checked_field"
+reason = """
+Bericht ohne bindings.checkedConsumers — das Feld traegt jeder Bericht seit
+Schema 2. Der Zweig steht fuer einen kuenftigen Schema-Bruch und faellt
+fail-closed auf KANN_NICHT_BEZEUGEN statt auf ein Urteil.
+"""

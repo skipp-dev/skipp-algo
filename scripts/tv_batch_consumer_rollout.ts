@@ -10,6 +10,7 @@ import {
   resolveExecutionPlan,
   resolveExpectedLayoutSavePoints,
   resolveLibraryPublishObservation,
+  resolveLibraryDriftGate,
   resolveSkippedLayouts,
   type LibraryPublishObservation,
   type RolloutExecutionMode,
@@ -180,6 +181,8 @@ type RolloutReport = {
     drifted: number;
     consumers: VerifyConsumerSourceResult[];
     failed: FailedTarget[];
+    /** Gesetzt, wenn die Quell-Pruefung bewusst NICHT geurteilt hat. */
+    notJudgedReason?: string;
   };
   bindings: {
     expectedConsumers: number;
@@ -492,12 +495,26 @@ async function main(): Promise<void> {
       observedVersion: await fetchPublishedLibraryVersionViaFacade(session.page, libraryScriptName),
     });
     const libraryObservation = report.tradingViewObserved.libraryRelease;
-    if (libraryObservation.verdict === "drift") {
+    // Trennt "darf nicht SCHREIBEN" von "darf nicht MESSEN" — Begruendung und
+    // Messung in resolveLibraryDriftGate. Kurz: der Abbruch existiert, weil ein
+    // SAVE die Consumer auf einen unveroeffentlichten Pin rollen wuerde
+    // (CE10272). Ein verify-only-Lauf speichert nichts; ihn abzubrechen kostete
+    // nur die Beobachtung, und zwar vollstaendig: vom 2026-08-28 bis 2026-08-29
+    // starb JEDER tv-save-Lauf mit `checkedConsumers: 0`, weil die Save-Queue
+    // fast immer in ein Drift-Fenster faellt.
+    const driftGate = resolveLibraryDriftGate({
+      verdict: libraryObservation.verdict,
+      mode: executionPlan.mode,
+    });
+    if (driftGate.abort) {
       throw new Error(
         `Library publish drift: the manifest says ${libraryObservation.scriptName} is published at `
         + `version ${libraryObservation.manifestPublishedVersion}, but TradingView lists `
         + `${libraryObservation.observedVersion}. Refusing to roll consumers onto a pin that is not what is published.`,
       );
+    }
+    if (libraryObservation.verdict === "drift") {
+      console.warn(`[rollout] ${driftGate.reason}`);
     }
     if (libraryObservation.verdict === "unknown") {
       console.warn(
@@ -596,7 +613,16 @@ async function main(): Promise<void> {
         await ensurePineEditor(session.page);
       }
 
-      for (const target of sourceVerificationTargets) {
+      // Unter Library-Drift wird die Quell-Pruefung UEBERSPRUNGEN, nicht
+      // stillschweigend mit 0 gefuellt: ihr Erwartungswert kommt aus dem
+      // ausgecheckten Baum, dessen Uebereinstimmung mit TradingView die Drift
+      // gerade offen laesst. `notJudgedReason` macht den Unterschied zwischen
+      // "geprueft, nichts gefunden" und "nicht geprueft" im Artefakt sichtbar —
+      // eine 0 ohne Grund ist die teuerste Sorte Entwarnung.
+      if (!driftGate.judgeSources && libraryObservation.verdict === "drift") {
+        report.sources.notJudgedReason = driftGate.reason;
+      }
+      for (const target of driftGate.judgeSources ? sourceVerificationTargets : []) {
         let result: VerifyConsumerSourceResult | null = null;
         let lastError = "unknown source verification failure";
         for (let attempt = 1; attempt <= 2; attempt += 1) {
