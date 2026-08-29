@@ -2139,3 +2139,72 @@ claim  = "Der Rolling-Bench schreibt hoechstens eine History-Zeile pro Tag, und 
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+# rolling-bench-two-windows (29.8.): Der Rolling-Benchmark feuerte per
+# `workflow_run` bei jedem der NEUN Producer-Ticks; sein Kopfkommentar ging
+# von zwei Laeufen aus (Praemisse aus der Zeit, als der Producer 2x lief).
+# Gemessen 27.8. ueber alle 414 Laeufe des Tages: acht Bench-Laeufe,
+# 366 Runner-Minuten. Ein Gate-Job entscheidet jetzt VOR select-runner und
+# Worker: Fenster A 11:00-12:30 UTC (bedient die Tages-Gates ab 13:30),
+# Fenster B ab 20:00 UTC (reifste Labels des 5-Tage-Ankerfensters), Netz bei
+# leerem Tag. Bei Blindheit wird gelaufen, nicht uebersprungen.
+#
+# OFFEN mit Urteiler, nicht ausgenommen: die ENTSCHEIDUNG ist zwar
+# suite-ausfuehrbar (17 Tests, inkl. Neun-Fires-Simulation => genau zwei
+# Laeufe), die VERDRAHTUNG im echten Workflow aber nicht — ein Gate-Job, der
+# fehlerhaft immer ueberspringt, waere ohne Zeugen unsichtbar. Genau dafuer
+# wechselte das Freshness-Budget auf `:success`; der Urteiler prueft den
+# ersten echten Lauf.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "rolling-bench-two-windows"
+kind            = "fix"
+claim           = "Der Rolling-Benchmark laeuft je Werktag noch zweimal statt bis zu neunmal: einmal im Fenster 11:00-12:30 UTC fuer die Tages-Gates, einmal ab 20:00 UTC fuer die reifsten Labels. Uebersprungene Fires kosten nur den Gate-Job; ein blindes Gate laeuft, statt still zu stoppen."
+witness         = "smc-measurement-benchmark-rolling"
+witness_job     = "gate"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "[bench-gate] run="
+judge           = "rolling_bench_gate"
+state           = "OFFEN"
+due_by          = "2026-09-05"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "rolling_bench_gate"
+branch = "decided_and_ran"
+reason = """
+Verlangt ein echtes Job-Log mit `[bench-gate] run=true`. Vor dem Merge gibt
+es das nicht — das Gate existiert noch nicht. Erreichbar bewiesen ohne
+Korpus-Luege: die Regel ist ausfuehrbar geprueft (17 Tests, darunter die
+Simulation von neun Fires eines Tages, die exakt zwei Laeufe ergibt), und
+der Workflow feuert mehrmals taeglich; der Zweig wird beim ersten Lauf nach
+dem Merge erreicht.
+"""
+
+[[unreachable_branch]]
+judge  = "rolling_bench_gate"
+branch = "decided_and_skipped"
+reason = """
+Derselbe Fall in der Gegenrichtung: `[bench-gate] run=false`. Tritt beim
+zweiten Fire eines Tages auf und ist damit ebenfalls erst nach dem Merge
+beobachtbar. Beide Zweige zusammen sind der Beweis, dass das Gate
+ENTSCHEIDET statt nur durchzuwinken — ein Urteiler, der nur `run=true`
+kennte, saehe ein kaputtes Gate nie.
+"""
+
+[[unreachable_branch]]
+judge  = "rolling_bench_gate"
+branch = "never_decided"
+reason = """
+Kein `[bench-gate]`-Marker im Log: der Gate-Job lief nicht oder starb vor
+seiner Entscheidung. STEHT_AUS statt PASS — die leere Beobachtung ist kein
+Befund (dieselbe Klasse wie handlib_smcpp_hold.hold_never_ran).
+"""
+
+[[unreachable_branch]]
+judge  = "rolling_bench_gate"
+branch = "no_log"
+reason = """
+Leere Evidenz — der Abholer konnte kein Job-Log liefern. Erreicht kein
+Korpus, weil der Korpus aus gelieferten Logs besteht.
+"""
