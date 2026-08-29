@@ -1,0 +1,39 @@
+{
+  "_why": [
+    "Einzige Quelle fuer die Runner-Labels, die eine Repo-Variable annehmen darf.",
+    "Gebraucht wird sie, weil ein falscher Wert einen Lauf nicht rot macht, sondern",
+    "VERHINDERT: GitHub findet kein passendes Label, der Job bleibt `queued` bis zum",
+    "24-h-Limit und wird still `cancelled`. `timeout-minutes` laeuft erst NACH der",
+    "Job-Annahme, und der Fehleralarm wertet nur `failure` aus -- ein Lauf, der nie",
+    "endet, erzeugt keins. Am 2026-08-29 gemessen: 80 der 97 `runs-on`-Stellen haengen",
+    "an `SMC_GH_HOSTED_RUNNER`, und KEIN Test prueft ihren Wert (alle pinnen nur den",
+    "Ausdruck `vars.X in runs_on`).",
+    "Konsumenten: scripts/check_runner_label_variables.py (live gegen die Actions-API),",
+    "der `runner-preflight`-Job in ci.yml und die Tabelle in",
+    "docs/engineering-program/runner_hosted_vs_selfhosted_decision.md. Die beiden",
+    "letzteren tragen eine Kopie und sind per Kopplungs-Waechter an diese Datei",
+    "gepinnt (tests/test_runner_label_allowlist_is_single_source.py) -- eine Aenderung",
+    "hier ohne die andere Seite faellt rot aus."
+  ],
+  "variables": {
+    "SMC_GH_HOSTED_RUNNER": {
+      "allowed": [
+        "ubuntu-latest",
+        "ubuntu-24.04",
+        "ubuntu-22.04",
+        "ubuntu-24.04-4core",
+        "ubuntu-24.04-8core"
+      ],
+      "unset_ok": true,
+      "note": "Traegt 80 runs-on-Stellen inklusive der Playwright/TV-Lanes und der beiden required Kontexte fast-gates/gate. Die 4core/8core-Formen stehen hier, weil der Eskalationspfad im Runner-Entscheidungsdokument genau sie nennt; ohne Eintrag wuerde ein geplantes Upgrade an dieser Sonde scheitern statt an GitHub."
+    },
+    "SMC_CI_ARM_RUNNER": {
+      "allowed": [
+        "ubuntu-24.04-arm",
+        "ubuntu-22.04-arm"
+      ],
+      "unset_ok": true,
+      "note": "Nur ci.yml/validate. `ubuntu-latest-arm` existiert NICHT -- GitHub bietet fuer linux-arm64 ausschliesslich versionierte Labels an. Genau diese Falle ist der Grund fuer den runner-preflight-Job."
+    }
+  }
+}

@@ -57,6 +57,18 @@ acceptable thresholds. Current durations on `ubuntu-latest` are acceptable.
 | Workflow field | `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER \|\| 'ubuntu-latest' }}` |
 | Fallback | `ubuntu-latest` (if variable is unset) |
 | Timeout | 120 minutes |
+| Erlaubte Werte | `ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-24.04-4core`, `ubuntu-24.04-8core` |
+
+Die Zeile „Erlaubte Werte" ist keine Empfehlung, sondern durchgesetzt. Quelle ist
+`.github/runner_label_allowlist.json`; die Sonde
+`scripts/check_runner_label_variables.py` hält den **live gesetzten** Wert alle
+sechs Stunden dagegen und öffnet ein Issue, wenn er ausschert. Nötig ist das,
+weil ein unbekanntes Label die betroffenen Jobs nicht rot macht, sondern
+verhindert: GitHub plant sie nie ein, sie bleiben `queued` bis zum 24-h-Limit und
+werden dann still `cancelled` — weder `timeout-minutes` noch der
+Workflow-Fehleralarm sehen das. `SMC_GH_HOSTED_RUNNER` trägt 80 der 97
+`runs-on`-Stellen des Repos (gemessen 2026-08-29), darunter die beiden einzigen
+required Kontexte `fast-gates` und `gate`.
 
 ### `SMC_CI_ARM_RUNNER` — arm64 nur für die `ci.yml`-`validate`-Lane (seit 2026-08-29)
 
@@ -72,7 +84,7 @@ runs-on: ${{ vars.SMC_CI_ARM_RUNNER || vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-late
 | Feld | Wert |
 |------|------|
 | Wirkungsbereich | ausschließlich `ci.yml`, Job `validate` (4 Shards) |
-| Erlaubte Werte | `ubuntu-24.04-arm`, `ubuntu-22.04-arm` — sonst nichts |
+| Erlaubte Werte | `ubuntu-24.04-arm`, `ubuntu-22.04-arm` — sonst nichts (Quelle: `.github/runner_label_allowlist.json`) |
 | Ungesetzt | Lane fährt die bisherige Wahl (kein arm64) |
 | Nutzen | linux-arm64 ist ein **Standard**-Runner (kein "larger"): zählt gegen das Freikontingent, darüber $0.005 statt $0.006/min |
 | **Zurückrollen** | Repo-Variable `SMC_CI_ARM_RUNNER` löschen. Kein Code-Change, kein Deploy. |

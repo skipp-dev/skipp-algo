@@ -185,6 +185,14 @@ _MONITORED_WORKFLOWS = (
     # go blind with it. :any (below) because its own conclusion:failure is
     # the CORRECT result when a ledger entry is overdue.
     "proof-ledger-monitor.yml",
+    # Runner-Variablen-Waechter (2026-08-29): prueft die WERTE der Variablen,
+    # aus denen `runs-on` gebaut wird. Ein falsches Label macht die betroffenen
+    # Jobs nicht rot, sondern verhindert sie -- diese Sonde ist der einzige
+    # Melder dafuer. Sie laeuft bewusst auf einem literalen Runner, damit sie
+    # startet, wenn keine variablengesteuerte Lane mehr anlaeuft; genau deshalb
+    # muss ihr eigener Ausfall beobachtet sein. :any (unten), weil ihr
+    # conclusion:failure das KORREKTE Ergebnis ist, sobald ein Wert ausschert.
+    "runner-label-variable-watch.yml",
 )
 
 
