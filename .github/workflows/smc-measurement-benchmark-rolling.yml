@@ -18,33 +18,55 @@ name: smc-measurement-benchmark-rolling
 
 on:
   # Workflow-Audit HOCH-1 (2026-06): cron offset is NOT an ordering
-  # guarantee. The producer smc-databento-production-export-sharded
-  # (12:00/16:00 UTC Mon-Fri) has a 240-min budget, so the previous
-  # fixed 13:00 tick raced the still-running 12:00 export and failed
-  # ~8/10 schedule runs on "Producer artifact missing for <date>".
-  # Mirror of the proven F-V4-J3 pattern in smc-library-refresh.yml:
-  # workflow_run (fires after producer success, gated by the job-level
-  # `if:` below) is the primary path; the cron below is only a safety
-  # net for lost/delayed workflow_run events.
-  # NOTE: the producer runs 2x/day (12:00 + 16:00 UTC), so this consumer
-  # can now fire up to 2x/day plus the safety-net cron. That is safe and
-  # intentional: the history archive dedupes on (captured_at,
-  # scoring_root) (scripts/plan_2_8_history_archive.py), re-benching the
-  # same artifact is idempotent, and the concurrency group serialises
-  # overlapping fires — same rationale as the library-refresh precedent.
+  # guarantee. Ein fest gelegter 13:00-Tick raste seinerzeit gegen den noch
+  # laufenden 12:00-Export und scheiterte in ~8/10 Cron-Laeufen an
+  # "Producer artifact missing for <date>". Deshalb ist `workflow_run` der
+  # WEG (Muster F-V4-J3 aus smc-library-refresh.yml) und der Cron nur das
+  # NETZ fuer verlorene oder verzoegerte workflow_run-Ereignisse.
+  #
+  # 2026-08-29 — drei Zahlen in diesem Block waren veraltet und haben die
+  # Kadenz jahrelang falsch begruendet. Am Code nachgezaehlt:
+  #   * Der Producer laeuft NEUN Ticks je Werktag (08,10,12,14,16,18,20,21,22
+  #     UTC), nicht 2x. Der Satz "so this consumer can now fire up to 2x/day
+  #     … safe and intentional" wurde fuer zwei Laeufe geschrieben und trug
+  #     seither acht (gemessen 27.8.: 366 Runner-Minuten).
+  #   * Sein Budget ist 120 min (`timeout-minutes` am producer-Job), nicht 240.
+  #   * Die Begruendung "re-benching the same artifact is idempotent" war
+  #     schlicht falsch: `captured_at` fiel sekundengenau auf `now()` zurueck,
+  #     jeder Lauf schrieb eine eigene Zeile. Seit #5190 stimmt sie wieder
+  #     (--captured-at + --replace-on-duplicate).
+  #
+  # Die Kadenz haengt seit #5191 nicht mehr an der Zahl der Fires, sondern am
+  # `cadence-gate`-Job: Fenster A 11:00-12:30 UTC bedient die Tages-Gates ab
+  # 13:30, Fenster B ab 20:00 UTC traegt die reifsten Labels. Ueberzaehlige
+  # Fires kosten nur diesen Gate-Job.
   workflow_run:
     workflows: ["smc-databento-production-export-sharded"]
     types: [completed]
     branches: [main]
   schedule:
-    # Safety-net tick: 16:30 UTC Mon-Fri = producer 12:00 tick + full
-    # 240-min budget + 30 min headroom, so the day's artifact MUST be
-    # uploaded (or the producer has failed) by the time this fires.
-    # Offset from library-refresh's 16:00 safety-net cron to avoid
-    # competing for the same priority self-hosted runner slot.
-    # Restricted to Mon-Fri to match the producer's cadence (no producer
-    # runs on weekends → no fresh artifact to consume).
-    - cron: "30 16 * * 1-5"
+    # Die Netze liegen IN den beiden Fenstern, nicht daneben. Der alte
+    # Einzel-Tick um 16:30 konnte die Tages-Gates (13:30/14:00/15:00 UTC)
+    # grundsaetzlich nicht mehr bedienen — er lag hinter ihnen. Solange
+    # `workflow_run` trug, fiel das nicht auf; genau das ist der Zustand, den
+    # eine Redundanz von acht Fires verdeckt.
+    #
+    # 12:15 = Producer-Tick 10:00 + volles 120-min-Budget + 15 min Puffer.
+    # Bis dahin liegt das Tagesartefakt vor (oder der Producer ist gescheitert),
+    # und ein ~46-Minuten-Lauf ist gegen 13:01 fertig — vor dem ersten
+    # Konsumenten um 13:30.
+    #
+    # 22:15 = Producer-Tick 20:00 + Budget + Puffer, also im Fenster B.
+    # Ohne diesen Tick bliebe an einem Tag mit komplett verlorener
+    # workflow_run-Zustellung der reife Abendlauf aus.
+    #
+    # Beide feuern nur wirksam, wenn der Tag sonst leer bliebe: das
+    # `cadence-gate` ueberspringt sie, sobald ihr Fenster bedient ist. Im
+    # Normalbetrieb kosten sie je einen Gate-Job von wenigen Sekunden.
+    # Mon-Fri wie der Producer (keine Wochenend-Ticks → kein frisches
+    # Artefakt zu konsumieren).
+    - cron: "15 12 * * 1-5"
+    - cron: "15 22 * * 1-5"
   workflow_dispatch:
     inputs:
       symbols:

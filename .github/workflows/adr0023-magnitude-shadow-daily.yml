@@ -109,12 +109,21 @@ jobs:
 
       # ADR-0023 §4.1: download the scored FamilyEvent records of the
       # CURRENT UTC day from the rolling benchmark workflow.  The
-      # benchmark (cron 13:00 UTC) uploads scored_family_events.json as
+      # benchmark uploads scored_family_events.json as
       # scored-family-events-<YYYY-MM-DD>; this workflow (cron 13:30
       # UTC) pins the artifact name to today's date so a delayed or
       # failed benchmark can never smuggle stale events from an older
       # run into today's ledger row.  A miss falls through to the
       # existing no_data path (fail-soft contract).
+      #
+      # 2026-08-29: hier stand "benchmark (cron 13:00 UTC)" — die Zahl war
+      # falsch und die Kette ging rechnerisch nicht auf. Der Bench-Cron lag
+      # auf 16:30, also HINTER diesem Konsumenten; bedient wurde er in
+      # Wahrheit von einem frueheren `workflow_run`-Fire, was acht taegliche
+      # Fires verdeckten. Seit #5191 entscheidet dort ein `cadence-gate`
+      # (Fenster A 11:00-12:30 UTC), und das Netz liegt jetzt auf 12:15 —
+      # ein ~46-Minuten-Lauf ist damit gegen 13:01 fertig, vor diesem
+      # Workflow. Wer die Zeiten hier aendert, muss Fenster A mitziehen.
       - name: Resolve benchmark artifact date
         id: bench_date
         run: |
