@@ -479,9 +479,16 @@ def test_no_chain_gate_can_be_satisfied_by_a_skipped_predecessor() -> None:
     """
     for step, vorgaenger_liste in sorted(_rc_gates().items()):
         for vorgaenger in vorgaenger_liste:
-            assert not evaluate_condition(
-                _CONDITIONS[step], {f"{vorgaenger}.outcome": "skipped"}
-            ), (
+            # BEIDE Angaben mit Absicht: `outcome` allein liefe ueber den
+            # Komfort-Pfad des Evaluators, und faellt der je weg, waere dieser
+            # Test gruen aus dem falschen Grund (in der Mutationsprobe am
+            # 29.8. genau so gemessen). Das ausdrueckliche SKIPPED haelt die
+            # gemessene GitHub-Semantik auch dann fest.
+            zustand: dict[str, object] = {
+                f"{vorgaenger}.outcome": "skipped",
+                f"{vorgaenger}.rc": SKIPPED,
+            }
+            assert not evaluate_condition(_CONDITIONS[step], zustand), (
                 f"{step!r} laeuft, obwohl {vorgaenger!r} uebersprungen wurde — "
                 "das Gate liest nur `outputs.rc` und faellt auf GitHubs "
                 "null-Coercion herein. `steps.X.outcome == 'success' && …` "
@@ -512,6 +519,13 @@ def test_the_null_coercion_itself_is_pinned() -> None:
     """
     assert evaluate_condition("steps.x.outputs.rc == '0'", {"x.rc": SKIPPED}), (
         "null == '0' ist in GitHub WAHR (beide werden nach 0 gecastet)"
+    )
+    # Und der Komfort-Pfad: wer nur `outcome: skipped` angibt, bekommt dieselbe
+    # Semantik fuer JEDEN Output dieses Steps — ein uebersprungener Step hat
+    # keine. Ohne diesen Pin ueberlebt sein Rueckbau die Suite.
+    assert evaluate_condition("steps.x.outputs.rc == '0'", {"x.outcome": "skipped"}), (
+        "ein uebersprungener Step muss ueber `outcome` dieselbe null-Semantik "
+        "liefern — sonst modelliert der Evaluator ihn wieder als leeren String"
     )
     assert not evaluate_condition("steps.x.outputs.rc == '78'", {"x.rc": SKIPPED})
     assert not evaluate_condition("steps.x.outcome == 'success'", {"x.outcome": "skipped"})
