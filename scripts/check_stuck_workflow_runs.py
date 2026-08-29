@@ -137,19 +137,30 @@ def evaluate(runs: list[dict[str, Any]], now: dt.datetime) -> list[Stuck]:
         status = str(run.get("status") or "")
         if status not in ("queued", "waiting", "in_progress"):
             continue
-        # Bewusst keine `a or b`-Kette ueber zwei verschiedene Schluessel: WELCHE
-        # Quelle greift, aendert hier die Bedeutung des Alters. `run_started_at`
-        # misst, wie lange gearbeitet wird; `created_at` misst, wie lange
-        # gewartet wird. Ein Alarm, der beides zu einer Zahl verschmilzt, laesst
-        # den Geweckten raten. `run_started_at` fehlt, solange nichts lief — der
-        # Rueckfall ist noetig, sonst haette ein wartender Lauf gar kein Alter
-        # und fiele still aus der Betrachtung, also genau die Ausfallart, die
-        # diese Sonde sehen soll.
-        stamp = run.get("run_started_at")
-        stamp_source = "run_started_at"
-        if stamp is None:
-            stamp = run.get("created_at")
-            stamp_source = "created_at"
+        # Welche Quelle das Alter ergibt, entscheidet der STATUS — nicht, ob ein
+        # Feld gesetzt ist.
+        #
+        # 2026-08-29 am ersten echten Lauf gemessen und damit eine Annahme
+        # widerlegt, die hier bis eben stand: `run_started_at` fehle, solange
+        # nichts lief. Falsch. GitHub setzt es auch fuer `queued` und zwar
+        # identisch zu `created_at` (Lauf 32985711996: beide
+        # 2026-08-26T15:38:15Z, Status `queued`). Die alte Praeferenz-Reihenfolge
+        # stempelte deshalb "gemessen ab run_started_at" auf einen Lauf, der NIE
+        # gestartet ist — sie las sich wie 68 Stunden ARBEIT, wo 68 Stunden
+        # WARTEN standen. Die Zahl war richtig, das Etikett log; und ein Etikett,
+        # das in genau dem Fall luegt, fuer den es erfunden wurde, ist schlimmer
+        # als keins.
+        #
+        # `queued`/`waiting` haben per Definition nicht gearbeitet: dort ist
+        # `created_at` die gesuchte Groesse. `in_progress` arbeitet: dort
+        # `run_started_at`, mit `created_at` als Rueckfall, falls es doch einmal
+        # fehlt.
+        if status in ("queued", "waiting"):
+            stamp, stamp_source = run.get("created_at"), "created_at (Wartezeit)"
+        else:
+            stamp, stamp_source = run.get("run_started_at"), "run_started_at (Laufzeit)"
+            if stamp is None:
+                stamp, stamp_source = run.get("created_at"), "created_at (Rueckfall)"
         try:
             begonnen = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
         except (TypeError, ValueError):
