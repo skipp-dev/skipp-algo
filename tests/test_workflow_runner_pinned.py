@@ -175,7 +175,10 @@ def test_no_stale_ubuntu_latest_tier_literals() -> None:
 #: Als Paar gepinnt: der Job muss literal bleiben (unten), und kein zweiter Job
 #: darf sich dieselbe Schreibweise nehmen.
 _LITERAL_RUNNER_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset(
-    {("runner-label-variable-watch.yml", "watch")}
+    {
+        ("runner-label-variable-watch.yml", "watch"),
+        ("stuck-run-watch.yml", "watch"),
+    }
 )
 
 
