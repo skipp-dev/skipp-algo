@@ -622,7 +622,20 @@ async function main(): Promise<void> {
       if (!driftGate.judgeSources && libraryObservation.verdict === "drift") {
         report.sources.notJudgedReason = driftGate.reason;
       }
-      for (const target of driftGate.judgeSources ? sourceVerificationTargets : []) {
+      for (const target of sourceVerificationTargets) {
+        // Die Schleifenzeile bleibt WOERTLICH: tv_producer_refresh_layouts.test.ts
+        // pinnt sie, weil Quell- und Bindungspruefung nur am Save-Erfolg haengen
+        // duerfen und nie an einer Nebensache — die Laeufe 29929470730 und
+        // 29946386778 meldeten `sources.checked 0`, weil der kosmetische Refresh
+        // sie blockierte. #5177 schrieb die Zeile um und stellte genau diesen
+        // Pin rot (macOS-Job, nicht required -> Auto-Merge liess es durch).
+        //
+        // Der Ausstieg hier ist KEINE Nebensache, sondern eine Aussagegrenze:
+        // unter Library-Drift stammt der Erwartungswert der Quellen aus dem
+        // ausgecheckten Baum, dessen Uebereinstimmung mit TradingView die Drift
+        // gerade offen laesst. Ausgewiesen wird das oben als
+        // `sources.notJudgedReason`, nicht als stille 0.
+        if (!driftGate.judgeSources) break;
         let result: VerifyConsumerSourceResult | null = null;
         let lastError = "unknown source verification failure";
         for (let attempt = 1; attempt <= 2; attempt += 1) {

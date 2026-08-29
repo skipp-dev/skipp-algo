@@ -68,6 +68,11 @@ on:
       - "automation/tradingview/tests/tv_launch_options.test.ts"
       - "automation/tradingview/tests/tv_preflight_identity_assertion.test.ts"
       - "automation/tradingview/tests/tv_producer_refresh_layouts.test.ts"
+      # 2026-08-29: die vier Rollout-Tests LESEN dieses Skript, der
+      # Workflow beobachtete es aber nicht — eine Aenderung nur an ihm konnte
+      # ihre Pins brechen, ohne dass ein Job lief (#5177 loeste den Job nur
+      # aus, weil es zusaetzlich automation/tradingview/lib/** anfasste).
+      - "scripts/tv_batch_consumer_rollout.ts"
       - "automation/tradingview/tests/tv_publish_draw_library.test.ts"
       - "automation/tradingview/tests/tv_publish_hand_lib.test.ts"
       - "automation/tradingview/tests/tv_publish_bus_library.test.ts"
@@ -166,6 +171,11 @@ on:
       - "automation/tradingview/tests/tv_launch_options.test.ts"
       - "automation/tradingview/tests/tv_preflight_identity_assertion.test.ts"
       - "automation/tradingview/tests/tv_producer_refresh_layouts.test.ts"
+      # 2026-08-29: die vier Rollout-Tests LESEN dieses Skript, der
+      # Workflow beobachtete es aber nicht — eine Aenderung nur an ihm konnte
+      # ihre Pins brechen, ohne dass ein Job lief (#5177 loeste den Job nur
+      # aus, weil es zusaetzlich automation/tradingview/lib/** anfasste).
+      - "scripts/tv_batch_consumer_rollout.ts"
       - "automation/tradingview/tests/tv_publish_draw_library.test.ts"
       - "automation/tradingview/tests/tv_publish_hand_lib.test.ts"
       - "automation/tradingview/tests/tv_publish_bus_library.test.ts"
