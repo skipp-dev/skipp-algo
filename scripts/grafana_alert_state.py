@@ -26,6 +26,7 @@ Usage (module form — the upsert import needs the repo root on sys.path)::
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import sys
 from typing import Any
@@ -93,11 +94,111 @@ def summarize_rule_states(
     return rows
 
 
+
+# --- Zustandshistorie -------------------------------------------------------
+#
+# 2026-08-29 dazugekommen, nachdem eine Frage einen ganzen Tag unbeantwortbar
+# blieb: "hat der Alarm eigentlich gefeuert?" Die aktive Liste beantwortet nur
+# das JETZT, und `/api/annotations?type=alert` liefert fuer Grafana-verwaltete
+# Regeln NICHTS -- eine leere Antwort, die wie "nie gefeuert" aussieht. Die
+# Historie liegt unter `/api/v1/rules/history`, und ihre Form ist nicht offen-
+# sichtlich: `data.values` sind DREI Spalten (Zeitstempel, Ereignis, Stream-
+# Labels), `schema` ist null. Wer die letzte Spalte liest -- der naheliegende
+# Griff -- bekommt Stream-Metadaten und sieht ueberall `?`. Genau so ist die
+# erste Auswertung am 29.8. auf "0 Workflow-Wechsel" gelaufen, obwohl es 34
+# waren.
+_HISTORY_PATH = "/api/v1/rules/history"
+
+
+def _rule_name(ev: dict[str, Any]) -> str:
+    """Titel, sonst die UID — aber sichtbar als UID gekennzeichnet."""
+    titel = ev.get("ruleTitle")
+    if titel:
+        return str(titel)
+    uid = ev.get("ruleUID")
+    return f"<ohne Titel, UID {uid}>" if uid else "?"
+
+
+def decode_history(payload: Any) -> list[dict[str, Any]]:
+    """Die drei Spalten in eine Liste von Zustandswechseln uebersetzen.
+
+    Faellt laut aus, wenn die Form nicht stimmt: eine leere Liste aus einer
+    unverstandenen Antwort waere hier die gefaehrlichste Ausgabe -- sie liest
+    sich als "nichts passiert".
+    """
+    if payload is None:
+        raise ValueError("leerer Body -- Historie nicht gelesen, nicht 'nichts passiert'")
+    spalten = ((payload or {}).get("data") or {}).get("values")
+    if not isinstance(spalten, list) or len(spalten) < 2:
+        raise ValueError(
+            f"unerwartete Form der Historie: {type(spalten).__name__} mit "
+            f"{len(spalten) if isinstance(spalten, list) else '?'} Spalten "
+            "(erwartet >= 2: Zeitstempel, Ereignis)"
+        )
+    zeiten, ereignisse = spalten[0], spalten[1]
+    out: list[dict[str, Any]] = []
+    for ts, ev in zip(zeiten, ereignisse):
+        if not isinstance(ev, dict):
+            continue
+        out.append({
+            "ts": dt.datetime.fromtimestamp(ts / 1000, dt.UTC).isoformat(timespec="seconds"),
+            # Keine `a or b`-Kette ueber zwei verschiedene Schluessel: `ruleTitle`
+            # ist der Menschenname, `ruleUID` die Maschinen-ID. Ein stiller
+            # Rueckfall zeigte eine UID, die im Bericht wie ein Titel aussieht —
+            # dieselbe Klasse wie das Alters-Etikett in check_stuck_workflow_runs
+            # (#5185). Die Herkunft steht deshalb IM Wert.
+            "rule": _rule_name(ev),
+            "previous": ev.get("previous") or "?",
+            "current": ev.get("current") or "?",
+        })
+    return out
+
+
+def silent_pending_rules(wechsel: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Regeln, die Pending erreichten und ohne Alerting zurueckfielen.
+
+    Das ist der eigentliche Grund fuer diesen Leser. Eine solche Regel ist
+    nicht blind -- sie hat den Vorfall GESEHEN und war trotzdem stumm, weil ihr
+    `for` laenger ist als der Vorfall. Im Live-Zustand ist davon nichts zu
+    sehen; die Regel steht danach wieder auf Normal.
+
+    Gemessen am 2026-08-29: "CI full-suite red on main" ging 07:46:30Z auf
+    Pending und 08:33:30Z zurueck auf Normal -- 47 Minuten, bei `for = 2h`.
+    Das rote main dieses Vormittags war damit strukturell unsichtbar, und
+    genau diese Kombination beantwortet die Frage "warum hat niemand etwas
+    gemerkt" ohne Raterei.
+    """
+    je_regel: dict[str, list[dict[str, Any]]] = {}
+    for w in wechsel:
+        je_regel.setdefault(w["rule"], []).append(w)
+    out = []
+    for regel, ws in sorted(je_regel.items()):
+        ws = sorted(ws, key=lambda x: x["ts"])
+        erreichte_alerting = any("Alerting" in w["current"] for w in ws)
+        pendings = [w for w in ws if w["current"] == "Pending"]
+        if pendings and not erreichte_alerting:
+            out.append({
+                "rule": regel,
+                "pending_episodes": len(pendings),
+                "first_pending": pendings[0]["ts"],
+                "reached_alerting": False,
+            })
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--all", action="store_true", help="include inactive+healthy rules")
     parser.add_argument("--rule", default=None, metavar="SUBSTR", help="filter rules by name substring")
     parser.add_argument("--json", action="store_true", dest="as_json", help="machine-readable output")
+    parser.add_argument(
+        "--history", type=int, default=0, metavar="STUNDEN",
+        help=(
+            "statt des Jetzt-Zustands die Zustandshistorie der letzten N Stunden "
+            "lesen — beantwortet 'hat der Alarm gefeuert', und zeigt Regeln, die "
+            "Pending erreichten, ohne je Alerting zu werden"
+        ),
+    )
     parser.add_argument(
         "--fail-on-firing", action="store_true",
         help="exit 1 when any instance is active or any rule fires/is unhealthy (for scripts/CI)",
@@ -105,6 +206,41 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     key = _api_key()
+
+    if args.history:
+        jetzt = dt.datetime.now(dt.UTC)
+        von = int((jetzt - dt.timedelta(hours=args.history)).timestamp())
+        payload = _request(
+            "GET", f"{_HISTORY_PATH}?from={von}&to={int(jetzt.timestamp())}&limit=5000", key
+        )
+        try:
+            wechsel = decode_history(payload)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        if args.rule:
+            wechsel = [w for w in wechsel if args.rule.lower() in w["rule"].lower()]
+        stumm = silent_pending_rules(wechsel)
+        if args.as_json:
+            print(json.dumps({"transitions": wechsel, "silent_pending": stumm}, indent=2))
+        else:
+            print(f"Zustandswechsel in {args.history} h: {len(wechsel)}")
+            for w in wechsel[:40]:
+                print(f"  {w['ts']}  {w['previous']} -> {w['current']}   {w['rule']}")
+            if len(wechsel) > 40:
+                print(f"  … {len(wechsel) - 40} weitere")
+            print(f"\nRegeln, die Pending erreichten OHNE je Alerting zu werden: {len(stumm)}")
+            for s in stumm:
+                print(
+                    f"  {s['rule']}  ({s['pending_episodes']} Episode(n), erste "
+                    f"{s['first_pending']}) — gesehen, aber stumm: `for` ist laenger "
+                    "als der Vorfall"
+                )
+        # rc 1 nur auf ausdruecklichen Wunsch: die Historie ist ein Leser, kein Gate.
+        if args.fail_on_firing and stumm:
+            return 1
+        return 0
+
     # `or []`/`or {}` hiess: ein leerer 200-Body (Proxy, Auth-Redirect,
     # API-Umbau) las als "0 Alerts, 0 Regeln" -- fuer das Werkzeug des
     # Sitzungsstart-Betriebschecks ist das die gefaehrlichste aller
