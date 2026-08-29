@@ -250,11 +250,30 @@ What is proven, and what is not:
   terminal deletion as the only candidate.
 * **Proven — `CISCO_AI_DEFENSE_RESPONSE_MODE` survived.**  It is the one name
   the terminal never carried.
-* **Not proven — the exact linkage.**  The Producer's
-  `CISCO_AI_DEFENSE_API_KEY` survived, so it is a service-level literal while
-  the other three were not.  Whether those three were shared-scope or reference
-  variables is visible only in the Railway dashboard's variable activity log;
-  the CLI reports resolved values and now returns empty for all three.
+* **Proven, 2026-08-29 — the exact linkage.**  The three were Railway
+  **reference variables pointing at the terminal service**.  The deployment
+  snapshot of the failing run (`c173457b`, created 22:23:44Z) records them
+  verbatim:
+
+  ```
+  CISCO_AI_DEFENSE_MODE             = ${{8f2902cd-…-4475b1263101.CISCO_AI_DEFENSE_MODE}}
+  CISCO_AI_DEFENSE_REGION           = ${{8f2902cd-…-4475b1263101.CISCO_AI_DEFENSE_REGION}}
+  CISCO_AI_DEFENSE_TIMEOUT_SECONDS  = ${{8f2902cd-…-4475b1263101.CISCO_AI_DEFENSE_TIMEOUT_SECONDS}}
+  ```
+
+  `8f2902cd-45f1-4c0a-be8e-4475b1263101` is `skipp-terminal-ai`.  Deleting the
+  variables there left three live references with nothing to resolve to, which
+  is why they read as empty rather than missing.  `RESPONSE_MODE` survived
+  because it is a literal and the terminal never carried that name;
+  `CISCO_AI_DEFENSE_API_KEY` survived because it is a service-level literal on
+  the Producer.  The audit log does not record variable mutations at all — the
+  window 21:00–23:30Z contains only Deployment, SSHSession, ContainerAccess and
+  Backup entries — so the deployment snapshot, not the audit log, is where this
+  is visible.
+
+  Note that the reference is stored by service **UUID**, not by service name, so
+  a search for "terminal" in the Producer's configuration would not have found
+  it either.
 
 Timing, and why the blast radius stayed small:
 
@@ -284,10 +303,27 @@ Three lessons that outrank the incident itself:
    (`sp-cisco-probe-stale`, last success older than 2 h) correctly did *not*
    fire for a three-minute outage: the probe is the detector, the alert is for a
    sustained failure.
-3. **Delete a shared-looking variable only after reading it back on every
-   service that could resolve it** — after a redeploy, since the store and the
-   running container disagree until then — and require one
-   `Cisco key self-probe ok` line before calling the change done.
+3. **The CLI cannot show you a reference.**  `railway variables --kv` and
+   `--json` report *resolved* values, so a reference is indistinguishable from a
+   literal — and a reference whose target was deleted is indistinguishable from
+   an empty literal.  This is precisely why the mechanism could not be proven
+   while it was happening.  Two things do show it:
+
+   ```bash
+   # raw definitions for one service (shows ${{...}})
+   curl -s -X POST https://backboard.railway.com/graphql/v2 \
+     -H "Authorization: Bearer <token>" -H 'Content-Type: application/json' \
+     -d '{"query":"query($p:String!,$e:String!,$s:String!){ variables(projectId:$p, environmentId:$e, serviceId:$s, unrendered:true) }", ...}'
+
+   # what a specific deployment actually received
+   -d '{"query":"query($d:String!){ deploymentSnapshot(deploymentId:$d){ createdAt variables } }", ...}'
+   ```
+
+   Before deleting a variable, query it `unrendered` on **every** service in the
+   environment and check whether any of them reference it.  After the change,
+   read it back inside the new container (the store and the running container
+   disagree until a redeploy) and require one `Cisco key self-probe ok` line
+   before calling the change done.
 
 Secret-hygiene follow-up: while diagnosing this, the Producer's
 `CISCO_AI_DEFENSE_API_KEY` value was printed to an operator terminal by a
