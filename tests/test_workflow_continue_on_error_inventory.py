@@ -37,6 +37,17 @@ from tests._workflow_yaml import (
 # ``name:<step-name>``. Adding/removing entries here MUST be paired with a
 # CHANGELOG entry justifying the silent-fail tolerance.
 _ALLOWED: dict[str, dict[str, set[str]]] = {
+    # composio-canary.yml (2026-08-30): die vier Pruef-Steps laufen fail-soft,
+    # damit KEINE die anderen mehr ueberspringt. Vorher waren es gewoehnliche
+    # Steps — gemessen an Lauf 32813924394 (25.8.) toetete der Versionsdrift in
+    # Step 1 den Audit UND die Verbindungsprobe, sodass die toten Slack-/
+    # Notion-Verbindungen zehn Tage lang NIE GEMESSEN wurden.
+    # Kein Silent-Fail: jeder Step publiziert sein rc, und der Step
+    # "Fail when any check reported a problem" bewertet alle vier — beidseitig
+    # gepinnt in tests/test_composio_canary_per_connection.py.
+    "composio-canary.yml": {
+        "probe": {"id:contract", "id:audit", "id:probe", "id:bericht"},
+    },
     # smc-live-news-refresh.yml entry removed (Workflow-Audit MITTEL-11,
     # 2026-06): the bot-branch publish step is internally fail-loud
     # (F-V5-F1) and the step-level continue-on-error neutralised that —

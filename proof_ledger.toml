@@ -2392,3 +2392,29 @@ claim  = "Jedes rc-Gate der c13-Kette ist fail-closed gegen einen uebersprungene
 state  = "AUSGENOMMEN"
 due_by = "2026-08-29"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# canary-per-connection -- 2026-08-30. AUSGENOMMEN mit Doppelgrund
+# (Muster #5075/#5077/#5088/c13-chain-skip-leak):
+# 1. Die Wirkung ist von der Suite AUSFUEHRBAR bewiesen:
+#    tests/test_composio_canary_per_connection.py leitet die Pruef-Steps aus
+#    dem YAML ab (Grundgesamtheit, nicht Liste) und prueft beide Richtungen —
+#    jedes einzelne rc=1 faellt den Job, ein sauberer Lauf bleibt gruen; dazu
+#    die Leerwert-Klausel gegen die null-Coercion aus #5199. Sechs
+#    Mutationsproben am 30.8. gefahren, je rot-dann-gruen. Die
+#    Klassen-Heuristik (test_imported) sieht nur statische Importe.
+# 2. Ein Log-Zeuge traegt hier NICHTS, und das ist der Kern: der Defekt war,
+#    dass die Verbindungen GAR NICHT gemessen wurden — im Log sehen ein
+#    uebersprungener und ein nie erreichter Step gleich aus. Der operative
+#    Zeuge ist der naechste Cron (taeglich 05:30Z): dort muessen alle vier
+#    Pruef-Steps ein rc fuehren, und die Step-Summary eine Zeile je
+#    Verbindung. Ein Rueckfall meldet sich ab Tag drei von selbst ueber die
+#    Eskalationszeile.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "canary-per-connection"
+kind   = "exempt"
+claim  = "Keine Composio-Pruefung kann die anderen mehr ueberspringen (fail-soft + Sammel-Gate ueber die abgeleitete Grundgesamtheit); jede tote Verbindung bekommt eine eigene benannte Annotation, und Dauerrot eskaliert ab drei Tagen"
+state  = "AUSGENOMMEN"
+due_by = "2026-08-30"
+owner  = "operator"
