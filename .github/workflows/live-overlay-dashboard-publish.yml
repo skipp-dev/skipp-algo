@@ -9,6 +9,18 @@ on:
       - services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json
       - services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json
       - scripts/build_pre_a0_dashboard.py
+      # 2026-08-30: die beiden Skripte, die das Publizieren TUN, fehlten hier —
+      # getriggert wurde nur auf den Generator. Ein Umbau der Publish-Logik
+      # erreichte die Produktion damit nie von selbst (gleiche Klasse wie bei den
+      # Grafana-Upserts, #5204). Abgeleitet und gepinnt in
+      # tests/test_publish_triggers_follow_their_script.py.
+      - scripts/publish_overlay_dashboard.py
+      - scripts/update_overlay_dashboard.py
+      # Transitiv: build_pre_a0_dashboard importiert atomic_write_text von hier.
+      # Bewusst aufgenommen statt eine unscharfe Ausnahme fuer 'generische
+      # Hilfsmodule' zu erfinden — ein Dashboard-Republish ist idempotent, die
+      # Kosten sind Rauschen, der Gewinn eine Regel ohne Ermessensspielraum.
+      - scripts/smc_atomic_write.py
   workflow_dispatch:
     inputs:
       dry_run:

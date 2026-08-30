@@ -16,6 +16,14 @@ on:
     branches: [main]
     paths:
       - services/live_overlay_daemon/infra/grafana/alert-rules.yaml
+      # 2026-08-30: der Publisher folgt seinem SKRIPT, nicht nur seinen Daten.
+      # Vorher triggerte er ausschliesslich auf die YAML. Ein Umbau der
+      # Upsert-Logik erreichte die Produktion damit NIE von selbst — der Fix aus
+      # #5204 (vier still verworfene Routen-Felder) lag 20 min auf main, ohne
+      # dass irgendetwas ihn ausgeliefert haette; deployt wurde er erst durch
+      # einen Hand-Dispatch. Abgeleitet und gepinnt in
+      # tests/test_publish_triggers_follow_their_script.py.
+      - scripts/grafana_alert_rules_upsert.py
   workflow_dispatch:
     inputs:
       dry_run:
