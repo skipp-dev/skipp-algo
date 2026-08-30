@@ -58,7 +58,7 @@ jobs:
       # NIE GEMESSEN; der Canary lief zehn Tage rot und sagte nichts darueber,
       # was kaputt war. Jede Pruefung publiziert jetzt ihr eigenes rc, und der
       # Fail-Step unten bewertet alle drei.
-      - name: Check pinned schemas
+      - name: Check pinned schemas (advisory — the fail step below judges all four)
         id: contract
         continue-on-error: true
         run: |
@@ -67,7 +67,7 @@ jobs:
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
-      - name: Audit environment and account separation
+      - name: Audit environment and account separation (advisory — judged below)
         id: audit
         continue-on-error: true
         run: |
@@ -111,7 +111,7 @@ jobs:
       # Ein Urteil JE VERBINDUNG als eigene Annotation — der Punkt, an dem die
       # zehn Tage hingen: ein Sammel-Rot zwang zum Log-Lesen und liess offen,
       # WELCHE Verbindung tot war.
-      - name: Verdict per connection
+      - name: Verdict per connection (advisory — judged below)
         id: bericht
         if: always()
         continue-on-error: true
