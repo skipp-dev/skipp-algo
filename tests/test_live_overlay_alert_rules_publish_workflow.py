@@ -60,7 +60,14 @@ def test_trigger_contract_pinned(workflow_doc: dict) -> None:
     push = on_block.get("push")
     assert isinstance(push, dict), "workflow must define push trigger"
     assert push.get("branches") == ["main"], "push trigger must remain pinned to main"
-    assert push.get("paths") == [ALERT_RULES], "push path filter must be exactly alert-rules.yaml"
+    # 2026-08-30: nicht mehr NUR die Datendatei. Der Publisher muss auch auf sein
+    # eigenes SKRIPT triggern — sonst erreicht ein Umbau der Upsert-Logik die
+    # Produktion nie von selbst (gemessen: der Fix aus #5204 lag 20 min
+    # unausgeliefert auf main). Die Menge bleibt geschlossen: ein dritter Pfad
+    # faellt weiter durch.
+    assert push.get("paths") == [ALERT_RULES, "scripts/grafana_alert_rules_upsert.py"], (
+        f"push path filter unerwartet: {push.get('paths')!r}"
+    )
 
     dispatch = on_block.get("workflow_dispatch")
     assert isinstance(dispatch, dict), "workflow must support workflow_dispatch"

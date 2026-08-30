@@ -2023,6 +2023,25 @@ state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "@preuss_steffen"
 
+[[proof]]
+id     = "5205"
+kind   = "exempt"
+claim  = """
+Aendert eine TRIGGER-BEDINGUNG, und genau die pruefen die Tests. Die Pfade
+werden aus dem Workflow (aufgerufenes Skript) und aus dem Skript (lokale
+scripts.*-Importe) ABGELEITET, nicht gepflegt; drei Mutationsproben belegen,
+dass die Ableitung beisst (Skript-Pfad entfernt, transitiver Pfad entfernt,
+dritter Publisher aus der Liste). Ein Zeugen-Lauf wuerde daran nichts
+hinzufuegen: er zeigte, DASS ein Publish lief, nicht dass die Pfadmenge
+vollstaendig ist — und ein Push, der ausschliesslich ein Upsert-Skript
+beruehrt, muesste dafuer eigens konstruiert werden. Die Wirkung selbst ist am
+2026-08-30 bereits gemessen: der Fix aus #5204 lag 20 min unausgeliefert auf
+main, weil genau diese Pfade fehlten.
+"""
+state  = "AUSGENOMMEN"
+due_by = "2026-08-30"
+owner  = "@preuss_steffen"
+
 # --- Zweige von `routing_readback` ------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst durch den Publish-Lauf auf
 # main. Gleicher Stolperdraht wie #5178/#5183 — erreicht echte Evidenz einen

@@ -56,6 +56,13 @@ def test_trigger_contract_pinned(workflow_doc: dict) -> None:
         "services/live_overlay_daemon/infra/grafana/dashboard-signals-experiments.json",
         "services/live_overlay_daemon/infra/grafana/dashboard-pre-a0.json",
         "scripts/build_pre_a0_dashboard.py",
+        # 2026-08-30: die beiden Skripte, die das Publizieren TUN, plus die
+        # transitive Abhaengigkeit von build_pre_a0_dashboard. Vorher triggerte
+        # der Publisher nur auf den Generator — ein Umbau der Publish-Logik
+        # erreichte die Produktion nie von selbst (gleiche Klasse wie #5204).
+        "scripts/publish_overlay_dashboard.py",
+        "scripts/update_overlay_dashboard.py",
+        "scripts/smc_atomic_write.py",
     ], "push path filter drifted for dashboard publish workflow"
 
     dispatch = on_block.get("workflow_dispatch")
