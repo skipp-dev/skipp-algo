@@ -383,7 +383,10 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # "Fail when any check reported a problem" bewertet alle vier — beidseitig
 # gepinnt in tests/test_composio_canary_per_connection.py (jedes einzelne
 # rc=1 faellt den Job; ein durchweg sauberer Lauf bleibt gruen).
-"composio-canary.yml" = 5
+# 2026-08-30 (Draht B): 5 -> 6, die Klammer um den Zustands-Poll. Er deckt
+# die vier WRITE-Verbindungen ab, die keine Probe je anfasst, und sein rc
+# steht im Fail-Step — kein Silent-Skip.
+"composio-canary.yml" = 6
 # Daily heavy-compute crons with per-section fault tolerance.
 "c13-daily-cron.yml" = 9  # 2026-08-19 (#4848 R#4): status_markers-Konsument advisory, rc -> Issue-Opener wie Steps 1-5b
 # credential-health-check.yml: single fail-soft step that pings each
