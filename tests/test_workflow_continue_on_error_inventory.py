@@ -46,7 +46,7 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     # "Fail when any check reported a problem" bewertet alle vier — beidseitig
     # gepinnt in tests/test_composio_canary_per_connection.py.
     "composio-canary.yml": {
-        "probe": {"id:contract", "id:audit", "id:probe", "id:bericht"},
+        "probe": {"id:contract", "id:audit", "id:probe", "id:poll", "id:bericht"},
     },
     # smc-live-news-refresh.yml entry removed (Workflow-Audit MITTEL-11,
     # 2026-06): the bot-branch publish step is internally fail-loud

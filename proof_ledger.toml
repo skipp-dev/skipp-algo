@@ -2439,6 +2439,28 @@ due_by = "2026-08-30"
 owner  = "operator"
 
 # ---------------------------------------------------------------------------
+# composio-wires -- Draht B (Zustands-Poll) + Drift-Anreicherung, 2026-08-30.
+# AUSGENOMMEN mit Doppelgrund:
+# 1. Suite-AUSFUEHRBAR bewiesen: tests/test_composio_connection_wires.py
+#    prueft die reinen Funktionen (evaluate, drift_lines, pinned_accounts)
+#    ohne Netz, plus die Verdrahtung am echten YAML — der Poll MUSS im
+#    Fail-Gate stehen, der Drift-Step darf KEIN id bekommen. Sechs
+#    Mutationsproben am 30.8. gefahren, je rot-dann-gruen.
+# 2. Ein Log-Zeuge traegt nichts Zusaetzliches: die Wirkung des Polls zeigt
+#    sich erst, wenn eine Verbindung stirbt — und genau dann ist er der
+#    Zeuge. Der taegliche Cron (05:30Z) fuehrt ihn ab jetzt selbst aus; ein
+#    Rueckbau faellt ueber die abgeleitete Grundgesamtheit aus #5203 auf.
+#
+# BEWUSSTE GRENZE, damit sie niemand fuer Deckung haelt: ein GRUENER Poll
+# beweist NICHT, dass die Credentials gueltig sind. Am 26.8. meldete die API
+# alle Accounts ACTIVE, waehrend die Proben token_revoked lieferten. Nur ein
+# ROTER Poll ist ein Beweis — deshalb bleibt die Probe daneben stehen.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "composio-wires"
+kind   = "exempt"
+claim  = "Der taegliche Poll deckt auch die vier WRITE-Verbindungen und faellt den Job bei JEDEM Nicht-ACTIVE-Zustand (Allow-Liste); die Drift-Anreicherung liefert den Aenderungstext, ohne ein zweites Urteil ueber die Pin-Aktualitaet zu faellen"
+
 # composio-expiry-receiver -- Draht A, 2026-08-30. AUSGENOMMEN, Doppelgrund:
 # 1. Suite-AUSFUEHRBAR bewiesen: tests/test_composio_lifecycle_receiver.py
 #    prueft record() ohne HTTP, den AST des Empfaengers (kein composio_ops-
