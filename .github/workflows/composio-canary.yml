@@ -89,6 +89,33 @@ jobs:
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
 
+      # Draht B (2026-08-30): der Zustands-Poll. Deckt die vier WRITE-
+      # Verbindungen ab, die KEINE Probe je anfasst (alle Proben sind
+      # access="read"), und faengt einen Account, der unter einer fremden
+      # Entity gelandet ist — der Zustand vom 26.8. Kein Doppelgaenger zur
+      # Probe: am 26.8. meldete die API alle Accounts ACTIVE, waehrend die
+      # Proben token_revoked lieferten. Die beiden messen Verschiedenes.
+      - name: Poll every pinned connection (advisory — judged below)
+        id: poll
+        # CONTINUE-ON-ERROR-INTENTIONAL: Zustands-Befund advisory wie die
+        # Nachbarn; sein rc faellt den Job ueber den Fail-Step unten.
+        continue-on-error: true
+        run: |
+          set +e
+          python scripts/composio_connection_poll.py --output artifacts/ci/composio_poll.json
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+
+      # Drift-Anreicherung: WAS sich seit dem Pin geaendert hat. Faellt
+      # ausdruecklich KEIN Urteil — ob ein Pin veraltet ist, entscheidet der
+      # Contract-Step oben; zwei Urteile ueber dieselbe Tatsache waeren der
+      # Doppelgaenger, gegen den dieses Repo einen eigenen Sweep faehrt.
+      # Deshalb ohne `id`: dieser Step gehoert nicht in das Fail-Gate.
+      - name: Explain the pin drift (advisory annotation only)
+        if: always()
+        run: python scripts/composio_pin_drift.py
+
       # Wie lange ist der Canary schon rot? Abgeleitet aus der Actions-API,
       # kein neuer Zustand im Repo. Ein Dauerrot sieht in der Lauf-Liste aus
       # wie ein frisches Rot und wird deshalb genauso ignoriert.
@@ -148,10 +175,11 @@ jobs:
             (steps.contract.outputs.rc != '0' && steps.contract.outputs.rc != '') ||
             (steps.audit.outputs.rc != '0' && steps.audit.outputs.rc != '') ||
             (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
-            (steps.bericht.outputs.rc != '0' && steps.bericht.outputs.rc != '')
+            (steps.bericht.outputs.rc != '0' && steps.bericht.outputs.rc != '') ||
+            (steps.poll.outputs.rc != '0' && steps.poll.outputs.rc != '')
           )
         run: |
-          echo "::error title=composio-canary::contract=${{ steps.contract.outputs.rc }} audit=${{ steps.audit.outputs.rc }} probe=${{ steps.probe.outputs.rc }} bericht=${{ steps.bericht.outputs.rc }} — Einzelurteile in der Step-Summary."
+          echo "::error title=composio-canary::contract=${{ steps.contract.outputs.rc }} audit=${{ steps.audit.outputs.rc }} probe=${{ steps.probe.outputs.rc }} poll=${{ steps.poll.outputs.rc }} bericht=${{ steps.bericht.outputs.rc }} — Einzelurteile in der Step-Summary."
           exit 1
 
       - name: Upload reports
