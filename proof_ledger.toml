@@ -2437,3 +2437,32 @@ claim  = "Keine Composio-Pruefung kann die anderen mehr ueberspringen (fail-soft
 state  = "AUSGENOMMEN"
 due_by = "2026-08-30"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# composio-expiry-receiver -- Draht A, 2026-08-30. AUSGENOMMEN, Doppelgrund:
+# 1. Suite-AUSFUEHRBAR bewiesen: tests/test_composio_lifecycle_receiver.py
+#    prueft record() ohne HTTP, den AST des Empfaengers (kein composio_ops-
+#    Import, kein Slack-/Issue-Aufruf), die Gauge-Kopplung in metrics.py und
+#    den eigenen try-Block beim Mounten. Fuenf Mutationsproben am 30.8.
+#    gefahren, je rot-dann-gruen.
+# 2. Ein Log-Zeuge kann hier NICHTS beweisen, und das ist keine Schwaeche des
+#    Beweises, sondern die Natur des Drahts: er feuert erst, wenn eine
+#    Verbindung stirbt. Bis dahin ist er stumm — beabsichtigt.
+#
+# ZWEI SCHRITTE FEHLEN, OHNE DIE DER DRAHT INERT IST (Operator, extern):
+#   (a) COMPOSIO_LIFECYCLE_WEBHOOK_TOKEN auf dem Daemon setzen und die
+#       Webhook-Subscription bei Composio anlegen — auf V3, sonst kommt das
+#       Ereignis nie an (am 30.8. gemessen: existiert NUR in V3).
+#   (b) eine Grafana-Regel auf live_overlay_composio_expired_connections > 0.
+# Ohne (a) antwortet der Endpunkt 503, ohne (b) bewegt sich eine Zahl, die
+# niemand ansieht. Das ist AUSDRUECKLICH kein stiller Zustand: der taegliche
+# Poll (composio-wires) deckt denselben Ausfall fail-closed ab und ist der
+# Boden, auf dem dieser Draht aufsetzt.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "composio-expiry-receiver"
+kind   = "exempt"
+claim  = "Der Ablauf-Empfaenger meldet NICHT durch die ausgefallene Schicht (AST-gepinnt: kein composio_ops, kein Slack-/Issue-Aufruf); der Befund erreicht die /metrics-Gauge, die Prometheus holt. Inert bis Token+Subscription (V3) und Grafana-Regel gesetzt sind — bis dahin traegt der taegliche Poll."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-30"
+owner  = "operator"
