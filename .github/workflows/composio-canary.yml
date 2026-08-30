@@ -60,6 +60,7 @@ jobs:
       # Fail-Step unten bewertet alle drei.
       - name: Check pinned schemas (advisory — the fail step below judges all four)
         id: contract
+        # CONTINUE-ON-ERROR-INTENTIONAL: Versionsdrift der Pins darf die Verbindungsprobe nicht mehr ueberspringen (Lauf 32813924394); rc geht in den Fail-Step unten.
         continue-on-error: true
         run: |
           set +e
@@ -69,6 +70,7 @@ jobs:
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
       - name: Audit environment and account separation (advisory — judged below)
         id: audit
+        # CONTINUE-ON-ERROR-INTENTIONAL: Trennungs-Audit advisory wie die Nachbarn; sein rc faellt den Job ueber den Fail-Step unten.
         continue-on-error: true
         run: |
           set +e
@@ -78,6 +80,7 @@ jobs:
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
       - name: Probe every read-only connection
         id: probe
+        # CONTINUE-ON-ERROR-INTENTIONAL: Eine tote Verbindung darf den Bericht-Step nicht ueberspringen; rc geht in den Fail-Step unten.
         continue-on-error: true
         run: |
           set +e
@@ -114,6 +117,7 @@ jobs:
       - name: Verdict per connection (advisory — judged below)
         id: bericht
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: Der Bericht laeuft auch nach roten Vorstufen; sein rc faellt den Job ueber den Fail-Step unten.
         continue-on-error: true
         run: |
           set +e
