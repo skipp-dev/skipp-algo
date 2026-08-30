@@ -28,7 +28,15 @@ from scripts.proof_judges import Verdict
 #: dieser Änderung und ist damit zugleich die Versionsprobe. Bewusst NICHT auf
 #: ``^`` verankert: im Job-Log trägt jede Zeile ein Präfix aus Job, Step und
 #: Zeitstempel (#5181 kostete genau diese Lektion).
-_READBACK_RE = re.compile(r"policy-readback:\s*(?P<n>\d+)\s*Route\(n\)\s*unveraendert")
+#: 2026-08-31 additiv erweitert: derselbe Urteiler bedient jetzt BEIDE
+#: Grafana-Upserts. Die Zusicherung ist identisch — "die Ruecklese hat
+#: stattgefunden und über wie viele Objekte" —, nur der Schreiber ist ein
+#: anderer (`policy-readback:` aus dem Routing-Upsert seit #5204,
+#: `rules-readback:` aus dem alert-rules-Upsert seit #5208). Ein zweiter
+#: Urteiler waere ein Doppelgaenger derselben Regel gewesen.
+_READBACK_RE = re.compile(
+    r"(?:policy|rules)-readback:\s*(?P<n>\d+)\s*(?:Route|Regel)\(n\)\s*unveraendert"
+)
 
 
 def judge(evidence: Any, entry) -> Verdict:  # entry ist Teil des Urteiler-Vertrags

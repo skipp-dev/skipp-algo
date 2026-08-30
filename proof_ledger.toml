@@ -2042,6 +2042,33 @@ state  = "AUSGENOMMEN"
 due_by = "2026-08-30"
 owner  = "@preuss_steffen"
 
+[[proof]]
+id              = "5208"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Der alert-rules-Upsert liest zurueck, was ankam. Er schreibt 172 Regeln und
+hatte bis 2026-08-31 keine Verifikation: seine zwei GET sind Vorab-Lookups
+(Ordner-UID, Orphan-Inventar), der Schreibzugriff dazwischen wurde nie
+geprueft. Ein gruener Lauf belegte damit einen ABGESCHICKTEN Zustand, keinen
+angekommenen — dieselbe Klasse wie #5204, auf zwoelffacher Flaeche. Verglichen
+wird je uid, `for` normalisiert (Grafana schreibt Dauern um: 24h->1d,
+26h->1d2h), und NUR ueber die gesendeten uids, weil der Live-Bestand mehr
+Regeln traegt als die Datei.
+"""
+witness         = "live-overlay-alert-rules-publish"
+witness_job     = "publish"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "rules-readback:"
+# Derselbe Urteiler wie #5204, additiv erweitert: identische Zusicherung, nur
+# ein anderer Schreiber. Ein zweiter Urteiler waere ein Doppelgaenger gewesen.
+judge           = "routing_readback"
+state           = "OFFEN"
+due_by          = "2026-09-07"
+owner           = "@preuss_steffen"
+
 # --- Zweige von `routing_readback` ------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst durch den Publish-Lauf auf
 # main. Gleicher Stolperdraht wie #5178/#5183 — erreicht echte Evidenz einen
