@@ -1996,6 +1996,73 @@ state           = "OFFEN"
 due_by          = "2026-09-06"
 owner           = "@preuss_steffen"
 
+[[proof]]
+id              = "5204"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Der Routing-Upsert liest zurueck, was er gesendet hat. Am 2026-08-30 waren beide
+Publish-Workflows gruen, und vier Routen-Felder (group_by, group_wait,
+group_interval, repeat_interval) kamen trotzdem nie bei Grafana an —
+build_policy_body verwarf sie still. Ein gruener Lauf belegte damit einen
+ABGESCHICKTEN Zustand, keinen angekommenen. Seit dieser Aenderung werden die
+Felder durchgereicht UND nach dem PUT zurueckgelesen: Route fuer Route, in
+derselben Reihenfolge (continue:false laesst die erste passende gewinnen), inkl.
+Routenzahl. Abweichung wirft.
+"""
+witness         = "live-overlay-notification-routing-publish"
+witness_job     = "publish"
+evidence_source = "job_log"
+artifact        = ""
+# Existiert erst seit dieser Aenderung und traegt zugleich die ZAHL: eine
+# Ruecklese ueber 0 Routen waere wieder nur ein abgeschickter Zustand.
+version_probe   = "policy-readback:"
+judge           = "routing_readback"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "@preuss_steffen"
+
+# --- Zweige von `routing_readback` ------------------------------------------
+# Kein Korpus beim Landen: der Zeuge entsteht erst durch den Publish-Lauf auf
+# main. Gleicher Stolperdraht wie #5178/#5183 — erreicht echte Evidenz einen
+# dieser Zweige, wird der Widerspruchs-Test rot und erzwingt das Entfernen.
+
+[[unreachable_branch]]
+judge  = "routing_readback"
+branch = "readback_confirmed"
+reason = """
+Der Normalfall, und der einzige Zweig, der beim ersten Publish-Lauf nach dem
+Merge sicher feuert. Beim Landen gibt es ihn noch nicht als Korpus, weil der
+Zeuge den Lauf auf main voraussetzt.
+"""
+
+[[unreachable_branch]]
+judge  = "routing_readback"
+branch = "log_empty"
+reason = """
+Leere Evidenz — der Zeugensammler lieferte kein Log. Erreicht kein Korpus, weil
+ein Korpus aus gelieferten Logs besteht. Fail-closed statt Urteil.
+"""
+
+[[unreachable_branch]]
+judge  = "routing_readback"
+branch = "no_readback_line"
+reason = """
+Log ohne Ruecklese-Zeile: entweder lief eine Fassung vor dieser Aenderung, oder
+der Upsert brach vorher ab. Das ist die Versionsprobe in Zweigform.
+"""
+
+[[unreachable_branch]]
+judge  = "routing_readback"
+branch = "readback_over_nothing"
+reason = """
+Ruecklese ueber 0 Routen. Der eigentliche Schutz: eine leere Pruefung findet
+folgerichtig keine Abweichung und meldet Erfolg — genau die Verwechslung, die
+den Defekt vom 30.8. drei Wochen haette ueberleben lassen.
+path:scripts/grafana_notification_routing_upsert.py
+"""
+
 # --- Zweige von `stuck_run_watch` -------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst auf main. Gleicher
 # Stolperdraht wie bei #5178 — erreicht echte Evidenz einen dieser Zweige, wird
