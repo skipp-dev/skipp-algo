@@ -117,6 +117,12 @@ REQUIRED_PINNED_TESTS: tuple[str, ...] = (
 # Snapshot refreshed 2026-07-26; additions require a matching workflow edit so
 # the tuple and the merge-critical invocation remain a two-way audit trail.
 FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
+    # 2026-08-29: liest alert-rules.yaml UND notification-routing.yaml und
+    # haelt sie gegeneinander (Label <-> Route, Reihenfolge, Frist). Ohne
+    # required Pfad koennte genau der Merge durchgehen, der die Route hinter
+    # die generische Severity-Route schiebt — dann ist der laute Kanal fuer
+    # required Checks still weg und niemand merkt es.
+    "tests/test_grafana_notification_routing_upsert.py",
     # 2026-08-29: liest die Verdrahtung des Beweis-id-Waechters in
     # smc-fast-pr-gates. Ohne required Pfad koennte genau der Merge
     # durchgehen, der `--pr` oder `PR_NUMBER` entfernt — und die geratene

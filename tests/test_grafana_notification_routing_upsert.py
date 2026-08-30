@@ -203,3 +203,77 @@ def test_workflow_deploys_routing_with_secret() -> None:
     assert "services/live_overlay_daemon/infra/grafana/notification-routing.yaml" in text
     # Dry-run preflight (validates without the secret) must run.
     assert "--dry-run" in text
+
+
+def test_required_check_route_precedes_the_generic_severity_route() -> None:
+    """Reihenfolge ist hier die ganze Wirkung.
+
+    Beide Routen haben `continue: false`. Steht die generische Severity-Route
+    zuerst, faengt sie jede `critical`-Meldung ab — und die required-Check-Route
+    darunter wird nie erreicht. Der Unterschied waere dann still weg: dieselbe
+    Gruppierung, dasselbe Wiederholintervall, dieselbe Unauffindbarkeit, gegen
+    die sie 2026-08-29 gebaut wurde.
+    """
+    import yaml
+
+    routing = yaml.safe_load(
+        (REPO / "services/live_overlay_daemon/infra/grafana/notification-routing.yaml")
+        .read_text(encoding="utf-8")
+    )
+    routes = routing["policy"]["routes"]
+    idx_required = next(
+        (i for i, r in enumerate(routes)
+         if any(m[0] == "required_check" for m in r.get("object_matchers", []))),
+        None,
+    )
+    assert idx_required is not None, "die required-Check-Route ist verschwunden"
+    idx_sev = next(
+        (i for i, r in enumerate(routes)
+         if any(m[0] == "severity" for m in r.get("object_matchers", []))),
+        None,
+    )
+    assert idx_sev is not None, "die generische Severity-Route ist verschwunden"
+    assert idx_required < idx_sev, (
+        f"required-Check-Route steht an Position {idx_required}, die generische "
+        f"Severity-Route an {idx_sev} — die generische faengt zuerst ab und die "
+        "eigene Behandlung ist wirkungslos"
+    )
+    r = routes[idx_required]
+    assert r.get("group_by") == ["alertname"], (
+        "ohne eigenes group_by wird der required-Alarm mit den Ordner-Geschwistern "
+        f"eingesammelt; ist: {r.get('group_by')}"
+    )
+    assert r.get("repeat_interval") == "30m", (
+        "ohne kuerzeres repeat_interval piept es einmal und schweigt 4 h "
+        f"(Grafana-Vorgabe); ist: {r.get('repeat_interval')}"
+    )
+
+
+def test_the_required_check_rule_carries_the_label_the_route_matches() -> None:
+    """Route ohne Label ist Dekoration — und Label ohne Route auch.
+
+    Die beiden Dateien sind getrennt deploybar; nur diese Zeile haelt sie
+    zusammen.
+    """
+    import yaml
+
+    rules = yaml.safe_load(
+        (REPO / "services/live_overlay_daemon/infra/grafana/alert-rules.yaml")
+        .read_text(encoding="utf-8")
+    )
+    treffer = [
+        r for g in rules.get("groups", []) for r in g.get("rules", [])
+        if (r.get("labels") or {}).get("required_check") == "true"
+    ]
+    assert treffer, "keine Regel traegt `required_check: true` — die Route laeuft ins Leere"
+    for r in treffer:
+        assert (r.get("labels") or {}).get("severity") == "critical", (
+            f"{r.get('title')!r} traegt required_check, aber severity="
+            f"{(r.get('labels') or {}).get('severity')!r} — dann ist es wieder eine "
+            "Warnung unter hunderten"
+        )
+        assert r.get("for") == "15m", (
+            f"{r.get('title')!r} hat for={r.get('for')!r}. Gemessen 2026-08-29: "
+            "Flatterer 1-5 min, echter Vorfall 47 min. Wer das aendert, aendert die "
+            "Trennlinie zwischen beidem — mit Messung, nicht mit Gefuehl."
+        )
