@@ -541,6 +541,18 @@ try:
 except ImportError as _chatops_exc:  # pragma: no cover - defensive; keeps overlays serving
     logger.warning("composio_chatops not mounted: %s", _chatops_exc)
 
+# Draht A (2026-08-30): Ablauf-Ereignisse von Composio. EIGENER try-Block, kein
+# Anhaengsel an ChatOps: der ChatOps-Import zieht composio_ops nach, und ein
+# Fehlschlag DORT haette diesen Empfaenger stumm mitgerissen — genau die
+# Kopplung, gegen die er gebaut ist. Er liefert selbst nichts aus; der Befund
+# geht in Ledger + Gauge, damit der Alarmweg die ausgefallene Schicht meidet.
+try:
+    from . import composio_lifecycle_receiver
+
+    app.include_router(composio_lifecycle_receiver.router)
+except ImportError as _lifecycle_exc:  # pragma: no cover - defensive
+    logger.warning("composio_lifecycle_receiver not mounted: %s", _lifecycle_exc)
+
 
 if __name__ == "__main__":
     run_server()

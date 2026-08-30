@@ -2490,3 +2490,36 @@ claim  = "Der taegliche Poll deckt auch die vier WRITE-Verbindungen und faellt d
 state  = "AUSGENOMMEN"
 due_by = "2026-08-30"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# composio-expiry-receiver -- Draht A, 2026-08-30. AUSGENOMMEN, Doppelgrund:
+# 1. Suite-AUSFUEHRBAR bewiesen: tests/test_composio_lifecycle_receiver.py
+#    prueft record() ohne HTTP, den AST des Empfaengers (kein composio_ops-
+#    Import, kein Slack-/Issue-Aufruf), die Gauge-Kopplung in metrics.py und
+#    den eigenen try-Block beim Mounten. Fuenf Mutationsproben am 30.8.
+#    gefahren, je rot-dann-gruen.
+# 2. Ein Log-Zeuge kann hier NICHTS beweisen, und das ist keine Schwaeche des
+#    Beweises, sondern die Natur des Drahts: er feuert erst, wenn eine
+#    Verbindung stirbt. Bis dahin ist er stumm — beabsichtigt.
+#
+# STAND 2026-08-31, gemessen statt vermutet: die Subscription existiert seit
+# dem 2026-07-11 (V3, drei Ereignisse inkl. dem Ablauf) und zeigte bis zum
+# 2026-08-30 auf /grafana-webhook — den Empfaenger fuer GRAFANA-Alarme. Ein
+# Composio-Ereignis hat dort kein `alerts`-Feld, also erzeugte der Fanout
+# daraus eine inhaltsleere Slack-Meldung und quittierte mit Erfolg. Die
+# Ablauf-Ereignisse kamen seit Juli an und wurden zu Nichtssagendem
+# verarbeitet — sehr wahrscheinlich auch die der August-Tode. Der Operator
+# hat die URL am 2026-08-30 22:13Z auf /composio-lifecycle umgebogen
+# (verifiziert ueber die API), die Grafana-Regel liegt seit demselben Tag im
+# Repo. OFFEN bleibt allein COMPOSIO_LIFECYCLE_WEBHOOK_TOKEN auf dem Daemon;
+# ohne sie antwortet der Endpunkt 503 statt still ok. Das ist AUSDRUECKLICH
+# kein blinder Zustand: der taegliche Poll (composio-wires) deckt denselben
+# Ausfall fail-closed ab und ist der Boden, auf dem dieser Draht aufsetzt.
+# ---------------------------------------------------------------------------
+[[proof]]
+id     = "composio-expiry-receiver"
+kind   = "exempt"
+claim  = "Der Ablauf-Empfaenger meldet NICHT durch die ausgefallene Schicht (AST-gepinnt: kein composio_ops, kein Slack-/Issue-Aufruf); der Befund erreicht die /metrics-Gauge, die Prometheus holt. Inert bis Token+Subscription (V3) und Grafana-Regel gesetzt sind — bis dahin traegt der taegliche Poll."
+state  = "AUSGENOMMEN"
+due_by = "2026-08-30"
+owner  = "operator"

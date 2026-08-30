@@ -77,6 +77,12 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # on mismatch. Added when the Composio-ops webhook landed without updating this
     # (ungated) ledger.
     ("services/live_overlay_daemon/composio_chatops.py", 133, "compare_digest"),
+    # 2026-08-30, Draht A: identisches Muster wie die Zeile darueber —
+    # konstantzeitiger Vergleich des Pfad-Tokens gegen
+    # COMPOSIO_LIFECYCLE_WEBHOOK_TOKEN, auf bytes, damit ein
+    # nicht-ASCII-Token nicht wirft. Kein neues Primitiv, keine neue
+    # Vertrauensgrenze: derselbe Empfangsweg, dieselbe Secret-Klasse.
+    ("services/live_overlay_daemon/composio_lifecycle_receiver.py", 168, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
