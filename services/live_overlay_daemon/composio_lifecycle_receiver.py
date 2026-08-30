@@ -71,42 +71,67 @@ def reset_state() -> None:
         _expired.clear()
 
 
-def _account_id(data: dict[str, Any]) -> str:
-    for key in ("connected_account_id", "connectedAccountId", "id", "nanoid"):
+def _resolve(data: dict[str, Any], keys: tuple[str, ...]) -> tuple[str, str]:
+    """-> (Wert, HERKUNFT). Nie eine ``or``-Kette ueber verschiedene Schluessel.
+
+    Composio hat die Feldnamen zwischen v2 und v3 umbenannt und liefert je
+    nach Ereignis snake_case oder camelCase, deshalb ueberhaupt mehrere
+    Kandidaten. Eine ``a or b or c``-Kette wuerde aber verschweigen, WELCHER
+    gegriffen hat — und wenn der Empfaenger spaeter das Falsche liest, steht
+    im Ledger ein plausibler Wert ohne Hinweis auf seine Herkunft. Der
+    Repo-Waechter gegen genau dieses Muster verlangt die ausdrueckliche
+    Aufloesung samt Quelle (docs/review-checklist-field-preference-chains.md).
+    """
+    for key in keys:
         value = data.get(key)
         if isinstance(value, str) and value:
-            return value
-    return "unbekannt"
-
-
-def _toolkit(data: dict[str, Any]) -> str:
-    for key in ("toolkit_slug", "toolkitSlug", "toolkit", "app_name"):
-        value = data.get(key)
-        if isinstance(value, str) and value:
-            return value.lower()
-        if isinstance(value, dict) and isinstance(value.get("slug"), str):
-            return str(value["slug"]).lower()
-    return "unbekannt"
+            return value, key
+        if isinstance(value, dict):
+            nested = value.get("slug")
+            if isinstance(nested, str) and nested:
+                return nested, f"{key}.slug"
+    return "unbekannt", "keiner"
 
 
 def record(payload: dict[str, Any], *, now: dt.datetime | None = None) -> dict[str, Any]:
     """Ereignis bewerten und festhalten. Rein genug, um ohne HTTP zu testen."""
-    event_type = str(payload.get("type") or payload.get("event") or "")
+    # Auch hier ausdrueckliche Aufloesung statt `or`-Kette: der V3-Umschlag
+    # fuehrt `type`, aeltere Beispiele in der Doku `event`. Welcher gegriffen
+    # hat, gehoert in die Antwort — sonst debuggt man spaeter im Nebel.
+    event_type, typ_quelle = _resolve(payload, ("type", "event"))
     if event_type != _EXPIRY_EVENT:
         # Fremde Ereignisse mit 200 quittieren: ein Fehlercode brächte
         # Composio nur zum Wiederholen, und wir wollen nichts davon.
-        return {"ok": True, "recorded": False, "reason": f"ignoriert: {event_type or 'ohne Typ'}"}
+        return {
+            "ok": True,
+            "recorded": False,
+            "reason": f"ignoriert: {event_type} (Feld {typ_quelle})",
+        }
 
     data = payload.get("data")
     data = data if isinstance(data, dict) else {}
     stamp = (now or dt.datetime.now(dt.UTC)).isoformat()
-    account = _account_id(data)
+    account, account_quelle = _resolve(
+        data, ("connected_account_id", "connectedAccountId", "id", "nanoid")
+    )
+    toolkit, toolkit_quelle = _resolve(
+        data, ("toolkit_slug", "toolkitSlug", "toolkit", "app_name")
+    )
+    user, user_quelle = _resolve(data, ("user_id", "userId"))
     eintrag = {
         "account_id": account,
-        "toolkit": _toolkit(data),
-        "user_id": str(data.get("user_id") or data.get("userId") or "unbekannt"),
+        "toolkit": toolkit.lower(),
+        "user_id": user,
         "received_at": stamp,
         "event_id": str(payload.get("id") or ""),
+        "event_type_source": typ_quelle,
+        # Herkunft mitschreiben: ohne sie steht im Ledger ein plausibler Wert,
+        # und niemand kann spaeter sagen, welches Feld ihn geliefert hat.
+        "field_sources": {
+            "account_id": account_quelle,
+            "toolkit": toolkit_quelle,
+            "user_id": user_quelle,
+        },
     }
 
     with _lock:
