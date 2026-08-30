@@ -160,6 +160,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "smc_integration/structure_batch.py": "fdopen + os.replace atomic pattern (structure batch JSON)",
     "newsstack_fmp/open_prep_export.py": "mkstemp + fsync + os.replace atomic pattern (news candidates JSON export)",
     "scripts/collect_drift_calibration_corpus.py": "JSONL corpus append (mode='a', append-only calibration corpus; issue #2798)",
+    "scripts/composio_canary_report.py": "Markdown-Anhang an $GITHUB_STEP_SUMMARY (mode='a', append-only Runner-Log; atomares Ersetzen wuerde die Summary anderer Steps loeschen)",
     # Repo-root modules.
     "streamlit_terminal.py": "_write_json_atomic mkstemp + fsync + os.replace; plus JSONL append (mode='a', audit trail)",
     "terminal_export.py": "JSONL append (mode='a', error/audit trail) + mkstemp + os.replace VisiData exports",
