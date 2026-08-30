@@ -19,6 +19,7 @@ from typing import Any
 
 from . import (
     cache,
+    composio_lifecycle_receiver,
     compute,
     config,
     evidence_freshness_bridge,
@@ -1421,6 +1422,14 @@ def render_metrics(startup_ts: float, startup_epoch: float = 0.0) -> str:
     bar_count = cache.total_bar_count()
     lines.append("# TYPE live_overlay_bar_count gauge")
     lines.append(f"live_overlay_bar_count {bar_count}")
+
+    # Draht A (2026-08-30): abgelaufene Composio-Verbindungen. BEWUSST hier
+    # und nicht als Slack-/Issue-Meldung: beide Wege liefen durch composio_ops,
+    # also durch die Schicht, deren Tod gemeldet wird. Prometheus HOLT diese
+    # Zahl ab — der Alarmweg ist damit unabhaengig von dem, was ausgefallen ist.
+    expired = composio_lifecycle_receiver.expired_connections()
+    lines.append("# TYPE live_overlay_composio_expired_connections gauge")
+    lines.append(f"live_overlay_composio_expired_connections {len(expired)}")
 
     # Cap-churn visibility (2026-07-22): without these the bar cache could
     # thrash at the symbol cap — one bar per symbol, every rolling metric
