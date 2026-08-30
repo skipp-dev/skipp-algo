@@ -373,6 +373,17 @@ allowed = ["openprep-pine-panel-daily-trigger.yml"]
 # `set +e` and how many times. New occurrences require an entry here.
 # ---------------------------------------------------------------------------
 [workflow_set_plus_e_inventory.allowed]
+# composio-canary.yml: 2026-08-30, fuenf Klammern — vier um die Pruefungen
+# (contract, audit, probe, bericht), eine um den Alters-Abruf. Bis dahin waren
+# es gewoehnliche Steps: ein Fehlschlag der ERSTEN uebersprang alle folgenden.
+# Gemessen an Lauf 32813924394 (25.8.): "Check pinned schemas" failure ->
+# Audit skipped -> Probe skipped. Die toten Slack-/Notion-Verbindungen wurden
+# damit NIE GEMESSEN, waehrend der Canary zehn Tage rot meldete.
+# KEIN Silent-Skip-Risiko: jede Klammer publiziert ihr rc, und der Fail-Step
+# "Fail when any check reported a problem" bewertet alle vier — beidseitig
+# gepinnt in tests/test_composio_canary_per_connection.py (jedes einzelne
+# rc=1 faellt den Job; ein durchweg sauberer Lauf bleibt gruen).
+"composio-canary.yml" = 5
 # Daily heavy-compute crons with per-section fault tolerance.
 "c13-daily-cron.yml" = 9  # 2026-08-19 (#4848 R#4): status_markers-Konsument advisory, rc -> Issue-Opener wie Steps 1-5b
 # credential-health-check.yml: single fail-soft step that pings each
