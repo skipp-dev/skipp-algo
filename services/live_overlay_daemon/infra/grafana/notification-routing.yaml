@@ -67,7 +67,29 @@ policy:
       group_wait: 30s
       repeat_interval: 30m
       continue: false
-    - receiver: slack-smc-alerts
-      object_matchers:
-        - [severity, "=~", "critical|warning|high"]
-      continue: false
+    # 2026-08-31 (Wirkungs-Sweep Befund E): die generische Severity-Route ist
+    # ENTFERNT, weil sie an der Instanz nachweislich nichts tat. Gemessen an der
+    # Live-Policy, nicht an dieser Datei:
+    #
+    #   * Sie setzte denselben Empfaenger wie die Wurzel (slack-smc-alerts).
+    #   * Sie ueberschrieb KEIN einziges Zustellfeld -- kein group_by, kein
+    #     group_wait/group_interval, kein repeat_interval. Alles wurde von der
+    #     Wurzel geerbt.
+    #   * Sie waehlte damit 171 von 173 Regeln aus und behandelte sie exakt so,
+    #     wie die Wurzel sie ohnehin behandelt.
+    #
+    # Ihre Begruendung war, die "Naht" fuer eine spaetere Aufteilung nach
+    # Severity zu sein. Das ist Zukunfts-Prosa ohne Mechanismus: nichts liest
+    # sie zum richtigen Zeitpunkt, und bis dahin liess der Baum aussehen, als
+    # gaebe es eine Severity-Behandlung. Eine Aufteilung braucht ohnehin eine
+    # NEUE Route mit abweichendem Ziel oder Timing -- sie entsteht dann, nicht
+    # als Platzhalter davor.
+    #
+    # Das Verhalten bleibt unveraendert: die Wurzel ist Auffangbecken, jede
+    # Meldung landet weiter im selben Kanal mit derselben Gruppierung. Die
+    # required-Check-Route oben steht davor und terminiert, also aendert der
+    # Wegfall auch an ihr nichts.
+    #
+    # Die Severity-Labels selbst bleiben und tragen Information (gemessen:
+    # critical 66, warning 90, high 15, info 2) -- vakuum war der KONSUMENT,
+    # nicht das Feld.
