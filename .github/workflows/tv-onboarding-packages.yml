@@ -102,6 +102,10 @@ on:
       - "scripts/tv_verify_consumer_bindings.ts"
       - "scripts/build_pine_library_version_snapshot.ts"
       - "scripts/smc_bus_manifest.py"
+      # 2026-08-31 (Wirkungs-Sweep C): zwei Ebenen tief —
+      # smc_bus_manifest -> smc_context_bus_manifest -> smc_atomic_write.
+      - "scripts/smc_context_bus_manifest.py"
+      - "scripts/smc_atomic_write.py"
       - "scripts/tv_publish_*.ts"
   pull_request:
     paths:
@@ -205,6 +209,10 @@ on:
       - "scripts/tv_verify_consumer_bindings.ts"
       - "scripts/build_pine_library_version_snapshot.ts"
       - "scripts/smc_bus_manifest.py"
+      # 2026-08-31 (Wirkungs-Sweep C): zwei Ebenen tief —
+      # smc_bus_manifest -> smc_context_bus_manifest -> smc_atomic_write.
+      - "scripts/smc_context_bus_manifest.py"
+      - "scripts/smc_atomic_write.py"
       - "scripts/tv_publish_*.ts"
 
 permissions:
