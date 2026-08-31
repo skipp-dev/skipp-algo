@@ -1747,7 +1747,17 @@ function legacyOpenScriptNames(scriptName: string): string[] {
     case "smc long-dip dashboard v7":
       return ["SMC Decision Board", "SMC Dashboard"];
     case "smc decision board":
-      return ["SMC Long-Dip Dashboard v7", "SMC Dashboard"];
+      // 2026-08-31: the plain declaration title was missing here while the
+      // counter-direction ("smc long-dip dashboard", above) already listed
+      // "SMC Decision Board" — an asymmetric table. It matters because the
+      // chart legend carries the indicator() title: SMC_Long_Dip_Dashboard.pine
+      // declares "SMC Long-Dip Dashboard", so the legend row reads that, while
+      // the rollout config verifies the product name "SMC Decision Board"
+      // (docs/SMC_PRODUCT_IDENTITY.md: the Pro chart companion). Measured
+      // against the real legend text: neither "SMC Long-Dip Dashboard v7" nor
+      // "SMC Dashboard" matches it on exact|loose — and only exact|loose reach
+      // the legend probes. The v7 suffix is NOT normalised away.
+      return ["SMC Long-Dip Dashboard", "SMC Long-Dip Dashboard v7", "SMC Dashboard"];
     case "smc long-dip strategy":
       return ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"];
     case "smc long-dip strategy v7":
@@ -5439,8 +5449,16 @@ export function chartLegendTextVerdict(flags: { inContainer: boolean; inExcluded
  * "is it there".
  */
 async function hasVisibleChartLegendText(page: Page, scriptName: string): Promise<boolean> {
-  const [exactPattern, loosePattern] = buildScriptNamePatterns(scriptName);
-  for (const pattern of [exactPattern, loosePattern]) {
+  // Alias-aware, like findLegendRowWrappers. Both are halves of ONE signal
+  // (hasLegendMatch) and this half exists for when the button half is blind —
+  // until 2026-08-31 it was the narrower of the two. Rationale and the measured
+  // incident: tv_legend_text_visibility.test.ts.
+  const patterns = resolveOpenScriptSearchNames(scriptName)
+    .flatMap((name) => {
+      const [exactPattern, loosePattern] = buildScriptNamePatterns(name);
+      return [exactPattern, loosePattern];
+    });
+  for (const pattern of patterns) {
     const matches = page.getByText(pattern);
     const total = await matches.count().catch(() => 0);
     for (let index = 0; index < Math.min(total, 24); index += 1) {
