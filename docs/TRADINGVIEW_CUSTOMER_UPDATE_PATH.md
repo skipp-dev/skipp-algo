@@ -25,11 +25,21 @@ same publication/update mechanics — named residual assumption):
 - Therefore **"click update" is sufficient exactly for releases that do not
   republish consumer scripts** — and insufficient for any release that does.
 
+## Case E — template restore (measured 2026-08-31, same session)
+
+The operator saved an **indicator template** of the bound setup, repeated
+case A (consumer update, bindings reset to `Close`), then re-applied the
+template: **the source bindings were restored.**
+
+The consumer-update reset is therefore a two-click recovery — accept update,
+apply template — still manual use. Combined verdict: **"click update" suffices
+for producer releases; consumer releases additionally need "apply template".**
+The customer-facing consequence lives in
+`docs/tradingview-onboarding/PREPARE_CHART.md`: save the template once,
+right after onboarding.
+
 ## Open follow-ups (unmeasured)
 
-- **E:** whether re-applying a customer-saved **indicator template** restores
-  source bindings after a consumer update. If yes, the reset becomes a
-  two-click recovery — still manual use.
 - **F:** whether non-source inputs survive consumer updates (scopes the reset;
   not needed for the BUS question).
 
