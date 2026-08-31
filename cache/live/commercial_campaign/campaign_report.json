@@ -2,9 +2,9 @@
   "attempt_status_counts": {
     "COMPLETED": 29,
     "FAILED": 4,
-    "NO_SETUPS": 22
+    "NO_SETUPS": 23
   },
-  "attempts_total": 55,
+  "attempts_total": 56,
   "audit_integrity": {
     "audit_rows": 43,
     "duplicate_snapshot_intent_rows": 0,
@@ -34,7 +34,7 @@
   },
   "campaign_mode": "audit_only_shadow",
   "failure_rate": 0.0,
-  "failure_rate_lifetime": 0.07272727272727272,
+  "failure_rate_lifetime": 0.07142857142857142,
   "failure_window_size": 20,
   "failures_by_type": {
     "ValueError": 4
@@ -52,8 +52,8 @@
     "SWEEP": 16
   },
   "first_observed_at": "2026-08-18T14:07:00.036063+00:00",
-  "generated_at": "2026-08-31T15:07:56.583652+00:00",
-  "last_observed_at": "2026-08-31T15:07:56.583652+00:00",
+  "generated_at": "2026-08-31T16:05:21.727207+00:00",
+  "last_observed_at": "2026-08-31T16:05:21.727207+00:00",
   "network_io": false,
   "observation_gate": {
     "current_threshold_warnings": [],
@@ -70,7 +70,7 @@
   "processing_seconds": {
     "count": 20,
     "max": 0.10407720800139941,
-    "min": 0.004640124971047044,
+    "min": 0.004325833004259039,
     "p50": 0.006118520977906883,
     "p95": 0.008831833023577929
   },
@@ -87,9 +87,9 @@
     "count": 20,
     "max": 476.58365201950073,
     "min": 305.757994890213,
-    "p50": 315.7476530075073,
+    "p50": 316.59004950523376,
     "p95": 336.87620401382446
   },
-  "substantive_attempts_total": 55,
-  "unique_attempted_snapshots": 55
+  "substantive_attempts_total": 56,
+  "unique_attempted_snapshots": 56
 }
