@@ -41,8 +41,12 @@ Status: accepted (operator decision, 2026-08-31)
 - The operator-account CI automation is a separate, pre-existing exposure
   surfaced by the 2026-08-29 research; this ADR covers the customer-side
   package.
-- UNGESICHERT — verlässt sich auf menschliches Gedächtnis: nothing watches
-  TradingView's house rules for changes. A future tightening, a ToU change,
-  or any enforcement signal re-opens this decision when noticed — no
-  mechanism fires at that moment, and this label says so instead of
-  pretending otherwise.
+- Monitoring, measured 2026-08-31 (operator corrected this ADR's first
+  draft, which claimed no TV watching existed): the repo DOES watch
+  TradingView weekly — `pine-release-notes-watch` (Mondays 05:30 UTC) diffs
+  the Pine release-notes page against a committed snapshot. The Help-Center
+  **house-rules page is not among its targets**, and no other watcher covers
+  it. For that page — and only that page — the honest label stands:
+  UNGESICHERT — verlässt sich auf menschliches Gedächtnis. A rule change
+  there is noticed by humans, not by a tripwire; extending the weekly
+  watcher to it is the known mechanization, decided separately.
