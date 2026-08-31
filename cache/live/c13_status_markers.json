@@ -1,284 +1,92 @@
 {
   "markers": [
     {
-      "agent": "push",
-      "date": "2026-08-26",
-      "dir": "cache/imbalance",
-      "kind": "ok",
-      "message": "pushed:2026-08-26T13:28:13Z:cache/imbalance/2026-08-26.jsonl",
+      "agent": "tws_autostart",
+      "date": "2026-08-29",
+      "dir": "cache/live",
+      "kind": "SUCCESS",
+      "message": "started-in:15s",
       "ts": ""
     },
     {
-      "agent": "audit_push",
-      "date": "2026-08-26",
-      "dir": "cache/live",
+      "agent": "push",
+      "date": "2026-08-31",
+      "dir": "cache/imbalance",
       "kind": "degraded",
-      "message": "no-audit-file",
-      "ts": "2026-08-26T21:30:09Z"
+      "message": "collector-error",
+      "ts": "2026-08-31T13:28:05Z"
     },
     {
       "agent": "commercial_shadow",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "SUCCESS",
-      "message": "campaign-observed:paper-dormant:verdict=FAIL",
+      "message": "campaign-observed:paper-dormant:verdict=PASS",
       "ts": ""
     },
     {
       "agent": "commercial_shadow_push",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "ok",
-      "message": "pushed:2026-08-26T19:05:20Z:cache/live/commercial_campaign/campaign_report.json",
+      "message": "pushed:2026-08-31T19:05:20Z:cache/live/commercial_campaign/campaign_report.json",
       "ts": ""
     },
     {
       "agent": "eod_flatten",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "fills:portfolio_fills_eod_2026-08-26.json",
-      "ts": "2026-08-26T19:45:03Z"
+      "kind": "DEGRADED",
+      "message": "flatten-rc:1",
+      "ts": "2026-08-31T19:45:04Z"
     },
     {
       "agent": "ibkr_smoke",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "DEGRADED",
-      "message": "unexpected:EXIT=1:audit=smoke_2026-08-26.jsonl",
+      "message": "unexpected:EXIT=1:audit=smoke_2026-08-31.jsonl",
       "ts": ""
     },
     {
       "agent": "phase_a",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "DEGRADED",
-      "message": "portfolio-snapshot-failed:path=portfolio_before_2026-08-26.json",
+      "message": "portfolio-snapshot-failed:path=portfolio_before_2026-08-31.json",
       "ts": ""
     },
     {
       "agent": "phase_a_export",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "SUCCESS",
-      "message": "export-complete:date=2026-08-26",
+      "message": "export-complete:date=2026-08-31",
       "ts": ""
     },
     {
       "agent": "reconcile",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
       "kind": "SUCCESS",
       "message": "no-audit-file",
-      "ts": "2026-08-26T21:05:05Z"
+      "ts": "2026-08-31T21:05:04Z"
     },
     {
       "agent": "tws_autostart",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/live",
-      "kind": "DEGRADED",
-      "message": "port-not-open-after:240s",
+      "kind": "SUCCESS",
+      "message": "started-in:10s",
       "ts": ""
     },
     {
       "agent": "feed",
-      "date": "2026-08-26",
+      "date": "2026-08-31",
       "dir": "cache/wsh",
       "kind": "degraded",
-      "message": "no-events",
-      "ts": "2026-08-26T20:30:05Z"
-    },
-    {
-      "agent": "push",
-      "date": "2026-08-26",
-      "dir": "cache/wsh",
-      "kind": "ok",
-      "message": "pushed:2026-08-26T20:30:06Z:cache/wsh/2026-08-26.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "push",
-      "date": "2026-08-27",
-      "dir": "cache/imbalance",
-      "kind": "ok",
-      "message": "pushed:2026-08-27T13:28:01Z:cache/imbalance/2026-08-27.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "audit_push",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "degraded",
-      "message": "no-audit-file",
-      "ts": "2026-08-27T21:30:09Z"
-    },
-    {
-      "agent": "commercial_shadow",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "campaign-observed:paper-dormant:verdict=FAIL",
-      "ts": ""
-    },
-    {
-      "agent": "commercial_shadow_push",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "ok",
-      "message": "pushed:2026-08-27T19:05:15Z:cache/live/commercial_campaign/campaign_report.json",
-      "ts": ""
-    },
-    {
-      "agent": "eod_flatten",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "fills:portfolio_fills_eod_2026-08-27.json",
-      "ts": "2026-08-27T19:45:03Z"
-    },
-    {
-      "agent": "ibkr_smoke",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "smoke-ok:audit=smoke_2026-08-27.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "phase_a",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "DEGRADED",
-      "message": "portfolio-snapshot-failed:path=portfolio_before_2026-08-27.json",
-      "ts": ""
-    },
-    {
-      "agent": "phase_a_export",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "export-complete:date=2026-08-27",
-      "ts": ""
-    },
-    {
-      "agent": "reconcile",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "no-audit-file",
-      "ts": "2026-08-27T21:05:05Z"
-    },
-    {
-      "agent": "tws_autostart",
-      "date": "2026-08-27",
-      "dir": "cache/live",
-      "kind": "DEGRADED",
-      "message": "port-not-open-after:240s",
-      "ts": ""
-    },
-    {
-      "agent": "feed",
-      "date": "2026-08-27",
-      "dir": "cache/wsh",
-      "kind": "degraded",
-      "message": "no-events",
-      "ts": "2026-08-27T20:30:04Z"
-    },
-    {
-      "agent": "push",
-      "date": "2026-08-27",
-      "dir": "cache/wsh",
-      "kind": "ok",
-      "message": "pushed:2026-08-27T20:30:05Z:cache/wsh/2026-08-27.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "push",
-      "date": "2026-08-28",
-      "dir": "cache/imbalance",
-      "kind": "ok",
-      "message": "pushed:2026-08-28T13:28:01Z:cache/imbalance/2026-08-28.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "commercial_shadow",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "campaign-observed:paper-dormant:verdict=FAIL",
-      "ts": ""
-    },
-    {
-      "agent": "commercial_shadow_push",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "ok",
-      "message": "pushed:2026-08-28T19:05:15Z:cache/live/commercial_campaign/campaign_report.json",
-      "ts": ""
-    },
-    {
-      "agent": "eod_flatten",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "fills:portfolio_fills_eod_2026-08-28.json",
-      "ts": "2026-08-28T19:45:05Z"
-    },
-    {
-      "agent": "ibkr_smoke",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "smoke-ok:audit=smoke_2026-08-28.jsonl",
-      "ts": ""
-    },
-    {
-      "agent": "phase_a",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "DEGRADED",
-      "message": "portfolio-snapshot-failed:path=portfolio_before_2026-08-28.json",
-      "ts": ""
-    },
-    {
-      "agent": "phase_a_export",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "export-complete:date=2026-08-28",
-      "ts": ""
-    },
-    {
-      "agent": "reconcile",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "no-audit-file",
-      "ts": "2026-08-28T21:05:05Z"
-    },
-    {
-      "agent": "tws_autostart",
-      "date": "2026-08-28",
-      "dir": "cache/live",
-      "kind": "SUCCESS",
-      "message": "already-running",
-      "ts": ""
-    },
-    {
-      "agent": "feed",
-      "date": "2026-08-28",
-      "dir": "cache/wsh",
-      "kind": "degraded",
-      "message": "no-events",
-      "ts": "2026-08-28T20:30:01Z"
-    },
-    {
-      "agent": "push",
-      "date": "2026-08-28",
-      "dir": "cache/wsh",
-      "kind": "ok",
-      "message": "pushed:2026-08-28T20:30:02Z:cache/wsh/2026-08-28.jsonl",
-      "ts": ""
+      "message": "feed-error",
+      "ts": "2026-08-31T20:30:05Z"
     }
   ],
   "scanned_dirs": [
@@ -288,5 +96,5 @@
   ],
   "schema_version": 2,
   "window_days": 3,
-  "window_end": "2026-08-28"
+  "window_end": "2026-08-31"
 }
