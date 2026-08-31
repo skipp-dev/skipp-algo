@@ -10,6 +10,17 @@
 
 ## August 2026
 
+### Pine Screener improvements
+
+We’ve made two improvements to the Pine Screener: adding indices as a symbol source option, and making the full “Indicators” dialog box available when selecting an indicator script for the screener.
+Previously, the Pine Screener could scan symbols only from a user’s watchlist and use indicators only from the user’s “Favorites” list.
+Now, users can scan the symbols of any index using the Pine Screener, without first creating a watchlist of those symbols. Select the “Index” tab in the “Symbol source” dropdown menu to choose an index and scan up to 4,000 of its symbols. Clicking the “Add indicator” button now opens the “Indicators” dialog box. Users can select personal, invite-only, purchased, built-in, or community scripts to use with the Pine Screener. Note that the Pine Screener supports only indicator scripts that contain at least one `plot*()` or `alertcondition()` call; if a script is not compatible with the screener, it is grayed out in the “Indicators” dialog box and cannot be selected.
+Refer to the Pine Screener key features and requirements article in our Help Center to learn more about the Pine Screener.
+
+### ​once​ conditional structure
+
+We’ve added a new `once` keyword. It defines a conditional structure that executes a block of code when its condition evaluates to `true`. After the local block executes for the first time on a closed bar, it does not execute again on any subsequent bars, regardless of the condition. For more information, see the `once` structure section of the Conditional structures page.
+
 ### Binary search in UDT arrays
 
 The `array.binary_search()`, `array.binary_search_leftmost()`, and `array.binary_search_rightmost()` functions can now search arrays that store IDs of user-defined types (UDTs). Like the sorting functions for UDT collections, these functions include a `sort_field` parameter, which specifies the object field that a call compares while searching. The parameter accepts a “const int” field index (0 by default, referring to the first field in the type declaration) or a “const string” field name. Note that the array must be sorted by the same field, in ascending order, for the search to return correct results.
@@ -1334,6 +1345,8 @@ Next
 - Overview
 - 2026
 - August 2026
+- Pine Screener improvements
+- `once` conditional structure
 - Binary search in UDT arrays
 - July 2026
 - Strategy improvements
