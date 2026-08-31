@@ -53,12 +53,15 @@ def test_repo_routing_pins_slack_contact_point_and_severity_route() -> None:
 
     policy = doc["policy"]
     assert policy["receiver"] == "slack-smc-alerts"  # catch-all root, nothing dropped
-    matchers = [m for r in policy["routes"] for m in r["object_matchers"]]
-    sev = next(m for m in matchers if m[0] == "severity")
-    assert sev[1] == "=~"
-    # critical|warning|high must ALL be covered (5 of the credential alerts are high).
-    for level in ("critical", "warning", "high"):
-        assert level in sev[2]
+    # 2026-08-31: die generische Severity-Route ist entfernt (Wirkungs-Sweep E) --
+    # sie setzte denselben Empfaenger wie die Wurzel und ueberschrieb kein
+    # Zustellfeld, waehlte also 171 von 173 Regeln aus und aenderte nichts. Die
+    # Deckung, die dieser Test schuetzen wollte, leistet seither die Wurzel
+    # SELBST, und zwar vollstaendiger: sie faengt auch `info` und unbeschriftete
+    # Regeln, die die Severity-Route gar nicht traf. Genau das wird jetzt
+    # gepinnt -- ein Wechsel der Wurzel auf etwas anderes als das Auffangbecken
+    # waere der Verlust, gegen den dieser Test steht.
+    assert policy.get("group_by") == ["grafana_folder", "alertname"]
 
 
 def test_repo_routing_commits_no_secret_only_a_placeholder() -> None:
@@ -258,15 +261,19 @@ def test_required_check_route_precedes_the_generic_severity_route() -> None:
         None,
     )
     assert idx_required is not None, "die required-Check-Route ist verschwunden"
-    idx_sev = next(
-        (i for i, r in enumerate(routes)
-         if any(m[0] == "severity" for m in r.get("object_matchers", []))),
-        None,
-    )
-    assert idx_sev is not None, "die generische Severity-Route ist verschwunden"
-    assert idx_required < idx_sev, (
-        f"required-Check-Route steht an Position {idx_required}, die generische "
-        f"Severity-Route an {idx_sev} — die generische faengt zuerst ab und die "
+    # 2026-08-31: frueher verglich dieser Test die Position gegen die generische
+    # Severity-Route. Die ist entfernt (Wirkungs-Sweep E) -- und ein Test, der an
+    # EINER konkreten Nachbarroute haengt, stirbt mit ihr, obwohl der Mechanismus
+    # weiterlebt. Gepinnt wird deshalb die Invariante selbst: KEINE terminierende
+    # Route darf vor der required-Check-Route stehen, egal welche.
+    verschluckt = [
+        (i, r.get("object_matchers"))
+        for i, r in enumerate(routes[:idx_required])
+        if not r.get("continue", False)
+    ]
+    assert not verschluckt, (
+        f"terminierende Route(n) VOR der required-Check-Route (Position "
+        f"{idx_required}): {verschluckt} — sie fangen die Meldung ab, und die "
         "eigene Behandlung ist wirkungslos"
     )
     r = routes[idx_required]
@@ -439,3 +446,73 @@ def test_a_successful_readback_says_so(monkeypatch: pytest.MonkeyPatch, capsys) 
     )
     mod.put_policy(body, "k")
     assert "policy-readback: 1 Route(n) unveraendert angekommen" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- #
+# 2026-08-31, Wirkungs-Sweep Befund E: eine Route, die nichts aendert
+# --------------------------------------------------------------------------- #
+#: Felder, ueber die eine Route ihre Wirkung ausuebt. Alles andere (Matcher,
+#: Kommentare) entscheidet nur, WEN sie faengt -- nicht, was danach anders ist.
+_ZUSTELLFELDER = (
+    "receiver",
+    "group_by",
+    "group_wait",
+    "group_interval",
+    "repeat_interval",
+    "mute_time_intervals",
+    "active_time_intervals",
+)
+
+
+def _routen_mit_eltern(knoten: dict, geerbt: dict) -> list[tuple[dict, dict]]:
+    """Jede Route zusammen mit dem Zustand, den sie ohne eigene Angabe erbt."""
+    raus: list[tuple[dict, dict]] = []
+    effektiv = {feld: knoten.get(feld) for feld in _ZUSTELLFELDER}
+    for route in knoten.get("routes") or []:
+        raus.append((route, effektiv))
+        kind_geerbt = {
+            feld: (route[feld] if feld in route else effektiv[feld])
+            for feld in _ZUSTELLFELDER
+        }
+        raus.extend(_routen_mit_eltern(route, kind_geerbt))
+    return raus
+
+
+def test_no_route_selects_without_changing_anything() -> None:
+    """Eine Route, die dasselbe tut wie ihr Elternteil, ist Dekoration.
+
+    Gemessen 2026-08-31 an der Live-Policy: die generische Severity-Route setzte
+    denselben Empfaenger wie die Wurzel und ueberschrieb kein einziges
+    Zustellfeld. Sie waehlte 171 von 173 Regeln aus und behandelte sie exakt so,
+    wie die Wurzel sie ohnehin behandelt -- der Baum sah nach
+    Severity-Behandlung aus, ohne eine zu haben.
+
+    Routen MIT Kindern sind ausgenommen: dort ist die Gruppierung selbst der
+    Zweck, und die Wirkung steckt in den Kindern. Ohne diese Ausnahme haette der
+    Waechter einen voellig korrekten Zustand angeklagt.
+    """
+    import yaml
+
+    routing = yaml.safe_load(
+        (REPO / "services/live_overlay_daemon/infra/grafana/notification-routing.yaml")
+        .read_text(encoding="utf-8")
+    )
+    paare = _routen_mit_eltern(routing["policy"], {})
+    assert paare, "keine Route gefunden — die Ableitung ist blind, der Test waere vakuum"
+
+    vakuum = []
+    for route, geerbt in paare:
+        if route.get("routes"):
+            continue  # Sammelknoten: die Wirkung liegt in den Kindern
+        unterschiede = [
+            feld
+            for feld in _ZUSTELLFELDER
+            if feld in route and route[feld] != geerbt.get(feld)
+        ]
+        if not unterschiede:
+            vakuum.append(route.get("object_matchers"))
+    assert not vakuum, (
+        "Route(n) ohne Wirkung — sie selektieren, aendern aber kein Zustellfeld "
+        f"gegenueber dem Elternteil: {vakuum}. Entweder ein abweichendes Ziel/"
+        "Timing geben oder die Route weglassen; die Wurzel faengt ohnehin alles."
+    )
