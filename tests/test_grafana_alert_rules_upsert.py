@@ -420,7 +420,11 @@ def test_upsert_group_uses_rule_group_endpoint(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
     group = mod.load_alert_groups(ALERT_RULES)[0]
     written = mod.upsert_group(group, "key")
-    assert written == len(group["rules"])
+    # 2026-08-30: gibt die GESENDETEN Regeln zurueck, nicht ihre Anzahl — die
+    # Ruecklese in `verify_rules` braucht, was tatsaechlich geschickt wurde.
+    # Eine Zahl haette nur belegt, wie viel abgeschickt wurde.
+    assert isinstance(written, list) and len(written) == len(group["rules"])
+    assert all("uid" in r for r in written), "die Rueckgabe traegt keine uids"
     assert captured["method"] == "PUT"
     assert f"/api/v1/provisioning/folder/fuid/rule-groups/{group['name']}" in captured["url"]
     assert captured["provenance"] == "true"
@@ -807,3 +811,113 @@ def test_signals_producer_databento_feed_alerts_present() -> None:
     assert recovery["for"] == "5m"
     assert recovery["labels"]["severity"] == "warning"
     assert recovery["data"][1]["model"]["conditions"][0]["evaluator"]["params"] == [2]
+
+
+# --------------------------------------------------------------------------
+# Ruecklese (2026-08-30): deklariert != ausgeliefert
+# --------------------------------------------------------------------------
+
+
+def _regel(uid="r1", **over):
+    b = {"uid": uid, "title": "T", "condition": "C", "for": "15m", "labels": {"severity": "critical"},
+         "noDataState": "OK", "execErrState": "Error", "isPaused": False,
+         "ruleGroup": "g", "folderUID": "f"}
+    b.update(over)
+    return b
+
+
+def test_readback_accepts_grafanas_duration_normalisation() -> None:
+    """GEMESSEN, nicht angenommen: `for: 24h` kommt als `1d` zurueck.
+
+    Am 2026-08-30 an allen 163 YAML-Regeln im Live-Bestand geprueft: von zehn
+    Feldern weicht genau dieses eine ab, und zwar als Normalisierung. Ein
+    wortwoertlicher Vergleich haette drei KORREKTE Regeln angeklagt — die
+    Klasse, an der am 29./30.8. drei Waechter scheiterten.
+    """
+    gesendet = {"r1": _regel(**{"for": "24h"})}
+    gelesen = [_regel(**{"for": "1d"})]
+    assert mod.rules_drift(gesendet, gelesen) == []
+
+
+def test_readback_still_catches_a_real_duration_change() -> None:
+    """Gegenprobe — sonst waere die Toleranz oben ein Freibrief."""
+    drift = mod.rules_drift({"r1": _regel(**{"for": "15m"})}, [_regel(**{"for": "2h"})])
+    assert any(".for" in d for d in drift), drift
+
+
+def test_readback_catches_a_swallowed_field() -> None:
+    """Der reale Fall aus dem Nachbarmodul: Regel da, Feld verschluckt."""
+    gelesen = [_regel()]
+    gelesen[0].pop("labels")
+    drift = mod.rules_drift({"r1": _regel()}, gelesen)
+    assert any(".labels" in d for d in drift), drift
+
+
+def test_readback_catches_a_rule_that_never_arrived() -> None:
+    drift = mod.rules_drift({"r1": _regel()}, [])
+    assert drift and "nicht vorhanden" in drift[0]
+
+
+def test_readback_ignores_rules_this_upsert_does_not_manage() -> None:
+    """Nur ueber die GESENDETEN uids vergleichen.
+
+    Der Live-Bestand traegt mehr Regeln als die Datei (2026-08-30: 172 vs 163).
+    Ein Vergleich ueber die Gesamtmenge meldete jede fremde Regel als Drift —
+    eine Falschanschuldigung gegen einen Bestand, den dieser Upsert nicht
+    verwaltet.
+    """
+    fremd = _regel(uid="fremd", title="von woanders")
+    assert mod.rules_drift({"r1": _regel()}, [_regel(), fremd]) == []
+
+
+def test_verify_rules_raises_on_empty_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ein leerer Body ist 'nicht gelesen', nicht 'alles gut'."""
+    monkeypatch.setattr(mod, "_request", lambda *a, **k: None)
+    with pytest.raises(RuntimeError, match="leeren Body"):
+        mod.verify_rules({"r1": _regel()}, "k")
+
+
+def test_verify_rules_reports_the_count_it_checked(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(mod, "_request", lambda *a, **k: [_regel()])
+    assert mod.verify_rules({"r1": _regel()}, "k") == 1
+
+
+@pytest.mark.parametrize(("gesendet", "gelesen"), [
+    ("24h", "1d"),      # live gefunden 2026-08-30, 3 Regeln
+    ("26h", "1d2h"),    # live gefunden 2026-08-30, zusammengesetzt
+    ("0s", "0s"),       # 7 Regeln im Bestand; `parse_interval_seconds` wirft hier
+    ("90m", "1h30m"),
+])
+def test_readback_tolerates_every_measured_duration_form(gesendet: str, gelesen: str) -> None:
+    """Alle drei Formen stammen aus dem ECHTEN Bestand, nicht aus der Fantasie.
+
+    Die ersten beiden Fassungen dieser Ruecklese fielen nacheinander an genau
+    diesen Faellen: `0s` liess den falschen Parser werfen, `1d2h` passte nicht
+    ins Ein-Einheiten-Muster. Beide fand der Live-Lauf, keiner die Unit-Tests
+    mit selbst gebauten Werten.
+    """
+    assert mod.rules_drift({"r1": _regel(**{"for": gesendet})}, [_regel(**{"for": gelesen})]) == []
+
+
+def test_an_unparsable_duration_falls_back_to_literal_comparison() -> None:
+    """Unparsbar heisst nicht 'abweichend' — sonst erfindet der Waechter Drift."""
+    assert mod.rules_drift({"r1": _regel(**{"for": "wirr"})}, [_regel(**{"for": "wirr"})]) == []
+    assert mod.rules_drift({"r1": _regel(**{"for": "wirr"})}, [_regel(**{"for": "anders"})]) != []
+
+
+def test_the_shared_readback_judge_accepts_both_writers() -> None:
+    """Ein Urteiler, zwei Schreiber — kein Doppelgaenger.
+
+    Die Zusicherung ist identisch (Ruecklese fand statt, ueber N Objekte); nur
+    das Wort unterscheidet sich. Ein zweiter Urteiler haette dieselbe Regel ein
+    zweites Mal beschrieben und waere beim naechsten Umbau auseinandergelaufen.
+    """
+    from scripts.proof_judges.routing_readback import judge
+
+    fuer_regeln = "job\tstep\t2026-08-31T00:00:00Z rules-readback: 163 Regel(n) unveraendert angekommen"
+    fuer_routen = "job\tstep\t2026-08-31T00:00:00Z policy-readback: 2 Route(n) unveraendert angekommen"
+    for log in (fuer_regeln, fuer_routen):
+        v = judge({"log": log}, None)
+        assert v.state == "PASS", f"{v.state}/{v.branch}: {v.detail}"
+    leer = judge({"log": "job\tstep\tZ rules-readback: 0 Regel(n) unveraendert angekommen"}, None)
+    assert leer.state == "FAIL" and leer.branch == "readback_over_nothing"

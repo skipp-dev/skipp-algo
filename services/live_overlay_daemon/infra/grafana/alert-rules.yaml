@@ -38,6 +38,48 @@ groups:
       runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
       summary: Prometheus is not scraping live-overlay metrics
       runbook: Check metrics-collector service and /metrics auth/path wiring.
+  - uid: lo-composio-connection-expired
+    title: Composio connection expired
+    condition: C
+    # noDataState OK: bis die Webhook-Subscription steht, liefert die Gauge
+    # nichts — das ist "noch nicht verdrahtet", kein Vorfall.
+    noDataState: OK
+    data:
+    - refId: A
+      datasourceUid: grafanacloud-prom
+      model:
+        expr: live_overlay_composio_expired_connections{job="live_overlay"}
+        instant: true
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        type: threshold
+        conditions:
+        - evaluator:
+            type: gt
+            params:
+            - 0
+          operator:
+            type: and
+          query:
+            params:
+            - A
+    # Kein "for": ein Ablauf heilt nicht von selbst. Der refresh-Endpunkt ist
+    # deprecated und verlangt einen Menschen im Browser.
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      runbook_url: https://github.com/skipp-dev/skipp-algo/blob/main/services/live_overlay_daemon/OPS.md
+      summary: Eine Composio-Verbindung ist abgelaufen und unbeaufsichtigt nicht heilbar
+      runbook: >-
+        Composio meldete composio.connected_account.expired. Der Alarmweg laeuft
+        bewusst ueber Prometheus, NICHT ueber Slack/GitHub — beide liefen durch
+        composio_ops, also durch die ausgefallene Schicht. Das betroffene Toolkit
+        steht im Daemon-Log und in artifacts/monitoring/composio_lifecycle.jsonl.
+        Behebung: Connect-Link per API mit demselben user_id + auth_config_id
+        (POST /api/v3/connected_accounts/link), NICHT ueber den
+        Dashboard-Reconnect — der legt einen Account unter fremder Entity an.
   - uid: lo-core-signal-missing
     title: Core readiness signal missing
     condition: C

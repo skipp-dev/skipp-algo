@@ -563,8 +563,15 @@ def resolve_folder_uid(name: str, key: str, *, create: bool = True) -> str:
     return uid
 
 
-def upsert_group(group: dict[str, Any], key: str, *, create_folder: bool = True) -> int:
-    """Upsert a single rule group. Returns the number of rules written."""
+def upsert_group(
+    group: dict[str, Any], key: str, *, create_folder: bool = True
+) -> list[dict[str, Any]]:
+    """Upsert a single rule group. Gibt die GESENDETEN Regeln zurueck.
+
+    2026-08-30 von `int` auf die Regeln selbst umgestellt: die Ruecklese in
+    `verify_rules` braucht, was tatsaechlich geschickt wurde. Eine Zahl haette
+    nur belegt, wie viel abgeschickt wurde.
+    """
     folder_uid = resolve_folder_uid(group["folder"], key, create=create_folder)
     payload = build_rule_group_payload(group, folder_uid)
     _request(
@@ -575,7 +582,107 @@ def upsert_group(group: dict[str, Any], key: str, *, create_folder: bool = True)
         # Keep rules editable in the UI instead of locking them as provisioned.
         extra_headers={"X-Disable-Provenance": "true"},
     )
-    return len(payload["rules"])
+    return payload["rules"]
+
+
+#: Felder, die eine Ruecklese vergleichen darf. GEMESSEN am 2026-08-30 gegen
+#: alle 163 YAML-Regeln im Live-Bestand, nicht angenommen: von zehn geprueften
+#: Feldern weicht genau EINES ab, und zwar als Normalisierung (`for: 24h` kommt
+#: als `1d` zurueck, 3 Regeln). Ein wortwoertlicher Vergleich haette drei
+#: KORREKTE Regeln angeklagt — genau die Klasse, an der am 29./30.8. drei
+#: Waechter scheiterten. `for` wird deshalb in Sekunden verglichen.
+_READBACK_FIELDS = (
+    "title", "condition", "labels", "annotations",
+    "noDataState", "execErrState", "isPaused", "ruleGroup", "folderUID",
+)
+
+
+def _for_seconds(value: Any) -> int | None:
+    """Eine `for`-Dauer in Sekunden — inklusive 0, ohne zu werfen.
+
+    NICHT `parse_interval_seconds`: das gilt fuer Gruppen-Intervalle und
+    verlangt zu Recht einen positiven Wert. `for: 0s` ist bei einer Regel
+    dagegen legitim ("sofort feuern") und kommt im Bestand vor. Die erste
+    Fassung dieser Ruecklese benutzte den falschen Parser und waere am ECHTEN
+    Inventar abgestuerzt — gefunden 2026-08-30 durch den Live-Lauf, nicht durch
+    die Unit-Tests, die nur gebaute Werte kannten.
+
+    Unparsbares gibt None; der Vergleich faellt dann auf den woertlichen
+    Vergleich der Rohwerte zurueck, statt eine Abweichung zu erfinden.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if s.isdigit():
+        return int(s)
+    # ZUSAMMENGESETZTE Dauern, zweiter live gefundener Normalisierungsfall:
+    # Grafana schreibt `26h` als `1d2h` zurueck (und `24h` als `1d`). Ein
+    # Muster fuer nur EINE Einheit haette diese Regel als Abweichung gemeldet —
+    # gefunden 2026-08-30 am echten Bestand, nicht durch die Unit-Tests.
+    if not re.fullmatch(r"(?:\d+[smhd])+", s):
+        return None
+    faktor = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    return sum(int(n) * faktor[e] for n, e in re.findall(r"(\d+)([smhd])", s))
+
+
+def rules_drift(
+    gesendet: dict[str, dict[str, Any]], gelesen: list[dict[str, Any]]
+) -> list[str]:
+    """Welche Regeln kamen NICHT so an, wie sie gesendet wurden?
+
+    Reine Funktion, damit die Zusicherung ohne Grafana testbar ist. Verglichen
+    wird je `uid`; `for` normalisiert (Grafana schreibt Dauern um), alles
+    andere woertlich.
+
+    Bewusst NUR ueber die gesendeten uids: der Live-Bestand traegt mehr Regeln
+    als die Datei (2026-08-30: 172 live vs 163 in der YAML). Ein Vergleich ueber
+    die Gesamtmenge wuerde jede fremde Regel als Drift melden — eine
+    Falschanschuldigung gegen einen Bestand, den dieser Upsert gar nicht
+    verwaltet.
+    """
+    if not isinstance(gelesen, list):
+        return [f"Ruecklese lieferte {type(gelesen).__name__}, keine Liste"]
+    live = {r.get("uid"): r for r in gelesen if isinstance(r, dict)}
+    abweichungen: list[str] = []
+    for uid, soll in sorted(gesendet.items()):
+        ist = live.get(uid)
+        if ist is None:
+            abweichungen.append(f"{uid}: gesendet, aber live nicht vorhanden")
+            continue
+        s_for, i_for = _for_seconds(soll.get("for")), _for_seconds(ist.get("for"))
+        # Beide unparsbar -> woertlich vergleichen statt eine Abweichung zu erfinden.
+        if (s_for is None or i_for is None):
+            s_for, i_for = soll.get("for"), ist.get("for")
+        if s_for != i_for:
+            abweichungen.append(f"{uid}.for: gesendet {soll.get('for')!r}, gelesen {ist.get('for')!r}")
+        for feld in _READBACK_FIELDS:
+            s, i = soll.get(feld), ist.get(feld)
+            if s is None and i in (None, {}, "", False):
+                continue
+            if s != i:
+                abweichungen.append(f"{uid}.{feld}: gesendet {s!r}, gelesen {i!r}")
+    return abweichungen
+
+
+def verify_rules(gesendet: dict[str, dict[str, Any]], key: str) -> int:
+    """Lies zurueck, was ankam. Wirft bei Abweichung. Gibt die Anzahl zurueck.
+
+    Warum das noetig ist: bis 2026-08-30 hatte dieses Skript keine Ruecklese.
+    Es schreibt 172 Regeln, und ein gruener Lauf belegte einen ABGESCHICKTEN
+    Zustand, keinen angekommenen. Am selben Tag verwarf das Nachbarmodul
+    (Routing-Upsert) vier Felder still, bei zwei gruenen Publish-Laeufen — die
+    Klasse ist gemessen, nicht ausgedacht.
+    """
+    gelesen = _request("GET", "/api/v1/provisioning/alert-rules", key)
+    if gelesen is None:
+        raise RuntimeError("Ruecklese lieferte leeren Body — nicht gelesen, nicht 'alles gut'")
+    drift = rules_drift(gesendet, gelesen)
+    if drift:
+        raise RuntimeError(
+            "Regeln kamen anders an, als sie gesendet wurden — deklariert ist "
+            "nicht ausgeliefert:\n  " + "\n  ".join(drift[:20])
+        )
+    return len(gesendet)
 
 
 def live_groups_by_folder(key: str) -> dict[str, set[str]]:
@@ -694,16 +801,23 @@ def main(argv: list[str] | None = None) -> int:
     applied = 0
     try:
         key = _api_key()
+        gesendet: dict[str, dict[str, Any]] = {}
         for group in groups:
-            written = upsert_group(
+            regeln = upsert_group(
                 group, key, create_folder=not args.no_create_folder
             )
+            for r in regeln:
+                gesendet[str(r.get("uid"))] = r
             applied += 1
             print(
                 f"Upserted group '{group['name']}' "
-                f"({written} rule(s)) in folder '{group['folder']}'."
+                f"({len(regeln)} rule(s)) in folder '{group['folder']}'."
             )
         reconcile_orphan_groups(groups, key, prune=args.prune)
+        # Ruecklese NACH der Reconciliation: sie kann Gruppen loeschen, und was
+        # danach steht, ist der Zustand, mit dem gelebt wird.
+        geprueft = verify_rules(gesendet, key)
+        print(f"rules-readback: {geprueft} Regel(n) unveraendert angekommen")
     except urllib.error.HTTPError as exc:
         print(
             f"PARTIAL APPLY: {applied}/{total} groups updated — alerting is in a "
