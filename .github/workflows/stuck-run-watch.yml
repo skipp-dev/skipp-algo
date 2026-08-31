@@ -30,6 +30,9 @@ on:
     branches: [main]
     paths:
       - "scripts/check_stuck_workflow_runs.py"
+      # 2026-08-31 (Wirkungs-Sweep C): transitiv — check_stuck_workflow_runs
+      # bezieht seinen _default_fetcher von hier.
+      - "scripts/check_workflow_freshness.py"
       - ".github/workflows/stuck-run-watch.yml"
 
 permissions:

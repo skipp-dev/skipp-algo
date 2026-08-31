@@ -32,6 +32,10 @@ on:
     paths:
       - ".github/runner_label_allowlist.json"
       - "scripts/check_runner_label_variables.py"
+      # 2026-08-31 (Wirkungs-Sweep C): transitiv — check_runner_label_variables
+      # bezieht seinen _default_fetcher von hier. Ohne diesen Pfad erreicht eine
+      # Aenderung an der HTTP-Schicht diesen Watcher nie von selbst.
+      - "scripts/check_workflow_freshness.py"
       - ".github/workflows/runner-label-variable-watch.yml"
 
 permissions:
