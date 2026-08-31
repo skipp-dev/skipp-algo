@@ -605,8 +605,18 @@ async function main(): Promise<void> {
     // Up here it verifies exactly what it should while there is nothing
     // unsaved to destroy. From the refreshes onward the flow stays on the
     // layout without an unconditional reload until the binding loop's own
-    // save/abandon decision — abandoning now rolls back the inserts too,
-    // which strengthens the free-rollback property rather than weakening it.
+    // save decision.
+    //
+    // The sentence that used to close this paragraph — "abandoning now rolls
+    // back the inserts too, which strengthens the free-rollback property" —
+    // was measured FALSE on run 758 (2026-08-22): TradingView persists an
+    // instance add/remove at once and input bindings only on a layout save,
+    // so abandoning discarded the 98 rebinds and left the 12 re-inserted
+    // instances in place. The free-rollback property is real for BINDINGS,
+    // which is exactly why the reload has to sit above the refreshes — but it
+    // never covered the inserts. Since #5013 the binding loop does not abandon
+    // a partial repair at all; it saves it. The measurement and the operator
+    // decision are documented at partiallyRepairedChartUrls above.
     if (report.save.failed.length === 0) {
       if (executionPlan.saveSources && report.save.succeeded.length > 0) {
         await gotoChart(session.page, config.primaryChartUrl);
