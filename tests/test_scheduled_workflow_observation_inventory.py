@@ -19,6 +19,7 @@ import re
 
 import pytest
 
+from scripts.cron_schedule_gap import groesster_abstand
 from tests._workflow_yaml import WORKFLOWS_DIR, iter_workflow_files, load_workflow
 
 # Die beiden Workflows, die scripts/check_workflow_freshness.py mit
@@ -228,3 +229,107 @@ def test_time_boxed_exemptions_expire(today: dt.date) -> None:
             "Contract-Test); noch offen -> Frist mit NEUEM Datum und "
             "aktualisierter Begruendung verlaengern. Nicht kommentarlos verlaengern."
         )
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-31, Wirkungs-Sweep Befund A: das Budget gegen den Plan halten.
+#
+# Der Inventar-Test oben beantwortet "ist der Workflow ueberhaupt bewacht?".
+# Er sagt nichts darueber, ob das BUDGET zu seinem Cron passt. Bisher wurden
+# Budgets von Hand hergeleitet -- die Kommentare in meta-watchdog.yml rechnen
+# die "Fr->Mo-Luecke" ausdruecklich per Hand nach. Eine Handrechnung ist genau
+# die Stelle, an der eine spaetere Cron-Aenderung still danebenlaeuft.
+#
+# Anlass war die Gegenprobe an der Grafana-Instanz: die beiden dortigen
+# Frische-Regeln ("Monitored workflow has not run recently", ">= 48h", und
+# "no successful run in 24h") haben in 7 Tagen nie ``Alerting`` erreicht. Sie
+# lesen Metriken, die aus EINER Seite von ``/actions/runs`` stammen, sodass die
+# Zeitreihe genau dann verschwindet, wenn der Workflow laenger nicht lief
+# (gemessen: 212 Luecken, 90 davon oberhalb des Schwellwerts, laengste
+# ununterbrochene Wahr-Phase ueber alle 29 Reihen = 10 Minuten). UND ihr fester
+# 48h-Schwellwert liegt unter der legitimen Fr->Mo-Luecke von 72h eines
+# ``* * 1-5``-Crons: eine reparierte Metrik haette dort jedes Wochenende
+# fehlalarmiert. Genau diese zweite Haelfte -- Schwellwert unter dem Plan --
+# faengt der Test hier, und zwar fuer den Mechanismus, der die Frische
+# TATSAECHLICH bewacht (beide Watchlists dieses Repos, 38 Eintraege).
+#
+# Nur die UNTERGRENZE wird erzwungen: unterhalb des Plan-Abstands ist der
+# Fehlalarm garantiert, das ist eine harte Aussage. Eine Obergrenze ("zu
+# grosszuegig") waere Ermessen und bleibt bewusst ungeprueft.
+
+_BUDGET_ARG_RE = re.compile(
+    r"^\s+([a-z0-9_-]+\.ya?ml)=(\d+)((?::[a-z-]+(?:=[0-9-]+)?)*)", re.M
+)
+
+
+def _budget_entries() -> list[tuple[str, str, float, bool]]:
+    """``(watchlist, datei, budget_stunden, werktags_only)`` ueber BEIDE Listen."""
+    entries: list[tuple[str, str, float, bool]] = []
+    for name in WATCHLIST_WORKFLOWS:
+        text = (WORKFLOWS_DIR / name).read_text(encoding="utf-8")
+        for match in _BUDGET_ARG_RE.finditer(text):
+            entries.append(
+                (name, match.group(1), float(match.group(2)), "weekday" in match.group(3))
+            )
+    return entries
+
+
+def _crons_of(workflow_file: str) -> list[str]:
+    loaded = load_workflow(WORKFLOWS_DIR / workflow_file)
+    triggers = loaded.get("on") or loaded.get(True) or {}
+    if not isinstance(triggers, dict):
+        return []
+    return [
+        entry["cron"]
+        for entry in (triggers.get("schedule") or [])
+        if isinstance(entry, dict) and entry.get("cron")
+    ]
+
+
+def test_budget_entries_are_not_empty() -> None:
+    """Positivkontrolle: ein leeres Parse-Ergebnis darf den Test unten nicht gruen machen."""
+    entries = _budget_entries()
+    assert len(entries) >= 30, f"nur {len(entries)} Budget-Eintraege geparst — Regex defekt?"
+
+
+def test_no_budget_is_shorter_than_its_own_cron_gap() -> None:
+    """Ein Budget unter dem groessten legitimen Cron-Abstand ist garantierter Fehlalarm."""
+    too_tight: list[str] = []
+    for watchlist, workflow_file, budget, weekday_only in _budget_entries():
+        crons = _crons_of(workflow_file)
+        if not crons:
+            continue  # kein schedule -> Frische ist keine Aussage; anderer Test deckt das
+        gap = groesster_abstand(crons, weekday_only)
+        if budget < gap:
+            flag = ":weekday" if weekday_only else ""
+            too_tight.append(
+                f"{watchlist}: {workflow_file}={budget:.0f}h{flag} < legitim {gap:.1f}h {crons}"
+            )
+    assert not too_tight, (
+        "Freshness-Budget unter dem eigenen Plan-Abstand — der Workflow wird als "
+        "stale gemeldet, obwohl er exakt nach Plan laeuft:\n  " + "\n  ".join(too_tight)
+    )
+
+
+@pytest.mark.parametrize(
+    ("cron", "weekday_only", "expected_hours"),
+    [
+        ("0 6 * * *", False, 24.0),
+        ("30 13 * * 1-5", False, 72.0),  # die Fr->Mo-Luecke, die 48h verfehlt
+        ("30 13 * * 1-5", True, 24.0),  # dieselbe, Wochenende abgezogen
+        ("0 12 * * 1", False, 168.0),
+        ("0 7 1 * *", False, 744.0),  # laengster Monat
+        ("17,47 * * * *", False, 0.5),
+        ("0 8 * * 6", True, 120.0),  # Samstags-Cron: Mo-Fr liegen dazwischen
+    ],
+)
+def test_the_gap_derivation_itself_is_right(
+    cron: str, weekday_only: bool, expected_hours: float
+) -> None:
+    """Positivkontrolle der Ableitung an von Hand nachrechenbaren Faellen.
+
+    Der letzte Fall stand beim Bau falsch in der ERWARTUNG (0h statt 120h): ein
+    Samstags-Cron hat zwischen zwei Feuerungen die ganze Arbeitswoche. Der Code
+    hatte recht, die Annahme nicht — deshalb steht der Fall hier.
+    """
+    assert groesster_abstand(cron, weekday_only) == pytest.approx(expected_hours, abs=0.51)
