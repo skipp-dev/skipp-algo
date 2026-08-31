@@ -300,9 +300,13 @@ test("open script search names include legacy aliases for renamed scripts", () =
     ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"],
   );
   // Pre-rename callers continue to work.
+  // 2026-08-31: "SMC Long-Dip Dashboard" added — the DECLARATION title, which
+  // is what the chart legend actually carries. The counter-direction listed
+  // "SMC Decision Board" all along; this direction did not, and that asymmetry
+  // is why verify could not find a consumer that was plainly on the chart.
   assert.deepEqual(
     resolveOpenScriptSearchNames("SMC Decision Board"),
-    ["SMC Decision Board", "SMC Long-Dip Dashboard v7", "SMC Dashboard"],
+    ["SMC Decision Board", "SMC Long-Dip Dashboard", "SMC Long-Dip Dashboard v7", "SMC Dashboard"],
   );
   assert.deepEqual(
     resolveOpenScriptSearchNames("SMC Execution"),
