@@ -1,107 +1,107 @@
 {
-  "asof": "2026-08-28T23:12:30Z",
+  "asof": "2026-08-31T23:13:07Z",
   "dataset": "XNAS.ITCH",
-  "end_date": "2026-08-28",
+  "end_date": "2026-08-31",
   "lookback_days": 20,
   "symbols": {
     "AAPL": {
-      "avg_trade_size_20d_mean": 98.914906,
-      "avg_trade_size_20d_std": 13.014331,
+      "avg_trade_size_20d_mean": 99.997519,
+      "avg_trade_size_20d_std": 12.75017,
       "n_days": 14
     },
     "AMZN": {
-      "avg_trade_size_20d_mean": 109.55498,
-      "avg_trade_size_20d_std": 14.692898,
+      "avg_trade_size_20d_mean": 110.50463,
+      "avg_trade_size_20d_std": 14.259687,
       "n_days": 14
     },
     "BAC": {
-      "avg_trade_size_20d_mean": 81.474145,
-      "avg_trade_size_20d_std": 9.088374,
+      "avg_trade_size_20d_mean": 83.429826,
+      "avg_trade_size_20d_std": 7.402927,
       "n_days": 14
     },
     "CAT": {
-      "avg_trade_size_20d_mean": 18.846986,
-      "avg_trade_size_20d_std": 1.264584,
+      "avg_trade_size_20d_mean": 18.825751,
+      "avg_trade_size_20d_std": 1.286485,
       "n_days": 14
     },
     "COP": {
-      "avg_trade_size_20d_mean": 32.314843,
-      "avg_trade_size_20d_std": 2.53499,
+      "avg_trade_size_20d_mean": 32.073853,
+      "avg_trade_size_20d_std": 2.714805,
       "n_days": 14
     },
     "CVX": {
-      "avg_trade_size_20d_mean": 32.269206,
-      "avg_trade_size_20d_std": 3.337,
+      "avg_trade_size_20d_mean": 32.29696,
+      "avg_trade_size_20d_std": 3.32219,
       "n_days": 14
     },
     "GOOGL": {
-      "avg_trade_size_20d_mean": 71.436683,
-      "avg_trade_size_20d_std": 12.262981,
+      "avg_trade_size_20d_mean": 73.289478,
+      "avg_trade_size_20d_std": 12.616557,
       "n_days": 14
     },
     "GS": {
-      "avg_trade_size_20d_mean": 17.910796,
-      "avg_trade_size_20d_std": 1.81938,
+      "avg_trade_size_20d_mean": 17.66018,
+      "avg_trade_size_20d_std": 1.951689,
       "n_days": 14
     },
     "HD": {
-      "avg_trade_size_20d_mean": 25.142475,
-      "avg_trade_size_20d_std": 3.688284,
+      "avg_trade_size_20d_mean": 25.084466,
+      "avg_trade_size_20d_std": 3.727764,
       "n_days": 14
     },
     "JNJ": {
-      "avg_trade_size_20d_mean": 38.434413,
-      "avg_trade_size_20d_std": 4.349876,
+      "avg_trade_size_20d_mean": 37.996698,
+      "avg_trade_size_20d_std": 4.261028,
       "n_days": 14
     },
     "JPM": {
-      "avg_trade_size_20d_mean": 25.628108,
-      "avg_trade_size_20d_std": 1.974217,
+      "avg_trade_size_20d_mean": 25.793805,
+      "avg_trade_size_20d_std": 1.815239,
       "n_days": 14
     },
     "META": {
-      "avg_trade_size_20d_mean": 60.667931,
-      "avg_trade_size_20d_std": 8.334398,
+      "avg_trade_size_20d_mean": 60.368349,
+      "avg_trade_size_20d_std": 8.221531,
       "n_days": 14
     },
     "MS": {
-      "avg_trade_size_20d_mean": 30.724932,
-      "avg_trade_size_20d_std": 2.717984,
+      "avg_trade_size_20d_mean": 30.846138,
+      "avg_trade_size_20d_std": 2.718911,
       "n_days": 14
     },
     "MSFT": {
-      "avg_trade_size_20d_mean": 91.742711,
-      "avg_trade_size_20d_std": 18.432889,
+      "avg_trade_size_20d_mean": 92.331545,
+      "avg_trade_size_20d_std": 18.203107,
       "n_days": 14
     },
     "NVDA": {
-      "avg_trade_size_20d_mean": 102.733815,
-      "avg_trade_size_20d_std": 11.158224,
+      "avg_trade_size_20d_mean": 103.133282,
+      "avg_trade_size_20d_std": 11.090047,
       "n_days": 14
     },
     "OXY": {
-      "avg_trade_size_20d_mean": 50.479731,
-      "avg_trade_size_20d_std": 4.585596,
+      "avg_trade_size_20d_mean": 49.511459,
+      "avg_trade_size_20d_std": 5.473293,
       "n_days": 14
     },
     "TSLA": {
-      "avg_trade_size_20d_mean": 62.860333,
-      "avg_trade_size_20d_std": 6.561025,
+      "avg_trade_size_20d_mean": 64.104453,
+      "avg_trade_size_20d_std": 6.965594,
       "n_days": 14
     },
     "UNH": {
-      "avg_trade_size_20d_mean": 24.403689,
-      "avg_trade_size_20d_std": 1.821627,
+      "avg_trade_size_20d_mean": 24.38872,
+      "avg_trade_size_20d_std": 1.841568,
       "n_days": 14
     },
     "V": {
-      "avg_trade_size_20d_mean": 28.061227,
-      "avg_trade_size_20d_std": 2.777021,
+      "avg_trade_size_20d_mean": 27.887135,
+      "avg_trade_size_20d_std": 2.937044,
       "n_days": 14
     },
     "XOM": {
-      "avg_trade_size_20d_mean": 41.246774,
-      "avg_trade_size_20d_std": 4.146776,
+      "avg_trade_size_20d_mean": 41.34342,
+      "avg_trade_size_20d_std": 4.175134,
       "n_days": 14
     }
   }
