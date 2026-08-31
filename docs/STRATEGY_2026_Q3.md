@@ -602,7 +602,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 #### H4: FVG Health Warning ✅ DONE (2026-04-22)
 
 - [x] Wenn FVG Hit Rate < 65%: explizite Dashboard-Warnung
-      (`SMC_Long_Dip_Dashboard.pine::fvg_calibration_warning_text`).
+      (`SMC_Decision_Board.pine::fvg_calibration_warning_text`).
 - [x] "⚠ FVG zones underperforming (XX% HR) — prefer OB/BOS setups" —
       Setup-Check Row 12 + Audit-View Row 33 nutzen
       `fvg_combined_warning_text` (Calibration-Warning hat Vorrang vor

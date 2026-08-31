@@ -107,7 +107,7 @@ Belegt durch:
   - Felder wie `EVENT_WINDOW_STATE`, `EVENT_RISK_LEVEL` werden weiter exportiert
 - `SMC_Long_Dip_Suite.pine`
   - konsumiert mehrere `mp.EVENT_*`-Felder
-- `SMC_Long_Dip_Dashboard.pine`
+- `SMC_Decision_Board.pine`
   - Event-Risk-Zeilen weiter vorhanden
 - gleichzeitig existiert `event_risk_light` in Tests und Integrationspfaden
 

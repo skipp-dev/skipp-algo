@@ -11,7 +11,7 @@ It runs as 4 TradingView scripts that work together:
 | Script | Role | Required? |
 |---|---|---|
 | **SMC Long-Dip Suite v7** | Main indicator — zones, hero card, alerts | Yes |
-| **SMC Long-Dip Dashboard v7** | Dashboard — lifecycle status, market context | Recommended |
+| **SMC Decision Board v7** | Dashboard — lifecycle status, market context | Recommended |
 | **SMC Long-Dip Strategy v7** | Strategy — backtesting | Optional |
 | **SMC Event Overlay** | Macro events, earnings markers | Optional |
 
@@ -20,7 +20,7 @@ It runs as 4 TradingView scripts that work together:
 1. Open TradingView and go to **Indicators & Strategies**
 2. Search for "SMC Long-Dip Suite v7" in your **Invite-only** or **My scripts** tab
 3. Add **SMC Long-Dip Suite v7** to your chart first
-4. Then add **SMC Long-Dip Dashboard v7**
+4. Then add **SMC Decision Board v7**
 5. The Dashboard will ask you to connect "BUS" inputs — click each dropdown and select the matching output from SMC Long-Dip Suite v7 (they are labeled identically: BUS Armed → BUS Armed, etc.)
 
 ## Step 2: Read the Hero Card (1 minute)

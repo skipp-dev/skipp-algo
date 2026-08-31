@@ -13,7 +13,7 @@ UTILS_PATH = ROOT / "SMC++" / "smc_utils.pine"
 PROFILE_ENGINE_PATH = ROOT / "SMC++" / "smc_profile_engine.pine"
 OBSERVABILITY_PATH = ROOT / "SMC++" / "smc_observability_private.pine"
 DRAW_PATH = ROOT / "SMC++" / "smc_draw.pine"
-DASHBOARD_PATH = ROOT / "SMC_Long_Dip_Dashboard.pine"
+DASHBOARD_PATH = ROOT / "SMC_Decision_Board.pine"
 
 
 def _read(path: pathlib.Path) -> str:

@@ -14,7 +14,7 @@ name: tv-save-consumer-source
 # chained save stays inside the off-hours posture on normal days.
 
 # Pushes the CURRENT repo source of the hand-authored CONSUMER scripts (indicators/
-# strategies — SMC_Long_Dip_Dashboard, SMC_Long_Dip_Strategy, …) into their EXISTING TradingView
+# strategies — SMC_Decision_Board, SMC_Long_Dip_Strategy, …) into their EXISTING TradingView
 # saved scripts, via one shared-browser batch (open → paste → save →
 # compile-verify → verify chart bindings). Unlike the library publishers, consumers are not "published";
 # they are the operator's saved chart scripts, which froze months ago on old

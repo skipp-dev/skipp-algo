@@ -81,7 +81,7 @@ DEFAULTS: dict[str, str] = {
 # signals an aging freshness signal before full degradation. Pine
 # dashboards render it as amber (T2).
 #
-# Pine-boundary contract: ``SMC_Long_Dip_Dashboard.pine:1753,1768,1774`` and
+# Pine-boundary contract: ``SMC_Decision_Board.pine:1753,1768,1774`` and
 # ``SMC_Long_Dip_Mobile.pine:50,55`` compare this value to lowercase
 # literals. DO NOT rename without bumping ``library_field_version``.
 HERO_TRUST_HEALTHY: str = "healthy"
@@ -189,7 +189,7 @@ HERO_BIAS_VOCAB: frozenset[str] = frozenset({
 # Producer-A vocabulary — passthrough of the upstream ``regime`` field
 # (see ``scripts/smc_hero_market_mode.py::_regime_label``). Pine
 # consumers (``SMC_Long_Dip_Mobile.pine`` Mobile context block,
-# ``SMC_Long_Dip_Dashboard.pine`` Hero block) compare against the literals
+# ``SMC_Decision_Board.pine`` Hero block) compare against the literals
 # ``"BULLISH"``, ``"BEARISH"``, ``"NEUTRAL"``, ``"RISK_OFF"``; ``"UNKNOWN"``
 # is the waiting-state sentinel emitted when no enrichment run has yet
 # produced a regime (#55). ``"NEUTRAL"`` is substantive (resolved-neutral).
@@ -219,7 +219,7 @@ HERO_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
 # Producer-A vocabulary — emitted by :func:`_derive_risk`, exported as
 # Pine const ``HERO_RISK`` via
 # ``scripts/generate_smc_micro_profiles.py:1051``. Pine consumer
-# ``SMC_Long_Dip_Dashboard.pine:1769`` uses the EMPTY-STRING sentinel
+# ``SMC_Decision_Board.pine:1769`` uses the EMPTY-STRING sentinel
 # (``mp.HERO_RISK != "" ? ...``) to gate the blocker badge — the empty
 # string IS part of the contract and MUST NOT be normalised to e.g.
 # ``"NONE"`` without a Pine-side migration + library_field_version bump.
@@ -402,7 +402,7 @@ def _derive_risk(
 
     Returns one of :data:`HERO_RISK_VOCAB`. The empty-string sentinel
     :data:`HERO_RISK_NONE` is part of the Pine boundary contract
-    (``SMC_Long_Dip_Dashboard.pine:1769`` uses ``mp.HERO_RISK != ""`` as a gate)
+    (``SMC_Decision_Board.pine:1769`` uses ``mp.HERO_RISK != ""`` as a gate)
     and MUST be preserved.
     """
     if trust in (HERO_TRUST_UNAVAILABLE, HERO_TRUST_STALE):

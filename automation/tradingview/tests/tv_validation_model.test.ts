@@ -50,9 +50,9 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
     manifestVersion: 2,
     manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
     source: "scripts/smc_bus_manifest.py",
-    mainlineFiles: ["SMC_Long_Dip_Suite.pine", "SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Strategy.pine"],
+    mainlineFiles: ["SMC_Long_Dip_Suite.pine", "SMC_Decision_Board.pine", "SMC_Long_Dip_Strategy.pine"],
     litePrimaryFiles: ["SMC_Long_Dip_Suite.pine"],
-    proPrimaryFiles: ["SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Strategy.pine"],
+    proPrimaryFiles: ["SMC_Decision_Board.pine", "SMC_Long_Dip_Strategy.pine"],
     companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
     internalFiles: ["SMC_Regime_and_News.pine"],
     legacyFiles: ["SMC++.pine"],
@@ -72,9 +72,9 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
     preflightScopes: {
       smcCoreDashboard: [{ file: "SMC_Long_Dip_Suite.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
       smcMainline: [{
-        file: "SMC_Long_Dip_Dashboard.pine",
-        scriptName: "SMC Long-Dip Dashboard v7",
-        savedScriptName: "SMC Long-Dip Dashboard v7",
+        file: "SMC_Decision_Board.pine",
+        scriptName: "SMC Decision Board v7",
+        savedScriptName: "SMC Decision Board v7",
         checkInputs: true,
         addToChart: true,
         minInputs: 58,
@@ -440,8 +440,8 @@ test("target overall preflight fails when an error is present", () => {
 
 test("preflight schema helpers require staged report fields", () => {
   const target = {
-    file: "SMC_Long_Dip_Dashboard.pine",
-    scriptName: "SMC Long-Dip Dashboard v7",
+    file: "SMC_Decision_Board.pine",
+    scriptName: "SMC Decision Board v7",
     execution_mode: "mutating",
     auth_mode: "storage_state",
     auth_source_path: "automation/tradingview/auth/storage-state.json",

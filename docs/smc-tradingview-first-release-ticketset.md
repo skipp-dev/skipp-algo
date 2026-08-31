@@ -41,7 +41,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
 | FR-01 | P0 | Shared Action And Plan Contract | Core, Dashboard, Long Strategy, Docs | Ohne gemeinsame Produktsprache zerfaellt die UX in drei Teilprodukte. |
 | FR-02 | P0 | Lite Input Gate | Core, Dashboard, Long Strategy | Ohne Input-Cut bleibt der Produkt-Eindruck laborhaft. |
 | FR-03 | P0 | SMC Core Hero Surface Cut | `SMC_Long_Dip_Suite.pine` | Der Core braucht eine echte Lite-Hauptflaeche. |
-| FR-04 | P0 | Dashboard Compact Detail Default | `SMC_Long_Dip_Dashboard.pine` | Das Dashboard muss Entscheidung erklaeren statt Diagnose dominieren. |
+| FR-04 | P0 | Dashboard Compact Detail Default | `SMC_Decision_Board.pine` | Das Dashboard muss Entscheidung erklaeren statt Diagnose dominieren. |
 | FR-05 | P0 | Long Strategy Wrapper Surface | `SMC_Long_Dip_Strategy.pine` | Der Strategy-Wrapper braucht eine klare Setup- und Execution-Lesart. |
 | FR-06 | P0 | Strategy Binding And Plan Clarity | `SMC_Long_Dip_Strategy.pine`, Docs | BUS-Bindung und Trade-Plan duerfen keine implizite Wissensfalle sein. |
 | FR-07 | P0 | Core / Dashboard / Strategy Parity | Core, Dashboard, Long Strategy | Plan-Level und Begriffe duerfen sich zwischen den drei SMC-Surfaces nicht widersprechen. |
@@ -51,7 +51,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
 
 | ID | Prioritaet | Ticket | Repo-Status |
 | --- | --- | --- | --- |
-| FR-09 | P1 | Dashboard Pro Row Regrouping | Ausgeliefert ueber die R1.1-Pro-Sektionsgliederung in `SMC_Long_Dip_Dashboard.pine`. |
+| FR-09 | P1 | Dashboard Pro Row Regrouping | Ausgeliefert ueber die R1.1-Pro-Sektionsgliederung in `SMC_Decision_Board.pine`. |
 | FR-10 | P1 | Preset Migration Hardening | Ausgeliefert ueber die Safe-Default- und Decision-First-Migrationshaertung fuer Core, Dashboard und Strategy-Wrapper. |
 | FR-11 | P1 | Operator Binding Workflow Cleanup | Ausgeliefert ueber Guide-, BUS-Binding- und Companion-Workflow-Dokumentation. |
 
@@ -61,7 +61,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
   SMC-Surfaces festziehen.
 - Hauptartefakte:
   - `SMC_Long_Dip_Suite.pine`
-  - `SMC_Long_Dip_Dashboard.pine`
+  - `SMC_Decision_Board.pine`
   - `SMC_Long_Dip_Strategy.pine`
   - Doku
 - Definition of Done:
@@ -74,7 +74,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
   Produktsteuerung reduzieren.
 - Hauptartefakte:
   - `SMC_Long_Dip_Suite.pine`
-  - `SMC_Long_Dip_Dashboard.pine`
+  - `SMC_Decision_Board.pine`
   - `SMC_Long_Dip_Strategy.pine`
 - Definition of Done:
   - Lite zeigt pro Surface maximal 10 direkt sichtbare Standard-Inputs.
@@ -93,7 +93,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
 
 - Ziel: Das Dashboard standardmaessig in einen Compact Detail Screen drehen.
 - Hauptartefakt:
-  - `SMC_Long_Dip_Dashboard.pine`
+  - `SMC_Decision_Board.pine`
 - Definition of Done:
   - Default-Detail hat maximal 8 Kernzeilen.
   - Pro bleibt verfuegbar.
@@ -130,7 +130,7 @@ betroffenen SMC-Surfaces in wenigen Sekunden lesen kann:
 - Ziel: Dieselben Plan-Level und Begriffe in allen drei Surfaces.
 - Hauptartefakte:
   - `SMC_Long_Dip_Suite.pine`
-  - `SMC_Long_Dip_Dashboard.pine`
+  - `SMC_Decision_Board.pine`
   - `SMC_Long_Dip_Strategy.pine`
 - Definition of Done:
   - Core, Dashboard und Strategy widersprechen sich nicht.

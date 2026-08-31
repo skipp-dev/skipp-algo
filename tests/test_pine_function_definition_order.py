@@ -1,7 +1,7 @@
 """Pine consumer scripts: user functions must be DEFINED before referenced.
 
 Incident 2026-07-13 (CE10271 / "Could not find function or function
-reference"): ``SMC_Long_Dip_Dashboard.pine``'s ``dashboard_compact_main_blocker_text``
+reference"): ``SMC_Decision_Board.pine``'s ``dashboard_compact_main_blocker_text``
 referenced ``decode_event_risk_text`` and ``decode_volume_data_text`` ~250
 lines ABOVE their definitions. Pine resolves user-function references
 lexically at compile time, so the script failed to compile on TradingView —
@@ -76,7 +76,7 @@ def test_root_pine_scripts_define_functions_before_use() -> None:
 def test_dashboard_decode_helpers_stay_above_blocker_text() -> None:
     # Regression pin for the concrete incident: the two decoders must stay
     # ABOVE dashboard_compact_main_blocker_text.
-    source = (REPO_ROOT / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
+    source = (REPO_ROOT / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
     blocker = source.index("dashboard_compact_main_blocker_text(int")
     assert source.index("decode_volume_data_text(int row_code) =>") < blocker
     assert source.index("decode_event_risk_text(int row_code) =>") < blocker

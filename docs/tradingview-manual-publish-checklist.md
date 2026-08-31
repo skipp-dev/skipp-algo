@@ -185,7 +185,7 @@ Nach Abschluss aller 5 Publish-Schritte:
 ### 2. Dashboard-Binding-Test
 
 1. Core Engine auf einen Chart anwenden
-2. `SMC_Long_Dip_Dashboard.pine` oeffnen und auf denselben Chart anwenden
+2. `SMC_Decision_Board.pine` oeffnen und auf denselben Chart anwenden
 3. Dashboard-Inputs auf die Core-Engine-Plots binden (59 Bindungen)
 4. Pruefen: Dashboard zeigt korrekte Werte, keine `NaN`-Felder
 
@@ -279,5 +279,5 @@ Falls ein Publish fehlschlaegt oder fehlerhafte Daten publiziert werden:
   `scripts/tv_publish_micro_library.ts` verwaltet
 - Companion-Overlay-Scripts — diese sind Indicators, keine Libraries
 - `SMC_Long_Dip_Suite.pine` — ist ein Indicator, keine Library
-- `SMC_Long_Dip_Dashboard.pine` — ist ein Indicator, keine Library
+- `SMC_Decision_Board.pine` — ist ein Indicator, keine Library
 - `SMC_Long_Dip_Strategy.pine` — ist eine Strategy, keine Library

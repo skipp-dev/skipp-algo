@@ -29,7 +29,7 @@ Current manual validation counts:
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `64` bindings declared in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `64` bindings declared in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 Decision State:
 
@@ -201,7 +201,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `StateCode` to `setup_text()` mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L182-L197) is wrong
+- `StateCode` to `setup_text()` mapping in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L182-L197) is wrong
 - `MetaPack.freshness_code` mapping is wrong
 
 ### 3. Confirmed
@@ -261,7 +261,7 @@ Expected dashboard cues:
 If this fails:
 
 - `StateCode` binding is wrong
-- lifecycle decoder mapping in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L162-L197) is wrong
+- lifecycle decoder mapping in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L162-L197) is wrong
 
 ## Signs That Decoder Or Source Mapping Is Wrong
 
@@ -278,7 +278,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Long_Dip_Suite.pine` to the chart and capture a rendered first-run Core screenshot.
-2. Add `SMC_Long_Dip_Dashboard.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
+2. Add `SMC_Decision_Board.pine`, set `View = Decision Brief`, and bind all 64 sources to the core plots. Capture the rendered brief surface.
 3. Switch the Dashboard to `Audit View` and capture the rendered expert surface.
 4. Add `SMC_Long_Dip_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
 5. Validate the five scenarios above on the same symbol and timeframe.

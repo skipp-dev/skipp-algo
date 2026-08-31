@@ -410,7 +410,7 @@ def test_trust_fresh_constant_matches_pine_glyph_literal() -> None:
 
 def test_trust_vocabulary_is_distinct_and_uppercase() -> None:
     """Pine's string-comparison guard uses literal uppercase tokens
-    (see ``SMC_Long_Dip_Dashboard.pine::zone_cal_trust_glyph`` and the
+    (see ``SMC_Decision_Board.pine::zone_cal_trust_glyph`` and the
     ``ex_trust_ok`` gate). Pin the full surface.
     """
     assert TRUST_FRESH == "OK"
@@ -440,7 +440,7 @@ def test_build_consumer_exports_emits_ok_literal_on_healthy_corpus() -> None:
 
 def test_compute_calibration_trend_returns_value_in_frozen_vocab() -> None:
     """Any trend string reaching Pine MUST belong to ``TREND_VOCAB`` —
-    otherwise the Dashboard tooltip (SMC_Long_Dip_Dashboard.pine:1440-1444)
+    otherwise the Dashboard tooltip (SMC_Decision_Board.pine:1440-1444)
     silently concatenates arbitrary text, because there is no literal
     gate on the Pine side.
     """

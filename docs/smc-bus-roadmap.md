@@ -36,7 +36,7 @@ Bus v2 remains what it currently is:
 
 - a producer-exported transport layer for the current dashboard shape
 - row-code and support-code oriented
-- optimized for reconstructing the current display in [SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine#L719-L768)
+- optimized for reconstructing the current display in [SMC_Decision_Board.pine](../SMC_Decision_Board.pine#L719-L768)
 
 ### Option A Advantages
 

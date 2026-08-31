@@ -25,8 +25,8 @@
       "known_missing_mp_fields": []
     },
     {
-      "file": "SMC_Long_Dip_Dashboard.pine",
-      "script_name": "SMC Long-Dip Dashboard",
+      "file": "SMC_Decision_Board.pine",
+      "script_name": "SMC Decision Board",
       "surface_role": "pro_primary",
       "contract_tier": "pro",
       "consumer_role": "dashboard_companion",
@@ -552,13 +552,13 @@
   },
   "mainlineSurfaceFiles": [
     "SMC_Long_Dip_Suite.pine",
-    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Decision_Board.pine",
     "SMC_Long_Dip_Strategy.pine",
     "SMC_Confluence_Hub.pine"
   ],
   "activeValidationFiles": [
     "SMC_Long_Dip_Suite.pine",
-    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Decision_Board.pine",
     "SMC_Long_Dip_Strategy.pine",
     "SMC_Event_Overlay.pine",
     "SMC_Exit_Signal.pine"
@@ -567,7 +567,7 @@
     "SMC_Long_Dip_Suite.pine"
   ],
   "proPrimaryFiles": [
-    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Decision_Board.pine",
     "SMC_Long_Dip_Strategy.pine",
     "SMC_Confluence_Hub.pine"
   ],
@@ -973,12 +973,12 @@
         "addToChart": false
       },
       {
-        "file": "SMC_Long_Dip_Dashboard.pine",
-        "scriptName": "SMC Long-Dip Dashboard",
+        "file": "SMC_Decision_Board.pine",
+        "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
         "minInputs": 58,
-        "savedScriptName": "SMC Long-Dip Dashboard",
+        "savedScriptName": "SMC Decision Board",
         "bindingContractKey": "dashboardBindings",
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
@@ -1444,12 +1444,12 @@
         "addToChart": false
       },
       {
-        "file": "SMC_Long_Dip_Dashboard.pine",
-        "scriptName": "SMC Long-Dip Dashboard",
+        "file": "SMC_Decision_Board.pine",
+        "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
         "minInputs": 58,
-        "savedScriptName": "SMC Long-Dip Dashboard",
+        "savedScriptName": "SMC Decision Board",
         "bindingContractKey": "dashboardBindings",
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
@@ -1986,12 +1986,12 @@
         "addToChart": false
       },
       {
-        "file": "SMC_Long_Dip_Dashboard.pine",
-        "scriptName": "SMC Long-Dip Dashboard",
+        "file": "SMC_Decision_Board.pine",
+        "scriptName": "SMC Decision Board",
         "checkInputs": true,
         "addToChart": true,
         "minInputs": 58,
-        "savedScriptName": "SMC Long-Dip Dashboard",
+        "savedScriptName": "SMC Decision Board",
         "bindingContractKey": "dashboardBindings",
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
@@ -3239,8 +3239,8 @@
       },
       {
         "key": "dashboard_decision_brief",
-        "file": "SMC_Long_Dip_Dashboard.pine",
-        "script_name": "SMC Long-Dip Dashboard",
+        "file": "SMC_Decision_Board.pine",
+        "script_name": "SMC Decision Board",
         "report_label": "Dashboard Decision Brief",
         "runbook_label_en": "rendered Dashboard screen in `Decision Brief`",
         "runbook_label_de": "gerenderter Dashboard-Screen in `Decision Brief`",
@@ -3250,8 +3250,8 @@
       },
       {
         "key": "dashboard_audit_view",
-        "file": "SMC_Long_Dip_Dashboard.pine",
-        "script_name": "SMC Long-Dip Dashboard",
+        "file": "SMC_Decision_Board.pine",
+        "script_name": "SMC Decision Board",
         "report_label": "Dashboard Audit View",
         "runbook_label_en": "rendered Dashboard screen in `Audit View`",
         "runbook_label_de": "gerenderter Dashboard-Screen in `Audit View`",

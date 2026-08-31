@@ -8,7 +8,7 @@
 > generated fields**. `DEPRECATED_FIELD_POLICY.deprecatedGroups` is empty and
 > the sunset action is `removed`. `FVG_NET_IMBALANCE` is generated and has
 > active consumers in `SMC_Imbalance_Context.pine` and
-> `SMC_Long_Dip_Dashboard.pine`; the anomaly recorded below is resolved.
+> `SMC_Decision_Board.pine`; the anomaly recorded below is resolved.
 >
 > Reproducible source of truth: `tests/test_library_field_audit.py` together
 > with `scripts/smc_bus_manifest.py`. Counts may change only with those

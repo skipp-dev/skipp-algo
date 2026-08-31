@@ -106,7 +106,7 @@ _SUITE_WIRING: dict[str, tuple[str, ...]] = {
 # The tripwire test at the bottom fires when the lane mints build 4.
 _WIRING_BY_FILE: dict[str, dict[str, tuple[str, ...]]] = {
     "SMC_Long_Dip_Suite.pine": _SUITE_WIRING,
-    "SMC_Long_Dip_Dashboard.pine": {
+    "SMC_Decision_Board.pine": {
         "tm_enable": ("tm_tp1_r", "tm_tp2_r", "tm_be_after_t1"),
     },
     "SMC_Long_Dip_Mobile.pine": {

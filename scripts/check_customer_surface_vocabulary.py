@@ -33,7 +33,7 @@ SPEC_PATH = REPO_ROOT / "spec" / "hero_surface_input_map.json"
 # bindings that SMC Onboarding fills automatically, the debug mirrors and the
 # manual internal overrides.
 INTERNAL_GROUP_VARS: dict[str, frozenset[str]] = {
-    "SMC_Long_Dip_Dashboard.pine": frozenset({
+    "SMC_Decision_Board.pine": frozenset({
         "g_bus_lifecycle", "g_bus_diag", "g_bus_plan", "g_bus_diag_rows",
         "g_bus_blockers", "g_bus_detail", "g_bus_lean", "g_bus_preset",
         "g_local_debug", "g_operator_ops",
@@ -67,7 +67,7 @@ INTERNAL_GROUP_VARS: dict[str, frozenset[str]] = {
 # input is a deliberate pin update rather than a silent shrink. Adding inputs
 # never trips these.
 MIN_INPUTS: dict[str, int] = {
-    "SMC_Long_Dip_Dashboard.pine": 11,
+    "SMC_Decision_Board.pine": 11,
     "SMC_Long_Dip_Mobile.pine": 5,
     "SMC_Long_Dip_Alerts.pine": 2,
     "SMC_Long_Dip_Suite.pine": 227,
@@ -82,7 +82,7 @@ MIN_INPUTS: dict[str, int] = {
 # Same, for settings-group labels. Cross-checked 2026-08-12 against
 # `grep -cE "^\s*(var\s+)?(string\s+)?g_[a-z_0-9]+\s*="`: 26/12/3/3, identical.
 MIN_GROUP_LABELS: dict[str, int] = {
-    "SMC_Long_Dip_Dashboard.pine": 12,
+    "SMC_Decision_Board.pine": 12,
     "SMC_Long_Dip_Mobile.pine": 3,
     "SMC_Long_Dip_Alerts.pine": 3,
     "SMC_Long_Dip_Suite.pine": 26,
@@ -102,7 +102,7 @@ MIN_GROUP_LABELS: dict[str, int] = {
 # (the frozen binding contract), strings returned by helper functions, and
 # var-to-var flow deeper than one assignment level.
 MIN_RENDERED: dict[str, int] = {
-    "SMC_Long_Dip_Dashboard.pine": 562,
+    "SMC_Decision_Board.pine": 562,
     "SMC_Long_Dip_Mobile.pine": 54,
     "SMC_Long_Dip_Alerts.pine": 3,
     "SMC_Long_Dip_Suite.pine": 23,

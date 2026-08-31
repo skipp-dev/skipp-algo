@@ -13,7 +13,7 @@ silent renames:
 * a ``pine/generated/*`` source file was renamed without updating the
   manifest's ``library.sourceManifest`` / ``library.sourceSnippet``;
 * a consumer Pine file (``SMC_Long_Dip_Suite.pine``,
-  ``SMC_Long_Dip_Dashboard.pine``, ``SMC_Long_Dip_Strategy.pine``) was moved or
+  ``SMC_Decision_Board.pine``, ``SMC_Long_Dip_Strategy.pine``) was moved or
   retired without updating the manifest's ``consumers[]`` and
   ``productCut.mainlineFiles[]`` lists;
 * the canonical product-cut manifest itself (``productCut.manifestPath``)

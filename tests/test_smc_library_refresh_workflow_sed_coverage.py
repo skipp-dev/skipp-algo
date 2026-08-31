@@ -20,7 +20,7 @@ PIN_PATTERN = re.compile(
 
 EXPECTED_CONSUMERS: set[str] = {
     "SMC_Long_Dip_Suite.pine",
-    "SMC_Long_Dip_Dashboard.pine",
+    "SMC_Decision_Board.pine",
     "SMC_Long_Dip_Mobile.pine",
     "SMC_Long_Dip_Strategy.pine",
     "SMC_Long_Dip_Alerts.pine",

@@ -174,7 +174,7 @@ npm run tv:publish-micro-library
 
 The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
 It validates the active mainline path `SMC_Long_Dip_Suite.pine` +
-`SMC_Long_Dip_Dashboard.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
+`SMC_Decision_Board.pine` + `SMC_Long_Dip_Strategy.pine` against the product-cut
 manifest.
 The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`.
 

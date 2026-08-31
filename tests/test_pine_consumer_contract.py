@@ -464,7 +464,7 @@ class TestBusChannelContract:
     def test_dashboard_channels_subset_of_engine(self):
         engine_text = _read_pine("SMC_Long_Dip_Suite.pine")
         published = _extract_bus_plots(engine_text)
-        dash_text = _read_pine("SMC_Long_Dip_Dashboard.pine")
+        dash_text = _read_pine("SMC_Decision_Board.pine")
         consumed = _extract_bus_inputs(dash_text)
         assert consumed == DASHBOARD_BUS_CHANNELS, (
             f"Dashboard BUS input mismatch.\n"

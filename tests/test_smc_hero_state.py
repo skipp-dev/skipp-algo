@@ -174,7 +174,7 @@ class TestBuildHeroState:
 
 
 class TestHeroTrustVocabularyPins:
-    """Pine-boundary F-2: SMC_Long_Dip_Dashboard.pine:1753,1774 compare to
+    """Pine-boundary F-2: SMC_Decision_Board.pine:1753,1774 compare to
     lowercase ``HERO_TRUST`` literals. Pin the exact values and the
     declared vocabulary frozenset so a rename is a test failure.
     """

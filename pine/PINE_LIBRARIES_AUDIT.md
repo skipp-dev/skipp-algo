@@ -48,7 +48,7 @@ import preuss_steffen/smc_profile_engine/1 as pe      // ⚠️ STALE
 ### Secondary Path (Dashboards/Overlays)
 
 - `SMC_Hold_Manager.pine` → references smc_lifecycle (comments only, no import)
-- `SMC_Long_Dip_Dashboard.pine` → may depend on smc_profile_engine
+- `SMC_Decision_Board.pine` → may depend on smc_profile_engine
 - `SMC_Liquidity_Structure.pine` → depends on smc_context_resolvers
 
 ### Generated (Auto-Maintained)

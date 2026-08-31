@@ -20,7 +20,7 @@ def test_checked_in_product_cut_artifact_matches_python_manifest() -> None:
 def test_dashboard_is_explicitly_classified_in_main_product_cut() -> None:
     from scripts.smc_bus_manifest import SURFACE_DEFINITIONS_BY_FILE
 
-    dashboard = SURFACE_DEFINITIONS_BY_FILE['SMC_Long_Dip_Dashboard.pine']
+    dashboard = SURFACE_DEFINITIONS_BY_FILE['SMC_Decision_Board.pine']
 
     assert dashboard.surface_role == 'pro_primary'
     assert dashboard.consumer_role == 'dashboard_companion'
@@ -35,7 +35,7 @@ def test_product_cut_manifest_exports_surface_governance_schema_v3() -> None:
     }
 
     assert payload['manifestVersion'] == 3
-    assert surfaces['SMC_Long_Dip_Dashboard.pine']['rollout_state'] == 'deployed'
+    assert surfaces['SMC_Decision_Board.pine']['rollout_state'] == 'deployed'
     assert surfaces['SMC_Hold_Manager.pine']['lifecycle'] == 'planned'
     assert surfaces['SMC_Hold_Manager.pine']['bus_dependencies'] == ['engine_v2']
     assert surfaces['SMC_HTF_Confluence.pine']['compile_expectation'] == 'required'
@@ -81,9 +81,9 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
                 'addToChart': False,
             },
             {
-                'file': 'SMC_Long_Dip_Dashboard.pine',
-                'scriptName': 'SMC Long-Dip Dashboard',
-                'savedScriptName': 'SMC Long-Dip Dashboard',
+                'file': 'SMC_Decision_Board.pine',
+                'scriptName': 'SMC Decision Board',
+                'savedScriptName': 'SMC Decision Board',
                 'checkInputs': False,
                 'addToChart': False,
             },
@@ -204,8 +204,8 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'smcHoldManagerShadow',
         'smcR1Companions',
     } <= set(product_cut['preflightScopes'].keys())
-    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
-    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard'
+    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Decision Board'
+    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Decision Board'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['bindingContractKey'] == 'dashboardBindings'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['bindingContractKey'] == 'strategyBindings'
@@ -217,6 +217,6 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         for item in payload['consumers']
     } == {
         'SMC_Long_Dip_Suite.pine': 'producer',
-        'SMC_Long_Dip_Dashboard.pine': 'dashboard_companion',
+        'SMC_Decision_Board.pine': 'dashboard_companion',
         'SMC_Long_Dip_Strategy.pine': 'execution_wrapper',
     }

@@ -18,7 +18,7 @@ const SUITE_TITLE = "SMC Long-Dip Suite";
 const SUITE_PATTERN = pineDeclarationTitlePattern(SUITE_TITLE).source;
 const SUITE_SOURCE = `//@version=6\nindicator("${SUITE_TITLE}", overlay = true)\nplot(close)\n`;
 const CONSOLE_BUFFER = "console-ish scratch buffer";
-const MENTION_ONLY_SOURCE = `//@version=6\nindicator("SMC Long-Dip Dashboard")\ns = input.source(close, "${SUITE_TITLE}: BUS Armed")\n`;
+const MENTION_ONLY_SOURCE = `//@version=6\nindicator("SMC Decision Board")\ns = input.source(close, "${SUITE_TITLE}: BUS Armed")\n`;
 
 test("saved-document repair requires a non-empty visible source transition", () => {
   const before = 'indicator("My script")';

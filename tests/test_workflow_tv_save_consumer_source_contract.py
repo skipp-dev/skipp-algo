@@ -285,7 +285,7 @@ def test_default_mapping_covers_every_binding_order_consumer() -> None:
         "SMC_Event_Overlay.pine": "SMC Event Overlay",
         "SMC_Exit_Signal.pine": "SMC Exit Signal",
         "SMC_Long_Dip_Alerts.pine": "SMC Long-Dip Alerts",
-        "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
+        "SMC_Decision_Board.pine": "SMC Decision Board",
         "SMC_Long_Dip_Mobile.pine": "SMC Long-Dip Mobile",
         "SMC_Long_Dip_Strategy.pine": "SMC Long-Dip Strategy",
         "SMC_Setup_Check.pine": "SMC Setup Check",
