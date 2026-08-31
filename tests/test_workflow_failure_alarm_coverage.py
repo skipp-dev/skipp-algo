@@ -614,3 +614,60 @@ def test_a_mid_read_connection_reset_is_retried() -> None:
 
     assert _mit_transient_retry(fetch, schlaf=lambda _s: None) == "ok"
     assert calls["n"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# 2026-08-31, Wirkungs-Sweep J: die Praesenz-Ueberwachung kann AUS sein
+# --------------------------------------------------------------------------- #
+def _presence_antwort(anzahl: int) -> dict:
+    return {"data": {"result": [{"metric": {"workflow": f"w{i}"}} for i in range(anzahl)]}}
+
+
+def test_presence_series_count_reads_the_result_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Form wurde gemessen, nicht geraten.
+
+    Die Instant-Query antwortet ``{"data": {"result": [...]}}``; ein Griff auf
+    eine andere Ebene liefert stumm 0 und haette den Alarm unten dauerhaft
+    ausgeloest -- ein Waechter, der einen korrekten Zustand anklagt.
+    """
+    monkeypatch.setattr(cov, "_prom_datasource_id", lambda key: 1)
+    monkeypatch.setattr(cov, "_request", lambda *a, **k: _presence_antwort(3))
+    assert cov.presence_series_count("k") == 3
+    monkeypatch.setattr(cov, "_request", lambda *a, **k: _presence_antwort(0))
+    assert cov.presence_series_count("k") == 0
+
+
+def test_an_empty_presence_metric_is_a_finding_not_a_pass(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Null Praesenz-Zeitreihen bei lebender Bruecke ist ein Befund.
+
+    Der Unterschied zur Nachbarmetrik ist der ganze Punkt: ``phase_code`` ist
+    aus EINER Seite von ``/actions/runs`` abgeleitet, dort heisst eine fehlende
+    Reihe oft nur "lief laenger nicht" -- deshalb fordert dieses Skript sie
+    bewusst NICHT. ``expected_present`` entsteht dagegen aus der deklarierten
+    Erwartungsliste; ihre Abwesenheit hat genau eine Ursache, und die Regel
+    darueber ist fail-open formuliert, ihre Stille sieht also gesund aus.
+
+    Gemessen an der Instanz am 2026-08-31: 13 Zeitreihen im Fehleralarm,
+    **null** Praesenz-Zeitreihen.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(cov, "_api_key", lambda: "k")
+    monkeypatch.setattr(cov, "observed_workflows", lambda key: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflow_names_by_file",
+                        lambda repo, token: {"ci.yml": "CI", "smc-fast-pr-gates.yml": "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflows_in_run_page", lambda repo, token: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "live_required_contexts", lambda repo, token: set(cov.REQUIRED_STATUS_CHECKS))
+
+    monkeypatch.setattr(cov, "presence_series_count", lambda key: 4)
+    assert cov.main([]) == 0, "mit Praesenz-Zeitreihen muss die Pruefung bestehen"
+
+    monkeypatch.setattr(cov, "presence_series_count", lambda key: 0)
+    assert cov.main([]) == 1, "null Praesenz-Zeitreihen muessen laut sein"
+    fehler = capsys.readouterr().err
+    assert "GITHUB_WORKFLOW_MONITOR_EXPECTED" in fehler, (
+        "die Meldung muss die EINE Stelle nennen, an der das behoben wird — "
+        "sonst ist sie ein Alarm ohne Handgriff"
+    )
