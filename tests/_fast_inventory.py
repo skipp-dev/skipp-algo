@@ -169,6 +169,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_python_version_pinned.py",
     "test_record_test_durations_workflow.py",
     "test_scheduled_workflow_observation_inventory.py",
+    "test_presence_age_series_deadline_tripwire.py",
     "test_smc_r4_context_readback_workflow.py",
     "test_scripts_path_as_posix_guard.py",
     "test_select_workflow_guards.py",
