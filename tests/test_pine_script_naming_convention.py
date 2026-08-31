@@ -25,8 +25,28 @@ NAMING_DOC = REPO_ROOT / "docs" / "PINE_SCRIPT_NAMING.md"
 CANONICAL_MAIN_PRODUCTS: dict[str, str] = {
     "SMC_Long_Dip_Suite.pine": "SMC Long-Dip Suite",
     "SMC_Long_Dip_Strategy.pine": "SMC Long-Dip Strategy",
-    "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
     "SMC_Long_Dip_Mobile.pine": "SMC Long-Dip Mobile",
+}
+
+#: Companion products (owner decision 2026-08-31): user-facing products that
+#: carry their OWN product name and are deliberately outside FAMILY_PREFIX.
+#: docs/SMC_PRODUCT_IDENTITY.md sells the Pro companion under its own name, and
+#: the prefix rule -- written for the indicator and its strategy -- was never
+#: meant to bind it. Every OTHER guarantee still applies: title == filename,
+#: no shorttitle, no version string, no duplicate title, listed in the doc.
+#:
+#: This is the exemption, not a loophole. The family prefix exists so the suite
+#: and its strategy read as one product; a separately sold companion is a
+#: different promise, and forcing the prefix on it is what pushed its product
+#: name out of the code in the first place.
+CANONICAL_COMPANION_PRODUCTS: dict[str, str] = {
+    "SMC_Long_Dip_Dashboard.pine": "SMC Long-Dip Dashboard",
+}
+
+#: Every canonical product, whichever class it belongs to.
+CANONICAL_PRODUCTS: dict[str, str] = {
+    **CANONICAL_MAIN_PRODUCTS,
+    **CANONICAL_COMPANION_PRODUCTS,
 }
 
 FAMILY_PREFIX = "SMC Long-Dip "
@@ -84,12 +104,38 @@ def test_main_products_have_canonical_titles() -> None:
 
 
 def test_main_product_family_shares_prefix() -> None:
-    """Indicator and strategy (and the dashboards) read as one family."""
+    """Indicator and strategy read as one family. Companions are exempt by
+    owner decision (2026-08-31) — see CANONICAL_COMPANION_PRODUCTS."""
     for pine_file in sorted(CANONICAL_MAIN_PRODUCTS):
         title = _code_title(pine_file)
         assert title.startswith(FAMILY_PREFIX), (
             f"{pine_file}: title {title!r} must start with {FAMILY_PREFIX!r}"
         )
+
+
+def test_companion_products_have_canonical_titles() -> None:
+    """A companion is exempt from the family prefix and from NOTHING else."""
+    problems: list[str] = []
+    for pine_file, canonical in sorted(CANONICAL_COMPANION_PRODUCTS.items()):
+        actual = _code_title(pine_file)
+        if actual != canonical:
+            problems.append(f"{pine_file}: title {actual!r} != canonical {canonical!r}")
+    assert problems == [], "\n".join(problems)
+
+
+def test_no_product_is_declared_in_both_classes() -> None:
+    """A file in both maps would satisfy the prefix rule and be exempt from it
+    at the same time — the exemption must be a decision, not an accident."""
+    both = sorted(set(CANONICAL_MAIN_PRODUCTS) & set(CANONICAL_COMPANION_PRODUCTS))
+    assert both == [], f"declared as main AND companion: {both}"
+
+
+def test_every_declared_product_file_exists() -> None:
+    """The maps are hand-maintained; a rename that forgets one leaves a ghost
+    entry that silently checks nothing (hardcoded lists cannot catch their own
+    drift — so at least prove every entry still points at a real file)."""
+    missing = [f for f in sorted(CANONICAL_PRODUCTS) if not (REPO_ROOT / f).exists()]
+    assert missing == [], f"declared products with no file: {missing}"
 
 
 def test_no_root_product_has_a_shorttitle() -> None:
@@ -137,5 +183,12 @@ def test_naming_doc_is_the_owner_locked_ssot() -> None:
     assert NAMING_DOC.exists(), "docs/PINE_SCRIPT_NAMING.md must exist"
     doc = NAMING_DOC.read_text(encoding="utf-8")
     assert "OWNER: @preuss_steffen" in doc, "doc must carry the owner lock"
-    missing = [c for c in CANONICAL_MAIN_PRODUCTS.values() if c not in doc]
+    missing = [c for c in CANONICAL_PRODUCTS.values() if c not in doc]
     assert missing == [], f"naming doc is missing canonical names: {missing}"
+    # The exemption itself must be written down, not only encoded here. Pin the
+    # HEADING, not the phrase: the words also occur in the prose above, so a
+    # substring check stayed green when the section was renamed away (caught by
+    # the mutation probe on 2026-08-31 — the assertion, not the doc, was wrong).
+    assert "## Companion products" in doc, (
+        "the naming doc must keep the companion-product section that documents the exemption"
+    )
