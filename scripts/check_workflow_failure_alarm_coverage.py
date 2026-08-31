@@ -46,12 +46,14 @@ Aufruf::
 from __future__ import annotations
 
 import os
+import re
 import ssl
 import sys
 import time
 import urllib.error
 import urllib.parse
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 try:
@@ -198,10 +200,80 @@ def presence_series_count(key: str) -> int:
     und eine leere Antwort hier hat genau EINE Ursache: die Erwartungsliste
     ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` ist auf dem Daemon nicht gesetzt.
     """
+    return len(presence_workflow_names(key))
+
+
+def presence_workflow_names(key: str) -> set[str]:
+    """Die Workflow-NAMEN, die die Praesenz-Metrik live traegt.
+
+    Also der tatsaechliche Inhalt von ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` auf
+    dem Daemon -- aus der Wirkebene gelesen, nicht aus einer Kopie im Repo.
+    """
     ds_id = _prom_datasource_id(key)
     query = urllib.parse.quote(PRESENCE_METRIC)
     res = _request("GET", f"/api/datasources/proxy/{ds_id}/api/v1/query?query={query}", key)
-    return len(((res or {}).get("data") or {}).get("result") or [])
+    ergebnis = ((res or {}).get("data") or {}).get("result") or []
+    namen = {str(item.get("metric", {}).get("workflow", "")).strip() for item in ergebnis}
+    namen.discard("")
+    return namen
+
+
+#: Die zwei Watchlists dieses Repos -- dieselbe Grundgesamtheit, die
+#: ``tests/test_scheduled_workflow_observation_inventory.py`` fuehrt. Ein
+#: Workflow steht dort, wenn sein stiller Ausfall eine DATENFOLGE hat; genau
+#: diese Menge gehoert praesenzueberwacht.
+_WATCHLISTS = ("workflow-freshness-monitor.yml", "meta-watchdog.yml")
+_WATCH_ARG_RE = re.compile(r"^\s+([a-z0-9._-]+\.ya?ml)=\d+", re.M)
+_CRON_RE = re.compile(r"""^\s*-\s*cron:\s*['"]([^'"]+)['"]""", re.M)
+_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.M)
+
+#: Obergrenze fuer den legitimen Cron-Abstand. Wer seltener laeuft, gehoert
+#: NICHT in die Praesenzliste: die Alters-Regel arbeitet mit einer Schwelle
+#: knapp ueber der Fr->Mo-Luecke (72 h; meta-watchdog rechnet mit 80), und ein
+#: woechentlicher Cron wuerde daran jede Woche fehlalarmieren.
+_MAX_GAP_HOURS = 72.0
+
+
+def declared_presence_names(repo_root: Path) -> set[str]:
+    """Die Namen, die laut REPO praesenzueberwacht gehoeren -- ABGELEITET.
+
+    Der Wert der Liste lebt auf dem Daemon, ausserhalb des Repos. Ohne diese
+    Ableitung waere er eine handgefuehrte Kopie mit genau der Drift, gegen die
+    er gebaut ist: ein neuer Cron mit Datenfolge landete nie darin, und sein
+    stiller Ausfall bliebe unsichtbar -- der Zustand, den die ganze
+    Praesenz-Sonde beseitigen soll.
+    """
+    from scripts.cron_schedule_gap import groesster_abstand
+
+    workflows = repo_root / ".github" / "workflows"
+    dateien: set[str] = set()
+    for liste in _WATCHLISTS:
+        pfad = workflows / liste
+        if pfad.exists():
+            dateien |= set(_WATCH_ARG_RE.findall(pfad.read_text(encoding="utf-8")))
+
+    namen: set[str] = set()
+    for datei in sorted(dateien):
+        pfad = workflows / datei
+        if not pfad.exists():
+            continue
+        text = pfad.read_text(encoding="utf-8")
+        crons = _CRON_RE.findall(text)
+        if not crons:
+            continue
+        if groesster_abstand(crons, False) > _MAX_GAP_HOURS:
+            continue
+        treffer = _NAME_RE.search(text)
+        # YAML erlaubt `name: "x"` wie `name: x`. Die Anfuehrungszeichen sind
+        # Syntax, nicht Teil des Namens -- GitHub (und damit das Metrik-Label)
+        # traegt sie nicht. Ohne dieses Abstreifen meldete der Drift-Arm beim
+        # ERSTEN Live-Lauf `"live-overlay-deploy-trigger-guard"` gleichzeitig
+        # als fehlend UND als ueberzaehlig: ein Waechter, der einen voellig
+        # korrekten Zustand anklagt. Gefangen, weil er gegen die echte Instanz
+        # gefahren wurde und nicht gegen selbst gebaute Fixtures.
+        roh = treffer.group(1).strip() if treffer else pfad.stem
+        namen.add(roh.strip("\"'"))
+    return namen
 
 
 def _gh(url: str, token: str) -> dict[str, Any]:
@@ -386,11 +458,31 @@ def main(argv: list[str] | None = None) -> int:
     # und eine leere Praesenz-Metrik hat genau EINE Ursache.
     praesenz: int | None = None
     praesenz_unsicher: str | None = None
+    praesenz_namen: set[str] = set()
     try:
-        praesenz = _mit_transient_retry(presence_series_count, key)
+        praesenz_namen = _mit_transient_retry(presence_workflow_names, key)
+        praesenz = len(praesenz_namen)
     except (OSError, ValueError, KeyError, RuntimeError, ProbeInvalidError) as exc:
         praesenz_unsicher = f"SONDE-FEHLER {type(exc).__name__}: {exc}"
     praesenz_aus = praesenz == 0
+
+    # Drift-Arm fuer die Praesenzliste (2026-08-31). Ihr WERT lebt auf dem
+    # Daemon, ausserhalb des Repos -- eine Kopie also, und Kopien driften. Ein
+    # neuer Cron mit Datenfolge landete sonst nie darin, und sein stiller
+    # Ausfall bliebe unsichtbar: genau der Zustand, den die Praesenz-Sonde
+    # beseitigen soll.
+    #
+    # BEWUSST ASYMMETRISCH. Laut meldet nur, was das Repo fordert und live
+    # FEHLT -- das ist Deckungsverlust. Zusaetzliche Namen live sind KEIN
+    # Befund: der Operator darf mehr ueberwachen, als dieses Repo ableitet, und
+    # ein Waechter, der eine bewusste Entscheidung anklagt, wird abgeschaltet
+    # und schuetzt dann gar nichts mehr.
+    praesenz_fehlt: list[str] = []
+    praesenz_extra: list[str] = []
+    if praesenz_namen:
+        deklariert = declared_presence_names(Path(__file__).resolve().parents[1])
+        praesenz_fehlt = sorted(deklariert - praesenz_namen)
+        praesenz_extra = sorted(praesenz_namen - deklariert)
 
     # Drift-Arm (2026-08-28): Live-Ruleset gegen die Repo-Wahrheit. Nicht lesbar
     # ist kein Befund und kein Bestehen -- eine sichtbare UNGESICHERT-Zeile.
@@ -450,6 +542,26 @@ def main(argv: list[str] | None = None) -> int:
             "Bruecke je sieht.",
             file=sys.stderr,
         )
+    if praesenz_extra:
+        print(
+            f"\nPraesenzliste ueberdeckt (kein Befund): {praesenz_extra} werden "
+            "live ueberwacht, obwohl dieses Repo sie nicht ableitet. Der Operator "
+            "darf mehr ueberwachen, als abgeleitet wird.",
+            file=sys.stderr,
+        )
+    if praesenz_fehlt:
+        print(
+            "\nPraesenzliste unvollstaendig -- DECKUNGSVERLUST. Diese Workflows "
+            "stehen auf einer Watchlist dieses Repos (ihr stiller Ausfall hat also "
+            "eine belegte Datenfolge) und laufen haeufig genug fuer die "
+            f"Praesenzueberwachung, fehlen aber live: {praesenz_fehlt}\n"
+            "Ihr Ausbleiben ist damit weiterhin nur als FEHLENDE Zeitreihe "
+            "sichtbar, und die liest sich unter noDataState: OK wie Gesundheit.\n"
+            "  railway variables --service live_overlay_daemon --set "
+            "'GITHUB_WORKFLOW_MONITOR_EXPECTED=<Namen, kommagetrennt>'\n"
+            "Die abgeleitete Sollmenge steht in declared_presence_names().",
+            file=sys.stderr,
+        )
     if praesenz_aus:
         print(
             "\nDie Praesenz-Ueberwachung ist AUS: "
@@ -476,7 +588,7 @@ def main(argv: list[str] | None = None) -> int:
             "einen bekannten Zustand, kein Auftrag, die Variable zu setzen.",
             file=sys.stderr,
         )
-    if blind or drift or praesenz_aus:
+    if blind or drift or praesenz_aus or praesenz_fehlt:
         return 1
     if not ok:
         print(
