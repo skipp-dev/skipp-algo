@@ -1,6 +1,10 @@
 # live-window: mutating-on-cron  # weekly Pine release-notes watch (snapshot PR + issue)
 name: pine-release-notes-watch
 
+# Second weekly target since 2026-08-31: the automation house-rules
+# article (scripts/tv_house_rules_watch.py, ADR-0034) -- a rules change
+# fails this job instead of updating its own snapshot.
+
 # Announcement bridge for TradingView Pine Script language changes.
 #
 # The weekly hand-lib publish + tv-save chain already compiles the live Pine
@@ -83,6 +87,17 @@ jobs:
           cat /tmp/watch.out
           grep -E '^(changed|new_entries|changed_entries|affected_files)=' \
             /tmp/watch.out >> "$GITHUB_OUTPUT"
+
+      - name: Watch automation house rules (ADR-0034)
+        # The Help-Center article carrying "manual use only" is the basis of
+        # ADR-0034's risk acceptance. A change there must RING, never
+        # self-heal: exit 2 (article changed) and exit 3 (extraction broken)
+        # both fail the job; the snapshot is only ever updated deliberately,
+        # together with an ADR-0034 re-evaluation.
+        run: |
+          set -euo pipefail
+          python scripts/tv_house_rules_watch.py \
+            --snapshot docs/tv_house_rules_snapshot.md
 
       - name: Open snapshot PR
         if: steps.watch.outputs.changed == 'true'

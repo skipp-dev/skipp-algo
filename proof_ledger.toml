@@ -2728,3 +2728,70 @@ Zweig faengt Laeufe, die das Board weder pruefen noch als gescheitert fuehren
 (z. B. Teil-Rollouts mit anderem Zielsatz). Nachtrag mit dem ersten
 Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
 """
+
+# ---------------------------------------------------------------------------
+# house-rules-watch (31.8. spaetabends, Operator-Bestellung): ADR-0034 ruhte
+# auf einem UNGESICHERT -- niemand beobachtete die Hausregel-Seite. Jetzt
+# difft der Montags-Watcher (pine-release-notes-watch) sie als zweites Ziel
+# gegen docs/tv_house_rules_snapshot.md; eine Aenderung macht den Lauf ROT
+# statt den Snapshot zu heilen. Die Suite beweist Extraktion/Diff/Exit-Codes
+# (tests/test_tv_house_rules_watch.py, am echten Seed vom 31.8. gesaeht);
+# was sie nicht sehen kann, ist der woechentliche Fetch im Workflow selbst.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "house-rules-watch"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Die Hausregel-Seite (Help-Center 43000674726, 'manual use only') wird montags 05:30Z wirklich beobachtet: der Step laeuft, druckt '[house-rules-watch] unchanged' bei stabiler Seite und macht den Lauf bei jeder Aenderung rot, statt den Snapshot selbst zu aktualisieren"
+witness         = "pine-release-notes-watch"
+witness_job     = "watch"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "[house-rules-watch]"
+judge           = "house_rules_watch"
+state           = "OFFEN"
+due_by          = "2026-09-08"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "house_rules_watch"
+branch = "no_log"
+reason = """
+2026-08-31: der erste echte Lauf mit dem neuen Step ist der Montags-Cron
+2026-09-07 05:30Z -- vorher existiert kein Job-Log mit der Spur, und ein
+leeres Log wird vom Monitor geliefert, nie aufgezeichnet. Nachtrag echter
+Korpusse mit dem ersten Lauf; der Eintrag house-rules-watch (due_by
+2026-09-08) ist der Stolperdraht dafuer.
+"""
+
+[[unreachable_branch]]
+judge  = "house_rules_watch"
+branch = "pre_fix_run"
+reason = """
+2026-08-31: erreichbar nur mit einem Lauf OHNE den Step -- also mit einem
+Vor-Merge-Lauf. Der letzte lief 2026-08-31 05:30Z und ist nicht als Korpus
+aufgezeichnet; der naechste Lauf traegt den Step bereits. Nachtrag, falls je
+ein Vor-Fix-Log aufgezeichnet wird; sonst stirbt der Zweig mit der
+Einfuehrung, wie pre_fix-Zweige es sollen (Stolperdraht: due_by 2026-09-08).
+"""
+
+[[unreachable_branch]]
+judge  = "house_rules_watch"
+branch = "watched_and_stable"
+reason = """
+2026-08-31: der PASS-Zweig braucht das Job-Log des ersten Montags-Laufs
+(2026-09-07 05:30Z). Nachtrag als echter Korpus direkt danach; Stolperdraht =
+Eintrag house-rules-watch, due_by 2026-09-08.
+"""
+
+[[unreachable_branch]]
+judge  = "house_rules_watch"
+branch = "rules_changed_or_broken"
+reason = """
+2026-08-31: dieser Zweig IST das Ereignis, fuer das die Wache existiert
+(Regel-Aenderung oder Seiten-Umbau). Es ist bis heute nie beobachtet worden --
+der Seed vom 31.8. traegt die unveraenderte Regel. Feuert er, wird das Log als
+Korpus nachgetragen und ADR-0034 neu bewertet (due_by 2026-09-08 haelt die
+Kette wach, bis der erste echte Lauf da ist).
+"""

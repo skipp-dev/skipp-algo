@@ -127,6 +127,12 @@
 # 430->417 (same day): local tmp+rename helper replaced by the shared
 # scripts.smc_atomic_write.atomic_write_text (atomic-write ledger's answer).
 "scripts/pine_release_notes_watch.py" = [417]
+# Weekly house-rules watch (ADR-0034, 2026-08-31): same shape as the
+# release-notes watcher above — fixed public https TradingView URL,
+# explicit 30s timeout, B310 nosec at the call site, gzip fallback
+# decoded in-process, GET only. A page change RED-fails the job; the
+# snapshot is never self-healed by the workflow (deliberate, see ADR).
+"scripts/tv_house_rules_watch.py" = [140]
 # PRE-A0 MLflow health probe: HTTPS origin is validated before both calls;
 # each has a fixed 15s timeout. One call checks the unauthenticated boundary,
 # the other reads authenticated alias/run metadata with monitor-only RBAC.
