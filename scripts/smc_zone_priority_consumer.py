@@ -25,7 +25,7 @@ from typing import Any
 # Public surface --------------------------------------------------
 
 # Trust-state vocabulary shared with the Pine consumer
-# (``SMC_Long_Dip_Dashboard.pine::zone_cal_trust_glyph``). The Pine side is the
+# (``SMC_Decision_Board.pine::zone_cal_trust_glyph``). The Pine side is the
 # canonical UI surface and its glyph map is authoritative:
 #   "OK"          -> 🔒 (healthy, fully trusted)
 #   "DEGRADED"    -> ⚠ (calibrated but low-confidence / smECE drift)
@@ -39,16 +39,16 @@ from typing import Any
 # healthy corpus (see ADR 2026-04-23 — OB-Export-Degradierung).
 #
 # Pine-boundary contract — DO NOT rename these values without
-# updating SMC_Long_Dip_Dashboard.pine:1429-1434 in the same PR *and*
+# updating SMC_Decision_Board.pine:1429-1434 in the same PR *and*
 # bumping ``library_field_version``. Boundary-literal pins live in
 # ``tests/test_pine_boundary_literals.py`` (F-7).
-TRUST_FRESH: str = "OK"            # pinned: SMC_Long_Dip_Dashboard.pine:1434
-TRUST_DEGRADED: str = "DEGRADED"   # pinned: SMC_Long_Dip_Dashboard.pine:1434
+TRUST_FRESH: str = "OK"            # pinned: SMC_Decision_Board.pine:1434
+TRUST_DEGRADED: str = "DEGRADED"   # pinned: SMC_Decision_Board.pine:1434
 TRUST_STALE: str = "STALE"         # reserved WS2 — not yet in Pine glyph
-TRUST_UNAVAILABLE: str = "UNAVAILABLE"  # pinned: SMC_Long_Dip_Dashboard.pine:1434
+TRUST_UNAVAILABLE: str = "UNAVAILABLE"  # pinned: SMC_Decision_Board.pine:1434
 
 # Calibration-trend vocabulary — emitted on ``ZONE_CAL_TREND`` and
-# consumed by ``SMC_Long_Dip_Dashboard.pine:1440`` via plain text concatenation
+# consumed by ``SMC_Decision_Board.pine:1440`` via plain text concatenation
 # (no literal gate on the Pine side). Keep frozen; adding a token
 # here requires a Pine-side glyph/color branch first, otherwise the
 # new string leaks silently into the tooltip (F-11). Value-space pin
@@ -63,7 +63,7 @@ TREND_VOCAB: frozenset[str] = frozenset(
 # Sentinel propagated to Pine when confidence gating suppresses a
 # family hit rate. ``-1.0`` is unambiguously outside the valid
 # ``[0, 1]`` HR range; the existing Pine consumer guards (e.g.
-# ``mp.ZONE_HR_FVG <= 0.0`` in SMC_Long_Dip_Dashboard.pine) already treat
+# ``mp.ZONE_HR_FVG <= 0.0`` in SMC_Decision_Board.pine) already treat
 # this as "no renderable value".
 HR_SENTINEL_DEGRADED: float = -1.0
 
@@ -304,7 +304,7 @@ def degrade_family_hit_rates(
 
     The ``-1.0`` sentinel is unambiguously outside the valid HR
     range; existing Pine consumer guards (``mp.ZONE_HR_FVG <= 0.0``
-    in ``SMC_Long_Dip_Dashboard.pine``) treat it as "no renderable value".
+    in ``SMC_Decision_Board.pine``) treat it as "no renderable value".
     """
     if trust_state in (TRUST_DEGRADED, TRUST_UNAVAILABLE):
         return {key: HR_SENTINEL_DEGRADED for key in hit_rates}

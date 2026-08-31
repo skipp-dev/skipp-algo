@@ -840,6 +840,7 @@ jobs:
             tests/test_workflow_invoked_scripts_import_order.py \
             tests/test_workflow_python_version_pinned.py \
             tests/test_scheduled_workflow_observation_inventory.py \
+            tests/test_presence_age_series_deadline_tripwire.py \
             tests/test_documented_env_vars_are_read.py \
             tests/test_launchd_shell_portability.py
 

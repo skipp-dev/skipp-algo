@@ -303,7 +303,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-30 bridge contract duration family shifted these anchors by one.
         # Shifted 251 -> 258 by the expected_present presence map (declared-workflow
         # absence detection) added to _fetch_snapshot and the two no-fetch snapshots.
-        ("services/live_overlay_daemon/github_workflow_bridge.py", 258, ("_cached_at_monotonic", "_cached_snapshot")),
+        # 2026-08-31 (Praesenz-Sonde je Workflow): 258 -> 380, und ZWEI neue
+        # Cache-Singletons daneben. Beide folgen demselben TTL-Muster wie der
+        # Snapshot-Cache darunter -- eigener Zustand, weil die Praesenz-Sonde
+        # eine andere Kadenz und ein anderes Ausfallbild hat (Fehlschlag haelt
+        # den letzten Stand, statt Abwesenheit zu behaupten).
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 275, ("_workflow_ids_at_monotonic", "_workflow_ids_cache")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 357, ("_presence_at_monotonic", "_presence_cache")),
+        ("services/live_overlay_daemon/github_workflow_bridge.py", 380, ("_cached_at_monotonic", "_cached_snapshot")),
         ("services/live_overlay_daemon/uptimerobot_bridge.py", 142, ("_cached_at_monotonic", "_cached_snapshot")),
         # 2026-07-06 (feat/evidence-freshness-monitoring): evidence bridge mirrors
         # the github_workflow_bridge snapshot-cache singleton (same TTL pattern).

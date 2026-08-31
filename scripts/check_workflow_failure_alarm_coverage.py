@@ -46,12 +46,14 @@ Aufruf::
 from __future__ import annotations
 
 import os
+import re
 import ssl
 import sys
 import time
 import urllib.error
 import urllib.parse
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 try:
@@ -87,6 +89,12 @@ REQUIRED_WORKFLOWS: dict[str, str] = {
 
 PROM_DATASOURCE_UID = "grafanacloud-prom"
 METRIC = 'live_overlay_github_workflow_phase_code{job="live_overlay"}'
+#: 2026-08-31 (Wirkungs-Sweep J): die Praesenz-Metrik der Bruecke. Anders als
+#: METRIC ist sie NICHT aus der Lauf-Seite abgeleitet, sondern aus der
+#: deklarierten Erwartungsliste (``config.github_workflow_expected()``). Ihre
+#: Abwesenheit ist deshalb eindeutig -- sie kann nicht "der Workflow lief
+#: laenger nicht" bedeuten, sondern nur "die Liste ist leer".
+PRESENCE_METRIC = 'live_overlay_github_workflow_expected_present{job="live_overlay"}'
 DEFAULT_REPO = "skipp-dev/skipp-algo"
 # Muss zu GITHUB_WORKFLOW_MONITOR_PER_PAGE des Daemons passen; dessen Vorgabe
 # ist 100 (services/live_overlay_daemon/config.py). Sieht dieses Skript eine
@@ -182,6 +190,90 @@ def observed_workflows(key: str) -> set[str]:
             "hier eine Luege."
         )
     return names
+
+
+def presence_series_count(key: str) -> int:
+    """Zeitreihen der Praesenz-Metrik. 0 = Praesenz-Ueberwachung ist AUS.
+
+    Aufruf NUR nach ``observed_workflows`` -- das wirft bereits, wenn die
+    Bruecke ueberhaupt keine Daten liefert. Damit ist die Vorbedingung belegt
+    und eine leere Antwort hier hat genau EINE Ursache: die Erwartungsliste
+    ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` ist auf dem Daemon nicht gesetzt.
+    """
+    return len(presence_workflow_names(key))
+
+
+def presence_workflow_names(key: str) -> set[str]:
+    """Die Workflow-NAMEN, die die Praesenz-Metrik live traegt.
+
+    Also der tatsaechliche Inhalt von ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` auf
+    dem Daemon -- aus der Wirkebene gelesen, nicht aus einer Kopie im Repo.
+    """
+    ds_id = _prom_datasource_id(key)
+    query = urllib.parse.quote(PRESENCE_METRIC)
+    res = _request("GET", f"/api/datasources/proxy/{ds_id}/api/v1/query?query={query}", key)
+    ergebnis = ((res or {}).get("data") or {}).get("result") or []
+    namen = {str(item.get("metric", {}).get("workflow", "")).strip() for item in ergebnis}
+    namen.discard("")
+    return namen
+
+
+#: Die zwei Watchlists dieses Repos -- dieselbe Grundgesamtheit, die
+#: ``tests/test_scheduled_workflow_observation_inventory.py`` fuehrt. Ein
+#: Workflow steht dort, wenn sein stiller Ausfall eine DATENFOLGE hat; genau
+#: diese Menge gehoert praesenzueberwacht.
+_WATCHLISTS = ("workflow-freshness-monitor.yml", "meta-watchdog.yml")
+_WATCH_ARG_RE = re.compile(r"^\s+([a-z0-9._-]+\.ya?ml)=\d+", re.M)
+_CRON_RE = re.compile(r"""^\s*-\s*cron:\s*['"]([^'"]+)['"]""", re.M)
+_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.M)
+
+#: Obergrenze fuer den legitimen Cron-Abstand. Wer seltener laeuft, gehoert
+#: NICHT in die Praesenzliste: die Alters-Regel arbeitet mit einer Schwelle
+#: knapp ueber der Fr->Mo-Luecke (72 h; meta-watchdog rechnet mit 80), und ein
+#: woechentlicher Cron wuerde daran jede Woche fehlalarmieren.
+_MAX_GAP_HOURS = 72.0
+
+
+def declared_presence_names(repo_root: Path) -> set[str]:
+    """Die Namen, die laut REPO praesenzueberwacht gehoeren -- ABGELEITET.
+
+    Der Wert der Liste lebt auf dem Daemon, ausserhalb des Repos. Ohne diese
+    Ableitung waere er eine handgefuehrte Kopie mit genau der Drift, gegen die
+    er gebaut ist: ein neuer Cron mit Datenfolge landete nie darin, und sein
+    stiller Ausfall bliebe unsichtbar -- der Zustand, den die ganze
+    Praesenz-Sonde beseitigen soll.
+    """
+    from scripts.cron_schedule_gap import groesster_abstand
+
+    workflows = repo_root / ".github" / "workflows"
+    dateien: set[str] = set()
+    for liste in _WATCHLISTS:
+        pfad = workflows / liste
+        if pfad.exists():
+            dateien |= set(_WATCH_ARG_RE.findall(pfad.read_text(encoding="utf-8")))
+
+    namen: set[str] = set()
+    for datei in sorted(dateien):
+        pfad = workflows / datei
+        if not pfad.exists():
+            continue
+        text = pfad.read_text(encoding="utf-8")
+        crons = _CRON_RE.findall(text)
+        if not crons:
+            continue
+        if groesster_abstand(crons, False) > _MAX_GAP_HOURS:
+            continue
+        treffer = _NAME_RE.search(text)
+        # YAML erlaubt `name: "x"` wie `name: x`. Die Anfuehrungszeichen sind
+        # Syntax, nicht Teil des Namens -- GitHub (und damit das Metrik-Label)
+        # traegt sie nicht. Ohne dieses Abstreifen meldete der Drift-Arm beim
+        # ERSTEN Live-Lauf `"live-overlay-deploy-trigger-guard"` gleichzeitig
+        # als fehlend UND als ueberzaehlig: ein Waechter, der einen voellig
+        # korrekten Zustand anklagt. Gefangen, weil er gegen die echte Instanz
+        # gefahren wurde und nicht gegen selbst gebaute Fixtures.
+        roh = treffer.group(1).strip() if treffer else pfad.stem
+        namen.add(roh.strip("\"'"))
+    return namen
 
 
 def _gh(url: str, token: str) -> dict[str, Any]:
@@ -357,6 +449,41 @@ def main(argv: list[str] | None = None) -> int:
 
     blind, ok, stumm = evaluate(REQUIRED_WORKFLOWS, names_by_file, in_page, observed)
 
+    # Praesenz-Arm (2026-08-31), in EIGENEM try: eine zusaetzliche Abfrage darf
+    # die Hauptpruefung nicht entwerten. Faellt sie aus, ist das eine sichtbare
+    # UNGESICHERT-Zeile -- dasselbe Muster wie der Drift-Arm darunter, und aus
+    # demselben Grund: "nicht lesbar" ist weder Befund noch Bestehen.
+    # Erst NACH observed_workflows ausgewertet: das wirft bereits, wenn die
+    # Bruecke ueberhaupt keine Daten liefert. Damit ist die Vorbedingung belegt
+    # und eine leere Praesenz-Metrik hat genau EINE Ursache.
+    praesenz: int | None = None
+    praesenz_unsicher: str | None = None
+    praesenz_namen: set[str] = set()
+    try:
+        praesenz_namen = _mit_transient_retry(presence_workflow_names, key)
+        praesenz = len(praesenz_namen)
+    except (OSError, ValueError, KeyError, RuntimeError, ProbeInvalidError) as exc:
+        praesenz_unsicher = f"SONDE-FEHLER {type(exc).__name__}: {exc}"
+    praesenz_aus = praesenz == 0
+
+    # Drift-Arm fuer die Praesenzliste (2026-08-31). Ihr WERT lebt auf dem
+    # Daemon, ausserhalb des Repos -- eine Kopie also, und Kopien driften. Ein
+    # neuer Cron mit Datenfolge landete sonst nie darin, und sein stiller
+    # Ausfall bliebe unsichtbar: genau der Zustand, den die Praesenz-Sonde
+    # beseitigen soll.
+    #
+    # BEWUSST ASYMMETRISCH. Laut meldet nur, was das Repo fordert und live
+    # FEHLT -- das ist Deckungsverlust. Zusaetzliche Namen live sind KEIN
+    # Befund: der Operator darf mehr ueberwachen, als dieses Repo ableitet, und
+    # ein Waechter, der eine bewusste Entscheidung anklagt, wird abgeschaltet
+    # und schuetzt dann gar nichts mehr.
+    praesenz_fehlt: list[str] = []
+    praesenz_extra: list[str] = []
+    if praesenz_namen:
+        deklariert = declared_presence_names(Path(__file__).resolve().parents[1])
+        praesenz_fehlt = sorted(deklariert - praesenz_namen)
+        praesenz_extra = sorted(praesenz_namen - deklariert)
+
     # Drift-Arm (2026-08-28): Live-Ruleset gegen die Repo-Wahrheit. Nicht lesbar
     # ist kein Befund und kein Bestehen -- eine sichtbare UNGESICHERT-Zeile.
     drift: list[str] = []
@@ -372,6 +499,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"GitHub-Token aus    : {token_source}")
     print(f"Zeitreihen im Alarm : {len(observed)}")
+    if praesenz_unsicher:
+        print(f"Praesenz-Zeitreihen : UNGESICHERT -- {praesenz_unsicher}")
+    else:
+        print(
+            f"Praesenz-Zeitreihen : {praesenz}"
+            + ("   <-- Praesenz-Ueberwachung AUS" if praesenz_aus else "")
+        )
     print(f"Workflows im Fenster: {len(in_page)}  (dieselbe Seite, die die Bruecke sieht)")
     for line in ok:
         print(f"  OK      {line}")
@@ -408,7 +542,53 @@ def main(argv: list[str] | None = None) -> int:
             "Bruecke je sieht.",
             file=sys.stderr,
         )
-    if blind or drift:
+    if praesenz_extra:
+        print(
+            f"\nPraesenzliste ueberdeckt (kein Befund): {praesenz_extra} werden "
+            "live ueberwacht, obwohl dieses Repo sie nicht ableitet. Der Operator "
+            "darf mehr ueberwachen, als abgeleitet wird.",
+            file=sys.stderr,
+        )
+    if praesenz_fehlt:
+        print(
+            "\nPraesenzliste unvollstaendig -- DECKUNGSVERLUST. Diese Workflows "
+            "stehen auf einer Watchlist dieses Repos (ihr stiller Ausfall hat also "
+            "eine belegte Datenfolge) und laufen haeufig genug fuer die "
+            f"Praesenzueberwachung, fehlen aber live: {praesenz_fehlt}\n"
+            "Ihr Ausbleiben ist damit weiterhin nur als FEHLENDE Zeitreihe "
+            "sichtbar, und die liest sich unter noDataState: OK wie Gesundheit.\n"
+            "  railway variables --service live_overlay_daemon --set "
+            "'GITHUB_WORKFLOW_MONITOR_EXPECTED=<Namen, kommagetrennt>'\n"
+            "Die abgeleitete Sollmenge steht in declared_presence_names().",
+            file=sys.stderr,
+        )
+    if praesenz_aus:
+        print(
+            "\nDie Praesenz-Ueberwachung ist AUS: "
+            f"{PRESENCE_METRIC.split('{')[0]} hat null Zeitreihen, waehrend die "
+            "Bruecke nachweislich Daten liefert (die Pruefung oben braucht sie).\n"
+            "Damit ist die EINZIGE Regel, die 'ein deklarierter Workflow laeuft gar "
+            "nicht mehr' erkennen koennte, ohne Datenbasis -- und sie ist fail-open "
+            "formuliert (`or on() vector(0)`), meldet also 0 statt NoData. Ihre "
+            "Stille sieht aus wie Gesundheit.\n"
+            "Alles andere an Workflow-Frische ist aus EINER Seite von /actions/runs "
+            "abgeleitet und verschwindet genau dann, wenn es alarmieren muesste.\n"
+            "  railway ssh --service live_overlay_daemon -- sh -lc "
+            "'printf \"%s\\n\" \"$GITHUB_WORKFLOW_MONITOR_EXPECTED\"'\n"
+            "\nACHTUNG -- die Variable ALLEIN zu setzen behebt es NICHT und macht es "
+            "schlimmer. Gemessen 2026-08-31: `expected_present` prueft nur, ob der Name "
+            "auf DERSELBEN Lauf-Seite steht, und die deckte 9 Stunden ab (am 2026-08-20: "
+            "5). Ein taeglicher Workflow steht dort rund ein Drittel des Tages; bei "
+            "`for: 6h` feuerte die Regel dann JEDEN TAG fuer JEDEN Daily. Die Stille "
+            "waere gegen einen taeglichen Fehlalarm getauscht.\n"
+            "Damit die Liste tragen kann, muss die Praesenz je Workflow EINZELN "
+            "ermittelt werden (`/actions/workflows/<id>/runs?per_page=1&branch=main`) "
+            "statt aus der geteilten Seite -- github_workflow_bridge.py, dort wo "
+            "`seen_names` gebildet wird. Bis dahin ist die Zeile hier ein BERICHT ueber "
+            "einen bekannten Zustand, kein Auftrag, die Variable zu setzen.",
+            file=sys.stderr,
+        )
+    if blind or drift or praesenz_aus or praesenz_fehlt:
         return 1
     if not ok:
         print(

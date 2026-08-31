@@ -69,7 +69,7 @@ def test_pinned_surface_roster_is_not_empty() -> None:
     assert len(_PINNED_SURFACES) >= 4
     for surface in (
         "SMC_Long_Dip_Suite.pine",
-        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Decision_Board.pine",
         "SMC_Long_Dip_Mobile.pine",
         "SMC_Long_Dip_Alerts.pine",
     ):
@@ -103,7 +103,7 @@ def test_the_incident_signature_classifies_other(surface: str) -> None:
 
 
 def test_a_content_edit_without_any_pin_bump_classifies_other() -> None:
-    text = (_REPO / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
+    text = (_REPO / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
     assert (
         classify_pin_only_change(text, text.replace("overlay = true", "overlay = false", 1))
         == "other"
@@ -111,7 +111,7 @@ def test_a_content_edit_without_any_pin_bump_classifies_other() -> None:
 
 
 def test_an_added_line_classifies_other() -> None:
-    text = (_REPO / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
+    text = (_REPO / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
     assert (
         classify_pin_only_change(text, _bump_every_pin(text) + "\n// stray note\n")
         == "other"
@@ -119,7 +119,7 @@ def test_an_added_line_classifies_other() -> None:
 
 
 def test_a_removed_line_classifies_other() -> None:
-    text = (_REPO / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8")
+    text = (_REPO / "SMC_Decision_Board.pine").read_text(encoding="utf-8")
     lines = _bump_every_pin(text).splitlines(keepends=True)
     assert classify_pin_only_change(text, "".join(lines[:-1])) == "other"
 
@@ -169,7 +169,7 @@ def test_required_surfaces_are_the_holdable_vocabulary_guard_roster() -> None:
     assert set(required) <= set(PINE_FILES)
     for surface in (
         "SMC_Long_Dip_Suite.pine",
-        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Decision_Board.pine",
         "SMC_Long_Dip_Mobile.pine",
         "SMC_Long_Dip_Alerts.pine",
     ):
@@ -238,8 +238,8 @@ def test_roster_excludes_the_r1_attested_companions() -> None:
 
 def test_roster_missing_a_customer_surface_is_refused() -> None:
     """Fail closed: a shrunken candidate list must never yield an all-clear."""
-    candidates = [s for s in sorted(PINE_FILES) if s != "SMC_Long_Dip_Dashboard.pine"]
-    with pytest.raises(ValueError, match=re.escape("SMC_Long_Dip_Dashboard.pine")):
+    candidates = [s for s in sorted(PINE_FILES) if s != "SMC_Decision_Board.pine"]
+    with pytest.raises(ValueError, match=re.escape("SMC_Decision_Board.pine")):
         held_customer_surfaces(candidates)
 
 
@@ -265,14 +265,14 @@ def test_hold_restores_other_and_keeps_pin_only(tmp_path: Path) -> None:
     base_dir = _tree(
         tmp_path,
         "base",
-        {"SMC_Long_Dip_Dashboard.pine": base_dashboard, "SMC_Long_Dip_Mobile.pine": base_mobile},
+        {"SMC_Decision_Board.pine": base_dashboard, "SMC_Long_Dip_Mobile.pine": base_mobile},
     )
     repo = _tree(
         tmp_path,
         "repo",
         {
             # The incident: pin bumped AND the vocabulary reverted.
-            "SMC_Long_Dip_Dashboard.pine": (
+            "SMC_Decision_Board.pine": (
                 "import preuss_steffen/smc_micro_profiles_generated/221 as mp\n"
                 'var string g_bus_diag = "3. Operator Only - Diagnostic Support"\n'
             ),
@@ -284,15 +284,15 @@ def test_hold_restores_other_and_keeps_pin_only(tmp_path: Path) -> None:
     )
 
     held, advanced = hold(
-        ["SMC_Long_Dip_Dashboard.pine", "SMC_Long_Dip_Mobile.pine"],
+        ["SMC_Decision_Board.pine", "SMC_Long_Dip_Mobile.pine"],
         base_dir=base_dir,
         repo=repo,
     )
 
-    assert held == ["SMC_Long_Dip_Dashboard.pine"]
+    assert held == ["SMC_Decision_Board.pine"]
     assert advanced == ["SMC_Long_Dip_Mobile.pine"]
     # The held file is byte-identical to current main again...
-    assert (repo / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == base_dashboard
+    assert (repo / "SMC_Decision_Board.pine").read_text(encoding="utf-8") == base_dashboard
     # ...and the pin-only file keeps its bump. Holding must not be a revert of
     # the refresh.
     assert "/221 as mp" in (repo / "SMC_Long_Dip_Mobile.pine").read_text(encoding="utf-8")
@@ -335,7 +335,7 @@ def _surface_fixture(tmp_path: Path) -> tuple[Path, Path, dict[str, str]]:
     worktree = {
         name: body.replace("/220 as mp", "/221 as mp") for name, body in bases.items()
     }
-    worktree["SMC_Long_Dip_Dashboard.pine"] += "// reverted vocabulary\n"
+    worktree["SMC_Decision_Board.pine"] += "// reverted vocabulary\n"
     repo = _tree(tmp_path, "repo", worktree)
     return base_dir, repo, bases
 
@@ -357,23 +357,23 @@ def test_main_holds_reports_and_keeps_the_rest(tmp_path: Path) -> None:
     assert code == 0
     outputs = output.read_text(encoding="utf-8")
     assert json.loads(outputs.splitlines()[0].removeprefix("held=")) == [
-        "SMC_Long_Dip_Dashboard.pine"
+        "SMC_Decision_Board.pine"
     ]
     assert "Customer surfaces held" in outputs
     # The outputs are a claim; the tree is the fact.
-    assert (repo / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == bases[
-        "SMC_Long_Dip_Dashboard.pine"
+    assert (repo / "SMC_Decision_Board.pine").read_text(encoding="utf-8") == bases[
+        "SMC_Decision_Board.pine"
     ]
     for name in sorted(PINE_FILES):
-        if name == "SMC_Long_Dip_Dashboard.pine":
+        if name == "SMC_Decision_Board.pine":
             continue
         assert "/221 as mp" in (repo / name).read_text(encoding="utf-8"), name
 
 
 def test_main_emits_no_notice_when_everything_is_pin_only(tmp_path: Path) -> None:
     base_dir, repo, _ = _surface_fixture(tmp_path)
-    (repo / "SMC_Long_Dip_Dashboard.pine").write_text(
-        (base_dir / "SMC_Long_Dip_Dashboard.pine")
+    (repo / "SMC_Decision_Board.pine").write_text(
+        (base_dir / "SMC_Decision_Board.pine")
         .read_text(encoding="utf-8")
         .replace("/220 as mp", "/221 as mp"),
         encoding="utf-8",
@@ -417,14 +417,14 @@ def test_main_fails_closed_when_a_surface_is_missing_from_the_candidates(
     # Nothing claimed, nothing touched: the incident file keeps its bad edit,
     # visibly, rather than being half-processed under a shrunken roster.
     assert output.read_text(encoding="utf-8") == ""
-    assert "reverted vocabulary" in (repo / "SMC_Long_Dip_Dashboard.pine").read_text(
+    assert "reverted vocabulary" in (repo / "SMC_Decision_Board.pine").read_text(
         encoding="utf-8"
     )
 
 
 def test_notice_names_every_held_path_and_the_incident_class() -> None:
-    notice = render_notice(["SMC_Long_Dip_Dashboard.pine"])
-    assert "SMC_Long_Dip_Dashboard.pine" in notice
+    notice = render_notice(["SMC_Decision_Board.pine"])
+    assert "SMC_Decision_Board.pine" in notice
     assert "pin" in notice.lower()
     # A reviewer must learn this is the anti-revert mechanism, not a bug.
     assert "#4646" in notice

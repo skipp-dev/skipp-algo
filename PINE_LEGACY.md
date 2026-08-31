@@ -50,7 +50,7 @@ These eight files are the current managed TradingView save targets:
 | `SMC_Breakout_Overlay.pine` | deployed overlay consumer |
 | `SMC_Confluence_Hub.pine` | deployed confluence consumer |
 | `SMC_Long_Dip_Alerts.pine` | deployed alert consumer |
-| `SMC_Long_Dip_Dashboard.pine` | deployed dashboard consumer |
+| `SMC_Decision_Board.pine` | deployed dashboard consumer |
 | `SMC_Long_Dip_Mobile.pine` | deployed mobile consumer |
 | `SMC_Long_Dip_Strategy.pine` | deployed execution consumer |
 | `SMC_Setup_Check.pine` | deployed setup and binding diagnostic |

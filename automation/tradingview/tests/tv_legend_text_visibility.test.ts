@@ -4,10 +4,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { chartLegendTextVerdict, CHART_LEGEND_CONTAINER_SELECTOR } from "../lib/tv_shared.js";
+import {
+  buildScriptNamePatterns,
+  chartLegendTextVerdict,
+  CHART_LEGEND_CONTAINER_SELECTOR,
+  resolveOpenScriptSearchNames,
+} from "../lib/tv_shared.js";
 
 const _dir = path.dirname(fileURLToPath(import.meta.url));
 const SHARED = path.join(_dir, "..", "lib", "tv_shared.ts");
+const REPO = path.join(_dir, "..", "..", "..");
+const ROLLOUT = path.join(REPO, "automation", "tradingview", "config", "consumer-rollout.json");
 
 // Run 30718040533, against a clean layout: the fresh overlay instance was added
 // (add-to-chart-click-settle hasLegendMatch:true) but verification then threw
@@ -36,6 +43,77 @@ test("the Pine editor's own title (excluded surface) never counts as on-chart", 
 
 test("a name match outside any chart container is not a legend match", () => {
   assert.equal(chartLegendTextVerdict({ inContainer: false, inExcluded: false }), false);
+});
+
+// --------------------------------------------------------------------------
+// 2026-08-31: the configured name and the name the LEGEND carries are two
+// different things, and nothing checked that they can still find each other.
+//
+// The legend row shows the indicator() declaration title. The rollout config
+// verifies a product name. For nine of ten consumers those are the same string;
+// for "SMC Decision Board" (product name, docs/SMC_PRODUCT_IDENTITY.md) the
+// source SMC_Long_Dip_Dashboard.pine declares "SMC Long-Dip Dashboard", and the
+// alias table happened not to carry that spelling in this direction. Verify then
+// threw "Existing chart instance not found" against a chart the indicator was
+// plainly on -- every run since at least 2026-08-29, which also left
+// outOfBandDrift at "unknown" instead of a verdict.
+//
+// Bound to the MECHANISM, not to that incident: the population is DERIVED from
+// the rollout config and the declared titles, so a future consumer whose config
+// name and declaration name drift apart fails here, without anyone editing a
+// list. Only exact|loose are used -- those are the patterns the legend probes
+// consult; a fuzzy hit does not open the gate (isScriptVisibleOnChart returns
+// hasLegendMatch alone).
+// --------------------------------------------------------------------------
+
+function declaredIndicatorTitle(sourceRelPath: string): string | null {
+  const abs = path.join(REPO, sourceRelPath);
+  if (!fs.existsSync(abs)) return null;
+  const m = fs.readFileSync(abs, "utf-8").match(/^\s*indicator\(\s*"([^"]+)"/m);
+  return m ? m[1] : null;
+}
+
+function legendPathFinds(searchName: string, legendText: string): boolean {
+  const [exact, loose] = buildScriptNamePatterns(searchName);
+  return exact.test(legendText) || loose.test(legendText);
+}
+
+test("every verify target can find the title its own source declares", () => {
+  const rollout = JSON.parse(fs.readFileSync(ROLLOUT, "utf-8")) as {
+    verifyTargets: Array<{ source?: string; scriptName: string }>;
+  };
+  const targets = rollout.verifyTargets ?? [];
+  assert.ok(targets.length > 0, "no verifyTargets in the rollout config — the population is empty");
+
+  let checked = 0;
+  for (const target of targets) {
+    if (!target.source) continue;
+    const declared = declaredIndicatorTitle(target.source);
+    if (!declared) continue;
+    checked += 1;
+    const candidates = resolveOpenScriptSearchNames(target.scriptName);
+    assert.ok(
+      candidates.some((candidate) => legendPathFinds(candidate, declared)),
+      `"${target.scriptName}" cannot find the legend text "${declared}" declared by `
+      + `${target.source}. Candidates tried: ${JSON.stringify(candidates)}. Add the declared `
+      + `title to legacyOpenScriptNames, or align the config with the declaration.`,
+    );
+  }
+  // Positive control: an empty loop would pass every assertion above.
+  assert.ok(checked >= targets.length - 1, `only ${checked} of ${targets.length} targets were actually checked`);
+});
+
+test("the legend TEXT probe resolves aliases, like the button probe next to it", () => {
+  // Source-structure pin. The two probes are the two halves of one signal, and
+  // the text half exists precisely for the case where the button half is blind.
+  // A narrower fallback than the probe it backs up is the defect this fixes.
+  const source = fs.readFileSync(SHARED, "utf-8");
+  const block = source.split("async function hasVisibleChartLegendText", 2)[1] ?? "";
+  assert.match(
+    block.slice(0, 1600),
+    /resolveOpenScriptSearchNames\(scriptName\)/,
+    "hasVisibleChartLegendText must search every alias, not only the raw configured name",
+  );
 });
 
 test("the chart legend container selector targets the chart surface, not the editor", () => {

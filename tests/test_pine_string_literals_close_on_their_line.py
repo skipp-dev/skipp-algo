@@ -14,7 +14,7 @@ This test is the missing compile-shaped check for that failure class: it walks
 EVERY ``.pine`` file in the repository (population, not a sample) and
 simulates Pine's string lexing — backslash escapes, both quote styles, ``//``
 comments outside strings, and ``\"\"\"…\"\"\"`` multiline templates. The
-multiline form is NOT treated as an error: ``SMC_Long_Dip_Dashboard.pine``
+multiline form is NOT treated as an error: ``SMC_Decision_Board.pine``
 has shipped one since April 2026 and that script saved, re-added and verified
 64/64 bindings for months (run 32957051467, 2026-08-27) — live TradingView
 accepts it, and a checker built on an older mental model of Pine flagged it

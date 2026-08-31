@@ -266,7 +266,7 @@ def _fixture(tmp_path: Path, *, drop_from_main: str | None = None) -> Path:
     """
     surfaces = {
         "SMC_Long_Dip_Suite.pine": _PIN + "plot(1)\n",
-        "SMC_Long_Dip_Dashboard.pine": _PIN + _OLD_VOCAB,
+        "SMC_Decision_Board.pine": _PIN + _OLD_VOCAB,
         "SMC_Long_Dip_Mobile.pine": _PIN + "plot(2)\n",
         "SMC_Long_Dip_Alerts.pine": _PIN + "plot(3)\n",
         # An R1-attested companion is among the enumerated candidates and must
@@ -293,7 +293,7 @@ def _fixture(tmp_path: Path, *, drop_from_main: str | None = None) -> Path:
 
     # The mid-run merge on main: the vocabulary cleanup (#4639) — on the
     # Dashboard AND on the hand-lib-only Breakout Overlay.
-    (remote / "SMC_Long_Dip_Dashboard.pine").write_text(
+    (remote / "SMC_Decision_Board.pine").write_text(
         _PIN + _CLEAN_VOCAB, encoding="utf-8"
     )
     (remote / "SMC_Breakout_Overlay.pine").write_text(
@@ -355,7 +355,7 @@ def test_refresh_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     # vocabulary, pin NOT advanced (it advances with the next refresh) — on
     # the generated-pin Dashboard AND the hand-lib-only Breakout Overlay
     # (the #5145 gap: the old enumeration never made it a candidate).
-    assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
+    assert (work / "SMC_Decision_Board.pine").read_text(encoding="utf-8") == (
         _PIN + _CLEAN_VOCAB
     )
     assert (work / "SMC_Breakout_Overlay.pine").read_text(encoding="utf-8") == (
@@ -372,7 +372,7 @@ def test_refresh_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     )
     assert json.loads(result.outputs["held"]) == [
         "SMC_Breakout_Overlay.pine",
-        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Decision_Board.pine",
     ]
     assert "Customer surfaces held" in result.outputs["notice"]
 
@@ -395,7 +395,7 @@ def test_handlibs_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     result = _run_in(HANDLIBS_WORKFLOW, tmp_path, work)
 
     assert result.returncode == 0, result.stderr
-    assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
+    assert (work / "SMC_Decision_Board.pine").read_text(encoding="utf-8") == (
         _PIN + _CLEAN_VOCAB
     )
     # The #5145 gap, executed: the surface repinAllConsumers rewrites without
@@ -409,7 +409,7 @@ def test_handlibs_hold_step_restores_the_revert_and_keeps_the_pin_bumps(
     assert _ENGINE_BUMPED in (work / "SMC_Context_Bus.pine").read_text(encoding="utf-8")
     assert json.loads(result.outputs["held"]) == [
         "SMC_Breakout_Overlay.pine",
-        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Decision_Board.pine",
     ]
     # And the module really ran through the stubbed interpreter.
     assert result.called_with("scripts.hold_customer_surfaces")
@@ -468,7 +468,7 @@ def test_refresh_hold_survives_a_checkout_that_predates_the_script(
     hold_src = tmp_path / "runner_temp" / "surface-hold-src"
     assert (hold_src / young).is_file()
     assert not (hold_src / "scripts" / "hold_r1_attested_sources.py").exists()
-    assert (work / "SMC_Long_Dip_Dashboard.pine").read_text(encoding="utf-8") == (
+    assert (work / "SMC_Decision_Board.pine").read_text(encoding="utf-8") == (
         _PIN + _CLEAN_VOCAB
     )
     assert (work / "SMC_Breakout_Overlay.pine").read_text(encoding="utf-8") == (
@@ -476,5 +476,5 @@ def test_refresh_hold_survives_a_checkout_that_predates_the_script(
     )
     assert json.loads(result.outputs["held"]) == [
         "SMC_Breakout_Overlay.pine",
-        "SMC_Long_Dip_Dashboard.pine",
+        "SMC_Decision_Board.pine",
     ]

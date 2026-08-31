@@ -67,7 +67,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     # 35 → 36 (2026-08-12): +1 group label (g_operator_ops). The three
     # internal-operations controls moved out of "1. Product Surface" so the
     # customer's first group holds only controls a customer can act on.
-    "SMC_Long_Dip_Dashboard.pine": 36,
+    "SMC_Decision_Board.pine": 36,
     "SMC_Event_Overlay.pine": 13,
     "SMC_Exit_Signal.pine": 13,
     # 2026-07-30 R5 rebuild: snapshot-era state removed; only the fixed status

@@ -86,7 +86,7 @@ SURFACE_MATRIX: tuple[SurfaceEntry, ...] = tuple(
         audience=_audience(surface),
         description=_description(surface),
         is_default=surface.file in (
-            "SMC_Long_Dip_Dashboard.pine",
+            "SMC_Decision_Board.pine",
             "SMC_Long_Dip_Mobile.pine",
         ),
     )

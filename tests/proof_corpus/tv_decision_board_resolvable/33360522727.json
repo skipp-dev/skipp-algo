@@ -1,0 +1,1671 @@
+{
+  "_herkunft": "tv-save-consumer-source Lauf 33360522727, Job save, 2026-08-31T05:27:13Z, executionMode verify-only. Artefakt tradingview-consumer-bindings, am 31.8. per gh run download gezogen. Vor-Rename-Baum: repositoryExpected traegt SMC_Long_Dip_Dashboard.pine, bindings.failed nennt 'SMC Decision Board' mit 'Existing chart instance not found' — der Vorfall, den #5231 behebt.",
+  "artifact": {
+    "schemaVersion": 2,
+    "executionMode": "verify-only",
+    "observedAt": "2026-08-31T05:27:13.743Z",
+    "generatedAt": "2026-08-31T05:27:13.743Z",
+    "completedAt": "2026-08-31T05:28:55.445Z",
+    "generated_at_unix": 1788154033,
+    "durationSeconds": 101.8,
+    "ok": false,
+    "repoCommitSha": "8ab492fffb6fbdf6afe608d9f39df5ce883a1d34",
+    "rolloutConfigSha256": "d7909a7061c46246e8c1252e0752604284c773938a4c4c2b4f1d23068ad684fa",
+    "productManifestVersion": 3,
+    "libraryReleaseVersion": 388,
+    "inputsMatchCommit": true,
+    "repositoryExpected": {
+      "rolloutConfigPath": "automation/tradingview/config/consumer-rollout.json",
+      "productManifestPath": "artifacts/tradingview/smc_product_cut_manifest.json",
+      "libraryReleaseManifestPath": "artifacts/tradingview/library_release_manifest.json",
+      "sources": [
+        {
+          "repoRelativePath": "SMC_Long_Dip_Suite.pine",
+          "scriptName": "SMC Long-Dip Suite",
+          "sha256": "2bdb9a58fd36228eff24dd647dfcb78eefed5e40b09e28fab4271e4866bef852",
+          "bytes": 217682
+        },
+        {
+          "repoRelativePath": "SMC_Breakout_Overlay.pine",
+          "scriptName": "SMC Breakout Overlay",
+          "sha256": "91bcab320fccdbb62354715d1076809e3b0e661ca2877cfb7d7bde4a4aff7c4c",
+          "bytes": 23567
+        },
+        {
+          "repoRelativePath": "SMC_Confluence_Hub.pine",
+          "scriptName": "SMC Confluence Hub",
+          "sha256": "41d52daab505b552a08f3b9483e08178da49eb4e2af22cb78a8b88d7cf00f00b",
+          "bytes": 13935
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Alerts.pine",
+          "scriptName": "SMC Long-Dip Alerts",
+          "sha256": "eaa75975758444c8b77aee0b432e2f59c6d6af8ab50dfc9eff7fce26965c64c1",
+          "bytes": 9056
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Dashboard.pine",
+          "scriptName": "SMC Long-Dip Dashboard",
+          "sha256": "c1a0f3b2378fb51ffdfe8ee7b874e7383376c21d003ab59e4f720492e59b1ab6",
+          "bytes": 125746
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Mobile.pine",
+          "scriptName": "SMC Long-Dip Mobile",
+          "sha256": "5876b41f1b8bc6ec1009d1b9ad44740dcc4fea902001ffcf954c083f401715d7",
+          "bytes": 12017
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Strategy.pine",
+          "scriptName": "SMC Long-Dip Strategy",
+          "sha256": "712807d593d0372e91122846218e1431634cd64f095e42b2b2b321b85bbcbde3",
+          "bytes": 13216
+        },
+        {
+          "repoRelativePath": "SMC_Setup_Check.pine",
+          "scriptName": "SMC Setup Check",
+          "sha256": "c8f4c5ef6da72ffe78eab2655a295991e84186a42d4299f8f75882f6564d12c2",
+          "bytes": 8123
+        },
+        {
+          "repoRelativePath": "SMC_Event_Overlay.pine",
+          "scriptName": "SMC Event Overlay",
+          "sha256": "eaaa97e2008f442703d0408daec6e4e126a4fc780b4ca856ea8395fa521ac6ea",
+          "bytes": 12192
+        },
+        {
+          "repoRelativePath": "SMC_Exit_Signal.pine",
+          "scriptName": "SMC Exit Signal",
+          "sha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+          "bytes": 13858
+        },
+        {
+          "repoRelativePath": "SMC_HTF_Confluence.pine",
+          "scriptName": "SMC HTF Confluence",
+          "sha256": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+          "bytes": 12690
+        },
+        {
+          "repoRelativePath": "SMC_Hold_Manager.pine",
+          "scriptName": "SMC Hold Manager",
+          "sha256": "a866aff4e484d3effb529744c951edaa1e046178fb188cdc7da43f3f9bb737bc",
+          "bytes": 27241
+        }
+      ],
+      "bindings": [
+        {
+          "repoRelativePath": "SMC_Long_Dip_Dashboard.pine",
+          "scriptName": "SMC Decision Board",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS ZoneActive",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS EntryBest",
+            "BUS EntryStrict",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS SourceKind",
+            "BUS StateCode",
+            "BUS TrendPack",
+            "BUS MetaPack",
+            "BUS LtfDeltaState",
+            "BUS SafeTrendState",
+            "BUS MicroProfileCode",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2",
+            "BUS SessionGateRow",
+            "BUS MarketGateRow",
+            "BUS VolaGateRow",
+            "BUS MicroSessionGateRow",
+            "BUS MicroFreshRow",
+            "BUS VolumeDataRow",
+            "BUS QualityEnvRow",
+            "BUS QualityStrictRow",
+            "BUS CloseStrengthRow",
+            "BUS EmaSupportRow",
+            "BUS AdxRow",
+            "BUS RelVolRow",
+            "BUS VwapRow",
+            "BUS ContextQualityRow",
+            "BUS QualityCleanRow",
+            "BUS QualityScoreRow",
+            "BUS SdConfluenceRow",
+            "BUS SdOscRow",
+            "BUS VolRegimeRow",
+            "BUS VolSqueezeRow",
+            "BUS ReadyBlockerCode",
+            "BUS StrictBlockerCode",
+            "BUS VolExpansionState",
+            "BUS DdviContextState",
+            "BUS ZoneObTop",
+            "BUS ZoneObBottom",
+            "BUS ZoneFvgTop",
+            "BUS ZoneFvgBottom",
+            "BUS SessionVwap",
+            "BUS AdxValue",
+            "BUS RelVolValue",
+            "BUS StretchZ",
+            "BUS StretchSupportMask",
+            "BUS LtfBullShare",
+            "BUS LtfBiasHint",
+            "BUS LtfVolumeDelta",
+            "BUS ObjectsCountPack",
+            "BUS LeanPackA",
+            "BUS LeanPackB",
+            "BUS PresetClassCode",
+            "BUS PresetRvolMin",
+            "BUS PresetHtfBiasMin",
+            "BUS PresetFvgQualGate",
+            "BUS PresetVolRegimeDef"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Strategy.pine",
+          "scriptName": "SMC Long-Dip Strategy",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS EntryBest",
+            "BUS EntryStrict",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Alerts.pine",
+          "scriptName": "SMC Long-Dip Alerts",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS ZoneActive",
+            "BUS Armed",
+            "BUS StateCode"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Setup_Check.pine",
+          "scriptName": "SMC Setup Check",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS Armed",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS StateCode"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Breakout_Overlay.pine",
+          "scriptName": "SMC Breakout Overlay",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS ZoneActive",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2",
+            "BUS ZoneObTop",
+            "BUS ZoneObBottom",
+            "BUS ZoneFvgTop",
+            "BUS ZoneFvgBottom"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Confluence_Hub.pine",
+          "scriptName": "SMC Confluence Hub",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS Armed",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS StateCode"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Long_Dip_Mobile.pine",
+          "scriptName": "SMC Long-Dip Mobile",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS StateCode"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Event_Overlay.pine",
+          "scriptName": "SMC Event Overlay",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS LeanPackA"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Exit_Signal.pine",
+          "scriptName": "SMC Exit Signal",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2"
+          ]
+        },
+        {
+          "repoRelativePath": "SMC_Hold_Manager.pine",
+          "scriptName": "SMC Hold Manager",
+          "expectedProducerName": "SMC Long-Dip Suite",
+          "labels": [
+            "BUS SchemaVersion",
+            "BUS ZoneActive",
+            "BUS Armed",
+            "BUS Confirmed",
+            "BUS Ready",
+            "BUS Trigger",
+            "BUS Invalidation",
+            "BUS QualityScore",
+            "BUS SourceKind",
+            "BUS StateCode",
+            "BUS StopLevel",
+            "BUS Target1",
+            "BUS Target2"
+          ]
+        }
+      ],
+      "libraryRelease": {
+        "expectedVersion": 388,
+        "publishedVersion": 388,
+        "publishStatus": "published",
+        "matches": true
+      }
+    },
+    "tradingViewObserved": {
+      "libraryRelease": {
+        "scriptName": "smc_micro_profiles_generated",
+        "manifestPublishedVersion": 388,
+        "observedVersion": 388,
+        "verdict": "match"
+      },
+      "sources": [
+        {
+          "scriptName": "SMC Long-Dip Suite",
+          "actualSha256": "cb9bd60540907bd7a2edb6a6dd93a5f001107a2b805a19ec199f26370a891c31",
+          "actualBytes": 220508,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Breakout Overlay",
+          "actualSha256": "91bcab320fccdbb62354715d1076809e3b0e661ca2877cfb7d7bde4a4aff7c4c",
+          "actualBytes": 23968,
+          "matchesRepository": true
+        },
+        {
+          "scriptName": "SMC Confluence Hub",
+          "actualSha256": "061b407279ad258f22e3ca87d164d4f2317cf84068afe825d76653bd22ed7e57",
+          "actualBytes": 14174,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Long-Dip Alerts",
+          "actualSha256": "4e2f63f26f2ac714a524d34f93a7006e455ec7de25c810c64b9c54c05b805691",
+          "actualBytes": 9169,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Long-Dip Dashboard",
+          "actualSha256": "646784ab317ddab4e826e3377b853db53476b1e16495a5641f5b053ad8b98024",
+          "actualBytes": 127844,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Long-Dip Mobile",
+          "actualSha256": "73df899ce958871590835db8e355f77473f2301a71a9b551d076ed5a8de090e5",
+          "actualBytes": 12186,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Long-Dip Strategy",
+          "actualSha256": "004e1f03f165629ba5380f8ac2dfc79d7a4c5049f968e9c44d30d5c18cae6a5a",
+          "actualBytes": 13410,
+          "matchesRepository": false
+        },
+        {
+          "scriptName": "SMC Setup Check",
+          "actualSha256": "c8f4c5ef6da72ffe78eab2655a295991e84186a42d4299f8f75882f6564d12c2",
+          "actualBytes": 8227,
+          "matchesRepository": true
+        },
+        {
+          "scriptName": "SMC Event Overlay",
+          "actualSha256": "eaaa97e2008f442703d0408daec6e4e126a4fc780b4ca856ea8395fa521ac6ea",
+          "actualBytes": 12395,
+          "matchesRepository": true
+        },
+        {
+          "scriptName": "SMC Exit Signal",
+          "actualSha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+          "actualBytes": 14071,
+          "matchesRepository": true
+        },
+        {
+          "scriptName": "SMC HTF Confluence",
+          "actualSha256": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+          "actualBytes": 12872,
+          "matchesRepository": true
+        },
+        {
+          "scriptName": "SMC Hold Manager",
+          "actualSha256": "7b48e5b9f9b68a4d34476b8610ab93ac21d1e8ebaefeac8fe911d8acc7136f3d",
+          "actualBytes": 27763,
+          "matchesRepository": false
+        }
+      ],
+      "bindings": [
+        {
+          "scriptName": "SMC Long-Dip Strategy",
+          "selections": [
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "matches": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "matches": true
+            },
+            {
+              "label": "BUS EntryBest",
+              "actual": "SMC Long-Dip Suite: BUS EntryBest",
+              "expected": "SMC Long-Dip Suite: BUS EntryBest",
+              "matches": true
+            },
+            {
+              "label": "BUS EntryStrict",
+              "actual": "SMC Long-Dip Suite: BUS EntryStrict",
+              "expected": "SMC Long-Dip Suite: BUS EntryStrict",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Long-Dip Alerts",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Setup Check",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Breakout Overlay",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "matches": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "matches": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneObTop",
+              "actual": "SMC Long-Dip Suite: BUS ZoneObTop",
+              "expected": "SMC Long-Dip Suite: BUS ZoneObTop",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneObBottom",
+              "actual": "SMC Long-Dip Suite: BUS ZoneObBottom",
+              "expected": "SMC Long-Dip Suite: BUS ZoneObBottom",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneFvgTop",
+              "actual": "SMC Long-Dip Suite: BUS ZoneFvgTop",
+              "expected": "SMC Long-Dip Suite: BUS ZoneFvgTop",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneFvgBottom",
+              "actual": "SMC Long-Dip Suite: BUS ZoneFvgBottom",
+              "expected": "SMC Long-Dip Suite: BUS ZoneFvgBottom",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Confluence Hub",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Long-Dip Mobile",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "matches": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Event Overlay",
+          "selections": [
+            {
+              "label": "BUS LeanPackA",
+              "actual": "SMC Long-Dip Suite: BUS LeanPackA",
+              "expected": "SMC Long-Dip Suite: BUS LeanPackA",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Exit Signal",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "matches": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "matches": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "matches": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        },
+        {
+          "scriptName": "SMC Hold Manager",
+          "selections": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "matches": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "matches": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "matches": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "matches": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "matches": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "matches": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "matches": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "matches": true
+            },
+            {
+              "label": "BUS SourceKind",
+              "actual": "SMC Long-Dip Suite: BUS SourceKind",
+              "expected": "SMC Long-Dip Suite: BUS SourceKind",
+              "matches": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "matches": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "matches": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "matches": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "matches": true
+            }
+          ],
+          "runtimeErrors": []
+        }
+      ]
+    },
+    "mutations": {
+      "sourceSaveRequested": false,
+      "sourceSavesCompleted": 0,
+      "producerRefreshRequested": false,
+      "producerInstancesRemoved": 0,
+      "consumerInstancesRemoved": 0,
+      "bindingRepairRequested": false,
+      "bindingsRepaired": 0,
+      "layoutSaveRequested": false,
+      "layoutSaved": false,
+      "savedChartUrls": [],
+      "abandonedChartUrls": [],
+      "partiallyRepairedChartUrls": [],
+      "savedWithoutAttestation": []
+    },
+    "outOfBandDrift": {
+      "status": "unknown",
+      "reason": "this run did not read every verify target (missing: SMC Decision Board)",
+      "changed": []
+    },
+    "save": {
+      "expected": 0,
+      "succeeded": [],
+      "failed": []
+    },
+    "producerRefresh": {
+      "requested": false,
+      "ok": true,
+      "removedInstances": 0,
+      "error": ""
+    },
+    "consumerRefresh": {
+      "requested": false,
+      "ok": true,
+      "removedInstances": 0,
+      "errors": []
+    },
+    "sources": {
+      "expected": 12,
+      "checked": 12,
+      "drifted": 7,
+      "consumers": [
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Long-Dip Suite",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Suite.pine",
+          "expectedSha256": "2bdb9a58fd36228eff24dd647dfcb78eefed5e40b09e28fab4271e4866bef852",
+          "actualSha256": "cb9bd60540907bd7a2edb6a6dd93a5f001107a2b805a19ec199f26370a891c31",
+          "expectedBytes": 217682,
+          "actualBytes": 220508,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 266
+        },
+        {
+          "ok": true,
+          "matches": true,
+          "scriptName": "SMC Breakout Overlay",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Breakout_Overlay.pine",
+          "expectedSha256": "91bcab320fccdbb62354715d1076809e3b0e661ca2877cfb7d7bde4a4aff7c4c",
+          "actualSha256": "91bcab320fccdbb62354715d1076809e3b0e661ca2877cfb7d7bde4a4aff7c4c",
+          "expectedBytes": 23567,
+          "actualBytes": 23968,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 7
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Confluence Hub",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Confluence_Hub.pine",
+          "expectedSha256": "41d52daab505b552a08f3b9483e08178da49eb4e2af22cb78a8b88d7cf00f00b",
+          "actualSha256": "061b407279ad258f22e3ca87d164d4f2317cf84068afe825d76653bd22ed7e57",
+          "expectedBytes": 13935,
+          "actualBytes": 14174,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 86
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Long-Dip Alerts",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Alerts.pine",
+          "expectedSha256": "eaa75975758444c8b77aee0b432e2f59c6d6af8ab50dfc9eff7fce26965c64c1",
+          "actualSha256": "4e2f63f26f2ac714a524d34f93a7006e455ec7de25c810c64b9c54c05b805691",
+          "expectedBytes": 9056,
+          "actualBytes": 9169,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 88
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Long-Dip Dashboard",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Dashboard.pine",
+          "expectedSha256": "c1a0f3b2378fb51ffdfe8ee7b874e7383376c21d003ab59e4f720492e59b1ab6",
+          "actualSha256": "646784ab317ddab4e826e3377b853db53476b1e16495a5641f5b053ad8b98024",
+          "expectedBytes": 125746,
+          "actualBytes": 127844,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 102
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Long-Dip Mobile",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Mobile.pine",
+          "expectedSha256": "5876b41f1b8bc6ec1009d1b9ad44740dcc4fea902001ffcf954c083f401715d7",
+          "actualSha256": "73df899ce958871590835db8e355f77473f2301a71a9b551d076ed5a8de090e5",
+          "expectedBytes": 12017,
+          "actualBytes": 12186,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 89
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Long-Dip Strategy",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Strategy.pine",
+          "expectedSha256": "712807d593d0372e91122846218e1431634cd64f095e42b2b2b321b85bbcbde3",
+          "actualSha256": "004e1f03f165629ba5380f8ac2dfc79d7a4c5049f968e9c44d30d5c18cae6a5a",
+          "expectedBytes": 13216,
+          "actualBytes": 13410,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 87
+        },
+        {
+          "ok": true,
+          "matches": true,
+          "scriptName": "SMC Setup Check",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Setup_Check.pine",
+          "expectedSha256": "c8f4c5ef6da72ffe78eab2655a295991e84186a42d4299f8f75882f6564d12c2",
+          "actualSha256": "c8f4c5ef6da72ffe78eab2655a295991e84186a42d4299f8f75882f6564d12c2",
+          "expectedBytes": 8123,
+          "actualBytes": 8227,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 3
+        },
+        {
+          "ok": true,
+          "matches": true,
+          "scriptName": "SMC Event Overlay",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Event_Overlay.pine",
+          "expectedSha256": "eaaa97e2008f442703d0408daec6e4e126a4fc780b4ca856ea8395fa521ac6ea",
+          "actualSha256": "eaaa97e2008f442703d0408daec6e4e126a4fc780b4ca856ea8395fa521ac6ea",
+          "expectedBytes": 12192,
+          "actualBytes": 12395,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 51
+        },
+        {
+          "ok": true,
+          "matches": true,
+          "scriptName": "SMC Exit Signal",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Exit_Signal.pine",
+          "expectedSha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+          "actualSha256": "82136e25457f2d0cc9754b84a410f01f6b880b2500624001d297e4ced3b5076c",
+          "expectedBytes": 13858,
+          "actualBytes": 14071,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 1
+        },
+        {
+          "ok": true,
+          "matches": true,
+          "scriptName": "SMC HTF Confluence",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_HTF_Confluence.pine",
+          "expectedSha256": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+          "actualSha256": "97ce835ed564522112dd207f6152925b54a7946b8252ece8bfa4891318f54f4f",
+          "expectedBytes": 12690,
+          "actualBytes": 12872,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 2
+        },
+        {
+          "ok": false,
+          "matches": false,
+          "scriptName": "SMC Hold Manager",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Hold_Manager.pine",
+          "expectedSha256": "a866aff4e484d3effb529744c951edaa1e046178fb188cdc7da43f3f9bb737bc",
+          "actualSha256": "7b48e5b9f9b68a4d34476b8610ab93ac21d1e8ebaefeac8fe911d8acc7136f3d",
+          "expectedBytes": 27241,
+          "actualBytes": 27763,
+          "readbackAuthority": "facade_saved_store",
+          "persistedVersion": 47
+        }
+      ],
+      "failed": []
+    },
+    "bindings": {
+      "expectedConsumers": 10,
+      "checkedConsumers": 9,
+      "plannedChartUrls": [
+        "https://www.tradingview.com/chart/vWgAWyfC/",
+        "https://www.tradingview.com/chart/hKHTmKhu/",
+        "https://www.tradingview.com/chart/twh98JLB/"
+      ],
+      "skippedChartUrls": [],
+      "checkedBindings": 67,
+      "mismatches": 0,
+      "evidence": [
+        "automation/tradingview/reports/screenshots/2026-08-31T05-27-13-743Z-settings-failure-smc-decision-board.json"
+      ],
+      "consumers": [
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Long-Dip Strategy",
+          "savedScriptName": "SMC Long-Dip Strategy",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Strategy.pine",
+          "checked": 8,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "ok": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "ok": true
+            },
+            {
+              "label": "BUS EntryBest",
+              "actual": "SMC Long-Dip Suite: BUS EntryBest",
+              "expected": "SMC Long-Dip Suite: BUS EntryBest",
+              "ok": true
+            },
+            {
+              "label": "BUS EntryStrict",
+              "actual": "SMC Long-Dip Suite: BUS EntryStrict",
+              "expected": "SMC Long-Dip Suite: BUS EntryStrict",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 5821,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Long-Dip Alerts",
+          "savedScriptName": "SMC Long-Dip Alerts",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Alerts.pine",
+          "checked": 4,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4816,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Setup Check",
+          "savedScriptName": "SMC Setup Check",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Setup_Check.pine",
+          "checked": 6,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4334,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Breakout Overlay",
+          "savedScriptName": "SMC Breakout Overlay",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Breakout_Overlay.pine",
+          "checked": 12,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "ok": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "ok": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneObTop",
+              "actual": "SMC Long-Dip Suite: BUS ZoneObTop",
+              "expected": "SMC Long-Dip Suite: BUS ZoneObTop",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneObBottom",
+              "actual": "SMC Long-Dip Suite: BUS ZoneObBottom",
+              "expected": "SMC Long-Dip Suite: BUS ZoneObBottom",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneFvgTop",
+              "actual": "SMC Long-Dip Suite: BUS ZoneFvgTop",
+              "expected": "SMC Long-Dip Suite: BUS ZoneFvgTop",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneFvgBottom",
+              "actual": "SMC Long-Dip Suite: BUS ZoneFvgBottom",
+              "expected": "SMC Long-Dip Suite: BUS ZoneFvgBottom",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 6861,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Confluence Hub",
+          "savedScriptName": "SMC Confluence Hub",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Confluence_Hub.pine",
+          "checked": 6,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4632,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Long-Dip Mobile",
+          "savedScriptName": "SMC Long-Dip Mobile",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Long_Dip_Mobile.pine",
+          "checked": 8,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "ok": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4453,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Event Overlay",
+          "savedScriptName": "SMC Event Overlay",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Event_Overlay.pine",
+          "checked": 1,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS LeanPackA",
+              "actual": "SMC Long-Dip Suite: BUS LeanPackA",
+              "expected": "SMC Long-Dip Suite: BUS LeanPackA",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4959,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Exit Signal",
+          "savedScriptName": "SMC Exit Signal",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Exit_Signal.pine",
+          "checked": 9,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "ok": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "ok": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "ok": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 4470,
+              "error": ""
+            }
+          ]
+        },
+        {
+          "ok": true,
+          "repair": false,
+          "forceRebind": false,
+          "repaired": [],
+          "unknownParentRuntimeError": false,
+          "runtimeErrors": [],
+          "scriptName": "SMC Hold Manager",
+          "savedScriptName": "SMC Hold Manager",
+          "sourcePath": "/home/runner/work/skipp-algo/skipp-algo/SMC_Hold_Manager.pine",
+          "checked": 13,
+          "mismatches": [],
+          "bindings": [
+            {
+              "label": "BUS SchemaVersion",
+              "actual": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "expected": "SMC Long-Dip Suite: BUS SchemaVersion",
+              "ok": true
+            },
+            {
+              "label": "BUS ZoneActive",
+              "actual": "SMC Long-Dip Suite: BUS ZoneActive",
+              "expected": "SMC Long-Dip Suite: BUS ZoneActive",
+              "ok": true
+            },
+            {
+              "label": "BUS Armed",
+              "actual": "SMC Long-Dip Suite: BUS Armed",
+              "expected": "SMC Long-Dip Suite: BUS Armed",
+              "ok": true
+            },
+            {
+              "label": "BUS Confirmed",
+              "actual": "SMC Long-Dip Suite: BUS Confirmed",
+              "expected": "SMC Long-Dip Suite: BUS Confirmed",
+              "ok": true
+            },
+            {
+              "label": "BUS Ready",
+              "actual": "SMC Long-Dip Suite: BUS Ready",
+              "expected": "SMC Long-Dip Suite: BUS Ready",
+              "ok": true
+            },
+            {
+              "label": "BUS Trigger",
+              "actual": "SMC Long-Dip Suite: BUS Trigger",
+              "expected": "SMC Long-Dip Suite: BUS Trigger",
+              "ok": true
+            },
+            {
+              "label": "BUS Invalidation",
+              "actual": "SMC Long-Dip Suite: BUS Invalidation",
+              "expected": "SMC Long-Dip Suite: BUS Invalidation",
+              "ok": true
+            },
+            {
+              "label": "BUS QualityScore",
+              "actual": "SMC Long-Dip Suite: BUS QualityScore",
+              "expected": "SMC Long-Dip Suite: BUS QualityScore",
+              "ok": true
+            },
+            {
+              "label": "BUS SourceKind",
+              "actual": "SMC Long-Dip Suite: BUS SourceKind",
+              "expected": "SMC Long-Dip Suite: BUS SourceKind",
+              "ok": true
+            },
+            {
+              "label": "BUS StateCode",
+              "actual": "SMC Long-Dip Suite: BUS StateCode",
+              "expected": "SMC Long-Dip Suite: BUS StateCode",
+              "ok": true
+            },
+            {
+              "label": "BUS StopLevel",
+              "actual": "SMC Long-Dip Suite: BUS StopLevel",
+              "expected": "SMC Long-Dip Suite: BUS StopLevel",
+              "ok": true
+            },
+            {
+              "label": "BUS Target1",
+              "actual": "SMC Long-Dip Suite: BUS Target1",
+              "expected": "SMC Long-Dip Suite: BUS Target1",
+              "ok": true
+            },
+            {
+              "label": "BUS Target2",
+              "actual": "SMC Long-Dip Suite: BUS Target2",
+              "expected": "SMC Long-Dip Suite: BUS Target2",
+              "ok": true
+            }
+          ],
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 5137,
+              "error": ""
+            }
+          ]
+        }
+      ],
+      "failed": [
+        {
+          "target": "SMC Decision Board",
+          "error": "Existing chart instance not found: SMC Decision Board",
+          "attempts": [
+            {
+              "attempt": 1,
+              "durationMs": 476,
+              "error": "Existing chart instance not found: SMC Decision Board"
+            },
+            {
+              "attempt": 2,
+              "durationMs": 2967,
+              "error": "Existing chart instance not found: SMC Decision Board"
+            }
+          ],
+          "evidence": "2026-08-31T05-27-13-743Z-settings-failure-smc-decision-board.png"
+        }
+      ]
+    }
+  }
+}

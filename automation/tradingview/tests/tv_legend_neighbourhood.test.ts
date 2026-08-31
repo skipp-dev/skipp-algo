@@ -19,7 +19,7 @@ const row = (text: string, y: number, extra: Partial<{ x: number; width: number;
 });
 
 const legend = [
-  row("SMC Long-Dip Dashboard · 12.0", 100),
+  row("SMC Decision Board · 12.0", 100),
   row("SMC Long-Dip Strategy · 70.0", 120),
   row("SMC Long-Dip Alerts · 69.0", 140),
   row("SMC Setup Check · 8.0", 160),
@@ -45,7 +45,7 @@ test("rows are ordered by position, not by the order they were found", () => {
 
 test("a target at the top or bottom yields the one neighbour it has", () => {
   assert.deepEqual(
-    selectLegendNeighbourhood(legend, "SMC Long-Dip Dashboard").map((entry) => entry.box.y),
+    selectLegendNeighbourhood(legend, "SMC Decision Board").map((entry) => entry.box.y),
     [100, 120],
   );
   assert.deepEqual(

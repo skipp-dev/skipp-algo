@@ -53,7 +53,7 @@ def test_core_has_decision_first_hero_contract() -> None:
 
 
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert 'var string g_surface = "1. Product Surface"' in source
     assert 'var string g_bus_lifecycle = "2. Chart Link - Decision State"' in source
@@ -61,8 +61,8 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Decision Brief | Linked setup active"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Audit View | Expert review only", header_bg, txt)' in source
     assert 'dashboard_row(smc_dashboard, 1, "Market"' in source
     assert 'dashboard_row(smc_dashboard, 2, "Structure"' in source
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
@@ -98,9 +98,9 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     to 9. Pin every row so a future row insert/shift fails fast and
     forces the author to update the IA contract together.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board v7", "Hero | Decision-first surface"' in source
     assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
@@ -127,7 +127,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
     tooltip explaining family / calibrated weight / tier / source. The
     helper itself must trim long strings to stay under Pine's tooltip
     char limit."""
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     # Helper exists and trims defensively.
     assert "dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>" in source
@@ -161,7 +161,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
 def test_dashboard_visual_consolidation_publishes_tier_and_icon_tokens() -> None:
     """Plan 1.6 — single source of truth for tier colours and icon glyphs.
     Hero one-liner must paint its background from these tokens."""
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert "var color CLR_TIER_T1" in source
     assert "var color CLR_TIER_T2" in source
@@ -281,7 +281,7 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
     feature matrix at rows 76/77 so the existing audit-row pin tests keep
     working.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     # Table size + final clear range must accommodate the new rows.
     # Grew 78 → 80 rows when Universe Status rows were appended above the
@@ -351,7 +351,7 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
 
 def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
     core = _read("SMC++/smc_engine_private.pine")
-    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
+    dashboard = _read("SMC_Decision_Board.pine")
 
     for tier in ["High", "Guarded", "Degraded", "Insufficient"]:
         assert f"'{tier}'" in core, f"Core must contain trust tier '{tier}'"
@@ -387,7 +387,7 @@ def test_core_trust_resolution_defaults_to_insufficient() -> None:
 
 
 def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
-    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
+    dashboard = _read("SMC_Decision_Board.pine")
 
     func_start = dashboard.index("resolve_dashboard_trust_tier(")
     func_body = dashboard[func_start:func_start + 600]
@@ -606,7 +606,7 @@ def test_dashboard_subscribes_to_preset_bus_contract() -> None:
     contract via input.source bindings, otherwise the onboarding tooltip
     has no way to detect CUSTOM preset state.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert 'var string g_bus_preset = "9. Chart Link - Preset Contract"' in source
     assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
@@ -621,7 +621,7 @@ def test_dashboard_hero_row_carries_h5_onboarding_tooltip() -> None:
     Hero row shows a 4-Click onboarding nudge, otherwise it shows a
     calibrated-defaults hint citing the BUS Preset contract.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert "int _hero_preset_code = int(math.round(src_preset_class_code))" in source
     assert "_hero_preset_code == 0 ?" in source
@@ -637,7 +637,7 @@ def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
     must accept the SHA argument and emit a 'sha:<7chars>' segment when
     the SHA token is present in Hero Token Order.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert 'calibration_sha = input.string("", "Calibration SHA"' in source
     # Composer signature now carries an optional sha argument; SHA token
@@ -662,7 +662,7 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
     The override is unconditional (not gated on existing blocker text)
     so a 30-day SLO violation cannot be hidden by an empty risk field.
     """
-    source = _read("SMC_Long_Dip_Dashboard.pine")
+    source = _read("SMC_Decision_Board.pine")
 
     assert 'calibration_breach_banner = input.bool(false, "Calibration Breach Banner"' in source
     assert "if calibration_breach_banner" in source
@@ -677,7 +677,7 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
 
 def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
     core = _read("SMC_Long_Dip_Suite.pine")
-    dashboard = _read("SMC_Long_Dip_Dashboard.pine")
+    dashboard = _read("SMC_Decision_Board.pine")
     strategy = _read("SMC_Long_Dip_Strategy.pine")
     utils = _read("SMC++/smc_utils.pine")
     resolvers = _read("SMC++/smc_context_resolvers.pine")

@@ -12,7 +12,7 @@
 
 - **SMC Long-Dip Suite** — the chart surface (Lite): structure, context,
   invalidation and explicit uncertainty, decision-first.
-- **Pro companions:** SMC Long-Dip Dashboard, SMC Long-Dip Strategy, SMC Confluence Hub.
+- **Pro companions:** SMC Decision Board, SMC Long-Dip Strategy, SMC Confluence Hub.
 
 ## What you don't see
 

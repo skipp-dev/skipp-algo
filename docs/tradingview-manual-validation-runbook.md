@@ -15,7 +15,7 @@ Dieses Runbook dient der externen manuellen TradingView-Laufzeitvalidierung des 
 Geprüft werden:
 
 1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. Dashboard-Consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+2. Dashboard-Consumer: [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
 3. Strategy-Consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. Event-Overlay: [../SMC_Event_Overlay.pine](../SMC_Event_Overlay.pine)
 5. Exit-Signal: [../SMC_Exit_Signal.pine](../SMC_Exit_Signal.pine)
@@ -29,7 +29,7 @@ Repo-Regressionen abgesichert.
 ## Benötigte Dateien
 
 1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+2. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
 3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template.md](tradingview-manual-validation-report-template.md)
@@ -187,7 +187,7 @@ Fail:
 
 ### Dashboard Schrittfolge
 
-1. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) auf denselben Chart legen.
+1. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) auf denselben Chart legen.
 2. Alle 64 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sicherstellen, dass `View = Decision Brief` aktiv ist und die
    Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten

@@ -108,8 +108,29 @@ def _changed_files(commit_range: str) -> frozenset[str]:
     return frozenset(line.strip() for line in proc.stdout.splitlines() if line.strip())
 
 
-def _ledger_ids_at(rev: str) -> frozenset[str]:
-    """Eintrags-Ids, wie sie bei ``rev`` standen. Leer, wenn es sie nicht gab."""
+def _range_head(commit_range: str) -> str:
+    """Die rechte Seite von ``A..B``/``A...B`` -- der Stand, den der Bereich behauptet.
+
+    Der ARBEITSBAUM ist dieser Stand nicht: fast-gates checkt den Merge des
+    Branches mit dem aktuellen main aus, und der traegt fremde Eintraege, die
+    der Bereich nie hinzugefuegt hat.
+
+    Bewusst nur Zeichenketten-Arbeit und KEIN eigener ``git rev-parse``: das
+    Aufloesen macht ``_ledger_ids_at`` ohnehin, und eine zusaetzliche
+    ``subprocess``-Stelle waere hier ins Ledger einzutragen gewesen, ohne etwas
+    zu koennen, was der vorhandene Aufruf nicht schon kann. Das Repo verlangt
+    genau diese Frage zuerst.
+    """
+    for trenner in ("...", ".."):
+        if trenner in commit_range:
+            return commit_range.split(trenner, 1)[1].strip()
+    return commit_range.strip()
+
+
+def _ledger_ids_at(
+    rev: str, *, missing: frozenset[str] | None = frozenset()
+) -> frozenset[str] | None:
+    """Eintrags-Ids, wie sie bei ``rev`` standen. ``missing``, wenn nicht lesbar."""
     proc = subprocess.run(  # noqa: S603
         ["git", "show", f"{rev}:proof_ledger.toml"],  # noqa: S607
         # check=False (deliberate): a non-zero rc here means the file did not
@@ -119,7 +140,12 @@ def _ledger_ids_at(rev: str) -> frozenset[str]:
         capture_output=True, text=True, check=False, cwd=ROOT,
     )
     if proc.returncode != 0:
-        return frozenset()
+        # 2026-08-31: der Aufrufer entscheidet, was "nicht lesbar" bedeutet.
+        # Fuer die Merge-Basis ist die leere Menge richtig (die Datei gab es
+        # dort noch nicht). Fuer den Bereichs-KOPF waere sie fail-open: alles
+        # saehe nach "nichts hinzugefuegt" aus. Deshalb `missing` statt einer
+        # festen Antwort -- dieselbe Stelle, zwei ehrliche Lesarten.
+        return missing
     data = tomllib.loads(proc.stdout)
     return frozenset(str(e["id"]) for e in data.get("proof", []) if e.get("id"))
 
@@ -250,7 +276,29 @@ def main(argv: list[str] | None = None) -> int:
     # ohne `--pr` (main-Push, merge_group, Aufrufe mit synthetischem Bereich)
     # darf sich am bisherigen Verhalten nichts aendern.
     if args.pr_number:
-        added = after - _ledger_ids_at(_merge_base_commit(args.commit_range))
+        # 2026-08-31: `after` (der ARBEITSBAUM) ist hier die falsche Seite.
+        # fast-gates checkt `refs/remotes/pull/<n>/merge` aus -- also den Branch
+        # PLUS dem aktuellen main. Jeder Beweis-Eintrag, der nach dem Oeffnen
+        # des PR auf main landet, steht damit im Baum und sah aus wie "von
+        # diesem PR hinzugefuegt". Gemessen an #5217: Basis `5e6f558ba` (main
+        # bei Eroeffnung 07:43Z) kennt #5218 nicht, main um 09:41Z schon -- der
+        # Waechter klagte einen voellig korrekten PR an, dessen eigener Bereich
+        # NUR `id = "5217"` hinzufuegt. Das trifft jeden PR, der hinter main
+        # liegt, waehrend main einen Eintrag bekommt: in diesem Repo Routine.
+        #
+        # Die richtige Frage ist "was fuegt DIESER BEREICH hinzu", und beide
+        # Enden gehoeren dafuer aus git, nicht aus dem Checkout.
+        am_kopf = _ledger_ids_at(_range_head(args.commit_range), missing=None)
+        if am_kopf is None:
+            print(
+                "HINWEIS: Bereichs-Kopf nicht aufloesbar — die Nummernpruefung "
+                "faellt auf den Arbeitsbaum zurueck und kann fremde Eintraege "
+                "eines Merge-Checkouts mitzaehlen.",
+                file=sys.stderr,
+            )
+            am_kopf = after
+        basis = _ledger_ids_at(_merge_base_commit(args.commit_range)) or frozenset()
+        added = am_kopf - basis
         fremd = guessed_pr_numbers(added, args.pr_number)
         if fremd:
             print(

@@ -364,7 +364,7 @@ def _apply_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
             "bindings_checked": 13,
             "mismatches": 0,
             "consumers": [
-                {"name": "SMC Long-Dip Dashboard", "ok": 1, "bindings": 64, "mismatches": 0}
+                {"name": "SMC Decision Board", "ok": 1, "bindings": 64, "mismatches": 0}
             ],
             "binding_expected_consumers": 10,
             "binding_checked_consumers": 10,

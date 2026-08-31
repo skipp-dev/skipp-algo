@@ -49,7 +49,7 @@ def test_a_label_an_active_producer_still_publishes_is_not_a_stranded_binding() 
     # for any surface that shared a single label with the engine.
     findings = find_active_label_consumers(
         archived_labels={ARCHIVED: ("BUS SchemaVersion",)},
-        active_sources={"SMC_Long_Dip_Dashboard.pine": _consumer("BUS SchemaVersion")},
+        active_sources={"SMC_Decision_Board.pine": _consumer("BUS SchemaVersion")},
         labels_still_published_by_active=frozenset({"BUS SchemaVersion"}),
     )
     assert findings == {}

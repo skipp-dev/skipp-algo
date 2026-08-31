@@ -16,7 +16,7 @@ Dieses Dokument haertet die erste Decision-First-Auslieferung fuer R1.1.
 Es deckt drei operative Themen ab:
 
 1. sichere Preset- und Default-Migration fuer bestehende Nutzer,
-2. den operator-only Workflow fuer `SMC_Long_Dip_Dashboard.pine` als Companion-Surface.
+2. den operator-only Workflow fuer `SMC_Decision_Board.pine` als Companion-Surface.
 3. den Wrapper- und Binding-Workflow fuer `SMC_Long_Dip_Strategy.pine`.
 
 ## R1.1 Scope
@@ -34,7 +34,7 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 1. `compact_mode` bleibt die bestehende Kernvariable in `SMC_Long_Dip_Suite.pine`.
    Die sichtbare Bezeichnung lautet jetzt `Focus View`, aber der
    Schalter bleibt visual-only und ist fuer den First-Run jetzt standardmaessig aktiv.
-2. `surface_mode` in `SMC_Long_Dip_Dashboard.pine` bleibt ein Visualisierungsmodus.
+2. `surface_mode` in `SMC_Decision_Board.pine` bleibt ein Visualisierungsmodus.
    `Decision Brief` ist die Default-Surface, `Audit View` ist opt-in.
 3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
    `SMC_Long_Dip_Strategy.pine` bleiben Wrapper-Controls. Sichtbar heissen sie
@@ -52,18 +52,18 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 | Surface | Default | Hard Rule |
 | --- | --- | --- |
 | `SMC_Long_Dip_Suite.pine` | `compact_mode = true` mit `Focus View` als First-Run-Default | Visual-only, keine neue Engine-Semantik |
-| `SMC_Long_Dip_Dashboard.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
+| `SMC_Decision_Board.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
 | `SMC_Long_Dip_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
 ## Settings Surface Order
 
 - `SMC_Long_Dip_Suite.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
-- `SMC_Long_Dip_Dashboard.pine` startet mit `Product Surface`; die acht Binding-Gruppen heissen `Chart Link`, die Debug-Mirrors und die manuellen Overrides `Advanced` (bis 2026-08-12 hiessen alle neun `Operator Only`).
+- `SMC_Decision_Board.pine` startet mit `Product Surface`; die acht Binding-Gruppen heissen `Chart Link`, die Debug-Mirrors und die manuellen Overrides `Advanced` (bis 2026-08-12 hiessen alle neun `Operator Only`).
 - `SMC_Long_Dip_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke heissen seit 2026-08-28 `Chart Link` (vorher `Expert Mapping`) und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
 
 ## Operator-Only Companion Workflow
 
-`SMC_Long_Dip_Dashboard.pine` und `SMC_Long_Dip_Strategy.pine` bleiben operator-only
+`SMC_Decision_Board.pine` und `SMC_Long_Dip_Strategy.pine` bleiben operator-only
 Consumer-Skripte.
 
 Das bedeutet:
@@ -83,7 +83,7 @@ Das bedeutet:
 ## Binding Workflow
 
 1. `SMC_Long_Dip_Suite.pine` auf den Chart legen und die BUS-Exports aktiv lassen.
-2. `SMC_Long_Dip_Dashboard.pine` als Companion hinzufuegen.
+2. `SMC_Decision_Board.pine` als Companion hinzufuegen.
 3. Die `input.source(...)`-Kanaele exakt in der manifest-konformen BUS binding
    order von oben nach unten verbinden.
 4. `SMC_Long_Dip_Strategy.pine` hinzufuegen.

@@ -1998,8 +1998,8 @@ owner  = "@preuss_steffen"
 [[proof]]
 id              = "5197"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-29T17:09:31Z"
+merge_sha       = "b50336c81"
 claim           = """
 Ein quittierter Lauf wird AUSGEWIESEN statt weggelassen. Vorher uebersprang
 `PHANTOM_RUN_IDS` ihn per `continue` in beidem — Urteil UND Bericht; in der Form
@@ -2026,8 +2026,8 @@ owner           = "@preuss_steffen"
 [[proof]]
 id              = "5204"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-30T07:11:53Z"
+merge_sha       = "dbf2d443c"
 claim           = """
 Der Routing-Upsert liest zurueck, was er gesendet hat. Am 2026-08-30 waren beide
 Publish-Workflows gruen, und vier Routen-Felder (group_by, group_wait,
@@ -2039,7 +2039,7 @@ derselben Reihenfolge (continue:false laesst die erste passende gewinnen), inkl.
 Routenzahl. Abweichung wirft.
 """
 witness         = "live-overlay-notification-routing-publish"
-witness_job     = "publish"
+witness_job     = "publish-notification-routing"
 evidence_source = "job_log"
 artifact        = ""
 # Existiert erst seit dieser Aenderung und traegt zugleich die ZAHL: eine
@@ -2072,8 +2072,8 @@ owner  = "@preuss_steffen"
 [[proof]]
 id              = "5208"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-30T23:05:17Z"
+merge_sha       = "2c682f593"
 claim           = """
 Der alert-rules-Upsert liest zurueck, was ankam. Er schreibt 172 Regeln und
 hatte bis 2026-08-31 keine Verifikation: seine zwei GET sind Vorab-Lookups
@@ -2085,7 +2085,7 @@ wird je uid, `for` normalisiert (Grafana schreibt Dauern um: 24h->1d,
 Regeln traegt als die Datei.
 """
 witness         = "live-overlay-alert-rules-publish"
-witness_job     = "publish"
+witness_job     = "publish-alert-rules"
 evidence_source = "job_log"
 artifact        = ""
 version_probe   = "rules-readback:"
@@ -2095,6 +2095,86 @@ judge           = "routing_readback"
 state           = "OFFEN"
 due_by          = "2026-09-07"
 owner           = "@preuss_steffen"
+
+[[proof]]
+id              = "5218"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = """
+Die Praesenz-Ueberwachung sagt jetzt, wenn sie AUS ist — und sie kann erstmals
+eingeschaltet werden, ohne taeglichen Fehlalarm zu erzeugen.
+
+Gemessen 2026-08-31 ueber die ganze Alarmpopulation: von 193 Metriknamen in 170
+Regeln hatte GENAU EINE in 7 Tagen keine Zeitreihe,
+`live_overlay_github_workflow_expected_present`. Die einzige Regel darauf ist
+die, die "ein deklarierter Workflow laeuft gar nicht mehr" erkennen soll, und
+sie ist fail-open formuliert (`or on() vector(0)`) — ihre Stille sah aus wie
+Gesundheit.
+
+Die naheliegende Abhilfe waere gewesen, GITHUB_WORKFLOW_MONITOR_EXPECTED zu
+setzen. Das haette es SCHLIMMER gemacht: `expected_present` urteilte gegen die
+geteilte Lauf-Seite, und die deckte an dem Tag neun Stunden ab (am 2026-08-20
+fuenf). Ein taeglicher Workflow fehlt darauf zwei Drittel des Tages; die Regel
+laeuft mit `for: 6h` — sie haette JEDEN TAG gefeuert.
+
+Deshalb zwei Teile: die Praesenz wird je Workflow EINZELN ermittelt (eigener
+Zyklus, ~180 statt ~3600 API-Calls/h), und der taegliche Coverage-Check nennt
+seinen gemessenen Umfang, statt zu schweigen.
+"""
+witness         = "meta-watchdog"
+witness_job     = "probe"
+evidence_source = "job_log"
+artifact        = ""
+version_probe   = "Praesenz-Zeitreihen :"
+judge           = "presence_probe_count"
+state           = "OFFEN"
+due_by          = "2026-09-07"
+owner           = "@preuss_steffen"
+
+# --- Zweige von `presence_probe_count` ---------------------------------------
+# Kein Korpus beim Landen: der Zeuge ist der taegliche meta-watchdog-Lauf auf
+# main, den es mit dieser Fassung noch nicht gab. Gleicher Stolperdraht wie bei
+# `routing_readback` — erreicht echte Evidenz einen dieser Zweige, wird der
+# Widerspruchs-Test rot und erzwingt das Entfernen der Deklaration.
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "counted"
+reason = """
+Der Normalfall und der einzige Zweig, der beim ersten meta-watchdog-Lauf nach
+dem Merge sicher feuert -- mit dem Wert 0, solange
+GITHUB_WORKFLOW_MONITOR_EXPECTED leer ist. Beim Landen gibt es ihn noch nicht
+als Korpus, weil der Zeuge den Lauf auf main voraussetzt.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "probe_degraded"
+reason = """
+Der Praesenz-Arm meldet UNGESICHERT, wenn seine eigene Abfrage scheitert. Ein
+Korpus dafuer braucht einen echten API-Ausfall waehrend eines echten Laufs --
+nichts, was sich herbeifuehren laesst, ohne den Zustand zu faelschen. Bewusst
+KEIN Fehlschlag: den korrekten Degradations-Zustand anzuklagen waere ein
+Waechter gegen einen gesunden Lauf.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "marker_missing"
+reason = """
+Log ohne die Zeile 'Praesenz-Zeitreihen : N': dann laeuft eine Fassung vor
+#5218. Das ist die Versionsprobe in Zweigform und erreicht per Definition
+keinen Korpus, sobald die Aenderung auf main ist.
+"""
+
+[[unreachable_branch]]
+judge  = "presence_probe_count"
+branch = "no_log"
+reason = """
+Leere Evidenz -- der Zeugensammler lieferte kein Log. Erreicht kein Korpus,
+weil ein Korpus aus gelieferten Logs besteht. Fail-closed statt Urteil.
+"""
 
 # --- Zweige von `routing_readback` ------------------------------------------
 # Kein Korpus beim Landen: der Zeuge entsteht erst durch den Publish-Lauf auf
@@ -2363,7 +2443,11 @@ id              = "rolling-bench-two-windows"
 kind            = "fix"
 claim           = "Der Rolling-Benchmark laeuft je Werktag noch zweimal statt bis zu neunmal: einmal im Fenster 11:00-12:30 UTC fuer die Tages-Gates, einmal ab 20:00 UTC fuer die reifsten Labels. Uebersprungene Fires kosten nur den Gate-Job; ein blindes Gate laeuft, statt still zu stoppen."
 witness         = "smc-measurement-benchmark-rolling"
-witness_job     = "gate"
+# 2026-08-31: war "gate" — ein Job dieses Namens existiert im Zeugen nicht
+# (cadence-gate / select-runner / rolling-benchmark). Der Eintrag war damit
+# nicht urteilsfaehig. `cadence-gate` ruft decide_rolling_benchmark_run.py auf,
+# das die Sonde `[bench-gate] run=` ausgibt.
+witness_job     = "cadence-gate"
 evidence_source = "job_log"
 artifact        = ""
 version_probe   = "[bench-gate] run="
@@ -2550,3 +2634,97 @@ claim  = "Der Ablauf-Empfaenger meldet NICHT durch die ausgefallene Schicht (AST
 state  = "AUSGENOMMEN"
 due_by = "2026-08-30"
 owner  = "operator"
+
+# ---------------------------------------------------------------------------
+# #5231 — Geburtsfehler vom April: Quelle deklarierte seit dem 15.4.
+# "SMC Long-Dip Dashboard", die Rollout-Config suchte "SMC Decision Board".
+# Jeder tv-save-Lauf seit mind. 2026-08-29 warf "Existing chart instance not
+# found" gegen ein gesundes Chart; outOfBandDrift blieb "unknown" und
+# repairE2ETarget war unerreichbar (plausibel der fehlende Zeuge fuer 5025).
+# Die Suite kann die Wirkung nicht sehen — sie liegt im Playwright-Lauf gegen
+# das echte Chart. Zeuge ist der naechste Lauf nach dem Merge, der den
+# Konsumenten wirklich LIEST, statt ihn nicht zu finden.
+# ---------------------------------------------------------------------------
+[[proof]]
+id              = "5231"
+kind            = "fix"
+merged_at       = "<wird beim Merge nachgetragen>"
+merge_sha       = "<dito>"
+claim           = "Nach dem Rename (Titel == Datei == Config == 'SMC Decision Board') findet die Verify-/Save-Kette das Decision Board wieder: der Konsument wird gelesen (ok=true) statt 'Existing chart instance not found', und outOfBandDrift kann wieder urteilen"
+witness         = "tv-save-consumer-source"
+witness_job     = "save"
+evidence_source = "artifact"
+artifact        = "tradingview-consumer-bindings"
+# Erst der Rename-Baum traegt SMC_Decision_Board.pine in repositoryExpected —
+# ein Lauf ohne sie ist Vor-Fix-Code; seine Abwesenheit beweist nichts.
+version_probe   = "SMC_Decision_Board.pine"
+judge           = "tv_decision_board_resolvable"
+state           = "OFFEN"
+due_by          = "2026-09-06"
+owner           = "operator"
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "no_artifact"
+reason = """
+2026-08-31: Die Versionsprobe (repositoryExpected traegt SMC_Decision_Board.pine)
+steht VOR allen anderen Zweigen, und jeder bis heute aufgezeichnete Lauf traegt
+den Vor-Rename-Baum — ein echtes Artefakt kann diesen Zweig erst NACH dem Merge
+von #5231 erreichen. no_artifact zusaetzlich: der Monitor liefert bei fehlendem
+Download gar kein dict; aufgezeichnet wird so etwas nicht. Nachtrag mit dem
+ersten Post-Merge-Lauf; der Ledger-Eintrag 5231 (due_by 2026-09-06) ist der
+Stolperdraht, der diesen Nachtrag erzwingt.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "empty_observation"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor; alle
+aufgezeichneten Laeufe = Vor-Rename-Baum, sie enden in pre_fix_tree). Die
+Zweig-Logik selbst ist die bekannte Klasse checkedConsumers=0 (Laeufe 762/765/
+768/770 vom 22.8. zeigten sie live, damals natuerlich am alten Baum). Nachtrag
+mit dem ersten Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "still_not_found"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge — dieser Zweig IST der Vorfall
+(Lauf 33360522727 zeigt ihn), aber jeder aufgezeichnete Lauf traegt den
+Vor-Rename-Baum und faellt deshalb VORHER in pre_fix_tree. Feuert er nach dem
+Merge, ist das der FAIL-Beweis, dass der Rename nicht gereicht hat. Nachtrag
+mit dem ersten Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "board_read_ok"
+reason = """
+2026-08-31: der PASS-Zweig — per Konstruktion erst nach dem Merge erreichbar
+(Versionsprobe verlangt den Rename-Baum). Sobald ein Post-Merge-Lauf ihn
+erreicht, wird er als echter Korpus nachgetragen und diese Deklaration
+geloescht. Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "found_but_not_ok"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor). Der
+Zweig deckt Klasse-H-Reste ab: Konsument gefunden, aber Settings-Lesen
+scheitert (ok=false) — vor dem Rename nicht aufzeichenbar, weil pre_fix_tree
+zuerst greift. Nachtrag mit dem ersten Post-Merge-Lauf, Stolperdraht =
+Eintrag 5231 due_by 2026-09-06.
+"""
+
+[[unreachable_branch]]
+judge  = "tv_decision_board_resolvable"
+branch = "board_not_in_run"
+reason = """
+2026-08-31: erreichbar erst nach dem Merge (Versionsprobe steht davor). Der
+Zweig faengt Laeufe, die das Board weder pruefen noch als gescheitert fuehren
+(z. B. Teil-Rollouts mit anderem Zielsatz). Nachtrag mit dem ersten
+Post-Merge-Lauf, Stolperdraht = Eintrag 5231 due_by 2026-09-06.
+"""

@@ -9,7 +9,7 @@ This runbook describes the external manual TradingView runtime validation for th
 The validation covers:
 
 1. Producer: [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. Dashboard consumer: [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+2. Dashboard consumer: [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
 3. Strategy consumer: [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 
 The goal is a clear pass/fail decision for the current TradingView contract state without making ad-hoc changes to production logic.
@@ -17,7 +17,7 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 ## Required Files
 
 1. [../SMC_Long_Dip_Suite.pine](../SMC_Long_Dip_Suite.pine)
-2. [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine)
+2. [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine)
 3. [../SMC_Long_Dip_Strategy.pine](../SMC_Long_Dip_Strategy.pine)
 4. [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 5. [tradingview-manual-validation-report-template_EN.md](tradingview-manual-validation-report-template_EN.md)
@@ -168,7 +168,7 @@ Fail:
 
 ### Dashboard Steps
 
-1. Add [../SMC_Long_Dip_Dashboard.pine](../SMC_Long_Dip_Dashboard.pine) to the same chart.
+1. Add [../SMC_Decision_Board.pine](../SMC_Decision_Board.pine) to the same chart.
 2. Bind all 64 `input.source()` fields exactly to the core series.
 3. Confirm that `View = Decision Brief` is active and that `Show Brief Panel` plus `Show Trade Plan` produce the expected companion cut.
 4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.

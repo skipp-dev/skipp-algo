@@ -193,7 +193,7 @@ indistinguishable from noise.
 - Adds the `ZONE_CAL_TRUST` export as a forward-compatible hook
   for the WS2 Trust-State refactor — `STALE` is already in the
   vocabulary, to be wired in when freshness metadata lands.
-- Existing Pine guards (`SMC_Long_Dip_Dashboard.pine` L1399, L1593:
+- Existing Pine guards (`SMC_Decision_Board.pine` L1399, L1593:
   `mp.ZONE_HR_FVG <= 0.0`) catch the new `-1.0` sentinel without
   Pine-side code changes.
 - One-line change to the Q3 H2 smoke expectation (it now reports

@@ -35,7 +35,8 @@ The three are kept identical by **not fighting them apart**:
   the number comes from TradingView.
 
 Main products share the **`SMC Long-Dip`** prefix so the indicator and its
-strategy read as one family.
+strategy read as one family. **Companion products are exempt from the prefix**
+(see below) — and from nothing else.
 
 ## Canonical names — main products
 
@@ -43,8 +44,35 @@ strategy read as one family.
 |------------------------------|--------------------------------------------|
 | `SMC_Long_Dip_Suite.pine` | **SMC Long-Dip Suite** |
 | `SMC_Long_Dip_Strategy.pine` | **SMC Long-Dip Strategy** |
-| `SMC_Long_Dip_Dashboard.pine` | **SMC Long-Dip Dashboard** |
 | `SMC_Long_Dip_Mobile.pine` | **SMC Long-Dip Mobile** |
+
+## Companion products
+
+**Owner decision 2026-08-31.** A *companion* is a user-facing product that is
+sold and documented under its **own product name** rather than as a member of
+the long-dip family. It is exempt from the `SMC Long-Dip` prefix — and from
+nothing else: title == saved name == display == file name, no shorttitle, no
+version string, no duplicate title, and it is listed here.
+
+| Repo file (matches the name) | Name (code title == saved name == display) |
+|------------------------------|--------------------------------------------|
+| `SMC_Decision_Board.pine` | **SMC Decision Board** |
+
+**Why the exemption exists.** `docs/SMC_PRODUCT_IDENTITY.md` sells the Pro chart
+companion under its own name, while the prefix rule — written so the indicator
+and its strategy read as one product — bound it to the family. The two rules
+disagreed, and the disagreement had a cost: the companion's product name was
+pushed *out of the code* and lived on only in the rollout config, the product
+brief and the onboarding docs. On 2026-08-31 that split cost a working
+verification. Measured: `automation/tradingview/config/consumer-rollout.json`
+verified a name the legend had not carried since April, and every
+`tv-save-consumer-source` run reported `Existing chart instance not found`
+against a healthy chart — which also left `outOfBandDrift` at `unknown` instead
+of a verdict.
+
+The lesson is the one this document already states, reached from the other side:
+a product with two names has one name too many. The fix is to let the code carry
+the product name, not to keep the product name out of the code.
 
 ## Repo file name must match the name
 

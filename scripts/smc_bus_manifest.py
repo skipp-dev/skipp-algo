@@ -270,8 +270,8 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         ),
     ),
     SurfaceDefinition(
-        file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Long-Dip Dashboard',
+        file = 'SMC_Decision_Board.pine',
+        script_name = 'SMC Decision Board',
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'dashboard_companion',
@@ -835,12 +835,12 @@ def validate_surface_definitions() -> list[str]:
 # script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
+    PreflightTarget('SMC_Decision_Board.pine', 'SMC Decision Board', True, True, 58, 'SMC Decision Board', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Long_Dip_Suite.pine', 'SMC Long-Dip Suite', False, False),
-    PreflightTarget('SMC_Long_Dip_Dashboard.pine', 'SMC Long-Dip Dashboard', True, True, 58, 'SMC Long-Dip Dashboard', 'dashboardBindings'),
+    PreflightTarget('SMC_Decision_Board.pine', 'SMC Decision Board', True, True, 58, 'SMC Decision Board', 'dashboardBindings'),
     PreflightTarget('SMC_Long_Dip_Strategy.pine', 'SMC Long-Dip Strategy', True, True, 8, 'SMC Long-Dip Strategy', 'strategyBindings'),
 )
 
@@ -947,8 +947,8 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ),
     ValidationEvidenceCapture(
         key = 'dashboard_decision_brief',
-        file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Long-Dip Dashboard',
+        file = 'SMC_Decision_Board.pine',
+        script_name = 'SMC Decision Board',
         report_label = 'Dashboard Decision Brief',
         runbook_label_en = 'rendered Dashboard screen in `Decision Brief`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Decision Brief`',
@@ -958,8 +958,8 @@ VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
     ),
     ValidationEvidenceCapture(
         key = 'dashboard_audit_view',
-        file = 'SMC_Long_Dip_Dashboard.pine',
-        script_name = 'SMC Long-Dip Dashboard',
+        file = 'SMC_Decision_Board.pine',
+        script_name = 'SMC Decision Board',
         report_label = 'Dashboard Audit View',
         runbook_label_en = 'rendered Dashboard screen in `Audit View`',
         runbook_label_de = 'gerenderter Dashboard-Screen in `Audit View`',
@@ -1551,7 +1551,7 @@ BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
 # consumer role below from SURFACE_DEFINITIONS instead of a second hand-kept
 # role catalogue (2026-08-28).
 BINDING_CONTRACT_FILES: dict[str, str] = {
-    'dashboardBindings': 'SMC_Long_Dip_Dashboard.pine',
+    'dashboardBindings': 'SMC_Decision_Board.pine',
     'strategyBindings': 'SMC_Long_Dip_Strategy.pine',
     'holdManagerBindings': 'SMC_Hold_Manager.pine',
     'eventOverlayBindings': 'SMC_Event_Overlay.pine',

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import re
+from pathlib import Path
 
 import pytest
 
@@ -2149,3 +2150,58 @@ def test_a_skipped_defect_row_shown_as_kein_zeuge_still_fails():
     verdict = judge.judge(rows, entry)
     assert verdict.state == "FAIL", verdict
     assert verdict.branch == "skip_mislabeled_as_missing_witness", verdict
+
+
+# --------------------------------------------------------------------------- #
+# 2026-08-31: der Zeugen-Job muss es geben
+# --------------------------------------------------------------------------- #
+def test_every_witness_job_exists_in_its_witness_workflow() -> None:
+    """`witness_job` wird gegen die Workflow-Datei gehalten, nicht nur auf leer geprueft.
+
+    Der Urteiler sucht den Job erst ZUR LAUFZEIT ueber
+    ``.jobs[] | select(.name==...)``. Ein Name, den es nicht gibt, liefert dort
+    kein Fehlersignal, sondern eine leere Menge -- der Eintrag meldet
+    ``KEIN_ZEUGE`` und sieht aus wie "der Zeuge lief noch nicht". Er wird
+    dadurch NIE urteilsfaehig und faellt erst am ``due_by`` als UEBERFAELLIG
+    auf, Tage bis Wochen spaeter und mit falscher Diagnose.
+
+    Gemessen am 2026-08-31 ueber den ganzen Ledger: 20 Eintraege tragen Zeuge
+    und Job, ZWEI davon nannten einen Job, den ihr Workflow nicht hat --
+    ``publish`` statt ``publish-alert-rules`` / ``publish-notification-routing``
+    (beide aus dieser Sitzung, beide von mir geraten statt gemessen) und
+    ``gate`` statt ``cadence-gate`` (aelter, fremd). Alle drei Beweise waren in
+    Wahrheit erbracht und im Log nachweisbar; nur der Feldwert zeigte daneben.
+
+    Das ist die Klasse "Ausdruck gepinnt, Wert ungeprueft": bis hierher pruefte
+    ``test_entries_declare_a_witness`` nur, DASS das Feld gefuellt ist.
+    """
+    import yaml
+
+    workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+    geprueft = 0
+    fehler: list[str] = []
+    for entry in load_entries():
+        if not entry.witness or not entry.witness_job:
+            continue
+        datei = workflows / f"{entry.witness}.yml"
+        if not datei.exists():
+            fehler.append(f"{entry.id}: Zeugen-Workflow {datei.name} existiert nicht")
+            continue
+        geladen = yaml.safe_load(datei.read_text(encoding="utf-8")) or {}
+        jobs = set(geladen.get("jobs") or {})
+        geprueft += 1
+        # Matrix-Jobs erscheinen im Lauf als "name (wert)"; der Schluessel in der
+        # YAML ist nur "name". Ein Eintrag darf beide Formen nennen -- ohne diese
+        # Toleranz wuerde der Waechter einen voellig korrekten Eintrag wie
+        # `validate (1)` anklagen.
+        basis = entry.witness_job.split(" (", 1)[0]
+        if entry.witness_job not in jobs and basis not in jobs:
+            fehler.append(
+                f"{entry.id}: witness_job {entry.witness_job!r} ist kein Job in "
+                f"{datei.name} — vorhanden: {sorted(jobs)}"
+            )
+    assert geprueft >= 15, (
+        f"nur {geprueft} Eintraege mit Zeuge+Job geprueft — die Ableitung ist "
+        "vermutlich defekt und dieser Test waere vakuum"
+    )
+    assert not fehler, "Zeugen-Job zeigt ins Leere:\n  " + "\n  ".join(fehler)

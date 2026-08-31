@@ -12,7 +12,7 @@ Stand: 2026-04-17 (WP-F)
 |-------|-----|-------|--------|
 | `SMC_Long_Dip_Suite.pine` | indicator | "SMC Long-Dip Suite v7" | ✅ korrekt |
 | `SMC_Long_Dip_Strategy.pine` | strategy | "SMC Long-Dip Strategy v7" | ✅ korrekt |
-| `SMC_Long_Dip_Dashboard.pine` | indicator | "SMC Long-Dip Dashboard v7" | ✅ korrekt |
+| `SMC_Decision_Board.pine` | indicator | "SMC Decision Board v7" | ✅ korrekt |
 
 ### Kontext-Module
 

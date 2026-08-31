@@ -27,7 +27,7 @@ derive function.
 Why the empty string is a vocab member
 ======================================
 
-``SMC_Long_Dip_Dashboard.pine:1769`` reads::
+``SMC_Decision_Board.pine:1769`` reads::
 
     string _hero_blocker = mp.HERO_RISK != "" ? mp.HERO_RISK : ...
 
@@ -112,7 +112,7 @@ def test_hero_risk_none_sentinel_is_empty_string() -> None:
 
     assert HERO_RISK_NONE == "", (
         f"HERO_RISK_NONE drifted from \"\" to {HERO_RISK_NONE!r}. "
-        "SMC_Long_Dip_Dashboard.pine:1769 gates on `mp.HERO_RISK != \"\"`. "
+        "SMC_Decision_Board.pine:1769 gates on `mp.HERO_RISK != \"\"`. "
         "Renaming requires a Pine-side migration."
     )
 

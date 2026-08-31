@@ -883,6 +883,24 @@ def github_workflow_poll_ttl_secs() -> int:
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS", 30, 5, 300)
 
 
+def github_workflow_presence_ttl_secs() -> int:
+    """Cache TTL for the per-workflow PRESENCE probe (own, slower cadence).
+
+    Deliberately far above ``github_workflow_poll_ttl_secs`` (30 s): the presence
+    probe costs ONE GitHub API call per declared workflow, while the snapshot
+    costs one in total. At 30 s and 30 declared workflows that would be ~3600
+    calls/h against a 5000/h budget -- the probe would starve the daemon's other
+    GitHub traffic. At the 600 s default it is ~180/h.
+
+    Why a dedicated probe at all: the snapshot derives everything from ONE page
+    of ``/actions/runs``, and that page covered NINE hours on 2026-08-31 (five
+    on 2026-08-20 -- it shrinks with repo activity). A daily workflow is absent
+    from it for two thirds of the day, so a presence signal read off that page
+    cannot distinguish "stopped running" from "ran this morning".
+    """
+    return _clamped_int("GITHUB_WORKFLOW_PRESENCE_TTL_SECS", 600, 60, 3600)
+
+
 def github_workflow_per_page() -> int:
     """Number of workflow runs requested per poll.
 

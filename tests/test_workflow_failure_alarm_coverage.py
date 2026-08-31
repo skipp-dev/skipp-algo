@@ -614,3 +614,126 @@ def test_a_mid_read_connection_reset_is_retried() -> None:
 
     assert _mit_transient_retry(fetch, schlaf=lambda _s: None) == "ok"
     assert calls["n"] == 3
+
+
+# --------------------------------------------------------------------------- #
+# 2026-08-31, Wirkungs-Sweep J: die Praesenz-Ueberwachung kann AUS sein
+# --------------------------------------------------------------------------- #
+def _presence_antwort(anzahl: int) -> dict:
+    return {"data": {"result": [{"metric": {"workflow": f"w{i}"}} for i in range(anzahl)]}}
+
+
+def test_presence_series_count_reads_the_result_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Form wurde gemessen, nicht geraten.
+
+    Die Instant-Query antwortet ``{"data": {"result": [...]}}``; ein Griff auf
+    eine andere Ebene liefert stumm 0 und haette den Alarm unten dauerhaft
+    ausgeloest -- ein Waechter, der einen korrekten Zustand anklagt.
+    """
+    monkeypatch.setattr(cov, "_prom_datasource_id", lambda key: 1)
+    monkeypatch.setattr(cov, "_request", lambda *a, **k: _presence_antwort(3))
+    assert cov.presence_series_count("k") == 3
+    monkeypatch.setattr(cov, "_request", lambda *a, **k: _presence_antwort(0))
+    assert cov.presence_series_count("k") == 0
+
+
+def test_an_empty_presence_metric_is_a_finding_not_a_pass(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Null Praesenz-Zeitreihen bei lebender Bruecke ist ein Befund.
+
+    Der Unterschied zur Nachbarmetrik ist der ganze Punkt: ``phase_code`` ist
+    aus EINER Seite von ``/actions/runs`` abgeleitet, dort heisst eine fehlende
+    Reihe oft nur "lief laenger nicht" -- deshalb fordert dieses Skript sie
+    bewusst NICHT. ``expected_present`` entsteht dagegen aus der deklarierten
+    Erwartungsliste; ihre Abwesenheit hat genau eine Ursache, und die Regel
+    darueber ist fail-open formuliert, ihre Stille sieht also gesund aus.
+
+    Gemessen an der Instanz am 2026-08-31: 13 Zeitreihen im Fehleralarm,
+    **null** Praesenz-Zeitreihen.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(cov, "_api_key", lambda: "k")
+    monkeypatch.setattr(cov, "observed_workflows", lambda key: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflow_names_by_file",
+                        lambda repo, token: {"ci.yml": "CI", "smc-fast-pr-gates.yml": "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflows_in_run_page", lambda repo, token: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "live_required_contexts", lambda repo, token: set(cov.REQUIRED_STATUS_CHECKS))
+
+    # 2026-08-31 nachgezogen: main() liest jetzt die NAMEN (fuer den Drift-Arm),
+    # nicht mehr nur die Anzahl. Die Aussage bleibt, nur die Quelle wandert --
+    # und die Sollmenge wird mitgestellt, damit dieser Test die Drift nicht
+    # mitprueft (dafuer gibt es einen eigenen unten).
+    monkeypatch.setattr(cov, "declared_presence_names", lambda root: {"a", "b", "c", "d"})
+    monkeypatch.setattr(cov, "presence_workflow_names", lambda key: {"a", "b", "c", "d"})
+    assert cov.main([]) == 0, "mit Praesenz-Zeitreihen muss die Pruefung bestehen"
+
+    monkeypatch.setattr(cov, "presence_workflow_names", lambda key: set())
+    assert cov.main([]) == 1, "null Praesenz-Zeitreihen muessen laut sein"
+    fehler = capsys.readouterr().err
+    assert "GITHUB_WORKFLOW_MONITOR_EXPECTED" in fehler, (
+        "die Meldung muss die EINE Stelle nennen, an der das behoben wird — "
+        "sonst ist sie ein Alarm ohne Handgriff"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 2026-08-31: die Praesenzliste lebt AUSSERHALB des Repos -- Kopien driften
+# --------------------------------------------------------------------------- #
+def test_the_declared_presence_set_is_derived_and_not_empty() -> None:
+    """Positivkontrolle: eine leere Ableitung darf den Drift-Arm nicht gruen machen.
+
+    Der Wert von ``GITHUB_WORKFLOW_MONITOR_EXPECTED`` liegt auf dem Daemon. Die
+    Sollmenge dagegen wird hier aus den ZWEI Watchlists dieses Repos abgeleitet
+    und ueber den eigenen Cron gefiltert -- eine zweite handgefuehrte Liste
+    haette dieselbe Drift, gegen die sie gebaut ist.
+    """
+    namen = cov.declared_presence_names(Path(__file__).resolve().parents[1])
+    assert len(namen) >= 25, f"nur {len(namen)} abgeleitet — Watchlist-Parsing defekt?"
+    assert all(n == n.strip().strip("\"'") for n in namen), (
+        "Namen tragen YAML-Anfuehrungszeichen — das Metrik-Label hat keine, und der "
+        "Drift-Arm meldete denselben Workflow dann gleichzeitig als fehlend UND "
+        f"ueberzaehlig: {sorted(n for n in namen if n != n.strip(chr(34) + chr(39)))}"
+    )
+
+
+def test_a_rarely_scheduled_workflow_stays_out_of_the_presence_set() -> None:
+    """Woechentliches gehoert NICHT hinein — sonst alarmiert die Alters-Regel wöchentlich.
+
+    Die Schwelle liegt knapp ueber der Fr->Mo-Luecke (72 h). Ein Cron mit 168 h
+    Abstand liefe daran jede Woche auf.
+    """
+    namen = cov.declared_presence_names(Path(__file__).resolve().parents[1])
+    assert "adr0023-magnitude-stage1-weekly" not in namen
+    assert "pine-release-notes-watch" not in namen
+
+
+def test_missing_presence_names_are_loud_but_extra_ones_are_not(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Asymmetrie mit Absicht.
+
+    Fehlt live, was das Repo fordert, ist das Deckungsverlust -> laut. Steht
+    live MEHR, ist das eine Operator-Entscheidung -> Bericht, kein Fehlschlag.
+    Ein Waechter, der eine bewusste Entscheidung anklagt, wird abgeschaltet und
+    schuetzt dann gar nichts mehr.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setattr(cov, "_api_key", lambda: "k")
+    monkeypatch.setattr(cov, "observed_workflows", lambda key: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflow_names_by_file",
+                        lambda repo, token: {"ci.yml": "CI", "smc-fast-pr-gates.yml": "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "workflows_in_run_page", lambda repo, token: {"CI", "smc-fast-pr-gates"})
+    monkeypatch.setattr(cov, "live_required_contexts", lambda repo, token: set(cov.REQUIRED_STATUS_CHECKS))
+    monkeypatch.setattr(cov, "declared_presence_names", lambda root: {"a", "b"})
+
+    monkeypatch.setattr(cov, "presence_workflow_names", lambda key: {"a", "b", "extra"})
+    assert cov.main([]) == 0, "zusaetzliche Namen live sind KEIN Fehlschlag"
+    assert "ueberdeckt" in capsys.readouterr().err
+
+    monkeypatch.setattr(cov, "presence_workflow_names", lambda key: {"a"})
+    assert cov.main([]) == 1, "ein fehlender Name ist Deckungsverlust und muss laut sein"
+    fehler = capsys.readouterr().err
+    assert "DECKUNGSVERLUST" in fehler and "'b'" in fehler

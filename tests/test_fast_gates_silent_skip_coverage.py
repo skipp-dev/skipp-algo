@@ -342,6 +342,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     # scheduled Workflows -- 24 von 46 waren unbeobachtet, weil die beiden
     # Freshness-Inventare nur Ledger und Workflow gegeneinander pruefen.
     "tests/test_scheduled_workflow_observation_inventory.py",
+    "tests/test_presence_age_series_deadline_tripwire.py",
     # 2026-08-01: tv-save-consumer-source pushes repository sources onto the
     # live account on schedule, on dispatch, and chained after a library
     # refresh -- none of them a pull request. #4286 guards the diff; this
