@@ -18,11 +18,9 @@
   },
   "blockers": [
     "sessions[1]: incomplete session requires exclusionReason",
-    "sessions[1].bindingStatus: expected 'passed', observed None",
     "sessions[1].activeActionableExitModes: expected ['hold_manager'], observed None",
     "sessions[1].exitSignalCompared: expected True, observed None",
     "sessions[1].strategyCompared: expected True, observed None",
-    "sessions[1].runtimeErrorCount: expected non-negative integer",
     "sessions[1].falseExitAlertCount: expected non-negative integer",
     "sessions[1].duplicateActionableExitAlertCount: expected non-negative integer",
     "sessions[1].unclassifiedTransitionDifferenceCount: expected non-negative integer",
