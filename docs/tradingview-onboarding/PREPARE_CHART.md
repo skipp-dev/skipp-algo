@@ -52,7 +52,7 @@ same chart during a run.
 
 Once onboarding reports success and the bindings are in place, save an
 indicator template of the bound setup (TradingView: Indicator templates ->
-Save indicator template). Measured 2026-08-31: accepting a script update
+Save indicator template). Measured 2026-08-31: accepting a **consumer** script update
 resets that script's `input.source` rows to `Close`; re-applying the saved
 template restores the bindings. With the template, an update is "accept
 update -> apply template"; without it, the bindings must be set again by

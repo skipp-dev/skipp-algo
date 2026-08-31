@@ -22,6 +22,12 @@ same publication/update mechanics — named residual assumption):
 - Accepting a **producer** update preserves the consumers' bindings (case B):
   plot references survive because the label texts stay stable — the same
   invariant `docs/PINE_SCRIPT_NAMING.md` and the BUS label discipline protect.
+  **Scope (operator correction, 2026-08-31 late):** case B changed code only —
+  no library import pin moved. TradingView's own banner for a stale library on
+  an existing instance says "re-add the indicator", and re-adding the producer
+  cascades into removing **every dependent consumer** (Remove dialog, operator
+  observation 2026-08-31) — all bindings gone. A producer release that changes
+  a library pin is therefore NOT covered by case B; see follow-up G.
 - Therefore **"click update" is sufficient exactly for releases that do not
   republish consumer scripts** — and insufficient for any release that does.
 
@@ -33,13 +39,21 @@ template: **the source bindings were restored.**
 
 The consumer-update reset is therefore a two-click recovery — accept update,
 apply template — still manual use. Combined verdict: **"click update" suffices
-for producer releases; consumer releases additionally need "apply template".**
+for producer releases without a library-pin change (case B); consumer releases
+additionally need "apply template"; producer releases that bump a library pin
+are open follow-up G.**
 The customer-facing consequence lives in
 `docs/tradingview-onboarding/PREPARE_CHART.md`: save the template once,
 right after onboarding.
 
 ## Open follow-ups (unmeasured)
 
+- **G:** whether accepting a producer update whose new version bumps a library
+  import behaves in place (like case B) or forces the re-add path. TV's
+  stale-library banner suggests re-add — and re-adding the producer cascades
+  removal of all dependents.
+- **H:** whether applying the saved indicator template after such a cascade
+  restores the full bound set. Case E measured only the single-consumer reset.
 - **F:** whether non-source inputs survive consumer updates (scopes the reset;
   not needed for the BUS question).
 
