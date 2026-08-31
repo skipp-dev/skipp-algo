@@ -47,3 +47,13 @@ layout, and run onboarding again. Existing connections are safe to reapply.
 Onboarding operates on one chart URL per run. Run it separately for each chart
 layout that contains SMC consumers. The producer and consumers must be on the
 same chart during a run.
+
+## After onboarding: save an indicator template
+
+Once onboarding reports success and the bindings are in place, save an
+indicator template of the bound setup (TradingView: Indicator templates ->
+Save indicator template). Measured 2026-08-31: accepting a **consumer** script update
+resets that script's `input.source` rows to `Close`; re-applying the saved
+template restores the bindings. With the template, an update is "accept
+update -> apply template"; without it, the bindings must be set again by
+hand. See `docs/TRADINGVIEW_CUSTOMER_UPDATE_PATH.md` for the measurement.
