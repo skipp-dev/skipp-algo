@@ -1971,8 +1971,8 @@ owner  = "@preuss_steffen"
 [[proof]]
 id              = "5197"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-29T17:09:31Z"
+merge_sha       = "b50336c81"
 claim           = """
 Ein quittierter Lauf wird AUSGEWIESEN statt weggelassen. Vorher uebersprang
 `PHANTOM_RUN_IDS` ihn per `continue` in beidem — Urteil UND Bericht; in der Form
@@ -1999,8 +1999,8 @@ owner           = "@preuss_steffen"
 [[proof]]
 id              = "5204"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-30T07:11:53Z"
+merge_sha       = "dbf2d443c"
 claim           = """
 Der Routing-Upsert liest zurueck, was er gesendet hat. Am 2026-08-30 waren beide
 Publish-Workflows gruen, und vier Routen-Felder (group_by, group_wait,
@@ -2012,7 +2012,7 @@ derselben Reihenfolge (continue:false laesst die erste passende gewinnen), inkl.
 Routenzahl. Abweichung wirft.
 """
 witness         = "live-overlay-notification-routing-publish"
-witness_job     = "publish"
+witness_job     = "publish-notification-routing"
 evidence_source = "job_log"
 artifact        = ""
 # Existiert erst seit dieser Aenderung und traegt zugleich die ZAHL: eine
@@ -2045,8 +2045,8 @@ owner  = "@preuss_steffen"
 [[proof]]
 id              = "5208"
 kind            = "fix"
-merged_at       = "<wird beim Merge nachgetragen>"
-merge_sha       = "<dito>"
+merged_at       = "2026-08-30T23:05:17Z"
+merge_sha       = "2c682f593"
 claim           = """
 Der alert-rules-Upsert liest zurueck, was ankam. Er schreibt 172 Regeln und
 hatte bis 2026-08-31 keine Verifikation: seine zwei GET sind Vorab-Lookups
@@ -2058,7 +2058,7 @@ wird je uid, `for` normalisiert (Grafana schreibt Dauern um: 24h->1d,
 Regeln traegt als die Datei.
 """
 witness         = "live-overlay-alert-rules-publish"
-witness_job     = "publish"
+witness_job     = "publish-alert-rules"
 evidence_source = "job_log"
 artifact        = ""
 version_probe   = "rules-readback:"
@@ -2336,7 +2336,11 @@ id              = "rolling-bench-two-windows"
 kind            = "fix"
 claim           = "Der Rolling-Benchmark laeuft je Werktag noch zweimal statt bis zu neunmal: einmal im Fenster 11:00-12:30 UTC fuer die Tages-Gates, einmal ab 20:00 UTC fuer die reifsten Labels. Uebersprungene Fires kosten nur den Gate-Job; ein blindes Gate laeuft, statt still zu stoppen."
 witness         = "smc-measurement-benchmark-rolling"
-witness_job     = "gate"
+# 2026-08-31: war "gate" — ein Job dieses Namens existiert im Zeugen nicht
+# (cadence-gate / select-runner / rolling-benchmark). Der Eintrag war damit
+# nicht urteilsfaehig. `cadence-gate` ruft decide_rolling_benchmark_run.py auf,
+# das die Sonde `[bench-gate] run=` ausgibt.
+witness_job     = "cadence-gate"
 evidence_source = "job_log"
 artifact        = ""
 version_probe   = "[bench-gate] run="
